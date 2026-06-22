@@ -1,0 +1,108 @@
+:root {
+  font-family:
+    "Segoe UI Variable",
+    "Segoe UI",
+    "SF Pro Display",
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+  color: var(--text-primary);
+  background: var(--app-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --radius: 8px;
+  --sidebar-width: 236px;
+  --sidebar-collapsed: 76px;
+  --topbar-height: 58px;
+  --app-bg: #0d1118;
+  --surface: #111822;
+  --surface-strong: #161f2c;
+  --surface-subtle: #0a0f16;
+  --border: #263241;
+  --border-strong: #344456;
+  --text-primary: #e9eef6;
+  --text-secondary: #9aa8ba;
+  --text-muted: #6f7f91;
+  --accent: #45b8ff;
+  --accent-strong: #1d7ff2;
+  --accent-soft: rgba(69, 184, 255, 0.13);
+  --danger: #ff6b6b;
+  --success: #3ddc97;
+  --warning: #f5bf4f;
+  --shadow: 0 18px 60px rgba(0, 0, 0, 0.32);
+}
+
+:root[data-theme="light"] {
+  --app-bg: #edf1f6;
+  --surface: #ffffff;
+  --surface-strong: #f7f9fc;
+  --surface-subtle: #e6ebf2;
+  --border: #d2dae6;
+  --border-strong: #bcc9d8;
+  --text-primary: #182231;
+  --text-secondary: #536173;
+  --text-muted: #778599;
+  --accent: #256ff0;
+  --accent-strong: #1857c8;
+  --accent-soft: rgba(37, 111, 240, 0.12);
+  --danger: #c9353f;
+  --success: #12835a;
+  --warning: #9b6306;
+  --shadow: 0 18px 48px rgba(25, 42, 64, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100dvh;
+}
+
+body {
+  overflow: hidden;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input,
+textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  padding: 10px 11px;
+}
+
+textarea {
+  min-height: 156px;
+  resize: vertical;
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  line-height: 1.45;
+}
+
+svg {
+  flex: 0 0 auto;
+}
