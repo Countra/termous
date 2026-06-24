@@ -14,7 +14,7 @@ import type {
 
 const DEFAULT_CONFIG: AppConfig = {
   apiBaseUrl: import.meta.env.VITE_TERMOUS_API_BASE_URL ?? 'http://127.0.0.1:8122',
-  apiToken: import.meta.env.VITE_TERMOUS_API_TOKEN ?? '',
+  apiToken: import.meta.env.VITE_TERMOUS_API_TOKEN ?? (import.meta.env.DEV ? 'dev-token' : ''),
 }
 
 export class TermousApiError extends Error {
@@ -206,4 +206,3 @@ export async function createApiFromRuntime() {
   const runtimeConfig = window.termous ? await window.termous.getConfig() : {}
   return new TermousApi(runtimeConfig)
 }
-

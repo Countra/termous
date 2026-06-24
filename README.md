@@ -21,8 +21,9 @@ pnpm dev --host 127.0.0.1 --port 5173
 
 ```powershell
 $env:VITE_TERMOUS_API_BASE_URL='http://127.0.0.1:8122'
-$env:VITE_TERMOUS_API_TOKEN='dev-token'
 ```
+
+Vite 开发模式默认使用 `dev-token`，与后端 fake SSH 开发模式一致。真实 SSH 或自定义 token 联调时，再显式设置 `VITE_TERMOUS_API_TOKEN`。
 
 长期 dev server 运行请使用 workspace 的 process-manager，不要直接挂起终端进程。
 
