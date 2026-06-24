@@ -5,7 +5,7 @@ import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApi } from '../../api/client'
-import type { Session, ThemeMode } from '../../types/domain'
+import type { Session, SessionStatus, ThemeMode } from '../../types/domain'
 
 interface TerminalPaneProps {
   api: TermousApi
@@ -13,16 +13,31 @@ interface TerminalPaneProps {
   theme: ThemeMode
   placeholder: string
   onResize?: (cols: number, rows: number) => void
+  onSessionEvent?: (patch: Partial<Session>) => void
 }
 
-export function TerminalPane({ api, session, theme, placeholder, onResize }: TerminalPaneProps) {
+export function TerminalPane({ api, session, theme, placeholder, onResize, onSessionEvent }: TerminalPaneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
   const resizeTimerRef = useRef<number | null>(null)
   const lastSizeRef = useRef({ cols: 0, rows: 0 })
+  const onResizeRef = useRef(onResize)
+  const onSessionEventRef = useRef(onSessionEvent)
+  const placeholderRef = useRef(placeholder)
+  const themeRef = useRef(theme)
+  const sessionMessageRef = useRef(session?.status_message)
   const { t } = useTranslation()
+  const sessionId = session?.id
+
+  useEffect(() => {
+    onResizeRef.current = onResize
+    onSessionEventRef.current = onSessionEvent
+    placeholderRef.current = placeholder
+    themeRef.current = theme
+    sessionMessageRef.current = session?.status_message
+  }, [onResize, onSessionEvent, placeholder, session?.status_message, theme])
 
   useEffect(() => {
     if (!containerRef.current) return undefined
@@ -34,13 +49,13 @@ export function TerminalPane({ api, session, theme, placeholder, onResize }: Ter
       fontSize: 13,
       lineHeight: 1.2,
       scrollback: 5000,
-      theme: terminalTheme(theme),
+      theme: terminalTheme(themeRef.current),
     })
     const fit = new FitAddon()
     terminal.loadAddon(fit)
     terminal.open(containerRef.current)
     fit.fit()
-    terminal.writeln(placeholder)
+    terminal.writeln(placeholderRef.current)
     termRef.current = terminal
     fitRef.current = fit
 
@@ -50,7 +65,7 @@ export function TerminalPane({ api, session, theme, placeholder, onResize }: Ter
         window.clearTimeout(resizeTimerRef.current)
       }
       resizeTimerRef.current = window.setTimeout(() => {
-        sendResize(terminal, socketRef.current, lastSizeRef.current, onResize)
+        sendResize(terminal, socketRef.current, lastSizeRef.current, onResizeRef.current)
       }, 120)
     })
     observer.observe(containerRef.current)
@@ -66,7 +81,7 @@ export function TerminalPane({ api, session, theme, placeholder, onResize }: Ter
       fitRef.current = null
       socketRef.current = null
     }
-  }, [onResize, placeholder, theme])
+  }, [])
 
   useEffect(() => {
     const terminal = termRef.current
@@ -77,15 +92,15 @@ export function TerminalPane({ api, session, theme, placeholder, onResize }: Ter
 
   useEffect(() => {
     const terminal = termRef.current
-    if (!terminal || !session) {
+    if (!terminal || !sessionId) {
       return undefined
     }
 
     socketRef.current?.close()
     lastSizeRef.current = { cols: 0, rows: 0 }
     terminal.clear()
-    terminal.writeln(`${t('workbench.terminalReady')}: ${session.id}`)
-    const socket = new WebSocket(api.websocketUrl(`/api/v1/sessions/${session.id}/terminal`))
+    terminal.writeln(`[termous] ${sessionMessageRef.current ?? t('status.connecting')}: ${sessionId}`)
+    const socket = new WebSocket(api.websocketUrl(`/api/v1/sessions/${sessionId}/terminal`))
     socketRef.current = socket
 
     const disposable = terminal.onData((data) => {
@@ -96,18 +111,35 @@ export function TerminalPane({ api, session, theme, placeholder, onResize }: Ter
 
     socket.addEventListener('open', () => {
       fitRef.current?.fit()
-      sendResize(terminal, socket, lastSizeRef.current, onResize)
+      sendResize(terminal, socket, lastSizeRef.current, onResizeRef.current)
     })
     socket.addEventListener('message', (event) => {
       try {
-        const msg = JSON.parse(String(event.data)) as { type: string; data?: string; message?: string; reason?: string }
+        const msg = JSON.parse(String(event.data)) as {
+          type: string
+          data?: string
+          message?: string
+          reason?: string
+          status?: SessionStatus
+        }
+        if ((msg.type === 'status' || msg.type === 'ready') && msg.message) {
+          terminal.writeln(`\r\n[termous] ${msg.message}`)
+          if (msg.status) {
+            onSessionEventRef.current?.({ status: msg.status, status_message: msg.message })
+          }
+          if (msg.type === 'ready') {
+            terminal.focus()
+          }
+        }
         if (msg.type === 'output' && msg.data) {
           terminal.write(msg.data)
         }
         if (msg.type === 'error' && msg.message) {
+          onSessionEventRef.current?.({ status: 'failed', status_message: msg.message, last_error: msg.message })
           terminal.writeln(`\r\n[termous] ${msg.message}`)
         }
         if (msg.type === 'closed') {
+          onSessionEventRef.current?.({ status: 'disconnected', status_message: msg.reason ?? t('status.disconnected') })
           terminal.writeln(`\r\n[termous] ${msg.reason ?? t('status.disconnected')}`)
         }
       } catch {
@@ -129,7 +161,7 @@ export function TerminalPane({ api, session, theme, placeholder, onResize }: Ter
       disposable.dispose()
       socket.close()
     }
-  }, [api, onResize, session, t])
+  }, [api, sessionId, t])
 
   return <div className="terminal-canvas" ref={containerRef} aria-label={t('workbench.terminal')} />
 }

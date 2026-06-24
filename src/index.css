@@ -15,11 +15,12 @@
   --radius: 8px;
   --sidebar-width: 236px;
   --sidebar-collapsed: 76px;
-  --topbar-height: 58px;
-  --app-bg: #0d1118;
+  --topbar-height: 46px;
+  --app-bg: #0b0f15;
   --surface: #111822;
   --surface-strong: #161f2c;
   --surface-subtle: #0a0f16;
+  --sidebar-bg: #0f1620;
   --border: #263241;
   --border-strong: #344456;
   --text-primary: #e9eef6;
@@ -39,6 +40,7 @@
   --surface: #ffffff;
   --surface-strong: #f7f9fc;
   --surface-subtle: #e6ebf2;
+  --sidebar-bg: #f8fafc;
   --border: #d2dae6;
   --border-strong: #bcc9d8;
   --text-primary: #182231;

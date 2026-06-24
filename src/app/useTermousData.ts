@@ -5,6 +5,7 @@ import type {
   CredentialInput,
   HostInput,
   Language,
+  LocalShell,
   Session,
   Settings,
 } from '../types/domain'
@@ -55,8 +56,11 @@ export function useTermousData() {
         sessions: sessions ?? [],
       })
       setActiveSession((current) => {
-        if (current && sessions.some((session) => session.id === current.id)) {
-          return current
+        if (current) {
+          const updated = sessions.find((session) => session.id === current.id)
+          if (updated) {
+            return updated
+          }
         }
         return sessions[0] ?? null
       })
@@ -121,13 +125,26 @@ export function useTermousData() {
         await load()
         return session
       },
+      async openLocalTerminal(shell: LocalShell, cols = 120, rows = 32) {
+        const session = await api.createLocalSession(shell, cols, rows)
+        setActiveSession(session)
+        await load()
+        return session
+      },
       async disconnect(sessionId: string) {
         await api.deleteSession(sessionId)
         setActiveSession(null)
         await load()
       },
+      updateActiveSession(patch: Partial<Session>) {
+        setActiveSession((current) => (current ? { ...current, ...patch } : current))
+        setData((current) => ({
+          ...current,
+          sessions: current.sessions.map((session) => (session.id === activeSession?.id ? { ...session, ...patch } : session)),
+        }))
+      },
     }),
-    [api, load],
+    [activeSession?.id, api, load],
   )
 
   return { api, data, loading, apiReady, error, activeSession, setActiveSession, actions }

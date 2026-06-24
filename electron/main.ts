@@ -1,21 +1,11 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// The built directory structure
-//
-// ├─┬─┬ dist
-// │ │ └── index.html
-// │ │
-// │ ├─┬ dist-electron
-// │ │ ├── main.js
-// │ │ └── preload.mjs
-// │
 process.env.APP_ROOT = path.join(__dirname, '..')
 
-// 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
 export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
@@ -25,11 +15,18 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 let win: BrowserWindow | null
 
 function createWindow() {
+  const isMac = process.platform === 'darwin'
   win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
-    minWidth: 1120,
-    minHeight: 720,
+    width: 1440,
+    height: 900,
+    minWidth: 1180,
+    minHeight: 760,
+    useContentSize: true,
+    frame: isMac,
+    titleBarStyle: isMac ? 'hiddenInset' : 'default',
+    autoHideMenuBar: true,
     backgroundColor: '#0d1118',
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
@@ -38,6 +35,15 @@ function createWindow() {
     },
   })
 
+  win.once('ready-to-show', () => {
+    win?.show()
+  })
+  win.on('maximize', () => {
+    win?.webContents.send('window:maximize-state', true)
+  })
+  win.on('unmaximize', () => {
+    win?.webContents.send('window:maximize-state', false)
+  })
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) {
       void shell.openExternal(url)
@@ -56,14 +62,26 @@ function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
-    // win.loadFile('dist/index.html')
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
 }
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
+function registerWindowControls() {
+  ipcMain.handle('window:minimize', () => BrowserWindow.getFocusedWindow()?.minimize())
+  ipcMain.handle('window:toggle-maximize', () => {
+    const focused = BrowserWindow.getFocusedWindow()
+    if (!focused) return false
+    if (focused.isMaximized()) {
+      focused.unmaximize()
+      return false
+    }
+    focused.maximize()
+    return true
+  })
+  ipcMain.handle('window:close', () => BrowserWindow.getFocusedWindow()?.close())
+  ipcMain.handle('window:is-maximized', () => BrowserWindow.getFocusedWindow()?.isMaximized() ?? false)
+}
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
@@ -72,11 +90,13 @@ app.on('window-all-closed', () => {
 })
 
 app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
   }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  Menu.setApplicationMenu(null)
+  registerWindowControls()
+  createWindow()
+})

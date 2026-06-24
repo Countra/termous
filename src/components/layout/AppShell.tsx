@@ -1,6 +1,9 @@
 import {
   DatabaseZap,
+  Maximize2,
   Moon,
+  Minus,
+  PanelLeft,
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
@@ -8,7 +11,9 @@ import {
   Settings,
   Sun,
   TerminalSquare,
+  X,
 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PageKey, ThemeMode } from '../../types/domain'
 import { StatusBadge } from '../ui/StatusBadge'
@@ -44,6 +49,15 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const { t } = useTranslation()
+  const [isMaximized, setIsMaximized] = useState(false)
+  const platform = window.termous?.platform ?? 'web'
+  const showWindowControls = platform !== 'darwin'
+
+  useEffect(() => {
+    void window.termous?.windowControls?.isMaximized().then(setIsMaximized)
+    const cleanup = window.termous?.windowControls?.onMaximizeState(setIsMaximized)
+    return () => cleanup?.()
+  }, [])
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
@@ -76,13 +90,14 @@ export function AppShell({
       </aside>
 
       <div className="main-frame">
-        <header className="topbar">
-          <div className="topbar-left">
+        <header className="window-chrome">
+          <div className="chrome-drag-region">
             <button type="button" className="icon-button" onClick={onToggleSidebar} aria-label={t('app.collapse')}>
               {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
             </button>
-            <div className="global-search" aria-label={t('app.search')}>
-              <span>{t('app.search')}</span>
+            <div className="chrome-title">
+              <PanelLeft size={15} aria-hidden="true" />
+              <span>{t(`nav.${page}`)}</span>
             </div>
           </div>
           <div className="topbar-actions">
@@ -96,6 +111,34 @@ export function AppShell({
             <button type="button" className="icon-button" onClick={onToggleTheme} aria-label={t('app.theme')}>
               {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
             </button>
+            {showWindowControls ? (
+              <div className="window-controls" aria-label={t('app.windowControls')}>
+                <button
+                  type="button"
+                  className="window-control"
+                  onClick={() => void window.termous?.windowControls?.minimize()}
+                  aria-label={t('app.minimize')}
+                >
+                  <Minus size={15} />
+                </button>
+                <button
+                  type="button"
+                  className="window-control"
+                  onClick={() => void window.termous?.windowControls?.toggleMaximize().then(setIsMaximized)}
+                  aria-label={isMaximized ? t('app.restore') : t('app.maximize')}
+                >
+                  <Maximize2 size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="window-control danger"
+                  onClick={() => void window.termous?.windowControls?.close()}
+                  aria-label={t('app.close')}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            ) : null}
           </div>
         </header>
         <main className="content-frame">{children}</main>

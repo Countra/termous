@@ -1,4 +1,4 @@
-import { Cable, Layers, PanelRightClose, PanelRightOpen, Plus, Power, Save } from 'lucide-react'
+import { Cable, Layers, Monitor, PanelRightClose, PanelRightOpen, Plus, Power, Save, Shell } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApi } from '../../api/client'
@@ -6,7 +6,7 @@ import { CustomSelect } from '../../components/ui/CustomSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { TerminalPane } from '../terminal/TerminalPane'
-import type { AppData, Host, Session, ThemeMode } from '../../types/domain'
+import type { AppData, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
 
 interface WorkbenchPageProps {
   api: TermousApi
@@ -17,6 +17,8 @@ interface WorkbenchPageProps {
   actionBusy: boolean
   onSelectHost: (hostId: string) => void
   onConnect: (hostId: string) => Promise<void>
+  onOpenLocal: (shell: LocalShell) => Promise<void>
+  onSessionEvent: (patch: Partial<Session>) => void
   onDisconnect: (sessionId: string) => Promise<void>
 }
 
@@ -29,6 +31,8 @@ export function WorkbenchPage({
   actionBusy,
   onSelectHost,
   onConnect,
+  onOpenLocal,
+  onSessionEvent,
   onDisconnect,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
@@ -38,6 +42,17 @@ export function WorkbenchPage({
   const sessionStatus = activeSession?.status ?? 'disconnected'
   const credential = data.credentials.find((item) => item.id === selectedHost?.credential_id)
   const jumpHost = data.hosts.find((host) => host.id === selectedHost?.jump_host_id)
+  const [terminalSize, setTerminalSize] = useState({ cols: activeSession?.pty_cols ?? 120, rows: activeSession?.pty_rows ?? 32 })
+  const activeTitle =
+    activeSession?.kind === 'local'
+      ? t('workbench.localTerminal')
+      : selectedHost?.name ?? t('workbench.noHost')
+  const targetLabel =
+    activeSession?.kind === 'local'
+      ? t('workbench.localTerminal')
+      : selectedHost
+        ? `${selectedHost.username}@${selectedHost.address}`
+        : t('workbench.noHost')
 
   return (
     <section className="page-grid workbench-grid">
@@ -85,6 +100,14 @@ export function WorkbenchPage({
             <p>{t('workbench.subtitle')}</p>
           </div>
           <div className="page-actions">
+            <button type="button" className="secondary-button" disabled={actionBusy} onClick={() => void onOpenLocal('powershell')}>
+              <Shell size={16} />
+              {t('workbench.openPowerShell')}
+            </button>
+            <button type="button" className="secondary-button" disabled={actionBusy} onClick={() => void onOpenLocal('cmd')}>
+              <Monitor size={16} />
+              {t('workbench.openCmd')}
+            </button>
             <button type="button" className="secondary-button" disabled={!selectedHost || actionBusy}>
               <Save size={16} />
               {t('workbench.saveAndConnect')}
@@ -115,7 +138,7 @@ export function WorkbenchPage({
           <div className="terminal-toolbar">
             <div className="terminal-tabs" role="tablist" aria-label={t('workbench.terminal')}>
               <button type="button" className="terminal-tab is-active" role="tab">
-                {selectedHost?.name ?? t('workbench.noHost')}
+                {activeTitle}
               </button>
             </div>
             <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
@@ -125,10 +148,12 @@ export function WorkbenchPage({
             session={activeSession}
             theme={theme}
             placeholder={selectedHost ? t('workbench.terminalReady') : t('workbench.terminalHint')}
+            onResize={(cols, rows) => setTerminalSize({ cols, rows })}
+            onSessionEvent={onSessionEvent}
           />
           <div className="terminal-statusbar">
-            <span>{selectedHost ? `${selectedHost.username}@${selectedHost.address}` : t('workbench.noHost')}</span>
-            <span>120 x 32</span>
+            <span>{targetLabel}</span>
+            <span>{terminalSize.cols} x {terminalSize.rows}</span>
           </div>
         </div>
       </div>
@@ -168,7 +193,11 @@ export function WorkbenchPage({
               </div>
               <div>
                 <dt>{t('workbench.credential')}</dt>
-                <dd>{credential?.name ?? t('fields.none')}</dd>
+                <dd>{selectedHost?.auth_method === 'system' ? t('hosts.systemAuth') : credential?.name ?? t('fields.none')}</dd>
+              </div>
+              <div>
+                <dt>{t('workbench.sessionState')}</dt>
+                <dd>{activeSession?.status_message ?? t(`status.${sessionStatus}`)}</dd>
               </div>
               <div>
                 <dt>{t('workbench.jumpHost')}</dt>

@@ -8,6 +8,7 @@ import type {
   HostInput,
   KnownHost,
   Language,
+  LocalShell,
   Session,
   Settings,
 } from '../types/domain'
@@ -147,6 +148,13 @@ export class TermousApi {
     return this.request<Session>('/api/v1/sessions', {
       method: 'POST',
       body: { host_id: hostId, cols, rows },
+    })
+  }
+
+  createLocalSession(shell: LocalShell, cols: number, rows: number) {
+    return this.request<Session>('/api/v1/sessions', {
+      method: 'POST',
+      body: { kind: 'local', local_shell: shell, cols, rows },
     })
   }
 

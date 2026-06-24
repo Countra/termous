@@ -20,6 +20,11 @@ export const resources = {
         collapse: '折叠',
         expand: '展开',
         theme: '切换主题',
+        windowControls: '窗口控制',
+        minimize: '最小化',
+        maximize: '最大化',
+        restore: '还原',
+        close: '关闭',
         loading: '加载中',
         empty: '暂无数据',
         error: '发生错误',
@@ -58,6 +63,10 @@ export const resources = {
         connectionDetails: '连接详情',
         jumpHost: '跳板机',
         credential: '凭据',
+        localTerminal: '本地终端',
+        openPowerShell: 'PowerShell',
+        openCmd: 'CMD',
+        sessionState: '会话状态',
       },
       hosts: {
         title: '主机管理',
@@ -81,6 +90,13 @@ export const resources = {
         fingerprintPolicy: '指纹策略',
         password: '密码',
         privateKey: '私钥',
+        systemAuth: '系统 SSH',
+        systemAuthHint: '使用本机 ssh 配置、默认密钥或 agent',
+        auth: {
+          password: '密码',
+          private_key: '私钥',
+          system: '系统 SSH',
+        },
         noJumpHost: '不使用跳板机',
         ungrouped: '未分组',
         deleteHint: '只删除主机配置，不删除被引用凭据。',
@@ -144,6 +160,11 @@ export const resources = {
         collapse: 'Collapse',
         expand: 'Expand',
         theme: 'Switch theme',
+        windowControls: 'Window controls',
+        minimize: 'Minimize',
+        maximize: 'Maximize',
+        restore: 'Restore',
+        close: 'Close',
         loading: 'Loading',
         empty: 'No data',
         error: 'Error',
@@ -182,6 +203,10 @@ export const resources = {
         connectionDetails: 'Connection details',
         jumpHost: 'Jump host',
         credential: 'Credential',
+        localTerminal: 'Local terminal',
+        openPowerShell: 'PowerShell',
+        openCmd: 'CMD',
+        sessionState: 'Session state',
       },
       hosts: {
         title: 'Host Management',
@@ -205,6 +230,13 @@ export const resources = {
         fingerprintPolicy: 'Fingerprint policy',
         password: 'Password',
         privateKey: 'Private key',
+        systemAuth: 'System SSH',
+        systemAuthHint: 'Use local ssh config, default keys, or agent',
+        auth: {
+          password: 'Password',
+          private_key: 'Private key',
+          system: 'System SSH',
+        },
         noJumpHost: 'No jump host',
         ungrouped: 'Ungrouped',
         deleteHint: 'Only the host config is deleted. Referenced credentials stay intact.',
@@ -252,4 +284,3 @@ export const resources = {
 } as const
 
 export const supportedLanguages = Object.keys(resources) as Language[]
-

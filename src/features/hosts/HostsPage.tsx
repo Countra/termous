@@ -21,13 +21,15 @@ const blankHost: HostInput = {
   address: '',
   port: 22,
   username: '',
-  auth_method: 'password',
+  auth_method: 'system',
   credential_id: '',
   jump_host_id: '',
   tags: [],
   fingerprint_policy: 'confirm_on_change',
   note: '',
 }
+
+const systemHost: HostInput = { ...blankHost, auth_method: 'system', credential_id: '' }
 
 export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSave, onDelete, onImport }: HostsPageProps) {
   const { t } = useTranslation()
@@ -108,7 +110,7 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
             className="primary-button"
             onClick={() => {
               setEditingId(null)
-              setForm(blankHost)
+              setForm(systemHost)
               setTagText('')
             }}
           >
@@ -129,7 +131,7 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
               >
                 <span>
                   <strong>{host.name}</strong>
-                  <small>{host.username}@{host.address}:{host.port}</small>
+                  <small>{host.username}@{host.address}:{host.port} · {t(`hosts.auth.${host.auth_method}`)}</small>
                 </span>
                 <span className="row-meta">{host.tags?.join(' / ') || t('fields.none')}</span>
               </button>
@@ -161,16 +163,24 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
             label={t('hosts.authMethod')}
             value={form.auth_method}
             options={[
+              { value: 'system', label: t('hosts.systemAuth'), description: t('hosts.systemAuthHint') },
               { value: 'password', label: t('hosts.password') },
               { value: 'private_key', label: t('hosts.privateKey') },
             ]}
-            onChange={(value) => setForm({ ...form, auth_method: value as AuthMethod })}
+            onChange={(value) =>
+              setForm({
+                ...form,
+                auth_method: value as AuthMethod,
+                credential_id: value === 'system' ? '' : form.credential_id,
+              })
+            }
           />
           <CustomSelect
             label={t('hosts.credential')}
             value={form.credential_id}
             options={credentialOptions}
             onChange={(value) => setForm({ ...form, credential_id: value })}
+            disabled={form.auth_method === 'system'}
           />
           <CustomSelect
             label={t('hosts.jumpHost')}
@@ -214,4 +224,3 @@ function Field({
     </label>
   )
 }
-

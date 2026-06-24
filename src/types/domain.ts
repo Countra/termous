@@ -4,11 +4,15 @@ export type ThemeMode = 'dark' | 'light'
 
 export type PageKey = 'workbench' | 'hosts' | 'vault' | 'settings'
 
-export type AuthMethod = 'password' | 'private_key'
+export type AuthMethod = 'password' | 'private_key' | 'system'
 
 export type CredentialType = 'password' | 'private_key' | 'private_key_passphrase'
 
 export type SessionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed'
+
+export type SessionKind = 'ssh' | 'local'
+
+export type LocalShell = 'powershell' | 'cmd'
 
 export interface Settings {
   language: Language
@@ -69,12 +73,16 @@ export interface KnownHost {
 
 export interface Session {
   id: string
-  host_id: string
+  kind: SessionKind
+  host_id?: string
   jump_host_id?: string
   status: SessionStatus
+  status_message?: string
   started_at: string
+  connected_at?: string
   ended_at?: string
   last_error?: string
+  exit_code?: number
   pty_cols: number
   pty_rows: number
 }
@@ -122,4 +130,3 @@ export interface AppData {
   sessions: Session[]
   settings: Settings
 }
-
