@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { App as AntdApp, ConfigProvider } from 'antd'
+import 'antd/dist/reset.css'
 import { useTranslation } from 'react-i18next'
 import { AppShell } from './components/layout/AppShell'
 import { HostsPage } from './features/hosts/HostsPage'
@@ -6,8 +8,10 @@ import { SettingsPage } from './features/settings/SettingsPage'
 import { VaultPage } from './features/vault/VaultPage'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
 import { useTermousData } from './app/useTermousData'
+import { createAntdTheme } from './theme/antdTheme'
 import type { CredentialInput, HostInput, PageKey, ThemeMode } from './types/domain'
 import './App.css'
+import './styles/workstation.css'
 
 function App() {
   const { t } = useTranslation()
@@ -20,6 +24,7 @@ function App() {
   const [selectedHostId, setSelectedHostId] = useState('')
   const [actionBusy, setActionBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const antdTheme = useMemo(() => createAntdTheme(theme), [theme])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -72,69 +77,73 @@ function App() {
     }, t('app.save'))
 
   return (
-    <AppShell
-      page={page}
-      theme={theme}
-      sidebarCollapsed={sidebarCollapsed}
-      apiReady={apiReady}
-      refreshing={refreshing}
-      onNavigate={setPage}
-      onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
-      onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
-      onReload={() => void actions.reload()}
-    >
-      {(initializing || error || notice) && (
-        <div className={`app-toast ${error ? 'is-error' : ''}`} role="status">
-          {initializing ? t('app.loading') : error ?? notice}
-        </div>
-      )}
-
-      {page === 'workbench' ? (
-        <WorkbenchPage
-          api={api}
-          data={data}
+    <ConfigProvider theme={antdTheme} button={{ autoInsertSpace: false }}>
+      <AntdApp className="termous-antd-root">
+        <AppShell
+          page={page}
           theme={theme}
-          selectedHostId={selectedHostIdStable}
-          activeSession={activeSession}
-          actionBusy={actionBusy}
-          onSelectHost={setSelectedHostId}
-          onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
-          onOpenLocal={(shell) => runAction(() => actions.openLocalTerminal(shell).then(() => undefined))}
-          onSessionEvent={actions.updateActiveSession}
-          onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
-        />
-      ) : null}
+          sidebarCollapsed={sidebarCollapsed}
+          apiReady={apiReady}
+          refreshing={refreshing}
+          onNavigate={setPage}
+          onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+          onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+          onReload={() => void actions.reload()}
+        >
+          {(initializing || error || notice) && (
+            <div className={`app-toast ${error ? 'is-error' : ''}`} role="status">
+              {initializing ? t('app.loading') : error ?? notice}
+            </div>
+          )}
 
-      {page === 'hosts' ? (
-        <HostsPage
-          data={data}
-          selectedHostId={selectedHostIdStable}
-          actionBusy={actionBusy}
-          onSelectHost={setSelectedHostId}
-          onSave={saveHost}
-          onDelete={(id) => runAction(() => actions.deleteHost(id))}
-          onImport={() => runAction(() => actions.importSSHConfig().then(() => undefined), t('hosts.importAccepted'))}
-        />
-      ) : null}
+          {page === 'workbench' ? (
+            <WorkbenchPage
+              api={api}
+              data={data}
+              theme={theme}
+              selectedHostId={selectedHostIdStable}
+              activeSession={activeSession}
+              actionBusy={actionBusy}
+              onSelectHost={setSelectedHostId}
+              onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
+              onOpenLocal={(shell) => runAction(() => actions.openLocalTerminal(shell).then(() => undefined))}
+              onSessionEvent={actions.updateActiveSession}
+              onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
+            />
+          ) : null}
 
-      {page === 'vault' ? (
-        <VaultPage
-          data={data}
-          actionBusy={actionBusy}
-          onSave={saveCredential}
-          onDelete={(id) => runAction(() => actions.deleteCredential(id))}
-          onGenerateKey={() => runAction(actions.generateKey)}
-        />
-      ) : null}
+          {page === 'hosts' ? (
+            <HostsPage
+              data={data}
+              selectedHostId={selectedHostIdStable}
+              actionBusy={actionBusy}
+              onSelectHost={setSelectedHostId}
+              onSave={saveHost}
+              onDelete={(id) => runAction(() => actions.deleteHost(id))}
+              onImport={() => runAction(() => actions.importSSHConfig().then(() => undefined), t('hosts.importAccepted'))}
+            />
+          ) : null}
 
-      {page === 'settings' ? (
-        <SettingsPage
-          language={data.settings.language}
-          actionBusy={actionBusy}
-          onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
-        />
-      ) : null}
-    </AppShell>
+          {page === 'vault' ? (
+            <VaultPage
+              data={data}
+              actionBusy={actionBusy}
+              onSave={saveCredential}
+              onDelete={(id) => runAction(() => actions.deleteCredential(id))}
+              onGenerateKey={() => runAction(actions.generateKey)}
+            />
+          ) : null}
+
+          {page === 'settings' ? (
+            <SettingsPage
+              language={data.settings.language}
+              actionBusy={actionBusy}
+              onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
+            />
+          ) : null}
+        </AppShell>
+      </AntdApp>
+    </ConfigProvider>
   )
 }
 

@@ -8,10 +8,10 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Power,
-  Save,
   Server,
   Shell,
 } from 'lucide-react'
+import { Button, Tag, Tooltip } from 'antd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApi } from '../../api/client'
@@ -86,14 +86,15 @@ export function WorkbenchPage({
               </span>
             ) : null}
           </div>
-          <button
-            type="button"
+          <Tooltip title={hostPanelCollapsed ? t('app.expand') : t('app.collapse')}>
+            <Button
+            type="text"
             className="icon-button compact"
             onClick={() => setHostPanelCollapsed((current) => !current)}
             aria-label={hostPanelCollapsed ? t('app.expand') : t('app.collapse')}
-          >
-            {hostPanelCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-          </button>
+            icon={hostPanelCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          />
+          </Tooltip>
         </div>
         {data.hosts.length === 0 ? (
           <EmptyState title={t('app.empty')} description={t('workbench.terminalHint')} />
@@ -125,27 +126,21 @@ export function WorkbenchPage({
             <p>{t('workbench.subtitle')}</p>
           </div>
           <div className="page-actions">
-            <button type="button" className="secondary-button" disabled={actionBusy} onClick={() => void onOpenLocal('powershell')}>
-              <Shell size={16} />
+            <Button className="secondary-button" disabled={actionBusy} onClick={() => void onOpenLocal('powershell')} icon={<Shell size={16} />}>
               {t('workbench.openPowerShell')}
-            </button>
-            <button type="button" className="secondary-button" disabled={actionBusy} onClick={() => void onOpenLocal('cmd')}>
-              <Monitor size={16} />
+            </Button>
+            <Button className="secondary-button" disabled={actionBusy} onClick={() => void onOpenLocal('cmd')} icon={<Monitor size={16} />}>
               {t('workbench.openCmd')}
-            </button>
-            <button type="button" className="secondary-button" disabled={!selectedHost || actionBusy}>
-              <Save size={16} />
-              {t('workbench.saveAndConnect')}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              type="primary"
               className="primary-button"
               disabled={!selectedHost || actionBusy}
               onClick={() => selectedHost && void onConnect(selectedHost.id)}
+              icon={<Cable size={16} />}
             >
-              <Cable size={16} />
               {t('app.connect')}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -162,9 +157,9 @@ export function WorkbenchPage({
         <div className="terminal-card">
           <div className="terminal-toolbar">
             <div className="terminal-tabs" role="tablist" aria-label={t('workbench.terminal')}>
-              <button type="button" className="terminal-tab is-active" role="tab">
-                {activeTitle}
-              </button>
+            <Button type="text" className="terminal-tab is-active" role="tab">
+              {activeTitle}
+            </Button>
             </div>
             <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
           </div>
@@ -190,14 +185,15 @@ export function WorkbenchPage({
             <h2>{detailsCollapsed ? t('workbench.detailsShort') : t('workbench.currentConnection')}</h2>
             {!detailsCollapsed ? <span>{t('workbench.connectionDetails')}</span> : null}
           </div>
-          <button
-            type="button"
+          <Tooltip title={detailsCollapsed ? t('app.expand') : t('app.collapse')}>
+            <Button
+            type="text"
             className="icon-button compact"
             onClick={() => setDetailsCollapsed((current) => !current)}
             aria-label={detailsCollapsed ? t('app.expand') : t('app.collapse')}
-          >
-            {detailsCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
-          </button>
+            icon={detailsCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
+          />
+          </Tooltip>
         </div>
         {detailsCollapsed ? (
           <div className="details-collapsed-rail">
@@ -235,15 +231,15 @@ export function WorkbenchPage({
                 <dd>{jumpHost?.name ?? t('hosts.noJumpHost')}</dd>
               </div>
             </dl>
-            <button
-              type="button"
+            <Button
+              danger
               className="danger-button"
               disabled={!activeSession || actionBusy}
               onClick={() => activeSession && void onDisconnect(activeSession.id)}
+              icon={<Power size={16} />}
             >
-              <Power size={16} />
               {t('workbench.closeSession')}
-            </button>
+            </Button>
           </>
         )}
       </aside>
@@ -292,10 +288,9 @@ function HostRow({
               {host.username}@{host.address}:{host.port}
             </small>
           </span>
-          <span className="host-auth">
-            <KeyRound size={12} aria-hidden="true" />
+          <Tag className="host-auth" icon={<KeyRound size={12} aria-hidden="true" />}>
             {authLabel}
-          </span>
+          </Tag>
         </>
       ) : null}
     </button>

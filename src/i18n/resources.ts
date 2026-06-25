@@ -152,6 +152,11 @@ export const resources = {
         noPassphrase: '不关联口令',
         metadata: '安全摘要',
         boundHosts: '绑定主机',
+        typeName: {
+          password: '密码',
+          private_key: '私钥',
+          private_key_passphrase: '私钥口令',
+        },
         deleteHint: '被主机引用的凭据不能删除。',
         encrypted: '密文已保存到本机存储',
         protected: '解密密钥由系统密钥链保护',
@@ -323,6 +328,11 @@ export const resources = {
         noPassphrase: 'No passphrase',
         metadata: 'Security summary',
         boundHosts: 'Bound hosts',
+        typeName: {
+          password: 'Password',
+          private_key: 'Private key',
+          private_key_passphrase: 'Key passphrase',
+        },
         deleteHint: 'Credentials referenced by hosts cannot be deleted.',
         encrypted: 'Ciphertext stored locally',
         protected: 'Decryption key protected by system keychain',

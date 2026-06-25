@@ -1,4 +1,5 @@
 import { Maximize2, Minus, Square, X } from 'lucide-react'
+import { Button, Tooltip } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
@@ -32,16 +33,16 @@ export function WindowControls() {
   return (
     <>
       <div className="window-controls" aria-label={t('app.windowControls')}>
-        <button
-          type="button"
+        <Tooltip title={t('app.minimize')}>
+          <Button
           className="window-control"
           onClick={() => void window.termous?.windowControls?.minimize().catch(() => undefined)}
           aria-label={t('app.minimize')}
-        >
-          <Minus size={15} />
-        </button>
-        <button
-          type="button"
+            icon={<Minus size={15} />}
+          />
+        </Tooltip>
+        <Tooltip title={isMaximized ? t('app.restore') : t('app.maximize')}>
+          <Button
           className="window-control"
           onClick={() =>
             void window.termous?.windowControls
@@ -50,12 +51,12 @@ export function WindowControls() {
               .catch(() => setIsMaximized(false))
           }
           aria-label={isMaximized ? t('app.restore') : t('app.maximize')}
-        >
-          {isMaximized ? <Square size={13} /> : <Maximize2 size={14} />}
-        </button>
-        <button type="button" className="window-control danger" onClick={requestClose} aria-label={t('app.close')}>
-          <X size={15} />
-        </button>
+            icon={isMaximized ? <Square size={13} /> : <Maximize2 size={14} />}
+          />
+        </Tooltip>
+        <Tooltip title={t('app.close')}>
+          <Button className="window-control danger" onClick={requestClose} aria-label={t('app.close')} icon={<X size={15} />} />
+        </Tooltip>
       </div>
       <ConfirmDialog
         open={confirmClose}

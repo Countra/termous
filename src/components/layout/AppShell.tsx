@@ -10,9 +10,9 @@ import {
   Sun,
   TerminalSquare,
 } from 'lucide-react'
+import { Badge, Button, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { PageKey, ThemeMode } from '../../types/domain'
-import { StatusBadge } from '../ui/StatusBadge'
 import { WindowControls } from './WindowControls'
 
 interface AppShellProps {
@@ -50,6 +50,7 @@ export function AppShell({
   const { t } = useTranslation()
   const platform = window.termous?.platform ?? 'web'
   const showWindowControls = Boolean(window.termous?.windowControls) && platform !== 'darwin'
+  const pageTitle = t(`nav.${page}`)
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
@@ -65,17 +66,17 @@ export function AppShell({
           {navItems.map((item) => {
             const Icon = item.icon
             return (
-              <button
-                type="button"
+              <Button
                 key={item.key}
+                type="text"
                 className={`nav-item ${page === item.key ? 'is-active' : ''}`}
                 onClick={() => onNavigate(item.key)}
                 aria-label={t(`nav.${item.key}`)}
                 title={t(`nav.${item.key}`)}
+                icon={<Icon size={18} aria-hidden="true" />}
               >
-                <Icon size={18} aria-hidden="true" />
                 <span>{t(`nav.${item.key}`)}</span>
-              </button>
+              </Button>
             )
           })}
         </nav>
@@ -84,25 +85,44 @@ export function AppShell({
       <div className="main-frame">
         <header className="window-chrome">
           <div className="chrome-drag-region">
-            <button type="button" className="icon-button" onClick={onToggleSidebar} aria-label={t('app.collapse')}>
-              {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-            </button>
+            <Tooltip title={sidebarCollapsed ? t('app.expand') : t('app.collapse')}>
+              <Button
+                type="text"
+                className="icon-button"
+                onClick={onToggleSidebar}
+                aria-label={sidebarCollapsed ? t('app.expand') : t('app.collapse')}
+                icon={sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+              />
+            </Tooltip>
             <div className="chrome-title">
               <PanelLeft size={15} aria-hidden="true" />
-              <span>{t(`nav.${page}`)}</span>
+              <span>{pageTitle}</span>
             </div>
           </div>
           <div className="topbar-actions">
-            <StatusBadge
-              status={apiReady ? 'available' : 'offline'}
-              label={apiReady ? t('app.apiOnline') : t('app.apiOffline')}
+            <Badge
+              status={apiReady ? 'success' : 'error'}
+              text={apiReady ? t('app.apiOnline') : t('app.apiOffline')}
+              className="api-status"
             />
-            <button type="button" className="icon-button" onClick={onReload} aria-label={t('app.reload')}>
-              <RefreshCw className={refreshing ? 'is-spinning' : ''} size={17} />
-            </button>
-            <button type="button" className="icon-button" onClick={onToggleTheme} aria-label={t('app.theme')}>
-              {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
-            </button>
+            <Tooltip title={t('app.reload')}>
+              <Button
+                type="text"
+                className="icon-button"
+                onClick={onReload}
+                aria-label={t('app.reload')}
+                icon={<RefreshCw className={refreshing ? 'is-spinning' : ''} size={17} />}
+              />
+            </Tooltip>
+            <Tooltip title={t('app.theme')}>
+              <Button
+                type="text"
+                className="icon-button"
+                onClick={onToggleTheme}
+                aria-label={t('app.theme')}
+                icon={theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+              />
+            </Tooltip>
             {showWindowControls ? <WindowControls /> : null}
           </div>
         </header>

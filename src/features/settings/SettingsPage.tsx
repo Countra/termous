@@ -1,6 +1,6 @@
 import { Languages } from 'lucide-react'
+import { Segmented } from 'antd'
 import { useTranslation } from 'react-i18next'
-import { CustomSelect } from '../../components/ui/CustomSelect'
 import type { Language } from '../../types/domain'
 
 interface SettingsPageProps {
@@ -29,8 +29,9 @@ export function SettingsPage({ language, actionBusy, onLanguageChange }: Setting
           <div>
             <strong>{t('settings.interfaceLanguage')}</strong>
           </div>
-          <CustomSelect
-            label={t('settings.interfaceLanguage')}
+          <Segmented
+            block
+            className="settings-language-switch"
             value={language}
             disabled={actionBusy}
             options={[
@@ -44,4 +45,3 @@ export function SettingsPage({ language, actionBusy, onLanguageChange }: Setting
     </section>
   )
 }
-

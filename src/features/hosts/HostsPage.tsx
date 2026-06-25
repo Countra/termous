@@ -1,4 +1,5 @@
 import { FileInput, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Button, Input, InputNumber, Popconfirm } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomSelect } from '../../components/ui/CustomSelect'
@@ -101,22 +102,21 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
           </div>
         </div>
         <div className="toolbar-row">
-          <button type="button" className="secondary-button" onClick={onImport} disabled={actionBusy}>
-            <FileInput size={16} />
+          <Button className="secondary-button" onClick={onImport} disabled={actionBusy} icon={<FileInput size={16} />}>
             {t('hosts.importConfig')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            type="primary"
             className="primary-button"
             onClick={() => {
               setEditingId(null)
               setForm(systemHost)
               setTagText('')
             }}
+            icon={<Plus size={16} />}
           >
-            <Plus size={16} />
             {t('hosts.addHost')}
-          </button>
+          </Button>
         </div>
         {data.hosts.length === 0 ? (
           <EmptyState title={t('app.empty')} description={t('hosts.subtitle')} />
@@ -152,10 +152,9 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
           <Field label={t('hosts.name')} value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
           <Field label={t('hosts.address')} value={form.address} onChange={(value) => setForm({ ...form, address: value })} />
           <Field label={t('hosts.username')} value={form.username} onChange={(value) => setForm({ ...form, username: value })} />
-          <Field
+          <NumberField
             label={t('hosts.port')}
-            value={String(form.port)}
-            type="number"
+            value={form.port}
             onChange={(value) => setForm({ ...form, port: Number(value) || 22 })}
           />
           <CustomSelect label={t('hosts.group')} value={form.group_id} options={groupOptions} onChange={(value) => setForm({ ...form, group_id: value })} />
@@ -193,14 +192,22 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
         </div>
         <div className="danger-zone">
           <span>{t('hosts.deleteHint')}</span>
-          <button type="button" className="danger-button" disabled={!editingId || actionBusy} onClick={() => editingId && void onDelete(editingId)}>
-            <Trash2 size={16} />
-            {t('app.delete')}
-          </button>
+          <Popconfirm
+            title={t('app.confirmDelete')}
+            description={t('hosts.deleteHint')}
+            okText={t('app.delete')}
+            cancelText={t('app.cancel')}
+            disabled={!editingId || actionBusy}
+            onConfirm={() => editingId && void onDelete(editingId)}
+          >
+            <Button danger className="danger-button" disabled={!editingId || actionBusy} icon={<Trash2 size={16} />}>
+              {t('app.delete')}
+            </Button>
+          </Popconfirm>
         </div>
-        <button type="button" className="primary-button full-width" disabled={actionBusy} onClick={() => void save()}>
+        <Button type="primary" className="primary-button full-width" disabled={actionBusy} onClick={() => void save()}>
           {editingId ? t('app.update') : t('app.create')}
-        </button>
+        </Button>
       </div>
     </section>
   )
@@ -209,18 +216,25 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
 function Field({
   label,
   value,
-  type = 'text',
   onChange,
 }: {
   label: string
   value: string
-  type?: string
   onChange: (value: string) => void
 }) {
   return (
     <label className="field">
       <span className="field-label">{label}</span>
-      <input value={value} type={type} onChange={(event) => onChange(event.target.value)} />
+      <Input value={value} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  )
+}
+
+function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number | null) => void }) {
+  return (
+    <label className="field">
+      <span className="field-label">{label}</span>
+      <InputNumber min={1} max={65535} value={value} onChange={onChange} />
     </label>
   )
 }

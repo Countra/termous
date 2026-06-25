@@ -1,9 +1,9 @@
-import { KeyRound, Plus, ShieldCheck, Trash2, Wand2 } from 'lucide-react'
+import { Plus, Trash2, Wand2 } from 'lucide-react'
+import { Button, Input, Popconfirm, Segmented } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
-import { StatusBadge } from '../../components/ui/StatusBadge'
 import type { AppData, CredentialInput, CredentialType } from '../../types/domain'
 
 interface VaultPageProps {
@@ -65,43 +65,33 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
             <p>{t('vault.subtitle')}</p>
           </div>
         </div>
-        <div className="segmented-control" role="tablist" aria-label={t('vault.list')}>
-          {[
-            ['all', t('vault.all')],
-            ['password', t('vault.passwords')],
-            ['private_key', t('vault.keys')],
-            ['private_key_passphrase', t('vault.passphrases')],
-          ].map(([value, label]) => (
-            <button
-              type="button"
-              key={value}
-              className={filter === value ? 'is-active' : ''}
-              onClick={() => setFilter(value as typeof filter)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          block
+          className="segmented-control"
+          value={filter}
+          options={[
+            { value: 'all', label: t('vault.all') },
+            { value: 'password', label: t('vault.passwords') },
+            { value: 'private_key', label: t('vault.keys') },
+            { value: 'private_key_passphrase', label: t('vault.passphrases') },
+          ]}
+          onChange={(value) => setFilter(value as typeof filter)}
+        />
         <div className="toolbar-row">
-          <button type="button" className="secondary-button" disabled={actionBusy}>
-            <KeyRound size={16} />
-            {t('vault.importKey')}
-          </button>
-          <button type="button" className="secondary-button" onClick={onGenerateKey} disabled={actionBusy}>
-            <Wand2 size={16} />
+          <Button className="secondary-button" onClick={onGenerateKey} disabled={actionBusy} icon={<Wand2 size={16} />}>
             {t('vault.generateKey')}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            type="primary"
             className="primary-button"
             onClick={() => {
               setEditingId(null)
               setForm(blankCredential)
             }}
+            icon={<Plus size={16} />}
           >
-            <Plus size={16} />
             {t('vault.addCredential')}
-          </button>
+          </Button>
         </div>
         {filtered.length === 0 ? (
           <EmptyState title={t('app.empty')} description={t('vault.subtitle')} />
@@ -116,7 +106,7 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
               >
                 <span>
                   <strong>{credential.name}</strong>
-                  <small>{credential.type}</small>
+                  <small>{t(`vault.typeName.${credential.type}`)}</small>
                 </span>
                 <span className="row-meta">{credential.bound_host_count} {t('vault.boundHosts')}</span>
               </button>
@@ -129,14 +119,8 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
         <div className="panel-heading">
           <div>
             <h2>{t('vault.editor')}</h2>
-            <span>{t('vault.encrypted')}</span>
+            <span>{editingId ? t('app.update') : t('app.create')}</span>
           </div>
-          <StatusBadge status="persisted" label={t('status.persisted')} />
-        </div>
-        <div className="security-stack">
-          <span><ShieldCheck size={16} />{t('vault.encrypted')}</span>
-          <span><ShieldCheck size={16} />{t('vault.protected')}</span>
-          <span><ShieldCheck size={16} />{t('vault.memory')}</span>
         </div>
         <div className="form-grid">
           <Field label={t('vault.name')} value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
@@ -165,7 +149,7 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
           ) : null}
           <label className="field field-wide">
             <span className="field-label">{t('vault.secret')}</span>
-            <textarea
+            <Input.TextArea
               value={form.secret}
               placeholder={editingId ? t('fields.optional') : t('fields.required')}
               onChange={(event) => setForm({ ...form, secret: event.target.value })}
@@ -174,14 +158,22 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
         </div>
         <div className="danger-zone">
           <span>{t('vault.deleteHint')}</span>
-          <button type="button" className="danger-button" disabled={!editingId || actionBusy} onClick={() => editingId && void onDelete(editingId)}>
-            <Trash2 size={16} />
-            {t('app.delete')}
-          </button>
+          <Popconfirm
+            title={t('app.confirmDelete')}
+            description={t('vault.deleteHint')}
+            okText={t('app.delete')}
+            cancelText={t('app.cancel')}
+            disabled={!editingId || actionBusy}
+            onConfirm={() => editingId && void onDelete(editingId)}
+          >
+            <Button danger className="danger-button" disabled={!editingId || actionBusy} icon={<Trash2 size={16} />}>
+              {t('app.delete')}
+            </Button>
+          </Popconfirm>
         </div>
-        <button type="button" className="primary-button full-width" disabled={actionBusy} onClick={() => void save()}>
+        <Button type="primary" className="primary-button full-width" disabled={actionBusy} onClick={() => void save()}>
           {editingId ? t('app.update') : t('app.create')}
-        </button>
+        </Button>
       </div>
     </section>
   )
@@ -191,7 +183,7 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
   return (
     <label className="field">
       <span className="field-label">{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} />
+      <Input value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   )
 }
@@ -201,4 +193,3 @@ function omitKey(source: Record<string, string>, key: string) {
   delete next[key]
   return next
 }
-

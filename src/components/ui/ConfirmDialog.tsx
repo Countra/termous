@@ -1,4 +1,5 @@
 import { AlertTriangle } from 'lucide-react'
+import { Button, Modal } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 interface ConfirmDialogProps {
@@ -23,17 +24,26 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const { t } = useTranslation()
-  if (!open) return null
 
   return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={onCancel}>
-      <section
-        className="confirm-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <Modal
+      open={open}
+      centered
+      width={420}
+      zIndex={3600}
+      title={null}
+      footer={null}
+      closeIcon={null}
+      destroyOnClose
+      maskClosable
+      keyboard
+      className="confirm-modal"
+      wrapClassName="confirm-modal-wrap"
+      rootClassName="termous-modal-root"
+      getContainer={() => document.body}
+      onCancel={onCancel}
+    >
+      <section className="confirm-dialog" aria-labelledby="confirm-dialog-title">
         <div className={`dialog-icon ${danger ? 'is-danger' : ''}`}>
           <AlertTriangle size={20} aria-hidden="true" />
         </div>
@@ -42,14 +52,12 @@ export function ConfirmDialog({
           <p>{description}</p>
         </div>
         <div className="dialog-actions">
-          <button type="button" className="secondary-button" onClick={onCancel}>
-            {cancelLabel ?? t('app.cancel')}
-          </button>
-          <button type="button" className={danger ? 'danger-button' : 'primary-button'} onClick={onConfirm}>
+          <Button onClick={onCancel}>{cancelLabel ?? t('app.cancel')}</Button>
+          <Button danger={danger} type={danger ? 'primary' : 'default'} onClick={onConfirm}>
             {confirmLabel ?? t('app.confirm')}
-          </button>
+          </Button>
         </div>
       </section>
-    </div>
+    </Modal>
   )
 }
