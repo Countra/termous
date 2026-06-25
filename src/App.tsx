@@ -11,7 +11,7 @@ import './App.css'
 
 function App() {
   const { t } = useTranslation()
-  const { api, data, loading, apiReady, error, activeSession, actions } = useTermousData()
+  const { api, data, initializing, refreshing, apiReady, error, activeSession, actions } = useTermousData()
   const [page, setPage] = useState<PageKey>('workbench')
   const [theme, setTheme] = useState<ThemeMode>(() =>
     window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark',
@@ -77,14 +77,15 @@ function App() {
       theme={theme}
       sidebarCollapsed={sidebarCollapsed}
       apiReady={apiReady}
+      refreshing={refreshing}
       onNavigate={setPage}
       onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
       onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
       onReload={() => void actions.reload()}
     >
-      {(loading || error || notice) && (
-        <div className={`app-banner ${error ? 'is-error' : ''}`}>
-          {loading ? t('app.loading') : error ?? notice}
+      {(initializing || error || notice) && (
+        <div className={`app-toast ${error ? 'is-error' : ''}`} role="status">
+          {initializing ? t('app.loading') : error ?? notice}
         </div>
       )}
 

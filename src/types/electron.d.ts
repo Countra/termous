@@ -8,9 +8,11 @@ declare global {
       windowControls?: {
         minimize: () => Promise<void>
         toggleMaximize: () => Promise<boolean>
-        close: () => Promise<void>
+        requestClose: () => Promise<void>
+        confirmClose: () => Promise<void>
         isMaximized: () => Promise<boolean>
         onMaximizeState: (callback: (maximized: boolean) => void) => () => void
+        onCloseRequest: (callback: () => void) => () => void
       }
     }
   }

@@ -5,7 +5,7 @@ import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApi } from '../../api/client'
-import type { Session, SessionStatus, ThemeMode } from '../../types/domain'
+import type { Session, SessionPhase, SessionStatus, ThemeMode } from '../../types/domain'
 
 interface TerminalPaneProps {
   api: TermousApi
@@ -27,7 +27,6 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
   const onSessionEventRef = useRef(onSessionEvent)
   const placeholderRef = useRef(placeholder)
   const themeRef = useRef(theme)
-  const sessionMessageRef = useRef(session?.status_message)
   const { t } = useTranslation()
   const sessionId = session?.id
 
@@ -36,8 +35,7 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
     onSessionEventRef.current = onSessionEvent
     placeholderRef.current = placeholder
     themeRef.current = theme
-    sessionMessageRef.current = session?.status_message
-  }, [onResize, onSessionEvent, placeholder, session?.status_message, theme])
+  }, [onResize, onSessionEvent, placeholder, theme])
 
   useEffect(() => {
     if (!containerRef.current) return undefined
@@ -54,6 +52,10 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
     const fit = new FitAddon()
     terminal.loadAddon(fit)
     terminal.open(containerRef.current)
+    const helperInput = containerRef.current.querySelector('.xterm-helper-textarea')
+    if (helperInput instanceof HTMLTextAreaElement) {
+      helperInput.name = 'terminal-input'
+    }
     fit.fit()
     terminal.writeln(placeholderRef.current)
     termRef.current = terminal
@@ -99,7 +101,7 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
     socketRef.current?.close()
     lastSizeRef.current = { cols: 0, rows: 0 }
     terminal.clear()
-    terminal.writeln(`[termous] ${sessionMessageRef.current ?? t('status.connecting')}: ${sessionId}`)
+    terminal.writeln(`[termous] ${t('status.connecting')}: ${sessionId}`)
     const socket = new WebSocket(api.websocketUrl(`/api/v1/sessions/${sessionId}/terminal`))
     socketRef.current = socket
 
@@ -121,13 +123,19 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
           message?: string
           reason?: string
           status?: SessionStatus
+          phase?: SessionPhase
+          progress?: number
         }
-        if ((msg.type === 'status' || msg.type === 'ready') && msg.message) {
-          terminal.writeln(`\r\n[termous] ${msg.message}`)
-          if (msg.status) {
-            onSessionEventRef.current?.({ status: msg.status, status_message: msg.message })
+        if (msg.type === 'status' || msg.type === 'phase' || msg.type === 'ready') {
+          if (msg.status || msg.phase || typeof msg.progress === 'number') {
+            const patch: Partial<Session> = { status_message: msg.message }
+            if (msg.status) patch.status = msg.status
+            if (msg.phase) patch.phase = msg.phase
+            if (typeof msg.progress === 'number') patch.progress = msg.progress
+            onSessionEventRef.current?.(patch)
           }
           if (msg.type === 'ready') {
+            terminal.writeln(`\r\n[termous] ${t('connection.phase.ready')}`)
             terminal.focus()
           }
         }
@@ -135,7 +143,13 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
           terminal.write(msg.data)
         }
         if (msg.type === 'error' && msg.message) {
-          onSessionEventRef.current?.({ status: 'failed', status_message: msg.message, last_error: msg.message })
+          onSessionEventRef.current?.({
+            status: 'failed',
+            phase: 'failed',
+            progress: 100,
+            status_message: msg.message,
+            last_error: msg.message,
+          })
           terminal.writeln(`\r\n[termous] ${msg.message}`)
         }
         if (msg.type === 'closed') {

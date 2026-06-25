@@ -10,6 +10,18 @@ export type CredentialType = 'password' | 'private_key' | 'private_key_passphras
 
 export type SessionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed'
 
+export type SessionPhase =
+  | 'queued'
+  | 'resolving_auth'
+  | 'dialing'
+  | 'ssh_handshake_auth'
+  | 'requesting_pty'
+  | 'starting_shell'
+  | 'starting_local_shell'
+  | 'ready'
+  | 'failed'
+  | 'disconnected'
+
 export type SessionKind = 'ssh' | 'local'
 
 export type LocalShell = 'powershell' | 'cmd'
@@ -78,6 +90,8 @@ export interface Session {
   jump_host_id?: string
   status: SessionStatus
   status_message?: string
+  phase?: SessionPhase
+  progress?: number
   started_at: string
   connected_at?: string
   ended_at?: string

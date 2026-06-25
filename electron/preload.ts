@@ -10,12 +10,18 @@ contextBridge.exposeInMainWorld('termous', {
   windowControls: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
     toggleMaximize: () => ipcRenderer.invoke('window:toggle-maximize') as Promise<boolean>,
-    close: () => ipcRenderer.invoke('window:close'),
+    requestClose: () => ipcRenderer.invoke('window:request-close'),
+    confirmClose: () => ipcRenderer.invoke('window:confirm-close'),
     isMaximized: () => ipcRenderer.invoke('window:is-maximized') as Promise<boolean>,
     onMaximizeState: (callback: (maximized: boolean) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, maximized: boolean) => callback(maximized)
       ipcRenderer.on('window:maximize-state', listener)
       return () => ipcRenderer.removeListener('window:maximize-state', listener)
+    },
+    onCloseRequest: (callback: () => void) => {
+      const listener = () => callback()
+      ipcRenderer.on('window:close-requested', listener)
+      return () => ipcRenderer.removeListener('window:close-requested', listener)
     },
   },
 })

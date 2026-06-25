@@ -13,6 +13,7 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 let win: BrowserWindow | null
+let closeConfirmed = false
 
 function createWindow() {
   const isMac = process.platform === 'darwin'
@@ -37,6 +38,14 @@ function createWindow() {
 
   win.once('ready-to-show', () => {
     win?.show()
+  })
+  win.on('close', (event) => {
+    if (closeConfirmed) {
+      closeConfirmed = false
+      return
+    }
+    event.preventDefault()
+    win?.webContents.send('window:close-requested')
   })
   win.on('maximize', () => {
     win?.webContents.send('window:maximize-state', true)
@@ -67,9 +76,10 @@ function createWindow() {
 }
 
 function registerWindowControls() {
-  ipcMain.handle('window:minimize', () => BrowserWindow.getFocusedWindow()?.minimize())
+  const currentWindow = () => BrowserWindow.getFocusedWindow() ?? win
+  ipcMain.handle('window:minimize', () => currentWindow()?.minimize())
   ipcMain.handle('window:toggle-maximize', () => {
-    const focused = BrowserWindow.getFocusedWindow()
+    const focused = currentWindow()
     if (!focused) return false
     if (focused.isMaximized()) {
       focused.unmaximize()
@@ -78,8 +88,14 @@ function registerWindowControls() {
     focused.maximize()
     return true
   })
-  ipcMain.handle('window:close', () => BrowserWindow.getFocusedWindow()?.close())
-  ipcMain.handle('window:is-maximized', () => BrowserWindow.getFocusedWindow()?.isMaximized() ?? false)
+  ipcMain.handle('window:request-close', () => currentWindow()?.webContents.send('window:close-requested'))
+  ipcMain.handle('window:confirm-close', () => {
+    const focused = currentWindow()
+    if (!focused) return
+    closeConfirmed = true
+    focused.close()
+  })
+  ipcMain.handle('window:is-maximized', () => currentWindow()?.isMaximized() ?? false)
 }
 
 app.on('window-all-closed', () => {

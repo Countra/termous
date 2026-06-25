@@ -1,8 +1,6 @@
 import {
   DatabaseZap,
-  Maximize2,
   Moon,
-  Minus,
   PanelLeft,
   PanelLeftClose,
   PanelLeftOpen,
@@ -11,18 +9,18 @@ import {
   Settings,
   Sun,
   TerminalSquare,
-  X,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { PageKey, ThemeMode } from '../../types/domain'
 import { StatusBadge } from '../ui/StatusBadge'
+import { WindowControls } from './WindowControls'
 
 interface AppShellProps {
   page: PageKey
   theme: ThemeMode
   sidebarCollapsed: boolean
   apiReady: boolean
+  refreshing: boolean
   onNavigate: (page: PageKey) => void
   onToggleTheme: () => void
   onToggleSidebar: () => void
@@ -42,6 +40,7 @@ export function AppShell({
   theme,
   sidebarCollapsed,
   apiReady,
+  refreshing,
   onNavigate,
   onToggleTheme,
   onToggleSidebar,
@@ -49,15 +48,8 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const { t } = useTranslation()
-  const [isMaximized, setIsMaximized] = useState(false)
   const platform = window.termous?.platform ?? 'web'
   const showWindowControls = platform !== 'darwin'
-
-  useEffect(() => {
-    void window.termous?.windowControls?.isMaximized().then(setIsMaximized)
-    const cleanup = window.termous?.windowControls?.onMaximizeState(setIsMaximized)
-    return () => cleanup?.()
-  }, [])
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
@@ -106,39 +98,12 @@ export function AppShell({
               label={apiReady ? t('app.apiOnline') : t('app.apiOffline')}
             />
             <button type="button" className="icon-button" onClick={onReload} aria-label={t('app.reload')}>
-              <RefreshCw size={17} />
+              <RefreshCw className={refreshing ? 'is-spinning' : ''} size={17} />
             </button>
             <button type="button" className="icon-button" onClick={onToggleTheme} aria-label={t('app.theme')}>
               {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
             </button>
-            {showWindowControls ? (
-              <div className="window-controls" aria-label={t('app.windowControls')}>
-                <button
-                  type="button"
-                  className="window-control"
-                  onClick={() => void window.termous?.windowControls?.minimize()}
-                  aria-label={t('app.minimize')}
-                >
-                  <Minus size={15} />
-                </button>
-                <button
-                  type="button"
-                  className="window-control"
-                  onClick={() => void window.termous?.windowControls?.toggleMaximize().then(setIsMaximized)}
-                  aria-label={isMaximized ? t('app.restore') : t('app.maximize')}
-                >
-                  <Maximize2 size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="window-control danger"
-                  onClick={() => void window.termous?.windowControls?.close()}
-                  aria-label={t('app.close')}
-                >
-                  <X size={15} />
-                </button>
-              </div>
-            ) : null}
+            {showWindowControls ? <WindowControls /> : null}
           </div>
         </header>
         <main className="content-frame">{children}</main>

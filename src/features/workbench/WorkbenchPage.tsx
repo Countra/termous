@@ -1,10 +1,24 @@
-import { Cable, Layers, Monitor, PanelRightClose, PanelRightOpen, Plus, Power, Save, Shell } from 'lucide-react'
+import {
+  Cable,
+  KeyRound,
+  Layers,
+  Monitor,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Power,
+  Save,
+  Server,
+  Shell,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApi } from '../../api/client'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { StatusBadge } from '../../components/ui/StatusBadge'
+import { ConnectionProgress } from '../terminal/ConnectionProgress'
 import { TerminalPane } from '../terminal/TerminalPane'
 import type { AppData, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
 
@@ -36,9 +50,10 @@ export function WorkbenchPage({
   onDisconnect,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
+  const [hostPanelCollapsed, setHostPanelCollapsed] = useState(false)
   const [detailsCollapsed, setDetailsCollapsed] = useState(false)
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
-  const groupedHosts = useMemo(() => groupHosts(data.hosts), [data.hosts])
+  const groupedHosts = useMemo(() => groupHosts(data.hosts, data.groups), [data.hosts, data.groups])
   const sessionStatus = activeSession?.status ?? 'disconnected'
   const credential = data.credentials.find((item) => item.id === selectedHost?.credential_id)
   const jumpHost = data.hosts.find((host) => host.id === selectedHost?.jump_host_id)
@@ -47,6 +62,7 @@ export function WorkbenchPage({
     activeSession?.kind === 'local'
       ? t('workbench.localTerminal')
       : selectedHost?.name ?? t('workbench.noHost')
+  const sessionStateLabel = activeSession?.phase ? t(`connection.phase.${activeSession.phase}`) : t(`status.${sessionStatus}`)
   const targetLabel =
     activeSession?.kind === 'local'
       ? t('workbench.localTerminal')
@@ -55,15 +71,28 @@ export function WorkbenchPage({
         : t('workbench.noHost')
 
   return (
-    <section className="page-grid workbench-grid">
-      <div className="context-panel">
+    <section
+      className={`page-grid workbench-grid ${hostPanelCollapsed ? 'is-host-collapsed' : ''} ${
+        detailsCollapsed ? 'is-details-collapsed' : ''
+      }`}
+    >
+      <div className={`context-panel host-context-panel ${hostPanelCollapsed ? 'is-collapsed' : ''}`}>
         <div className="panel-heading">
-          <div>
-            <h2>{t('workbench.hostPanel')}</h2>
-            <span>{data.hosts.length} {t('workbench.hostCount')}</span>
+          <div className="panel-title-copy">
+            <h2>{hostPanelCollapsed ? t('workbench.hostsShort') : t('workbench.hostPanel')}</h2>
+            {!hostPanelCollapsed ? (
+              <span>
+                {data.hosts.length} {t('workbench.hostCount')}
+              </span>
+            ) : null}
           </div>
-          <button type="button" className="icon-button compact" aria-label={t('workbench.newTab')}>
-            <Plus size={16} />
+          <button
+            type="button"
+            className="icon-button compact"
+            onClick={() => setHostPanelCollapsed((current) => !current)}
+            aria-label={hostPanelCollapsed ? t('app.expand') : t('app.collapse')}
+          >
+            {hostPanelCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
           </button>
         </div>
         {data.hosts.length === 0 ? (
@@ -72,20 +101,16 @@ export function WorkbenchPage({
           <div className="host-stack">
             {Object.entries(groupedHosts).map(([group, hosts]) => (
               <div className="host-group-block" key={group}>
-                <span className="group-label">{group || t('hosts.ungrouped')}</span>
+                {!hostPanelCollapsed ? <span className="group-label">{group || t('hosts.ungrouped')}</span> : null}
                 {hosts.map((host) => (
-                  <button
-                    type="button"
+                  <HostRow
                     key={host.id}
-                    className={`host-row ${host.id === selectedHost?.id ? 'is-active' : ''}`}
-                    onClick={() => onSelectHost(host.id)}
-                  >
-                    <span className="host-dot" />
-                    <span>
-                      <strong>{host.name}</strong>
-                      <small>{host.username}@{host.address}:{host.port}</small>
-                    </span>
-                  </button>
+                    host={host}
+                    active={host.id === selectedHost?.id}
+                    collapsed={hostPanelCollapsed}
+                    authLabel={t(`hosts.auth.${host.auth_method}`)}
+                    onSelect={() => onSelectHost(host.id)}
+                  />
                 ))}
               </div>
             ))}
@@ -143,6 +168,7 @@ export function WorkbenchPage({
             </div>
             <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
           </div>
+          <ConnectionProgress session={activeSession} />
           <TerminalPane
             api={api}
             session={activeSession}
@@ -162,7 +188,7 @@ export function WorkbenchPage({
         <div className="panel-heading">
           <div>
             <h2>{t('workbench.currentConnection')}</h2>
-            <span>{t('workbench.connectionDetails')}</span>
+            {!detailsCollapsed ? <span>{t('workbench.connectionDetails')}</span> : null}
           </div>
           <button
             type="button"
@@ -173,7 +199,12 @@ export function WorkbenchPage({
             {detailsCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
           </button>
         </div>
-        {!detailsCollapsed ? (
+        {detailsCollapsed ? (
+          <div className="details-collapsed-rail">
+            <Server size={18} />
+            <span>{t(`status.${sessionStatus}`)}</span>
+          </div>
+        ) : (
           <>
             <CustomSelect
               label={t('workbench.selectHost')}
@@ -197,7 +228,7 @@ export function WorkbenchPage({
               </div>
               <div>
                 <dt>{t('workbench.sessionState')}</dt>
-                <dd>{activeSession?.status_message ?? t(`status.${sessionStatus}`)}</dd>
+                <dd>{sessionStateLabel}</dd>
               </div>
               <div>
                 <dt>{t('workbench.jumpHost')}</dt>
@@ -214,7 +245,7 @@ export function WorkbenchPage({
               {t('workbench.closeSession')}
             </button>
           </>
-        ) : null}
+        )}
       </aside>
     </section>
   )
@@ -230,9 +261,51 @@ function Metric({ icon, label, value }: { icon: JSX.Element; label: string; valu
   )
 }
 
-function groupHosts(hosts: Host[]) {
+function HostRow({
+  host,
+  active,
+  collapsed,
+  authLabel,
+  onSelect,
+}: {
+  host: Host
+  active: boolean
+  collapsed: boolean
+  authLabel: string
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={`host-row ${active ? 'is-active' : ''} ${collapsed ? 'is-compact' : ''}`}
+      onClick={onSelect}
+      title={`${host.name} · ${host.username}@${host.address}:${host.port}`}
+    >
+      <span className="host-avatar">
+        <Server size={collapsed ? 17 : 15} aria-hidden="true" />
+      </span>
+      {!collapsed ? (
+        <>
+          <span className="host-main">
+            <strong>{host.name}</strong>
+            <small>
+              {host.username}@{host.address}:{host.port}
+            </small>
+          </span>
+          <span className="host-auth">
+            <KeyRound size={12} aria-hidden="true" />
+            {authLabel}
+          </span>
+        </>
+      ) : null}
+    </button>
+  )
+}
+
+function groupHosts(hosts: Host[], groups: AppData['groups']) {
+  const groupNames = new Map(groups.map((group) => [group.id, group.name]))
   return hosts.reduce<Record<string, Host[]>>((acc, host) => {
-    const key = host.group_id || ''
+    const key = groupNames.get(host.group_id) ?? ''
     acc[key] = acc[key] ?? []
     acc[key].push(host)
     return acc
