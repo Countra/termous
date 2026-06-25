@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
+import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import type { AppData, AuthMethod, HostInput } from '../../types/domain'
 
 interface HostsPageProps {
@@ -137,12 +138,7 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
                   <small>{host.username}@{host.address}:{host.port}</small>
                 </span>
                 <span className="row-trailing">
-                  <span className="host-auth-badge">
-                    <span className="host-auth-badge-icon">
-                      <KeyRound size={12} aria-hidden="true" />
-                    </span>
-                    {t(`hosts.auth.${host.auth_method}`)}
-                  </span>
+                  <AuthMethodBadge method={host.auth_method} />
                   <small className="host-tag-summary">{host.tags?.join(' / ') || t('fields.none')}</small>
                 </span>
               </button>

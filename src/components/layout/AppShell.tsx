@@ -25,6 +25,8 @@ interface AppShellProps {
   onToggleTheme: () => void
   onToggleSidebar: () => void
   onReload: () => void
+  onBeforeClose?: () => Promise<void>
+  onCloseError?: (error: unknown) => void
   children: React.ReactNode
 }
 
@@ -44,6 +46,8 @@ export function AppShell({
   onToggleTheme,
   onToggleSidebar,
   onReload,
+  onBeforeClose,
+  onCloseError,
   children,
 }: AppShellProps) {
   const { t } = useTranslation()
@@ -137,7 +141,7 @@ export function AppShell({
                 icon={theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
               />
             </Tooltip>
-            {showWindowControls ? <WindowControls /> : null}
+            {showWindowControls ? <WindowControls onBeforeClose={onBeforeClose} onCloseError={onCloseError} /> : null}
           </div>
         </header>
         <main className="content-frame">{children}</main>

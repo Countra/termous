@@ -204,13 +204,37 @@
   background: transparent;
 }
 
-.app-toast {
-  z-index: 2600;
-  top: 12px;
+.app-inline-status {
+  position: absolute;
+  top: 14px;
   right: 16px;
+  z-index: 24;
+  border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface-strong);
+  color: var(--text-secondary);
   box-shadow: var(--shadow-soft);
+  padding: 8px 11px;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.termous-notification.ant-notification-notice {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-strong) 96%, transparent);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+}
+
+.termous-notification .ant-notification-notice-message {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.termous-notification .ant-notification-notice-description {
+  color: var(--text-secondary);
 }
 
 .page-grid {
@@ -590,6 +614,17 @@
   min-height: 0;
 }
 
+.terminal-runtime-parking {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .terminal-session-pane {
   padding: 12px;
 }
@@ -727,7 +762,7 @@
 .host-auth-badge {
   display: inline-flex;
   min-width: 0;
-  max-width: 132px;
+  max-width: 154px;
   height: 24px;
   align-items: center;
   gap: 6px;
@@ -740,6 +775,19 @@
   padding: 0 8px 0 6px;
   font-size: 11px;
   font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-auth-badge.is-compact {
+  width: 24px;
+  justify-content: center;
+  padding: 0;
+}
+
+.host-auth-badge-label {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -757,6 +805,31 @@
 
 .host-tag-summary {
   min-width: 0;
+}
+
+.credential-list {
+  gap: 8px;
+}
+
+.credential-list .data-row {
+  min-height: 54px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-subtle) 68%, transparent);
+  padding: 10px;
+}
+
+.credential-list .data-row:hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 36%, var(--surface-subtle));
+}
+
+.credential-list .data-row.is-active {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--surface-subtle));
+  box-shadow:
+    inset 3px 0 0 var(--accent),
+    var(--inner-highlight);
 }
 
 .host-row.is-compact {

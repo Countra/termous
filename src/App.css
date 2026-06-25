@@ -286,26 +286,6 @@
   padding: 12px;
 }
 
-.app-toast {
-  position: absolute;
-  z-index: 40;
-  top: 14px;
-  right: 18px;
-  max-width: min(420px, calc(100% - 36px));
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--text-secondary);
-  box-shadow: var(--shadow);
-  padding: 9px 12px;
-  pointer-events: none;
-}
-
-.app-toast.is-error {
-  border-color: color-mix(in srgb, var(--danger) 54%, var(--border));
-  color: var(--danger);
-}
-
 .is-spinning {
   animation: spin 0.9s linear infinite;
 }

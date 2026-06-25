@@ -4,10 +4,16 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 
-export function WindowControls() {
+interface WindowControlsProps {
+  onBeforeClose?: () => Promise<void>
+  onCloseError?: (error: unknown) => void
+}
+
+export function WindowControls({ onBeforeClose, onCloseError }: WindowControlsProps) {
   const { t } = useTranslation()
   const [isMaximized, setIsMaximized] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
+  const [closing, setClosing] = useState(false)
 
   useEffect(() => {
     const controls = window.termous?.windowControls
@@ -24,9 +30,17 @@ export function WindowControls() {
     setConfirmClose(true)
   }
 
-  const confirmAndClose = () => {
-    setConfirmClose(false)
-    void window.termous?.windowControls?.confirmClose().catch(() => undefined)
+  const confirmAndClose = async () => {
+    setClosing(true)
+    try {
+      await onBeforeClose?.()
+      setConfirmClose(false)
+      await window.termous?.windowControls?.confirmClose()
+    } catch (closeError) {
+      onCloseError?.(closeError)
+    } finally {
+      setClosing(false)
+    }
   }
 
   return (
@@ -63,8 +77,13 @@ export function WindowControls() {
         title={t('app.closeConfirmTitle')}
         description={t('app.closeConfirmDescription')}
         confirmLabel={t('app.close')}
-        onConfirm={confirmAndClose}
-        onCancel={() => setConfirmClose(false)}
+        confirmLoading={closing}
+        onConfirm={() => void confirmAndClose()}
+        onCancel={() => {
+          if (!closing) {
+            setConfirmClose(false)
+          }
+        }}
       />
     </>
   )

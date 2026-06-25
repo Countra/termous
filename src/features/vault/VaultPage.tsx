@@ -96,7 +96,7 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
         {filtered.length === 0 ? (
           <EmptyState title={t('app.empty')} description={t('vault.subtitle')} />
         ) : (
-          <div className="data-list">
+          <div className="data-list credential-list">
             {filtered.map((credential) => (
               <button
                 type="button"

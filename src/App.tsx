@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { App as AntdApp, ConfigProvider } from 'antd'
 import 'antd/dist/reset.css'
 import { useTranslation } from 'react-i18next'
@@ -8,27 +8,48 @@ import { SettingsPage } from './features/settings/SettingsPage'
 import { VaultPage } from './features/vault/VaultPage'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
 import { useTermousData } from './app/useTermousData'
+import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { createAntdTheme } from './theme/antdTheme'
 import type { CredentialInput, HostInput, PageKey, ThemeMode } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
 function App() {
-  const { t } = useTranslation()
-  const { api, data, initializing, refreshing, apiReady, error, activeSession, actions } = useTermousData()
-  const [page, setPage] = useState<PageKey>('workbench')
   const [theme, setTheme] = useState<ThemeMode>(() =>
     window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark',
   )
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [selectedHostId, setSelectedHostId] = useState('')
-  const [actionBusy, setActionBusy] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
   const antdTheme = useMemo(() => createAntdTheme(theme), [theme])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
   }, [theme])
+
+  return (
+    <ConfigProvider theme={antdTheme} button={{ autoInsertSpace: false }}>
+      <AntdApp
+        className="termous-antd-root"
+        notification={{
+          placement: 'topRight',
+          duration: 3,
+          maxCount: 3,
+          showProgress: true,
+          pauseOnHover: true,
+        }}
+      >
+        <AppContent theme={theme} setTheme={setTheme} />
+      </AntdApp>
+    </ConfigProvider>
+  )
+}
+
+function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<SetStateAction<ThemeMode>> }) {
+  const { t } = useTranslation()
+  const { notification } = AntdApp.useApp()
+  const { api, data, initializing, refreshing, apiReady, error, activeSession, actions } = useTermousData()
+  const [page, setPage] = useState<PageKey>('workbench')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [selectedHostId, setSelectedHostId] = useState('')
+  const [actionBusy, setActionBusy] = useState(false)
 
   useEffect(() => {
     if (!selectedHostId && data.hosts[0]) {
@@ -43,16 +64,41 @@ function App() {
     return data.hosts[0]?.id ?? ''
   }, [data.hosts, selectedHostId])
 
+  useEffect(() => {
+    if (!error) {
+      notification.destroy('app-error')
+      return
+    }
+    notification.error({
+      key: 'app-error',
+      title: t('app.apiOffline'),
+      description: error,
+      duration: 5,
+      role: 'alert',
+      className: 'termous-notification',
+    })
+  }, [error, notification, t])
+
   const runAction = async (task: () => Promise<void>, success?: string) => {
     setActionBusy(true)
-    setNotice(null)
     try {
       await task()
       if (success) {
-        setNotice(success)
+        notification.success({
+          title: success,
+          duration: 3,
+          role: 'status',
+          className: 'termous-notification',
+        })
       }
     } catch (actionError) {
-      setNotice(actionError instanceof Error ? actionError.message : t('app.error'))
+      notification.error({
+        title: t('app.error'),
+        description: actionError instanceof Error ? actionError.message : t('app.error'),
+        duration: 5,
+        role: 'alert',
+        className: 'termous-notification',
+      })
     } finally {
       setActionBusy(false)
     }
@@ -76,75 +122,78 @@ function App() {
       }
     }, t('app.save'))
 
+  const showActionError = (actionError: unknown) => {
+    notification.error({
+      title: t('app.error'),
+      description: actionError instanceof Error ? actionError.message : t('app.error'),
+      duration: 5,
+      role: 'alert',
+      className: 'termous-notification',
+    })
+  }
+
   return (
-    <ConfigProvider theme={antdTheme} button={{ autoInsertSpace: false }}>
-      <AntdApp className="termous-antd-root">
-        <AppShell
-          page={page}
-          theme={theme}
-          sidebarCollapsed={sidebarCollapsed}
-          apiReady={apiReady}
-          refreshing={refreshing}
-          onNavigate={setPage}
-          onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
-          onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
-          onReload={() => void actions.reload()}
-        >
-          {(initializing || error || notice) && (
-            <div className={`app-toast ${error ? 'is-error' : ''}`} role="status">
-              {initializing ? t('app.loading') : error ?? notice}
-            </div>
-          )}
+    <TerminalRuntimeProvider api={api} sessions={data.sessions} theme={theme} onSessionEvent={actions.updateSession}>
+      <AppShell
+        page={page}
+        theme={theme}
+        sidebarCollapsed={sidebarCollapsed}
+        apiReady={apiReady}
+        refreshing={refreshing}
+        onNavigate={setPage}
+        onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+        onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+        onReload={() => void actions.reload()}
+        onBeforeClose={actions.disconnectAllSessions}
+        onCloseError={showActionError}
+      >
+        {initializing ? <div className="app-inline-status" role="status">{t('app.loading')}</div> : null}
 
-          {page === 'workbench' ? (
-            <WorkbenchPage
-              api={api}
-              data={data}
-              theme={theme}
-              selectedHostId={selectedHostIdStable}
-              activeSession={activeSession}
-              actionBusy={actionBusy}
-              onSelectHost={setSelectedHostId}
-              onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
-              onOpenLocal={(shell) => runAction(() => actions.openLocalTerminal(shell).then(() => undefined))}
-              onSelectSession={actions.selectSession}
-              onSessionEvent={actions.updateSession}
-              onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
-            />
-          ) : null}
+        {page === 'workbench' ? (
+          <WorkbenchPage
+            data={data}
+            selectedHostId={selectedHostIdStable}
+            activeSession={activeSession}
+            actionBusy={actionBusy}
+            onSelectHost={setSelectedHostId}
+            onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
+            onOpenLocal={(shell) => runAction(() => actions.openLocalTerminal(shell).then(() => undefined))}
+            onSelectSession={actions.selectSession}
+            onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
+          />
+        ) : null}
 
-          {page === 'hosts' ? (
-            <HostsPage
-              data={data}
-              selectedHostId={selectedHostIdStable}
-              actionBusy={actionBusy}
-              onSelectHost={setSelectedHostId}
-              onSave={saveHost}
-              onDelete={(id) => runAction(() => actions.deleteHost(id))}
-              onImport={() => runAction(() => actions.importSSHConfig().then(() => undefined), t('hosts.importAccepted'))}
-            />
-          ) : null}
+        {page === 'hosts' ? (
+          <HostsPage
+            data={data}
+            selectedHostId={selectedHostIdStable}
+            actionBusy={actionBusy}
+            onSelectHost={setSelectedHostId}
+            onSave={saveHost}
+            onDelete={(id) => runAction(() => actions.deleteHost(id))}
+            onImport={() => runAction(() => actions.importSSHConfig().then(() => undefined), t('hosts.importAccepted'))}
+          />
+        ) : null}
 
-          {page === 'vault' ? (
-            <VaultPage
-              data={data}
-              actionBusy={actionBusy}
-              onSave={saveCredential}
-              onDelete={(id) => runAction(() => actions.deleteCredential(id))}
-              onGenerateKey={() => runAction(actions.generateKey)}
-            />
-          ) : null}
+        {page === 'vault' ? (
+          <VaultPage
+            data={data}
+            actionBusy={actionBusy}
+            onSave={saveCredential}
+            onDelete={(id) => runAction(() => actions.deleteCredential(id))}
+            onGenerateKey={() => runAction(actions.generateKey)}
+          />
+        ) : null}
 
-          {page === 'settings' ? (
-            <SettingsPage
-              language={data.settings.language}
-              actionBusy={actionBusy}
-              onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
-            />
-          ) : null}
-        </AppShell>
-      </AntdApp>
-    </ConfigProvider>
+        {page === 'settings' ? (
+          <SettingsPage
+            language={data.settings.language}
+            actionBusy={actionBusy}
+            onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
+          />
+        ) : null}
+      </AppShell>
+    </TerminalRuntimeProvider>
   )
 }
 

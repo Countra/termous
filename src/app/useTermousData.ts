@@ -173,6 +173,17 @@ export function useTermousData() {
         setActiveSession((current) => (current?.id === sessionId ? fallbackSession : current))
         void load('silent')
       },
+      async disconnectAllSessions() {
+        const sessionsToClose = data.sessions
+        const results = await Promise.allSettled(sessionsToClose.map((session) => api.deleteSession(session.id)))
+        const failed = results.find((result) => result.status === 'rejected')
+        if (failed && failed.status === 'rejected') {
+          throw failed.reason
+        }
+        setData((current) => ({ ...current, sessions: [] }))
+        setActiveSession(null)
+        void load('silent')
+      },
       selectSession(sessionId: string) {
         const next = data.sessions.find((session) => session.id === sessionId)
         if (next) {

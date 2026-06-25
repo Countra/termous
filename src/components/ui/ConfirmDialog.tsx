@@ -9,6 +9,7 @@ interface ConfirmDialogProps {
   confirmLabel?: string
   cancelLabel?: string
   danger?: boolean
+  confirmLoading?: boolean
   onConfirm: () => void
   onCancel: () => void
 }
@@ -20,6 +21,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel,
   danger = false,
+  confirmLoading = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -52,8 +54,8 @@ export function ConfirmDialog({
           <p>{description}</p>
         </div>
         <div className="dialog-actions">
-          <Button onClick={onCancel}>{cancelLabel ?? t('app.cancel')}</Button>
-          <Button danger={danger} type={danger ? 'primary' : 'default'} onClick={onConfirm}>
+          <Button onClick={onCancel} disabled={confirmLoading}>{cancelLabel ?? t('app.cancel')}</Button>
+          <Button danger={danger} type={danger ? 'primary' : 'default'} loading={confirmLoading} onClick={onConfirm}>
             {confirmLabel ?? t('app.confirm')}
           </Button>
         </div>

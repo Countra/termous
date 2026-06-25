@@ -2,7 +2,6 @@ import {
   Cable,
   ChevronLeft,
   ChevronRight,
-  KeyRound,
   Layers,
   Monitor,
   PanelLeftClose,
@@ -17,18 +16,16 @@ import {
 import { Button, Tooltip } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { TermousApi } from '../../api/client'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { StatusBadge } from '../../components/ui/StatusBadge'
+import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { ConnectionProgress } from '../terminal/ConnectionProgress'
-import { TerminalPane } from '../terminal/TerminalPane'
-import type { AppData, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
+import { TerminalViewport } from '../terminal/TerminalViewport'
+import type { AppData, Host, LocalShell, Session } from '../../types/domain'
 
 interface WorkbenchPageProps {
-  api: TermousApi
   data: AppData
-  theme: ThemeMode
   selectedHostId: string
   activeSession: Session | null
   actionBusy: boolean
@@ -36,14 +33,11 @@ interface WorkbenchPageProps {
   onConnect: (hostId: string) => Promise<void>
   onOpenLocal: (shell: LocalShell) => Promise<void>
   onSelectSession: (sessionId: string) => void
-  onSessionEvent: (sessionId: string, patch: Partial<Session>) => void
   onDisconnect: (sessionId: string) => Promise<void>
 }
 
 export function WorkbenchPage({
-  api,
   data,
-  theme,
   selectedHostId,
   activeSession,
   actionBusy,
@@ -51,7 +45,6 @@ export function WorkbenchPage({
   onConnect,
   onOpenLocal,
   onSelectSession,
-  onSessionEvent,
   onDisconnect,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
@@ -67,6 +60,9 @@ export function WorkbenchPage({
   const credential = data.credentials.find((item) => item.id === selectedHost?.credential_id)
   const jumpHost = data.hosts.find((host) => host.id === selectedHost?.jump_host_id)
   const [terminalSize, setTerminalSize] = useState({ cols: activeSession?.pty_cols ?? 120, rows: activeSession?.pty_rows ?? 32 })
+  const handleTerminalResize = useCallback((cols: number, rows: number) => {
+    setTerminalSize({ cols, rows })
+  }, [])
   const sessionHost = activeSession?.host_id ? data.hosts.find((host) => host.id === activeSession.host_id) : undefined
   const sessionStateLabel = activeSession?.phase ? t(`connection.phase.${activeSession.phase}`) : t(`status.${sessionStatus}`)
   const targetLabel =
@@ -78,7 +74,6 @@ export function WorkbenchPage({
   const startedAt = activeSession?.started_at ? formatTime(activeSession.started_at) : t('fields.none')
   const connectedAt = activeSession?.connected_at ? formatTime(activeSession.connected_at) : t('fields.none')
   const sessionResult = activeSession?.last_error ?? (activeSession?.exit_code !== undefined ? String(activeSession.exit_code) : t('fields.none'))
-  const sessionIds = useMemo(() => data.sessions.map((item) => item.id), [data.sessions])
 
   const updateTabScrollState = useCallback(() => {
     const viewport = tabViewportRef.current
@@ -169,7 +164,6 @@ export function WorkbenchPage({
                     host={host}
                     active={host.id === selectedHost?.id}
                     collapsed={hostPanelCollapsed}
-                    authLabel={t(`hosts.auth.${host.auth_method}`)}
                     onSelect={() => onSelectHost(host.id)}
                   />
                 ))}
@@ -282,14 +276,10 @@ export function WorkbenchPage({
           <div className={`terminal-progress-slot ${hasConnectionProgress ? 'is-active' : ''}`}>
             <ConnectionProgress session={activeSession} />
           </div>
-          <TerminalPane
-            api={api}
+          <TerminalViewport
             session={activeSession}
-            sessionIds={sessionIds}
-            theme={theme}
             placeholder={selectedHost ? t('workbench.terminalReady') : t('workbench.terminalHint')}
-            onResize={(cols, rows) => setTerminalSize({ cols, rows })}
-            onSessionEvent={onSessionEvent}
+            onResize={handleTerminalResize}
           />
           <div className="terminal-statusbar">
             <StatusItem label={t('workbench.target')} value={targetLabel} />
@@ -413,21 +403,22 @@ function HostRow({
   host,
   active,
   collapsed,
-  authLabel,
   onSelect,
 }: {
   host: Host
   active: boolean
   collapsed: boolean
-  authLabel: string
   onSelect: () => void
 }) {
+  const { t } = useTranslation()
+  const authLabel = host.auth_method === 'system' ? t('hosts.systemAuth') : t(`hosts.auth.${host.auth_method}`)
   return (
     <button
       type="button"
       className={`host-row ${active ? 'is-active' : ''} ${collapsed ? 'is-compact' : ''}`}
       onClick={onSelect}
-      title={`${host.name} · ${host.username}@${host.address}:${host.port}`}
+      aria-label={`${host.name} ${host.username}@${host.address}:${host.port} ${authLabel}`}
+      title={`${host.name} · ${host.username}@${host.address}:${host.port} · ${authLabel}`}
     >
       <span className="host-avatar">
         <Server size={collapsed ? 17 : 15} aria-hidden="true" />
@@ -440,12 +431,7 @@ function HostRow({
               {host.username}@{host.address}:{host.port}
             </small>
           </span>
-          <span className="host-auth-badge">
-            <span className="host-auth-badge-icon">
-              <KeyRound size={12} aria-hidden="true" />
-            </span>
-            {authLabel}
-          </span>
+          <AuthMethodBadge method={host.auth_method} />
         </>
       ) : null}
     </button>
