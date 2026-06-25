@@ -242,20 +242,22 @@
 }
 
 .workbench-grid {
-  grid-template-columns: minmax(244px, 284px) minmax(640px, 1fr) minmax(244px, 284px);
+  min-width: 0;
+  overflow: hidden;
+  grid-template-columns: minmax(232px, 260px) minmax(0, 1fr) minmax(236px, 280px);
   gap: 12px;
 }
 
 .workbench-grid.is-host-collapsed {
-  grid-template-columns: 72px minmax(720px, 1fr) minmax(244px, 284px);
+  grid-template-columns: 72px minmax(0, 1fr) minmax(236px, 280px);
 }
 
 .workbench-grid.is-details-collapsed {
-  grid-template-columns: minmax(244px, 284px) minmax(720px, 1fr) 72px;
+  grid-template-columns: minmax(232px, 260px) minmax(0, 1fr) 72px;
 }
 
 .workbench-grid.is-host-collapsed.is-details-collapsed {
-  grid-template-columns: 72px minmax(720px, 1fr) 72px;
+  grid-template-columns: 72px minmax(0, 1fr) 72px;
 }
 
 .context-panel,
@@ -273,7 +275,9 @@
 .terminal-card {
   border: 1px solid var(--terminal-border);
   border-radius: 16px;
+  min-width: 0;
   min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 42px auto minmax(0, 1fr) 36px;
   overflow: hidden;
   background: var(--terminal-frame);
@@ -291,8 +295,10 @@
 .host-context-panel,
 .details-panel {
   display: flex;
+  min-width: 0;
   min-height: 0;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .host-context-panel.is-collapsed,
@@ -406,17 +412,24 @@
 .terminal-toolbar {
   min-height: 42px;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   border-bottom: 1px solid var(--border);
   background: var(--terminal-toolbar);
+  box-sizing: border-box;
 }
 
 .terminal-statusbar {
   display: grid;
-  grid-template-columns: minmax(160px, 1.4fr) repeat(5, minmax(86px, 1fr));
+  grid-template-columns: minmax(112px, 1.4fr) repeat(5, minmax(0, 1fr));
+  min-width: 0;
   min-height: 36px;
+  max-width: 100%;
+  overflow: hidden;
   border-top: 1px solid var(--border);
   background: var(--terminal-toolbar);
   padding: 0 12px;
+  box-sizing: border-box;
 }
 
 .terminal-status-item {
@@ -449,6 +462,7 @@
   grid-template-columns: 30px minmax(0, 1fr) 30px;
   align-items: center;
   gap: 4px;
+  overflow: hidden;
 }
 
 .session-tabs {
@@ -730,8 +744,8 @@
 
 .row-trailing {
   display: flex;
-  min-width: 170px;
-  max-width: 240px;
+  min-width: 156px;
+  max-width: 260px;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
@@ -761,9 +775,10 @@
 
 .host-auth-badge {
   display: inline-flex;
-  min-width: 0;
-  max-width: 154px;
+  min-width: 64px;
+  max-width: 164px;
   height: 24px;
+  flex: 0 0 auto;
   align-items: center;
   gap: 6px;
   margin-inline-end: 0;
@@ -779,8 +794,14 @@
   white-space: nowrap;
 }
 
+.data-row .row-trailing > .host-auth-badge {
+  display: inline-flex;
+  min-width: 64px;
+}
+
 .host-auth-badge.is-compact {
   width: 24px;
+  min-width: 24px;
   justify-content: center;
   padding: 0;
 }
@@ -801,6 +822,10 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent) 13%, transparent);
   color: var(--accent);
+}
+
+.data-row .row-trailing .host-auth-badge-icon {
+  display: inline-grid;
 }
 
 .host-tag-summary {
@@ -849,14 +874,36 @@
 }
 
 .detail-list div {
+  min-width: 0;
   border-bottom: 1px solid var(--border);
   padding: 9px 0;
 }
 
+.detail-list dt {
+  flex: 0 0 auto;
+}
+
+.detail-list dd {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .status-badge {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   border-color: var(--border);
   background: var(--surface-subtle);
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-toolbar .status-badge {
+  flex: 0 0 auto;
+  max-width: 92px;
 }
 
 .management-grid {
