@@ -105,6 +105,8 @@ export const resources = {
         terminalSize: '尺寸',
         sessionId: '会话 ID',
         result: '结果',
+        scrollTabsLeft: '向左滚动会话标签',
+        scrollTabsRight: '向右滚动会话标签',
       },
       hosts: {
         title: '主机管理',
@@ -288,6 +290,8 @@ export const resources = {
         terminalSize: 'Size',
         sessionId: 'Session ID',
         result: 'Result',
+        scrollTabsLeft: 'Scroll session tabs left',
+        scrollTabsRight: 'Scroll session tabs right',
       },
       hosts: {
         title: 'Host Management',

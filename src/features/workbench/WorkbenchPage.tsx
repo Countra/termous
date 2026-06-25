@@ -1,5 +1,7 @@
 import {
   Cable,
+  ChevronLeft,
+  ChevronRight,
   KeyRound,
   Layers,
   Monitor,
@@ -12,8 +14,8 @@ import {
   Shell,
   SquareTerminal,
 } from 'lucide-react'
-import { Button, Tag, Tooltip } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { Button, Tooltip } from 'antd'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApi } from '../../api/client'
 import { CustomSelect } from '../../components/ui/CustomSelect'
@@ -55,9 +57,13 @@ export function WorkbenchPage({
   const { t } = useTranslation()
   const [hostPanelCollapsed, setHostPanelCollapsed] = useState(false)
   const [detailsCollapsed, setDetailsCollapsed] = useState(false)
+  const tabViewportRef = useRef<HTMLDivElement>(null)
+  const tabButtonRefs = useRef(new Map<string, HTMLElement>())
+  const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const groupedHosts = useMemo(() => groupHosts(data.hosts, data.groups), [data.hosts, data.groups])
   const sessionStatus = activeSession?.status ?? 'disconnected'
+  const hasConnectionProgress = Boolean(activeSession && activeSession.status !== 'connected' && activeSession.status !== 'disconnected')
   const credential = data.credentials.find((item) => item.id === selectedHost?.credential_id)
   const jumpHost = data.hosts.find((host) => host.id === selectedHost?.jump_host_id)
   const [terminalSize, setTerminalSize] = useState({ cols: activeSession?.pty_cols ?? 120, rows: activeSession?.pty_rows ?? 32 })
@@ -72,12 +78,57 @@ export function WorkbenchPage({
   const startedAt = activeSession?.started_at ? formatTime(activeSession.started_at) : t('fields.none')
   const connectedAt = activeSession?.connected_at ? formatTime(activeSession.connected_at) : t('fields.none')
   const sessionResult = activeSession?.last_error ?? (activeSession?.exit_code !== undefined ? String(activeSession.exit_code) : t('fields.none'))
+  const sessionIds = useMemo(() => data.sessions.map((item) => item.id), [data.sessions])
+
+  const updateTabScrollState = useCallback(() => {
+    const viewport = tabViewportRef.current
+    if (!viewport) {
+      setTabScrollState({ canScrollLeft: false, canScrollRight: false })
+      return
+    }
+    const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth
+    setTabScrollState({
+      canScrollLeft: viewport.scrollLeft > 1,
+      canScrollRight: viewport.scrollLeft < maxScrollLeft - 1,
+    })
+  }, [])
+
+  const scrollTabs = useCallback((direction: 'left' | 'right') => {
+    const viewport = tabViewportRef.current
+    if (!viewport) {
+      return
+    }
+    viewport.scrollBy({ left: direction === 'left' ? -220 : 220, behavior: 'smooth' })
+    window.setTimeout(updateTabScrollState, 180)
+  }, [updateTabScrollState])
 
   useEffect(() => {
     if (activeSession) {
       setTerminalSize({ cols: activeSession.pty_cols, rows: activeSession.pty_rows })
     }
   }, [activeSession])
+
+  useEffect(() => {
+    const viewport = tabViewportRef.current
+    if (!viewport) {
+      return undefined
+    }
+    const observer = new ResizeObserver(updateTabScrollState)
+    observer.observe(viewport)
+    viewport.addEventListener('scroll', updateTabScrollState, { passive: true })
+    updateTabScrollState()
+    return () => {
+      observer.disconnect()
+      viewport.removeEventListener('scroll', updateTabScrollState)
+    }
+  }, [data.sessions.length, updateTabScrollState])
+
+  useEffect(() => {
+    updateTabScrollState()
+    const activeButton = activeSession?.id ? tabButtonRefs.current.get(activeSession.id) : undefined
+    activeButton?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+    window.setTimeout(updateTabScrollState, 180)
+  }, [activeSession?.id, data.sessions.length, updateTabScrollState])
 
   return (
     <section
@@ -165,37 +216,76 @@ export function WorkbenchPage({
 
         <div className="terminal-card">
           <div className="terminal-toolbar">
-            <div className="terminal-tabs session-tabs" role="tablist" aria-label={t('workbench.terminal')}>
-              {data.sessions.length === 0 ? (
-                <Button type="text" className="terminal-tab is-empty" role="tab" icon={<SquareTerminal size={15} />}>
-                  {t('workbench.noSession')}
-                </Button>
-              ) : (
-                data.sessions.map((session) => {
-                  const title = sessionTitle(session, data.hosts, t)
-                  return (
-                    <Button
-                      key={session.id}
-                      type="text"
-                      className={`terminal-tab ${session.id === activeSession?.id ? 'is-active' : ''}`}
-                      role="tab"
-                      aria-selected={session.id === activeSession?.id}
-                      onClick={() => onSelectSession(session.id)}
-                      icon={<SquareTerminal size={15} />}
-                    >
-                      <span className={`session-dot is-${session.status}`} />
-                      <span>{title}</span>
-                    </Button>
-                  )
-                })
-              )}
+            <div className="session-tabs-shell">
+              <Tooltip title={t('workbench.scrollTabsLeft')}>
+                <Button
+                  type="text"
+                  className="session-scroll-button"
+                  aria-label={t('workbench.scrollTabsLeft')}
+                  disabled={!tabScrollState.canScrollLeft}
+                  icon={<ChevronLeft size={15} />}
+                  onClick={() => scrollTabs('left')}
+                />
+              </Tooltip>
+              <div
+                className={`terminal-tabs session-tabs ${tabScrollState.canScrollLeft ? 'has-left-overflow' : ''} ${
+                  tabScrollState.canScrollRight ? 'has-right-overflow' : ''
+                }`}
+                role="tablist"
+                aria-label={t('workbench.terminal')}
+                ref={tabViewportRef}
+              >
+                {data.sessions.length === 0 ? (
+                  <Button type="text" className="terminal-tab is-empty" role="tab" icon={<SquareTerminal size={15} />}>
+                    {t('workbench.noSession')}
+                  </Button>
+                ) : (
+                  data.sessions.map((session) => {
+                    const title = sessionTitle(session, data.hosts, t)
+                    return (
+                      <Button
+                        key={session.id}
+                        ref={(node) => {
+                          if (node) {
+                            tabButtonRefs.current.set(session.id, node)
+                          } else {
+                            tabButtonRefs.current.delete(session.id)
+                          }
+                        }}
+                        type="text"
+                        className={`terminal-tab ${session.id === activeSession?.id ? 'is-active' : ''}`}
+                        role="tab"
+                        aria-selected={session.id === activeSession?.id}
+                        onClick={() => onSelectSession(session.id)}
+                        icon={<SquareTerminal size={15} />}
+                      >
+                        <span className={`session-dot is-${session.status}`} />
+                        <span>{title}</span>
+                      </Button>
+                    )
+                  })
+                )}
+              </div>
+              <Tooltip title={t('workbench.scrollTabsRight')}>
+                <Button
+                  type="text"
+                  className="session-scroll-button"
+                  aria-label={t('workbench.scrollTabsRight')}
+                  disabled={!tabScrollState.canScrollRight}
+                  icon={<ChevronRight size={15} />}
+                  onClick={() => scrollTabs('right')}
+                />
+              </Tooltip>
             </div>
             <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
           </div>
-          <ConnectionProgress session={activeSession} />
+          <div className={`terminal-progress-slot ${hasConnectionProgress ? 'is-active' : ''}`}>
+            <ConnectionProgress session={activeSession} />
+          </div>
           <TerminalPane
             api={api}
             session={activeSession}
+            sessionIds={sessionIds}
             theme={theme}
             placeholder={selectedHost ? t('workbench.terminalReady') : t('workbench.terminalHint')}
             onResize={(cols, rows) => setTerminalSize({ cols, rows })}
@@ -350,9 +440,12 @@ function HostRow({
               {host.username}@{host.address}:{host.port}
             </small>
           </span>
-          <Tag className="host-auth" icon={<KeyRound size={12} aria-hidden="true" />}>
+          <span className="host-auth-badge">
+            <span className="host-auth-badge-icon">
+              <KeyRound size={12} aria-hidden="true" />
+            </span>
             {authLabel}
-          </Tag>
+          </span>
         </>
       ) : null}
     </button>

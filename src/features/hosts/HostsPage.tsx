@@ -1,5 +1,5 @@
 import { FileInput, KeyRound, Pencil, Plus, Server, Trash2 } from 'lucide-react'
-import { Button, Input, InputNumber, Popconfirm, Tag } from 'antd'
+import { Button, Input, InputNumber, Popconfirm } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomSelect } from '../../components/ui/CustomSelect'
@@ -137,10 +137,13 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
                   <small>{host.username}@{host.address}:{host.port}</small>
                 </span>
                 <span className="row-trailing">
-                  <Tag className="soft-tag" icon={<KeyRound size={12} aria-hidden="true" />}>
+                  <span className="host-auth-badge">
+                    <span className="host-auth-badge-icon">
+                      <KeyRound size={12} aria-hidden="true" />
+                    </span>
                     {t(`hosts.auth.${host.auth_method}`)}
-                  </Tag>
-                  <small>{host.tags?.join(' / ') || t('fields.none')}</small>
+                  </span>
+                  <small className="host-tag-summary">{host.tags?.join(' / ') || t('fields.none')}</small>
                 </span>
               </button>
             ))}
