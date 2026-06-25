@@ -33,11 +33,7 @@ export function useTermousData() {
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
 
-  useEffect(() => {
-    void createApiFromRuntime().then(setApi)
-  }, [])
-
-  const load = useCallback(async (mode: LoadMode = 'background') => {
+  const loadWithApi = useCallback(async (apiClient: TermousApi, mode: LoadMode = 'background') => {
     if (mode === 'initial') {
       setInitializing(true)
     } else if (mode === 'background') {
@@ -45,31 +41,32 @@ export function useTermousData() {
     }
     setError(null)
     try {
-      await api.health()
+      await apiClient.health()
       const [settings, groups, hosts, credentials, knownHosts, sessions] = await Promise.all([
-        api.settings(),
-        api.hostGroups(),
-        api.hosts(),
-        api.credentials(),
-        api.knownHosts(),
-        api.sessions(),
+        apiClient.settings(),
+        apiClient.hostGroups(),
+        apiClient.hosts(),
+        apiClient.credentials(),
+        apiClient.knownHosts(),
+        apiClient.sessions(),
       ])
+      const nextSessions = sessions ?? []
       setData({
         settings,
         groups: groups ?? [],
         hosts: hosts ?? [],
         credentials: credentials ?? [],
         knownHosts: knownHosts ?? [],
-        sessions: sessions ?? [],
+        sessions: nextSessions,
       })
       setActiveSession((current) => {
         if (current) {
-          const updated = sessions.find((session) => session.id === current.id)
+          const updated = nextSessions.find((session) => session.id === current.id)
           if (updated) {
             return updated
           }
         }
-        return sessions[0] ?? null
+        return nextSessions[0] ?? null
       })
       setApiReady(true)
       setLastUpdatedAt(new Date().toISOString())
@@ -84,11 +81,35 @@ export function useTermousData() {
         setRefreshing(false)
       }
     }
-  }, [api])
+  }, [])
+
+  const load = useCallback(
+    (mode: LoadMode = 'background') => loadWithApi(api, mode),
+    [api, loadWithApi],
+  )
 
   useEffect(() => {
-    void load('initial')
-  }, [load])
+    let disposed = false
+    void createApiFromRuntime()
+      .then((runtimeApi) => {
+        if (disposed) {
+          return
+        }
+        setApi(runtimeApi)
+        void loadWithApi(runtimeApi, 'initial')
+      })
+      .catch((runtimeError) => {
+        if (disposed) {
+          return
+        }
+        setApiReady(false)
+        setError(publicMessage(runtimeError))
+        setInitializing(false)
+      })
+    return () => {
+      disposed = true
+    }
+  }, [loadWithApi])
 
   const actions = useMemo(
     () => ({
@@ -147,19 +168,26 @@ export function useTermousData() {
       },
       async disconnect(sessionId: string) {
         await api.deleteSession(sessionId)
-        setActiveSession((current) => (current?.id === sessionId ? null : current))
+        const fallbackSession = data.sessions.find((session) => session.id !== sessionId) ?? null
         setData((current) => ({ ...current, sessions: current.sessions.filter((session) => session.id !== sessionId) }))
+        setActiveSession((current) => (current?.id === sessionId ? fallbackSession : current))
         void load('silent')
       },
-      updateActiveSession(patch: Partial<Session>) {
-        setActiveSession((current) => (current ? { ...current, ...patch } : current))
+      selectSession(sessionId: string) {
+        const next = data.sessions.find((session) => session.id === sessionId)
+        if (next) {
+          setActiveSession(next)
+        }
+      },
+      updateSession(sessionId: string, patch: Partial<Session>) {
+        setActiveSession((current) => (current?.id === sessionId ? { ...current, ...patch } : current))
         setData((current) => ({
           ...current,
-          sessions: current.sessions.map((session) => (session.id === activeSession?.id ? { ...session, ...patch } : session)),
+          sessions: current.sessions.map((session) => (session.id === sessionId ? { ...session, ...patch } : session)),
         }))
       },
     }),
-    [activeSession?.id, api, load],
+    [api, data.sessions, load],
   )
 
   return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, actions }

@@ -1,5 +1,5 @@
-import { Plus, Trash2, Wand2 } from 'lucide-react'
-import { Button, Input, Popconfirm, Segmented } from 'antd'
+import { KeyRound, Plus, Trash2, Wand2 } from 'lucide-react'
+import { Button, Input, Popconfirm, Segmented, Tag } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomSelect } from '../../components/ui/CustomSelect'
@@ -104,11 +104,17 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
                 className={`data-row ${credential.id === editingId ? 'is-active' : ''}`}
                 onClick={() => setEditingId(credential.id)}
               >
-                <span>
+                <span className="row-icon">
+                  <KeyRound size={16} aria-hidden="true" />
+                </span>
+                <span className="row-copy">
                   <strong>{credential.name}</strong>
                   <small>{t(`vault.typeName.${credential.type}`)}</small>
                 </span>
-                <span className="row-meta">{credential.bound_host_count} {t('vault.boundHosts')}</span>
+                <span className="row-trailing">
+                  <Tag className="soft-tag">{t(`vault.typeName.${credential.type}`)}</Tag>
+                  <small>{credential.bound_host_count} {t('vault.boundHosts')}</small>
+                </span>
               </button>
             ))}
           </div>
@@ -122,39 +128,60 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
             <span>{editingId ? t('app.update') : t('app.create')}</span>
           </div>
         </div>
-        <div className="form-grid">
-          <Field label={t('vault.name')} value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
-          <CustomSelect
-            label={t('vault.type')}
-            value={form.type}
-            options={[
-              { value: 'password', label: t('hosts.password') },
-              { value: 'private_key', label: t('hosts.privateKey') },
-              { value: 'private_key_passphrase', label: t('vault.passphrases') },
-            ]}
-            onChange={(value) => setForm({ ...form, type: value as CredentialType })}
-          />
-          {form.type === 'private_key' ? (
-            <CustomSelect
-              label={t('vault.bindPassphrase')}
-              value={form.metadata.passphrase_credential_id ?? ''}
-              options={passphraseOptions}
-              onChange={(value) =>
-                setForm({
-                  ...form,
-                  metadata: value ? { ...form.metadata, passphrase_credential_id: value } : omitKey(form.metadata, 'passphrase_credential_id'),
-                })
-              }
-            />
-          ) : null}
-          <label className="field field-wide">
-            <span className="field-label">{t('vault.secret')}</span>
-            <Input.TextArea
-              value={form.secret}
-              placeholder={editingId ? t('fields.optional') : t('fields.required')}
-              onChange={(event) => setForm({ ...form, secret: event.target.value })}
-            />
-          </label>
+        <div className="editor-sections">
+          <section className="form-section">
+            <h3>{t('vault.type')}</h3>
+            <div className="credential-type-grid">
+              {(['password', 'private_key', 'private_key_passphrase'] as CredentialType[]).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  className={`auth-choice ${form.type === type ? 'is-active' : ''}`}
+                  onClick={() => setForm({ ...form, type })}
+                >
+                  <KeyRound size={15} aria-hidden="true" />
+                  <span>{t(`vault.typeName.${type}`)}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+          <section className="form-section">
+            <h3>{t('vault.editor')}</h3>
+            <div className="form-grid">
+              <Field label={t('vault.name')} value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
+              {form.type === 'private_key' ? (
+                <CustomSelect
+                  label={t('vault.bindPassphrase')}
+                  value={form.metadata.passphrase_credential_id ?? ''}
+                  options={passphraseOptions}
+                  onChange={(value) =>
+                    setForm({
+                      ...form,
+                      metadata: value
+                        ? { ...form.metadata, passphrase_credential_id: value }
+                        : omitKey(form.metadata, 'passphrase_credential_id'),
+                    })
+                  }
+                />
+              ) : null}
+              <label className="field field-wide">
+                <span className="field-label">{t('vault.secret')}</span>
+                {form.type === 'password' ? (
+                  <Input.Password
+                    value={form.secret}
+                    placeholder={editingId ? t('fields.optional') : t('fields.required')}
+                    onChange={(event) => setForm({ ...form, secret: event.target.value })}
+                  />
+                ) : (
+                  <Input.TextArea
+                    value={form.secret}
+                    placeholder={editingId ? t('fields.optional') : t('fields.required')}
+                    onChange={(event) => setForm({ ...form, secret: event.target.value })}
+                  />
+                )}
+              </label>
+            </div>
+          </section>
         </div>
         <div className="danger-zone">
           <span>{t('vault.deleteHint')}</span>

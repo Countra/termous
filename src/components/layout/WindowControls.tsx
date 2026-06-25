@@ -22,7 +22,6 @@ export function WindowControls() {
 
   const requestClose = () => {
     setConfirmClose(true)
-    void window.termous?.windowControls?.requestClose().catch(() => undefined)
   }
 
   const confirmAndClose = () => {

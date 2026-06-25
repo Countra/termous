@@ -60,7 +60,7 @@
 }
 
 .app-shell.is-collapsed .brand-copy,
-.app-shell.is-collapsed .nav-item span {
+.app-shell.is-collapsed .nav-item > span:not(.ant-btn-icon) {
   display: none;
 }
 

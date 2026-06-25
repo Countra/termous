@@ -1,5 +1,5 @@
-import { FileInput, Pencil, Plus, Trash2 } from 'lucide-react'
-import { Button, Input, InputNumber, Popconfirm } from 'antd'
+import { FileInput, KeyRound, Pencil, Plus, Server, Trash2 } from 'lucide-react'
+import { Button, Input, InputNumber, Popconfirm, Tag } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomSelect } from '../../components/ui/CustomSelect'
@@ -129,11 +129,19 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
                 className={`data-row ${host.id === selectedHostId ? 'is-active' : ''}`}
                 onClick={() => onSelectHost(host.id)}
               >
-                <span>
-                  <strong>{host.name}</strong>
-                  <small>{host.username}@{host.address}:{host.port} · {t(`hosts.auth.${host.auth_method}`)}</small>
+                <span className="row-icon">
+                  <Server size={16} aria-hidden="true" />
                 </span>
-                <span className="row-meta">{host.tags?.join(' / ') || t('fields.none')}</span>
+                <span className="row-copy">
+                  <strong>{host.name}</strong>
+                  <small>{host.username}@{host.address}:{host.port}</small>
+                </span>
+                <span className="row-trailing">
+                  <Tag className="soft-tag" icon={<KeyRound size={12} aria-hidden="true" />}>
+                    {t(`hosts.auth.${host.auth_method}`)}
+                  </Tag>
+                  <small>{host.tags?.join(' / ') || t('fields.none')}</small>
+                </span>
               </button>
             ))}
           </div>
@@ -148,47 +156,65 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
           </div>
           <Pencil size={18} aria-hidden="true" />
         </div>
-        <div className="form-grid">
-          <Field label={t('hosts.name')} value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
-          <Field label={t('hosts.address')} value={form.address} onChange={(value) => setForm({ ...form, address: value })} />
-          <Field label={t('hosts.username')} value={form.username} onChange={(value) => setForm({ ...form, username: value })} />
-          <NumberField
-            label={t('hosts.port')}
-            value={form.port}
-            onChange={(value) => setForm({ ...form, port: Number(value) || 22 })}
-          />
-          <CustomSelect label={t('hosts.group')} value={form.group_id} options={groupOptions} onChange={(value) => setForm({ ...form, group_id: value })} />
-          <CustomSelect
-            label={t('hosts.authMethod')}
-            value={form.auth_method}
-            options={[
-              { value: 'system', label: t('hosts.systemAuth'), description: t('hosts.systemAuthHint') },
-              { value: 'password', label: t('hosts.password') },
-              { value: 'private_key', label: t('hosts.privateKey') },
-            ]}
-            onChange={(value) =>
-              setForm({
-                ...form,
-                auth_method: value as AuthMethod,
-                credential_id: value === 'system' ? '' : form.credential_id,
-              })
-            }
-          />
-          <CustomSelect
-            label={t('hosts.credential')}
-            value={form.credential_id}
-            options={credentialOptions}
-            onChange={(value) => setForm({ ...form, credential_id: value })}
-            disabled={form.auth_method === 'system'}
-          />
-          <CustomSelect
-            label={t('hosts.jumpHost')}
-            value={form.jump_host_id}
-            options={jumpHostOptions}
-            onChange={(value) => setForm({ ...form, jump_host_id: value })}
-          />
-          <Field label={t('hosts.tags')} value={tagText} onChange={setTagText} />
-          <Field label={t('hosts.note')} value={form.note} onChange={(value) => setForm({ ...form, note: value })} />
+        <div className="editor-sections">
+          <section className="form-section">
+            <h3>{t('hosts.list')}</h3>
+            <div className="form-grid">
+              <Field label={t('hosts.name')} value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
+              <Field label={t('hosts.address')} value={form.address} onChange={(value) => setForm({ ...form, address: value })} />
+              <Field label={t('hosts.username')} value={form.username} onChange={(value) => setForm({ ...form, username: value })} />
+              <NumberField
+                label={t('hosts.port')}
+                value={form.port}
+                onChange={(value) => setForm({ ...form, port: Number(value) || 22 })}
+              />
+              <CustomSelect
+                label={t('hosts.group')}
+                value={form.group_id}
+                options={groupOptions}
+                onChange={(value) => setForm({ ...form, group_id: value })}
+              />
+              <CustomSelect
+                label={t('hosts.jumpHost')}
+                value={form.jump_host_id}
+                options={jumpHostOptions}
+                onChange={(value) => setForm({ ...form, jump_host_id: value })}
+              />
+            </div>
+          </section>
+          <section className="form-section">
+            <h3>{t('hosts.authMethod')}</h3>
+            <div className="auth-choice-grid">
+              {(['system', 'password', 'private_key'] as AuthMethod[]).map((method) => (
+                <button
+                  key={method}
+                  type="button"
+                  className={`auth-choice ${form.auth_method === method ? 'is-active' : ''}`}
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      auth_method: method,
+                      credential_id: method === 'system' ? '' : form.credential_id,
+                    })
+                  }
+                >
+                  <KeyRound size={15} aria-hidden="true" />
+                  <span>{method === 'system' ? t('hosts.systemAuth') : t(`hosts.auth.${method}`)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="form-grid">
+              <CustomSelect
+                label={t('hosts.credential')}
+                value={form.credential_id}
+                options={credentialOptions}
+                onChange={(value) => setForm({ ...form, credential_id: value })}
+                disabled={form.auth_method === 'system'}
+              />
+              <Field label={t('hosts.tags')} value={tagText} onChange={setTagText} />
+              <Field label={t('hosts.note')} value={form.note} onChange={(value) => setForm({ ...form, note: value })} />
+            </div>
+          </section>
         </div>
         <div className="danger-zone">
           <span>{t('hosts.deleteHint')}</span>

@@ -34,8 +34,8 @@ export function ConfirmDialog({
       title={null}
       footer={null}
       closeIcon={null}
-      destroyOnClose
-      maskClosable
+      destroyOnHidden
+      mask={{ closable: true }}
       keyboard
       className="confirm-modal"
       wrapClassName="confirm-modal-wrap"

@@ -13,7 +13,7 @@ interface TerminalPaneProps {
   theme: ThemeMode
   placeholder: string
   onResize?: (cols: number, rows: number) => void
-  onSessionEvent?: (patch: Partial<Session>) => void
+  onSessionEvent?: (sessionId: string, patch: Partial<Session>) => void
 }
 
 export function TerminalPane({ api, session, theme, placeholder, onResize, onSessionEvent }: TerminalPaneProps) {
@@ -25,7 +25,6 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
   const lastSizeRef = useRef({ cols: 0, rows: 0 })
   const onResizeRef = useRef(onResize)
   const onSessionEventRef = useRef(onSessionEvent)
-  const placeholderRef = useRef(placeholder)
   const themeRef = useRef(theme)
   const { t } = useTranslation()
   const sessionId = session?.id
@@ -33,7 +32,6 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
   useEffect(() => {
     onResizeRef.current = onResize
     onSessionEventRef.current = onSessionEvent
-    placeholderRef.current = placeholder
     themeRef.current = theme
   }, [onResize, onSessionEvent, placeholder, theme])
 
@@ -57,7 +55,6 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
       helperInput.name = 'terminal-input'
     }
     fit.fit()
-    terminal.writeln(placeholderRef.current)
     termRef.current = terminal
     fitRef.current = fit
 
@@ -77,7 +74,7 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
       if (resizeTimerRef.current) {
         window.clearTimeout(resizeTimerRef.current)
       }
-      socketRef.current?.close()
+      closeSocket(socketRef.current)
       terminal.dispose()
       termRef.current = null
       fitRef.current = null
@@ -94,14 +91,17 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
 
   useEffect(() => {
     const terminal = termRef.current
-    if (!terminal || !sessionId) {
+    if (!terminal) {
+      return undefined
+    }
+    if (!sessionId) {
+      terminal.clear()
       return undefined
     }
 
-    socketRef.current?.close()
+    closeSocket(socketRef.current)
     lastSizeRef.current = { cols: 0, rows: 0 }
     terminal.clear()
-    terminal.writeln(`[termous] ${t('status.connecting')}: ${sessionId}`)
     const socket = new WebSocket(api.websocketUrl(`/api/v1/sessions/${sessionId}/terminal`))
     socketRef.current = socket
 
@@ -132,10 +132,9 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
             if (msg.status) patch.status = msg.status
             if (msg.phase) patch.phase = msg.phase
             if (typeof msg.progress === 'number') patch.progress = msg.progress
-            onSessionEventRef.current?.(patch)
+            onSessionEventRef.current?.(sessionId, patch)
           }
           if (msg.type === 'ready') {
-            terminal.writeln(`\r\n[termous] ${t('connection.phase.ready')}`)
             terminal.focus()
           }
         }
@@ -143,41 +142,70 @@ export function TerminalPane({ api, session, theme, placeholder, onResize, onSes
           terminal.write(msg.data)
         }
         if (msg.type === 'error' && msg.message) {
-          onSessionEventRef.current?.({
+          onSessionEventRef.current?.(sessionId, {
             status: 'failed',
             phase: 'failed',
             progress: 100,
             status_message: msg.message,
             last_error: msg.message,
           })
-          terminal.writeln(`\r\n[termous] ${msg.message}`)
         }
         if (msg.type === 'closed') {
-          onSessionEventRef.current?.({ status: 'disconnected', status_message: msg.reason ?? t('status.disconnected') })
-          terminal.writeln(`\r\n[termous] ${msg.reason ?? t('status.disconnected')}`)
+          onSessionEventRef.current?.(sessionId, {
+            status: 'disconnected',
+            phase: 'disconnected',
+            status_message: msg.reason ?? t('status.disconnected'),
+          })
         }
       } catch {
-        terminal.writeln(`\r\n[termous] ${t('app.error')}`)
+        onSessionEventRef.current?.(sessionId, {
+          status: 'failed',
+          phase: 'failed',
+          progress: 100,
+          status_message: t('app.error'),
+          last_error: t('app.error'),
+        })
       }
     })
     let disposed = false
     socket.addEventListener('close', () => {
       if (!disposed) {
-        terminal.writeln(`\r\n[termous] ${t('status.disconnected')}`)
+        onSessionEventRef.current?.(sessionId, {
+          status: 'disconnected',
+          phase: 'disconnected',
+          status_message: t('status.disconnected'),
+        })
       }
     })
     socket.addEventListener('error', () => {
-      terminal.writeln(`\r\n[termous] ${t('app.apiOffline')}`)
+      onSessionEventRef.current?.(sessionId, {
+        status: 'failed',
+        phase: 'failed',
+        progress: 100,
+        status_message: t('app.apiOffline'),
+        last_error: t('app.apiOffline'),
+      })
     })
 
     return () => {
       disposed = true
       disposable.dispose()
-      socket.close()
+      closeSocket(socket)
     }
   }, [api, sessionId, t])
 
-  return <div className="terminal-canvas" ref={containerRef} aria-label={t('workbench.terminal')} />
+  return <div className="terminal-canvas" ref={containerRef} aria-label={session ? t('workbench.terminal') : placeholder} />
+}
+
+function closeSocket(socket: WebSocket | null) {
+  if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+    return
+  }
+  if (socket.readyState === WebSocket.CONNECTING) {
+    socket.addEventListener('open', () => socket.close(), { once: true })
+    return
+  }
+  socket.close()
 }
 
 function sendResize(

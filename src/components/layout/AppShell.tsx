@@ -32,7 +32,6 @@ const navItems = [
   { key: 'workbench' as const, icon: TerminalSquare },
   { key: 'hosts' as const, icon: Server },
   { key: 'vault' as const, icon: DatabaseZap },
-  { key: 'settings' as const, icon: Settings },
 ]
 
 export function AppShell({
@@ -66,20 +65,35 @@ export function AppShell({
           {navItems.map((item) => {
             const Icon = item.icon
             return (
-              <Button
-                key={item.key}
-                type="text"
-                className={`nav-item ${page === item.key ? 'is-active' : ''}`}
-                onClick={() => onNavigate(item.key)}
-                aria-label={t(`nav.${item.key}`)}
-                title={t(`nav.${item.key}`)}
-                icon={<Icon size={18} aria-hidden="true" />}
-              >
-                <span>{t(`nav.${item.key}`)}</span>
-              </Button>
+              <Tooltip key={item.key} title={sidebarCollapsed ? t(`nav.${item.key}`) : undefined} placement="right">
+                <Button
+                  type="text"
+                  className={`nav-item ${page === item.key ? 'is-active' : ''}`}
+                  onClick={() => onNavigate(item.key)}
+                  aria-label={t(`nav.${item.key}`)}
+                  title={t(`nav.${item.key}`)}
+                  icon={<Icon size={18} aria-hidden="true" />}
+                >
+                  <span>{t(`nav.${item.key}`)}</span>
+                </Button>
+              </Tooltip>
             )
           })}
         </nav>
+        <div className="sidebar-footer">
+          <Tooltip title={sidebarCollapsed ? t('nav.settings') : undefined} placement="right">
+            <Button
+              type="text"
+              className={`nav-item ${page === 'settings' ? 'is-active' : ''}`}
+              onClick={() => onNavigate('settings')}
+              aria-label={t('nav.settings')}
+              title={t('nav.settings')}
+              icon={<Settings size={18} aria-hidden="true" />}
+            >
+              <span>{t('nav.settings')}</span>
+            </Button>
+          </Tooltip>
+        </div>
       </aside>
 
       <div className="main-frame">

@@ -10,9 +10,10 @@ import {
   Power,
   Server,
   Shell,
+  SquareTerminal,
 } from 'lucide-react'
 import { Button, Tag, Tooltip } from 'antd'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApi } from '../../api/client'
 import { CustomSelect } from '../../components/ui/CustomSelect'
@@ -32,7 +33,8 @@ interface WorkbenchPageProps {
   onSelectHost: (hostId: string) => void
   onConnect: (hostId: string) => Promise<void>
   onOpenLocal: (shell: LocalShell) => Promise<void>
-  onSessionEvent: (patch: Partial<Session>) => void
+  onSelectSession: (sessionId: string) => void
+  onSessionEvent: (sessionId: string, patch: Partial<Session>) => void
   onDisconnect: (sessionId: string) => Promise<void>
 }
 
@@ -46,6 +48,7 @@ export function WorkbenchPage({
   onSelectHost,
   onConnect,
   onOpenLocal,
+  onSelectSession,
   onSessionEvent,
   onDisconnect,
 }: WorkbenchPageProps) {
@@ -58,17 +61,23 @@ export function WorkbenchPage({
   const credential = data.credentials.find((item) => item.id === selectedHost?.credential_id)
   const jumpHost = data.hosts.find((host) => host.id === selectedHost?.jump_host_id)
   const [terminalSize, setTerminalSize] = useState({ cols: activeSession?.pty_cols ?? 120, rows: activeSession?.pty_rows ?? 32 })
-  const activeTitle =
-    activeSession?.kind === 'local'
-      ? t('workbench.localTerminal')
-      : selectedHost?.name ?? t('workbench.noHost')
+  const sessionHost = activeSession?.host_id ? data.hosts.find((host) => host.id === activeSession.host_id) : undefined
   const sessionStateLabel = activeSession?.phase ? t(`connection.phase.${activeSession.phase}`) : t(`status.${sessionStatus}`)
   const targetLabel =
     activeSession?.kind === 'local'
       ? t('workbench.localTerminal')
-      : selectedHost
-        ? `${selectedHost.username}@${selectedHost.address}`
+      : sessionHost
+        ? `${sessionHost.username}@${sessionHost.address}:${sessionHost.port}`
         : t('workbench.noHost')
+  const startedAt = activeSession?.started_at ? formatTime(activeSession.started_at) : t('fields.none')
+  const connectedAt = activeSession?.connected_at ? formatTime(activeSession.connected_at) : t('fields.none')
+  const sessionResult = activeSession?.last_error ?? (activeSession?.exit_code !== undefined ? String(activeSession.exit_code) : t('fields.none'))
+
+  useEffect(() => {
+    if (activeSession) {
+      setTerminalSize({ cols: activeSession.pty_cols, rows: activeSession.pty_rows })
+    }
+  }, [activeSession])
 
   return (
     <section
@@ -156,10 +165,30 @@ export function WorkbenchPage({
 
         <div className="terminal-card">
           <div className="terminal-toolbar">
-            <div className="terminal-tabs" role="tablist" aria-label={t('workbench.terminal')}>
-            <Button type="text" className="terminal-tab is-active" role="tab">
-              {activeTitle}
-            </Button>
+            <div className="terminal-tabs session-tabs" role="tablist" aria-label={t('workbench.terminal')}>
+              {data.sessions.length === 0 ? (
+                <Button type="text" className="terminal-tab is-empty" role="tab" icon={<SquareTerminal size={15} />}>
+                  {t('workbench.noSession')}
+                </Button>
+              ) : (
+                data.sessions.map((session) => {
+                  const title = sessionTitle(session, data.hosts, t)
+                  return (
+                    <Button
+                      key={session.id}
+                      type="text"
+                      className={`terminal-tab ${session.id === activeSession?.id ? 'is-active' : ''}`}
+                      role="tab"
+                      aria-selected={session.id === activeSession?.id}
+                      onClick={() => onSelectSession(session.id)}
+                      icon={<SquareTerminal size={15} />}
+                    >
+                      <span className={`session-dot is-${session.status}`} />
+                      <span>{title}</span>
+                    </Button>
+                  )
+                })
+              )}
             </div>
             <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
           </div>
@@ -173,8 +202,12 @@ export function WorkbenchPage({
             onSessionEvent={onSessionEvent}
           />
           <div className="terminal-statusbar">
-            <span>{targetLabel}</span>
-            <span>{terminalSize.cols} x {terminalSize.rows}</span>
+            <StatusItem label={t('workbench.target')} value={targetLabel} />
+            <StatusItem label={t('workbench.sessionState')} value={sessionStateLabel} />
+            <StatusItem label={t('workbench.startedAt')} value={startedAt} />
+            <StatusItem label={t('workbench.connectedAt')} value={connectedAt} />
+            <StatusItem label={t('workbench.terminalSize')} value={`${terminalSize.cols} x ${terminalSize.rows}`} />
+            <StatusItem label={t('workbench.result')} value={sessionResult} />
           </div>
         </div>
       </div>
@@ -245,6 +278,35 @@ export function WorkbenchPage({
       </aside>
     </section>
   )
+}
+
+function StatusItem({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="terminal-status-item">
+      <small>{label}</small>
+      <strong>{value}</strong>
+    </span>
+  )
+}
+
+function sessionTitle(session: Session, hosts: Host[], t: (key: string) => string) {
+  if (session.kind === 'local') {
+    return `${t('workbench.localTerminal')} ${shortId(session.id)}`
+  }
+  const host = session.host_id ? hosts.find((item) => item.id === session.host_id) : undefined
+  return host?.name ?? shortId(session.id)
+}
+
+function shortId(id: string) {
+  return id.length > 8 ? id.slice(0, 8) : id
+}
+
+function formatTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 function Metric({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {

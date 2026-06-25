@@ -107,7 +107,8 @@ function App() {
               onSelectHost={setSelectedHostId}
               onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
               onOpenLocal={(shell) => runAction(() => actions.openLocalTerminal(shell).then(() => undefined))}
-              onSessionEvent={actions.updateActiveSession}
+              onSelectSession={actions.selectSession}
+              onSessionEvent={actions.updateSession}
               onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
             />
           ) : null}
