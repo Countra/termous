@@ -9,9 +9,10 @@ export function WindowControls() {
   const [confirmClose, setConfirmClose] = useState(false)
 
   useEffect(() => {
-    void window.termous?.windowControls?.isMaximized().then(setIsMaximized)
-    const cleanupMaximize = window.termous?.windowControls?.onMaximizeState(setIsMaximized)
-    const cleanupClose = window.termous?.windowControls?.onCloseRequest(() => setConfirmClose(true))
+    const controls = window.termous?.windowControls
+    void controls?.isMaximized().then(setIsMaximized).catch(() => setIsMaximized(false))
+    const cleanupMaximize = controls?.onMaximizeState(setIsMaximized)
+    const cleanupClose = controls?.onCloseRequest(() => setConfirmClose(true))
     return () => {
       cleanupMaximize?.()
       cleanupClose?.()
@@ -20,12 +21,12 @@ export function WindowControls() {
 
   const requestClose = () => {
     setConfirmClose(true)
-    void window.termous?.windowControls?.requestClose()
+    void window.termous?.windowControls?.requestClose().catch(() => undefined)
   }
 
   const confirmAndClose = () => {
     setConfirmClose(false)
-    void window.termous?.windowControls?.confirmClose()
+    void window.termous?.windowControls?.confirmClose().catch(() => undefined)
   }
 
   return (
@@ -34,7 +35,7 @@ export function WindowControls() {
         <button
           type="button"
           className="window-control"
-          onClick={() => void window.termous?.windowControls?.minimize()}
+          onClick={() => void window.termous?.windowControls?.minimize().catch(() => undefined)}
           aria-label={t('app.minimize')}
         >
           <Minus size={15} />
@@ -42,7 +43,12 @@ export function WindowControls() {
         <button
           type="button"
           className="window-control"
-          onClick={() => void window.termous?.windowControls?.toggleMaximize().then(setIsMaximized)}
+          onClick={() =>
+            void window.termous?.windowControls
+              ?.toggleMaximize()
+              .then(setIsMaximized)
+              .catch(() => setIsMaximized(false))
+          }
           aria-label={isMaximized ? t('app.restore') : t('app.maximize')}
         >
           {isMaximized ? <Square size={13} /> : <Maximize2 size={14} />}

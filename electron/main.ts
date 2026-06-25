@@ -29,7 +29,7 @@ function createWindow() {
     backgroundColor: '#0d1118',
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -77,7 +77,12 @@ function createWindow() {
 
 function registerWindowControls() {
   const currentWindow = () => BrowserWindow.getFocusedWindow() ?? win
-  ipcMain.handle('window:minimize', () => currentWindow()?.minimize())
+  ipcMain.handle('window:minimize', () => {
+    const focused = currentWindow()
+    if (!focused) return false
+    focused.minimize()
+    return true
+  })
   ipcMain.handle('window:toggle-maximize', () => {
     const focused = currentWindow()
     if (!focused) return false
@@ -88,12 +93,18 @@ function registerWindowControls() {
     focused.maximize()
     return true
   })
-  ipcMain.handle('window:request-close', () => currentWindow()?.webContents.send('window:close-requested'))
+  ipcMain.handle('window:request-close', () => {
+    const focused = currentWindow()
+    if (!focused) return false
+    focused.webContents.send('window:close-requested')
+    return true
+  })
   ipcMain.handle('window:confirm-close', () => {
     const focused = currentWindow()
-    if (!focused) return
+    if (!focused) return false
     closeConfirmed = true
     focused.close()
+    return true
   })
   ipcMain.handle('window:is-maximized', () => currentWindow()?.isMaximized() ?? false)
 }

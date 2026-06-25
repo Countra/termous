@@ -6,10 +6,10 @@ declare global {
       getConfig: () => Promise<Partial<AppConfig>>
       platform: string
       windowControls?: {
-        minimize: () => Promise<void>
+        minimize: () => Promise<boolean>
         toggleMaximize: () => Promise<boolean>
-        requestClose: () => Promise<void>
-        confirmClose: () => Promise<void>
+        requestClose: () => Promise<boolean>
+        confirmClose: () => Promise<boolean>
         isMaximized: () => Promise<boolean>
         onMaximizeState: (callback: (maximized: boolean) => void) => () => void
         onCloseRequest: (callback: () => void) => () => void

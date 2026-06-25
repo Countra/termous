@@ -49,7 +49,7 @@ export function AppShell({
 }: AppShellProps) {
   const { t } = useTranslation()
   const platform = window.termous?.platform ?? 'web'
-  const showWindowControls = platform !== 'darwin'
+  const showWindowControls = Boolean(window.termous?.windowControls) && platform !== 'darwin'
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'is-collapsed' : ''}`}>

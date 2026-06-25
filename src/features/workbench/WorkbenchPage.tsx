@@ -187,7 +187,7 @@ export function WorkbenchPage({
       <aside className={`details-panel ${detailsCollapsed ? 'is-collapsed' : ''}`}>
         <div className="panel-heading">
           <div>
-            <h2>{t('workbench.currentConnection')}</h2>
+            <h2>{detailsCollapsed ? t('workbench.detailsShort') : t('workbench.currentConnection')}</h2>
             {!detailsCollapsed ? <span>{t('workbench.connectionDetails')}</span> : null}
           </div>
           <button
