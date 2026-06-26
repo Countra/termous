@@ -19,7 +19,7 @@ import {
   UserRound,
 } from 'lucide-react'
 import { Button, Dropdown, Tooltip, type MenuProps } from 'antd'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
@@ -257,6 +257,24 @@ export function WorkbenchPage({
     window.setTimeout(updateTabScrollState, 180)
   }, [updateTabScrollState])
 
+  const closeSessionFromTab = useCallback(
+    (event: MouseEvent<HTMLElement>, sessionId: string) => {
+      if (event.button !== 1) {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      if (actionBusy) {
+        return
+      }
+      if (terminalSearch.sessionId === sessionId) {
+        closeTerminalSearch()
+      }
+      void onDisconnect(sessionId)
+    },
+    [actionBusy, closeTerminalSearch, onDisconnect, terminalSearch.sessionId],
+  )
+
   useEffect(() => {
     if (activeSession) {
       setTerminalSize({ cols: activeSession.pty_cols, rows: activeSession.pty_rows })
@@ -441,6 +459,12 @@ export function WorkbenchPage({
                             role="tab"
                             aria-selected={session.id === activeSession?.id}
                             onClick={() => onSelectSession(session.id)}
+                            onMouseDown={(event) => {
+                              if (event.button === 1) {
+                                event.preventDefault()
+                              }
+                            }}
+                            onAuxClick={(event) => closeSessionFromTab(event, session.id)}
                             icon={<SquareTerminal size={15} />}
                           >
                             <span className={`session-dot is-${session.status}`} />
