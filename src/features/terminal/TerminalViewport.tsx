@@ -1,15 +1,16 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTerminalRuntime } from './terminalRuntimeContext'
-import type { Session } from '../../types/domain'
+import type { Session, ThemeMode } from '../../types/domain'
 
 interface TerminalViewportProps {
   session: Session | null
+  themeMode: ThemeMode
   placeholder: string
   onResize?: (cols: number, rows: number) => void
 }
 
-export function TerminalViewport({ session, placeholder, onResize }: TerminalViewportProps) {
+export function TerminalViewport({ session, themeMode, placeholder, onResize }: TerminalViewportProps) {
   const paneHostRef = useRef<HTMLDivElement>(null)
   const { registerViewport, focusActive, resizeActive } = useTerminalRuntime()
   const { t } = useTranslation()
@@ -37,7 +38,7 @@ export function TerminalViewport({ session, placeholder, onResize }: TerminalVie
 
   return (
     <div
-      className={`terminal-canvas ${session ? 'has-session' : 'is-empty'}`}
+      className={`terminal-canvas terminal-theme-${themeMode} ${session ? 'has-session' : 'is-empty'}`}
       aria-label={session ? t('workbench.terminal') : placeholder}
       onMouseDown={focusActive}
     >

@@ -599,11 +599,23 @@
 }
 
 .terminal-canvas {
+  --terminal-active-bg: #080a0f;
+  --terminal-canvas-inset-block: 10px;
+  --terminal-canvas-inset-inline: 12px;
   position: relative;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  padding: 12px;
+  background: var(--terminal-active-bg);
+  padding: 0;
+}
+
+.terminal-canvas.terminal-theme-light {
+  --terminal-active-bg: #fbfcfe;
+}
+
+.terminal-canvas.terminal-theme-dark {
+  --terminal-active-bg: #080a0f;
 }
 
 .connection-progress {
@@ -623,9 +635,13 @@
 .terminal-session-stack,
 .terminal-session-pane {
   position: absolute;
-  inset: 0;
   min-width: 0;
   min-height: 0;
+}
+
+.terminal-session-stack {
+  inset: var(--terminal-canvas-inset-block) var(--terminal-canvas-inset-inline);
+  background: var(--terminal-active-bg);
 }
 
 .terminal-runtime-parking {
@@ -640,7 +656,15 @@
 }
 
 .terminal-session-pane {
-  padding: 12px;
+  inset: 0;
+  background: var(--terminal-active-bg);
+  padding: 0;
+}
+
+.terminal-session-pane .xterm,
+.terminal-session-pane .xterm-screen,
+.terminal-session-pane .xterm-viewport {
+  background-color: var(--terminal-active-bg);
 }
 
 .terminal-session-pane.is-active {
@@ -659,7 +683,7 @@
 
 .terminal-empty-state {
   position: absolute;
-  inset: 12px;
+  inset: var(--terminal-canvas-inset-block) var(--terminal-canvas-inset-inline);
   display: grid;
   place-items: center;
   border: 1px dashed color-mix(in srgb, var(--terminal-border) 72%, transparent);

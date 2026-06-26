@@ -9,6 +9,7 @@ import { VaultPage } from './features/vault/VaultPage'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
+import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
 import type { CredentialInput, HostInput, PageKey, TerminalFont, ThemeMode } from './types/domain'
 import './App.css'
@@ -47,7 +48,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const { notification } = AntdApp.useApp()
   const { api, data, initializing, refreshing, apiReady, error, activeSession, actions } = useTermousData()
   const [page, setPage] = useState<PageKey>('workbench')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const [selectedHostId, setSelectedHostId] = useState('')
   const [actionBusy, setActionBusy] = useState(false)
 
@@ -198,6 +199,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         {page === 'workbench' ? (
           <WorkbenchPage
             data={data}
+            theme={theme}
             selectedHostId={selectedHostIdStable}
             activeSession={activeSession}
             actionBusy={actionBusy}

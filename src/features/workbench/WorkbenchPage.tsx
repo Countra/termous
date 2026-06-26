@@ -20,12 +20,14 @@ import { CustomSelect } from '../../components/ui/CustomSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
+import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
 import { ConnectionProgress } from '../terminal/ConnectionProgress'
 import { TerminalViewport } from '../terminal/TerminalViewport'
-import type { AppData, Host, LocalShell, Session } from '../../types/domain'
+import type { AppData, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
 
 interface WorkbenchPageProps {
   data: AppData
+  theme: ThemeMode
   selectedHostId: string
   activeSession: Session | null
   actionBusy: boolean
@@ -38,6 +40,7 @@ interface WorkbenchPageProps {
 
 export function WorkbenchPage({
   data,
+  theme,
   selectedHostId,
   activeSession,
   actionBusy,
@@ -48,8 +51,14 @@ export function WorkbenchPage({
   onDisconnect,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
-  const [hostPanelCollapsed, setHostPanelCollapsed] = useState(false)
-  const [detailsCollapsed, setDetailsCollapsed] = useState(false)
+  const [hostPanelCollapsed, setHostPanelCollapsed] = usePersistentBooleanState(
+    'termous.ui.workbench.hostPanelCollapsed.v1',
+    false,
+  )
+  const [detailsCollapsed, setDetailsCollapsed] = usePersistentBooleanState(
+    'termous.ui.workbench.detailsCollapsed.v1',
+    false,
+  )
   const tabViewportRef = useRef<HTMLDivElement>(null)
   const tabButtonRefs = useRef(new Map<string, HTMLElement>())
   const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
@@ -74,6 +83,7 @@ export function WorkbenchPage({
   const startedAt = activeSession?.started_at ? formatTime(activeSession.started_at) : t('fields.none')
   const connectedAt = activeSession?.connected_at ? formatTime(activeSession.connected_at) : t('fields.none')
   const sessionResult = activeSession?.last_error ?? (activeSession?.exit_code !== undefined ? String(activeSession.exit_code) : t('fields.none'))
+  const terminalThemeMode = data.settings.terminal.theme_mode === 'follow_app' ? theme : data.settings.terminal.theme_mode
 
   const updateTabScrollState = useCallback(() => {
     const viewport = tabViewportRef.current
@@ -278,6 +288,7 @@ export function WorkbenchPage({
           </div>
           <TerminalViewport
             session={activeSession}
+            themeMode={terminalThemeMode}
             placeholder={selectedHost ? t('workbench.terminalReady') : t('workbench.terminalHint')}
             onResize={handleTerminalResize}
           />
