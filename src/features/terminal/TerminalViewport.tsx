@@ -36,7 +36,7 @@ export function TerminalViewport({ session, themeMode, placeholder, searchPanel,
         return
       }
       event.preventDefault()
-      void copyOrPasteActive()
+      void copyOrPasteActive({ clearSelectionAfterCopy: true })
     },
     [copyOrPasteActive, session],
   )

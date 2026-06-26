@@ -19,6 +19,7 @@ import {
   TerminalRuntimeContext,
   type TerminalRuntimeContextValue,
   type TerminalClipboardAction,
+  type TerminalClipboardOptions,
   type TerminalSearchDirection,
   type TerminalSearchOptions,
   type TerminalSearchResult,
@@ -41,7 +42,8 @@ interface TerminalEntry {
   terminal: Terminal
   fit: FitAddon
   search: SearchAddon
-  bufferSearch: TerminalBufferSearchState
+  searchResult: TerminalSearchResult
+  searchDecorationKey: string
   socket: WebSocket
   container: HTMLDivElement
   disposables: Array<{ dispose: () => void }>
@@ -49,18 +51,6 @@ interface TerminalEntry {
   resizeTimer: number | null
   disposed: boolean
   isReady: boolean
-}
-
-interface TerminalBufferMatch {
-  row: number
-  col: number
-  size: number
-}
-
-interface TerminalBufferSearchState {
-  key: string
-  matches: TerminalBufferMatch[]
-  index: number
 }
 
 interface ViewportState {
@@ -213,7 +203,7 @@ export function TerminalRuntimeProvider({
   )
 
   const copyEntrySelection = useCallback(
-    async (entry: TerminalEntry): Promise<TerminalClipboardAction> => {
+    async (entry: TerminalEntry, options?: TerminalClipboardOptions): Promise<TerminalClipboardAction> => {
       if (!entry.terminal.hasSelection()) {
         return 'none'
       }
@@ -223,6 +213,9 @@ export function TerminalRuntimeProvider({
       }
       try {
         await writeClipboardText(selectedText)
+        if (options?.clearSelectionAfterCopy) {
+          entry.terminal.clearSelection()
+        }
         return 'copied'
       } catch {
         notifyClipboardError('terminal.copyFailed')
@@ -260,13 +253,13 @@ export function TerminalRuntimeProvider({
     return entry ? pasteEntryClipboard(entry) : 'none'
   }, [getEntry, pasteEntryClipboard])
 
-  const copyOrPasteActive = useCallback(async () => {
+  const copyOrPasteActive = useCallback(async (options?: TerminalClipboardOptions) => {
     const entry = getEntry()
     if (!entry) {
       return 'none'
     }
     if (entry.terminal.hasSelection()) {
-      return copyEntrySelection(entry)
+      return copyEntrySelection(entry, options)
     }
     return pasteEntryClipboard(entry)
   }, [copyEntrySelection, getEntry, pasteEntryClipboard])
@@ -282,7 +275,7 @@ export function TerminalRuntimeProvider({
       if (!entry || !term) {
         return emptySearchResult()
       }
-      return runEntrySearch(entry, term, options, direction)
+      return runEntrySearch(entry, term, options, direction, terminalSettingsRef.current, themeRef.current)
     },
     [getEntry],
   )
@@ -294,7 +287,8 @@ export function TerminalRuntimeProvider({
     }
     entry.search.clearDecorations()
     entry.terminal.clearSelection()
-    entry.bufferSearch = emptyBufferSearchState()
+    entry.searchResult = emptySearchResult()
+    entry.searchDecorationKey = ''
   }, [getEntry])
 
   useEffect(() => {
@@ -355,7 +349,8 @@ export function TerminalRuntimeProvider({
         terminal,
         fit,
         search,
-        bufferSearch: emptyBufferSearchState(),
+        searchResult: emptySearchResult(),
+        searchDecorationKey: '',
         socket,
         container: pane,
         disposables: [],
@@ -594,6 +589,7 @@ export function TerminalRuntimeProvider({
 function createTerminal(theme: ThemeMode, settings: TerminalSettings = defaultTerminalSettings, fonts: TerminalFont[] = []) {
   const normalizedSettings = normalizeTerminalSettings(settings)
   return new Terminal({
+    allowProposedApi: true,
     cursorBlink: normalizedSettings.cursor_blink,
     cursorStyle: normalizedSettings.cursor_style,
     convertEol: true,
@@ -687,24 +683,55 @@ function runEntrySearch(
   term: string,
   options: TerminalSearchOptions,
   direction: TerminalSearchDirection,
+  settings: TerminalSettings,
+  appTheme: ThemeMode,
 ): TerminalSearchResult {
   if (options.regex && !isValidRegexTerm(term, options.caseSensitive)) {
     resetEntrySearch(entry)
     return { ...emptySearchResult(), error: 'invalid_regex' }
   }
+
+  const decorationKey = terminalSearchDecorationKey(settings, appTheme)
+  const searchOptions = {
+    caseSensitive: options.caseSensitive,
+    regex: options.regex,
+    decorations: terminalSearchDecorations(settings, appTheme),
+  }
+  if (entry.searchDecorationKey && entry.searchDecorationKey !== decorationKey) {
+    resetEntrySearch(entry)
+  }
+
+  let nextResult: TerminalSearchResult | null = null
+  const disposable = entry.search.onDidChangeResults((event) => {
+    nextResult = normalizeSearchEventResult(event.resultIndex, event.resultCount)
+  })
+
   try {
-    entry.search.clearDecorations()
-    return runBufferSearch(entry, term, options, direction)
+    const found = direction === 'previous'
+      ? entry.search.findPrevious(term, searchOptions)
+      : entry.search.findNext(term, searchOptions)
+    entry.searchDecorationKey = decorationKey
+    entry.searchResult = found
+      ? nextResult ?? {
+        found: true,
+        resultIndex: Math.max(entry.searchResult.resultIndex, 0),
+        resultCount: Math.max(entry.searchResult.resultCount, 1),
+      }
+      : emptySearchResult()
+    return entry.searchResult
   } catch {
     resetEntrySearch(entry)
     return emptySearchResult()
+  } finally {
+    disposable.dispose()
   }
 }
 
 function resetEntrySearch(entry: TerminalEntry) {
   entry.search.clearDecorations()
   entry.terminal.clearSelection()
-  entry.bufferSearch = emptyBufferSearchState()
+  entry.searchResult = emptySearchResult()
+  entry.searchDecorationKey = ''
 }
 
 function isValidRegexTerm(term: string, caseSensitive: boolean) {
@@ -716,116 +743,40 @@ function isValidRegexTerm(term: string, caseSensitive: boolean) {
   }
 }
 
-function runBufferSearch(
-  entry: TerminalEntry,
-  term: string,
-  options: TerminalSearchOptions,
-  direction: TerminalSearchDirection,
-): TerminalSearchResult {
-  const key = createBufferSearchKey(term, options)
-  const previousState = entry.bufferSearch
-  const previousMatch = previousState.key === key ? previousState.matches[previousState.index] : undefined
-  const matches = collectBufferMatches(entry.terminal, term, options)
-  if (matches.length === 0) {
-    entry.terminal.clearSelection()
-    entry.bufferSearch = { key, matches, index: -1 }
+function normalizeSearchEventResult(resultIndex: number, resultCount: number): TerminalSearchResult {
+  if (resultCount <= 0) {
     return emptySearchResult()
   }
-
-  let index = direction === 'previous' ? matches.length - 1 : 0
-  if (previousMatch) {
-    const previousIndex = matches.findIndex(
-      (match) => match.row === previousMatch.row && match.col === previousMatch.col && match.size === previousMatch.size,
-    )
-    const baseIndex = previousIndex >= 0 ? previousIndex : previousState.index
-    index = direction === 'previous'
-      ? (baseIndex - 1 + matches.length) % matches.length
-      : (baseIndex + 1) % matches.length
-  }
-
-  const match = matches[index]
-  entry.terminal.select(match.col, match.row, match.size)
-  scrollMatchIntoView(entry.terminal, match.row)
-  entry.bufferSearch = { key, matches, index }
   return {
-    found: true,
-    resultIndex: index,
-    resultCount: matches.length,
+    found: resultIndex >= 0,
+    resultIndex,
+    resultCount,
   }
 }
 
-function collectBufferMatches(terminal: Terminal, term: string, options: TerminalSearchOptions): TerminalBufferMatch[] {
-  if (!term) {
-    return []
-  }
-  const matches: TerminalBufferMatch[] = []
-  const buffer = terminal.buffer.active
-  for (let row = 0; row < buffer.length; row += 1) {
-    const line = buffer.getLine(row)
-    if (!line) {
-      continue
+function terminalSearchDecorationKey(settings: TerminalSettings, appTheme: ThemeMode) {
+  return settings.theme_mode === 'follow_app' ? appTheme : settings.theme_mode
+}
+
+function terminalSearchDecorations(settings: TerminalSettings, appTheme: ThemeMode) {
+  const theme = terminalSearchDecorationKey(settings, appTheme)
+  if (theme === 'light') {
+    return {
+      matchBackground: '#f6dfa2',
+      matchBorder: '#d6b461',
+      matchOverviewRuler: '#c79836',
+      activeMatchBackground: '#e8b23d',
+      activeMatchBorder: '#ad7415',
+      activeMatchColorOverviewRuler: '#ad7415',
     }
-    const text = line.translateToString(true)
-    matches.push(...findLineMatches(text, row, term, options))
   }
-  return matches
-}
-
-function findLineMatches(
-  text: string,
-  row: number,
-  term: string,
-  options: TerminalSearchOptions,
-): TerminalBufferMatch[] {
-  if (options.regex) {
-    return findRegexLineMatches(text, row, term, options.caseSensitive)
-  }
-  return findPlainLineMatches(text, row, term, options.caseSensitive)
-}
-
-function findPlainLineMatches(text: string, row: number, term: string, caseSensitive: boolean): TerminalBufferMatch[] {
-  const source = caseSensitive ? text : text.toLowerCase()
-  const needle = caseSensitive ? term : term.toLowerCase()
-  const matches: TerminalBufferMatch[] = []
-  let col = source.indexOf(needle)
-  while (col >= 0) {
-    matches.push({ row, col, size: term.length })
-    col = source.indexOf(needle, col + Math.max(needle.length, 1))
-  }
-  return matches
-}
-
-function findRegexLineMatches(text: string, row: number, term: string, caseSensitive: boolean): TerminalBufferMatch[] {
-  const regex = new RegExp(term, caseSensitive ? 'g' : 'gi')
-  const matches: TerminalBufferMatch[] = []
-  let match: RegExpExecArray | null
-  while ((match = regex.exec(text))) {
-    const value = match[0]
-    if (!value) {
-      regex.lastIndex += 1
-      continue
-    }
-    matches.push({ row, col: match.index, size: value.length })
-  }
-  return matches
-}
-
-function scrollMatchIntoView(terminal: Terminal, row: number) {
-  const buffer = terminal.buffer.active
-  if (row < buffer.viewportY || row >= buffer.viewportY + terminal.rows) {
-    terminal.scrollToLine(Math.max(0, row - Math.floor(terminal.rows / 2)))
-  }
-}
-
-function createBufferSearchKey(term: string, options: TerminalSearchOptions) {
-  return `${options.caseSensitive ? '1' : '0'}:${options.regex ? '1' : '0'}:${term}`
-}
-
-function emptyBufferSearchState(): TerminalBufferSearchState {
   return {
-    key: '',
-    matches: [],
-    index: -1,
+    matchBackground: '#4a3b1e',
+    matchBorder: '#806836',
+    matchOverviewRuler: '#b9842d',
+    activeMatchBackground: '#d9a441',
+    activeMatchBorder: '#f2cc72',
+    activeMatchColorOverviewRuler: '#f2cc72',
   }
 }
 

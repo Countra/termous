@@ -16,6 +16,10 @@ export type TerminalSearchDirection = 'next' | 'previous'
 
 export type TerminalClipboardAction = 'copied' | 'pasted' | 'empty' | 'none' | 'failed'
 
+export interface TerminalClipboardOptions {
+  clearSelectionAfterCopy?: boolean
+}
+
 export interface TerminalViewportOptions {
   sessionId: string | null
   host: HTMLDivElement | null
@@ -37,7 +41,7 @@ export interface TerminalRuntimeContextValue {
   clearActiveSearch: (sessionId?: string) => void
   copyActiveSelection: () => Promise<TerminalClipboardAction>
   pasteActiveClipboard: () => Promise<TerminalClipboardAction>
-  copyOrPasteActive: () => Promise<TerminalClipboardAction>
+  copyOrPasteActive: (options?: TerminalClipboardOptions) => Promise<TerminalClipboardAction>
 }
 
 export const TerminalRuntimeContext = createContext<TerminalRuntimeContextValue | null>(null)
