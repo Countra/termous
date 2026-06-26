@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { clipboard, contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('termous', {
   getConfig: () =>
@@ -7,6 +7,13 @@ contextBridge.exposeInMainWorld('termous', {
       apiToken: process.env.TERMOUS_API_TOKEN ?? (process.env.NODE_ENV === 'development' ? 'dev-token' : ''),
     }),
   platform: process.platform,
+  clipboard: {
+    readText: () => Promise.resolve(clipboard.readText()),
+    writeText: (text: string) => {
+      clipboard.writeText(text)
+      return Promise.resolve(true)
+    },
+  },
   windowControls: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
     toggleMaximize: () => ipcRenderer.invoke('window:toggle-maximize') as Promise<boolean>,

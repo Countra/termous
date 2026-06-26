@@ -5,6 +5,10 @@ declare global {
     termous?: {
       getConfig: () => Promise<Partial<AppConfig>>
       platform: string
+      clipboard?: {
+        readText: () => Promise<string>
+        writeText: (text: string) => Promise<boolean>
+      }
       windowControls?: {
         minimize: () => Promise<boolean>
         toggleMaximize: () => Promise<boolean>

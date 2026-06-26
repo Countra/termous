@@ -1,5 +1,21 @@
 import { createContext, useContext } from 'react'
 
+export interface TerminalSearchOptions {
+  caseSensitive: boolean
+  regex: boolean
+}
+
+export interface TerminalSearchResult {
+  found: boolean
+  resultIndex: number
+  resultCount: number
+  error?: 'invalid_regex'
+}
+
+export type TerminalSearchDirection = 'next' | 'previous'
+
+export type TerminalClipboardAction = 'copied' | 'pasted' | 'empty' | 'none' | 'failed'
+
 export interface TerminalViewportOptions {
   sessionId: string | null
   host: HTMLDivElement | null
@@ -12,6 +28,16 @@ export interface TerminalRuntimeContextValue {
   resizeActive: () => void
   disposeSession: (sessionId: string) => void
   disposeAll: () => void
+  searchActive: (
+    term: string,
+    options: TerminalSearchOptions,
+    direction: TerminalSearchDirection,
+    sessionId?: string,
+  ) => TerminalSearchResult
+  clearActiveSearch: (sessionId?: string) => void
+  copyActiveSelection: () => Promise<TerminalClipboardAction>
+  pasteActiveClipboard: () => Promise<TerminalClipboardAction>
+  copyOrPasteActive: () => Promise<TerminalClipboardAction>
 }
 
 export const TerminalRuntimeContext = createContext<TerminalRuntimeContextValue | null>(null)

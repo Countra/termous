@@ -9,11 +9,12 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Power,
+  Search,
   Server,
   Shell,
   SquareTerminal,
 } from 'lucide-react'
-import { Button, Tooltip } from 'antd'
+import { Button, Dropdown, Tooltip, type MenuProps } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomSelect } from '../../components/ui/CustomSelect'
@@ -22,8 +23,20 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
 import { ConnectionProgress } from '../terminal/ConnectionProgress'
+import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalViewport } from '../terminal/TerminalViewport'
+import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
+import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
 import type { AppData, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
+
+interface TerminalSearchState {
+  open: boolean
+  sessionId: string | null
+  query: string
+  caseSensitive: boolean
+  regex: boolean
+  result: TerminalSearchResult
+}
 
 interface WorkbenchPageProps {
   data: AppData
@@ -51,6 +64,7 @@ export function WorkbenchPage({
   onDisconnect,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
+  const { searchActive, clearActiveSearch } = useTerminalRuntime()
   const [hostPanelCollapsed, setHostPanelCollapsed] = usePersistentBooleanState(
     'termous.ui.workbench.hostPanelCollapsed.v1',
     false,
@@ -62,6 +76,15 @@ export function WorkbenchPage({
   const tabViewportRef = useRef<HTMLDivElement>(null)
   const tabButtonRefs = useRef(new Map<string, HTMLElement>())
   const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
+  const [pendingSearchSessionId, setPendingSearchSessionId] = useState<string | null>(null)
+  const [terminalSearch, setTerminalSearch] = useState<TerminalSearchState>({
+    open: false,
+    sessionId: null,
+    query: '',
+    caseSensitive: false,
+    regex: false,
+    result: emptyTerminalSearchResult(),
+  })
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const groupedHosts = useMemo(() => groupHosts(data.hosts, data.groups), [data.hosts, data.groups])
   const sessionStatus = activeSession?.status ?? 'disconnected'
@@ -84,6 +107,125 @@ export function WorkbenchPage({
   const connectedAt = activeSession?.connected_at ? formatTime(activeSession.connected_at) : t('fields.none')
   const sessionResult = activeSession?.last_error ?? (activeSession?.exit_code !== undefined ? String(activeSession.exit_code) : t('fields.none'))
   const terminalThemeMode = data.settings.terminal.theme_mode === 'follow_app' ? theme : data.settings.terminal.theme_mode
+  const sessionSearchMenuItems = useMemo<MenuProps['items']>(
+    () => [
+      {
+        key: 'search',
+        label: t('terminal.search'),
+        icon: <Search size={14} />,
+      },
+    ],
+    [t],
+  )
+
+  const closeTerminalSearch = useCallback(() => {
+    clearActiveSearch(terminalSearch.sessionId ?? activeSession?.id)
+    setPendingSearchSessionId(null)
+    setTerminalSearch((current) => ({
+      ...current,
+      open: false,
+      sessionId: null,
+      query: '',
+      result: emptyTerminalSearchResult(),
+    }))
+  }, [activeSession?.id, clearActiveSearch, terminalSearch.sessionId])
+
+  const openTerminalSearch = useCallback((sessionId: string) => {
+    setTerminalSearch((current) => ({
+      ...current,
+      open: true,
+      sessionId,
+      result: emptyTerminalSearchResult(),
+    }))
+  }, [])
+
+  const requestSessionSearch = useCallback(
+    (sessionId: string) => {
+      if (activeSession?.id !== sessionId) {
+        setPendingSearchSessionId(sessionId)
+        onSelectSession(sessionId)
+        return
+      }
+      openTerminalSearch(sessionId)
+    },
+    [activeSession?.id, onSelectSession, openTerminalSearch],
+  )
+
+  const runSearch = useCallback(
+    (direction: TerminalSearchDirection) => {
+      setTerminalSearch((current) => {
+        if (!current.open || !current.query || current.sessionId !== activeSession?.id) {
+          return current
+        }
+        const result = searchActive(
+          current.query,
+          { caseSensitive: current.caseSensitive, regex: current.regex },
+          direction,
+          current.sessionId ?? activeSession.id,
+        )
+        return { ...current, result }
+      })
+    },
+    [activeSession?.id, searchActive],
+  )
+
+  const updateSearchQuery = useCallback(
+    (query: string) => {
+      setTerminalSearch((current) => {
+        if (query === current.query) {
+          return current
+        }
+        const next = { ...current, query }
+        if (!current.open || current.sessionId !== activeSession?.id) {
+          return next
+        }
+        if (!query) {
+          clearActiveSearch(current.sessionId ?? undefined)
+          return { ...next, result: emptyTerminalSearchResult() }
+        }
+        const result = searchActive(
+          query,
+          { caseSensitive: current.caseSensitive, regex: current.regex },
+          'next',
+          current.sessionId ?? undefined,
+        )
+        return { ...next, result }
+      })
+    },
+    [activeSession?.id, clearActiveSearch, searchActive],
+  )
+
+  const toggleSearchCase = useCallback(() => {
+    setTerminalSearch((current) => {
+      const next = { ...current, caseSensitive: !current.caseSensitive }
+      if (!next.open || !next.query || next.sessionId !== activeSession?.id) {
+        return next
+      }
+      const result = searchActive(
+        next.query,
+        { caseSensitive: next.caseSensitive, regex: next.regex },
+        'next',
+        next.sessionId ?? undefined,
+      )
+      return { ...next, result }
+    })
+  }, [activeSession?.id, searchActive])
+
+  const toggleSearchRegex = useCallback(() => {
+    setTerminalSearch((current) => {
+      const next = { ...current, regex: !current.regex }
+      if (!next.open || !next.query || next.sessionId !== activeSession?.id) {
+        return next
+      }
+      const result = searchActive(
+        next.query,
+        { caseSensitive: next.caseSensitive, regex: next.regex },
+        'next',
+        next.sessionId ?? undefined,
+      )
+      return { ...next, result }
+    })
+  }, [activeSession?.id, searchActive])
 
   const updateTabScrollState = useCallback(() => {
     const viewport = tabViewportRef.current
@@ -112,6 +254,23 @@ export function WorkbenchPage({
       setTerminalSize({ cols: activeSession.pty_cols, rows: activeSession.pty_rows })
     }
   }, [activeSession])
+
+  useEffect(() => {
+    if (!pendingSearchSessionId || activeSession?.id !== pendingSearchSessionId) {
+      return
+    }
+    openTerminalSearch(pendingSearchSessionId)
+    setPendingSearchSessionId(null)
+  }, [activeSession?.id, openTerminalSearch, pendingSearchSessionId])
+
+  useEffect(() => {
+    if (!terminalSearch.open || !terminalSearch.sessionId || pendingSearchSessionId) {
+      return
+    }
+    if (activeSession?.id && terminalSearch.sessionId !== activeSession.id) {
+      closeTerminalSearch()
+    }
+  }, [activeSession?.id, closeTerminalSearch, pendingSearchSessionId, terminalSearch.open, terminalSearch.sessionId])
 
   useEffect(() => {
     const viewport = tabViewportRef.current
@@ -244,30 +403,44 @@ export function WorkbenchPage({
                     {t('workbench.noSession')}
                   </Button>
                 ) : (
-                  data.sessions.map((session) => {
-                    const title = sessionTitle(session, data.hosts, t)
-                    return (
-                      <Button
-                        key={session.id}
-                        ref={(node) => {
-                          if (node) {
-                            tabButtonRefs.current.set(session.id, node)
-                          } else {
-                            tabButtonRefs.current.delete(session.id)
-                          }
-                        }}
-                        type="text"
-                        className={`terminal-tab ${session.id === activeSession?.id ? 'is-active' : ''}`}
-                        role="tab"
-                        aria-selected={session.id === activeSession?.id}
-                        onClick={() => onSelectSession(session.id)}
-                        icon={<SquareTerminal size={15} />}
-                      >
-                        <span className={`session-dot is-${session.status}`} />
-                        <span>{title}</span>
-                      </Button>
-                    )
-                  })
+                    data.sessions.map((session) => {
+                      const title = sessionTitle(session, data.hosts, t)
+                      return (
+                        <Dropdown
+                          key={session.id}
+                          trigger={['contextMenu']}
+                          classNames={{ root: 'terminal-tab-dropdown' }}
+                          menu={{
+                            items: sessionSearchMenuItems,
+                            onClick: ({ key, domEvent }) => {
+                              domEvent.stopPropagation()
+                              if (key === 'search') {
+                                requestSessionSearch(session.id)
+                              }
+                            },
+                          }}
+                        >
+                          <Button
+                            ref={(node) => {
+                              if (node) {
+                                tabButtonRefs.current.set(session.id, node)
+                              } else {
+                                tabButtonRefs.current.delete(session.id)
+                              }
+                            }}
+                            type="text"
+                            className={`terminal-tab ${session.id === activeSession?.id ? 'is-active' : ''}`}
+                            role="tab"
+                            aria-selected={session.id === activeSession?.id}
+                            onClick={() => onSelectSession(session.id)}
+                            icon={<SquareTerminal size={15} />}
+                          >
+                            <span className={`session-dot is-${session.status}`} />
+                            <span>{title}</span>
+                          </Button>
+                        </Dropdown>
+                      )
+                    })
                 )}
               </div>
               <Tooltip title={t('workbench.scrollTabsRight')}>
@@ -290,6 +463,22 @@ export function WorkbenchPage({
             session={activeSession}
             themeMode={terminalThemeMode}
             placeholder={selectedHost ? t('workbench.terminalReady') : t('workbench.terminalHint')}
+            searchPanel={
+              terminalSearch.open && terminalSearch.sessionId === activeSession?.id ? (
+                <TerminalSearchPanel
+                  value={terminalSearch.query}
+                  caseSensitive={terminalSearch.caseSensitive}
+                  regex={terminalSearch.regex}
+                  result={terminalSearch.result}
+                  onChange={updateSearchQuery}
+                  onPrevious={() => runSearch('previous')}
+                  onNext={() => runSearch('next')}
+                  onToggleCase={toggleSearchCase}
+                  onToggleRegex={toggleSearchRegex}
+                  onClose={closeTerminalSearch}
+                />
+              ) : null
+            }
             onResize={handleTerminalResize}
           />
           <div className="terminal-statusbar">
@@ -400,6 +589,14 @@ function formatTime(value: string) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+function emptyTerminalSearchResult(): TerminalSearchResult {
+  return {
+    found: false,
+    resultIndex: -1,
+    resultCount: 0,
+  }
+}
+
 function Metric({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
   return (
     <div className="metric-item">
@@ -423,29 +620,51 @@ function HostRow({
 }) {
   const { t } = useTranslation()
   const authLabel = host.auth_method === 'system' ? t('hosts.systemAuth') : t(`hosts.auth.${host.auth_method}`)
-  return (
-    <button
-      type="button"
-      className={`host-row ${active ? 'is-active' : ''} ${collapsed ? 'is-compact' : ''}`}
-      onClick={onSelect}
-      aria-label={`${host.name} ${host.username}@${host.address}:${host.port} ${authLabel}`}
-      title={`${host.name} · ${host.username}@${host.address}:${host.port} · ${authLabel}`}
-    >
-      <span className="host-avatar">
-        <Server size={collapsed ? 17 : 15} aria-hidden="true" />
+  const tooltip = (
+    <div className="host-row-tooltip-content">
+      <strong>{host.name}</strong>
+      <span>
+        {host.username}@{host.address}:{host.port}
       </span>
-      {!collapsed ? (
-        <>
-          <span className="host-main">
-            <strong>{host.name}</strong>
-            <small>
-              {host.username}@{host.address}:{host.port}
-            </small>
-          </span>
-          <AuthMethodBadge method={host.auth_method} />
-        </>
+      <small>{authLabel}</small>
+      {host.tags.length > 0 ? (
+        <span className="host-row-tooltip-tags">
+          {host.tags.map((tag) => (
+            <em key={tag}>{tag}</em>
+          ))}
+        </span>
       ) : null}
-    </button>
+    </div>
+  )
+  return (
+    <Tooltip
+      title={tooltip}
+      placement="right"
+      mouseEnterDelay={0.25}
+      classNames={{ root: 'host-row-tooltip' }}
+    >
+      <button
+        type="button"
+        className={`host-row ${active ? 'is-active' : ''} ${collapsed ? 'is-compact' : ''}`}
+        onClick={onSelect}
+        aria-label={`${host.name} ${host.username}@${host.address}:${host.port} ${authLabel}`}
+      >
+        <span className="host-avatar">
+          <Server size={collapsed ? 17 : 15} aria-hidden="true" />
+        </span>
+        {!collapsed ? (
+          <>
+            <span className="host-main">
+              <strong>{host.name}</strong>
+              <small>
+                {host.username}@{host.address}:{host.port}
+              </small>
+            </span>
+            <AuthMethodBadge method={host.auth_method} />
+          </>
+        ) : null}
+      </button>
+    </Tooltip>
   )
 }
 

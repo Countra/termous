@@ -1,7 +1,9 @@
 import '@xterm/xterm/css/xterm.css'
 
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
 import { Terminal } from '@xterm/xterm'
+import { App as AntdApp } from 'antd'
 import {
   useCallback,
   useEffect,
@@ -16,6 +18,10 @@ import { defaultTerminalSettings, normalizeTerminalSettings } from '../settings/
 import {
   TerminalRuntimeContext,
   type TerminalRuntimeContextValue,
+  type TerminalClipboardAction,
+  type TerminalSearchDirection,
+  type TerminalSearchOptions,
+  type TerminalSearchResult,
   type TerminalViewportOptions,
 } from './terminalRuntimeContext'
 import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from './terminalFonts'
@@ -34,6 +40,8 @@ interface TerminalEntry {
   sessionId: string
   terminal: Terminal
   fit: FitAddon
+  search: SearchAddon
+  bufferSearch: TerminalBufferSearchState
   socket: WebSocket
   container: HTMLDivElement
   disposables: Array<{ dispose: () => void }>
@@ -41,6 +49,18 @@ interface TerminalEntry {
   resizeTimer: number | null
   disposed: boolean
   isReady: boolean
+}
+
+interface TerminalBufferMatch {
+  row: number
+  col: number
+  size: number
+}
+
+interface TerminalBufferSearchState {
+  key: string
+  matches: TerminalBufferMatch[]
+  index: number
 }
 
 interface ViewportState {
@@ -69,6 +89,7 @@ export function TerminalRuntimeProvider({
   const onSessionEventRef = useRef(onSessionEvent)
   const tRef = useRef<(key: string) => string>((key) => key)
   const { t } = useTranslation()
+  const { message } = AntdApp.useApp()
 
   useEffect(() => {
     apiRef.current = api
@@ -175,6 +196,107 @@ export function TerminalRuntimeProvider({
     [fitAndResize],
   )
 
+  const getEntry = useCallback((sessionId?: string) => {
+    const targetSessionId = sessionId ?? activeSessionIdRef.current
+    return targetSessionId ? entriesRef.current.get(targetSessionId) : undefined
+  }, [])
+
+  const notifyClipboardError = useCallback(
+    (translationKey: string) => {
+      void message.error({
+        content: tRef.current(translationKey),
+        duration: 2,
+        className: 'termous-message',
+      })
+    },
+    [message],
+  )
+
+  const copyEntrySelection = useCallback(
+    async (entry: TerminalEntry): Promise<TerminalClipboardAction> => {
+      if (!entry.terminal.hasSelection()) {
+        return 'none'
+      }
+      const selectedText = entry.terminal.getSelection()
+      if (!selectedText) {
+        return 'empty'
+      }
+      try {
+        await writeClipboardText(selectedText)
+        return 'copied'
+      } catch {
+        notifyClipboardError('terminal.copyFailed')
+        return 'failed'
+      }
+    },
+    [notifyClipboardError],
+  )
+
+  const pasteEntryClipboard = useCallback(
+    async (entry: TerminalEntry): Promise<TerminalClipboardAction> => {
+      try {
+        const text = await readClipboardText()
+        if (!text) {
+          return 'empty'
+        }
+        entry.terminal.paste(text)
+        entry.terminal.focus()
+        return 'pasted'
+      } catch {
+        notifyClipboardError('terminal.pasteFailed')
+        return 'failed'
+      }
+    },
+    [notifyClipboardError],
+  )
+
+  const copyActiveSelection = useCallback(async () => {
+    const entry = getEntry()
+    return entry ? copyEntrySelection(entry) : 'none'
+  }, [copyEntrySelection, getEntry])
+
+  const pasteActiveClipboard = useCallback(async () => {
+    const entry = getEntry()
+    return entry ? pasteEntryClipboard(entry) : 'none'
+  }, [getEntry, pasteEntryClipboard])
+
+  const copyOrPasteActive = useCallback(async () => {
+    const entry = getEntry()
+    if (!entry) {
+      return 'none'
+    }
+    if (entry.terminal.hasSelection()) {
+      return copyEntrySelection(entry)
+    }
+    return pasteEntryClipboard(entry)
+  }, [copyEntrySelection, getEntry, pasteEntryClipboard])
+
+  const searchActive = useCallback(
+    (
+      term: string,
+      options: TerminalSearchOptions,
+      direction: TerminalSearchDirection,
+      sessionId?: string,
+    ): TerminalSearchResult => {
+      const entry = getEntry(sessionId)
+      if (!entry || !term) {
+        return emptySearchResult()
+      }
+      return runEntrySearch(entry, term, options, direction)
+    },
+    [getEntry],
+  )
+
+  const clearActiveSearch = useCallback((sessionId?: string) => {
+    const entry = getEntry(sessionId)
+    if (!entry) {
+      return
+    }
+    entry.search.clearDecorations()
+    entry.terminal.clearSelection()
+    entry.bufferSearch = emptyBufferSearchState()
+  }, [getEntry])
+
   useEffect(() => {
     const nextSettings = normalizeTerminalSettings(terminalSettings)
     const previousSettings = terminalSettingsRef.current
@@ -218,8 +340,10 @@ export function TerminalRuntimeProvider({
 
       const socket = new WebSocket(apiRef.current.websocketUrl(`/api/v1/sessions/${sessionId}/terminal`))
       const fit = new FitAddon()
+      const search = new SearchAddon({ highlightLimit: 2000 })
       const terminal = createTerminal(themeRef.current, terminalSettingsRef.current, terminalFontsRef.current)
       terminal.loadAddon(fit)
+      terminal.loadAddon(search)
       terminal.open(pane)
       const helperInput = pane.querySelector('.xterm-helper-textarea')
       if (helperInput instanceof HTMLTextAreaElement) {
@@ -230,6 +354,8 @@ export function TerminalRuntimeProvider({
         sessionId,
         terminal,
         fit,
+        search,
+        bufferSearch: emptyBufferSearchState(),
         socket,
         container: pane,
         disposables: [],
@@ -239,15 +365,77 @@ export function TerminalRuntimeProvider({
         isReady: false,
       }
       entriesRef.current.set(sessionId, entry)
+      const sendTerminalInput = (data: string) => {
+        if (activeSessionIdRef.current !== sessionId) {
+          return
+        }
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: 'input', data }))
+        }
+      }
+      const handleClipboardKey = (event: KeyboardEvent) => {
+        const key = event.key.toLowerCase()
+        const hasClipboardModifier = event.ctrlKey || event.metaKey
+        if (!hasClipboardModifier || event.altKey) {
+          return
+        }
+        if (key === 'c' && terminal.hasSelection()) {
+          event.preventDefault()
+          event.stopPropagation()
+          void copyEntrySelection(entry)
+          return
+        }
+        if (key === 'c') {
+          event.preventDefault()
+          event.stopPropagation()
+          sendTerminalInput('\x03')
+          return
+        }
+        if (key === 'v') {
+          event.preventDefault()
+          event.stopPropagation()
+          void pasteEntryClipboard(entry)
+        }
+      }
+      const handleCopyEvent = (event: ClipboardEvent) => {
+        event.preventDefault()
+        event.stopPropagation()
+        if (terminal.hasSelection()) {
+          const selectedText = terminal.getSelection()
+          if (selectedText && event.clipboardData) {
+            event.clipboardData.setData('text/plain', selectedText)
+          } else {
+            void copyEntrySelection(entry)
+          }
+          return
+        }
+        sendTerminalInput('\x03')
+      }
+      const handlePasteEvent = (event: ClipboardEvent) => {
+        event.preventDefault()
+        event.stopPropagation()
+        const text = event.clipboardData?.getData('text/plain')
+        if (text) {
+          terminal.paste(text)
+          terminal.focus()
+          return
+        }
+        void pasteEntryClipboard(entry)
+      }
+      pane.addEventListener('keydown', handleClipboardKey, true)
+      pane.addEventListener('copy', handleCopyEvent, true)
+      pane.addEventListener('paste', handlePasteEvent, true)
+      entry.disposables.push({
+        dispose: () => {
+          pane.removeEventListener('keydown', handleClipboardKey, true)
+          pane.removeEventListener('copy', handleCopyEvent, true)
+          pane.removeEventListener('paste', handlePasteEvent, true)
+        },
+      })
 
       entry.disposables.push(
         terminal.onData((data) => {
-          if (activeSessionIdRef.current !== sessionId) {
-            return
-          }
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ type: 'input', data }))
-          }
+          sendTerminalInput(data)
         }),
       )
 
@@ -284,7 +472,7 @@ export function TerminalRuntimeProvider({
 
       return entry
     },
-    [fitAndResize],
+    [copyEntrySelection, fitAndResize, pasteEntryClipboard],
   )
 
   const moveEntryToHost = useCallback((entry: TerminalEntry, host: HTMLDivElement | null, active: boolean) => {
@@ -375,8 +563,24 @@ export function TerminalRuntimeProvider({
       resizeActive: scheduleActiveResize,
       disposeSession,
       disposeAll,
+      searchActive,
+      clearActiveSearch,
+      copyActiveSelection,
+      pasteActiveClipboard,
+      copyOrPasteActive,
     }),
-    [disposeAll, disposeSession, focusActive, registerViewport, scheduleActiveResize],
+    [
+      clearActiveSearch,
+      copyActiveSelection,
+      copyOrPasteActive,
+      disposeAll,
+      disposeSession,
+      focusActive,
+      pasteActiveClipboard,
+      registerViewport,
+      scheduleActiveResize,
+      searchActive,
+    ],
   )
 
   return (
@@ -476,6 +680,204 @@ function handleSocketMessage(
       last_error: t('app.error'),
     })
   }
+}
+
+function runEntrySearch(
+  entry: TerminalEntry,
+  term: string,
+  options: TerminalSearchOptions,
+  direction: TerminalSearchDirection,
+): TerminalSearchResult {
+  if (options.regex && !isValidRegexTerm(term, options.caseSensitive)) {
+    resetEntrySearch(entry)
+    return { ...emptySearchResult(), error: 'invalid_regex' }
+  }
+  try {
+    entry.search.clearDecorations()
+    return runBufferSearch(entry, term, options, direction)
+  } catch {
+    resetEntrySearch(entry)
+    return emptySearchResult()
+  }
+}
+
+function resetEntrySearch(entry: TerminalEntry) {
+  entry.search.clearDecorations()
+  entry.terminal.clearSelection()
+  entry.bufferSearch = emptyBufferSearchState()
+}
+
+function isValidRegexTerm(term: string, caseSensitive: boolean) {
+  try {
+    new RegExp(term, caseSensitive ? 'g' : 'gi')
+    return true
+  } catch {
+    return false
+  }
+}
+
+function runBufferSearch(
+  entry: TerminalEntry,
+  term: string,
+  options: TerminalSearchOptions,
+  direction: TerminalSearchDirection,
+): TerminalSearchResult {
+  const key = createBufferSearchKey(term, options)
+  const previousState = entry.bufferSearch
+  const previousMatch = previousState.key === key ? previousState.matches[previousState.index] : undefined
+  const matches = collectBufferMatches(entry.terminal, term, options)
+  if (matches.length === 0) {
+    entry.terminal.clearSelection()
+    entry.bufferSearch = { key, matches, index: -1 }
+    return emptySearchResult()
+  }
+
+  let index = direction === 'previous' ? matches.length - 1 : 0
+  if (previousMatch) {
+    const previousIndex = matches.findIndex(
+      (match) => match.row === previousMatch.row && match.col === previousMatch.col && match.size === previousMatch.size,
+    )
+    const baseIndex = previousIndex >= 0 ? previousIndex : previousState.index
+    index = direction === 'previous'
+      ? (baseIndex - 1 + matches.length) % matches.length
+      : (baseIndex + 1) % matches.length
+  }
+
+  const match = matches[index]
+  entry.terminal.select(match.col, match.row, match.size)
+  scrollMatchIntoView(entry.terminal, match.row)
+  entry.bufferSearch = { key, matches, index }
+  return {
+    found: true,
+    resultIndex: index,
+    resultCount: matches.length,
+  }
+}
+
+function collectBufferMatches(terminal: Terminal, term: string, options: TerminalSearchOptions): TerminalBufferMatch[] {
+  if (!term) {
+    return []
+  }
+  const matches: TerminalBufferMatch[] = []
+  const buffer = terminal.buffer.active
+  for (let row = 0; row < buffer.length; row += 1) {
+    const line = buffer.getLine(row)
+    if (!line) {
+      continue
+    }
+    const text = line.translateToString(true)
+    matches.push(...findLineMatches(text, row, term, options))
+  }
+  return matches
+}
+
+function findLineMatches(
+  text: string,
+  row: number,
+  term: string,
+  options: TerminalSearchOptions,
+): TerminalBufferMatch[] {
+  if (options.regex) {
+    return findRegexLineMatches(text, row, term, options.caseSensitive)
+  }
+  return findPlainLineMatches(text, row, term, options.caseSensitive)
+}
+
+function findPlainLineMatches(text: string, row: number, term: string, caseSensitive: boolean): TerminalBufferMatch[] {
+  const source = caseSensitive ? text : text.toLowerCase()
+  const needle = caseSensitive ? term : term.toLowerCase()
+  const matches: TerminalBufferMatch[] = []
+  let col = source.indexOf(needle)
+  while (col >= 0) {
+    matches.push({ row, col, size: term.length })
+    col = source.indexOf(needle, col + Math.max(needle.length, 1))
+  }
+  return matches
+}
+
+function findRegexLineMatches(text: string, row: number, term: string, caseSensitive: boolean): TerminalBufferMatch[] {
+  const regex = new RegExp(term, caseSensitive ? 'g' : 'gi')
+  const matches: TerminalBufferMatch[] = []
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(text))) {
+    const value = match[0]
+    if (!value) {
+      regex.lastIndex += 1
+      continue
+    }
+    matches.push({ row, col: match.index, size: value.length })
+  }
+  return matches
+}
+
+function scrollMatchIntoView(terminal: Terminal, row: number) {
+  const buffer = terminal.buffer.active
+  if (row < buffer.viewportY || row >= buffer.viewportY + terminal.rows) {
+    terminal.scrollToLine(Math.max(0, row - Math.floor(terminal.rows / 2)))
+  }
+}
+
+function createBufferSearchKey(term: string, options: TerminalSearchOptions) {
+  return `${options.caseSensitive ? '1' : '0'}:${options.regex ? '1' : '0'}:${term}`
+}
+
+function emptyBufferSearchState(): TerminalBufferSearchState {
+  return {
+    key: '',
+    matches: [],
+    index: -1,
+  }
+}
+
+function emptySearchResult(): TerminalSearchResult {
+  return {
+    found: false,
+    resultIndex: -1,
+    resultCount: 0,
+  }
+}
+
+async function readClipboardText() {
+  if (window.termous?.clipboard?.readText) {
+    return window.termous.clipboard.readText()
+  }
+  if (navigator.clipboard?.readText) {
+    return navigator.clipboard.readText()
+  }
+  throw new Error('clipboard read unavailable')
+}
+
+async function writeClipboardText(text: string) {
+  if (window.termous?.clipboard?.writeText) {
+    await window.termous.clipboard.writeText(text)
+    return
+  }
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  if (fallbackCopyText(text)) {
+    return
+  }
+  throw new Error('clipboard write unavailable')
+}
+
+function fallbackCopyText(text: string) {
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  textarea.style.top = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  let copied = false
+  try {
+    copied = document.execCommand('copy')
+  } finally {
+    textarea.remove()
+  }
+  return copied
 }
 
 function terminalTheme(settings: TerminalSettings, appTheme: ThemeMode) {
