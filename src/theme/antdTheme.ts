@@ -61,7 +61,12 @@ export function createAntdTheme(mode: ThemeMode): ThemeConfig {
       },
       Select: {
         borderRadius: 9,
-        optionSelectedBg: dark ? 'rgba(106, 168, 255, 0.16)' : 'rgba(31, 111, 235, 0.1)',
+        selectorBg: dark ? 'rgba(255, 255, 255, 0.055)' : 'rgba(20, 28, 42, 0.04)',
+        optionActiveBg: dark ? 'rgba(255, 255, 255, 0.075)' : 'rgba(20, 28, 42, 0.055)',
+        optionSelectedBg: dark ? 'rgba(255, 255, 255, 0.105)' : 'rgba(20, 28, 42, 0.075)',
+        optionSelectedColor: dark ? '#f4f6fb' : '#151a22',
+        multipleItemBg: dark ? 'rgba(255, 255, 255, 0.075)' : 'rgba(20, 28, 42, 0.06)',
+        multipleItemBorderColor: dark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(30, 42, 58, 0.12)',
       },
       Segmented: {
         itemActiveBg: dark ? 'rgba(106, 168, 255, 0.18)' : 'rgba(31, 111, 235, 0.12)',

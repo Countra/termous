@@ -1,9 +1,9 @@
-import { Button, InputNumber, Select, Segmented, Slider, Switch, Tooltip, Upload } from 'antd'
+import { Button, Collapse, InputNumber, Select, Segmented, Slider, Switch, Tooltip, Upload } from 'antd'
 import { FileText, RotateCcw, SquareTerminal, Trash2, UploadCloud } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TerminalFont, TerminalSettings } from '../../types/domain'
-import { fontFamilyFromSetting } from '../terminal/terminalFonts'
+import { fontFamilyFromSetting, loadTerminalFont } from '../terminal/terminalFonts'
 import { defaultTerminalSettings, normalizeTerminalSettings } from './terminalSettings'
 
 interface TerminalStyleSettingsProps {
@@ -22,6 +22,7 @@ export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUplo
   const [draft, setDraft] = useState(() => normalizeTerminalSettings(value))
   const [fontBusyId, setFontBusyId] = useState<string | null>(null)
   const [uploadingFont, setUploadingFont] = useState(false)
+  const [fontManagerOpen, setFontManagerOpen] = useState(false)
   const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUplo
   }
 
   const uploadFont = async (file: File) => {
+    setFontManagerOpen(true)
     setUploadingFont(true)
     try {
       await onUploadFont(file)
@@ -102,59 +104,78 @@ export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUplo
             />
           </SettingLine>
 
-          <div className="terminal-font-manager">
-            <div className="terminal-font-manager-topline">
-              <div>
-                <strong>{t('settings.importedFonts')}</strong>
-                <small>{t('settings.importFontHint')}</small>
-              </div>
-              <Upload
-                accept=".ttf,font/ttf"
-                showUploadList={false}
-                disabled={disabled || uploadingFont}
-                beforeUpload={(file) => {
-                  void uploadFont(file)
-                  return Upload.LIST_IGNORE
-                }}
-              >
-                <Button
-                  icon={<UploadCloud size={15} aria-hidden="true" />}
-                  loading={uploadingFont}
-                  disabled={disabled || uploadingFont}
-                >
-                  {t('settings.importFont')}
-                </Button>
-              </Upload>
-            </div>
-            {importedFonts.length === 0 ? (
-              <div className="terminal-font-empty">{t('settings.noImportedFonts')}</div>
-            ) : (
-              <div className="terminal-font-list">
-                {importedFonts.map((font) => {
-                  const inUse = draft.font_family === font.id
-                  return (
-                    <div className="terminal-font-row" key={font.id}>
-                      <span className="terminal-font-icon">
-                        <FileText size={15} aria-hidden="true" />
-                      </span>
-                      <span className="terminal-font-copy">
-                        <strong>{font.display_name}</strong>
-                        <small>{fontMetaText(font)}</small>
-                      </span>
-                      <Tooltip title={inUse ? t('settings.currentFontInUse') : t('settings.deleteFont')}>
+          <Collapse
+            ghost
+            activeKey={fontManagerOpen ? ['fonts'] : []}
+            className="terminal-font-collapse"
+            onChange={(key) => setFontManagerOpen(Array.isArray(key) ? key.includes('fonts') : key === 'fonts')}
+            items={[
+              {
+                key: 'fonts',
+                label: (
+                  <span className="terminal-font-collapse-label">
+                    <strong>{t('settings.importedFonts')}</strong>
+                    <small>{t('settings.importedFontCount', { count: importedFonts.length })}</small>
+                  </span>
+                ),
+                children: (
+                  <div className="terminal-font-manager">
+                    <div className="terminal-font-manager-topline">
+                      <div>
+                        <strong>{t('settings.importedFonts')}</strong>
+                        <small>{t('settings.importFontHint')}</small>
+                      </div>
+                      <Upload
+                        accept=".ttf,font/ttf"
+                        showUploadList={false}
+                        disabled={disabled || uploadingFont}
+                        beforeUpload={(file) => {
+                          void uploadFont(file)
+                          return Upload.LIST_IGNORE
+                        }}
+                      >
                         <Button
-                          icon={<Trash2 size={14} aria-hidden="true" />}
-                          disabled={disabled || inUse || fontBusyId === font.id}
-                          loading={fontBusyId === font.id}
-                          onClick={() => void deleteFont(font)}
-                        />
-                      </Tooltip>
+                          icon={<UploadCloud size={15} aria-hidden="true" />}
+                          loading={uploadingFont}
+                          disabled={disabled || uploadingFont}
+                        >
+                          {t('settings.importFont')}
+                        </Button>
+                      </Upload>
                     </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+                    {importedFonts.length === 0 ? (
+                      <div className="terminal-font-empty">{t('settings.noImportedFonts')}</div>
+                    ) : (
+                      <div className="terminal-font-list">
+                        {importedFonts.map((font) => {
+                          const inUse = draft.font_family === font.id
+                          return (
+                            <div className="terminal-font-row" key={font.id}>
+                              <span className="terminal-font-icon">
+                                <FileText size={15} aria-hidden="true" />
+                              </span>
+                              <span className="terminal-font-copy">
+                                <strong>{font.display_name}</strong>
+                                <small>{fontMetaText(font)}</small>
+                              </span>
+                              <Tooltip title={inUse ? t('settings.currentFontInUse') : t('settings.deleteFont')}>
+                                <Button
+                                  icon={<Trash2 size={14} aria-hidden="true" />}
+                                  disabled={disabled || inUse || fontBusyId === font.id}
+                                  loading={fontBusyId === font.id}
+                                  onClick={() => void deleteFont(font)}
+                                />
+                              </Tooltip>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ),
+              },
+            ]}
+          />
 
           <NumberSetting
             label={t('settings.terminalFontSize')}
@@ -346,11 +367,27 @@ function roundByStep(value: number, step: number, precision: number) {
 
 function TerminalPreview({ settings, fonts }: { settings: TerminalSettings; fonts: TerminalFont[] }) {
   const { t } = useTranslation()
+  const [fontReadyTick, setFontReadyTick] = useState(0)
+  const previewFontFamily = fontFamilyFromSetting(settings.font_family, fonts)
+
+  useEffect(() => {
+    let active = true
+    void loadTerminalFont(settings.font_family, fonts).then(() => {
+      if (active) {
+        setFontReadyTick((current) => current + 1)
+      }
+    })
+    return () => {
+      active = false
+    }
+  }, [fonts, settings.font_family])
+
   return (
     <div
       className={`terminal-style-preview theme-${settings.theme_mode}`}
+      data-font-ready={fontReadyTick}
       style={{
-        fontFamily: fontFamilyFromSetting(settings.font_family, fonts),
+        fontFamily: previewFontFamily,
         fontSize: settings.font_size,
         lineHeight: settings.line_height,
         letterSpacing: settings.letter_spacing,
@@ -361,7 +398,7 @@ function TerminalPreview({ settings, fonts }: { settings: TerminalSettings; font
         <span>{t('settings.terminalPreview')}</span>
         <i className={`cursor-${settings.cursor_style} ${settings.cursor_blink ? 'is-blinking' : ''}`} />
       </div>
-      <pre>
+      <pre style={{ fontFamily: previewFontFamily }}>
         <span className="terminal-preview-muted">$</span> ssh prod-web-01
         {'\n'}
         <span className="terminal-preview-green">ready</span> ~/workspace
