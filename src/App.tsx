@@ -10,7 +10,7 @@ import { WorkbenchPage } from './features/workbench/WorkbenchPage'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CredentialInput, HostInput, PageKey, ThemeMode } from './types/domain'
+import type { CredentialInput, HostInput, PageKey, TerminalFont, ThemeMode } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -140,12 +140,44 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
+  const uploadTerminalFont = async (file: File): Promise<TerminalFont> => {
+    try {
+      const font = await actions.uploadTerminalFont(file)
+      notification.success({
+        title: t('settings.fontImported'),
+        duration: 3,
+        role: 'status',
+        className: 'termous-notification',
+      })
+      return font
+    } catch (actionError) {
+      showActionError(actionError)
+      throw actionError
+    }
+  }
+
+  const deleteTerminalFont = async (id: string) => {
+    try {
+      await actions.deleteTerminalFont(id)
+      notification.success({
+        title: t('settings.fontDeleted'),
+        duration: 3,
+        role: 'status',
+        className: 'termous-notification',
+      })
+    } catch (actionError) {
+      showActionError(actionError)
+      throw actionError
+    }
+  }
+
   return (
     <TerminalRuntimeProvider
       api={api}
       sessions={data.sessions}
       theme={theme}
       terminalSettings={data.settings.terminal}
+      terminalFonts={data.terminalFonts}
       onSessionEvent={actions.updateSession}
     >
       <AppShell
@@ -203,9 +235,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           <SettingsPage
             language={data.settings.language}
             terminalSettings={data.settings.terminal}
+            terminalFonts={data.terminalFonts}
             actionBusy={actionBusy}
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
             onTerminalSettingsChange={saveTerminalSettings}
+            onUploadTerminalFont={uploadTerminalFont}
+            onDeleteTerminalFont={deleteTerminalFont}
           />
         ) : null}
       </AppShell>

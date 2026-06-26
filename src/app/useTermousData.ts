@@ -8,6 +8,7 @@ import type {
   LocalShell,
   Session,
   Settings,
+  TerminalFont,
   TerminalSettings,
 } from '../types/domain'
 import { changeLanguage } from '../i18n'
@@ -23,6 +24,7 @@ const initialData: AppData = {
   knownHosts: [],
   sessions: [],
   settings: initialSettings,
+  terminalFonts: [],
 }
 
 export function useTermousData() {
@@ -44,8 +46,9 @@ export function useTermousData() {
     setError(null)
     try {
       await apiClient.health()
-      const [settings, groups, hosts, credentials, knownHosts, sessions] = await Promise.all([
+      const [settings, terminalFonts, groups, hosts, credentials, knownHosts, sessions] = await Promise.all([
         apiClient.settings(),
+        apiClient.terminalFonts(),
         apiClient.hostGroups(),
         apiClient.hosts(),
         apiClient.credentials(),
@@ -61,6 +64,7 @@ export function useTermousData() {
         credentials: credentials ?? [],
         knownHosts: knownHosts ?? [],
         sessions: nextSessions,
+        terminalFonts: terminalFonts ?? [],
       })
       setActiveSession((current) => {
         if (current) {
@@ -132,6 +136,21 @@ export function useTermousData() {
           setData((current) => ({ ...current, settings: previousSettings }))
           throw updateError
         }
+      },
+      async uploadTerminalFont(file: File) {
+        const font = await api.uploadTerminalFont(file)
+        const terminalFonts = await api.terminalFonts()
+        setData((current) => ({ ...current, terminalFonts: terminalFonts ?? upsertTerminalFont(current.terminalFonts, font) }))
+        return font
+      },
+      async deleteTerminalFont(id: string) {
+        await api.deleteTerminalFont(id)
+        const [settings, terminalFonts] = await Promise.all([api.settings(), api.terminalFonts()])
+        setData((current) => ({
+          ...current,
+          settings: normalizeSettings(settings),
+          terminalFonts: terminalFonts ?? current.terminalFonts.filter((font) => font.id !== id),
+        }))
       },
       async createHost(input: HostInput) {
         await api.createHost(input)
@@ -216,6 +235,14 @@ export function useTermousData() {
   )
 
   return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, actions }
+}
+
+function upsertTerminalFont(fonts: TerminalFont[], next: TerminalFont) {
+  const exists = fonts.some((font) => font.id === next.id)
+  if (exists) {
+    return fonts.map((font) => (font.id === next.id ? next : font))
+  }
+  return [next, ...fonts]
 }
 
 function upsertSession(sessions: Session[], next: Session) {

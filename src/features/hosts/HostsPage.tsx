@@ -1,5 +1,5 @@
-import { FileInput, KeyRound, Pencil, Plus, Server, Trash2 } from 'lucide-react'
-import { Button, Input, InputNumber, Popconfirm } from 'antd'
+import { FileInput, KeyRound, Pencil, Plus, Search, Server, Trash2, X } from 'lucide-react'
+import { Button, Input, InputNumber, Popconfirm, Select, Tag } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomSelect } from '../../components/ui/CustomSelect'
@@ -33,18 +33,24 @@ const blankHost: HostInput = {
 
 const systemHost: HostInput = { ...blankHost, auth_method: 'system', credential_id: '' }
 
+interface HostTagOption {
+  key: string
+  label: string
+  count: number
+}
+
 export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSave, onDelete, onImport }: HostsPageProps) {
   const { t } = useTranslation()
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId)
   const [editingId, setEditingId] = useState<string | null>(selectedHost?.id ?? null)
-  const [form, setForm] = useState<HostInput>(blankHost)
-  const [tagText, setTagText] = useState('')
+  const [form, setForm] = useState<HostInput>({ ...blankHost, tags: [] })
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
 
   useEffect(() => {
     if (!selectedHost) {
       setEditingId(null)
-      setForm(blankHost)
-      setTagText('')
+      setForm({ ...blankHost, tags: [] })
       return
     }
     setEditingId(selectedHost.id)
@@ -57,11 +63,10 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
       auth_method: selectedHost.auth_method,
       credential_id: selectedHost.credential_id,
       jump_host_id: selectedHost.jump_host_id ?? '',
-      tags: selectedHost.tags ?? [],
+      tags: normalizeHostTags(selectedHost.tags ?? []),
       fingerprint_policy: selectedHost.fingerprint_policy,
       note: selectedHost.note ?? '',
     })
-    setTagText((selectedHost.tags ?? []).join(', '))
   }, [selectedHost])
 
   const groupOptions = useMemo(
@@ -87,10 +92,48 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
     ],
     [data.hosts, editingId, t],
   )
+  const groupNameById = useMemo(() => new Map(data.groups.map((group) => [group.id, group.name])), [data.groups])
+  const availableTags = useMemo(() => buildHostTagOptions(data.hosts), [data.hosts])
+  const searchTokens = useMemo(
+    () => searchQuery.trim().split(/\s+/).map(normalizeSearchToken).filter(Boolean),
+    [searchQuery],
+  )
+  const selectedTagKeys = useMemo(() => selectedTags.map(tagKey).filter(Boolean), [selectedTags])
+  const filteredHosts = useMemo(
+    () => data.hosts.filter((host) => hostMatchesFilters(host, groupNameById, searchTokens, selectedTagKeys)),
+    [data.hosts, groupNameById, searchTokens, selectedTagKeys],
+  )
+  const tagSelectOptions = useMemo(
+    () => availableTags.map((tag) => ({ value: tag.label, label: `${tag.label} (${tag.count})` })),
+    [availableTags],
+  )
+  const hasFilters = searchTokens.length > 0 || selectedTagKeys.length > 0
+
+  useEffect(() => {
+    if (filteredHosts.length === 0 || filteredHosts.some((host) => host.id === selectedHostId)) {
+      return
+    }
+    onSelectHost(filteredHosts[0].id)
+  }, [filteredHosts, onSelectHost, selectedHostId])
 
   const save = async () => {
-    const input = { ...form, tags: tagText.split(',').map((tag) => tag.trim()).filter(Boolean) }
+    const input = { ...form, tags: normalizeHostTags(form.tags) }
     await onSave(editingId, input)
+  }
+
+  const clearFilters = () => {
+    setSearchQuery('')
+    setSelectedTags([])
+  }
+
+  const toggleTagFilter = (tag: string, checked: boolean) => {
+    setSelectedTags((current) => {
+      if (checked) {
+        return normalizeHostTags([...current, tag])
+      }
+      const key = tagKey(tag)
+      return current.filter((item) => tagKey(item) !== key)
+    })
   }
 
   return (
@@ -111,8 +154,7 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
             className="primary-button"
             onClick={() => {
               setEditingId(null)
-              setForm(systemHost)
-              setTagText('')
+              setForm({ ...systemHost, tags: [] })
             }}
             icon={<Plus size={16} />}
           >
@@ -122,28 +164,79 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
         {data.hosts.length === 0 ? (
           <EmptyState title={t('app.empty')} description={t('hosts.subtitle')} />
         ) : (
-          <div className="data-list">
-            {data.hosts.map((host) => (
-              <button
-                type="button"
-                key={host.id}
-                className={`data-row ${host.id === selectedHostId ? 'is-active' : ''}`}
-                onClick={() => onSelectHost(host.id)}
-              >
-                <span className="row-icon">
-                  <Server size={16} aria-hidden="true" />
-                </span>
-                <span className="row-copy">
-                  <strong>{host.name}</strong>
-                  <small>{host.username}@{host.address}:{host.port}</small>
-                </span>
-                <span className="row-trailing">
-                  <AuthMethodBadge method={host.auth_method} />
-                  <small className="host-tag-summary">{host.tags?.join(' / ') || t('fields.none')}</small>
-                </span>
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="host-filter-panel">
+              <Input
+                className="host-search-input"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                allowClear
+                prefix={<Search size={15} aria-hidden="true" />}
+                placeholder={t('hosts.searchPlaceholder')}
+              />
+              <div className="host-filter-meta">
+                <span>{t('hosts.filterResult', { count: filteredHosts.length, total: data.hosts.length })}</span>
+                {hasFilters ? (
+                  <Button
+                    type="text"
+                    size="small"
+                    className="host-filter-clear"
+                    onClick={clearFilters}
+                    icon={<X size={14} aria-hidden="true" />}
+                  >
+                    {t('hosts.clearFilters')}
+                  </Button>
+                ) : null}
+              </div>
+              {availableTags.length > 0 ? (
+                <div className="host-filter-tags" aria-label={t('hosts.allTags')}>
+                  {availableTags.map((tag) => (
+                    <Tag.CheckableTag
+                      key={tag.key}
+                      className="host-filter-chip"
+                      checked={selectedTagKeys.includes(tag.key)}
+                      onChange={(checked) => toggleTagFilter(tag.label, checked)}
+                    >
+                      <span>{tag.label}</span>
+                      <small>{tag.count}</small>
+                    </Tag.CheckableTag>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            {filteredHosts.length === 0 ? (
+              <EmptyState title={t('hosts.noFilterResults')} description={t('hosts.noFilterResultsHint')} />
+            ) : (
+              <div className="data-list host-data-list">
+                {filteredHosts.map((host) => (
+                  <button
+                    type="button"
+                    key={host.id}
+                    className={`data-row ${host.id === selectedHostId ? 'is-active' : ''}`}
+                    onClick={() => onSelectHost(host.id)}
+                  >
+                    <span className="row-icon">
+                      <Server size={16} aria-hidden="true" />
+                    </span>
+                    <span className="row-copy">
+                      <strong>{host.name}</strong>
+                      <small>{host.username}@{host.address}:{host.port}</small>
+                      {host.tags?.length ? (
+                        <span className="host-row-tags" aria-label={t('hosts.tags')}>
+                          {normalizeHostTags(host.tags).map((tag) => (
+                            <span className="host-row-tag" key={tagKey(tag)}>{tag}</span>
+                          ))}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="row-trailing">
+                      <AuthMethodBadge method={host.auth_method} />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -210,7 +303,21 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
                 onChange={(value) => setForm({ ...form, credential_id: value })}
                 disabled={form.auth_method === 'system'}
               />
-              <Field label={t('hosts.tags')} value={tagText} onChange={setTagText} />
+              <label className="field host-tags-field">
+                <span className="field-label">{t('hosts.tags')}</span>
+                <Select
+                  mode="tags"
+                  value={form.tags}
+                  allowClear
+                  tokenSeparators={[',']}
+                  classNames={{ popup: { root: 'termous-select-popup' } }}
+                  className="termous-select"
+                  optionLabelProp="value"
+                  placeholder={t('hosts.tagsPlaceholder')}
+                  options={tagSelectOptions}
+                  onChange={(tags) => setForm({ ...form, tags: normalizeHostTags(tags) })}
+                />
+              </label>
               <Field label={t('hosts.note')} value={form.note} onChange={(value) => setForm({ ...form, note: value })} />
             </div>
           </section>
@@ -262,4 +369,79 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
       <InputNumber min={1} max={65535} value={value} onChange={onChange} />
     </label>
   )
+}
+
+function normalizeSearchToken(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function tagKey(value: string) {
+  return value.trim().toLowerCase()
+}
+
+function normalizeHostTags(tags: string[]) {
+  const result: string[] = []
+  const seen = new Set<string>()
+  for (const tag of tags) {
+    const clean = tag.trim().replace(/\s+/g, ' ')
+    const key = tagKey(clean)
+    if (!clean || seen.has(key)) {
+      continue
+    }
+    seen.add(key)
+    result.push(clean)
+  }
+  return result
+}
+
+function buildHostTagOptions(hosts: AppData['hosts']) {
+  const tagMap = new Map<string, HostTagOption>()
+  for (const host of hosts) {
+    const seenInHost = new Set<string>()
+    for (const tag of normalizeHostTags(host.tags ?? [])) {
+      const key = tagKey(tag)
+      if (seenInHost.has(key)) {
+        continue
+      }
+      seenInHost.add(key)
+      const existing = tagMap.get(key)
+      if (existing) {
+        existing.count += 1
+      } else {
+        tagMap.set(key, { key, label: tag, count: 1 })
+      }
+    }
+  }
+  return Array.from(tagMap.values()).sort((left, right) => left.label.localeCompare(right.label))
+}
+
+function hostMatchesFilters(
+  host: AppData['hosts'][number],
+  groupNameById: Map<string, string>,
+  searchTokens: string[],
+  selectedTagKeys: string[],
+) {
+  const hostTags = normalizeHostTags(host.tags ?? [])
+  const hostTagKeys = new Set(hostTags.map(tagKey))
+  if (selectedTagKeys.length > 0 && !selectedTagKeys.every((tag) => hostTagKeys.has(tag))) {
+    return false
+  }
+
+  if (searchTokens.length === 0) {
+    return true
+  }
+
+  const searchable = [
+    host.name,
+    host.address,
+    host.username,
+    String(host.port),
+    host.note ?? '',
+    groupNameById.get(host.group_id) ?? '',
+    hostTags.join(' '),
+  ]
+    .join(' ')
+    .toLowerCase()
+
+  return searchTokens.every((token) => searchable.includes(token))
 }

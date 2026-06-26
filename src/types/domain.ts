@@ -4,11 +4,24 @@ export type ThemeMode = 'dark' | 'light'
 
 export type PageKey = 'workbench' | 'hosts' | 'vault' | 'settings'
 
-export type TerminalFontFamily = 'jetbrains_mono' | 'consolas' | 'monospace'
+export type TerminalFontFamily = string
+
+export type TerminalFontKind = 'builtin' | 'imported'
+
+export interface TerminalFont {
+  id: TerminalFontFamily
+  kind: TerminalFontKind
+  display_name: string
+  family_name: string
+  file_name?: string
+  size_bytes?: number
+  sha256?: string
+  created_at?: string
+}
 
 export type TerminalCursorStyle = 'block' | 'bar' | 'underline'
 
-export type TerminalThemeMode = 'follow_app' | 'dark' | 'light' | 'custom'
+export type TerminalThemeMode = 'follow_app' | 'dark' | 'light'
 
 export type AuthMethod = 'password' | 'private_key' | 'system'
 
@@ -161,4 +174,5 @@ export interface AppData {
   knownHosts: KnownHost[]
   sessions: Session[]
   settings: Settings
+  terminalFonts: TerminalFont[]
 }

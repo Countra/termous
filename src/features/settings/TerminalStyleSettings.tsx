@@ -1,21 +1,27 @@
-import { Button, InputNumber, Select, Segmented, Slider, Switch } from 'antd'
-import { RotateCcw, SquareTerminal } from 'lucide-react'
+import { Button, InputNumber, Select, Segmented, Slider, Switch, Tooltip, Upload } from 'antd'
+import { FileText, RotateCcw, SquareTerminal, Trash2, UploadCloud } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TerminalSettings } from '../../types/domain'
+import type { TerminalFont, TerminalSettings } from '../../types/domain'
+import { fontFamilyFromSetting } from '../terminal/terminalFonts'
 import { defaultTerminalSettings, normalizeTerminalSettings } from './terminalSettings'
 
 interface TerminalStyleSettingsProps {
   value: TerminalSettings
+  fonts: TerminalFont[]
   disabled: boolean
   onChange: (value: TerminalSettings) => Promise<void>
+  onUploadFont: (file: File) => Promise<TerminalFont>
+  onDeleteFont: (id: string) => Promise<void>
 }
 
 type NumericKey = 'font_size' | 'line_height' | 'letter_spacing'
 
-export function TerminalStyleSettings({ value, disabled, onChange }: TerminalStyleSettingsProps) {
+export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUploadFont, onDeleteFont }: TerminalStyleSettingsProps) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState(() => normalizeTerminalSettings(value))
+  const [fontBusyId, setFontBusyId] = useState<string | null>(null)
+  const [uploadingFont, setUploadingFont] = useState(false)
   const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -31,13 +37,10 @@ export function TerminalStyleSettings({ value, disabled, onChange }: TerminalSty
   }, [])
 
   const fontOptions = useMemo(
-    () => [
-      { value: 'jetbrains_mono', label: 'JetBrains Mono' },
-      { value: 'consolas', label: 'Consolas' },
-      { value: 'monospace', label: 'monospace' },
-    ],
-    [],
+    () => groupedFontOptions(fonts, t),
+    [fonts, t],
   )
+  const importedFonts = useMemo(() => fonts.filter((font) => font.kind === 'imported'), [fonts])
 
   const commit = (next: TerminalSettings, delay = 0) => {
     setDraft(next)
@@ -61,6 +64,24 @@ export function TerminalStyleSettings({ value, disabled, onChange }: TerminalSty
     updateDraft({ [key]: normalizeNumberValue(key, value) }, delay)
   }
 
+  const uploadFont = async (file: File) => {
+    setUploadingFont(true)
+    try {
+      await onUploadFont(file)
+    } finally {
+      setUploadingFont(false)
+    }
+  }
+
+  const deleteFont = async (font: TerminalFont) => {
+    setFontBusyId(font.id)
+    try {
+      await onDeleteFont(font.id)
+    } finally {
+      setFontBusyId(null)
+    }
+  }
+
   return (
     <div className="settings-section terminal-style-section">
       <div className="settings-section-header">
@@ -80,6 +101,60 @@ export function TerminalStyleSettings({ value, disabled, onChange }: TerminalSty
               onChange={(fontFamily) => updateDraft({ font_family: fontFamily as TerminalSettings['font_family'] })}
             />
           </SettingLine>
+
+          <div className="terminal-font-manager">
+            <div className="terminal-font-manager-topline">
+              <div>
+                <strong>{t('settings.importedFonts')}</strong>
+                <small>{t('settings.importFontHint')}</small>
+              </div>
+              <Upload
+                accept=".ttf,font/ttf"
+                showUploadList={false}
+                disabled={disabled || uploadingFont}
+                beforeUpload={(file) => {
+                  void uploadFont(file)
+                  return Upload.LIST_IGNORE
+                }}
+              >
+                <Button
+                  icon={<UploadCloud size={15} aria-hidden="true" />}
+                  loading={uploadingFont}
+                  disabled={disabled || uploadingFont}
+                >
+                  {t('settings.importFont')}
+                </Button>
+              </Upload>
+            </div>
+            {importedFonts.length === 0 ? (
+              <div className="terminal-font-empty">{t('settings.noImportedFonts')}</div>
+            ) : (
+              <div className="terminal-font-list">
+                {importedFonts.map((font) => {
+                  const inUse = draft.font_family === font.id
+                  return (
+                    <div className="terminal-font-row" key={font.id}>
+                      <span className="terminal-font-icon">
+                        <FileText size={15} aria-hidden="true" />
+                      </span>
+                      <span className="terminal-font-copy">
+                        <strong>{font.display_name}</strong>
+                        <small>{fontMetaText(font)}</small>
+                      </span>
+                      <Tooltip title={inUse ? t('settings.currentFontInUse') : t('settings.deleteFont')}>
+                        <Button
+                          icon={<Trash2 size={14} aria-hidden="true" />}
+                          disabled={disabled || inUse || fontBusyId === font.id}
+                          loading={fontBusyId === font.id}
+                          onClick={() => void deleteFont(font)}
+                        />
+                      </Tooltip>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
 
           <NumberSetting
             label={t('settings.terminalFontSize')}
@@ -147,7 +222,6 @@ export function TerminalStyleSettings({ value, disabled, onChange }: TerminalSty
                 { value: 'follow_app', label: t('settings.themeFollowApp') },
                 { value: 'dark', label: t('settings.themeDark') },
                 { value: 'light', label: t('settings.themeLight') },
-                { value: 'custom', label: t('settings.themeCustom') },
               ]}
               onChange={(themeMode) => updateDraft({ theme_mode: themeMode as TerminalSettings['theme_mode'] })}
             />
@@ -178,10 +252,36 @@ export function TerminalStyleSettings({ value, disabled, onChange }: TerminalSty
           </div>
         </div>
 
-        <TerminalPreview settings={draft} />
+        <TerminalPreview settings={draft} fonts={fonts} />
       </div>
     </div>
   )
+}
+
+function groupedFontOptions(fonts: TerminalFont[], t: (key: string) => string) {
+  const builtin = fonts.filter((font) => font.kind === 'builtin')
+  const imported = fonts.filter((font) => font.kind === 'imported')
+  const fallbackBuiltin: TerminalFont[] = [
+    { id: 'jetbrains_mono', kind: 'builtin', display_name: 'JetBrains Mono', family_name: 'JetBrains Mono' },
+    { id: 'consolas', kind: 'builtin', display_name: 'Consolas', family_name: 'Consolas' },
+    { id: 'monospace', kind: 'builtin', display_name: 'monospace', family_name: 'monospace' },
+  ]
+  return [
+    {
+      label: t('settings.builtinFonts'),
+      options: (builtin.length ? builtin : fallbackBuiltin).map((font) => ({
+        value: font.id,
+        label: font.display_name,
+      })),
+    },
+    {
+      label: t('settings.importedFonts'),
+      options: imported.map((font) => ({
+        value: font.id,
+        label: font.display_name,
+      })),
+    },
+  ].filter((group) => group.options.length > 0)
 }
 
 function SettingLine({ label, children }: { label: string; children: ReactNode }) {
@@ -244,13 +344,13 @@ function roundByStep(value: number, step: number, precision: number) {
   return Number((Math.round(value / step) * step).toFixed(precision))
 }
 
-function TerminalPreview({ settings }: { settings: TerminalSettings }) {
+function TerminalPreview({ settings, fonts }: { settings: TerminalSettings; fonts: TerminalFont[] }) {
   const { t } = useTranslation()
   return (
     <div
       className={`terminal-style-preview theme-${settings.theme_mode}`}
       style={{
-        fontFamily: previewFontFamily(settings.font_family),
+        fontFamily: fontFamilyFromSetting(settings.font_family, fonts),
         fontSize: settings.font_size,
         lineHeight: settings.line_height,
         letterSpacing: settings.letter_spacing,
@@ -272,12 +372,23 @@ function TerminalPreview({ settings }: { settings: TerminalSettings }) {
   )
 }
 
-function previewFontFamily(fontFamily: TerminalSettings['font_family']) {
-  if (fontFamily === 'consolas') {
-    return 'Consolas, "JetBrains Mono", monospace'
+function fontMetaText(font: TerminalFont) {
+  const parts = []
+  if (typeof font.size_bytes === 'number' && font.size_bytes > 0) {
+    parts.push(formatBytes(font.size_bytes))
   }
-  if (fontFamily === 'monospace') {
-    return 'monospace'
+  if (font.created_at) {
+    parts.push(new Date(font.created_at).toLocaleDateString())
   }
-  return '"JetBrains Mono", Consolas, monospace'
+  return parts.join(' · ')
+}
+
+function formatBytes(bytes: number) {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  }
+  if (bytes >= 1024) {
+    return `${Math.round(bytes / 1024)} KB`
+  }
+  return `${bytes} B`
 }

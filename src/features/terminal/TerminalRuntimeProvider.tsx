@@ -11,19 +11,21 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApi } from '../../api/client'
-import type { Session, SessionPhase, SessionStatus, TerminalSettings, ThemeMode } from '../../types/domain'
+import type { Session, SessionPhase, SessionStatus, TerminalFont, TerminalSettings, ThemeMode } from '../../types/domain'
 import { defaultTerminalSettings, normalizeTerminalSettings } from '../settings/terminalSettings'
 import {
   TerminalRuntimeContext,
   type TerminalRuntimeContextValue,
   type TerminalViewportOptions,
 } from './terminalRuntimeContext'
+import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from './terminalFonts'
 
 interface TerminalRuntimeProviderProps {
   api: TermousApi
   sessions: Session[]
   theme: ThemeMode
   terminalSettings: TerminalSettings
+  terminalFonts: TerminalFont[]
   children: ReactNode
   onSessionEvent?: (sessionId: string, patch: Partial<Session>) => void
 }
@@ -52,6 +54,7 @@ export function TerminalRuntimeProvider({
   sessions,
   theme,
   terminalSettings,
+  terminalFonts,
   children,
   onSessionEvent,
 }: TerminalRuntimeProviderProps) {
@@ -62,12 +65,14 @@ export function TerminalRuntimeProvider({
   const apiRef = useRef(api)
   const themeRef = useRef(theme)
   const terminalSettingsRef = useRef(normalizeTerminalSettings(terminalSettings))
+  const terminalFontsRef = useRef(terminalFonts)
   const onSessionEventRef = useRef(onSessionEvent)
   const tRef = useRef<(key: string) => string>((key) => key)
   const { t } = useTranslation()
 
   useEffect(() => {
     apiRef.current = api
+    syncImportedFontFaces(api, terminalFontsRef.current)
   }, [api])
 
   useEffect(() => {
@@ -159,18 +164,45 @@ export function TerminalRuntimeProvider({
     [sendResize],
   )
 
+  const fitAfterFontLoad = useCallback(
+    (settings: TerminalSettings, fonts: TerminalFont[]) => {
+      void loadTerminalFont(settings.font_family, fonts).then(() => {
+        entriesRef.current.forEach((entry) => {
+          fitAndResize(entry)
+        })
+      })
+    },
+    [fitAndResize],
+  )
+
   useEffect(() => {
     const nextSettings = normalizeTerminalSettings(terminalSettings)
     const previousSettings = terminalSettingsRef.current
     terminalSettingsRef.current = nextSettings
     const shouldResize = shouldFitAfterSettingsChange(previousSettings, nextSettings)
+    const fonts = terminalFontsRef.current
+    syncImportedFontFaces(apiRef.current, fonts)
     entriesRef.current.forEach((entry) => {
-      applyTerminalSettings(entry.terminal, nextSettings, themeRef.current)
+      applyTerminalSettings(entry.terminal, nextSettings, themeRef.current, fonts)
       if (shouldResize) {
         fitAndResize(entry)
       }
     })
-  }, [fitAndResize, terminalSettings])
+    if (shouldResize) {
+      fitAfterFontLoad(nextSettings, fonts)
+    }
+  }, [fitAfterFontLoad, fitAndResize, terminalSettings])
+
+  useEffect(() => {
+    terminalFontsRef.current = terminalFonts
+    syncImportedFontFaces(apiRef.current, terminalFonts)
+    const settings = terminalSettingsRef.current
+    entriesRef.current.forEach((entry) => {
+      applyTerminalSettings(entry.terminal, settings, themeRef.current, terminalFonts)
+      fitAndResize(entry)
+    })
+    fitAfterFontLoad(settings, terminalFonts)
+  }, [fitAfterFontLoad, fitAndResize, terminalFonts])
 
   const createEntry = useCallback(
     (sessionId: string) => {
@@ -186,7 +218,7 @@ export function TerminalRuntimeProvider({
 
       const socket = new WebSocket(apiRef.current.websocketUrl(`/api/v1/sessions/${sessionId}/terminal`))
       const fit = new FitAddon()
-      const terminal = createTerminal(themeRef.current, terminalSettingsRef.current)
+      const terminal = createTerminal(themeRef.current, terminalSettingsRef.current, terminalFontsRef.current)
       terminal.loadAddon(fit)
       terminal.open(pane)
       const helperInput = pane.querySelector('.xterm-helper-textarea')
@@ -355,13 +387,13 @@ export function TerminalRuntimeProvider({
   )
 }
 
-function createTerminal(theme: ThemeMode, settings: TerminalSettings = defaultTerminalSettings) {
+function createTerminal(theme: ThemeMode, settings: TerminalSettings = defaultTerminalSettings, fonts: TerminalFont[] = []) {
   const normalizedSettings = normalizeTerminalSettings(settings)
   return new Terminal({
     cursorBlink: normalizedSettings.cursor_blink,
     cursorStyle: normalizedSettings.cursor_style,
     convertEol: true,
-    fontFamily: fontFamilyFromSetting(normalizedSettings.font_family),
+    fontFamily: fontFamilyFromSetting(normalizedSettings.font_family, fonts),
     fontSize: normalizedSettings.font_size,
     letterSpacing: normalizedSettings.letter_spacing,
     lineHeight: normalizedSettings.line_height,
@@ -370,11 +402,11 @@ function createTerminal(theme: ThemeMode, settings: TerminalSettings = defaultTe
   })
 }
 
-function applyTerminalSettings(terminal: Terminal, settings: TerminalSettings, appTheme: ThemeMode) {
+function applyTerminalSettings(terminal: Terminal, settings: TerminalSettings, appTheme: ThemeMode, fonts: TerminalFont[] = []) {
   const normalizedSettings = normalizeTerminalSettings(settings)
   terminal.options.cursorBlink = normalizedSettings.cursor_blink
   terminal.options.cursorStyle = normalizedSettings.cursor_style
-  terminal.options.fontFamily = fontFamilyFromSetting(normalizedSettings.font_family)
+  terminal.options.fontFamily = fontFamilyFromSetting(normalizedSettings.font_family, fonts)
   terminal.options.fontSize = normalizedSettings.font_size
   terminal.options.letterSpacing = normalizedSettings.letter_spacing
   terminal.options.lineHeight = normalizedSettings.line_height
@@ -389,16 +421,6 @@ function shouldFitAfterSettingsChange(previous: TerminalSettings, next: Terminal
     previous.line_height !== next.line_height ||
     previous.letter_spacing !== next.letter_spacing
   )
-}
-
-function fontFamilyFromSetting(fontFamily: TerminalSettings['font_family']) {
-  if (fontFamily === 'consolas') {
-    return 'Consolas, "JetBrains Mono", monospace'
-  }
-  if (fontFamily === 'monospace') {
-    return 'monospace'
-  }
-  return '"JetBrains Mono", Consolas, monospace'
 }
 
 function handleSocketMessage(
@@ -472,22 +494,6 @@ function terminalTheme(settings: TerminalSettings, appTheme: ThemeMode) {
       red: '#bf343b',
       white: '#ffffff',
       yellow: '#966100',
-    }
-  }
-  if (theme === 'custom') {
-    return {
-      background: '#101417',
-      foreground: '#e5e7df',
-      cursor: '#d6ff7f',
-      selectionBackground: '#3d4f35',
-      black: '#070a0d',
-      blue: '#8ab4ff',
-      cyan: '#84e8d1',
-      green: '#a6e58f',
-      magenta: '#d5a6ff',
-      red: '#ff8f84',
-      white: '#f7f4e8',
-      yellow: '#f7d46b',
     }
   }
   return {

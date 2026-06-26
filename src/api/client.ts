@@ -11,6 +11,7 @@ import type {
   LocalShell,
   Session,
   Settings,
+  TerminalFont,
   TerminalSettings,
 } from '../types/domain'
 
@@ -53,6 +54,17 @@ export class TermousApi {
     return base.toString()
   }
 
+  terminalFontFileUrl(id: string, sha256?: string) {
+    const url = new URL(`/api/v1/terminal-fonts/${encodeURIComponent(id)}/file`, this.config.apiBaseUrl)
+    if (this.config.apiToken) {
+      url.searchParams.set('token', this.config.apiToken)
+    }
+    if (sha256) {
+      url.searchParams.set('sha256', sha256)
+    }
+    return url.toString()
+  }
+
   health() {
     return this.request<{ status: string }>('/api/v1/healthz')
   }
@@ -73,6 +85,23 @@ export class TermousApi {
       method: 'PATCH',
       body: terminal,
     })
+  }
+
+  terminalFonts() {
+    return this.request<TerminalFont[]>('/api/v1/terminal-fonts')
+  }
+
+  uploadTerminalFont(file: File) {
+    const body = new FormData()
+    body.append('file', file, file.name)
+    return this.request<TerminalFont>('/api/v1/terminal-fonts', {
+      method: 'POST',
+      body,
+    })
+  }
+
+  deleteTerminalFont(id: string) {
+    return this.request<void>(`/api/v1/terminal-fonts/${encodeURIComponent(id)}`, { method: 'DELETE' })
   }
 
   hostGroups() {
@@ -173,14 +202,21 @@ export class TermousApi {
   private async request<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
     const controller = new AbortController()
     const timeout = window.setTimeout(() => controller.abort(), 12_000)
+    const isFormData = options.body instanceof FormData
+    let requestBody: BodyInit | undefined
+    if (options.body instanceof FormData) {
+      requestBody = options.body
+    } else if (options.body !== undefined) {
+      requestBody = JSON.stringify(options.body)
+    }
     try {
       const response = await fetch(new URL(path, this.config.apiBaseUrl), {
         method: options.method ?? 'GET',
         headers: {
-          'Content-Type': 'application/json',
+          ...(!isFormData ? { 'Content-Type': 'application/json' } : {}),
           ...(this.config.apiToken ? { 'X-Termous-Token': this.config.apiToken } : {}),
         },
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        body: requestBody,
         signal: controller.signal,
       })
       if (!response.ok) {
