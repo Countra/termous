@@ -140,7 +140,7 @@ export function TerminalSearchPanel({
       <Tooltip title={t('app.close')}>
         <Button
           type="text"
-          className="terminal-search-button"
+          className="terminal-search-button terminal-search-close"
           aria-label={t('app.close')}
           icon={<X size={15} />}
           onClick={onClose}

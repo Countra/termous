@@ -2,7 +2,9 @@ import {
   Cable,
   ChevronLeft,
   ChevronRight,
+  KeyRound,
   Layers,
+  MapPin,
   Monitor,
   PanelLeftClose,
   PanelLeftOpen,
@@ -13,6 +15,8 @@ import {
   Server,
   Shell,
   SquareTerminal,
+  Tags,
+  UserRound,
 } from 'lucide-react'
 import { Button, Dropdown, Tooltip, type MenuProps } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -111,8 +115,12 @@ export function WorkbenchPage({
     () => [
       {
         key: 'search',
-        label: t('terminal.search'),
-        icon: <Search size={14} />,
+        label: (
+          <TerminalTabMenuItem
+            icon={<Search size={15} />}
+            title={t('terminal.search')}
+          />
+        ),
       },
     ],
     [t],
@@ -607,6 +615,21 @@ function Metric({ icon, label, value }: { icon: JSX.Element; label: string; valu
   )
 }
 
+function TerminalTabMenuItem({
+  icon,
+  title,
+}: {
+  icon: JSX.Element
+  title: string
+}) {
+  return (
+    <span className="terminal-tab-menu-item">
+      <span className="terminal-tab-menu-icon">{icon}</span>
+      <span className="terminal-tab-menu-label">{title}</span>
+    </span>
+  )
+}
+
 function HostRow({
   host,
   active,
@@ -620,26 +643,54 @@ function HostRow({
 }) {
   const { t } = useTranslation()
   const authLabel = host.auth_method === 'system' ? t('hosts.systemAuth') : t(`hosts.auth.${host.auth_method}`)
+  const endpoint = `${host.address}:${host.port}`
   const tooltip = (
-    <div className="host-row-tooltip-content">
-      <strong>{host.name}</strong>
-      <span>
-        {host.username}@{host.address}:{host.port}
-      </span>
-      <small>{authLabel}</small>
-      {host.tags.length > 0 ? (
-        <span className="host-row-tooltip-tags">
-          {host.tags.map((tag) => (
-            <em key={tag}>{tag}</em>
-          ))}
+    <div className="host-row-tooltip-card">
+      <div className="host-row-tooltip-head">
+        <span className="host-row-tooltip-icon">
+          <Server size={16} />
         </span>
+        <span className="host-row-tooltip-title">
+          <strong>{host.name}</strong>
+          <small>{endpoint}</small>
+        </span>
+      </div>
+      <div className="host-row-tooltip-meta">
+        <span>
+          <UserRound size={13} />
+          <strong>{host.username}</strong>
+        </span>
+        <span>
+          <KeyRound size={13} />
+          <strong>{authLabel}</strong>
+        </span>
+      </div>
+      {host.tags.length > 0 ? (
+        <div className="host-row-tooltip-tags">
+          <span>
+            <Tags size={13} />
+            {t('hosts.tags')}
+          </span>
+          <div>
+            {host.tags.map((tag) => (
+              <em key={tag}>{tag}</em>
+            ))}
+          </div>
+        </div>
       ) : null}
+      <div className="host-row-tooltip-endpoint">
+        <MapPin size={13} />
+        <code>
+          {host.username}@{endpoint}
+        </code>
+      </div>
     </div>
   )
   return (
     <Tooltip
       title={tooltip}
       placement="right"
+      arrow={false}
       mouseEnterDelay={0.25}
       classNames={{ root: 'host-row-tooltip' }}
     >
