@@ -1165,12 +1165,7 @@
   width: 100%;
 }
 
-.termous-select.ant-select {
-  min-width: 0;
-}
-
 .termous-select .ant-select-selector,
-.termous-select .ant-select-content,
 .ant-input,
 .ant-input-number,
 .ant-input-affix-wrapper {
@@ -1178,45 +1173,6 @@
   background: var(--input-bg) !important;
   color: var(--text-primary) !important;
   box-shadow: none !important;
-}
-
-.termous-select .ant-select-content {
-  box-sizing: border-box;
-  min-height: 36px;
-  align-items: center;
-  border-width: 1px !important;
-  border-style: solid !important;
-  border-radius: 9px !important;
-}
-
-.termous-select.ant-select-single .ant-select-content {
-  padding: 0 32px 0 11px;
-}
-
-.termous-select.ant-select-multiple .ant-select-content {
-  padding: 3px 32px 3px 8px;
-}
-
-.termous-select.ant-select .ant-select-selector,
-.termous-select.ant-select .ant-select-content {
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    box-shadow 0.16s ease;
-}
-
-.termous-select.ant-select:not(.ant-select-disabled):hover .ant-select-selector,
-.termous-select.ant-select:not(.ant-select-disabled):hover .ant-select-content {
-  border-color: color-mix(in srgb, var(--text-muted) 36%, var(--border)) !important;
-  background: color-mix(in srgb, var(--input-bg) 88%, var(--surface-subtle)) !important;
-}
-
-.termous-select.ant-select-focused .ant-select-selector,
-.termous-select.ant-select-focused .ant-select-content,
-.termous-select.ant-select-open .ant-select-selector,
-.termous-select.ant-select-open .ant-select-content {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border)) !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 11%, transparent) !important;
 }
 
 .termous-select .ant-select-selection-placeholder,
@@ -1229,23 +1185,6 @@
   background: transparent;
 }
 
-.termous-select.ant-select-disabled .ant-select-selector,
-.termous-select.ant-select-disabled .ant-select-content {
-  opacity: 0.62;
-}
-
-.termous-select.ant-select-multiple .ant-select-selection-overflow {
-  gap: 4px;
-}
-
-.termous-select.ant-select-multiple .ant-select-selection-item {
-  border-color: color-mix(in srgb, var(--border) 86%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
-  color: var(--text-secondary);
-  font-weight: 650;
-}
-
 .termous-select.ant-select-multiple .ant-select-selection-item-remove {
   color: var(--text-muted);
 }
@@ -1255,35 +1194,28 @@
   color: var(--text-muted);
 }
 
-.termous-select-popup.ant-select-dropdown {
+.termous-select-popup {
   z-index: 3300;
-  border: 1px solid var(--border-strong);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-strong) 96%, transparent);
-  box-shadow: var(--shadow-soft);
-  padding: 6px;
-  backdrop-filter: blur(18px) saturate(1.16);
 }
 
-:root[data-theme="light"] .termous-select-popup.ant-select-dropdown {
-  background: color-mix(in srgb, #ffffff 96%, transparent);
-  box-shadow: 0 18px 46px rgb(31 42 58 / 14%);
+:root[data-theme="dark"] .termous-select-popup.ant-select-dropdown,
+:root[data-theme="dark"] .termous-select-popup .rc-virtual-list,
+:root[data-theme="dark"] .termous-select-popup .rc-virtual-list-holder,
+:root[data-theme="dark"] .termous-select-popup .rc-virtual-list-holder-inner {
+  background: #202229 !important;
 }
 
 .termous-select-popup .ant-select-item {
-  min-height: 34px;
   border-radius: 8px;
   color: var(--text-secondary);
-  transition:
-    background 0.14s ease,
-    color 0.14s ease,
-    box-shadow 0.14s ease;
+  background: transparent;
 }
 
 .termous-select-popup .ant-select-item-group {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 720;
+  background: transparent !important;
 }
 
 .termous-select-popup .ant-select-item-option-content {
@@ -1291,14 +1223,13 @@
 }
 
 .termous-select-popup .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
-  background: color-mix(in srgb, var(--surface-subtle) 82%, transparent) !important;
+  background: #2a2d35 !important;
   color: var(--text-primary) !important;
 }
 
 .termous-select-popup .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
-  background: color-mix(in srgb, var(--surface-subtle) 92%, var(--accent-soft) 8%) !important;
+  background: #343741 !important;
   color: var(--text-primary) !important;
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 52%, transparent) !important;
 }
 
 :root[data-theme="light"] .termous-select-popup .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
