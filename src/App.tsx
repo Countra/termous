@@ -132,8 +132,22 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     })
   }
 
+  const saveTerminalSettings = async (terminalSettings: Parameters<typeof actions.setTerminalSettings>[0]) => {
+    try {
+      await actions.setTerminalSettings(terminalSettings)
+    } catch (actionError) {
+      showActionError(actionError)
+    }
+  }
+
   return (
-    <TerminalRuntimeProvider api={api} sessions={data.sessions} theme={theme} onSessionEvent={actions.updateSession}>
+    <TerminalRuntimeProvider
+      api={api}
+      sessions={data.sessions}
+      theme={theme}
+      terminalSettings={data.settings.terminal}
+      onSessionEvent={actions.updateSession}
+    >
       <AppShell
         page={page}
         theme={theme}
@@ -188,8 +202,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         {page === 'settings' ? (
           <SettingsPage
             language={data.settings.language}
+            terminalSettings={data.settings.terminal}
             actionBusy={actionBusy}
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
+            onTerminalSettingsChange={saveTerminalSettings}
           />
         ) : null}
       </AppShell>

@@ -1,15 +1,24 @@
 import { Languages } from 'lucide-react'
 import { Segmented } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { Language } from '../../types/domain'
+import type { Language, TerminalSettings } from '../../types/domain'
+import { TerminalStyleSettings } from './TerminalStyleSettings'
 
 interface SettingsPageProps {
   language: Language
+  terminalSettings: TerminalSettings
   actionBusy: boolean
   onLanguageChange: (language: Language) => Promise<void>
+  onTerminalSettingsChange: (settings: TerminalSettings) => Promise<void>
 }
 
-export function SettingsPage({ language, actionBusy, onLanguageChange }: SettingsPageProps) {
+export function SettingsPage({
+  language,
+  terminalSettings,
+  actionBusy,
+  onLanguageChange,
+  onTerminalSettingsChange,
+}: SettingsPageProps) {
   const { t } = useTranslation()
 
   return (
@@ -42,6 +51,7 @@ export function SettingsPage({ language, actionBusy, onLanguageChange }: Setting
           />
         </div>
       </div>
+      <TerminalStyleSettings value={terminalSettings} disabled={actionBusy} onChange={onTerminalSettingsChange} />
     </section>
   )
 }

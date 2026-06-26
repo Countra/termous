@@ -11,7 +11,8 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApi } from '../../api/client'
-import type { Session, SessionPhase, SessionStatus, ThemeMode } from '../../types/domain'
+import type { Session, SessionPhase, SessionStatus, TerminalSettings, ThemeMode } from '../../types/domain'
+import { defaultTerminalSettings, normalizeTerminalSettings } from '../settings/terminalSettings'
 import {
   TerminalRuntimeContext,
   type TerminalRuntimeContextValue,
@@ -22,6 +23,7 @@ interface TerminalRuntimeProviderProps {
   api: TermousApi
   sessions: Session[]
   theme: ThemeMode
+  terminalSettings: TerminalSettings
   children: ReactNode
   onSessionEvent?: (sessionId: string, patch: Partial<Session>) => void
 }
@@ -49,6 +51,7 @@ export function TerminalRuntimeProvider({
   api,
   sessions,
   theme,
+  terminalSettings,
   children,
   onSessionEvent,
 }: TerminalRuntimeProviderProps) {
@@ -58,6 +61,7 @@ export function TerminalRuntimeProvider({
   const activeSessionIdRef = useRef<string | null>(null)
   const apiRef = useRef(api)
   const themeRef = useRef(theme)
+  const terminalSettingsRef = useRef(normalizeTerminalSettings(terminalSettings))
   const onSessionEventRef = useRef(onSessionEvent)
   const tRef = useRef<(key: string) => string>((key) => key)
   const { t } = useTranslation()
@@ -69,7 +73,7 @@ export function TerminalRuntimeProvider({
   useEffect(() => {
     themeRef.current = theme
     entriesRef.current.forEach((entry) => {
-      entry.terminal.options.theme = terminalTheme(theme)
+      entry.terminal.options.theme = terminalTheme(terminalSettingsRef.current, theme)
     })
   }, [theme])
 
@@ -155,6 +159,19 @@ export function TerminalRuntimeProvider({
     [sendResize],
   )
 
+  useEffect(() => {
+    const nextSettings = normalizeTerminalSettings(terminalSettings)
+    const previousSettings = terminalSettingsRef.current
+    terminalSettingsRef.current = nextSettings
+    const shouldResize = shouldFitAfterSettingsChange(previousSettings, nextSettings)
+    entriesRef.current.forEach((entry) => {
+      applyTerminalSettings(entry.terminal, nextSettings, themeRef.current)
+      if (shouldResize) {
+        fitAndResize(entry)
+      }
+    })
+  }, [fitAndResize, terminalSettings])
+
   const createEntry = useCallback(
     (sessionId: string) => {
       const existingEntry = entriesRef.current.get(sessionId)
@@ -169,7 +186,7 @@ export function TerminalRuntimeProvider({
 
       const socket = new WebSocket(apiRef.current.websocketUrl(`/api/v1/sessions/${sessionId}/terminal`))
       const fit = new FitAddon()
-      const terminal = createTerminal(themeRef.current)
+      const terminal = createTerminal(themeRef.current, terminalSettingsRef.current)
       terminal.loadAddon(fit)
       terminal.open(pane)
       const helperInput = pane.querySelector('.xterm-helper-textarea')
@@ -338,16 +355,50 @@ export function TerminalRuntimeProvider({
   )
 }
 
-function createTerminal(theme: ThemeMode) {
+function createTerminal(theme: ThemeMode, settings: TerminalSettings = defaultTerminalSettings) {
+  const normalizedSettings = normalizeTerminalSettings(settings)
   return new Terminal({
-    cursorBlink: true,
+    cursorBlink: normalizedSettings.cursor_blink,
+    cursorStyle: normalizedSettings.cursor_style,
     convertEol: true,
-    fontFamily: '"JetBrains Mono", "Cascadia Code", Consolas, monospace',
-    fontSize: 13,
-    lineHeight: 1.2,
-    scrollback: 5000,
-    theme: terminalTheme(theme),
+    fontFamily: fontFamilyFromSetting(normalizedSettings.font_family),
+    fontSize: normalizedSettings.font_size,
+    letterSpacing: normalizedSettings.letter_spacing,
+    lineHeight: normalizedSettings.line_height,
+    scrollback: normalizedSettings.scrollback,
+    theme: terminalTheme(normalizedSettings, theme),
   })
+}
+
+function applyTerminalSettings(terminal: Terminal, settings: TerminalSettings, appTheme: ThemeMode) {
+  const normalizedSettings = normalizeTerminalSettings(settings)
+  terminal.options.cursorBlink = normalizedSettings.cursor_blink
+  terminal.options.cursorStyle = normalizedSettings.cursor_style
+  terminal.options.fontFamily = fontFamilyFromSetting(normalizedSettings.font_family)
+  terminal.options.fontSize = normalizedSettings.font_size
+  terminal.options.letterSpacing = normalizedSettings.letter_spacing
+  terminal.options.lineHeight = normalizedSettings.line_height
+  terminal.options.scrollback = normalizedSettings.scrollback
+  terminal.options.theme = terminalTheme(normalizedSettings, appTheme)
+}
+
+function shouldFitAfterSettingsChange(previous: TerminalSettings, next: TerminalSettings) {
+  return (
+    previous.font_family !== next.font_family ||
+    previous.font_size !== next.font_size ||
+    previous.line_height !== next.line_height ||
+    previous.letter_spacing !== next.letter_spacing
+  )
+}
+
+function fontFamilyFromSetting(fontFamily: TerminalSettings['font_family']) {
+  if (fontFamily === 'consolas') {
+    return 'Consolas, "JetBrains Mono", monospace'
+  }
+  if (fontFamily === 'monospace') {
+    return 'monospace'
+  }
+  return '"JetBrains Mono", Consolas, monospace'
 }
 
 function handleSocketMessage(
@@ -405,7 +456,8 @@ function handleSocketMessage(
   }
 }
 
-function terminalTheme(theme: ThemeMode) {
+function terminalTheme(settings: TerminalSettings, appTheme: ThemeMode) {
+  const theme = settings.theme_mode === 'follow_app' ? appTheme : settings.theme_mode
   if (theme === 'light') {
     return {
       background: '#fbfcfe',
@@ -420,6 +472,22 @@ function terminalTheme(theme: ThemeMode) {
       red: '#bf343b',
       white: '#ffffff',
       yellow: '#966100',
+    }
+  }
+  if (theme === 'custom') {
+    return {
+      background: '#101417',
+      foreground: '#e5e7df',
+      cursor: '#d6ff7f',
+      selectionBackground: '#3d4f35',
+      black: '#070a0d',
+      blue: '#8ab4ff',
+      cyan: '#84e8d1',
+      green: '#a6e58f',
+      magenta: '#d5a6ff',
+      red: '#ff8f84',
+      white: '#f7f4e8',
+      yellow: '#f7d46b',
     }
   }
   return {

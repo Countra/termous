@@ -4,6 +4,12 @@ export type ThemeMode = 'dark' | 'light'
 
 export type PageKey = 'workbench' | 'hosts' | 'vault' | 'settings'
 
+export type TerminalFontFamily = 'jetbrains_mono' | 'consolas' | 'monospace'
+
+export type TerminalCursorStyle = 'block' | 'bar' | 'underline'
+
+export type TerminalThemeMode = 'follow_app' | 'dark' | 'light' | 'custom'
+
 export type AuthMethod = 'password' | 'private_key' | 'system'
 
 export type CredentialType = 'password' | 'private_key' | 'private_key_passphrase'
@@ -28,6 +34,18 @@ export type LocalShell = 'powershell' | 'cmd'
 
 export interface Settings {
   language: Language
+  terminal: TerminalSettings
+}
+
+export interface TerminalSettings {
+  font_family: TerminalFontFamily
+  font_size: number
+  line_height: number
+  letter_spacing: number
+  cursor_style: TerminalCursorStyle
+  cursor_blink: boolean
+  theme_mode: TerminalThemeMode
+  scrollback: 1000 | 5000 | 10000 | 50000
 }
 
 export interface Host {

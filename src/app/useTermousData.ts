@@ -8,10 +8,12 @@ import type {
   LocalShell,
   Session,
   Settings,
+  TerminalSettings,
 } from '../types/domain'
 import { changeLanguage } from '../i18n'
+import { defaultTerminalSettings, normalizeSettings } from '../features/settings/terminalSettings'
 
-const initialSettings: Settings = { language: 'zh-CN' }
+const initialSettings: Settings = { language: 'zh-CN', terminal: defaultTerminalSettings }
 type LoadMode = 'initial' | 'background' | 'silent'
 
 const initialData: AppData = {
@@ -51,8 +53,9 @@ export function useTermousData() {
         apiClient.sessions(),
       ])
       const nextSessions = sessions ?? []
+      const nextSettings = normalizeSettings(settings)
       setData({
-        settings,
+        settings: nextSettings,
         groups: groups ?? [],
         hosts: hosts ?? [],
         credentials: credentials ?? [],
@@ -70,7 +73,7 @@ export function useTermousData() {
       })
       setApiReady(true)
       setLastUpdatedAt(new Date().toISOString())
-      await changeLanguage(settings.language)
+      await changeLanguage(nextSettings.language)
     } catch (loadError) {
       setApiReady(false)
       setError(publicMessage(loadError))
@@ -115,9 +118,20 @@ export function useTermousData() {
     () => ({
       reload: () => load('background'),
       async setLanguage(language: Language) {
-        const settings = await api.updateLanguage(language)
+        const settings = normalizeSettings(await api.updateLanguage(language))
         setData((current) => ({ ...current, settings }))
         await changeLanguage(settings.language)
+      },
+      async setTerminalSettings(terminal: TerminalSettings) {
+        const previousSettings = data.settings
+        setData((current) => ({ ...current, settings: { ...current.settings, terminal } }))
+        try {
+          const settings = normalizeSettings(await api.updateTerminalSettings(terminal))
+          setData((current) => ({ ...current, settings }))
+        } catch (updateError) {
+          setData((current) => ({ ...current, settings: previousSettings }))
+          throw updateError
+        }
       },
       async createHost(input: HostInput) {
         await api.createHost(input)
@@ -198,7 +212,7 @@ export function useTermousData() {
         }))
       },
     }),
-    [api, data.sessions, load],
+    [api, data.settings, data.sessions, load],
   )
 
   return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, actions }

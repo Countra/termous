@@ -11,6 +11,7 @@ import type {
   LocalShell,
   Session,
   Settings,
+  TerminalSettings,
 } from '../types/domain'
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -64,6 +65,13 @@ export class TermousApi {
     return this.request<Settings>('/api/v1/settings/language', {
       method: 'PATCH',
       body: { language },
+    })
+  }
+
+  updateTerminalSettings(terminal: TerminalSettings) {
+    return this.request<Settings>('/api/v1/settings/terminal', {
+      method: 'PATCH',
+      body: terminal,
     })
   }
 
