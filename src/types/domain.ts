@@ -2,7 +2,23 @@ export type Language = 'zh-CN' | 'en-US'
 
 export type ThemeMode = 'dark' | 'light'
 
-export type PageKey = 'workbench' | 'hosts' | 'vault' | 'settings'
+export type PageKey = 'workbench' | 'hosts' | 'vault' | 'files' | 'settings'
+
+export type RemoteFileKind = 'file' | 'directory' | 'symlink' | 'other'
+
+export type OverwritePolicy = 'ask' | 'overwrite' | 'skip' | 'rename'
+
+export type TransferType =
+  | 'upload_file'
+  | 'upload_directory'
+  | 'download_file'
+  | 'download_directory'
+  | 'remote_copy'
+  | 'remote_move'
+
+export type TransferStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export type LocalGrantSource = 'picker' | 'drop' | 'clipboard'
 
 export type TerminalFontFamily = string
 
@@ -17,6 +33,70 @@ export interface TerminalFont {
   size_bytes?: number
   sha256?: string
   created_at?: string
+}
+
+export interface RemoteFileEntry {
+  name: string
+  path: string
+  kind: RemoteFileKind
+  size: number
+  mode?: string
+  permissions?: string
+  modified_at?: string
+  is_hidden: boolean
+  target?: string
+}
+
+export interface RemoteDirectoryListing {
+  host_id: string
+  path: string
+  parent_path: string
+  entries: RemoteFileEntry[]
+  read_at: string
+}
+
+export interface TransferTask {
+  id: string
+  host_id: string
+  type: TransferType
+  status: TransferStatus
+  source_paths: string[]
+  target_path: string
+  total_bytes: number
+  transferred_bytes: number
+  remaining_bytes: number
+  total_files: number
+  completed_files: number
+  current_file?: string
+  progress_percent: number
+  speed_bytes_per_sec: number
+  average_speed_bytes_per_sec: number
+  eta_seconds?: number
+  elapsed_seconds: number
+  cancellable: boolean
+  retryable: boolean
+  overwrite_policy: OverwritePolicy
+  created_at: string
+  started_at?: string
+  finished_at?: string
+  error_code?: string
+  error_message?: string
+}
+
+export interface LocalGrantItem {
+  id: string
+  path?: string
+  name: string
+  kind: 'file' | 'directory'
+  size?: number
+}
+
+export interface LocalFileGrant {
+  id: string
+  source: LocalGrantSource
+  items: LocalGrantItem[]
+  created_at: string
+  expires_at: string
 }
 
 export type TerminalCursorStyle = 'block' | 'bar' | 'underline'

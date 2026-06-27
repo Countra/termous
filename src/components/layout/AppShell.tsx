@@ -1,5 +1,6 @@
 import {
   DatabaseZap,
+  FolderTree,
   Moon,
   PanelLeft,
   PanelLeftClose,
@@ -34,6 +35,7 @@ const navItems = [
   { key: 'workbench' as const, icon: TerminalSquare },
   { key: 'hosts' as const, icon: Server },
   { key: 'vault' as const, icon: DatabaseZap },
+  { key: 'files' as const, icon: FolderTree },
 ]
 
 export function AppShell({

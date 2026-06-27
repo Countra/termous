@@ -9,10 +9,16 @@ import type {
   KnownHost,
   Language,
   LocalShell,
+  LocalFileGrant,
+  LocalGrantSource,
+  OverwritePolicy,
+  RemoteDirectoryListing,
+  RemoteFileEntry,
   Session,
   Settings,
   TerminalFont,
   TerminalSettings,
+  TransferTask,
 } from '../types/domain'
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -197,6 +203,98 @@ export class TermousApi {
 
   deleteSession(id: string) {
     return this.request<void>(`/api/v1/sessions/${id}`, { method: 'DELETE' })
+  }
+
+  listFiles(hostId: string, path: string) {
+    const query = new URLSearchParams({ path })
+    return this.request<RemoteDirectoryListing>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files?${query.toString()}`)
+  }
+
+  statFile(hostId: string, path: string) {
+    const query = new URLSearchParams({ path })
+    return this.request<RemoteFileEntry>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/stat?${query.toString()}`)
+  }
+
+  mkdirFile(hostId: string, path: string) {
+    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/mkdir`, {
+      method: 'POST',
+      body: { path },
+    })
+  }
+
+  renameFile(hostId: string, sourcePath: string, targetPath: string) {
+    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/rename`, {
+      method: 'PATCH',
+      body: { source_path: sourcePath, target_path: targetPath },
+    })
+  }
+
+  deleteFiles(hostId: string, paths: string[], recursive = true) {
+    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files`, {
+      method: 'DELETE',
+      body: { paths, recursive },
+    })
+  }
+
+  copyFiles(hostId: string, sourcePaths: string[], targetDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/copy`, {
+      method: 'POST',
+      body: { source_paths: sourcePaths, target_dir: targetDir, overwrite_policy: overwritePolicy },
+    })
+  }
+
+  moveFiles(hostId: string, sourcePaths: string[], targetDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/move`, {
+      method: 'POST',
+      body: { source_paths: sourcePaths, target_dir: targetDir, overwrite_policy: overwritePolicy },
+    })
+  }
+
+  createLocalFileGrant(source: LocalGrantSource, paths: string[]) {
+    return this.request<LocalFileGrant>('/api/v1/local-file-grants', {
+      method: 'POST',
+      body: { source, paths },
+    })
+  }
+
+  transfers() {
+    return this.request<TransferTask[]>('/api/v1/transfers')
+  }
+
+  createUploadTransfer(hostId: string, localGrantId: string, remoteDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+    return this.request<TransferTask>('/api/v1/transfers/upload', {
+      method: 'POST',
+      body: {
+        host_id: hostId,
+        local_grant_id: localGrantId,
+        remote_dir: remoteDir,
+        overwrite_policy: overwritePolicy,
+      },
+    })
+  }
+
+  createDownloadTransfer(hostId: string, remotePaths: string[], localDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+    return this.request<TransferTask>('/api/v1/transfers/download', {
+      method: 'POST',
+      body: {
+        host_id: hostId,
+        remote_paths: remotePaths,
+        local_dir: localDir,
+        overwrite_policy: overwritePolicy,
+      },
+    })
+  }
+
+  retryTransfer(id: string) {
+    return this.request<TransferTask>(`/api/v1/transfers/${encodeURIComponent(id)}/retry`, { method: 'POST' })
+  }
+
+  deleteTransfer(id: string) {
+    return this.request<void>(`/api/v1/transfers/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  transferEventsUrl() {
+    return this.websocketUrl('/api/v1/transfers/events')
   }
 
   private async request<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {

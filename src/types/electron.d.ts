@@ -18,6 +18,16 @@ declare global {
         onMaximizeState: (callback: (maximized: boolean) => void) => () => void
         onCloseRequest: (callback: () => void) => () => void
       }
+      files?: {
+        pickPaths: (options?: {
+          mode?: 'files' | 'directories' | 'files-and-directories'
+          multiple?: boolean
+        }) => Promise<string[]>
+        pickFiles: () => Promise<string[]>
+        pickDirectory: () => Promise<string[]>
+        pathsFromFileList: (files: ArrayLike<File>) => Promise<string[]>
+        readClipboardFilePaths: () => Promise<string[]>
+      }
     }
   }
 }

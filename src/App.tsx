@@ -4,6 +4,7 @@ import 'antd/dist/reset.css'
 import { useTranslation } from 'react-i18next'
 import { AppShell } from './components/layout/AppShell'
 import { HostsPage } from './features/hosts/HostsPage'
+import { FilesPage } from './features/files/FilesPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { VaultPage } from './features/vault/VaultPage'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
@@ -230,6 +231,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onSave={saveCredential}
             onDelete={(id) => runAction(() => actions.deleteCredential(id))}
             onGenerateKey={() => runAction(actions.generateKey)}
+          />
+        ) : null}
+
+        {page === 'files' ? (
+          <FilesPage
+            api={api}
+            data={data}
+            selectedHostId={selectedHostIdStable}
+            onSelectHost={setSelectedHostId}
           />
         ) : null}
 

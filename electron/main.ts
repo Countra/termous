@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -109,6 +109,32 @@ function registerWindowControls() {
   ipcMain.handle('window:is-maximized', () => currentWindow()?.isMaximized() ?? false)
 }
 
+function registerFilePickers() {
+  const currentWindow = () => BrowserWindow.getFocusedWindow() ?? win
+  ipcMain.handle('files:pick-paths', async (_event, options?: { mode?: string; multiple?: boolean }) => {
+    const properties: Array<'openFile' | 'openDirectory' | 'multiSelections'> = []
+    const mode = options?.mode ?? 'files'
+    if (mode === 'directories') {
+      properties.push('openDirectory')
+    } else if (mode === 'files-and-directories') {
+      properties.push('openFile', 'openDirectory')
+    } else {
+      properties.push('openFile')
+    }
+    if (options?.multiple !== false) {
+      properties.push('multiSelections')
+    }
+    const focused = currentWindow()
+    const result = focused
+      ? await dialog.showOpenDialog(focused, { properties })
+      : await dialog.showOpenDialog({ properties })
+    if (result.canceled) {
+      return []
+    }
+    return result.filePaths
+  })
+}
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
@@ -125,5 +151,6 @@ app.on('activate', () => {
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
   registerWindowControls()
+  registerFilePickers()
   createWindow()
 })
