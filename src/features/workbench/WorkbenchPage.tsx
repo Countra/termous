@@ -14,7 +14,7 @@ import {
   SquareTerminal,
 } from 'lucide-react'
 import { Button, Dropdown, Tooltip, type MenuProps } from 'antd'
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostContextPanel } from '../../components/hosts/HostContextPanel'
 import { CustomSelect } from '../../components/ui/CustomSelect'
@@ -75,7 +75,9 @@ export function WorkbenchPage({
   )
   const tabViewportRef = useRef<HTMLDivElement>(null)
   const tabButtonRefs = useRef(new Map<string, HTMLElement>())
+  const previousSessionStatusRef = useRef(new Map<string, Session['status']>())
   const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
+  const [recentlyConnectedSessionId, setRecentlyConnectedSessionId] = useState<string | null>(null)
   const [pendingSearchSessionId, setPendingSearchSessionId] = useState<string | null>(null)
   const [terminalSearch, setTerminalSearch] = useState<TerminalSearchState>({
     open: false,
@@ -86,8 +88,15 @@ export function WorkbenchPage({
     result: emptyTerminalSearchResult(),
   })
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
+  const activeSessionId = activeSession?.id
+  const activeSessionStatus = activeSession?.status
   const sessionStatus = activeSession?.status ?? 'disconnected'
-  const hasConnectionProgress = Boolean(activeSession && activeSession.status !== 'connected' && activeSession.status !== 'disconnected')
+  const showRecentConnectionProgress = recentlyConnectedSessionId === activeSessionId
+  const hasConnectionProgress = Boolean(
+    activeSession &&
+      activeSession.status !== 'disconnected' &&
+      (activeSession.status !== 'connected' || showRecentConnectionProgress),
+  )
   const credential = data.credentials.find((item) => item.id === selectedHost?.credential_id)
   const jumpHost = data.hosts.find((host) => host.id === selectedHost?.jump_host_id)
   const [terminalSize, setTerminalSize] = useState({ cols: activeSession?.pty_cols ?? 120, rows: activeSession?.pty_rows ?? 32 })
@@ -253,6 +262,31 @@ export function WorkbenchPage({
     window.setTimeout(updateTabScrollState, 180)
   }, [updateTabScrollState])
 
+  const handleTabWheel = useCallback(
+    (event: WheelEvent<HTMLDivElement>) => {
+      const viewport = tabViewportRef.current
+      if (!viewport) {
+        return
+      }
+      const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth
+      if (maxScrollLeft <= 1) {
+        return
+      }
+      const wheelDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+      if (wheelDelta === 0) {
+        return
+      }
+      const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, viewport.scrollLeft + wheelDelta))
+      if (Math.abs(nextScrollLeft - viewport.scrollLeft) < 1) {
+        return
+      }
+      event.preventDefault()
+      viewport.scrollLeft = nextScrollLeft
+      updateTabScrollState()
+    },
+    [updateTabScrollState],
+  )
+
   const closeSessionFromTab = useCallback(
     (event: MouseEvent<HTMLElement>, sessionId: string) => {
       if (event.button !== 1) {
@@ -276,6 +310,22 @@ export function WorkbenchPage({
       setTerminalSize({ cols: activeSession.pty_cols, rows: activeSession.pty_rows })
     }
   }, [activeSession])
+
+  useEffect(() => {
+    if (!activeSessionId || !activeSessionStatus) {
+      return undefined
+    }
+    const previousStatus = previousSessionStatusRef.current.get(activeSessionId)
+    previousSessionStatusRef.current.set(activeSessionId, activeSessionStatus)
+    if (previousStatus !== 'connecting' || activeSessionStatus !== 'connected') {
+      return undefined
+    }
+    setRecentlyConnectedSessionId(activeSessionId)
+    const timer = window.setTimeout(() => {
+      setRecentlyConnectedSessionId((current) => (current === activeSessionId ? null : current))
+    }, 900)
+    return () => window.clearTimeout(timer)
+  }, [activeSessionId, activeSessionStatus])
 
   useEffect(() => {
     if (!pendingSearchSessionId || activeSession?.id !== pendingSearchSessionId) {
@@ -391,6 +441,7 @@ export function WorkbenchPage({
                 role="tablist"
                 aria-label={t('workbench.terminal')}
                 ref={tabViewportRef}
+                onWheel={handleTabWheel}
               >
                 {data.sessions.length === 0 ? (
                   <Button type="text" className="terminal-tab is-empty" role="tab" icon={<SquareTerminal size={15} />}>
@@ -457,7 +508,7 @@ export function WorkbenchPage({
             <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
           </div>
           <div className={`terminal-progress-slot ${hasConnectionProgress ? 'is-active' : ''}`}>
-            <ConnectionProgress session={activeSession} />
+            <ConnectionProgress session={activeSession} showReady={showRecentConnectionProgress} />
           </div>
           <TerminalViewport
             session={activeSession}

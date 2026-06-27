@@ -14,9 +14,9 @@ const sshPhaseOrder: SessionPhase[] = [
 
 const localPhaseOrder: SessionPhase[] = ['queued', 'starting_local_shell', 'ready']
 
-export function ConnectionProgress({ session }: { session: Session | null }) {
+export function ConnectionProgress({ session, showReady = false }: { session: Session | null; showReady?: boolean }) {
   const { t } = useTranslation()
-  if (!session || session.status === 'connected' || session.status === 'disconnected') {
+  if (!session || session.status === 'disconnected' || (session.status === 'connected' && !showReady)) {
     return null
   }
   const phaseOrder = phasesForSession(session)
@@ -59,6 +59,9 @@ function phasesForSession(session: Session) {
 }
 
 function phaseState(session: Session, index: number, currentIndex: number) {
+  if (session.status === 'connected') {
+    return index <= currentIndex ? 'done' : 'idle'
+  }
   if (session.status === 'failed') {
     return index === currentIndex ? 'failed' : index < currentIndex ? 'done' : 'idle'
   }
