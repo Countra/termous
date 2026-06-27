@@ -279,6 +279,13 @@ export class TermousApi {
     })
   }
 
+  chmodFileSessionFile(fileSessionId: string, path: string, mode: string) {
+    return this.request<RemoteFileEntry>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/permissions`, {
+      method: 'PATCH',
+      body: { path, mode },
+    })
+  }
+
   deleteFileSessionFiles(fileSessionId: string, paths: string[], recursive = true) {
     return this.request<void>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files`, {
       method: 'DELETE',

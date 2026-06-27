@@ -2,13 +2,9 @@ import {
   Cable,
   ChevronLeft,
   ChevronRight,
-  KeyRound,
   Layers,
-  MapPin,
   Monitor,
   FolderOpen,
-  PanelLeftClose,
-  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Power,
@@ -16,16 +12,13 @@ import {
   Server,
   Shell,
   SquareTerminal,
-  Tags,
-  UserRound,
 } from 'lucide-react'
 import { Button, Dropdown, Tooltip, type MenuProps } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { HostContextPanel } from '../../components/hosts/HostContextPanel'
 import { CustomSelect } from '../../components/ui/CustomSelect'
-import { EmptyState } from '../../components/ui/EmptyState'
 import { StatusBadge } from '../../components/ui/StatusBadge'
-import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
 import { ConnectionProgress } from '../terminal/ConnectionProgress'
 import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
@@ -93,7 +86,6 @@ export function WorkbenchPage({
     result: emptyTerminalSearchResult(),
   })
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
-  const groupedHosts = useMemo(() => groupHosts(data.hosts, data.groups), [data.hosts, data.groups])
   const sessionStatus = activeSession?.status ?? 'disconnected'
   const hasConnectionProgress = Boolean(activeSession && activeSession.status !== 'connected' && activeSession.status !== 'disconnected')
   const credential = data.credentials.find((item) => item.id === selectedHost?.credential_id)
@@ -330,47 +322,18 @@ export function WorkbenchPage({
         detailsCollapsed ? 'is-details-collapsed' : ''
       }`}
     >
-      <div className={`context-panel host-context-panel ${hostPanelCollapsed ? 'is-collapsed' : ''}`}>
-        <div className="panel-heading">
-          <div className="panel-title-copy">
-            <h2>{hostPanelCollapsed ? t('workbench.hostsShort') : t('workbench.hostPanel')}</h2>
-            {!hostPanelCollapsed ? (
-              <span>
-                {data.hosts.length} {t('workbench.hostCount')}
-              </span>
-            ) : null}
-          </div>
-          <Tooltip title={hostPanelCollapsed ? t('app.expand') : t('app.collapse')}>
-            <Button
-            type="text"
-            className="icon-button compact"
-            onClick={() => setHostPanelCollapsed((current) => !current)}
-            aria-label={hostPanelCollapsed ? t('app.expand') : t('app.collapse')}
-            icon={hostPanelCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-          />
-          </Tooltip>
-        </div>
-        {data.hosts.length === 0 ? (
-          <EmptyState title={t('app.empty')} description={t('workbench.terminalHint')} />
-        ) : (
-          <div className="host-stack">
-            {Object.entries(groupedHosts).map(([group, hosts]) => (
-              <div className="host-group-block" key={group}>
-                {!hostPanelCollapsed ? <span className="group-label">{group || t('hosts.ungrouped')}</span> : null}
-                {hosts.map((host) => (
-                  <HostRow
-                    key={host.id}
-                    host={host}
-                    active={host.id === selectedHost?.id}
-                    collapsed={hostPanelCollapsed}
-                    onSelect={() => onSelectHost(host.id)}
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <HostContextPanel
+        hosts={data.hosts}
+        groups={data.groups}
+        selectedHostId={selectedHost?.id}
+        collapsed={hostPanelCollapsed}
+        title={t('workbench.hostPanel')}
+        collapsedTitle={t('workbench.hostsShort')}
+        subtitle={`${data.hosts.length} ${t('workbench.hostCount')}`}
+        emptyDescription={t('workbench.terminalHint')}
+        onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
+        onSelectHost={onSelectHost}
+      />
 
       <div className="terminal-workspace">
         <div className="page-title-row">
@@ -666,103 +629,4 @@ function TerminalTabMenuItem({
       <span className="terminal-tab-menu-label">{title}</span>
     </span>
   )
-}
-
-function HostRow({
-  host,
-  active,
-  collapsed,
-  onSelect,
-}: {
-  host: Host
-  active: boolean
-  collapsed: boolean
-  onSelect: () => void
-}) {
-  const { t } = useTranslation()
-  const authLabel = host.auth_method === 'system' ? t('hosts.systemAuth') : t(`hosts.auth.${host.auth_method}`)
-  const endpoint = `${host.address}:${host.port}`
-  const tooltip = (
-    <div className="host-row-tooltip-card">
-      <div className="host-row-tooltip-head">
-        <span className="host-row-tooltip-icon">
-          <Server size={16} />
-        </span>
-        <span className="host-row-tooltip-title">
-          <strong>{host.name}</strong>
-          <small>{endpoint}</small>
-        </span>
-      </div>
-      <div className="host-row-tooltip-meta">
-        <span>
-          <UserRound size={13} />
-          <strong>{host.username}</strong>
-        </span>
-        <span>
-          <KeyRound size={13} />
-          <strong>{authLabel}</strong>
-        </span>
-      </div>
-      {host.tags.length > 0 ? (
-        <div className="host-row-tooltip-tags">
-          <span>
-            <Tags size={13} />
-            {t('hosts.tags')}
-          </span>
-          <div>
-            {host.tags.map((tag) => (
-              <em key={tag}>{tag}</em>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      <div className="host-row-tooltip-endpoint">
-        <MapPin size={13} />
-        <code>
-          {host.username}@{endpoint}
-        </code>
-      </div>
-    </div>
-  )
-  return (
-    <Tooltip
-      title={tooltip}
-      placement="right"
-      arrow={false}
-      mouseEnterDelay={0.25}
-      classNames={{ root: 'host-row-tooltip' }}
-    >
-      <button
-        type="button"
-        className={`host-row ${active ? 'is-active' : ''} ${collapsed ? 'is-compact' : ''}`}
-        onClick={onSelect}
-        aria-label={`${host.name} ${host.username}@${host.address}:${host.port} ${authLabel}`}
-      >
-        <span className="host-avatar">
-          <Server size={collapsed ? 17 : 15} aria-hidden="true" />
-        </span>
-        {!collapsed ? (
-          <>
-            <span className="host-main">
-              <strong>{host.name}</strong>
-              <small>
-                {host.username}@{host.address}:{host.port}
-              </small>
-            </span>
-            <AuthMethodBadge method={host.auth_method} />
-          </>
-        ) : null}
-      </button>
-    </Tooltip>
-  )
-}
-
-function groupHosts(hosts: Host[], groups: AppData['groups']) {
-  const groupNames = new Map(groups.map((group) => [group.id, group.name]))
-  return hosts.reduce<Record<string, Host[]>>((acc, host) => {
-    const key = groupNames.get(host.group_id) ?? ''
-    acc[key] = acc[key] ?? []
-    acc[key].push(host)
-    return acc
-  }, {})
 }

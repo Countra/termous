@@ -42,6 +42,7 @@ export interface RemoteFileEntry {
   size: number
   mode?: string
   permissions?: string
+  permission_octal?: string
   modified_at?: string
   is_hidden: boolean
   target?: string
