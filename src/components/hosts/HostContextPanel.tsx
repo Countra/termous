@@ -38,14 +38,14 @@ export function HostContextPanel({
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const visibleHosts = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
+    const normalizedQuery = collapsed ? '' : query.trim().toLowerCase()
     if (!normalizedQuery) {
       return hosts
     }
     return hosts.filter((host) =>
       [host.name, host.address, host.username, ...(host.tags ?? [])].join(' ').toLowerCase().includes(normalizedQuery),
     )
-  }, [hosts, query])
+  }, [collapsed, hosts, query])
   const groupedHosts = useMemo(() => groupHosts(visibleHosts, groups), [groups, visibleHosts])
 
   return (
@@ -70,6 +70,7 @@ export function HostContextPanel({
           className="host-search-input host-context-search"
           value={query}
           allowClear
+          variant="borderless"
           onChange={(event) => setQuery(event.target.value)}
           prefix={<Search size={15} aria-hidden="true" />}
           placeholder={searchPlaceholder}
@@ -77,6 +78,8 @@ export function HostContextPanel({
       ) : null}
       {hosts.length === 0 ? (
         <EmptyState title={t('app.empty')} description={emptyDescription} />
+      ) : visibleHosts.length === 0 ? (
+        <EmptyState title={t('hosts.noFilterResults')} description={t('hosts.noFilterResultsHint')} />
       ) : (
         <div className="host-stack">
           {Object.entries(groupedHosts).map(([group, items]) => (

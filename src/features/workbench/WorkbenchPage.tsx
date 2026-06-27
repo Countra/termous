@@ -331,6 +331,7 @@ export function WorkbenchPage({
         collapsedTitle={t('workbench.hostsShort')}
         subtitle={`${data.hosts.length} ${t('workbench.hostCount')}`}
         emptyDescription={t('workbench.terminalHint')}
+        searchPlaceholder={t('workbench.hostSearch')}
         onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
         onSelectHost={onSelectHost}
       />
