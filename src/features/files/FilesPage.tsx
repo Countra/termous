@@ -2,25 +2,29 @@ import { App as AntdApp, Button, Dropdown, Input, Table, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Clipboard,
   Copy,
   Download,
   File,
   Folder,
   FolderPlus,
+  Link,
   MoreHorizontal,
   Pencil,
   RefreshCw,
   Scissors,
   Search,
+  ShieldAlert,
   Trash2,
   Upload,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState, type DragEvent, type KeyboardEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { EmptyState } from '../../components/ui/EmptyState'
-import type { AppData, Host, LocalGrantSource, RemoteFileEntry } from '../../types/domain'
+import type { AppData, FileSession, FileSessionHostKey, Host, LocalGrantSource, RemoteDirectoryListing, RemoteFileEntry } from '../../types/domain'
 import { fileSortValue, formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
 import { TransferQueuePanel } from './TransferQueuePanel'
 import { useTransferQueue } from './useTransferQueue'
@@ -29,7 +33,14 @@ interface FilesPageProps {
   api: TermousApi
   data: AppData
   selectedHostId: string
+  activeFileSession: FileSession | null
   onSelectHost: (hostId: string) => void
+  onConnectFileSession: (hostId: string) => Promise<FileSession>
+  onSelectFileSession: (fileSessionId: string) => void
+  onCloseFileSession: (fileSessionId: string) => Promise<void>
+  onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
+  onTrustFileSessionHost: (fileSessionId: string, decision: 'trust' | 'replace' | 'reject', fingerprintSHA256: string) => Promise<FileSession>
+  onUpdateFileSession: (fileSession: FileSession) => void
 }
 
 interface RemoteClipboard {
@@ -38,9 +49,29 @@ interface RemoteClipboard {
   paths: string[]
 }
 
-export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPageProps) {
+interface FileSessionEventMessage {
+  type: string
+  session: FileSession
+}
+
+export function FilesPage({
+  api,
+  data,
+  selectedHostId,
+  activeFileSession,
+  onSelectHost,
+  onConnectFileSession,
+  onSelectFileSession,
+  onCloseFileSession,
+  onReconnectFileSession,
+  onTrustFileSessionHost,
+  onUpdateFileSession,
+}: FilesPageProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
+  const fileTabViewportRef = useRef<HTMLDivElement>(null)
+  const lastSessionLoadKeyRef = useRef('')
+  const lastActiveFileSessionIdRef = useRef('')
   const [currentPath, setCurrentPath] = useState('/')
   const [pathInput, setPathInput] = useState('/')
   const [entries, setEntries] = useState<RemoteFileEntry[]>([])
@@ -51,9 +82,16 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
   const [hostSearch, setHostSearch] = useState('')
   const [dragActive, setDragActive] = useState(false)
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
+  const [connectingHostId, setConnectingHostId] = useState('')
+  const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
+  const [promptedHostKeyKeys, setPromptedHostKeyKeys] = useState<Set<string>>(() => new Set())
   const { transfers, connected, upsertTransfer } = useTransferQueue(api)
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const selectedHostIdStable = selectedHost?.id ?? ''
+  const activeFileSessionHost = activeFileSession?.host_id ? data.hosts.find((host) => host.id === activeFileSession.host_id) : undefined
+  const activeFileSessionId = activeFileSession?.id ?? ''
+  const fileSessionConnected = activeFileSession?.status === 'connected'
+  const fileSessionIds = useMemo(() => data.fileSessions.map((session) => session.id).join('|'), [data.fileSessions])
 
   const selectedEntries = useMemo(
     () => entries.filter((entry) => selectedPaths.includes(entry.path)),
@@ -70,9 +108,18 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
     )
   }, [data.hosts, hostSearch])
 
+  const applyListing = useCallback((listing: RemoteDirectoryListing) => {
+    setCurrentPath(listing.path)
+    setPathInput(listing.path)
+    setEntries([...listing.entries].sort((left, right) => fileSortValue(left).localeCompare(fileSortValue(right))))
+    setSelectedPaths([])
+    setActiveEntry(null)
+    setError(null)
+  }, [])
+
   const loadDirectory = useCallback(
     async (nextPath: string) => {
-      if (!selectedHostIdStable) {
+      if (!activeFileSessionId || !fileSessionConnected) {
         setEntries([])
         return
       }
@@ -80,26 +127,157 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
       setLoading(true)
       setError(null)
       try {
-        const listing = await api.listFiles(selectedHostIdStable, normalized)
-        setCurrentPath(listing.path)
-        setPathInput(listing.path)
-        setEntries([...listing.entries].sort((left, right) => fileSortValue(left).localeCompare(fileSortValue(right))))
-        setSelectedPaths([])
-        setActiveEntry(null)
+        const listing = await api.listFileSessionFiles(activeFileSessionId, normalized)
+        applyListing(listing)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : t('app.error'))
       } finally {
         setLoading(false)
       }
     },
-    [api, selectedHostIdStable, t],
+    [activeFileSessionId, api, applyListing, fileSessionConnected, t],
   )
 
   useEffect(() => {
-    if (selectedHostIdStable) {
-      void loadDirectory('/')
+    if (!activeFileSession) {
+      lastSessionLoadKeyRef.current = ''
+      lastActiveFileSessionIdRef.current = ''
+      setCurrentPath('/')
+      setPathInput('/')
+      setEntries([])
+      setSelectedPaths([])
+      setActiveEntry(null)
+      return
     }
-  }, [loadDirectory, selectedHostIdStable])
+    const nextPath = normalizeRemotePath(activeFileSession.current_path || '/')
+    const sessionChanged = lastActiveFileSessionIdRef.current !== activeFileSession.id
+    lastActiveFileSessionIdRef.current = activeFileSession.id
+    setCurrentPath(nextPath)
+    setPathInput(nextPath)
+    if (sessionChanged) {
+      setEntries([])
+      setSelectedPaths([])
+      setActiveEntry(null)
+    }
+    if (activeFileSession.status !== 'connected') {
+      lastSessionLoadKeyRef.current = ''
+      return
+    }
+    const loadKey = `${activeFileSession.id}:${activeFileSession.connected_at ?? ''}`
+    if (lastSessionLoadKeyRef.current !== loadKey) {
+      lastSessionLoadKeyRef.current = loadKey
+      void loadDirectory(nextPath)
+    }
+  }, [activeFileSession, loadDirectory])
+
+  useEffect(() => {
+    const ids = fileSessionIds ? fileSessionIds.split('|') : []
+    if (ids.length === 0) {
+      return undefined
+    }
+    const sockets = ids.map((fileSessionId) => {
+      const socket = new WebSocket(api.fileSessionEventsUrl(fileSessionId))
+      socket.addEventListener('message', (event) => {
+        try {
+          const message = JSON.parse(String(event.data)) as FileSessionEventMessage
+          if (message.session?.id) {
+            onUpdateFileSession(message.session)
+          }
+        } catch {
+          socket.close()
+        }
+      })
+      return socket
+    })
+    return () => {
+      sockets.forEach((socket) => socket.close())
+    }
+  }, [api, fileSessionIds, onUpdateFileSession])
+
+  useEffect(() => {
+    const pendingSession = data.fileSessions.find((session) => session.status === 'waiting_trust' && session.host_key)
+    const hostKey = pendingSession?.host_key
+    if (!pendingSession || !hostKey) {
+      return
+    }
+    const promptKey = `${pendingSession.id}:${hostKey.reason}:${hostKey.fingerprint_sha256}`
+    if (promptedHostKeyKeys.has(promptKey)) {
+      return
+    }
+    setPromptedHostKeyKeys((current) => new Set(current).add(promptKey))
+    const changed = hostKey.reason === 'changed'
+    modal.confirm({
+      title: changed ? t('files.hostKeyChangedTitle') : t('files.trustHostTitle'),
+      okText: changed ? t('files.replaceHostKey') : t('files.trustAndRetry'),
+      cancelText: t('app.cancel'),
+      okButtonProps: { danger: changed },
+      centered: true,
+      className: 'termous-modal',
+      content: <HostKeyDialog hostKey={hostKey} changed={changed} />,
+      onOk: async () => {
+        const next = await onTrustFileSessionHost(
+          pendingSession.id,
+          changed ? 'replace' : 'trust',
+          hostKey.fingerprint_sha256,
+        )
+        onUpdateFileSession(next)
+      },
+      onCancel: () => {
+        void onTrustFileSessionHost(pendingSession.id, 'reject', hostKey.fingerprint_sha256)
+          .then(onUpdateFileSession)
+          .catch(() => undefined)
+      },
+    })
+  }, [data.fileSessions, modal, onTrustFileSessionHost, onUpdateFileSession, promptedHostKeyKeys, t])
+
+  const updateTabScrollState = useCallback(() => {
+    const viewport = fileTabViewportRef.current
+    if (!viewport) {
+      setTabScrollState({ canScrollLeft: false, canScrollRight: false })
+      return
+    }
+    const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth
+    setTabScrollState({
+      canScrollLeft: viewport.scrollLeft > 1,
+      canScrollRight: viewport.scrollLeft < maxScrollLeft - 1,
+    })
+  }, [])
+
+  const scrollFileTabs = useCallback((direction: 'left' | 'right') => {
+    const viewport = fileTabViewportRef.current
+    if (!viewport) {
+      return
+    }
+    viewport.scrollBy({ left: direction === 'left' ? -220 : 220, behavior: 'smooth' })
+    window.setTimeout(updateTabScrollState, 180)
+  }, [updateTabScrollState])
+
+  const closeFileSessionFromTab = useCallback(
+    (event: MouseEvent<HTMLElement>, fileSessionId: string) => {
+      if (event.button !== 1) {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      void onCloseFileSession(fileSessionId)
+    },
+    [onCloseFileSession],
+  )
+
+  useEffect(() => {
+    const viewport = fileTabViewportRef.current
+    if (!viewport) {
+      return undefined
+    }
+    const observer = new ResizeObserver(updateTabScrollState)
+    observer.observe(viewport)
+    viewport.addEventListener('scroll', updateTabScrollState, { passive: true })
+    updateTabScrollState()
+    return () => {
+      observer.disconnect()
+      viewport.removeEventListener('scroll', updateTabScrollState)
+    }
+  }, [fileSessionIds, updateTabScrollState])
 
   const notifyError = (actionError: unknown) => {
     notification.error({
@@ -122,19 +300,35 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
     }
   }
 
+  const connectSelectedHost = async () => {
+    if (!selectedHostIdStable || connectingHostId) {
+      return
+    }
+    setConnectingHostId(selectedHostIdStable)
+    try {
+      const fileSession = await onConnectFileSession(selectedHostIdStable)
+      onUpdateFileSession(fileSession)
+      notification.success({ title: t('files.fileSessionCreated'), duration: 3, role: 'status', className: 'termous-notification' })
+    } catch (actionError) {
+      notifyError(actionError)
+    } finally {
+      setConnectingHostId('')
+    }
+  }
+
   const uploadLocalPaths = async (source: LocalGrantSource, paths: string[]) => {
-    if (!selectedHostIdStable || paths.length === 0) {
+    if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
       return
     }
     await runFileAction(async () => {
       const grant = await api.createLocalFileGrant(source, paths)
-      const task = await api.createUploadTransfer(selectedHostIdStable, grant.id, currentPath, 'rename')
+      const task = await api.createFileSessionUploadTransfer(activeFileSessionId, grant.id, currentPath, 'rename')
       upsertTransfer(task)
     }, t('files.transferCreated'))
   }
 
   const downloadPaths = async (paths: string[]) => {
-    if (!selectedHostIdStable || paths.length === 0) {
+    if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
       return
     }
     const localDirs = await window.termous?.files?.pickDirectory()
@@ -143,7 +337,7 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
       return
     }
     await runFileAction(async () => {
-      const task = await api.createDownloadTransfer(selectedHostIdStable, paths, localDir, 'rename')
+      const task = await api.createFileSessionDownloadTransfer(activeFileSessionId, paths, localDir, 'rename')
       upsertTransfer(task)
     }, t('files.transferCreated'))
   }
@@ -151,15 +345,15 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
   const downloadSelected = () => downloadPaths(selectedPaths)
 
   const pasteRemoteClipboard = async () => {
-    if (!remoteClipboard || remoteClipboard.hostId !== selectedHostIdStable) {
+    if (!remoteClipboard || !activeFileSession || remoteClipboard.hostId !== activeFileSession.host_id) {
       return false
     }
     await runFileAction(async () => {
       if (remoteClipboard.mode === 'cut') {
-        await api.moveFiles(selectedHostIdStable, remoteClipboard.paths, currentPath, 'rename')
+        await api.moveFileSessionFiles(activeFileSession.id, remoteClipboard.paths, currentPath, 'rename')
         setRemoteClipboard(null)
       } else {
-        await api.copyFiles(selectedHostIdStable, remoteClipboard.paths, currentPath, 'rename')
+        await api.copyFileSessionFiles(activeFileSession.id, remoteClipboard.paths, currentPath, 'rename')
       }
       await loadDirectory(currentPath)
     }, t('files.operationDone'))
@@ -192,7 +386,10 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
           throw new Error(t('files.nameRequired'))
         }
         const target = joinPath(currentPath, cleanName)
-        await api.mkdirFile(selectedHostIdStable, target)
+        if (!activeFileSessionId) {
+          return
+        }
+        await api.mkdirFileSessionFile(activeFileSessionId, target)
         await loadDirectory(currentPath)
       },
     })
@@ -216,14 +413,17 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
         if (!cleanName) {
           throw new Error(t('files.nameRequired'))
         }
-        await api.renameFile(selectedHostIdStable, entry.path, joinPath(parentPath(entry.path), cleanName))
+        if (!activeFileSessionId) {
+          return
+        }
+        await api.renameFileSessionFile(activeFileSessionId, entry.path, joinPath(parentPath(entry.path), cleanName))
         await loadDirectory(currentPath)
       },
     })
   }
 
   const confirmDelete = (paths = selectedPaths) => {
-    if (!selectedHostIdStable || paths.length === 0) {
+    if (!activeFileSessionId || paths.length === 0) {
       return
     }
     modal.confirm({
@@ -235,7 +435,7 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
       className: 'confirm-modal',
       rootClassName: 'termous-modal-root',
       onOk: async () => {
-        await api.deleteFiles(selectedHostIdStable, paths, true)
+        await api.deleteFileSessionFiles(activeFileSessionId, paths, true)
         await loadDirectory(currentPath)
       },
     })
@@ -252,10 +452,10 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
   }
 
   const copySelected = (mode: 'copy' | 'cut') => {
-    if (selectedPaths.length === 0 || !selectedHostIdStable) {
+    if (selectedPaths.length === 0 || !activeFileSession) {
       return
     }
-    setRemoteClipboard({ mode, hostId: selectedHostIdStable, paths: selectedPaths })
+    setRemoteClipboard({ mode, hostId: activeFileSession.host_id, paths: selectedPaths })
     notification.success({ title: mode === 'cut' ? t('files.cutReady') : t('files.copyReady'), duration: 2 })
   }
 
@@ -300,7 +500,7 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
     await uploadLocalPaths('drop', paths ?? [])
   }
 
-  const actionDisabled = !selectedHostIdStable || loading
+  const actionDisabled = !fileSessionConnected || loading
   const rowMenu = (): MenuProps['items'] => [
     { key: 'download', icon: <Download size={14} />, label: t('files.download') },
     { key: 'copy', icon: <Copy size={14} />, label: t('files.copy') },
@@ -341,8 +541,8 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
             onClick: ({ key }) => {
               setSelectedPaths([entry.path])
               if (key === 'download') void downloadPaths([entry.path])
-              if (key === 'copy') setRemoteClipboard({ mode: 'copy', hostId: selectedHostIdStable, paths: [entry.path] })
-              if (key === 'cut') setRemoteClipboard({ mode: 'cut', hostId: selectedHostIdStable, paths: [entry.path] })
+              if (key === 'copy' && activeFileSession) setRemoteClipboard({ mode: 'copy', hostId: activeFileSession.host_id, paths: [entry.path] })
+              if (key === 'cut' && activeFileSession) setRemoteClipboard({ mode: 'cut', hostId: activeFileSession.host_id, paths: [entry.path] })
               if (key === 'rename') openRename(entry)
               if (key === 'delete') confirmDelete([entry.path])
             },
@@ -396,11 +596,7 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
               type="button"
               key={host.id}
               className={`files-host-row ${host.id === selectedHostIdStable ? 'is-active' : ''}`}
-              onClick={() => {
-                onSelectHost(host.id)
-                setCurrentPath('/')
-                setPathInput('/')
-              }}
+              onClick={() => onSelectHost(host.id)}
             >
               <span className="row-icon">
                 <Folder size={15} aria-hidden="true" />
@@ -415,6 +611,77 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
       </aside>
 
       <main className="files-main-panel">
+        <div className="files-session-toolbar">
+          <div className="session-tabs-shell files-session-tabs-shell">
+            <Tooltip title={t('workbench.scrollTabsLeft')}>
+              <Button
+                type="text"
+                className="session-scroll-button"
+                aria-label={t('workbench.scrollTabsLeft')}
+                disabled={!tabScrollState.canScrollLeft}
+                icon={<ChevronLeft size={15} />}
+                onClick={() => scrollFileTabs('left')}
+              />
+            </Tooltip>
+            <div
+              ref={fileTabViewportRef}
+              className={`session-tabs files-session-tabs ${tabScrollState.canScrollLeft ? 'has-left-overflow' : ''} ${
+                tabScrollState.canScrollRight ? 'has-right-overflow' : ''
+              }`}
+              role="tablist"
+              aria-label={t('files.sessions')}
+            >
+              {data.fileSessions.length === 0 ? (
+                <Button type="text" className="terminal-tab is-empty" role="tab" icon={<Folder size={15} />}>
+                  {t('files.noFileSession')}
+                </Button>
+              ) : (
+                data.fileSessions.map((fileSession) => {
+                  const host = data.hosts.find((item) => item.id === fileSession.host_id)
+                  return (
+                    <Button
+                      key={fileSession.id}
+                      type="text"
+                      className={`terminal-tab ${fileSession.id === activeFileSessionId ? 'is-active' : ''}`}
+                      role="tab"
+                      aria-selected={fileSession.id === activeFileSessionId}
+                      onClick={() => onSelectFileSession(fileSession.id)}
+                      onMouseDown={(event) => {
+                        if (event.button === 1) {
+                          event.preventDefault()
+                        }
+                      }}
+                      onAuxClick={(event) => closeFileSessionFromTab(event, fileSession.id)}
+                      icon={<Folder size={15} />}
+                    >
+                      <span className={`session-dot is-${fileSession.status}`} />
+                      <span>{host?.name ?? shortId(fileSession.id)}</span>
+                    </Button>
+                  )
+                })
+              )}
+            </div>
+            <Tooltip title={t('workbench.scrollTabsRight')}>
+              <Button
+                type="text"
+                className="session-scroll-button"
+                aria-label={t('workbench.scrollTabsRight')}
+                disabled={!tabScrollState.canScrollRight}
+                icon={<ChevronRight size={15} />}
+                onClick={() => scrollFileTabs('right')}
+              />
+            </Tooltip>
+          </div>
+          <Button
+            className="primary-button"
+            disabled={!selectedHostIdStable || Boolean(connectingHostId)}
+            loading={Boolean(connectingHostId)}
+            icon={<Link size={15} />}
+            onClick={() => void connectSelectedHost()}
+          >
+            {t('files.connect')}
+          </Button>
+        </div>
         <div className="files-main-toolbar">
           <div className="files-path-stack">
             <PathTrail path={currentPath} onNavigate={(path) => void loadDirectory(path)} />
@@ -422,6 +689,7 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
               id="files-path-input"
               name="files-path-input"
               value={pathInput}
+              disabled={!fileSessionConnected}
               onChange={(event) => setPathInput(event.target.value)}
               onSearch={(value) => void loadDirectory(value)}
               enterButton={t('files.go')}
@@ -465,7 +733,7 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
             <Button className="secondary-button" disabled={selectedPaths.length === 0} icon={<Scissors size={15} />} onClick={() => copySelected('cut')}>
               {t('files.cut')}
             </Button>
-            <Button className="secondary-button" disabled={!selectedHostIdStable} icon={<Clipboard size={15} />} onClick={() => void pasteFromClipboard()}>
+            <Button className="secondary-button" disabled={actionDisabled} icon={<Clipboard size={15} />} onClick={() => void pasteFromClipboard()}>
               {t('files.paste')}
             </Button>
             <Button className="secondary-button" disabled={selectedPaths.length !== 1} icon={<Pencil size={15} />} onClick={() => openRename()}>
@@ -479,7 +747,11 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
 
         {error ? <div className="files-error">{error}</div> : null}
         <div className="files-table-shell">
-          {selectedHostIdStable ? (
+          {!activeFileSession ? (
+            <EmptyState title={t('files.noFileSession')} description={t('files.noFileSessionHint')} />
+          ) : activeFileSession.status !== 'connected' ? (
+            <FileSessionProgress fileSession={activeFileSession} onReconnect={onReconnectFileSession} />
+          ) : (
             <Table
               rowKey="path"
               columns={columns}
@@ -498,8 +770,6 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
               })}
               locale={{ emptyText: <EmptyState title={t('files.emptyDirectory')} description={t('files.emptyDirectoryHint')} /> }}
             />
-          ) : (
-            <EmptyState title={t('files.noHost')} description={t('files.noHostHint')} />
           )}
         </div>
         {dragActive ? <div className="files-drop-mask">{t('files.dropUpload')}</div> : null}
@@ -515,7 +785,7 @@ export function FilesPage({ api, data, selectedHostId, onSelectHost }: FilesPage
             upsertTransfer(task)
           }}
         />
-        <FileDetailPanel host={selectedHost} entry={activeEntry ?? selectedEntries[0] ?? null} />
+        <FileDetailPanel host={activeFileSessionHost ?? selectedHost} entry={activeEntry ?? selectedEntries[0] ?? null} />
       </aside>
     </section>
   )
@@ -584,4 +854,71 @@ function FileDetailPanel({ host, entry }: { host?: Host; entry: RemoteFileEntry 
       )}
     </aside>
   )
+}
+
+function FileSessionProgress({
+  fileSession,
+  onReconnect,
+}: {
+  fileSession: FileSession
+  onReconnect: (fileSessionId: string) => Promise<FileSession>
+}) {
+  const { t } = useTranslation()
+  const progress = Math.max(0, Math.min(100, fileSession.progress ?? 0))
+  const phase = fileSession.phase ?? 'queued'
+  const failed = fileSession.status === 'failed'
+
+  return (
+    <div className="files-session-progress" role="status" aria-live="polite">
+      <span className={`files-session-progress-icon is-${fileSession.status}`}>
+        <ShieldAlert size={20} />
+      </span>
+      <div>
+        <strong>{t(`files.sessionPhase.${phase}`)}</strong>
+        <p>{t(`files.sessionStatus.${fileSession.status}`)}</p>
+      </div>
+      <div className="connection-progress-bar">
+        <span style={{ width: `${progress}%` }} />
+      </div>
+      <small>{progress}%</small>
+      {failed ? (
+        <Button className="secondary-button" size="small" onClick={() => void onReconnect(fileSession.id)}>
+          {t('files.reconnect')}
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+function HostKeyDialog({ hostKey, changed }: { hostKey: FileSessionHostKey; changed: boolean }) {
+  const { t } = useTranslation()
+  return (
+    <div className="files-hostkey-dialog">
+      <p>{changed ? t('files.hostKeyChangedDescription') : t('files.trustHostDescription')}</p>
+      <dl>
+        <div>
+          <dt>{t('files.hostKeyAddress')}</dt>
+          <dd>{hostKey.address}:{hostKey.port}</dd>
+        </div>
+        <div>
+          <dt>{t('files.hostKeyType')}</dt>
+          <dd>{hostKey.host_key_type || 'unknown'}</dd>
+        </div>
+        {changed ? (
+          <div>
+            <dt>{t('files.hostKeyExpected')}</dt>
+            <dd>{hostKey.expected || '-'}</dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>{changed ? t('files.hostKeyActual') : t('files.hostKeyFingerprint')}</dt>
+          <dd>{hostKey.fingerprint_sha256}</dd>
+        </div>
+      </dl>
+    </div>
+  )
+}
+
+function shortId(id: string) {
+  return id.length > 6 ? id.slice(-6) : id
 }

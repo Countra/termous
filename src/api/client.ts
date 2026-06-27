@@ -3,10 +3,12 @@ import type {
   AppConfig,
   CredentialInput,
   CredentialView,
+  FileSession,
   Host,
   HostGroup,
   HostInput,
   KnownHost,
+  KnownHostInput,
   Language,
   LocalShell,
   LocalFileGrant,
@@ -29,12 +31,14 @@ const DEFAULT_CONFIG: AppConfig = {
 export class TermousApiError extends Error {
   code: string
   status: number
+  details?: Record<string, unknown>
 
-  constructor(message: string, code: string, status: number) {
+  constructor(message: string, code: string, status: number, details?: Record<string, unknown>) {
     super(message)
     this.name = 'TermousApiError'
     this.code = code
     this.status = status
+    this.details = details
   }
 }
 
@@ -183,6 +187,13 @@ export class TermousApi {
     return this.request<KnownHost[]>('/api/v1/known-hosts')
   }
 
+  confirmKnownHost(input: KnownHostInput) {
+    return this.request<KnownHost>('/api/v1/known-hosts/confirm', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
   sessions() {
     return this.request<Session[]>('/api/v1/sessions')
   }
@@ -205,9 +216,88 @@ export class TermousApi {
     return this.request<void>(`/api/v1/sessions/${id}`, { method: 'DELETE' })
   }
 
+  fileSessions() {
+    return this.request<FileSession[]>('/api/v1/file-sessions')
+  }
+
+  createFileSession(hostId: string, sourceSessionId = '', initialPath = '/') {
+    return this.request<FileSession>('/api/v1/file-sessions', {
+      method: 'POST',
+      body: { host_id: hostId, source_session_id: sourceSessionId, initial_path: initialPath },
+    })
+  }
+
+  getFileSession(id: string) {
+    return this.request<FileSession>(`/api/v1/file-sessions/${encodeURIComponent(id)}`)
+  }
+
+  deleteFileSession(id: string) {
+    return this.request<void>(`/api/v1/file-sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  reconnectFileSession(id: string) {
+    return this.request<FileSession>(`/api/v1/file-sessions/${encodeURIComponent(id)}/reconnect`, { method: 'POST' })
+  }
+
+  trustFileSessionHost(id: string, decision: 'trust' | 'replace' | 'reject', fingerprintSHA256: string) {
+    return this.request<FileSession>(`/api/v1/file-sessions/${encodeURIComponent(id)}/trust-host`, {
+      method: 'POST',
+      body: { decision, fingerprint_sha256: fingerprintSHA256 },
+    })
+  }
+
+  fileSessionEventsUrl(id: string) {
+    return this.websocketUrl(`/api/v1/file-sessions/${encodeURIComponent(id)}/events`)
+  }
+
   listFiles(hostId: string, path: string) {
     const query = new URLSearchParams({ path })
     return this.request<RemoteDirectoryListing>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files?${query.toString()}`)
+  }
+
+  listFileSessionFiles(fileSessionId: string, path: string) {
+    const query = new URLSearchParams({ path })
+    return this.request<RemoteDirectoryListing>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files?${query.toString()}`)
+  }
+
+  statFileSessionFile(fileSessionId: string, path: string) {
+    const query = new URLSearchParams({ path })
+    return this.request<RemoteFileEntry>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/stat?${query.toString()}`)
+  }
+
+  mkdirFileSessionFile(fileSessionId: string, path: string) {
+    return this.request<void>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/mkdir`, {
+      method: 'POST',
+      body: { path },
+    })
+  }
+
+  renameFileSessionFile(fileSessionId: string, sourcePath: string, targetPath: string) {
+    return this.request<void>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/rename`, {
+      method: 'PATCH',
+      body: { source_path: sourcePath, target_path: targetPath },
+    })
+  }
+
+  deleteFileSessionFiles(fileSessionId: string, paths: string[], recursive = true) {
+    return this.request<void>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files`, {
+      method: 'DELETE',
+      body: { paths, recursive },
+    })
+  }
+
+  copyFileSessionFiles(fileSessionId: string, sourcePaths: string[], targetDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+    return this.request<void>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/copy`, {
+      method: 'POST',
+      body: { source_paths: sourcePaths, target_dir: targetDir, overwrite_policy: overwritePolicy },
+    })
+  }
+
+  moveFileSessionFiles(fileSessionId: string, sourcePaths: string[], targetDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+    return this.request<void>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/move`, {
+      method: 'POST',
+      body: { source_paths: sourcePaths, target_dir: targetDir, overwrite_policy: overwritePolicy },
+    })
   }
 
   statFile(hostId: string, path: string) {
@@ -273,11 +363,35 @@ export class TermousApi {
     })
   }
 
+  createFileSessionUploadTransfer(fileSessionId: string, localGrantId: string, remoteDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+    return this.request<TransferTask>('/api/v1/transfers/upload', {
+      method: 'POST',
+      body: {
+        file_session_id: fileSessionId,
+        local_grant_id: localGrantId,
+        remote_dir: remoteDir,
+        overwrite_policy: overwritePolicy,
+      },
+    })
+  }
+
   createDownloadTransfer(hostId: string, remotePaths: string[], localDir: string, overwritePolicy: OverwritePolicy = 'rename') {
     return this.request<TransferTask>('/api/v1/transfers/download', {
       method: 'POST',
       body: {
         host_id: hostId,
+        remote_paths: remotePaths,
+        local_dir: localDir,
+        overwrite_policy: overwritePolicy,
+      },
+    })
+  }
+
+  createFileSessionDownloadTransfer(fileSessionId: string, remotePaths: string[], localDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+    return this.request<TransferTask>('/api/v1/transfers/download', {
+      method: 'POST',
+      body: {
+        file_session_id: fileSessionId,
         remote_paths: remotePaths,
         local_dir: localDir,
         overwrite_policy: overwritePolicy,
@@ -348,6 +462,7 @@ export class TermousApi {
       body.error?.message ?? `请求失败：${response.status}`,
       body.error?.code ?? 'HTTP_ERROR',
       response.status,
+      body.error?.details,
     )
   }
 }

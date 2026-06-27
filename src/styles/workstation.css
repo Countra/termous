@@ -2305,6 +2305,71 @@
   box-shadow: var(--shadow-soft), var(--inner-highlight);
 }
 
+.files-session-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  padding: 10px 12px;
+}
+
+.files-session-tabs-shell {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.files-session-tabs {
+  min-width: 0;
+}
+
+.session-dot.is-waiting_trust {
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #f59e0b 18%, transparent);
+}
+
+.files-session-progress {
+  display: grid;
+  width: min(520px, 100%);
+  gap: 12px;
+  place-items: center;
+  margin: 48px auto;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
+  padding: 28px;
+  text-align: center;
+  box-shadow: var(--shadow-soft), var(--inner-highlight);
+}
+
+.files-session-progress-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent-soft) 64%, transparent);
+  color: var(--accent);
+}
+
+.files-session-progress-icon.is-waiting_trust {
+  background: color-mix(in srgb, #f59e0b 18%, transparent);
+  color: #fbbf24;
+}
+
+.files-session-progress-icon.is-failed {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.files-session-progress p,
+.files-session-progress small {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
 .files-main-toolbar {
   display: grid;
   gap: 12px;
@@ -2660,6 +2725,46 @@
   color: var(--danger);
   padding: 9px 10px;
   font-size: 12px;
+}
+
+.files-hostkey-dialog {
+  display: grid;
+  gap: 14px;
+}
+
+.files-hostkey-dialog p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.files-hostkey-dialog dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.files-hostkey-dialog dl div {
+  display: grid;
+  gap: 3px;
+}
+
+.files-hostkey-dialog dt {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.files-hostkey-dialog dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .files-drop-mask {

@@ -49,15 +49,60 @@ export interface RemoteFileEntry {
 
 export interface RemoteDirectoryListing {
   host_id: string
+  file_session_id?: string
   path: string
   parent_path: string
   entries: RemoteFileEntry[]
   read_at: string
 }
 
+export type FileSessionStatus = 'connecting' | 'connected' | 'waiting_trust' | 'disconnected' | 'failed'
+
+export type FileSessionPhase =
+  | 'queued'
+  | 'resolving_auth'
+  | 'dialing'
+  | 'host_key_checking'
+  | 'waiting_host_trust'
+  | 'sftp_handshake'
+  | 'ready'
+  | 'failed'
+  | 'disconnected'
+
+export type FileSessionHostKeyReason = 'unknown' | 'changed'
+
+export interface FileSessionHostKey {
+  reason: FileSessionHostKeyReason
+  host_id?: string
+  address: string
+  port: number
+  host_key_type: string
+  fingerprint_sha256: string
+  expected?: string
+  actual?: string
+  last_seen_at?: string
+}
+
+export interface FileSession {
+  id: string
+  host_id: string
+  source_session_id?: string
+  status: FileSessionStatus
+  status_message?: string
+  phase?: FileSessionPhase
+  progress?: number
+  current_path: string
+  started_at: string
+  connected_at?: string
+  ended_at?: string
+  last_error?: string
+  host_key?: FileSessionHostKey
+}
+
 export interface TransferTask {
   id: string
   host_id: string
+  file_session_id?: string
   type: TransferType
   status: TransferStatus
   source_paths: string[]
@@ -194,6 +239,14 @@ export interface KnownHost {
   updated_at?: string
 }
 
+export interface KnownHostInput {
+  host_id?: string
+  address: string
+  port: number
+  host_key_type: string
+  fingerprint_sha256: string
+}
+
 export interface Session {
   id: string
   kind: SessionKind
@@ -253,6 +306,7 @@ export interface AppData {
   credentials: CredentialView[]
   knownHosts: KnownHost[]
   sessions: Session[]
+  fileSessions: FileSession[]
   settings: Settings
   terminalFonts: TerminalFont[]
 }

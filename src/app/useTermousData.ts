@@ -3,6 +3,7 @@ import { createApiFromRuntime, TermousApi, TermousApiError } from '../api/client
 import type {
   AppData,
   CredentialInput,
+  FileSession,
   HostInput,
   Language,
   LocalShell,
@@ -23,6 +24,7 @@ const initialData: AppData = {
   credentials: [],
   knownHosts: [],
   sessions: [],
+  fileSessions: [],
   settings: initialSettings,
   terminalFonts: [],
 }
@@ -46,7 +48,7 @@ export function useTermousData() {
     setError(null)
     try {
       await apiClient.health()
-      const [settings, terminalFonts, groups, hosts, credentials, knownHosts, sessions] = await Promise.all([
+      const [settings, terminalFonts, groups, hosts, credentials, knownHosts, sessions, fileSessions] = await Promise.all([
         apiClient.settings(),
         apiClient.terminalFonts(),
         apiClient.hostGroups(),
@@ -54,6 +56,7 @@ export function useTermousData() {
         apiClient.credentials(),
         apiClient.knownHosts(),
         apiClient.sessions(),
+        apiClient.fileSessions(),
       ])
       const nextSessions = sessions ?? []
       const nextSettings = normalizeSettings(settings)
@@ -64,6 +67,7 @@ export function useTermousData() {
         credentials: credentials ?? [],
         knownHosts: knownHosts ?? [],
         sessions: nextSessions,
+        fileSessions: fileSessions ?? [],
         terminalFonts: terminalFonts ?? [],
       })
       setActiveSession((current) => {
@@ -230,6 +234,31 @@ export function useTermousData() {
           sessions: current.sessions.map((session) => (session.id === sessionId ? { ...session, ...patch } : session)),
         }))
       },
+      async connectFileSession(hostId: string, sourceSessionId = '', initialPath = '/') {
+        const fileSession = await api.createFileSession(hostId, sourceSessionId, initialPath)
+        setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
+        return fileSession
+      },
+      async closeFileSession(fileSessionId: string) {
+        await api.deleteFileSession(fileSessionId)
+        setData((current) => ({
+          ...current,
+          fileSessions: current.fileSessions.filter((session) => session.id !== fileSessionId),
+        }))
+      },
+      async reconnectFileSession(fileSessionId: string) {
+        const fileSession = await api.reconnectFileSession(fileSessionId)
+        setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
+        return fileSession
+      },
+      async trustFileSessionHost(fileSessionId: string, decision: 'trust' | 'replace' | 'reject', fingerprintSHA256: string) {
+        const fileSession = await api.trustFileSessionHost(fileSessionId, decision, fingerprintSHA256)
+        setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
+        return fileSession
+      },
+      updateFileSession(fileSession: FileSession) {
+        setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
+      },
     }),
     [api, data.settings, data.sessions, load],
   )
@@ -251,6 +280,14 @@ function upsertSession(sessions: Session[], next: Session) {
     return sessions.map((session) => (session.id === next.id ? next : session))
   }
   return [next, ...sessions]
+}
+
+function upsertFileSession(fileSessions: FileSession[], next: FileSession) {
+  const exists = fileSessions.some((session) => session.id === next.id)
+  if (exists) {
+    return fileSessions.map((session) => (session.id === next.id ? next : session))
+  }
+  return [next, ...fileSessions]
 }
 
 function publicMessage(error: unknown) {

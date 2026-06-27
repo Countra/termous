@@ -6,6 +6,7 @@ import {
   Layers,
   MapPin,
   Monitor,
+  FolderOpen,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
@@ -53,6 +54,7 @@ interface WorkbenchPageProps {
   onOpenLocal: (shell: LocalShell) => Promise<void>
   onSelectSession: (sessionId: string) => void
   onDisconnect: (sessionId: string) => Promise<void>
+  onOpenFiles: (session: Session) => Promise<void>
 }
 
 export function WorkbenchPage({
@@ -66,6 +68,7 @@ export function WorkbenchPage({
   onOpenLocal,
   onSelectSession,
   onDisconnect,
+  onOpenFiles,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
   const { searchActive, clearActiveSearch } = useTerminalRuntime()
@@ -111,6 +114,7 @@ export function WorkbenchPage({
   const connectedAt = activeSession?.connected_at ? formatTime(activeSession.connected_at) : t('fields.none')
   const sessionResult = activeSession?.last_error ?? (activeSession?.exit_code !== undefined ? String(activeSession.exit_code) : t('fields.none'))
   const terminalThemeMode = data.settings.terminal.theme_mode === 'follow_app' ? theme : data.settings.terminal.theme_mode
+  const canOpenFiles = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected' && activeSession.host_id)
   const sessionSearchMenuItems = useMemo<MenuProps['items']>(
     () => [
       {
@@ -576,6 +580,14 @@ export function WorkbenchPage({
                 <dd>{jumpHost?.name ?? t('hosts.noJumpHost')}</dd>
               </div>
             </dl>
+            <Button
+              className="secondary-button"
+              disabled={!canOpenFiles || actionBusy || !activeSession}
+              onClick={() => activeSession && void onOpenFiles(activeSession)}
+              icon={<FolderOpen size={16} />}
+            >
+              {t('workbench.manageFiles')}
+            </Button>
             <Button
               danger
               className="danger-button"

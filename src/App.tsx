@@ -12,7 +12,7 @@ import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CredentialInput, HostInput, PageKey, TerminalFont, ThemeMode } from './types/domain'
+import type { CredentialInput, HostInput, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -51,6 +51,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [page, setPage] = useState<PageKey>('workbench')
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const [selectedHostId, setSelectedHostId] = useState('')
+  const [activeFileSessionId, setActiveFileSessionId] = useState('')
   const [actionBusy, setActionBusy] = useState(false)
 
   useEffect(() => {
@@ -59,12 +60,27 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }, [data.hosts, selectedHostId])
 
+  useEffect(() => {
+    if (!activeFileSessionId && data.fileSessions[0]) {
+      setActiveFileSessionId(data.fileSessions[0].id)
+      return
+    }
+    if (activeFileSessionId && !data.fileSessions.some((session) => session.id === activeFileSessionId)) {
+      setActiveFileSessionId(data.fileSessions[0]?.id ?? '')
+    }
+  }, [activeFileSessionId, data.fileSessions])
+
   const selectedHostIdStable = useMemo(() => {
     if (data.hosts.some((host) => host.id === selectedHostId)) {
       return selectedHostId
     }
     return data.hosts[0]?.id ?? ''
   }, [data.hosts, selectedHostId])
+
+  const activeFileSession = useMemo(
+    () => data.fileSessions.find((session) => session.id === activeFileSessionId) ?? data.fileSessions[0] ?? null,
+    [activeFileSessionId, data.fileSessions],
+  )
 
   useEffect(() => {
     if (!error) {
@@ -173,6 +189,30 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
+  const openFilesFromSession = async (session: Session) => {
+    if (session.kind !== 'ssh' || session.status !== 'connected' || !session.host_id) {
+      return
+    }
+    setSelectedHostId(session.host_id)
+    setPage('files')
+    const existing = data.fileSessions.find(
+      (fileSession) =>
+        fileSession.source_session_id === session.id &&
+        fileSession.status !== 'disconnected' &&
+        fileSession.status !== 'failed',
+    )
+    if (existing) {
+      setActiveFileSessionId(existing.id)
+      return
+    }
+    try {
+      const fileSession = await actions.connectFileSession(session.host_id, session.id)
+      setActiveFileSessionId(fileSession.id)
+    } catch (actionError) {
+      showActionError(actionError)
+    }
+  }
+
   return (
     <TerminalRuntimeProvider
       api={api}
@@ -209,6 +249,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onOpenLocal={(shell) => runAction(() => actions.openLocalTerminal(shell).then(() => undefined))}
             onSelectSession={actions.selectSession}
             onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
+            onOpenFiles={openFilesFromSession}
           />
         ) : null}
 
@@ -239,7 +280,23 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             api={api}
             data={data}
             selectedHostId={selectedHostIdStable}
+            activeFileSession={activeFileSession}
             onSelectHost={setSelectedHostId}
+            onConnectFileSession={async (hostId) => {
+              const fileSession = await actions.connectFileSession(hostId)
+              setActiveFileSessionId(fileSession.id)
+              return fileSession
+            }}
+            onSelectFileSession={setActiveFileSessionId}
+            onCloseFileSession={async (fileSessionId) => {
+              await actions.closeFileSession(fileSessionId)
+              if (activeFileSessionId === fileSessionId) {
+                setActiveFileSessionId(data.fileSessions.find((session) => session.id !== fileSessionId)?.id ?? '')
+              }
+            }}
+            onReconnectFileSession={actions.reconnectFileSession}
+            onTrustFileSessionHost={actions.trustFileSessionHost}
+            onUpdateFileSession={actions.updateFileSession}
           />
         ) : null}
 
