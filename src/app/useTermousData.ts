@@ -210,14 +210,18 @@ export function useTermousData() {
         setActiveSession((current) => (current?.id === sessionId ? fallbackSession : current))
         void load('silent')
       },
-      async disconnectAllSessions() {
+      async disconnectAllConnections() {
         const sessionsToClose = data.sessions
-        const results = await Promise.allSettled(sessionsToClose.map((session) => api.deleteSession(session.id)))
+        const fileSessionsToClose = data.fileSessions
+        const results = await Promise.allSettled([
+          ...sessionsToClose.map((session) => api.deleteSession(session.id)),
+          ...fileSessionsToClose.map((fileSession) => api.deleteFileSession(fileSession.id)),
+        ])
         const failed = results.find((result) => result.status === 'rejected')
         if (failed && failed.status === 'rejected') {
           throw failed.reason
         }
-        setData((current) => ({ ...current, sessions: [] }))
+        setData((current) => ({ ...current, sessions: [], fileSessions: [] }))
         setActiveSession(null)
         void load('silent')
       },
@@ -260,7 +264,7 @@ export function useTermousData() {
         setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
       },
     }),
-    [api, data.settings, data.sessions, load],
+    [api, data.fileSessions, data.settings, data.sessions, load],
   )
 
   return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, actions }

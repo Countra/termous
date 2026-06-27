@@ -4,6 +4,9 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  CheckCircle2,
+  Circle,
+  CircleDashed,
   Clipboard,
   Copy,
   Download,
@@ -16,15 +19,25 @@ import {
   RefreshCw,
   Scissors,
   Search,
-  ShieldAlert,
   Trash2,
   Upload,
+  XCircle,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { EmptyState } from '../../components/ui/EmptyState'
-import type { AppData, FileSession, FileSessionHostKey, Host, LocalGrantSource, RemoteDirectoryListing, RemoteFileEntry } from '../../types/domain'
+import type {
+  AppData,
+  FileSession,
+  FileSessionHostKey,
+  FileSessionPhase,
+  Host,
+  LocalGrantSource,
+  RemoteDirectoryListing,
+  RemoteFileEntry,
+  TransferTask,
+} from '../../types/domain'
 import { fileSortValue, formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
 import { TransferQueuePanel } from './TransferQueuePanel'
 import { useTransferQueue } from './useTransferQueue'
@@ -54,6 +67,30 @@ interface FileSessionEventMessage {
   session: FileSession
 }
 
+interface UploadRefreshTarget {
+  fileSessionId: string
+  targetPath: string
+}
+
+const fileSessionPhaseOrder: FileSessionPhase[] = [
+  'queued',
+  'resolving_auth',
+  'dialing',
+  'host_key_checking',
+  'sftp_handshake',
+  'ready',
+]
+
+const waitingTrustFileSessionPhaseOrder: FileSessionPhase[] = [
+  'queued',
+  'resolving_auth',
+  'dialing',
+  'host_key_checking',
+  'waiting_host_trust',
+  'sftp_handshake',
+  'ready',
+]
+
 export function FilesPage({
   api,
   data,
@@ -70,6 +107,8 @@ export function FilesPage({
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
   const fileTabViewportRef = useRef<HTMLDivElement>(null)
+  const dragDepthRef = useRef(0)
+  const uploadRefreshTasksRef = useRef(new Map<string, UploadRefreshTarget>())
   const lastSessionLoadKeyRef = useRef('')
   const lastActiveFileSessionIdRef = useRef('')
   const [currentPath, setCurrentPath] = useState('/')
@@ -138,6 +177,16 @@ export function FilesPage({
     [activeFileSessionId, api, applyListing, fileSessionConnected, t],
   )
 
+  const trackUploadRefreshTask = useCallback((task: TransferTask) => {
+    if (!isUploadTransfer(task) || !task.file_session_id) {
+      return
+    }
+    uploadRefreshTasksRef.current.set(task.id, {
+      fileSessionId: task.file_session_id,
+      targetPath: normalizeRemotePath(task.target_path || '/'),
+    })
+  }, [])
+
   useEffect(() => {
     if (!activeFileSession) {
       lastSessionLoadKeyRef.current = ''
@@ -169,6 +218,48 @@ export function FilesPage({
       void loadDirectory(nextPath)
     }
   }, [activeFileSession, loadDirectory])
+
+  useEffect(() => {
+    transfers.forEach((task) => {
+      if (isUploadTransfer(task) && isTransferActive(task) && task.file_session_id) {
+        uploadRefreshTasksRef.current.set(task.id, {
+          fileSessionId: task.file_session_id,
+          targetPath: normalizeRemotePath(task.target_path || '/'),
+        })
+      }
+    })
+
+    const currentTargetPath = normalizeRemotePath(currentPath)
+    const terminalTaskIds: string[] = []
+    let hasCurrentCompletedUpload = false
+    let hasCurrentActiveUpload = false
+
+    uploadRefreshTasksRef.current.forEach((target, taskId) => {
+      const task = transfers.find((item) => item.id === taskId)
+      if (!task) {
+        return
+      }
+
+      const isCurrentTarget = target.fileSessionId === activeFileSessionId && target.targetPath === currentTargetPath
+      if (isCurrentTarget && isTransferActive(task)) {
+        hasCurrentActiveUpload = true
+      }
+      if (isCurrentTarget && isTransferTerminal(task)) {
+        hasCurrentCompletedUpload = true
+      }
+      if (isTransferTerminal(task)) {
+        terminalTaskIds.push(taskId)
+      }
+    })
+
+    terminalTaskIds.forEach((taskId) => {
+      uploadRefreshTasksRef.current.delete(taskId)
+    })
+
+    if (fileSessionConnected && hasCurrentCompletedUpload && !hasCurrentActiveUpload) {
+      void loadDirectory(currentTargetPath)
+    }
+  }, [activeFileSessionId, currentPath, fileSessionConnected, loadDirectory, transfers])
 
   useEffect(() => {
     const ids = fileSessionIds ? fileSessionIds.split('|') : []
@@ -323,6 +414,7 @@ export function FilesPage({
     await runFileAction(async () => {
       const grant = await api.createLocalFileGrant(source, paths)
       const task = await api.createFileSessionUploadTransfer(activeFileSessionId, grant.id, currentPath, 'rename')
+      trackUploadRefreshTask(task)
       upsertTransfer(task)
     }, t('files.transferCreated'))
   }
@@ -493,10 +585,66 @@ export function FilesPage({
     }
   }
 
-  const onDrop = async (event: DragEvent<HTMLElement>) => {
-    event.preventDefault()
+  const hasDraggedFiles = (event: DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes('Files')
+
+  const resetDragState = () => {
+    dragDepthRef.current = 0
     setDragActive(false)
-    const paths = await window.termous?.files?.pathsFromFileList(event.dataTransfer.files)
+  }
+
+  const onDragEnter = (event: DragEvent<HTMLElement>) => {
+    if (!hasDraggedFiles(event)) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    dragDepthRef.current += 1
+    setDragActive(true)
+  }
+
+  const onDragOver = (event: DragEvent<HTMLElement>) => {
+    if (!hasDraggedFiles(event)) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = fileSessionConnected ? 'copy' : 'none'
+    setDragActive(true)
+  }
+
+  const onDragLeave = (event: DragEvent<HTMLElement>) => {
+    if (!hasDraggedFiles(event)) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) {
+      setDragActive(false)
+    }
+  }
+
+  const onDrop = async (event: DragEvent<HTMLElement>) => {
+    const shouldUpload = hasDraggedFiles(event)
+    event.preventDefault()
+    event.stopPropagation()
+    resetDragState()
+    if (!shouldUpload) {
+      return
+    }
+    const cachedPaths = await window.termous?.files?.consumeDroppedFilePaths?.(event.dataTransfer.files.length)
+    const paths = cachedPaths?.length
+      ? cachedPaths
+      : await window.termous?.files?.pathsFromFileList(event.dataTransfer.files)
+    if (fileSessionConnected && (!paths || paths.length === 0)) {
+      notification.warning({
+        title: t('files.dropPathUnavailable'),
+        duration: 4,
+        role: 'status',
+        className: 'termous-notification',
+      })
+      return
+    }
     await uploadLocalPaths('drop', paths ?? [])
   }
 
@@ -516,17 +664,41 @@ export function FilesPage({
       dataIndex: 'name',
       width: 220,
       sorter: (left: RemoteFileEntry, right: RemoteFileEntry) => fileSortValue(left).localeCompare(fileSortValue(right)),
-      render: (_: unknown, entry: RemoteFileEntry) => (
-        <span className="file-name-cell">
-          <span className={`file-kind-icon is-${entry.kind}`}>
-            {entry.kind === 'directory' ? <Folder size={16} /> : <File size={16} />}
-          </span>
-          <span>
+      render: (_: unknown, entry: RemoteFileEntry) => {
+        const fullName = entry.target ? `${entry.name} -> ${entry.target}` : entry.name
+        const nameCopy = (
+          <>
             <strong>{entry.name}</strong>
             {entry.target ? <small>{entry.target}</small> : null}
+          </>
+        )
+
+        return (
+          <span className="file-name-cell">
+            <span className={`file-kind-icon is-${entry.kind}`}>
+              {entry.kind === 'directory' ? <Folder size={16} /> : <File size={16} />}
+            </span>
+            {entry.kind === 'directory' ? (
+              <Tooltip title={fullName} placement="topLeft" mouseEnterDelay={0.35} overlayClassName="file-name-tooltip">
+                <button
+                  type="button"
+                  className="file-name-button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    enterEntry(entry)
+                  }}
+                >
+                  {nameCopy}
+                </button>
+              </Tooltip>
+            ) : (
+              <Tooltip title={fullName} placement="topLeft" mouseEnterDelay={0.35} overlayClassName="file-name-tooltip">
+                <span className="file-name-copy">{nameCopy}</span>
+              </Tooltip>
+            )}
           </span>
-        </span>
-      ),
+        )
+      },
     },
     { title: t('files.size'), dataIndex: 'size', width: 96, render: (value: number, entry: RemoteFileEntry) => entry.kind === 'directory' ? '-' : formatBytes(value) },
     { title: t('files.modified'), dataIndex: 'modified_at', width: 154, render: (value: string) => formatDate(value) },
@@ -566,11 +738,10 @@ export function FilesPage({
       className={`files-page ${dragActive ? 'is-dragging' : ''}`}
       tabIndex={0}
       onKeyDown={onKeyDown}
-      onDragOver={(event) => {
-        event.preventDefault()
-        setDragActive(true)
-      }}
-      onDragLeave={() => setDragActive(false)}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDragEnd={resetDragState}
       onDrop={(event) => void onDrop(event)}
     >
       <aside className="files-host-panel list-panel">
@@ -646,12 +817,7 @@ export function FilesPage({
                       role="tab"
                       aria-selected={fileSession.id === activeFileSessionId}
                       onClick={() => onSelectFileSession(fileSession.id)}
-                      onMouseDown={(event) => {
-                        if (event.button === 1) {
-                          event.preventDefault()
-                        }
-                      }}
-                      onAuxClick={(event) => closeFileSessionFromTab(event, fileSession.id)}
+                      onMouseDown={(event) => closeFileSessionFromTab(event, fileSession.id)}
                       icon={<Folder size={15} />}
                     >
                       <span className={`session-dot is-${fileSession.status}`} />
@@ -764,6 +930,7 @@ export function FilesPage({
                 selectedRowKeys: selectedPaths,
                 onChange: (keys) => setSelectedPaths(keys.map(String)),
               }}
+              rowClassName={(entry) => `files-table-row is-${entry.kind}`}
               onRow={(entry) => ({
                 onClick: () => setActiveEntry(entry),
                 onDoubleClick: () => enterEntry(entry),
@@ -867,27 +1034,77 @@ function FileSessionProgress({
   const progress = Math.max(0, Math.min(100, fileSession.progress ?? 0))
   const phase = fileSession.phase ?? 'queued'
   const failed = fileSession.status === 'failed'
+  const phaseOrder: FileSessionPhase[] = failed
+    ? [...fileSessionPhaseOrder.filter((item) => item !== 'ready'), 'failed' as const]
+    : fileSession.status === 'waiting_trust'
+      ? waitingTrustFileSessionPhaseOrder
+      : fileSessionPhaseOrder
+  const currentIndex = phaseOrder.indexOf(phase)
+  const message = fileSession.last_error || fileSession.status_message
 
   return (
     <div className="files-session-progress" role="status" aria-live="polite">
-      <span className={`files-session-progress-icon is-${fileSession.status}`}>
-        <ShieldAlert size={20} />
-      </span>
-      <div>
-        <strong>{t(`files.sessionPhase.${phase}`)}</strong>
-        <p>{t(`files.sessionStatus.${fileSession.status}`)}</p>
+      <div className="connection-progress-head">
+        <span>{t(`files.sessionPhase.${phase}`)}</span>
+        <strong>{progress}%</strong>
       </div>
       <div className="connection-progress-bar">
         <span style={{ width: `${progress}%` }} />
       </div>
-      <small>{progress}%</small>
-      {failed ? (
-        <Button className="secondary-button" size="small" onClick={() => void onReconnect(fileSession.id)}>
-          {t('files.reconnect')}
-        </Button>
-      ) : null}
+      <div className="connection-phase-row files-session-phase-row">
+        {phaseOrder.map((item, index) => {
+          const state = fileSessionPhaseState(fileSession, index, currentIndex)
+          const Icon = state === 'done' ? CheckCircle2 : state === 'failed' ? XCircle : state === 'active' ? CircleDashed : Circle
+          return (
+            <span key={item} className={`connection-phase is-${state}`} title={t(`files.sessionPhase.${item}`)}>
+              <Icon size={13} aria-hidden="true" />
+              <span>{t(`files.sessionPhaseShort.${item}`)}</span>
+            </span>
+          )
+        })}
+      </div>
+      <div className="files-session-progress-footer">
+        <span>{t(`files.sessionStatus.${fileSession.status}`)}</span>
+        {message ? <small>{message}</small> : null}
+        {failed ? (
+          <Button className="secondary-button" size="small" onClick={() => void onReconnect(fileSession.id)}>
+            {t('files.reconnect')}
+          </Button>
+        ) : null}
+      </div>
     </div>
   )
+}
+
+function fileSessionPhaseState(fileSession: FileSession, index: number, currentIndex: number) {
+  if (fileSession.status === 'failed') {
+    return index === currentIndex ? 'failed' : index < currentIndex ? 'done' : 'idle'
+  }
+  if (fileSession.status === 'waiting_trust') {
+    return index === currentIndex ? 'active' : index < currentIndex ? 'done' : 'idle'
+  }
+  if (currentIndex < 0) {
+    return 'idle'
+  }
+  if (index < currentIndex) {
+    return 'done'
+  }
+  if (index === currentIndex) {
+    return 'active'
+  }
+  return 'idle'
+}
+
+function isUploadTransfer(task: TransferTask) {
+  return task.type.startsWith('upload')
+}
+
+function isTransferActive(task: TransferTask) {
+  return task.status === 'queued' || task.status === 'running'
+}
+
+function isTransferTerminal(task: TransferTask) {
+  return task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled'
 }
 
 function HostKeyDialog({ hostKey, changed }: { hostKey: FileSessionHostKey; changed: boolean }) {

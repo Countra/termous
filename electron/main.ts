@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -62,7 +62,9 @@ function createWindow() {
 
   win.webContents.on('will-navigate', (event, url) => {
     const target = new URL(url)
-    const allowed = VITE_DEV_SERVER_URL ? target.origin === new URL(VITE_DEV_SERVER_URL).origin : target.protocol === 'file:'
+    const allowed = VITE_DEV_SERVER_URL
+      ? target.origin === new URL(VITE_DEV_SERVER_URL).origin
+      : target.href === pathToFileURL(path.join(RENDERER_DIST, 'index.html')).href
     if (!allowed) {
       event.preventDefault()
     }

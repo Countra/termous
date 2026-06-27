@@ -26,6 +26,7 @@ declare global {
         pickFiles: () => Promise<string[]>
         pickDirectory: () => Promise<string[]>
         pathsFromFileList: (files: ArrayLike<File>) => Promise<string[]>
+        consumeDroppedFilePaths: (fileCount?: number) => Promise<string[]>
         readClipboardFilePaths: () => Promise<string[]>
       }
     }

@@ -52,6 +52,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const [selectedHostId, setSelectedHostId] = useState('')
   const [activeFileSessionId, setActiveFileSessionId] = useState('')
+  const [closingFileSessionIds, setClosingFileSessionIds] = useState<string[]>([])
   const [actionBusy, setActionBusy] = useState(false)
 
   useEffect(() => {
@@ -61,14 +62,37 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [data.hosts, selectedHostId])
 
   useEffect(() => {
-    if (!activeFileSessionId && data.fileSessions[0]) {
-      setActiveFileSessionId(data.fileSessions[0].id)
+    const preventFileDropNavigation = (event: globalThis.DragEvent) => {
+      if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) {
+        return
+      }
+      // 阻止 Chromium 把拖入的本地文件当作页面导航目标。
+      event.preventDefault()
+    }
+
+    window.addEventListener('dragover', preventFileDropNavigation, true)
+    window.addEventListener('drop', preventFileDropNavigation, true)
+    return () => {
+      window.removeEventListener('dragover', preventFileDropNavigation, true)
+      window.removeEventListener('drop', preventFileDropNavigation, true)
+    }
+  }, [])
+
+  const visibleFileSessions = useMemo(
+    () => data.fileSessions.filter((session) => !closingFileSessionIds.includes(session.id)),
+    [closingFileSessionIds, data.fileSessions],
+  )
+  const filesPageData = useMemo(() => ({ ...data, fileSessions: visibleFileSessions }), [data, visibleFileSessions])
+
+  useEffect(() => {
+    if (!activeFileSessionId && visibleFileSessions[0]) {
+      setActiveFileSessionId(visibleFileSessions[0].id)
       return
     }
-    if (activeFileSessionId && !data.fileSessions.some((session) => session.id === activeFileSessionId)) {
-      setActiveFileSessionId(data.fileSessions[0]?.id ?? '')
+    if (activeFileSessionId && !visibleFileSessions.some((session) => session.id === activeFileSessionId)) {
+      setActiveFileSessionId(visibleFileSessions[0]?.id ?? '')
     }
-  }, [activeFileSessionId, data.fileSessions])
+  }, [activeFileSessionId, visibleFileSessions])
 
   const selectedHostIdStable = useMemo(() => {
     if (data.hosts.some((host) => host.id === selectedHostId)) {
@@ -78,8 +102,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [data.hosts, selectedHostId])
 
   const activeFileSession = useMemo(
-    () => data.fileSessions.find((session) => session.id === activeFileSessionId) ?? data.fileSessions[0] ?? null,
-    [activeFileSessionId, data.fileSessions],
+    () => visibleFileSessions.find((session) => session.id === activeFileSessionId) ?? visibleFileSessions[0] ?? null,
+    [activeFileSessionId, visibleFileSessions],
   )
 
   useEffect(() => {
@@ -232,7 +256,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
         onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
         onReload={() => void actions.reload()}
-        onBeforeClose={actions.disconnectAllSessions}
+        onBeforeClose={actions.disconnectAllConnections}
         onCloseError={showActionError}
       >
         {initializing ? <div className="app-inline-status" role="status">{t('app.loading')}</div> : null}
@@ -278,7 +302,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         {page === 'files' ? (
           <FilesPage
             api={api}
-            data={data}
+            data={filesPageData}
             selectedHostId={selectedHostIdStable}
             activeFileSession={activeFileSession}
             onSelectHost={setSelectedHostId}
@@ -289,9 +313,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             }}
             onSelectFileSession={setActiveFileSessionId}
             onCloseFileSession={async (fileSessionId) => {
-              await actions.closeFileSession(fileSessionId)
+              const nextFileSessionId = visibleFileSessions.find((session) => session.id !== fileSessionId)?.id ?? ''
+              setClosingFileSessionIds((current) => current.includes(fileSessionId) ? current : [...current, fileSessionId])
               if (activeFileSessionId === fileSessionId) {
-                setActiveFileSessionId(data.fileSessions.find((session) => session.id !== fileSessionId)?.id ?? '')
+                setActiveFileSessionId(nextFileSessionId)
+              }
+              try {
+                await actions.closeFileSession(fileSessionId)
+              } finally {
+                setClosingFileSessionIds((current) => current.filter((id) => id !== fileSessionId))
               }
             }}
             onReconnectFileSession={actions.reconnectFileSession}

@@ -1,8 +1,50 @@
 import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import { fileURLToPath } from 'node:url'
 
+const droppedFilePathTTL = 5000
+
+let recentDroppedFiles = {
+  paths: [] as string[],
+  fileCount: 0,
+  capturedAt: 0,
+}
+
 function uniquePaths(paths: string[]) {
   return Array.from(new Set(paths.map((item) => item.trim()).filter(Boolean)))
+}
+
+function fileListToPaths(files: ArrayLike<File>) {
+  return uniquePaths(
+    Array.from(files)
+      .map((file) => webUtils.getPathForFile(file))
+      .filter(Boolean),
+  )
+}
+
+function cacheDroppedFilePaths(event: DragEvent) {
+  if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) {
+    return
+  }
+  event.preventDefault()
+  const files = event.dataTransfer?.files ?? []
+  const uriText = [
+    event.dataTransfer?.getData('text/uri-list') ?? '',
+    event.dataTransfer?.getData('text/plain') ?? '',
+  ].join('\n')
+  recentDroppedFiles = {
+    paths: uniquePaths([...fileListToPaths(files), ...parseFileUriText(uriText)]),
+    fileCount: files.length,
+    capturedAt: Date.now(),
+  }
+}
+
+function consumeRecentDroppedPaths(fileCount: number) {
+  const snapshot = recentDroppedFiles
+  if (Date.now() - snapshot.capturedAt > droppedFilePathTTL || snapshot.fileCount !== fileCount) {
+    return []
+  }
+  recentDroppedFiles = { paths: [], fileCount: 0, capturedAt: 0 }
+  return uniquePaths(snapshot.paths)
 }
 
 function parseWindowsFileNameBuffer(buffer: Buffer) {
@@ -37,6 +79,15 @@ function readClipboardFilePaths() {
   paths.push(...parseFileUriText(clipboard.readText()))
   return uniquePaths(paths)
 }
+
+function preventFileDropNavigation(event: DragEvent) {
+  if (Array.from(event.dataTransfer?.types ?? []).includes('Files')) {
+    event.preventDefault()
+  }
+}
+
+window.addEventListener('dragover', preventFileDropNavigation, true)
+window.addEventListener('drop', cacheDroppedFilePaths, true)
 
 contextBridge.exposeInMainWorld('termous', {
   getConfig: () =>
@@ -76,10 +127,16 @@ contextBridge.exposeInMainWorld('termous', {
     pickDirectory: () =>
       ipcRenderer.invoke('files:pick-paths', { mode: 'directories', multiple: false }) as Promise<string[]>,
     pathsFromFileList: (files: ArrayLike<File>) => {
-      const paths = Array.from(files)
-        .map((file) => webUtils.getPathForFile(file))
-        .filter(Boolean)
-      return Promise.resolve(uniquePaths(paths))
+      const paths = fileListToPaths(files)
+      return Promise.resolve(paths.length > 0 ? paths : consumeRecentDroppedPaths(files.length))
+    },
+    consumeDroppedFilePaths: (fileCount?: number) => {
+      if (typeof fileCount === 'number') {
+        return Promise.resolve(consumeRecentDroppedPaths(fileCount))
+      }
+      const snapshot = recentDroppedFiles
+      recentDroppedFiles = { paths: [], fileCount: 0, capturedAt: 0 }
+      return Promise.resolve(uniquePaths(snapshot.paths))
     },
     readClipboardFilePaths: () => Promise.resolve(readClipboardFilePaths()),
   },

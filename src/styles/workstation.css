@@ -1484,6 +1484,16 @@
   border-top: 1px solid var(--border);
 }
 
+.current-connection-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.current-connection-actions .ant-btn {
+  width: 100%;
+}
+
 .detail-list div {
   min-width: 0;
   border-bottom: 1px solid var(--border);
@@ -2332,42 +2342,44 @@
 
 .files-session-progress {
   display: grid;
-  width: min(520px, 100%);
-  gap: 12px;
-  place-items: center;
-  margin: 48px auto;
+  width: min(680px, calc(100% - 32px));
+  gap: 13px;
+  align-content: center;
+  margin: min(8vh, 56px) auto;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
-  padding: 28px;
-  text-align: center;
+  padding: 16px;
+  text-align: left;
   box-shadow: var(--shadow-soft), var(--inner-highlight);
 }
 
-.files-session-progress-icon {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--accent-soft) 64%, transparent);
-  color: var(--accent);
-}
-
-.files-session-progress-icon.is-waiting_trust {
-  background: color-mix(in srgb, #f59e0b 18%, transparent);
-  color: #fbbf24;
-}
-
-.files-session-progress-icon.is-failed {
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
-  color: var(--danger);
-}
-
-.files-session-progress p,
-.files-session-progress small {
-  margin: 0;
+.files-session-progress-footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.files-session-progress-footer small {
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-session-phase-row {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.files-session-progress .connection-phase {
+  max-width: 128px;
 }
 
 .files-main-toolbar {
@@ -2464,16 +2476,34 @@
   white-space: nowrap;
 }
 
-.files-table .ant-table-tbody > tr.ant-table-row:hover > td,
+.files-table .files-table-row > td {
+  cursor: default;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
+}
+
+.files-table .ant-table-tbody > tr.ant-table-row:hover > td {
+  background: color-mix(in srgb, var(--surface-subtle) 54%, transparent) !important;
+}
+
 .files-table .ant-table-tbody > tr.ant-table-row-selected > td {
-  background: color-mix(in srgb, var(--accent-soft) 42%, transparent) !important;
+  background: color-mix(in srgb, var(--accent-soft) 36%, transparent) !important;
 }
 
 .file-name-cell {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 10px;
+  border-radius: 10px;
+  padding: 3px 9px 3px 3px;
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease;
 }
 
 .file-kind-icon {
@@ -2485,17 +2515,41 @@
   border-radius: 9px;
   background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
   color: var(--text-secondary);
+  transition:
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .file-kind-icon.is-directory {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-secondary));
 }
 
-.file-name-cell > span:last-child {
+.file-name-copy,
+.file-name-button {
   display: grid;
   min-width: 0;
+  max-width: 100%;
   gap: 2px;
+}
+
+.file-name-button {
+  max-width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 2px 2px;
+  text-align: left;
+}
+
+.file-name-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 56%, transparent);
+  outline-offset: 2px;
 }
 
 .file-name-cell strong,
@@ -2525,6 +2579,28 @@
   color: var(--text-primary);
 }
 
+.files-icon-button-cancel.ant-btn {
+  color: color-mix(in srgb, var(--danger) 78%, var(--text-secondary));
+}
+
+.files-icon-button-cancel.ant-btn:hover {
+  background: color-mix(in srgb, var(--danger) 13%, transparent);
+  color: var(--danger);
+}
+
+.file-name-tooltip .ant-tooltip-inner {
+  max-width: min(520px, calc(100vw - 48px));
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-raised) 94%, #000 6%);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+  box-shadow: 0 16px 36px color-mix(in srgb, #000 28%, transparent);
+}
+
 .files-right-rail {
   display: grid;
   grid-template-rows: minmax(220px, 0.98fr) minmax(190px, 0.72fr);
@@ -2536,9 +2612,16 @@
 .files-detail-panel {
   display: grid;
   min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   padding: 14px;
+}
+
+.files-side-panel {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.files-detail-panel {
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .files-live-dot {
@@ -2553,21 +2636,75 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 14%, transparent);
 }
 
+.transfer-panel-heading {
+  align-items: start;
+}
+
+.transfer-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+
+.transfer-summary-strip span {
+  display: grid;
+  gap: 1px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-subtle) 56%, transparent);
+  padding: 7px 8px;
+  box-shadow: var(--inner-highlight);
+}
+
+.transfer-summary-strip strong {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.transfer-summary-strip small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .transfer-list {
   display: grid;
   align-content: start;
-  gap: 9px;
+  gap: 7px;
   overflow: auto;
   padding-right: 2px;
 }
 
 .transfer-row {
   display: grid;
-  gap: 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-subtle) 64%, transparent);
-  padding: 10px;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-strong) 64%, transparent);
+  padding: 9px;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.transfer-row:hover {
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
+  background: color-mix(in srgb, var(--surface-subtle) 74%, transparent);
+}
+
+.transfer-row-main {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
 }
 
 .transfer-row-top {
@@ -2579,10 +2716,10 @@
 
 .transfer-kind-icon {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   place-items: center;
-  border-radius: 9px;
+  border-radius: 8px;
   background: color-mix(in srgb, var(--accent) 13%, transparent);
   color: var(--accent);
 }
@@ -2590,7 +2727,15 @@
 .transfer-copy {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: 3px;
+}
+
+.transfer-title-line {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
 }
 
 .transfer-copy strong,
@@ -2618,6 +2763,8 @@
   border-radius: 999px;
   background: var(--surface);
   padding: 2px 7px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
   white-space: nowrap;
 }
 
@@ -2638,10 +2785,35 @@
   color: var(--danger);
 }
 
+.transfer-progress-line {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-subtle) 72%, transparent);
+}
+
+.transfer-progress-line span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.22s ease;
+}
+
+.transfer-row.is-completed .transfer-progress-line span {
+  background: var(--success);
+}
+
+.transfer-row.is-failed .transfer-progress-line span,
+.transfer-row.is-cancelled .transfer-progress-line span {
+  background: var(--danger);
+}
+
 .transfer-meta-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr) minmax(0, 0.7fr);
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
+  font-variant-numeric: tabular-nums;
 }
 
 .transfer-meta-grid span {
@@ -2659,6 +2831,7 @@
 
 .transfer-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 5px;
 }

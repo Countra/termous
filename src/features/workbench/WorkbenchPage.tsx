@@ -580,23 +580,25 @@ export function WorkbenchPage({
                 <dd>{jumpHost?.name ?? t('hosts.noJumpHost')}</dd>
               </div>
             </dl>
-            <Button
-              className="secondary-button"
-              disabled={!canOpenFiles || actionBusy || !activeSession}
-              onClick={() => activeSession && void onOpenFiles(activeSession)}
-              icon={<FolderOpen size={16} />}
-            >
-              {t('workbench.manageFiles')}
-            </Button>
-            <Button
-              danger
-              className="danger-button"
-              disabled={!activeSession || actionBusy}
-              onClick={() => activeSession && void onDisconnect(activeSession.id)}
-              icon={<Power size={16} />}
-            >
-              {t('workbench.closeSession')}
-            </Button>
+            <div className="current-connection-actions">
+              <Button
+                className="secondary-button"
+                disabled={!canOpenFiles || actionBusy || !activeSession}
+                onClick={() => activeSession && void onOpenFiles(activeSession)}
+                icon={<FolderOpen size={16} />}
+              >
+                {t('workbench.manageFiles')}
+              </Button>
+              <Button
+                danger
+                className="danger-button"
+                disabled={!activeSession || actionBusy}
+                onClick={() => activeSession && void onDisconnect(activeSession.id)}
+                icon={<Power size={16} />}
+              >
+                {t('workbench.closeSession')}
+              </Button>
+            </div>
           </>
         )}
       </aside>
