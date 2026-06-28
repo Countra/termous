@@ -57,6 +57,7 @@ interface WorkbenchPageProps {
   onDisconnect: (sessionId: string) => Promise<void>
   onOpenFiles: (session: Session) => Promise<void>
   onSnippetUsed: (snippetId: string) => Promise<void>
+  onToggleSnippetFavorite: (snippet: CodeSnippet) => Promise<void>
 }
 
 export function WorkbenchPage({
@@ -72,6 +73,7 @@ export function WorkbenchPage({
   onDisconnect,
   onOpenFiles,
   onSnippetUsed,
+  onToggleSnippetFavorite,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -780,8 +782,10 @@ export function WorkbenchPage({
                       key={snippet.id}
                       snippet={snippet}
                       disabled={!canSendSnippet || actionBusy}
+                      busy={actionBusy}
                       onInsert={() => void sendSnippet(snippet, false)}
                       onSend={() => void sendSnippet(snippet, true)}
+                      onToggleFavorite={() => void onToggleSnippetFavorite(snippet)}
                     />
                   ))}
                 </div>
@@ -859,13 +863,17 @@ function TerminalTabMenuItem({
 function SnippetSendRow({
   snippet,
   disabled,
+  busy,
   onInsert,
   onSend,
+  onToggleFavorite,
 }: {
   snippet: CodeSnippet
   disabled: boolean
+  busy: boolean
   onInsert: () => void
   onSend: () => void
+  onToggleFavorite: () => void
 }) {
   const { t } = useTranslation()
   const risk = analyzeSnippetRisk(snippet.command)
@@ -880,6 +888,17 @@ function SnippetSendRow({
         <small>{snippet.command}</small>
       </div>
       <div className="snippet-send-actions">
+        <Tooltip title={snippet.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}>
+          <Button
+            type="text"
+            className={`snippet-favorite-icon-button ${snippet.favorite ? 'is-active' : ''}`}
+            disabled={busy}
+            aria-label={snippet.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}
+            aria-pressed={snippet.favorite}
+            icon={<Star size={14} fill={snippet.favorite ? 'currentColor' : 'none'} />}
+            onClick={onToggleFavorite}
+          />
+        </Tooltip>
         <Tooltip title={t('snippets.action.insert')}>
           <Button type="text" disabled={disabled} aria-label={t('snippets.action.insert')} icon={<Play size={14} />} onClick={onInsert} />
         </Tooltip>

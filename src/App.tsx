@@ -7,13 +7,14 @@ import { HostsPage } from './features/hosts/HostsPage'
 import { FilesPage } from './features/files/FilesPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { SnippetsPage } from './features/snippets/SnippetsPage'
+import { snippetToInput } from './features/snippets/snippetUtils'
 import { VaultPage } from './features/vault/VaultPage'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippetInput, CredentialInput, HostInput, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
+import type { CodeSnippet, CodeSnippetInput, CredentialInput, HostInput, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -174,6 +175,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       }
     }, t('app.save'))
 
+  const toggleCodeSnippetFavorite = (snippet: CodeSnippet) =>
+    runAction(async () => {
+      await actions.updateCodeSnippet(snippet.id, { ...snippetToInput(snippet), favorite: !snippet.favorite })
+    })
+
   const showActionError = (actionError: unknown) => {
     notification.error({
       title: t('app.error'),
@@ -285,6 +291,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
             onOpenFiles={openFilesFromSession}
             onSnippetUsed={(snippetId) => actions.markCodeSnippetUsed(snippetId).then(() => undefined)}
+            onToggleSnippetFavorite={toggleCodeSnippetFavorite}
           />
         ) : null}
 

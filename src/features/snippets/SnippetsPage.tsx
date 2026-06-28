@@ -1,4 +1,4 @@
-import { Button, Checkbox, Input, Popconfirm, Segmented, Select, Tag } from 'antd'
+import { Button, Input, Popconfirm, Segmented, Select, Tag, Tooltip } from 'antd'
 import {
   Code2,
   FileCode2,
@@ -195,7 +195,21 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
             <h2>{t('snippets.editor')}</h2>
             <span>{editingId ? t('app.update') : t('app.create')}</span>
           </div>
-          <Pencil size={18} aria-hidden="true" />
+          <div className="snippet-editor-heading-actions">
+            <Tooltip title={form.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}>
+              <Button
+                type="text"
+                className={`snippet-favorite-toggle ${form.favorite ? 'is-active' : ''}`}
+                aria-label={form.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}
+                aria-pressed={form.favorite}
+                icon={<Star size={16} fill={form.favorite ? 'currentColor' : 'none'} />}
+                onClick={() => setForm({ ...form, favorite: !form.favorite })}
+              >
+                {form.favorite ? t('snippets.favorited') : t('snippets.favorite')}
+              </Button>
+            </Tooltip>
+            <Pencil size={18} aria-hidden="true" />
+          </div>
         </div>
         <div className="editor-sections">
           <section className="form-section">
@@ -250,16 +264,6 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
                 onChange={(event) => setForm({ ...form, command: event.target.value })}
               />
             </label>
-            <div className="snippet-editor-options">
-              <Checkbox
-                id="snippet-favorite"
-                name="snippet-favorite"
-                checked={form.favorite}
-                onChange={(event) => setForm({ ...form, favorite: event.target.checked })}
-              >
-                {t('snippets.favorite')}
-              </Checkbox>
-            </div>
           </section>
           <section className="snippet-preview-panel">
             <div className="snippet-preview-head">
