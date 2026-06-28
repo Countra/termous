@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
+import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import type { AppData, AuthMethod, HostInput } from '../../types/domain'
 
 interface HostsPageProps {
@@ -149,9 +150,7 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
           <Button className="secondary-button" onClick={onImport} disabled={actionBusy} icon={<FileInput size={16} />}>
             {t('hosts.importConfig')}
           </Button>
-          <Button
-            type="primary"
-            className="primary-button"
+          <ConnectionActionButton
             onClick={() => {
               setEditingId(null)
               setForm({ ...systemHost, tags: [] })
@@ -159,10 +158,12 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
             icon={<Plus size={16} />}
           >
             {t('hosts.addHost')}
-          </Button>
+          </ConnectionActionButton>
         </div>
         {data.hosts.length === 0 ? (
-          <EmptyState title={t('app.empty')} description={t('hosts.subtitle')} />
+          <div className="management-empty-slot">
+            <EmptyState title={t('app.empty')} description={t('hosts.subtitle')} />
+          </div>
         ) : (
           <>
             <div className="host-filter-panel">
@@ -206,7 +207,9 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
               ) : null}
             </div>
             {filteredHosts.length === 0 ? (
-              <EmptyState title={t('hosts.noFilterResults')} description={t('hosts.noFilterResultsHint')} />
+              <div className="management-empty-slot is-filtered">
+                <EmptyState title={t('hosts.noFilterResults')} description={t('hosts.noFilterResultsHint')} />
+              </div>
             ) : (
               <div className="data-list host-data-list">
                 {filteredHosts.map((host) => (

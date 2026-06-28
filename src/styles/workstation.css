@@ -383,6 +383,30 @@
   overflow: hidden;
 }
 
+.host-context-panel:not(.is-content-collapsed) .panel-title-copy {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.host-context-panel:not(.is-content-collapsed) .panel-title-copy h2,
+.host-context-panel:not(.is-content-collapsed) .panel-title-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-context-panel.is-content-collapsed .panel-title-copy {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  place-items: center;
+}
+
+.host-context-panel.is-content-collapsed .host-context-search,
+.host-context-panel.is-content-collapsed .empty-state {
+  display: none;
+}
+
 .host-context-panel.is-collapsed,
 .details-panel.is-collapsed {
   align-items: center;
@@ -471,10 +495,19 @@
 }
 
 .primary-button.ant-btn {
-  border-color: color-mix(in srgb, var(--accent) 88%, #ffffff 12%);
-  background: var(--accent);
+  height: 38px;
+  min-height: 38px;
+  border-color: color-mix(in srgb, var(--accent) 56%, rgb(255 255 255 / 18%));
+  border-radius: 11px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #ffffff 10%), var(--accent));
   color: #ffffff;
-  box-shadow: none;
+  font-size: 13px;
+  font-weight: 720;
+  padding: 0 16px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 22%),
+    0 10px 24px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .secondary-button.ant-btn {
@@ -502,10 +535,21 @@
 }
 
 .primary-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
-  border-color: color-mix(in srgb, var(--accent) 80%, #ffffff 20%);
-  background: color-mix(in srgb, var(--accent) 88%, #ffffff 12%);
+  border-color: color-mix(in srgb, var(--accent) 56%, rgb(255 255 255 / 18%));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 78%, #ffffff 18%), color-mix(in srgb, var(--accent) 92%, #000 8%));
   color: #ffffff;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 20%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 28%),
+    0 12px 28px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.primary-button.ant-btn:disabled,
+.primary-button.ant-btn.ant-btn-disabled {
+  border-color: color-mix(in srgb, var(--border) 82%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 74%, transparent);
+  color: var(--text-muted);
+  box-shadow: none;
 }
 
 .secondary-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
@@ -555,7 +599,7 @@
 }
 
 .connection-action-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
-  border-color: color-mix(in srgb, var(--accent) 68%, #ffffff 22%);
+  border-color: color-mix(in srgb, var(--accent) 56%, rgb(255 255 255 / 18%));
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--accent) 78%, #ffffff 18%), color-mix(in srgb, var(--accent) 92%, #000 8%));
   color: #ffffff;
@@ -1192,6 +1236,7 @@
   background: rgb(30 42 58 / 8%);
 }
 
+:root[data-theme="light"] .primary-button.ant-btn,
 :root[data-theme="light"] .connection-action-button.ant-btn {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 34%),
@@ -1889,6 +1934,33 @@
   box-shadow:
     inset 3px 0 0 var(--accent),
     var(--inner-highlight);
+}
+
+.management-empty-slot {
+  display: grid;
+  padding: 16px 4px 2px;
+}
+
+.management-empty-slot.is-filtered {
+  padding-top: 12px;
+}
+
+.management-empty-slot .empty-state {
+  min-height: 212px;
+  border-color: color-mix(in srgb, var(--border) 82%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 88%, transparent), color-mix(in srgb, var(--surface-subtle) 72%, transparent)),
+    var(--surface-subtle);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+}
+
+:root[data-theme="light"] .management-empty-slot .empty-state {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 92%, #ffffff 8%), color-mix(in srgb, var(--surface-subtle) 84%, #ffffff 16%)),
+    var(--surface-subtle);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 82%),
+    0 10px 26px rgb(35 48 68 / 5%);
 }
 
 .host-row.is-compact {
@@ -2611,6 +2683,10 @@
   .management-grid {
     grid-template-columns: 1fr;
     overflow: auto;
+  }
+
+  .management-empty-slot {
+    padding-top: 14px;
   }
 }
 

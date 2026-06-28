@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
+import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import type { AppData, CredentialInput, CredentialType } from '../../types/domain'
 
 interface VaultPageProps {
@@ -81,9 +82,7 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
           <Button className="secondary-button" onClick={onGenerateKey} disabled={actionBusy} icon={<Wand2 size={16} />}>
             {t('vault.generateKey')}
           </Button>
-          <Button
-            type="primary"
-            className="primary-button"
+          <ConnectionActionButton
             onClick={() => {
               setEditingId(null)
               setForm(blankCredential)
@@ -91,10 +90,12 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
             icon={<Plus size={16} />}
           >
             {t('vault.addCredential')}
-          </Button>
+          </ConnectionActionButton>
         </div>
         {filtered.length === 0 ? (
-          <EmptyState title={t('app.empty')} description={t('vault.subtitle')} />
+          <div className="management-empty-slot">
+            <EmptyState title={t('app.empty')} description={t('vault.subtitle')} />
+          </div>
         ) : (
           <div className="data-list credential-list">
             {filtered.map((credential) => (

@@ -1,6 +1,6 @@
 import { Button, Input, Tooltip } from 'antd'
 import { KeyRound, MapPin, PanelLeftClose, PanelLeftOpen, Search, Server, Tags, UserRound } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Host, HostGroup } from '../../types/domain'
 import { AuthMethodBadge } from '../ui/AuthMethodBadge'
@@ -21,6 +21,8 @@ interface HostContextPanelProps {
   onSelectHost: (hostId: string) => void
 }
 
+const contentExpandDelayMs = 0
+
 export function HostContextPanel({
   hosts,
   groups,
@@ -37,25 +39,42 @@ export function HostContextPanel({
 }: HostContextPanelProps) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
+  const [expandedContentReady, setExpandedContentReady] = useState(!collapsed)
+  const contentCollapsed = collapsed || !expandedContentReady
+
+  useEffect(() => {
+    if (collapsed) {
+      setExpandedContentReady(false)
+      return undefined
+    }
+
+    const timer = window.setTimeout(() => setExpandedContentReady(true), contentExpandDelayMs)
+    return () => window.clearTimeout(timer)
+  }, [collapsed])
+
   const visibleHosts = useMemo(() => {
-    const normalizedQuery = collapsed ? '' : query.trim().toLowerCase()
+    const normalizedQuery = contentCollapsed ? '' : query.trim().toLowerCase()
     if (!normalizedQuery) {
       return hosts
     }
     return hosts.filter((host) =>
       [host.name, host.address, host.username, ...(host.tags ?? [])].join(' ').toLowerCase().includes(normalizedQuery),
     )
-  }, [collapsed, hosts, query])
+  }, [contentCollapsed, hosts, query])
   const groupedHosts = useMemo(() => groupHosts(visibleHosts, groups), [groups, visibleHosts])
 
   return (
-    <aside className={`context-panel host-context-panel ${collapsed ? 'is-collapsed' : ''} ${className}`.trim()}>
+    <aside
+      className={`context-panel host-context-panel ${collapsed ? 'is-collapsed' : ''} ${
+        contentCollapsed ? 'is-content-collapsed' : ''
+      } ${className}`.trim()}
+    >
       <div className="panel-heading">
         <div className="panel-title-copy">
-          <h2>{collapsed ? collapsedTitle : title}</h2>
-          {!collapsed && subtitle ? <span>{subtitle}</span> : null}
+          <h2>{contentCollapsed ? collapsedTitle : title}</h2>
+          {!contentCollapsed && subtitle ? <span>{subtitle}</span> : null}
         </div>
-        <Tooltip title={collapsed ? t('app.expand') : t('app.collapse')}>
+        <Tooltip title={collapsed ? t('app.expand') : t('app.collapse')} destroyOnHidden mouseLeaveDelay={0}>
           <Button
             type="text"
             className="icon-button compact"
@@ -65,7 +84,7 @@ export function HostContextPanel({
           />
         </Tooltip>
       </div>
-      {!collapsed && searchPlaceholder ? (
+      {!contentCollapsed && searchPlaceholder ? (
         <Input
           id="host-context-search"
           name="host-context-search"
@@ -78,21 +97,21 @@ export function HostContextPanel({
           placeholder={searchPlaceholder}
         />
       ) : null}
-      {hosts.length === 0 ? (
+      {hosts.length === 0 && contentCollapsed ? null : hosts.length === 0 ? (
         <EmptyState title={t('app.empty')} description={emptyDescription} />
-      ) : visibleHosts.length === 0 ? (
+      ) : visibleHosts.length === 0 && contentCollapsed ? null : visibleHosts.length === 0 ? (
         <EmptyState title={t('hosts.noFilterResults')} description={t('hosts.noFilterResultsHint')} />
       ) : (
         <div className="host-stack">
           {Object.entries(groupedHosts).map(([group, items]) => (
             <div className="host-group-block" key={group}>
-              {!collapsed ? <span className="group-label">{group || t('hosts.ungrouped')}</span> : null}
+              {!contentCollapsed ? <span className="group-label">{group || t('hosts.ungrouped')}</span> : null}
               {items.map((host) => (
                 <HostRow
                   key={host.id}
                   host={host}
                   active={host.id === selectedHostId}
-                  collapsed={collapsed}
+                  collapsed={contentCollapsed}
                   onSelect={() => onSelectHost(host.id)}
                 />
               ))}
