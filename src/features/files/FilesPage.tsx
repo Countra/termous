@@ -126,9 +126,9 @@ export function FilesPage({
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
   const [permissionSaving, setPermissionSaving] = useState(false)
-  const [connectingHostId, setConnectingHostId] = useState('')
+  const [connectingHostIds, setConnectingHostIds] = useState<Set<string>>(() => new Set())
+  const [activeHostKeyPromptKey, setActiveHostKeyPromptKey] = useState('')
   const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
-  const [promptedHostKeyKeys, setPromptedHostKeyKeys] = useState<Set<string>>(() => new Set())
   const [hostPanelCollapsed, setHostPanelCollapsed] = usePersistentBooleanState(
     'termous.ui.files.hostPanelCollapsed.v1',
     false,
@@ -140,6 +140,7 @@ export function FilesPage({
   const activeFileSessionId = activeFileSession?.id ?? ''
   const fileSessionConnected = activeFileSession?.status === 'connected'
   const fileSessionIds = useMemo(() => data.fileSessions.map((session) => session.id).join('|'), [data.fileSessions])
+  const selectedHostConnecting = selectedHostIdStable ? connectingHostIds.has(selectedHostIdStable) : false
 
   const selectedEntries = useMemo(
     () => entries.filter((entry) => selectedPaths.includes(entry.path)),
@@ -284,17 +285,37 @@ export function FilesPage({
     }
   }, [api, fileSessionIds, onUpdateFileSession])
 
+  const hostKeyPromptQueue = useMemo(
+    () =>
+      data.fileSessions
+        .filter((session) => session.status === 'waiting_trust' && session.host_key)
+        .map((session) => ({
+          session,
+          hostKey: session.host_key as FileSessionHostKey,
+          key: `${session.id}:${session.host_key?.reason ?? ''}:${session.host_key?.fingerprint_sha256 ?? ''}`,
+        })),
+    [data.fileSessions],
+  )
+
   useEffect(() => {
-    const pendingSession = data.fileSessions.find((session) => session.status === 'waiting_trust' && session.host_key)
-    const hostKey = pendingSession?.host_key
+    if (activeHostKeyPromptKey) {
+      const stillPending = hostKeyPromptQueue.some((item) => item.key === activeHostKeyPromptKey)
+      if (!stillPending) {
+        setActiveHostKeyPromptKey('')
+      }
+      return
+    }
+    const pendingItem = hostKeyPromptQueue[0]
+    const pendingSession = pendingItem?.session
+    const hostKey = pendingItem?.hostKey
     if (!pendingSession || !hostKey) {
       return
     }
-    const promptKey = `${pendingSession.id}:${hostKey.reason}:${hostKey.fingerprint_sha256}`
-    if (promptedHostKeyKeys.has(promptKey)) {
-      return
+    const promptKey = pendingItem.key
+    setActiveHostKeyPromptKey(promptKey)
+    const clearPrompt = () => {
+      setActiveHostKeyPromptKey((current) => (current === promptKey ? '' : current))
     }
-    setPromptedHostKeyKeys((current) => new Set(current).add(promptKey))
     const changed = hostKey.reason === 'changed'
     modal.confirm({
       title: changed ? t('files.hostKeyChangedTitle') : t('files.trustHostTitle'),
@@ -311,14 +332,16 @@ export function FilesPage({
           hostKey.fingerprint_sha256,
         )
         onUpdateFileSession(next)
+        clearPrompt()
       },
       onCancel: () => {
         void onTrustFileSessionHost(pendingSession.id, 'reject', hostKey.fingerprint_sha256)
           .then(onUpdateFileSession)
           .catch(() => undefined)
+          .finally(clearPrompt)
       },
     })
-  }, [data.fileSessions, modal, onTrustFileSessionHost, onUpdateFileSession, promptedHostKeyKeys, t])
+  }, [activeHostKeyPromptKey, hostKeyPromptQueue, modal, onTrustFileSessionHost, onUpdateFileSession, t])
 
   const updateTabScrollState = useCallback(() => {
     const viewport = fileTabViewportRef.current
@@ -391,10 +414,10 @@ export function FilesPage({
   }
 
   const connectSelectedHost = async () => {
-    if (!selectedHostIdStable || connectingHostId) {
+    if (!selectedHostIdStable || connectingHostIds.has(selectedHostIdStable)) {
       return
     }
-    setConnectingHostId(selectedHostIdStable)
+    setConnectingHostIds((current) => new Set(current).add(selectedHostIdStable))
     try {
       const fileSession = await onConnectFileSession(selectedHostIdStable)
       onUpdateFileSession(fileSession)
@@ -402,7 +425,11 @@ export function FilesPage({
     } catch (actionError) {
       notifyError(actionError)
     } finally {
-      setConnectingHostId('')
+      setConnectingHostIds((current) => {
+        const next = new Set(current)
+        next.delete(selectedHostIdStable)
+        return next
+      })
     }
   }
 
@@ -853,8 +880,8 @@ export function FilesPage({
             </Tooltip>
           </div>
           <ConnectionActionButton
-            disabled={!selectedHostIdStable || Boolean(connectingHostId)}
-            loading={Boolean(connectingHostId)}
+            disabled={!selectedHostIdStable || selectedHostConnecting}
+            loading={selectedHostConnecting}
             icon={<Link size={15} />}
             onClick={() => void connectSelectedHost()}
           >
