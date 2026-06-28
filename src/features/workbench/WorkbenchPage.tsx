@@ -289,13 +289,8 @@ export function WorkbenchPage({
     [updateTabScrollState],
   )
 
-  const closeSessionFromTab = useCallback(
-    (event: MouseEvent<HTMLElement>, sessionId: string) => {
-      if (event.button !== 1) {
-        return
-      }
-      event.preventDefault()
-      event.stopPropagation()
+  const closeSessionTab = useCallback(
+    (sessionId: string) => {
       if (actionBusy) {
         return
       }
@@ -305,6 +300,18 @@ export function WorkbenchPage({
       void onDisconnect(sessionId)
     },
     [actionBusy, closeTerminalSearch, onDisconnect, terminalSearch.sessionId],
+  )
+
+  const closeSessionFromTab = useCallback(
+    (event: MouseEvent<HTMLElement>, sessionId: string) => {
+      if (event.button !== 1) {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      closeSessionTab(sessionId)
+    },
+    [closeSessionTab],
   )
 
   useEffect(() => {
@@ -484,6 +491,9 @@ export function WorkbenchPage({
                             icon={<SquareTerminal size={15} />}
                             label={title}
                             status={session.status}
+                            closeLabel={`${t('app.close')} ${title}`}
+                            closeDisabled={actionBusy}
+                            onClose={() => closeSessionTab(session.id)}
                           />
                         </Dropdown>
                       )

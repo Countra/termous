@@ -435,6 +435,13 @@ export function FilesPage({
     updateTabScrollState()
   }, [updateTabScrollState])
 
+  const closeFileSessionTab = useCallback(
+    (fileSessionId: string) => {
+      void onCloseFileSession(fileSessionId)
+    },
+    [onCloseFileSession],
+  )
+
   const closeFileSessionFromTab = useCallback(
     (event: MouseEvent<HTMLElement>, fileSessionId: string) => {
       if (event.button !== 1) {
@@ -442,9 +449,9 @@ export function FilesPage({
       }
       event.preventDefault()
       event.stopPropagation()
-      void onCloseFileSession(fileSessionId)
+      closeFileSessionTab(fileSessionId)
     },
-    [onCloseFileSession],
+    [closeFileSessionTab],
   )
 
   useEffect(() => {
@@ -921,22 +928,29 @@ export function FilesPage({
               {data.fileSessions.length === 0 ? (
                 <SessionTabButton empty role="tab" icon={<Folder size={15} />} label={t('files.noFileSession')} />
               ) : (
-                data.fileSessions.map((fileSession) => {
-                  const host = data.hosts.find((item) => item.id === fileSession.host_id)
-                  return (
-                    <SessionTabButton
-                      key={fileSession.id}
-                      active={fileSession.id === activeFileSessionId}
-                      role="tab"
-                      aria-selected={fileSession.id === activeFileSessionId}
-                      onClick={() => onSelectFileSession(fileSession.id)}
-                      onMouseDown={(event) => closeFileSessionFromTab(event, fileSession.id)}
-                      icon={<Folder size={15} />}
-                      label={host?.name ?? shortId(fileSession.id)}
-                      status={fileSession.status}
-                    />
-                  )
-                })
+                  data.fileSessions.map((fileSession) => {
+                    const host = data.hosts.find((item) => item.id === fileSession.host_id)
+                    return (
+                      <SessionTabButton
+                        key={fileSession.id}
+                        active={fileSession.id === activeFileSessionId}
+                        role="tab"
+                        aria-selected={fileSession.id === activeFileSessionId}
+                        onClick={() => onSelectFileSession(fileSession.id)}
+                        onMouseDown={(event) => {
+                          if (event.button === 1) {
+                            event.preventDefault()
+                          }
+                        }}
+                        onAuxClick={(event) => closeFileSessionFromTab(event, fileSession.id)}
+                        icon={<Folder size={15} />}
+                        label={host?.name ?? shortId(fileSession.id)}
+                        status={fileSession.status}
+                        closeLabel={`${t('app.close')} ${host?.name ?? shortId(fileSession.id)}`}
+                        onClose={() => closeFileSessionTab(fileSession.id)}
+                      />
+                    )
+                  })
               )}
             </div>
             <Tooltip title={t('workbench.scrollTabsRight')}>

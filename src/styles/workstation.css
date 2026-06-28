@@ -647,9 +647,11 @@
   display: inline-flex;
   flex: 0 0 auto;
   min-width: 0;
-  max-width: 236px;
+  max-width: 260px;
   height: 32px;
   min-height: 32px;
+  align-items: center;
+  justify-content: flex-start;
   border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
   border-radius: 10px;
   background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
@@ -658,7 +660,7 @@
   color: var(--text-secondary);
   gap: 8px;
   line-height: 1;
-  padding: 0 11px;
+  padding: 0 5px 0 10px;
   transform: none;
   font-weight: 650;
   transition:
@@ -683,14 +685,16 @@
   transform: none;
 }
 
-.session-tab-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+.session-tab-button.ant-btn:not(:disabled):not(.ant-btn-disabled):not(.is-empty):hover,
+.session-tab-button.ant-btn:not(:disabled):not(.ant-btn-disabled):focus-visible {
   border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
   background: color-mix(in srgb, var(--terminal-tab-bg) 66%, transparent);
   color: var(--text-primary);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
 }
 
-.session-tab-button.ant-btn.is-active:not(:disabled):not(.ant-btn-disabled):hover {
+.session-tab-button.ant-btn.is-active:not(:disabled):not(.ant-btn-disabled):hover,
+.session-tab-button.ant-btn.is-active:not(:disabled):not(.ant-btn-disabled):focus-visible {
   background: color-mix(in srgb, var(--terminal-tab-bg) 92%, var(--surface-subtle));
 }
 
@@ -698,12 +702,56 @@
   border-color: color-mix(in srgb, var(--border) 42%, transparent);
   background: transparent;
   color: var(--text-muted);
+  padding-right: 10px;
 }
 
 .session-tab-button.ant-btn .ant-btn-icon {
   display: inline-flex;
   flex: 0 0 auto;
   margin-inline-end: 0;
+}
+
+.session-tab-close {
+  display: inline-flex;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  min-height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-secondary) 68%, transparent);
+  cursor: pointer;
+  opacity: 0.72;
+  padding: 0;
+  transform: none !important;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.session-tab-button.ant-btn:hover .session-tab-close,
+.session-tab-button.ant-btn:focus-visible .session-tab-close,
+.session-tab-button.ant-btn.is-active .session-tab-close {
+  opacity: 1;
+}
+
+.session-tab-close:not(.is-disabled):hover {
+  background: color-mix(in srgb, var(--text-primary) 9%, transparent);
+  color: var(--text-primary);
+}
+
+.session-tab-close:not(.is-disabled):active {
+  background: color-mix(in srgb, var(--text-primary) 13%, transparent);
+  transform: scale(0.96) !important;
+}
+
+.session-tab-close.is-disabled {
+  cursor: default;
+  opacity: 0.4;
 }
 
 .session-tab-content {
@@ -1078,8 +1126,13 @@
     0 8px 20px rgb(23 31 45 / 8%);
 }
 
-:root[data-theme="light"] .session-tab-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+:root[data-theme="light"] .session-tab-button.ant-btn:not(.is-empty):hover,
+:root[data-theme="light"] .session-tab-button.ant-btn:focus-visible {
   background: #ffffff;
+}
+
+:root[data-theme="light"] .session-tab-close:not(.is-disabled):hover {
+  background: rgb(30 42 58 / 8%);
 }
 
 :root[data-theme="light"] .connection-action-button.ant-btn {
@@ -2639,7 +2692,7 @@
   display: none;
 }
 
-.files-session-tabs .session-tab-button.ant-btn {
+.files-session-tabs .session-tab-button {
   flex: 0 0 auto;
 }
 
