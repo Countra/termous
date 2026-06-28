@@ -63,7 +63,9 @@ export function AppShell({
     <div className={`app-shell ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
       <aside className="sidebar" aria-label="Primary">
         <div className="brand-row">
-          <div className="brand-mark">T</div>
+          <div className="brand-mark" aria-hidden="true">
+            <img src="/termous-icon.png" alt="" />
+          </div>
           <div className="brand-copy">
             <strong>{t('app.name')}</strong>
             <span>SSH</span>

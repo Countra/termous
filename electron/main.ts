@@ -12,6 +12,10 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
+const APP_NAME = 'Termous'
+const APP_ID = 'dev.termous.app'
+const APP_ICON = path.join(process.env.VITE_PUBLIC, 'termous-icon.png')
+
 let win: BrowserWindow | null
 let closeConfirmed = false
 
@@ -27,6 +31,8 @@ function createWindow() {
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
     autoHideMenuBar: true,
     backgroundColor: '#0d1118',
+    title: APP_NAME,
+    icon: APP_ICON,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -151,6 +157,10 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(() => {
+  app.setName(APP_NAME)
+  if (process.platform === 'win32') {
+    app.setAppUserModelId(APP_ID)
+  }
   Menu.setApplicationMenu(null)
   registerWindowControls()
   registerFilePickers()
