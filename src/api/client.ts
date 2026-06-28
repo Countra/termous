@@ -3,6 +3,7 @@ import type {
   AppConfig,
   CodeSnippet,
   CodeSnippetInput,
+  CoreRuntimeInfo,
   CredentialInput,
   CredentialView,
   FileSession,
@@ -28,6 +29,7 @@ import type {
 const DEFAULT_CONFIG: AppConfig = {
   apiBaseUrl: import.meta.env.VITE_TERMOUS_API_BASE_URL ?? 'http://127.0.0.1:8122',
   apiToken: import.meta.env.VITE_TERMOUS_API_TOKEN ?? (import.meta.env.DEV ? 'dev-token' : ''),
+  version: import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev',
 }
 
 export class TermousApiError extends Error {
@@ -79,6 +81,23 @@ export class TermousApi {
 
   health() {
     return this.request<{ status: string }>('/api/v1/healthz')
+  }
+
+  runtime() {
+    return this.request<CoreRuntimeInfo>('/api/v1/runtime')
+  }
+
+  heartbeat() {
+    return this.request<{ status: string; server_time: string; shutdown_in_progress: boolean }>('/api/v1/runtime/heartbeat', {
+      method: 'POST',
+    })
+  }
+
+  shutdown(reason = 'frontend_exit') {
+    return this.request<{ status: string }>('/api/v1/runtime/shutdown', {
+      method: 'POST',
+      body: { reason },
+    })
   }
 
   settings() {

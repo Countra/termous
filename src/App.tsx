@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
-import { App as AntdApp, ConfigProvider } from 'antd'
+import { App as AntdApp, ConfigProvider, Modal } from 'antd'
 import 'antd/dist/reset.css'
 import { useTranslation } from 'react-i18next'
 import { AppShell } from './components/layout/AppShell'
@@ -14,7 +14,7 @@ import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetInput, CredentialInput, HostInput, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
+import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, HostInput, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -56,6 +56,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [activeFileSessionId, setActiveFileSessionId] = useState('')
   const [closingFileSessionIds, setClosingFileSessionIds] = useState<string[]>([])
   const [actionBusy, setActionBusy] = useState(false)
+  const [appVersion, setAppVersion] = useState(import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev')
+  const [coreFatal, setCoreFatal] = useState<CoreFatalEvent | null>(null)
 
   useEffect(() => {
     if (!selectedHostId && data.hosts[0]) {
@@ -77,6 +79,25 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     return () => {
       window.removeEventListener('dragover', preventFileDropNavigation, true)
       window.removeEventListener('drop', preventFileDropNavigation, true)
+    }
+  }, [])
+
+  useEffect(() => {
+    let disposed = false
+    void window.termous?.getBuildInfo?.().then((info) => {
+      if (!disposed && info?.version) {
+        setAppVersion(info.version)
+      }
+    })
+    void window.termous?.core?.getFatal().then((fatal) => {
+      if (!disposed && fatal) {
+        setCoreFatal(fatal)
+      }
+    })
+    const cleanup = window.termous?.core?.onFatal((fatal) => setCoreFatal(fatal))
+    return () => {
+      disposed = true
+      cleanup?.()
     }
   }, [])
 
@@ -229,6 +250,14 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
+  const shutdownBeforeClose = async () => {
+    if (window.termous?.core) {
+      await window.termous.core.shutdown()
+      return
+    }
+    await actions.disconnectAllConnections()
+  }
+
   const openFilesFromSession = async (session: Session) => {
     if (session.kind !== 'ssh' || session.status !== 'connected' || !session.host_id) {
       return
@@ -265,6 +294,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       <AppShell
         page={page}
         theme={theme}
+        appVersion={appVersion}
         sidebarCollapsed={sidebarCollapsed}
         apiReady={apiReady}
         refreshing={refreshing}
@@ -272,7 +302,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
         onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
         onReload={() => void actions.reload()}
-        onBeforeClose={actions.disconnectAllConnections}
+        onBeforeClose={shutdownBeforeClose}
         onCloseError={showActionError}
       >
         {initializing ? <div className="app-inline-status" role="status">{t('app.loading')}</div> : null}
@@ -362,6 +392,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             language={data.settings.language}
             terminalSettings={data.settings.terminal}
             terminalFonts={data.terminalFonts}
+            appVersion={appVersion}
             actionBusy={actionBusy}
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
             onTerminalSettingsChange={saveTerminalSettings}
@@ -370,6 +401,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           />
         ) : null}
       </AppShell>
+      <Modal
+        centered
+        open={Boolean(coreFatal)}
+        title={coreFatal?.title ?? t('app.coreFatalTitle')}
+        okText={t('app.exit')}
+        cancelButtonProps={{ style: { display: 'none' } }}
+        maskClosable={false}
+        keyboard={false}
+        onOk={() => void window.termous?.windowControls?.confirmClose()}
+      >
+        <p>{coreFatal?.message ?? t('app.coreFatalDescription')}</p>
+      </Modal>
     </TerminalRuntimeProvider>
   )
 }

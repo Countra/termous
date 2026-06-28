@@ -90,12 +90,22 @@ window.addEventListener('dragover', preventFileDropNavigation, true)
 window.addEventListener('drop', cacheDroppedFilePaths, true)
 
 contextBridge.exposeInMainWorld('termous', {
-  getConfig: () =>
-    Promise.resolve({
-      apiBaseUrl: process.env.TERMOUS_API_BASE_URL ?? 'http://127.0.0.1:8122',
-      apiToken: process.env.TERMOUS_API_TOKEN ?? (process.env.NODE_ENV === 'development' ? 'dev-token' : ''),
-    }),
+  getConfig: () => ipcRenderer.invoke('core:get-config'),
+  getBuildInfo: async () => {
+    const config = await ipcRenderer.invoke('core:get-config')
+    return { version: config?.version ?? process.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev' }
+  },
   platform: process.platform,
+  core: {
+    status: () => ipcRenderer.invoke('core:status'),
+    shutdown: () => ipcRenderer.invoke('core:shutdown') as Promise<boolean>,
+    getFatal: () => ipcRenderer.invoke('core:get-fatal'),
+    onFatal: (callback: (event: { title: string; message: string; code: string }) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, fatal: { title: string; message: string; code: string }) => callback(fatal)
+      ipcRenderer.on('core:fatal', listener)
+      return () => ipcRenderer.removeListener('core:fatal', listener)
+    },
+  },
   clipboard: {
     readText: () => Promise.resolve(clipboard.readText()),
     writeText: (text: string) => {

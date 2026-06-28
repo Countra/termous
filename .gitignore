@@ -12,6 +12,7 @@ dist
 dist-ssr
 dist-electron
 release
+build/core/
 _tmp_*
 *.local
 

@@ -8,6 +8,7 @@ interface SettingsPageProps {
   language: Language
   terminalSettings: TerminalSettings
   terminalFonts: TerminalFont[]
+  appVersion: string
   actionBusy: boolean
   onLanguageChange: (language: Language) => Promise<void>
   onTerminalSettingsChange: (settings: TerminalSettings) => Promise<void>
@@ -19,6 +20,7 @@ export function SettingsPage({
   language,
   terminalSettings,
   terminalFonts,
+  appVersion,
   actionBusy,
   onLanguageChange,
   onTerminalSettingsChange,
@@ -67,6 +69,12 @@ export function SettingsPage({
                     ]}
                     onChange={(value) => void onLanguageChange(value as Language)}
                   />
+                </div>
+                <div className="settings-row">
+                  <div>
+                    <strong>{t('settings.appVersion')}</strong>
+                  </div>
+                  <div className="settings-version-value">v{appVersion}</div>
                 </div>
               </div>
             ),

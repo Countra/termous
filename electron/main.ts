@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
+import { CoreProcessManager } from './coreProcess'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -15,6 +16,7 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 const APP_NAME = 'Termous'
 const APP_ID = 'dev.termous.app'
 const APP_ICON = path.join(process.env.VITE_PUBLIC, 'termous-icon.png')
+const coreProcess = new CoreProcessManager()
 
 let win: BrowserWindow | null
 let closeConfirmed = false
@@ -44,6 +46,10 @@ function createWindow() {
 
   win.once('ready-to-show', () => {
     win?.show()
+    const fatal = coreProcess.getFatal()
+    if (fatal) {
+      win?.webContents.send('core:fatal', fatal)
+    }
   })
   win.on('close', (event) => {
     if (closeConfirmed) {
@@ -107,14 +113,22 @@ function registerWindowControls() {
     focused.webContents.send('window:close-requested')
     return true
   })
-  ipcMain.handle('window:confirm-close', () => {
+  ipcMain.handle('window:confirm-close', async () => {
     const focused = currentWindow()
     if (!focused) return false
+    await coreProcess.shutdownGracefully()
     closeConfirmed = true
     focused.close()
     return true
   })
   ipcMain.handle('window:is-maximized', () => currentWindow()?.isMaximized() ?? false)
+}
+
+function registerCoreProcessControls() {
+  ipcMain.handle('core:get-config', () => coreProcess.getConfig())
+  ipcMain.handle('core:status', () => coreProcess.status())
+  ipcMain.handle('core:shutdown', () => coreProcess.shutdownGracefully())
+  ipcMain.handle('core:get-fatal', () => coreProcess.getFatal())
 }
 
 function registerFilePickers() {
@@ -156,12 +170,14 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   app.setName(APP_NAME)
   if (process.platform === 'win32') {
     app.setAppUserModelId(APP_ID)
   }
   Menu.setApplicationMenu(null)
+  await coreProcess.initialize()
+  registerCoreProcessControls()
   registerWindowControls()
   registerFilePickers()
   createWindow()

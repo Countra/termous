@@ -302,6 +302,38 @@ export interface ApiErrorBody {
 export interface AppConfig {
   apiBaseUrl: string
   apiToken: string
+  version?: string
+  managed?: boolean
+}
+
+export interface AppBuildInfo {
+  version: string
+}
+
+export interface CoreStatus {
+  config: AppConfig
+  fatal: CoreFatalEvent | null
+  pid?: number
+}
+
+export interface CoreRuntimeInfo {
+  name: string
+  version: string
+  pid: number
+  addr: string
+  uptime_seconds: number
+  heartbeat_enabled: boolean
+  heartbeat_timeout_ms: number
+  last_heartbeat_at: string
+  shutdown_in_progress: boolean
+  shutdown_reason?: string
+  shutdown_started_at?: string
+}
+
+export interface CoreFatalEvent {
+  title: string
+  message: string
+  code: string
 }
 
 export interface HostInput {

@@ -13,6 +13,16 @@
     "dist",
     "dist-electron"
   ],
+  "extraResources": [
+    {
+      "from": "build/core",
+      "to": ".",
+      "filter": [
+        "termous-core.exe",
+        "termous-core"
+      ]
+    }
+  ],
   "mac": {
     "icon": "build/icon.icns",
     "target": [

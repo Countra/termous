@@ -1,10 +1,17 @@
-import type { AppConfig } from './domain'
+import type { AppBuildInfo, AppConfig, CoreFatalEvent, CoreStatus } from './domain'
 
 declare global {
   interface Window {
     termous?: {
       getConfig: () => Promise<Partial<AppConfig>>
+      getBuildInfo: () => Promise<AppBuildInfo>
       platform: string
+      core?: {
+        status: () => Promise<CoreStatus>
+        shutdown: () => Promise<boolean>
+        getFatal: () => Promise<CoreFatalEvent | null>
+        onFatal: (callback: (event: CoreFatalEvent) => void) => () => void
+      }
       clipboard?: {
         readText: () => Promise<string>
         writeText: (text: string) => Promise<boolean>

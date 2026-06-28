@@ -20,6 +20,7 @@ import { WindowControls } from './WindowControls'
 interface AppShellProps {
   page: PageKey
   theme: ThemeMode
+  appVersion: string
   sidebarCollapsed: boolean
   apiReady: boolean
   refreshing: boolean
@@ -43,6 +44,7 @@ const navItems = [
 export function AppShell({
   page,
   theme,
+  appVersion,
   sidebarCollapsed,
   apiReady,
   refreshing,
@@ -68,7 +70,7 @@ export function AppShell({
           </div>
           <div className="brand-copy">
             <strong>{t('app.name')}</strong>
-            <span>SSH</span>
+            <span>SSH · v{appVersion}</span>
           </div>
         </div>
         <nav className="primary-nav">
