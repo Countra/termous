@@ -69,7 +69,7 @@ export function HostContextPanel({
         <Input
           id="host-context-search"
           name="host-context-search"
-          className="host-search-input host-context-search"
+          className="host-search-input host-context-search termous-search-input"
           value={query}
           allowClear
           variant="borderless"

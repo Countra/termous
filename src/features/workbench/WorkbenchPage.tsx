@@ -761,9 +761,10 @@ export function WorkbenchPage({
               <Input
                 id="workbench-snippet-search"
                 name="workbench-snippet-search"
-                className="host-search-input snippet-quick-search"
+                className="host-search-input snippet-quick-search termous-search-input"
                 value={snippetQuery}
                 allowClear
+                variant="borderless"
                 prefix={<Search size={14} aria-hidden="true" />}
                 placeholder={t('snippets.searchPlaceholder')}
                 onChange={(event) => setSnippetQuery(event.target.value)}

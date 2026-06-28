@@ -3,10 +3,8 @@ import {
   Code2,
   FileCode2,
   Pencil,
-  Play,
   Plus,
   Search,
-  Send,
   Star,
   Tags,
   Trash2,
@@ -14,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
 import type { AppData, CodeSnippet, CodeSnippetInput, SnippetShell } from '../../types/domain'
@@ -34,7 +33,6 @@ const blankSnippet: CodeSnippetInput = {
   command: '',
   tags: [],
   shell: 'any',
-  default_action: 'insert',
   favorite: false,
 }
 
@@ -106,15 +104,15 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
 
   return (
     <section className="page-grid snippets-grid">
-      <aside className="list-panel snippet-filter-panel">
+      <aside className="list-panel snippet-list-panel snippet-library-panel">
         <div className="page-title-row compact-title">
           <div>
             <h1>{t('snippets.title')}</h1>
             <p>{t('snippets.subtitle')}</p>
           </div>
-          <Button type="primary" className="primary-button" onClick={createNew} icon={<Plus size={16} />}>
+          <ConnectionActionButton onClick={createNew} icon={<Plus size={16} />}>
             {t('snippets.add')}
-          </Button>
+          </ConnectionActionButton>
         </div>
         <Segmented
           block
@@ -129,9 +127,10 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
         <Input
           id="snippets-search"
           name="snippets-search"
-          className="host-search-input snippet-search-input"
+          className="host-search-input snippet-search-input termous-search-input"
           value={query}
           allowClear
+          variant="borderless"
           prefix={<Search size={15} aria-hidden="true" />}
           placeholder={t('snippets.searchPlaceholder')}
           onChange={(event) => setQuery(event.target.value)}
@@ -163,33 +162,32 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
             ))}
           </div>
         ) : null}
-      </aside>
-
-      <section className="list-panel snippet-list-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>{t('snippets.list')}</h2>
-            <span>{t('snippets.listHint')}</span>
+        <div className="snippet-library-section">
+          <div className="panel-heading">
+            <div>
+              <h2>{t('snippets.list')}</h2>
+              <span>{t('snippets.listHint')}</span>
+            </div>
+            <FileCode2 size={18} aria-hidden="true" />
           </div>
-          <FileCode2 size={18} aria-hidden="true" />
+          {data.snippets.length === 0 ? (
+            <EmptyState title={t('app.empty')} description={t('snippets.emptyHint')} />
+          ) : filteredSnippets.length === 0 ? (
+            <EmptyState title={t('snippets.noFilterResults')} description={t('hosts.noFilterResultsHint')} />
+          ) : (
+            <div className="data-list snippet-data-list">
+              {filteredSnippets.map((snippet) => (
+                <SnippetRow
+                  key={snippet.id}
+                  snippet={snippet}
+                  active={snippet.id === editingId}
+                  onSelect={() => setEditingId(snippet.id)}
+                />
+              ))}
+            </div>
+          )}
         </div>
-        {data.snippets.length === 0 ? (
-          <EmptyState title={t('app.empty')} description={t('snippets.emptyHint')} />
-        ) : filteredSnippets.length === 0 ? (
-          <EmptyState title={t('snippets.noFilterResults')} description={t('hosts.noFilterResultsHint')} />
-        ) : (
-          <div className="data-list snippet-data-list">
-            {filteredSnippets.map((snippet) => (
-              <SnippetRow
-                key={snippet.id}
-                snippet={snippet}
-                active={snippet.id === editingId}
-                onSelect={() => setEditingId(snippet.id)}
-              />
-            ))}
-          </div>
-        )}
-      </section>
+      </aside>
 
       <section className="editor-panel snippet-editor-panel">
         <div className="panel-heading">
@@ -253,15 +251,6 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
               />
             </label>
             <div className="snippet-editor-options">
-              <Segmented
-                className="segmented-control"
-                value={form.default_action}
-                options={[
-                  { value: 'insert', label: t('snippets.action.insert') },
-                  { value: 'send', label: t('snippets.action.send') },
-                ]}
-                onChange={(value) => setForm({ ...form, default_action: value as CodeSnippetInput['default_action'] })}
-              />
               <Checkbox
                 id="snippet-favorite"
                 name="snippet-favorite"
@@ -332,9 +321,6 @@ function SnippetRow({ snippet, active, onSelect }: { snippet: CodeSnippet; activ
         <small>{snippet.description || snippet.command}</small>
         <span className="snippet-row-tags">
           <Tag className="soft-tag">{t(`snippets.shell.${snippet.shell || 'any'}`)}</Tag>
-          <Tag className="soft-tag" icon={snippet.default_action === 'send' ? <Send size={12} /> : <Play size={12} />}>
-            {t(`snippets.action.${snippet.default_action || 'insert'}`)}
-          </Tag>
           {risk.risky ? <Tag className="snippet-risk-tag">{t('snippets.riskDetected')}</Tag> : null}
         </span>
       </span>

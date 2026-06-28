@@ -167,10 +167,11 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
           <>
             <div className="host-filter-panel">
               <Input
-                className="host-search-input"
+                className="host-search-input termous-search-input"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
                 allowClear
+                variant="borderless"
                 prefix={<Search size={15} aria-hidden="true" />}
                 placeholder={t('hosts.searchPlaceholder')}
               />

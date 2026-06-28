@@ -49,7 +49,6 @@ export function normalizeSnippetInput(input: CodeSnippetInput): CodeSnippetInput
     command: input.command.trim(),
     tags: normalizeSnippetTags(input.tags),
     shell: input.shell || 'any',
-    default_action: input.default_action || 'insert',
     favorite: input.favorite,
   }
 }
@@ -61,7 +60,6 @@ export function snippetToInput(snippet: CodeSnippet): CodeSnippetInput {
     command: snippet.command,
     tags: snippet.tags ?? [],
     shell: snippet.shell || 'any',
-    default_action: snippet.default_action || 'insert',
     favorite: snippet.favorite,
   }
 }

@@ -177,7 +177,7 @@ export function useTermousData() {
       },
       async markCodeSnippetUsed(id: string) {
         const snippet = await api.markCodeSnippetUsed(id)
-        setData((current) => ({ ...current, snippets: upsertCodeSnippet(current.snippets, snippet) }))
+        setData((current) => ({ ...current, snippets: replaceCodeSnippet(current.snippets, snippet) }))
         return snippet
       },
       async createHost(input: HostInput) {
@@ -324,16 +324,26 @@ function upsertCodeSnippet(snippets: CodeSnippet[], next: CodeSnippet) {
   return [...merged].sort(sortCodeSnippets)
 }
 
+function replaceCodeSnippet(snippets: CodeSnippet[], next: CodeSnippet) {
+  if (!snippets.some((snippet) => snippet.id === next.id)) {
+    return upsertCodeSnippet(snippets, next)
+  }
+  return snippets.map((snippet) => (snippet.id === next.id ? next : snippet))
+}
+
 function sortCodeSnippets(left: CodeSnippet, right: CodeSnippet) {
   if (left.favorite !== right.favorite) {
     return left.favorite ? -1 : 1
   }
-  const leftLastUsed = left.last_used_at ? new Date(left.last_used_at).getTime() : 0
-  const rightLastUsed = right.last_used_at ? new Date(right.last_used_at).getTime() : 0
-  if (leftLastUsed !== rightLastUsed) {
-    return rightLastUsed - leftLastUsed
+  if (left.name !== right.name) {
+    return left.name.localeCompare(right.name)
   }
-  return new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime()
+  const leftCreatedAt = new Date(left.created_at).getTime()
+  const rightCreatedAt = new Date(right.created_at).getTime()
+  if (leftCreatedAt !== rightCreatedAt) {
+    return leftCreatedAt - rightCreatedAt
+  }
+  return left.id.localeCompare(right.id)
 }
 
 function publicMessage(error: unknown) {

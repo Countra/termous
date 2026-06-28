@@ -151,8 +151,6 @@ export type TerminalThemeMode = 'follow_app' | 'dark' | 'light'
 
 export type SnippetShell = 'any' | 'sh' | 'bash' | 'zsh' | 'powershell' | 'cmd'
 
-export type SnippetDefaultAction = 'insert' | 'send'
-
 export type AuthMethod = 'password' | 'private_key' | 'system'
 
 export type CredentialType = 'password' | 'private_key' | 'private_key_passphrase'
@@ -198,7 +196,6 @@ export interface CodeSnippet {
   command: string
   tags: string[]
   shell: SnippetShell
-  default_action: SnippetDefaultAction
   favorite: boolean
   use_count: number
   last_used_at?: string
@@ -212,7 +209,6 @@ export interface CodeSnippetInput {
   command: string
   tags: string[]
   shell: SnippetShell
-  default_action: SnippetDefaultAction
   favorite: boolean
 }
 
