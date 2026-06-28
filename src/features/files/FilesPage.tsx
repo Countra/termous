@@ -23,7 +23,7 @@ import {
   Upload,
   XCircle,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { HostContextPanel } from '../../components/hosts/HostContextPanel'
@@ -115,6 +115,8 @@ export function FilesPage({
   const uploadRefreshTasksRef = useRef(new Map<string, UploadRefreshTarget>())
   const lastSessionLoadKeyRef = useRef('')
   const lastActiveFileSessionIdRef = useRef('')
+  const fileSessionSocketsRef = useRef(new Map<string, WebSocket>())
+  const onUpdateFileSessionRef = useRef(onUpdateFileSession)
   const [currentPath, setCurrentPath] = useState('/')
   const [pathInput, setPathInput] = useState('/')
   const [entries, setEntries] = useState<RemoteFileEntry[]>([])
@@ -140,6 +142,14 @@ export function FilesPage({
   const activeFileSessionId = activeFileSession?.id ?? ''
   const fileSessionConnected = activeFileSession?.status === 'connected'
   const fileSessionIds = useMemo(() => data.fileSessions.map((session) => session.id).join('|'), [data.fileSessions])
+  const syncingFileSessionIds = useMemo(
+    () =>
+      data.fileSessions
+        .filter((session) => session.status === 'connecting' || session.status === 'waiting_trust')
+        .map((session) => session.id)
+        .join('|'),
+    [data.fileSessions],
+  )
   const selectedHostConnecting = selectedHostIdStable ? connectingHostIds.has(selectedHostIdStable) : false
 
   const selectedEntries = useMemo(
@@ -155,6 +165,10 @@ export function FilesPage({
     setActiveEntry(null)
     setError(null)
   }, [])
+
+  useEffect(() => {
+    onUpdateFileSessionRef.current = onUpdateFileSession
+  }, [onUpdateFileSession])
 
   const loadDirectory = useCallback(
     async (nextPath: string) => {
@@ -262,28 +276,74 @@ export function FilesPage({
   }, [activeFileSessionId, currentPath, fileSessionConnected, loadDirectory, transfers])
 
   useEffect(() => {
-    const ids = fileSessionIds ? fileSessionIds.split('|') : []
-    if (ids.length === 0) {
-      return undefined
-    }
-    const sockets = ids.map((fileSessionId) => {
+    const ids = new Set(fileSessionIds ? fileSessionIds.split('|') : [])
+    fileSessionSocketsRef.current.forEach((socket, fileSessionId) => {
+      if (!ids.has(fileSessionId)) {
+        socket.close()
+        fileSessionSocketsRef.current.delete(fileSessionId)
+      }
+    })
+    ids.forEach((fileSessionId) => {
+      if (fileSessionSocketsRef.current.has(fileSessionId)) {
+        return
+      }
       const socket = new WebSocket(api.fileSessionEventsUrl(fileSessionId))
+      fileSessionSocketsRef.current.set(fileSessionId, socket)
       socket.addEventListener('message', (event) => {
         try {
           const message = JSON.parse(String(event.data)) as FileSessionEventMessage
           if (message.session?.id) {
-            onUpdateFileSession(message.session)
+            onUpdateFileSessionRef.current(message.session)
           }
         } catch {
           socket.close()
         }
       })
-      return socket
+      socket.addEventListener('close', () => {
+        if (fileSessionSocketsRef.current.get(fileSessionId) === socket) {
+          fileSessionSocketsRef.current.delete(fileSessionId)
+        }
+      })
     })
-    return () => {
-      sockets.forEach((socket) => socket.close())
+  }, [api, fileSessionIds])
+
+  useEffect(
+    () => () => {
+      fileSessionSocketsRef.current.forEach((socket) => socket.close())
+      fileSessionSocketsRef.current.clear()
+    },
+    [],
+  )
+
+  useEffect(() => {
+    const ids = syncingFileSessionIds ? syncingFileSessionIds.split('|') : []
+    if (ids.length === 0) {
+      return undefined
     }
-  }, [api, fileSessionIds, onUpdateFileSession])
+    let disposed = false
+    const syncSessions = async () => {
+      await Promise.all(
+        ids.map(async (fileSessionId) => {
+          try {
+            const session = await api.getFileSession(fileSessionId)
+            if (!disposed) {
+              onUpdateFileSessionRef.current(session)
+            }
+          } catch {
+            // 事件流可能会因窗口休眠或网络抖动漏帧，轮询兜底失败时保持当前 UI 状态即可。
+          }
+        }),
+      )
+    }
+    void syncSessions()
+    const timer = window.setInterval(() => {
+      void syncSessions()
+    }, 1000)
+    return () => {
+      disposed = true
+      window.clearInterval(timer)
+    }
+  }, [api, syncingFileSessionIds])
 
   const hostKeyPromptQueue = useMemo(
     () =>
@@ -363,6 +423,16 @@ export function FilesPage({
     }
     viewport.scrollBy({ left: direction === 'left' ? -220 : 220, behavior: 'smooth' })
     window.setTimeout(updateTabScrollState, 180)
+  }, [updateTabScrollState])
+
+  const handleFileTabWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
+    const viewport = fileTabViewportRef.current
+    if (!viewport || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+      return
+    }
+    event.preventDefault()
+    viewport.scrollLeft += event.deltaY
+    updateTabScrollState()
   }, [updateTabScrollState])
 
   const closeFileSessionFromTab = useCallback(
@@ -846,6 +916,7 @@ export function FilesPage({
               }`}
               role="tablist"
               aria-label={t('files.sessions')}
+              onWheel={handleFileTabWheel}
             >
               {data.fileSessions.length === 0 ? (
                 <SessionTabButton empty role="tab" icon={<Folder size={15} />} label={t('files.noFileSession')} />

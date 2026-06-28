@@ -2604,34 +2604,43 @@
 }
 
 .files-session-toolbar {
-  display: flex;
+  display: grid;
   min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
+  min-height: 64px;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
   padding: 10px 12px;
 }
 
 .files-session-tabs-shell {
+  display: grid;
   min-width: 0;
-  flex: 1 1 auto;
-  gap: 10px;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
 }
 
 .files-session-tabs {
-  gap: 0;
+  display: flex;
   min-width: 0;
-  margin-inline: 2px;
+  align-items: center;
+  gap: 10px;
+  overflow: auto hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+
+.files-session-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .files-session-tabs .session-tab-button.ant-btn {
-  margin-inline-end: 10px;
-}
-
-.files-session-tabs .session-tab-button.ant-btn:last-of-type {
-  margin-inline-end: 0;
+  flex: 0 0 auto;
 }
 
 .session-dot.is-waiting_trust {
