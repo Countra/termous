@@ -16,6 +16,8 @@ export type TerminalSearchDirection = 'next' | 'previous'
 
 export type TerminalClipboardAction = 'copied' | 'pasted' | 'empty' | 'none' | 'failed'
 
+export type TerminalSendResult = 'sent' | 'missing_session' | 'not_ready' | 'failed'
+
 export interface TerminalClipboardOptions {
   clearSelectionAfterCopy?: boolean
 }
@@ -42,6 +44,8 @@ export interface TerminalRuntimeContextValue {
   copyActiveSelection: () => Promise<TerminalClipboardAction>
   pasteActiveClipboard: () => Promise<TerminalClipboardAction>
   copyOrPasteActive: (options?: TerminalClipboardOptions) => Promise<TerminalClipboardAction>
+  sendTextToSession: (sessionId: string, text: string, options?: { execute?: boolean }) => TerminalSendResult
+  sendTextToActive: (text: string, options?: { execute?: boolean }) => TerminalSendResult
 }
 
 export const TerminalRuntimeContext = createContext<TerminalRuntimeContextValue | null>(null)

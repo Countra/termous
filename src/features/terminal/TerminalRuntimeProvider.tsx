@@ -23,6 +23,7 @@ import {
   type TerminalSearchDirection,
   type TerminalSearchOptions,
   type TerminalSearchResult,
+  type TerminalSendResult,
   type TerminalViewportOptions,
 } from './terminalRuntimeContext'
 import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from './terminalFonts'
@@ -190,6 +191,32 @@ export function TerminalRuntimeProvider({
     const targetSessionId = sessionId ?? activeSessionIdRef.current
     return targetSessionId ? entriesRef.current.get(targetSessionId) : undefined
   }, [])
+
+  const sendTextToSession = useCallback((sessionId: string, text: string, options?: { execute?: boolean }): TerminalSendResult => {
+    const entry = entriesRef.current.get(sessionId)
+    if (!entry) {
+      return 'missing_session'
+    }
+    if (activeSessionIdRef.current !== sessionId || !entry.isReady || entry.socket.readyState !== WebSocket.OPEN) {
+      return 'not_ready'
+    }
+    try {
+      const payload = options?.execute ? ensureTerminalEnter(text) : text
+      entry.socket.send(JSON.stringify({ type: 'input', data: payload }))
+      entry.terminal.focus()
+      return 'sent'
+    } catch {
+      return 'failed'
+    }
+  }, [])
+
+  const sendTextToActive = useCallback(
+    (text: string, options?: { execute?: boolean }) => {
+      const activeSessionId = activeSessionIdRef.current
+      return activeSessionId ? sendTextToSession(activeSessionId, text, options) : 'missing_session'
+    },
+    [sendTextToSession],
+  )
 
   const notifyClipboardError = useCallback(
     (translationKey: string) => {
@@ -563,6 +590,8 @@ export function TerminalRuntimeProvider({
       copyActiveSelection,
       pasteActiveClipboard,
       copyOrPasteActive,
+      sendTextToSession,
+      sendTextToActive,
     }),
     [
       clearActiveSearch,
@@ -575,6 +604,8 @@ export function TerminalRuntimeProvider({
       registerViewport,
       scheduleActiveResize,
       searchActive,
+      sendTextToActive,
+      sendTextToSession,
     ],
   )
 
@@ -829,6 +860,10 @@ function fallbackCopyText(text: string) {
     textarea.remove()
   }
   return copied
+}
+
+function ensureTerminalEnter(text: string) {
+  return /\r?\n$/.test(text) ? text : `${text}\r`
 }
 
 function terminalTheme(settings: TerminalSettings, appTheme: ThemeMode) {

@@ -2,18 +2,23 @@ import {
   Cable,
   ChevronLeft,
   ChevronRight,
+  Code2,
   Layers,
   Monitor,
   FolderOpen,
   PanelRightClose,
   PanelRightOpen,
   Power,
+  Play,
   Search,
+  Send,
   Server,
   Shell,
   SquareTerminal,
+  Star,
+  TriangleAlert,
 } from 'lucide-react'
-import { Button, Dropdown, Tooltip, type MenuProps } from 'antd'
+import { App as AntdApp, Button, Dropdown, Input, Tooltip, type MenuProps } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostContextPanel } from '../../components/hosts/HostContextPanel'
@@ -27,7 +32,8 @@ import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalViewport } from '../terminal/TerminalViewport'
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
-import type { AppData, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
+import type { AppData, CodeSnippet, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
+import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
 
 interface TerminalSearchState {
   open: boolean
@@ -50,6 +56,7 @@ interface WorkbenchPageProps {
   onSelectSession: (sessionId: string) => void
   onDisconnect: (sessionId: string) => Promise<void>
   onOpenFiles: (session: Session) => Promise<void>
+  onSnippetUsed: (snippetId: string) => Promise<void>
 }
 
 export function WorkbenchPage({
@@ -64,9 +71,11 @@ export function WorkbenchPage({
   onSelectSession,
   onDisconnect,
   onOpenFiles,
+  onSnippetUsed,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
-  const { searchActive, clearActiveSearch } = useTerminalRuntime()
+  const { modal, notification } = AntdApp.useApp()
+  const { searchActive, clearActiveSearch, sendTextToSession } = useTerminalRuntime()
   const [hostPanelCollapsed, setHostPanelCollapsed] = usePersistentBooleanState(
     'termous.ui.workbench.hostPanelCollapsed.v1',
     false,
@@ -81,6 +90,7 @@ export function WorkbenchPage({
   const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
   const [recentlyConnectedSessionId, setRecentlyConnectedSessionId] = useState<string | null>(null)
   const [pendingSearchSessionId, setPendingSearchSessionId] = useState<string | null>(null)
+  const [snippetQuery, setSnippetQuery] = useState('')
   const [terminalSearch, setTerminalSearch] = useState<TerminalSearchState>({
     open: false,
     sessionId: null,
@@ -118,6 +128,22 @@ export function WorkbenchPage({
   const sessionResult = activeSession?.last_error ?? (activeSession?.exit_code !== undefined ? String(activeSession.exit_code) : t('fields.none'))
   const terminalThemeMode = data.settings.terminal.theme_mode === 'follow_app' ? theme : data.settings.terminal.theme_mode
   const canOpenFiles = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected' && activeSession.host_id)
+  const canSendSnippet = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected')
+  const filteredSnippets = useMemo(() => {
+    const tokens = snippetQuery.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    const snippets = data.snippets
+    if (tokens.length === 0) {
+      return snippets.slice(0, 8)
+    }
+    return snippets
+      .filter((snippet) => {
+        const searchable = [snippet.name, snippet.description ?? '', snippet.command, snippet.shell, ...(snippet.tags ?? [])]
+          .join(' ')
+          .toLowerCase()
+        return tokens.every((token) => searchable.includes(token))
+      })
+      .slice(0, 8)
+  }, [data.snippets, snippetQuery])
   const sessionSearchMenuItems = useMemo<MenuProps['items']>(
     () => [
       {
@@ -312,6 +338,110 @@ export function WorkbenchPage({
       closeSessionTab(sessionId)
     },
     [closeSessionTab],
+  )
+
+  const resolveSnippetCommand = useCallback(
+    async (snippet: CodeSnippet) => {
+      const variables = extractSnippetVariables(snippet.command)
+      if (variables.length === 0) {
+        return snippet.command
+      }
+      const values = Object.fromEntries(variables.map((variable) => [variable, '']))
+      return new Promise<string | null>((resolve) => {
+        modal.confirm({
+          title: t('snippets.variablesTitle'),
+          okText: t('app.confirm'),
+          cancelText: t('app.cancel'),
+          centered: true,
+          className: 'termous-modal',
+          content: (
+            <SnippetVariablePrompt
+              variables={variables}
+              onChange={(name, value) => {
+                values[name] = value
+              }}
+            />
+          ),
+          onOk: () => {
+            resolve(renderSnippetCommand(snippet.command, values))
+          },
+          onCancel: () => resolve(null),
+        })
+      })
+    },
+    [modal, t],
+  )
+
+  const confirmRiskySnippet = useCallback(
+    async (snippet: CodeSnippet, command: string) => {
+      const risk = analyzeSnippetRisk(command)
+      if (!risk.risky) {
+        return true
+      }
+      return new Promise<boolean>((resolve) => {
+        modal.confirm({
+          title: t('snippets.riskConfirmTitle'),
+          okText: t('snippets.sendAnyway'),
+          cancelText: t('app.cancel'),
+          okButtonProps: { danger: true },
+          centered: true,
+          className: 'termous-modal',
+          content: <SnippetRiskDialog snippet={snippet} reasons={risk.reasons} />,
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        })
+      })
+    },
+    [modal, t],
+  )
+
+  const sendSnippet = useCallback(
+    async (snippet: CodeSnippet, execute: boolean) => {
+      if (!activeSession?.id || !canSendSnippet) {
+        notification.warning({
+          title: t('snippets.noActiveSession'),
+          duration: 3,
+          role: 'status',
+          className: 'termous-notification',
+        })
+        return
+      }
+      const command = await resolveSnippetCommand(snippet)
+      if (!command) {
+        return
+      }
+      if (execute && !(await confirmRiskySnippet(snippet, command))) {
+        return
+      }
+      const result = sendTextToSession(activeSession.id, command, { execute })
+      if (result !== 'sent') {
+        notification.error({
+          title: t('snippets.sendFailed'),
+          description: t(`snippets.sendResult.${result}`),
+          duration: 4,
+          role: 'alert',
+          className: 'termous-notification',
+        })
+        return
+      }
+      await onSnippetUsed(snippet.id)
+      notification.success({
+        title: execute ? t('snippets.sent') : t('snippets.inserted'),
+        duration: 2,
+        role: 'status',
+        className: 'termous-notification',
+      })
+    },
+    [
+      activeSession?.id,
+      canSendSnippet,
+      confirmRiskySnippet,
+      notification,
+      onSnippetUsed,
+      resolveSnippetCommand,
+      sendTextToSession,
+      t,
+    ],
   )
 
   useEffect(() => {
@@ -620,6 +750,42 @@ export function WorkbenchPage({
                 {t('workbench.closeSession')}
               </Button>
             </div>
+            <section className="snippet-send-panel">
+              <div className="snippet-send-head">
+                <div>
+                  <h3>{t('snippets.sendPanelTitle')}</h3>
+                  <span>{canSendSnippet ? t('snippets.sendPanelHint') : t('snippets.noActiveSession')}</span>
+                </div>
+                <Code2 size={17} aria-hidden="true" />
+              </div>
+              <Input
+                id="workbench-snippet-search"
+                name="workbench-snippet-search"
+                className="host-search-input snippet-quick-search"
+                value={snippetQuery}
+                allowClear
+                prefix={<Search size={14} aria-hidden="true" />}
+                placeholder={t('snippets.searchPlaceholder')}
+                onChange={(event) => setSnippetQuery(event.target.value)}
+              />
+              {data.snippets.length === 0 ? (
+                <div className="snippet-send-empty">{t('snippets.emptyHint')}</div>
+              ) : filteredSnippets.length === 0 ? (
+                <div className="snippet-send-empty">{t('snippets.noFilterResults')}</div>
+              ) : (
+                <div className="snippet-send-list">
+                  {filteredSnippets.map((snippet) => (
+                    <SnippetSendRow
+                      key={snippet.id}
+                      snippet={snippet}
+                      disabled={!canSendSnippet || actionBusy}
+                      onInsert={() => void sendSnippet(snippet, false)}
+                      onSend={() => void sendSnippet(snippet, true)}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
           </>
         )}
       </aside>
@@ -686,5 +852,76 @@ function TerminalTabMenuItem({
       <span className="terminal-tab-menu-icon">{icon}</span>
       <span className="terminal-tab-menu-label">{title}</span>
     </span>
+  )
+}
+
+function SnippetSendRow({
+  snippet,
+  disabled,
+  onInsert,
+  onSend,
+}: {
+  snippet: CodeSnippet
+  disabled: boolean
+  onInsert: () => void
+  onSend: () => void
+}) {
+  const { t } = useTranslation()
+  const risk = analyzeSnippetRisk(snippet.command)
+  return (
+    <div className="snippet-send-row">
+      <div className="snippet-send-copy">
+        <strong>
+          {snippet.favorite ? <Star size={12} aria-hidden="true" /> : null}
+          {snippet.name}
+          {risk.risky ? <TriangleAlert size={13} aria-label={t('snippets.riskDetected')} /> : null}
+        </strong>
+        <small>{snippet.command}</small>
+      </div>
+      <div className="snippet-send-actions">
+        <Tooltip title={t('snippets.action.insert')}>
+          <Button type="text" disabled={disabled} aria-label={t('snippets.action.insert')} icon={<Play size={14} />} onClick={onInsert} />
+        </Tooltip>
+        <Tooltip title={t('snippets.action.send')}>
+          <Button type="text" disabled={disabled} aria-label={t('snippets.action.send')} icon={<Send size={14} />} onClick={onSend} />
+        </Tooltip>
+      </div>
+    </div>
+  )
+}
+
+function SnippetVariablePrompt({
+  variables,
+  onChange,
+}: {
+  variables: string[]
+  onChange: (name: string, value: string) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="snippet-variable-prompt">
+      <p>{t('snippets.variablesHint')}</p>
+      {variables.map((variable) => (
+        <label className="field" key={variable}>
+          <span className="field-label">{`{{${variable}}}`}</span>
+          <Input autoFocus={variables[0] === variable} onChange={(event) => onChange(variable, event.target.value)} />
+        </label>
+      ))}
+    </div>
+  )
+}
+
+function SnippetRiskDialog({ snippet, reasons }: { snippet: CodeSnippet; reasons: string[] }) {
+  const { t } = useTranslation()
+  return (
+    <div className="snippet-risk-dialog">
+      <p>{t('snippets.riskConfirmDescription')}</p>
+      <strong>{snippet.name}</strong>
+      <ul>
+        {reasons.map((reason) => (
+          <li key={reason}>{t(`snippets.riskReasons.${reason}`)}</li>
+        ))}
+      </ul>
+    </div>
   )
 }

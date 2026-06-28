@@ -6,13 +6,14 @@ import { AppShell } from './components/layout/AppShell'
 import { HostsPage } from './features/hosts/HostsPage'
 import { FilesPage } from './features/files/FilesPage'
 import { SettingsPage } from './features/settings/SettingsPage'
+import { SnippetsPage } from './features/snippets/SnippetsPage'
 import { VaultPage } from './features/vault/VaultPage'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CredentialInput, HostInput, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
+import type { CodeSnippetInput, CredentialInput, HostInput, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -164,6 +165,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       }
     }, t('app.save'))
 
+  const saveCodeSnippet = (id: string | null, input: CodeSnippetInput) =>
+    runAction(async () => {
+      if (id) {
+        await actions.updateCodeSnippet(id, input)
+      } else {
+        await actions.createCodeSnippet(input)
+      }
+    }, t('app.save'))
+
   const showActionError = (actionError: unknown) => {
     notification.error({
       title: t('app.error'),
@@ -274,6 +284,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onSelectSession={actions.selectSession}
             onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
             onOpenFiles={openFilesFromSession}
+            onSnippetUsed={(snippetId) => actions.markCodeSnippetUsed(snippetId).then(() => undefined)}
           />
         ) : null}
 
@@ -327,6 +338,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onReconnectFileSession={actions.reconnectFileSession}
             onTrustFileSessionHost={actions.trustFileSessionHost}
             onUpdateFileSession={actions.updateFileSession}
+          />
+        ) : null}
+
+        {page === 'snippets' ? (
+          <SnippetsPage
+            data={data}
+            actionBusy={actionBusy}
+            onSave={saveCodeSnippet}
+            onDelete={(id) => runAction(() => actions.deleteCodeSnippet(id))}
           />
         ) : null}
 

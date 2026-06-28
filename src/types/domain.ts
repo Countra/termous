@@ -2,7 +2,7 @@ export type Language = 'zh-CN' | 'en-US'
 
 export type ThemeMode = 'dark' | 'light'
 
-export type PageKey = 'workbench' | 'hosts' | 'vault' | 'files' | 'settings'
+export type PageKey = 'workbench' | 'hosts' | 'vault' | 'files' | 'snippets' | 'settings'
 
 export type RemoteFileKind = 'file' | 'directory' | 'symlink' | 'other'
 
@@ -149,6 +149,10 @@ export type TerminalCursorStyle = 'block' | 'bar' | 'underline'
 
 export type TerminalThemeMode = 'follow_app' | 'dark' | 'light'
 
+export type SnippetShell = 'any' | 'sh' | 'bash' | 'zsh' | 'powershell' | 'cmd'
+
+export type SnippetDefaultAction = 'insert' | 'send'
+
 export type AuthMethod = 'password' | 'private_key' | 'system'
 
 export type CredentialType = 'password' | 'private_key' | 'private_key_passphrase'
@@ -185,6 +189,31 @@ export interface TerminalSettings {
   cursor_blink: boolean
   theme_mode: TerminalThemeMode
   scrollback: 1000 | 5000 | 10000 | 50000
+}
+
+export interface CodeSnippet {
+  id: string
+  name: string
+  description?: string
+  command: string
+  tags: string[]
+  shell: SnippetShell
+  default_action: SnippetDefaultAction
+  favorite: boolean
+  use_count: number
+  last_used_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CodeSnippetInput {
+  name: string
+  description: string
+  command: string
+  tags: string[]
+  shell: SnippetShell
+  default_action: SnippetDefaultAction
+  favorite: boolean
 }
 
 export interface Host {
@@ -308,6 +337,7 @@ export interface AppData {
   knownHosts: KnownHost[]
   sessions: Session[]
   fileSessions: FileSession[]
+  snippets: CodeSnippet[]
   settings: Settings
   terminalFonts: TerminalFont[]
 }

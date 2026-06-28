@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createApiFromRuntime, TermousApi, TermousApiError } from '../api/client'
 import type {
   AppData,
+  CodeSnippet,
+  CodeSnippetInput,
   CredentialInput,
   FileSession,
   HostInput,
@@ -25,6 +27,7 @@ const initialData: AppData = {
   knownHosts: [],
   sessions: [],
   fileSessions: [],
+  snippets: [],
   settings: initialSettings,
   terminalFonts: [],
 }
@@ -48,9 +51,10 @@ export function useTermousData() {
     setError(null)
     try {
       await apiClient.health()
-      const [settings, terminalFonts, groups, hosts, credentials, knownHosts, sessions, fileSessions] = await Promise.all([
+      const [settings, terminalFonts, snippets, groups, hosts, credentials, knownHosts, sessions, fileSessions] = await Promise.all([
         apiClient.settings(),
         apiClient.terminalFonts(),
+        apiClient.codeSnippets(),
         apiClient.hostGroups(),
         apiClient.hosts(),
         apiClient.credentials(),
@@ -68,6 +72,7 @@ export function useTermousData() {
         knownHosts: knownHosts ?? [],
         sessions: nextSessions,
         fileSessions: fileSessions ?? [],
+        snippets: snippets ?? [],
         terminalFonts: terminalFonts ?? [],
       })
       setActiveSession((current) => {
@@ -155,6 +160,25 @@ export function useTermousData() {
           settings: normalizeSettings(settings),
           terminalFonts: terminalFonts ?? current.terminalFonts.filter((font) => font.id !== id),
         }))
+      },
+      async createCodeSnippet(input: CodeSnippetInput) {
+        const snippet = await api.createCodeSnippet(input)
+        setData((current) => ({ ...current, snippets: upsertCodeSnippet(current.snippets, snippet) }))
+        return snippet
+      },
+      async updateCodeSnippet(id: string, input: CodeSnippetInput) {
+        const snippet = await api.updateCodeSnippet(id, input)
+        setData((current) => ({ ...current, snippets: upsertCodeSnippet(current.snippets, snippet) }))
+        return snippet
+      },
+      async deleteCodeSnippet(id: string) {
+        await api.deleteCodeSnippet(id)
+        setData((current) => ({ ...current, snippets: current.snippets.filter((snippet) => snippet.id !== id) }))
+      },
+      async markCodeSnippetUsed(id: string) {
+        const snippet = await api.markCodeSnippetUsed(id)
+        setData((current) => ({ ...current, snippets: upsertCodeSnippet(current.snippets, snippet) }))
+        return snippet
       },
       async createHost(input: HostInput) {
         await api.createHost(input)
@@ -292,6 +316,24 @@ function upsertFileSession(fileSessions: FileSession[], next: FileSession) {
     return fileSessions.map((session) => (session.id === next.id ? next : session))
   }
   return [next, ...fileSessions]
+}
+
+function upsertCodeSnippet(snippets: CodeSnippet[], next: CodeSnippet) {
+  const exists = snippets.some((snippet) => snippet.id === next.id)
+  const merged = exists ? snippets.map((snippet) => (snippet.id === next.id ? next : snippet)) : [next, ...snippets]
+  return [...merged].sort(sortCodeSnippets)
+}
+
+function sortCodeSnippets(left: CodeSnippet, right: CodeSnippet) {
+  if (left.favorite !== right.favorite) {
+    return left.favorite ? -1 : 1
+  }
+  const leftLastUsed = left.last_used_at ? new Date(left.last_used_at).getTime() : 0
+  const rightLastUsed = right.last_used_at ? new Date(right.last_used_at).getTime() : 0
+  if (leftLastUsed !== rightLastUsed) {
+    return rightLastUsed - leftLastUsed
+  }
+  return new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime()
 }
 
 function publicMessage(error: unknown) {

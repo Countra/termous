@@ -1,6 +1,8 @@
 import type {
   ApiErrorBody,
   AppConfig,
+  CodeSnippet,
+  CodeSnippetInput,
   CredentialInput,
   CredentialView,
   FileSession,
@@ -95,6 +97,32 @@ export class TermousApi {
       method: 'PATCH',
       body: terminal,
     })
+  }
+
+  codeSnippets() {
+    return this.request<CodeSnippet[]>('/api/v1/snippets')
+  }
+
+  createCodeSnippet(input: CodeSnippetInput) {
+    return this.request<CodeSnippet>('/api/v1/snippets', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  updateCodeSnippet(id: string, input: CodeSnippetInput) {
+    return this.request<CodeSnippet>(`/api/v1/snippets/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  }
+
+  deleteCodeSnippet(id: string) {
+    return this.request<void>(`/api/v1/snippets/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  markCodeSnippetUsed(id: string) {
+    return this.request<CodeSnippet>(`/api/v1/snippets/${encodeURIComponent(id)}/used`, { method: 'POST' })
   }
 
   terminalFonts() {

@@ -67,6 +67,8 @@ export function HostContextPanel({
       </div>
       {!collapsed && searchPlaceholder ? (
         <Input
+          id="host-context-search"
+          name="host-context-search"
           className="host-search-input host-context-search"
           value={query}
           allowClear
