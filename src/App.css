@@ -74,7 +74,6 @@
 .primary-button,
 .secondary-button,
 .danger-button,
-.terminal-tab,
 .select-trigger,
 .select-option,
 .data-row,
@@ -636,18 +635,6 @@
 
 .connection-phase.is-failed {
   color: var(--danger);
-}
-
-.terminal-tab {
-  max-width: 260px;
-  overflow: hidden;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--accent-soft) 76%, var(--surface-subtle));
-  color: var(--text-primary);
-  padding: 7px 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  box-shadow: var(--inner-highlight);
 }
 
 .terminal-canvas {

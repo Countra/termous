@@ -27,7 +27,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { HostContextPanel } from '../../components/hosts/HostContextPanel'
+import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { EmptyState } from '../../components/ui/EmptyState'
+import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
 import type {
   AppData,
@@ -819,26 +821,22 @@ export function FilesPage({
               aria-label={t('files.sessions')}
             >
               {data.fileSessions.length === 0 ? (
-                <Button type="text" className="terminal-tab is-empty" role="tab" icon={<Folder size={15} />}>
-                  {t('files.noFileSession')}
-                </Button>
+                <SessionTabButton empty role="tab" icon={<Folder size={15} />} label={t('files.noFileSession')} />
               ) : (
                 data.fileSessions.map((fileSession) => {
                   const host = data.hosts.find((item) => item.id === fileSession.host_id)
                   return (
-                    <Button
+                    <SessionTabButton
                       key={fileSession.id}
-                      type="text"
-                      className={`terminal-tab ${fileSession.id === activeFileSessionId ? 'is-active' : ''}`}
+                      active={fileSession.id === activeFileSessionId}
                       role="tab"
                       aria-selected={fileSession.id === activeFileSessionId}
                       onClick={() => onSelectFileSession(fileSession.id)}
                       onMouseDown={(event) => closeFileSessionFromTab(event, fileSession.id)}
                       icon={<Folder size={15} />}
-                    >
-                      <span className={`session-dot is-${fileSession.status}`} />
-                      <span>{host?.name ?? shortId(fileSession.id)}</span>
-                    </Button>
+                      label={host?.name ?? shortId(fileSession.id)}
+                      status={fileSession.status}
+                    />
                   )
                 })
               )}
@@ -854,15 +852,14 @@ export function FilesPage({
               />
             </Tooltip>
           </div>
-          <Button
-            className="primary-button"
+          <ConnectionActionButton
             disabled={!selectedHostIdStable || Boolean(connectingHostId)}
             loading={Boolean(connectingHostId)}
             icon={<Link size={15} />}
             onClick={() => void connectSelectedHost()}
           >
             {t('files.connect')}
-          </Button>
+          </ConnectionActionButton>
         </div>
         <div className="files-main-toolbar">
           <div className="files-path-stack">
@@ -906,7 +903,13 @@ export function FilesPage({
             <Button className="secondary-button" disabled={actionDisabled} icon={<Folder size={15} />} onClick={() => void pickFolder()}>
               {t('files.uploadFolder')}
             </Button>
-            <Button className="primary-button" disabled={selectedPaths.length === 0} icon={<Download size={15} />} onClick={() => void downloadSelected()}>
+            <Button
+              type="primary"
+              className="primary-button"
+              disabled={selectedPaths.length === 0}
+              icon={<Download size={15} />}
+              onClick={() => void downloadSelected()}
+            >
               {t('files.download')}
             </Button>
             <Button className="secondary-button" disabled={selectedPaths.length === 0} icon={<Copy size={15} />} onClick={() => copySelected('copy')}>

@@ -17,7 +17,9 @@ import { Button, Dropdown, Tooltip, type MenuProps } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostContextPanel } from '../../components/hosts/HostContextPanel'
+import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
+import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
 import { ConnectionProgress } from '../terminal/ConnectionProgress'
@@ -399,15 +401,13 @@ export function WorkbenchPage({
             <Button className="secondary-button" disabled={actionBusy} onClick={() => void onOpenLocal('cmd')} icon={<Monitor size={16} />}>
               {t('workbench.openCmd')}
             </Button>
-            <Button
-              type="primary"
-              className="primary-button"
+            <ConnectionActionButton
               disabled={!selectedHost || actionBusy}
               onClick={() => selectedHost && void onConnect(selectedHost.id)}
               icon={<Cable size={16} />}
             >
               {t('app.connect')}
-            </Button>
+            </ConnectionActionButton>
           </div>
         </div>
 
@@ -444,9 +444,7 @@ export function WorkbenchPage({
                 onWheel={handleTabWheel}
               >
                 {data.sessions.length === 0 ? (
-                  <Button type="text" className="terminal-tab is-empty" role="tab" icon={<SquareTerminal size={15} />}>
-                    {t('workbench.noSession')}
-                  </Button>
+                  <SessionTabButton empty role="tab" icon={<SquareTerminal size={15} />} label={t('workbench.noSession')} />
                 ) : (
                     data.sessions.map((session) => {
                       const title = sessionTitle(session, data.hosts, t)
@@ -465,7 +463,7 @@ export function WorkbenchPage({
                             },
                           }}
                         >
-                          <Button
+                          <SessionTabButton
                             ref={(node) => {
                               if (node) {
                                 tabButtonRefs.current.set(session.id, node)
@@ -473,8 +471,7 @@ export function WorkbenchPage({
                                 tabButtonRefs.current.delete(session.id)
                               }
                             }}
-                            type="text"
-                            className={`terminal-tab ${session.id === activeSession?.id ? 'is-active' : ''}`}
+                            active={session.id === activeSession?.id}
                             role="tab"
                             aria-selected={session.id === activeSession?.id}
                             onClick={() => onSelectSession(session.id)}
@@ -485,10 +482,9 @@ export function WorkbenchPage({
                             }}
                             onAuxClick={(event) => closeSessionFromTab(event, session.id)}
                             icon={<SquareTerminal size={15} />}
-                          >
-                            <span className={`session-dot is-${session.status}`} />
-                            <span>{title}</span>
-                          </Button>
+                            label={title}
+                            status={session.status}
+                          />
                         </Dropdown>
                       )
                     })
