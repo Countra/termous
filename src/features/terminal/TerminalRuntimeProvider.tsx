@@ -669,8 +669,11 @@ function handleSocketMessage(
       status?: SessionStatus
       phase?: SessionPhase
       progress?: number
+      session?: Session
     }
-    if (msg.type === 'status' || msg.type === 'phase' || msg.type === 'ready') {
+    if (msg.session) {
+      onSessionEvent?.(entry.sessionId, msg.session)
+    } else if (msg.type === 'status' || msg.type === 'phase' || msg.type === 'ready' || msg.type === 'inventory') {
       if (msg.status || msg.phase || typeof msg.progress === 'number') {
         const patch: Partial<Session> = { status_message: msg.message }
         if (msg.status) patch.status = msg.status

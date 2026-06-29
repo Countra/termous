@@ -3,6 +3,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Code2,
+  Clock3,
+  Cpu,
+  HardDrive,
   Layers,
   Monitor,
   FolderOpen,
@@ -23,7 +26,7 @@ import {
   Star,
   TriangleAlert,
 } from 'lucide-react'
-import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Tooltip, type MenuProps } from 'antd'
+import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tabs, Tooltip, type MenuProps } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostContextPanel } from '../../components/hosts/HostContextPanel'
@@ -127,6 +130,7 @@ export function WorkbenchPage({
   const [renameValue, setRenameValue] = useState('')
   const [colorSessionId, setColorSessionId] = useState<string | null>(null)
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
+  const selectedCredential = data.credentials.find((item) => item.id === selectedHost?.credential_id)
   const activeSessionId = activeSession?.id
   const activeSessionStatus = activeSession?.status
   const sessionStatus = activeSession?.status ?? 'disconnected'
@@ -136,13 +140,14 @@ export function WorkbenchPage({
       activeSession.status !== 'disconnected' &&
       (activeSession.status !== 'connected' || showRecentConnectionProgress),
   )
-  const credential = data.credentials.find((item) => item.id === selectedHost?.credential_id)
-  const jumpHost = data.hosts.find((host) => host.id === selectedHost?.jump_host_id)
   const [terminalSize, setTerminalSize] = useState({ cols: activeSession?.pty_cols ?? 120, rows: activeSession?.pty_rows ?? 32 })
   const handleTerminalResize = useCallback((cols: number, rows: number) => {
     setTerminalSize({ cols, rows })
   }, [])
   const sessionHost = activeSession?.host_id ? data.hosts.find((host) => host.id === activeSession.host_id) : undefined
+  const detailHost = sessionHost ?? selectedHost
+  const detailCredential = data.credentials.find((item) => item.id === detailHost?.credential_id)
+  const detailJumpHost = data.hosts.find((host) => host.id === detailHost?.jump_host_id)
   const visibleSessions = useMemo(
     () => sortSessionsForTabs(data.sessions, sessionTabPreferences),
     [data.sessions, sessionTabPreferences],
@@ -703,7 +708,7 @@ export function WorkbenchPage({
           <Metric
             icon={<Power size={18} />}
             label={t('workbench.credentialState')}
-            value={credential ? t('status.available') : t('status.notConfigured')}
+            value={selectedCredential ? t('status.available') : t('status.notConfigured')}
           />
         </div>
 
@@ -885,54 +890,79 @@ export function WorkbenchPage({
           </div>
         ) : (
           <>
-            <CustomSelect
-              label={t('workbench.selectHost')}
-              value={selectedHost?.id ?? ''}
-              onChange={onSelectHost}
-              options={data.hosts.map((host) => ({ value: host.id, label: host.name, description: host.address }))}
-              disabled={data.hosts.length === 0}
+            <Tabs
+              className="details-tabs"
+              size="small"
+              items={[
+                {
+                  key: 'overview',
+                  label: t('workbench.detailsTabs.overview'),
+                  children: (
+                    <div className="connection-overview-panel">
+                      <CustomSelect
+                        label={t('workbench.selectHost')}
+                        value={selectedHost?.id ?? ''}
+                        onChange={onSelectHost}
+                        options={data.hosts.map((host) => ({ value: host.id, label: host.name, description: host.address }))}
+                        disabled={data.hosts.length === 0}
+                      />
+                      <dl className="detail-list">
+                        <div>
+                          <dt>{t('hosts.address')}</dt>
+                          <dd>{detailHost ? `${detailHost.address}:${detailHost.port}` : t('fields.none')}</dd>
+                        </div>
+                        <div>
+                          <dt>{t('hosts.username')}</dt>
+                          <dd>{detailHost?.username ?? t('fields.none')}</dd>
+                        </div>
+                        <div>
+                          <dt>{t('hosts.platform.label')}</dt>
+                          <dd>{detailHost?.platform === 'linux' ? t('hosts.platform.linux') : t('fields.none')}</dd>
+                        </div>
+                        <div>
+                          <dt>{t('workbench.credential')}</dt>
+                          <dd>{detailHost?.auth_method === 'system' ? t('hosts.systemAuth') : detailCredential?.name ?? t('fields.none')}</dd>
+                        </div>
+                        <div>
+                          <dt>{t('workbench.sessionState')}</dt>
+                          <dd>{sessionStateLabel}</dd>
+                        </div>
+                        {detailJumpHost ? (
+                          <div>
+                            <dt>{t('workbench.jumpHost')}</dt>
+                            <dd>{detailJumpHost.name}</dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                      <div className="current-connection-actions">
+                        <Button
+                          className="secondary-button"
+                          disabled={!canOpenFiles || actionBusy || !activeSession}
+                          onClick={() => activeSession && void onOpenFiles(activeSession)}
+                          icon={<FolderOpen size={16} />}
+                        >
+                          {t('workbench.manageFiles')}
+                        </Button>
+                        <Button
+                          danger
+                          className="danger-button"
+                          disabled={!activeSession || actionBusy}
+                          onClick={() => activeSession && void onDisconnect(activeSession.id)}
+                          icon={<Power size={16} />}
+                        >
+                          {t('workbench.closeSession')}
+                        </Button>
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'system',
+                  label: t('workbench.detailsTabs.systemInfo'),
+                  children: <SystemInfoPanel session={activeSession} t={t} />,
+                },
+              ]}
             />
-            <dl className="detail-list">
-              <div>
-                <dt>{t('hosts.address')}</dt>
-                <dd>{selectedHost ? `${selectedHost.address}:${selectedHost.port}` : t('fields.none')}</dd>
-              </div>
-              <div>
-                <dt>{t('hosts.username')}</dt>
-                <dd>{selectedHost?.username ?? t('fields.none')}</dd>
-              </div>
-              <div>
-                <dt>{t('workbench.credential')}</dt>
-                <dd>{selectedHost?.auth_method === 'system' ? t('hosts.systemAuth') : credential?.name ?? t('fields.none')}</dd>
-              </div>
-              <div>
-                <dt>{t('workbench.sessionState')}</dt>
-                <dd>{sessionStateLabel}</dd>
-              </div>
-              <div>
-                <dt>{t('workbench.jumpHost')}</dt>
-                <dd>{jumpHost?.name ?? t('hosts.noJumpHost')}</dd>
-              </div>
-            </dl>
-            <div className="current-connection-actions">
-              <Button
-                className="secondary-button"
-                disabled={!canOpenFiles || actionBusy || !activeSession}
-                onClick={() => activeSession && void onOpenFiles(activeSession)}
-                icon={<FolderOpen size={16} />}
-              >
-                {t('workbench.manageFiles')}
-              </Button>
-              <Button
-                danger
-                className="danger-button"
-                disabled={!activeSession || actionBusy}
-                onClick={() => activeSession && void onDisconnect(activeSession.id)}
-                icon={<Power size={16} />}
-              >
-                {t('workbench.closeSession')}
-              </Button>
-            </div>
             <section className="snippet-send-panel">
               <div className="snippet-send-head">
                 <div>
@@ -1011,6 +1041,105 @@ function StatusItem({ label, value }: { label: string; value: string }) {
       <strong>{value}</strong>
     </span>
   )
+}
+
+type WorkbenchTranslate = (key: string, options?: Record<string, string | number>) => string
+
+function SystemInfoPanel({ session, t }: { session: Session | null; t: WorkbenchTranslate }) {
+  const status = session?.inventory_status ?? 'idle'
+  const info = session?.linux_system_info
+  if (!session || session.kind !== 'ssh' || session.status !== 'connected') {
+    return (
+      <div className="system-info-empty">
+        <Monitor size={20} />
+        <strong>{t('workbench.systemInfo.emptyTitle')}</strong>
+        <span>{t('workbench.systemInfo.emptyHint')}</span>
+      </div>
+    )
+  }
+  if (status === 'collecting' || status === 'idle') {
+    return (
+      <div className="system-info-loading">
+        <div>
+          <strong>{t('workbench.systemInfo.loadingTitle')}</strong>
+          <span>{t('workbench.systemInfo.loadingHint')}</span>
+        </div>
+        <Skeleton active paragraph={{ rows: 5 }} title={false} />
+      </div>
+    )
+  }
+  if (status !== 'ready' || !info) {
+    return (
+      <div className={`system-info-message is-${status}`}>
+        <TriangleAlert size={18} />
+        <strong>{status === 'unsupported' ? t('workbench.systemInfo.unsupportedTitle') : t('workbench.systemInfo.failedTitle')}</strong>
+        <span>{session.inventory_message || t('workbench.systemInfo.failedHint')}</span>
+      </div>
+    )
+  }
+  return (
+    <div className="system-info-panel">
+      <div className="system-info-hero">
+        <span className="system-info-platform">
+          <Server size={15} />
+          {t('hosts.platform.linux')}
+        </span>
+        <strong>{info.os_pretty_name || info.os_name || t('workbench.systemInfo.unknownOS')}</strong>
+        <span>{info.collected_at ? t('workbench.systemInfo.collectedAt', { time: formatTime(info.collected_at) }) : t('fields.none')}</span>
+      </div>
+      <div className="system-info-grid">
+        <SystemMetric icon={<Monitor size={16} />} label={t('workbench.systemInfo.hostname')} value={valueOrNone(info.hostname, t)} />
+        <SystemMetric icon={<Layers size={16} />} label={t('workbench.systemInfo.kernel')} value={valueOrNone(info.kernel, t)} />
+        <SystemMetric icon={<Cpu size={16} />} label={t('workbench.systemInfo.cpu')} value={valueOrNone(info.cpu_model, t)} />
+        <SystemMetric icon={<HardDrive size={16} />} label={t('workbench.systemInfo.memory')} value={formatMemory(info.memory_total_bytes, t)} />
+        <SystemMetric icon={<Cable size={16} />} label={t('workbench.systemInfo.architecture')} value={valueOrNone(info.architecture, t)} />
+        <SystemMetric icon={<Clock3 size={16} />} label={t('workbench.systemInfo.uptime')} value={formatUptime(info.uptime_seconds, t)} />
+      </div>
+    </div>
+  )
+}
+
+function SystemMetric({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
+  return (
+    <div className="system-info-metric">
+      <span className="system-info-metric-icon">{icon}</span>
+      <small>{label}</small>
+      <Tooltip title={value}>
+        <strong>{value}</strong>
+      </Tooltip>
+    </div>
+  )
+}
+
+function valueOrNone(value: string | undefined, t: WorkbenchTranslate) {
+  return value && value.trim() ? value : t('fields.none')
+}
+
+function formatMemory(value: number | undefined, t: WorkbenchTranslate) {
+  if (!value || value <= 0) {
+    return t('fields.none')
+  }
+  const gib = value / 1024 / 1024 / 1024
+  if (gib >= 1) {
+    return `${gib.toFixed(gib >= 10 ? 0 : 1)} GB`
+  }
+  return `${(value / 1024 / 1024).toFixed(0)} MB`
+}
+
+function formatUptime(value: number | undefined, t: WorkbenchTranslate) {
+  if (!value || value <= 0) {
+    return t('fields.none')
+  }
+  const days = Math.floor(value / 86400)
+  const hours = Math.floor((value % 86400) / 3600)
+  const minutes = Math.floor((value % 3600) / 60)
+  if (days > 0) {
+    return t('workbench.systemInfo.uptimeDays', { days, hours })
+  }
+  if (hours > 0) {
+    return t('workbench.systemInfo.uptimeHours', { hours, minutes })
+  }
+  return t('workbench.systemInfo.uptimeMinutes', { minutes: Math.max(minutes, 1) })
 }
 
 function sessionTitle(session: Session, hosts: Host[], t: (key: string) => string) {

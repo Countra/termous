@@ -2181,6 +2181,45 @@
   margin-top: 14px;
 }
 
+.details-panel:not(.is-collapsed) {
+  overflow-y: auto;
+}
+
+.details-tabs.ant-tabs {
+  min-height: 0;
+  margin-top: 8px;
+}
+
+.details-tabs .ant-tabs-nav {
+  margin: 0 0 12px;
+}
+
+.details-tabs .ant-tabs-nav::before {
+  border-color: var(--border);
+}
+
+.details-tabs .ant-tabs-tab {
+  padding: 7px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.details-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--text-primary);
+}
+
+.details-tabs .ant-tabs-ink-bar {
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.connection-overview-panel {
+  display: grid;
+  gap: 12px;
+}
+
 .detail-list {
   gap: 0;
   margin: 16px 0;
@@ -2210,6 +2249,129 @@
 .detail-list dd {
   min-width: 0;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.system-info-empty,
+.system-info-loading,
+.system-info-message {
+  display: grid;
+  min-height: 180px;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  border: 1px dashed color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 14px;
+  padding: 20px 14px;
+  background: color-mix(in srgb, var(--surface-subtle) 72%, transparent);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.system-info-empty strong,
+.system-info-loading strong,
+.system-info-message strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.system-info-loading {
+  justify-items: stretch;
+  text-align: left;
+}
+
+.system-info-loading > div {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.system-info-message.is-failed,
+.system-info-message.is-unsupported {
+  border-color: color-mix(in srgb, #f59e0b 42%, var(--border));
+  background: color-mix(in srgb, #f59e0b 10%, var(--surface));
+}
+
+.system-info-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.system-info-hero {
+  display: grid;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 14px;
+  padding: 12px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 50%, transparent), transparent),
+    var(--surface-subtle);
+}
+
+.system-info-hero strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.system-info-hero span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.system-info-platform {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--accent-soft) 50%, transparent);
+  color: var(--accent);
+  font-weight: 760;
+}
+
+.system-info-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.system-info-metric {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: color-mix(in srgb, var(--surface-subtle) 76%, transparent);
+}
+
+.system-info-metric-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  grid-row: span 2;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent-soft) 58%, transparent);
+  color: var(--accent);
+}
+
+.system-info-metric small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.system-info-metric strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2298,6 +2460,22 @@
 .auth-choice.is-active {
   border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
   background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.host-platform-option.ant-btn {
+  justify-content: flex-start;
+  width: 100%;
+  height: 36px;
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 56%, var(--surface));
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.host-platform-option.ant-btn:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 66%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 68%, var(--surface));
   color: var(--text-primary);
 }
 

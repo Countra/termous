@@ -153,9 +153,13 @@ export type SnippetShell = 'any' | 'sh' | 'bash' | 'zsh' | 'powershell' | 'cmd'
 
 export type AuthMethod = 'password' | 'private_key' | 'system'
 
+export type HostPlatform = 'linux'
+
 export type CredentialType = 'password' | 'private_key' | 'private_key_passphrase'
 
 export type SessionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed'
+
+export type InventoryStatus = 'idle' | 'collecting' | 'ready' | 'failed' | 'unsupported'
 
 export type SessionPhase =
   | 'queued'
@@ -215,6 +219,7 @@ export interface CodeSnippetInput {
 export interface Host {
   id: string
   name: string
+  platform: HostPlatform
   group_id: string
   address: string
   port: number
@@ -273,6 +278,20 @@ export interface KnownHostInput {
   fingerprint_sha256: string
 }
 
+export interface LinuxSystemInfo {
+  hostname?: string
+  os_name?: string
+  os_version?: string
+  os_pretty_name?: string
+  kernel?: string
+  architecture?: string
+  cpu_model?: string
+  cpu_cores?: number
+  memory_total_bytes?: number
+  uptime_seconds?: number
+  collected_at?: string
+}
+
 export interface Session {
   id: string
   kind: SessionKind
@@ -282,6 +301,9 @@ export interface Session {
   status_message?: string
   phase?: SessionPhase
   progress?: number
+  inventory_status?: InventoryStatus
+  inventory_message?: string
+  linux_system_info?: LinuxSystemInfo
   started_at: string
   connected_at?: string
   ended_at?: string
@@ -338,6 +360,7 @@ export interface CoreFatalEvent {
 
 export interface HostInput {
   name: string
+  platform: HostPlatform
   group_id: string
   address: string
   port: number
