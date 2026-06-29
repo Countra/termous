@@ -1,18 +1,27 @@
 import { Button, ColorPicker } from 'antd'
 import { RotateCcw } from 'lucide-react'
-import type { CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { normalizeSessionTabColor, sessionTabColorPresets } from './sessionTabPreferences'
 
+interface SessionTabColorSelectOptions {
+  keepOpen?: boolean
+}
+
 interface SessionTabColorPanelProps {
   color?: string
-  onSelect: (color: string) => void
+  onSelect: (color: string, options?: SessionTabColorSelectOptions) => void
   onReset: () => void
 }
 
 export function SessionTabColorPanel({ color, onSelect, onReset }: SessionTabColorPanelProps) {
   const { t } = useTranslation()
-  const activeColor = normalizeSessionTabColor(color) ?? sessionTabColorPresets[7]
+  const activeColor = useMemo(() => normalizeSessionTabColor(color) ?? sessionTabColorPresets[7], [color])
+  const [customColor, setCustomColor] = useState(activeColor)
+
+  useEffect(() => {
+    setCustomColor(activeColor)
+  }, [activeColor])
 
   return (
     <div className="session-tab-color-panel">
@@ -33,10 +42,17 @@ export function SessionTabColorPanel({ color, onSelect, onReset }: SessionTabCol
           {t('terminal.tabMenu.resetColor')}
         </Button>
         <ColorPicker
-          value={activeColor}
+          value={customColor}
           format="hex"
           disabledAlpha
-          onChangeComplete={(nextColor) => onSelect(nextColor.toHexString())}
+          onChange={(nextColor) => setCustomColor(nextColor.toHexString())}
+          onChangeComplete={(nextColor) => {
+            const nextHexColor = normalizeSessionTabColor(nextColor.toHexString())
+            if (nextHexColor) {
+              setCustomColor(nextHexColor)
+              onSelect(nextHexColor, { keepOpen: true })
+            }
+          }}
         >
           <Button className="secondary-button" size="small">
             {t('terminal.tabMenu.customColor')}

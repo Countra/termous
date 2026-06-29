@@ -221,9 +221,11 @@ export function WorkbenchPage({
     [updateSessionTabPreference],
   )
   const setSessionTabColor = useCallback(
-    (sessionId: string, color: string) => {
+    (sessionId: string, color: string, options?: { keepOpen?: boolean }) => {
       updateSessionTabPreference(sessionId, (preference) => ({ ...preference, color }))
-      setColorSessionId(null)
+      if (!options?.keepOpen) {
+        setColorSessionId(null)
+      }
     },
     [updateSessionTabPreference],
   )
@@ -771,7 +773,7 @@ export function WorkbenchPage({
                             content={(
                               <SessionTabColorPanel
                                 color={preference?.color}
-                                onSelect={(color) => setSessionTabColor(session.id, color)}
+                                onSelect={(color, options) => setSessionTabColor(session.id, color, options)}
                                 onReset={() => resetSessionTabColor(session.id)}
                               />
                             )}
