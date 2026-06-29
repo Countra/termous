@@ -2163,6 +2163,25 @@
   box-shadow: none !important;
 }
 
+.ant-input-affix-wrapper .ant-input {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.ant-input-affix-wrapper .ant-input:focus {
+  box-shadow: none !important;
+}
+
+.ant-input-affix-wrapper .ant-input-suffix,
+.ant-input-affix-wrapper .ant-input-password-icon {
+  color: var(--text-muted);
+}
+
+.ant-input-affix-wrapper:hover .ant-input-password-icon {
+  color: var(--text-secondary);
+}
+
 .termous-select .ant-select-selection-placeholder,
 .termous-select .ant-select-arrow,
 .termous-select .ant-select-clear {
@@ -2945,39 +2964,69 @@
   min-width: 0;
 }
 
-.files-breadcrumb {
-  display: flex;
+.files-breadcrumb.ant-breadcrumb {
   min-width: 0;
-  align-items: center;
-  gap: 4px;
   overflow: auto hidden;
+  color: var(--text-secondary);
   scrollbar-width: none;
 }
 
-.files-breadcrumb::-webkit-scrollbar {
+.files-breadcrumb.ant-breadcrumb::-webkit-scrollbar {
   display: none;
 }
 
-.files-breadcrumb button {
+.files-breadcrumb.ant-breadcrumb ol {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  min-width: max-content;
+  gap: 2px;
+}
+
+.files-breadcrumb .ant-breadcrumb-link,
+.files-breadcrumb .ant-breadcrumb-separator {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  border: 0;
+}
+
+.files-breadcrumb .ant-breadcrumb-separator {
+  margin-inline: 4px;
+  color: color-mix(in srgb, var(--text-muted) 76%, transparent);
+}
+
+.files-breadcrumb-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  max-width: 180px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 999px;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+  padding: 0 8px;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 680;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.files-breadcrumb button:hover {
+.files-breadcrumb-link.is-root {
+  min-width: 28px;
+  justify-content: center;
+  background: color-mix(in srgb, var(--surface-subtle) 84%, transparent);
+  color: var(--text-primary);
+  padding-inline: 9px;
+}
+
+.files-breadcrumb-link:hover {
+  background: color-mix(in srgb, var(--surface-subtle) 74%, transparent);
   color: var(--text-primary);
 }
 
-.files-breadcrumb i {
-  color: var(--text-muted);
-  font-style: normal;
+.files-breadcrumb-link.is-current {
+  color: var(--text-primary);
 }
 
 .files-path-input .ant-input,

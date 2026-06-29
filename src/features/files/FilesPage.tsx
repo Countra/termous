@@ -1,4 +1,4 @@
-import { App as AntdApp, Button, Checkbox, Dropdown, Input, Modal, Segmented, Table, Tooltip } from 'antd'
+import { App as AntdApp, Breadcrumb, Button, Checkbox, Dropdown, Input, Modal, Segmented, Table, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   ArrowLeft,
@@ -1114,15 +1114,30 @@ function PathTrail({ path, onNavigate }: { path: string; onNavigate: (path: stri
   parts.forEach((part, index) => {
     crumbs.push({ label: part, path: `/${parts.slice(0, index + 1).join('/')}` })
   })
-  return (
-    <div className="files-breadcrumb" aria-label="Path">
-      {crumbs.map((crumb, index) => (
-        <button type="button" key={crumb.path} onClick={() => onNavigate(crumb.path)}>
-          <span>{crumb.label}</span>
-          {index < crumbs.length - 1 ? <i>/</i> : null}
+  const items = crumbs.map((crumb, index) => {
+    const current = index === crumbs.length - 1
+    return {
+      key: crumb.path,
+      title: (
+        <button
+          type="button"
+          className={`files-breadcrumb-link ${current ? 'is-current' : ''} ${index === 0 ? 'is-root' : ''}`}
+          aria-current={current ? 'page' : undefined}
+          onClick={() => onNavigate(crumb.path)}
+        >
+          {crumb.label}
         </button>
-      ))}
-    </div>
+      ),
+    }
+  })
+
+  return (
+    <Breadcrumb
+      className="files-breadcrumb"
+      aria-label="Path"
+      separator={<ChevronRight size={12} strokeWidth={2.2} />}
+      items={items}
+    />
   )
 }
 
