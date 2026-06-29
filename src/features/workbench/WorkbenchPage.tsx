@@ -1,5 +1,6 @@
 import {
   Cable,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Code2,
@@ -1058,9 +1059,18 @@ function StatusItem({ label, value }: { label: string; value: string }) {
 
 type WorkbenchTranslate = (key: string, options?: Record<string, string | number>) => string
 
+interface SystemInfoTreeNode {
+  key: string
+  icon?: JSX.Element
+  label: string
+  value: string
+  children?: SystemInfoTreeNode[]
+}
+
 function SystemInfoPanel({ session, t }: { session: Session | null; t: WorkbenchTranslate }) {
   const status = session?.inventory_status ?? 'idle'
   const info = session?.linux_system_info
+  const [expandedKeys, setExpandedKeys] = useState(() => new Set<string>())
   if (!session || session.kind !== 'ssh' || session.status !== 'connected') {
     return (
       <div className="system-info-empty">
@@ -1090,6 +1100,18 @@ function SystemInfoPanel({ session, t }: { session: Session | null; t: Workbench
       </div>
     )
   }
+  const nodes = buildSystemInfoTree(info, t)
+  const toggleNode = (key: string) => {
+    setExpandedKeys((current) => {
+      const next = new Set(current)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
   return (
     <div className="system-info-panel">
       <div className="system-info-summary">
@@ -1102,30 +1124,75 @@ function SystemInfoPanel({ session, t }: { session: Session | null; t: Workbench
         </Tooltip>
         <span>{info.collected_at ? t('workbench.systemInfo.collectedAt', { time: formatTime(info.collected_at) }) : t('fields.none')}</span>
       </div>
-      <dl className="system-info-specs">
-        <SystemInfoRow icon={<Monitor size={15} />} label={t('workbench.systemInfo.hostname')} value={valueOrNone(info.hostname, t)} />
-        <SystemInfoRow icon={<Layers size={15} />} label={t('workbench.systemInfo.kernel')} value={valueOrNone(info.kernel, t)} />
-        <SystemInfoRow icon={<Cpu size={15} />} label={t('workbench.systemInfo.cpu')} value={valueOrNone(info.cpu_model, t)} />
-        <SystemInfoRow icon={<HardDrive size={15} />} label={t('workbench.systemInfo.memory')} value={formatMemory(info.memory_total_bytes, t)} />
-        <SystemInfoRow icon={<Cable size={15} />} label={t('workbench.systemInfo.architecture')} value={valueOrNone(info.architecture, t)} />
-        <SystemInfoRow icon={<Clock3 size={15} />} label={t('workbench.systemInfo.uptime')} value={formatUptime(info.uptime_seconds, t)} />
-      </dl>
+      <div className="system-info-tree" role="tree">
+        {nodes.map((node) => (
+          <SystemInfoTreeRow key={node.key} node={node} expandedKeys={expandedKeys} level={0} onToggle={toggleNode} />
+        ))}
+      </div>
     </div>
   )
 }
 
-function SystemInfoRow({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
+function SystemInfoTreeRow({
+  node,
+  expandedKeys,
+  level,
+  onToggle,
+}: {
+  node: SystemInfoTreeNode
+  expandedKeys: Set<string>
+  level: number
+  onToggle: (key: string) => void
+}) {
+  const hasChildren = Boolean(node.children?.length)
+  const expanded = hasChildren && expandedKeys.has(node.key)
   return (
-    <div className="system-info-row">
-      <dt>
-        <span>{icon}</span>
-        {label}
-      </dt>
-      <Tooltip title={value}>
-        <dd>{value}</dd>
-      </Tooltip>
+    <div className={`system-info-tree-node level-${level}`} role="treeitem" aria-expanded={hasChildren ? expanded : undefined}>
+      <button
+        type="button"
+        className={`system-info-tree-row ${hasChildren ? 'is-expandable' : ''}`}
+        onClick={() => hasChildren && onToggle(node.key)}
+      >
+        <span className="system-info-tree-label">
+          <span className="system-info-tree-toggle" aria-hidden="true">
+            {hasChildren ? expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} /> : null}
+          </span>
+          {node.icon ? <span className="system-info-tree-icon">{node.icon}</span> : null}
+          <span>{node.label}</span>
+        </span>
+        <Tooltip title={node.value}>
+          <span className="system-info-tree-value">{node.value}</span>
+        </Tooltip>
+      </button>
+      {expanded && node.children?.length ? (
+        <div className="system-info-tree-children" role="group">
+          {node.children.map((child) => (
+            <SystemInfoTreeRow key={child.key} node={child} expandedKeys={expandedKeys} level={level + 1} onToggle={onToggle} />
+          ))}
+        </div>
+      ) : null}
     </div>
   )
+}
+
+function buildSystemInfoTree(info: NonNullable<Session['linux_system_info']>, t: WorkbenchTranslate): SystemInfoTreeNode[] {
+  return [
+    { key: 'hostname', icon: <Monitor size={15} />, label: t('workbench.systemInfo.hostname'), value: valueOrNone(info.hostname, t) },
+    { key: 'kernel', icon: <Layers size={15} />, label: t('workbench.systemInfo.kernel'), value: valueOrNone(info.kernel, t) },
+    {
+      key: 'cpu',
+      icon: <Cpu size={15} />,
+      label: t('workbench.systemInfo.cpu'),
+      value: valueOrNone(info.cpu_model, t),
+      children: [
+        { key: 'cpu-cores', label: t('workbench.systemInfo.cpuCores'), value: formatCPUCoreCount(info.cpu_cores, t) },
+        { key: 'cpu-frequency', label: t('workbench.systemInfo.cpuFrequency'), value: formatCPUFrequency(info.cpu_frequency_mhz, t) },
+      ],
+    },
+    { key: 'memory', icon: <HardDrive size={15} />, label: t('workbench.systemInfo.memory'), value: formatMemory(info.memory_total_bytes, t) },
+    { key: 'architecture', icon: <Cable size={15} />, label: t('workbench.systemInfo.architecture'), value: valueOrNone(info.architecture, t) },
+    { key: 'uptime', icon: <Clock3 size={15} />, label: t('workbench.systemInfo.uptime'), value: formatUptime(info.uptime_seconds, t) },
+  ]
 }
 
 function parseDetailsTabKey(value: unknown): DetailsTabKey {
@@ -1134,6 +1201,27 @@ function parseDetailsTabKey(value: unknown): DetailsTabKey {
 
 function valueOrNone(value: string | undefined, t: WorkbenchTranslate) {
   return value && value.trim() ? value : t('fields.none')
+}
+
+function formatCPUCoreCount(value: number | undefined, t: WorkbenchTranslate) {
+  if (!value || value <= 0) {
+    return t('fields.none')
+  }
+  return t('workbench.systemInfo.cpuCoreCount', { count: value })
+}
+
+function formatCPUFrequency(value: number | undefined, t: WorkbenchTranslate) {
+  if (!value || value <= 0) {
+    return t('fields.none')
+  }
+  if (value >= 1000) {
+    return `${trimDecimal(value / 1000, 2)} GHz`
+  }
+  return `${trimDecimal(value, 0)} MHz`
+}
+
+function trimDecimal(value: number, digits: number) {
+  return value.toFixed(digits).replace(/\.?0+$/, '')
 }
 
 function formatMemory(value: number | undefined, t: WorkbenchTranslate) {

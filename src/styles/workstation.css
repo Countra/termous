@@ -2414,48 +2414,79 @@
   font-weight: 760;
 }
 
-.system-info-specs {
+.system-info-tree {
   display: grid;
   gap: 0;
-  margin: 0;
 }
 
-.system-info-row {
+.system-info-tree-node {
   display: grid;
+}
+
+.system-info-tree-row {
+  display: grid;
+  width: 100%;
   grid-template-columns: minmax(86px, 0.72fr) minmax(0, 1fr);
   align-items: center;
   gap: 12px;
+  border: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 0;
   padding: 11px 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+  font: inherit;
+  text-align: left;
 }
 
-.system-info-row:first-child {
+.system-info-tree-row.is-expandable {
+  cursor: pointer;
+}
+
+.system-info-tree-node:first-child > .system-info-tree-row {
   padding-top: 2px;
 }
 
-.system-info-row:last-child {
+.system-info-tree-node:last-child > .system-info-tree-row {
   border-bottom: 0;
 }
 
-.system-info-row dt {
+.system-info-tree-row.is-expandable:hover {
+  background: color-mix(in srgb, var(--surface-subtle) 46%, transparent);
+}
+
+.system-info-tree-row.is-expandable:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--accent) 48%, transparent);
+  outline-offset: -1px;
+  background: color-mix(in srgb, var(--accent-soft) 20%, transparent);
+}
+
+.system-info-tree-label {
   display: inline-flex;
   min-width: 0;
   align-items: center;
   gap: 7px;
-  margin: 0;
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 720;
 }
 
-.system-info-row dt span {
+.system-info-tree-toggle {
+  display: inline-grid;
+  width: 14px;
+  min-width: 14px;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+.system-info-tree-icon {
   display: inline-flex;
   color: var(--accent);
 }
 
-.system-info-row dd {
+.system-info-tree-value {
   min-width: 0;
-  margin: 0;
   overflow: hidden;
   color: var(--text-primary);
   font-size: 12px;
@@ -2464,6 +2495,29 @@
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.system-info-tree-children {
+  display: grid;
+  padding-left: 21px;
+}
+
+.system-info-tree-node.level-1 .system-info-tree-row {
+  grid-template-columns: minmax(72px, 0.64fr) minmax(0, 1fr);
+  padding: 8px 0;
+}
+
+.system-info-tree-node.level-1 .system-info-tree-label,
+.system-info-tree-node.level-1 .system-info-tree-value {
+  font-size: 11px;
+}
+
+.system-info-tree-node.level-1 .system-info-tree-label {
+  font-weight: 650;
+}
+
+.system-info-tree-node.level-1:last-child > .system-info-tree-row {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
 }
 
 .status-badge {

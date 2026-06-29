@@ -287,6 +287,7 @@ export interface LinuxSystemInfo {
   architecture?: string
   cpu_model?: string
   cpu_cores?: number
+  cpu_frequency_mhz?: number
   memory_total_bytes?: number
   uptime_seconds?: number
   collected_at?: string
