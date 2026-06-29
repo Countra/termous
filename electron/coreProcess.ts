@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { createServer } from 'node:net'
 import path from 'node:path'
 
 export interface CoreRuntimeConfig {
@@ -20,6 +21,10 @@ export interface CoreFatalEvent {
 interface CoreProcessState {
   config: CoreRuntimeConfig
   fatal: CoreFatalEvent | null
+  pid?: number
+}
+
+interface CoreRuntimeProbe {
   pid?: number
 }
 
@@ -157,6 +162,11 @@ export class CoreProcessManager {
     const addr = new URL(apiBaseUrl)
     const host = addr.hostname || '127.0.0.1'
     const port = addr.port
+    const portNumber = Number(port)
+    if (!await isPortAvailable(host, portNumber)) {
+      throw new Error('端口被占用')
+    }
+    let ready = false
     this.child = spawn(binaryPath, ['--addr', `${host}:${port}`], {
       cwd: path.dirname(binaryPath),
       env: {
@@ -171,13 +181,13 @@ export class CoreProcessManager {
       stdio: 'pipe',
     })
     this.child.once('error', (error) => {
-      if (!this.shuttingDown) {
+      if (!this.shuttingDown && ready) {
         this.raiseFatal({ title: '后端连接异常', message: error.message, code: 'CORE_PROCESS_ERROR' })
       }
     })
     this.child.once('exit', (code, signal) => {
       this.stopHeartbeat()
-      if (!this.shuttingDown) {
+      if (!this.shuttingDown && ready) {
         this.raiseFatal({
           title: '后端连接异常',
           message: `Termous Core 已退出（code=${code ?? 'null'}, signal=${signal ?? 'null'}）`,
@@ -187,23 +197,33 @@ export class CoreProcessManager {
     })
     this.child.stdout.on('data', () => undefined)
     this.child.stderr.on('data', () => undefined)
-    await this.waitUntilReady(apiBaseUrl)
+    if (!this.child.pid) {
+      throw new Error('核心服务进程未创建')
+    }
+    await this.waitUntilReady(apiBaseUrl, token, this.child.pid)
+    ready = true
     this.lastHeartbeatAt = Date.now()
   }
 
-  private async waitUntilReady(apiBaseUrl: string) {
+  private async waitUntilReady(apiBaseUrl: string, token: string, expectedPID: number) {
     const startedAt = Date.now()
     while (Date.now() - startedAt < readyTimeoutMs) {
       if (this.child && this.child.exitCode !== null) {
         throw new Error('Termous Core 启动后立即退出')
       }
       try {
-        const response = await this.fetchUrlWithTimeout(new URL('/api/v1/healthz', apiBaseUrl).toString(), { method: 'GET' }, 1200)
+        const response = await this.fetchUrlWithTimeout(new URL('/api/v1/runtime', apiBaseUrl).toString(), {
+          method: 'GET',
+          headers: { 'X-Termous-Token': token },
+        }, 1200)
         if (response.ok) {
-          return
+          const status = await response.json() as CoreRuntimeProbe
+          if (status.pid === expectedPID) {
+            return
+          }
         }
       } catch {
-        // ready 轮询阶段允许短暂失败，直到超时。
+        // ready 轮询阶段允许短暂失败，直到超时；必须等到新进程自身响应。
       }
       await delay(250)
     }
@@ -306,5 +326,21 @@ export class CoreProcessManager {
 function delay(ms: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
+  })
+}
+
+function isPortAvailable(host: string, port: number) {
+  return new Promise<boolean>((resolve) => {
+    if (!Number.isInteger(port) || port <= 0) {
+      resolve(false)
+      return
+    }
+    const server = createServer()
+    server.unref()
+    server.once('error', () => resolve(false))
+    server.once('listening', () => {
+      server.close(() => resolve(true))
+    })
+    server.listen(port, host)
   })
 }
