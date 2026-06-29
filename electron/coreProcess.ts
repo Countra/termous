@@ -28,7 +28,8 @@ interface CoreRuntimeProbe {
   pid?: number
 }
 
-const defaultPort = 8122
+const externalCoreDefaultPort = 8122
+const packagedManagedCoreDefaultPort = 8152
 const maxPortSwitches = 3
 const readyTimeoutMs = 12_000
 const heartbeatIntervalMs = 10_000
@@ -39,7 +40,7 @@ const coreStartupFailureMessage = '核心服务启动异常，请退出后重新
 export class CoreProcessManager {
   private child: ChildProcessWithoutNullStreams | null = null
   private config: CoreRuntimeConfig = {
-    apiBaseUrl: process.env.TERMOUS_API_BASE_URL ?? `http://127.0.0.1:${defaultPort}`,
+    apiBaseUrl: process.env.TERMOUS_API_BASE_URL ?? `http://127.0.0.1:${externalCoreDefaultPort}`,
     apiToken: process.env.TERMOUS_API_TOKEN ?? (process.env.NODE_ENV === 'development' ? 'dev-token' : ''),
     version: process.env.VITE_TERMOUS_APP_VERSION ?? app.getVersion(),
     managed: false,
@@ -52,7 +53,7 @@ export class CoreProcessManager {
   async initialize() {
     if (this.shouldUseExternalCore()) {
       this.config = {
-        apiBaseUrl: process.env.TERMOUS_API_BASE_URL ?? `http://127.0.0.1:${defaultPort}`,
+        apiBaseUrl: process.env.TERMOUS_API_BASE_URL ?? `http://127.0.0.1:${externalCoreDefaultPort}`,
         apiToken: process.env.TERMOUS_API_TOKEN ?? (process.env.NODE_ENV === 'development' ? 'dev-token' : ''),
         version: process.env.VITE_TERMOUS_APP_VERSION ?? app.getVersion(),
         managed: false,
@@ -67,8 +68,9 @@ export class CoreProcessManager {
       return this.config
     }
     let lastError: unknown = null
+    const portStart = this.resolveManagedCorePortStart()
     for (let offset = 0; offset <= maxPortSwitches; offset += 1) {
-      const port = defaultPort + offset
+      const port = portStart + offset
       const apiBaseUrl = `http://127.0.0.1:${port}`
       try {
         await this.startManagedCore(binaryPath, apiBaseUrl, token)
@@ -127,6 +129,10 @@ export class CoreProcessManager {
 
   private shouldUseExternalCore() {
     return Boolean(process.env.VITE_DEV_SERVER_URL || process.env.TERMOUS_API_BASE_URL)
+  }
+
+  private resolveManagedCorePortStart() {
+    return app.isPackaged ? packagedManagedCoreDefaultPort : externalCoreDefaultPort
   }
 
   private resolveCorePath() {
