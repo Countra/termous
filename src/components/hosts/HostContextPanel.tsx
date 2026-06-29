@@ -1,5 +1,5 @@
 import { Button, Input, Tooltip } from 'antd'
-import { KeyRound, MapPin, PanelLeftClose, PanelLeftOpen, Search, Server, Tags, UserRound } from 'lucide-react'
+import { ChevronLeft, ChevronRight, KeyRound, MapPin, Search, Server, Tags, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Host, HostGroup } from '../../types/domain'
@@ -69,20 +69,20 @@ export function HostContextPanel({
         contentCollapsed ? 'is-content-collapsed' : ''
       } ${className}`.trim()}
     >
+      <Tooltip title={collapsed ? t('app.expand') : t('app.collapse')} destroyOnHidden mouseLeaveDelay={0}>
+        <Button
+          type="text"
+          className="panel-side-toggle panel-side-toggle-left"
+          onClick={onToggleCollapsed}
+          aria-label={collapsed ? t('app.expand') : t('app.collapse')}
+          icon={collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+        />
+      </Tooltip>
       <div className="panel-heading">
         <div className="panel-title-copy">
           <h2>{contentCollapsed ? collapsedTitle : title}</h2>
           {!contentCollapsed && subtitle ? <span>{subtitle}</span> : null}
         </div>
-        <Tooltip title={collapsed ? t('app.expand') : t('app.collapse')} destroyOnHidden mouseLeaveDelay={0}>
-          <Button
-            type="text"
-            className="icon-button compact"
-            onClick={onToggleCollapsed}
-            aria-label={collapsed ? t('app.expand') : t('app.collapse')}
-            icon={collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-          />
-        </Tooltip>
       </div>
       {!contentCollapsed && searchPlaceholder ? (
         <Input

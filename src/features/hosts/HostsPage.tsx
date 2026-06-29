@@ -86,6 +86,7 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
     ],
     [data.credentials, t],
   )
+  const platformOptions = useMemo(() => [{ value: 'linux', label: t('hosts.platform.linux') }], [t])
   const jumpHostOptions = useMemo(
     () => [
       { value: '', label: t('hosts.noJumpHost') },
@@ -259,16 +260,12 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
             <h3>{t('hosts.list')}</h3>
             <div className="form-grid">
               <Field label={t('hosts.name')} value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
-              <label className="field host-platform-field">
-                <span className="field-label">{t('hosts.platform.label')}</span>
-                <Button
-                  className="host-platform-option is-active"
-                  icon={<Server size={15} aria-hidden="true" />}
-                  onClick={() => setForm({ ...form, platform: 'linux' })}
-                >
-                  {t('hosts.platform.linux')}
-                </Button>
-              </label>
+              <CustomSelect
+                label={t('hosts.platform.label')}
+                value={form.platform}
+                options={platformOptions}
+                onChange={() => setForm({ ...form, platform: 'linux' })}
+              />
               <Field label={t('hosts.address')} value={form.address} onChange={(value) => setForm({ ...form, address: value })} />
               <Field label={t('hosts.username')} value={form.username} onChange={(value) => setForm({ ...form, username: value })} />
               <NumberField

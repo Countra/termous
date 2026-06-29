@@ -9,8 +9,6 @@ import {
   Layers,
   Monitor,
   FolderOpen,
-  PanelRightClose,
-  PanelRightOpen,
   Palette,
   Pencil,
   Pin,
@@ -54,6 +52,8 @@ import {
   type SessionTabPreference,
   type SessionTabPreferenceMap,
 } from './sessionTabPreferences'
+
+type DetailsTabKey = 'overview' | 'system' | 'snippets'
 
 interface TerminalSearchState {
   open: boolean
@@ -105,6 +105,11 @@ export function WorkbenchPage({
   const [detailsCollapsed, setDetailsCollapsed] = usePersistentBooleanState(
     'termous.ui.workbench.detailsCollapsed.v1',
     false,
+  )
+  const [detailsActiveTab, setDetailsActiveTab] = usePersistentJsonState<DetailsTabKey>(
+    'termous.ui.workbench.detailsActiveTab.v1',
+    'overview',
+    parseDetailsTabKey,
   )
   const tabViewportRef = useRef<HTMLDivElement>(null)
   const tabButtonRefs = useRef(new Map<string, HTMLElement>())
@@ -868,20 +873,20 @@ export function WorkbenchPage({
       </div>
 
       <aside className={`details-panel ${detailsCollapsed ? 'is-collapsed' : ''}`}>
+        <Tooltip title={detailsCollapsed ? t('app.expand') : t('app.collapse')}>
+          <Button
+            type="text"
+            className="panel-side-toggle panel-side-toggle-right"
+            onClick={() => setDetailsCollapsed((current) => !current)}
+            aria-label={detailsCollapsed ? t('app.expand') : t('app.collapse')}
+            icon={detailsCollapsed ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
+          />
+        </Tooltip>
         <div className="panel-heading">
           <div>
             <h2>{detailsCollapsed ? t('workbench.detailsShort') : t('workbench.currentConnection')}</h2>
             {!detailsCollapsed ? <span>{t('workbench.connectionDetails')}</span> : null}
           </div>
-          <Tooltip title={detailsCollapsed ? t('app.expand') : t('app.collapse')}>
-            <Button
-            type="text"
-            className="icon-button compact"
-            onClick={() => setDetailsCollapsed((current) => !current)}
-            aria-label={detailsCollapsed ? t('app.expand') : t('app.collapse')}
-            icon={detailsCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
-          />
-          </Tooltip>
         </div>
         {detailsCollapsed ? (
           <div className="details-collapsed-rail">
@@ -893,6 +898,8 @@ export function WorkbenchPage({
             <Tabs
               className="details-tabs"
               size="small"
+              activeKey={detailsActiveTab}
+              onChange={(key) => setDetailsActiveTab(parseDetailsTabKey(key))}
               items={[
                 {
                   key: 'overview',
@@ -961,47 +968,53 @@ export function WorkbenchPage({
                   label: t('workbench.detailsTabs.systemInfo'),
                   children: <SystemInfoPanel session={activeSession} t={t} />,
                 },
+                {
+                  key: 'snippets',
+                  label: t('workbench.detailsTabs.snippets'),
+                  children: (
+                    <section className="snippet-send-panel">
+                      <div className="snippet-send-head">
+                        <div>
+                          <h3>{t('snippets.sendPanelTitle')}</h3>
+                          <span>{canSendSnippet ? t('snippets.sendPanelHint') : t('snippets.noActiveSession')}</span>
+                        </div>
+                        <Code2 size={17} aria-hidden="true" />
+                      </div>
+                      <Input
+                        id="workbench-snippet-search"
+                        name="workbench-snippet-search"
+                        className="host-search-input snippet-quick-search termous-search-input"
+                        value={snippetQuery}
+                        allowClear
+                        variant="borderless"
+                        prefix={<Search size={14} aria-hidden="true" />}
+                        placeholder={t('snippets.searchPlaceholder')}
+                        onChange={(event) => setSnippetQuery(event.target.value)}
+                      />
+                      {data.snippets.length === 0 ? (
+                        <div className="snippet-send-empty">{t('snippets.emptyHint')}</div>
+                      ) : filteredSnippets.length === 0 ? (
+                        <div className="snippet-send-empty">{t('snippets.noFilterResults')}</div>
+                      ) : (
+                        <div className="snippet-send-list">
+                          {filteredSnippets.map((snippet) => (
+                            <SnippetSendRow
+                              key={snippet.id}
+                              snippet={snippet}
+                              disabled={!canSendSnippet || actionBusy}
+                              busy={actionBusy}
+                              onInsert={() => void sendSnippet(snippet, false)}
+                              onSend={() => void sendSnippet(snippet, true)}
+                              onToggleFavorite={() => void onToggleSnippetFavorite(snippet)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  ),
+                },
               ]}
             />
-            <section className="snippet-send-panel">
-              <div className="snippet-send-head">
-                <div>
-                  <h3>{t('snippets.sendPanelTitle')}</h3>
-                  <span>{canSendSnippet ? t('snippets.sendPanelHint') : t('snippets.noActiveSession')}</span>
-                </div>
-                <Code2 size={17} aria-hidden="true" />
-              </div>
-              <Input
-                id="workbench-snippet-search"
-                name="workbench-snippet-search"
-                className="host-search-input snippet-quick-search termous-search-input"
-                value={snippetQuery}
-                allowClear
-                variant="borderless"
-                prefix={<Search size={14} aria-hidden="true" />}
-                placeholder={t('snippets.searchPlaceholder')}
-                onChange={(event) => setSnippetQuery(event.target.value)}
-              />
-              {data.snippets.length === 0 ? (
-                <div className="snippet-send-empty">{t('snippets.emptyHint')}</div>
-              ) : filteredSnippets.length === 0 ? (
-                <div className="snippet-send-empty">{t('snippets.noFilterResults')}</div>
-              ) : (
-                <div className="snippet-send-list">
-                  {filteredSnippets.map((snippet) => (
-                    <SnippetSendRow
-                      key={snippet.id}
-                      snippet={snippet}
-                      disabled={!canSendSnippet || actionBusy}
-                      busy={actionBusy}
-                      onInsert={() => void sendSnippet(snippet, false)}
-                      onSend={() => void sendSnippet(snippet, true)}
-                      onToggleFavorite={() => void onToggleSnippetFavorite(snippet)}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
           </>
         )}
       </aside>
@@ -1079,36 +1092,44 @@ function SystemInfoPanel({ session, t }: { session: Session | null; t: Workbench
   }
   return (
     <div className="system-info-panel">
-      <div className="system-info-hero">
+      <div className="system-info-summary">
         <span className="system-info-platform">
-          <Server size={15} />
+          <Server size={14} />
           {t('hosts.platform.linux')}
         </span>
-        <strong>{info.os_pretty_name || info.os_name || t('workbench.systemInfo.unknownOS')}</strong>
+        <Tooltip title={info.os_pretty_name || info.os_name || t('workbench.systemInfo.unknownOS')}>
+          <strong>{info.os_pretty_name || info.os_name || t('workbench.systemInfo.unknownOS')}</strong>
+        </Tooltip>
         <span>{info.collected_at ? t('workbench.systemInfo.collectedAt', { time: formatTime(info.collected_at) }) : t('fields.none')}</span>
       </div>
-      <div className="system-info-grid">
-        <SystemMetric icon={<Monitor size={16} />} label={t('workbench.systemInfo.hostname')} value={valueOrNone(info.hostname, t)} />
-        <SystemMetric icon={<Layers size={16} />} label={t('workbench.systemInfo.kernel')} value={valueOrNone(info.kernel, t)} />
-        <SystemMetric icon={<Cpu size={16} />} label={t('workbench.systemInfo.cpu')} value={valueOrNone(info.cpu_model, t)} />
-        <SystemMetric icon={<HardDrive size={16} />} label={t('workbench.systemInfo.memory')} value={formatMemory(info.memory_total_bytes, t)} />
-        <SystemMetric icon={<Cable size={16} />} label={t('workbench.systemInfo.architecture')} value={valueOrNone(info.architecture, t)} />
-        <SystemMetric icon={<Clock3 size={16} />} label={t('workbench.systemInfo.uptime')} value={formatUptime(info.uptime_seconds, t)} />
-      </div>
+      <dl className="system-info-specs">
+        <SystemInfoRow icon={<Monitor size={15} />} label={t('workbench.systemInfo.hostname')} value={valueOrNone(info.hostname, t)} />
+        <SystemInfoRow icon={<Layers size={15} />} label={t('workbench.systemInfo.kernel')} value={valueOrNone(info.kernel, t)} />
+        <SystemInfoRow icon={<Cpu size={15} />} label={t('workbench.systemInfo.cpu')} value={valueOrNone(info.cpu_model, t)} />
+        <SystemInfoRow icon={<HardDrive size={15} />} label={t('workbench.systemInfo.memory')} value={formatMemory(info.memory_total_bytes, t)} />
+        <SystemInfoRow icon={<Cable size={15} />} label={t('workbench.systemInfo.architecture')} value={valueOrNone(info.architecture, t)} />
+        <SystemInfoRow icon={<Clock3 size={15} />} label={t('workbench.systemInfo.uptime')} value={formatUptime(info.uptime_seconds, t)} />
+      </dl>
     </div>
   )
 }
 
-function SystemMetric({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
+function SystemInfoRow({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
   return (
-    <div className="system-info-metric">
-      <span className="system-info-metric-icon">{icon}</span>
-      <small>{label}</small>
+    <div className="system-info-row">
+      <dt>
+        <span>{icon}</span>
+        {label}
+      </dt>
       <Tooltip title={value}>
-        <strong>{value}</strong>
+        <dd>{value}</dd>
       </Tooltip>
     </div>
   )
+}
+
+function parseDetailsTabKey(value: unknown): DetailsTabKey {
+  return value === 'system' || value === 'snippets' || value === 'overview' ? value : 'overview'
 }
 
 function valueOrNone(value: string | undefined, t: WorkbenchTranslate) {

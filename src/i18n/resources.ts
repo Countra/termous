@@ -117,6 +117,7 @@ export const resources = {
         detailsTabs: {
           overview: '概览',
           systemInfo: '系统信息',
+          snippets: '代码片段',
         },
         systemInfo: {
           emptyTitle: '暂无系统信息',
@@ -607,6 +608,7 @@ export const resources = {
         detailsTabs: {
           overview: 'Overview',
           systemInfo: 'System info',
+          snippets: 'Snippets',
         },
         systemInfo: {
           emptyTitle: 'No system info',
