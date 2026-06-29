@@ -13,7 +13,7 @@
     "dist",
     "dist-electron"
   ],
-  "extraResources": [
+  "extraFiles": [
     {
       "from": "build/core",
       "to": ".",

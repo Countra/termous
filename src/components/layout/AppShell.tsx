@@ -66,12 +66,12 @@ export function AppShell({
       <aside className="sidebar" aria-label="Primary">
         <div className="brand-row">
           <div className="brand-mark" aria-hidden="true">
-            <img src="/termous-icon.png" alt="" />
+            <img src="./termous-icon.png" alt="" />
           </div>
           <div className="brand-copy">
             <strong>{t('app.name')}</strong>
-            <span>SSH · v{appVersion}</span>
           </div>
+          <span className="brand-version">v{appVersion}</span>
         </div>
         <nav className="primary-nav">
           {navItems.map((item) => {

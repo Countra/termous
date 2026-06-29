@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 
 export interface CoreRuntimeConfig {
@@ -28,6 +29,7 @@ const readyTimeoutMs = 12_000
 const heartbeatIntervalMs = 10_000
 const heartbeatTimeoutMs = 30_000
 const requestTimeoutMs = 5_000
+const coreStartupFailureMessage = '核心服务启动异常，请退出后重新打开 Termous。若问题持续，请重新安装应用。'
 
 export class CoreProcessManager {
   private child: ChildProcessWithoutNullStreams | null = null
@@ -54,6 +56,11 @@ export class CoreProcessManager {
     }
     const token = randomBytes(32).toString('base64url')
     const binaryPath = this.resolveCorePath()
+    const binaryValidationError = this.validateCoreBinary(binaryPath)
+    if (binaryValidationError) {
+      this.raiseFatal(binaryValidationError)
+      return this.config
+    }
     let lastError: unknown = null
     for (let offset = 0; offset <= maxPortSwitches; offset += 1) {
       const port = defaultPort + offset
@@ -70,7 +77,7 @@ export class CoreProcessManager {
     }
     this.raiseFatal({
       title: '后端连接异常',
-      message: `无法启动 Termous Core：${lastError instanceof Error ? lastError.message : '端口不可用'}`,
+      message: this.describeStartupError(lastError),
       code: 'CORE_START_FAILED',
     })
     return this.config
@@ -122,7 +129,28 @@ export class CoreProcessManager {
       return process.env.TERMOUS_CORE_PATH
     }
     const binary = process.platform === 'win32' ? 'termous-core.exe' : 'termous-core'
-    return app.isPackaged ? path.join(process.resourcesPath, binary) : path.join(process.env.APP_ROOT, 'build', 'core', binary)
+    return app.isPackaged
+      ? path.join(path.dirname(process.execPath), binary)
+      : path.join(process.env.APP_ROOT, 'build', 'core', binary)
+  }
+
+  private validateCoreBinary(binaryPath: string): CoreFatalEvent | null {
+    if (existsSync(binaryPath)) {
+      return null
+    }
+    return {
+      title: '后端连接异常',
+      message: coreStartupFailureMessage,
+      code: 'CORE_BINARY_NOT_FOUND',
+    }
+  }
+
+  private describeStartupError(error: unknown) {
+    const startupError = error as NodeJS.ErrnoException | undefined
+    if (startupError?.code === 'ENOENT' || startupError?.code === 'EACCES' || startupError?.code === 'EPERM') {
+      return coreStartupFailureMessage
+    }
+    return coreStartupFailureMessage
   }
 
   private async startManagedCore(binaryPath: string, apiBaseUrl: string, token: string) {

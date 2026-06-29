@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
+import { existsSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 import { CoreProcessManager } from './coreProcess'
@@ -16,10 +17,49 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 const APP_NAME = 'Termous'
 const APP_ID = 'dev.termous.app'
 const APP_ICON = path.join(process.env.VITE_PUBLIC, 'termous-icon.png')
+const WEB_DEBUG_FILE = 'webDebug'
+const DEVTOOLS_CHORD_WINDOW_MS = 900
 const coreProcess = new CoreProcessManager()
 
 let win: BrowserWindow | null
 let closeConfirmed = false
+
+function shouldAutoOpenDevTools() {
+  const candidates = [
+    path.join(process.cwd(), WEB_DEBUG_FILE),
+    path.join(path.dirname(process.execPath), WEB_DEBUG_FILE),
+    path.join(process.env.APP_ROOT, WEB_DEBUG_FILE),
+  ]
+  return Array.from(new Set(candidates)).some((candidate) => existsSync(candidate))
+}
+
+function openDevTools(target: BrowserWindow) {
+  if (!target.webContents.isDevToolsOpened()) {
+    target.webContents.openDevTools({ mode: 'detach' })
+  }
+}
+
+function registerDevToolsShortcut(target: BrowserWindow) {
+  let firstFAt = 0
+  target.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || input.isAutoRepeat) {
+      return
+    }
+    const isDevToolsChord = input.control && input.shift && input.alt && input.key.toLowerCase() === 'f'
+    if (!isDevToolsChord) {
+      firstFAt = 0
+      return
+    }
+    event.preventDefault()
+    const now = Date.now()
+    if (now - firstFAt <= DEVTOOLS_CHORD_WINDOW_MS) {
+      firstFAt = 0
+      openDevTools(target)
+      return
+    }
+    firstFAt = now
+  })
+}
 
 function createWindow() {
   const isMac = process.platform === 'darwin'
@@ -43,9 +83,13 @@ function createWindow() {
       sandbox: false,
     },
   })
+  registerDevToolsShortcut(win)
 
   win.once('ready-to-show', () => {
     win?.show()
+    if (win && shouldAutoOpenDevTools()) {
+      openDevTools(win)
+    }
     const fatal = coreProcess.getFatal()
     if (fatal) {
       win?.webContents.send('core:fatal', fatal)
