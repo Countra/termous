@@ -407,7 +407,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         title={coreFatal?.title ?? t('app.coreFatalTitle')}
         okText={t('app.exit')}
         cancelButtonProps={{ style: { display: 'none' } }}
-        maskClosable={false}
+        mask={{ closable: false }}
         keyboard={false}
         onOk={() => void window.termous?.windowControls?.confirmClose()}
       >

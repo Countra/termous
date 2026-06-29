@@ -8,8 +8,13 @@ import {
   FolderOpen,
   PanelRightClose,
   PanelRightOpen,
+  Palette,
+  Pencil,
+  Pin,
+  PinOff,
   Power,
   Play,
+  RotateCcw,
   Search,
   Send,
   Server,
@@ -18,7 +23,7 @@ import {
   Star,
   TriangleAlert,
 } from 'lucide-react'
-import { App as AntdApp, Button, Dropdown, Input, Tooltip, type MenuProps } from 'antd'
+import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Tooltip, type MenuProps } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostContextPanel } from '../../components/hosts/HostContextPanel'
@@ -27,6 +32,7 @@ import { CustomSelect } from '../../components/ui/CustomSelect'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
+import { usePersistentJsonState } from '../../hooks/usePersistentJsonState'
 import { ConnectionProgress } from '../terminal/ConnectionProgress'
 import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalViewport } from '../terminal/TerminalViewport'
@@ -34,6 +40,17 @@ import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
 import type { AppData, CodeSnippet, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
+import { SessionTabColorPanel } from './SessionTabColorPanel'
+import {
+  areSessionTabPreferenceMapsEqual,
+  compactSessionTabPreference,
+  normalizeSessionTabTitle,
+  parseSessionTabPreferences,
+  pruneSessionTabPreferences,
+  sortSessionsForTabs,
+  type SessionTabPreference,
+  type SessionTabPreferenceMap,
+} from './sessionTabPreferences'
 
 interface TerminalSearchState {
   open: boolean
@@ -101,6 +118,14 @@ export function WorkbenchPage({
     regex: false,
     result: emptyTerminalSearchResult(),
   })
+  const [sessionTabPreferences, setSessionTabPreferences] = usePersistentJsonState<SessionTabPreferenceMap>(
+    'termous.ui.workbench.sessionTabPreferences.v1',
+    {},
+    parseSessionTabPreferences,
+  )
+  const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [colorSessionId, setColorSessionId] = useState<string | null>(null)
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const activeSessionId = activeSession?.id
   const activeSessionStatus = activeSession?.status
@@ -118,6 +143,10 @@ export function WorkbenchPage({
     setTerminalSize({ cols, rows })
   }, [])
   const sessionHost = activeSession?.host_id ? data.hosts.find((host) => host.id === activeSession.host_id) : undefined
+  const visibleSessions = useMemo(
+    () => sortSessionsForTabs(data.sessions, sessionTabPreferences),
+    [data.sessions, sessionTabPreferences],
+  )
   const sessionStateLabel = activeSession?.phase ? t(`connection.phase.${activeSession.phase}`) : t(`status.${sessionStatus}`)
   const targetLabel =
     activeSession?.kind === 'local'
@@ -146,20 +175,135 @@ export function WorkbenchPage({
       })
       .slice(0, 8)
   }, [data.snippets, snippetQuery])
-  const sessionSearchMenuItems = useMemo<MenuProps['items']>(
-    () => [
-      {
-        key: 'search',
-        label: (
-          <TerminalTabMenuItem
-            icon={<Search size={15} />}
-            title={t('terminal.search')}
-          />
-        ),
-      },
-    ],
-    [t],
+  const resolveSessionTitle = useCallback(
+    (session: Session) => sessionTabPreferences[session.id]?.title ?? sessionTitle(session, data.hosts, t),
+    [data.hosts, sessionTabPreferences, t],
   )
+  const updateSessionTabPreference = useCallback(
+    (sessionId: string, updater: (preference: SessionTabPreference) => SessionTabPreference) => {
+      setSessionTabPreferences((current) => {
+        const nextPreference = compactSessionTabPreference(updater(current[sessionId] ?? {}))
+        const next = { ...current }
+        if (nextPreference) {
+          next[sessionId] = nextPreference
+        } else {
+          delete next[sessionId]
+        }
+        return areSessionTabPreferenceMapsEqual(current, next) ? current : next
+      })
+    },
+    [setSessionTabPreferences],
+  )
+  const openRenameSession = useCallback(
+    (session: Session) => {
+      setRenamingSessionId(session.id)
+      setRenameValue(resolveSessionTitle(session))
+    },
+    [resolveSessionTitle],
+  )
+  const saveSessionRename = useCallback(() => {
+    if (!renamingSessionId) {
+      return
+    }
+    const title = normalizeSessionTabTitle(renameValue)
+    updateSessionTabPreference(renamingSessionId, (preference) => ({ ...preference, title: title || undefined }))
+    setRenamingSessionId(null)
+    setRenameValue('')
+  }, [renameValue, renamingSessionId, updateSessionTabPreference])
+  const toggleSessionPinned = useCallback(
+    (sessionId: string) => {
+      updateSessionTabPreference(sessionId, (preference) => (
+        preference.pinned
+          ? { ...preference, pinned: false, pinnedAt: undefined }
+          : { ...preference, pinned: true, pinnedAt: Date.now() }
+      ))
+    },
+    [updateSessionTabPreference],
+  )
+  const setSessionTabColor = useCallback(
+    (sessionId: string, color: string) => {
+      updateSessionTabPreference(sessionId, (preference) => ({ ...preference, color }))
+      setColorSessionId(null)
+    },
+    [updateSessionTabPreference],
+  )
+  const resetSessionTabColor = useCallback(
+    (sessionId: string) => {
+      updateSessionTabPreference(sessionId, (preference) => ({ ...preference, color: undefined }))
+      setColorSessionId(null)
+    },
+    [updateSessionTabPreference],
+  )
+  const resetSessionTabPreference = useCallback(
+    (sessionId: string) => {
+      setSessionTabPreferences((current) => {
+        if (!current[sessionId]) {
+          return current
+        }
+        const next = { ...current }
+        delete next[sessionId]
+        return next
+      })
+      if (renamingSessionId === sessionId) {
+        setRenamingSessionId(null)
+        setRenameValue('')
+      }
+      if (colorSessionId === sessionId) {
+        setColorSessionId(null)
+      }
+    },
+    [colorSessionId, renamingSessionId, setSessionTabPreferences],
+  )
+  const buildSessionTabMenuItems = useCallback(
+    (session: Session): MenuProps['items'] => {
+      const preference = sessionTabPreferences[session.id]
+      const pinned = Boolean(preference?.pinned)
+      return [
+        {
+          key: 'search',
+          label: <TerminalTabMenuItem icon={<Search size={15} />} title={t('terminal.search')} />,
+        },
+        {
+          key: 'rename',
+          label: <TerminalTabMenuItem icon={<Pencil size={15} />} title={t('terminal.tabMenu.rename')} />,
+        },
+        {
+          key: 'pin',
+          label: (
+            <TerminalTabMenuItem
+              icon={pinned ? <PinOff size={15} /> : <Pin size={15} />}
+              title={pinned ? t('terminal.tabMenu.unpin') : t('terminal.tabMenu.pin')}
+            />
+          ),
+        },
+        {
+          key: 'color',
+          label: <TerminalTabMenuItem icon={<Palette size={15} />} title={t('terminal.tabMenu.color')} />,
+        },
+        {
+          key: 'reset',
+          disabled: !preference,
+          label: <TerminalTabMenuItem icon={<RotateCcw size={15} />} title={t('terminal.tabMenu.reset')} />,
+        },
+      ]
+    },
+    [sessionTabPreferences, t],
+  )
+
+  useEffect(() => {
+    const sessionIds = data.sessions.map((session) => session.id)
+    setSessionTabPreferences((current) => {
+      const pruned = pruneSessionTabPreferences(current, sessionIds)
+      return areSessionTabPreferenceMapsEqual(current, pruned) ? current : pruned
+    })
+    if (colorSessionId && !sessionIds.includes(colorSessionId)) {
+      setColorSessionId(null)
+    }
+    if (renamingSessionId && !sessionIds.includes(renamingSessionId)) {
+      setRenamingSessionId(null)
+      setRenameValue('')
+    }
+  }, [colorSessionId, data.sessions, renamingSessionId, setSessionTabPreferences])
 
   const closeTerminalSearch = useCallback(() => {
     clearActiveSearch(terminalSearch.sessionId ?? activeSession?.id)
@@ -508,11 +652,12 @@ export function WorkbenchPage({
   }, [activeSession?.id, data.sessions.length, updateTabScrollState])
 
   return (
-    <section
-      className={`page-grid workbench-grid ${hostPanelCollapsed ? 'is-host-collapsed' : ''} ${
-        detailsCollapsed ? 'is-details-collapsed' : ''
-      }`}
-    >
+    <>
+      <section
+        className={`page-grid workbench-grid ${hostPanelCollapsed ? 'is-host-collapsed' : ''} ${
+          detailsCollapsed ? 'is-details-collapsed' : ''
+        }`}
+      >
       <HostContextPanel
         hosts={data.hosts}
         groups={data.groups}
@@ -582,54 +727,88 @@ export function WorkbenchPage({
                 ref={tabViewportRef}
                 onWheel={handleTabWheel}
               >
-                {data.sessions.length === 0 ? (
+                {visibleSessions.length === 0 ? (
                   <SessionTabButton empty role="tab" icon={<SquareTerminal size={15} />} label={t('workbench.noSession')} />
                 ) : (
-                    data.sessions.map((session) => {
-                      const title = sessionTitle(session, data.hosts, t)
-                      return (
-                        <Dropdown
-                          key={session.id}
-                          trigger={['contextMenu']}
-                          classNames={{ root: 'terminal-tab-dropdown' }}
-                          menu={{
-                            items: sessionSearchMenuItems,
-                            onClick: ({ key, domEvent }) => {
-                              domEvent.stopPropagation()
-                              if (key === 'search') {
-                                requestSessionSearch(session.id)
-                              }
-                            },
-                          }}
-                        >
-                          <SessionTabButton
-                            ref={(node) => {
-                              if (node) {
-                                tabButtonRefs.current.set(session.id, node)
-                              } else {
-                                tabButtonRefs.current.delete(session.id)
+                  visibleSessions.map((session) => {
+                    const preference = sessionTabPreferences[session.id]
+                    const title = resolveSessionTitle(session)
+                    return (
+                      <Dropdown
+                        key={session.id}
+                        trigger={['contextMenu']}
+                        classNames={{ root: 'terminal-tab-dropdown' }}
+                        menu={{
+                          items: buildSessionTabMenuItems(session),
+                          onClick: ({ key, domEvent }) => {
+                            domEvent.stopPropagation()
+                            if (key === 'search') {
+                              requestSessionSearch(session.id)
+                            } else if (key === 'rename') {
+                              openRenameSession(session)
+                            } else if (key === 'pin') {
+                              toggleSessionPinned(session.id)
+                            } else if (key === 'color') {
+                              setColorSessionId(session.id)
+                            } else if (key === 'reset') {
+                              resetSessionTabPreference(session.id)
+                            }
+                          },
+                        }}
+                      >
+                        <span className="session-tab-trigger">
+                          <Popover
+                            open={colorSessionId === session.id}
+                            placement="bottomLeft"
+                            arrow={false}
+                            trigger="click"
+                            overlayClassName="session-tab-color-popover"
+                            onOpenChange={(open) => {
+                              if (!open && colorSessionId === session.id) {
+                                setColorSessionId(null)
                               }
                             }}
-                            active={session.id === activeSession?.id}
-                            role="tab"
-                            aria-selected={session.id === activeSession?.id}
-                            onClick={() => onSelectSession(session.id)}
-                            onMouseDown={(event) => {
-                              if (event.button === 1) {
-                                event.preventDefault()
-                              }
-                            }}
-                            onAuxClick={(event) => closeSessionFromTab(event, session.id)}
-                            icon={<SquareTerminal size={15} />}
-                            label={title}
-                            status={session.status}
-                            closeLabel={`${t('app.close')} ${title}`}
-                            closeDisabled={actionBusy}
-                            onClose={() => closeSessionTab(session.id)}
-                          />
-                        </Dropdown>
-                      )
-                    })
+                            content={(
+                              <SessionTabColorPanel
+                                color={preference?.color}
+                                onSelect={(color) => setSessionTabColor(session.id, color)}
+                                onReset={() => resetSessionTabColor(session.id)}
+                              />
+                            )}
+                          >
+                            <SessionTabButton
+                              ref={(node) => {
+                                if (node) {
+                                  tabButtonRefs.current.set(session.id, node)
+                                } else {
+                                  tabButtonRefs.current.delete(session.id)
+                                }
+                              }}
+                              active={session.id === activeSession?.id}
+                              role="tab"
+                              aria-selected={session.id === activeSession?.id}
+                              onClick={() => onSelectSession(session.id)}
+                              onMouseDown={(event) => {
+                                if (event.button === 1) {
+                                  event.preventDefault()
+                                }
+                              }}
+                              onAuxClick={(event) => closeSessionFromTab(event, session.id)}
+                              icon={<SquareTerminal size={15} />}
+                              label={title}
+                              status={session.status}
+                              pinned={preference?.pinned}
+                              pinLabel={t('terminal.tabMenu.pinned')}
+                              accentColor={preference?.color}
+                              closeLabel={`${t('app.close')} ${title}`}
+                              closeDisabled={actionBusy}
+                              onClose={() => closeSessionTab(session.id)}
+                            />
+                          </Popover>
+                        </span>
+                      </Dropdown>
+                    )
+                  })
                 )}
               </div>
               <Tooltip title={t('workbench.scrollTabsRight')}>
@@ -794,7 +973,32 @@ export function WorkbenchPage({
           </>
         )}
       </aside>
-    </section>
+      </section>
+      <Modal
+        open={Boolean(renamingSessionId)}
+        title={t('terminal.tabMenu.renameTitle')}
+        okText={t('app.confirm')}
+        cancelText={t('app.cancel')}
+        centered
+        className="termous-modal"
+        onOk={saveSessionRename}
+        onCancel={() => {
+          setRenamingSessionId(null)
+          setRenameValue('')
+        }}
+      >
+        <Input
+          id="workbench-session-rename"
+          name="workbench-session-rename"
+          value={renameValue}
+          maxLength={80}
+          autoFocus
+          placeholder={t('terminal.tabMenu.renamePlaceholder')}
+          onChange={(event) => setRenameValue(event.target.value)}
+          onPressEnter={saveSessionRename}
+        />
+      </Modal>
+    </>
   )
 }
 
