@@ -50,8 +50,11 @@ function App() {
 function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<SetStateAction<ThemeMode>> }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
-  const { api, data, initializing, refreshing, apiReady, error, activeSession, actions } = useTermousData()
+  const { api, data, initializing, refreshing, apiReady, error, activeSession, forwardErrorEvent, actions } = useTermousData()
   const updateForwardRef = useRef(actions.updateForward)
+  const reloadForwardStateRef = useRef(actions.reloadForwardsSilent)
+  const notifiedForwardFailuresRef = useRef(new Set<string>())
+  const notifiedForwardRuntimeErrorsRef = useRef(new Map<string, string>())
   const [page, setPage] = useState<PageKey>('workbench')
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const [selectedHostId, setSelectedHostId] = useState('')
@@ -86,22 +89,59 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   useEffect(() => {
     updateForwardRef.current = actions.updateForward
-  }, [actions.updateForward])
+    reloadForwardStateRef.current = actions.reloadForwardsSilent
+  }, [actions.reloadForwardsSilent, actions.updateForward])
+
+  useEffect(() => {
+    if (!forwardErrorEvent) {
+      return
+    }
+    notifyForwardError(forwardErrorEvent, notification, t, notifiedForwardFailuresRef, notifiedForwardRuntimeErrorsRef)
+  }, [forwardErrorEvent, notification, t])
 
   useEffect(() => {
     if (!apiReady) {
       return undefined
     }
-    const socket = new WebSocket(api.forwardEventsUrl())
-    socket.onmessage = (event) => {
+    let disposed = false
+    let reconnectTimer: number | undefined
+    let socket: WebSocket | undefined
+
+    const handleForwardMessage = (event: MessageEvent<string>) => {
       try {
-        updateForwardRef.current(JSON.parse(event.data) as ForwardEvent)
+        const forwardEvent = JSON.parse(event.data) as ForwardEvent
+        updateForwardRef.current(forwardEvent)
       } catch {
         // 忽略无法解析的转发事件，避免单条异常消息中断状态同步。
       }
     }
-    return () => socket.close()
-  }, [api, apiReady])
+
+    const connect = () => {
+      socket = new WebSocket(api.forwardEventsUrl())
+      socket.onopen = () => {
+        void reloadForwardStateRef.current().catch(() => undefined)
+      }
+      socket.onmessage = handleForwardMessage
+      socket.onerror = () => {
+        socket?.close()
+      }
+      socket.onclose = () => {
+        if (disposed) {
+          return
+        }
+        reconnectTimer = window.setTimeout(connect, 1200)
+      }
+    }
+
+    connect()
+    return () => {
+      disposed = true
+      if (reconnectTimer !== undefined) {
+        window.clearTimeout(reconnectTimer)
+      }
+      socket?.close()
+    }
+  }, [api, apiReady, notification, t])
 
   useEffect(() => {
     let disposed = false
@@ -345,7 +385,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onSnippetUsed={(snippetId) => actions.markCodeSnippetUsed(snippetId).then(() => undefined)}
             onToggleSnippetFavorite={toggleCodeSnippetFavorite}
             onStartForward={(input) => actions.startForward(input)}
-            onStopForward={(id) => runAction(() => actions.stopForward(id))}
+            onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
           />
         ) : null}
 
@@ -410,7 +450,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onUpdateProfile={(id, input) => actions.updateForwardProfile(id, input)}
             onDeleteProfile={(id) => runAction(() => actions.deleteForwardProfile(id))}
             onStartForward={(input) => actions.startForward(input)}
-            onStopForward={(id) => runAction(() => actions.stopForward(id))}
+            onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
           />
         ) : null}
 
@@ -454,3 +494,49 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 }
 
 export default App
+
+function shouldNotifyForwardFailure(event: ForwardEvent) {
+  return event.type === 'error' || (event.forward.status === 'failed' && event.type !== 'snapshot')
+}
+
+function shouldNotifyForwardRuntimeError(event: ForwardEvent) {
+  return event.type === 'update' && event.forward.status === 'running'
+}
+
+function notifyForwardError(
+  event: ForwardEvent,
+  notification: ReturnType<typeof AntdApp.useApp>['notification'],
+  t: (key: string, options?: Record<string, unknown>) => string,
+  failedRef: React.MutableRefObject<Set<string>>,
+  runtimeRef: React.MutableRefObject<Map<string, string>>,
+) {
+  if (event.forward.status !== 'failed') {
+    failedRef.current.delete(event.forward.id)
+  }
+  if (event.forward.last_error) {
+    const previousError = runtimeRef.current.get(event.forward.id)
+    if (shouldNotifyForwardRuntimeError(event) && previousError !== event.forward.last_error) {
+      runtimeRef.current.set(event.forward.id, event.forward.last_error)
+      notification.error({
+        title: t('forwards.runtimeError', { mode: t(`forwards.modeName.${event.forward.mode}`) }),
+        description: event.forward.last_error,
+        duration: 6,
+        role: 'alert',
+        className: 'termous-notification',
+      })
+      return
+    }
+  } else {
+    runtimeRef.current.delete(event.forward.id)
+  }
+  if (shouldNotifyForwardFailure(event) && !failedRef.current.has(event.forward.id)) {
+    failedRef.current.add(event.forward.id)
+    notification.error({
+      title: t('forwards.startFailed'),
+      description: event.message || event.forward.last_error || event.forward.status_message || t('app.error'),
+      duration: 6,
+      role: 'alert',
+      className: 'termous-notification',
+    })
+  }
+}

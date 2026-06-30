@@ -174,6 +174,10 @@ export class TermousApi {
     return this.request<ForwardInstance[]>('/api/v1/forwards')
   }
 
+  getForward(id: string) {
+    return this.request<ForwardInstance>(`/api/v1/forwards/${encodeURIComponent(id)}`)
+  }
+
   startForward(input: ForwardStartRequest) {
     return this.request<ForwardInstance>('/api/v1/forwards', {
       method: 'POST',

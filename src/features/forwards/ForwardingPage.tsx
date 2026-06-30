@@ -1,6 +1,7 @@
 import {
   Activity,
-  ArrowDownUp,
+  ArrowDownLeft,
+  ArrowUpRight,
   Cable,
   CircleDot,
   Clock3,
@@ -11,6 +12,7 @@ import {
   RadioTower,
   Route,
   Square,
+  Timer,
   Trash2,
 } from 'lucide-react'
 import { App as AntdApp, Button, Empty, Input, InputNumber, Modal, Popconfirm, Progress, Segmented, Tooltip } from 'antd'
@@ -19,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { StatusBadge } from '../../components/ui/StatusBadge'
+import { ForwardRouteDiagram } from './ForwardRouteDiagram'
 import type {
   AppData,
   ForwardInstance,
@@ -28,6 +31,7 @@ import type {
   ForwardStartRequest,
 } from '../../types/domain'
 import { formatBytes } from '../files/fileUtils'
+import { formatForwardDuration, useForwardDurationTick } from './forwardTiming'
 
 type EditorMode = 'profile' | 'temporary'
 
@@ -86,6 +90,7 @@ export function ForwardingPage({
   )
   const runningForwards = data.forwards.filter((forward) => activeStatuses.has(forward.status))
   const stoppedForwards = data.forwards.filter((forward) => !activeStatuses.has(forward.status)).slice(0, 8)
+  const durationNow = useForwardDurationTick(runningForwards.length > 0)
 
   const openCreateProfile = () => {
     setEditorMode('profile')
@@ -201,8 +206,14 @@ export function ForwardingPage({
                     </div>
                     <div className="forwarding-card-title">
                       <strong>{profile.name}</strong>
-                      <span>{forwardMapping(profile)}</span>
                     </div>
+                    <ForwardRouteDiagram
+                      mode={profile.mode}
+                      bindHost={profile.bind_host}
+                      bindPort={profile.bind_port}
+                      targetHost={profile.target_host}
+                      targetPort={profile.target_port}
+                    />
                     {profile.description ? <p>{profile.description}</p> : null}
                     {unsupported ? <span className="forwarding-card-warning">{t('forwards.systemAuthUnsupported')}</span> : null}
                     <div className="forwarding-card-actions">
@@ -246,7 +257,8 @@ export function ForwardingPage({
           <div className="forwarding-runtime-summary">
             <SummaryMetric label={t('forwards.active')} value={String(runningForwards.length)} />
             <SummaryMetric label={t('forwards.connections')} value={String(data.forwards.reduce((sum, item) => sum + item.active_connections, 0))} />
-            <SummaryMetric label={t('forwards.traffic')} value={formatBytes(data.forwards.reduce((sum, item) => sum + item.bytes_in + item.bytes_out, 0))} />
+            <SummaryMetric label={t('forwards.sent')} value={formatBytes(data.forwards.reduce((sum, item) => sum + item.bytes_out, 0))} />
+            <SummaryMetric label={t('forwards.received')} value={formatBytes(data.forwards.reduce((sum, item) => sum + item.bytes_in, 0))} />
           </div>
           <div className="forwarding-runtime-list">
             {runningForwards.length === 0 ? (
@@ -259,6 +271,7 @@ export function ForwardingPage({
                   key={forward.id}
                   forward={forward}
                   hostName={hostById(forward.host_id)?.name ?? t('fields.none')}
+                  now={durationNow}
                   actionBusy={actionBusy}
                   onStop={() => void onStopForward(forward.id)}
                 />
@@ -381,16 +394,21 @@ function ForwardEditorForm({
 function ForwardRuntimeCard({
   forward,
   hostName,
+  now,
   actionBusy,
   onStop,
 }: {
   forward: ForwardInstance
   hostName: string
+  now: number
   actionBusy: boolean
   onStop: () => void
 }) {
   const { t } = useTranslation()
   const progressStatus = forward.status === 'failed' ? 'exception' : forward.status === 'running' ? 'success' : 'active'
+  const modeLabel = t(`forwards.modeName.${forward.mode}`)
+  const forwardName = forward.name.trim()
+  const showForwardName = forwardName !== '' && forwardName !== modeLabel
   return (
     <article className={`forwarding-runtime-card is-${forward.status}`}>
       <div className="forwarding-runtime-top">
@@ -399,8 +417,8 @@ function ForwardRuntimeCard({
       </div>
       <div className="forwarding-runtime-title">
         <div>
-          <strong>{forward.name}</strong>
-          <span>{hostName} · {forward.bound_address || forwardMapping(forward)}</span>
+          <strong>{showForwardName ? forwardName : hostName}</strong>
+          {showForwardName ? <span>{hostName}</span> : null}
         </div>
         <Tooltip title={t('forwards.stop')}>
           <Button className="danger-button" disabled={actionBusy || forward.status === 'stopping'} icon={<Square size={13} />} onClick={onStop}>
@@ -408,12 +426,22 @@ function ForwardRuntimeCard({
           </Button>
         </Tooltip>
       </div>
+      <ForwardRouteDiagram
+        mode={forward.mode}
+        bindHost={forward.bind_host}
+        bindPort={forward.bind_port}
+        boundAddress={forward.bound_address}
+        targetHost={forward.target_host}
+        targetPort={forward.target_port}
+      />
       <Progress percent={Math.max(0, Math.min(100, forward.progress || 0))} showInfo={false} status={progressStatus} />
       <div className="forwarding-runtime-metrics">
         <span><CircleDot size={13} />{t('forwards.phaseName.' + forward.phase)}</span>
         <span><Cable size={13} />{forward.active_connections}</span>
-        <span><ArrowDownUp size={13} />{formatBytes(forward.bytes_in + forward.bytes_out)}</span>
-        <span><Clock3 size={13} />{formatTime(forward.started_at)}</span>
+        <span><ArrowUpRight size={13} /><small>{t('forwards.sent')}</small>{formatBytes(forward.bytes_out)}</span>
+        <span><ArrowDownLeft size={13} /><small>{t('forwards.received')}</small>{formatBytes(forward.bytes_in)}</span>
+        <span><Clock3 size={13} /><small>{t('forwards.startedAt')}</small>{formatTime(forward.started_at)}</span>
+        <span><Timer size={13} /><small>{t('forwards.duration')}</small>{formatForwardDuration(forward.started_at, now)}</span>
       </div>
       {forward.last_error ? <p className="forwarding-runtime-error">{forward.last_error}</p> : null}
     </article>
@@ -486,14 +514,6 @@ function validateForwardForm(form: ForwardFormState, t: (key: string) => string)
 
 function validPort(value: number | null) {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 65535
-}
-
-function forwardMapping(forward: Pick<ForwardProfile | ForwardInstance, 'mode' | 'bind_host' | 'bind_port' | 'target_host' | 'target_port'>) {
-  const bind = `${forward.bind_host}:${forward.bind_port}`
-  if (forward.mode === 'dynamic') {
-    return `${bind} SOCKS5`
-  }
-  return `${bind} -> ${forward.target_host}:${forward.target_port}`
 }
 
 function formatTime(value: string) {

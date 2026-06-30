@@ -48,6 +48,7 @@ export function useTermousData() {
   const [error, setError] = useState<string | null>(null)
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
+  const [forwardErrorEvent, setForwardErrorEvent] = useState<ForwardEvent | null>(null)
 
   const loadWithApi = useCallback(async (apiClient: TermousApi, mode: LoadMode = 'background') => {
     if (mode === 'initial') {
@@ -82,19 +83,11 @@ export function useTermousData() {
         sessions: nextSessions,
         fileSessions: fileSessions ?? [],
         forwardProfiles: forwardProfiles ?? [],
-        forwards: forwards ?? [],
+        forwards: visibleForwards(forwards ?? []),
         snippets: snippets ?? [],
         terminalFonts: terminalFonts ?? [],
       })
-      setActiveSession((current) => {
-        if (current) {
-          const updated = nextSessions.find((session) => session.id === current.id)
-          if (updated) {
-            return updated
-          }
-        }
-        return nextSessions[0] ?? null
-      })
+      setActiveSession((current) => reconcileActiveSession(current, nextSessions, mode))
       setApiReady(true)
       setLastUpdatedAt(new Date().toISOString())
       await changeLanguage(nextSettings.language)
@@ -113,6 +106,17 @@ export function useTermousData() {
   const load = useCallback(
     (mode: LoadMode = 'background') => loadWithApi(api, mode),
     [api, loadWithApi],
+  )
+
+  const reloadForwardsWithApi = useCallback(async (apiClient: TermousApi) => {
+    const forwards = await apiClient.forwards()
+    setData((current) => ({ ...current, forwards: visibleForwards(forwards ?? []) }))
+    setLastUpdatedAt(new Date().toISOString())
+  }, [])
+
+  const reloadForwards = useCallback(
+    () => reloadForwardsWithApi(api),
+    [api, reloadForwardsWithApi],
   )
 
   useEffect(() => {
@@ -141,6 +145,8 @@ export function useTermousData() {
   const actions = useMemo(
     () => ({
       reload: () => load('background'),
+      reloadSilent: () => load('silent'),
+      reloadForwardsSilent: () => reloadForwards(),
       async setLanguage(language: Language) {
         const settings = normalizeSettings(await api.updateLanguage(language))
         setData((current) => ({ ...current, settings }))
@@ -208,15 +214,41 @@ export function useTermousData() {
       async startForward(input: ForwardStartRequest) {
         const forward = await api.startForward(input)
         setData((current) => ({ ...current, forwards: upsertForward(current.forwards, forward) }))
+        void syncForwardAfterStart(
+          api,
+          forward.id,
+          (nextForward) => {
+            const shouldRemove = shouldRemoveForward(nextForward)
+            if (shouldRemove) {
+              setForwardErrorEvent({ type: 'error', forward: nextForward, message: nextForward.last_error || nextForward.status_message })
+            }
+            setData((current) => {
+              if (shouldRemove) {
+                return { ...current, forwards: current.forwards.filter((item) => item.id !== nextForward.id) }
+              }
+              return { ...current, forwards: upsertForward(current.forwards, nextForward) }
+            })
+          },
+          () => reloadForwards(),
+        )
         return forward
       },
       async stopForward(id: string) {
         await api.stopForward(id)
-        setData((current) => ({ ...current, forwards: markForwardStopped(current.forwards, id) }))
+        setData((current) => {
+          const existing = current.forwards.find((forward) => forward.id === id)
+          if (existing && isTransientForward(existing)) {
+            return { ...current, forwards: current.forwards.filter((forward) => forward.id !== id) }
+          }
+          return { ...current, forwards: markForwardStopped(current.forwards, id) }
+        })
       },
       updateForward(event: ForwardEvent) {
+        if (shouldEmitForwardError(event)) {
+          setForwardErrorEvent(event)
+        }
         setData((current) => {
-          if (event.type === 'deleted') {
+          if (event.type === 'deleted' || shouldRemoveForward(event.forward)) {
             return { ...current, forwards: current.forwards.filter((forward) => forward.id !== event.forward.id) }
           }
           return { ...current, forwards: upsertForward(current.forwards, event.forward) }
@@ -332,10 +364,23 @@ export function useTermousData() {
         setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
       },
     }),
-    [api, data.fileSessions, data.forwards, data.settings, data.sessions, load],
+    [api, data.fileSessions, data.forwards, data.settings, data.sessions, load, reloadForwards],
   )
 
-  return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, actions }
+  return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, actions }
+}
+
+function reconcileActiveSession(current: Session | null, nextSessions: Session[], mode: LoadMode) {
+  if (current) {
+    const updated = nextSessions.find((session) => session.id === current.id)
+    if (updated) {
+      return updated
+    }
+  }
+  if (mode === 'initial') {
+    return nextSessions[0] ?? null
+  }
+  return null
 }
 
 function upsertTerminalFont(fonts: TerminalFont[], next: TerminalFont) {
@@ -406,11 +451,35 @@ function markForwardStopped(forwards: ForwardInstance[], id: string) {
 }
 
 function markAllForwardsStopped(forwards: ForwardInstance[]) {
-  return forwards.map((forward) => (
-    forward.status === 'starting' || forward.status === 'running' || forward.status === 'stopping'
-      ? { ...forward, status: 'stopped' as const, phase: 'stopped' as const, progress: 100, status_message: '端口转发已停止' }
-      : forward
-  ))
+  return forwards
+    .filter((forward) => !isTransientForward(forward))
+    .map((forward) => (
+      forward.status === 'starting' || forward.status === 'running' || forward.status === 'stopping'
+        ? { ...forward, status: 'stopped' as const, phase: 'stopped' as const, progress: 100, status_message: '端口转发已停止' }
+        : forward
+    ))
+}
+
+function visibleForwards(forwards: ForwardInstance[]) {
+  return forwards.filter((forward) => !shouldRemoveForward(forward))
+}
+
+function shouldRemoveForward(forward: ForwardInstance) {
+  return isTransientForward(forward) && (forward.status === 'stopped' || forward.status === 'failed')
+}
+
+function shouldEmitForwardError(event: ForwardEvent) {
+  if (event.type === 'snapshot') {
+    return false
+  }
+  if (event.type === 'error' || event.forward.status === 'failed') {
+    return true
+  }
+  return event.type === 'update' && event.forward.status === 'running' && Boolean(event.forward.last_error)
+}
+
+function isTransientForward(forward: ForwardInstance) {
+  return forward.scope === 'session' || forward.scope === 'background_once'
 }
 
 function sortForwards(left: ForwardInstance, right: ForwardInstance) {
@@ -420,6 +489,45 @@ function sortForwards(left: ForwardInstance, right: ForwardInstance) {
     return rightTime - leftTime
   }
   return left.id.localeCompare(right.id)
+}
+
+async function syncForwardAfterStart(
+  api: TermousApi,
+  id: string,
+  onForward: (forward: ForwardInstance) => void,
+  onFallback: () => Promise<void>,
+) {
+  const intervals = [240, 420, 700, 1100, 1700, 2600, 4000]
+  for (const interval of intervals) {
+    await delay(interval)
+    try {
+      const forward = await api.getForward(id)
+      onForward(forward)
+      if (forward.status !== 'starting' && forward.status !== 'stopping') {
+        return
+      }
+    } catch (syncError) {
+      if (syncError instanceof TermousApiError && syncError.status === 404) {
+        await runForwardSyncFallback(onFallback)
+        return
+      }
+    }
+  }
+  await runForwardSyncFallback(onFallback)
+}
+
+async function runForwardSyncFallback(onFallback: () => Promise<void>) {
+  try {
+    await onFallback()
+  } catch {
+    // 转发启动后的补偿刷新不能反向扰动主界面状态。
+  }
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, ms)
+  })
 }
 
 function sortCodeSnippets(left: CodeSnippet, right: CodeSnippet) {

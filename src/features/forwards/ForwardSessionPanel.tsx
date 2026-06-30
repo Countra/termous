@@ -1,4 +1,4 @@
-import { ArrowDownUp, Cable, Network, Play, RadioTower, Route, Square } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, Cable, Network, Play, RadioTower, Route, Square } from 'lucide-react'
 import { App as AntdApp, Button, Empty, Input, InputNumber, Progress, Segmented } from 'antd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +6,7 @@ import { ConnectionActionButton } from '../../components/ui/ConnectionActionButt
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import type { ForwardInstance, ForwardMode, ForwardStartRequest, Host, Session } from '../../types/domain'
 import { formatBytes } from '../files/fileUtils'
+import { ForwardRouteDiagram } from './ForwardRouteDiagram'
 
 interface ForwardSessionPanelProps {
   session: Session | null
@@ -149,7 +150,12 @@ export function ForwardSessionPanel({
           <div className="forward-session-empty-inline">{t('forwards.noSessionForwards')}</div>
         ) : (
           sessionForwards.map((forward) => (
-            <SessionForwardRow key={forward.id} forward={forward} actionBusy={actionBusy} onStop={() => void onStopForward(forward.id)} />
+            <SessionForwardRow
+              key={forward.id}
+              forward={forward}
+              actionBusy={actionBusy}
+              onStop={() => void onStopForward(forward.id)}
+            />
           ))
         )}
       </div>
@@ -178,12 +184,24 @@ function SessionForwardRow({
         </span>
         <StatusBadge status={status} label={t(`forwards.status.${forward.status}`)} />
       </div>
-      <strong>{forward.bound_address || `${forward.bind_host}:${forward.bind_port}`}</strong>
-      <span>{forward.mode === 'dynamic' ? 'SOCKS5' : `${forward.target_host}:${forward.target_port}`}</span>
-      <Progress percent={Math.max(0, Math.min(100, forward.progress || 0))} showInfo={false} status={forward.status === 'failed' ? 'exception' : 'active'} />
+      <ForwardRouteDiagram
+        compact
+        mode={forward.mode}
+        bindHost={forward.bind_host}
+        bindPort={forward.bind_port}
+        boundAddress={forward.bound_address}
+        targetHost={forward.target_host}
+        targetPort={forward.target_port}
+      />
+      <Progress
+        percent={Math.max(0, Math.min(100, forward.progress || 0))}
+        showInfo={false}
+        status={forward.status === 'failed' ? 'exception' : 'active'}
+      />
       <div className="forward-session-row-meta">
         <span><Cable size={12} />{forward.active_connections}</span>
-        <span><ArrowDownUp size={12} />{formatBytes(forward.bytes_in + forward.bytes_out)}</span>
+        <span><ArrowUpRight size={12} /><small>{t('forwards.sent')}</small>{formatBytes(forward.bytes_out)}</span>
+        <span><ArrowDownLeft size={12} /><small>{t('forwards.received')}</small>{formatBytes(forward.bytes_in)}</span>
         <Button className="danger-button" size="small" disabled={actionBusy || forward.status === 'stopping'} icon={<Square size={12} />} onClick={onStop}>
           {t('forwards.stop')}
         </Button>
