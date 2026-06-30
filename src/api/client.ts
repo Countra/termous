@@ -7,6 +7,12 @@ import type {
   CredentialInput,
   CredentialView,
   FileSession,
+  FirewallApplyResult,
+  FirewallCapability,
+  FirewallDesiredState,
+  FirewallPlan,
+  FirewallSaveResult,
+  FirewallSnapshot,
   ForwardInstance,
   ForwardProfile,
   ForwardProfileInput,
@@ -314,6 +320,34 @@ export class TermousApi {
 
   sessionMonitorUrl(id: string) {
     return this.websocketUrl(`/api/v1/sessions/${encodeURIComponent(id)}/monitor`)
+  }
+
+  sessionFirewallCapability(id: string) {
+    return this.request<FirewallCapability>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/capability`)
+  }
+
+  sessionFirewallSnapshot(id: string) {
+    return this.request<FirewallSnapshot>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/snapshot`)
+  }
+
+  previewSessionFirewall(id: string, desired: FirewallDesiredState) {
+    return this.request<FirewallPlan>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/preview`, {
+      method: 'POST',
+      body: desired,
+    })
+  }
+
+  applySessionFirewall(id: string, desired: FirewallDesiredState) {
+    return this.request<FirewallApplyResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/apply`, {
+      method: 'POST',
+      body: desired,
+    })
+  }
+
+  saveSessionFirewall(id: string) {
+    return this.request<FirewallSaveResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/save`, {
+      method: 'POST',
+    })
   }
 
   fileSessions() {

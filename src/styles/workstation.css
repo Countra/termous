@@ -5181,6 +5181,370 @@ body.is-panel-resizing * {
   background-clip: content-box;
 }
 
+.firewall-panel {
+  display: grid;
+  min-height: 0;
+  gap: 12px;
+}
+
+.firewall-toolbar,
+.firewall-rule-actions,
+.firewall-rule-main,
+.firewall-rule-card-actions,
+.firewall-warning-list span,
+.firewall-provider-pill {
+  display: flex;
+  align-items: center;
+}
+
+.firewall-toolbar {
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-subtle) 58%, transparent);
+  padding: 11px;
+}
+
+.firewall-toolbar > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.firewall-toolbar small {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.firewall-provider-pill {
+  width: fit-content;
+  gap: 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text-primary);
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.firewall-toolbar-actions,
+.firewall-rule-actions,
+.firewall-rule-card-actions {
+  gap: 8px;
+}
+
+.firewall-rule-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.firewall-rule-list,
+.firewall-warning-list,
+.firewall-unsupported,
+.firewall-preview,
+.firewall-rule-form {
+  display: grid;
+  gap: 9px;
+}
+
+.firewall-rule-card {
+  position: relative;
+  display: grid;
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-subtle) 54%, transparent);
+  padding: 11px;
+  overflow: hidden;
+}
+
+.firewall-rule-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--accent);
+}
+
+.firewall-rule-card.is-drop::before {
+  background: #ef5f62;
+}
+
+.firewall-rule-card.is-reject::before {
+  background: #f3a240;
+}
+
+.firewall-rule-card.is-disabled {
+  opacity: 0.62;
+}
+
+.firewall-rule-main {
+  min-width: 0;
+  gap: 10px;
+}
+
+.firewall-rule-main > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.firewall-rule-main strong,
+.firewall-rule-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.firewall-rule-main small,
+.firewall-rule-meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.firewall-rule-action {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.firewall-rule-card.is-drop .firewall-rule-action {
+  background: rgb(239 95 98 / 14%);
+  color: #ff8b8f;
+}
+
+.firewall-rule-card.is-reject .firewall-rule-action {
+  background: rgb(243 162 64 / 15%);
+  color: #ffc06f;
+}
+
+.firewall-rule-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(2, max-content);
+  align-items: center;
+  gap: 8px;
+}
+
+.firewall-rule-card-actions {
+  justify-content: flex-end;
+}
+
+.firewall-warning-list span {
+  gap: 7px;
+  border: 1px solid rgb(243 162 64 / 28%);
+  border-radius: 12px;
+  background: rgb(243 162 64 / 10%);
+  color: #ffc06f;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.firewall-inline-empty,
+.firewall-empty,
+.firewall-loading {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  gap: 8px;
+  border: 1px dashed color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.firewall-empty strong {
+  color: var(--text-primary);
+}
+
+.firewall-empty small {
+  max-width: 260px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.firewall-loading-card {
+  display: grid;
+  width: 100%;
+  gap: 12px;
+  padding: 18px;
+}
+
+.firewall-loading-card > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.firewall-unsupported {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
+  padding: 11px;
+}
+
+.firewall-unsupported-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.firewall-unsupported-head strong {
+  font-size: 12px;
+}
+
+.firewall-unsupported > div:not(.firewall-unsupported-head) {
+  display: grid;
+  gap: 3px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding-top: 8px;
+}
+
+.firewall-unsupported small,
+.firewall-form-error {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.firewall-rule-modal .ant-modal-body,
+.firewall-preview-modal .ant-modal-body {
+  max-height: min(620px, calc(100dvh - 220px));
+  overflow: auto;
+  padding-right: 16px;
+}
+
+.firewall-field {
+  display: grid;
+  gap: 7px;
+}
+
+.firewall-field > span,
+.firewall-switch-line > span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.firewall-field .ant-input,
+.firewall-field .ant-input-number {
+  width: 100%;
+  background: color-mix(in srgb, var(--surface-subtle) 88%, transparent) !important;
+}
+
+.firewall-field .ant-input-number-input-wrap,
+.firewall-field .ant-input-number-input,
+.firewall-field .ant-input-number-handler-wrap,
+.firewall-field .ant-input-number-handler {
+  background: transparent !important;
+}
+
+.firewall-port-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.firewall-switch-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border-radius: 12px;
+  padding: 9px 10px;
+}
+
+.firewall-form-error {
+  margin: 0;
+  color: #ff8b8f;
+}
+
+.firewall-change-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-subtle) 56%, transparent);
+  padding: 10px;
+}
+
+.firewall-change-row > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+.firewall-change-row.is-delete > span {
+  background: rgb(239 95 98 / 14%);
+  color: #ff8b8f;
+}
+
+.firewall-change-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.firewall-change-row small {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.firewall-risk-box {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgb(243 162 64 / 32%);
+  border-radius: 13px;
+  background: rgb(243 162 64 / 11%);
+  padding: 11px;
+}
+
+.firewall-risk-box > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ffc06f;
+  font-size: 12px;
+}
+
+:root[data-theme="light"] .firewall-toolbar,
+:root[data-theme="light"] .firewall-rule-card,
+:root[data-theme="light"] .firewall-unsupported,
+:root[data-theme="light"] .firewall-change-row {
+  background: rgb(255 255 255 / 78%);
+}
+
+:root[data-theme="light"] .firewall-inline-empty,
+:root[data-theme="light"] .firewall-empty,
+:root[data-theme="light"] .firewall-loading {
+  background: rgb(248 250 253 / 68%);
+}
+
+:root[data-theme="light"] .firewall-field .ant-input,
+:root[data-theme="light"] .firewall-field .ant-input-number {
+  background: rgb(247 249 252 / 92%) !important;
+}
+
 .forwarding-editor-form,
 .forward-session-panel {
   display: grid;

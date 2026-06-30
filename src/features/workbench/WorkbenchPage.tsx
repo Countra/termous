@@ -45,6 +45,7 @@ import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/
 import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
+import { FirewallPanel } from './FirewallPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
 import { SystemMonitorPanel } from './SystemMonitorPanel'
 import {
@@ -58,7 +59,7 @@ import {
   type SessionTabPreferenceMap,
 } from './sessionTabPreferences'
 
-type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'forwards' | 'snippets'
+type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'firewall' | 'forwards' | 'snippets'
 
 const workbenchHostPanelWidth = {
   default: 260,
@@ -1038,6 +1039,18 @@ export function WorkbenchPage({
                   ),
                 },
                 {
+                  key: 'firewall',
+                  label: t('workbench.detailsTabs.firewall'),
+                  children: (
+                    <FirewallPanel
+                      api={api}
+                      session={activeSession}
+                      host={sessionHost}
+                      enabled={detailsActiveTab === 'firewall' && !detailsCollapsed}
+                    />
+                  ),
+                },
+                {
                   key: 'forwards',
                   label: t('workbench.detailsTabs.forwards'),
                   children: (
@@ -1278,7 +1291,7 @@ function buildSystemInfoTree(info: NonNullable<Session['linux_system_info']>, t:
 }
 
 function parseDetailsTabKey(value: unknown): DetailsTabKey {
-  return value === 'system' || value === 'monitor' || value === 'forwards' || value === 'snippets' || value === 'overview' ? value : 'overview'
+  return value === 'system' || value === 'monitor' || value === 'firewall' || value === 'forwards' || value === 'snippets' || value === 'overview' ? value : 'overview'
 }
 
 function valueOrNone(value: string | undefined, t: WorkbenchTranslate) {
