@@ -2,7 +2,7 @@ export type Language = 'zh-CN' | 'en-US'
 
 export type ThemeMode = 'dark' | 'light'
 
-export type PageKey = 'workbench' | 'hosts' | 'vault' | 'files' | 'snippets' | 'settings'
+export type PageKey = 'workbench' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets' | 'settings'
 
 export type RemoteFileKind = 'file' | 'directory' | 'symlink' | 'other'
 
@@ -176,6 +176,96 @@ export type SessionPhase =
 export type SessionKind = 'ssh' | 'local'
 
 export type LocalShell = 'powershell' | 'cmd'
+
+export type ForwardMode = 'local' | 'remote' | 'dynamic'
+
+export type ForwardScope = 'session' | 'background_once' | 'background_profile'
+
+export type ForwardStatus = 'starting' | 'running' | 'stopping' | 'stopped' | 'failed'
+
+export type ForwardPhase =
+  | 'queued'
+  | 'resolving_session'
+  | 'resolving_auth'
+  | 'dialing_ssh'
+  | 'starting_listener'
+  | 'ready'
+  | 'stopping'
+  | 'stopped'
+  | 'failed'
+
+export interface ForwardProfile {
+  id: string
+  name: string
+  description?: string
+  mode: ForwardMode
+  host_id: string
+  bind_host: string
+  bind_port: number
+  target_host?: string
+  target_port?: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ForwardProfileInput {
+  name: string
+  description: string
+  mode: ForwardMode
+  host_id: string
+  bind_host: string
+  bind_port: number
+  target_host: string
+  target_port: number
+}
+
+export interface ForwardStartRequest {
+  profile_id?: string
+  scope?: ForwardScope
+  session_id?: string
+  host_id?: string
+  name?: string
+  description?: string
+  mode?: ForwardMode
+  bind_host?: string
+  bind_port?: number
+  target_host?: string
+  target_port?: number
+}
+
+export interface ForwardInstance {
+  id: string
+  profile_id?: string
+  session_id?: string
+  host_id?: string
+  name: string
+  description?: string
+  mode: ForwardMode
+  scope: ForwardScope
+  status: ForwardStatus
+  phase: ForwardPhase
+  progress: number
+  status_message?: string
+  bind_host: string
+  bind_port: number
+  bound_address?: string
+  target_host?: string
+  target_port?: number
+  target_address?: string
+  active_connections: number
+  total_connections: number
+  bytes_in: number
+  bytes_out: number
+  started_at: string
+  stopped_at?: string
+  last_error?: string
+}
+
+export interface ForwardEvent {
+  type: string
+  forward: ForwardInstance
+  message?: string
+}
 
 export interface Settings {
   language: Language
@@ -446,6 +536,8 @@ export interface AppData {
   knownHosts: KnownHost[]
   sessions: Session[]
   fileSessions: FileSession[]
+  forwardProfiles: ForwardProfile[]
+  forwards: ForwardInstance[]
   snippets: CodeSnippet[]
   settings: Settings
   terminalFonts: TerminalFont[]

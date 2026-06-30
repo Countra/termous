@@ -6,6 +6,11 @@ import type {
   CodeSnippetInput,
   CredentialInput,
   FileSession,
+  ForwardEvent,
+  ForwardInstance,
+  ForwardProfile,
+  ForwardProfileInput,
+  ForwardStartRequest,
   HostInput,
   Language,
   LocalShell,
@@ -27,6 +32,8 @@ const initialData: AppData = {
   knownHosts: [],
   sessions: [],
   fileSessions: [],
+  forwardProfiles: [],
+  forwards: [],
   snippets: [],
   settings: initialSettings,
   terminalFonts: [],
@@ -51,7 +58,7 @@ export function useTermousData() {
     setError(null)
     try {
       await apiClient.health()
-      const [settings, terminalFonts, snippets, groups, hosts, credentials, knownHosts, sessions, fileSessions] = await Promise.all([
+      const [settings, terminalFonts, snippets, groups, hosts, credentials, knownHosts, sessions, fileSessions, forwardProfiles, forwards] = await Promise.all([
         apiClient.settings(),
         apiClient.terminalFonts(),
         apiClient.codeSnippets(),
@@ -61,6 +68,8 @@ export function useTermousData() {
         apiClient.knownHosts(),
         apiClient.sessions(),
         apiClient.fileSessions(),
+        apiClient.forwardProfiles(),
+        apiClient.forwards(),
       ])
       const nextSessions = sessions ?? []
       const nextSettings = normalizeSettings(settings)
@@ -72,6 +81,8 @@ export function useTermousData() {
         knownHosts: knownHosts ?? [],
         sessions: nextSessions,
         fileSessions: fileSessions ?? [],
+        forwardProfiles: forwardProfiles ?? [],
+        forwards: forwards ?? [],
         snippets: snippets ?? [],
         terminalFonts: terminalFonts ?? [],
       })
@@ -180,6 +191,37 @@ export function useTermousData() {
         setData((current) => ({ ...current, snippets: replaceCodeSnippet(current.snippets, snippet) }))
         return snippet
       },
+      async createForwardProfile(input: ForwardProfileInput) {
+        const profile = await api.createForwardProfile(input)
+        setData((current) => ({ ...current, forwardProfiles: upsertForwardProfile(current.forwardProfiles, profile) }))
+        return profile
+      },
+      async updateForwardProfile(id: string, input: ForwardProfileInput) {
+        const profile = await api.updateForwardProfile(id, input)
+        setData((current) => ({ ...current, forwardProfiles: upsertForwardProfile(current.forwardProfiles, profile) }))
+        return profile
+      },
+      async deleteForwardProfile(id: string) {
+        await api.deleteForwardProfile(id)
+        setData((current) => ({ ...current, forwardProfiles: current.forwardProfiles.filter((profile) => profile.id !== id) }))
+      },
+      async startForward(input: ForwardStartRequest) {
+        const forward = await api.startForward(input)
+        setData((current) => ({ ...current, forwards: upsertForward(current.forwards, forward) }))
+        return forward
+      },
+      async stopForward(id: string) {
+        await api.stopForward(id)
+        setData((current) => ({ ...current, forwards: markForwardStopped(current.forwards, id) }))
+      },
+      updateForward(event: ForwardEvent) {
+        setData((current) => {
+          if (event.type === 'deleted') {
+            return { ...current, forwards: current.forwards.filter((forward) => forward.id !== event.forward.id) }
+          }
+          return { ...current, forwards: upsertForward(current.forwards, event.forward) }
+        })
+      },
       async createHost(input: HostInput) {
         await api.createHost(input)
         await load('silent')
@@ -237,15 +279,17 @@ export function useTermousData() {
       async disconnectAllConnections() {
         const sessionsToClose = data.sessions
         const fileSessionsToClose = data.fileSessions
+        const forwardsToClose = data.forwards.filter((forward) => forward.status === 'starting' || forward.status === 'running' || forward.status === 'stopping')
         const results = await Promise.allSettled([
           ...sessionsToClose.map((session) => api.deleteSession(session.id)),
           ...fileSessionsToClose.map((fileSession) => api.deleteFileSession(fileSession.id)),
+          ...forwardsToClose.map((forward) => api.stopForward(forward.id)),
         ])
         const failed = results.find((result) => result.status === 'rejected')
         if (failed && failed.status === 'rejected') {
           throw failed.reason
         }
-        setData((current) => ({ ...current, sessions: [], fileSessions: [] }))
+        setData((current) => ({ ...current, sessions: [], fileSessions: [], forwards: markAllForwardsStopped(current.forwards) }))
         setActiveSession(null)
         void load('silent')
       },
@@ -288,7 +332,7 @@ export function useTermousData() {
         setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
       },
     }),
-    [api, data.fileSessions, data.settings, data.sessions, load],
+    [api, data.fileSessions, data.forwards, data.settings, data.sessions, load],
   )
 
   return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, actions }
@@ -329,6 +373,53 @@ function replaceCodeSnippet(snippets: CodeSnippet[], next: CodeSnippet) {
     return upsertCodeSnippet(snippets, next)
   }
   return snippets.map((snippet) => (snippet.id === next.id ? next : snippet))
+}
+
+function upsertForwardProfile(profiles: ForwardProfile[], next: ForwardProfile) {
+  const exists = profiles.some((profile) => profile.id === next.id)
+  const merged = exists ? profiles.map((profile) => (profile.id === next.id ? next : profile)) : [next, ...profiles]
+  return [...merged].sort(sortForwardProfiles)
+}
+
+function sortForwardProfiles(left: ForwardProfile, right: ForwardProfile) {
+  if (left.mode !== right.mode) {
+    return left.mode.localeCompare(right.mode)
+  }
+  if (left.name !== right.name) {
+    return left.name.localeCompare(right.name)
+  }
+  return left.id.localeCompare(right.id)
+}
+
+function upsertForward(forwards: ForwardInstance[], next: ForwardInstance) {
+  const exists = forwards.some((forward) => forward.id === next.id)
+  const merged = exists ? forwards.map((forward) => (forward.id === next.id ? next : forward)) : [next, ...forwards]
+  return [...merged].sort(sortForwards)
+}
+
+function markForwardStopped(forwards: ForwardInstance[], id: string) {
+  return forwards.map((forward) => (
+    forward.id === id
+      ? { ...forward, status: 'stopped' as const, phase: 'stopped' as const, progress: 100, status_message: '端口转发已停止' }
+      : forward
+  ))
+}
+
+function markAllForwardsStopped(forwards: ForwardInstance[]) {
+  return forwards.map((forward) => (
+    forward.status === 'starting' || forward.status === 'running' || forward.status === 'stopping'
+      ? { ...forward, status: 'stopped' as const, phase: 'stopped' as const, progress: 100, status_message: '端口转发已停止' }
+      : forward
+  ))
+}
+
+function sortForwards(left: ForwardInstance, right: ForwardInstance) {
+  const leftTime = new Date(left.started_at).getTime()
+  const rightTime = new Date(right.started_at).getTime()
+  if (leftTime !== rightTime) {
+    return rightTime - leftTime
+  }
+  return left.id.localeCompare(right.id)
 }
 
 function sortCodeSnippets(left: CodeSnippet, right: CodeSnippet) {

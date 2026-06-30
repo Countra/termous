@@ -7,6 +7,10 @@ import type {
   CredentialInput,
   CredentialView,
   FileSession,
+  ForwardInstance,
+  ForwardProfile,
+  ForwardProfileInput,
+  ForwardStartRequest,
   Host,
   HostGroup,
   HostInput,
@@ -142,6 +146,47 @@ export class TermousApi {
 
   markCodeSnippetUsed(id: string) {
     return this.request<CodeSnippet>(`/api/v1/snippets/${encodeURIComponent(id)}/used`, { method: 'POST' })
+  }
+
+  forwardProfiles() {
+    return this.request<ForwardProfile[]>('/api/v1/forward-profiles')
+  }
+
+  createForwardProfile(input: ForwardProfileInput) {
+    return this.request<ForwardProfile>('/api/v1/forward-profiles', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  updateForwardProfile(id: string, input: ForwardProfileInput) {
+    return this.request<ForwardProfile>(`/api/v1/forward-profiles/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  }
+
+  deleteForwardProfile(id: string) {
+    return this.request<void>(`/api/v1/forward-profiles/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  forwards() {
+    return this.request<ForwardInstance[]>('/api/v1/forwards')
+  }
+
+  startForward(input: ForwardStartRequest) {
+    return this.request<ForwardInstance>('/api/v1/forwards', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  stopForward(id: string) {
+    return this.request<void>(`/api/v1/forwards/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  forwardEventsUrl() {
+    return this.websocketUrl('/api/v1/forwards/events')
   }
 
   terminalFonts() {

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { App as AntdApp, ConfigProvider, Modal } from 'antd'
 import 'antd/dist/reset.css'
 import { useTranslation } from 'react-i18next'
 import { AppShell } from './components/layout/AppShell'
 import { HostsPage } from './features/hosts/HostsPage'
 import { FilesPage } from './features/files/FilesPage'
+import { ForwardingPage } from './features/forwards/ForwardingPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { SnippetsPage } from './features/snippets/SnippetsPage'
 import { snippetToInput } from './features/snippets/snippetUtils'
@@ -14,7 +15,7 @@ import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, HostInput, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
+import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostInput, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -50,6 +51,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const { api, data, initializing, refreshing, apiReady, error, activeSession, actions } = useTermousData()
+  const updateForwardRef = useRef(actions.updateForward)
   const [page, setPage] = useState<PageKey>('workbench')
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const [selectedHostId, setSelectedHostId] = useState('')
@@ -81,6 +83,25 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       window.removeEventListener('drop', preventFileDropNavigation, true)
     }
   }, [])
+
+  useEffect(() => {
+    updateForwardRef.current = actions.updateForward
+  }, [actions.updateForward])
+
+  useEffect(() => {
+    if (!apiReady) {
+      return undefined
+    }
+    const socket = new WebSocket(api.forwardEventsUrl())
+    socket.onmessage = (event) => {
+      try {
+        updateForwardRef.current(JSON.parse(event.data) as ForwardEvent)
+      } catch {
+        // 忽略无法解析的转发事件，避免单条异常消息中断状态同步。
+      }
+    }
+    return () => socket.close()
+  }, [api, apiReady])
 
   useEffect(() => {
     let disposed = false
@@ -323,6 +344,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onOpenFiles={openFilesFromSession}
             onSnippetUsed={(snippetId) => actions.markCodeSnippetUsed(snippetId).then(() => undefined)}
             onToggleSnippetFavorite={toggleCodeSnippetFavorite}
+            onStartForward={(input) => actions.startForward(input)}
+            onStopForward={(id) => runAction(() => actions.stopForward(id))}
           />
         ) : null}
 
@@ -376,6 +399,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onReconnectFileSession={actions.reconnectFileSession}
             onTrustFileSessionHost={actions.trustFileSessionHost}
             onUpdateFileSession={actions.updateFileSession}
+          />
+        ) : null}
+
+        {page === 'forwards' ? (
+          <ForwardingPage
+            data={data}
+            actionBusy={actionBusy}
+            onCreateProfile={(input) => actions.createForwardProfile(input)}
+            onUpdateProfile={(id, input) => actions.updateForwardProfile(id, input)}
+            onDeleteProfile={(id) => runAction(() => actions.deleteForwardProfile(id))}
+            onStartForward={(input) => actions.startForward(input)}
+            onStopForward={(id) => runAction(() => actions.stopForward(id))}
           />
         ) : null}
 

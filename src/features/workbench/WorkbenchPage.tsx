@@ -42,8 +42,9 @@ import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalViewport } from '../terminal/TerminalViewport'
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
-import type { AppData, CodeSnippet, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
+import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
+import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
 import { SystemMonitorPanel } from './SystemMonitorPanel'
 import {
@@ -57,7 +58,7 @@ import {
   type SessionTabPreferenceMap,
 } from './sessionTabPreferences'
 
-type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'snippets'
+type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'forwards' | 'snippets'
 
 const workbenchHostPanelWidth = {
   default: 260,
@@ -95,6 +96,8 @@ interface WorkbenchPageProps {
   onOpenFiles: (session: Session) => Promise<void>
   onSnippetUsed: (snippetId: string) => Promise<void>
   onToggleSnippetFavorite: (snippet: CodeSnippet) => Promise<void>
+  onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
+  onStopForward: (id: string) => Promise<void>
 }
 
 export function WorkbenchPage({
@@ -112,6 +115,8 @@ export function WorkbenchPage({
   onOpenFiles,
   onSnippetUsed,
   onToggleSnippetFavorite,
+  onStartForward,
+  onStopForward,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -1033,6 +1038,20 @@ export function WorkbenchPage({
                   ),
                 },
                 {
+                  key: 'forwards',
+                  label: t('workbench.detailsTabs.forwards'),
+                  children: (
+                    <ForwardSessionPanel
+                      session={activeSession}
+                      host={sessionHost}
+                      forwards={data.forwards}
+                      actionBusy={actionBusy}
+                      onStartForward={onStartForward}
+                      onStopForward={onStopForward}
+                    />
+                  ),
+                },
+                {
                   key: 'snippets',
                   label: t('workbench.detailsTabs.snippets'),
                   children: (
@@ -1259,7 +1278,7 @@ function buildSystemInfoTree(info: NonNullable<Session['linux_system_info']>, t:
 }
 
 function parseDetailsTabKey(value: unknown): DetailsTabKey {
-  return value === 'system' || value === 'monitor' || value === 'snippets' || value === 'overview' ? value : 'overview'
+  return value === 'system' || value === 'monitor' || value === 'forwards' || value === 'snippets' || value === 'overview' ? value : 'overview'
 }
 
 function valueOrNone(value: string | undefined, t: WorkbenchTranslate) {

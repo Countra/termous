@@ -7,6 +7,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
+  Route,
   Server,
   Settings,
   Sun,
@@ -38,6 +39,7 @@ const navItems = [
   { key: 'hosts' as const, icon: Server },
   { key: 'vault' as const, icon: DatabaseZap },
   { key: 'files' as const, icon: FolderTree },
+  { key: 'forwards' as const, icon: Route },
   { key: 'snippets' as const, icon: FileCode2 },
 ]
 
