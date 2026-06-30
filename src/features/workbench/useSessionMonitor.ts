@@ -25,78 +25,155 @@ interface UseSessionMonitorOptions {
   intervalSeconds: number
 }
 
+interface MonitorSessionState {
+  connected: boolean
+  status: LinuxMonitorStatus
+  message: string
+  sample: LinuxMonitorSnapshot | null
+  history: LinuxMonitorSnapshot[]
+  paused: boolean
+}
+
+const emptyMonitorState: MonitorSessionState = {
+  connected: false,
+  status: 'warming',
+  message: '',
+  sample: null,
+  history: [],
+  paused: false,
+}
+
+function createMonitorState(): MonitorSessionState {
+  return { ...emptyMonitorState, history: [] }
+}
+
 export function useSessionMonitor({ api, session, enabled, intervalSeconds }: UseSessionMonitorOptions) {
   const wsRef = useRef<WebSocket | null>(null)
   const intervalRef = useRef(intervalSeconds)
-  const [connected, setConnected] = useState(false)
-  const [status, setStatus] = useState<LinuxMonitorStatus>('warming')
-  const [message, setMessage] = useState('')
-  const [sample, setSample] = useState<LinuxMonitorSnapshot | null>(null)
-  const [history, setHistory] = useState<LinuxMonitorSnapshot[]>([])
-  const [paused, setPausedState] = useState(false)
+  const statesRef = useRef<Record<string, MonitorSessionState>>({})
+  const [states, setStates] = useState<Record<string, MonitorSessionState>>({})
+  const sessionId = session?.id ?? ''
+  const monitorable = Boolean(sessionId && session?.kind === 'ssh' && session.status === 'connected')
+  const currentState = monitorable ? states[sessionId] ?? emptyMonitorState : emptyMonitorState
+
+  const updateSessionState = useCallback((id: string, updater: (current: MonitorSessionState) => MonitorSessionState) => {
+    if (!id) {
+      return
+    }
+    setStates((current) => {
+      const previous = current[id] ?? createMonitorState()
+      const next = updater(previous)
+      if (next === previous) {
+        return current
+      }
+      return { ...current, [id]: next }
+    })
+  }, [])
+
+  const deleteSessionState = useCallback((id: string) => {
+    if (!id) {
+      return
+    }
+    setStates((current) => {
+      if (!current[id]) {
+        return current
+      }
+      const next = { ...current }
+      delete next[id]
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     intervalRef.current = intervalSeconds
   }, [intervalSeconds])
 
   useEffect(() => {
-    setPausedState(false)
-  }, [session?.id])
+    statesRef.current = states
+  }, [states])
 
   useEffect(() => {
-    if (!enabled || !session?.id || session.kind !== 'ssh' || session.status !== 'connected') {
+    if (!sessionId) {
       wsRef.current?.close()
       wsRef.current = null
-      setConnected(false)
       return undefined
     }
-    const ws = new WebSocket(api.sessionMonitorUrl(session.id))
+    if (!monitorable) {
+      wsRef.current?.close()
+      wsRef.current = null
+      deleteSessionState(sessionId)
+      return undefined
+    }
+    if (!enabled) {
+      wsRef.current?.close()
+      wsRef.current = null
+      updateSessionState(sessionId, (current) => ({ ...current, connected: false }))
+      return undefined
+    }
+    const ws = new WebSocket(api.sessionMonitorUrl(sessionId))
     wsRef.current = ws
-    setStatus('warming')
-    setMessage('')
+    let disposed = false
+    updateSessionState(sessionId, (current) => ({ ...current, connected: false, status: 'warming', message: '' }))
     ws.addEventListener('open', () => {
-      setConnected(true)
+      if (disposed) {
+        return
+      }
+      updateSessionState(sessionId, (current) => ({ ...current, connected: true }))
       ws.send(JSON.stringify({ type: 'configure', interval_seconds: intervalRef.current }))
+      if (statesRef.current[sessionId]?.paused) {
+        ws.send(JSON.stringify({ type: 'pause' }))
+      }
     })
     ws.addEventListener('message', (event) => {
+      if (disposed) {
+        return
+      }
       const msg = parseMonitorMessage(event.data)
       if (!msg) {
         return
       }
       if (msg.type === 'sample' && msg.sample) {
-        setSample(msg.sample)
-        setStatus(msg.sample.status)
-        setMessage('')
-        setHistory((current) => [...current, msg.sample as LinuxMonitorSnapshot].slice(-120))
+        updateSessionState(sessionId, (current) => ({
+          ...current,
+          sample: msg.sample as LinuxMonitorSnapshot,
+          status: msg.sample?.status ?? current.status,
+          message: '',
+          history: [...current.history, msg.sample as LinuxMonitorSnapshot].slice(-120),
+        }))
         return
       }
       if (msg.type === 'status' || msg.type === 'error') {
-        if (msg.status) {
-          setStatus(msg.status)
-        }
-        if (msg.message) {
-          setMessage(msg.message)
-        }
+        updateSessionState(sessionId, (current) => ({
+          ...current,
+          status: msg.status ?? current.status,
+          message: msg.message ?? current.message,
+        }))
       }
     })
     ws.addEventListener('close', () => {
-      setConnected(false)
+      if (disposed) {
+        return
+      }
+      updateSessionState(sessionId, (current) => ({ ...current, connected: false }))
       if (wsRef.current === ws) {
         wsRef.current = null
       }
     })
     ws.addEventListener('error', () => {
-      setStatus('failed')
-      setMessage('')
+      if (disposed) {
+        return
+      }
+      updateSessionState(sessionId, (current) => ({ ...current, connected: false, status: 'failed', message: '' }))
     })
     return () => {
+      disposed = true
       ws.close()
       if (wsRef.current === ws) {
         wsRef.current = null
       }
-      setConnected(false)
+      updateSessionState(sessionId, (current) => ({ ...current, connected: false }))
     }
-  }, [api, enabled, session?.id, session?.kind, session?.status])
+  }, [api, deleteSessionState, enabled, monitorable, sessionId, updateSessionState])
 
   useEffect(() => {
     const ws = wsRef.current
@@ -106,22 +183,28 @@ export function useSessionMonitor({ api, session, enabled, intervalSeconds }: Us
   }, [intervalSeconds])
 
   const pause = useCallback(() => {
-    setPausedState(true)
+    if (!sessionId) {
+      return
+    }
+    updateSessionState(sessionId, (current) => ({ ...current, paused: true, status: 'paused' }))
     const ws = wsRef.current
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'pause' }))
     }
-  }, [])
+  }, [sessionId, updateSessionState])
 
   const resume = useCallback(() => {
-    setPausedState(false)
+    if (!sessionId) {
+      return
+    }
+    updateSessionState(sessionId, (current) => ({ ...current, paused: false, status: 'ready' }))
     const ws = wsRef.current
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'resume' }))
     }
-  }, [])
+  }, [sessionId, updateSessionState])
 
-  return { connected, status, message, sample, history, paused, pause, resume }
+  return { ...currentState, pause, resume }
 }
 
 function parseMonitorMessage(data: unknown): MonitorMessage | null {

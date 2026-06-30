@@ -1,7 +1,7 @@
 import { Button, Progress, Segmented, Select, Tooltip } from 'antd'
 import type { EChartsCoreOption } from 'echarts/core'
 import { Activity, Cpu, HardDrive, MemoryStick, Pause, Play, RadioTower, RotateCcw } from 'lucide-react'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { EChartView } from '../../components/charts/EChartView'
@@ -22,53 +22,98 @@ interface NetworkCounter {
   txBytes: number
 }
 
+interface NetworkSessionState {
+  networkName?: string
+  baselines: Record<string, NetworkCounter>
+}
+
+const emptyNetworkSessionState: NetworkSessionState = {
+  baselines: {},
+}
+
+function createNetworkSessionState(): NetworkSessionState {
+  return { baselines: {} }
+}
+
 export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonitorPanelProps) {
   const { t } = useTranslation()
   const [intervalSeconds, setIntervalSeconds] = useState(5)
-  const [networkName, setNetworkName] = useState<string>()
-  const [networkBaselines, setNetworkBaselines] = useState<Record<string, NetworkCounter>>({})
+  const [networkStates, setNetworkStates] = useState<Record<string, NetworkSessionState>>({})
+  const sessionId = session?.id ?? ''
+  const networkState = sessionId ? networkStates[sessionId] ?? emptyNetworkSessionState : emptyNetworkSessionState
+  const networkName = networkState.networkName
   const monitor = useSessionMonitor({ api, session, enabled, intervalSeconds })
   const networks = useMemo(() => monitor.sample?.networks ?? [], [monitor.sample?.networks])
   const selectedNetwork = useMemo(() => selectNetwork(networks, networkName), [networkName, networks])
-  const networkBaselineKey = session?.id && selectedNetwork ? `${session.id}:${selectedNetwork.name}` : ''
+  const networkBaselineKey = selectedNetwork?.name ?? ''
   const networkTotals = useMemo(
-    () => calculateNetworkTotals(selectedNetwork, networkBaselines[networkBaselineKey]),
-    [networkBaselineKey, networkBaselines, selectedNetwork],
+    () => calculateNetworkTotals(selectedNetwork, networkState.baselines[networkBaselineKey]),
+    [networkBaselineKey, networkState.baselines, selectedNetwork],
   )
 
-  useEffect(() => {
-    if (!selectedNetwork && networks.length > 0) {
-      setNetworkName(networks.find((item) => !item.is_loopback)?.name ?? networks[0].name)
-    }
-  }, [networks, selectedNetwork])
-
-  useEffect(() => {
-    setNetworkBaselines({})
-  }, [session?.id])
-
-  useEffect(() => {
-    if (!enabled) {
-      setNetworkBaselines({})
-    }
-  }, [enabled])
-
-  useEffect(() => {
-    if (!networkBaselineKey || !selectedNetwork) {
+  const setSessionNetworkName = useCallback((name: string) => {
+    if (!sessionId) {
       return
     }
-    setNetworkBaselines((current) => {
-      if (current[networkBaselineKey]) {
+    setNetworkStates((current) => {
+      const previous = current[sessionId] ?? createNetworkSessionState()
+      return {
+        ...current,
+        [sessionId]: {
+          ...previous,
+          networkName: name,
+        },
+      }
+    })
+  }, [sessionId])
+
+  useEffect(() => {
+    if (!sessionId || networks.length === 0) {
+      return
+    }
+    if (!networkName || !networks.some((item) => item.name === networkName)) {
+      setSessionNetworkName(networks.find((item) => !item.is_loopback)?.name ?? networks[0].name)
+    }
+  }, [networkName, networks, sessionId, setSessionNetworkName])
+
+  useEffect(() => {
+    if (!sessionId || !session || (session.kind === 'ssh' && session.status === 'connected')) {
+      return
+    }
+    setNetworkStates((current) => {
+      if (!current[sessionId]) {
+        return current
+      }
+      const next = { ...current }
+      delete next[sessionId]
+      return next
+    })
+  }, [session, sessionId])
+
+  useEffect(() => {
+    if (!sessionId || !networkBaselineKey || !selectedNetwork) {
+      return
+    }
+    setNetworkStates((current) => {
+      const previous = current[sessionId] ?? createNetworkSessionState()
+      if (previous.baselines[networkBaselineKey]) {
         return current
       }
       return {
         ...current,
-        [networkBaselineKey]: {
-          rxBytes: selectedNetwork.rx_bytes,
-          txBytes: selectedNetwork.tx_bytes,
+        [sessionId]: {
+          ...previous,
+          baselines: {
+            ...previous.baselines,
+            [networkBaselineKey]: {
+              rxBytes: selectedNetwork.rx_bytes,
+              txBytes: selectedNetwork.tx_bytes,
+            },
+          },
         },
       }
     })
-  }, [networkBaselineKey, selectedNetwork])
+  }, [networkBaselineKey, selectedNetwork, sessionId])
 
   if (!session || session.kind !== 'ssh' || session.status !== 'connected') {
     return (
@@ -137,7 +182,7 @@ export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonit
             selectedNetwork={selectedNetwork}
             networkTotals={networkTotals}
             networkName={networkName}
-            onNetworkChange={setNetworkName}
+            onNetworkChange={setSessionNetworkName}
             theme={theme}
             downloadLabel={t('workbench.systemMonitor.download')}
             uploadLabel={t('workbench.systemMonitor.upload')}
