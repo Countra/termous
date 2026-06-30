@@ -1,11 +1,11 @@
-import { Button, Progress, Segmented, Select } from 'antd'
+import { Button, Progress, Segmented, Select, Tooltip } from 'antd'
 import type { EChartsCoreOption } from 'echarts/core'
 import { Activity, Cpu, HardDrive, MemoryStick, Pause, Play, RadioTower, RotateCcw } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { EChartView } from '../../components/charts/EChartView'
-import type { LinuxMonitorNetwork, LinuxMonitorSnapshot, Session, ThemeMode } from '../../types/domain'
+import type { LinuxMonitorLoadAverage, LinuxMonitorNetwork, LinuxMonitorSnapshot, Session, ThemeMode } from '../../types/domain'
 import { useSessionMonitor } from './useSessionMonitor'
 
 interface SystemMonitorPanelProps {
@@ -17,19 +17,58 @@ interface SystemMonitorPanelProps {
 
 const intervalOptions = [2, 5, 10, 30]
 
+interface NetworkCounter {
+  rxBytes: number
+  txBytes: number
+}
+
 export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonitorPanelProps) {
   const { t } = useTranslation()
   const [intervalSeconds, setIntervalSeconds] = useState(5)
   const [networkName, setNetworkName] = useState<string>()
+  const [networkBaselines, setNetworkBaselines] = useState<Record<string, NetworkCounter>>({})
   const monitor = useSessionMonitor({ api, session, enabled, intervalSeconds })
   const networks = useMemo(() => monitor.sample?.networks ?? [], [monitor.sample?.networks])
   const selectedNetwork = useMemo(() => selectNetwork(networks, networkName), [networkName, networks])
+  const networkBaselineKey = session?.id && selectedNetwork ? `${session.id}:${selectedNetwork.name}` : ''
+  const networkTotals = useMemo(
+    () => calculateNetworkTotals(selectedNetwork, networkBaselines[networkBaselineKey]),
+    [networkBaselineKey, networkBaselines, selectedNetwork],
+  )
 
   useEffect(() => {
     if (!selectedNetwork && networks.length > 0) {
       setNetworkName(networks.find((item) => !item.is_loopback)?.name ?? networks[0].name)
     }
   }, [networks, selectedNetwork])
+
+  useEffect(() => {
+    setNetworkBaselines({})
+  }, [session?.id])
+
+  useEffect(() => {
+    if (!enabled) {
+      setNetworkBaselines({})
+    }
+  }, [enabled])
+
+  useEffect(() => {
+    if (!networkBaselineKey || !selectedNetwork) {
+      return
+    }
+    setNetworkBaselines((current) => {
+      if (current[networkBaselineKey]) {
+        return current
+      }
+      return {
+        ...current,
+        [networkBaselineKey]: {
+          rxBytes: selectedNetwork.rx_bytes,
+          txBytes: selectedNetwork.tx_bytes,
+        },
+      }
+    })
+  }, [networkBaselineKey, selectedNetwork])
 
   if (!session || session.kind !== 'ssh' || session.status !== 'connected') {
     return (
@@ -88,18 +127,21 @@ export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonit
             value={`${formatPercent(latest.cpu.usage_percent)}%`}
             subValue={formatCPUStatic(session)}
             chart={<EChartView theme={theme} option={cpuOption(monitor.history, theme)} />}
-          />
+          >
+            <LoadAverageStrip load={latest.cpu.load_average} />
+          </MetricPanel>
           <MemoryPanel snapshot={latest} theme={theme} />
           <NetworkPanel
             snapshot={latest}
             history={monitor.history}
-          selectedNetwork={selectedNetwork}
-          networkName={networkName}
-          onNetworkChange={setNetworkName}
-          theme={theme}
-          downloadLabel={t('workbench.systemMonitor.download')}
-          uploadLabel={t('workbench.systemMonitor.upload')}
-        />
+            selectedNetwork={selectedNetwork}
+            networkTotals={networkTotals}
+            networkName={networkName}
+            onNetworkChange={setNetworkName}
+            theme={theme}
+            downloadLabel={t('workbench.systemMonitor.download')}
+            uploadLabel={t('workbench.systemMonitor.upload')}
+          />
           <DiskPanel snapshot={latest} />
         </div>
       )}
@@ -113,12 +155,14 @@ function MetricPanel({
   value,
   subValue,
   chart,
+  children,
 }: {
   icon: JSX.Element
   label: string
   value: string
   subValue: string
   chart: JSX.Element
+  children?: ReactNode
 }) {
   return (
     <article className="monitor-metric-panel">
@@ -130,8 +174,29 @@ function MetricPanel({
         </div>
         <em>{subValue}</em>
       </div>
+      {children}
       {chart}
     </article>
+  )
+}
+
+function LoadAverageStrip({ load }: { load?: LinuxMonitorLoadAverage }) {
+  const { t } = useTranslation()
+  const values = [
+    { label: t('workbench.systemMonitor.loadOneMinute'), value: load?.one_minute },
+    { label: t('workbench.systemMonitor.loadFiveMinutes'), value: load?.five_minutes },
+    { label: t('workbench.systemMonitor.loadFifteenMinutes'), value: load?.fifteen_minutes },
+  ]
+  return (
+    <div className="monitor-load-strip" aria-label={t('workbench.systemMonitor.loadAverage')}>
+      <span>{t('workbench.systemMonitor.loadAverage')}</span>
+      {values.map((item) => (
+        <strong key={item.label}>
+          {formatLoad(item.value)}
+          <small>{item.label}</small>
+        </strong>
+      ))}
+    </div>
   )
 }
 
@@ -173,6 +238,7 @@ function NetworkPanel({
   snapshot,
   history,
   selectedNetwork,
+  networkTotals,
   networkName,
   onNetworkChange,
   theme,
@@ -182,6 +248,7 @@ function NetworkPanel({
   snapshot: LinuxMonitorSnapshot
   history: LinuxMonitorSnapshot[]
   selectedNetwork?: LinuxMonitorNetwork
+  networkTotals: NetworkCounter
   networkName?: string
   onNetworkChange: (name: string) => void
   theme: ThemeMode
@@ -211,10 +278,12 @@ function NetworkPanel({
         <span>
           <small>{t('workbench.systemMonitor.download')}</small>
           <strong>{formatRate(selectedNetwork?.rx_bytes_per_sec ?? 0)}</strong>
+          <em>{t('workbench.systemMonitor.networkTotal', { value: formatBytes(networkTotals.rxBytes) })}</em>
         </span>
         <span>
           <small>{t('workbench.systemMonitor.upload')}</small>
           <strong>{formatRate(selectedNetwork?.tx_bytes_per_sec ?? 0)}</strong>
+          <em>{t('workbench.systemMonitor.networkTotal', { value: formatBytes(networkTotals.txBytes) })}</em>
         </span>
       </div>
       <EChartView theme={theme} option={networkOption(history, selectedNetwork, theme, downloadLabel, uploadLabel)} />
@@ -224,9 +293,10 @@ function NetworkPanel({
 
 function DiskPanel({ snapshot }: { snapshot: LinuxMonitorSnapshot }) {
   const { t } = useTranslation()
+  const peakUsage = snapshot.disks.reduce((max, disk) => Math.max(max, clampPercent(disk.used_percent)), 0)
   return (
     <article className="monitor-metric-panel monitor-disk-panel">
-      <div className="monitor-card-head">
+      <div className="monitor-card-head monitor-disk-head">
         <span>
           <HardDrive size={17} />
         </span>
@@ -234,19 +304,40 @@ function DiskPanel({ snapshot }: { snapshot: LinuxMonitorSnapshot }) {
           <small>{t('workbench.systemMonitor.disk')}</small>
           <strong>{t('workbench.systemMonitor.partitionCount', { count: snapshot.disks.length })}</strong>
         </div>
+        <em>{snapshot.disks.length > 0 ? t('workbench.systemMonitor.peakUsage', { percent: formatPercent(peakUsage) }) : ''}</em>
       </div>
-      <div className="monitor-disk-list">
-        {snapshot.disks.map((disk) => (
-          <div className={`monitor-disk-row is-${disk.severity}`} key={`${disk.filesystem}-${disk.mountpoint}`}>
-            <div>
-              <strong>{disk.mountpoint}</strong>
-              <span>{disk.filesystem} · {disk.type}</span>
-            </div>
-            <em>{formatBytes(disk.used_bytes)} / {formatBytes(disk.total_bytes)}</em>
-            <Progress percent={Math.round(disk.used_percent)} showInfo={false} />
-          </div>
-        ))}
-      </div>
+      {snapshot.disks.length === 0 ? (
+        <div className="monitor-disk-empty">{t('workbench.systemMonitor.noPartitions')}</div>
+      ) : (
+        <div className="monitor-disk-list" role="list">
+          {snapshot.disks.map((disk) => {
+            const percent = clampPercent(disk.used_percent)
+            return (
+              <div className={`monitor-disk-row is-${disk.severity}`} key={`${disk.filesystem}-${disk.mountpoint}`} role="listitem">
+                <div className="monitor-disk-row-top">
+                  <div className="monitor-disk-title">
+                    <Tooltip title={disk.mountpoint} placement="topLeft">
+                      <strong>{disk.mountpoint}</strong>
+                    </Tooltip>
+                    <Tooltip title={`${disk.filesystem} · ${disk.type}`} placement="topLeft">
+                      <span>{disk.filesystem} · {disk.type}</span>
+                    </Tooltip>
+                  </div>
+                  <em>{formatPercent(percent)}%</em>
+                </div>
+                <div className="monitor-disk-meter" aria-hidden="true">
+                  <i style={{ width: `${percent}%` }} />
+                </div>
+                <div className="monitor-disk-row-meta">
+                  <span>{t('workbench.systemMonitor.diskTotal')} {formatBytes(disk.total_bytes)}</span>
+                  <span>{t('workbench.systemMonitor.diskUsed')} {formatBytes(disk.used_bytes)}</span>
+                  <span>{t('workbench.systemMonitor.diskAvailable')} {formatBytes(disk.available_bytes)}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </article>
   )
 }
@@ -254,11 +345,17 @@ function DiskPanel({ snapshot }: { snapshot: LinuxMonitorSnapshot }) {
 function cpuOption(history: LinuxMonitorSnapshot[], theme: ThemeMode): EChartsCoreOption {
   const textColor = theme === 'dark' ? '#b8c1d6' : '#4b5565'
   return {
+    backgroundColor: 'transparent',
     grid: { left: 0, right: 0, top: 12, bottom: 0, containLabel: false },
     xAxis: { type: 'category', show: false, data: history.map((item) => formatTime(item.collected_at)) },
     yAxis: { type: 'value', min: 0, max: 100, show: false },
     tooltip: {
       trigger: 'axis',
+      renderMode: 'html',
+      appendToBody: true,
+      confine: true,
+      className: 'monitor-chart-tooltip',
+      extraCssText: 'z-index:3600;border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.24);',
       backgroundColor: theme === 'dark' ? '#20242f' : '#ffffff',
       borderWidth: 0,
       textStyle: { color: textColor },
@@ -290,11 +387,17 @@ function networkOption(
     ? history.map((snapshot) => snapshot.networks.find((item) => item.name === selectedName) ?? null)
     : []
   return {
+    backgroundColor: 'transparent',
     grid: { left: 0, right: 0, top: 12, bottom: 0, containLabel: false },
     xAxis: { type: 'category', show: false, data: history.map((snapshot) => formatTime(snapshot.collected_at)) },
     yAxis: { type: 'value', show: false },
     tooltip: {
       trigger: 'axis',
+      renderMode: 'html',
+      appendToBody: true,
+      confine: true,
+      className: 'monitor-chart-tooltip',
+      extraCssText: 'z-index:3600;border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.24);',
       backgroundColor: theme === 'dark' ? '#20242f' : '#ffffff',
       borderWidth: 0,
       textStyle: { color: textColor },
@@ -327,6 +430,23 @@ function selectNetwork(networks: LinuxMonitorNetwork[], preferred?: string) {
     }
   }
   return networks.find((item) => !item.is_loopback) ?? networks[0]
+}
+
+function calculateNetworkTotals(selectedNetwork: LinuxMonitorNetwork | undefined, baseline: NetworkCounter | undefined): NetworkCounter {
+  if (!selectedNetwork || !baseline) {
+    return { rxBytes: 0, txBytes: 0 }
+  }
+  return {
+    rxBytes: safeCounterDelta(baseline.rxBytes, selectedNetwork.rx_bytes),
+    txBytes: safeCounterDelta(baseline.txBytes, selectedNetwork.tx_bytes),
+  }
+}
+
+function safeCounterDelta(start: number, current: number) {
+  if (!Number.isFinite(start) || !Number.isFinite(current) || current < start) {
+    return 0
+  }
+  return current - start
 }
 
 function formatCPUStatic(session: Session | null) {
@@ -367,6 +487,20 @@ function formatPercent(value: number) {
     return '0'
   }
   return value.toFixed(value >= 10 ? 0 : 1)
+}
+
+function formatLoad(value?: number) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return '0.00'
+  }
+  return value.toFixed(2)
+}
+
+function clampPercent(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0
+  }
+  return Math.min(100, Math.max(0, value))
 }
 
 function formatTime(value: string) {

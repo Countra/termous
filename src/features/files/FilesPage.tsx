@@ -23,7 +23,18 @@ import {
   Upload,
   XCircle,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type WheelEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+  type WheelEvent,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { HostContextPanel } from '../../components/hosts/HostContextPanel'
@@ -31,6 +42,7 @@ import { ConnectionActionButton } from '../../components/ui/ConnectionActionButt
 import { EmptyState } from '../../components/ui/EmptyState'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
+import { useResizablePanelWidth } from '../../hooks/useResizablePanelWidth'
 import type {
   AppData,
   FileSession,
@@ -95,6 +107,12 @@ const waitingTrustFileSessionPhaseOrder: FileSessionPhase[] = [
   'ready',
 ]
 
+const filesHostPanelWidth = {
+  default: 250,
+  min: 220,
+  max: 360,
+}
+
 export function FilesPage({
   api,
   data,
@@ -135,6 +153,18 @@ export function FilesPage({
     'termous.ui.files.hostPanelCollapsed.v1',
     false,
   )
+  const expandHostPanel = useCallback(() => setHostPanelCollapsed(false), [setHostPanelCollapsed])
+  const hostPanelResize = useResizablePanelWidth({
+    storageKey: 'termous.ui.files.hostPanelWidth.v1',
+    defaultWidth: filesHostPanelWidth.default,
+    minWidth: filesHostPanelWidth.min,
+    maxWidth: filesHostPanelWidth.max,
+    side: 'left',
+    onExpand: expandHostPanel,
+  })
+  const filesPageStyle = {
+    '--files-host-width': `${hostPanelResize.width}px`,
+  } as CSSProperties
   const { transfers, connected, upsertTransfer } = useTransferQueue(api)
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const selectedHostIdStable = selectedHost?.id ?? ''
@@ -880,6 +910,7 @@ export function FilesPage({
   return (
     <section
       className={`files-page ${hostPanelCollapsed ? 'is-host-collapsed' : ''} ${dragActive ? 'is-dragging' : ''}`}
+      style={filesPageStyle}
       tabIndex={0}
       onKeyDown={onKeyDown}
       onDragEnter={onDragEnter}
@@ -899,7 +930,10 @@ export function FilesPage({
         emptyDescription={t('files.noHostHint')}
         searchPlaceholder={t('files.hostSearch')}
         className="files-host-context-panel"
+        resizing={hostPanelResize.resizing}
         onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
+        onResizePointerDown={hostPanelResize.beginResize}
+        shouldSuppressToggleClick={hostPanelResize.shouldSuppressClick}
         onSelectHost={onSelectHost}
       />
 

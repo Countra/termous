@@ -1,6 +1,6 @@
 import { Button, Input, Tooltip } from 'antd'
 import { ChevronLeft, ChevronRight, KeyRound, MapPin, Search, Server, Tags, UserRound } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type PointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Host, HostGroup } from '../../types/domain'
 import { AuthMethodBadge } from '../ui/AuthMethodBadge'
@@ -17,7 +17,10 @@ interface HostContextPanelProps {
   emptyDescription: string
   searchPlaceholder?: string
   className?: string
+  resizing?: boolean
   onToggleCollapsed: () => void
+  onResizePointerDown?: (event: PointerEvent<HTMLButtonElement>) => void
+  shouldSuppressToggleClick?: () => boolean
   onSelectHost: (hostId: string) => void
 }
 
@@ -34,7 +37,10 @@ export function HostContextPanel({
   emptyDescription,
   searchPlaceholder,
   className = '',
+  resizing = false,
   onToggleCollapsed,
+  onResizePointerDown,
+  shouldSuppressToggleClick,
   onSelectHost,
 }: HostContextPanelProps) {
   const { t } = useTranslation()
@@ -67,13 +73,21 @@ export function HostContextPanel({
     <aside
       className={`context-panel host-context-panel ${collapsed ? 'is-collapsed' : ''} ${
         contentCollapsed ? 'is-content-collapsed' : ''
-      } ${className}`.trim()}
+      } ${resizing ? 'is-resizing' : ''} ${className}`.trim()}
     >
       <Tooltip title={collapsed ? t('app.expand') : t('app.collapse')} destroyOnHidden mouseLeaveDelay={0}>
         <Button
           type="text"
-          className="panel-side-toggle panel-side-toggle-left"
-          onClick={onToggleCollapsed}
+          className={`panel-side-toggle panel-side-toggle-left ${onResizePointerDown ? 'can-resize' : ''}`.trim()}
+          onPointerDown={onResizePointerDown}
+          onClick={(event) => {
+            if (shouldSuppressToggleClick?.()) {
+              event.preventDefault()
+              event.stopPropagation()
+              return
+            }
+            onToggleCollapsed()
+          }}
           aria-label={collapsed ? t('app.expand') : t('app.collapse')}
           icon={collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
         />

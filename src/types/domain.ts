@@ -299,6 +299,16 @@ export interface LinuxMonitorCPU {
   usage_percent: number
   total_delta: number
   idle_delta: number
+  load_average?: LinuxMonitorLoadAverage
+}
+
+export interface LinuxMonitorLoadAverage {
+  one_minute: number
+  five_minutes: number
+  fifteen_minutes: number
+  running_tasks: number
+  total_tasks: number
+  latest_pid: number
 }
 
 export interface LinuxMonitorMemory {

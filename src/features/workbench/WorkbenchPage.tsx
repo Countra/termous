@@ -26,7 +26,7 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tabs, Tooltip, type MenuProps } from 'antd'
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type WheelEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { HostContextPanel } from '../../components/hosts/HostContextPanel'
@@ -36,6 +36,7 @@ import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
 import { usePersistentJsonState } from '../../hooks/usePersistentJsonState'
+import { useResizablePanelWidth } from '../../hooks/useResizablePanelWidth'
 import { ConnectionProgress } from '../terminal/ConnectionProgress'
 import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalViewport } from '../terminal/TerminalViewport'
@@ -57,6 +58,18 @@ import {
 } from './sessionTabPreferences'
 
 type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'snippets'
+
+const workbenchHostPanelWidth = {
+  default: 260,
+  min: 220,
+  max: 360,
+}
+
+const workbenchDetailsPanelWidth = {
+  default: 300,
+  min: 260,
+  max: 420,
+}
 
 interface TerminalSearchState {
   open: boolean
@@ -111,11 +124,33 @@ export function WorkbenchPage({
     'termous.ui.workbench.detailsCollapsed.v1',
     false,
   )
+  const expandHostPanel = useCallback(() => setHostPanelCollapsed(false), [setHostPanelCollapsed])
+  const expandDetailsPanel = useCallback(() => setDetailsCollapsed(false), [setDetailsCollapsed])
+  const hostPanelResize = useResizablePanelWidth({
+    storageKey: 'termous.ui.workbench.hostPanelWidth.v1',
+    defaultWidth: workbenchHostPanelWidth.default,
+    minWidth: workbenchHostPanelWidth.min,
+    maxWidth: workbenchHostPanelWidth.max,
+    side: 'left',
+    onExpand: expandHostPanel,
+  })
+  const detailsPanelResize = useResizablePanelWidth({
+    storageKey: 'termous.ui.workbench.detailsPanelWidth.v1',
+    defaultWidth: workbenchDetailsPanelWidth.default,
+    minWidth: workbenchDetailsPanelWidth.min,
+    maxWidth: workbenchDetailsPanelWidth.max,
+    side: 'right',
+    onExpand: expandDetailsPanel,
+  })
   const [detailsActiveTab, setDetailsActiveTab] = usePersistentJsonState<DetailsTabKey>(
     'termous.ui.workbench.detailsActiveTab.v1',
     'overview',
     parseDetailsTabKey,
   )
+  const workbenchGridStyle = {
+    '--workbench-host-width': `${hostPanelResize.width}px`,
+    '--workbench-details-width': `${detailsPanelResize.width}px`,
+  } as CSSProperties
   const tabViewportRef = useRef<HTMLDivElement>(null)
   const tabButtonRefs = useRef(new Map<string, HTMLElement>())
   const previousSessionStatusRef = useRef(new Map<string, Session['status']>())
@@ -674,6 +709,7 @@ export function WorkbenchPage({
         className={`page-grid workbench-grid ${hostPanelCollapsed ? 'is-host-collapsed' : ''} ${
           detailsCollapsed ? 'is-details-collapsed' : ''
         }`}
+        style={workbenchGridStyle}
       >
       <HostContextPanel
         hosts={data.hosts}
@@ -685,7 +721,10 @@ export function WorkbenchPage({
         subtitle={`${data.hosts.length} ${t('workbench.hostCount')}`}
         emptyDescription={t('workbench.terminalHint')}
         searchPlaceholder={t('workbench.hostSearch')}
+        resizing={hostPanelResize.resizing}
         onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
+        onResizePointerDown={hostPanelResize.beginResize}
+        shouldSuppressToggleClick={hostPanelResize.shouldSuppressClick}
         onSelectHost={onSelectHost}
       />
 
@@ -877,12 +916,20 @@ export function WorkbenchPage({
         </div>
       </div>
 
-      <aside className={`details-panel ${detailsCollapsed ? 'is-collapsed' : ''}`}>
+      <aside className={`details-panel ${detailsCollapsed ? 'is-collapsed' : ''} ${detailsPanelResize.resizing ? 'is-resizing' : ''}`}>
         <Tooltip title={detailsCollapsed ? t('app.expand') : t('app.collapse')}>
           <Button
             type="text"
-            className="panel-side-toggle panel-side-toggle-right"
-            onClick={() => setDetailsCollapsed((current) => !current)}
+            className="panel-side-toggle panel-side-toggle-right can-resize"
+            onPointerDown={detailsPanelResize.beginResize}
+            onClick={(event) => {
+              if (detailsPanelResize.shouldSuppressClick()) {
+                event.preventDefault()
+                event.stopPropagation()
+                return
+              }
+              setDetailsCollapsed((current) => !current)
+            }}
             aria-label={detailsCollapsed ? t('app.expand') : t('app.collapse')}
             icon={detailsCollapsed ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
           />
