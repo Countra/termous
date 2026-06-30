@@ -28,6 +28,7 @@ import {
 import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tabs, Tooltip, type MenuProps } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TermousApi } from '../../api/client'
 import { HostContextPanel } from '../../components/hosts/HostContextPanel'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
@@ -43,6 +44,7 @@ import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/
 import type { AppData, CodeSnippet, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
+import { SystemMonitorPanel } from './SystemMonitorPanel'
 import {
   areSessionTabPreferenceMapsEqual,
   compactSessionTabPreference,
@@ -54,7 +56,7 @@ import {
   type SessionTabPreferenceMap,
 } from './sessionTabPreferences'
 
-type DetailsTabKey = 'overview' | 'system' | 'snippets'
+type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'snippets'
 
 interface TerminalSearchState {
   open: boolean
@@ -66,6 +68,7 @@ interface TerminalSearchState {
 }
 
 interface WorkbenchPageProps {
+  api: TermousApi
   data: AppData
   theme: ThemeMode
   selectedHostId: string
@@ -82,6 +85,7 @@ interface WorkbenchPageProps {
 }
 
 export function WorkbenchPage({
+  api,
   data,
   theme,
   selectedHostId,
@@ -970,6 +974,18 @@ export function WorkbenchPage({
                   children: <SystemInfoPanel session={activeSession} t={t} />,
                 },
                 {
+                  key: 'monitor',
+                  label: t('workbench.detailsTabs.systemMonitor'),
+                  children: (
+                    <SystemMonitorPanel
+                      api={api}
+                      session={activeSession}
+                      enabled={detailsActiveTab === 'monitor' && !detailsCollapsed}
+                      theme={theme}
+                    />
+                  ),
+                },
+                {
                   key: 'snippets',
                   label: t('workbench.detailsTabs.snippets'),
                   children: (
@@ -1196,7 +1212,7 @@ function buildSystemInfoTree(info: NonNullable<Session['linux_system_info']>, t:
 }
 
 function parseDetailsTabKey(value: unknown): DetailsTabKey {
-  return value === 'system' || value === 'snippets' || value === 'overview' ? value : 'overview'
+  return value === 'system' || value === 'monitor' || value === 'snippets' || value === 'overview' ? value : 'overview'
 }
 
 function valueOrNone(value: string | undefined, t: WorkbenchTranslate) {

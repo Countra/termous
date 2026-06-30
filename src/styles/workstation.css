@@ -4755,3 +4755,218 @@
     min-height: 520px;
   }
 }
+
+.system-monitor-panel {
+  display: grid;
+  min-height: 0;
+  gap: 12px;
+}
+
+.system-monitor-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding-bottom: 10px;
+}
+
+.system-monitor-status {
+  display: inline-grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+}
+
+.monitor-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--text-muted) 12%, transparent);
+}
+
+.monitor-status-dot.is-ready {
+  background: #35d399;
+  box-shadow: 0 0 0 5px color-mix(in srgb, #35d399 14%, transparent);
+}
+
+.monitor-status-dot.is-warming {
+  background: #70a7ff;
+  box-shadow: 0 0 0 5px color-mix(in srgb, #70a7ff 14%, transparent);
+}
+
+.monitor-status-dot.is-paused {
+  background: #f2c94c;
+  box-shadow: 0 0 0 5px color-mix(in srgb, #f2c94c 14%, transparent);
+}
+
+.monitor-status-dot.is-failed,
+.monitor-status-dot.is-unsupported {
+  background: #ff6b6b;
+  box-shadow: 0 0 0 5px color-mix(in srgb, #ff6b6b 14%, transparent);
+}
+
+.system-monitor-status strong,
+.monitor-card-head strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.system-monitor-status span,
+.monitor-card-head small,
+.monitor-card-head em {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.system-monitor-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.monitor-control-button.ant-btn {
+  height: 28px;
+  border-radius: 9px;
+  color: var(--text-secondary);
+}
+
+.system-monitor-content {
+  display: grid;
+  min-height: 0;
+  gap: 10px;
+}
+
+.monitor-metric-panel {
+  display: grid;
+  min-height: 0;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-subtle) 58%, transparent);
+  padding: 12px;
+}
+
+.monitor-card-head {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.monitor-card-head > span {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-soft) 68%, transparent);
+  color: var(--accent);
+}
+
+.echart-view {
+  min-height: 92px;
+}
+
+.monitor-memory-grid,
+.monitor-network-rates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.monitor-memory-grid span,
+.monitor-network-rates span {
+  display: grid;
+  gap: 2px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 64%, transparent);
+  padding: 8px;
+}
+
+.monitor-memory-grid small,
+.monitor-network-rates small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.monitor-memory-grid strong,
+.monitor-network-rates strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.monitor-network-select {
+  min-width: 86px;
+}
+
+.monitor-disk-list {
+  display: grid;
+  max-height: 220px;
+  gap: 9px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.monitor-disk-row {
+  display: grid;
+  gap: 6px;
+}
+
+.monitor-disk-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.monitor-disk-row strong,
+.monitor-disk-row em {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.monitor-disk-row span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.system-monitor-empty,
+.system-monitor-message {
+  display: grid;
+  min-height: 210px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  border: 1px dashed color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-subtle) 45%, transparent);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.system-monitor-empty strong,
+.system-monitor-message strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.system-monitor-empty span,
+.system-monitor-message span {
+  max-width: 240px;
+  font-size: 12px;
+  line-height: 1.5;
+}

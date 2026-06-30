@@ -263,6 +263,10 @@ export class TermousApi {
     return this.request<void>(`/api/v1/sessions/${id}`, { method: 'DELETE' })
   }
 
+  sessionMonitorUrl(id: string) {
+    return this.websocketUrl(`/api/v1/sessions/${encodeURIComponent(id)}/monitor`)
+  }
+
   fileSessions() {
     return this.request<FileSession[]>('/api/v1/file-sessions')
   }

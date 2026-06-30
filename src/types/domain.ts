@@ -293,6 +293,53 @@ export interface LinuxSystemInfo {
   collected_at?: string
 }
 
+export type LinuxMonitorStatus = 'warming' | 'ready' | 'paused' | 'failed' | 'unsupported'
+
+export interface LinuxMonitorCPU {
+  usage_percent: number
+  total_delta: number
+  idle_delta: number
+}
+
+export interface LinuxMonitorMemory {
+  total_bytes: number
+  available_bytes: number
+  used_bytes: number
+  used_percent: number
+  swap_total_bytes: number
+  swap_used_bytes: number
+}
+
+export interface LinuxMonitorNetwork {
+  name: string
+  rx_bytes: number
+  tx_bytes: number
+  rx_bytes_per_sec: number
+  tx_bytes_per_sec: number
+  is_loopback: boolean
+}
+
+export interface LinuxMonitorDisk {
+  filesystem: string
+  type: string
+  mountpoint: string
+  total_bytes: number
+  used_bytes: number
+  available_bytes: number
+  used_percent: number
+  severity: 'normal' | 'warning' | 'critical'
+}
+
+export interface LinuxMonitorSnapshot {
+  status: LinuxMonitorStatus
+  collected_at: string
+  interval_seconds: number
+  cpu: LinuxMonitorCPU
+  memory: LinuxMonitorMemory
+  networks: LinuxMonitorNetwork[]
+  disks: LinuxMonitorDisk[]
+}
+
 export interface Session {
   id: string
   kind: SessionKind

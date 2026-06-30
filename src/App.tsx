@@ -309,6 +309,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
         {page === 'workbench' ? (
           <WorkbenchPage
+            api={api}
             data={data}
             theme={theme}
             selectedHostId={selectedHostIdStable}
