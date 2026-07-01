@@ -70,6 +70,7 @@ export function TerminalRuntimeProvider({
   onSessionEvent,
 }: TerminalRuntimeProviderProps) {
   const entriesRef = useRef(new Map<string, TerminalEntry>())
+  const sessionsRef = useRef(new Map<string, Session>())
   const parkingHostRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<ViewportState>({ sessionId: null, host: null })
   const activeSessionIdRef = useRef<string | null>(null)
@@ -81,6 +82,8 @@ export function TerminalRuntimeProvider({
   const tRef = useRef<(key: string) => string>((key) => key)
   const { t } = useTranslation()
   const { message } = AntdApp.useApp()
+  const sessionSnapshot = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
+  sessionsRef.current = sessionSnapshot
 
   useEffect(() => {
     apiRef.current = api
@@ -192,12 +195,27 @@ export function TerminalRuntimeProvider({
     return targetSessionId ? entriesRef.current.get(targetSessionId) : undefined
   }, [])
 
+  const isEntryEnded = useCallback((entry: TerminalEntry) => {
+    return isEndedSessionStatus(sessionsRef.current.get(entry.sessionId)?.status)
+  }, [])
+
+  const applyEntrySessionState = useCallback(
+    (entry: TerminalEntry) => {
+      const ended = isEntryEnded(entry)
+      entry.container.classList.toggle('is-terminal-ended', ended)
+      if (ended) {
+        entry.isReady = false
+      }
+    },
+    [isEntryEnded],
+  )
+
   const sendTextToSession = useCallback((sessionId: string, text: string, options?: { execute?: boolean }): TerminalSendResult => {
     const entry = entriesRef.current.get(sessionId)
     if (!entry) {
       return 'missing_session'
     }
-    if (activeSessionIdRef.current !== sessionId || !entry.isReady || entry.socket.readyState !== WebSocket.OPEN) {
+    if (isEntryEnded(entry) || activeSessionIdRef.current !== sessionId || !entry.isReady || entry.socket.readyState !== WebSocket.OPEN) {
       return 'not_ready'
     }
     try {
@@ -208,7 +226,7 @@ export function TerminalRuntimeProvider({
     } catch {
       return 'failed'
     }
-  }, [])
+  }, [isEntryEnded])
 
   const sendTextToActive = useCallback(
     (text: string, options?: { execute?: boolean }) => {
@@ -254,6 +272,9 @@ export function TerminalRuntimeProvider({
 
   const pasteEntryClipboard = useCallback(
     async (entry: TerminalEntry): Promise<TerminalClipboardAction> => {
+      if (isEntryEnded(entry)) {
+        return 'none'
+      }
       try {
         const text = await readClipboardText()
         if (!text) {
@@ -267,7 +288,7 @@ export function TerminalRuntimeProvider({
         return 'failed'
       }
     },
-    [notifyClipboardError],
+    [isEntryEnded, notifyClipboardError],
   )
 
   const copyActiveSelection = useCallback(async () => {
@@ -288,8 +309,11 @@ export function TerminalRuntimeProvider({
     if (entry.terminal.hasSelection()) {
       return copyEntrySelection(entry, options)
     }
+    if (isEntryEnded(entry)) {
+      return 'none'
+    }
     return pasteEntryClipboard(entry)
-  }, [copyEntrySelection, getEntry, pasteEntryClipboard])
+  }, [copyEntrySelection, getEntry, isEntryEnded, pasteEntryClipboard])
 
   const searchActive = useCallback(
     (
@@ -387,11 +411,20 @@ export function TerminalRuntimeProvider({
         isReady: false,
       }
       entriesRef.current.set(sessionId, entry)
+      const relaySessionEvent = (targetSessionId: string, patch: Partial<Session>) => {
+        const existing = sessionsRef.current.get(targetSessionId)
+        if (existing) {
+          sessionsRef.current.set(targetSessionId, { ...existing, ...patch })
+        } else if (patch.id) {
+          sessionsRef.current.set(targetSessionId, patch as Session)
+        }
+        onSessionEventRef.current?.(targetSessionId, patch)
+      }
       const sendTerminalInput = (data: string) => {
         if (activeSessionIdRef.current !== sessionId) {
           return
         }
-        if (socket.readyState === WebSocket.OPEN) {
+        if (!isEntryEnded(entry) && socket.readyState === WebSocket.OPEN) {
           socket.send(JSON.stringify({ type: 'input', data }))
         }
       }
@@ -405,6 +438,11 @@ export function TerminalRuntimeProvider({
           event.preventDefault()
           event.stopPropagation()
           void copyEntrySelection(entry)
+          return
+        }
+        if (isEntryEnded(entry)) {
+          event.preventDefault()
+          event.stopPropagation()
           return
         }
         if (key === 'c') {
@@ -431,11 +469,17 @@ export function TerminalRuntimeProvider({
           }
           return
         }
+        if (isEntryEnded(entry)) {
+          return
+        }
         sendTerminalInput('\x03')
       }
       const handlePasteEvent = (event: ClipboardEvent) => {
         event.preventDefault()
         event.stopPropagation()
+        if (isEntryEnded(entry)) {
+          return
+        }
         const text = event.clipboardData?.getData('text/plain')
         if (text) {
           terminal.paste(text)
@@ -462,6 +506,11 @@ export function TerminalRuntimeProvider({
       )
 
       socket.addEventListener('open', () => {
+        if (isEntryEnded(entry)) {
+          closeSocket(socket)
+          applyEntrySessionState(entry)
+          return
+        }
         entry.isReady = true
         if (activeSessionIdRef.current === sessionId) {
           fitAndResize(entry, true)
@@ -471,30 +520,36 @@ export function TerminalRuntimeProvider({
         if (entry.disposed) {
           return
         }
-        handleSocketMessage(entry, String(event.data), onSessionEventRef.current, tRef.current)
+        handleSocketMessage(entry, String(event.data), relaySessionEvent, tRef.current)
+        applyEntrySessionState(entry)
       })
       socket.addEventListener('close', () => {
         if (!entry.disposed) {
-          onSessionEventRef.current?.(sessionId, {
-            status: 'disconnected',
-            phase: 'disconnected',
-            status_message: tRef.current('status.disconnected'),
-          })
+          const currentStatus = sessionsRef.current.get(sessionId)?.status
+          if (!isEndedSessionStatus(currentStatus)) {
+            relaySessionEvent(sessionId, {
+              status: 'disconnected',
+              phase: 'disconnected',
+              status_message: tRef.current('status.disconnected'),
+            })
+          }
+          applyEntrySessionState(entry)
         }
       })
       socket.addEventListener('error', () => {
-        onSessionEventRef.current?.(sessionId, {
+        relaySessionEvent(sessionId, {
           status: 'failed',
           phase: 'failed',
           progress: 100,
           status_message: tRef.current('app.apiOffline'),
           last_error: tRef.current('app.apiOffline'),
         })
+        applyEntrySessionState(entry)
       })
 
       return entry
     },
-    [copyEntrySelection, fitAndResize, pasteEntryClipboard],
+    [applyEntrySessionState, closeSocket, copyEntrySelection, fitAndResize, isEntryEnded, pasteEntryClipboard],
   )
 
   const moveEntryToHost = useCallback((entry: TerminalEntry, host: HTMLDivElement | null, active: boolean) => {
@@ -517,9 +572,13 @@ export function TerminalRuntimeProvider({
     if (!sessionId || !host) {
       return
     }
-    const entry = createEntry(sessionId)
+    const existingEntry = entriesRef.current.get(sessionId)
+    if (!existingEntry && isEndedSessionStatus(sessionsRef.current.get(sessionId)?.status)) {
+      return
+    }
+    const entry = existingEntry ?? createEntry(sessionId)
     moveEntryToHost(entry, host, true)
-    fitAndResize(entry, true)
+    fitAndResize(entry, !isEndedSessionStatus(sessionsRef.current.get(sessionId)?.status))
   }, [createEntry, fitAndResize, moveEntryToHost])
 
   const registerViewport = useCallback(
@@ -541,8 +600,12 @@ export function TerminalRuntimeProvider({
     if (!activeSessionId) {
       return
     }
-    entriesRef.current.get(activeSessionId)?.terminal.focus()
-  }, [])
+    const entry = entriesRef.current.get(activeSessionId)
+    if (!entry || isEntryEnded(entry)) {
+      return
+    }
+    entry.terminal.focus()
+  }, [isEntryEnded])
 
   const scheduleActiveResize = useCallback(() => {
     const activeSessionId = activeSessionIdRef.current
@@ -567,10 +630,12 @@ export function TerminalRuntimeProvider({
     Array.from(entriesRef.current.values()).forEach((entry) => {
       if (!allowedSessionIds.has(entry.sessionId)) {
         disposeEntry(entry)
+        return
       }
+      applyEntrySessionState(entry)
     })
     syncViewport()
-  }, [disposeEntry, sessions, syncViewport])
+  }, [applyEntrySessionState, disposeEntry, sessions, syncViewport])
 
   useEffect(() => {
     return () => {
@@ -820,6 +885,10 @@ function emptySearchResult(): TerminalSearchResult {
     resultIndex: -1,
     resultCount: 0,
   }
+}
+
+function isEndedSessionStatus(status?: SessionStatus) {
+  return status === 'disconnected' || status === 'failed'
 }
 
 async function readClipboardText() {

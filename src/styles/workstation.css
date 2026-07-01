@@ -1359,6 +1359,252 @@ body.is-panel-resizing * {
   display: none;
 }
 
+.terminal-canvas.is-session-ended .terminal-session-stack {
+  filter: saturate(0.86) brightness(0.78);
+}
+
+.terminal-session-pane.is-terminal-ended {
+  cursor: default;
+}
+
+.terminal-disconnect-overlay {
+  position: absolute;
+  z-index: 5;
+  inset: var(--terminal-canvas-inset-block) var(--terminal-canvas-inset-inline);
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  padding-bottom: 18px;
+  pointer-events: none;
+}
+
+.terminal-disconnect-card {
+  display: grid;
+  width: min(640px, calc(100% - 28px));
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #343947;
+  border-radius: 18px;
+  background: #20242d;
+  box-shadow:
+    0 18px 48px rgb(0 0 0 / 32%),
+    inset 0 1px 0 rgb(255 255 255 / 8%);
+  padding: 10px 10px 10px 12px;
+  pointer-events: auto;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.terminal-disconnect-card:hover {
+  border-color: #465064;
+  background: #242935;
+  box-shadow:
+    0 18px 54px rgb(0 0 0 / 38%),
+    inset 0 1px 0 rgb(255 255 255 / 10%);
+}
+
+.terminal-disconnect-icon {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 13px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 10%), rgb(255 255 255 / 2%)),
+    #2a3140;
+  color: #8fbaff;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 10%),
+    0 8px 18px rgb(0 0 0 / 18%);
+}
+
+.terminal-disconnect-card.is-failed .terminal-disconnect-icon {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 10%), rgb(255 255 255 / 2%)),
+    #3b2930;
+  color: #ff8d8d;
+}
+
+.terminal-disconnect-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.terminal-disconnect-copy strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13.5px;
+  font-weight: 780;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-disconnect-copy span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 580;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-disconnect-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.terminal-disconnect-button.ant-btn {
+  display: inline-flex;
+  width: auto;
+  min-width: 76px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #3a4050;
+  border-radius: 10px;
+  background: #292e38;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 720;
+  box-shadow: none;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.12s ease;
+}
+
+.terminal-disconnect-button.ant-btn:not(:disabled):hover,
+.terminal-disconnect-button.ant-btn:not(:disabled):focus-visible {
+  border-color: #4b5567;
+  background: #303642;
+  color: var(--text-primary);
+}
+
+.terminal-disconnect-button.ant-btn:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.terminal-disconnect-button-primary.ant-btn {
+  border-color: #4f8fe8;
+  background: linear-gradient(180deg, #6cabff, #4f8fe8);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgb(74 143 232 / 22%);
+}
+
+.terminal-disconnect-button-primary.ant-btn:not(:disabled):hover,
+.terminal-disconnect-button-primary.ant-btn:not(:disabled):focus-visible {
+  border-color: #72aaff;
+  background: linear-gradient(180deg, #78b3ff, #5b99ef);
+  color: #ffffff;
+}
+
+:root[data-theme="light"] .terminal-canvas.is-session-ended .terminal-session-stack {
+  filter: saturate(0.82) brightness(0.94);
+}
+
+:root[data-theme="light"] .terminal-disconnect-card {
+  border-color: #d9e0eb;
+  background: #ffffff;
+  box-shadow:
+    0 18px 42px rgb(23 31 45 / 14%),
+    inset 0 1px 0 rgb(255 255 255 / 90%);
+}
+
+:root[data-theme="light"] .terminal-disconnect-card:hover {
+  border-color: #c7d1df;
+  background: #fbfdff;
+  box-shadow:
+    0 18px 46px rgb(23 31 45 / 18%),
+    inset 0 1px 0 rgb(255 255 255 / 90%);
+}
+
+:root[data-theme="light"] .terminal-disconnect-icon {
+  border-color: #d9e3f0;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 82%), rgb(255 255 255 / 48%)),
+    #eaf2ff;
+  color: #2f78d5;
+  box-shadow: 0 8px 18px rgb(47 120 213 / 10%);
+}
+
+:root[data-theme="light"] .terminal-disconnect-card.is-failed .terminal-disconnect-icon {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 82%), rgb(255 255 255 / 48%)),
+    #fff0f0;
+  color: #d84f4f;
+}
+
+:root[data-theme="light"] .terminal-disconnect-button.ant-btn {
+  border-color: #d8dfeb;
+  background: #f4f7fb;
+  color: #4c5666;
+}
+
+:root[data-theme="light"] .terminal-disconnect-button.ant-btn:not(:disabled):hover,
+:root[data-theme="light"] .terminal-disconnect-button.ant-btn:not(:disabled):focus-visible {
+  border-color: #c7d1df;
+  background: #edf2f8;
+  color: #252b35;
+}
+
+:root[data-theme="light"] .terminal-disconnect-button-primary.ant-btn {
+  border-color: #4f8fe8;
+  background: linear-gradient(180deg, #6cabff, #4f8fe8);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgb(74 143 232 / 18%);
+}
+
+:root[data-theme="light"] .terminal-disconnect-button-primary.ant-btn:not(:disabled):hover,
+:root[data-theme="light"] .terminal-disconnect-button-primary.ant-btn:not(:disabled):focus-visible {
+  border-color: #72aaff;
+  background: linear-gradient(180deg, #78b3ff, #5b99ef);
+  color: #ffffff;
+}
+
+@media (width <= 980px) {
+  .terminal-disconnect-card {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .terminal-disconnect-icon {
+    display: none;
+  }
+
+  .terminal-disconnect-actions {
+    justify-content: flex-end;
+  }
+}
+
+@media (width <= 640px) {
+  .terminal-disconnect-card {
+    width: calc(100% - 12px);
+  }
+
+  .terminal-disconnect-copy span {
+    white-space: normal;
+  }
+
+  .terminal-disconnect-actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  }
+
+  .terminal-disconnect-button.ant-btn {
+    width: 100%;
+  }
+}
+
 .terminal-search-panel {
   position: absolute;
   top: 10px;

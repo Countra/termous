@@ -43,6 +43,11 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
   const [editing, setEditing] = useState<EditingState | null>(null)
 
   const connectedLinux = Boolean(session?.kind === 'ssh' && session.status === 'connected' && host?.platform === 'linux')
+  const linuxSessionUnavailable = Boolean(
+    session?.kind === 'ssh' &&
+    host?.platform === 'linux' &&
+    (session.status === 'disconnected' || session.status === 'failed'),
+  )
   const rules = useMemo(() => snapshot?.rules.map(firewallRuleToInput) ?? [], [snapshot])
   const snapshotRuleById = useMemo(() => new Map((snapshot?.rules ?? []).map((rule) => [rule.id, rule])), [snapshot])
   const readonlyRules = useMemo(() => (snapshot?.unsupported_rules ?? []).filter(isCrossProviderReadonlyRule), [snapshot])
@@ -114,10 +119,18 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
   }, [session?.id])
 
   useEffect(() => {
-    if (enabled && connectedLinux && !snapshot && !loading) {
+    if (enabled && connectedLinux && !snapshot && !loading && !loadError) {
       void load()
     }
-  }, [connectedLinux, enabled, load, loading, snapshot])
+  }, [connectedLinux, enabled, load, loadError, loading, snapshot])
+
+  useEffect(() => {
+    if (!linuxSessionUnavailable) {
+      return
+    }
+    setLoading(false)
+    setApplying(false)
+  }, [linuxSessionUnavailable])
 
   const desired = useCallback(
     (nextRules: FirewallRuleInput[], risk = false): FirewallDesiredState => ({
@@ -188,6 +201,9 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
 
   if (!session || session.kind !== 'ssh') {
     return <FirewallEmpty title={t('workbench.firewall.emptyTitle')} description={t('workbench.firewall.emptyHint')} />
+  }
+  if (linuxSessionUnavailable) {
+    return <FirewallEmpty title={t('workbench.firewall.sessionUnavailable')} description={t('workbench.firewall.sessionUnavailableHint')} />
   }
   if (!connectedLinux) {
     return <FirewallEmpty title={t('workbench.firewall.unsupportedPlatform')} description={t('workbench.firewall.unsupportedPlatformHint')} />

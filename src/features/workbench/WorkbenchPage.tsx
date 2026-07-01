@@ -214,8 +214,10 @@ export function WorkbenchPage({
   const connectedAt = activeSession?.connected_at ? formatTime(activeSession.connected_at) : t('fields.none')
   const sessionResult = activeSession?.last_error ?? (activeSession?.exit_code !== undefined ? String(activeSession.exit_code) : t('fields.none'))
   const terminalThemeMode = data.settings.terminal.theme_mode === 'follow_app' ? theme : data.settings.terminal.theme_mode
+  const activeSessionEnded = activeSession?.status === 'disconnected' || activeSession?.status === 'failed'
   const canOpenFiles = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected' && activeSession.host_id)
   const canSendSnippet = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected')
+  const canReconnectSession = Boolean(activeSession?.kind === 'ssh' && activeSession.host_id && activeSessionEnded)
   const filteredSnippets = useMemo(() => {
     const tokens = snippetQuery.trim().toLowerCase().split(/\s+/).filter(Boolean)
     const snippets = data.snippets
@@ -648,6 +650,20 @@ export function WorkbenchPage({
     ],
   )
 
+  const reconnectActiveSession = useCallback(async () => {
+    if (!activeSession?.host_id || actionBusy) {
+      return
+    }
+    const previousSessionId = activeSession.id
+    const hostId = activeSession.host_id
+    try {
+      await onDisconnect(previousSessionId)
+    } catch {
+      // 旧会话已经断开时，删除失败不阻止重新连接同一主机。
+    }
+    await onConnect(hostId)
+  }, [actionBusy, activeSession?.host_id, activeSession?.id, onConnect, onDisconnect])
+
   useEffect(() => {
     if (activeSession) {
       setTerminalSize({ cols: activeSession.pty_cols, rows: activeSession.pty_rows })
@@ -893,6 +909,7 @@ export function WorkbenchPage({
             session={activeSession}
             themeMode={terminalThemeMode}
             placeholder={selectedHost ? t('workbench.terminalReady') : t('workbench.terminalHint')}
+            actionBusy={actionBusy}
             searchPanel={
               terminalSearch.open && terminalSearch.sessionId === activeSession?.id ? (
                 <TerminalSearchPanel
@@ -910,6 +927,8 @@ export function WorkbenchPage({
               ) : null
             }
             onResize={handleTerminalResize}
+            onReconnect={canReconnectSession ? () => void reconnectActiveSession() : undefined}
+            onClose={activeSession ? () => void onDisconnect(activeSession.id) : undefined}
           />
           <div className="terminal-statusbar">
             <StatusItem label={t('workbench.target')} value={targetLabel} />
@@ -1003,6 +1022,16 @@ export function WorkbenchPage({
                         >
                           {t('workbench.manageFiles')}
                         </Button>
+                        {canReconnectSession ? (
+                          <Button
+                            className="secondary-button"
+                            disabled={actionBusy}
+                            onClick={() => void reconnectActiveSession()}
+                            icon={<RotateCcw size={16} />}
+                          >
+                            {t('workbench.reconnectSession')}
+                          </Button>
+                        ) : null}
                         <Button
                           danger
                           className="danger-button"
@@ -1010,7 +1039,7 @@ export function WorkbenchPage({
                           onClick={() => activeSession && void onDisconnect(activeSession.id)}
                           icon={<Power size={16} />}
                         >
-                          {t('workbench.closeSession')}
+                          {activeSessionEnded ? t('workbench.closeDisconnectedSession') : t('workbench.closeSession')}
                         </Button>
                       </div>
                     </div>
