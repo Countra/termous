@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, Ban, Copy, Database, ExternalLink, Globe2, LockKeyhole, Pencil, Plus, Power, RefreshCw, ServerCog, Shield, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
+import { Activity, AlertTriangle, Ban, Copy, Database, ExternalLink, Globe2, LockKeyhole, Pencil, Plus, Power, RefreshCw, Save, Shield, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
 import { App as AntdApp, Button, Modal, Popconfirm, Select, Skeleton, Switch, Tooltip } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -208,14 +208,24 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
   return (
     <section className="firewall-panel">
       <div className="firewall-toolbar">
-        <div>
-          <span className="firewall-provider-pill">
-            <Shield size={14} />
-            {capabilityReady ? t('status.available') : t('status.failed')}
-          </span>
-          <small>{snapshot.synced_at ? t('workbench.firewall.syncedAt', { time: formatTime(snapshot.synced_at) }) : t('fields.none')}</small>
+        <div className="firewall-toolbar-summary">
+          <div className={`firewall-toolbar-state ${capabilityReady ? 'is-ready' : 'is-error'}`}>
+            <span className="firewall-toolbar-state-icon">
+              <Shield size={15} />
+            </span>
+            <span className="firewall-toolbar-state-copy">
+              <strong>{capabilityReady ? t('status.available') : t('status.failed')}</strong>
+              <small>
+                {t('workbench.firewall.syncedAtLabel')}
+                <time>{snapshot.synced_at ? formatTime(snapshot.synced_at) : t('fields.none')}</time>
+              </small>
+            </span>
+          </div>
+          <Tooltip title={t('workbench.firewall.refresh')}>
+            <Button className="firewall-toolbar-icon-button" type="text" aria-label={t('workbench.firewall.refresh')} icon={<RefreshCw size={15} />} loading={loading} onClick={() => void load(selectedProvider)} />
+          </Tooltip>
         </div>
-        <div className="firewall-toolbar-actions">
+        <div className="firewall-toolbar-controls">
           <div className="firewall-provider-picker">
             <span className="firewall-provider-picker-label">{t('workbench.firewall.providerSwitch')}</span>
             <Select
@@ -240,16 +250,13 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
               }}
             />
           </div>
-          <Tooltip title={t('workbench.firewall.refresh')}>
-            <Button type="text" aria-label={t('workbench.firewall.refresh')} icon={<RefreshCw size={15} />} loading={loading} onClick={() => void load(selectedProvider)} />
-          </Tooltip>
           <Tooltip title={snapshot.capability.supports_save ? t('workbench.firewall.persistence.open') : t('workbench.firewall.saveUnsupported')}>
             <Button
               className={`firewall-persistence-open ${persistenceStatusClass(persistenceStatus)}`}
               type="text"
               aria-label={t('workbench.firewall.persistence.open')}
               disabled={!snapshot.capability.supports_save}
-              icon={<ServerCog size={15} />}
+              icon={<Save size={15} />}
               onClick={() => setPersistenceOpen(true)}
             >
               {persistenceStatus ? t(`workbench.firewall.persistence.status.${persistenceStatus.status}`) : t('workbench.firewall.persistence.shortTitle')}

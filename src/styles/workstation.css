@@ -5209,164 +5209,262 @@ body.is-panel-resizing * {
 .firewall-rule-actions,
 .firewall-rule-card-actions,
 .firewall-warning-list span,
-.firewall-provider-pill {
+.firewall-toolbar-state {
   display: flex;
   align-items: center;
 }
 
 .firewall-toolbar {
-  justify-content: space-between;
-  gap: 10px;
+  container: firewall-toolbar / inline-size;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 9px;
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--surface-subtle) 58%, transparent);
-  padding: 11px;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 44%, transparent), color-mix(in srgb, var(--surface-subtle) 78%, transparent)),
+    color-mix(in srgb, var(--surface) 88%, transparent);
+  padding: 12px;
 }
 
-.firewall-toolbar > div:first-child {
+.firewall-toolbar-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 10px;
+}
+
+.firewall-toolbar-state {
+  gap: 9px;
+  min-width: 0;
+}
+
+.firewall-toolbar-state-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.firewall-toolbar-state.is-ready .firewall-toolbar-state-icon {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: color-mix(in srgb, var(--success) 86%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 22%, transparent);
+}
+
+.firewall-toolbar-state.is-error .firewall-toolbar-state-icon {
+  background: rgb(255 102 94 / 12%);
+  color: #ff8a84;
+  box-shadow: inset 0 0 0 1px rgb(255 102 94 / 20%);
+}
+
+.firewall-toolbar-state-copy {
   display: grid;
   min-width: 0;
-  gap: 5px;
+  gap: 2px;
 }
 
-.firewall-toolbar small {
-  color: var(--text-secondary);
-  font-size: 11px;
-}
-
-.firewall-provider-pill {
-  width: fit-content;
-  gap: 7px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+.firewall-toolbar-state-copy strong {
   color: var(--text-primary);
-  padding: 5px 9px;
-  font-size: 12px;
-  font-weight: 780;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.15;
 }
 
-  .firewall-toolbar-actions,
-  .firewall-rule-actions,
-  .firewall-rule-card-actions {
-    gap: 8px;
-  }
+.firewall-toolbar-state-copy small {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 640;
+  line-height: 1.2;
+  white-space: nowrap;
+}
 
-  .firewall-provider-picker {
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-    gap: 8px;
-    min-height: 34px;
-    border: 1px solid transparent;
-    border-radius: 13px;
-    background:
-      linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 72%, transparent), color-mix(in srgb, var(--surface-subtle) 86%, transparent)),
-      color-mix(in srgb, var(--surface) 86%, transparent);
-    padding: 4px 4px 4px 10px;
-    box-shadow: none;
-    transition: border-color 140ms ease, background-color 140ms ease;
-  }
+.firewall-toolbar-state-copy time {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
 
-  .firewall-provider-picker:hover {
-    border-color: transparent;
-    background:
-      linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 86%, transparent), color-mix(in srgb, var(--surface-subtle) 90%, transparent)),
-      color-mix(in srgb, var(--surface) 88%, transparent);
-  }
+.firewall-toolbar-controls,
+.firewall-rule-actions,
+.firewall-rule-card-actions {
+  gap: 8px;
+}
 
-  .firewall-provider-picker-label {
-    color: var(--text-muted);
-    font-size: 10px;
-    font-weight: 820;
-    letter-spacing: 0;
-    white-space: nowrap;
-  }
+.firewall-toolbar-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+}
 
-  .firewall-provider-select.termous-select {
-    flex: 0 0 108px;
-    width: 108px;
-  }
+.firewall-provider-picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-width: 0;
+  height: 34px;
+  padding: 0;
+}
 
-  .firewall-provider-picker .firewall-provider-select .ant-select-selector {
-    min-height: 26px;
-    border-color: transparent !important;
-    border-radius: 9px !important;
-    background: transparent !important;
-    padding-left: 0 !important;
-    box-shadow: none !important;
-  }
+.firewall-provider-picker-label {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 680;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
 
-  .firewall-provider-picker .firewall-provider-select:hover .ant-select-selector,
-  .firewall-provider-picker .firewall-provider-select.ant-select-focused .ant-select-selector {
-    border-color: transparent !important;
-    box-shadow: none !important;
-  }
+.firewall-provider-select.termous-select {
+  flex: 0 0 112px;
+  width: 112px;
+}
 
-  .firewall-provider-picker .firewall-provider-select .ant-select-selection-item {
-    display: inline-flex;
-    align-items: center;
-    padding-inline-end: 18px;
-  }
+.firewall-provider-picker .firewall-provider-select .ant-select-selector {
+  min-height: 34px;
+  border-color: transparent !important;
+  border-radius: 12px !important;
+  background: color-mix(in srgb, var(--surface-elevated) 48%, var(--surface)) !important;
+  padding-left: 10px !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 38%, transparent) !important;
+}
 
-  .firewall-provider-option {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    min-width: 0;
-    font-size: 12px;
-    font-weight: 760;
-  }
+.firewall-provider-picker .firewall-provider-select:hover .ant-select-selector,
+.firewall-provider-picker .firewall-provider-select.ant-select-focused .ant-select-selector {
+  border-color: transparent !important;
+  background: color-mix(in srgb, var(--surface-elevated) 70%, var(--surface)) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 58%, transparent) !important;
+}
 
-  .firewall-provider-option i {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--text-muted);
-  }
+.firewall-provider-picker .firewall-provider-select .ant-select-selection-item {
+  display: inline-flex;
+  align-items: center;
+  padding-inline-end: 18px;
+}
 
-  .firewall-provider-option i.is-ready {
-    background: var(--success);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 12%, transparent);
-  }
+.firewall-provider-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 760;
+}
 
-  .firewall-provider-option i.is-denied {
-    background: #f3a240;
-    box-shadow: 0 0 0 3px rgb(243 162 64 / 12%);
-  }
+.firewall-provider-option i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
 
-  .firewall-provider-option i.is-offline {
-    background: color-mix(in srgb, var(--text-muted) 72%, transparent);
+.firewall-provider-option i.is-ready {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.firewall-provider-option i.is-denied {
+  background: #f3a240;
+  box-shadow: 0 0 0 3px rgb(243 162 64 / 12%);
+}
+
+.firewall-provider-option i.is-offline {
+  background: color-mix(in srgb, var(--text-muted) 72%, transparent);
+}
+
+.firewall-toolbar-icon-button.ant-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface-elevated) 42%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 38%, transparent);
+}
+
+.firewall-toolbar-icon-button.ant-btn:not(:disabled):hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface-elevated) 70%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 58%, transparent);
+}
+
+.firewall-persistence-open.ant-btn {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-elevated) 42%, var(--surface));
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 760;
+  padding: 0 11px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 38%, transparent);
+  white-space: nowrap;
+}
+
+.firewall-persistence-open.ant-btn .ant-btn-icon {
+  display: inline-flex;
+}
+
+.firewall-persistence-open.ant-btn:not(:disabled):hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--surface-elevated) 70%, var(--surface));
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 58%, transparent);
+}
+
+.firewall-persistence-open.is-ready.ant-btn {
+  color: color-mix(in srgb, var(--success) 86%, white);
+}
+
+.firewall-persistence-open.is-warning.ant-btn {
+  color: #f5c96a;
+}
+
+.firewall-persistence-open.is-error.ant-btn {
+  color: #ff8a84;
+}
+
+@media (max-width: 1180px) {
+  .firewall-toolbar-controls {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .firewall-persistence-open.ant-btn {
-    display: inline-flex;
-    height: 30px;
-    align-items: center;
-    gap: 6px;
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--surface-elevated) 58%, transparent);
-    color: var(--text-secondary);
-    font-size: 11px;
-    font-weight: 760;
-    padding: 0 9px;
+    justify-content: center;
+  }
+}
+
+@container firewall-toolbar (max-width: 286px) {
+  .firewall-toolbar-controls {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .firewall-persistence-open.ant-btn:not(:disabled):hover {
-    background: color-mix(in srgb, var(--accent-soft) 52%, var(--surface-subtle));
-    color: var(--text-primary);
+  .firewall-provider-picker {
+    justify-content: flex-start;
   }
 
-  .firewall-persistence-open.is-ready.ant-btn {
-    color: color-mix(in srgb, var(--success) 86%, white);
+  .firewall-provider-picker-label {
+    display: none;
   }
 
-  .firewall-persistence-open.is-warning.ant-btn {
-    color: #f5c96a;
+  .firewall-provider-select.termous-select {
+    flex-basis: 112px;
+    width: 112px;
   }
-
-  .firewall-persistence-open.is-error.ant-btn {
-    color: #ff8a84;
-  }
+}
 
   .firewall-persistence-modal .ant-modal-content {
     overflow: hidden;
@@ -5421,18 +5519,33 @@ body.is-panel-resizing * {
     gap: 10px;
   }
 
-  .firewall-persistence-summary-head > span,
-  .firewall-persistence-section-head > span,
-  .firewall-persistence-missing > span {
-    display: inline-flex;
-    width: 34px;
-    height: 34px;
-    align-items: center;
-    justify-content: center;
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
-    color: var(--accent);
-  }
+.firewall-persistence-summary-icon,
+.firewall-persistence-section-head > span,
+.firewall-persistence-missing > span {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+  color: var(--accent);
+}
+
+.firewall-persistence-summary.is-ready .firewall-persistence-summary-icon {
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: color-mix(in srgb, var(--success) 86%, white);
+}
+
+.firewall-persistence-summary.is-warning .firewall-persistence-summary-icon {
+  background: rgb(243 162 64 / 13%);
+  color: #f5c96a;
+}
+
+.firewall-persistence-summary.is-error .firewall-persistence-summary-icon {
+  background: rgb(255 102 94 / 12%);
+  color: #ff8a84;
+}
 
   .firewall-persistence-summary-head > div,
   .firewall-persistence-section-head > div,
@@ -5461,16 +5574,41 @@ body.is-panel-resizing * {
     white-space: nowrap;
   }
 
-  .firewall-persistence-status-tag.ant-tag {
-    flex: 0 0 auto;
-    border-color: color-mix(in srgb, var(--accent) 26%, transparent);
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-    color: var(--text-primary);
-    font-size: 11px;
-    font-weight: 760;
-    margin-inline-end: 0;
-  }
+.firewall-persistence-status-tag.ant-tag {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-elevated) 70%, transparent);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1;
+  margin-inline-end: 0;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.firewall-persistence-status-tag.is-ready.ant-tag {
+  border-color: color-mix(in srgb, var(--success) 28%, transparent);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: color-mix(in srgb, var(--success) 86%, white);
+}
+
+.firewall-persistence-status-tag.is-warning.ant-tag {
+  border-color: rgb(243 162 64 / 28%);
+  background: rgb(243 162 64 / 11%);
+  color: #f5c96a;
+}
+
+.firewall-persistence-status-tag.is-error.ant-tag {
+  border-color: rgb(255 102 94 / 28%);
+  background: rgb(255 102 94 / 10%);
+  color: #ff8a84;
+}
 
   .firewall-persistence-meta-grid {
     display: grid;

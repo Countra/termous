@@ -184,12 +184,12 @@ function PersistenceSummary({ status, provider, t }: { status: FirewallPersisten
   return (
     <section className={`firewall-persistence-summary ${tone}`}>
       <div className="firewall-persistence-summary-head">
-        <span><ServerCog size={18} /></span>
+        <span className="firewall-persistence-summary-icon"><Save size={18} /></span>
         <div>
           <strong>{t(`workbench.firewall.provider.${provider}`)}</strong>
-          <small>{status.message || t('workbench.firewall.persistence.readyHint')}</small>
+          <small>{persistenceStatusDescription(status, t)}</small>
         </div>
-        <Tag className="firewall-persistence-status-tag">{t(`workbench.firewall.persistence.status.${status.status}`)}</Tag>
+        <Tag className={`firewall-persistence-status-tag ${tone}`}>{t(`workbench.firewall.persistence.status.${status.status}`)}</Tag>
       </div>
       <div className="firewall-persistence-meta-grid">
         <PersistenceMeta label={t('workbench.firewall.persistence.rulesPath')} value={status.rules_path} />
@@ -210,6 +210,13 @@ function PersistenceMeta({ label, value }: { label: string; value?: string }) {
       </span>
     </Tooltip>
   )
+}
+
+function persistenceStatusDescription(status: FirewallPersistenceStatus, t: TFunction) {
+  if (status.status === 'ready') {
+    return t('workbench.firewall.persistence.readyHint')
+  }
+  return status.message || t('workbench.firewall.persistence.readyHint')
 }
 
 function PersistenceSteps({ status, t }: { status: FirewallPersistenceStatus; t: TFunction }) {
