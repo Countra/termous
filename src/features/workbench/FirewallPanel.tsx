@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, Ban, Copy, Database, Globe2, Pencil, Plus, Power, RefreshCw, Save, Shield, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
+import { Activity, AlertTriangle, Ban, Copy, Database, ExternalLink, Globe2, LockKeyhole, Pencil, Plus, Power, RefreshCw, Save, Shield, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
 import { App as AntdApp, Button, Modal, Popconfirm, Segmented, Skeleton, Switch, Tooltip } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,6 +43,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
   const connectedLinux = Boolean(session?.kind === 'ssh' && session.status === 'connected' && host?.platform === 'linux')
   const rules = useMemo(() => snapshot?.rules.map(firewallRuleToInput) ?? [], [snapshot])
   const snapshotRuleById = useMemo(() => new Map((snapshot?.rules ?? []).map((rule) => [rule.id, rule])), [snapshot])
+  const readonlyRules = useMemo(() => (snapshot?.unsupported_rules ?? []).filter(isCrossProviderReadonlyRule), [snapshot])
 
   const load = useCallback(async (providerOverride?: FirewallProvider) => {
     if (!session?.id || !connectedLinux) {
@@ -291,6 +292,29 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         )}
       </div> : null}
 
+      {capabilityReady && readonlyRules.length > 0 ? (
+        <div className="firewall-readonly-section">
+          <div className="firewall-readonly-heading">
+            <span>{t('workbench.firewall.crossProviderTitle')}</span>
+            <small>{t('workbench.firewall.crossProviderHint')}</small>
+          </div>
+          <div className="firewall-readonly-list">
+            {readonlyRules.map((rule) => (
+              <FirewallReadonlyRuleCard
+                key={rule.id}
+                rule={rule}
+                t={t}
+                onSwitchProvider={(provider) => {
+                  setSelectedProvider(provider)
+                  setSnapshot(null)
+                  void load(provider)
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {editing ? (
         <FirewallRuleModal
           open
@@ -304,6 +328,51 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         />
       ) : null}
     </section>
+  )
+}
+
+function FirewallReadonlyRuleCard({
+  rule,
+  t,
+  onSwitchProvider,
+}: {
+  rule: FirewallRule
+  t: (key: string, params?: Record<string, unknown>) => string
+  onSwitchProvider: (provider: FirewallProvider) => void
+}) {
+  const sourceProvider = rule.edit_provider ?? rule.source_provider ?? 'iptables'
+  const ports = displayFirewallPorts(rule.protocol, rule.ports ?? [], t)
+  const source = formatFirewallSource(rule.source)
+  const actionIcon = rule.action === 'allow' ? <ShieldCheck size={15} /> : rule.action === 'reject' ? <ShieldAlert size={15} /> : <Ban size={15} />
+  return (
+    <article className={`firewall-rule-row firewall-readonly-rule ${firewallActionTone(rule.action)}`}>
+      <span className="firewall-rule-accent" />
+      <div className="firewall-rule-card-top">
+        <span className="firewall-rule-symbol">{actionIcon}</span>
+        <div className="firewall-rule-title">
+          <strong>{t(`workbench.firewall.protocol.${rule.protocol}`)} · {ports}</strong>
+          <Tooltip title={rule.description || t('workbench.firewall.noDescription')} placement="topLeft">
+            <small>{rule.description || t('workbench.firewall.noDescription')}</small>
+          </Tooltip>
+        </div>
+      </div>
+      <div className="firewall-rule-meta firewall-readonly-meta">
+        <span className="firewall-rule-action">{t(`workbench.firewall.action.${rule.action}`)}</span>
+        <Tooltip title={source} placement="topLeft">
+          <span className="firewall-rule-source-value"><Globe2 size={13} />{t('workbench.firewall.sourceLabel')} {source}</span>
+        </Tooltip>
+      </div>
+      <div className="firewall-rule-switch firewall-readonly-provider-slot">
+        <span className="firewall-rule-source-provider"><LockKeyhole size={12} />{t('workbench.firewall.managedByProvider', { provider: t(`workbench.firewall.provider.${sourceProvider}`) })}</span>
+      </div>
+      <div className="firewall-rule-card-actions firewall-readonly-actions">
+        <Tooltip title={rule.readonly_reason || t('workbench.firewall.readonly')}>
+          <Button type="text" className="firewall-readonly-switch" icon={<ExternalLink size={14} />} onClick={() => onSwitchProvider(sourceProvider)}>
+            {t('workbench.firewall.switchProvider', { provider: t(`workbench.firewall.provider.${sourceProvider}`) })}
+          </Button>
+        </Tooltip>
+      </div>
+    </article>
   )
 }
 
@@ -432,6 +501,10 @@ function fallbackFirewallProvider(provider: FirewallProvider): FirewallProviderO
     supports_counters: false,
     recommended: false,
   }
+}
+
+function isCrossProviderReadonlyRule(rule: FirewallRule) {
+  return Boolean(rule.cross_provider && (rule.edit_provider || rule.source_provider))
 }
 
 function firewallProviderStatusClass(provider: FirewallProviderOption) {

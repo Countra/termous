@@ -342,6 +342,9 @@ export interface FirewallRule {
   managed: boolean
   editable: boolean
   readonly_reason?: string
+  source_provider?: FirewallProvider
+  edit_provider?: FirewallProvider
+  cross_provider?: boolean
   counters_available?: boolean
   hit_count?: number
   byte_count?: number
