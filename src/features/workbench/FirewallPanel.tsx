@@ -1,5 +1,5 @@
 import { Activity, AlertTriangle, Ban, Copy, Database, ExternalLink, Globe2, LockKeyhole, Pencil, Plus, Power, RefreshCw, Save, Shield, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
-import { App as AntdApp, Button, Modal, Popconfirm, Segmented, Skeleton, Switch, Tooltip } from 'antd'
+import { App as AntdApp, Button, Modal, Popconfirm, Select, Skeleton, Switch, Tooltip } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
@@ -218,30 +218,34 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         <div>
           <span className="firewall-provider-pill">
             <Shield size={14} />
-            {t(`workbench.firewall.provider.${snapshot.capability.provider}`)}
+            {capabilityReady ? t('status.available') : t('status.failed')}
           </span>
           <small>{snapshot.synced_at ? t('workbench.firewall.syncedAt', { time: formatTime(snapshot.synced_at) }) : t('fields.none')}</small>
         </div>
-        <Segmented
-          className="firewall-provider-switch"
-          value={selectedProvider}
-          options={providerOptions.map((provider) => ({
-            value: provider.provider,
-            label: (
-              <span className="firewall-provider-option">
-                <i className={firewallProviderStatusClass(provider)} />
-                {t(`workbench.firewall.provider.${provider.provider}`)}
-              </span>
-            ),
-          }))}
-          onChange={(value) => {
-            const nextProvider = value as FirewallProvider
-            setSelectedProvider(nextProvider)
-            setSnapshot(null)
-            void load(nextProvider)
-          }}
-        />
         <div className="firewall-toolbar-actions">
+          <div className="firewall-provider-picker">
+            <span className="firewall-provider-picker-label">{t('workbench.firewall.providerSwitch')}</span>
+            <Select
+              className="termous-select firewall-provider-select"
+              classNames={{ popup: { root: 'termous-select-popup firewall-provider-select-popup' } }}
+              value={selectedProvider}
+              options={providerOptions.map((provider) => ({
+                value: provider.provider,
+                label: (
+                  <span className="firewall-provider-option">
+                    <i className={firewallProviderStatusClass(provider)} />
+                    {t(`workbench.firewall.provider.${provider.provider}`)}
+                  </span>
+                ),
+              }))}
+              onChange={(value) => {
+                const nextProvider = value as FirewallProvider
+                setSelectedProvider(nextProvider)
+                setSnapshot(null)
+                void load(nextProvider)
+              }}
+            />
+          </div>
           <Tooltip title={t('workbench.firewall.refresh')}>
             <Button type="text" aria-label={t('workbench.firewall.refresh')} icon={<RefreshCw size={15} />} loading={loading} onClick={() => void load(selectedProvider)} />
           </Tooltip>

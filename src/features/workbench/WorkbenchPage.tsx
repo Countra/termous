@@ -940,25 +940,20 @@ export function WorkbenchPage({
             icon={detailsCollapsed ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
           />
         </Tooltip>
-        <div className="panel-heading">
-          <div>
-            <h2>{detailsCollapsed ? t('workbench.detailsShort') : t('workbench.currentConnection')}</h2>
-            {!detailsCollapsed ? <span>{t('workbench.connectionDetails')}</span> : null}
-          </div>
-        </div>
         {detailsCollapsed ? (
           <div className="details-collapsed-rail">
             <Server size={18} />
             <span>{t(`status.${sessionStatus}`)}</span>
           </div>
-        ) : (
-          <>
-            <Tabs
-              className="details-tabs"
-              size="small"
-              activeKey={detailsActiveTab}
-              onChange={(key) => setDetailsActiveTab(parseDetailsTabKey(key))}
-              items={[
+        ) : null}
+        <div className={`details-content-shell ${detailsCollapsed ? 'is-hidden' : ''}`} aria-hidden={detailsCollapsed}>
+          <Tabs
+            className="details-tabs"
+            size="small"
+            activeKey={detailsActiveTab}
+            destroyOnHidden={false}
+            onChange={(key) => setDetailsActiveTab(parseDetailsTabKey(key))}
+            items={[
                 {
                   key: 'overview',
                   label: t('workbench.detailsTabs.overview'),
@@ -1109,10 +1104,9 @@ export function WorkbenchPage({
                     </section>
                   ),
                 },
-              ]}
-            />
-          </>
-        )}
+            ]}
+          />
+        </div>
       </aside>
       </section>
       <Modal
