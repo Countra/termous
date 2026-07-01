@@ -410,9 +410,69 @@ export interface FirewallApplyResult {
   message?: string
 }
 
+export type FirewallPersistenceStatusKind =
+  | 'unsupported'
+  | 'ready'
+  | 'missing_tools'
+  | 'permission_denied'
+  | 'file_saved'
+  | 'service_enabled'
+  | 'partial'
+
+export interface FirewallInstallCommand {
+  id: string
+  title: string
+  command: string
+  risk: 'low' | 'medium'
+}
+
+export interface FirewallInstallPlan {
+  provider: FirewallProvider
+  package_manager?: string
+  commands: FirewallInstallCommand[]
+  missing_tools?: string[]
+  requires_root: boolean
+  warnings?: string[]
+  confirmation_required: boolean
+}
+
+export interface FirewallPersistenceStatus {
+  provider: FirewallProvider
+  supported: boolean
+  status: FirewallPersistenceStatusKind
+  home_dir?: string
+  rules_path?: string
+  metadata_path?: string
+  service_name?: string
+  service_installed: boolean
+  service_enabled: boolean
+  systemd_available: boolean
+  missing_tools?: string[]
+  package_manager?: string
+  install_available: boolean
+  install_plan?: FirewallInstallPlan
+  last_saved_at?: string
+  message?: string
+  warnings?: string[]
+}
+
 export interface FirewallSaveResult {
   provider: FirewallProvider
   saved: boolean
+  status?: FirewallPersistenceStatusKind
+  rules_path?: string
+  service_name?: string
+  service_enabled: boolean
+  requires_install: boolean
+  install_plan?: FirewallInstallPlan
+  message: string
+  warnings?: string[]
+}
+
+export interface FirewallPersistenceInstallResult {
+  provider: FirewallProvider
+  success: boolean
+  status: FirewallPersistenceStatus
   message: string
 }
 

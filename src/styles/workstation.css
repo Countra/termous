@@ -5338,6 +5338,298 @@ body.is-panel-resizing * {
     background: color-mix(in srgb, var(--text-muted) 72%, transparent);
   }
 
+  .firewall-persistence-open.ant-btn {
+    display: inline-flex;
+    height: 30px;
+    align-items: center;
+    gap: 6px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--surface-elevated) 58%, transparent);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 760;
+    padding: 0 9px;
+  }
+
+  .firewall-persistence-open.ant-btn:not(:disabled):hover {
+    background: color-mix(in srgb, var(--accent-soft) 52%, var(--surface-subtle));
+    color: var(--text-primary);
+  }
+
+  .firewall-persistence-open.is-ready.ant-btn {
+    color: color-mix(in srgb, var(--success) 86%, white);
+  }
+
+  .firewall-persistence-open.is-warning.ant-btn {
+    color: #f5c96a;
+  }
+
+  .firewall-persistence-open.is-error.ant-btn {
+    color: #ff8a84;
+  }
+
+  .firewall-persistence-modal .ant-modal-content {
+    overflow: hidden;
+  }
+
+  .firewall-persistence-modal .ant-modal-body {
+    max-height: min(72dvh, 720px);
+    overflow: auto;
+    padding-right: 6px;
+  }
+
+  .firewall-persistence-panel {
+    display: grid;
+    gap: 12px;
+  }
+
+  .firewall-persistence-summary,
+  .firewall-persistence-command-panel,
+  .firewall-persistence-missing {
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    border-radius: 16px;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 60%, transparent), color-mix(in srgb, var(--surface) 96%, transparent)),
+      var(--surface);
+  }
+
+  .firewall-persistence-summary {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .firewall-persistence-summary.is-ready {
+    border-color: color-mix(in srgb, var(--success) 28%, var(--border));
+  }
+
+  .firewall-persistence-summary.is-warning {
+    border-color: color-mix(in srgb, #f3a240 32%, var(--border));
+  }
+
+  .firewall-persistence-summary.is-error {
+    border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
+  }
+
+  .firewall-persistence-summary-head,
+  .firewall-persistence-section-head,
+  .firewall-persistence-missing,
+  .firewall-persistence-confirm-row,
+  .firewall-persistence-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .firewall-persistence-summary-head > span,
+  .firewall-persistence-section-head > span,
+  .firewall-persistence-missing > span {
+    display: inline-flex;
+    width: 34px;
+    height: 34px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+    color: var(--accent);
+  }
+
+  .firewall-persistence-summary-head > div,
+  .firewall-persistence-section-head > div,
+  .firewall-persistence-missing > div {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    gap: 3px;
+  }
+
+  .firewall-persistence-summary-head strong,
+  .firewall-persistence-section-head strong,
+  .firewall-persistence-missing strong {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 760;
+  }
+
+  .firewall-persistence-summary-head small,
+  .firewall-persistence-section-head small,
+  .firewall-persistence-missing small {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .firewall-persistence-status-tag.ant-tag {
+    flex: 0 0 auto;
+    border-color: color-mix(in srgb, var(--accent) 26%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 760;
+    margin-inline-end: 0;
+  }
+
+  .firewall-persistence-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .firewall-persistence-meta {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--surface-subtle) 58%, transparent);
+    padding: 9px 10px;
+  }
+
+  .firewall-persistence-meta small {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 740;
+  }
+
+  .firewall-persistence-meta strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 720;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .firewall-persistence-steps.ant-steps {
+    border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--surface-subtle) 44%, transparent);
+    padding: 10px 12px;
+  }
+
+  .firewall-persistence-steps .ant-steps-item-title {
+    color: var(--text-secondary) !important;
+    font-size: 11px;
+    font-weight: 720;
+  }
+
+  .firewall-persistence-missing {
+    padding: 11px 12px;
+  }
+
+  .firewall-persistence-missing > span {
+    background: rgb(243 162 64 / 13%);
+    color: #f5c96a;
+  }
+
+  .firewall-persistence-command-panel {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .firewall-persistence-section-head .ant-btn {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+  }
+
+  .firewall-persistence-command-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .firewall-persistence-command-list article {
+    display: grid;
+    gap: 6px;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    border-radius: 12px;
+    background: #151922;
+    padding: 10px;
+  }
+
+  .firewall-persistence-command-list article > span {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 740;
+  }
+
+  .firewall-persistence-command-list .ant-typography {
+    display: block;
+    margin: 0;
+    overflow: auto;
+    border: 0;
+    background: transparent;
+    color: color-mix(in srgb, var(--text-primary) 88%, #8bd4ff);
+    font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre;
+  }
+
+  .firewall-persistence-confirm-row {
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+    padding-top: 10px;
+  }
+
+  .firewall-persistence-confirm-row .ant-checkbox-wrapper {
+    min-width: 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .firewall-persistence-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .firewall-persistence-panel .ant-alert {
+    border-color: color-mix(in srgb, #f3a240 28%, var(--border));
+    border-radius: 13px;
+    background: rgb(243 162 64 / 9%);
+    color: var(--text-secondary);
+  }
+
+  :root[data-theme="light"] .firewall-persistence-open.ant-btn,
+  :root[data-theme="light"] .firewall-persistence-summary,
+  :root[data-theme="light"] .firewall-persistence-command-panel,
+  :root[data-theme="light"] .firewall-persistence-missing {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 76%), rgb(246 248 252 / 70%)),
+      var(--surface);
+  }
+
+  :root[data-theme="light"] .firewall-persistence-command-list article {
+    background: rgb(245 248 252 / 92%);
+  }
+
+  :root[data-theme="light"] .firewall-persistence-command-list .ant-typography {
+    color: color-mix(in srgb, var(--text-primary) 88%, var(--accent));
+  }
+
+  @media (max-width: 760px) {
+    .firewall-persistence-meta-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .firewall-persistence-confirm-row {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .firewall-persistence-actions {
+      justify-content: stretch;
+    }
+
+    .firewall-persistence-actions .ant-btn,
+    .firewall-persistence-confirm-row .ant-btn {
+      width: 100%;
+    }
+  }
+
   .firewall-rule-actions {
     display: flex;
     align-items: center;

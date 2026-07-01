@@ -10,6 +10,9 @@ import type {
   FirewallApplyResult,
   FirewallCapability,
   FirewallDesiredState,
+  FirewallInstallPlan,
+  FirewallPersistenceInstallResult,
+  FirewallPersistenceStatus,
   FirewallPlan,
   FirewallProvider,
   FirewallProviderList,
@@ -353,6 +356,35 @@ export class TermousApi {
   saveSessionFirewall(id: string, provider?: FirewallProvider) {
     return this.request<FirewallSaveResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/save${firewallProviderQuery(provider)}`, {
       method: 'POST',
+      timeoutMs: 60_000,
+    })
+  }
+
+  sessionFirewallPersistenceStatus(id: string, provider?: FirewallProvider) {
+    return this.request<FirewallPersistenceStatus>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/persistence/status${firewallProviderQuery(provider)}`, {
+      timeoutMs: 20_000,
+    })
+  }
+
+  sessionFirewallPersistenceInstallPlan(id: string, provider?: FirewallProvider) {
+    return this.request<FirewallInstallPlan>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/persistence/install-plan${firewallProviderQuery(provider)}`, {
+      method: 'POST',
+      timeoutMs: 20_000,
+    })
+  }
+
+  installSessionFirewallPersistence(id: string, provider?: FirewallProvider) {
+    return this.request<FirewallPersistenceInstallResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/persistence/install${firewallProviderQuery(provider)}`, {
+      method: 'POST',
+      body: { confirmed: true },
+      timeoutMs: 190_000,
+    })
+  }
+
+  saveSessionFirewallPersistence(id: string, provider?: FirewallProvider) {
+    return this.request<FirewallSaveResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/persistence/save${firewallProviderQuery(provider)}`, {
+      method: 'POST',
+      timeoutMs: 60_000,
     })
   }
 
@@ -558,9 +590,9 @@ export class TermousApi {
     return this.websocketUrl('/api/v1/transfers/events')
   }
 
-  private async request<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
+  private async request<T>(path: string, options: { method?: string; body?: unknown; timeoutMs?: number } = {}): Promise<T> {
     const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 12_000)
+    const timeout = window.setTimeout(() => controller.abort(), options.timeoutMs ?? 12_000)
     const isFormData = options.body instanceof FormData
     let requestBody: BodyInit | undefined
     if (options.body instanceof FormData) {

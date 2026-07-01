@@ -1,10 +1,11 @@
-import { Activity, AlertTriangle, Ban, Copy, Database, ExternalLink, Globe2, LockKeyhole, Pencil, Plus, Power, RefreshCw, Save, Shield, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
+import { Activity, AlertTriangle, Ban, Copy, Database, ExternalLink, Globe2, LockKeyhole, Pencil, Plus, Power, RefreshCw, ServerCog, Shield, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
 import { App as AntdApp, Button, Modal, Popconfirm, Select, Skeleton, Switch, Tooltip } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
-import type { FirewallDesiredState, FirewallProvider, FirewallProviderOption, FirewallRule, FirewallRuleInput, FirewallSnapshot, Host, Session } from '../../types/domain'
+import type { FirewallDesiredState, FirewallPersistenceStatus, FirewallProvider, FirewallProviderOption, FirewallRule, FirewallRuleInput, FirewallSnapshot, Host, Session } from '../../types/domain'
 import { formatBytes } from '../files/fileUtils'
+import { FirewallPersistencePanel } from './FirewallPersistencePanel'
 import { FirewallRuleModal } from './FirewallRuleModal'
 import {
   compactFirewallRuleInput,
@@ -34,9 +35,10 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
   const [snapshot, setSnapshot] = useState<FirewallSnapshot | null>(null)
   const [providers, setProviders] = useState<FirewallProviderOption[]>([])
   const [selectedProvider, setSelectedProvider] = useState<FirewallProvider>('nftables')
+  const [persistenceStatus, setPersistenceStatus] = useState<FirewallPersistenceStatus | null>(null)
+  const [persistenceOpen, setPersistenceOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
-  const [saving, setSaving] = useState(false)
   const [applying, setApplying] = useState(false)
   const [editing, setEditing] = useState<EditingState | null>(null)
 
@@ -44,6 +46,19 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
   const rules = useMemo(() => snapshot?.rules.map(firewallRuleToInput) ?? [], [snapshot])
   const snapshotRuleById = useMemo(() => new Map((snapshot?.rules ?? []).map((rule) => [rule.id, rule])), [snapshot])
   const readonlyRules = useMemo(() => (snapshot?.unsupported_rules ?? []).filter(isCrossProviderReadonlyRule), [snapshot])
+
+  const loadPersistenceStatus = useCallback(async (providerOverride?: FirewallProvider) => {
+    if (!session?.id || !connectedLinux) {
+      setPersistenceStatus(null)
+      return
+    }
+    try {
+      const nextStatus = await api.sessionFirewallPersistenceStatus(session.id, providerOverride ?? selectedProvider)
+      setPersistenceStatus(nextStatus)
+    } catch {
+      setPersistenceStatus(null)
+    }
+  }, [api, connectedLinux, selectedProvider, session?.id])
 
   const load = useCallback(async (providerOverride?: FirewallProvider) => {
     if (!session?.id || !connectedLinux) {
@@ -72,6 +87,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
       }
       const nextSnapshot = await api.sessionFirewallSnapshot(session.id, nextProvider)
       setSnapshot(nextSnapshot)
+      void loadPersistenceStatus(nextProvider)
     } catch (error) {
       const message = error instanceof Error ? error.message : t('app.error')
       setLoadError(message)
@@ -85,12 +101,14 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
     } finally {
       setLoading(false)
     }
-  }, [api, connectedLinux, notification, selectedProvider, session?.id, snapshot, t])
+  }, [api, connectedLinux, loadPersistenceStatus, notification, selectedProvider, session?.id, snapshot, t])
 
   useEffect(() => {
     setSnapshot(null)
     setProviders([])
     setSelectedProvider('nftables')
+    setPersistenceStatus(null)
+    setPersistenceOpen(false)
     setEditing(null)
     setLoadError('')
   }, [session?.id])
@@ -168,31 +186,6 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
     await applyRules(next, false, () => setEditing(null))
   }
 
-  const saveRemote = async () => {
-    if (!session?.id) {
-      return
-    }
-    setSaving(true)
-    try {
-      const result = await api.saveSessionFirewall(session.id, selectedProvider)
-      if (result.saved) {
-        notification.success({ title: result.message, duration: 4, role: 'status', className: 'termous-notification' })
-      } else {
-        notification.info({ title: result.message, duration: 4, role: 'status', className: 'termous-notification' })
-      }
-    } catch (error) {
-      notification.error({
-        title: t('workbench.firewall.saveFailed'),
-        description: error instanceof Error ? error.message : t('app.error'),
-        duration: 5,
-        role: 'alert',
-        className: 'termous-notification',
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
   if (!session || session.kind !== 'ssh') {
     return <FirewallEmpty title={t('workbench.firewall.emptyTitle')} description={t('workbench.firewall.emptyHint')} />
   }
@@ -242,6 +235,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
                 const nextProvider = value as FirewallProvider
                 setSelectedProvider(nextProvider)
                 setSnapshot(null)
+                setPersistenceStatus(null)
                 void load(nextProvider)
               }}
             />
@@ -249,8 +243,17 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
           <Tooltip title={t('workbench.firewall.refresh')}>
             <Button type="text" aria-label={t('workbench.firewall.refresh')} icon={<RefreshCw size={15} />} loading={loading} onClick={() => void load(selectedProvider)} />
           </Tooltip>
-          <Tooltip title={snapshot.capability.supports_save ? t('workbench.firewall.saveRemote') : t('workbench.firewall.saveUnsupported')}>
-            <Button type="text" aria-label={t('workbench.firewall.saveRemote')} disabled={!snapshot.capability.supports_save} loading={saving} icon={<Save size={15} />} onClick={() => void saveRemote()} />
+          <Tooltip title={snapshot.capability.supports_save ? t('workbench.firewall.persistence.open') : t('workbench.firewall.saveUnsupported')}>
+            <Button
+              className={`firewall-persistence-open ${persistenceStatusClass(persistenceStatus)}`}
+              type="text"
+              aria-label={t('workbench.firewall.persistence.open')}
+              disabled={!snapshot.capability.supports_save}
+              icon={<ServerCog size={15} />}
+              onClick={() => setPersistenceOpen(true)}
+            >
+              {persistenceStatus ? t(`workbench.firewall.persistence.status.${persistenceStatus.status}`) : t('workbench.firewall.persistence.shortTitle')}
+            </Button>
           </Tooltip>
         </div>
       </div>
@@ -329,6 +332,20 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
           onChange={(value) => setEditing((current) => (current ? { ...current, value } : current))}
           onCancel={() => setEditing(null)}
           onSubmit={() => void saveEditing()}
+        />
+      ) : null}
+
+      {session?.id ? (
+        <FirewallPersistencePanel
+          api={api}
+          sessionId={session.id}
+          provider={selectedProvider}
+          open={persistenceOpen}
+          t={t}
+          onClose={() => setPersistenceOpen(false)}
+          onSaved={() => {
+            void load(selectedProvider)
+          }}
         />
       ) : null}
     </section>
@@ -519,6 +536,22 @@ function firewallProviderStatusClass(provider: FirewallProviderOption) {
     return 'is-denied'
   }
   return 'is-offline'
+}
+
+function persistenceStatusClass(status: FirewallPersistenceStatus | null) {
+  if (!status) {
+    return 'is-neutral'
+  }
+  if (status.status === 'service_enabled' || status.status === 'file_saved') {
+    return 'is-ready'
+  }
+  if (status.status === 'missing_tools' || status.status === 'partial') {
+    return 'is-warning'
+  }
+  if (status.status === 'permission_denied' || status.status === 'unsupported') {
+    return 'is-error'
+  }
+  return 'is-neutral'
 }
 
 function formatTime(value: string) {
