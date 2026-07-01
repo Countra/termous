@@ -289,6 +289,26 @@ export interface FirewallProviderInfo {
   message?: string
 }
 
+export interface FirewallProviderOption {
+  provider: FirewallProvider
+  status: FirewallCapabilityStatus
+  present: boolean
+  version?: string
+  backend?: string
+  privilege: FirewallPrivilegeMode
+  supports_apply: boolean
+  supports_save: boolean
+  supports_counters: boolean
+  message?: string
+  recommended: boolean
+}
+
+export interface FirewallProviderList {
+  providers: FirewallProviderOption[]
+  default_provider: FirewallProvider
+  privilege: FirewallPrivilegeMode
+}
+
 export interface FirewallCapability {
   status: FirewallCapabilityStatus
   provider: FirewallProvider
@@ -322,8 +342,13 @@ export interface FirewallRule {
   managed: boolean
   editable: boolean
   readonly_reason?: string
+  counters_available?: boolean
   hit_count?: number
   byte_count?: number
+  remote_present?: boolean
+  disabled_local?: boolean
+  source_kind?: 'remote' | 'local_disabled'
+  signature?: string
   raw_ref?: string
   chain?: string
   position?: number

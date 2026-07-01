@@ -11,6 +11,8 @@ import type {
   FirewallCapability,
   FirewallDesiredState,
   FirewallPlan,
+  FirewallProvider,
+  FirewallProviderList,
   FirewallSaveResult,
   FirewallSnapshot,
   ForwardInstance,
@@ -322,30 +324,34 @@ export class TermousApi {
     return this.websocketUrl(`/api/v1/sessions/${encodeURIComponent(id)}/monitor`)
   }
 
-  sessionFirewallCapability(id: string) {
-    return this.request<FirewallCapability>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/capability`)
+  sessionFirewallProviders(id: string) {
+    return this.request<FirewallProviderList>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/providers`)
   }
 
-  sessionFirewallSnapshot(id: string) {
-    return this.request<FirewallSnapshot>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/snapshot`)
+  sessionFirewallCapability(id: string, provider?: FirewallProvider) {
+    return this.request<FirewallCapability>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/capability${firewallProviderQuery(provider)}`)
   }
 
-  previewSessionFirewall(id: string, desired: FirewallDesiredState) {
-    return this.request<FirewallPlan>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/preview`, {
+  sessionFirewallSnapshot(id: string, provider?: FirewallProvider) {
+    return this.request<FirewallSnapshot>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/snapshot${firewallProviderQuery(provider)}`)
+  }
+
+  previewSessionFirewall(id: string, desired: FirewallDesiredState, provider?: FirewallProvider) {
+    return this.request<FirewallPlan>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/preview${firewallProviderQuery(provider)}`, {
       method: 'POST',
       body: desired,
     })
   }
 
-  applySessionFirewall(id: string, desired: FirewallDesiredState) {
-    return this.request<FirewallApplyResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/apply`, {
+  applySessionFirewall(id: string, desired: FirewallDesiredState, provider?: FirewallProvider) {
+    return this.request<FirewallApplyResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/apply${firewallProviderQuery(provider)}`, {
       method: 'POST',
       body: desired,
     })
   }
 
-  saveSessionFirewall(id: string) {
-    return this.request<FirewallSaveResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/save`, {
+  saveSessionFirewall(id: string, provider?: FirewallProvider) {
+    return this.request<FirewallSaveResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/save${firewallProviderQuery(provider)}`, {
       method: 'POST',
     })
   }
@@ -606,6 +612,13 @@ export class TermousApi {
       body.error?.details,
     )
   }
+}
+
+function firewallProviderQuery(provider?: FirewallProvider) {
+  if (!provider || provider === 'unsupported') {
+    return ''
+  }
+  return `?${new URLSearchParams({ provider }).toString()}`
 }
 
 export async function createApiFromRuntime() {
