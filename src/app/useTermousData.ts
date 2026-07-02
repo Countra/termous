@@ -11,6 +11,8 @@ import type {
   ForwardProfile,
   ForwardProfileInput,
   ForwardStartRequest,
+  HostReachability,
+  HostReachabilityEvent,
   HostInput,
   Language,
   LocalShell,
@@ -38,6 +40,7 @@ const initialData: AppData = {
   snippets: [],
   settings: initialSettings,
   terminalFonts: [],
+  hostReachability: {},
 }
 
 export function useTermousData() {
@@ -60,12 +63,13 @@ export function useTermousData() {
     setError(null)
     try {
       await apiClient.health()
-      const [settings, terminalFonts, snippets, groups, hosts, credentials, knownHosts, sessions, fileSessions, forwardProfiles, forwards] = await Promise.all([
+      const [settings, terminalFonts, snippets, groups, hosts, hostReachability, credentials, knownHosts, sessions, fileSessions, forwardProfiles, forwards] = await Promise.all([
         apiClient.settings(),
         apiClient.terminalFonts(),
         apiClient.codeSnippets(),
         apiClient.hostGroups(),
         apiClient.hosts(),
+        apiClient.hostReachability(),
         apiClient.credentials(),
         apiClient.knownHosts(),
         apiClient.sessions(),
@@ -87,6 +91,7 @@ export function useTermousData() {
         forwards: visibleForwards(forwards ?? []),
         snippets: snippets ?? [],
         terminalFonts: terminalFonts ?? [],
+        hostReachability: indexHostReachability(hostReachability ?? []),
       })
       setActiveSession((current) => reconcileActiveSession(current, nextSessions, mode))
       setApiReady(true)
@@ -277,6 +282,19 @@ export function useTermousData() {
       async deleteHost(id: string) {
         await api.deleteHost(id)
         await load('silent')
+      },
+      async refreshHostReachability(hostIds: string[] = [], force = false) {
+        const states = await api.refreshHostReachability(hostIds, force)
+        setData((current) => ({
+          ...current,
+          hostReachability: mergeHostReachabilityStates(current.hostReachability, states ?? []),
+        }))
+      },
+      updateHostReachability(event: HostReachabilityEvent) {
+        setData((current) => ({
+          ...current,
+          hostReachability: mergeHostReachabilityEvent(current.hostReachability, event),
+        }))
       },
       async importSSHConfig() {
         const result = await api.importSSHConfig()
@@ -497,6 +515,36 @@ function markAllForwardsStopped(forwards: ForwardInstance[]) {
 
 function visibleForwards(forwards: ForwardInstance[]) {
   return forwards.filter((forward) => !shouldRemoveForward(forward))
+}
+
+function indexHostReachability(states: HostReachability[]) {
+  return states.reduce<Record<string, HostReachability>>((acc, state) => {
+    acc[state.host_id] = state
+    return acc
+  }, {})
+}
+
+function mergeHostReachabilityStates(
+  current: Record<string, HostReachability>,
+  states: HostReachability[],
+) {
+  if (states.length === 0) {
+    return current
+  }
+  return { ...current, ...indexHostReachability(states) }
+}
+
+function mergeHostReachabilityEvent(
+  current: Record<string, HostReachability>,
+  event: HostReachabilityEvent,
+) {
+  if (event.type === 'snapshot' && event.items) {
+    return indexHostReachability(event.items)
+  }
+  if (event.state) {
+    return { ...current, [event.state.host_id]: event.state }
+  }
+  return current
 }
 
 function shouldRemoveForward(forward: ForwardInstance) {

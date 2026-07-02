@@ -155,6 +155,8 @@ export type AuthMethod = 'password' | 'private_key' | 'system'
 
 export type HostPlatform = 'linux'
 
+export type HostReachabilityStatus = 'unknown' | 'checking' | 'online' | 'offline' | 'unavailable'
+
 export type CredentialType = 'password' | 'private_key' | 'private_key_passphrase'
 
 export type SessionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed'
@@ -544,6 +546,23 @@ export interface HostGroup {
   updated_at?: string
 }
 
+export interface HostReachability {
+  host_id: string
+  address: string
+  status: HostReachabilityStatus
+  latency_ms?: number
+  packet_loss: number
+  checked_at?: string
+  error_code?: string
+  error_message?: string
+}
+
+export interface HostReachabilityEvent {
+  type: 'snapshot' | 'checking' | 'updated' | string
+  state?: HostReachability
+  items?: HostReachability[]
+}
+
 export interface CredentialView {
   id: string
   name: string
@@ -752,4 +771,5 @@ export interface AppData {
   snippets: CodeSnippet[]
   settings: Settings
   terminalFonts: TerminalFont[]
+  hostReachability: Record<string, HostReachability>
 }

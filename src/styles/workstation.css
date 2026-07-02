@@ -824,7 +824,7 @@ body.is-panel-resizing * {
 .host-launcher-sidebar {
   display: grid;
   min-height: 0;
-  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
   gap: 12px;
   border-right: 1px solid var(--border);
   padding: 20px 16px 16px;
@@ -883,6 +883,7 @@ body.is-panel-resizing * {
   min-height: 30px;
   border-radius: 10px;
   color: var(--text-secondary);
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -892,6 +893,15 @@ body.is-panel-resizing * {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 7%),
     0 4px 14px rgb(0 0 0 / 10%);
+}
+
+.host-launcher-platform-filter {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.host-launcher-platform-select.ant-select {
+  width: 138px;
 }
 
 .host-launcher-tags {
@@ -907,7 +917,7 @@ body.is-panel-resizing * {
   display: flex;
   min-height: 0;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   overflow: auto;
   padding-right: 2px;
 }
@@ -918,16 +928,37 @@ body.is-panel-resizing * {
   place-items: center;
 }
 
+.host-launcher-group {
+  display: grid;
+  gap: 7px;
+}
+
+.host-launcher-group-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.host-launcher-group-title small {
+  color: color-mix(in srgb, var(--text-muted) 72%, transparent);
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .host-launcher-row {
   position: relative;
   display: grid;
   width: 100%;
-  grid-template-columns: 10px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   border: 1px solid transparent;
   border-radius: 13px;
-  padding: 11px 10px;
+  padding: 10px 9px;
   background: transparent;
   color: var(--text-secondary);
   text-align: left;
@@ -956,19 +987,6 @@ body.is-panel-resizing * {
     0 10px 26px rgb(0 0 0 / 12%);
 }
 
-.host-launcher-status {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--text-muted) 64%, transparent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--text-muted) 8%, transparent);
-}
-
-.host-launcher-status.is-online {
-  background: var(--success);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 13%, transparent);
-}
-
 .host-launcher-row-copy {
   display: grid;
   min-width: 0;
@@ -985,6 +1003,26 @@ body.is-panel-resizing * {
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.host-launcher-row-meta {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+}
+
+.host-launcher-row-meta small {
+  max-width: 74px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-launcher-create-button.ant-btn {
+  width: 100%;
 }
 
 .host-launcher-row-copy small {
@@ -1023,6 +1061,22 @@ body.is-panel-resizing * {
     linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent),
     color-mix(in srgb, var(--surface-subtle) 72%, transparent);
   color: color-mix(in srgb, var(--accent) 74%, #ffffff 12%);
+}
+
+.host-launcher-hero-icon.is-online {
+  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+  color: var(--success);
+}
+
+.host-launcher-hero-icon.is-offline,
+.host-launcher-hero-icon.is-unavailable {
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--border));
+  color: color-mix(in srgb, var(--danger) 72%, #ffffff 12%);
+}
+
+.host-launcher-hero-icon.is-checking {
+  border-color: color-mix(in srgb, var(--warning) 40%, var(--border));
+  color: var(--warning);
 }
 
 .host-launcher-hero-title {
@@ -1070,11 +1124,11 @@ body.is-panel-resizing * {
   margin-top: 10px;
 }
 
-.host-launcher-hero-meta > span:first-child {
+.host-reachability-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 999px;
   padding: 4px 9px;
   color: var(--text-secondary);
@@ -1082,20 +1136,61 @@ body.is-panel-resizing * {
   font-weight: 700;
 }
 
-.host-launcher-hero-meta > span:first-child::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--text-muted) 60%, transparent);
-}
-
-.host-launcher-hero-meta > span:first-child.is-online {
+.host-reachability-pill.is-online {
+  border-color: color-mix(in srgb, var(--success) 28%, var(--border));
+  background: color-mix(in srgb, var(--success) 9%, transparent);
   color: var(--success);
 }
 
-.host-launcher-hero-meta > span:first-child.is-online::before {
+.host-reachability-pill.is-offline,
+.host-reachability-pill.is-unavailable {
+  border-color: color-mix(in srgb, var(--danger) 24%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: color-mix(in srgb, var(--danger) 78%, #ffffff 10%);
+}
+
+.host-reachability-pill.is-checking {
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--border));
+  background: color-mix(in srgb, var(--warning) 9%, transparent);
+  color: var(--warning);
+}
+
+.host-reachability-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text-muted) 64%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--text-muted) 8%, transparent);
+}
+
+.host-reachability-dot.is-online {
   background: var(--success);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 13%, transparent);
+}
+
+.host-reachability-dot.is-offline {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 11%, transparent);
+}
+
+.host-reachability-dot.is-unavailable {
+  background: var(--warning);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.host-reachability-dot.is-checking {
+  background: var(--warning);
+  animation: termous-reachability-pulse 1s ease-in-out infinite;
+}
+
+@keyframes termous-reachability-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent);
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--warning) 18%, transparent);
+  }
 }
 
 .host-launcher-detail-grid {

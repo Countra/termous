@@ -16,7 +16,7 @@ import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostInput, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
+import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostInput, HostReachabilityEvent, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -54,6 +54,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const { api, data, initializing, refreshing, apiReady, error, activeSession, forwardErrorEvent, actions } = useTermousData()
   const updateForwardRef = useRef(actions.updateForward)
   const reloadForwardStateRef = useRef(actions.reloadForwardsSilent)
+  const updateHostReachabilityRef = useRef(actions.updateHostReachability)
+  const refreshHostReachabilityRef = useRef(actions.refreshHostReachability)
   const notifiedForwardFailuresRef = useRef(new Set<string>())
   const notifiedForwardRuntimeErrorsRef = useRef(new Map<string, string>())
   const [page, setPage] = useState<PageKey>('workbench')
@@ -93,7 +95,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   useEffect(() => {
     updateForwardRef.current = actions.updateForward
     reloadForwardStateRef.current = actions.reloadForwardsSilent
-  }, [actions.reloadForwardsSilent, actions.updateForward])
+    updateHostReachabilityRef.current = actions.updateHostReachability
+    refreshHostReachabilityRef.current = actions.refreshHostReachability
+  }, [actions.refreshHostReachability, actions.reloadForwardsSilent, actions.updateForward, actions.updateHostReachability])
 
   useEffect(() => {
     if (!forwardErrorEvent) {
@@ -145,6 +149,47 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       socket?.close()
     }
   }, [api, apiReady, notification, t])
+
+  useEffect(() => {
+    if (!apiReady) {
+      return undefined
+    }
+    let disposed = false
+    let reconnectTimer: number | undefined
+    let socket: WebSocket | undefined
+
+    const connect = () => {
+      socket = new WebSocket(api.hostReachabilityEventsUrl())
+      socket.onopen = () => {
+        void refreshHostReachabilityRef.current([], false).catch(() => undefined)
+      }
+      socket.onmessage = (event: MessageEvent<string>) => {
+        try {
+          updateHostReachabilityRef.current(JSON.parse(event.data) as HostReachabilityEvent)
+        } catch {
+          // 忽略无法解析的主机在线状态事件，避免单条异常消息中断状态同步。
+        }
+      }
+      socket.onerror = () => {
+        socket?.close()
+      }
+      socket.onclose = () => {
+        if (disposed) {
+          return
+        }
+        reconnectTimer = window.setTimeout(connect, 1500)
+      }
+    }
+
+    connect()
+    return () => {
+      disposed = true
+      if (reconnectTimer !== undefined) {
+        window.clearTimeout(reconnectTimer)
+      }
+      socket?.close()
+    }
+  }, [api, apiReady])
 
   useEffect(() => {
     let disposed = false
@@ -420,6 +465,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onOpenFilesForHost={openFilesForHost}
             onOpenForwardForHost={openTemporaryForwardForHost}
             onToggleHostFavorite={(hostId) => runAction(() => actions.toggleHostFavorite(hostId))}
+            onRefreshHostReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
             onSelectSession={actions.selectSession}
             onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
             onOpenFiles={openFilesFromSession}

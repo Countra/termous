@@ -92,6 +92,7 @@ interface WorkbenchPageProps {
   onOpenFilesForHost: (hostId: string) => Promise<void>
   onOpenForwardForHost: (hostId: string) => void
   onToggleHostFavorite: (hostId: string) => Promise<void>
+  onRefreshHostReachability: (hostIds?: string[], force?: boolean) => Promise<void>
   onSelectSession: (sessionId: string) => void
   onDisconnect: (sessionId: string) => Promise<void>
   onOpenFiles: (session: Session) => Promise<void>
@@ -116,6 +117,7 @@ export function WorkbenchPage({
   onOpenFilesForHost,
   onOpenForwardForHost,
   onToggleHostFavorite,
+  onRefreshHostReachability,
   onSelectSession,
   onDisconnect,
   onOpenFiles,
@@ -1171,6 +1173,7 @@ export function WorkbenchPage({
         onOpenFiles={onOpenFilesForHost}
         onOpenForward={onOpenForwardForHost}
         onToggleFavorite={onToggleHostFavorite}
+        onRefreshReachability={onRefreshHostReachability}
       />
       <Modal
         open={Boolean(renamingSessionId)}

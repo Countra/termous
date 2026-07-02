@@ -25,6 +25,7 @@ import type {
   Host,
   HostGroup,
   HostInput,
+  HostReachability,
   KnownHost,
   KnownHostInput,
   Language,
@@ -241,6 +242,22 @@ export class TermousApi {
 
   hosts() {
     return this.request<Host[]>('/api/v1/hosts')
+  }
+
+  hostReachability() {
+    return this.request<HostReachability[]>('/api/v1/hosts/reachability')
+  }
+
+  refreshHostReachability(hostIds: string[] = [], force = false) {
+    return this.request<HostReachability[]>('/api/v1/hosts/reachability/refresh', {
+      method: 'POST',
+      body: { host_ids: hostIds, force },
+      timeoutMs: 4_000,
+    })
+  }
+
+  hostReachabilityEventsUrl() {
+    return this.websocketUrl('/api/v1/hosts/reachability/events')
   }
 
   createHost(input: HostInput) {
