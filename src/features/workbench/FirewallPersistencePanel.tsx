@@ -295,7 +295,7 @@ export function FirewallPersistencePanel({ api, sessionId, sessionStatus, provid
               {t('workbench.firewall.persistence.showInstallPlan')}
             </Button>
           ) : null}
-          <Button className="primary-button" icon={<Save size={15} />} loading={saving} disabled={Boolean(missingTools.length) || !sessionConnected} onClick={() => void saveRules()}>
+          <Button className="connection-action-button" icon={<Save size={15} />} loading={saving} disabled={Boolean(missingTools.length) || !sessionConnected} onClick={() => void saveRules()}>
             {t('workbench.firewall.persistence.saveCurrent')}
           </Button>
         </div>
