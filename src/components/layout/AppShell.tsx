@@ -85,7 +85,6 @@ export function AppShell({
                   className={`nav-item ${page === item.key ? 'is-active' : ''}`}
                   onClick={() => onNavigate(item.key)}
                   aria-label={t(`nav.${item.key}`)}
-                  title={t(`nav.${item.key}`)}
                   icon={<Icon size={18} aria-hidden="true" />}
                 >
                   <span>{t(`nav.${item.key}`)}</span>
@@ -101,7 +100,6 @@ export function AppShell({
               className={`nav-item ${page === 'settings' ? 'is-active' : ''}`}
               onClick={() => onNavigate('settings')}
               aria-label={t('nav.settings')}
-              title={t('nav.settings')}
               icon={<Settings size={18} aria-hidden="true" />}
             >
               <span>{t('nav.settings')}</span>

@@ -74,7 +74,7 @@
 }
 
 .app-shell.is-collapsed {
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 64px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -156,10 +156,27 @@
   display: none;
 }
 
+.app-shell.is-collapsed .sidebar {
+  align-items: center;
+  padding-inline: 8px;
+}
+
+.app-shell.is-collapsed .brand-row {
+  width: 100%;
+  justify-content: center;
+  padding: 2px 0 14px;
+}
+
 .primary-nav {
   gap: 3px;
   flex: 1;
   align-content: start;
+}
+
+.app-shell.is-collapsed .primary-nav {
+  width: 100%;
+  justify-items: center;
+  gap: 8px;
 }
 
 .nav-item.ant-btn {
@@ -190,8 +207,16 @@
 }
 
 .app-shell.is-collapsed .nav-item.ant-btn {
+  position: relative;
   justify-content: center;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  border-radius: 14px;
   padding: 0;
+  overflow: visible;
+  box-shadow: none;
 }
 
 .app-shell.is-collapsed .nav-item.ant-btn .ant-btn-icon {
@@ -199,8 +224,40 @@
   margin-inline-end: 0;
 }
 
+.app-shell.is-collapsed .nav-item.ant-btn .ant-btn-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
 .app-shell.is-collapsed .nav-item.ant-btn > span:not(.ant-btn-icon) {
   display: none;
+}
+
+.app-shell.is-collapsed .nav-item.ant-btn:hover {
+  background: color-mix(in srgb, var(--nav-active-bg) 86%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--border) 72%, transparent),
+    0 10px 22px rgb(0 0 0 / 10%);
+}
+
+.app-shell.is-collapsed .nav-item.ant-btn.is-active {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--nav-active-bg) 88%, #ffffff 4%), var(--nav-active-bg));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, var(--border)),
+    0 12px 24px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.app-shell.is-collapsed .nav-item.ant-btn.is-active::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 12px;
+  width: 3px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 48%, transparent);
 }
 
 .sidebar-footer {
@@ -208,6 +265,11 @@
   gap: 3px;
   margin-top: auto;
   padding-top: 12px;
+}
+
+.app-shell.is-collapsed .sidebar-footer {
+  width: 100%;
+  justify-items: center;
 }
 
 .main-frame {
