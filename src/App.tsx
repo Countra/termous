@@ -55,7 +55,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const updateForwardRef = useRef(actions.updateForward)
   const reloadForwardStateRef = useRef(actions.reloadForwardsSilent)
   const updateHostReachabilityRef = useRef(actions.updateHostReachability)
-  const refreshHostReachabilityRef = useRef(actions.refreshHostReachability)
   const notifiedForwardFailuresRef = useRef(new Set<string>())
   const notifiedForwardRuntimeErrorsRef = useRef(new Map<string, string>())
   const [page, setPage] = useState<PageKey>('workbench')
@@ -96,8 +95,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     updateForwardRef.current = actions.updateForward
     reloadForwardStateRef.current = actions.reloadForwardsSilent
     updateHostReachabilityRef.current = actions.updateHostReachability
-    refreshHostReachabilityRef.current = actions.refreshHostReachability
-  }, [actions.refreshHostReachability, actions.reloadForwardsSilent, actions.updateForward, actions.updateHostReachability])
+  }, [actions.reloadForwardsSilent, actions.updateForward, actions.updateHostReachability])
 
   useEffect(() => {
     if (!forwardErrorEvent) {
@@ -160,9 +158,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
     const connect = () => {
       socket = new WebSocket(api.hostReachabilityEventsUrl())
-      socket.onopen = () => {
-        void refreshHostReachabilityRef.current([], false).catch(() => undefined)
-      }
       socket.onmessage = (event: MessageEvent<string>) => {
         try {
           updateHostReachabilityRef.current(JSON.parse(event.data) as HostReachabilityEvent)
