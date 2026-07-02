@@ -1,13 +1,14 @@
 import { Alert, App as AntdApp, Button, Checkbox, Modal, Skeleton, Steps, Tag, Tooltip, Typography } from 'antd'
 import { ClipboardCopy, FileText, PackagePlus, RefreshCw, Save, ServerCog, ShieldAlert, ShieldCheck, TerminalSquare } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TFunction } from 'i18next'
-import type { TermousApi } from '../../api/client'
-import type { FirewallInstallPlan, FirewallPersistenceStatus, FirewallProvider, FirewallSaveResult } from '../../types/domain'
+import { TermousApiError, type TermousApi } from '../../api/client'
+import type { FirewallInstallPlan, FirewallPersistenceStatus, FirewallProvider, FirewallSaveResult, SessionStatus } from '../../types/domain'
 
 interface FirewallPersistencePanelProps {
   api: TermousApi
   sessionId: string
+  sessionStatus: SessionStatus
   provider: FirewallProvider
   open: boolean
   onClose: () => void
@@ -15,7 +16,7 @@ interface FirewallPersistencePanelProps {
   t: TFunction
 }
 
-export function FirewallPersistencePanel({ api, sessionId, provider, open, onClose, onSaved, t }: FirewallPersistencePanelProps) {
+export function FirewallPersistencePanel({ api, sessionId, sessionStatus, provider, open, onClose, onSaved, t }: FirewallPersistencePanelProps) {
   const { notification } = AntdApp.useApp()
   const [status, setStatus] = useState<FirewallPersistenceStatus | null>(null)
   const [installPlan, setInstallPlan] = useState<FirewallInstallPlan | null>(null)
@@ -23,6 +24,11 @@ export function FirewallPersistencePanel({ api, sessionId, provider, open, onClo
   const [saving, setSaving] = useState(false)
   const [installing, setInstalling] = useState(false)
   const [installConfirmed, setInstallConfirmed] = useState(false)
+  const activeAbortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(false)
+  const sessionConnected = sessionStatus === 'connected'
+  const sessionConnectedRef = useRef(sessionConnected)
+  const requestScopeRef = useRef({ sessionId, provider, open, sessionConnected })
 
   const currentPlan = installPlan ?? status?.install_plan ?? null
   const missingTools = status?.missing_tools ?? currentPlan?.missing_tools ?? []
@@ -31,17 +37,81 @@ export function FirewallPersistencePanel({ api, sessionId, provider, open, onClo
     return Array.from(new Set(values.filter(Boolean)))
   }, [currentPlan?.warnings, status?.warnings])
 
-  const loadStatus = useCallback(async () => {
-    if (!open || !sessionId) {
+  useEffect(() => {
+    sessionConnectedRef.current = sessionConnected
+  }, [sessionConnected])
+
+  requestScopeRef.current = { sessionId, provider, open, sessionConnected }
+
+  const abortActiveRequest = useCallback(() => {
+    activeAbortRef.current?.abort()
+    activeAbortRef.current = null
+  }, [])
+
+  const beginRequest = useCallback(() => {
+    abortActiveRequest()
+    const controller = new AbortController()
+    activeAbortRef.current = controller
+    return controller
+  }, [abortActiveRequest])
+
+  const finishRequest = useCallback((controller: AbortController) => {
+    if (activeAbortRef.current === controller) {
+      activeAbortRef.current = null
+    }
+  }, [])
+
+  const isCurrentRequest = useCallback((controller: AbortController, targetSessionId: string, targetProvider: FirewallProvider) => {
+    const scope = requestScopeRef.current
+    return (
+      activeAbortRef.current === controller &&
+      !controller.signal.aborted &&
+      mountedRef.current &&
+      scope.open &&
+      scope.sessionConnected &&
+      scope.sessionId === targetSessionId &&
+      scope.provider === targetProvider
+    )
+  }, [])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      abortActiveRequest()
+    }
+  }, [abortActiveRequest])
+
+  useEffect(() => {
+    if (open && sessionConnected) {
       return
     }
+    abortActiveRequest()
+    setLoading(false)
+    setSaving(false)
+    setInstalling(false)
+  }, [abortActiveRequest, open, sessionConnected])
+
+  const loadStatus = useCallback(async () => {
+    if (!open || !sessionId || !sessionConnected) {
+      return
+    }
+    const targetSessionId = sessionId
+    const targetProvider = provider
+    const controller = beginRequest()
     setLoading(true)
     try {
-      const nextStatus = await api.sessionFirewallPersistenceStatus(sessionId, provider)
+      const nextStatus = await api.sessionFirewallPersistenceStatus(targetSessionId, targetProvider, { signal: controller.signal })
+      if (!isCurrentRequest(controller, targetSessionId, targetProvider)) {
+        return
+      }
       setStatus(nextStatus)
       setInstallPlan(nextStatus.install_plan ?? null)
       setInstallConfirmed(false)
     } catch (error) {
+      if (isRequestAbort(error) || !isCurrentRequest(controller, targetSessionId, targetProvider)) {
+        return
+      }
       notification.error({
         title: t('workbench.firewall.persistence.loadFailed'),
         description: error instanceof Error ? error.message : t('app.error'),
@@ -50,9 +120,13 @@ export function FirewallPersistencePanel({ api, sessionId, provider, open, onClo
         className: 'termous-notification',
       })
     } finally {
-      setLoading(false)
+      const ownsRequest = activeAbortRef.current === controller
+      finishRequest(controller)
+      if (ownsRequest && mountedRef.current) {
+        setLoading(false)
+      }
     }
-  }, [api, notification, open, provider, sessionId, t])
+  }, [api, beginRequest, finishRequest, isCurrentRequest, notification, open, provider, sessionConnected, sessionId, t])
 
   useEffect(() => {
     if (open) {
@@ -61,12 +135,25 @@ export function FirewallPersistencePanel({ api, sessionId, provider, open, onClo
   }, [loadStatus, open])
 
   const loadInstallPlan = async () => {
+    if (!sessionConnected) {
+      notifySessionUnavailable(notification, t)
+      return
+    }
+    const targetSessionId = sessionId
+    const targetProvider = provider
+    const controller = beginRequest()
     setLoading(true)
     try {
-      const plan = await api.sessionFirewallPersistenceInstallPlan(sessionId, provider)
+      const plan = await api.sessionFirewallPersistenceInstallPlan(targetSessionId, targetProvider, { signal: controller.signal })
+      if (!isCurrentRequest(controller, targetSessionId, targetProvider)) {
+        return
+      }
       setInstallPlan(plan)
       setInstallConfirmed(false)
     } catch (error) {
+      if (isRequestAbort(error) || !isCurrentRequest(controller, targetSessionId, targetProvider)) {
+        return
+      }
       notification.error({
         title: t('workbench.firewall.persistence.installPlanFailed'),
         description: error instanceof Error ? error.message : t('app.error'),
@@ -75,22 +162,39 @@ export function FirewallPersistencePanel({ api, sessionId, provider, open, onClo
         className: 'termous-notification',
       })
     } finally {
-      setLoading(false)
+      const ownsRequest = activeAbortRef.current === controller
+      finishRequest(controller)
+      if (ownsRequest && mountedRef.current) {
+        setLoading(false)
+      }
     }
   }
 
   const installDependencies = async () => {
+    if (!sessionConnected) {
+      notifySessionUnavailable(notification, t)
+      return
+    }
     if (!installConfirmed) {
       return
     }
+    const targetSessionId = sessionId
+    const targetProvider = provider
+    const controller = beginRequest()
     setInstalling(true)
     try {
-      const result = await api.installSessionFirewallPersistence(sessionId, provider)
+      const result = await api.installSessionFirewallPersistence(targetSessionId, targetProvider, { signal: controller.signal })
+      if (!isCurrentRequest(controller, targetSessionId, targetProvider)) {
+        return
+      }
       setStatus(result.status)
       setInstallPlan(result.status.install_plan ?? null)
       setInstallConfirmed(false)
       notification.success({ title: result.message, duration: 4, role: 'status', className: 'termous-notification' })
     } catch (error) {
+      if (isRequestAbort(error) || !isCurrentRequest(controller, targetSessionId, targetProvider)) {
+        return
+      }
       notification.error({
         title: t('workbench.firewall.persistence.installFailed'),
         description: error instanceof Error ? error.message : t('app.error'),
@@ -100,20 +204,37 @@ export function FirewallPersistencePanel({ api, sessionId, provider, open, onClo
       })
       void loadStatus()
     } finally {
-      setInstalling(false)
+      const ownsRequest = activeAbortRef.current === controller
+      finishRequest(controller)
+      if (ownsRequest && mountedRef.current) {
+        setInstalling(false)
+      }
     }
   }
 
   const saveRules = async () => {
+    if (!sessionConnected) {
+      notifySessionUnavailable(notification, t)
+      return
+    }
+    const targetSessionId = sessionId
+    const targetProvider = provider
+    const controller = beginRequest()
     setSaving(true)
     try {
-      const result = await api.saveSessionFirewallPersistence(sessionId, provider)
+      const result = await api.saveSessionFirewallPersistence(targetSessionId, targetProvider, { signal: controller.signal })
+      if (!isCurrentRequest(controller, targetSessionId, targetProvider)) {
+        return
+      }
       applySaveResult(result)
       notification[result.saved ? 'success' : 'info']({ title: result.message, duration: 4, role: 'status', className: 'termous-notification' })
-      if (result.saved) {
+      if (result.saved && sessionConnectedRef.current) {
         onSaved?.()
       }
     } catch (error) {
+      if (isRequestAbort(error) || !isCurrentRequest(controller, targetSessionId, targetProvider)) {
+        return
+      }
       notification.error({
         title: t('workbench.firewall.saveFailed'),
         description: error instanceof Error ? error.message : t('app.error'),
@@ -122,7 +243,11 @@ export function FirewallPersistencePanel({ api, sessionId, provider, open, onClo
         className: 'termous-notification',
       })
     } finally {
-      setSaving(false)
+      const ownsRequest = activeAbortRef.current === controller
+      finishRequest(controller)
+      if (ownsRequest && mountedRef.current) {
+        setSaving(false)
+      }
     }
   }
 
@@ -159,18 +284,18 @@ export function FirewallPersistencePanel({ api, sessionId, provider, open, onClo
         {warnings.length ? <Alert type="warning" showIcon message={warnings.join(' / ')} /> : null}
         {missingTools.length ? <MissingTools tools={missingTools} packageManager={status?.package_manager} t={t} /> : null}
         {currentPlan?.commands.length ? (
-          <CommandPreview plan={currentPlan} confirmed={installConfirmed} busy={installing} t={t} onConfirmChange={setInstallConfirmed} onInstall={() => void installDependencies()} />
+          <CommandPreview plan={currentPlan} confirmed={installConfirmed} busy={installing} disabled={!sessionConnected} t={t} onConfirmChange={setInstallConfirmed} onInstall={() => void installDependencies()} />
         ) : null}
         <div className="firewall-persistence-actions">
-          <Button className="secondary-button" icon={<RefreshCw size={15} />} loading={loading} onClick={() => void loadStatus()}>
+          <Button className="secondary-button" icon={<RefreshCw size={15} />} loading={loading} disabled={!sessionConnected} onClick={() => void loadStatus()}>
             {t('workbench.firewall.persistence.redetect')}
           </Button>
           {!currentPlan?.commands.length && missingTools.length ? (
-            <Button className="secondary-button" icon={<PackagePlus size={15} />} loading={loading} onClick={() => void loadInstallPlan()}>
+            <Button className="secondary-button" icon={<PackagePlus size={15} />} loading={loading} disabled={!sessionConnected} onClick={() => void loadInstallPlan()}>
               {t('workbench.firewall.persistence.showInstallPlan')}
             </Button>
           ) : null}
-          <Button className="primary-button" icon={<Save size={15} />} loading={saving} disabled={Boolean(missingTools.length)} onClick={() => void saveRules()}>
+          <Button className="primary-button" icon={<Save size={15} />} loading={saving} disabled={Boolean(missingTools.length) || !sessionConnected} onClick={() => void saveRules()}>
             {t('workbench.firewall.persistence.saveCurrent')}
           </Button>
         </div>
@@ -246,6 +371,7 @@ function CommandPreview({
   plan,
   confirmed,
   busy,
+  disabled,
   t,
   onConfirmChange,
   onInstall,
@@ -253,6 +379,7 @@ function CommandPreview({
   plan: FirewallInstallPlan
   confirmed: boolean
   busy: boolean
+  disabled?: boolean
   t: TFunction
   onConfirmChange: (checked: boolean) => void
   onInstall: () => void
@@ -284,7 +411,7 @@ function CommandPreview({
         <Checkbox checked={confirmed} onChange={(event) => onConfirmChange(event.target.checked)}>
           {t('workbench.firewall.persistence.confirmInstall')}
         </Checkbox>
-        <Button className="primary-button" icon={<PackagePlus size={15} />} loading={busy} disabled={!confirmed || busy} onClick={onInstall}>
+        <Button className="primary-button" icon={<PackagePlus size={15} />} loading={busy} disabled={!confirmed || busy || disabled} onClick={onInstall}>
           {t('workbench.firewall.persistence.install')}
         </Button>
       </div>
@@ -316,4 +443,18 @@ function persistenceStepCurrent(status: FirewallPersistenceStatus) {
     return 3
   }
   return 0
+}
+
+function isRequestAbort(error: unknown) {
+  return error instanceof TermousApiError && error.code === 'REQUEST_ABORTED'
+}
+
+function notifySessionUnavailable(notification: ReturnType<typeof AntdApp.useApp>['notification'], t: TFunction) {
+  notification.warning({
+    title: t('workbench.firewall.sessionUnavailable'),
+    description: t('workbench.firewall.sessionUnavailableHint'),
+    duration: 4,
+    role: 'status',
+    className: 'termous-notification',
+  })
 }

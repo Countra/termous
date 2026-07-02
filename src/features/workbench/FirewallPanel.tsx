@@ -1,8 +1,8 @@
 import { Activity, AlertTriangle, Ban, Copy, Database, ExternalLink, Globe2, LockKeyhole, Pencil, Plus, Power, RefreshCw, Save, Shield, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
 import { App as AntdApp, Button, Modal, Popconfirm, Select, Skeleton, Switch, Tooltip } from 'antd'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TermousApi } from '../../api/client'
+import { TermousApiError, type TermousApi } from '../../api/client'
 import type { FirewallDesiredState, FirewallPersistenceStatus, FirewallProvider, FirewallProviderOption, FirewallRule, FirewallRuleInput, FirewallSnapshot, Host, Session } from '../../types/domain'
 import { formatBytes } from '../files/fileUtils'
 import { FirewallPersistencePanel } from './FirewallPersistencePanel'
@@ -29,6 +29,11 @@ interface EditingState {
   value: FirewallRuleInput
 }
 
+interface LoadRequest {
+  controller: AbortController
+  sequence: number
+}
+
 export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
@@ -41,6 +46,12 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
   const [loadError, setLoadError] = useState('')
   const [applying, setApplying] = useState(false)
   const [editing, setEditing] = useState<EditingState | null>(null)
+  const loadAbortRef = useRef<AbortController | null>(null)
+  const loadSequenceRef = useRef(0)
+  const applyAbortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(false)
+  const sessionStateRef = useRef({ id: session?.id, connectedLinux: false })
+  const selectedProviderRef = useRef(selectedProvider)
 
   const connectedLinux = Boolean(session?.kind === 'ssh' && session.status === 'connected' && host?.platform === 'linux')
   const linuxSessionUnavailable = Boolean(
@@ -52,36 +63,77 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
   const snapshotRuleById = useMemo(() => new Map((snapshot?.rules ?? []).map((rule) => [rule.id, rule])), [snapshot])
   const readonlyRules = useMemo(() => (snapshot?.unsupported_rules ?? []).filter(isCrossProviderReadonlyRule), [snapshot])
 
-  const loadPersistenceStatus = useCallback(async (providerOverride?: FirewallProvider) => {
-    if (!session?.id || !connectedLinux) {
-      setPersistenceStatus(null)
-      return
+  sessionStateRef.current = { id: session?.id, connectedLinux }
+  selectedProviderRef.current = selectedProvider
+
+  const abortLoad = useCallback(() => {
+    loadSequenceRef.current += 1
+    loadAbortRef.current?.abort()
+    loadAbortRef.current = null
+  }, [])
+
+  const beginLoad = useCallback(() => {
+    abortLoad()
+    const controller = new AbortController()
+    loadAbortRef.current = controller
+    return { controller, sequence: loadSequenceRef.current }
+  }, [abortLoad])
+
+  const isLoadOwner = useCallback((request: LoadRequest) => {
+    return mountedRef.current && loadAbortRef.current === request.controller && loadSequenceRef.current === request.sequence
+  }, [])
+
+  const isActiveLoad = useCallback((request: LoadRequest, sessionId: string) => {
+    const state = sessionStateRef.current
+    return isLoadOwner(request) && !request.controller.signal.aborted && state.id === sessionId && state.connectedLinux
+  }, [isLoadOwner])
+
+  const finishLoad = useCallback((request: LoadRequest) => {
+    if (loadAbortRef.current === request.controller && loadSequenceRef.current === request.sequence) {
+      loadAbortRef.current = null
     }
-    try {
-      const nextStatus = await api.sessionFirewallPersistenceStatus(session.id, providerOverride ?? selectedProvider)
-      setPersistenceStatus(nextStatus)
-    } catch {
-      setPersistenceStatus(null)
+  }, [])
+
+  const abortApply = useCallback(() => {
+    applyAbortRef.current?.abort()
+    applyAbortRef.current = null
+  }, [])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      abortLoad()
+      abortApply()
     }
-  }, [api, connectedLinux, selectedProvider, session?.id])
+  }, [abortApply, abortLoad])
 
   const load = useCallback(async (providerOverride?: FirewallProvider) => {
-    if (!session?.id || !connectedLinux) {
+    const targetSessionId = session?.id
+    if (!targetSessionId || !connectedLinux) {
       return
     }
+    const request = beginLoad()
     setLoading(true)
     setLoadError('')
     try {
-      const providerList = await api.sessionFirewallProviders(session.id)
+      const providerList = await api.sessionFirewallProviders(targetSessionId, { signal: request.controller.signal })
+      if (!isActiveLoad(request, targetSessionId)) {
+        return
+      }
       setProviders(providerList.providers)
       const available = providerList.providers.filter((provider) => provider.provider !== 'unsupported')
       const requestedProvider = providerOverride ?? (snapshot ? selectedProvider : providerList.default_provider)
       const nextProvider = resolveFirewallProvider(requestedProvider, providerList.default_provider, available)
       setSelectedProvider(nextProvider)
-      const capability = await api.sessionFirewallCapability(session.id, nextProvider)
+      const capability = await api.sessionFirewallCapability(targetSessionId, nextProvider, { signal: request.controller.signal })
+      if (!isActiveLoad(request, targetSessionId)) {
+        return
+      }
       if (capability.status !== 'ready') {
+        setPersistenceStatus(null)
         setSnapshot({
-          session_id: session.id,
+          session_id: targetSessionId,
           capability,
           rules: [],
           unsupported_rules: [],
@@ -90,10 +142,25 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         })
         return
       }
-      const nextSnapshot = await api.sessionFirewallSnapshot(session.id, nextProvider)
+      const nextSnapshot = await api.sessionFirewallSnapshot(targetSessionId, nextProvider, { signal: request.controller.signal })
+      if (!isActiveLoad(request, targetSessionId)) {
+        return
+      }
       setSnapshot(nextSnapshot)
-      void loadPersistenceStatus(nextProvider)
+      try {
+        const nextStatus = await api.sessionFirewallPersistenceStatus(targetSessionId, nextProvider, { signal: request.controller.signal })
+        if (isActiveLoad(request, targetSessionId)) {
+          setPersistenceStatus(nextStatus)
+        }
+      } catch (error) {
+        if (!isRequestAbort(error) && isActiveLoad(request, targetSessionId)) {
+          setPersistenceStatus(null)
+        }
+      }
     } catch (error) {
+      if (isRequestAbort(error) || !isActiveLoad(request, targetSessionId)) {
+        return
+      }
       const message = error instanceof Error ? error.message : t('app.error')
       setLoadError(message)
       notification.error({
@@ -104,11 +171,16 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         className: 'termous-notification',
       })
     } finally {
-      setLoading(false)
+      if (isLoadOwner(request)) {
+        setLoading(false)
+      }
+      finishLoad(request)
     }
-  }, [api, connectedLinux, loadPersistenceStatus, notification, selectedProvider, session?.id, snapshot, t])
+  }, [api, beginLoad, connectedLinux, finishLoad, isActiveLoad, isLoadOwner, notification, selectedProvider, session?.id, snapshot, t])
 
   useEffect(() => {
+    abortLoad()
+    abortApply()
     setSnapshot(null)
     setProviders([])
     setSelectedProvider('nftables')
@@ -116,7 +188,9 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
     setPersistenceOpen(false)
     setEditing(null)
     setLoadError('')
-  }, [session?.id])
+    setLoading(false)
+    setApplying(false)
+  }, [abortApply, abortLoad, session?.id])
 
   useEffect(() => {
     if (enabled && connectedLinux && !snapshot && !loading && !loadError) {
@@ -130,7 +204,19 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
     }
     setLoading(false)
     setApplying(false)
-  }, [linuxSessionUnavailable])
+    setPersistenceOpen(false)
+    abortLoad()
+    abortApply()
+  }, [abortApply, abortLoad, linuxSessionUnavailable])
+
+  useEffect(() => {
+    if (!enabled || !connectedLinux) {
+      abortLoad()
+      abortApply()
+      setLoading(false)
+      setApplying(false)
+    }
+  }, [abortApply, abortLoad, connectedLinux, enabled])
 
   const desired = useCallback(
     (nextRules: FirewallRuleInput[], risk = false): FirewallDesiredState => ({
@@ -143,7 +229,9 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
 
   const applyRules = useCallback(
     async (nextRules: FirewallRuleInput[], confirmRisk = false, afterSuccess?: () => void) => {
-      if (!session?.id) {
+      const targetSessionId = session?.id
+      const targetProvider = selectedProvider
+      if (!targetSessionId || !isCurrentSessionProviderConnected(sessionStateRef.current, selectedProviderRef.current, targetSessionId, targetProvider)) {
         return false
       }
       if (!confirmRisk && hasPotentialSSHBlock(nextRules)) {
@@ -158,14 +246,23 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         })
         return false
       }
+      abortApply()
+      const controller = new AbortController()
+      applyAbortRef.current = controller
       setApplying(true)
       try {
-        const result = await api.applySessionFirewall(session.id, desired(nextRules, confirmRisk), selectedProvider)
+        const result = await api.applySessionFirewall(targetSessionId, desired(nextRules, confirmRisk), targetProvider, { signal: controller.signal })
+        if (controller.signal.aborted || applyAbortRef.current !== controller || !isCurrentSessionProviderConnected(sessionStateRef.current, selectedProviderRef.current, targetSessionId, targetProvider)) {
+          return false
+        }
         setSnapshot(result.snapshot)
         notification.success({ title: result.message || t('workbench.firewall.applySuccess'), duration: 3, role: 'status', className: 'termous-notification' })
         afterSuccess?.()
         return true
       } catch (error) {
+        if (isRequestAbort(error) || controller.signal.aborted || applyAbortRef.current !== controller || !isCurrentSessionProviderConnected(sessionStateRef.current, selectedProviderRef.current, targetSessionId, targetProvider)) {
+          return false
+        }
         notification.error({
           title: t('workbench.firewall.applyFailed'),
           description: error instanceof Error ? error.message : t('app.error'),
@@ -175,10 +272,13 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         })
         return false
       } finally {
-        setApplying(false)
+        if (applyAbortRef.current === controller) {
+          applyAbortRef.current = null
+          setApplying(false)
+        }
       }
     },
-    [api, desired, notification, selectedProvider, session?.id, t],
+    [abortApply, api, desired, notification, selectedProvider, session?.id, t],
   )
 
   const saveEditing = async () => {
@@ -259,6 +359,8 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
               }))}
               onChange={(value) => {
                 const nextProvider = value as FirewallProvider
+                abortApply()
+                setApplying(false)
                 setSelectedProvider(nextProvider)
                 setSnapshot(null)
                 setPersistenceStatus(null)
@@ -362,6 +464,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         <FirewallPersistencePanel
           api={api}
           sessionId={session.id}
+          sessionStatus={session.status}
           provider={selectedProvider}
           open={persistenceOpen}
           t={t}
@@ -575,6 +678,19 @@ function persistenceStatusClass(status: FirewallPersistenceStatus | null) {
     return 'is-error'
   }
   return 'is-neutral'
+}
+
+function isRequestAbort(error: unknown) {
+  return error instanceof TermousApiError && error.code === 'REQUEST_ABORTED'
+}
+
+function isCurrentSessionProviderConnected(
+  state: { id?: string; connectedLinux: boolean },
+  currentProvider: FirewallProvider,
+  sessionId: string,
+  provider: FirewallProvider,
+) {
+  return state.id === sessionId && state.connectedLinux && currentProvider === provider
 }
 
 function formatTime(value: string) {

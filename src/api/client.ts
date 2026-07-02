@@ -61,6 +61,13 @@ export class TermousApiError extends Error {
   }
 }
 
+interface RequestOptions {
+  method?: string
+  body?: unknown
+  timeoutMs?: number
+  signal?: AbortSignal
+}
+
 export class TermousApi {
   private config: AppConfig
 
@@ -327,64 +334,77 @@ export class TermousApi {
     return this.websocketUrl(`/api/v1/sessions/${encodeURIComponent(id)}/monitor`)
   }
 
-  sessionFirewallProviders(id: string) {
-    return this.request<FirewallProviderList>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/providers`)
+  sessionFirewallProviders(id: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallProviderList>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/providers`, {
+      signal: options.signal,
+    })
   }
 
-  sessionFirewallCapability(id: string, provider?: FirewallProvider) {
-    return this.request<FirewallCapability>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/capability${firewallProviderQuery(provider)}`)
+  sessionFirewallCapability(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallCapability>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/capability${firewallProviderQuery(provider)}`, {
+      signal: options.signal,
+    })
   }
 
-  sessionFirewallSnapshot(id: string, provider?: FirewallProvider) {
-    return this.request<FirewallSnapshot>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/snapshot${firewallProviderQuery(provider)}`)
+  sessionFirewallSnapshot(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallSnapshot>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/snapshot${firewallProviderQuery(provider)}`, {
+      signal: options.signal,
+    })
   }
 
-  previewSessionFirewall(id: string, desired: FirewallDesiredState, provider?: FirewallProvider) {
+  previewSessionFirewall(id: string, desired: FirewallDesiredState, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
     return this.request<FirewallPlan>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/preview${firewallProviderQuery(provider)}`, {
       method: 'POST',
       body: desired,
+      signal: options.signal,
     })
   }
 
-  applySessionFirewall(id: string, desired: FirewallDesiredState, provider?: FirewallProvider) {
+  applySessionFirewall(id: string, desired: FirewallDesiredState, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
     return this.request<FirewallApplyResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/apply${firewallProviderQuery(provider)}`, {
       method: 'POST',
       body: desired,
+      signal: options.signal,
     })
   }
 
-  saveSessionFirewall(id: string, provider?: FirewallProvider) {
+  saveSessionFirewall(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
     return this.request<FirewallSaveResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/save${firewallProviderQuery(provider)}`, {
       method: 'POST',
       timeoutMs: 60_000,
+      signal: options.signal,
     })
   }
 
-  sessionFirewallPersistenceStatus(id: string, provider?: FirewallProvider) {
+  sessionFirewallPersistenceStatus(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
     return this.request<FirewallPersistenceStatus>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/persistence/status${firewallProviderQuery(provider)}`, {
       timeoutMs: 20_000,
+      signal: options.signal,
     })
   }
 
-  sessionFirewallPersistenceInstallPlan(id: string, provider?: FirewallProvider) {
+  sessionFirewallPersistenceInstallPlan(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
     return this.request<FirewallInstallPlan>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/persistence/install-plan${firewallProviderQuery(provider)}`, {
       method: 'POST',
       timeoutMs: 20_000,
+      signal: options.signal,
     })
   }
 
-  installSessionFirewallPersistence(id: string, provider?: FirewallProvider) {
+  installSessionFirewallPersistence(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
     return this.request<FirewallPersistenceInstallResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/persistence/install${firewallProviderQuery(provider)}`, {
       method: 'POST',
       body: { confirmed: true },
       timeoutMs: 190_000,
+      signal: options.signal,
     })
   }
 
-  saveSessionFirewallPersistence(id: string, provider?: FirewallProvider) {
+  saveSessionFirewallPersistence(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
     return this.request<FirewallSaveResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/persistence/save${firewallProviderQuery(provider)}`, {
       method: 'POST',
       timeoutMs: 60_000,
+      signal: options.signal,
     })
   }
 
@@ -590,9 +610,19 @@ export class TermousApi {
     return this.websocketUrl('/api/v1/transfers/events')
   }
 
-  private async request<T>(path: string, options: { method?: string; body?: unknown; timeoutMs?: number } = {}): Promise<T> {
+  private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), options.timeoutMs ?? 12_000)
+    let timedOut = false
+    const timeout = window.setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, options.timeoutMs ?? 12_000)
+    const abortByCaller = () => controller.abort()
+    if (options.signal?.aborted) {
+      controller.abort()
+    } else {
+      options.signal?.addEventListener('abort', abortByCaller, { once: true })
+    }
     const isFormData = options.body instanceof FormData
     let requestBody: BodyInit | undefined
     if (options.body instanceof FormData) {
@@ -622,11 +652,15 @@ export class TermousApi {
         throw error
       }
       if (error instanceof DOMException && error.name === 'AbortError') {
+        if (!timedOut) {
+          throw new TermousApiError('请求已取消', 'REQUEST_ABORTED', 0)
+        }
         throw new TermousApiError('请求超时', 'REQUEST_TIMEOUT', 0)
       }
       throw new TermousApiError(error instanceof Error ? error.message : '本地 API 不可用', 'NETWORK_ERROR', 0)
     } finally {
       window.clearTimeout(timeout)
+      options.signal?.removeEventListener('abort', abortByCaller)
     }
   }
 
