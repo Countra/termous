@@ -11,6 +11,7 @@ import type {
   ForwardProfile,
   ForwardProfileInput,
   ForwardStartRequest,
+  HostGroup,
   HostReachability,
   HostReachabilityEvent,
   HostInput,
@@ -264,6 +265,11 @@ export function useTermousData() {
         await api.createHost(input)
         await load('silent')
       },
+      async createHostGroup(name: string) {
+        const group = await api.createHostGroup(name)
+        setData((current) => ({ ...current, groups: upsertHostGroup(current.groups, group) }))
+        return group
+      },
       async updateHost(id: string, input: HostInput) {
         await api.updateHost(id, input)
         await load('silent')
@@ -424,6 +430,22 @@ function upsertTerminalFont(fonts: TerminalFont[], next: TerminalFont) {
     return fonts.map((font) => (font.id === next.id ? next : font))
   }
   return [next, ...fonts]
+}
+
+function upsertHostGroup(groups: HostGroup[], next: HostGroup) {
+  const exists = groups.some((group) => group.id === next.id)
+  const merged = exists ? groups.map((group) => (group.id === next.id ? next : group)) : [...groups, next]
+  return [...merged].sort(sortHostGroups)
+}
+
+function sortHostGroups(left: HostGroup, right: HostGroup) {
+  if (left.sort_order !== right.sort_order) {
+    return left.sort_order - right.sort_order
+  }
+  if (left.name !== right.name) {
+    return left.name.localeCompare(right.name)
+  }
+  return left.id.localeCompare(right.id)
 }
 
 function upsertSession(sessions: Session[], next: Session) {

@@ -16,7 +16,7 @@ import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostInput, HostReachabilityEvent, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
+import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostGroup, HostInput, HostReachabilityEvent, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -279,6 +279,31 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       }
     }, t('app.save'))
 
+  const createHostGroup = async (name: string): Promise<HostGroup> => {
+    setActionBusy(true)
+    try {
+      const group = await actions.createHostGroup(name)
+      notification.success({
+        title: t('hosts.groupCreated'),
+        duration: 3,
+        role: 'status',
+        className: 'termous-notification',
+      })
+      return group
+    } catch (actionError) {
+      notification.error({
+        title: t('app.error'),
+        description: actionError instanceof Error ? actionError.message : t('app.error'),
+        duration: 5,
+        role: 'alert',
+        className: 'termous-notification',
+      })
+      throw actionError
+    } finally {
+      setActionBusy(false)
+    }
+  }
+
   const saveCredential = (id: string | null, input: CredentialInput) =>
     runAction(async () => {
       if (id) {
@@ -481,6 +506,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onSave={saveHost}
             onDelete={(id) => runAction(() => actions.deleteHost(id))}
             onImport={() => runAction(() => actions.importSSHConfig().then(() => undefined), t('hosts.importAccepted'))}
+            onCreateGroup={createHostGroup}
           />
         ) : null}
 

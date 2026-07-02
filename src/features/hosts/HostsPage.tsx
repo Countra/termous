@@ -6,7 +6,7 @@ import { CustomSelect } from '../../components/ui/CustomSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
-import type { AppData, AuthMethod, HostInput } from '../../types/domain'
+import type { AppData, AuthMethod, HostGroup, HostInput } from '../../types/domain'
 import { hostToInput } from './hostInput'
 
 interface HostsPageProps {
@@ -18,6 +18,7 @@ interface HostsPageProps {
   onSave: (id: string | null, input: HostInput) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onImport: () => Promise<void>
+  onCreateGroup: (name: string) => Promise<HostGroup>
 }
 
 const blankHost: HostInput = {
@@ -44,13 +45,16 @@ interface HostTagOption {
   count: number
 }
 
-export function HostsPage({ data, selectedHostId, createIntentKey = 0, actionBusy, onSelectHost, onSave, onDelete, onImport }: HostsPageProps) {
+export function HostsPage({ data, selectedHostId, createIntentKey = 0, actionBusy, onSelectHost, onSave, onDelete, onImport, onCreateGroup }: HostsPageProps) {
   const { t } = useTranslation()
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId)
   const [editingId, setEditingId] = useState<string | null>(selectedHost?.id ?? null)
   const [form, setForm] = useState<HostInput>({ ...blankHost, tags: [] })
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [groupCreatorOpen, setGroupCreatorOpen] = useState(false)
+  const [groupDraft, setGroupDraft] = useState('')
+  const [creatingGroup, setCreatingGroup] = useState(false)
 
   useEffect(() => {
     if (!selectedHost) {
@@ -121,6 +125,29 @@ export function HostsPage({ data, selectedHostId, createIntentKey = 0, actionBus
   const save = async () => {
     const input = { ...form, tags: normalizeHostTags(form.tags) }
     await onSave(editingId, input)
+  }
+
+  const createGroup = async () => {
+    const name = normalizeGroupName(groupDraft)
+    if (!name) {
+      return
+    }
+    const existing = data.groups.find((group) => normalizeGroupName(group.name).toLowerCase() === name.toLowerCase())
+    if (existing) {
+      setForm((current) => ({ ...current, group_id: existing.id }))
+      setGroupDraft('')
+      setGroupCreatorOpen(false)
+      return
+    }
+    setCreatingGroup(true)
+    try {
+      const group = await onCreateGroup(name)
+      setForm((current) => ({ ...current, group_id: group.id }))
+      setGroupDraft('')
+      setGroupCreatorOpen(false)
+    } finally {
+      setCreatingGroup(false)
+    }
   }
 
   const clearFilters = () => {
@@ -271,12 +298,61 @@ export function HostsPage({ data, selectedHostId, createIntentKey = 0, actionBus
                 value={form.port}
                 onChange={(value) => setForm({ ...form, port: Number(value) || 22 })}
               />
-              <CustomSelect
-                label={t('hosts.group')}
-                value={form.group_id}
-                options={groupOptions}
-                onChange={(value) => setForm({ ...form, group_id: value })}
-              />
+              <div className="host-group-field">
+                <span className="field-label">{t('hosts.group')}</span>
+                <div className="host-group-control">
+                  <Select
+                    value={form.group_id}
+                    classNames={{ popup: { root: 'termous-select-popup' } }}
+                    className="termous-select"
+                    optionLabelProp="label"
+                    onChange={(value) => setForm({ ...form, group_id: value })}
+                    options={groupOptions.map((option) => ({
+                      value: option.value,
+                      label: option.label,
+                      title: option.label,
+                    }))}
+                  />
+                  <Button
+                    className="secondary-button host-group-create-trigger"
+                    icon={<Plus size={15} />}
+                    aria-label={t('hosts.addGroup')}
+                    disabled={actionBusy || creatingGroup}
+                    onClick={() => setGroupCreatorOpen((open) => !open)}
+                  />
+                </div>
+                {groupCreatorOpen ? (
+                  <div className="host-group-create-row">
+                    <Input
+                      value={groupDraft}
+                      autoFocus
+                      placeholder={t('hosts.groupNamePlaceholder')}
+                      disabled={actionBusy || creatingGroup}
+                      onChange={(event) => setGroupDraft(event.target.value)}
+                      onPressEnter={() => void createGroup()}
+                    />
+                    <Button
+                      className="secondary-button"
+                      disabled={!normalizeGroupName(groupDraft) || actionBusy || creatingGroup}
+                      loading={creatingGroup}
+                      onClick={() => void createGroup()}
+                    >
+                      {t('app.create')}
+                    </Button>
+                    <Button
+                      type="text"
+                      className="host-group-cancel"
+                      disabled={creatingGroup}
+                      onClick={() => {
+                        setGroupCreatorOpen(false)
+                        setGroupDraft('')
+                      }}
+                    >
+                      {t('app.cancel')}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
               <CustomSelect
                 label={t('hosts.jumpHost')}
                 value={form.jump_host_id}
@@ -403,6 +479,10 @@ function normalizeHostTags(tags: string[]) {
     result.push(clean)
   }
   return result
+}
+
+function normalizeGroupName(value: string) {
+  return value.trim().replace(/\s+/g, ' ')
 }
 
 function buildHostTagOptions(hosts: AppData['hosts']) {
