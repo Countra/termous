@@ -20,6 +20,7 @@ import {
   Search,
   Send,
   Server,
+  Shield,
   Shell,
   SquareTerminal,
   Star,
@@ -218,6 +219,41 @@ export function WorkbenchPage({
   const canOpenFiles = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected' && activeSession.host_id)
   const canSendSnippet = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected')
   const canReconnectSession = Boolean(activeSession?.kind === 'ssh' && activeSession.host_id && activeSessionEnded)
+  const detailsRailItems = useMemo(
+    () => [
+      {
+        key: 'overview' as const,
+        label: t('workbench.detailsTabs.overview'),
+        icon: <Server size={17} aria-hidden="true" />,
+      },
+      {
+        key: 'system' as const,
+        label: t('workbench.detailsTabs.systemInfo'),
+        icon: <Cpu size={17} aria-hidden="true" />,
+      },
+      {
+        key: 'monitor' as const,
+        label: t('workbench.detailsTabs.systemMonitor'),
+        icon: <Monitor size={17} aria-hidden="true" />,
+      },
+      {
+        key: 'firewall' as const,
+        label: t('workbench.detailsTabs.firewall'),
+        icon: <Shield size={17} aria-hidden="true" />,
+      },
+      {
+        key: 'forwards' as const,
+        label: t('workbench.detailsTabs.forwards'),
+        icon: <Cable size={17} aria-hidden="true" />,
+      },
+      {
+        key: 'snippets' as const,
+        label: t('workbench.detailsTabs.snippets'),
+        icon: <Code2 size={17} aria-hidden="true" />,
+      },
+    ],
+    [t],
+  )
   const filteredSnippets = useMemo(() => {
     const tokens = snippetQuery.trim().toLowerCase().split(/\s+/).filter(Boolean)
     const snippets = data.snippets
@@ -960,9 +996,21 @@ export function WorkbenchPage({
           />
         </Tooltip>
         {detailsCollapsed ? (
-          <div className="details-collapsed-rail">
-            <Server size={18} />
-            <span>{t(`status.${sessionStatus}`)}</span>
+          <div className="details-collapsed-rail" aria-label={t('workbench.currentConnection')}>
+            {detailsRailItems.map((item) => (
+              <Tooltip key={item.key} title={item.label} placement="left">
+                <Button
+                  type="text"
+                  className={`details-rail-tab ${detailsActiveTab === item.key ? 'is-active' : ''}`}
+                  aria-label={item.label}
+                  icon={item.icon}
+                  onClick={() => {
+                    setDetailsActiveTab(item.key)
+                    setDetailsCollapsed(false)
+                  }}
+                />
+              </Tooltip>
+            ))}
           </div>
         ) : null}
         <div className={`details-content-shell ${detailsCollapsed ? 'is-hidden' : ''}`} aria-hidden={detailsCollapsed}>

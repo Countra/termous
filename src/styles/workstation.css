@@ -625,8 +625,7 @@ body.is-panel-resizing * {
   gap: 8px;
 }
 
-.host-context-panel.is-collapsed .panel-title-copy h2,
-.details-collapsed-rail span {
+.host-context-panel.is-collapsed .panel-title-copy h2 {
   max-width: 58px;
   overflow: hidden;
   font-size: 12px;
@@ -2586,7 +2585,87 @@ body.is-panel-resizing * {
 }
 
 .details-collapsed-rail {
-  margin-top: 14px;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 0 12px;
+}
+
+.details-rail-tab.ant-btn {
+  position: relative;
+  width: 44px;
+  min-width: 44px;
+  height: 42px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.details-rail-tab.ant-btn .ant-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.details-rail-tab.ant-btn::before {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: transparent;
+  content: "";
+  transform: translateX(-50%);
+  transition:
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.details-rail-tab.ant-btn:not(:disabled):hover,
+.details-rail-tab.ant-btn:not(:disabled):focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface-elevated));
+  color: var(--accent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 6%),
+    0 8px 18px rgb(0 0 0 / 12%);
+}
+
+.details-rail-tab.ant-btn.is-active {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 62%, var(--surface-elevated));
+  color: var(--accent);
+}
+
+.details-rail-tab.ant-btn.is-active::before {
+  background: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 54%, transparent);
+}
+
+:root[data-theme="light"] .details-rail-tab.ant-btn:not(:disabled):hover,
+:root[data-theme="light"] .details-rail-tab.ant-btn:not(:disabled):focus-visible {
+  background: color-mix(in srgb, var(--accent-soft) 58%, var(--surface-elevated));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 82%),
+    0 8px 18px rgb(35 48 68 / 8%);
+}
+
+:root[data-theme="light"] .details-rail-tab.ant-btn.is-active {
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface-elevated));
 }
 
 .details-panel:not(.is-collapsed) {
