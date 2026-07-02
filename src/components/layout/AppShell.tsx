@@ -13,7 +13,7 @@ import {
   Sun,
   TerminalSquare,
 } from 'lucide-react'
-import { Badge, Button, Tooltip } from 'antd'
+import { Button, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { PageKey, ThemeMode } from '../../types/domain'
 import { WindowControls } from './WindowControls'
@@ -23,7 +23,6 @@ interface AppShellProps {
   theme: ThemeMode
   appVersion: string
   sidebarCollapsed: boolean
-  apiReady: boolean
   refreshing: boolean
   onNavigate: (page: PageKey) => void
   onToggleTheme: () => void
@@ -48,7 +47,6 @@ export function AppShell({
   theme,
   appVersion,
   sidebarCollapsed,
-  apiReady,
   refreshing,
   onNavigate,
   onToggleTheme,
@@ -126,11 +124,6 @@ export function AppShell({
             </div>
           </div>
           <div className="topbar-actions">
-            <Badge
-              status={apiReady ? 'success' : 'error'}
-              text={apiReady ? t('app.apiOnline') : t('app.apiOffline')}
-              className="api-status"
-            />
             <Tooltip title={t('app.reload')}>
               <Button
                 type="text"

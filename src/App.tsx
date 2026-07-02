@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { App as AntdApp, ConfigProvider, Modal } from 'antd'
+import { App as AntdApp, Button, ConfigProvider, Modal } from 'antd'
+import { AlertTriangle } from 'lucide-react'
 import 'antd/dist/reset.css'
 import { useTranslation } from 'react-i18next'
 import { AppShell } from './components/layout/AppShell'
@@ -192,18 +193,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   useEffect(() => {
     if (!error) {
-      notification.destroy('app-error')
+      setCoreFatal((current) => (current?.code === 'LOCAL_API_UNAVAILABLE' ? null : current))
       return
     }
-    notification.error({
-      key: 'app-error',
-      title: t('app.apiOffline'),
-      description: error,
-      duration: 5,
-      role: 'alert',
-      className: 'termous-notification',
+    setCoreFatal((current) => current ?? {
+      title: t('app.coreFatalTitle'),
+      message: error,
+      code: 'LOCAL_API_UNAVAILABLE',
     })
-  }, [error, notification, t])
+  }, [error, t])
 
   const runAction = async (task: () => Promise<void>, success?: string) => {
     setActionBusy(true)
@@ -357,7 +355,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         theme={theme}
         appVersion={appVersion}
         sidebarCollapsed={sidebarCollapsed}
-        apiReady={apiReady}
         refreshing={refreshing}
         onNavigate={setPage}
         onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
@@ -479,15 +476,37 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       </AppShell>
       <Modal
         centered
+        width={430}
         open={Boolean(coreFatal)}
-        title={coreFatal?.title ?? t('app.coreFatalTitle')}
-        okText={t('app.exit')}
-        cancelButtonProps={{ style: { display: 'none' } }}
+        title={null}
+        footer={null}
+        closable={false}
+        closeIcon={null}
         mask={{ closable: false }}
         keyboard={false}
-        onOk={() => void window.termous?.windowControls?.confirmClose()}
+        className="core-fatal-modal"
+        wrapClassName="confirm-modal-wrap"
+        rootClassName="termous-modal-root"
+        getContainer={() => document.body}
       >
-        <p>{coreFatal?.message ?? t('app.coreFatalDescription')}</p>
+        <section className="core-fatal-dialog" aria-labelledby="core-fatal-title">
+          <div className="core-fatal-icon">
+            <AlertTriangle size={22} aria-hidden="true" />
+          </div>
+          <div className="core-fatal-copy">
+            <h2 id="core-fatal-title">{coreFatal?.title ?? t('app.coreFatalTitle')}</h2>
+            <p>{coreFatal?.message ?? t('app.coreFatalDescription')}</p>
+          </div>
+          <div className="core-fatal-actions">
+            <Button
+              type="primary"
+              className="core-fatal-exit-button"
+              onClick={() => void window.termous?.windowControls?.confirmClose()}
+            >
+              {t('app.exit')}
+            </Button>
+          </div>
+        </section>
       </Modal>
     </TerminalRuntimeProvider>
   )
