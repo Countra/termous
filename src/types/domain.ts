@@ -528,6 +528,7 @@ export interface Host {
   jump_host_id?: string
   fingerprint?: string
   tags: string[]
+  favorite: boolean
   fingerprint_policy: string
   note?: string
   created_at?: string
@@ -726,6 +727,7 @@ export interface HostInput {
   credential_id: string
   jump_host_id: string
   tags: string[]
+  favorite: boolean
   fingerprint_policy: string
   note: string
 }

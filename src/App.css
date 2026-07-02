@@ -333,21 +333,13 @@
 }
 
 .workbench-grid {
-  grid-template-columns: minmax(248px, 292px) minmax(620px, 1fr) minmax(250px, 310px);
+  grid-template-columns: minmax(620px, 1fr) minmax(250px, 310px);
   gap: 12px;
   transition: grid-template-columns 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.workbench-grid.is-host-collapsed {
-  grid-template-columns: 82px minmax(680px, 1fr) minmax(250px, 310px);
-}
-
 .workbench-grid.is-details-collapsed {
-  grid-template-columns: minmax(248px, 292px) minmax(680px, 1fr) 82px;
-}
-
-.workbench-grid.is-host-collapsed.is-details-collapsed {
-  grid-template-columns: 82px minmax(720px, 1fr) 82px;
+  grid-template-columns: minmax(680px, 1fr) 82px;
 }
 
 .management-grid {

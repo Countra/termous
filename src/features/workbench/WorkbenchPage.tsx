@@ -30,7 +30,6 @@ import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tabs
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
-import { HostContextPanel } from '../../components/hosts/HostContextPanel'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
@@ -47,6 +46,7 @@ import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, 
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
 import { FirewallPanel } from './FirewallPanel'
+import { HostLauncherModal } from './HostLauncherModal'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
 import { SystemMonitorPanel } from './SystemMonitorPanel'
 import {
@@ -61,12 +61,6 @@ import {
 } from './sessionTabPreferences'
 
 type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'firewall' | 'forwards' | 'snippets'
-
-const workbenchHostPanelWidth = {
-  default: 260,
-  min: 220,
-  max: 360,
-}
 
 const workbenchDetailsPanelWidth = {
   default: 300,
@@ -93,6 +87,11 @@ interface WorkbenchPageProps {
   onSelectHost: (hostId: string) => void
   onConnect: (hostId: string) => Promise<void>
   onOpenLocal: (shell: LocalShell) => Promise<void>
+  onCreateHost: () => void
+  onEditHost: (hostId: string) => void
+  onOpenFilesForHost: (hostId: string) => Promise<void>
+  onOpenForwardForHost: (hostId: string) => void
+  onToggleHostFavorite: (hostId: string) => Promise<void>
   onSelectSession: (sessionId: string) => void
   onDisconnect: (sessionId: string) => Promise<void>
   onOpenFiles: (session: Session) => Promise<void>
@@ -112,6 +111,11 @@ export function WorkbenchPage({
   onSelectHost,
   onConnect,
   onOpenLocal,
+  onCreateHost,
+  onEditHost,
+  onOpenFilesForHost,
+  onOpenForwardForHost,
+  onToggleHostFavorite,
   onSelectSession,
   onDisconnect,
   onOpenFiles,
@@ -123,24 +127,11 @@ export function WorkbenchPage({
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
   const { searchActive, clearActiveSearch, sendTextToSession } = useTerminalRuntime()
-  const [hostPanelCollapsed, setHostPanelCollapsed] = usePersistentBooleanState(
-    'termous.ui.workbench.hostPanelCollapsed.v1',
-    false,
-  )
   const [detailsCollapsed, setDetailsCollapsed] = usePersistentBooleanState(
     'termous.ui.workbench.detailsCollapsed.v1',
     false,
   )
-  const expandHostPanel = useCallback(() => setHostPanelCollapsed(false), [setHostPanelCollapsed])
   const expandDetailsPanel = useCallback(() => setDetailsCollapsed(false), [setDetailsCollapsed])
-  const hostPanelResize = useResizablePanelWidth({
-    storageKey: 'termous.ui.workbench.hostPanelWidth.v1',
-    defaultWidth: workbenchHostPanelWidth.default,
-    minWidth: workbenchHostPanelWidth.min,
-    maxWidth: workbenchHostPanelWidth.max,
-    side: 'left',
-    onExpand: expandHostPanel,
-  })
   const detailsPanelResize = useResizablePanelWidth({
     storageKey: 'termous.ui.workbench.detailsPanelWidth.v1',
     defaultWidth: workbenchDetailsPanelWidth.default,
@@ -155,9 +146,9 @@ export function WorkbenchPage({
     parseDetailsTabKey,
   )
   const workbenchGridStyle = {
-    '--workbench-host-width': `${hostPanelResize.width}px`,
     '--workbench-details-width': `${detailsPanelResize.width}px`,
   } as CSSProperties
+  const [hostLauncherOpen, setHostLauncherOpen] = useState(false)
   const tabViewportRef = useRef<HTMLDivElement>(null)
   const tabButtonRefs = useRef(new Map<string, HTMLElement>())
   const previousSessionStatusRef = useRef(new Map<string, Session['status']>())
@@ -764,28 +755,9 @@ export function WorkbenchPage({
   return (
     <>
       <section
-        className={`page-grid workbench-grid ${hostPanelCollapsed ? 'is-host-collapsed' : ''} ${
-          detailsCollapsed ? 'is-details-collapsed' : ''
-        }`}
+        className={`page-grid workbench-grid ${detailsCollapsed ? 'is-details-collapsed' : ''}`}
         style={workbenchGridStyle}
       >
-      <HostContextPanel
-        hosts={data.hosts}
-        groups={data.groups}
-        selectedHostId={selectedHost?.id}
-        collapsed={hostPanelCollapsed}
-        title={t('workbench.hostPanel')}
-        collapsedTitle={t('workbench.hostsShort')}
-        subtitle={`${data.hosts.length} ${t('workbench.hostCount')}`}
-        emptyDescription={t('workbench.terminalHint')}
-        searchPlaceholder={t('workbench.hostSearch')}
-        resizing={hostPanelResize.resizing}
-        onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
-        onResizePointerDown={hostPanelResize.beginResize}
-        shouldSuppressToggleClick={hostPanelResize.shouldSuppressClick}
-        onSelectHost={onSelectHost}
-      />
-
       <div className="terminal-workspace">
         <div className="page-title-row">
           <div>
@@ -800,8 +772,8 @@ export function WorkbenchPage({
               {t('workbench.openCmd')}
             </Button>
             <ConnectionActionButton
-              disabled={!selectedHost || actionBusy}
-              onClick={() => selectedHost && void onConnect(selectedHost.id)}
+              disabled={actionBusy}
+              onClick={() => setHostLauncherOpen(true)}
               icon={<Cable size={16} />}
             >
               {t('app.connect')}
@@ -1186,6 +1158,20 @@ export function WorkbenchPage({
         </div>
       </aside>
       </section>
+      <HostLauncherModal
+        open={hostLauncherOpen}
+        data={data}
+        selectedHostId={selectedHost?.id ?? ''}
+        actionBusy={actionBusy}
+        onClose={() => setHostLauncherOpen(false)}
+        onSelectHost={onSelectHost}
+        onConnect={onConnect}
+        onCreateHost={onCreateHost}
+        onEditHost={onEditHost}
+        onOpenFiles={onOpenFilesForHost}
+        onOpenForward={onOpenForwardForHost}
+        onToggleFavorite={onToggleHostFavorite}
+      />
       <Modal
         open={Boolean(renamingSessionId)}
         title={t('terminal.tabMenu.renameTitle')}

@@ -16,7 +16,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { App as AntdApp, Button, Empty, Input, InputNumber, Modal, Popconfirm, Progress, Segmented, Tooltip } from 'antd'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
@@ -38,6 +38,7 @@ type EditorMode = 'profile' | 'temporary'
 interface ForwardingPageProps {
   data: AppData
   actionBusy: boolean
+  temporaryIntent?: { key: number; hostId: string } | null
   onCreateProfile: (input: ForwardProfileInput) => Promise<ForwardProfile>
   onUpdateProfile: (id: string, input: ForwardProfileInput) => Promise<ForwardProfile>
   onDeleteProfile: (id: string) => Promise<void>
@@ -72,6 +73,7 @@ const activeStatuses = new Set(['starting', 'running', 'stopping'])
 export function ForwardingPage({
   data,
   actionBusy,
+  temporaryIntent,
   onCreateProfile,
   onUpdateProfile,
   onDeleteProfile,
@@ -84,6 +86,7 @@ export function ForwardingPage({
   const [editorMode, setEditorMode] = useState<EditorMode>('profile')
   const [editingProfile, setEditingProfile] = useState<ForwardProfile | null>(null)
   const [form, setForm] = useState<ForwardFormState>(() => ({ ...defaultForm }))
+  const consumedTemporaryIntentKeyRef = useRef<number | null>(null)
   const hostOptions = useMemo(
     () => data.hosts.map((host) => ({ value: host.id, label: host.name, description: `${host.username}@${host.address}:${host.port}` })),
     [data.hosts],
@@ -105,6 +108,20 @@ export function ForwardingPage({
     setForm({ ...defaultForm, name: t('forwards.temporaryDefaultName'), host_id: data.hosts[0]?.id ?? '' })
     setEditorOpen(true)
   }
+
+  useEffect(() => {
+    if (!temporaryIntent) {
+      return
+    }
+    if (consumedTemporaryIntentKeyRef.current === temporaryIntent.key) {
+      return
+    }
+    consumedTemporaryIntentKeyRef.current = temporaryIntent.key
+    setEditorMode('temporary')
+    setEditingProfile(null)
+    setForm({ ...defaultForm, name: t('forwards.temporaryDefaultName'), host_id: temporaryIntent.hostId })
+    setEditorOpen(true)
+  }, [t, temporaryIntent])
 
   const openEditProfile = (profile: ForwardProfile) => {
     setEditorMode('profile')
@@ -333,7 +350,13 @@ function ForwardEditorForm({
     <div className="forwarding-editor-form">
       <label className="forward-field">
         <span className="field-label">{t('forwards.name')}</span>
-        <Input value={form.name} onChange={(event) => onChange({ name: event.target.value })} placeholder={t('forwards.namePlaceholder')} />
+        <Input
+          id="forward-name"
+          name="forward-name"
+          value={form.name}
+          onChange={(event) => onChange({ name: event.target.value })}
+          placeholder={t('forwards.namePlaceholder')}
+        />
       </label>
       <label className="forward-field">
         <span className="field-label">{t('forwards.mode')}</span>
@@ -359,22 +382,46 @@ function ForwardEditorForm({
       <div className="forward-form-grid">
         <label className="forward-field">
           <span className="field-label">{form.mode === 'remote' ? t('forwards.remoteBindHost') : t('forwards.localBindHost')}</span>
-          <Input value={form.bind_host} onChange={(event) => onChange({ bind_host: event.target.value })} />
+          <Input
+            id="forward-bind-host"
+            name="forward-bind-host"
+            value={form.bind_host}
+            onChange={(event) => onChange({ bind_host: event.target.value })}
+          />
         </label>
         <label className="forward-field">
           <span className="field-label">{form.mode === 'remote' ? t('forwards.remoteBindPort') : t('forwards.localBindPort')}</span>
-          <InputNumber min={1} max={65535} value={form.bind_port} onChange={(value) => onChange({ bind_port: value })} />
+          <InputNumber
+            id="forward-bind-port"
+            name="forward-bind-port"
+            min={1}
+            max={65535}
+            value={form.bind_port}
+            onChange={(value) => onChange({ bind_port: value })}
+          />
         </label>
       </div>
       {form.mode !== 'dynamic' ? (
         <div className="forward-form-grid">
           <label className="forward-field">
             <span className="field-label">{t('forwards.targetHost')}</span>
-            <Input value={form.target_host} onChange={(event) => onChange({ target_host: event.target.value })} />
+            <Input
+              id="forward-target-host"
+              name="forward-target-host"
+              value={form.target_host}
+              onChange={(event) => onChange({ target_host: event.target.value })}
+            />
           </label>
           <label className="forward-field">
             <span className="field-label">{t('forwards.targetPort')}</span>
-            <InputNumber min={1} max={65535} value={form.target_port} onChange={(value) => onChange({ target_port: value })} />
+            <InputNumber
+              id="forward-target-port"
+              name="forward-target-port"
+              min={1}
+              max={65535}
+              value={form.target_port}
+              onChange={(value) => onChange({ target_port: value })}
+            />
           </label>
         </div>
       ) : (
@@ -385,7 +432,13 @@ function ForwardEditorForm({
       )}
       <label className="forward-field">
         <span className="field-label">{t('forwards.description')}</span>
-        <Input.TextArea rows={3} value={form.description} onChange={(event) => onChange({ description: event.target.value })} />
+        <Input.TextArea
+          id="forward-description"
+          name="forward-description"
+          rows={3}
+          value={form.description}
+          onChange={(event) => onChange({ description: event.target.value })}
+        />
       </label>
     </div>
   )

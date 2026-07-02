@@ -61,6 +61,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [selectedHostId, setSelectedHostId] = useState('')
   const [activeFileSessionId, setActiveFileSessionId] = useState('')
   const [closingFileSessionIds, setClosingFileSessionIds] = useState<string[]>([])
+  const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
+  const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
   const [appVersion, setAppVersion] = useState(import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev')
   const [coreFatal, setCoreFatal] = useState<CoreFatalEvent | null>(null)
@@ -341,6 +343,43 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
+  const openHostCreate = () => {
+    setPage('hosts')
+    setHostCreateIntentKey((current) => current + 1)
+  }
+
+  const openHostEdit = (hostId: string) => {
+    setSelectedHostId(hostId)
+    setPage('hosts')
+  }
+
+  const openFilesForHost = async (hostId: string) => {
+    setSelectedHostId(hostId)
+    setPage('files')
+    const existing = data.fileSessions.find(
+      (fileSession) =>
+        fileSession.host_id === hostId &&
+        fileSession.status !== 'disconnected' &&
+        fileSession.status !== 'failed',
+    )
+    if (existing) {
+      setActiveFileSessionId(existing.id)
+      return
+    }
+    try {
+      const fileSession = await actions.connectFileSession(hostId)
+      setActiveFileSessionId(fileSession.id)
+    } catch (actionError) {
+      showActionError(actionError)
+    }
+  }
+
+  const openTemporaryForwardForHost = (hostId: string) => {
+    setSelectedHostId(hostId)
+    setForwardTemporaryIntent({ key: Date.now(), hostId })
+    setPage('forwards')
+  }
+
   return (
     <TerminalRuntimeProvider
       api={api}
@@ -376,6 +415,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onSelectHost={setSelectedHostId}
             onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
             onOpenLocal={(shell) => runAction(() => actions.openLocalTerminal(shell).then(() => undefined))}
+            onCreateHost={openHostCreate}
+            onEditHost={openHostEdit}
+            onOpenFilesForHost={openFilesForHost}
+            onOpenForwardForHost={openTemporaryForwardForHost}
+            onToggleHostFavorite={(hostId) => runAction(() => actions.toggleHostFavorite(hostId))}
             onSelectSession={actions.selectSession}
             onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
             onOpenFiles={openFilesFromSession}
@@ -390,6 +434,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           <HostsPage
             data={data}
             selectedHostId={selectedHostIdStable}
+            createIntentKey={hostCreateIntentKey}
             actionBusy={actionBusy}
             onSelectHost={setSelectedHostId}
             onSave={saveHost}
@@ -443,6 +488,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           <ForwardingPage
             data={data}
             actionBusy={actionBusy}
+            temporaryIntent={forwardTemporaryIntent}
             onCreateProfile={(input) => actions.createForwardProfile(input)}
             onUpdateProfile={(id, input) => actions.updateForwardProfile(id, input)}
             onDeleteProfile={(id) => runAction(() => actions.deleteForwardProfile(id))}

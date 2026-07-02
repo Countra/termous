@@ -7,10 +7,12 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import type { AppData, AuthMethod, HostInput } from '../../types/domain'
+import { hostToInput } from './hostInput'
 
 interface HostsPageProps {
   data: AppData
   selectedHostId: string
+  createIntentKey?: number
   actionBusy: boolean
   onSelectHost: (hostId: string) => void
   onSave: (id: string | null, input: HostInput) => Promise<void>
@@ -29,6 +31,7 @@ const blankHost: HostInput = {
   credential_id: '',
   jump_host_id: '',
   tags: [],
+  favorite: false,
   fingerprint_policy: 'confirm_on_change',
   note: '',
 }
@@ -41,7 +44,7 @@ interface HostTagOption {
   count: number
 }
 
-export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSave, onDelete, onImport }: HostsPageProps) {
+export function HostsPage({ data, selectedHostId, createIntentKey = 0, actionBusy, onSelectHost, onSave, onDelete, onImport }: HostsPageProps) {
   const { t } = useTranslation()
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId)
   const [editingId, setEditingId] = useState<string | null>(selectedHost?.id ?? null)
@@ -56,21 +59,16 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
       return
     }
     setEditingId(selectedHost.id)
-    setForm({
-      name: selectedHost.name,
-      platform: selectedHost.platform ?? 'linux',
-      group_id: selectedHost.group_id,
-      address: selectedHost.address,
-      port: selectedHost.port,
-      username: selectedHost.username,
-      auth_method: selectedHost.auth_method,
-      credential_id: selectedHost.credential_id,
-      jump_host_id: selectedHost.jump_host_id ?? '',
-      tags: normalizeHostTags(selectedHost.tags ?? []),
-      fingerprint_policy: selectedHost.fingerprint_policy,
-      note: selectedHost.note ?? '',
-    })
+    setForm({ ...hostToInput(selectedHost), tags: normalizeHostTags(selectedHost.tags ?? []) })
   }, [selectedHost])
+
+  useEffect(() => {
+    if (createIntentKey <= 0) {
+      return
+    }
+    setEditingId(null)
+    setForm({ ...systemHost, tags: [] })
+  }, [createIntentKey])
 
   const groupOptions = useMemo(
     () => [

@@ -21,6 +21,7 @@ import type {
 } from '../types/domain'
 import { changeLanguage } from '../i18n'
 import { defaultTerminalSettings, normalizeSettings } from '../features/settings/terminalSettings'
+import { hostToInput } from '../features/hosts/hostInput'
 
 const initialSettings: Settings = { language: 'zh-CN', terminal: defaultTerminalSettings }
 type LoadMode = 'initial' | 'background' | 'silent'
@@ -262,6 +263,17 @@ export function useTermousData() {
         await api.updateHost(id, input)
         await load('silent')
       },
+      async toggleHostFavorite(hostId: string) {
+        const host = data.hosts.find((item) => item.id === hostId)
+        if (!host) {
+          return
+        }
+        const nextHost = await api.updateHost(host.id, { ...hostToInput(host), favorite: !host.favorite })
+        setData((current) => ({
+          ...current,
+          hosts: current.hosts.map((item) => (item.id === nextHost.id ? nextHost : item)),
+        }))
+      },
       async deleteHost(id: string) {
         await api.deleteHost(id)
         await load('silent')
@@ -335,7 +347,12 @@ export function useTermousData() {
         setActiveSession((current) => (current?.id === sessionId ? { ...current, ...patch } : current))
         setData((current) => ({
           ...current,
-          sessions: current.sessions.map((session) => (session.id === sessionId ? { ...session, ...patch } : session)),
+          ...markHostRecentlyConnected(
+            current.hosts,
+            current.sessions,
+            sessionId,
+            patch,
+          ),
         }))
       },
       async connectFileSession(hostId: string, sourceSessionId = '', initialPath = '/') {
@@ -364,7 +381,7 @@ export function useTermousData() {
         setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
       },
     }),
-    [api, data.fileSessions, data.forwards, data.settings, data.sessions, load, reloadForwards],
+    [api, data.fileSessions, data.forwards, data.hosts, data.settings, data.sessions, load, reloadForwards],
   )
 
   return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, actions }
@@ -397,6 +414,24 @@ function upsertSession(sessions: Session[], next: Session) {
     return sessions.map((session) => (session.id === next.id ? next : session))
   }
   return [next, ...sessions]
+}
+
+function markHostRecentlyConnected(
+  hosts: AppData['hosts'],
+  sessions: Session[],
+  sessionId: string,
+  patch: Partial<Session>,
+) {
+  const sessionsWithPatch = sessions.map((session) => (session.id === sessionId ? { ...session, ...patch } : session))
+  const updatedSession = sessionsWithPatch.find((session) => session.id === sessionId)
+  if (updatedSession?.kind !== 'ssh' || updatedSession.status !== 'connected' || !updatedSession.host_id) {
+    return { hosts, sessions: sessionsWithPatch }
+  }
+  const connectedAt = updatedSession.connected_at ?? new Date().toISOString()
+  return {
+    hosts: hosts.map((host) => (host.id === updatedSession.host_id ? { ...host, last_connected_at: connectedAt } : host)),
+    sessions: sessionsWithPatch,
+  }
 }
 
 function upsertFileSession(fileSessions: FileSession[], next: FileSession) {
