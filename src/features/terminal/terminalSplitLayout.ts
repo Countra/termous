@@ -9,6 +9,7 @@ export type TerminalSplitPresetId =
   | 'left-main-right-stack'
   | 'right-main-left-stack'
   | 'grid-2x2'
+  | 'focus'
 
 export interface TerminalSplitRect {
   x: number
@@ -128,6 +129,14 @@ export const terminalSplitPresets: TerminalSplitPreset[] = [
       { id: 'top-right', rect: { x: 50, y: 0, width: 50, height: 50 } },
       { id: 'bottom-left', rect: { x: 0, y: 50, width: 50, height: 50 } },
       { id: 'bottom-right', rect: { x: 50, y: 50, width: 50, height: 50 } },
+    ],
+  },
+  {
+    id: 'focus',
+    labelKey: 'workbench.split.presets.focus',
+    paneCount: 1,
+    zones: [
+      { id: 'main', rect: { x: 0, y: 0, width: 100, height: 100 } },
     ],
   },
 ]
@@ -250,6 +259,8 @@ function buildPresetNode(presetId: TerminalSplitPresetId, sessionIds: Array<stri
     sessionId: sessionIds[index] ?? null,
   })
   switch (presetId) {
+    case 'focus':
+      return leaf(0)
     case 'two-rows':
       return split('terminal-split-root', 'vertical', [leaf(0), leaf(1)], [50, 50])
     case 'main-left':

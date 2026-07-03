@@ -334,7 +334,7 @@ function TerminalSnapPresetButton({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="terminal-snap-preset" aria-label={t(preset.labelKey)}>
+    <div className={`terminal-snap-preset ${preset.id === 'focus' ? 'is-focus-preset' : ''}`} aria-label={t(preset.labelKey)}>
       {preset.zones.map((zone) => (
         <button
           key={zone.id}

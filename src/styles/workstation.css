@@ -2523,6 +2523,21 @@ body.is-panel-resizing * {
   border-radius: 8px;
 }
 
+.terminal-snap-preset.is-focus-preset {
+  margin-left: 6px;
+}
+
+.terminal-snap-preset.is-focus-preset::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: -9px;
+  width: 1px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border-strong) 62%, transparent);
+}
+
 .terminal-snap-zone {
   position: absolute;
   border: 1px solid color-mix(in srgb, #ffffff 32%, transparent);
