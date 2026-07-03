@@ -60,7 +60,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
     host?.platform === 'linux' &&
     (session.status === 'disconnected' || session.status === 'failed'),
   )
-  const rules = useMemo(() => snapshot?.rules.map(firewallRuleToInput) ?? [], [snapshot])
+  const rules = useMemo(() => (snapshot?.rules ?? []).map(firewallRuleToInput), [snapshot])
   const snapshotRuleById = useMemo(() => new Map((snapshot?.rules ?? []).map((rule) => [rule.id, rule])), [snapshot])
   const readonlyRules = useMemo(() => (snapshot?.unsupported_rules ?? []).filter(isCrossProviderReadonlyRule), [snapshot])
 

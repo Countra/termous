@@ -354,19 +354,19 @@ export class TermousApi {
   sessionFirewallProviders(id: string, options: Pick<RequestOptions, 'signal'> = {}) {
     return this.request<FirewallProviderList>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/providers`, {
       signal: options.signal,
-    })
+    }).then(normalizeFirewallProviderList)
   }
 
   sessionFirewallCapability(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
     return this.request<FirewallCapability>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/capability${firewallProviderQuery(provider)}`, {
       signal: options.signal,
-    })
+    }).then(normalizeFirewallCapability)
   }
 
   sessionFirewallSnapshot(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
     return this.request<FirewallSnapshot>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/snapshot${firewallProviderQuery(provider)}`, {
       signal: options.signal,
-    })
+    }).then(normalizeFirewallSnapshot)
   }
 
   previewSessionFirewall(id: string, desired: FirewallDesiredState, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
@@ -382,7 +382,7 @@ export class TermousApi {
       method: 'POST',
       body: desired,
       signal: options.signal,
-    })
+    }).then(normalizeFirewallApplyResult)
   }
 
   saveSessionFirewall(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
@@ -702,6 +702,42 @@ function firewallProviderQuery(provider?: FirewallProvider) {
     return ''
   }
   return `?${new URLSearchParams({ provider }).toString()}`
+}
+
+function normalizeArray<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : []
+}
+
+function normalizeFirewallProviderList(list: FirewallProviderList): FirewallProviderList {
+  return {
+    ...list,
+    providers: normalizeArray(list.providers),
+  }
+}
+
+function normalizeFirewallCapability(capability: FirewallCapability): FirewallCapability {
+  return {
+    ...capability,
+    detected_providers: normalizeArray(capability.detected_providers),
+    unsupported_reasons: normalizeArray(capability.unsupported_reasons),
+  }
+}
+
+function normalizeFirewallSnapshot(snapshot: FirewallSnapshot): FirewallSnapshot {
+  return {
+    ...snapshot,
+    capability: normalizeFirewallCapability(snapshot.capability),
+    rules: normalizeArray(snapshot.rules),
+    unsupported_rules: normalizeArray(snapshot.unsupported_rules),
+    warnings: normalizeArray(snapshot.warnings),
+  }
+}
+
+function normalizeFirewallApplyResult(result: FirewallApplyResult): FirewallApplyResult {
+  return {
+    ...result,
+    snapshot: normalizeFirewallSnapshot(result.snapshot),
+  }
 }
 
 export async function createApiFromRuntime() {
