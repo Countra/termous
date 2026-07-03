@@ -15,6 +15,7 @@ import {
   Pencil,
   Pin,
   PinOff,
+  Plus,
   Power,
   Play,
   RotateCcw,
@@ -40,6 +41,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
+import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
@@ -50,7 +52,7 @@ import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
-import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
+import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, HostReachability, Session, ThemeMode } from '../../types/domain'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
 import { FirewallPanel } from './FirewallPanel'
@@ -178,6 +180,8 @@ export function WorkbenchPage({
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [colorSessionId, setColorSessionId] = useState<string | null>(null)
+  const [quickConnectOpen, setQuickConnectOpen] = useState(false)
+  const [quickConnectQuery, setQuickConnectQuery] = useState('')
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const activeSessionId = activeSession?.id
   const sessionStatus = activeSession?.status ?? 'disconnected'
@@ -273,6 +277,10 @@ export function WorkbenchPage({
       })
       .slice(0, 8)
   }, [data.snippets, snippetQuery])
+  const quickConnectHosts = useMemo(
+    () => filterQuickConnectHosts(data.hosts, quickConnectQuery),
+    [data.hosts, quickConnectQuery],
+  )
   const resolveSessionTitle = useCallback(
     (session: Session) => sessionTabPreferences[session.id]?.title ?? sessionTitle(session, data.hosts, t),
     [data.hosts, sessionTabPreferences, t],
@@ -391,6 +399,17 @@ export function WorkbenchPage({
         return
       }
       await onConnect(session.host_id)
+    },
+    [actionBusy, onConnect],
+  )
+  const connectQuickHost = useCallback(
+    async (hostId: string) => {
+      if (actionBusy) {
+        return
+      }
+      setQuickConnectOpen(false)
+      setQuickConnectQuery('')
+      await onConnect(hostId)
     },
     [actionBusy, onConnect],
   )
@@ -961,138 +980,166 @@ export function WorkbenchPage({
         className={`page-grid workbench-grid ${detailsCollapsed ? 'is-details-collapsed' : ''}`}
         style={workbenchGridStyle}
       >
-      <div className="terminal-workspace">
-        <div className="terminal-card">
-          <div className="terminal-toolbar">
-            <div className="session-tabs-shell">
-              <Tooltip title={t('workbench.scrollTabsLeft')}>
-                <Button
-                  type="text"
-                  className="session-scroll-button"
-                  aria-label={t('workbench.scrollTabsLeft')}
-                  disabled={!tabScrollState.canScrollLeft}
-                  icon={<ChevronLeft size={15} />}
-                  onClick={() => scrollTabs('left')}
-                />
-              </Tooltip>
-              <div
-                className={`terminal-tabs session-tabs ${tabScrollState.canScrollLeft ? 'has-left-overflow' : ''} ${
-                  tabScrollState.canScrollRight ? 'has-right-overflow' : ''
-                }`}
-                role="tablist"
-                aria-label={t('workbench.terminal')}
-                ref={tabViewportRef}
-                onWheel={handleTabWheel}
-              >
-                {visibleSessions.length === 0 ? (
-                  <SessionTabButton empty role="tab" icon={<SquareTerminal size={15} />} label={t('workbench.noSession')} />
-                ) : (
-                  visibleSessions.map((session) => {
-                    const preference = sessionTabPreferences[session.id]
-                    const title = resolveSessionTitle(session)
-                    return (
-                      <Dropdown
-                        key={session.id}
-                        trigger={['contextMenu']}
-                        classNames={{ root: 'terminal-tab-dropdown' }}
-                        menu={{
-                          items: buildSessionTabMenuItems(session),
-                          onClick: ({ key, domEvent }) => {
-                            domEvent.stopPropagation()
-                            if (key === 'search') {
-                              requestSessionSearch(session.id)
-                            } else if (key === 'duplicate') {
-                              void duplicateSessionFromMenu(session)
-                            } else if (key === 'split') {
-                              splitSessionFromMenu(session.id)
-                            } else if (key === 'rename') {
-                              openRenameSession(session)
-                            } else if (key === 'pin') {
-                              toggleSessionPinned(session.id)
-                            } else if (key === 'color') {
-                              setColorSessionId(session.id)
-                            } else if (key === 'reset') {
-                              resetSessionTabPreference(session.id)
-                            }
-                          },
-                        }}
-                      >
-                        <span className="session-tab-trigger">
-                          <Popover
-                            open={colorSessionId === session.id}
-                            placement="bottomLeft"
-                            arrow={false}
-                            trigger="click"
-                            overlayClassName="session-tab-color-popover"
-                            onOpenChange={(open) => {
-                              if (!open && colorSessionId === session.id) {
-                                setColorSessionId(null)
-                              }
-                            }}
-                            content={(
-                              <SessionTabColorPanel
-                                color={preference?.color}
-                                onSelect={(color, options) => setSessionTabColor(session.id, color, options)}
-                                onReset={() => resetSessionTabColor(session.id)}
-                              />
-                            )}
-                          >
-                            <SessionTabButton
-                              ref={(node) => {
-                                if (node) {
-                                  tabButtonRefs.current.set(session.id, node)
-                                } else {
-                                  tabButtonRefs.current.delete(session.id)
-                                }
-                              }}
-                              active={session.id === activeSession?.id}
-                              role="tab"
-                              aria-selected={session.id === activeSession?.id}
-                              className={
-                                terminalTabDrag?.dragging && terminalTabDrag.sessionId === session.id ? 'is-dragging' : undefined
-                              }
-                              onClick={(event) => {
-                                if (suppressNextTabClickRef.current) {
-                                  event.preventDefault()
-                                  return
-                                }
-                                onSelectSession(session.id)
-                              }}
-                              onMouseDown={(event) => {
-                                if (event.button === 1) {
-                                  event.preventDefault()
-                                }
-                              }}
-                              onPointerDown={(event) => beginTerminalTabDrag(event, session.id)}
-                              onAuxClick={(event) => closeSessionFromTab(event, session.id)}
-                              icon={<SquareTerminal size={15} />}
-                              label={title}
-                              status={session.status}
-                              pinned={preference?.pinned}
-                              pinLabel={t('terminal.tabMenu.pinned')}
-                              accentColor={preference?.color}
-                              closeLabel={`${t('app.close')} ${title}`}
-                              closeDisabled={actionBusy}
-                              onClose={() => closeSessionTab(session.id)}
-                            />
-                          </Popover>
-                        </span>
-                      </Dropdown>
-                    )
-                  })
-                )}
-              </div>
-              <Tooltip title={t('workbench.scrollTabsRight')}>
-                <Button
-                  type="text"
-                  className="session-scroll-button"
-                  aria-label={t('workbench.scrollTabsRight')}
-                  disabled={!tabScrollState.canScrollRight}
-                  icon={<ChevronRight size={15} />}
-                  onClick={() => scrollTabs('right')}
-                />
-              </Tooltip>
-            </div>
+	      <div className="terminal-workspace">
+	        <div className="terminal-card">
+	          <div className="terminal-toolbar">
+	            <div className="session-tabs-shell">
+	              <Tooltip title={t('workbench.scrollTabsLeft')}>
+	                <Button
+	                  type="text"
+	                  className="session-scroll-button"
+	                  aria-label={t('workbench.scrollTabsLeft')}
+	                  disabled={!tabScrollState.canScrollLeft}
+	                  icon={<ChevronLeft size={15} />}
+	                  onClick={() => scrollTabs('left')}
+	                />
+	              </Tooltip>
+	              <div className="session-tabs-stage">
+	                <div
+	                  className={`terminal-tabs session-tabs ${tabScrollState.canScrollLeft ? 'has-left-overflow' : ''} ${
+	                    tabScrollState.canScrollRight ? 'has-right-overflow' : ''
+	                  }`}
+	                  role="tablist"
+	                  aria-label={t('workbench.terminal')}
+	                  ref={tabViewportRef}
+	                  onWheel={handleTabWheel}
+	                >
+	                  {visibleSessions.length === 0 ? (
+	                    <SessionTabButton empty role="tab" icon={<SquareTerminal size={15} />} label={t('workbench.noSession')} />
+	                  ) : (
+	                    visibleSessions.map((session) => {
+	                      const preference = sessionTabPreferences[session.id]
+	                      const title = resolveSessionTitle(session)
+	                      return (
+	                        <Dropdown
+	                          key={session.id}
+	                          trigger={['contextMenu']}
+	                          classNames={{ root: 'terminal-tab-dropdown' }}
+	                          menu={{
+	                            items: buildSessionTabMenuItems(session),
+	                            onClick: ({ key, domEvent }) => {
+	                              domEvent.stopPropagation()
+	                              if (key === 'search') {
+	                                requestSessionSearch(session.id)
+	                              } else if (key === 'duplicate') {
+	                                void duplicateSessionFromMenu(session)
+	                              } else if (key === 'split') {
+	                                splitSessionFromMenu(session.id)
+	                              } else if (key === 'rename') {
+	                                openRenameSession(session)
+	                              } else if (key === 'pin') {
+	                                toggleSessionPinned(session.id)
+	                              } else if (key === 'color') {
+	                                setColorSessionId(session.id)
+	                              } else if (key === 'reset') {
+	                                resetSessionTabPreference(session.id)
+	                              }
+	                            },
+	                          }}
+	                        >
+	                          <span className="session-tab-trigger">
+	                            <Popover
+	                              open={colorSessionId === session.id}
+		                  placement="bottomLeft"
+	                              arrow={false}
+	                              trigger="click"
+	                              overlayClassName="session-tab-color-popover"
+	                              onOpenChange={(open) => {
+	                                if (!open && colorSessionId === session.id) {
+	                                  setColorSessionId(null)
+	                                }
+	                              }}
+	                              content={(
+	                                <SessionTabColorPanel
+	                                  color={preference?.color}
+	                                  onSelect={(color, options) => setSessionTabColor(session.id, color, options)}
+	                                  onReset={() => resetSessionTabColor(session.id)}
+	                                />
+	                              )}
+	                            >
+	                              <SessionTabButton
+	                                ref={(node) => {
+	                                  if (node) {
+	                                    tabButtonRefs.current.set(session.id, node)
+	                                  } else {
+	                                    tabButtonRefs.current.delete(session.id)
+	                                  }
+	                                }}
+	                                active={session.id === activeSession?.id}
+	                                role="tab"
+	                                aria-selected={session.id === activeSession?.id}
+	                                className={
+	                                  terminalTabDrag?.dragging && terminalTabDrag.sessionId === session.id ? 'is-dragging' : undefined
+	                                }
+	                                onClick={(event) => {
+	                                  if (suppressNextTabClickRef.current) {
+	                                    event.preventDefault()
+	                                    return
+	                                  }
+	                                  onSelectSession(session.id)
+	                                }}
+	                                onMouseDown={(event) => {
+	                                  if (event.button === 1) {
+	                                    event.preventDefault()
+	                                  }
+	                                }}
+	                                onPointerDown={(event) => beginTerminalTabDrag(event, session.id)}
+	                                onAuxClick={(event) => closeSessionFromTab(event, session.id)}
+	                                icon={<SquareTerminal size={15} />}
+	                                label={title}
+	                                status={session.status}
+	                                pinned={preference?.pinned}
+	                                pinLabel={t('terminal.tabMenu.pinned')}
+	                                accentColor={preference?.color}
+	                                closeLabel={`${t('app.close')} ${title}`}
+	                                closeDisabled={actionBusy}
+	                                onClose={() => closeSessionTab(session.id)}
+	                              />
+	                            </Popover>
+	                          </span>
+	                        </Dropdown>
+	                      )
+	                    })
+	                  )}
+	                </div>
+	                <Popover
+	                  open={quickConnectOpen}
+	                  trigger="click"
+                  placement="bottomLeft"
+	                  arrow={false}
+	                  overlayClassName="session-quick-connect-popover"
+	                  onOpenChange={(open) => setQuickConnectOpen(open)}
+	                  content={(
+	                    <QuickConnectHostPanel
+	                      hosts={quickConnectHosts}
+	                      totalCount={data.hosts.length}
+	                      query={quickConnectQuery}
+	                      reachabilityByHostId={data.hostReachability}
+	                      actionBusy={actionBusy}
+	                      onQueryChange={setQuickConnectQuery}
+	                      onConnect={connectQuickHost}
+	                    />
+	                  )}
+	                >
+	                  <Button
+	                    type="text"
+	                    className={`session-new-tab-button ${quickConnectOpen ? 'is-open' : ''}`}
+	                    aria-label={t('workbench.quickConnect.trigger')}
+	                    icon={<Plus size={17} strokeWidth={2.2} />}
+	                  />
+	                </Popover>
+	              </div>
+	              <Tooltip title={t('workbench.scrollTabsRight')}>
+	                <Button
+	                  type="text"
+	                  className="session-scroll-button"
+	                  aria-label={t('workbench.scrollTabsRight')}
+	                  disabled={!tabScrollState.canScrollRight}
+	                  icon={<ChevronRight size={15} />}
+	                  onClick={() => scrollTabs('right')}
+	                />
+	              </Tooltip>
+	            </div>
             <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
           </div>
           <div className={`terminal-progress-slot ${hasConnectionProgress ? 'is-active' : ''}`}>
@@ -1407,6 +1454,146 @@ export function WorkbenchPage({
       </Modal>
     </>
   )
+}
+
+function QuickConnectHostPanel({
+  hosts,
+  totalCount,
+  query,
+  reachabilityByHostId,
+  actionBusy,
+  onQueryChange,
+  onConnect,
+}: {
+  hosts: Host[]
+  totalCount: number
+  query: string
+  reachabilityByHostId: Record<string, HostReachability>
+  actionBusy: boolean
+  onQueryChange: (value: string) => void
+  onConnect: (hostId: string) => Promise<void>
+}) {
+  const { t } = useTranslation()
+  const emptyTitle = totalCount === 0 ? t('workbench.quickConnect.empty') : t('workbench.quickConnect.noResults')
+
+  return (
+    <section className="session-quick-connect" aria-label={t('workbench.quickConnect.title')}>
+      <Input
+        id="workbench-quick-connect-search"
+        name="workbench-quick-connect-search"
+        className="termous-search-input session-quick-connect-search"
+        value={query}
+        allowClear
+        variant="borderless"
+        prefix={<Search size={14} aria-hidden="true" />}
+        placeholder={t('workbench.quickConnect.search')}
+        onChange={(event) => onQueryChange(event.target.value)}
+        onPressEnter={() => {
+          if (hosts.length === 1 && !actionBusy) {
+            void onConnect(hosts[0].id)
+          }
+        }}
+      />
+      <div className="session-quick-connect-list" role="listbox" aria-label={t('workbench.quickConnect.hostList')}>
+        {hosts.length === 0 ? (
+          <div className="session-quick-connect-empty">{emptyTitle}</div>
+        ) : (
+          hosts.map((host) => {
+            const reachability = reachabilityByHostId[host.id]
+            return (
+              <button
+                key={host.id}
+                type="button"
+                className="session-quick-connect-row"
+                role="option"
+                disabled={actionBusy}
+                onClick={() => void onConnect(host.id)}
+              >
+                <QuickHostReachabilityDot state={reachability} />
+                <span className="session-quick-connect-copy">
+                  <strong>
+                    {host.name}
+                    {host.favorite ? <Star size={12} aria-label={t('workbench.hostLauncher.favorite')} /> : null}
+                  </strong>
+                  <small>{host.username}@{host.address}:{host.port}</small>
+                </span>
+                <span className="session-quick-connect-meta">
+                  <AuthMethodBadge method={host.auth_method} compact />
+                </span>
+              </button>
+            )
+          })
+        )}
+      </div>
+      <footer className="session-quick-connect-footer">
+        <small>{t('workbench.quickConnect.count', { count: totalCount })}</small>
+      </footer>
+    </section>
+  )
+}
+
+function QuickHostReachabilityDot({ state }: { state?: HostReachability }) {
+  const { t } = useTranslation()
+  const status = state?.status ?? 'unknown'
+
+  return (
+    <Tooltip title={quickReachabilityTooltip(state, t)}>
+      <span className={`session-quick-connect-dot is-${status}`} aria-label={quickReachabilityTooltip(state, t)} />
+    </Tooltip>
+  )
+}
+
+function filterQuickConnectHosts(hosts: Host[], query: string) {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const filtered = tokens.length === 0
+    ? hosts
+    : hosts.filter((host) => {
+      const searchable = [
+        host.name,
+        host.address,
+        host.username,
+        host.group_id,
+        host.auth_method,
+        ...(host.tags ?? []),
+      ]
+        .join(' ')
+        .toLowerCase()
+      return tokens.every((token) => searchable.includes(token))
+    })
+
+  return filtered.slice().sort((left, right) => {
+    if (left.favorite !== right.favorite) {
+      return left.favorite ? -1 : 1
+    }
+    const rightConnectedAt = readHostConnectedAt(right)
+    const leftConnectedAt = readHostConnectedAt(left)
+    if (rightConnectedAt !== leftConnectedAt) {
+      return rightConnectedAt - leftConnectedAt
+    }
+    return left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })
+  })
+}
+
+function readHostConnectedAt(host: Host) {
+  if (!host.last_connected_at) {
+    return 0
+  }
+  const value = new Date(host.last_connected_at).getTime()
+  return Number.isNaN(value) ? 0 : value
+}
+
+function quickReachabilityTooltip(
+  state: HostReachability | undefined,
+  t: (key: string, options?: Record<string, string | number>) => string,
+) {
+  const status = state?.status ?? 'unknown'
+  if (status === 'online' && state?.latency_ms !== undefined) {
+    return t('workbench.hostLauncher.reachabilityTooltip.online', { latency: state.latency_ms })
+  }
+  if ((status === 'offline' || status === 'unavailable') && state?.error_message) {
+    return state.error_message
+  }
+  return t(`workbench.hostLauncher.reachabilityTooltip.${status}`)
 }
 
 function StatusItem({ label, value, className }: { label: string; value: string; className?: string }) {

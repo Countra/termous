@@ -195,6 +195,15 @@ export const resources = {
             unavailable: '当前环境无法完成 ICMP 检测',
           },
         },
+        quickConnect: {
+          trigger: '新建会话',
+          title: '快速连接',
+          search: '搜索主机',
+          hostList: '快速连接主机列表',
+          empty: '暂无可连接主机',
+          noResults: '没有匹配的主机',
+          count: '{{count}} 台主机',
+        },
         detailsTabs: {
           overview: '概览',
           systemInfo: '系统信息',
@@ -1036,6 +1045,15 @@ export const resources = {
             offline: 'No ICMP response',
             unavailable: 'ICMP probe is unavailable in this environment',
           },
+        },
+        quickConnect: {
+          trigger: 'New session',
+          title: 'Quick connect',
+          search: 'Search hosts',
+          hostList: 'Quick connect host list',
+          empty: 'No hosts available',
+          noResults: 'No matching hosts',
+          count: '{{count}} hosts',
         },
         detailsTabs: {
           overview: 'Overview',
