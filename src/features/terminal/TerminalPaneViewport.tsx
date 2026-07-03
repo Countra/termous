@@ -9,6 +9,7 @@ interface TerminalPaneViewportProps {
   paneId: string
   session: Session | null
   active: boolean
+  dropTargeted?: boolean
   themeMode: ThemeMode
   placeholder: string
   searchPanel?: ReactNode
@@ -23,6 +24,7 @@ export function TerminalPaneViewport({
   paneId,
   session,
   active,
+  dropTargeted = false,
   themeMode,
   placeholder,
   searchPanel,
@@ -90,7 +92,7 @@ export function TerminalPaneViewport({
 
   return (
     <div
-      className={`terminal-pane-frame ${active ? 'is-active' : ''}`}
+      className={`terminal-pane-frame ${active ? 'is-active' : ''} ${dropTargeted ? 'is-drop-target' : ''}`}
       data-pane-id={paneId}
       onMouseDown={handleMouseDown}
       onContextMenu={handleContextMenu}

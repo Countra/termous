@@ -21,6 +21,7 @@ import {
   findTerminalPaneBySession,
   getTerminalPaneLeaves,
   getTerminalSplitPreset,
+  moveTerminalSessionToPane,
   replaceTerminalPaneSession,
   terminalSplitPresets,
   updateTerminalSplitBranchSizes,
@@ -85,6 +86,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
     const targetRef = useRef<DropTarget | null>(null)
     const [layout, setLayout] = useState<TerminalSplitLayout>(() => createSingleTerminalLayout(activeSession?.id ?? null))
     const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
+    const [paneDropTargetId, setPaneDropTargetId] = useState<string | null>(null)
     const layoutRef = useRef(layout)
     const previousSessionIdsRef = useRef<string[]>([])
     const sessionById = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
@@ -102,8 +104,23 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
     useEffect(() => {
       if (!dragSessionId) {
         setDropTarget(null)
+        setPaneDropTargetId(null)
       }
     }, [dragSessionId])
+
+    useEffect(() => {
+      if (!dragSessionId || !dragPoint || !dragInsideWorkspace || dropTarget) {
+        setPaneDropTargetId(null)
+        return
+      }
+      const paneId = findPaneIdFromPoint(dragPoint, rootRef.current)
+      if (!paneId) {
+        setPaneDropTargetId(null)
+        return
+      }
+      const pane = getTerminalPaneLeaves(layoutRef.current.root).find((leaf) => leaf.id === paneId)
+      setPaneDropTargetId(pane && pane.sessionId !== dragSessionId ? pane.id : null)
+    }, [dragInsideWorkspace, dragPoint, dragSessionId, dropTarget])
 
     useEffect(() => {
       const previousSessionIds = previousSessionIdsRef.current
@@ -176,18 +193,43 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
       [onSelectSession],
     )
 
+    const applyPaneDrop = useCallback(
+      (sessionId: string, paneId: string) => {
+        const current = layoutRef.current
+        if (!current.root) {
+          return false
+        }
+        const targetPane = getTerminalPaneLeaves(current.root).find((pane) => pane.id === paneId)
+        if (!targetPane || targetPane.sessionId === sessionId) {
+          return false
+        }
+        setLayout({
+          root: moveTerminalSessionToPane(current.root, paneId, sessionId),
+          activePaneId: paneId,
+        })
+        onSelectSession(sessionId)
+        setPaneDropTargetId(null)
+        return true
+      },
+      [onSelectSession],
+    )
+
     useImperativeHandle(
       ref,
       () => ({
         dropSessionAt(point, sessionId) {
           const target = targetRef.current
-          if (!target || !isPointInsideElement(point, rootRef.current)) {
+          if (!isPointInsideElement(point, rootRef.current)) {
             return false
           }
-          return applyDrop(sessionId, target)
+          if (target) {
+            return applyDrop(sessionId, target)
+          }
+          const paneId = findPaneIdFromPoint(point, rootRef.current)
+          return paneId ? applyPaneDrop(sessionId, paneId) : false
         },
       }),
-      [applyDrop],
+      [applyDrop, applyPaneDrop],
     )
 
     const renderNode = useCallback(
@@ -195,12 +237,14 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
         if (node.type === 'leaf') {
           const session = node.sessionId ? sessionById.get(node.sessionId) ?? null : null
           const active = node.id === layout.activePaneId
+          const dropTargeted = node.id === paneDropTargetId
           return (
             <TerminalPaneViewport
               key={node.id}
               paneId={node.id}
               session={session}
               active={active}
+              dropTargeted={dropTargeted}
               themeMode={themeMode}
               placeholder={placeholder}
               actionBusy={actionBusy}
@@ -247,6 +291,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
         placeholder,
         searchPanel,
         sessionById,
+        paneDropTargetId,
         themeMode,
         updateBranchSizes,
       ],
@@ -367,4 +412,20 @@ function isPointInsideElement(point: TerminalDragPoint, element: HTMLElement | n
   }
   const rect = element.getBoundingClientRect()
   return point.x >= rect.left && point.x <= rect.right && point.y >= rect.top && point.y <= rect.bottom
+}
+
+function findPaneIdFromPoint(point: TerminalDragPoint, root: HTMLElement | null) {
+  if (!root || typeof document.elementsFromPoint !== 'function') {
+    return null
+  }
+  for (const element of document.elementsFromPoint(point.x, point.y)) {
+    if (!(element instanceof HTMLElement)) {
+      continue
+    }
+    const pane = element.closest<HTMLElement>('.terminal-pane-frame[data-pane-id]')
+    if (pane && root.contains(pane)) {
+      return pane.dataset.paneId ?? null
+    }
+  }
+  return null
 }

@@ -184,6 +184,19 @@ export function replaceTerminalPaneSession(node: TerminalSplitNode, paneId: stri
   }
 }
 
+export function moveTerminalSessionToPane(node: TerminalSplitNode, paneId: string, sessionId: string): TerminalSplitNode {
+  if (node.type === 'leaf') {
+    if (node.id === paneId) {
+      return { ...node, sessionId }
+    }
+    return node.sessionId === sessionId ? { ...node, sessionId: null } : node
+  }
+  return {
+    ...node,
+    children: node.children.map((child) => moveTerminalSessionToPane(child, paneId, sessionId)),
+  }
+}
+
 export function createPresetTerminalLayout(
   presetId: TerminalSplitPresetId,
   sessionIds: Array<string | null>,
