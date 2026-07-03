@@ -453,7 +453,7 @@ function upsertSession(sessions: Session[], next: Session) {
   if (exists) {
     return sessions.map((session) => (session.id === next.id ? next : session))
   }
-  return [next, ...sessions]
+  return [...sessions, next]
 }
 
 function markHostRecentlyConnected(
