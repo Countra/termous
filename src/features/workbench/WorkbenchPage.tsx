@@ -26,7 +26,17 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tabs, Tooltip, type MenuProps } from 'antd'
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type WheelEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
@@ -36,7 +46,7 @@ import { usePersistentJsonState } from '../../hooks/usePersistentJsonState'
 import { useResizablePanelWidth } from '../../hooks/useResizablePanelWidth'
 import { ConnectionProgress } from '../terminal/ConnectionProgress'
 import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
-import { TerminalViewport } from '../terminal/TerminalViewport'
+import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
 import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
@@ -72,6 +82,13 @@ interface TerminalSearchState {
   caseSensitive: boolean
   regex: boolean
   result: TerminalSearchResult
+}
+
+interface TerminalTabDragState {
+  sessionId: string
+  start: TerminalDragPoint
+  point: TerminalDragPoint
+  dragging: boolean
 }
 
 interface WorkbenchPageProps {
@@ -131,12 +148,16 @@ export function WorkbenchPage({
   const workbenchGridStyle = {
     '--workbench-details-width': `${detailsPanelResize.width}px`,
   } as CSSProperties
+  const terminalSplitRef = useRef<TerminalSplitWorkspaceHandle>(null)
   const tabViewportRef = useRef<HTMLDivElement>(null)
   const tabButtonRefs = useRef(new Map<string, HTMLElement>())
   const previousSessionStatusRef = useRef(new Map<string, Session['status']>())
+  const terminalTabDragRef = useRef<TerminalTabDragState | null>(null)
+  const suppressNextTabClickRef = useRef(false)
   const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
   const [recentlyConnectedSessionId, setRecentlyConnectedSessionId] = useState<string | null>(null)
   const [pendingSearchSessionId, setPendingSearchSessionId] = useState<string | null>(null)
+  const [terminalTabDrag, setTerminalTabDrag] = useState<TerminalTabDragState | null>(null)
   const [snippetQuery, setSnippetQuery] = useState('')
   const [terminalSearch, setTerminalSearch] = useState<TerminalSearchState>({
     open: false,
@@ -539,6 +560,68 @@ export function WorkbenchPage({
     [updateTabScrollState],
   )
 
+  const updateTerminalTabDrag = useCallback((next: TerminalTabDragState | null) => {
+    terminalTabDragRef.current = next
+    setTerminalTabDrag(next)
+  }, [])
+
+  const beginTerminalTabDrag = useCallback(
+    (event: ReactPointerEvent<HTMLElement>, sessionId: string) => {
+      if (event.button !== 0 || actionBusy || (event.target as Element).closest('.session-tab-close')) {
+        return
+      }
+      const start = { x: event.clientX, y: event.clientY }
+      updateTerminalTabDrag({ sessionId, start, point: start, dragging: false })
+
+      const cleanup = () => {
+        document.body.classList.remove('is-terminal-tab-dragging')
+        window.removeEventListener('pointermove', handlePointerMove)
+        window.removeEventListener('pointerup', handlePointerUp)
+        window.removeEventListener('keydown', handleKeyDown)
+        updateTerminalTabDrag(null)
+      }
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const current = terminalTabDragRef.current
+        if (!current) {
+          return
+        }
+        const point = { x: moveEvent.clientX, y: moveEvent.clientY }
+        const moved = Math.abs(point.x - current.start.x) > 8 || Math.abs(point.y - current.start.y) > 8
+        const dragging = current.dragging || moved
+        if (dragging) {
+          moveEvent.preventDefault()
+          document.body.classList.add('is-terminal-tab-dragging')
+        }
+        updateTerminalTabDrag({ ...current, point, dragging })
+      }
+
+      const handlePointerUp = (upEvent: PointerEvent) => {
+        const current = terminalTabDragRef.current
+        if (current?.dragging) {
+          upEvent.preventDefault()
+          suppressNextTabClickRef.current = true
+          terminalSplitRef.current?.dropSessionAt({ x: upEvent.clientX, y: upEvent.clientY }, current.sessionId)
+          window.setTimeout(() => {
+            suppressNextTabClickRef.current = false
+          }, 0)
+        }
+        cleanup()
+      }
+
+      const handleKeyDown = (keyEvent: KeyboardEvent) => {
+        if (keyEvent.key === 'Escape') {
+          cleanup()
+        }
+      }
+
+      window.addEventListener('pointermove', handlePointerMove, { passive: false })
+      window.addEventListener('pointerup', handlePointerUp, { once: true })
+      window.addEventListener('keydown', handleKeyDown)
+    },
+    [actionBusy, updateTerminalTabDrag],
+  )
+
   const closeSessionTab = useCallback(
     (sessionId: string) => {
       if (actionBusy) {
@@ -681,6 +764,21 @@ export function WorkbenchPage({
     }
     await onConnect(hostId)
   }, [actionBusy, activeSession?.host_id, activeSession?.id, onConnect, onDisconnect])
+
+  const reconnectSession = useCallback(
+    async (session: Session) => {
+      if (!session.host_id || actionBusy) {
+        return
+      }
+      try {
+        await onDisconnect(session.id)
+      } catch {
+        // 旧会话已经断开时，删除失败不阻止重新连接同一主机。
+      }
+      await onConnect(session.host_id)
+    },
+    [actionBusy, onConnect, onDisconnect],
+  )
 
   useEffect(() => {
     if (activeSession) {
@@ -841,12 +939,22 @@ export function WorkbenchPage({
                               active={session.id === activeSession?.id}
                               role="tab"
                               aria-selected={session.id === activeSession?.id}
-                              onClick={() => onSelectSession(session.id)}
+                              className={
+                                terminalTabDrag?.dragging && terminalTabDrag.sessionId === session.id ? 'is-dragging' : undefined
+                              }
+                              onClick={(event) => {
+                                if (suppressNextTabClickRef.current) {
+                                  event.preventDefault()
+                                  return
+                                }
+                                onSelectSession(session.id)
+                              }}
                               onMouseDown={(event) => {
                                 if (event.button === 1) {
                                   event.preventDefault()
                                 }
                               }}
+                              onPointerDown={(event) => beginTerminalTabDrag(event, session.id)}
                               onAuxClick={(event) => closeSessionFromTab(event, session.id)}
                               icon={<SquareTerminal size={15} />}
                               label={title}
@@ -881,11 +989,15 @@ export function WorkbenchPage({
           <div className={`terminal-progress-slot ${hasConnectionProgress ? 'is-active' : ''}`}>
             <ConnectionProgress session={activeSession} showReady={showRecentConnectionProgress} />
           </div>
-          <TerminalViewport
-            session={activeSession}
+          <TerminalSplitWorkspace
+            ref={terminalSplitRef}
+            sessions={visibleSessions}
+            activeSession={activeSession}
             themeMode={terminalThemeMode}
             placeholder={selectedHost ? t('workbench.terminalReady') : t('workbench.terminalHint')}
             actionBusy={actionBusy}
+            dragSessionId={terminalTabDrag?.dragging ? terminalTabDrag.sessionId : null}
+            dragPoint={terminalTabDrag?.dragging ? terminalTabDrag.point : null}
             searchPanel={
               terminalSearch.open && terminalSearch.sessionId === activeSession?.id ? (
                 <TerminalSearchPanel
@@ -902,9 +1014,10 @@ export function WorkbenchPage({
                 />
               ) : null
             }
+            onSelectSession={onSelectSession}
             onResize={handleTerminalResize}
-            onReconnect={canReconnectSession ? () => void reconnectActiveSession() : undefined}
-            onClose={activeSession ? () => void onDisconnect(activeSession.id) : undefined}
+            onReconnectSession={(session) => void reconnectSession(session)}
+            onCloseSession={(session) => void onDisconnect(session.id)}
           />
           <div className="terminal-statusbar">
             <StatusItem className="is-session-position" label={t('workbench.sessionCount')} value={sessionPositionLabel} />

@@ -124,6 +124,18 @@ export const resources = {
         sessionId: '会话 ID',
         scrollTabsLeft: '向左滚动会话标签',
         scrollTabsRight: '向右滚动会话标签',
+        split: {
+          chooseLayout: '选择分屏布局',
+          presets: {
+            twoColumns: '左右分屏',
+            twoRows: '上下分屏',
+            mainLeft: '左侧主屏',
+            mainRight: '右侧主屏',
+            leftMainRightStack: '右侧堆叠',
+            rightMainLeftStack: '左侧堆叠',
+            grid2x2: '四宫格',
+          },
+        },
         manageFiles: '管理文件',
         hostLauncher: {
           kicker: '连接主机',
@@ -946,6 +958,18 @@ export const resources = {
         sessionId: 'Session ID',
         scrollTabsLeft: 'Scroll session tabs left',
         scrollTabsRight: 'Scroll session tabs right',
+        split: {
+          chooseLayout: 'Choose split layout',
+          presets: {
+            twoColumns: 'Side by side',
+            twoRows: 'Stacked rows',
+            mainLeft: 'Large left',
+            mainRight: 'Large right',
+            leftMainRightStack: 'Right stack',
+            rightMainLeftStack: 'Left stack',
+            grid2x2: 'Four panes',
+          },
+        },
         manageFiles: 'Manage files',
         hostLauncher: {
           kicker: 'Connect host',

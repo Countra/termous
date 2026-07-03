@@ -55,8 +55,10 @@ interface TerminalEntry {
 }
 
 interface ViewportState {
+  viewportId: string
   sessionId: string | null
   host: HTMLDivElement | null
+  active: boolean
   onResize?: (cols: number, rows: number) => void
 }
 
@@ -72,7 +74,7 @@ export function TerminalRuntimeProvider({
   const entriesRef = useRef(new Map<string, TerminalEntry>())
   const sessionsRef = useRef(new Map<string, Session>())
   const parkingHostRef = useRef<HTMLDivElement>(null)
-  const viewportRef = useRef<ViewportState>({ sessionId: null, host: null })
+  const viewportsRef = useRef(new Map<string, ViewportState>())
   const activeSessionIdRef = useRef<string | null>(null)
   const apiRef = useRef(api)
   const themeRef = useRef(theme)
@@ -146,6 +148,13 @@ export function TerminalRuntimeProvider({
     Array.from(entriesRef.current.values()).forEach(disposeEntry)
   }, [disposeEntry])
 
+  const getViewportForSession = useCallback((sessionId: string) => {
+    const viewports = Array.from(viewportsRef.current.values()).filter((viewport) => (
+      viewport.sessionId === sessionId && Boolean(viewport.host)
+    ))
+    return viewports.find((viewport) => viewport.active) ?? viewports[0] ?? null
+  }, [])
+
   const sendResize = useCallback((entry: TerminalEntry) => {
     const { terminal, socket, lastSize } = entry
     if (terminal.cols === lastSize.cols && terminal.rows === lastSize.rows) {
@@ -153,16 +162,17 @@ export function TerminalRuntimeProvider({
     }
     lastSize.cols = terminal.cols
     lastSize.rows = terminal.rows
-    viewportRef.current.onResize?.(terminal.cols, terminal.rows)
+    getViewportForSession(entry.sessionId)?.onResize?.(terminal.cols, terminal.rows)
     if (socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'resize', cols: terminal.cols, rows: terminal.rows }))
     }
-  }, [])
+  }, [getViewportForSession])
 
   const fitAndResize = useCallback(
     (entry: TerminalEntry, shouldFocus = false) => {
       window.requestAnimationFrame(() => {
-        if (entry.disposed || activeSessionIdRef.current !== entry.sessionId || !viewportRef.current.host) {
+        const viewport = getViewportForSession(entry.sessionId)
+        if (entry.disposed || !viewport?.host) {
           return
         }
         try {
@@ -171,12 +181,12 @@ export function TerminalRuntimeProvider({
           return
         }
         sendResize(entry)
-        if (shouldFocus) {
+        if (shouldFocus && activeSessionIdRef.current === entry.sessionId) {
           entry.terminal.focus()
         }
       })
     },
-    [sendResize],
+    [getViewportForSession, sendResize],
   )
 
   const fitAfterFontLoad = useCallback(
@@ -552,47 +562,60 @@ export function TerminalRuntimeProvider({
     [applyEntrySessionState, closeSocket, copyEntrySelection, fitAndResize, isEntryEnded, pasteEntryClipboard],
   )
 
-  const moveEntryToHost = useCallback((entry: TerminalEntry, host: HTMLDivElement | null, active: boolean) => {
+  const moveEntryToHost = useCallback((entry: TerminalEntry, host: HTMLDivElement | null, active: boolean, visible: boolean) => {
     const targetHost = host ?? parkingHostRef.current
     if (targetHost && entry.container.parentElement !== targetHost) {
       targetHost.appendChild(entry.container)
     }
-    entry.container.classList.toggle('is-active', active)
-    entry.container.classList.toggle('is-inactive', !active)
+    entry.container.classList.toggle('is-active', active && visible)
+    entry.container.classList.toggle('is-inactive', !visible)
   }, [])
 
-  const syncViewport = useCallback(() => {
-    const { sessionId, host } = viewportRef.current
-    activeSessionIdRef.current = sessionId
+  const syncViewports = useCallback(() => {
+    const visibleViewports = new Map<string, ViewportState>()
+    let activeSessionId: string | null = null
 
-    entriesRef.current.forEach((entry) => {
-      moveEntryToHost(entry, host, entry.sessionId === sessionId && Boolean(host))
+    viewportsRef.current.forEach((viewport) => {
+      if (!viewport.sessionId || !viewport.host || visibleViewports.has(viewport.sessionId)) {
+        return
+      }
+      visibleViewports.set(viewport.sessionId, viewport)
+      if (viewport.active) {
+        activeSessionId = viewport.sessionId
+      }
     })
 
-    if (!sessionId || !host) {
-      return
-    }
-    const existingEntry = entriesRef.current.get(sessionId)
-    if (!existingEntry && isEndedSessionStatus(sessionsRef.current.get(sessionId)?.status)) {
-      return
-    }
-    const entry = existingEntry ?? createEntry(sessionId)
-    moveEntryToHost(entry, host, true)
-    fitAndResize(entry, !isEndedSessionStatus(sessionsRef.current.get(sessionId)?.status))
+    activeSessionIdRef.current = activeSessionId ?? visibleViewports.values().next().value?.sessionId ?? null
+
+    entriesRef.current.forEach((entry) => {
+      const viewport = visibleViewports.get(entry.sessionId)
+      moveEntryToHost(entry, viewport?.host ?? null, entry.sessionId === activeSessionIdRef.current, Boolean(viewport?.host))
+    })
+
+    visibleViewports.forEach((viewport, sessionId) => {
+      const existingEntry = entriesRef.current.get(sessionId)
+      if (!existingEntry && isEndedSessionStatus(sessionsRef.current.get(sessionId)?.status)) {
+        return
+      }
+      const entry = existingEntry ?? createEntry(sessionId)
+      moveEntryToHost(entry, viewport.host, sessionId === activeSessionIdRef.current, true)
+      fitAndResize(entry, sessionId === activeSessionIdRef.current && !isEndedSessionStatus(sessionsRef.current.get(sessionId)?.status))
+    })
   }, [createEntry, fitAndResize, moveEntryToHost])
 
   const registerViewport = useCallback(
-    ({ sessionId, host, onResize }: TerminalViewportOptions) => {
-      viewportRef.current = { sessionId, host, onResize }
-      syncViewport()
+    ({ viewportId = 'default', sessionId, host, active = true, onResize }: TerminalViewportOptions) => {
+      viewportsRef.current.set(viewportId, { viewportId, sessionId, host, active, onResize })
+      syncViewports()
       return () => {
-        if (viewportRef.current.host === host) {
-          viewportRef.current = { sessionId: null, host: null }
-          syncViewport()
+        const current = viewportsRef.current.get(viewportId)
+        if (current?.host === host) {
+          viewportsRef.current.delete(viewportId)
+          syncViewports()
         }
       }
     },
-    [syncViewport],
+    [syncViewports],
   )
 
   const focusActive = useCallback(() => {
@@ -607,12 +630,12 @@ export function TerminalRuntimeProvider({
     entry.terminal.focus()
   }, [isEntryEnded])
 
-  const scheduleActiveResize = useCallback(() => {
-    const activeSessionId = activeSessionIdRef.current
-    if (!activeSessionId || !viewportRef.current.host) {
+  const scheduleSessionResize = useCallback((sessionId: string) => {
+    const viewport = getViewportForSession(sessionId)
+    if (!viewport?.host) {
       return
     }
-    const entry = entriesRef.current.get(activeSessionId)
+    const entry = entriesRef.current.get(sessionId)
     if (!entry || entry.disposed) {
       return
     }
@@ -623,7 +646,15 @@ export function TerminalRuntimeProvider({
       entry.resizeTimer = null
       fitAndResize(entry)
     }, 120)
-  }, [fitAndResize])
+  }, [fitAndResize, getViewportForSession])
+
+  const scheduleActiveResize = useCallback(() => {
+    const activeSessionId = activeSessionIdRef.current
+    if (!activeSessionId) {
+      return
+    }
+    scheduleSessionResize(activeSessionId)
+  }, [scheduleSessionResize])
 
   useEffect(() => {
     const allowedSessionIds = new Set(sessions.map((session) => session.id))
@@ -634,8 +665,8 @@ export function TerminalRuntimeProvider({
       }
       applyEntrySessionState(entry)
     })
-    syncViewport()
-  }, [applyEntrySessionState, disposeEntry, sessions, syncViewport])
+    syncViewports()
+  }, [applyEntrySessionState, disposeEntry, sessions, syncViewports])
 
   useEffect(() => {
     return () => {
@@ -648,6 +679,7 @@ export function TerminalRuntimeProvider({
       registerViewport,
       focusActive,
       resizeActive: scheduleActiveResize,
+      resizeSession: scheduleSessionResize,
       disposeSession,
       disposeAll,
       searchActive,
@@ -668,6 +700,7 @@ export function TerminalRuntimeProvider({
       pasteActiveClipboard,
       registerViewport,
       scheduleActiveResize,
+      scheduleSessionResize,
       searchActive,
       sendTextToActive,
       sendTextToSession,

@@ -23,8 +23,10 @@ export interface TerminalClipboardOptions {
 }
 
 export interface TerminalViewportOptions {
+  viewportId?: string
   sessionId: string | null
   host: HTMLDivElement | null
+  active?: boolean
   onResize?: (cols: number, rows: number) => void
 }
 
@@ -32,6 +34,7 @@ export interface TerminalRuntimeContextValue {
   registerViewport: (options: TerminalViewportOptions) => () => void
   focusActive: () => void
   resizeActive: () => void
+  resizeSession: (sessionId: string) => void
   disposeSession: (sessionId: string) => void
   disposeAll: () => void
   searchActive: (
