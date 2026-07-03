@@ -531,6 +531,14 @@
   background: transparent;
 }
 
+.app-keepalive-page {
+  display: contents;
+}
+
+.app-keepalive-page.is-hidden {
+  display: none;
+}
+
 .app-inline-status {
   position: absolute;
   top: 14px;

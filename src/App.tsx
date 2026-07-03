@@ -509,7 +509,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       >
         {initializing ? <div className="app-inline-status" role="status">{t('app.loading')}</div> : null}
 
-        {page === 'workbench' ? (
+        <div
+          className={`app-keepalive-page ${page === 'workbench' ? 'is-active' : 'is-hidden'}`}
+          aria-hidden={page !== 'workbench'}
+        >
           <WorkbenchPage
             api={api}
             data={data}
@@ -526,7 +529,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onStartForward={(input) => actions.startForward(input)}
             onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
           />
-        ) : null}
+        </div>
 
         {page === 'hosts' ? (
           <HostsPage
