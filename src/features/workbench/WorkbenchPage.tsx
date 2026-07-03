@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Code2,
   Clock3,
+  CopyPlus,
   Cpu,
   HardDrive,
   Layers,
@@ -384,14 +385,30 @@ export function WorkbenchPage({
     [notification, t],
   )
 
+  const duplicateSessionFromMenu = useCallback(
+    async (session: Session) => {
+      if (actionBusy || session.kind !== 'ssh' || !session.host_id) {
+        return
+      }
+      await onConnect(session.host_id)
+    },
+    [actionBusy, onConnect],
+  )
+
   const buildSessionTabMenuItems = useCallback(
     (session: Session): MenuProps['items'] => {
       const preference = sessionTabPreferences[session.id]
       const pinned = Boolean(preference?.pinned)
+      const canDuplicateSession = session.kind === 'ssh' && Boolean(session.host_id)
       return [
         {
           key: 'search',
           label: <TerminalTabMenuItem icon={<Search size={15} />} title={t('terminal.search')} />,
+        },
+        {
+          key: 'duplicate',
+          disabled: !canDuplicateSession || actionBusy,
+          label: <TerminalTabMenuItem icon={<CopyPlus size={15} />} title={t('terminal.tabMenu.duplicate')} />,
         },
         {
           key: 'split',
@@ -421,7 +438,7 @@ export function WorkbenchPage({
         },
       ]
     },
-    [sessionTabPreferences, t],
+    [actionBusy, sessionTabPreferences, t],
   )
 
   useEffect(() => {
@@ -984,6 +1001,8 @@ export function WorkbenchPage({
                             domEvent.stopPropagation()
                             if (key === 'search') {
                               requestSessionSearch(session.id)
+                            } else if (key === 'duplicate') {
+                              void duplicateSessionFromMenu(session)
                             } else if (key === 'split') {
                               splitSessionFromMenu(session.id)
                             } else if (key === 'rename') {

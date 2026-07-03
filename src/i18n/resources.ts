@@ -404,6 +404,7 @@ export const resources = {
         pasteFailed: '粘贴失败',
         tabMenu: {
           split: '分屏',
+          duplicate: '复制会话',
           rename: '重命名',
           renameTitle: '重命名标签页',
           renamePlaceholder: '输入标签页名称',
@@ -1245,6 +1246,7 @@ export const resources = {
         pasteFailed: 'Paste failed',
         tabMenu: {
           split: 'Split',
+          duplicate: 'Duplicate session',
           rename: 'Rename',
           renameTitle: 'Rename tab',
           renamePlaceholder: 'Enter tab name',
