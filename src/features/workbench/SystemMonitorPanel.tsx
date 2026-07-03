@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { EChartView } from '../../components/charts/EChartView'
 import type { LinuxMonitorLoadAverage, LinuxMonitorNetwork, LinuxMonitorSnapshot, Session, ThemeMode } from '../../types/domain'
+import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import { useSessionMonitor } from './useSessionMonitor'
 
 interface SystemMonitorPanelProps {
@@ -117,11 +118,12 @@ export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonit
 
   if (!session || session.kind !== 'ssh' || session.status !== 'connected') {
     return (
-      <div className="system-monitor-empty">
-        <Activity size={20} />
-        <strong>{t('workbench.systemMonitor.emptyTitle')}</strong>
-        <span>{t('workbench.systemMonitor.emptyHint')}</span>
-      </div>
+      <WorkbenchEmptyState
+        className="system-monitor-empty"
+        icon={<Activity size={20} />}
+        title={t('workbench.systemMonitor.emptyTitle')}
+        description={t('workbench.systemMonitor.emptyHint')}
+      />
     )
   }
 
@@ -159,11 +161,13 @@ export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonit
       </div>
 
       {!latest ? (
-        <div className={`system-monitor-message is-${monitor.status}`}>
-          <RotateCcw size={18} />
-          <strong>{t('workbench.systemMonitor.warmingTitle')}</strong>
-          <span>{statusText}</span>
-        </div>
+        <WorkbenchEmptyState
+          className={`system-monitor-message is-${monitor.status}`}
+          tone={monitor.status === 'failed' ? 'danger' : 'warning'}
+          icon={<RotateCcw size={18} />}
+          title={t('workbench.systemMonitor.warmingTitle')}
+          description={statusText}
+        />
       ) : (
         <div className="system-monitor-content">
           <MetricPanel

@@ -7,6 +7,7 @@ import type { FirewallDesiredState, FirewallPersistenceStatus, FirewallProvider,
 import { formatBytes } from '../files/fileUtils'
 import { FirewallPersistencePanel } from './FirewallPersistencePanel'
 import { FirewallRuleModal } from './FirewallRuleModal'
+import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import {
   compactFirewallRuleInput,
   createFirewallRuleInput,
@@ -596,11 +597,13 @@ function FirewallRuleCard({
 
 function FirewallEmpty({ title, description }: { title: string; description: string }) {
   return (
-    <div className="firewall-empty">
-      <ShieldAlert size={22} />
-      <strong>{title}</strong>
-      <small>{description}</small>
-    </div>
+    <WorkbenchEmptyState
+      className="firewall-empty"
+      tone="warning"
+      icon={<ShieldAlert size={22} />}
+      title={title}
+      description={description}
+    />
   )
 }
 

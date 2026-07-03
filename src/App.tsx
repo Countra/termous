@@ -517,7 +517,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             selectedHostId={selectedHostIdStable}
             activeSession={activeSession}
             actionBusy={actionBusy}
-            onSelectHost={setSelectedHostId}
             onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
             onSelectSession={actions.selectSession}
             onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}

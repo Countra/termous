@@ -1,11 +1,12 @@
 import { ArrowDownLeft, ArrowUpRight, Cable, Network, Play, RadioTower, Route, Square } from 'lucide-react'
-import { App as AntdApp, Button, Empty, Input, InputNumber, Progress, Segmented } from 'antd'
+import { App as AntdApp, Button, Input, InputNumber, Progress, Segmented } from 'antd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import type { ForwardInstance, ForwardMode, ForwardStartRequest, Host, Session } from '../../types/domain'
 import { formatBytes } from '../files/fileUtils'
+import { WorkbenchEmptyState } from '../workbench/WorkbenchEmptyState'
 import { ForwardRouteDiagram } from './ForwardRouteDiagram'
 
 interface ForwardSessionPanelProps {
@@ -82,17 +83,24 @@ export function ForwardSessionPanel({
 
   if (!connectedSSH) {
     return (
-      <div className="forward-session-empty">
-        <Empty description={t('forwards.sessionEmpty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      </div>
+      <WorkbenchEmptyState
+        className="forward-session-empty"
+        icon={<Cable size={20} />}
+        title={t('workbench.detailsTabs.forwards')}
+        description={t('forwards.sessionEmpty')}
+      />
     )
   }
 
   if (unsupported) {
     return (
-      <div className="forward-session-empty">
-        <Empty description={t('forwards.systemAuthSessionUnsupported')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      </div>
+      <WorkbenchEmptyState
+        className="forward-session-empty"
+        tone="warning"
+        icon={<Network size={20} />}
+        title={t('workbench.detailsTabs.forwards')}
+        description={t('forwards.systemAuthSessionUnsupported')}
+      />
     )
   }
 

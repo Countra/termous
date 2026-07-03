@@ -29,7 +29,6 @@ import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tabs
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
-import { CustomSelect } from '../../components/ui/CustomSelect'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
@@ -46,6 +45,7 @@ import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
 import { FirewallPanel } from './FirewallPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
 import { SystemMonitorPanel } from './SystemMonitorPanel'
+import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import {
   areSessionTabPreferenceMapsEqual,
   compactSessionTabPreference,
@@ -81,7 +81,6 @@ interface WorkbenchPageProps {
   selectedHostId: string
   activeSession: Session | null
   actionBusy: boolean
-  onSelectHost: (hostId: string) => void
   onConnect: (hostId: string) => Promise<void>
   onSelectSession: (sessionId: string) => void
   onDisconnect: (sessionId: string) => Promise<void>
@@ -99,7 +98,6 @@ export function WorkbenchPage({
   selectedHostId,
   activeSession,
   actionBusy,
-  onSelectHost,
   onConnect,
   onSelectSession,
   onDisconnect,
@@ -172,9 +170,16 @@ export function WorkbenchPage({
     setTerminalSize({ cols, rows })
   }, [])
   const sessionHost = activeSession?.host_id ? data.hosts.find((host) => host.id === activeSession.host_id) : undefined
-  const detailHost = sessionHost ?? selectedHost
+  const detailHost = activeSession?.kind === 'ssh' ? sessionHost : undefined
   const detailCredential = data.credentials.find((item) => item.id === detailHost?.credential_id)
+  const detailGroup = data.groups.find((group) => group.id === detailHost?.group_id)
   const detailJumpHost = data.hosts.find((host) => host.id === detailHost?.jump_host_id)
+  const detailTags = detailHost?.tags ?? []
+  const detailCredentialLabel = detailHost?.auth_method === 'system'
+    ? t('hosts.systemAuth')
+    : detailCredential
+      ? `${detailCredential.name} (${t(`vault.typeName.${detailCredential.type}`)})`
+      : t('fields.none')
   const visibleSessions = useMemo(
     () => sortSessionsForTabs(data.sessions, sessionTabPreferences),
     [data.sessions, sessionTabPreferences],
@@ -960,72 +965,105 @@ export function WorkbenchPage({
                   key: 'overview',
                   label: t('workbench.detailsTabs.overview'),
                   children: (
-                    <div className="connection-overview-panel">
-                      <CustomSelect
-                        label={t('workbench.selectHost')}
-                        value={selectedHost?.id ?? ''}
-                        onChange={onSelectHost}
-                        options={data.hosts.map((host) => ({ value: host.id, label: host.name, description: host.address }))}
-                        disabled={data.hosts.length === 0}
-                      />
-                      <dl className="detail-list">
-                        <div>
-                          <dt>{t('hosts.address')}</dt>
-                          <dd>{detailHost ? `${detailHost.address}:${detailHost.port}` : t('fields.none')}</dd>
+                    detailHost ? (
+                      <div className="connection-overview-panel">
+                        <div className="connection-overview-hero">
+                          <span className="connection-overview-icon">
+                            <Server size={22} />
+                          </span>
+                          <div className="connection-overview-copy">
+                            <strong>{detailHost.name}</strong>
+                            <small>{`${detailHost.username}@${detailHost.address}:${detailHost.port}`}</small>
+                          </div>
+                          <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
                         </div>
-                        <div>
-                          <dt>{t('hosts.username')}</dt>
-                          <dd>{detailHost?.username ?? t('fields.none')}</dd>
-                        </div>
-                        <div>
-                          <dt>{t('hosts.platform.label')}</dt>
-                          <dd>{detailHost?.platform === 'linux' ? t('hosts.platform.linux') : t('fields.none')}</dd>
-                        </div>
-                        <div>
-                          <dt>{t('workbench.credential')}</dt>
-                          <dd>{detailHost?.auth_method === 'system' ? t('hosts.systemAuth') : detailCredential?.name ?? t('fields.none')}</dd>
-                        </div>
-                        <div>
-                          <dt>{t('workbench.sessionState')}</dt>
-                          <dd>{sessionStateLabel}</dd>
-                        </div>
-                        {detailJumpHost ? (
+                        <dl className="detail-list">
+                          <div>
+                            <dt>{t('hosts.address')}</dt>
+                            <dd>{`${detailHost.address}:${detailHost.port}`}</dd>
+                          </div>
+                          <div>
+                            <dt>{t('hosts.username')}</dt>
+                            <dd>{detailHost.username}</dd>
+                          </div>
+                          <div>
+                            <dt>{t('hosts.platform.label')}</dt>
+                            <dd>{detailHost.platform === 'linux' ? t('hosts.platform.linux') : t('fields.none')}</dd>
+                          </div>
+                          <div>
+                            <dt>{t('hosts.group')}</dt>
+                            <dd>{detailGroup?.name ?? t('hosts.ungrouped')}</dd>
+                          </div>
+                          <div>
+                            <dt>{t('hosts.authMethod')}</dt>
+                            <dd>{t(`hosts.auth.${detailHost.auth_method}`)}</dd>
+                          </div>
+                          <div>
+                            <dt>{t('workbench.credential')}</dt>
+                            <dd>{detailCredentialLabel}</dd>
+                          </div>
+                          <div>
+                            <dt>{t('workbench.sessionState')}</dt>
+                            <dd>{sessionStateLabel}</dd>
+                          </div>
+                          <div>
+                            <dt>{t('hosts.tags')}</dt>
+                            <dd className="connection-overview-tags-cell">
+                              {detailTags.length > 0 ? (
+                                <span className="connection-overview-tags">
+                                  {detailTags.map((tag, index) => (
+                                    <span key={`${tag}-${index}`}>{tag}</span>
+                                  ))}
+                                </span>
+                              ) : t('fields.none')}
+                            </dd>
+                          </div>
                           <div>
                             <dt>{t('workbench.jumpHost')}</dt>
-                            <dd>{detailJumpHost.name}</dd>
+                            <dd>{detailJumpHost?.name ?? t('fields.none')}</dd>
                           </div>
-                        ) : null}
-                      </dl>
-                      <div className="current-connection-actions">
-                        <Button
-                          className="secondary-button"
-                          disabled={!canOpenFiles || actionBusy || !activeSession}
-                          onClick={() => activeSession && void onOpenFiles(activeSession)}
-                          icon={<FolderOpen size={16} />}
-                        >
-                          {t('workbench.manageFiles')}
-                        </Button>
-                        {canReconnectSession ? (
+                          <div>
+                            <dt>{t('hosts.note')}</dt>
+                            <dd>{detailHost.note || t('fields.none')}</dd>
+                          </div>
+                        </dl>
+                        <div className="current-connection-actions">
                           <Button
                             className="secondary-button"
-                            disabled={actionBusy}
-                            onClick={() => void reconnectActiveSession()}
-                            icon={<RotateCcw size={16} />}
+                            disabled={!canOpenFiles || actionBusy || !activeSession}
+                            onClick={() => activeSession && void onOpenFiles(activeSession)}
+                            icon={<FolderOpen size={16} />}
                           >
-                            {t('workbench.reconnectSession')}
+                            {t('workbench.manageFiles')}
                           </Button>
-                        ) : null}
-                        <Button
-                          danger
-                          className="danger-button"
-                          disabled={!activeSession || actionBusy}
-                          onClick={() => activeSession && void onDisconnect(activeSession.id)}
-                          icon={<Power size={16} />}
-                        >
-                          {activeSessionEnded ? t('workbench.closeDisconnectedSession') : t('workbench.closeSession')}
-                        </Button>
+                          {canReconnectSession ? (
+                            <Button
+                              className="secondary-button"
+                              disabled={actionBusy}
+                              onClick={() => void reconnectActiveSession()}
+                              icon={<RotateCcw size={16} />}
+                            >
+                              {t('workbench.reconnectSession')}
+                            </Button>
+                          ) : null}
+                          <Button
+                            danger
+                            className="danger-button"
+                            disabled={!activeSession || actionBusy}
+                            onClick={() => activeSession && void onDisconnect(activeSession.id)}
+                            icon={<Power size={16} />}
+                          >
+                            {activeSessionEnded ? t('workbench.closeDisconnectedSession') : t('workbench.closeSession')}
+                          </Button>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <WorkbenchEmptyState
+                        icon={<Server size={20} />}
+                        title={t('workbench.connectionOverview.emptyTitle')}
+                        description={t('workbench.connectionOverview.emptyHint')}
+                      />
+                    )
                   ),
                 },
                 {
@@ -1174,11 +1212,11 @@ function SystemInfoPanel({ session, t }: { session: Session | null; t: Workbench
   const [expandedKeys, setExpandedKeys] = useState(() => new Set<string>())
   if (!session || session.kind !== 'ssh' || session.status !== 'connected') {
     return (
-      <div className="system-info-empty">
-        <Monitor size={20} />
-        <strong>{t('workbench.systemInfo.emptyTitle')}</strong>
-        <span>{t('workbench.systemInfo.emptyHint')}</span>
-      </div>
+      <WorkbenchEmptyState
+        icon={<Monitor size={20} />}
+        title={t('workbench.systemInfo.emptyTitle')}
+        description={t('workbench.systemInfo.emptyHint')}
+      />
     )
   }
   if (status === 'collecting' || status === 'idle') {
@@ -1194,11 +1232,13 @@ function SystemInfoPanel({ session, t }: { session: Session | null; t: Workbench
   }
   if (status !== 'ready' || !info) {
     return (
-      <div className={`system-info-message is-${status}`}>
-        <TriangleAlert size={18} />
-        <strong>{status === 'unsupported' ? t('workbench.systemInfo.unsupportedTitle') : t('workbench.systemInfo.failedTitle')}</strong>
-        <span>{session.inventory_message || t('workbench.systemInfo.failedHint')}</span>
-      </div>
+      <WorkbenchEmptyState
+        className={`system-info-message is-${status}`}
+        tone={status === 'failed' ? 'danger' : 'warning'}
+        icon={<TriangleAlert size={18} />}
+        title={status === 'unsupported' ? t('workbench.systemInfo.unsupportedTitle') : t('workbench.systemInfo.failedTitle')}
+        description={session.inventory_message || t('workbench.systemInfo.failedHint')}
+      />
     )
   }
   const nodes = buildSystemInfoTree(info, t)

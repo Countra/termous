@@ -110,6 +110,10 @@ export const resources = {
         localTerminal: '本地终端',
         openPowerShell: 'PowerShell',
         openCmd: 'CMD',
+        connectionOverview: {
+          emptyTitle: '暂无连接主机',
+          emptyHint: '连接 SSH 主机会话后，这里会显示当前连接的主机详情。',
+        },
         sessionState: '会话状态',
         noSession: '暂无会话',
         target: '目标',
@@ -928,6 +932,10 @@ export const resources = {
         localTerminal: 'Local terminal',
         openPowerShell: 'PowerShell',
         openCmd: 'CMD',
+        connectionOverview: {
+          emptyTitle: 'No connected host',
+          emptyHint: 'Connect an SSH host session to show the current host details here.',
+        },
         sessionState: 'Session state',
         noSession: 'No session',
         target: 'Target',

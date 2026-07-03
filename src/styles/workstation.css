@@ -3884,9 +3884,60 @@ body.is-panel-resizing * {
   gap: 12px;
 }
 
+.connection-overview-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-subtle) 70%, transparent);
+  padding: 12px;
+}
+
+.connection-overview-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.connection-overview-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.connection-overview-copy span,
+.connection-overview-copy small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-overview-copy strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-overview-hero .status-badge {
+  justify-self: end;
+}
+
 .detail-list {
   gap: 0;
-  margin: 16px 0;
+  margin: 4px 0 0;
   border-top: 1px solid var(--border);
 }
 
@@ -3917,27 +3968,93 @@ body.is-panel-resizing * {
   white-space: nowrap;
 }
 
-.system-info-empty,
-.system-info-loading,
-.system-info-message {
+.detail-list dd.connection-overview-tags-cell {
+  overflow: visible;
+  white-space: normal;
+}
+
+.connection-overview-tags {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.connection-overview-tags span {
+  display: inline-flex;
+  max-width: 98px;
+  height: 21px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-primary));
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-empty-state,
+.system-info-loading {
   display: grid;
   min-height: 180px;
   align-content: center;
   justify-items: center;
-  gap: 8px;
+  gap: 9px;
   border: 1px dashed color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 14px;
   padding: 20px 14px;
-  background: color-mix(in srgb, var(--surface-subtle) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 76%, transparent);
   color: var(--text-secondary);
   text-align: center;
 }
 
-.system-info-empty strong,
-.system-info-loading strong,
-.system-info-message strong {
+.workbench-empty-state-icon {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--accent) 86%, var(--text-primary));
+}
+
+.workbench-empty-state.is-warning {
+  border-color: color-mix(in srgb, #f59e0b 36%, var(--border));
+}
+
+.workbench-empty-state.is-warning .workbench-empty-state-icon {
+  border-color: color-mix(in srgb, #f59e0b 34%, var(--border));
+  background: color-mix(in srgb, #f59e0b 12%, var(--surface-subtle));
+  color: #f6b64f;
+}
+
+.workbench-empty-state.is-danger {
+  border-color: color-mix(in srgb, #ef4444 36%, var(--border));
+}
+
+.workbench-empty-state.is-danger .workbench-empty-state-icon {
+  border-color: color-mix(in srgb, #ef4444 34%, var(--border));
+  background: color-mix(in srgb, #ef4444 11%, var(--surface-subtle));
+  color: #ff6b6b;
+}
+
+.workbench-empty-state strong,
+.system-info-loading strong {
   color: var(--text-primary);
   font-size: 13px;
+}
+
+.workbench-empty-state-description {
+  max-width: 260px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .system-info-loading {
@@ -3949,12 +4066,6 @@ body.is-panel-resizing * {
   display: grid;
   gap: 4px;
   margin-bottom: 8px;
-}
-
-.system-info-message.is-failed,
-.system-info-message.is-unsupported {
-  border-color: color-mix(in srgb, #f59e0b 42%, var(--border));
-  background: color-mix(in srgb, #f59e0b 10%, var(--surface));
 }
 
 .system-info-panel {
@@ -7708,7 +7819,6 @@ body.is-panel-resizing * {
 }
 
 .firewall-inline-empty,
-.firewall-empty,
 .firewall-loading {
   display: grid;
   min-height: 150px;
@@ -7719,16 +7829,6 @@ body.is-panel-resizing * {
   background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
   color: var(--text-secondary);
   text-align: center;
-}
-
-.firewall-empty strong {
-  color: var(--text-primary);
-}
-
-.firewall-empty small {
-  max-width: 260px;
-  color: var(--text-secondary);
-  line-height: 1.5;
 }
 
 .firewall-loading-card {
@@ -7871,7 +7971,6 @@ body.is-panel-resizing * {
 }
 
 :root[data-theme="light"] .firewall-inline-empty,
-:root[data-theme="light"] .firewall-empty,
 :root[data-theme="light"] .firewall-loading {
   background: rgb(248 250 253 / 68%);
 }
@@ -8181,7 +8280,6 @@ body.is-panel-resizing * {
   font-size: 12px;
 }
 
-.forward-session-empty,
 .forward-session-empty-inline {
   display: grid;
   min-height: 180px;
@@ -8953,31 +9051,4 @@ body.is-panel-resizing * {
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 680;
-}
-
-.system-monitor-empty,
-.system-monitor-message {
-  display: grid;
-  min-height: 210px;
-  place-items: center;
-  align-content: center;
-  gap: 8px;
-  border: 1px dashed color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--surface-subtle) 45%, transparent);
-  color: var(--text-muted);
-  text-align: center;
-}
-
-.system-monitor-empty strong,
-.system-monitor-message strong {
-  color: var(--text-primary);
-  font-size: 13px;
-}
-
-.system-monitor-empty span,
-.system-monitor-message span {
-  max-width: 240px;
-  font-size: 12px;
-  line-height: 1.5;
 }
