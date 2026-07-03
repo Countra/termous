@@ -290,9 +290,23 @@
 }
 
 .chrome-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: 13px;
   font-weight: 650;
+  line-height: 1;
   color: var(--text-secondary);
+}
+
+.chrome-title span {
+  line-height: 18px;
+}
+
+.chrome-title-icon {
+  display: block;
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--accent) 68%, var(--text-secondary) 32%);
 }
 
 .topbar-actions {
@@ -782,7 +796,7 @@ body.is-panel-resizing * {
 }
 
 .terminal-workspace {
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
 }
 

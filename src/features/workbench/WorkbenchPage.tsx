@@ -743,13 +743,6 @@ export function WorkbenchPage({
         style={workbenchGridStyle}
       >
       <div className="terminal-workspace">
-        <div className="page-title-row">
-          <div>
-            <h1>{t('workbench.title')}</h1>
-            <p>{t('workbench.subtitle')}</p>
-          </div>
-        </div>
-
         <div className="metric-strip">
           <Metric icon={<Cable size={18} />} label={t('workbench.sessionCount')} value={String(data.sessions.length)} />
           <Metric icon={<Layers size={18} />} label={t('workbench.hostCount')} value={String(data.hosts.length)} />

@@ -5,8 +5,8 @@ import {
   FileCode2,
   FolderTree,
   Monitor,
+  MonitorCog,
   Moon,
-  PanelLeft,
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
@@ -49,6 +49,10 @@ const navItems = [
   { key: 'snippets' as const, icon: FileCode2 },
 ]
 
+const topbarPageIcons: Partial<Record<PageKey, typeof TerminalSquare>> = {
+  workbench: MonitorCog,
+}
+
 export function AppShell({
   page,
   theme,
@@ -70,6 +74,7 @@ export function AppShell({
   const platform = window.termous?.platform ?? 'web'
   const showWindowControls = Boolean(window.termous?.windowControls) && platform !== 'darwin'
   const pageTitle = t(`nav.${page}`)
+  const PageIcon = topbarPageIcons[page] ?? navItems.find((item) => item.key === page)?.icon ?? TerminalSquare
   const connectionMenuItems: MenuProps['items'] = [
     {
       key: 'host',
@@ -153,8 +158,8 @@ export function AppShell({
               />
             </Tooltip>
             <div className="chrome-title">
-              <PanelLeft size={15} aria-hidden="true" />
               <span>{pageTitle}</span>
+              <PageIcon className="chrome-title-icon" size={18} strokeWidth={2.1} aria-hidden="true" />
             </div>
           </div>
           <div className="topbar-actions">
