@@ -353,6 +353,37 @@ export function WorkbenchPage({
     },
     [colorSessionId, renamingSessionId, setSessionTabPreferences],
   )
+
+  const splitSessionFromMenu = useCallback(
+    (sessionId: string) => {
+      const result = terminalSplitRef.current?.splitSessionFromMenu(sessionId) ?? 'missing-session'
+      if (result === 'limit') {
+        notification.warning({
+          title: t('workbench.split.limitTitle'),
+          description: t('workbench.split.limitDescription'),
+          duration: 3,
+          role: 'status',
+          className: 'termous-notification',
+        })
+      } else if (result === 'not-enough-sessions') {
+        notification.warning({
+          title: t('workbench.split.notEnoughSessions'),
+          duration: 3,
+          role: 'status',
+          className: 'termous-notification',
+        })
+      } else if (result === 'missing-session') {
+        notification.warning({
+          title: t('workbench.split.sessionUnavailable'),
+          duration: 3,
+          role: 'status',
+          className: 'termous-notification',
+        })
+      }
+    },
+    [notification, t],
+  )
+
   const buildSessionTabMenuItems = useCallback(
     (session: Session): MenuProps['items'] => {
       const preference = sessionTabPreferences[session.id]
@@ -361,6 +392,10 @@ export function WorkbenchPage({
         {
           key: 'search',
           label: <TerminalTabMenuItem icon={<Search size={15} />} title={t('terminal.search')} />,
+        },
+        {
+          key: 'split',
+          label: <TerminalTabMenuItem icon={<Layers size={15} />} title={t('terminal.tabMenu.split')} />,
         },
         {
           key: 'rename',
@@ -949,6 +984,8 @@ export function WorkbenchPage({
                             domEvent.stopPropagation()
                             if (key === 'search') {
                               requestSessionSearch(session.id)
+                            } else if (key === 'split') {
+                              splitSessionFromMenu(session.id)
                             } else if (key === 'rename') {
                               openRenameSession(session)
                             } else if (key === 'pin') {

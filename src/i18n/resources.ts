@@ -126,6 +126,10 @@ export const resources = {
         scrollTabsRight: '向右滚动会话标签',
         split: {
           chooseLayout: '选择分屏布局',
+          limitTitle: '分屏数量上限',
+          limitDescription: '当前最多支持 4 个终端分屏。',
+          notEnoughSessions: '需要更多会话才能继续分屏',
+          sessionUnavailable: '会话已不可用',
           presets: {
             twoColumns: '左右分屏',
             twoRows: '上下分屏',
@@ -399,6 +403,7 @@ export const resources = {
         copyFailed: '复制失败',
         pasteFailed: '粘贴失败',
         tabMenu: {
+          split: '分屏',
           rename: '重命名',
           renameTitle: '重命名标签页',
           renamePlaceholder: '输入标签页名称',
@@ -962,6 +967,10 @@ export const resources = {
         scrollTabsRight: 'Scroll session tabs right',
         split: {
           chooseLayout: 'Choose split layout',
+          limitTitle: 'Split limit reached',
+          limitDescription: 'Termous supports up to 4 terminal panes.',
+          notEnoughSessions: 'More sessions are required to split again',
+          sessionUnavailable: 'Session is no longer available',
           presets: {
             twoColumns: 'Side by side',
             twoRows: 'Stacked rows',
@@ -1235,6 +1244,7 @@ export const resources = {
         copyFailed: 'Copy failed',
         pasteFailed: 'Paste failed',
         tabMenu: {
+          split: 'Split',
           rename: 'Rename',
           renameTitle: 'Rename tab',
           renamePlaceholder: 'Enter tab name',

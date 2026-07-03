@@ -24,11 +24,13 @@ import {
   moveTerminalSessionToPane,
   replaceTerminalPaneSession,
   terminalSplitPresets,
+  TERMINAL_SPLIT_MAX_PANES,
   updateTerminalSplitBranchSizes,
   type TerminalPaneLeaf,
   type TerminalSplitLayout,
   type TerminalSplitNode,
   type TerminalSplitPreset,
+  type TerminalSplitPresetId,
   type TerminalSplitPresetZone,
 } from './terminalSplitLayout'
 
@@ -37,8 +39,11 @@ export interface TerminalDragPoint {
   y: number
 }
 
+export type TerminalContextSplitResult = 'applied' | 'focused' | 'limit' | 'missing-session' | 'not-enough-sessions'
+
 export interface TerminalSplitWorkspaceHandle {
   dropSessionAt: (point: TerminalDragPoint, sessionId: string) => boolean
+  splitSessionFromMenu: (sessionId: string) => TerminalContextSplitResult
 }
 
 interface TerminalSplitWorkspaceProps {
@@ -214,6 +219,46 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
       [onSelectSession],
     )
 
+    const applyContextSplit = useCallback(
+      (sessionId: string): TerminalContextSplitResult => {
+        if (!sessionById.has(sessionId)) {
+          return 'missing-session'
+        }
+        const current = layoutRef.current
+        const leaves = getTerminalPaneLeaves(current.root)
+        const visibleSessionIds = uniqueSessionIds(
+          leaves
+            .map((leaf) => leaf.sessionId)
+            .filter((value): value is string => Boolean(value && sessionById.has(value))),
+        )
+        const existingPane = current.root ? findTerminalPaneBySession(current.root, sessionId) : null
+        if (existingPane && visibleSessionIds.length > 1) {
+          setLayout({ ...current, activePaneId: existingPane.id })
+          onSelectSession(sessionId)
+          return 'focused'
+        }
+        if (visibleSessionIds.length >= TERMINAL_SPLIT_MAX_PANES) {
+          return 'limit'
+        }
+        const presetId = getContextSplitPresetId(visibleSessionIds.length)
+        if (!presetId) {
+          return 'limit'
+        }
+        const nextSessionIds = [...visibleSessionIds.filter((value) => value !== sessionId), sessionId]
+        const next = createPresetTerminalLayout(presetId, nextSessionIds)
+        const activePane = next.root ? findTerminalPaneBySession(next.root, sessionId) : null
+        setLayout({
+          ...next,
+          activePaneId: activePane?.id ?? next.activePaneId,
+        })
+        onSelectSession(sessionId)
+        setDropTarget(null)
+        setPaneDropTargetId(null)
+        return 'applied'
+      },
+      [onSelectSession, sessionById],
+    )
+
     useImperativeHandle(
       ref,
       () => ({
@@ -228,8 +273,11 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
           const paneId = findPaneIdFromPoint(point, rootRef.current)
           return paneId ? applyPaneDrop(sessionId, paneId) : false
         },
+        splitSessionFromMenu(sessionId) {
+          return applyContextSplit(sessionId)
+        },
       }),
-      [applyDrop, applyPaneDrop],
+      [applyContextSplit, applyDrop, applyPaneDrop],
     )
 
     const renderNode = useCallback(
@@ -404,6 +452,23 @@ function zoneStyle(zone: TerminalSplitPresetZone) {
     width: `${zone.rect.width}%`,
     height: `${zone.rect.height}%`,
   }
+}
+
+function getContextSplitPresetId(visiblePaneCount: number): TerminalSplitPresetId | null {
+  if (visiblePaneCount <= 1) {
+    return 'two-columns'
+  }
+  if (visiblePaneCount === 2) {
+    return 'three-columns'
+  }
+  if (visiblePaneCount === 3) {
+    return 'grid-2x2'
+  }
+  return null
+}
+
+function uniqueSessionIds(sessionIds: string[]) {
+  return Array.from(new Set(sessionIds))
 }
 
 function isPointInsideElement(point: TerminalDragPoint, element: HTMLElement | null) {
