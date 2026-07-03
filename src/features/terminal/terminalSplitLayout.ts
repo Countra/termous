@@ -5,6 +5,7 @@ export type TerminalSplitPresetId =
   | 'two-rows'
   | 'main-left'
   | 'main-right'
+  | 'three-columns'
   | 'left-main-right-stack'
   | 'right-main-left-stack'
   | 'grid-2x2'
@@ -86,6 +87,16 @@ export const terminalSplitPresets: TerminalSplitPreset[] = [
     zones: [
       { id: 'side', rect: { x: 0, y: 0, width: 34, height: 100 } },
       { id: 'main', rect: { x: 34, y: 0, width: 66, height: 100 } },
+    ],
+  },
+  {
+    id: 'three-columns',
+    labelKey: 'workbench.split.presets.threeColumns',
+    paneCount: 3,
+    zones: [
+      { id: 'left', rect: { x: 0, y: 0, width: 33.33, height: 100 } },
+      { id: 'center', rect: { x: 33.33, y: 0, width: 33.34, height: 100 } },
+      { id: 'right', rect: { x: 66.67, y: 0, width: 33.33, height: 100 } },
     ],
   },
   {
@@ -245,6 +256,8 @@ function buildPresetNode(presetId: TerminalSplitPresetId, sessionIds: Array<stri
       return split('terminal-split-root', 'horizontal', [leaf(0), leaf(1)], [66, 34])
     case 'main-right':
       return split('terminal-split-root', 'horizontal', [leaf(0), leaf(1)], [34, 66])
+    case 'three-columns':
+      return split('terminal-split-root', 'horizontal', [leaf(0), leaf(1), leaf(2)], [33.33, 33.34, 33.33])
     case 'left-main-right-stack':
       return split('terminal-split-root', 'horizontal', [
         leaf(0),
