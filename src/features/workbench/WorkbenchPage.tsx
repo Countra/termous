@@ -155,7 +155,8 @@ export function WorkbenchPage({
   const terminalTabDragRef = useRef<TerminalTabDragState | null>(null)
   const suppressNextTabClickRef = useRef(false)
   const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
-  const [recentlyConnectedSessionId, setRecentlyConnectedSessionId] = useState<string | null>(null)
+  const recentConnectionTimersRef = useRef(new Map<string, number>())
+  const [recentlyConnectedSessionIds, setRecentlyConnectedSessionIds] = useState<Set<string>>(() => new Set())
   const [pendingSearchSessionId, setPendingSearchSessionId] = useState<string | null>(null)
   const [terminalTabDrag, setTerminalTabDrag] = useState<TerminalTabDragState | null>(null)
   const [snippetQuery, setSnippetQuery] = useState('')
@@ -178,9 +179,8 @@ export function WorkbenchPage({
   const [colorSessionId, setColorSessionId] = useState<string | null>(null)
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const activeSessionId = activeSession?.id
-  const activeSessionStatus = activeSession?.status
   const sessionStatus = activeSession?.status ?? 'disconnected'
-  const showRecentConnectionProgress = recentlyConnectedSessionId === activeSessionId
+  const showRecentConnectionProgress = Boolean(activeSessionId && recentlyConnectedSessionIds.has(activeSessionId))
   const hasConnectionProgress = Boolean(
     activeSession &&
       activeSession.status !== 'disconnected' &&
@@ -787,20 +787,73 @@ export function WorkbenchPage({
   }, [activeSession])
 
   useEffect(() => {
-    if (!activeSessionId || !activeSessionStatus) {
-      return undefined
+    const currentSessionIds = new Set(data.sessions.map((session) => session.id))
+    const clearReadyState = (sessionId: string) => {
+      const timer = recentConnectionTimersRef.current.get(sessionId)
+      if (timer !== undefined) {
+        window.clearTimeout(timer)
+        recentConnectionTimersRef.current.delete(sessionId)
+      }
+      setRecentlyConnectedSessionIds((current) => {
+        if (!current.has(sessionId)) {
+          return current
+        }
+        const next = new Set(current)
+        next.delete(sessionId)
+        return next
+      })
     }
-    const previousStatus = previousSessionStatusRef.current.get(activeSessionId)
-    previousSessionStatusRef.current.set(activeSessionId, activeSessionStatus)
-    if (previousStatus !== 'connecting' || activeSessionStatus !== 'connected') {
-      return undefined
+
+    for (const session of data.sessions) {
+      const previousStatus = previousSessionStatusRef.current.get(session.id)
+      previousSessionStatusRef.current.set(session.id, session.status)
+      if (session.status === 'disconnected' || session.status === 'failed') {
+        clearReadyState(session.id)
+        continue
+      }
+      if (previousStatus !== 'connecting' || session.status !== 'connected') {
+        continue
+      }
+
+      const existingTimer = recentConnectionTimersRef.current.get(session.id)
+      if (existingTimer !== undefined) {
+        window.clearTimeout(existingTimer)
+      }
+      setRecentlyConnectedSessionIds((current) => {
+        const next = new Set(current)
+        next.add(session.id)
+        return next
+      })
+      const timer = window.setTimeout(() => {
+        recentConnectionTimersRef.current.delete(session.id)
+        setRecentlyConnectedSessionIds((current) => {
+          if (!current.has(session.id)) {
+            return current
+          }
+          const next = new Set(current)
+          next.delete(session.id)
+          return next
+        })
+      }, 900)
+      recentConnectionTimersRef.current.set(session.id, timer)
     }
-    setRecentlyConnectedSessionId(activeSessionId)
-    const timer = window.setTimeout(() => {
-      setRecentlyConnectedSessionId((current) => (current === activeSessionId ? null : current))
-    }, 900)
-    return () => window.clearTimeout(timer)
-  }, [activeSessionId, activeSessionStatus])
+
+    for (const sessionId of Array.from(previousSessionStatusRef.current.keys())) {
+      if (!currentSessionIds.has(sessionId)) {
+        previousSessionStatusRef.current.delete(sessionId)
+        clearReadyState(sessionId)
+      }
+    }
+  }, [data.sessions])
+
+  useEffect(() => {
+    return () => {
+      for (const timer of recentConnectionTimersRef.current.values()) {
+        window.clearTimeout(timer)
+      }
+      recentConnectionTimersRef.current.clear()
+    }
+  }, [])
 
   useEffect(() => {
     if (!pendingSearchSessionId || activeSession?.id !== pendingSearchSessionId) {
