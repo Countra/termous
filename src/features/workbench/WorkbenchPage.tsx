@@ -153,11 +153,11 @@ export function WorkbenchPage({
     {},
     parseSessionTabPreferences,
   )
+  const [durationNow, setDurationNow] = useState(() => Date.now())
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [colorSessionId, setColorSessionId] = useState<string | null>(null)
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
-  const selectedCredential = data.credentials.find((item) => item.id === selectedHost?.credential_id)
   const activeSessionId = activeSession?.id
   const activeSessionStatus = activeSession?.status
   const sessionStatus = activeSession?.status ?? 'disconnected'
@@ -179,6 +179,9 @@ export function WorkbenchPage({
     () => sortSessionsForTabs(data.sessions, sessionTabPreferences),
     [data.sessions, sessionTabPreferences],
   )
+  const activeSessionIndex = activeSession ? visibleSessions.findIndex((session) => session.id === activeSession.id) : -1
+  const sessionPositionLabel =
+    activeSessionIndex >= 0 ? `${activeSessionIndex + 1} / ${visibleSessions.length}` : '0'
   const sessionStateLabel = activeSession?.phase ? t(`connection.phase.${activeSession.phase}`) : t(`status.${sessionStatus}`)
   const targetLabel =
     activeSession?.kind === 'local'
@@ -187,8 +190,7 @@ export function WorkbenchPage({
         ? `${sessionHost.username}@${sessionHost.address}:${sessionHost.port}`
         : t('workbench.noHost')
   const startedAt = activeSession?.started_at ? formatTime(activeSession.started_at) : t('fields.none')
-  const connectedAt = activeSession?.connected_at ? formatTime(activeSession.connected_at) : t('fields.none')
-  const sessionResult = activeSession?.last_error ?? (activeSession?.exit_code !== undefined ? String(activeSession.exit_code) : t('fields.none'))
+  const sessionDuration = formatSessionDuration(activeSession, durationNow, t('fields.none'))
   const terminalThemeMode = data.settings.terminal.theme_mode === 'follow_app' ? theme : data.settings.terminal.theme_mode
   const activeSessionEnded = activeSession?.status === 'disconnected' || activeSession?.status === 'failed'
   const canOpenFiles = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected' && activeSession.host_id)
@@ -736,6 +738,15 @@ export function WorkbenchPage({
     window.setTimeout(updateTabScrollState, 180)
   }, [activeSession?.id, data.sessions.length, updateTabScrollState])
 
+  useEffect(() => {
+    if (activeSession?.status !== 'connected') {
+      return undefined
+    }
+    setDurationNow(Date.now())
+    const timer = window.setInterval(() => setDurationNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [activeSession?.id, activeSession?.status])
+
   return (
     <>
       <section
@@ -743,16 +754,6 @@ export function WorkbenchPage({
         style={workbenchGridStyle}
       >
       <div className="terminal-workspace">
-        <div className="metric-strip">
-          <Metric icon={<Cable size={18} />} label={t('workbench.sessionCount')} value={String(data.sessions.length)} />
-          <Metric icon={<Layers size={18} />} label={t('workbench.hostCount')} value={String(data.hosts.length)} />
-          <Metric
-            icon={<Power size={18} />}
-            label={t('workbench.credentialState')}
-            value={selectedCredential ? t('status.available') : t('status.notConfigured')}
-          />
-        </div>
-
         <div className="terminal-card">
           <div className="terminal-toolbar">
             <div className="session-tabs-shell">
@@ -901,12 +902,12 @@ export function WorkbenchPage({
             onClose={activeSession ? () => void onDisconnect(activeSession.id) : undefined}
           />
           <div className="terminal-statusbar">
+            <StatusItem className="is-session-position" label={t('workbench.sessionCount')} value={sessionPositionLabel} />
             <StatusItem label={t('workbench.target')} value={targetLabel} />
             <StatusItem label={t('workbench.sessionState')} value={sessionStateLabel} />
             <StatusItem label={t('workbench.startedAt')} value={startedAt} />
-            <StatusItem label={t('workbench.connectedAt')} value={connectedAt} />
+            <StatusItem label={t('workbench.duration')} value={sessionDuration} />
             <StatusItem label={t('workbench.terminalSize')} value={`${terminalSize.cols} x ${terminalSize.rows}`} />
-            <StatusItem label={t('workbench.result')} value={sessionResult} />
           </div>
         </div>
       </div>
@@ -1148,9 +1149,9 @@ export function WorkbenchPage({
   )
 }
 
-function StatusItem({ label, value }: { label: string; value: string }) {
+function StatusItem({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
-    <span className="terminal-status-item">
+    <span className={['terminal-status-item', className].filter(Boolean).join(' ')}>
       <small>{label}</small>
       <strong>{value}</strong>
     </span>
@@ -1371,22 +1372,37 @@ function formatTime(value: string) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+function formatSessionDuration(session: Session | null, now: number, fallback: string) {
+  if (!session) {
+    return fallback
+  }
+  const start = Date.parse(session.connected_at ?? session.started_at)
+  if (Number.isNaN(start)) {
+    return fallback
+  }
+  const end = session.status === 'connected' ? now : Date.parse(session.ended_at ?? session.connected_at ?? session.started_at)
+  if (Number.isNaN(end) || end < start) {
+    return fallback
+  }
+  const totalSeconds = Math.floor((end - start) / 1000)
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const clock = `${padDurationPart(hours)}:${padDurationPart(minutes)}:${padDurationPart(seconds)}`
+  return days > 0 ? `${days}d ${clock}` : clock
+}
+
+function padDurationPart(value: number) {
+  return String(value).padStart(2, '0')
+}
+
 function emptyTerminalSearchResult(): TerminalSearchResult {
   return {
     found: false,
     resultIndex: -1,
     resultCount: 0,
   }
-}
-
-function Metric({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
-  return (
-    <div className="metric-item">
-      {icon}
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  )
 }
 
 function TerminalTabMenuItem({

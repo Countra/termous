@@ -593,6 +593,7 @@
 }
 
 .terminal-card {
+  display: grid;
   border: 1px solid var(--terminal-border);
   border-radius: 16px;
   min-width: 0;
@@ -796,8 +797,11 @@ body.is-panel-resizing * {
 }
 
 .terminal-workspace {
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 10px;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
 }
 
 .page-actions {
@@ -1893,26 +1897,6 @@ body.is-panel-resizing * {
   }
 }
 
-.metric-strip {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.metric-item {
-  min-height: 54px;
-  border-radius: 12px;
-  background: var(--metric-bg);
-  box-shadow: none;
-}
-
-.metric-item span {
-  font-size: 11px;
-}
-
-.metric-item strong {
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-}
-
 .terminal-toolbar {
   min-height: 42px;
   min-width: 0;
@@ -1925,7 +1909,12 @@ body.is-panel-resizing * {
 
 .terminal-statusbar {
   display: grid;
-  grid-template-columns: minmax(112px, 1.4fr) repeat(5, minmax(0, 1fr));
+  grid-template-columns:
+    minmax(74px, 0.65fr)
+    minmax(124px, 1.45fr)
+    minmax(96px, 1fr)
+    repeat(3, minmax(72px, 0.75fr));
+  align-items: center;
   min-width: 0;
   min-height: 36px;
   max-width: 100%;
@@ -1939,7 +1928,14 @@ body.is-panel-resizing * {
 .terminal-status-item {
   display: grid;
   min-width: 0;
-  gap: 1px;
+  gap: 2px;
+  padding: 0 10px;
+  border-left: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
+}
+
+.terminal-status-item:first-child {
+  border-left: 0;
+  padding-left: 0;
 }
 
 .terminal-status-item small {
@@ -1956,6 +1952,13 @@ body.is-panel-resizing * {
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.terminal-status-item.is-session-position strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 780;
+  font-variant-numeric: tabular-nums;
 }
 
 .session-tabs-shell {
@@ -4966,8 +4969,7 @@ body.is-panel-resizing * {
   .form-grid,
   .settings-row,
   .terminal-style-grid,
-  .terminal-setting-line,
-  .metric-strip {
+  .terminal-setting-line {
     grid-template-columns: 1fr;
   }
 
