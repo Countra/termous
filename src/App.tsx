@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { App as AntdApp, Button, ConfigProvider, Modal } from 'antd'
 import { AlertTriangle } from 'lucide-react'
 import 'antd/dist/reset.css'
@@ -11,12 +11,13 @@ import { SettingsPage } from './features/settings/SettingsPage'
 import { SnippetsPage } from './features/snippets/SnippetsPage'
 import { snippetToInput } from './features/snippets/snippetUtils'
 import { VaultPage } from './features/vault/VaultPage'
+import { HostLauncherModal } from './features/workbench/HostLauncherModal'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostGroup, HostInput, HostReachabilityEvent, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
+import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostGroup, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -62,6 +63,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [selectedHostId, setSelectedHostId] = useState('')
   const [activeFileSessionId, setActiveFileSessionId] = useState('')
   const [closingFileSessionIds, setClosingFileSessionIds] = useState<string[]>([])
+  const [hostLauncherOpen, setHostLauncherOpen] = useState(false)
   const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
   const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
@@ -445,6 +447,41 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     setPage('forwards')
   }
 
+  const openHostLauncher = useCallback(() => {
+    if (actionBusy) {
+      return
+    }
+    setHostLauncherOpen(true)
+  }, [actionBusy])
+
+  const connectHostFromLauncher = (hostId: string) =>
+    runAction(async () => {
+      await actions.connect(hostId)
+      setPage('workbench')
+    })
+
+  const openLocalTerminalFromTopbar = (shell: LocalShell) => {
+    if (actionBusy) {
+      return
+    }
+    setPage('workbench')
+    void runAction(() => actions.openLocalTerminal(shell).then(() => undefined))
+  }
+
+  useEffect(() => {
+    const handleHostLauncherShortcut = (event: KeyboardEvent) => {
+      if (!isHostLauncherShortcut(event)) {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      openHostLauncher()
+    }
+
+    window.addEventListener('keydown', handleHostLauncherShortcut, true)
+    return () => window.removeEventListener('keydown', handleHostLauncherShortcut, true)
+  }, [openHostLauncher])
+
   return (
     <TerminalRuntimeProvider
       api={api}
@@ -460,7 +497,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         appVersion={appVersion}
         sidebarCollapsed={sidebarCollapsed}
         refreshing={refreshing}
+        actionBusy={actionBusy}
         onNavigate={setPage}
+        onOpenConnectionLauncher={openHostLauncher}
+        onOpenLocalTerminal={openLocalTerminalFromTopbar}
         onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
         onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
         onReload={() => void actions.reload()}
@@ -479,13 +519,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             actionBusy={actionBusy}
             onSelectHost={setSelectedHostId}
             onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
-            onOpenLocal={(shell) => runAction(() => actions.openLocalTerminal(shell).then(() => undefined))}
-            onCreateHost={openHostCreate}
-            onEditHost={openHostEdit}
-            onOpenFilesForHost={openFilesForHost}
-            onOpenForwardForHost={openTemporaryForwardForHost}
-            onToggleHostFavorite={(hostId) => runAction(() => actions.toggleHostFavorite(hostId))}
-            onRefreshHostReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
             onSelectSession={actions.selectSession}
             onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
             onOpenFiles={openFilesFromSession}
@@ -587,6 +620,21 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           />
         ) : null}
       </AppShell>
+      <HostLauncherModal
+        open={hostLauncherOpen}
+        data={data}
+        selectedHostId={selectedHostIdStable}
+        actionBusy={actionBusy}
+        onClose={() => setHostLauncherOpen(false)}
+        onSelectHost={setSelectedHostId}
+        onConnect={connectHostFromLauncher}
+        onCreateHost={openHostCreate}
+        onEditHost={openHostEdit}
+        onOpenFiles={openFilesForHost}
+        onOpenForward={openTemporaryForwardForHost}
+        onToggleFavorite={(hostId) => runAction(() => actions.toggleHostFavorite(hostId))}
+        onRefreshReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
+      />
       <Modal
         centered
         width={430}
@@ -671,4 +719,8 @@ function notifyForwardError(
       className: 'termous-notification',
     })
   }
+}
+
+function isHostLauncherShortcut(event: KeyboardEvent) {
+  return event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 'h'
 }

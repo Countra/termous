@@ -21,7 +21,6 @@ import {
   Send,
   Server,
   Shield,
-  Shell,
   SquareTerminal,
   Star,
   TriangleAlert,
@@ -30,7 +29,6 @@ import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tabs
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
-import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { StatusBadge } from '../../components/ui/StatusBadge'
@@ -42,11 +40,10 @@ import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalViewport } from '../terminal/TerminalViewport'
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
-import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
+import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
 import { FirewallPanel } from './FirewallPanel'
-import { HostLauncherModal } from './HostLauncherModal'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
 import { SystemMonitorPanel } from './SystemMonitorPanel'
 import {
@@ -86,13 +83,6 @@ interface WorkbenchPageProps {
   actionBusy: boolean
   onSelectHost: (hostId: string) => void
   onConnect: (hostId: string) => Promise<void>
-  onOpenLocal: (shell: LocalShell) => Promise<void>
-  onCreateHost: () => void
-  onEditHost: (hostId: string) => void
-  onOpenFilesForHost: (hostId: string) => Promise<void>
-  onOpenForwardForHost: (hostId: string) => void
-  onToggleHostFavorite: (hostId: string) => Promise<void>
-  onRefreshHostReachability: (hostIds?: string[], force?: boolean) => Promise<void>
   onSelectSession: (sessionId: string) => void
   onDisconnect: (sessionId: string) => Promise<void>
   onOpenFiles: (session: Session) => Promise<void>
@@ -111,13 +101,6 @@ export function WorkbenchPage({
   actionBusy,
   onSelectHost,
   onConnect,
-  onOpenLocal,
-  onCreateHost,
-  onEditHost,
-  onOpenFilesForHost,
-  onOpenForwardForHost,
-  onToggleHostFavorite,
-  onRefreshHostReachability,
   onSelectSession,
   onDisconnect,
   onOpenFiles,
@@ -150,7 +133,6 @@ export function WorkbenchPage({
   const workbenchGridStyle = {
     '--workbench-details-width': `${detailsPanelResize.width}px`,
   } as CSSProperties
-  const [hostLauncherOpen, setHostLauncherOpen] = useState(false)
   const tabViewportRef = useRef<HTMLDivElement>(null)
   const tabButtonRefs = useRef(new Map<string, HTMLElement>())
   const previousSessionStatusRef = useRef(new Map<string, Session['status']>())
@@ -766,21 +748,6 @@ export function WorkbenchPage({
             <h1>{t('workbench.title')}</h1>
             <p>{t('workbench.subtitle')}</p>
           </div>
-          <div className="page-actions">
-            <Button className="secondary-button" disabled={actionBusy} onClick={() => void onOpenLocal('powershell')} icon={<Shell size={16} />}>
-              {t('workbench.openPowerShell')}
-            </Button>
-            <Button className="secondary-button" disabled={actionBusy} onClick={() => void onOpenLocal('cmd')} icon={<Monitor size={16} />}>
-              {t('workbench.openCmd')}
-            </Button>
-            <ConnectionActionButton
-              disabled={actionBusy}
-              onClick={() => setHostLauncherOpen(true)}
-              icon={<Cable size={16} />}
-            >
-              {t('app.connect')}
-            </ConnectionActionButton>
-          </div>
         </div>
 
         <div className="metric-strip">
@@ -1160,21 +1127,6 @@ export function WorkbenchPage({
         </div>
       </aside>
       </section>
-      <HostLauncherModal
-        open={hostLauncherOpen}
-        data={data}
-        selectedHostId={selectedHost?.id ?? ''}
-        actionBusy={actionBusy}
-        onClose={() => setHostLauncherOpen(false)}
-        onSelectHost={onSelectHost}
-        onConnect={onConnect}
-        onCreateHost={onCreateHost}
-        onEditHost={onEditHost}
-        onOpenFiles={onOpenFilesForHost}
-        onOpenForward={onOpenForwardForHost}
-        onToggleFavorite={onToggleHostFavorite}
-        onRefreshReachability={onRefreshHostReachability}
-      />
       <Modal
         open={Boolean(renamingSessionId)}
         title={t('terminal.tabMenu.renameTitle')}

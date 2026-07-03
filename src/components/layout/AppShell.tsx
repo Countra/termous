@@ -1,7 +1,10 @@
 import {
+  Cable,
+  ChevronDown,
   DatabaseZap,
   FileCode2,
   FolderTree,
+  Monitor,
   Moon,
   PanelLeft,
   PanelLeftClose,
@@ -10,12 +13,13 @@ import {
   Route,
   Server,
   Settings,
+  Shell,
   Sun,
   TerminalSquare,
 } from 'lucide-react'
-import { Button, Tooltip } from 'antd'
+import { Button, Dropdown, Tooltip, type MenuProps } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { PageKey, ThemeMode } from '../../types/domain'
+import type { LocalShell, PageKey, ThemeMode } from '../../types/domain'
 import { WindowControls } from './WindowControls'
 
 interface AppShellProps {
@@ -24,7 +28,10 @@ interface AppShellProps {
   appVersion: string
   sidebarCollapsed: boolean
   refreshing: boolean
+  actionBusy: boolean
   onNavigate: (page: PageKey) => void
+  onOpenConnectionLauncher: () => void
+  onOpenLocalTerminal: (shell: LocalShell) => void
   onToggleTheme: () => void
   onToggleSidebar: () => void
   onReload: () => void
@@ -48,7 +55,10 @@ export function AppShell({
   appVersion,
   sidebarCollapsed,
   refreshing,
+  actionBusy,
   onNavigate,
+  onOpenConnectionLauncher,
+  onOpenLocalTerminal,
   onToggleTheme,
   onToggleSidebar,
   onReload,
@@ -60,6 +70,30 @@ export function AppShell({
   const platform = window.termous?.platform ?? 'web'
   const showWindowControls = Boolean(window.termous?.windowControls) && platform !== 'darwin'
   const pageTitle = t(`nav.${page}`)
+  const connectionMenuItems: MenuProps['items'] = [
+    {
+      key: 'host',
+      label: <TopbarConnectionMenuItem icon={<Cable size={15} />} title={t('workbench.hostLauncher.kicker')} />,
+    },
+    {
+      key: 'powershell',
+      label: <TopbarConnectionMenuItem icon={<Shell size={15} />} title={t('workbench.openPowerShell')} />,
+    },
+    {
+      key: 'cmd',
+      label: <TopbarConnectionMenuItem icon={<Monitor size={15} />} title={t('workbench.openCmd')} />,
+    },
+  ]
+
+  const handleConnectionMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'host') {
+      onOpenConnectionLauncher()
+      return
+    }
+    if (key === 'powershell' || key === 'cmd') {
+      onOpenLocalTerminal(key)
+    }
+  }
 
   return (
     <div className={`app-shell ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
@@ -124,6 +158,25 @@ export function AppShell({
             </div>
           </div>
           <div className="topbar-actions">
+            <div className="topbar-connect-group" aria-label={t('app.connect')}>
+              <Dropdown.Button
+                type="primary"
+                className="topbar-connect-dropdown-button"
+                trigger={['click']}
+                placement="bottomRight"
+                disabled={actionBusy}
+                overlayClassName="topbar-connect-dropdown"
+                menu={{ items: connectionMenuItems, onClick: handleConnectionMenuClick }}
+                icon={<ChevronDown size={15} aria-hidden="true" />}
+                onClick={onOpenConnectionLauncher}
+              >
+                <span className="topbar-connect-content">
+                  <Cable size={16} aria-hidden="true" />
+                  <span>{t('app.connect')}</span>
+                </span>
+              </Dropdown.Button>
+            </div>
+            <span className="topbar-action-divider" aria-hidden="true" />
             <Tooltip title={t('app.reload')}>
               <Button
                 type="text"
@@ -148,5 +201,14 @@ export function AppShell({
         <main className="content-frame">{children}</main>
       </div>
     </div>
+  )
+}
+
+function TopbarConnectionMenuItem({ icon, title }: { icon: JSX.Element; title: string }) {
+  return (
+    <span className="topbar-connect-menu-item">
+      <span className="topbar-connect-menu-icon">{icon}</span>
+      <span>{title}</span>
+    </span>
   )
 }

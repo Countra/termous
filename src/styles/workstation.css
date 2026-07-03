@@ -300,6 +300,150 @@
   padding-right: 0;
 }
 
+.topbar-connect-group {
+  display: inline-flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+.topbar-connect-dropdown-button {
+  --main-action-accent: color-mix(in srgb, var(--accent) 86%, #7db8ff 14%);
+  --main-action-bg: color-mix(in srgb, var(--surface-strong) 86%, #18335f 14%);
+  --main-action-bg-hover: color-mix(in srgb, var(--surface-strong) 78%, #1f4a88 22%);
+  --main-action-bg-active: color-mix(in srgb, var(--surface-strong) 92%, #14284b 8%);
+  --main-action-divider: rgb(126 181 255 / 36%);
+  --ant-button-group-border-color: var(--main-action-divider);
+}
+
+.topbar-connect-dropdown-button.ant-btn-group > .ant-btn,
+.topbar-connect-dropdown-button .ant-btn {
+  --ant-button-group-border-color: var(--main-action-divider) !important;
+  --ant-btn-compact-connect-border-color: var(--main-action-divider) !important;
+  height: 34px;
+  min-height: 34px;
+  border-color: color-mix(in srgb, var(--main-action-accent) 22%, var(--border-strong));
+  background: var(--main-action-bg);
+  color: var(--main-action-accent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    0 1px 0 rgb(0 0 0 / 14%);
+  transform: none;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    color 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.topbar-connect-dropdown-button.ant-btn-group > .ant-btn:first-child,
+.topbar-connect-dropdown-button .ant-btn:first-child {
+  min-width: 88px;
+  padding-inline: 13px 12px;
+  border-radius: 11px 0 0 11px;
+}
+
+.topbar-connect-dropdown-button.ant-btn-group > .ant-btn:last-child,
+.topbar-connect-dropdown-button .ant-btn:last-child {
+  width: 34px;
+  min-width: 34px;
+  border-radius: 0 11px 11px 0;
+  padding: 0;
+}
+
+.topbar-connect-dropdown-button.ant-btn-group > .ant-btn + .ant-btn,
+.topbar-connect-dropdown-button .ant-btn + .ant-btn {
+  border-left-color: var(--main-action-divider) !important;
+  border-inline-start-color: var(--main-action-divider) !important;
+}
+
+.topbar-connect-dropdown-button.ant-btn-group > .ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
+.topbar-connect-dropdown-button .ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  border-color: color-mix(in srgb, var(--main-action-accent) 38%, var(--border-strong));
+  background: var(--main-action-bg-hover);
+  color: color-mix(in srgb, var(--main-action-accent) 88%, #ffffff 12%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 9%),
+    0 1px 0 rgb(0 0 0 / 20%),
+    0 0 0 1px color-mix(in srgb, var(--main-action-accent) 10%, transparent);
+  transform: none;
+}
+
+.topbar-connect-dropdown-button.ant-btn-group > .ant-btn:not(:disabled):not(.ant-btn-disabled):active,
+.topbar-connect-dropdown-button .ant-btn:not(:disabled):not(.ant-btn-disabled):active {
+  background: var(--main-action-bg-active);
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 22%),
+    0 1px 0 rgb(255 255 255 / 4%);
+}
+
+.topbar-connect-dropdown-button.ant-btn-group > .ant-btn:disabled,
+.topbar-connect-dropdown-button.ant-btn-group > .ant-btn.ant-btn-disabled,
+.topbar-connect-dropdown-button .ant-btn:disabled,
+.topbar-connect-dropdown-button .ant-btn.ant-btn-disabled {
+  border-color: color-mix(in srgb, var(--border) 74%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 74%, transparent);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.topbar-connect-dropdown-button.ant-btn-group > .ant-btn:first-child:not(:last-child),
+.topbar-connect-dropdown-button.ant-btn-group > span:first-child:not(:last-child) > .ant-btn,
+.topbar-connect-dropdown-button .ant-btn:first-child:not(:last-child) {
+  border-right-color: transparent !important;
+  border-inline-end-color: transparent !important;
+}
+
+.topbar-connect-dropdown-button.ant-btn-group > .ant-btn + .ant-btn,
+.topbar-connect-dropdown-button.ant-btn-group > span + span > .ant-btn,
+.topbar-connect-dropdown-button.ant-btn-group > .ant-btn + span > .ant-btn,
+.topbar-connect-dropdown-button.ant-btn-group > span + .ant-btn,
+.topbar-connect-dropdown-button .ant-btn + .ant-btn {
+  border-left-color: transparent !important;
+  border-inline-start-color: transparent !important;
+}
+
+.topbar-connect-dropdown-button.ant-btn-group .ant-btn,
+.topbar-connect-dropdown-button.ant-btn-group .ant-btn:hover,
+.topbar-connect-dropdown-button.ant-btn-group .ant-btn:active,
+.topbar-connect-dropdown-button.ant-btn-group .ant-btn:focus,
+.topbar-connect-dropdown-button.ant-btn-group .ant-btn:focus-visible {
+  --ant-button-group-border-color: var(--main-action-divider) !important;
+  --ant-btn-compact-connect-border-color: var(--main-action-divider) !important;
+}
+
+.topbar-connect-dropdown-button.ant-btn-group .ant-btn::before,
+.topbar-connect-dropdown-button.ant-btn-group .ant-btn:hover::before,
+.topbar-connect-dropdown-button.ant-btn-group .ant-btn:active::before,
+.topbar-connect-dropdown-button.ant-btn-group .ant-btn:focus::before,
+.topbar-connect-dropdown-button.ant-btn-group .ant-btn:focus-visible::before,
+.topbar-connect-dropdown-button .ant-btn::before {
+  background: var(--main-action-divider) !important;
+  background-color: var(--main-action-divider) !important;
+}
+
+.topbar-connect-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 730;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.topbar-connect-content svg,
+.topbar-connect-dropdown-button .ant-btn:last-child svg {
+  color: currentColor;
+}
+
+.topbar-action-divider {
+  width: 1px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border-strong) 74%, transparent);
+}
+
 .icon-button.ant-btn {
   display: inline-flex;
   width: 32px;
@@ -796,6 +940,53 @@ body.is-panel-resizing * {
   background: color-mix(in srgb, var(--surface-subtle) 74%, transparent);
   color: var(--text-muted);
   box-shadow: none;
+}
+
+.topbar-connect-dropdown .ant-dropdown-menu {
+  min-width: 172px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-strong) !important;
+  padding: 6px;
+  box-shadow: var(--shadow-soft);
+}
+
+.topbar-connect-dropdown .ant-dropdown-menu-item {
+  min-height: 34px;
+  border-radius: 9px;
+  color: var(--text-secondary);
+  padding: 5px 8px !important;
+}
+
+.topbar-connect-dropdown .ant-dropdown-menu-item:hover,
+.topbar-connect-dropdown .ant-dropdown-menu-item-active {
+  background: color-mix(in srgb, var(--surface-subtle) 88%, var(--accent) 6%) !important;
+  color: var(--text-primary);
+}
+
+.topbar-connect-dropdown .ant-dropdown-menu-title-content {
+  min-width: 0;
+}
+
+.topbar-connect-menu-item {
+  display: inline-flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.topbar-connect-menu-icon {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-muted) 82%, var(--accent) 8%);
+  color: var(--accent);
 }
 
 .host-launcher-modal .ant-modal-content {
@@ -2757,6 +2948,21 @@ body.is-panel-resizing * {
   --main-action-bg: color-mix(in srgb, #f8fbff 78%, var(--accent) 8%);
   --main-action-bg-hover: color-mix(in srgb, #eef6ff 78%, var(--accent) 12%);
   --main-action-bg-active: color-mix(in srgb, #e5f0fb 82%, var(--accent) 8%);
+  border-color: color-mix(in srgb, var(--main-action-accent) 20%, rgb(30 42 58 / 14%));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 82%),
+    0 1px 0 rgb(30 44 64 / 6%);
+}
+
+:root[data-theme="light"] .topbar-connect-dropdown-button {
+  --main-action-bg: color-mix(in srgb, #f8fbff 78%, var(--accent) 8%);
+  --main-action-bg-hover: color-mix(in srgb, #eef6ff 78%, var(--accent) 12%);
+  --main-action-bg-active: color-mix(in srgb, #e5f0fb 82%, var(--accent) 8%);
+  --main-action-divider: rgb(88 145 224 / 24%);
+}
+
+:root[data-theme="light"] .topbar-connect-dropdown-button.ant-btn-group > .ant-btn,
+:root[data-theme="light"] .topbar-connect-dropdown-button .ant-btn {
   border-color: color-mix(in srgb, var(--main-action-accent) 20%, rgb(30 42 58 / 14%));
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 82%),
