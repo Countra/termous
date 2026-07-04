@@ -60,12 +60,6 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
   return (
     <section className="page-grid management-grid">
       <div className="list-panel">
-        <div className="page-title-row compact-title">
-          <div>
-            <h1>{t('vault.title')}</h1>
-            <p>{t('vault.subtitle')}</p>
-          </div>
-        </div>
         <Segmented
           block
           className="segmented-control"
@@ -94,7 +88,7 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
         </div>
         {filtered.length === 0 ? (
           <div className="management-empty-slot">
-            <EmptyState title={t('app.empty')} description={t('vault.subtitle')} />
+            <EmptyState title={t('app.empty')} />
           </div>
         ) : (
           <div className="data-list credential-list">

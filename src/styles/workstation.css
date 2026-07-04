@@ -3772,11 +3772,35 @@ body.is-terminal-tab-dragging * {
 .host-filter-panel {
   display: grid;
   gap: 9px;
-  margin-top: 12px;
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface-subtle) 70%, transparent);
   padding: 10px;
+}
+
+.host-filter-panel.is-empty {
+  gap: 0;
+}
+
+.host-filter-primary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.host-filter-primary-row .host-search-input.ant-input-affix-wrapper {
+  min-width: 0;
+}
+
+.host-add-action.ant-btn {
+  min-width: 132px;
+  height: 38px;
+  white-space: nowrap;
+}
+
+.host-filter-panel + .management-empty-slot {
+  padding-top: 14px;
 }
 
 .host-search-input.ant-input-affix-wrapper {

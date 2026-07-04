@@ -928,9 +928,7 @@ export function FilesPage({
         groups={data.groups}
         selectedHostId={selectedHostIdStable}
         collapsed={hostPanelCollapsed}
-        title={t('files.title')}
         collapsedTitle={t('nav.files')}
-        subtitle={t('files.subtitle')}
         emptyDescription={t('files.noHostHint')}
         searchPlaceholder={t('files.hostSearch')}
         className="files-host-context-panel"

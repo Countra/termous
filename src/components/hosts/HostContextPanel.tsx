@@ -12,7 +12,7 @@ interface HostContextPanelProps {
   groups: HostGroup[]
   selectedHostId?: string
   collapsed: boolean
-  title: string
+  title?: string
   collapsedTitle: string
   subtitle?: string
   emptyDescription: string
@@ -69,6 +69,7 @@ export function HostContextPanel({
     )
   }, [contentCollapsed, hosts, query])
   const groupedHosts = useMemo(() => groupHosts(visibleHosts, groups), [groups, visibleHosts])
+  const showHeading = contentCollapsed || Boolean(title || subtitle)
 
   return (
     <aside
@@ -88,12 +89,14 @@ export function HostContextPanel({
           icon={collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
         />
       </Tooltip>
-      <div className="panel-heading">
-        <div className="panel-title-copy">
-          <h2>{contentCollapsed ? collapsedTitle : title}</h2>
-          {!contentCollapsed && subtitle ? <span>{subtitle}</span> : null}
+      {showHeading ? (
+        <div className="panel-heading">
+          <div className="panel-title-copy">
+            <h2>{contentCollapsed ? collapsedTitle : title}</h2>
+            {!contentCollapsed && subtitle ? <span>{subtitle}</span> : null}
+          </div>
         </div>
-      </div>
+      ) : null}
       {!contentCollapsed && searchPlaceholder ? (
         <Input
           id="host-context-search"

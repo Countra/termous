@@ -498,8 +498,6 @@ export const resources = {
         },
       },
       hosts: {
-        title: '主机管理',
-        subtitle: '管理 SSH 主机、分组、标签和凭据引用',
         addHost: '新增主机',
         batchEdit: '批量编辑',
         editor: '主机编辑器',
@@ -555,8 +553,6 @@ export const resources = {
         tagsPlaceholder: '输入标签后回车',
       },
       vault: {
-        title: '凭据库',
-        subtitle: '保存密码、私钥和私钥口令，主机只引用凭据 ID',
         addCredential: '新增凭据',
         importKey: '导入私钥',
         generateKey: '生成密钥',
@@ -584,8 +580,6 @@ export const resources = {
         memory: '连接结束后清理明文',
       },
       files: {
-        title: '远程文件',
-        subtitle: '浏览、上传、下载和管理远程 SFTP 文件',
         hostSearch: '搜索主机',
         connect: '连接',
         reconnect: '重新连接',
@@ -1358,8 +1352,6 @@ export const resources = {
         },
       },
       hosts: {
-        title: 'Host Management',
-        subtitle: 'Manage SSH hosts, groups, tags, and credential references',
         addHost: 'Add host',
         batchEdit: 'Batch edit',
         editor: 'Host editor',
@@ -1415,8 +1407,6 @@ export const resources = {
         tagsPlaceholder: 'Type a tag and press Enter',
       },
       vault: {
-        title: 'Credential Vault',
-        subtitle: 'Store passwords, private keys, and key passphrases. Hosts only reference credential IDs.',
         addCredential: 'Add credential',
         importKey: 'Import private key',
         generateKey: 'Generate key',
@@ -1444,8 +1434,6 @@ export const resources = {
         memory: 'Plaintext is cleared after connection',
       },
       files: {
-        title: 'Remote Files',
-        subtitle: 'Browse, upload, download, and manage remote SFTP files',
         hostSearch: 'Search hosts',
         connect: 'Connect',
         reconnect: 'Reconnect',

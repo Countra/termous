@@ -257,42 +257,32 @@ export function HostsPage({
     })
   }
 
+  const startCreateHost = () => {
+    setEditingId(null)
+    setForm({ ...systemHost, tags: [] })
+  }
+
   return (
     <section className="page-grid management-grid">
       <div className="list-panel">
-        <div className="page-title-row compact-title">
-          <div>
-            <h1>{t('hosts.title')}</h1>
-            <p>{t('hosts.subtitle')}</p>
+        <div className={`host-filter-panel ${data.hosts.length === 0 ? 'is-empty' : ''}`}>
+          <div className="host-filter-primary-row">
+            <Input
+              className="host-search-input termous-search-input"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              allowClear
+              disabled={data.hosts.length === 0}
+              variant="borderless"
+              prefix={<Search size={15} aria-hidden="true" />}
+              placeholder={t('hosts.searchPlaceholder')}
+            />
+            <ConnectionActionButton className="host-add-action" onClick={startCreateHost} disabled={actionBusy} icon={<Plus size={16} />}>
+              {t('hosts.addHost')}
+            </ConnectionActionButton>
           </div>
-        </div>
-        <div className="toolbar-row">
-          <ConnectionActionButton
-            onClick={() => {
-              setEditingId(null)
-              setForm({ ...systemHost, tags: [] })
-            }}
-            icon={<Plus size={16} />}
-          >
-            {t('hosts.addHost')}
-          </ConnectionActionButton>
-        </div>
-        {data.hosts.length === 0 ? (
-          <div className="management-empty-slot">
-            <EmptyState title={t('app.empty')} description={t('hosts.subtitle')} />
-          </div>
-        ) : (
-          <>
-            <div className="host-filter-panel">
-              <Input
-                className="host-search-input termous-search-input"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                allowClear
-                variant="borderless"
-                prefix={<Search size={15} aria-hidden="true" />}
-                placeholder={t('hosts.searchPlaceholder')}
-              />
+          {data.hosts.length > 0 ? (
+            <>
               <div className="host-filter-meta">
                 <span>{t('hosts.filterResult', { count: filteredHosts.length, total: data.hosts.length })}</span>
                 {hasFilters ? (
@@ -322,7 +312,15 @@ export function HostsPage({
                   ))}
                 </div>
               ) : null}
-            </div>
+            </>
+          ) : null}
+        </div>
+        {data.hosts.length === 0 ? (
+          <div className="management-empty-slot">
+            <EmptyState title={t('app.empty')} />
+          </div>
+        ) : (
+          <>
             {filteredHosts.length === 0 ? (
               <div className="management-empty-slot is-filtered">
                 <EmptyState title={t('hosts.noFilterResults')} description={t('hosts.noFilterResultsHint')} />
