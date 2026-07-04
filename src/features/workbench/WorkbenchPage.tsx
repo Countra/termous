@@ -52,7 +52,7 @@ import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
-import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, HostReachability, Session, ThemeMode } from '../../types/domain'
+import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
 import { FirewallPanel } from './FirewallPanel'
@@ -1114,7 +1114,6 @@ export function WorkbenchPage({
 	                      hosts={quickConnectHosts}
 	                      totalCount={data.hosts.length}
 	                      query={quickConnectQuery}
-	                      reachabilityByHostId={data.hostReachability}
 	                      actionBusy={actionBusy}
 	                      onQueryChange={setQuickConnectQuery}
 	                      onConnect={connectQuickHost}
@@ -1460,7 +1459,6 @@ function QuickConnectHostPanel({
   hosts,
   totalCount,
   query,
-  reachabilityByHostId,
   actionBusy,
   onQueryChange,
   onConnect,
@@ -1468,7 +1466,6 @@ function QuickConnectHostPanel({
   hosts: Host[]
   totalCount: number
   query: string
-  reachabilityByHostId: Record<string, HostReachability>
   actionBusy: boolean
   onQueryChange: (value: string) => void
   onConnect: (hostId: string) => Promise<void>
@@ -1498,48 +1495,36 @@ function QuickConnectHostPanel({
         {hosts.length === 0 ? (
           <div className="session-quick-connect-empty">{emptyTitle}</div>
         ) : (
-          hosts.map((host) => {
-            const reachability = reachabilityByHostId[host.id]
-            return (
-              <button
-                key={host.id}
-                type="button"
-                className="session-quick-connect-row"
-                role="option"
-                disabled={actionBusy}
-                onClick={() => void onConnect(host.id)}
-              >
-                <QuickHostReachabilityDot state={reachability} />
-                <span className="session-quick-connect-copy">
-                  <strong>
-                    {host.name}
-                    {host.favorite ? <Star size={12} aria-label={t('workbench.hostLauncher.favorite')} /> : null}
-                  </strong>
-                  <small>{host.username}@{host.address}:{host.port}</small>
-                </span>
-                <span className="session-quick-connect-meta">
-                  <AuthMethodBadge method={host.auth_method} compact />
-                </span>
-              </button>
-            )
-          })
+          hosts.map((host) => (
+            <button
+              key={host.id}
+              type="button"
+              className="session-quick-connect-row"
+              role="option"
+              disabled={actionBusy}
+              onClick={() => void onConnect(host.id)}
+            >
+              <span className="session-quick-connect-host-icon" aria-hidden="true">
+                <Server size={15} />
+              </span>
+              <span className="session-quick-connect-copy">
+                <strong>
+                  {host.name}
+                  {host.favorite ? <Star size={12} aria-label={t('workbench.hostLauncher.favorite')} /> : null}
+                </strong>
+                <small>{host.username}@{host.address}:{host.port}</small>
+              </span>
+              <span className="session-quick-connect-meta">
+                <AuthMethodBadge method={host.auth_method} compact />
+              </span>
+            </button>
+          ))
         )}
       </div>
       <footer className="session-quick-connect-footer">
         <small>{t('workbench.quickConnect.count', { count: totalCount })}</small>
       </footer>
     </section>
-  )
-}
-
-function QuickHostReachabilityDot({ state }: { state?: HostReachability }) {
-  const { t } = useTranslation()
-  const status = state?.status ?? 'unknown'
-
-  return (
-    <Tooltip title={quickReachabilityTooltip(state, t)}>
-      <span className={`session-quick-connect-dot is-${status}`} aria-label={quickReachabilityTooltip(state, t)} />
-    </Tooltip>
   )
 }
 
@@ -1580,20 +1565,6 @@ function readHostConnectedAt(host: Host) {
   }
   const value = new Date(host.last_connected_at).getTime()
   return Number.isNaN(value) ? 0 : value
-}
-
-function quickReachabilityTooltip(
-  state: HostReachability | undefined,
-  t: (key: string, options?: Record<string, string | number>) => string,
-) {
-  const status = state?.status ?? 'unknown'
-  if (status === 'online' && state?.latency_ms !== undefined) {
-    return t('workbench.hostLauncher.reachabilityTooltip.online', { latency: state.latency_ms })
-  }
-  if ((status === 'offline' || status === 'unavailable') && state?.error_message) {
-    return state.error_message
-  }
-  return t(`workbench.hostLauncher.reachabilityTooltip.${status}`)
 }
 
 function StatusItem({ label, value, className }: { label: string; value: string; className?: string }) {

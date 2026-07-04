@@ -2445,7 +2445,7 @@ body.is-panel-resizing * {
   display: grid;
   min-width: 0;
   min-height: 52px;
-  grid-template-columns: 12px minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   border: 1px solid var(--quick-connect-border);
@@ -2478,29 +2478,16 @@ body.is-panel-resizing * {
   opacity: 0.58;
 }
 
-.session-quick-connect-dot {
-  display: block;
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  background: var(--text-muted);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--text-muted) 12%, transparent);
-}
-
-.session-quick-connect-dot.is-online {
-  background: var(--success);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 14%, transparent);
-}
-
-.session-quick-connect-dot.is-checking {
-  background: var(--warning);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--warning) 16%, transparent);
-}
-
-.session-quick-connect-dot.is-offline,
-.session-quick-connect-dot.is-unavailable {
-  background: var(--text-muted);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--text-muted) 12%, transparent);
+.session-quick-connect-host-icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--quick-connect-border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--quick-connect-row-bg));
+  color: var(--accent);
 }
 
 .session-quick-connect-copy {
