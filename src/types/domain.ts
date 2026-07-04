@@ -35,6 +35,15 @@ export interface TerminalFont {
   created_at?: string
 }
 
+export interface HostIcon {
+  id: string
+  file_name: string
+  mime_type: string
+  size_bytes: number
+  sha256: string
+  created_at: string
+}
+
 export interface RemoteFileEntry {
   name: string
   path: string
@@ -521,6 +530,7 @@ export interface Host {
   id: string
   name: string
   platform: HostPlatform
+  icon_id?: string
   group_id: string
   address: string
   port: number
@@ -738,6 +748,7 @@ export interface CoreFatalEvent {
 export interface HostInput {
   name: string
   platform: HostPlatform
+  icon_id: string
   group_id: string
   address: string
   port: number

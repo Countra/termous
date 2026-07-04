@@ -17,7 +17,7 @@ import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostGroup, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
+import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -378,6 +378,24 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
+  const uploadHostIcon = async (file: File): Promise<HostIcon> => {
+    try {
+      return await actions.uploadHostIcon(file)
+    } catch (actionError) {
+      showActionError(actionError)
+      throw actionError
+    }
+  }
+
+  const deleteHostIcon = async (id: string) => {
+    try {
+      await actions.deleteHostIcon(id)
+    } catch (actionError) {
+      showActionError(actionError)
+      throw actionError
+    }
+  }
+
   const shutdownBeforeClose = async () => {
     if (window.termous?.core) {
       await window.termous.core.shutdown()
@@ -542,6 +560,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onDelete={(id) => runAction(() => actions.deleteHost(id))}
             onImport={() => runAction(() => actions.importSSHConfig().then(() => undefined), t('hosts.importAccepted'))}
             onCreateGroup={createHostGroup}
+            onUploadHostIcon={uploadHostIcon}
+            onDeleteHostIcon={deleteHostIcon}
+            getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
           />
         ) : null}
 
@@ -636,6 +657,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         onOpenForward={openTemporaryForwardForHost}
         onToggleFavorite={(hostId) => runAction(() => actions.toggleHostFavorite(hostId))}
         onRefreshReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
+        getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
       />
       <Modal
         centered

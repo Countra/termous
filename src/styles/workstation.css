@@ -1440,7 +1440,7 @@ body.is-panel-resizing * {
   position: relative;
   display: grid;
   width: 100%;
-  grid-template-columns: 14px minmax(0, 1fr) auto;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
@@ -1454,6 +1454,25 @@ body.is-panel-resizing * {
     background 0.14s ease,
     border-color 0.14s ease,
     color 0.14s ease;
+}
+
+.host-launcher-row-avatar-wrap {
+  position: relative;
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+}
+
+.host-launcher-row-avatar-wrap .host-reachability-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -1px;
+  width: 8px;
+  height: 8px;
+  box-shadow:
+    0 0 0 2px var(--surface-elevated),
+    0 0 0 5px color-mix(in srgb, currentColor 8%, transparent);
 }
 
 .host-launcher-row:hover {
@@ -1558,6 +1577,12 @@ body.is-panel-resizing * {
 }
 
 .host-launcher-hero-icon {
+  --host-avatar-radius: 15px;
+  --host-avatar-border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+  --host-avatar-bg-local:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 15%, transparent), transparent),
+    color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+  --host-avatar-color: color-mix(in srgb, var(--accent) 70%, var(--text-primary));
   display: grid;
   width: 58px;
   height: 58px;
@@ -2479,6 +2504,9 @@ body.is-panel-resizing * {
 }
 
 .session-quick-connect-host-icon {
+  --host-avatar-radius: 9px;
+  --host-avatar-border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--quick-connect-border));
+  --host-avatar-bg-local: color-mix(in srgb, var(--accent) 10%, var(--quick-connect-row-bg));
   display: inline-flex;
   width: 28px;
   height: 28px;
@@ -3866,6 +3894,8 @@ body.is-terminal-tab-dragging * {
 }
 
 .host-row-tooltip-icon {
+  --host-avatar-radius: 10px;
+  --host-avatar-bg-local: var(--host-avatar-bg);
   display: inline-grid;
   width: 34px;
   height: 34px;
@@ -4018,14 +4048,39 @@ body.is-terminal-tab-dragging * {
 }
 
 .host-avatar {
-  width: 30px;
-  height: 30px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--host-avatar-bg);
+  --host-avatar-size: 30px;
+  --host-avatar-radius: 8px;
+  --host-avatar-border: 0;
+  --host-avatar-bg-local: var(--host-avatar-bg);
+  --host-avatar-color: var(--accent);
+  display: inline-grid;
+  width: var(--host-avatar-size);
+  height: var(--host-avatar-size);
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: var(--host-avatar-border);
+  border-radius: var(--host-avatar-radius);
+  background: var(--host-avatar-bg-local);
+  color: var(--host-avatar-color);
+}
+
+.host-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.host-avatar.has-custom-icon {
+  --host-avatar-border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  --host-avatar-bg-local: color-mix(in srgb, var(--surface-elevated) 82%, transparent);
 }
 
 .row-icon {
+  --host-avatar-size: 32px;
+  --host-avatar-radius: 8px;
+  --host-avatar-bg-local: var(--host-avatar-bg);
   display: grid;
   width: 32px;
   height: 32px;
@@ -4449,6 +4504,9 @@ body.is-terminal-tab-dragging * {
 }
 
 .connection-overview-icon {
+  --host-avatar-radius: 12px;
+  --host-avatar-border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  --host-avatar-bg-local: color-mix(in srgb, var(--accent) 14%, var(--surface-subtle));
   display: grid;
   width: 42px;
   height: 42px;
@@ -4818,6 +4876,63 @@ body.is-terminal-tab-dragging * {
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 760;
+}
+
+.host-icon-editor {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.host-icon-preview {
+  --host-avatar-radius: 14px;
+  --host-avatar-border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  --host-avatar-bg-local:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent),
+    color-mix(in srgb, var(--surface-elevated) 82%, transparent);
+}
+
+.host-icon-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.host-icon-copy h3,
+.host-icon-copy p {
+  margin: 0;
+}
+
+.host-icon-copy p,
+.host-icon-copy small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-icon-remove.ant-btn {
+  height: 34px;
+  padding-inline: 8px;
+  color: var(--text-muted);
+}
+
+.host-icon-remove.ant-btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--surface-strong) 58%, transparent);
+  color: var(--text-primary);
+}
+
+.visually-hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .auth-choice-grid,

@@ -4,6 +4,7 @@ export function hostToInput(host: Host): HostInput {
   return {
     name: host.name,
     platform: host.platform ?? 'linux',
+    icon_id: host.icon_id ?? '',
     group_id: host.group_id,
     address: host.address,
     port: host.port,

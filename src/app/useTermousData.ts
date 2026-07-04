@@ -185,6 +185,12 @@ export function useTermousData() {
           terminalFonts: terminalFonts ?? current.terminalFonts.filter((font) => font.id !== id),
         }))
       },
+      async uploadHostIcon(file: File) {
+        return api.uploadHostIcon(file)
+      },
+      async deleteHostIcon(id: string) {
+        await api.deleteHostIcon(id)
+      },
       async createCodeSnippet(input: CodeSnippetInput) {
         const snippet = await api.createCodeSnippet(input)
         setData((current) => ({ ...current, snippets: upsertCodeSnippet(current.snippets, snippet) }))

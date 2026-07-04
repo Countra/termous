@@ -1,12 +1,13 @@
-import { FileInput, KeyRound, Pencil, Plus, Search, Server, Trash2, X } from 'lucide-react'
-import { Button, Input, InputNumber, Popconfirm, Select, Tag } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { FileInput, ImagePlus, KeyRound, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { App as AntdApp, Button, Input, InputNumber, Popconfirm, Select, Tag } from 'antd'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
-import type { AppData, AuthMethod, HostGroup, HostInput } from '../../types/domain'
+import type { AppData, AuthMethod, HostGroup, HostIcon, HostInput } from '../../types/domain'
 import { hostToInput } from './hostInput'
 
 interface HostsPageProps {
@@ -19,11 +20,15 @@ interface HostsPageProps {
   onDelete: (id: string) => Promise<void>
   onImport: () => Promise<void>
   onCreateGroup: (name: string) => Promise<HostGroup>
+  onUploadHostIcon: (file: File) => Promise<HostIcon>
+  onDeleteHostIcon: (id: string) => Promise<void>
+  getHostIconUrl: (iconId: string) => string
 }
 
 const blankHost: HostInput = {
   name: '',
   platform: 'linux',
+  icon_id: '',
   group_id: '',
   address: '',
   port: 22,
@@ -38,6 +43,8 @@ const blankHost: HostInput = {
 }
 
 const systemHost: HostInput = { ...blankHost, auth_method: 'system', credential_id: '' }
+const hostIconAccept = '.png,.jpg,.jpeg,.svg,.ico,image/png,image/jpeg,image/svg+xml,image/x-icon,image/vnd.microsoft.icon'
+const maxHostIconBytes = 5 * 1024 * 1024
 
 interface HostTagOption {
   key: string
@@ -45,11 +52,30 @@ interface HostTagOption {
   count: number
 }
 
-export function HostsPage({ data, selectedHostId, createIntentKey = 0, actionBusy, onSelectHost, onSave, onDelete, onImport, onCreateGroup }: HostsPageProps) {
+export function HostsPage({
+  data,
+  selectedHostId,
+  createIntentKey = 0,
+  actionBusy,
+  onSelectHost,
+  onSave,
+  onDelete,
+  onImport,
+  onCreateGroup,
+  onUploadHostIcon,
+  onDeleteHostIcon,
+  getHostIconUrl,
+}: HostsPageProps) {
   const { t } = useTranslation()
+  const { message } = AntdApp.useApp()
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId)
   const [editingId, setEditingId] = useState<string | null>(selectedHost?.id ?? null)
   const [form, setForm] = useState<HostInput>({ ...blankHost, tags: [] })
+  const iconFileInputRef = useRef<HTMLInputElement>(null)
+  const pendingIconIdRef = useRef('')
+  const deleteHostIconRef = useRef(onDeleteHostIcon)
+  const [, setPendingIconId] = useState('')
+  const [uploadingIcon, setUploadingIcon] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [groupCreatorOpen, setGroupCreatorOpen] = useState(false)
@@ -57,21 +83,45 @@ export function HostsPage({ data, selectedHostId, createIntentKey = 0, actionBus
   const [creatingGroup, setCreatingGroup] = useState(false)
 
   useEffect(() => {
+    deleteHostIconRef.current = onDeleteHostIcon
+  }, [onDeleteHostIcon])
+
+  useEffect(() => () => {
+    const iconId = pendingIconIdRef.current
+    if (iconId) {
+      void deleteHostIconRef.current(iconId).catch(() => undefined)
+    }
+  }, [])
+
+  useEffect(() => {
+    const pendingUploadIconId = pendingIconIdRef.current
+    if (pendingUploadIconId) {
+      pendingIconIdRef.current = ''
+      void deleteHostIconRef.current(pendingUploadIconId).catch(() => undefined)
+    }
     if (!selectedHost) {
       setEditingId(null)
       setForm({ ...blankHost, tags: [] })
+      setPendingIconId('')
       return
     }
     setEditingId(selectedHost.id)
     setForm({ ...hostToInput(selectedHost), tags: normalizeHostTags(selectedHost.tags ?? []) })
+    setPendingIconId('')
   }, [selectedHost])
 
   useEffect(() => {
+    const pendingUploadIconId = pendingIconIdRef.current
+    if (pendingUploadIconId) {
+      pendingIconIdRef.current = ''
+      void deleteHostIconRef.current(pendingUploadIconId).catch(() => undefined)
+    }
     if (createIntentKey <= 0) {
       return
     }
     setEditingId(null)
     setForm({ ...systemHost, tags: [] })
+    setPendingIconId('')
   }, [createIntentKey])
 
   const groupOptions = useMemo(
@@ -125,6 +175,50 @@ export function HostsPage({ data, selectedHostId, createIntentKey = 0, actionBus
   const save = async () => {
     const input = { ...form, tags: normalizeHostTags(form.tags) }
     await onSave(editingId, input)
+    pendingIconIdRef.current = ''
+    setPendingIconId('')
+  }
+
+  const uploadIcon = async (file: File) => {
+    const validationMessage = validateHostIconFile(file, t)
+    if (validationMessage) {
+      void message.warning(validationMessage)
+      return
+    }
+    setUploadingIcon(true)
+    try {
+      const uploaded = await onUploadHostIcon(file)
+      const previousPendingIconId = pendingIconIdRef.current
+      setForm((current) => ({ ...current, icon_id: uploaded.id }))
+      pendingIconIdRef.current = uploaded.id
+      setPendingIconId(uploaded.id)
+      if (previousPendingIconId && previousPendingIconId !== uploaded.id) {
+        try {
+          await onDeleteHostIcon(previousPendingIconId)
+        } catch {
+          // 临时 icon 清理失败不阻塞主机编辑，后端仍会按引用保护处理。
+        }
+      }
+    } finally {
+      setUploadingIcon(false)
+      if (iconFileInputRef.current) {
+        iconFileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const removeIcon = async () => {
+    const iconId = form.icon_id
+    setForm((current) => ({ ...current, icon_id: '' }))
+    if (iconId && iconId === pendingIconIdRef.current) {
+      pendingIconIdRef.current = ''
+      setPendingIconId('')
+      try {
+        await onDeleteHostIcon(iconId)
+      } catch {
+        // 临时 icon 可能已被其他主机复用或被清理，移除表单引用即可。
+      }
+    }
   }
 
   const createGroup = async () => {
@@ -247,9 +341,7 @@ export function HostsPage({ data, selectedHostId, createIntentKey = 0, actionBus
                     className={`data-row ${host.id === selectedHostId ? 'is-active' : ''}`}
                     onClick={() => onSelectHost(host.id)}
                   >
-                    <span className="row-icon">
-                      <Server size={16} aria-hidden="true" />
-                    </span>
+                    <HostAvatar host={host} getIconUrl={getHostIconUrl} className="row-icon" size={32} iconSize={16} />
                     <span className="row-copy">
                       <strong>{host.name}</strong>
                       <small>{host.username}@{host.address}:{host.port}</small>
@@ -281,6 +373,53 @@ export function HostsPage({ data, selectedHostId, createIntentKey = 0, actionBus
           <Pencil size={18} aria-hidden="true" />
         </div>
         <div className="editor-sections">
+          <section className="form-section host-icon-section">
+            <div className="host-icon-editor">
+              <HostAvatar
+                host={{ name: form.name || t('hosts.icon.defaultName'), icon_id: form.icon_id }}
+                getIconUrl={getHostIconUrl}
+                className="host-icon-preview"
+                size={52}
+                iconSize={24}
+              />
+              <div className="host-icon-copy">
+                <h3>{t('hosts.icon.title')}</h3>
+                <p>{t('hosts.icon.hint')}</p>
+                <small>{t('hosts.icon.formats')}</small>
+              </div>
+              <input
+                id="host-icon-upload"
+                name="host-icon-upload"
+                ref={iconFileInputRef}
+                type="file"
+                accept={hostIconAccept}
+                className="visually-hidden-input"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) {
+                    void uploadIcon(file)
+                  }
+                }}
+              />
+              <Button
+                className="secondary-button host-icon-upload"
+                icon={<ImagePlus size={15} />}
+                loading={uploadingIcon}
+                disabled={actionBusy}
+                onClick={() => iconFileInputRef.current?.click()}
+              >
+                {t('hosts.icon.upload')}
+              </Button>
+              <Button
+                type="text"
+                className="host-icon-remove"
+                disabled={!form.icon_id || actionBusy || uploadingIcon}
+                onClick={() => void removeIcon()}
+              >
+                {t('hosts.icon.remove')}
+              </Button>
+            </div>
+          </section>
           <section className="form-section">
             <h3>{t('hosts.list')}</h3>
             <div className="form-grid">
@@ -456,6 +595,20 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
       <InputNumber min={1} max={65535} value={value} onChange={onChange} />
     </label>
   )
+}
+
+function validateHostIconFile(file: File, t: (key: string) => string) {
+  if (file.size <= 0) {
+    return t('hosts.icon.emptyFile')
+  }
+  if (file.size > maxHostIconBytes) {
+    return t('hosts.icon.tooLarge')
+  }
+  const name = file.name.toLowerCase()
+  if (!['.png', '.jpg', '.jpeg', '.svg', '.ico'].some((extension) => name.endsWith(extension))) {
+    return t('hosts.icon.invalidType')
+  }
+  return ''
 }
 
 function normalizeSearchToken(value: string) {

@@ -24,6 +24,7 @@ import type {
   ForwardStartRequest,
   Host,
   HostGroup,
+  HostIcon,
   HostInput,
   HostReachability,
   KnownHost,
@@ -93,6 +94,17 @@ export class TermousApi {
 
   terminalFontFileUrl(id: string, sha256?: string) {
     const url = new URL(`/api/v1/terminal-fonts/${encodeURIComponent(id)}/file`, this.config.apiBaseUrl)
+    if (this.config.apiToken) {
+      url.searchParams.set('token', this.config.apiToken)
+    }
+    if (sha256) {
+      url.searchParams.set('sha256', sha256)
+    }
+    return url.toString()
+  }
+
+  hostIconFileUrl(id: string, sha256?: string) {
+    const url = new URL(`/api/v1/host-icons/${encodeURIComponent(id)}/file`, this.config.apiBaseUrl)
     if (this.config.apiToken) {
       url.searchParams.set('token', this.config.apiToken)
     }
@@ -227,6 +239,19 @@ export class TermousApi {
 
   deleteTerminalFont(id: string) {
     return this.request<void>(`/api/v1/terminal-fonts/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  uploadHostIcon(file: File) {
+    const body = new FormData()
+    body.append('file', file, file.name)
+    return this.request<HostIcon>('/api/v1/host-icons', {
+      method: 'POST',
+      body,
+    })
+  }
+
+  deleteHostIcon(id: string) {
+    return this.request<void>(`/api/v1/host-icons/${encodeURIComponent(id)}`, { method: 'DELETE' })
   }
 
   hostGroups() {

@@ -10,7 +10,6 @@ import {
   Globe2,
   KeyRound,
   ListFilter,
-  Monitor,
   Network,
   Plus,
   RefreshCcw,
@@ -23,6 +22,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { EmptyState } from '../../components/ui/EmptyState'
@@ -47,6 +47,7 @@ interface HostLauncherModalProps {
   onOpenForward: (hostId: string) => void
   onToggleFavorite: (hostId: string) => Promise<void>
   onRefreshReachability: (hostIds?: string[], force?: boolean) => Promise<void>
+  getHostIconUrl: (iconId: string) => string
 }
 
 export function HostLauncherModal({
@@ -63,6 +64,7 @@ export function HostLauncherModal({
   onOpenForward,
   onToggleFavorite,
   onRefreshReachability,
+  getHostIconUrl,
 }: HostLauncherModalProps) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
@@ -446,7 +448,10 @@ export function HostLauncherModal({
                               onClick={() => onSelectHost(host.id)}
                               onDoubleClick={() => void connectHost(host.id)}
                             >
-                              <HostReachabilityDot state={data.hostReachability[host.id]} />
+                              <span className="host-launcher-row-avatar-wrap">
+                                <HostAvatar host={host} getIconUrl={getHostIconUrl} className="host-launcher-row-avatar" size={30} iconSize={15} />
+                                <HostReachabilityDot state={data.hostReachability[host.id]} />
+                              </span>
                               <span className="host-launcher-row-copy">
                                 <strong>
                                   {host.name}
@@ -477,9 +482,13 @@ export function HostLauncherModal({
               <>
                 <h3 className="host-launcher-overview-title">{t('workbench.hostLauncher.overview')}</h3>
                 <div className="host-launcher-hero">
-                  <span className={`host-launcher-hero-icon is-${selectedReachability?.status ?? 'unknown'}`}>
-                    <Monitor size={34} aria-hidden="true" />
-                  </span>
+                  <HostAvatar
+                    host={selectedHost}
+                    getIconUrl={getHostIconUrl}
+                    className={`host-launcher-hero-icon is-${selectedReachability?.status ?? 'unknown'}`}
+                    size={58}
+                    iconSize={34}
+                  />
                   <div className="host-launcher-hero-copy">
                     <div className="host-launcher-hero-title">
                       <h4>{selectedHost.name}</h4>

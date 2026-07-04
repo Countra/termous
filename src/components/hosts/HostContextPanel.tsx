@@ -1,10 +1,11 @@
 import { Button, Input, Tooltip } from 'antd'
-import { ChevronLeft, ChevronRight, KeyRound, MapPin, Search, Server, Tags, UserRound } from 'lucide-react'
+import { ChevronLeft, ChevronRight, KeyRound, MapPin, Search, Tags, UserRound } from 'lucide-react'
 import { useEffect, useMemo, useState, type PointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Host, HostGroup } from '../../types/domain'
 import { AuthMethodBadge } from '../ui/AuthMethodBadge'
 import { EmptyState } from '../ui/EmptyState'
+import { HostAvatar } from './HostAvatar'
 
 interface HostContextPanelProps {
   hosts: Host[]
@@ -21,6 +22,7 @@ interface HostContextPanelProps {
   onToggleCollapsed: () => void
   onResizePointerDown?: (event: PointerEvent<HTMLButtonElement>) => void
   shouldSuppressToggleClick?: () => boolean
+  getHostIconUrl?: (iconId: string) => string
   onSelectHost: (hostId: string) => void
 }
 
@@ -41,6 +43,7 @@ export function HostContextPanel({
   onToggleCollapsed,
   onResizePointerDown,
   shouldSuppressToggleClick,
+  getHostIconUrl,
   onSelectHost,
 }: HostContextPanelProps) {
   const { t } = useTranslation()
@@ -126,6 +129,7 @@ export function HostContextPanel({
                   host={host}
                   active={host.id === selectedHostId}
                   collapsed={contentCollapsed}
+                  getHostIconUrl={getHostIconUrl}
                   onSelect={() => onSelectHost(host.id)}
                 />
               ))}
@@ -141,11 +145,13 @@ function HostRow({
   host,
   active,
   collapsed,
+  getHostIconUrl,
   onSelect,
 }: {
   host: Host
   active: boolean
   collapsed: boolean
+  getHostIconUrl?: (iconId: string) => string
   onSelect: () => void
 }) {
   const { t } = useTranslation()
@@ -154,9 +160,7 @@ function HostRow({
   const tooltip = (
     <div className="host-row-tooltip-card">
       <div className="host-row-tooltip-head">
-        <span className="host-row-tooltip-icon">
-          <Server size={16} />
-        </span>
+        <HostAvatar host={host} getIconUrl={getHostIconUrl} className="host-row-tooltip-icon" size={34} iconSize={16} />
         <span className="host-row-tooltip-title">
           <strong>{host.name}</strong>
           <small>{endpoint}</small>
@@ -207,9 +211,7 @@ function HostRow({
         onClick={onSelect}
         aria-label={`${host.name} ${host.username}@${host.address}:${host.port} ${authLabel}`}
       >
-        <span className="host-avatar">
-          <Server size={collapsed ? 17 : 15} aria-hidden="true" />
-        </span>
+        <HostAvatar host={host} getIconUrl={getHostIconUrl} size={30} iconSize={collapsed ? 17 : 15} />
         {!collapsed ? (
           <>
             <span className="host-main">

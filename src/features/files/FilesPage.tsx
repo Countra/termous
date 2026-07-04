@@ -934,6 +934,7 @@ export function FilesPage({
         onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
         onResizePointerDown={hostPanelResize.beginResize}
         shouldSuppressToggleClick={hostPanelResize.shouldSuppressClick}
+        getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
         onSelectHost={onSelectHost}
       />
 
