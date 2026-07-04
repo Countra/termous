@@ -1226,6 +1226,7 @@ export function WorkbenchPage({
         <div className={`details-content-shell ${detailsCollapsed ? 'is-hidden' : ''}`} aria-hidden={detailsCollapsed}>
           <Tabs
             className="details-tabs"
+            popupClassName="details-tabs-dropdown"
             size="small"
             activeKey={detailsActiveTab}
             destroyOnHidden={false}

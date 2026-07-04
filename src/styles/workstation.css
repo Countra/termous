@@ -4643,6 +4643,73 @@ body.is-terminal-tab-dragging * {
   background: var(--accent);
 }
 
+.details-tabs-dropdown.ant-tabs-dropdown {
+  padding: 6px !important;
+  border: 1px solid #303540;
+  border-radius: 14px;
+  background: #1f232b !important;
+  background-color: #1f232b !important;
+  box-shadow: 0 18px 38px rgb(0 0 0 / 28%);
+}
+
+.details-tabs-dropdown .ant-tabs-dropdown-menu,
+.details-tabs-dropdown .ant-dropdown-menu {
+  min-width: 112px;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 10px;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.details-tabs-dropdown .ant-tabs-dropdown-menu-item,
+.details-tabs-dropdown .ant-dropdown-menu-item {
+  min-height: 34px;
+  margin: 0;
+  padding: 0 12px !important;
+  border-radius: 9px;
+  color: var(--text-secondary) !important;
+  font-size: 12px;
+  font-weight: 740;
+  line-height: 34px;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.details-tabs-dropdown .ant-tabs-dropdown-menu-item:hover,
+.details-tabs-dropdown .ant-tabs-dropdown-menu-item-active,
+.details-tabs-dropdown .ant-dropdown-menu-item:hover,
+.details-tabs-dropdown .ant-dropdown-menu-item-active {
+  background: #2a2f39 !important;
+  background-color: #2a2f39 !important;
+  color: var(--text-primary) !important;
+}
+
+.details-tabs-dropdown .ant-tabs-dropdown-menu-title-content,
+.details-tabs-dropdown .ant-dropdown-menu-title-content {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root[data-theme="light"] .details-tabs-dropdown.ant-tabs-dropdown {
+  border-color: #d8dde7;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  box-shadow: 0 18px 38px rgb(31 45 62 / 16%);
+}
+
+:root[data-theme="light"] .details-tabs-dropdown .ant-tabs-dropdown-menu-item:hover,
+:root[data-theme="light"] .details-tabs-dropdown .ant-tabs-dropdown-menu-item-active,
+:root[data-theme="light"] .details-tabs-dropdown .ant-dropdown-menu-item:hover,
+:root[data-theme="light"] .details-tabs-dropdown .ant-dropdown-menu-item-active {
+  background: #f1f4f8 !important;
+  background-color: #f1f4f8 !important;
+}
+
 .connection-overview-panel {
   display: grid;
   gap: 12px;
