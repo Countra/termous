@@ -42,7 +42,7 @@ import { ConnectionActionButton } from '../../components/ui/ConnectionActionButt
 import { EmptyState } from '../../components/ui/EmptyState'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
-import { useResizablePanelWidth } from '../../hooks/useResizablePanelWidth'
+import { useRafResizablePanelWidth } from '../../hooks/useRafResizablePanelWidth'
 import type {
   AppData,
   FileSession,
@@ -128,6 +128,7 @@ export function FilesPage({
 }: FilesPageProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
+  const filesPageRef = useRef<HTMLElement>(null)
   const fileTabViewportRef = useRef<HTMLDivElement>(null)
   const dragDepthRef = useRef(0)
   const uploadRefreshTasksRef = useRef(new Map<string, UploadRefreshTarget>())
@@ -154,12 +155,14 @@ export function FilesPage({
     false,
   )
   const expandHostPanel = useCallback(() => setHostPanelCollapsed(false), [setHostPanelCollapsed])
-  const hostPanelResize = useResizablePanelWidth({
+  const hostPanelResize = useRafResizablePanelWidth({
     storageKey: 'termous.ui.files.hostPanelWidth.v1',
     defaultWidth: filesHostPanelWidth.default,
     minWidth: filesHostPanelWidth.min,
     maxWidth: filesHostPanelWidth.max,
     side: 'left',
+    targetRef: filesPageRef,
+    cssVariableName: '--files-host-width',
     onExpand: expandHostPanel,
   })
   const filesPageStyle = {
@@ -909,6 +912,7 @@ export function FilesPage({
 
   return (
     <section
+      ref={filesPageRef}
       className={`files-page ${hostPanelCollapsed ? 'is-host-collapsed' : ''} ${dragActive ? 'is-dragging' : ''}`}
       style={filesPageStyle}
       tabIndex={0}
@@ -933,7 +937,6 @@ export function FilesPage({
         resizing={hostPanelResize.resizing}
         onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
         onResizePointerDown={hostPanelResize.beginResize}
-        shouldSuppressToggleClick={hostPanelResize.shouldSuppressClick}
         getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
         onSelectHost={onSelectHost}
       />

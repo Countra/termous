@@ -20,8 +20,7 @@ interface HostContextPanelProps {
   className?: string
   resizing?: boolean
   onToggleCollapsed: () => void
-  onResizePointerDown?: (event: PointerEvent<HTMLButtonElement>) => void
-  shouldSuppressToggleClick?: () => boolean
+  onResizePointerDown?: (event: PointerEvent<HTMLDivElement>) => void
   getHostIconUrl?: (iconId: string) => string
   onSelectHost: (hostId: string) => void
 }
@@ -42,7 +41,6 @@ export function HostContextPanel({
   resizing = false,
   onToggleCollapsed,
   onResizePointerDown,
-  shouldSuppressToggleClick,
   getHostIconUrl,
   onSelectHost,
 }: HostContextPanelProps) {
@@ -78,17 +76,12 @@ export function HostContextPanel({
         contentCollapsed ? 'is-content-collapsed' : ''
       } ${resizing ? 'is-resizing' : ''} ${className}`.trim()}
     >
+      {onResizePointerDown ? <div className="host-context-resize-edge" aria-hidden="true" onPointerDown={onResizePointerDown} /> : null}
       <Tooltip title={collapsed ? t('app.expand') : t('app.collapse')} destroyOnHidden mouseLeaveDelay={0}>
         <Button
           type="text"
-          className={`panel-side-toggle panel-side-toggle-left ${onResizePointerDown ? 'can-resize' : ''}`.trim()}
-          onPointerDown={onResizePointerDown}
-          onClick={(event) => {
-            if (shouldSuppressToggleClick?.()) {
-              event.preventDefault()
-              event.stopPropagation()
-              return
-            }
+          className="panel-side-toggle panel-side-toggle-left"
+          onClick={() => {
             onToggleCollapsed()
           }}
           aria-label={collapsed ? t('app.expand') : t('app.collapse')}
