@@ -47,7 +47,7 @@ import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
 import { usePersistentJsonState } from '../../hooks/usePersistentJsonState'
-import { useResizablePanelWidth } from '../../hooks/useResizablePanelWidth'
+import { useRafResizablePanelWidth } from '../../hooks/useRafResizablePanelWidth'
 import { ConnectionProgress } from '../terminal/ConnectionProgress'
 import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'
@@ -135,13 +135,16 @@ export function WorkbenchPage({
     'termous.ui.workbench.detailsCollapsed.v1',
     false,
   )
+  const workbenchGridRef = useRef<HTMLElement>(null)
   const expandDetailsPanel = useCallback(() => setDetailsCollapsed(false), [setDetailsCollapsed])
-  const detailsPanelResize = useResizablePanelWidth({
+  const detailsPanelResize = useRafResizablePanelWidth({
     storageKey: 'termous.ui.workbench.detailsPanelWidth.v1',
     defaultWidth: workbenchDetailsPanelWidth.default,
     minWidth: workbenchDetailsPanelWidth.min,
     maxWidth: workbenchDetailsPanelWidth.max,
     side: 'right',
+    targetRef: workbenchGridRef,
+    cssVariableName: '--workbench-details-width',
     onExpand: expandDetailsPanel,
   })
   const [detailsActiveTab, setDetailsActiveTab] = usePersistentJsonState<DetailsTabKey>(
@@ -979,6 +982,7 @@ export function WorkbenchPage({
   return (
     <>
       <section
+        ref={workbenchGridRef}
         className={`page-grid workbench-grid ${detailsCollapsed ? 'is-details-collapsed' : ''}`}
         style={workbenchGridStyle}
       >
@@ -1189,17 +1193,12 @@ export function WorkbenchPage({
       </div>
 
       <aside className={`details-panel ${detailsCollapsed ? 'is-collapsed' : ''} ${detailsPanelResize.resizing ? 'is-resizing' : ''}`}>
+        <div className="details-resize-edge" aria-hidden="true" onPointerDown={detailsPanelResize.beginResize} />
         <Tooltip title={detailsCollapsed ? t('app.expand') : t('app.collapse')}>
           <Button
             type="text"
-            className="panel-side-toggle panel-side-toggle-right can-resize"
-            onPointerDown={detailsPanelResize.beginResize}
-            onClick={(event) => {
-              if (detailsPanelResize.shouldSuppressClick()) {
-                event.preventDefault()
-                event.stopPropagation()
-                return
-              }
+            className="panel-side-toggle panel-side-toggle-right"
+            onClick={() => {
               setDetailsCollapsed((current) => !current)
             }}
             aria-label={detailsCollapsed ? t('app.expand') : t('app.collapse')}
