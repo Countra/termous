@@ -558,7 +558,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onSelectHost={setSelectedHostId}
             onSave={saveHost}
             onDelete={(id) => runAction(() => actions.deleteHost(id))}
-            onImport={() => runAction(() => actions.importSSHConfig().then(() => undefined), t('hosts.importAccepted'))}
             onCreateGroup={createHostGroup}
             onUploadHostIcon={uploadHostIcon}
             onDeleteHostIcon={deleteHostIcon}

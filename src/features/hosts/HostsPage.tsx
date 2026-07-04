@@ -1,4 +1,4 @@
-import { FileInput, ImagePlus, KeyRound, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { ImagePlus, KeyRound, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { App as AntdApp, Button, Input, InputNumber, Popconfirm, Select, Tag } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,7 +18,6 @@ interface HostsPageProps {
   onSelectHost: (hostId: string) => void
   onSave: (id: string | null, input: HostInput) => Promise<void>
   onDelete: (id: string) => Promise<void>
-  onImport: () => Promise<void>
   onCreateGroup: (name: string) => Promise<HostGroup>
   onUploadHostIcon: (file: File) => Promise<HostIcon>
   onDeleteHostIcon: (id: string) => Promise<void>
@@ -60,7 +59,6 @@ export function HostsPage({
   onSelectHost,
   onSave,
   onDelete,
-  onImport,
   onCreateGroup,
   onUploadHostIcon,
   onDeleteHostIcon,
@@ -269,9 +267,6 @@ export function HostsPage({
           </div>
         </div>
         <div className="toolbar-row">
-          <Button className="secondary-button" onClick={onImport} disabled={actionBusy} icon={<FileInput size={16} />}>
-            {t('hosts.importConfig')}
-          </Button>
           <ConnectionActionButton
             onClick={() => {
               setEditingId(null)

@@ -28,7 +28,7 @@ import { ConnectionActionButton } from '../../components/ui/ConnectionActionButt
 import { EmptyState } from '../../components/ui/EmptyState'
 import type { AppData, Host, HostReachability } from '../../types/domain'
 
-type LauncherFilter = 'all' | 'online' | 'offline' | 'favorite'
+type LauncherFilter = 'all' | 'recent' | 'online' | 'favorite'
 type LauncherPlatformFilter = 'all' | Host['platform']
 type LauncherAuthFilter = 'all' | Host['auth_method']
 type LauncherGroupFilter = 'all' | '__ungrouped' | string
@@ -405,9 +405,9 @@ export function HostLauncherModal({
               onChange={(value) => setFilter(value as LauncherFilter)}
               options={[
                 { value: 'all', label: t('workbench.hostLauncher.filters.all') },
+                { value: 'recent', label: t('workbench.hostLauncher.filters.recent') },
                 { value: 'favorite', label: t('workbench.hostLauncher.filters.favorite') },
                 { value: 'online', label: t('workbench.hostLauncher.filters.online') },
-                { value: 'offline', label: t('workbench.hostLauncher.filters.offline') },
               ]}
             />
             <div className="host-launcher-list" role="listbox" aria-label={t('workbench.hostLauncher.hostList')}>
@@ -662,7 +662,7 @@ function filterHosts(
     if (filter === 'online' && reachabilityStatus !== 'online') {
       return false
     }
-    if (filter === 'offline' && reachabilityStatus !== 'offline' && reachabilityStatus !== 'unavailable') {
+    if (filter === 'recent' && timestamp(host.last_connected_at) <= 0) {
       return false
     }
     if (filter === 'favorite' && !host.favorite) {
@@ -688,10 +688,13 @@ function filterHosts(
     return tokens.every((token) => searchable.includes(token))
   })
   return filtered.sort((left, right) => {
+    const recentDelta = timestamp(right.last_connected_at) - timestamp(left.last_connected_at)
+    if (filter === 'recent') {
+      return recentDelta || left.name.localeCompare(right.name)
+    }
     if (left.favorite !== right.favorite) {
       return left.favorite ? -1 : 1
     }
-    const recentDelta = timestamp(right.last_connected_at) - timestamp(left.last_connected_at)
     if (recentDelta !== 0) {
       return recentDelta
     }

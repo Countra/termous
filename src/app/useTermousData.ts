@@ -308,11 +308,6 @@ export function useTermousData() {
           hostReachability: mergeHostReachabilityEvent(current.hostReachability, event),
         }))
       },
-      async importSSHConfig() {
-        const result = await api.importSSHConfig()
-        await load('silent')
-        return result
-      },
       async createCredential(input: CredentialInput) {
         await api.createCredential(input)
         await load('silent')

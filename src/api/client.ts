@@ -303,13 +303,6 @@ export class TermousApi {
     return this.request<void>(`/api/v1/hosts/${id}`, { method: 'DELETE' })
   }
 
-  importSSHConfig() {
-    return this.request<{ imported: number; message: string }>('/api/v1/hosts/import-ssh-config', {
-      method: 'POST',
-      body: {},
-    })
-  }
-
   credentials() {
     return this.request<CredentialView[]>('/api/v1/credentials')
   }
