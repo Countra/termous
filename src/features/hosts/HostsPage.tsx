@@ -334,30 +334,39 @@ export function HostsPage({
               </div>
             ) : (
               <div className="data-list host-data-list">
-                {filteredHosts.map((host) => (
-                  <button
-                    type="button"
-                    key={host.id}
-                    className={`data-row ${host.id === selectedHostId ? 'is-active' : ''}`}
-                    onClick={() => onSelectHost(host.id)}
-                  >
-                    <HostAvatar host={host} getIconUrl={getHostIconUrl} className="row-icon" size={32} iconSize={16} />
-                    <span className="row-copy">
-                      <strong>{host.name}</strong>
-                      <small>{host.username}@{host.address}:{host.port}</small>
-                      {host.tags?.length ? (
-                        <span className="host-row-tags" aria-label={t('hosts.tags')}>
-                          {normalizeHostTags(host.tags).map((tag) => (
-                            <span className="host-row-tag" key={tagKey(tag)}>{tag}</span>
-                          ))}
+                {filteredHosts.map((host) => {
+                  const tags = normalizeHostTags(host.tags ?? [])
+                  const visibleTags = tags.slice(0, 2)
+                  const hiddenTagCount = tags.length - visibleTags.length
+
+                  return (
+                    <button
+                      type="button"
+                      key={host.id}
+                      className={`data-row ${host.id === selectedHostId ? 'is-active' : ''}`}
+                      onClick={() => onSelectHost(host.id)}
+                    >
+                      <HostAvatar host={host} getIconUrl={getHostIconUrl} className="row-icon" size={32} iconSize={16} />
+                      <span className="row-copy">
+                        <strong>{host.name}</strong>
+                        <span className="host-row-meta-line">
+                          <small className="host-row-endpoint">{host.username}@{host.address}:{host.port}</small>
+                          {tags.length ? (
+                            <span className="host-row-tags" aria-label={t('hosts.tags')}>
+                              {visibleTags.map((tag) => (
+                                <span className="host-row-tag" key={tagKey(tag)}>{tag}</span>
+                              ))}
+                              {hiddenTagCount > 0 ? <span className="host-row-tag is-count">+{hiddenTagCount}</span> : null}
+                            </span>
+                          ) : null}
                         </span>
-                      ) : null}
-                    </span>
-                    <span className="row-trailing">
-                      <AuthMethodBadge method={host.auth_method} />
-                    </span>
-                  </button>
-                ))}
+                      </span>
+                      <span className="row-trailing">
+                        <AuthMethodBadge method={host.auth_method} />
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </>

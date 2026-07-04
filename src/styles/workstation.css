@@ -4274,7 +4274,8 @@ body.is-terminal-tab-dragging * {
   display: grid;
   min-width: 0;
   flex: 1;
-  gap: 2px;
+  align-content: center;
+  gap: 4px;
 }
 
 .row-copy strong {
@@ -4384,10 +4385,16 @@ body.is-terminal-tab-dragging * {
 }
 
 .host-data-list .data-row {
-  min-height: 68px;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  gap: 10px;
+  box-sizing: border-box;
+  height: 66px;
+  min-height: 66px;
+  align-items: center;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: color-mix(in srgb, var(--surface-subtle) 52%, transparent);
+  padding: 10px;
 }
 
 .host-data-list .data-row:hover {
@@ -4404,34 +4411,61 @@ body.is-terminal-tab-dragging * {
 }
 
 .host-data-list .row-trailing {
-  min-width: auto;
-  max-width: 150px;
-  padding-top: 1px;
+  min-width: 82px;
+  max-width: 128px;
+  align-self: center;
+  padding-top: 0;
+}
+
+.host-row-meta-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.host-row-endpoint {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .host-row-tags {
   display: flex;
   min-width: 0;
-  flex-wrap: wrap;
-  gap: 5px;
-  padding-top: 3px;
+  max-width: 172px;
+  flex: 0 1 auto;
+  gap: 4px;
+  overflow: hidden;
 }
 
 .host-row-tag {
   display: inline-flex;
-  max-width: 112px;
-  height: 22px;
+  max-width: 76px;
+  height: 19px;
+  flex: 0 1 auto;
   align-items: center;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
   color: var(--text-secondary);
-  padding: 0 7px;
-  font-size: 11px;
+  padding: 0 6px;
+  font-size: 10px;
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.host-row-tag.is-count {
+  max-width: none;
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .host-tags-field .ant-select-selection-overflow {
@@ -5117,7 +5151,9 @@ body.is-terminal-tab-dragging * {
 }
 
 .form-grid {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 12px;
 }
 
@@ -5242,7 +5278,15 @@ body.is-terminal-tab-dragging * {
 .custom-select,
 .host-group-field {
   display: grid;
+  align-content: start;
   gap: 6px;
+}
+
+.field .ant-input,
+.field .ant-input-number,
+.custom-select .ant-select-selector,
+.host-group-control .ant-select-selector {
+  min-height: 38px;
 }
 
 .field-label {
