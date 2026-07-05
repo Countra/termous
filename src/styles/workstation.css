@@ -5508,11 +5508,21 @@ body.is-terminal-tab-dragging * {
   z-index: 3300;
 }
 
+.termous-select-popup.ant-select-dropdown {
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 12px;
+  background: var(--surface-strong) !important;
+  box-shadow:
+    0 18px 42px rgb(0 0 0 / 32%),
+    var(--inner-highlight);
+  padding: 6px;
+}
+
 :root[data-theme="dark"] .termous-select-popup.ant-select-dropdown,
 :root[data-theme="dark"] .termous-select-popup .rc-virtual-list,
 :root[data-theme="dark"] .termous-select-popup .rc-virtual-list-holder,
 :root[data-theme="dark"] .termous-select-popup .rc-virtual-list-holder-inner {
-  background: #202229 !important;
+  background: var(--surface-strong) !important;
 }
 
 .termous-select-popup .ant-select-item {
@@ -6699,7 +6709,7 @@ body.is-files-column-resizing * {
 
 .files-bookmarks-panel {
   height: 100%;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .files-bookmarks-toolbar {
@@ -6756,28 +6766,6 @@ body.is-files-column-resizing * {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent) inset;
 }
 
-.files-bookmarks-group-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.files-bookmarks-group-actions .ant-btn {
-  height: 30px;
-  border-color: color-mix(in srgb, var(--border) 78%, transparent);
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--surface-subtle) 58%, transparent);
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
-  box-shadow: none;
-}
-
-.files-bookmarks-group-actions .ant-btn:hover {
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-  color: var(--text-primary);
-}
-
 .files-bookmarks-list {
   display: grid;
   align-content: start;
@@ -6789,7 +6777,42 @@ body.is-files-column-resizing * {
   scrollbar-width: thin;
 }
 
+.files-bookmarks-list > .empty-state {
+  display: grid;
+  min-height: 180px;
+  align-content: center;
+  justify-items: center;
+  gap: 9px;
+  margin-block: 8px 14px;
+  border: 1px dashed color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 72%, transparent), color-mix(in srgb, var(--surface) 88%, transparent)),
+    var(--surface);
+  padding: 28px 18px;
+  color: var(--text-muted);
+  box-shadow: var(--inner-highlight);
+}
+
+.files-bookmarks-list > .empty-state svg {
+  color: color-mix(in srgb, var(--text-muted) 72%, var(--accent) 28%);
+}
+
+.files-bookmarks-list > .empty-state strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.files-bookmarks-list > .empty-state span {
+  max-width: 240px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: center;
+}
+
 .files-bookmark-group {
+  position: relative;
   display: grid;
   gap: 8px;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
@@ -6803,6 +6826,25 @@ body.is-files-column-resizing * {
 
 .files-bookmark-group.is-group-drop-target {
   border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+}
+
+.files-bookmark-group.is-group-dragging {
+  opacity: 0.62;
+}
+
+.files-bookmark-group.is-group-drop-target::before,
+.files-bookmark-row.is-bookmark-drop-target::before {
+  position: absolute;
+  z-index: 2;
+  right: 8px;
+  left: 8px;
+  top: -5px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+  content: '';
+  pointer-events: none;
 }
 
 .files-bookmark-group-header {
@@ -6886,16 +6928,29 @@ body.is-files-column-resizing * {
 }
 
 .files-bookmark-group-empty {
-  display: grid;
-  min-height: 74px;
-  place-items: center;
+  display: flex;
+  min-height: 86px;
+  align-items: center;
+  justify-content: center;
   border: 1px dashed color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 10px;
   color: var(--text-muted);
+  padding: 14px 14px 16px;
 }
 
 .files-bookmark-group-empty .ant-empty {
   margin: 0;
+}
+
+.files-bookmark-group-empty .ant-empty-image {
+  height: 42px;
+  margin-bottom: 10px;
+}
+
+.files-bookmark-group-empty .ant-empty-description {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .files-bookmark-row {
@@ -6918,15 +6973,6 @@ body.is-files-column-resizing * {
   border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
   background: color-mix(in srgb, var(--surface-subtle) 68%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent) inset;
-}
-
-.files-bookmark-row.is-bookmark-drop-target::before {
-  position: absolute;
-  inset: -5px 8px auto;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--accent);
-  content: '';
 }
 
 .files-bookmark-drag-handle {
@@ -7023,6 +7069,68 @@ body.is-files-column-resizing * {
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 700;
+}
+
+.files-bookmark-form .files-bookmark-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.files-bookmark-form .files-bookmark-field-heading > span {
+  min-width: 0;
+}
+
+.files-bookmark-form .files-bookmark-field-heading .ant-btn {
+  height: 24px;
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 720;
+  padding-inline: 7px;
+}
+
+.files-bookmark-form .files-bookmark-field-heading .ant-btn:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.files-bookmark-inline-group {
+  display: grid;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 70%, transparent), color-mix(in srgb, var(--surface) 90%, transparent)),
+    var(--surface);
+  padding: 9px;
+}
+
+.files-bookmark-inline-group-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.files-bookmark-inline-group-actions .ant-btn {
+  height: 28px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 720;
+  box-shadow: none;
+}
+
+.files-bookmark-inline-group-actions .ant-btn:not(.ant-btn-primary) {
+  border-color: color-mix(in srgb, var(--border) 78%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 62%, transparent);
+  color: var(--text-secondary);
+}
+
+.files-bookmark-inline-group-actions .ant-btn:not(.ant-btn-primary):hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  color: var(--text-primary);
 }
 
 .files-bookmark-form .ant-input,

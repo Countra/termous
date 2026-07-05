@@ -10,7 +10,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
-import { useMemo, useState, type DragEvent } from 'react'
+import { useMemo, useState, type DragEvent, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EmptyState } from '../../components/ui/EmptyState'
 import type {
@@ -72,10 +72,13 @@ export function FileBookmarksPanel({
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<string[]>([])
   const [bookmarkDraft, setBookmarkDraft] = useState<BookmarkDraft | null>(null)
   const [groupDraft, setGroupDraft] = useState<GroupDraft | null>(null)
+  const [inlineGroupName, setInlineGroupName] = useState('')
+  const [showInlineGroupForm, setShowInlineGroupForm] = useState(false)
   const [savingBookmark, setSavingBookmark] = useState(false)
   const [savingGroup, setSavingGroup] = useState(false)
+  const [creatingInlineGroup, setCreatingInlineGroup] = useState(false)
   const [draggingBookmarkId, setDraggingBookmarkId] = useState('')
-  const [bookmarkDropTarget, setBookmarkDropTarget] = useState<{ groupId: string; index: number } | null>(null)
+  const [bookmarkDropTarget, setBookmarkDropTarget] = useState<{ groupId: string; bookmarkId: string | null } | null>(null)
   const [draggingGroupId, setDraggingGroupId] = useState('')
   const [groupDropTargetId, setGroupDropTargetId] = useState('')
 
@@ -103,12 +106,39 @@ export function FileBookmarksPanel({
     })
   }
 
+  const resetInlineGroupForm = () => {
+    setInlineGroupName('')
+    setShowInlineGroupForm(false)
+  }
+
+  const cancelInlineGroupCreate = (event: MouseEvent<HTMLElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    resetInlineGroupForm()
+  }
+
   const openCreateBookmark = (groupId = '') => {
+    resetInlineGroupForm()
     setBookmarkDraft({
       name: suggestBookmarkName(normalizedCurrentPath),
       path: normalizedCurrentPath,
       group_id: groupId,
     })
+  }
+
+  const openEditBookmark = (bookmark: FileBookmark) => {
+    resetInlineGroupForm()
+    setBookmarkDraft({
+      id: bookmark.id,
+      name: bookmark.name,
+      path: bookmark.path,
+      group_id: bookmark.group_id,
+    })
+  }
+
+  const closeBookmarkModal = () => {
+    setBookmarkDraft(null)
+    resetInlineGroupForm()
   }
 
   const saveBookmark = async () => {
@@ -131,7 +161,7 @@ export function FileBookmarksPanel({
       } else {
         await onCreateBookmark(input)
       }
-      setBookmarkDraft(null)
+      closeBookmarkModal()
     } catch (error) {
       notifyError(error)
     } finally {
@@ -153,13 +183,32 @@ export function FileBookmarksPanel({
       if (groupDraft.id) {
         await onUpdateGroup(groupDraft.id, input)
       } else {
-        await onCreateGroup(input)
+        const savedGroup = await onCreateGroup(input)
+        setBookmarkDraft((current) => current ? { ...current, group_id: savedGroup.id } : current)
       }
       setGroupDraft(null)
     } catch (error) {
       notifyError(error)
     } finally {
       setSavingGroup(false)
+    }
+  }
+
+  const createInlineGroup = async () => {
+    const input = { name: inlineGroupName.trim() }
+    if (!input.name) {
+      notification.warning({ message: t('files.groupNameRequired'), placement: 'topRight', duration: 2.4 })
+      return
+    }
+    setCreatingInlineGroup(true)
+    try {
+      const savedGroup = await onCreateGroup(input)
+      setBookmarkDraft((current) => current ? { ...current, group_id: savedGroup.id } : current)
+      resetInlineGroupForm()
+    } catch (error) {
+      notifyError(error)
+    } finally {
+      setCreatingInlineGroup(false)
     }
   }
 
@@ -203,11 +252,11 @@ export function FileBookmarksPanel({
     }
   }
 
-  const handleBookmarkDrop = async (groupId: string, index: number) => {
+  const handleBookmarkDrop = async (groupId: string, targetBookmarkId: string | null) => {
     if (!draggingBookmarkId) {
       return
     }
-    const items = buildBookmarkReorderItems(bookmarks, draggingBookmarkId, groupId, index)
+    const items = buildBookmarkReorderItems(bookmarks, draggingBookmarkId, groupId, targetBookmarkId)
     setDraggingBookmarkId('')
     setBookmarkDropTarget(null)
     if (items.length === 0) {
@@ -260,31 +309,37 @@ export function FileBookmarksPanel({
         </Button>
       </div>
 
-      <div className="files-bookmarks-group-actions">
-        <Button icon={<Plus size={15} aria-hidden="true" />} onClick={() => setGroupDraft({ name: '' })}>
-          {t('files.newBookmarkGroup')}
-        </Button>
-      </div>
-
       <div className="files-bookmarks-list">
         {bookmarks.length === 0 && groups.length === 0 ? (
           <EmptyState title={t('files.noBookmarks')} description={t('files.noBookmarksHint')} />
         ) : (
           groupViews.map((group) => {
             const collapsed = collapsedGroupIds.includes(group.id)
-            const dropAtGroupEnd = bookmarkDropTarget?.groupId === group.id && bookmarkDropTarget.index === group.items.length
+            const dropAtEmptyGroup = group.items.length === 0 && bookmarkDropTarget?.groupId === group.id && bookmarkDropTarget.bookmarkId === null
             return (
               <section
                 key={group.id}
-                className={`files-bookmark-group ${groupDropTargetId === group.id ? 'is-group-drop-target' : ''}`}
+                className={[
+                  'files-bookmark-group',
+                  groupDropTargetId === group.id ? 'is-group-drop-target' : '',
+                  draggingGroupId === group.id ? 'is-group-dragging' : '',
+                ].filter(Boolean).join(' ')}
                 onDragOver={(event) => {
-                  if (!draggingGroupId || group.builtIn) {
+                  if (!draggingGroupId) {
+                    return
+                  }
+                  if (group.builtIn || draggingGroupId === group.id) {
+                    setGroupDropTargetId((current) => current ? '' : current)
                     return
                   }
                   event.preventDefault()
-                  setGroupDropTargetId(group.id)
+                  event.dataTransfer.dropEffect = 'move'
+                  setGroupDropTargetId((current) => current === group.id ? current : group.id)
                 }}
-                onDrop={() => void handleGroupDrop(group.id)}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  void handleGroupDrop(group.id)
+                }}
               >
                 <header className="files-bookmark-group-header">
                   <button type="button" className="files-bookmark-group-toggle" onClick={() => toggleGroup(group.id)}>
@@ -329,23 +384,23 @@ export function FileBookmarksPanel({
 
                 {!collapsed ? (
                   <div
-                    className={`files-bookmark-group-body ${dropAtGroupEnd ? 'is-bookmark-drop-target' : ''}`}
+                    className={`files-bookmark-group-body ${dropAtEmptyGroup ? 'is-bookmark-drop-target' : ''}`}
                     onDragOver={(event) => {
-                      if (!draggingBookmarkId) {
+                      if (!draggingBookmarkId || group.items.length > 0) {
                         return
                       }
                       event.preventDefault()
-                      setBookmarkDropTarget({ groupId: group.id, index: group.items.length })
+                      setBookmarkDropTarget({ groupId: group.id, bookmarkId: null })
                     }}
-                    onDrop={() => void handleBookmarkDrop(group.id, group.items.length)}
+                    onDrop={() => void handleBookmarkDrop(group.id, null)}
                   >
                     {group.items.length === 0 ? (
                       <div className="files-bookmark-group-empty">
                         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('files.emptyBookmarkGroup')} />
                       </div>
                     ) : (
-                      group.items.map((bookmark, index) => {
-                        const dropAtBookmark = bookmarkDropTarget?.groupId === group.id && bookmarkDropTarget.index === index
+                      group.items.map((bookmark) => {
+                        const dropAtBookmark = bookmarkDropTarget?.groupId === group.id && bookmarkDropTarget.bookmarkId === bookmark.id
                         return (
                           <BookmarkRow
                             key={bookmark.id}
@@ -363,20 +418,15 @@ export function FileBookmarksPanel({
                               }
                               event.preventDefault()
                               event.stopPropagation()
-                              setBookmarkDropTarget({ groupId: group.id, index })
+                              setBookmarkDropTarget({ groupId: group.id, bookmarkId: bookmark.id })
                             }}
                             onDrop={(event) => {
                               event.preventDefault()
                               event.stopPropagation()
-                              void handleBookmarkDrop(group.id, index)
+                              void handleBookmarkDrop(group.id, bookmark.id)
                             }}
                             onJump={() => void jumpToBookmark(bookmark)}
-                            onEdit={() => setBookmarkDraft({
-                              id: bookmark.id,
-                              name: bookmark.name,
-                              path: bookmark.path,
-                              group_id: bookmark.group_id,
-                            })}
+                            onEdit={() => openEditBookmark(bookmark)}
                             onDelete={() => void deleteBookmark(bookmark.id)}
                           />
                         )
@@ -397,7 +447,7 @@ export function FileBookmarksPanel({
         okText={bookmarkDraft?.id ? t('app.save') : t('app.create')}
         cancelText={t('app.cancel')}
         confirmLoading={savingBookmark}
-        onCancel={() => setBookmarkDraft(null)}
+        onCancel={closeBookmarkModal}
         onOk={() => void saveBookmark()}
         centered
       >
@@ -419,12 +469,43 @@ export function FileBookmarksPanel({
             />
           </label>
           <label>
-            <span>{t('files.bookmarkGroup')}</span>
+            <span className="files-bookmark-field-heading">
+              <span>{t('files.bookmarkGroup')}</span>
+              <Button
+                type="text"
+                size="small"
+                icon={<Plus size={13} aria-hidden="true" />}
+                onClick={() => setShowInlineGroupForm(true)}
+              >
+                {t('files.newBookmarkGroup')}
+              </Button>
+            </span>
             <Select
               value={bookmarkDraft?.group_id ?? ''}
+              className="termous-select"
+              classNames={{ popup: { root: 'termous-select-popup' } }}
               options={groupOptions}
               onChange={(groupId) => setBookmarkDraft((current) => current ? { ...current, group_id: groupId } : current)}
             />
+            {showInlineGroupForm ? (
+              <div className="files-bookmark-inline-group">
+                <Input
+                  value={inlineGroupName}
+                  placeholder={t('files.bookmarkGroupNamePlaceholder')}
+                  disabled={creatingInlineGroup}
+                  onChange={(event) => setInlineGroupName(event.target.value)}
+                  onPressEnter={() => void createInlineGroup()}
+                />
+                <div className="files-bookmark-inline-group-actions">
+                  <Button size="small" htmlType="button" disabled={creatingInlineGroup} onClick={cancelInlineGroupCreate}>
+                    {t('app.cancel')}
+                  </Button>
+                  <Button size="small" type="primary" loading={creatingInlineGroup} onClick={() => void createInlineGroup()}>
+                    {t('app.create')}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </label>
         </div>
       </Modal>
@@ -544,7 +625,12 @@ function buildBookmarkGroups(groups: FileBookmarkGroup[], bookmarks: FileBookmar
   return views.filter((view) => view.items.length > 0 || !view.builtIn || bookmarks.length === 0)
 }
 
-function buildBookmarkReorderItems(bookmarks: FileBookmark[], draggingId: string, targetGroupId: string, targetIndex: number): FileBookmarkReorderItem[] {
+function buildBookmarkReorderItems(
+  bookmarks: FileBookmark[],
+  draggingId: string,
+  targetGroupId: string,
+  targetBookmarkId: string | null,
+): FileBookmarkReorderItem[] {
   const dragging = bookmarks.find((bookmark) => bookmark.id === draggingId)
   if (!dragging) {
     return []
@@ -558,7 +644,11 @@ function buildBookmarkReorderItems(bookmarks: FileBookmark[], draggingId: string
       buckets.set(bookmark.group_id, items)
     })
   const targetItems = sortBookmarks(buckets.get(targetGroupId) ?? [])
-  targetItems.splice(Math.max(0, Math.min(targetIndex, targetItems.length)), 0, { ...dragging, group_id: targetGroupId })
+  const targetIndex = targetBookmarkId ? targetItems.findIndex((bookmark) => bookmark.id === targetBookmarkId) : 0
+  if (targetIndex < 0) {
+    return []
+  }
+  targetItems.splice(targetIndex, 0, { ...dragging, group_id: targetGroupId })
   buckets.set(targetGroupId, targetItems)
   return Array.from(buckets.entries()).flatMap(([groupId, items]) =>
     (groupId === targetGroupId ? items : sortBookmarks(items)).map((bookmark, index) => ({
@@ -576,7 +666,10 @@ function buildGroupReorderItems(groups: FileBookmarkGroup[], draggingId: string,
     return []
   }
   const next = ordered.filter((group) => group.id !== draggingId)
-  const targetIndex = Math.max(0, next.findIndex((group) => group.id === targetId))
+  const targetIndex = next.findIndex((group) => group.id === targetId)
+  if (targetIndex < 0) {
+    return []
+  }
   next.splice(targetIndex, 0, dragging)
   return next.map((group, index) => ({ id: group.id, sort_order: index }))
 }
