@@ -200,6 +200,10 @@ export function FilesPage({
     '--files-details-width': `${detailsPanelResize.width}px`,
   } as CSSProperties
   const { transfers, connected, upsertTransfer } = useTransferQueue(api)
+  const showTransferQueuePanel = () => {
+    setDetailsCollapsed(false)
+    setDetailsActiveTab('transfers')
+  }
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const selectedHostIdStable = selectedHost?.id ?? ''
   const activeFileSessionHost = activeFileSession?.host_id ? data.hosts.find((host) => host.id === activeFileSession.host_id) : undefined
@@ -582,6 +586,7 @@ export function FilesPage({
       const grant = await api.createLocalFileGrant(source, paths)
       const task = await api.createFileSessionUploadTransfer(activeFileSessionId, grant.id, currentPath, 'rename')
       trackUploadRefreshTask(task)
+      showTransferQueuePanel()
       upsertTransfer(task)
     }, t('files.transferCreated'))
   }
@@ -597,6 +602,7 @@ export function FilesPage({
     }
     await runFileAction(async () => {
       const task = await api.createFileSessionDownloadTransfer(activeFileSessionId, paths, localDir, 'rename')
+      showTransferQueuePanel()
       upsertTransfer(task)
     }, t('files.transferCreated'))
   }
