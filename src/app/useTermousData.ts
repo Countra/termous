@@ -5,6 +5,12 @@ import type {
   CodeSnippet,
   CodeSnippetInput,
   CredentialInput,
+  FileBookmark,
+  FileBookmarkGroup,
+  FileBookmarkGroupInput,
+  FileBookmarkGroupReorderItem,
+  FileBookmarkInput,
+  FileBookmarkReorderItem,
   FileSession,
   ForwardEvent,
   ForwardInstance,
@@ -39,6 +45,8 @@ const initialData: AppData = {
   forwardProfiles: [],
   forwards: [],
   snippets: [],
+  fileBookmarkGroups: [],
+  fileBookmarks: [],
   settings: initialSettings,
   terminalFonts: [],
   hostReachability: {},
@@ -64,10 +72,27 @@ export function useTermousData() {
     setError(null)
     try {
       await apiClient.health()
-      const [settings, terminalFonts, snippets, groups, hosts, hostReachability, credentials, knownHosts, sessions, fileSessions, forwardProfiles, forwards] = await Promise.all([
+      const [
+        settings,
+        terminalFonts,
+        snippets,
+        fileBookmarkGroups,
+        fileBookmarks,
+        groups,
+        hosts,
+        hostReachability,
+        credentials,
+        knownHosts,
+        sessions,
+        fileSessions,
+        forwardProfiles,
+        forwards,
+      ] = await Promise.all([
         apiClient.settings(),
         apiClient.terminalFonts(),
         apiClient.codeSnippets(),
+        apiClient.fileBookmarkGroups(),
+        apiClient.fileBookmarks(),
         apiClient.hostGroups(),
         apiClient.hosts(),
         apiClient.hostReachability(),
@@ -91,6 +116,8 @@ export function useTermousData() {
         forwardProfiles: forwardProfiles ?? [],
         forwards: visibleForwards(forwards ?? []),
         snippets: snippets ?? [],
+        fileBookmarkGroups: sortFileBookmarkGroups(fileBookmarkGroups ?? []),
+        fileBookmarks: sortFileBookmarks(fileBookmarks ?? []),
         terminalFonts: terminalFonts ?? [],
         hostReachability: indexHostReachability(hostReachability ?? []),
       })
@@ -209,6 +236,58 @@ export function useTermousData() {
         const snippet = await api.markCodeSnippetUsed(id)
         setData((current) => ({ ...current, snippets: replaceCodeSnippet(current.snippets, snippet) }))
         return snippet
+      },
+      async createFileBookmarkGroup(input: FileBookmarkGroupInput) {
+        const group = await api.createFileBookmarkGroup(input)
+        setData((current) => ({ ...current, fileBookmarkGroups: upsertFileBookmarkGroup(current.fileBookmarkGroups, group) }))
+        return group
+      },
+      async updateFileBookmarkGroup(id: string, input: FileBookmarkGroupInput) {
+        const group = await api.updateFileBookmarkGroup(id, input)
+        setData((current) => ({ ...current, fileBookmarkGroups: upsertFileBookmarkGroup(current.fileBookmarkGroups, group) }))
+        return group
+      },
+      async deleteFileBookmarkGroup(id: string) {
+        await api.deleteFileBookmarkGroup(id)
+        let nextBookmarks: FileBookmark[] | null = null
+        try {
+          nextBookmarks = await api.fileBookmarks()
+        } catch {
+          nextBookmarks = null
+        }
+        setData((current) => ({
+          ...current,
+          fileBookmarkGroups: current.fileBookmarkGroups.filter((group) => group.id !== id),
+          fileBookmarks: nextBookmarks
+            ? sortFileBookmarks(nextBookmarks)
+            : sortFileBookmarks(current.fileBookmarks.map((bookmark) => (
+              bookmark.group_id === id ? { ...bookmark, group_id: '' } : bookmark
+            ))),
+        }))
+      },
+      async reorderFileBookmarkGroups(items: FileBookmarkGroupReorderItem[]) {
+        const groups = await api.reorderFileBookmarkGroups(items)
+        setData((current) => ({ ...current, fileBookmarkGroups: sortFileBookmarkGroups(groups ?? current.fileBookmarkGroups) }))
+        return groups
+      },
+      async createFileBookmark(input: FileBookmarkInput) {
+        const bookmark = await api.createFileBookmark(input)
+        setData((current) => ({ ...current, fileBookmarks: upsertFileBookmark(current.fileBookmarks, bookmark) }))
+        return bookmark
+      },
+      async updateFileBookmark(id: string, input: FileBookmarkInput) {
+        const bookmark = await api.updateFileBookmark(id, input)
+        setData((current) => ({ ...current, fileBookmarks: upsertFileBookmark(current.fileBookmarks, bookmark) }))
+        return bookmark
+      },
+      async deleteFileBookmark(id: string) {
+        await api.deleteFileBookmark(id)
+        setData((current) => ({ ...current, fileBookmarks: current.fileBookmarks.filter((bookmark) => bookmark.id !== id) }))
+      },
+      async reorderFileBookmarks(items: FileBookmarkReorderItem[]) {
+        const bookmarks = await api.reorderFileBookmarks(items)
+        setData((current) => ({ ...current, fileBookmarks: sortFileBookmarks(bookmarks ?? current.fileBookmarks) }))
+        return bookmarks
       },
       async createForwardProfile(input: ForwardProfileInput) {
         const profile = await api.createForwardProfile(input)
@@ -494,6 +573,45 @@ function replaceCodeSnippet(snippets: CodeSnippet[], next: CodeSnippet) {
     return upsertCodeSnippet(snippets, next)
   }
   return snippets.map((snippet) => (snippet.id === next.id ? next : snippet))
+}
+
+function upsertFileBookmarkGroup(groups: FileBookmarkGroup[], next: FileBookmarkGroup) {
+  const exists = groups.some((group) => group.id === next.id)
+  const merged = exists ? groups.map((group) => (group.id === next.id ? next : group)) : [...groups, next]
+  return sortFileBookmarkGroups(merged)
+}
+
+function sortFileBookmarkGroups(groups: FileBookmarkGroup[]) {
+  return [...groups].sort((left, right) => {
+    if (left.sort_order !== right.sort_order) {
+      return left.sort_order - right.sort_order
+    }
+    if (left.name !== right.name) {
+      return left.name.localeCompare(right.name)
+    }
+    return left.id.localeCompare(right.id)
+  })
+}
+
+function upsertFileBookmark(bookmarks: FileBookmark[], next: FileBookmark) {
+  const exists = bookmarks.some((bookmark) => bookmark.id === next.id)
+  const merged = exists ? bookmarks.map((bookmark) => (bookmark.id === next.id ? next : bookmark)) : [...bookmarks, next]
+  return sortFileBookmarks(merged)
+}
+
+function sortFileBookmarks(bookmarks: FileBookmark[]) {
+  return [...bookmarks].sort((left, right) => {
+    if (left.group_id !== right.group_id) {
+      return left.group_id.localeCompare(right.group_id)
+    }
+    if (left.sort_order !== right.sort_order) {
+      return left.sort_order - right.sort_order
+    }
+    if (left.name !== right.name) {
+      return left.name.localeCompare(right.name)
+    }
+    return left.id.localeCompare(right.id)
+  })
 }
 
 function upsertForwardProfile(profiles: ForwardProfile[], next: ForwardProfile) {

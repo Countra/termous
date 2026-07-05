@@ -6680,7 +6680,8 @@ body.is-files-column-resizing * {
 }
 
 .files-detail-panel,
-.files-transfer-panel {
+.files-transfer-panel,
+.files-bookmarks-panel {
   display: grid;
   min-height: 0;
   overflow: hidden;
@@ -6694,6 +6695,347 @@ body.is-files-column-resizing * {
 .files-transfer-panel {
   height: 100%;
   grid-template-rows: auto minmax(0, 1fr);
+}
+
+.files-bookmarks-panel {
+  height: 100%;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.files-bookmarks-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 64%, transparent), color-mix(in srgb, var(--surface) 92%, transparent)),
+    var(--surface);
+  padding: 10px;
+  box-shadow: var(--inner-highlight);
+}
+
+.files-bookmarks-current {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.files-bookmarks-current span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.files-bookmarks-current strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-bookmarks-primary.ant-btn {
+  height: 34px;
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 760;
+  box-shadow: none;
+}
+
+.files-bookmarks-primary.ant-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent) inset;
+}
+
+.files-bookmarks-group-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.files-bookmarks-group-actions .ant-btn {
+  height: 30px;
+  border-color: color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface-subtle) 58%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.files-bookmarks-group-actions .ant-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--text-primary);
+}
+
+.files-bookmarks-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+  scrollbar-color: var(--termous-scrollbar-thumb) var(--termous-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+.files-bookmark-group {
+  display: grid;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 58%, transparent), color-mix(in srgb, var(--surface) 92%, transparent)),
+    var(--surface);
+  padding: 9px;
+  box-shadow: var(--inner-highlight);
+}
+
+.files-bookmark-group.is-group-drop-target {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+}
+
+.files-bookmark-group-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.files-bookmark-group-toggle {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  padding: 3px 2px;
+  text-align: left;
+}
+
+.files-bookmark-group-toggle span {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-bookmark-group-toggle small {
+  min-width: 20px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-strong) 52%, transparent);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 760;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.files-bookmark-group-grip {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: grab;
+}
+
+.files-bookmark-group-grip:active {
+  cursor: grabbing;
+}
+
+.files-bookmark-group-header .ant-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.files-bookmark-group-header .ant-btn:hover,
+.files-bookmark-group-grip:hover {
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  color: var(--accent);
+}
+
+.files-bookmark-group-body {
+  display: grid;
+  gap: 7px;
+  min-height: 34px;
+}
+
+.files-bookmark-group-body.is-bookmark-drop-target {
+  border-radius: 10px;
+  outline: 1px dashed color-mix(in srgb, var(--accent) 46%, transparent);
+  outline-offset: 2px;
+}
+
+.files-bookmark-group-empty {
+  display: grid;
+  min-height: 74px;
+  place-items: center;
+  border: 1px dashed color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 10px;
+  color: var(--text-muted);
+}
+
+.files-bookmark-group-empty .ant-empty {
+  margin: 0;
+}
+
+.files-bookmark-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-subtle) 52%, transparent);
+  padding: 6px;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.files-bookmark-row:hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--surface-subtle) 68%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent) inset;
+}
+
+.files-bookmark-row.is-bookmark-drop-target::before {
+  position: absolute;
+  inset: -5px 8px auto;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  content: '';
+}
+
+.files-bookmark-drag-handle {
+  display: grid;
+  width: 18px;
+  place-items: center;
+  color: var(--text-muted);
+  cursor: grab;
+}
+
+.files-bookmark-drag-handle:active {
+  cursor: grabbing;
+}
+
+.files-bookmark-main {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.files-bookmark-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  color: var(--accent);
+}
+
+.files-bookmark-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.files-bookmark-copy strong,
+.files-bookmark-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-bookmark-copy strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.files-bookmark-copy small {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.files-bookmark-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.files-bookmark-row-actions .ant-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.files-bookmark-row-actions .ant-btn:hover {
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  color: var(--accent);
+}
+
+.files-bookmark-form {
+  display: grid;
+  gap: 12px;
+}
+
+.files-bookmark-form label {
+  display: grid;
+  gap: 7px;
+}
+
+.files-bookmark-form label > span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.files-bookmark-form .ant-input,
+.files-bookmark-form .ant-select-selector {
+  border-color: color-mix(in srgb, var(--border) 78%, transparent) !important;
+  background: color-mix(in srgb, var(--surface-subtle) 74%, transparent) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+.files-bookmark-form .ant-input:hover,
+.files-bookmark-form .ant-select-selector:hover {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border)) !important;
 }
 
 .files-detail-hero {

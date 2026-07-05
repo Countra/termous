@@ -6,6 +6,12 @@ import type {
   CoreRuntimeInfo,
   CredentialInput,
   CredentialView,
+  FileBookmark,
+  FileBookmarkGroup,
+  FileBookmarkGroupInput,
+  FileBookmarkGroupReorderItem,
+  FileBookmarkInput,
+  FileBookmarkReorderItem,
   FileSession,
   FirewallApplyResult,
   FirewallCapability,
@@ -177,6 +183,64 @@ export class TermousApi {
 
   markCodeSnippetUsed(id: string) {
     return this.request<CodeSnippet>(`/api/v1/snippets/${encodeURIComponent(id)}/used`, { method: 'POST' })
+  }
+
+  fileBookmarkGroups() {
+    return this.request<FileBookmarkGroup[]>('/api/v1/file-bookmark-groups').then(normalizeArray)
+  }
+
+  createFileBookmarkGroup(input: FileBookmarkGroupInput) {
+    return this.request<FileBookmarkGroup>('/api/v1/file-bookmark-groups', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  updateFileBookmarkGroup(id: string, input: FileBookmarkGroupInput) {
+    return this.request<FileBookmarkGroup>(`/api/v1/file-bookmark-groups/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  }
+
+  deleteFileBookmarkGroup(id: string) {
+    return this.request<void>(`/api/v1/file-bookmark-groups/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  reorderFileBookmarkGroups(items: FileBookmarkGroupReorderItem[]) {
+    return this.request<FileBookmarkGroup[]>('/api/v1/file-bookmark-groups/reorder', {
+      method: 'POST',
+      body: { items },
+    }).then(normalizeArray)
+  }
+
+  fileBookmarks() {
+    return this.request<FileBookmark[]>('/api/v1/file-bookmarks').then(normalizeArray)
+  }
+
+  createFileBookmark(input: FileBookmarkInput) {
+    return this.request<FileBookmark>('/api/v1/file-bookmarks', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  updateFileBookmark(id: string, input: FileBookmarkInput) {
+    return this.request<FileBookmark>(`/api/v1/file-bookmarks/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  }
+
+  deleteFileBookmark(id: string) {
+    return this.request<void>(`/api/v1/file-bookmarks/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  reorderFileBookmarks(items: FileBookmarkReorderItem[]) {
+    return this.request<FileBookmark[]>('/api/v1/file-bookmarks/reorder', {
+      method: 'POST',
+      body: { items },
+    }).then(normalizeArray)
   }
 
   forwardProfiles() {

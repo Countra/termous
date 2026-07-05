@@ -2,6 +2,7 @@ import { App as AntdApp, Breadcrumb, Button, Checkbox, Dropdown, Empty, Input, M
 import type { MenuProps } from 'antd'
 import {
   ArrowLeft,
+  Bookmark,
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
@@ -48,6 +49,12 @@ import { usePersistentJsonState } from '../../hooks/usePersistentJsonState'
 import { useRafResizablePanelWidth } from '../../hooks/useRafResizablePanelWidth'
 import type {
   AppData,
+  FileBookmark,
+  FileBookmarkGroup,
+  FileBookmarkGroupInput,
+  FileBookmarkGroupReorderItem,
+  FileBookmarkInput,
+  FileBookmarkReorderItem,
   FileSession,
   FileSessionHostKey,
   FileSessionPhase,
@@ -58,6 +65,7 @@ import type {
   TransferTask,
 } from '../../types/domain'
 import { fileSortValue, formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
+import { FileBookmarksPanel } from './FileBookmarksPanel'
 import { TransferQueuePanel } from './TransferQueuePanel'
 import { useTransferQueue } from './useTransferQueue'
 
@@ -73,6 +81,14 @@ interface FilesPageProps {
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onTrustFileSessionHost: (fileSessionId: string, decision: 'trust' | 'replace' | 'reject', fingerprintSHA256: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
+  onCreateFileBookmark: (input: FileBookmarkInput) => Promise<FileBookmark>
+  onUpdateFileBookmark: (id: string, input: FileBookmarkInput) => Promise<FileBookmark>
+  onDeleteFileBookmark: (id: string) => Promise<void>
+  onReorderFileBookmarks: (items: FileBookmarkReorderItem[]) => Promise<FileBookmark[]>
+  onCreateFileBookmarkGroup: (input: FileBookmarkGroupInput) => Promise<FileBookmarkGroup>
+  onUpdateFileBookmarkGroup: (id: string, input: FileBookmarkGroupInput) => Promise<FileBookmarkGroup>
+  onDeleteFileBookmarkGroup: (id: string) => Promise<void>
+  onReorderFileBookmarkGroups: (items: FileBookmarkGroupReorderItem[]) => Promise<FileBookmarkGroup[]>
 }
 
 interface RemoteClipboard {
@@ -99,7 +115,7 @@ interface ResizableFileHeaderCellProps extends HTMLAttributes<HTMLTableCellEleme
   onResizeStart?: (key: FileColumnKey, event: MouseEvent<HTMLSpanElement>) => void
 }
 
-type FileSideTabKey = 'details' | 'transfers'
+type FileSideTabKey = 'details' | 'transfers' | 'bookmarks'
 
 const fileSessionPhaseOrder: FileSessionPhase[] = [
   'queued',
@@ -158,6 +174,14 @@ export function FilesPage({
   onReconnectFileSession,
   onTrustFileSessionHost,
   onUpdateFileSession,
+  onCreateFileBookmark,
+  onUpdateFileBookmark,
+  onDeleteFileBookmark,
+  onReorderFileBookmarks,
+  onCreateFileBookmarkGroup,
+  onUpdateFileBookmarkGroup,
+  onDeleteFileBookmarkGroup,
+  onReorderFileBookmarkGroups,
 }: FilesPageProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -1314,6 +1338,28 @@ export function FilesPage({
               />
             ),
           },
+          {
+            key: 'bookmarks',
+            label: t('files.bookmarks'),
+            icon: <Bookmark size={17} aria-hidden="true" />,
+            children: (
+              <FileBookmarksPanel
+                bookmarks={data.fileBookmarks}
+                groups={data.fileBookmarkGroups}
+                currentPath={currentPath}
+                connected={fileSessionConnected}
+                onNavigate={loadDirectory}
+                onCreateBookmark={onCreateFileBookmark}
+                onUpdateBookmark={onUpdateFileBookmark}
+                onDeleteBookmark={onDeleteFileBookmark}
+                onReorderBookmarks={onReorderFileBookmarks}
+                onCreateGroup={onCreateFileBookmarkGroup}
+                onUpdateGroup={onUpdateFileBookmarkGroup}
+                onDeleteGroup={onDeleteFileBookmarkGroup}
+                onReorderGroups={onReorderFileBookmarkGroups}
+              />
+            ),
+          },
         ]}
       />
       <PermissionEditorModal
@@ -1361,7 +1407,10 @@ function PathTrail({ path, onNavigate }: { path: string; onNavigate: (path: stri
 }
 
 function parseFileSideTabKey(value: unknown): FileSideTabKey {
-  return value === 'transfers' ? 'transfers' : 'details'
+  if (value === 'transfers' || value === 'bookmarks') {
+    return value
+  }
+  return 'details'
 }
 
 function ResizableFileHeaderCell({

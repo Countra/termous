@@ -603,6 +603,14 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onReconnectFileSession={actions.reconnectFileSession}
             onTrustFileSessionHost={actions.trustFileSessionHost}
             onUpdateFileSession={actions.updateFileSession}
+            onCreateFileBookmark={actions.createFileBookmark}
+            onUpdateFileBookmark={actions.updateFileBookmark}
+            onDeleteFileBookmark={actions.deleteFileBookmark}
+            onReorderFileBookmarks={actions.reorderFileBookmarks}
+            onCreateFileBookmarkGroup={actions.createFileBookmarkGroup}
+            onUpdateFileBookmarkGroup={actions.updateFileBookmarkGroup}
+            onDeleteFileBookmarkGroup={actions.deleteFileBookmarkGroup}
+            onReorderFileBookmarkGroups={actions.reorderFileBookmarkGroups}
           />
         ) : null}
 

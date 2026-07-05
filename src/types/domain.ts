@@ -535,6 +535,45 @@ export interface CodeSnippetInput {
   favorite: boolean
 }
 
+export interface FileBookmarkGroup {
+  id: string
+  name: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface FileBookmarkGroupInput {
+  name: string
+}
+
+export interface FileBookmarkGroupReorderItem {
+  id: string
+  sort_order: number
+}
+
+export interface FileBookmark {
+  id: string
+  name: string
+  path: string
+  group_id: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface FileBookmarkInput {
+  name: string
+  path: string
+  group_id: string
+}
+
+export interface FileBookmarkReorderItem {
+  id: string
+  group_id: string
+  sort_order: number
+}
+
 export interface Host {
   id: string
   name: string
@@ -789,6 +828,8 @@ export interface AppData {
   forwardProfiles: ForwardProfile[]
   forwards: ForwardInstance[]
   snippets: CodeSnippet[]
+  fileBookmarkGroups: FileBookmarkGroup[]
+  fileBookmarks: FileBookmark[]
   settings: Settings
   terminalFonts: TerminalFont[]
   hostReachability: Record<string, HostReachability>
