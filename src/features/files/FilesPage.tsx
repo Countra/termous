@@ -200,7 +200,7 @@ export function FilesPage({
     '--files-host-width': `${hostPanelResize.width}px`,
     '--files-details-width': `${detailsPanelResize.width}px`,
   } as CSSProperties
-  const { transfers, connected, upsertTransfer } = useTransferQueue(api)
+  const { transfers, upsertTransfer, removeTransfer } = useTransferQueue(api)
   const showTransferQueuePanel = () => {
     setDetailsCollapsed(false)
     setDetailsActiveTab('transfers')
@@ -1216,11 +1216,28 @@ export function FilesPage({
             children: (
               <TransferQueuePanel
                 transfers={transfers}
-                connected={connected}
-                onCancel={(id) => api.deleteTransfer(id)}
+                onCancel={async (id) => {
+                  try {
+                    await api.deleteTransfer(id)
+                  } catch (actionError) {
+                    notifyError(actionError)
+                  }
+                }}
+                onDelete={async (id) => {
+                  try {
+                    await api.deleteTransfer(id)
+                    removeTransfer(id)
+                  } catch (actionError) {
+                    notifyError(actionError)
+                  }
+                }}
                 onRetry={async (id) => {
-                  const task = await api.retryTransfer(id)
-                  upsertTransfer(task)
+                  try {
+                    const task = await api.retryTransfer(id)
+                    upsertTransfer(task)
+                  } catch (actionError) {
+                    notifyError(actionError)
+                  }
                 }}
               />
             ),

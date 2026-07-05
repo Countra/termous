@@ -6658,11 +6658,10 @@ body.is-panel-resizing .files-page {
 
 .files-transfer-panel {
   height: 100%;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
-.files-detail-hero,
-.files-transfer-status-card {
+.files-detail-hero {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -6693,15 +6692,13 @@ body.is-panel-resizing .files-page {
   color: var(--warning);
 }
 
-.files-detail-hero-copy,
-.files-transfer-status-card > div {
+.files-detail-hero-copy {
   display: grid;
   min-width: 0;
   gap: 4px;
 }
 
-.files-detail-hero-copy strong,
-.files-transfer-status-card strong {
+.files-detail-hero-copy strong {
   overflow: hidden;
   color: var(--text-primary);
   font-size: 14px;
@@ -6711,8 +6708,7 @@ body.is-panel-resizing .files-page {
   white-space: nowrap;
 }
 
-.files-detail-hero-copy span,
-.files-transfer-status-card span {
+.files-detail-hero-copy span {
   overflow: hidden;
   color: var(--text-muted);
   font-size: 12px;
@@ -6720,31 +6716,19 @@ body.is-panel-resizing .files-page {
   white-space: nowrap;
 }
 
-.files-live-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  background: var(--text-muted);
-}
-
-.files-live-dot.is-online {
-  background: var(--success);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 14%, transparent);
-}
-
 .transfer-summary-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .transfer-summary-strip span {
   display: grid;
   gap: 1px;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-subtle) 56%, transparent);
-  padding: 7px 8px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface-subtle) 50%, transparent);
+  padding: 6px 8px;
   box-shadow: var(--inner-highlight);
 }
 
@@ -6767,27 +6751,32 @@ body.is-panel-resizing .files-page {
 .transfer-list {
   display: grid;
   align-content: start;
-  gap: 7px;
+  gap: 8px;
   overflow: auto;
   padding-right: 2px;
 }
 
 .transfer-row {
   display: grid;
-  gap: 7px;
+  gap: 8px;
   border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--surface-subtle) 58%, transparent);
-  padding: 9px;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 66%, transparent), color-mix(in srgb, var(--surface) 88%, transparent)),
+    var(--surface);
+  padding: 10px;
   transition:
     border-color 0.18s ease,
     background 0.18s ease,
-    transform 0.18s ease;
+    box-shadow 0.18s ease;
 }
 
 .transfer-row:hover {
   border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
-  background: color-mix(in srgb, var(--surface-subtle) 74%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 78%, transparent), color-mix(in srgb, var(--surface) 90%, transparent)),
+    var(--surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent) inset;
 }
 
 .transfer-row-main {
@@ -6807,10 +6796,11 @@ body.is-panel-resizing .files-page {
 
 .transfer-kind-icon {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   place-items: center;
-  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  border-radius: 9px;
   background: color-mix(in srgb, var(--accent) 13%, transparent);
   color: var(--accent);
 }
@@ -6852,7 +6842,7 @@ body.is-panel-resizing .files-page {
 .transfer-status {
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
   padding: 2px 7px;
   font-variant-numeric: tabular-nums;
   line-height: 1.35;
@@ -6877,10 +6867,10 @@ body.is-panel-resizing .files-page {
 }
 
 .transfer-progress-line {
-  height: 4px;
+  height: 5px;
   overflow: hidden;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-subtle) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 66%, transparent);
 }
 
 .transfer-progress-line span {
@@ -6903,19 +6893,47 @@ body.is-panel-resizing .files-page {
 .transfer-meta-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px 8px;
+  gap: 5px 8px;
   font-variant-numeric: tabular-nums;
 }
 
 .transfer-meta-grid span {
+  display: grid;
+  min-width: 0;
+  min-height: 18px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.transfer-meta-grid b {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 640;
+  line-height: 1;
+}
+
+.transfer-meta-grid em {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 660;
+  line-height: 1;
+  text-overflow: ellipsis;
+}
+
 .transfer-error {
   margin: 0;
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
   color: var(--danger);
+  padding: 6px 8px;
   font-size: 11px;
   line-height: 1.35;
 }
