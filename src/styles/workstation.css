@@ -6428,10 +6428,21 @@ body.is-panel-resizing .files-page {
 }
 
 .files-table-shell {
+  position: relative;
   min-width: 0;
   min-height: 0;
   overflow: auto;
   padding: 8px;
+  transition:
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.files-page.is-dragging .files-table-shell {
+  background:
+    linear-gradient(color-mix(in srgb, var(--accent) 5%, transparent), color-mix(in srgb, var(--accent) 5%, transparent)),
+    var(--surface);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 58%, var(--border));
 }
 
 .files-session-empty {
@@ -6492,6 +6503,27 @@ body.is-panel-resizing .files-page {
 
 .files-table .ant-table-tbody > tr.ant-table-row:hover > td {
   background: color-mix(in srgb, var(--surface-subtle) 54%, transparent) !important;
+}
+
+.files-table .ant-table-tbody > tr.files-table-row.is-directory.is-drop-target > td {
+  background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface-subtle)) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 34%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.files-table .ant-table-tbody > tr.files-table-row.is-directory.is-drop-target > td:first-child {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 82%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 34%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.files-table .files-table-row.is-directory.is-drop-target .file-name-cell {
+  color: var(--text-primary);
+}
+
+.files-table .files-table-row.is-directory.is-drop-target .file-kind-icon {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-subtle));
+  color: var(--accent);
 }
 
 .files-table .ant-table-tbody > tr.ant-table-row-selected > td {
@@ -7155,20 +7187,26 @@ body.is-panel-resizing .files-page {
 .files-drop-mask {
   position: absolute;
   z-index: 12;
-  inset: 72px 12px 12px;
-  display: grid;
-  place-items: center;
+  right: 18px;
+  bottom: 18px;
+  display: inline-flex;
+  max-width: min(360px, calc(100% - 36px));
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
   border: 1px solid color-mix(in srgb, var(--accent) 62%, var(--border));
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--surface-strong) 90%, transparent);
+  border-radius: 999px;
+  background: var(--surface-strong);
   color: var(--text-primary);
-  font-size: 15px;
+  padding: 0 16px;
+  font-size: 13px;
   font-weight: 760;
+  line-height: 1.2;
   box-shadow:
-    0 24px 70px rgb(0 0 0 / 28%),
+    0 16px 40px rgb(0 0 0 / 26%),
     inset 0 1px 0 rgb(255 255 255 / 10%);
-  backdrop-filter: blur(18px) saturate(1.18);
   pointer-events: none;
+  text-align: center;
 }
 
 .files-row-menu .ant-dropdown-menu {

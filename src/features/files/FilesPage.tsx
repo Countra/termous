@@ -154,6 +154,7 @@ export function FilesPage({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
+  const [dropTargetDirectoryPath, setDropTargetDirectoryPath] = useState<string | null>(null)
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
   const [permissionSaving, setPermissionSaving] = useState(false)
@@ -224,6 +225,10 @@ export function FilesPage({
     () => entries.filter((entry) => selectedPaths.includes(entry.path)),
     [entries, selectedPaths],
   )
+  const dropTargetDirectory = useMemo(
+    () => entries.find((entry) => entry.kind === 'directory' && entry.path === dropTargetDirectoryPath) ?? null,
+    [dropTargetDirectoryPath, entries],
+  )
 
   const applyListing = useCallback((listing: RemoteDirectoryListing) => {
     setCurrentPath(listing.path)
@@ -231,6 +236,7 @@ export function FilesPage({
     setEntries([...listing.entries].sort((left, right) => fileSortValue(left).localeCompare(fileSortValue(right))))
     setSelectedPaths([])
     setActiveEntry(null)
+    setDropTargetDirectoryPath(null)
     setError(null)
   }, [])
 
@@ -578,13 +584,13 @@ export function FilesPage({
     }
   }
 
-  const uploadLocalPaths = async (source: LocalGrantSource, paths: string[]) => {
+  const uploadLocalPaths = async (source: LocalGrantSource, paths: string[], targetPath = currentPath) => {
     if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
       return
     }
     await runFileAction(async () => {
       const grant = await api.createLocalFileGrant(source, paths)
-      const task = await api.createFileSessionUploadTransfer(activeFileSessionId, grant.id, currentPath, 'rename')
+      const task = await api.createFileSessionUploadTransfer(activeFileSessionId, grant.id, targetPath, 'rename')
       trackUploadRefreshTask(task)
       showTransferQueuePanel()
       upsertTransfer(task)
@@ -794,9 +800,22 @@ export function FilesPage({
 
   const hasDraggedFiles = (event: DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes('Files')
 
+  const findDirectoryDropTargetPath = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) {
+      return null
+    }
+    const row = target.closest<HTMLTableRowElement>('tr.files-table-row.is-directory')
+    const rowKey = row?.getAttribute('data-row-key')
+    if (!rowKey) {
+      return null
+    }
+    return entries.some((entry) => entry.kind === 'directory' && entry.path === rowKey) ? rowKey : null
+  }
+
   const resetDragState = () => {
     dragDepthRef.current = 0
     setDragActive(false)
+    setDropTargetDirectoryPath(null)
   }
 
   const onDragEnter = (event: DragEvent<HTMLElement>) => {
@@ -817,6 +836,7 @@ export function FilesPage({
     event.stopPropagation()
     event.dataTransfer.dropEffect = fileSessionConnected ? 'copy' : 'none'
     setDragActive(true)
+    setDropTargetDirectoryPath(fileSessionConnected ? findDirectoryDropTargetPath(event.target) : null)
   }
 
   const onDragLeave = (event: DragEvent<HTMLElement>) => {
@@ -833,6 +853,7 @@ export function FilesPage({
 
   const onDrop = async (event: DragEvent<HTMLElement>) => {
     const shouldUpload = hasDraggedFiles(event)
+    const targetPath = fileSessionConnected ? findDirectoryDropTargetPath(event.target) ?? currentPath : currentPath
     event.preventDefault()
     event.stopPropagation()
     resetDragState()
@@ -852,7 +873,7 @@ export function FilesPage({
       })
       return
     }
-    await uploadLocalPaths('drop', paths ?? [])
+    await uploadLocalPaths('drop', paths ?? [], targetPath)
   }
 
   const actionDisabled = !fileSessionConnected || loading
@@ -1146,7 +1167,7 @@ export function FilesPage({
                 selectedRowKeys: selectedPaths,
                 onChange: (keys) => setSelectedPaths(keys.map(String)),
               }}
-              rowClassName={(entry) => `files-table-row is-${entry.kind}`}
+              rowClassName={(entry) => `files-table-row is-${entry.kind}${dropTargetDirectoryPath === entry.path ? ' is-drop-target' : ''}`}
               onRow={(entry) => ({
                 onClick: () => setActiveEntry(entry),
                 onDoubleClick: () => enterEntry(entry),
@@ -1155,7 +1176,13 @@ export function FilesPage({
             />
           )}
         </div>
-        {dragActive ? <div className="files-drop-mask">{t('files.dropUpload')}</div> : null}
+        {dragActive ? (
+          <div className="files-drop-mask">
+            {dropTargetDirectory
+              ? t('files.dropUploadToDirectory', { name: dropTargetDirectory.name })
+              : t('files.dropUpload')}
+          </div>
+        ) : null}
       </main>
 
       <FeatureSidePanel<FileSideTabKey>
