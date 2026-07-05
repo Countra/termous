@@ -18,10 +18,10 @@ export function TransferQueuePanel({ transfers, connected, onCancel, onRetry }: 
   const failedCount = transfers.filter((task) => task.status === 'failed').length
 
   return (
-    <aside className="files-side-panel details-panel">
-      <div className="panel-heading transfer-panel-heading">
+    <section className="files-transfer-panel">
+      <div className="files-transfer-status-card">
         <div>
-          <h2>{t('files.transfers')}</h2>
+          <strong>{t('files.transfers')}</strong>
           <span>{connected ? t('files.transferEventsConnected') : t('files.transferEventsOffline')}</span>
         </div>
         <span className={`files-live-dot ${connected ? 'is-online' : ''}`} />
@@ -50,7 +50,7 @@ export function TransferQueuePanel({ transfers, connected, onCancel, onRetry }: 
           transfers.map((task) => <TransferRow key={task.id} task={task} onCancel={onCancel} onRetry={onRetry} />)
         )}
       </div>
-    </aside>
+    </section>
   )
 }
 

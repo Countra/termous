@@ -6191,12 +6191,13 @@ body.is-terminal-tab-dragging * {
 
 .files-page {
   --files-host-layout-width: var(--files-host-width, 250px);
+  --files-details-layout-width: var(--files-details-width, 300px);
   position: relative;
   display: grid;
   height: 100%;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: var(--files-host-layout-width) minmax(0, 1fr) minmax(270px, 300px);
+  grid-template-columns: var(--files-host-layout-width) minmax(0, 1fr) var(--files-details-layout-width);
   gap: 12px;
   outline: none;
   transition: grid-template-columns 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -6207,7 +6208,15 @@ body.is-panel-resizing .files-page {
 }
 
 .files-page.is-host-collapsed {
-  grid-template-columns: 72px minmax(0, 1fr) minmax(270px, 300px);
+  grid-template-columns: 72px minmax(0, 1fr) var(--files-details-layout-width);
+}
+
+.files-page.is-details-collapsed {
+  grid-template-columns: var(--files-host-layout-width) minmax(0, 1fr) 64px;
+}
+
+.files-page.is-host-collapsed.is-details-collapsed {
+  grid-template-columns: 72px minmax(0, 1fr) 64px;
 }
 
 .files-page,
@@ -6599,27 +6608,84 @@ body.is-panel-resizing .files-page {
   box-shadow: 0 16px 36px color-mix(in srgb, #000 28%, transparent);
 }
 
-.files-right-rail {
-  display: grid;
-  grid-template-rows: minmax(180px, 0.72fr) minmax(240px, 1fr);
-  gap: 12px;
-  overflow: hidden;
+.files-right-rail.details-panel {
+  overflow: visible;
 }
 
-.files-side-panel,
-.files-detail-panel {
+.files-detail-panel,
+.files-transfer-panel {
   display: grid;
   min-height: 0;
   overflow: hidden;
-  padding: 14px;
-}
-
-.files-side-panel {
-  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
 }
 
 .files-detail-panel {
   grid-template-rows: auto minmax(0, 1fr);
+}
+
+.files-transfer-panel {
+  height: 100%;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.files-detail-hero,
+.files-transfer-status-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 62%, transparent), color-mix(in srgb, var(--surface-strong) 42%, transparent)),
+    var(--surface);
+  padding: 12px;
+  box-shadow: var(--inner-highlight);
+}
+
+.files-detail-kind-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent-soft) 48%, transparent);
+  color: var(--accent);
+}
+
+.files-detail-kind-icon.is-directory {
+  border-color: color-mix(in srgb, var(--warning) 28%, var(--border));
+  background: color-mix(in srgb, var(--warning) 11%, var(--surface-subtle));
+  color: var(--warning);
+}
+
+.files-detail-hero-copy,
+.files-transfer-status-card > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.files-detail-hero-copy strong,
+.files-transfer-status-card strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 780;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-detail-hero-copy span,
+.files-transfer-status-card span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .files-live-dot {
@@ -6634,15 +6700,10 @@ body.is-panel-resizing .files-page {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 14%, transparent);
 }
 
-.transfer-panel-heading {
-  align-items: start;
-}
-
 .transfer-summary-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  margin: 8px 0 12px;
+  gap: 8px;
 }
 
 .transfer-summary-strip span {
@@ -6684,7 +6745,7 @@ body.is-panel-resizing .files-page {
   gap: 7px;
   border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
   border-radius: 11px;
-  background: color-mix(in srgb, var(--surface-strong) 64%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 58%, transparent);
   padding: 9px;
   transition:
     border-color 0.18s ease,
@@ -6839,12 +6900,16 @@ body.is-panel-resizing .files-page {
   align-content: start;
   gap: 0;
   overflow: auto;
-  margin: 12px 0 0;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
+  padding: 4px 12px;
 }
 
 .files-detail-list div {
   display: grid;
-  grid-template-columns: 86px minmax(0, 1fr);
+  grid-template-columns: 76px minmax(0, 1fr);
   gap: 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
   padding: 9px 0;
@@ -7114,25 +7179,39 @@ body.is-panel-resizing .files-page {
 }
 
 @media (max-width: 1100px) {
-  .files-page {
+  .files-page,
+  .files-page.is-details-collapsed {
     --files-host-layout-width: clamp(220px, var(--files-host-width, 250px), 260px);
     grid-template-columns: var(--files-host-layout-width) minmax(0, 1fr);
   }
 
-  .files-page.is-host-collapsed {
+  .files-page.is-host-collapsed,
+  .files-page.is-host-collapsed.is-details-collapsed {
     grid-template-columns: 72px minmax(0, 1fr);
   }
 
   .files-right-rail {
     grid-column: 1 / -1;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: minmax(190px, 260px);
+    min-height: 320px;
+  }
+
+  .files-right-rail.details-panel.is-collapsed {
+    min-height: 76px;
+  }
+
+  .files-right-rail.details-panel.is-collapsed .details-collapsed-rail {
+    flex-direction: row;
+    justify-content: center;
+    margin-top: 0;
+    padding: 0;
   }
 }
 
 @media (max-width: 900px) {
   .files-page,
-  .files-page.is-host-collapsed {
+  .files-page.is-host-collapsed,
+  .files-page.is-details-collapsed,
+  .files-page.is-host-collapsed.is-details-collapsed {
     grid-template-columns: 1fr;
     overflow: auto;
   }
@@ -7142,8 +7221,7 @@ body.is-panel-resizing .files-page {
   }
 
   .files-right-rail {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(180px, auto) minmax(180px, auto);
+    min-height: 320px;
   }
 }
 

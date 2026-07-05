@@ -27,7 +27,7 @@ import {
   Star,
   TriangleAlert,
 } from 'lucide-react'
-import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tabs, Tooltip, type MenuProps } from 'antd'
+import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tooltip, type MenuProps } from 'antd'
 import {
   useCallback,
   useEffect,
@@ -43,6 +43,7 @@ import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
+import { FeatureSidePanel } from '../../components/ui/FeatureSidePanel'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
@@ -231,41 +232,6 @@ export function WorkbenchPage({
   const canOpenFiles = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected' && activeSession.host_id)
   const canSendSnippet = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected')
   const canReconnectSession = Boolean(activeSession?.kind === 'ssh' && activeSession.host_id && activeSessionEnded)
-  const detailsRailItems = useMemo(
-    () => [
-      {
-        key: 'overview' as const,
-        label: t('workbench.detailsTabs.overview'),
-        icon: <Server size={17} aria-hidden="true" />,
-      },
-      {
-        key: 'system' as const,
-        label: t('workbench.detailsTabs.systemInfo'),
-        icon: <Cpu size={17} aria-hidden="true" />,
-      },
-      {
-        key: 'monitor' as const,
-        label: t('workbench.detailsTabs.systemMonitor'),
-        icon: <Monitor size={17} aria-hidden="true" />,
-      },
-      {
-        key: 'firewall' as const,
-        label: t('workbench.detailsTabs.firewall'),
-        icon: <Shield size={17} aria-hidden="true" />,
-      },
-      {
-        key: 'forwards' as const,
-        label: t('workbench.detailsTabs.forwards'),
-        icon: <Cable size={17} aria-hidden="true" />,
-      },
-      {
-        key: 'snippets' as const,
-        label: t('workbench.detailsTabs.snippets'),
-        icon: <Code2 size={17} aria-hidden="true" />,
-      },
-    ],
-    [t],
-  )
   const filteredSnippets = useMemo(() => {
     const tokens = snippetQuery.trim().toLowerCase().split(/\s+/).filter(Boolean)
     const snippets = data.snippets
@@ -1192,247 +1158,220 @@ export function WorkbenchPage({
         </div>
       </div>
 
-      <aside className={`details-panel ${detailsCollapsed ? 'is-collapsed' : ''} ${detailsPanelResize.resizing ? 'is-resizing' : ''}`}>
-        <div className="details-resize-edge" aria-hidden="true" onPointerDown={detailsPanelResize.beginResize} />
-        <Tooltip title={detailsCollapsed ? t('app.expand') : t('app.collapse')}>
-          <Button
-            type="text"
-            className="panel-side-toggle panel-side-toggle-right"
-            onClick={() => {
-              setDetailsCollapsed((current) => !current)
-            }}
-            aria-label={detailsCollapsed ? t('app.expand') : t('app.collapse')}
-            icon={detailsCollapsed ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
-          />
-        </Tooltip>
-        {detailsCollapsed ? (
-          <div className="details-collapsed-rail" aria-label={t('workbench.currentConnection')}>
-            {detailsRailItems.map((item) => (
-              <Tooltip key={item.key} title={item.label} placement="left">
-                <Button
-                  type="text"
-                  className={`details-rail-tab ${detailsActiveTab === item.key ? 'is-active' : ''}`}
-                  aria-label={item.label}
-                  icon={item.icon}
-                  onClick={() => {
-                    setDetailsActiveTab(item.key)
-                    setDetailsCollapsed(false)
-                  }}
-                />
-              </Tooltip>
-            ))}
-          </div>
-        ) : null}
-        <div className={`details-content-shell ${detailsCollapsed ? 'is-hidden' : ''}`} aria-hidden={detailsCollapsed}>
-          <Tabs
-            className="details-tabs"
-            popupClassName="details-tabs-dropdown"
-            size="small"
-            activeKey={detailsActiveTab}
-            destroyOnHidden={false}
-            onChange={(key) => setDetailsActiveTab(parseDetailsTabKey(key))}
-            items={[
-                {
-                  key: 'overview',
-                  label: t('workbench.detailsTabs.overview'),
-                  children: (
-                    detailHost ? (
-                      <div className="connection-overview-panel">
-                        <div className="connection-overview-hero">
-                          <HostAvatar
-                            host={detailHost}
-                            getIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
-                            className="connection-overview-icon"
-                            size={42}
-                            iconSize={22}
-                          />
-                          <div className="connection-overview-copy">
-                            <strong>{detailHost.name}</strong>
-                            <small>{`${detailHost.username}@${detailHost.address}:${detailHost.port}`}</small>
-                          </div>
-                          <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
-                        </div>
-                        <dl className="detail-list">
-                          <div>
-                            <dt>{t('hosts.address')}</dt>
-                            <dd>{`${detailHost.address}:${detailHost.port}`}</dd>
-                          </div>
-                          <div>
-                            <dt>{t('hosts.username')}</dt>
-                            <dd>{detailHost.username}</dd>
-                          </div>
-                          <div>
-                            <dt>{t('hosts.platform.label')}</dt>
-                            <dd>{detailHost.platform === 'linux' ? t('hosts.platform.linux') : t('fields.none')}</dd>
-                          </div>
-                          <div>
-                            <dt>{t('hosts.group')}</dt>
-                            <dd>{detailGroup?.name ?? t('hosts.ungrouped')}</dd>
-                          </div>
-                          <div>
-                            <dt>{t('hosts.authMethod')}</dt>
-                            <dd>{t(`hosts.auth.${detailHost.auth_method}`)}</dd>
-                          </div>
-                          <div>
-                            <dt>{t('workbench.credential')}</dt>
-                            <dd>{detailCredentialLabel}</dd>
-                          </div>
-                          <div>
-                            <dt>{t('workbench.sessionState')}</dt>
-                            <dd>{sessionStateLabel}</dd>
-                          </div>
-                          <div>
-                            <dt>{t('hosts.tags')}</dt>
-                            <dd className="connection-overview-tags-cell">
-                              {detailTags.length > 0 ? (
-                                <span className="connection-overview-tags">
-                                  {detailTags.map((tag, index) => (
-                                    <span key={`${tag}-${index}`}>{tag}</span>
-                                  ))}
-                                </span>
-                              ) : t('fields.none')}
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>{t('workbench.jumpHost')}</dt>
-                            <dd>{detailJumpHost?.name ?? t('fields.none')}</dd>
-                          </div>
-                          <div>
-                            <dt>{t('hosts.note')}</dt>
-                            <dd>{detailHost.note || t('fields.none')}</dd>
-                          </div>
-                        </dl>
-                        <div className="current-connection-actions">
-                          <Button
-                            className="secondary-button"
-                            disabled={!canOpenFiles || actionBusy || !activeSession}
-                            onClick={() => activeSession && void onOpenFiles(activeSession)}
-                            icon={<FolderOpen size={16} />}
-                          >
-                            {t('workbench.manageFiles')}
-                          </Button>
-                          {canReconnectSession ? (
-                            <Button
-                              className="secondary-button"
-                              disabled={actionBusy}
-                              onClick={() => void reconnectActiveSession()}
-                              icon={<RotateCcw size={16} />}
-                            >
-                              {t('workbench.reconnectSession')}
-                            </Button>
-                          ) : null}
-                          <Button
-                            danger
-                            className="danger-button"
-                            disabled={!activeSession || actionBusy}
-                            onClick={() => activeSession && void onDisconnect(activeSession.id)}
-                            icon={<Power size={16} />}
-                          >
-                            {activeSessionEnded ? t('workbench.closeDisconnectedSession') : t('workbench.closeSession')}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <WorkbenchEmptyState
-                        icon={<Server size={20} />}
-                        title={t('workbench.connectionOverview.emptyTitle')}
-                        description={t('workbench.connectionOverview.emptyHint')}
-                      />
-                    )
-                  ),
-                },
-                {
-                  key: 'system',
-                  label: t('workbench.detailsTabs.systemInfo'),
-                  children: <SystemInfoPanel session={activeSession} t={t} />,
-                },
-                {
-                  key: 'monitor',
-                  label: t('workbench.detailsTabs.systemMonitor'),
-                  children: (
-                    <SystemMonitorPanel
-                      api={api}
-                      session={activeSession}
-                      enabled={detailsActiveTab === 'monitor' && !detailsCollapsed}
-                      theme={theme}
-                    />
-                  ),
-                },
-                {
-                  key: 'firewall',
-                  label: t('workbench.detailsTabs.firewall'),
-                  children: (
-                    <FirewallPanel
-                      api={api}
-                      session={activeSession}
-                      host={sessionHost}
-                      enabled={detailsActiveTab === 'firewall' && !detailsCollapsed}
-                    />
-                  ),
-                },
-                {
-                  key: 'forwards',
-                  label: t('workbench.detailsTabs.forwards'),
-                  children: (
-                    <ForwardSessionPanel
-                      session={activeSession}
-                      host={sessionHost}
-                      forwards={data.forwards}
-                      actionBusy={actionBusy}
-                      onStartForward={onStartForward}
-                      onStopForward={onStopForward}
-                    />
-                  ),
-                },
-                {
-                  key: 'snippets',
-                  label: t('workbench.detailsTabs.snippets'),
-                  children: (
-                    <section className="snippet-send-panel">
-                      <div className="snippet-send-head">
-                        <div>
-                          <h3>{t('snippets.sendPanelTitle')}</h3>
-                          <span>{canSendSnippet ? t('snippets.sendPanelHint') : t('snippets.noActiveSession')}</span>
-                        </div>
-                        <Code2 size={17} aria-hidden="true" />
-                      </div>
-                      <Input
-                        id="workbench-snippet-search"
-                        name="workbench-snippet-search"
-                        className="host-search-input snippet-quick-search termous-search-input"
-                        value={snippetQuery}
-                        allowClear
-                        variant="borderless"
-                        prefix={<Search size={14} aria-hidden="true" />}
-                        placeholder={t('snippets.searchPlaceholder')}
-                        onChange={(event) => setSnippetQuery(event.target.value)}
-                      />
-                      {data.snippets.length === 0 ? (
-                        <div className="snippet-send-empty">{t('snippets.emptyHint')}</div>
-                      ) : filteredSnippets.length === 0 ? (
-                        <div className="snippet-send-empty">{t('snippets.noFilterResults')}</div>
-                      ) : (
-                        <div className="snippet-send-list">
-                          {filteredSnippets.map((snippet) => (
-                            <SnippetSendRow
-                              key={snippet.id}
-                              snippet={snippet}
-                              disabled={!canSendSnippet || actionBusy}
-                              busy={actionBusy}
-                              onInsert={() => void sendSnippet(snippet, false)}
-                              onSend={() => void sendSnippet(snippet, true)}
-                              onToggleFavorite={() => void onToggleSnippetFavorite(snippet)}
-                            />
+      <FeatureSidePanel<DetailsTabKey>
+        activeKey={detailsActiveTab}
+        ariaLabel={t('workbench.currentConnection')}
+        collapsed={detailsCollapsed}
+        collapseLabel={t('app.collapse')}
+        expandLabel={t('app.expand')}
+        resizing={detailsPanelResize.resizing}
+        onActiveKeyChange={setDetailsActiveTab}
+        onCollapsedChange={setDetailsCollapsed}
+        onResizePointerDown={detailsPanelResize.beginResize}
+        tabs={[
+          {
+            key: 'overview',
+            label: t('workbench.detailsTabs.overview'),
+            icon: <Server size={17} aria-hidden="true" />,
+            children: detailHost ? (
+              <div className="connection-overview-panel">
+                <div className="connection-overview-hero">
+                  <HostAvatar
+                    host={detailHost}
+                    getIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+                    className="connection-overview-icon"
+                    size={42}
+                    iconSize={22}
+                  />
+                  <div className="connection-overview-copy">
+                    <strong>{detailHost.name}</strong>
+                    <small>{`${detailHost.username}@${detailHost.address}:${detailHost.port}`}</small>
+                  </div>
+                  <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
+                </div>
+                <dl className="detail-list">
+                  <div>
+                    <dt>{t('hosts.address')}</dt>
+                    <dd>{`${detailHost.address}:${detailHost.port}`}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.username')}</dt>
+                    <dd>{detailHost.username}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.platform.label')}</dt>
+                    <dd>{detailHost.platform === 'linux' ? t('hosts.platform.linux') : t('fields.none')}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.group')}</dt>
+                    <dd>{detailGroup?.name ?? t('hosts.ungrouped')}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.authMethod')}</dt>
+                    <dd>{t(`hosts.auth.${detailHost.auth_method}`)}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('workbench.credential')}</dt>
+                    <dd>{detailCredentialLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('workbench.sessionState')}</dt>
+                    <dd>{sessionStateLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.tags')}</dt>
+                    <dd className="connection-overview-tags-cell">
+                      {detailTags.length > 0 ? (
+                        <span className="connection-overview-tags">
+                          {detailTags.map((tag, index) => (
+                            <span key={`${tag}-${index}`}>{tag}</span>
                           ))}
-                        </div>
-                      )}
-                    </section>
-                  ),
-                },
-            ]}
-          />
-        </div>
-      </aside>
+                        </span>
+                      ) : t('fields.none')}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{t('workbench.jumpHost')}</dt>
+                    <dd>{detailJumpHost?.name ?? t('fields.none')}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.note')}</dt>
+                    <dd>{detailHost.note || t('fields.none')}</dd>
+                  </div>
+                </dl>
+                <div className="current-connection-actions">
+                  <Button
+                    className="secondary-button"
+                    disabled={!canOpenFiles || actionBusy || !activeSession}
+                    onClick={() => activeSession && void onOpenFiles(activeSession)}
+                    icon={<FolderOpen size={16} />}
+                  >
+                    {t('workbench.manageFiles')}
+                  </Button>
+                  {canReconnectSession ? (
+                    <Button
+                      className="secondary-button"
+                      disabled={actionBusy}
+                      onClick={() => void reconnectActiveSession()}
+                      icon={<RotateCcw size={16} />}
+                    >
+                      {t('workbench.reconnectSession')}
+                    </Button>
+                  ) : null}
+                  <Button
+                    danger
+                    className="danger-button"
+                    disabled={!activeSession || actionBusy}
+                    onClick={() => activeSession && void onDisconnect(activeSession.id)}
+                    icon={<Power size={16} />}
+                  >
+                    {activeSessionEnded ? t('workbench.closeDisconnectedSession') : t('workbench.closeSession')}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <WorkbenchEmptyState
+                icon={<Server size={20} />}
+                title={t('workbench.connectionOverview.emptyTitle')}
+                description={t('workbench.connectionOverview.emptyHint')}
+              />
+            ),
+          },
+          {
+            key: 'system',
+            label: t('workbench.detailsTabs.systemInfo'),
+            icon: <Cpu size={17} aria-hidden="true" />,
+            children: <SystemInfoPanel session={activeSession} t={t} />,
+          },
+          {
+            key: 'monitor',
+            label: t('workbench.detailsTabs.systemMonitor'),
+            icon: <Monitor size={17} aria-hidden="true" />,
+            children: (
+              <SystemMonitorPanel
+                api={api}
+                session={activeSession}
+                enabled={detailsActiveTab === 'monitor' && !detailsCollapsed}
+                theme={theme}
+              />
+            ),
+          },
+          {
+            key: 'firewall',
+            label: t('workbench.detailsTabs.firewall'),
+            icon: <Shield size={17} aria-hidden="true" />,
+            children: (
+              <FirewallPanel
+                api={api}
+                session={activeSession}
+                host={sessionHost}
+                enabled={detailsActiveTab === 'firewall' && !detailsCollapsed}
+              />
+            ),
+          },
+          {
+            key: 'forwards',
+            label: t('workbench.detailsTabs.forwards'),
+            icon: <Cable size={17} aria-hidden="true" />,
+            children: (
+              <ForwardSessionPanel
+                session={activeSession}
+                host={sessionHost}
+                forwards={data.forwards}
+                actionBusy={actionBusy}
+                onStartForward={onStartForward}
+                onStopForward={onStopForward}
+              />
+            ),
+          },
+          {
+            key: 'snippets',
+            label: t('workbench.detailsTabs.snippets'),
+            icon: <Code2 size={17} aria-hidden="true" />,
+            children: (
+              <section className="snippet-send-panel">
+                <div className="snippet-send-head">
+                  <div>
+                    <h3>{t('snippets.sendPanelTitle')}</h3>
+                    <span>{canSendSnippet ? t('snippets.sendPanelHint') : t('snippets.noActiveSession')}</span>
+                  </div>
+                  <Code2 size={17} aria-hidden="true" />
+                </div>
+                <Input
+                  id="workbench-snippet-search"
+                  name="workbench-snippet-search"
+                  className="host-search-input snippet-quick-search termous-search-input"
+                  value={snippetQuery}
+                  allowClear
+                  variant="borderless"
+                  prefix={<Search size={14} aria-hidden="true" />}
+                  placeholder={t('snippets.searchPlaceholder')}
+                  onChange={(event) => setSnippetQuery(event.target.value)}
+                />
+                {data.snippets.length === 0 ? (
+                  <div className="snippet-send-empty">{t('snippets.emptyHint')}</div>
+                ) : filteredSnippets.length === 0 ? (
+                  <div className="snippet-send-empty">{t('snippets.noFilterResults')}</div>
+                ) : (
+                  <div className="snippet-send-list">
+                    {filteredSnippets.map((snippet) => (
+                      <SnippetSendRow
+                        key={snippet.id}
+                        snippet={snippet}
+                        disabled={!canSendSnippet || actionBusy}
+                        busy={actionBusy}
+                        onInsert={() => void sendSnippet(snippet, false)}
+                        onSend={() => void sendSnippet(snippet, true)}
+                        onToggleFavorite={() => void onToggleSnippetFavorite(snippet)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            ),
+          },
+        ]}
+      />
       </section>
       <Modal
         open={Boolean(renamingSessionId)}

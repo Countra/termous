@@ -40,8 +40,10 @@ import type { TermousApi } from '../../api/client'
 import { HostContextPanel } from '../../components/hosts/HostContextPanel'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { EmptyState } from '../../components/ui/EmptyState'
+import { FeatureSidePanel } from '../../components/ui/FeatureSidePanel'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
+import { usePersistentJsonState } from '../../hooks/usePersistentJsonState'
 import { useRafResizablePanelWidth } from '../../hooks/useRafResizablePanelWidth'
 import type {
   AppData,
@@ -88,6 +90,8 @@ interface UploadRefreshTarget {
   targetPath: string
 }
 
+type FileSideTabKey = 'details' | 'transfers'
+
 const fileSessionPhaseOrder: FileSessionPhase[] = [
   'queued',
   'resolving_auth',
@@ -111,6 +115,12 @@ const filesHostPanelWidth = {
   default: 250,
   min: 220,
   max: 360,
+}
+
+const filesDetailsPanelWidth = {
+  default: 300,
+  min: 260,
+  max: 420,
 }
 
 export function FilesPage({
@@ -154,7 +164,17 @@ export function FilesPage({
     'termous.ui.files.hostPanelCollapsed.v1',
     false,
   )
+  const [detailsCollapsed, setDetailsCollapsed] = usePersistentBooleanState(
+    'termous.ui.files.detailsCollapsed.v1',
+    false,
+  )
+  const [detailsActiveTab, setDetailsActiveTab] = usePersistentJsonState<FileSideTabKey>(
+    'termous.ui.files.detailsActiveTab.v1',
+    'details',
+    parseFileSideTabKey,
+  )
   const expandHostPanel = useCallback(() => setHostPanelCollapsed(false), [setHostPanelCollapsed])
+  const expandDetailsPanel = useCallback(() => setDetailsCollapsed(false), [setDetailsCollapsed])
   const hostPanelResize = useRafResizablePanelWidth({
     storageKey: 'termous.ui.files.hostPanelWidth.v1',
     defaultWidth: filesHostPanelWidth.default,
@@ -165,8 +185,19 @@ export function FilesPage({
     cssVariableName: '--files-host-width',
     onExpand: expandHostPanel,
   })
+  const detailsPanelResize = useRafResizablePanelWidth({
+    storageKey: 'termous.ui.files.detailsPanelWidth.v1',
+    defaultWidth: filesDetailsPanelWidth.default,
+    minWidth: filesDetailsPanelWidth.min,
+    maxWidth: filesDetailsPanelWidth.max,
+    side: 'right',
+    targetRef: filesPageRef,
+    cssVariableName: '--files-details-width',
+    onExpand: expandDetailsPanel,
+  })
   const filesPageStyle = {
     '--files-host-width': `${hostPanelResize.width}px`,
+    '--files-details-width': `${detailsPanelResize.width}px`,
   } as CSSProperties
   const { transfers, connected, upsertTransfer } = useTransferQueue(api)
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
@@ -913,7 +944,9 @@ export function FilesPage({
   return (
     <section
       ref={filesPageRef}
-      className={`files-page ${hostPanelCollapsed ? 'is-host-collapsed' : ''} ${dragActive ? 'is-dragging' : ''}`}
+      className={`files-page ${hostPanelCollapsed ? 'is-host-collapsed' : ''} ${
+        detailsCollapsed ? 'is-details-collapsed' : ''
+      } ${dragActive ? 'is-dragging' : ''}`}
       style={filesPageStyle}
       tabIndex={0}
       onKeyDown={onKeyDown}
@@ -1119,22 +1152,48 @@ export function FilesPage({
         {dragActive ? <div className="files-drop-mask">{t('files.dropUpload')}</div> : null}
       </main>
 
-      <aside className="files-right-rail">
-        <FileDetailPanel
-          host={activeFileSessionHost ?? selectedHost}
-          entry={activeEntry ?? selectedEntries[0] ?? null}
-          onEditPermissions={openPermissions}
-        />
-        <TransferQueuePanel
-          transfers={transfers}
-          connected={connected}
-          onCancel={(id) => api.deleteTransfer(id)}
-          onRetry={async (id) => {
-            const task = await api.retryTransfer(id)
-            upsertTransfer(task)
-          }}
-        />
-      </aside>
+      <FeatureSidePanel<FileSideTabKey>
+        activeKey={detailsActiveTab}
+        ariaLabel={t('nav.files')}
+        className="files-right-rail"
+        collapsed={detailsCollapsed}
+        collapseLabel={t('app.collapse')}
+        expandLabel={t('app.expand')}
+        resizing={detailsPanelResize.resizing}
+        onActiveKeyChange={setDetailsActiveTab}
+        onCollapsedChange={setDetailsCollapsed}
+        onResizePointerDown={detailsPanelResize.beginResize}
+        tabs={[
+          {
+            key: 'details',
+            label: t('files.details'),
+            icon: <File size={17} aria-hidden="true" />,
+            children: (
+              <FileDetailPanel
+                host={activeFileSessionHost ?? selectedHost}
+                entry={activeEntry ?? selectedEntries[0] ?? null}
+                onEditPermissions={openPermissions}
+              />
+            ),
+          },
+          {
+            key: 'transfers',
+            label: t('files.transfers'),
+            icon: <Upload size={17} aria-hidden="true" />,
+            children: (
+              <TransferQueuePanel
+                transfers={transfers}
+                connected={connected}
+                onCancel={(id) => api.deleteTransfer(id)}
+                onRetry={async (id) => {
+                  const task = await api.retryTransfer(id)
+                  upsertTransfer(task)
+                }}
+              />
+            ),
+          },
+        ]}
+      />
       <PermissionEditorModal
         entry={permissionEntry}
         open={Boolean(permissionEntry)}
@@ -1179,6 +1238,10 @@ function PathTrail({ path, onNavigate }: { path: string; onNavigate: (path: stri
   )
 }
 
+function parseFileSideTabKey(value: unknown): FileSideTabKey {
+  return value === 'transfers' ? 'transfers' : 'details'
+}
+
 function FileDetailPanel({
   host,
   entry,
@@ -1190,58 +1253,59 @@ function FileDetailPanel({
 }) {
   const { t } = useTranslation()
   return (
-    <aside className="files-detail-panel details-panel">
-      <div className="panel-heading">
-        <div>
-          <h2>{t('files.details')}</h2>
-          <span>{host ? host.name : t('files.noHost')}</span>
-        </div>
-      </div>
+    <section className="files-detail-panel">
       {entry ? (
-        <dl className="files-detail-list">
-          <div>
-            <dt>{t('files.name')}</dt>
-            <dd>{entry.name}</dd>
+        <>
+          <div className="files-detail-hero">
+            <span className={`files-detail-kind-icon is-${entry.kind}`}>
+              {entry.kind === 'directory' ? <Folder size={19} aria-hidden="true" /> : <File size={19} aria-hidden="true" />}
+            </span>
+            <div className="files-detail-hero-copy">
+              <strong>{entry.name}</strong>
+              <span>{host ? host.name : t('files.noHost')}</span>
+            </div>
           </div>
-          <div>
-            <dt>{t('files.path')}</dt>
-            <dd>{entry.path}</dd>
-          </div>
-          <div>
-            <dt>{t('files.kind')}</dt>
-            <dd>{t(`files.kindName.${entry.kind}`)}</dd>
-          </div>
-          <div>
-            <dt>{t('files.size')}</dt>
-            <dd>{entry.kind === 'directory' ? '-' : formatBytes(entry.size)}</dd>
-          </div>
-          <div>
-            <dt>{t('files.modified')}</dt>
-            <dd>{formatDate(entry.modified_at)}</dd>
-          </div>
-          <div>
-            <dt>{t('files.permissions')}</dt>
-            <dd className="files-permission-detail">
-              <span>{formatPermission(entry)}</span>
-              <Button
-                type="text"
-                size="small"
-                className="files-inline-action"
-                icon={<ShieldCheck size={13} />}
-                onClick={() => onEditPermissions(entry)}
-              >
-                {t('files.editPermissions')}
-              </Button>
-            </dd>
-          </div>
-        </dl>
+          <dl className="files-detail-list">
+            <div>
+              <dt>{t('files.path')}</dt>
+              <dd>{entry.path}</dd>
+            </div>
+            <div>
+              <dt>{t('files.kind')}</dt>
+              <dd>{t(`files.kindName.${entry.kind}`)}</dd>
+            </div>
+            <div>
+              <dt>{t('files.size')}</dt>
+              <dd>{entry.kind === 'directory' ? '-' : formatBytes(entry.size)}</dd>
+            </div>
+            <div>
+              <dt>{t('files.modified')}</dt>
+              <dd>{formatDate(entry.modified_at)}</dd>
+            </div>
+            <div>
+              <dt>{t('files.permissions')}</dt>
+              <dd className="files-permission-detail">
+                <span>{formatPermission(entry)}</span>
+                <Button
+                  type="text"
+                  size="small"
+                  className="files-inline-action"
+                  icon={<ShieldCheck size={13} />}
+                  onClick={() => onEditPermissions(entry)}
+                >
+                  {t('files.editPermissions')}
+                </Button>
+              </dd>
+            </div>
+          </dl>
+        </>
       ) : (
         <div className="files-quiet-empty">
           <strong>{t('files.noSelection')}</strong>
           <span>{t('files.noSelectionHint')}</span>
         </div>
       )}
-    </aside>
+    </section>
   )
 }
 
