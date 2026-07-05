@@ -107,6 +107,10 @@ interface UploadRefreshTarget {
   targetPath: string
 }
 
+interface RemoteMoveDragState {
+  paths: string[]
+}
+
 type FileColumnKey = 'name' | 'size' | 'modified' | 'permissions'
 type FileColumnWidths = Record<FileColumnKey, number>
 
@@ -162,6 +166,19 @@ const minFileColumnWidths: FileColumnWidths = {
   permissions: 82,
 }
 
+const remoteFileDragMime = 'application/x-termous-remote-files'
+const fileDragAutoScrollEdge = 72
+const fileDragAutoScrollMaxSpeed = 18
+
+const remotePathDisplayName = (path: string) => {
+  const normalized = normalizeRemotePath(path)
+  if (normalized === '/') {
+    return '/'
+  }
+  const parts = normalized.split('/').filter(Boolean)
+  return parts[parts.length - 1] ?? normalized
+}
+
 export function FilesPage({
   api,
   data,
@@ -186,8 +203,12 @@ export function FilesPage({
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
   const filesPageRef = useRef<HTMLElement>(null)
+  const filesTableShellRef = useRef<HTMLDivElement>(null)
   const fileTabViewportRef = useRef<HTMLDivElement>(null)
   const dragDepthRef = useRef(0)
+  const autoScrollFrameRef = useRef<number | null>(null)
+  const autoScrollSpeedRef = useRef(0)
+  const remoteMoveDragRef = useRef<RemoteMoveDragState | null>(null)
   const uploadRefreshTasksRef = useRef(new Map<string, UploadRefreshTarget>())
   const lastSessionLoadKeyRef = useRef('')
   const lastActiveFileSessionIdRef = useRef('')
@@ -203,6 +224,8 @@ export function FilesPage({
   const [error, setError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [dropTargetDirectoryPath, setDropTargetDirectoryPath] = useState<string | null>(null)
+  const [remoteMoveDrag, setRemoteMoveDrag] = useState<RemoteMoveDragState | null>(null)
+  const [remoteMoveTargetPath, setRemoteMoveTargetPath] = useState<string | null>(null)
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
   const [permissionSaving, setPermissionSaving] = useState(false)
@@ -282,6 +305,12 @@ export function FilesPage({
     () => entries.find((entry) => entry.kind === 'directory' && entry.path === dropTargetDirectoryPath) ?? null,
     [dropTargetDirectoryPath, entries],
   )
+  const remoteMoveTargetDirectory = useMemo(
+    () => entries.find((entry) => entry.kind === 'directory' && entry.path === remoteMoveTargetPath) ?? null,
+    [remoteMoveTargetPath, entries],
+  )
+  const dropTargetDirectoryName = dropTargetDirectory?.name ?? (dropTargetDirectoryPath ? remotePathDisplayName(dropTargetDirectoryPath) : '')
+  const remoteMoveTargetDirectoryName = remoteMoveTargetDirectory?.name ?? (remoteMoveTargetPath ? remotePathDisplayName(remoteMoveTargetPath) : '')
 
   const applyListing = useCallback((listing: RemoteDirectoryListing) => {
     setCurrentPath(listing.path)
@@ -290,6 +319,7 @@ export function FilesPage({
     setSelectedPaths([])
     setActiveEntry(null)
     setDropTargetDirectoryPath(null)
+    setRemoteMoveTargetPath(null)
     setError(null)
   }, [])
 
@@ -301,6 +331,11 @@ export function FilesPage({
     () => () => {
       fileResizeCleanupRef.current?.()
       fileResizeCleanupRef.current = null
+      if (autoScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(autoScrollFrameRef.current)
+        autoScrollFrameRef.current = null
+      }
+      autoScrollSpeedRef.current = 0
     },
     [],
   )
@@ -676,6 +711,22 @@ export function FilesPage({
 
   const downloadSelected = () => downloadPaths(selectedPaths)
 
+  const moveRemotePathsToDirectory = async (paths: string[], targetPath: string) => {
+    if (!activeFileSession || !fileSessionConnected || paths.length === 0) {
+      return
+    }
+    await runFileAction(async () => {
+      await api.moveFileSessionFiles(activeFileSession.id, paths, targetPath, 'rename')
+      await loadDirectory(currentPath)
+      setRemoteClipboard((current) => {
+        if (!current || current.hostId !== activeFileSession.host_id || !current.paths.some((path) => paths.includes(path))) {
+          return current
+        }
+        return null
+      })
+    }, t('files.operationDone'))
+  }
+
   const pasteRemoteClipboard = async () => {
     if (!remoteClipboard || !activeFileSession || remoteClipboard.hostId !== activeFileSession.host_id) {
       return false
@@ -861,6 +912,8 @@ export function FilesPage({
 
   const hasDraggedFiles = (event: DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes('Files')
 
+  const hasRemoteDraggedFiles = (event: DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes(remoteFileDragMime)
+
   const findDirectoryDropTargetPath = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) {
       return null
@@ -873,13 +926,164 @@ export function FilesPage({
     return entries.some((entry) => entry.kind === 'directory' && entry.path === rowKey) ? rowKey : null
   }
 
+  const canMovePathToDirectory = (sourcePath: string, targetPath: string) => {
+    const source = normalizeRemotePath(sourcePath)
+    const target = normalizeRemotePath(targetPath)
+    const sourceEntry = entries.find((entry) => entry.path === source)
+    if (!sourceEntry || parentPath(source) === target) {
+      return false
+    }
+    return sourceEntry.kind !== 'directory' || (target !== source && !target.startsWith(`${source}/`))
+  }
+
+  const canDropRemoteMoveToPath = (targetPath: string, sourcePaths: string[]) => (
+    sourcePaths.length > 0 && sourcePaths.every((sourcePath) => canMovePathToDirectory(sourcePath, targetPath))
+  )
+
+  const findRemoteMoveTargetPath = (target: EventTarget | null, sourcePaths: string[]) => {
+    const targetPath = findDirectoryDropTargetPath(target)
+    if (!targetPath || sourcePaths.length === 0) {
+      return null
+    }
+    return sourcePaths.every((sourcePath) => canMovePathToDirectory(sourcePath, targetPath)) ? targetPath : null
+  }
+
+  const stopFileDragAutoScroll = () => {
+    if (autoScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(autoScrollFrameRef.current)
+      autoScrollFrameRef.current = null
+    }
+    autoScrollSpeedRef.current = 0
+  }
+
+  const runFileDragAutoScroll = () => {
+    const shell = filesTableShellRef.current
+    const speed = autoScrollSpeedRef.current
+    if (!shell || speed === 0) {
+      autoScrollFrameRef.current = null
+      return
+    }
+    shell.scrollTop += speed
+    autoScrollFrameRef.current = window.requestAnimationFrame(runFileDragAutoScroll)
+  }
+
+  const updateFileDragAutoScroll = (event: DragEvent<HTMLElement>) => {
+    const shell = filesTableShellRef.current
+    if (!shell) {
+      return
+    }
+    const rect = shell.getBoundingClientRect()
+    const edge = Math.min(fileDragAutoScrollEdge, Math.max(36, rect.height * 0.18))
+    const topDistance = event.clientY - rect.top
+    const bottomDistance = rect.bottom - event.clientY
+    let speed = 0
+    if (topDistance >= 0 && topDistance < edge) {
+      speed = -Math.max(4, Math.round(((edge - topDistance) / edge) * fileDragAutoScrollMaxSpeed))
+    } else if (bottomDistance >= 0 && bottomDistance < edge) {
+      speed = Math.max(4, Math.round(((edge - bottomDistance) / edge) * fileDragAutoScrollMaxSpeed))
+    }
+    const atTop = shell.scrollTop <= 0
+    const atBottom = shell.scrollTop + shell.clientHeight >= shell.scrollHeight - 1
+    if ((speed < 0 && atTop) || (speed > 0 && atBottom)) {
+      speed = 0
+    }
+    if (speed === 0) {
+      stopFileDragAutoScroll()
+      return
+    }
+    autoScrollSpeedRef.current = speed
+    if (autoScrollFrameRef.current === null) {
+      autoScrollFrameRef.current = window.requestAnimationFrame(runFileDragAutoScroll)
+    }
+  }
+
   const resetDragState = () => {
     dragDepthRef.current = 0
     setDragActive(false)
     setDropTargetDirectoryPath(null)
+    remoteMoveDragRef.current = null
+    setRemoteMoveDrag(null)
+    setRemoteMoveTargetPath(null)
+    stopFileDragAutoScroll()
+  }
+
+  const onBreadcrumbDragOver = (targetPath: string, event: DragEvent<HTMLButtonElement>) => {
+    const normalizedTargetPath = normalizeRemotePath(targetPath)
+    const remoteDrag = remoteMoveDragRef.current ?? remoteMoveDrag
+    if (remoteDrag || hasRemoteDraggedFiles(event)) {
+      event.preventDefault()
+      event.stopPropagation()
+      const allowed = remoteDrag ? canDropRemoteMoveToPath(normalizedTargetPath, remoteDrag.paths) : false
+      event.dataTransfer.dropEffect = allowed ? 'move' : 'none'
+      setRemoteMoveTargetPath(allowed ? normalizedTargetPath : null)
+      return
+    }
+    if (!hasDraggedFiles(event)) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = fileSessionConnected ? 'copy' : 'none'
+    setDragActive(fileSessionConnected)
+    setDropTargetDirectoryPath(fileSessionConnected ? normalizedTargetPath : null)
+  }
+
+  const onBreadcrumbDragLeave = (targetPath: string, event: DragEvent<HTMLButtonElement>) => {
+    if (remoteMoveDragRef.current || remoteMoveDrag || hasRemoteDraggedFiles(event) || hasDraggedFiles(event)) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+    if (event.currentTarget instanceof HTMLElement && event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
+      return
+    }
+    const normalizedTargetPath = normalizeRemotePath(targetPath)
+    setDropTargetDirectoryPath((current) => current === normalizedTargetPath ? null : current)
+    setRemoteMoveTargetPath((current) => current === normalizedTargetPath ? null : current)
+  }
+
+  const onBreadcrumbDrop = async (targetPath: string, event: DragEvent<HTMLButtonElement>) => {
+    const normalizedTargetPath = normalizeRemotePath(targetPath)
+    const remoteDrag = remoteMoveDragRef.current ?? remoteMoveDrag
+    if (remoteDrag || hasRemoteDraggedFiles(event)) {
+      event.preventDefault()
+      event.stopPropagation()
+      const sourcePaths = remoteDrag?.paths ?? []
+      const allowed = canDropRemoteMoveToPath(normalizedTargetPath, sourcePaths)
+      resetDragState()
+      if (allowed) {
+        await moveRemotePathsToDirectory(sourcePaths, normalizedTargetPath)
+      }
+      return
+    }
+    const shouldUpload = hasDraggedFiles(event)
+    if (!shouldUpload) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    resetDragState()
+    const cachedPaths = await window.termous?.files?.consumeDroppedFilePaths?.(event.dataTransfer.files.length)
+    const paths = cachedPaths?.length
+      ? cachedPaths
+      : await window.termous?.files?.pathsFromFileList(event.dataTransfer.files)
+    if (fileSessionConnected && (!paths || paths.length === 0)) {
+      notification.warning({
+        title: t('files.dropPathUnavailable'),
+        duration: 4,
+        role: 'status',
+        className: 'termous-notification',
+      })
+      return
+    }
+    await uploadLocalPaths('drop', paths ?? [], normalizedTargetPath)
   }
 
   const onDragEnter = (event: DragEvent<HTMLElement>) => {
+    if (remoteMoveDragRef.current || remoteMoveDrag || hasRemoteDraggedFiles(event)) {
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
     if (!hasDraggedFiles(event)) {
       return
     }
@@ -890,6 +1094,17 @@ export function FilesPage({
   }
 
   const onDragOver = (event: DragEvent<HTMLElement>) => {
+    const remoteDrag = remoteMoveDragRef.current ?? remoteMoveDrag
+    if (remoteDrag || hasRemoteDraggedFiles(event)) {
+      event.preventDefault()
+      event.stopPropagation()
+      const sourcePaths = remoteDrag?.paths ?? []
+      const targetPath = findRemoteMoveTargetPath(event.target, sourcePaths)
+      event.dataTransfer.dropEffect = targetPath ? 'move' : 'none'
+      setRemoteMoveTargetPath(targetPath)
+      updateFileDragAutoScroll(event)
+      return
+    }
     if (!hasDraggedFiles(event)) {
       return
     }
@@ -898,9 +1113,20 @@ export function FilesPage({
     event.dataTransfer.dropEffect = fileSessionConnected ? 'copy' : 'none'
     setDragActive(true)
     setDropTargetDirectoryPath(fileSessionConnected ? findDirectoryDropTargetPath(event.target) : null)
+    updateFileDragAutoScroll(event)
   }
 
   const onDragLeave = (event: DragEvent<HTMLElement>) => {
+    if (remoteMoveDragRef.current || remoteMoveDrag || hasRemoteDraggedFiles(event)) {
+      event.preventDefault()
+      event.stopPropagation()
+      if (event.currentTarget instanceof HTMLElement && event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
+        return
+      }
+      stopFileDragAutoScroll()
+      setRemoteMoveTargetPath(null)
+      return
+    }
     if (!hasDraggedFiles(event)) {
       return
     }
@@ -909,10 +1135,23 @@ export function FilesPage({
     dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
     if (dragDepthRef.current === 0) {
       setDragActive(false)
+      stopFileDragAutoScroll()
     }
   }
 
   const onDrop = async (event: DragEvent<HTMLElement>) => {
+    const remoteDrag = remoteMoveDragRef.current ?? remoteMoveDrag
+    if (remoteDrag || hasRemoteDraggedFiles(event)) {
+      const sourcePaths = remoteDrag?.paths ?? []
+      const targetPath = findRemoteMoveTargetPath(event.target, sourcePaths)
+      event.preventDefault()
+      event.stopPropagation()
+      resetDragState()
+      if (targetPath) {
+        await moveRemotePathsToDirectory(sourcePaths, targetPath)
+      }
+      return
+    }
     const shouldUpload = hasDraggedFiles(event)
     const targetPath = fileSessionConnected ? findDirectoryDropTargetPath(event.target) ?? currentPath : currentPath
     event.preventDefault()
@@ -935,6 +1174,64 @@ export function FilesPage({
       return
     }
     await uploadLocalPaths('drop', paths ?? [], targetPath)
+  }
+
+  const shouldIgnoreRemoteDragStart = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) {
+      return false
+    }
+    return Boolean(target.closest('.ant-checkbox, .files-icon-button, .files-table-column-resizer'))
+  }
+
+  const remoteDragPathsForEntry = (entry: RemoteFileEntry) => {
+    if (selectedPaths.includes(entry.path)) {
+      return selectedPaths
+    }
+    return [entry.path]
+  }
+
+  const startRemoteMoveDrag = (entry: RemoteFileEntry, event: DragEvent<HTMLElement>) => {
+    if (!fileSessionConnected || loading || shouldIgnoreRemoteDragStart(event.target)) {
+      event.preventDefault()
+      return
+    }
+    const paths = remoteDragPathsForEntry(entry)
+    setSelectedPaths(paths)
+    setActiveEntry(entry)
+    remoteMoveDragRef.current = { paths }
+    setRemoteMoveDrag({ paths })
+    setRemoteMoveTargetPath(null)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData(remoteFileDragMime, JSON.stringify(paths))
+    event.dataTransfer.setData('text/plain', entry.name)
+  }
+
+  const updateRemoteMoveTarget = (entry: RemoteFileEntry, event: DragEvent<HTMLElement>) => {
+    const remoteDrag = remoteMoveDragRef.current ?? remoteMoveDrag
+    if (!remoteDrag || entry.kind !== 'directory') {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    const targetPath = findRemoteMoveTargetPath(event.currentTarget, remoteDrag.paths)
+    event.dataTransfer.dropEffect = targetPath ? 'move' : 'none'
+    setRemoteMoveTargetPath(targetPath)
+    updateFileDragAutoScroll(event)
+  }
+
+  const dropRemoteMoveTarget = async (entry: RemoteFileEntry, event: DragEvent<HTMLElement>) => {
+    const remoteDrag = remoteMoveDragRef.current ?? remoteMoveDrag
+    if (!remoteDrag || entry.kind !== 'directory') {
+      return
+    }
+    const sourcePaths = remoteDrag.paths
+    const targetPath = findRemoteMoveTargetPath(event.currentTarget, sourcePaths)
+    event.preventDefault()
+    event.stopPropagation()
+    resetDragState()
+    if (targetPath) {
+      await moveRemotePathsToDirectory(sourcePaths, targetPath)
+    }
   }
 
   const actionDisabled = !fileSessionConnected || loading
@@ -1065,7 +1362,7 @@ export function FilesPage({
       ref={filesPageRef}
       className={`files-page ${hostPanelCollapsed ? 'is-host-collapsed' : ''} ${
         detailsCollapsed ? 'is-details-collapsed' : ''
-      } ${dragActive ? 'is-dragging' : ''}`}
+      } ${dragActive ? 'is-dragging' : ''} ${remoteMoveDrag ? 'is-moving' : ''}`}
       style={filesPageStyle}
       tabIndex={0}
       onKeyDown={onKeyDown}
@@ -1163,7 +1460,14 @@ export function FilesPage({
         </div>
         <div className="files-main-toolbar">
           <div className="files-path-stack">
-            <PathTrail path={currentPath} onNavigate={(path) => void loadDirectory(path)} />
+            <PathTrail
+              path={currentPath}
+              dropTargetPath={remoteMoveTargetPath ?? dropTargetDirectoryPath}
+              onNavigate={(path) => void loadDirectory(path)}
+              onDragOver={onBreadcrumbDragOver}
+              onDragLeave={onBreadcrumbDragLeave}
+              onDrop={onBreadcrumbDrop}
+            />
             <Input.Search
               id="files-path-input"
               name="files-path-input"
@@ -1239,7 +1543,7 @@ export function FilesPage({
         </div>
 
         {error ? <div className="files-error">{error}</div> : null}
-        <div className="files-table-shell">
+        <div ref={filesTableShellRef} className="files-table-shell">
           {!activeFileSession ? (
             <div className="files-session-empty">
               <Empty description={t('files.noFileSession')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
@@ -1263,20 +1567,45 @@ export function FilesPage({
                 selectedRowKeys: selectedPaths,
                 onChange: (keys) => setSelectedPaths(keys.map(String)),
               }}
-              rowClassName={(entry) => `files-table-row is-${entry.kind}${dropTargetDirectoryPath === entry.path ? ' is-drop-target' : ''}`}
+              rowClassName={(entry) => [
+                'files-table-row',
+                `is-${entry.kind}`,
+                dropTargetDirectoryPath === entry.path || remoteMoveTargetPath === entry.path ? 'is-drop-target' : '',
+                remoteMoveTargetPath === entry.path ? 'is-move-target' : '',
+                remoteMoveDrag?.paths.includes(entry.path) ? 'is-being-dragged' : '',
+              ].filter(Boolean).join(' ')}
               onRow={(entry) => ({
+                draggable: fileSessionConnected && !loading,
                 onClick: () => setActiveEntry(entry),
                 onDoubleClick: () => enterEntry(entry),
+                onDragStart: (event) => startRemoteMoveDrag(entry, event),
+                onDragOver: (event) => updateRemoteMoveTarget(entry, event),
+                onDragLeave: (event) => {
+                  const remoteDrag = remoteMoveDragRef.current ?? remoteMoveDrag
+                  if (!remoteDrag || entry.kind !== 'directory') {
+                    return
+                  }
+                  if (event.currentTarget instanceof HTMLElement && event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
+                    return
+                  }
+                  setRemoteMoveTargetPath((current) => current === entry.path ? null : current)
+                },
+                onDrop: (event) => void dropRemoteMoveTarget(entry, event),
+                onDragEnd: resetDragState,
               })}
               locale={{ emptyText: <EmptyState title={t('files.emptyDirectory')} description={t('files.emptyDirectoryHint')} /> }}
             />
           )}
         </div>
-        {dragActive ? (
-          <div className="files-drop-mask">
-            {dropTargetDirectory
-              ? t('files.dropUploadToDirectory', { name: dropTargetDirectory.name })
-              : t('files.dropUpload')}
+        {dragActive || remoteMoveDrag ? (
+          <div className={`files-drop-mask ${remoteMoveDrag ? 'is-move' : ''}`}>
+            {remoteMoveDrag
+              ? remoteMoveTargetDirectoryName
+                ? t('files.dropMoveToDirectory', { name: remoteMoveTargetDirectoryName })
+                : t('files.dropMoveChooseDirectory')
+              : dropTargetDirectoryName
+                ? t('files.dropUploadToDirectory', { name: dropTargetDirectoryName })
+                : t('files.dropUpload')}
           </div>
         ) : null}
       </main>
@@ -1373,22 +1702,39 @@ export function FilesPage({
   )
 }
 
-function PathTrail({ path, onNavigate }: { path: string; onNavigate: (path: string) => void }) {
+interface PathTrailProps {
+  path: string
+  dropTargetPath: string | null
+  onNavigate: (path: string) => void
+  onDragOver: (path: string, event: DragEvent<HTMLButtonElement>) => void
+  onDragLeave: (path: string, event: DragEvent<HTMLButtonElement>) => void
+  onDrop: (path: string, event: DragEvent<HTMLButtonElement>) => void
+}
+
+function PathTrail({ path, dropTargetPath, onNavigate, onDragOver, onDragLeave, onDrop }: PathTrailProps) {
   const parts = normalizeRemotePath(path).split('/').filter(Boolean)
+  const normalizedDropTargetPath = dropTargetPath ? normalizeRemotePath(dropTargetPath) : null
   const crumbs = [{ label: '/', path: '/' }]
   parts.forEach((part, index) => {
     crumbs.push({ label: part, path: `/${parts.slice(0, index + 1).join('/')}` })
   })
   const items = crumbs.map((crumb, index) => {
     const current = index === crumbs.length - 1
+    const dropTarget = normalizedDropTargetPath === crumb.path
     return {
       key: crumb.path,
       title: (
         <button
           type="button"
-          className={`files-breadcrumb-link ${current ? 'is-current' : ''} ${index === 0 ? 'is-root' : ''}`}
+          className={`files-breadcrumb-link ${current ? 'is-current' : ''} ${index === 0 ? 'is-root' : ''} ${
+            dropTarget ? 'is-drop-target' : ''
+          }`}
           aria-current={current ? 'page' : undefined}
           onClick={() => onNavigate(crumb.path)}
+          onDragEnter={(event) => onDragOver(crumb.path, event)}
+          onDragOver={(event) => onDragOver(crumb.path, event)}
+          onDragLeave={(event) => onDragLeave(crumb.path, event)}
+          onDrop={(event) => void onDrop(crumb.path, event)}
         >
           {crumb.label}
         </button>
