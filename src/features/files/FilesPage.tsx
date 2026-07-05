@@ -31,6 +31,7 @@ import {
   useState,
   type CSSProperties,
   type DragEvent,
+  type HTMLAttributes,
   type KeyboardEvent,
   type MouseEvent,
   type WheelEvent,
@@ -90,6 +91,14 @@ interface UploadRefreshTarget {
   targetPath: string
 }
 
+type FileColumnKey = 'name' | 'size' | 'modified' | 'permissions'
+type FileColumnWidths = Record<FileColumnKey, number>
+
+interface ResizableFileHeaderCellProps extends HTMLAttributes<HTMLTableCellElement> {
+  resizeKey?: FileColumnKey
+  onResizeStart?: (key: FileColumnKey, event: MouseEvent<HTMLSpanElement>) => void
+}
+
 type FileSideTabKey = 'details' | 'transfers'
 
 const fileSessionPhaseOrder: FileSessionPhase[] = [
@@ -123,6 +132,20 @@ const filesDetailsPanelWidth = {
   max: 420,
 }
 
+const defaultFileColumnWidths: FileColumnWidths = {
+  name: 220,
+  size: 96,
+  modified: 154,
+  permissions: 104,
+}
+
+const minFileColumnWidths: FileColumnWidths = {
+  name: 160,
+  size: 78,
+  modified: 128,
+  permissions: 82,
+}
+
 export function FilesPage({
   api,
   data,
@@ -145,6 +168,7 @@ export function FilesPage({
   const lastSessionLoadKeyRef = useRef('')
   const lastActiveFileSessionIdRef = useRef('')
   const fileSessionSocketsRef = useRef(new Map<string, WebSocket>())
+  const fileResizeCleanupRef = useRef<(() => void) | null>(null)
   const onUpdateFileSessionRef = useRef(onUpdateFileSession)
   const [currentPath, setCurrentPath] = useState('/')
   const [pathInput, setPathInput] = useState('/')
@@ -160,6 +184,7 @@ export function FilesPage({
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [connectingHostIds, setConnectingHostIds] = useState<Set<string>>(() => new Set())
   const [activeHostKeyPromptKey, setActiveHostKeyPromptKey] = useState('')
+  const [fileColumnWidths, setFileColumnWidths] = useState<FileColumnWidths>(defaultFileColumnWidths)
   const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
   const [hostPanelCollapsed, setHostPanelCollapsed] = usePersistentBooleanState(
     'termous.ui.files.hostPanelCollapsed.v1',
@@ -225,6 +250,10 @@ export function FilesPage({
     () => entries.filter((entry) => selectedPaths.includes(entry.path)),
     [entries, selectedPaths],
   )
+  const fileTableScrollWidth = useMemo(
+    () => 88 + Object.values(fileColumnWidths).reduce((total, width) => total + width, 0),
+    [fileColumnWidths],
+  )
   const dropTargetDirectory = useMemo(
     () => entries.find((entry) => entry.kind === 'directory' && entry.path === dropTargetDirectoryPath) ?? null,
     [dropTargetDirectoryPath, entries],
@@ -243,6 +272,14 @@ export function FilesPage({
   useEffect(() => {
     onUpdateFileSessionRef.current = onUpdateFileSession
   }, [onUpdateFileSession])
+
+  useEffect(
+    () => () => {
+      fileResizeCleanupRef.current?.()
+      fileResizeCleanupRef.current = null
+    },
+    [],
+  )
 
   const loadDirectory = useCallback(
     async (nextPath: string) => {
@@ -887,11 +924,41 @@ export function FilesPage({
     { key: 'delete', danger: true, icon: <Trash2 size={14} />, label: t('app.delete') },
   ]
 
+  const beginFileColumnResize = (key: FileColumnKey, event: MouseEvent<HTMLSpanElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    fileResizeCleanupRef.current?.()
+
+    const startX = event.clientX
+    const startWidth = fileColumnWidths[key]
+    const onMouseMove = (moveEvent: globalThis.MouseEvent) => {
+      const nextWidth = Math.max(minFileColumnWidths[key], Math.round(startWidth + moveEvent.clientX - startX))
+      setFileColumnWidths((current) => current[key] === nextWidth ? current : { ...current, [key]: nextWidth })
+    }
+    const cleanup = () => {
+      document.body.classList.remove('is-files-column-resizing')
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', cleanup)
+      fileResizeCleanupRef.current = null
+    }
+
+    document.body.classList.add('is-files-column-resizing')
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', cleanup, { once: true })
+    fileResizeCleanupRef.current = cleanup
+  }
+
+  const resizableHeader = (key: FileColumnKey) => ({
+    resizeKey: key,
+    onResizeStart: beginFileColumnResize,
+  }) as ResizableFileHeaderCellProps
+
   const columns = [
     {
       title: t('files.name'),
       dataIndex: 'name',
-      width: 220,
+      width: fileColumnWidths.name,
+      onHeaderCell: () => resizableHeader('name'),
       sorter: (left: RemoteFileEntry, right: RemoteFileEntry) => fileSortValue(left).localeCompare(fileSortValue(right)),
       render: (_: unknown, entry: RemoteFileEntry) => {
         const fullName = entry.target ? `${entry.name} -> ${entry.target}` : entry.name
@@ -929,12 +996,13 @@ export function FilesPage({
         )
       },
     },
-    { title: t('files.size'), dataIndex: 'size', width: 96, render: (value: number, entry: RemoteFileEntry) => entry.kind === 'directory' ? '-' : formatBytes(value) },
-    { title: t('files.modified'), dataIndex: 'modified_at', width: 154, render: (value: string) => formatDate(value) },
+    { title: t('files.size'), dataIndex: 'size', width: fileColumnWidths.size, onHeaderCell: () => resizableHeader('size'), render: (value: number, entry: RemoteFileEntry) => entry.kind === 'directory' ? '-' : formatBytes(value) },
+    { title: t('files.modified'), dataIndex: 'modified_at', width: fileColumnWidths.modified, onHeaderCell: () => resizableHeader('modified'), render: (value: string) => formatDate(value) },
     {
       title: t('files.permissions'),
       dataIndex: 'permissions',
-      width: 104,
+      width: fileColumnWidths.permissions,
+      onHeaderCell: () => resizableHeader('permissions'),
       render: (value: string, entry: RemoteFileEntry) => entry.permission_octal || value || '-',
     },
     {
@@ -1161,9 +1229,13 @@ export function FilesPage({
               dataSource={entries}
               loading={loading}
               pagination={false}
+              components={{ header: { cell: ResizableFileHeaderCell } }}
+              scroll={{ x: fileTableScrollWidth }}
               size="middle"
+              tableLayout="fixed"
               className="files-table"
               rowSelection={{
+                columnWidth: 44,
                 selectedRowKeys: selectedPaths,
                 onChange: (keys) => setSelectedPaths(keys.map(String)),
               }}
@@ -1290,6 +1362,30 @@ function PathTrail({ path, onNavigate }: { path: string; onNavigate: (path: stri
 
 function parseFileSideTabKey(value: unknown): FileSideTabKey {
   return value === 'transfers' ? 'transfers' : 'details'
+}
+
+function ResizableFileHeaderCell({
+  resizeKey,
+  onResizeStart,
+  className,
+  children,
+  ...props
+}: ResizableFileHeaderCellProps) {
+  const resizable = resizeKey && onResizeStart
+
+  return (
+    <th {...props} className={`${className ?? ''}${resizable ? ' is-files-resizable-column' : ''}`.trim()}>
+      {children}
+      {resizable ? (
+        <span
+          className="files-table-column-resizer"
+          aria-hidden="true"
+          onClick={(event) => event.stopPropagation()}
+          onMouseDown={(event) => onResizeStart(resizeKey, event)}
+        />
+      ) : null}
+    </th>
+  )
 }
 
 function FileDetailPanel({
