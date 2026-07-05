@@ -1,4 +1,4 @@
-import { App as AntdApp, Breadcrumb, Button, Checkbox, Dropdown, Input, Modal, Segmented, Table, Tooltip } from 'antd'
+import { App as AntdApp, Breadcrumb, Button, Checkbox, Dropdown, Empty, Input, Modal, Segmented, Table, Tooltip } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   ArrowLeft,
@@ -1089,7 +1089,9 @@ export function FilesPage({
         {error ? <div className="files-error">{error}</div> : null}
         <div className="files-table-shell">
           {!activeFileSession ? (
-            <EmptyState title={t('files.noFileSession')} description={t('files.noFileSessionHint')} />
+            <div className="files-session-empty">
+              <Empty description={t('files.noFileSession')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            </div>
           ) : activeFileSession.status !== 'connected' ? (
             <FileSessionProgress fileSession={activeFileSession} onReconnect={onReconnectFileSession} />
           ) : (

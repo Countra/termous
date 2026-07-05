@@ -1,10 +1,9 @@
 import { ImagePlus, KeyRound, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
-import { App as AntdApp, Button, Input, InputNumber, Popconfirm, Select, Tag } from 'antd'
+import { App as AntdApp, Button, Empty, Input, InputNumber, Popconfirm, Select, Tag } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { CustomSelect } from '../../components/ui/CustomSelect'
-import { EmptyState } from '../../components/ui/EmptyState'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import type { AppData, AuthMethod, HostGroup, HostIcon, HostInput } from '../../types/domain'
@@ -316,14 +315,14 @@ export function HostsPage({
           ) : null}
         </div>
         {data.hosts.length === 0 ? (
-          <div className="management-empty-slot">
-            <EmptyState title={t('app.empty')} />
+          <div className="management-empty-slot host-empty-slot">
+            <Empty description={t('hosts.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
           </div>
         ) : (
           <>
             {filteredHosts.length === 0 ? (
-              <div className="management-empty-slot is-filtered">
-                <EmptyState title={t('hosts.noFilterResults')} description={t('hosts.noFilterResultsHint')} />
+              <div className="management-empty-slot is-filtered host-empty-slot">
+                <Empty description={t('hosts.noFilterResults')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
               </div>
             ) : (
               <div className="data-list host-data-list">

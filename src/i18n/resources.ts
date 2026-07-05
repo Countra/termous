@@ -451,6 +451,7 @@ export const resources = {
         variablesTitle: '填写片段变量',
         variablesHint: '变量会按原文替换到命令中，请确认输入内容可信。',
         noCommand: '暂无命令',
+        empty: '暂无代码片段',
         emptyHint: '新增常用命令后，可在工作站右侧快速发送。',
         deleteHint: '只删除代码片段，不影响任何主机或会话。',
         searchPlaceholder: '搜索名称、命令、标签',
@@ -499,6 +500,7 @@ export const resources = {
       },
       hosts: {
         addHost: '新增主机',
+        empty: '暂无主机',
         batchEdit: '批量编辑',
         editor: '主机编辑器',
         list: '主机列表',
@@ -554,6 +556,7 @@ export const resources = {
       },
       vault: {
         addCredential: '新增凭据',
+        empty: '暂无凭据',
         importKey: '导入私钥',
         generateKey: '生成密钥',
         list: '凭据列表',
@@ -1305,6 +1308,7 @@ export const resources = {
         variablesTitle: 'Fill snippet variables',
         variablesHint: 'Variables are substituted as plain text. Verify the values before sending.',
         noCommand: 'No command',
+        empty: 'No snippets',
         emptyHint: 'Add frequently used commands, then send them from the Workbench side panel.',
         deleteHint: 'Only the snippet is deleted. Hosts and sessions are not affected.',
         searchPlaceholder: 'Search name, command, or tags',
@@ -1353,6 +1357,7 @@ export const resources = {
       },
       hosts: {
         addHost: 'Add host',
+        empty: 'No hosts',
         batchEdit: 'Batch edit',
         editor: 'Host editor',
         list: 'Host list',
@@ -1408,6 +1413,7 @@ export const resources = {
       },
       vault: {
         addCredential: 'Add credential',
+        empty: 'No credentials',
         importKey: 'Import private key',
         generateKey: 'Generate key',
         list: 'Credential list',
