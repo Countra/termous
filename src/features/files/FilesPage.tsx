@@ -1285,6 +1285,8 @@ function FileDetailPanel({
   onEditPermissions: (entry: RemoteFileEntry) => void
 }) {
   const { t } = useTranslation()
+  const extended = entry?.extended?.filter((item) => item.type || item.data) ?? []
+
   return (
     <section className="files-detail-panel">
       {entry ? (
@@ -1301,24 +1303,24 @@ function FileDetailPanel({
           <dl className="files-detail-list">
             <div>
               <dt>{t('files.path')}</dt>
-              <dd>{entry.path}</dd>
+              <dd>{renderFileDetailValue(entry.path)}</dd>
             </div>
             <div>
               <dt>{t('files.kind')}</dt>
-              <dd>{t(`files.kindName.${entry.kind}`)}</dd>
+              <dd>{renderFileDetailValue(t(`files.kindName.${entry.kind}`))}</dd>
             </div>
             <div>
               <dt>{t('files.size')}</dt>
-              <dd>{entry.kind === 'directory' ? '-' : formatBytes(entry.size)}</dd>
+              <dd>{renderFileDetailValue(entry.kind === 'directory' ? '-' : formatBytes(entry.size))}</dd>
             </div>
             <div>
-              <dt>{t('files.modified')}</dt>
-              <dd>{formatDate(entry.modified_at)}</dd>
+              <dt>{t('files.mode')}</dt>
+              <dd>{renderFileDetailValue(entry.mode)}</dd>
             </div>
             <div>
               <dt>{t('files.permissions')}</dt>
               <dd className="files-permission-detail">
-                <span>{formatPermission(entry)}</span>
+                {renderFileDetailValue(formatPermission(entry))}
                 <Button
                   type="text"
                   size="small"
@@ -1330,6 +1332,38 @@ function FileDetailPanel({
                 </Button>
               </dd>
             </div>
+            <div>
+              <dt>{t('files.modified')}</dt>
+              <dd>{renderFileDetailValue(formatDate(entry.modified_at))}</dd>
+            </div>
+            <div>
+              <dt>{t('files.accessed')}</dt>
+              <dd>{renderFileDetailValue(formatDate(entry.accessed_at))}</dd>
+            </div>
+            <div>
+              <dt>{t('files.hidden')}</dt>
+              <dd>{renderFileDetailValue(entry.is_hidden ? t('files.yes') : t('files.no'))}</dd>
+            </div>
+            <div>
+              <dt>{t('files.ownerUid')}</dt>
+              <dd>{renderFileDetailValue(entry.uid)}</dd>
+            </div>
+            <div>
+              <dt>{t('files.groupGid')}</dt>
+              <dd>{renderFileDetailValue(entry.gid)}</dd>
+            </div>
+            {entry.target ? (
+              <div>
+                <dt>{t('files.symlinkTarget')}</dt>
+                <dd>{renderFileDetailValue(entry.target)}</dd>
+              </div>
+            ) : null}
+            {extended.map((item, index) => (
+              <div key={`${item.type}-${index}`}>
+                <dt>{item.type || t('files.extendedType')}</dt>
+                <dd>{renderFileDetailValue(item.data)}</dd>
+              </div>
+            ))}
           </dl>
         </>
       ) : (
@@ -1339,6 +1373,20 @@ function FileDetailPanel({
         </div>
       )}
     </section>
+  )
+}
+
+function renderFileDetailValue(value?: string | number | null) {
+  const display = value === undefined || value === null || value === '' ? '-' : String(value)
+  return (
+    <Tooltip
+      title={display === '-' ? null : display}
+      placement="topRight"
+      mouseEnterDelay={0.35}
+      overlayClassName="file-detail-tooltip"
+    >
+      <span className="files-detail-value">{display}</span>
+    </Tooltip>
   )
 }
 

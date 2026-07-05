@@ -53,8 +53,17 @@ export interface RemoteFileEntry {
   permissions?: string
   permission_octal?: string
   modified_at?: string
+  accessed_at?: string
+  uid?: number
+  gid?: number
   is_hidden: boolean
   target?: string
+  extended?: SftpExtendedAttribute[]
+}
+
+export interface SftpExtendedAttribute {
+  type: string
+  data: string
 }
 
 export interface RemoteDirectoryListing {

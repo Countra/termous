@@ -6935,21 +6935,29 @@ body.is-panel-resizing .files-page {
   margin: 0;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
-  padding: 4px 12px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 56%, transparent), color-mix(in srgb, var(--surface) 96%, transparent)),
+    var(--surface);
+  padding: 5px 12px;
+  box-shadow: var(--inner-highlight);
 }
 
 .files-detail-list div {
   display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
-  padding: 9px 0;
+  grid-template-columns: minmax(86px, 0.42fr) minmax(0, 1fr);
+  gap: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  padding: 10px 0;
+}
+
+.files-detail-list div:last-child {
+  border-bottom: 0;
 }
 
 .files-detail-list dt {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 680;
 }
 
 .files-detail-list dd {
@@ -6958,7 +6966,16 @@ body.is-panel-resizing .files-page {
   overflow: hidden;
   color: var(--text-primary);
   font-size: 12px;
+  font-weight: 640;
   text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-detail-value {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -6975,6 +6992,12 @@ body.is-panel-resizing .files-page {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.file-detail-tooltip .ant-tooltip-inner {
+  max-width: min(520px, 72vw);
+  overflow-wrap: anywhere;
+  text-align: left;
 }
 
 .files-inline-action.ant-btn {
