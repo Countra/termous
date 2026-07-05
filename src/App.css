@@ -333,21 +333,13 @@
 }
 
 .workbench-grid {
-  grid-template-columns: minmax(248px, 292px) minmax(620px, 1fr) minmax(250px, 310px);
+  grid-template-columns: minmax(620px, 1fr) minmax(250px, 310px);
   gap: 12px;
   transition: grid-template-columns 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.workbench-grid.is-host-collapsed {
-  grid-template-columns: 82px minmax(680px, 1fr) minmax(250px, 310px);
-}
-
 .workbench-grid.is-details-collapsed {
-  grid-template-columns: minmax(248px, 292px) minmax(680px, 1fr) 82px;
-}
-
-.workbench-grid.is-host-collapsed.is-details-collapsed {
-  grid-template-columns: 82px minmax(720px, 1fr) 82px;
+  grid-template-columns: minmax(680px, 1fr) 82px;
 }
 
 .management-grid {
@@ -482,13 +474,18 @@
 }
 
 .primary-button {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, #ffffff), var(--accent-strong));
-  color: #ffffff;
-  font-weight: 700;
+  --main-action-accent: color-mix(in srgb, var(--accent) 86%, #7db8ff 14%);
+  --main-action-bg: color-mix(in srgb, var(--surface-strong) 86%, #18335f 14%);
+  --main-action-bg-hover: color-mix(in srgb, var(--surface-strong) 78%, #1f4a88 22%);
+  min-height: 39px;
+  border: 1px solid color-mix(in srgb, var(--main-action-accent) 22%, var(--border-strong));
+  border-radius: 12px;
+  background: var(--main-action-bg);
+  color: var(--main-action-accent);
+  font-weight: 730;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.34),
-    0 10px 22px color-mix(in srgb, var(--accent) 22%, transparent);
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    0 1px 0 rgb(0 0 0 / 18%);
 }
 
 .secondary-button {
@@ -505,10 +502,20 @@
   box-shadow: var(--inner-highlight);
 }
 
-.primary-button:hover,
 .secondary-button:hover,
 .danger-button:hover {
   transform: translateY(-1px);
+}
+
+.primary-button:hover {
+  border-color: color-mix(in srgb, var(--main-action-accent) 38%, var(--border-strong));
+  background: var(--main-action-bg-hover);
+  color: color-mix(in srgb, var(--main-action-accent) 88%, #ffffff 12%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 9%),
+    0 1px 0 rgb(0 0 0 / 20%),
+    0 0 0 1px color-mix(in srgb, var(--main-action-accent) 10%, transparent);
+  transform: none;
 }
 
 .primary-button:disabled,

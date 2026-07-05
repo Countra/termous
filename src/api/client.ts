@@ -6,11 +6,22 @@ import type {
   CoreRuntimeInfo,
   CredentialInput,
   CredentialView,
+  FileBookmark,
+  FileBookmarkGroup,
+  FileBookmarkGroupInput,
+  FileBookmarkGroupReorderItem,
+  FileBookmarkInput,
+  FileBookmarkReorderItem,
   FileSession,
   FirewallApplyResult,
   FirewallCapability,
   FirewallDesiredState,
+  FirewallInstallPlan,
+  FirewallPersistenceInstallResult,
+  FirewallPersistenceStatus,
   FirewallPlan,
+  FirewallProvider,
+  FirewallProviderList,
   FirewallSaveResult,
   FirewallSnapshot,
   ForwardInstance,
@@ -19,7 +30,9 @@ import type {
   ForwardStartRequest,
   Host,
   HostGroup,
+  HostIcon,
   HostInput,
+  HostReachability,
   KnownHost,
   KnownHostInput,
   Language,
@@ -56,6 +69,13 @@ export class TermousApiError extends Error {
   }
 }
 
+interface RequestOptions {
+  method?: string
+  body?: unknown
+  timeoutMs?: number
+  signal?: AbortSignal
+}
+
 export class TermousApi {
   private config: AppConfig
 
@@ -80,6 +100,17 @@ export class TermousApi {
 
   terminalFontFileUrl(id: string, sha256?: string) {
     const url = new URL(`/api/v1/terminal-fonts/${encodeURIComponent(id)}/file`, this.config.apiBaseUrl)
+    if (this.config.apiToken) {
+      url.searchParams.set('token', this.config.apiToken)
+    }
+    if (sha256) {
+      url.searchParams.set('sha256', sha256)
+    }
+    return url.toString()
+  }
+
+  hostIconFileUrl(id: string, sha256?: string) {
+    const url = new URL(`/api/v1/host-icons/${encodeURIComponent(id)}/file`, this.config.apiBaseUrl)
     if (this.config.apiToken) {
       url.searchParams.set('token', this.config.apiToken)
     }
@@ -154,6 +185,64 @@ export class TermousApi {
     return this.request<CodeSnippet>(`/api/v1/snippets/${encodeURIComponent(id)}/used`, { method: 'POST' })
   }
 
+  fileBookmarkGroups() {
+    return this.request<FileBookmarkGroup[]>('/api/v1/file-bookmark-groups').then(normalizeArray)
+  }
+
+  createFileBookmarkGroup(input: FileBookmarkGroupInput) {
+    return this.request<FileBookmarkGroup>('/api/v1/file-bookmark-groups', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  updateFileBookmarkGroup(id: string, input: FileBookmarkGroupInput) {
+    return this.request<FileBookmarkGroup>(`/api/v1/file-bookmark-groups/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  }
+
+  deleteFileBookmarkGroup(id: string) {
+    return this.request<void>(`/api/v1/file-bookmark-groups/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  reorderFileBookmarkGroups(items: FileBookmarkGroupReorderItem[]) {
+    return this.request<FileBookmarkGroup[]>('/api/v1/file-bookmark-groups/reorder', {
+      method: 'POST',
+      body: { items },
+    }).then(normalizeArray)
+  }
+
+  fileBookmarks() {
+    return this.request<FileBookmark[]>('/api/v1/file-bookmarks').then(normalizeArray)
+  }
+
+  createFileBookmark(input: FileBookmarkInput) {
+    return this.request<FileBookmark>('/api/v1/file-bookmarks', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  updateFileBookmark(id: string, input: FileBookmarkInput) {
+    return this.request<FileBookmark>(`/api/v1/file-bookmarks/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  }
+
+  deleteFileBookmark(id: string) {
+    return this.request<void>(`/api/v1/file-bookmarks/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  reorderFileBookmarks(items: FileBookmarkReorderItem[]) {
+    return this.request<FileBookmark[]>('/api/v1/file-bookmarks/reorder', {
+      method: 'POST',
+      body: { items },
+    }).then(normalizeArray)
+  }
+
   forwardProfiles() {
     return this.request<ForwardProfile[]>('/api/v1/forward-profiles')
   }
@@ -216,6 +305,19 @@ export class TermousApi {
     return this.request<void>(`/api/v1/terminal-fonts/${encodeURIComponent(id)}`, { method: 'DELETE' })
   }
 
+  uploadHostIcon(file: File) {
+    const body = new FormData()
+    body.append('file', file, file.name)
+    return this.request<HostIcon>('/api/v1/host-icons', {
+      method: 'POST',
+      body,
+    })
+  }
+
+  deleteHostIcon(id: string) {
+    return this.request<void>(`/api/v1/host-icons/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
   hostGroups() {
     return this.request<HostGroup[]>('/api/v1/host-groups')
   }
@@ -229,6 +331,22 @@ export class TermousApi {
 
   hosts() {
     return this.request<Host[]>('/api/v1/hosts')
+  }
+
+  hostReachability() {
+    return this.request<HostReachability[]>('/api/v1/hosts/reachability')
+  }
+
+  refreshHostReachability(hostIds: string[] = [], force = false) {
+    return this.request<HostReachability[]>('/api/v1/hosts/reachability/refresh', {
+      method: 'POST',
+      body: { host_ids: hostIds, force },
+      timeoutMs: 4_000,
+    })
+  }
+
+  hostReachabilityEventsUrl() {
+    return this.websocketUrl('/api/v1/hosts/reachability/events')
   }
 
   createHost(input: HostInput) {
@@ -247,13 +365,6 @@ export class TermousApi {
 
   deleteHost(id: string) {
     return this.request<void>(`/api/v1/hosts/${id}`, { method: 'DELETE' })
-  }
-
-  importSSHConfig() {
-    return this.request<{ imported: number; message: string }>('/api/v1/hosts/import-ssh-config', {
-      method: 'POST',
-      body: {},
-    })
   }
 
   credentials() {
@@ -322,31 +433,77 @@ export class TermousApi {
     return this.websocketUrl(`/api/v1/sessions/${encodeURIComponent(id)}/monitor`)
   }
 
-  sessionFirewallCapability(id: string) {
-    return this.request<FirewallCapability>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/capability`)
+  sessionFirewallProviders(id: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallProviderList>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/providers`, {
+      signal: options.signal,
+    }).then(normalizeFirewallProviderList)
   }
 
-  sessionFirewallSnapshot(id: string) {
-    return this.request<FirewallSnapshot>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/snapshot`)
+  sessionFirewallCapability(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallCapability>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/capability${firewallProviderQuery(provider)}`, {
+      signal: options.signal,
+    }).then(normalizeFirewallCapability)
   }
 
-  previewSessionFirewall(id: string, desired: FirewallDesiredState) {
-    return this.request<FirewallPlan>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/preview`, {
+  sessionFirewallSnapshot(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallSnapshot>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/snapshot${firewallProviderQuery(provider)}`, {
+      signal: options.signal,
+    }).then(normalizeFirewallSnapshot)
+  }
+
+  previewSessionFirewall(id: string, desired: FirewallDesiredState, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallPlan>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/preview${firewallProviderQuery(provider)}`, {
       method: 'POST',
       body: desired,
+      signal: options.signal,
     })
   }
 
-  applySessionFirewall(id: string, desired: FirewallDesiredState) {
-    return this.request<FirewallApplyResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/apply`, {
+  applySessionFirewall(id: string, desired: FirewallDesiredState, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallApplyResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/apply${firewallProviderQuery(provider)}`, {
       method: 'POST',
       body: desired,
+      signal: options.signal,
+    }).then(normalizeFirewallApplyResult)
+  }
+
+  saveSessionFirewall(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallSaveResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/save${firewallProviderQuery(provider)}`, {
+      method: 'POST',
+      timeoutMs: 60_000,
+      signal: options.signal,
     })
   }
 
-  saveSessionFirewall(id: string) {
-    return this.request<FirewallSaveResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/save`, {
+  sessionFirewallPersistenceStatus(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallPersistenceStatus>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/persistence/status${firewallProviderQuery(provider)}`, {
+      timeoutMs: 20_000,
+      signal: options.signal,
+    })
+  }
+
+  sessionFirewallPersistenceInstallPlan(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallInstallPlan>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/persistence/install-plan${firewallProviderQuery(provider)}`, {
       method: 'POST',
+      timeoutMs: 20_000,
+      signal: options.signal,
+    })
+  }
+
+  installSessionFirewallPersistence(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallPersistenceInstallResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/persistence/install${firewallProviderQuery(provider)}`, {
+      method: 'POST',
+      body: { confirmed: true },
+      timeoutMs: 190_000,
+      signal: options.signal,
+    })
+  }
+
+  saveSessionFirewallPersistence(id: string, provider?: FirewallProvider, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<FirewallSaveResult>(`/api/v1/sessions/${encodeURIComponent(id)}/firewall/persistence/save${firewallProviderQuery(provider)}`, {
+      method: 'POST',
+      timeoutMs: 60_000,
+      signal: options.signal,
     })
   }
 
@@ -552,9 +709,19 @@ export class TermousApi {
     return this.websocketUrl('/api/v1/transfers/events')
   }
 
-  private async request<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
+  private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const controller = new AbortController()
-    const timeout = window.setTimeout(() => controller.abort(), 12_000)
+    let timedOut = false
+    const timeout = window.setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, options.timeoutMs ?? 12_000)
+    const abortByCaller = () => controller.abort()
+    if (options.signal?.aborted) {
+      controller.abort()
+    } else {
+      options.signal?.addEventListener('abort', abortByCaller, { once: true })
+    }
     const isFormData = options.body instanceof FormData
     let requestBody: BodyInit | undefined
     if (options.body instanceof FormData) {
@@ -584,11 +751,15 @@ export class TermousApi {
         throw error
       }
       if (error instanceof DOMException && error.name === 'AbortError') {
+        if (!timedOut) {
+          throw new TermousApiError('请求已取消', 'REQUEST_ABORTED', 0)
+        }
         throw new TermousApiError('请求超时', 'REQUEST_TIMEOUT', 0)
       }
       throw new TermousApiError(error instanceof Error ? error.message : '本地 API 不可用', 'NETWORK_ERROR', 0)
     } finally {
       window.clearTimeout(timeout)
+      options.signal?.removeEventListener('abort', abortByCaller)
     }
   }
 
@@ -605,6 +776,49 @@ export class TermousApi {
       response.status,
       body.error?.details,
     )
+  }
+}
+
+function firewallProviderQuery(provider?: FirewallProvider) {
+  if (!provider || provider === 'unsupported') {
+    return ''
+  }
+  return `?${new URLSearchParams({ provider }).toString()}`
+}
+
+function normalizeArray<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : []
+}
+
+function normalizeFirewallProviderList(list: FirewallProviderList): FirewallProviderList {
+  return {
+    ...list,
+    providers: normalizeArray(list.providers),
+  }
+}
+
+function normalizeFirewallCapability(capability: FirewallCapability): FirewallCapability {
+  return {
+    ...capability,
+    detected_providers: normalizeArray(capability.detected_providers),
+    unsupported_reasons: normalizeArray(capability.unsupported_reasons),
+  }
+}
+
+function normalizeFirewallSnapshot(snapshot: FirewallSnapshot): FirewallSnapshot {
+  return {
+    ...snapshot,
+    capability: normalizeFirewallCapability(snapshot.capability),
+    rules: normalizeArray(snapshot.rules),
+    unsupported_rules: normalizeArray(snapshot.unsupported_rules),
+    warnings: normalizeArray(snapshot.warnings),
+  }
+}
+
+function normalizeFirewallApplyResult(result: FirewallApplyResult): FirewallApplyResult {
+  return {
+    ...result,
+    snapshot: normalizeFirewallSnapshot(result.snapshot),
   }
 }
 

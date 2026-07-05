@@ -35,6 +35,15 @@ export interface TerminalFont {
   created_at?: string
 }
 
+export interface HostIcon {
+  id: string
+  file_name: string
+  mime_type: string
+  size_bytes: number
+  sha256: string
+  created_at: string
+}
+
 export interface RemoteFileEntry {
   name: string
   path: string
@@ -44,8 +53,17 @@ export interface RemoteFileEntry {
   permissions?: string
   permission_octal?: string
   modified_at?: string
+  accessed_at?: string
+  uid?: number
+  gid?: number
   is_hidden: boolean
   target?: string
+  extended?: SftpExtendedAttribute[]
+}
+
+export interface SftpExtendedAttribute {
+  type: string
+  data: string
 }
 
 export interface RemoteDirectoryListing {
@@ -154,6 +172,8 @@ export type SnippetShell = 'any' | 'sh' | 'bash' | 'zsh' | 'powershell' | 'cmd'
 export type AuthMethod = 'password' | 'private_key' | 'system'
 
 export type HostPlatform = 'linux'
+
+export type HostReachabilityStatus = 'unknown' | 'checking' | 'online' | 'offline' | 'unavailable'
 
 export type CredentialType = 'password' | 'private_key' | 'private_key_passphrase'
 
@@ -289,6 +309,26 @@ export interface FirewallProviderInfo {
   message?: string
 }
 
+export interface FirewallProviderOption {
+  provider: FirewallProvider
+  status: FirewallCapabilityStatus
+  present: boolean
+  version?: string
+  backend?: string
+  privilege: FirewallPrivilegeMode
+  supports_apply: boolean
+  supports_save: boolean
+  supports_counters: boolean
+  message?: string
+  recommended: boolean
+}
+
+export interface FirewallProviderList {
+  providers: FirewallProviderOption[]
+  default_provider: FirewallProvider
+  privilege: FirewallPrivilegeMode
+}
+
 export interface FirewallCapability {
   status: FirewallCapabilityStatus
   provider: FirewallProvider
@@ -322,8 +362,16 @@ export interface FirewallRule {
   managed: boolean
   editable: boolean
   readonly_reason?: string
+  source_provider?: FirewallProvider
+  edit_provider?: FirewallProvider
+  cross_provider?: boolean
+  counters_available?: boolean
   hit_count?: number
   byte_count?: number
+  remote_present?: boolean
+  disabled_local?: boolean
+  source_kind?: 'remote' | 'local_disabled'
+  signature?: string
   raw_ref?: string
   chain?: string
   position?: number
@@ -382,9 +430,69 @@ export interface FirewallApplyResult {
   message?: string
 }
 
+export type FirewallPersistenceStatusKind =
+  | 'unsupported'
+  | 'ready'
+  | 'missing_tools'
+  | 'permission_denied'
+  | 'file_saved'
+  | 'service_enabled'
+  | 'partial'
+
+export interface FirewallInstallCommand {
+  id: string
+  title: string
+  command: string
+  risk: 'low' | 'medium'
+}
+
+export interface FirewallInstallPlan {
+  provider: FirewallProvider
+  package_manager?: string
+  commands: FirewallInstallCommand[]
+  missing_tools?: string[]
+  requires_root: boolean
+  warnings?: string[]
+  confirmation_required: boolean
+}
+
+export interface FirewallPersistenceStatus {
+  provider: FirewallProvider
+  supported: boolean
+  status: FirewallPersistenceStatusKind
+  home_dir?: string
+  rules_path?: string
+  metadata_path?: string
+  service_name?: string
+  service_installed: boolean
+  service_enabled: boolean
+  systemd_available: boolean
+  missing_tools?: string[]
+  package_manager?: string
+  install_available: boolean
+  install_plan?: FirewallInstallPlan
+  last_saved_at?: string
+  message?: string
+  warnings?: string[]
+}
+
 export interface FirewallSaveResult {
   provider: FirewallProvider
   saved: boolean
+  status?: FirewallPersistenceStatusKind
+  rules_path?: string
+  service_name?: string
+  service_enabled: boolean
+  requires_install: boolean
+  install_plan?: FirewallInstallPlan
+  message: string
+  warnings?: string[]
+}
+
+export interface FirewallPersistenceInstallResult {
+  provider: FirewallProvider
+  success: boolean
+  status: FirewallPersistenceStatus
   message: string
 }
 
@@ -427,10 +535,50 @@ export interface CodeSnippetInput {
   favorite: boolean
 }
 
+export interface FileBookmarkGroup {
+  id: string
+  name: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface FileBookmarkGroupInput {
+  name: string
+}
+
+export interface FileBookmarkGroupReorderItem {
+  id: string
+  sort_order: number
+}
+
+export interface FileBookmark {
+  id: string
+  name: string
+  path: string
+  group_id: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface FileBookmarkInput {
+  name: string
+  path: string
+  group_id: string
+}
+
+export interface FileBookmarkReorderItem {
+  id: string
+  group_id: string
+  sort_order: number
+}
+
 export interface Host {
   id: string
   name: string
   platform: HostPlatform
+  icon_id?: string
   group_id: string
   address: string
   port: number
@@ -440,6 +588,7 @@ export interface Host {
   jump_host_id?: string
   fingerprint?: string
   tags: string[]
+  favorite: boolean
   fingerprint_policy: string
   note?: string
   created_at?: string
@@ -453,6 +602,23 @@ export interface HostGroup {
   sort_order: number
   created_at?: string
   updated_at?: string
+}
+
+export interface HostReachability {
+  host_id: string
+  address: string
+  status: HostReachabilityStatus
+  latency_ms?: number
+  packet_loss: number
+  checked_at?: string
+  error_code?: string
+  error_message?: string
+}
+
+export interface HostReachabilityEvent {
+  type: 'snapshot' | 'checking' | 'updated' | string
+  state?: HostReachability
+  items?: HostReachability[]
 }
 
 export interface CredentialView {
@@ -630,6 +796,7 @@ export interface CoreFatalEvent {
 export interface HostInput {
   name: string
   platform: HostPlatform
+  icon_id: string
   group_id: string
   address: string
   port: number
@@ -638,6 +805,7 @@ export interface HostInput {
   credential_id: string
   jump_host_id: string
   tags: string[]
+  favorite: boolean
   fingerprint_policy: string
   note: string
 }
@@ -660,6 +828,9 @@ export interface AppData {
   forwardProfiles: ForwardProfile[]
   forwards: ForwardInstance[]
   snippets: CodeSnippet[]
+  fileBookmarkGroups: FileBookmarkGroup[]
+  fileBookmarks: FileBookmark[]
   settings: Settings
   terminalFonts: TerminalFont[]
+  hostReachability: Record<string, HostReachability>
 }

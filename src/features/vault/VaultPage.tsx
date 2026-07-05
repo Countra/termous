@@ -1,9 +1,8 @@
 import { KeyRound, Plus, Trash2, Wand2 } from 'lucide-react'
-import { Button, Input, Popconfirm, Segmented, Tag } from 'antd'
+import { Button, Empty, Input, Popconfirm, Segmented, Tag } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { CustomSelect } from '../../components/ui/CustomSelect'
-import { EmptyState } from '../../components/ui/EmptyState'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import type { AppData, CredentialInput, CredentialType } from '../../types/domain'
 
@@ -58,14 +57,8 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
   }
 
   return (
-    <section className="page-grid management-grid">
+    <section className="page-grid management-grid vault-page">
       <div className="list-panel">
-        <div className="page-title-row compact-title">
-          <div>
-            <h1>{t('vault.title')}</h1>
-            <p>{t('vault.subtitle')}</p>
-          </div>
-        </div>
         <Segmented
           block
           className="segmented-control"
@@ -93,8 +86,8 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }:
           </ConnectionActionButton>
         </div>
         {filtered.length === 0 ? (
-          <div className="management-empty-slot">
-            <EmptyState title={t('app.empty')} description={t('vault.subtitle')} />
+          <div className="management-empty-slot vault-empty-slot">
+            <Empty description={t('vault.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
           </div>
         ) : (
           <div className="data-list credential-list">

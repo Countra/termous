@@ -1,11 +1,13 @@
-import { AlertTriangle, Copy, Pencil, Plus, RefreshCw, Save, Shield, ShieldAlert, Trash2 } from 'lucide-react'
-import { App as AntdApp, Button, Checkbox, Modal, Popconfirm, Skeleton, Tooltip } from 'antd'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Activity, AlertTriangle, Ban, Copy, Database, ExternalLink, Globe2, LockKeyhole, Pencil, Plus, Power, RefreshCw, Save, Shield, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
+import { App as AntdApp, Button, Modal, Popconfirm, Select, Skeleton, Switch, Tooltip } from 'antd'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TermousApi } from '../../api/client'
-import type { FirewallDesiredState, FirewallPlan, FirewallRule, FirewallRuleInput, FirewallSnapshot, Host, Session } from '../../types/domain'
+import { TermousApiError, type TermousApi } from '../../api/client'
+import type { FirewallDesiredState, FirewallPersistenceStatus, FirewallProvider, FirewallProviderOption, FirewallRule, FirewallRuleInput, FirewallSnapshot, Host, Session } from '../../types/domain'
 import { formatBytes } from '../files/fileUtils'
+import { FirewallPersistencePanel } from './FirewallPersistencePanel'
 import { FirewallRuleModal } from './FirewallRuleModal'
+import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import {
   compactFirewallRuleInput,
   createFirewallRuleInput,
@@ -28,50 +30,138 @@ interface EditingState {
   value: FirewallRuleInput
 }
 
+interface LoadRequest {
+  controller: AbortController
+  sequence: number
+}
+
 export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const [snapshot, setSnapshot] = useState<FirewallSnapshot | null>(null)
-  const [draft, setDraft] = useState<FirewallRuleInput[]>([])
+  const [providers, setProviders] = useState<FirewallProviderOption[]>([])
+  const [selectedProvider, setSelectedProvider] = useState<FirewallProvider>('nftables')
+  const [persistenceStatus, setPersistenceStatus] = useState<FirewallPersistenceStatus | null>(null)
+  const [persistenceOpen, setPersistenceOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState('')
-  const [saving, setSaving] = useState(false)
   const [applying, setApplying] = useState(false)
   const [editing, setEditing] = useState<EditingState | null>(null)
-  const [plan, setPlan] = useState<FirewallPlan | null>(null)
-  const [confirmRisk, setConfirmRisk] = useState(false)
-  const [showUnsupported, setShowUnsupported] = useState(false)
+  const loadAbortRef = useRef<AbortController | null>(null)
+  const loadSequenceRef = useRef(0)
+  const applyAbortRef = useRef<AbortController | null>(null)
+  const mountedRef = useRef(false)
+  const sessionStateRef = useRef({ id: session?.id, connectedLinux: false })
+  const selectedProviderRef = useRef(selectedProvider)
 
   const connectedLinux = Boolean(session?.kind === 'ssh' && session.status === 'connected' && host?.platform === 'linux')
-  const unsupportedRules = snapshot?.unsupported_rules ?? []
-  const visibleUnsupportedRules = showUnsupported ? unsupportedRules : unsupportedRules.slice(0, 4)
-  const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(snapshot?.rules.map(firewallRuleToInput) ?? []), [draft, snapshot])
+  const linuxSessionUnavailable = Boolean(
+    session?.kind === 'ssh' &&
+    host?.platform === 'linux' &&
+    (session.status === 'disconnected' || session.status === 'failed'),
+  )
+  const rules = useMemo(() => (snapshot?.rules ?? []).map(firewallRuleToInput), [snapshot])
   const snapshotRuleById = useMemo(() => new Map((snapshot?.rules ?? []).map((rule) => [rule.id, rule])), [snapshot])
+  const readonlyRules = useMemo(() => (snapshot?.unsupported_rules ?? []).filter(isCrossProviderReadonlyRule), [snapshot])
 
-  const load = useCallback(async () => {
-    if (!session?.id || !connectedLinux) {
+  sessionStateRef.current = { id: session?.id, connectedLinux }
+  selectedProviderRef.current = selectedProvider
+
+  const abortLoad = useCallback(() => {
+    loadSequenceRef.current += 1
+    loadAbortRef.current?.abort()
+    loadAbortRef.current = null
+  }, [])
+
+  const beginLoad = useCallback(() => {
+    abortLoad()
+    const controller = new AbortController()
+    loadAbortRef.current = controller
+    return { controller, sequence: loadSequenceRef.current }
+  }, [abortLoad])
+
+  const isLoadOwner = useCallback((request: LoadRequest) => {
+    return mountedRef.current && loadAbortRef.current === request.controller && loadSequenceRef.current === request.sequence
+  }, [])
+
+  const isActiveLoad = useCallback((request: LoadRequest, sessionId: string) => {
+    const state = sessionStateRef.current
+    return isLoadOwner(request) && !request.controller.signal.aborted && state.id === sessionId && state.connectedLinux
+  }, [isLoadOwner])
+
+  const finishLoad = useCallback((request: LoadRequest) => {
+    if (loadAbortRef.current === request.controller && loadSequenceRef.current === request.sequence) {
+      loadAbortRef.current = null
+    }
+  }, [])
+
+  const abortApply = useCallback(() => {
+    applyAbortRef.current?.abort()
+    applyAbortRef.current = null
+  }, [])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      abortLoad()
+      abortApply()
+    }
+  }, [abortApply, abortLoad])
+
+  const load = useCallback(async (providerOverride?: FirewallProvider) => {
+    const targetSessionId = session?.id
+    if (!targetSessionId || !connectedLinux) {
       return
     }
+    const request = beginLoad()
     setLoading(true)
     setLoadError('')
     try {
-      const capability = await api.sessionFirewallCapability(session.id)
+      const providerList = await api.sessionFirewallProviders(targetSessionId, { signal: request.controller.signal })
+      if (!isActiveLoad(request, targetSessionId)) {
+        return
+      }
+      setProviders(providerList.providers)
+      const available = providerList.providers.filter((provider) => provider.provider !== 'unsupported')
+      const requestedProvider = providerOverride ?? (snapshot ? selectedProvider : providerList.default_provider)
+      const nextProvider = resolveFirewallProvider(requestedProvider, providerList.default_provider, available)
+      setSelectedProvider(nextProvider)
+      const capability = await api.sessionFirewallCapability(targetSessionId, nextProvider, { signal: request.controller.signal })
+      if (!isActiveLoad(request, targetSessionId)) {
+        return
+      }
       if (capability.status !== 'ready') {
+        setPersistenceStatus(null)
         setSnapshot({
-          session_id: session.id,
+          session_id: targetSessionId,
           capability,
           rules: [],
           unsupported_rules: [],
           snapshot_version: '',
           synced_at: new Date().toISOString(),
         })
-        setDraft([])
         return
       }
-      const nextSnapshot = await api.sessionFirewallSnapshot(session.id)
+      const nextSnapshot = await api.sessionFirewallSnapshot(targetSessionId, nextProvider, { signal: request.controller.signal })
+      if (!isActiveLoad(request, targetSessionId)) {
+        return
+      }
       setSnapshot(nextSnapshot)
-      setDraft(nextSnapshot.rules.map(firewallRuleToInput))
+      try {
+        const nextStatus = await api.sessionFirewallPersistenceStatus(targetSessionId, nextProvider, { signal: request.controller.signal })
+        if (isActiveLoad(request, targetSessionId)) {
+          setPersistenceStatus(nextStatus)
+        }
+      } catch (error) {
+        if (!isRequestAbort(error) && isActiveLoad(request, targetSessionId)) {
+          setPersistenceStatus(null)
+        }
+      }
     } catch (error) {
+      if (isRequestAbort(error) || !isActiveLoad(request, targetSessionId)) {
+        return
+      }
       const message = error instanceof Error ? error.message : t('app.error')
       setLoadError(message)
       notification.error({
@@ -82,34 +172,117 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         className: 'termous-notification',
       })
     } finally {
-      setLoading(false)
+      if (isLoadOwner(request)) {
+        setLoading(false)
+      }
+      finishLoad(request)
     }
-  }, [api, connectedLinux, notification, session?.id, t])
+  }, [api, beginLoad, connectedLinux, finishLoad, isActiveLoad, isLoadOwner, notification, selectedProvider, session?.id, snapshot, t])
 
   useEffect(() => {
+    abortLoad()
+    abortApply()
     setSnapshot(null)
-    setDraft([])
-    setPlan(null)
+    setProviders([])
+    setSelectedProvider('nftables')
+    setPersistenceStatus(null)
+    setPersistenceOpen(false)
     setEditing(null)
     setLoadError('')
-  }, [session?.id])
+    setLoading(false)
+    setApplying(false)
+  }, [abortApply, abortLoad, session?.id])
 
   useEffect(() => {
-    if (enabled && connectedLinux && !snapshot && !loading) {
+    if (enabled && connectedLinux && !snapshot && !loading && !loadError) {
       void load()
     }
-  }, [connectedLinux, enabled, load, loading, snapshot])
+  }, [connectedLinux, enabled, load, loadError, loading, snapshot])
+
+  useEffect(() => {
+    if (!linuxSessionUnavailable) {
+      return
+    }
+    setLoading(false)
+    setApplying(false)
+    setPersistenceOpen(false)
+    abortLoad()
+    abortApply()
+  }, [abortApply, abortLoad, linuxSessionUnavailable])
+
+  useEffect(() => {
+    if (!enabled || !connectedLinux) {
+      abortLoad()
+      abortApply()
+      setLoading(false)
+      setApplying(false)
+    }
+  }, [abortApply, abortLoad, connectedLinux, enabled])
 
   const desired = useCallback(
-    (risk = false): FirewallDesiredState => ({
+    (nextRules: FirewallRuleInput[], risk = false): FirewallDesiredState => ({
       snapshot_version: snapshot?.snapshot_version ?? '',
-      rules: draft.map(compactFirewallRuleInput),
+      rules: nextRules.map(compactFirewallRuleInput),
       confirm_risk: risk,
     }),
-    [draft, snapshot?.snapshot_version],
+    [snapshot?.snapshot_version],
   )
 
-  const saveEditing = () => {
+  const applyRules = useCallback(
+    async (nextRules: FirewallRuleInput[], confirmRisk = false, afterSuccess?: () => void) => {
+      const targetSessionId = session?.id
+      const targetProvider = selectedProvider
+      if (!targetSessionId || !isCurrentSessionProviderConnected(sessionStateRef.current, selectedProviderRef.current, targetSessionId, targetProvider)) {
+        return false
+      }
+      if (!confirmRisk && hasPotentialSSHBlock(nextRules)) {
+        Modal.confirm({
+          centered: true,
+          className: 'termous-modal firewall-risk-confirm',
+          title: t('workbench.firewall.confirmRiskRequired'),
+          content: t('workbench.firewall.confirmRisk'),
+          okText: t('app.confirm'),
+          cancelText: t('app.cancel'),
+          onOk: () => applyRules(nextRules, true, afterSuccess),
+        })
+        return false
+      }
+      abortApply()
+      const controller = new AbortController()
+      applyAbortRef.current = controller
+      setApplying(true)
+      try {
+        const result = await api.applySessionFirewall(targetSessionId, desired(nextRules, confirmRisk), targetProvider, { signal: controller.signal })
+        if (controller.signal.aborted || applyAbortRef.current !== controller || !isCurrentSessionProviderConnected(sessionStateRef.current, selectedProviderRef.current, targetSessionId, targetProvider)) {
+          return false
+        }
+        setSnapshot(result.snapshot)
+        notification.success({ title: result.message || t('workbench.firewall.applySuccess'), duration: 3, role: 'status', className: 'termous-notification' })
+        afterSuccess?.()
+        return true
+      } catch (error) {
+        if (isRequestAbort(error) || controller.signal.aborted || applyAbortRef.current !== controller || !isCurrentSessionProviderConnected(sessionStateRef.current, selectedProviderRef.current, targetSessionId, targetProvider)) {
+          return false
+        }
+        notification.error({
+          title: t('workbench.firewall.applyFailed'),
+          description: error instanceof Error ? error.message : t('app.error'),
+          duration: 5,
+          role: 'alert',
+          className: 'termous-notification',
+        })
+        return false
+      } finally {
+        if (applyAbortRef.current === controller) {
+          applyAbortRef.current = null
+          setApplying(false)
+        }
+      }
+    },
+    [abortApply, api, desired, notification, selectedProvider, session?.id, t],
+  )
+
+  const saveEditing = async () => {
     if (!editing) {
       return
     }
@@ -118,92 +291,20 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
       notification.warning({ title: error, duration: 3, role: 'status', className: 'termous-notification' })
       return
     }
-    setDraft((current) => {
-      const next = [...current]
-      if (editing.index === null) {
-        next.push(compactFirewallRuleInput(editing.value))
-      } else {
-        next[editing.index] = compactFirewallRuleInput(editing.value)
-      }
-      return next
-    })
-    setEditing(null)
-  }
-
-  const preview = async () => {
-    if (!session?.id) {
-      return
+    const next = [...rules]
+    if (editing.index === null) {
+      next.push(compactFirewallRuleInput(editing.value))
+    } else {
+      next[editing.index] = compactFirewallRuleInput(editing.value)
     }
-    try {
-      const nextPlan = await api.previewSessionFirewall(session.id, desired(false))
-      setPlan(nextPlan)
-      setConfirmRisk(nextPlan.risk_warnings?.length ? false : true)
-    } catch (error) {
-      notification.error({
-        title: t('workbench.firewall.previewFailed'),
-        description: error instanceof Error ? error.message : t('app.error'),
-        duration: 5,
-        role: 'alert',
-        className: 'termous-notification',
-      })
-    }
-  }
-
-  const apply = async () => {
-    if (!session?.id || !plan) {
-      return
-    }
-    if (plan.risk_warnings?.length && !confirmRisk) {
-      notification.warning({ title: t('workbench.firewall.confirmRiskRequired'), duration: 3, role: 'status', className: 'termous-notification' })
-      return
-    }
-    setApplying(true)
-    try {
-      const result = await api.applySessionFirewall(session.id, desired(confirmRisk))
-      setSnapshot(result.snapshot)
-      setDraft(result.snapshot.rules.map(firewallRuleToInput))
-      setPlan(null)
-      notification.success({ title: result.message || t('workbench.firewall.applySuccess'), duration: 3, role: 'status', className: 'termous-notification' })
-    } catch (error) {
-      notification.error({
-        title: t('workbench.firewall.applyFailed'),
-        description: error instanceof Error ? error.message : t('app.error'),
-        duration: 5,
-        role: 'alert',
-        className: 'termous-notification',
-      })
-    } finally {
-      setApplying(false)
-    }
-  }
-
-  const saveRemote = async () => {
-    if (!session?.id) {
-      return
-    }
-    setSaving(true)
-    try {
-      const result = await api.saveSessionFirewall(session.id)
-      if (result.saved) {
-        notification.success({ title: result.message, duration: 4, role: 'status', className: 'termous-notification' })
-      } else {
-        notification.info({ title: result.message, duration: 4, role: 'status', className: 'termous-notification' })
-      }
-    } catch (error) {
-      notification.error({
-        title: t('workbench.firewall.saveFailed'),
-        description: error instanceof Error ? error.message : t('app.error'),
-        duration: 5,
-        role: 'alert',
-        className: 'termous-notification',
-      })
-    } finally {
-      setSaving(false)
-    }
+    await applyRules(next, false, () => setEditing(null))
   }
 
   if (!session || session.kind !== 'ssh') {
     return <FirewallEmpty title={t('workbench.firewall.emptyTitle')} description={t('workbench.firewall.emptyHint')} />
+  }
+  if (linuxSessionUnavailable) {
+    return <FirewallEmpty title={t('workbench.firewall.sessionUnavailable')} description={t('workbench.firewall.sessionUnavailableHint')} />
   }
   if (!connectedLinux) {
     return <FirewallEmpty title={t('workbench.firewall.unsupportedPlatform')} description={t('workbench.firewall.unsupportedPlatformHint')} />
@@ -217,45 +318,86 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
   if (!snapshot) {
     return <FirewallLoading label={t('workbench.firewall.detecting')} />
   }
-  if (snapshot?.capability.status !== 'ready') {
-    return (
-      <FirewallEmpty
-        title={snapshot?.capability.status === 'permission_denied' ? t('workbench.firewall.permissionDenied') : t('workbench.firewall.noProvider')}
-        description={snapshot?.capability.message || t('workbench.firewall.noProviderHint')}
-      />
-    )
-  }
+  const providerOptions = providers.length ? providers.filter((provider) => provider.provider !== 'unsupported') : fallbackFirewallProviders()
+  const currentProvider = providerOptions.find((provider) => provider.provider === selectedProvider)
+  const capabilityReady = snapshot.capability.status === 'ready'
 
   return (
     <section className="firewall-panel">
       <div className="firewall-toolbar">
-        <div>
-          <span className="firewall-provider-pill">
-            <Shield size={14} />
-            {t(`workbench.firewall.provider.${snapshot.capability.provider}`)}
-          </span>
-          <small>{snapshot.synced_at ? t('workbench.firewall.syncedAt', { time: formatTime(snapshot.synced_at) }) : t('fields.none')}</small>
-        </div>
-        <div className="firewall-toolbar-actions">
+        <div className="firewall-toolbar-summary">
+          <div className={`firewall-toolbar-state ${capabilityReady ? 'is-ready' : 'is-error'}`}>
+            <span className="firewall-toolbar-state-icon">
+              <Shield size={15} />
+            </span>
+            <span className="firewall-toolbar-state-copy">
+              <strong>{capabilityReady ? t('status.available') : t('status.failed')}</strong>
+              <small>
+                {t('workbench.firewall.syncedAtLabel')}
+                <time>{snapshot.synced_at ? formatTime(snapshot.synced_at) : t('fields.none')}</time>
+              </small>
+            </span>
+          </div>
           <Tooltip title={t('workbench.firewall.refresh')}>
-            <Button type="text" aria-label={t('workbench.firewall.refresh')} icon={<RefreshCw size={15} />} loading={loading} onClick={() => void load()} />
+            <Button className="firewall-toolbar-icon-button" type="text" aria-label={t('workbench.firewall.refresh')} icon={<RefreshCw size={15} />} loading={loading} onClick={() => void load(selectedProvider)} />
           </Tooltip>
-          <Tooltip title={snapshot.capability.supports_save ? t('workbench.firewall.saveRemote') : t('workbench.firewall.saveUnsupported')}>
-            <Button type="text" aria-label={t('workbench.firewall.saveRemote')} disabled={!snapshot.capability.supports_save} loading={saving} icon={<Save size={15} />} onClick={() => void saveRemote()} />
+        </div>
+        <div className="firewall-toolbar-controls">
+          <div className="firewall-provider-picker">
+            <span className="firewall-provider-picker-label">{t('workbench.firewall.providerSwitch')}</span>
+            <Select
+              className="termous-select firewall-provider-select"
+              classNames={{ popup: { root: 'termous-select-popup firewall-provider-select-popup' } }}
+              value={selectedProvider}
+              options={providerOptions.map((provider) => ({
+                value: provider.provider,
+                label: (
+                  <span className="firewall-provider-option">
+                    <i className={firewallProviderStatusClass(provider)} />
+                    {t(`workbench.firewall.provider.${provider.provider}`)}
+                  </span>
+                ),
+              }))}
+              onChange={(value) => {
+                const nextProvider = value as FirewallProvider
+                abortApply()
+                setApplying(false)
+                setSelectedProvider(nextProvider)
+                setSnapshot(null)
+                setPersistenceStatus(null)
+                void load(nextProvider)
+              }}
+            />
+          </div>
+          <Tooltip title={snapshot.capability.supports_save ? t('workbench.firewall.persistence.open') : t('workbench.firewall.saveUnsupported')}>
+            <Button
+              className={`firewall-persistence-open ${persistenceStatusClass(persistenceStatus)}`}
+              type="text"
+              aria-label={t('workbench.firewall.persistence.open')}
+              disabled={!snapshot.capability.supports_save}
+              icon={<Save size={15} />}
+              onClick={() => setPersistenceOpen(true)}
+            >
+              {persistenceStatus ? t(`workbench.firewall.persistence.status.${persistenceStatus.status}`) : t('workbench.firewall.persistence.shortTitle')}
+            </Button>
           </Tooltip>
         </div>
       </div>
 
-      <div className="firewall-rule-actions">
+      {!capabilityReady ? (
+        <FirewallEmpty
+          title={snapshot.capability.status === 'permission_denied' ? t('workbench.firewall.permissionDenied') : t('workbench.firewall.noProvider')}
+          description={currentProvider?.message || snapshot.capability.message || t('workbench.firewall.noProviderHint')}
+        />
+      ) : null}
+
+      {capabilityReady ? <div className="firewall-rule-actions">
         <Button className="secondary-button" icon={<Plus size={15} />} onClick={() => setEditing({ index: null, value: createFirewallRuleInput() })}>
           {t('workbench.firewall.addRule')}
         </Button>
-        <Button type="primary" disabled={!dirty || loading || applying} onClick={() => void preview()}>
-          {t('workbench.firewall.previewApply')}
-        </Button>
-      </div>
+      </div> : null}
 
-      {snapshot.warnings?.length ? (
+      {capabilityReady && snapshot.warnings?.length ? (
         <div className="firewall-warning-list">
           {snapshot.warnings.map((warning) => (
             <span key={warning}><AlertTriangle size={13} />{warning}</span>
@@ -263,38 +405,46 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         </div>
       ) : null}
 
-      <div className="firewall-rule-list">
-        {draft.length === 0 ? (
+      {capabilityReady ? <div className="firewall-rule-list">
+        {rules.length === 0 ? (
           <div className="firewall-inline-empty">{t('workbench.firewall.noRules')}</div>
         ) : (
-          draft.map((rule, index) => (
+          rules.map((rule, index) => (
             <FirewallRuleCard
               key={rule.id || `${rule.protocol}-${rule.action}-${index}`}
               rule={rule}
               snapshotRule={rule.id ? snapshotRuleById.get(rule.id) : undefined}
+              applying={applying}
               t={t}
               onEdit={() => setEditing({ index, value: rule })}
-              onDuplicate={() => setDraft((current) => [...current, { ...rule, id: undefined, raw_ref: undefined, description: rule.description ? `${rule.description} ${t('workbench.firewall.copySuffix')}` : '' }])}
-              onDelete={() => setDraft((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+              onDuplicate={() => setEditing({ index: null, value: { ...rule, id: undefined, raw_ref: undefined, description: rule.description ? `${rule.description} ${t('workbench.firewall.copySuffix')}` : '' } })}
+              onToggle={(checked) => void applyRules(rules.map((item, itemIndex) => (itemIndex === index ? { ...item, enabled: checked } : item)))}
+              onDelete={() => void applyRules(rules.filter((_, itemIndex) => itemIndex !== index))}
             />
           ))
         )}
-      </div>
+      </div> : null}
 
-      {unsupportedRules.length > 0 ? (
-        <div className="firewall-unsupported">
-          <div className="firewall-unsupported-head">
-            <strong>{t('workbench.firewall.unsupportedRules')}</strong>
-            <Button type="text" size="small" onClick={() => setShowUnsupported((current) => !current)}>
-              {showUnsupported ? t('workbench.firewall.collapseUnsupported') : t('workbench.firewall.expandUnsupported', { count: unsupportedRules.length })}
-            </Button>
+      {capabilityReady && readonlyRules.length > 0 ? (
+        <div className="firewall-readonly-section">
+          <div className="firewall-readonly-heading">
+            <span>{t('workbench.firewall.crossProviderTitle')}</span>
+            <small>{t('workbench.firewall.crossProviderHint')}</small>
           </div>
-          {visibleUnsupportedRules.map((rule) => (
-            <div key={rule.id}>
-              <span>{rule.chain || rule.id}</span>
-              <small>{rule.readonly_reason || t('workbench.firewall.unsupportedRuleHint')}</small>
-            </div>
-          ))}
+          <div className="firewall-readonly-list">
+            {readonlyRules.map((rule) => (
+              <FirewallReadonlyRuleCard
+                key={rule.id}
+                rule={rule}
+                t={t}
+                onSwitchProvider={(provider) => {
+                  setSelectedProvider(provider)
+                  setSnapshot(null)
+                  void load(provider)
+                }}
+              />
+            ))}
+          </div>
         </div>
       ) : null}
 
@@ -307,111 +457,153 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
           t={t}
           onChange={(value) => setEditing((current) => (current ? { ...current, value } : current))}
           onCancel={() => setEditing(null)}
-          onSubmit={saveEditing}
+          onSubmit={() => void saveEditing()}
         />
       ) : null}
 
-      <Modal
-        open={Boolean(plan)}
-        centered
-        className="termous-modal firewall-preview-modal"
-        title={t('workbench.firewall.previewTitle')}
-        okText={t('workbench.firewall.apply')}
-        cancelText={t('app.cancel')}
-        confirmLoading={applying}
-        onCancel={() => setPlan(null)}
-        onOk={() => void apply()}
-      >
-        <div className="firewall-preview">
-          {plan?.changes.length === 0 ? (
-            <div className="firewall-inline-empty">{t('workbench.firewall.noChanges')}</div>
-          ) : (
-            plan?.changes.map((change) => <FirewallPlanChangeRow key={`${change.type}-${change.rule_id}`} change={change} t={t} />)
-          )}
-          {plan?.risk_warnings?.length ? (
-            <div className="firewall-risk-box">
-              {plan.risk_warnings.map((warning) => (
-                <span key={warning}><AlertTriangle size={14} />{warning}</span>
-              ))}
-              <Checkbox checked={confirmRisk} onChange={(event) => setConfirmRisk(event.target.checked)}>
-                {t('workbench.firewall.confirmRisk')}
-              </Checkbox>
-            </div>
-          ) : null}
-        </div>
-      </Modal>
+      {session?.id ? (
+        <FirewallPersistencePanel
+          api={api}
+          sessionId={session.id}
+          sessionStatus={session.status}
+          provider={selectedProvider}
+          open={persistenceOpen}
+          t={t}
+          onClose={() => setPersistenceOpen(false)}
+          onSaved={() => {
+            void load(selectedProvider)
+          }}
+        />
+      ) : null}
     </section>
+  )
+}
+
+function FirewallReadonlyRuleCard({
+  rule,
+  t,
+  onSwitchProvider,
+}: {
+  rule: FirewallRule
+  t: (key: string, params?: Record<string, unknown>) => string
+  onSwitchProvider: (provider: FirewallProvider) => void
+}) {
+  const sourceProvider = rule.edit_provider ?? rule.source_provider ?? 'iptables'
+  const ports = displayFirewallPorts(rule.protocol, rule.ports ?? [], t)
+  const source = formatFirewallSource(rule.source)
+  const actionIcon = rule.action === 'allow' ? <ShieldCheck size={15} /> : rule.action === 'reject' ? <ShieldAlert size={15} /> : <Ban size={15} />
+  return (
+    <article className={`firewall-rule-row firewall-readonly-rule ${firewallActionTone(rule.action)}`}>
+      <span className="firewall-rule-accent" />
+      <div className="firewall-rule-card-top">
+        <span className="firewall-rule-symbol">{actionIcon}</span>
+        <div className="firewall-rule-title">
+          <strong>{t(`workbench.firewall.protocol.${rule.protocol}`)} · {ports}</strong>
+          <Tooltip title={rule.description || t('workbench.firewall.noDescription')} placement="topLeft">
+            <small>{rule.description || t('workbench.firewall.noDescription')}</small>
+          </Tooltip>
+        </div>
+      </div>
+      <div className="firewall-rule-meta firewall-readonly-meta">
+        <span className="firewall-rule-action">{t(`workbench.firewall.action.${rule.action}`)}</span>
+        <Tooltip title={source} placement="topLeft">
+          <span className="firewall-rule-source-value"><Globe2 size={13} />{t('workbench.firewall.sourceLabel')} {source}</span>
+        </Tooltip>
+      </div>
+      <div className="firewall-rule-switch firewall-readonly-provider-slot">
+        <span className="firewall-rule-source-provider"><LockKeyhole size={12} />{t('workbench.firewall.managedByProvider', { provider: t(`workbench.firewall.provider.${sourceProvider}`) })}</span>
+      </div>
+      <div className="firewall-rule-card-actions firewall-readonly-actions">
+        <Tooltip title={rule.readonly_reason || t('workbench.firewall.readonly')}>
+          <Button type="text" className="firewall-readonly-switch" icon={<ExternalLink size={14} />} onClick={() => onSwitchProvider(sourceProvider)}>
+            {t('workbench.firewall.switchProvider', { provider: t(`workbench.firewall.provider.${sourceProvider}`) })}
+          </Button>
+        </Tooltip>
+      </div>
+    </article>
   )
 }
 
 function FirewallRuleCard({
   rule,
   snapshotRule,
+  applying,
   t,
   onEdit,
   onDuplicate,
+  onToggle,
   onDelete,
 }: {
   rule: FirewallRuleInput
   snapshotRule?: FirewallRule
+  applying: boolean
   t: (key: string, params?: Record<string, unknown>) => string
   onEdit: () => void
   onDuplicate: () => void
+  onToggle: (checked: boolean) => void
   onDelete: () => void
 }) {
   const ports = displayFirewallPorts(rule.protocol, rule.ports, t)
+  const source = formatFirewallSource(rule.source)
+  const actionIcon = rule.action === 'allow' ? <ShieldCheck size={16} /> : rule.action === 'reject' ? <ShieldAlert size={16} /> : <Ban size={16} />
+  const hasCounters = Boolean(snapshotRule?.counters_available)
+  const localDisabled = Boolean(snapshotRule?.disabled_local)
+  const editable = snapshotRule?.editable ?? true
   return (
-    <article className={`firewall-rule-card ${firewallActionTone(rule.action)} ${rule.enabled ? '' : 'is-disabled'}`}>
-      <div className="firewall-rule-main">
-        <span className="firewall-rule-action">{t(`workbench.firewall.action.${rule.action}`)}</span>
-        <div>
+    <article className={`firewall-rule-row ${firewallActionTone(rule.action)} ${rule.enabled ? '' : 'is-disabled'}`}>
+      <span className="firewall-rule-accent" />
+      <div className="firewall-rule-card-top">
+        <span className="firewall-rule-symbol">{actionIcon}</span>
+        <div className="firewall-rule-title">
           <strong>{t(`workbench.firewall.protocol.${rule.protocol}`)} · {ports}</strong>
-          <small>{t('workbench.firewall.fromSource', { source: formatFirewallSource(rule.source) })}</small>
+          <Tooltip title={rule.description || t('workbench.firewall.noDescription')} placement="topLeft">
+            <small>{rule.description || t('workbench.firewall.noDescription')}</small>
+          </Tooltip>
         </div>
       </div>
+
       <div className="firewall-rule-meta">
-        <span>{rule.description || t('workbench.firewall.noDescription')}</span>
-        {snapshotRule?.hit_count !== undefined ? <small>{t('workbench.firewall.hitCount', { count: snapshotRule.hit_count })}</small> : null}
-        {snapshotRule?.byte_count !== undefined ? <small>{formatBytes(snapshotRule.byte_count)}</small> : null}
+        <span className="firewall-rule-action">{t(`workbench.firewall.action.${rule.action}`)}</span>
+        <Tooltip title={source} placement="topLeft">
+          <span><Globe2 size={13} />{t('workbench.firewall.sourceLabel')} {source}</span>
+        </Tooltip>
+        {localDisabled ? <span className="firewall-rule-local">{t('workbench.firewall.localDisabled')}</span> : null}
+        {hasCounters ? <span><Activity size={13} />{t('workbench.firewall.hitCount', { count: snapshotRule?.hit_count ?? 0 })}</span> : null}
+        {hasCounters ? <span><Database size={13} />{formatBytes(snapshotRule?.byte_count ?? 0)}</span> : null}
       </div>
+
+      <div className="firewall-rule-switch">
+        <span className={rule.enabled ? 'is-enabled' : 'is-muted'}>
+          <Power size={13} />
+          {rule.enabled ? t('workbench.firewall.enabledState') : t('workbench.firewall.disabledState')}
+        </span>
+        <Switch size="small" checked={rule.enabled} loading={applying} disabled={!editable || applying} onChange={onToggle} />
+      </div>
+
       <div className="firewall-rule-card-actions">
-        <Tooltip title={t('workbench.firewall.edit')}>
-          <Button type="text" aria-label={t('workbench.firewall.edit')} icon={<Pencil size={14} />} onClick={onEdit} />
+        <Tooltip title={editable ? t('workbench.firewall.edit') : snapshotRule?.readonly_reason || t('workbench.firewall.readonly')}>
+          <Button type="text" aria-label={t('workbench.firewall.edit')} disabled={!editable || applying} icon={<Pencil size={14} />} onClick={onEdit} />
         </Tooltip>
         <Tooltip title={t('workbench.firewall.duplicate')}>
-          <Button type="text" aria-label={t('workbench.firewall.duplicate')} icon={<Copy size={14} />} onClick={onDuplicate} />
+          <Button type="text" aria-label={t('workbench.firewall.duplicate')} disabled={applying} icon={<Copy size={14} />} onClick={onDuplicate} />
         </Tooltip>
         <Popconfirm title={t('workbench.firewall.deleteConfirm')} okText={t('app.confirm')} cancelText={t('app.cancel')} onConfirm={onDelete}>
-          <Button type="text" danger aria-label={t('workbench.firewall.delete')} icon={<Trash2 size={14} />} />
+          <Button type="text" danger aria-label={t('workbench.firewall.delete')} disabled={!editable || applying} icon={<Trash2 size={14} />} />
         </Popconfirm>
       </div>
     </article>
   )
 }
 
-function FirewallPlanChangeRow({ change, t }: { change: FirewallPlan['changes'][number]; t: (key: string, params?: Record<string, unknown>) => string }) {
-  const icon = change.type === 'delete' ? <Trash2 size={14} /> : change.type === 'create' ? <Plus size={14} /> : <Pencil size={14} />
-  const rule = change.after ?? change.before
-  return (
-    <div className={`firewall-change-row is-${change.type}`}>
-      <span>{icon}</span>
-      <div>
-        <strong>{t(`workbench.firewall.change.${change.type}`)}</strong>
-        <small>
-          {rule ? `${t(`workbench.firewall.protocol.${rule.protocol}`)} · ${displayFirewallPorts(rule.protocol, rule.ports ?? [], t)} · ${formatFirewallSource(rule.source)}` : change.rule_id}
-        </small>
-      </div>
-    </div>
-  )
-}
-
 function FirewallEmpty({ title, description }: { title: string; description: string }) {
   return (
-    <div className="firewall-empty">
-      <ShieldAlert size={22} />
-      <strong>{title}</strong>
-      <small>{description}</small>
-    </div>
+    <WorkbenchEmptyState
+      className="firewall-empty"
+      tone="warning"
+      icon={<ShieldAlert size={22} />}
+      title={title}
+      description={description}
+    />
   )
 }
 
@@ -431,10 +623,99 @@ function displayFirewallPorts(protocol: FirewallRuleInput['protocol'], ports: Fi
   return value === 'Any' ? t('workbench.firewall.any') : value
 }
 
+function resolveFirewallProvider(current: FirewallProvider, fallback: FirewallProvider, providers: FirewallProviderOption[]) {
+  if (providers.some((provider) => provider.provider === current)) {
+    return current
+  }
+  if (fallback !== 'unsupported' && providers.some((provider) => provider.provider === fallback)) {
+    return fallback
+  }
+  return providers[0]?.provider ?? 'nftables'
+}
+
+function fallbackFirewallProviders(): FirewallProviderOption[] {
+  return [
+    fallbackFirewallProvider('nftables'),
+    fallbackFirewallProvider('iptables'),
+  ]
+}
+
+function fallbackFirewallProvider(provider: FirewallProvider): FirewallProviderOption {
+  return {
+    provider,
+    status: 'unsupported',
+    present: false,
+    privilege: 'none',
+    supports_apply: false,
+    supports_save: false,
+    supports_counters: false,
+    recommended: false,
+  }
+}
+
+function isCrossProviderReadonlyRule(rule: FirewallRule) {
+  return Boolean(rule.cross_provider && (rule.edit_provider || rule.source_provider))
+}
+
+function firewallProviderStatusClass(provider: FirewallProviderOption) {
+  if (provider.status === 'ready') {
+    return 'is-ready'
+  }
+  if (provider.status === 'permission_denied') {
+    return 'is-denied'
+  }
+  return 'is-offline'
+}
+
+function persistenceStatusClass(status: FirewallPersistenceStatus | null) {
+  if (!status) {
+    return 'is-neutral'
+  }
+  if (status.status === 'service_enabled' || status.status === 'file_saved') {
+    return 'is-ready'
+  }
+  if (status.status === 'missing_tools' || status.status === 'partial') {
+    return 'is-warning'
+  }
+  if (status.status === 'permission_denied' || status.status === 'unsupported') {
+    return 'is-error'
+  }
+  return 'is-neutral'
+}
+
+function isRequestAbort(error: unknown) {
+  return error instanceof TermousApiError && error.code === 'REQUEST_ABORTED'
+}
+
+function isCurrentSessionProviderConnected(
+  state: { id?: string; connectedLinux: boolean },
+  currentProvider: FirewallProvider,
+  sessionId: string,
+  provider: FirewallProvider,
+) {
+  return state.id === sessionId && state.connectedLinux && currentProvider === provider
+}
+
 function formatTime(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {
     return value
   }
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function hasPotentialSSHBlock(rules: FirewallRuleInput[]) {
+  return rules.some((rule) => {
+    if (!rule.enabled || (rule.action !== 'drop' && rule.action !== 'reject')) {
+      return false
+    }
+    const openSource = !rule.source || rule.source === '0.0.0.0/0'
+    if (!openSource || (rule.protocol !== 'any' && rule.protocol !== 'tcp')) {
+      return false
+    }
+    if (rule.protocol === 'any' && rule.ports.length === 0) {
+      return true
+    }
+    return rule.ports.some((port) => port.from <= 22 && port.to >= 22)
+  })
 }

@@ -1,26 +1,32 @@
-import { FileInput, KeyRound, Pencil, Plus, Search, Server, Trash2, X } from 'lucide-react'
-import { Button, Input, InputNumber, Popconfirm, Select, Tag } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { ImagePlus, KeyRound, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { App as AntdApp, Button, Empty, Input, InputNumber, Popconfirm, Select, Tag } from 'antd'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { CustomSelect } from '../../components/ui/CustomSelect'
-import { EmptyState } from '../../components/ui/EmptyState'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
-import type { AppData, AuthMethod, HostInput } from '../../types/domain'
+import type { AppData, AuthMethod, HostGroup, HostIcon, HostInput } from '../../types/domain'
+import { hostToInput } from './hostInput'
 
 interface HostsPageProps {
   data: AppData
   selectedHostId: string
+  createIntentKey?: number
   actionBusy: boolean
   onSelectHost: (hostId: string) => void
   onSave: (id: string | null, input: HostInput) => Promise<void>
   onDelete: (id: string) => Promise<void>
-  onImport: () => Promise<void>
+  onCreateGroup: (name: string) => Promise<HostGroup>
+  onUploadHostIcon: (file: File) => Promise<HostIcon>
+  onDeleteHostIcon: (id: string) => Promise<void>
+  getHostIconUrl: (iconId: string) => string
 }
 
 const blankHost: HostInput = {
   name: '',
   platform: 'linux',
+  icon_id: '',
   group_id: '',
   address: '',
   port: 22,
@@ -29,11 +35,14 @@ const blankHost: HostInput = {
   credential_id: '',
   jump_host_id: '',
   tags: [],
+  favorite: false,
   fingerprint_policy: 'confirm_on_change',
   note: '',
 }
 
 const systemHost: HostInput = { ...blankHost, auth_method: 'system', credential_id: '' }
+const hostIconAccept = '.png,.jpg,.jpeg,.svg,.ico,image/png,image/jpeg,image/svg+xml,image/x-icon,image/vnd.microsoft.icon'
+const maxHostIconBytes = 5 * 1024 * 1024
 
 interface HostTagOption {
   key: string
@@ -41,36 +50,76 @@ interface HostTagOption {
   count: number
 }
 
-export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSave, onDelete, onImport }: HostsPageProps) {
+export function HostsPage({
+  data,
+  selectedHostId,
+  createIntentKey = 0,
+  actionBusy,
+  onSelectHost,
+  onSave,
+  onDelete,
+  onCreateGroup,
+  onUploadHostIcon,
+  onDeleteHostIcon,
+  getHostIconUrl,
+}: HostsPageProps) {
   const { t } = useTranslation()
+  const { message } = AntdApp.useApp()
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId)
   const [editingId, setEditingId] = useState<string | null>(selectedHost?.id ?? null)
   const [form, setForm] = useState<HostInput>({ ...blankHost, tags: [] })
+  const iconFileInputRef = useRef<HTMLInputElement>(null)
+  const pendingIconIdRef = useRef('')
+  const deleteHostIconRef = useRef(onDeleteHostIcon)
+  const [, setPendingIconId] = useState('')
+  const [uploadingIcon, setUploadingIcon] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [groupCreatorOpen, setGroupCreatorOpen] = useState(false)
+  const [groupDraft, setGroupDraft] = useState('')
+  const [creatingGroup, setCreatingGroup] = useState(false)
 
   useEffect(() => {
+    deleteHostIconRef.current = onDeleteHostIcon
+  }, [onDeleteHostIcon])
+
+  useEffect(() => () => {
+    const iconId = pendingIconIdRef.current
+    if (iconId) {
+      void deleteHostIconRef.current(iconId).catch(() => undefined)
+    }
+  }, [])
+
+  useEffect(() => {
+    const pendingUploadIconId = pendingIconIdRef.current
+    if (pendingUploadIconId) {
+      pendingIconIdRef.current = ''
+      void deleteHostIconRef.current(pendingUploadIconId).catch(() => undefined)
+    }
     if (!selectedHost) {
       setEditingId(null)
       setForm({ ...blankHost, tags: [] })
+      setPendingIconId('')
       return
     }
     setEditingId(selectedHost.id)
-    setForm({
-      name: selectedHost.name,
-      platform: selectedHost.platform ?? 'linux',
-      group_id: selectedHost.group_id,
-      address: selectedHost.address,
-      port: selectedHost.port,
-      username: selectedHost.username,
-      auth_method: selectedHost.auth_method,
-      credential_id: selectedHost.credential_id,
-      jump_host_id: selectedHost.jump_host_id ?? '',
-      tags: normalizeHostTags(selectedHost.tags ?? []),
-      fingerprint_policy: selectedHost.fingerprint_policy,
-      note: selectedHost.note ?? '',
-    })
+    setForm({ ...hostToInput(selectedHost), tags: normalizeHostTags(selectedHost.tags ?? []) })
+    setPendingIconId('')
   }, [selectedHost])
+
+  useEffect(() => {
+    const pendingUploadIconId = pendingIconIdRef.current
+    if (pendingUploadIconId) {
+      pendingIconIdRef.current = ''
+      void deleteHostIconRef.current(pendingUploadIconId).catch(() => undefined)
+    }
+    if (createIntentKey <= 0) {
+      return
+    }
+    setEditingId(null)
+    setForm({ ...systemHost, tags: [] })
+    setPendingIconId('')
+  }, [createIntentKey])
 
   const groupOptions = useMemo(
     () => [
@@ -123,6 +172,73 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
   const save = async () => {
     const input = { ...form, tags: normalizeHostTags(form.tags) }
     await onSave(editingId, input)
+    pendingIconIdRef.current = ''
+    setPendingIconId('')
+  }
+
+  const uploadIcon = async (file: File) => {
+    const validationMessage = validateHostIconFile(file, t)
+    if (validationMessage) {
+      void message.warning(validationMessage)
+      return
+    }
+    setUploadingIcon(true)
+    try {
+      const uploaded = await onUploadHostIcon(file)
+      const previousPendingIconId = pendingIconIdRef.current
+      setForm((current) => ({ ...current, icon_id: uploaded.id }))
+      pendingIconIdRef.current = uploaded.id
+      setPendingIconId(uploaded.id)
+      if (previousPendingIconId && previousPendingIconId !== uploaded.id) {
+        try {
+          await onDeleteHostIcon(previousPendingIconId)
+        } catch {
+          // 临时 icon 清理失败不阻塞主机编辑，后端仍会按引用保护处理。
+        }
+      }
+    } finally {
+      setUploadingIcon(false)
+      if (iconFileInputRef.current) {
+        iconFileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const removeIcon = async () => {
+    const iconId = form.icon_id
+    setForm((current) => ({ ...current, icon_id: '' }))
+    if (iconId && iconId === pendingIconIdRef.current) {
+      pendingIconIdRef.current = ''
+      setPendingIconId('')
+      try {
+        await onDeleteHostIcon(iconId)
+      } catch {
+        // 临时 icon 可能已被其他主机复用或被清理，移除表单引用即可。
+      }
+    }
+  }
+
+  const createGroup = async () => {
+    const name = normalizeGroupName(groupDraft)
+    if (!name) {
+      return
+    }
+    const existing = data.groups.find((group) => normalizeGroupName(group.name).toLowerCase() === name.toLowerCase())
+    if (existing) {
+      setForm((current) => ({ ...current, group_id: existing.id }))
+      setGroupDraft('')
+      setGroupCreatorOpen(false)
+      return
+    }
+    setCreatingGroup(true)
+    try {
+      const group = await onCreateGroup(name)
+      setForm((current) => ({ ...current, group_id: group.id }))
+      setGroupDraft('')
+      setGroupCreatorOpen(false)
+    } finally {
+      setCreatingGroup(false)
+    }
   }
 
   const clearFilters = () => {
@@ -140,45 +256,32 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
     })
   }
 
+  const startCreateHost = () => {
+    setEditingId(null)
+    setForm({ ...systemHost, tags: [] })
+  }
+
   return (
     <section className="page-grid management-grid">
       <div className="list-panel">
-        <div className="page-title-row compact-title">
-          <div>
-            <h1>{t('hosts.title')}</h1>
-            <p>{t('hosts.subtitle')}</p>
+        <div className={`host-filter-panel ${data.hosts.length === 0 ? 'is-empty' : ''}`}>
+          <div className="host-filter-primary-row">
+            <Input
+              className="host-search-input termous-search-input"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              allowClear
+              disabled={data.hosts.length === 0}
+              variant="borderless"
+              prefix={<Search size={15} aria-hidden="true" />}
+              placeholder={t('hosts.searchPlaceholder')}
+            />
+            <ConnectionActionButton className="host-add-action" onClick={startCreateHost} disabled={actionBusy} icon={<Plus size={16} />}>
+              {t('hosts.addHost')}
+            </ConnectionActionButton>
           </div>
-        </div>
-        <div className="toolbar-row">
-          <Button className="secondary-button" onClick={onImport} disabled={actionBusy} icon={<FileInput size={16} />}>
-            {t('hosts.importConfig')}
-          </Button>
-          <ConnectionActionButton
-            onClick={() => {
-              setEditingId(null)
-              setForm({ ...systemHost, tags: [] })
-            }}
-            icon={<Plus size={16} />}
-          >
-            {t('hosts.addHost')}
-          </ConnectionActionButton>
-        </div>
-        {data.hosts.length === 0 ? (
-          <div className="management-empty-slot">
-            <EmptyState title={t('app.empty')} description={t('hosts.subtitle')} />
-          </div>
-        ) : (
-          <>
-            <div className="host-filter-panel">
-              <Input
-                className="host-search-input termous-search-input"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                allowClear
-                variant="borderless"
-                prefix={<Search size={15} aria-hidden="true" />}
-                placeholder={t('hosts.searchPlaceholder')}
-              />
+          {data.hosts.length > 0 ? (
+            <>
               <div className="host-filter-meta">
                 <span>{t('hosts.filterResult', { count: filteredHosts.length, total: data.hosts.length })}</span>
                 {hasFilters ? (
@@ -208,39 +311,54 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
                   ))}
                 </div>
               ) : null}
-            </div>
+            </>
+          ) : null}
+        </div>
+        {data.hosts.length === 0 ? (
+          <div className="management-empty-slot host-empty-slot">
+            <Empty description={t('hosts.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          </div>
+        ) : (
+          <>
             {filteredHosts.length === 0 ? (
-              <div className="management-empty-slot is-filtered">
-                <EmptyState title={t('hosts.noFilterResults')} description={t('hosts.noFilterResultsHint')} />
+              <div className="management-empty-slot is-filtered host-empty-slot">
+                <Empty description={t('hosts.noFilterResults')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
               </div>
             ) : (
               <div className="data-list host-data-list">
-                {filteredHosts.map((host) => (
-                  <button
-                    type="button"
-                    key={host.id}
-                    className={`data-row ${host.id === selectedHostId ? 'is-active' : ''}`}
-                    onClick={() => onSelectHost(host.id)}
-                  >
-                    <span className="row-icon">
-                      <Server size={16} aria-hidden="true" />
-                    </span>
-                    <span className="row-copy">
-                      <strong>{host.name}</strong>
-                      <small>{host.username}@{host.address}:{host.port}</small>
-                      {host.tags?.length ? (
-                        <span className="host-row-tags" aria-label={t('hosts.tags')}>
-                          {normalizeHostTags(host.tags).map((tag) => (
-                            <span className="host-row-tag" key={tagKey(tag)}>{tag}</span>
-                          ))}
+                {filteredHosts.map((host) => {
+                  const tags = normalizeHostTags(host.tags ?? [])
+                  const visibleTags = tags.slice(0, 2)
+                  const hiddenTagCount = tags.length - visibleTags.length
+
+                  return (
+                    <button
+                      type="button"
+                      key={host.id}
+                      className={`data-row ${host.id === selectedHostId ? 'is-active' : ''}`}
+                      onClick={() => onSelectHost(host.id)}
+                    >
+                      <HostAvatar host={host} getIconUrl={getHostIconUrl} className="row-icon" size={32} iconSize={16} />
+                      <span className="row-copy">
+                        <strong>{host.name}</strong>
+                        <span className="host-row-meta-line">
+                          <small className="host-row-endpoint">{host.username}@{host.address}:{host.port}</small>
+                          {tags.length ? (
+                            <span className="host-row-tags" aria-label={t('hosts.tags')}>
+                              {visibleTags.map((tag) => (
+                                <span className="host-row-tag" key={tagKey(tag)}>{tag}</span>
+                              ))}
+                              {hiddenTagCount > 0 ? <span className="host-row-tag is-count">+{hiddenTagCount}</span> : null}
+                            </span>
+                          ) : null}
                         </span>
-                      ) : null}
-                    </span>
-                    <span className="row-trailing">
-                      <AuthMethodBadge method={host.auth_method} />
-                    </span>
-                  </button>
-                ))}
+                      </span>
+                      <span className="row-trailing">
+                        <AuthMethodBadge method={host.auth_method} />
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </>
@@ -256,6 +374,53 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
           <Pencil size={18} aria-hidden="true" />
         </div>
         <div className="editor-sections">
+          <section className="form-section host-icon-section">
+            <div className="host-icon-editor">
+              <HostAvatar
+                host={{ name: form.name || t('hosts.icon.defaultName'), icon_id: form.icon_id }}
+                getIconUrl={getHostIconUrl}
+                className="host-icon-preview"
+                size={52}
+                iconSize={24}
+              />
+              <div className="host-icon-copy">
+                <h3>{t('hosts.icon.title')}</h3>
+                <p>{t('hosts.icon.hint')}</p>
+                <small>{t('hosts.icon.formats')}</small>
+              </div>
+              <input
+                id="host-icon-upload"
+                name="host-icon-upload"
+                ref={iconFileInputRef}
+                type="file"
+                accept={hostIconAccept}
+                className="visually-hidden-input"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) {
+                    void uploadIcon(file)
+                  }
+                }}
+              />
+              <Button
+                className="secondary-button host-icon-upload"
+                icon={<ImagePlus size={15} />}
+                loading={uploadingIcon}
+                disabled={actionBusy}
+                onClick={() => iconFileInputRef.current?.click()}
+              >
+                {t('hosts.icon.upload')}
+              </Button>
+              <Button
+                type="text"
+                className="host-icon-remove"
+                disabled={!form.icon_id || actionBusy || uploadingIcon}
+                onClick={() => void removeIcon()}
+              >
+                {t('hosts.icon.remove')}
+              </Button>
+            </div>
+          </section>
           <section className="form-section">
             <h3>{t('hosts.list')}</h3>
             <div className="form-grid">
@@ -273,12 +438,61 @@ export function HostsPage({ data, selectedHostId, actionBusy, onSelectHost, onSa
                 value={form.port}
                 onChange={(value) => setForm({ ...form, port: Number(value) || 22 })}
               />
-              <CustomSelect
-                label={t('hosts.group')}
-                value={form.group_id}
-                options={groupOptions}
-                onChange={(value) => setForm({ ...form, group_id: value })}
-              />
+              <div className="host-group-field">
+                <span className="field-label">{t('hosts.group')}</span>
+                <div className="host-group-control">
+                  <Select
+                    value={form.group_id}
+                    classNames={{ popup: { root: 'termous-select-popup' } }}
+                    className="termous-select"
+                    optionLabelProp="label"
+                    onChange={(value) => setForm({ ...form, group_id: value })}
+                    options={groupOptions.map((option) => ({
+                      value: option.value,
+                      label: option.label,
+                      title: option.label,
+                    }))}
+                  />
+                  <Button
+                    className="secondary-button host-group-create-trigger"
+                    icon={<Plus size={15} />}
+                    aria-label={t('hosts.addGroup')}
+                    disabled={actionBusy || creatingGroup}
+                    onClick={() => setGroupCreatorOpen((open) => !open)}
+                  />
+                </div>
+                {groupCreatorOpen ? (
+                  <div className="host-group-create-row">
+                    <Input
+                      value={groupDraft}
+                      autoFocus
+                      placeholder={t('hosts.groupNamePlaceholder')}
+                      disabled={actionBusy || creatingGroup}
+                      onChange={(event) => setGroupDraft(event.target.value)}
+                      onPressEnter={() => void createGroup()}
+                    />
+                    <Button
+                      className="secondary-button"
+                      disabled={!normalizeGroupName(groupDraft) || actionBusy || creatingGroup}
+                      loading={creatingGroup}
+                      onClick={() => void createGroup()}
+                    >
+                      {t('app.create')}
+                    </Button>
+                    <Button
+                      type="text"
+                      className="host-group-cancel"
+                      disabled={creatingGroup}
+                      onClick={() => {
+                        setGroupCreatorOpen(false)
+                        setGroupDraft('')
+                      }}
+                    >
+                      {t('app.cancel')}
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
               <CustomSelect
                 label={t('hosts.jumpHost')}
                 value={form.jump_host_id}
@@ -384,6 +598,20 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
   )
 }
 
+function validateHostIconFile(file: File, t: (key: string) => string) {
+  if (file.size <= 0) {
+    return t('hosts.icon.emptyFile')
+  }
+  if (file.size > maxHostIconBytes) {
+    return t('hosts.icon.tooLarge')
+  }
+  const name = file.name.toLowerCase()
+  if (!['.png', '.jpg', '.jpeg', '.svg', '.ico'].some((extension) => name.endsWith(extension))) {
+    return t('hosts.icon.invalidType')
+  }
+  return ''
+}
+
 function normalizeSearchToken(value: string) {
   return value.trim().toLowerCase()
 }
@@ -405,6 +633,10 @@ function normalizeHostTags(tags: string[]) {
     result.push(clean)
   }
   return result
+}
+
+function normalizeGroupName(value: string) {
+  return value.trim().replace(/\s+/g, ' ')
 }
 
 function buildHostTagOptions(hosts: AppData['hosts']) {

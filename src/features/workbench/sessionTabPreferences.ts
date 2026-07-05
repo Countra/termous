@@ -102,6 +102,7 @@ export function areSessionTabPreferenceMapsEqual(left: SessionTabPreferenceMap, 
 }
 
 export function sortSessionsForTabs(sessions: Session[], preferences: SessionTabPreferenceMap) {
+  const sessionOrder = new Map(sessions.map((session, index) => [session.id, index]))
   return [...sessions].sort((left, right) => {
     const leftPreference = preferences[left.id]
     const rightPreference = preferences[right.id]
@@ -113,7 +114,7 @@ export function sortSessionsForTabs(sessions: Session[], preferences: SessionTab
     if (leftPinned && rightPinned) {
       return (rightPreference?.pinnedAt ?? 0) - (leftPreference?.pinnedAt ?? 0)
     }
-    return sessions.indexOf(left) - sessions.indexOf(right)
+    return (sessionOrder.get(left.id) ?? 0) - (sessionOrder.get(right.id) ?? 0)
   })
 }
 

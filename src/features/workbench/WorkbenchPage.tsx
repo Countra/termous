@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Code2,
   Clock3,
+  CopyPlus,
   Cpu,
   HardDrive,
   Layers,
@@ -14,40 +15,52 @@ import {
   Pencil,
   Pin,
   PinOff,
+  Plus,
   Power,
   Play,
   RotateCcw,
   Search,
   Send,
   Server,
-  Shell,
+  Shield,
   SquareTerminal,
   Star,
   TriangleAlert,
 } from 'lucide-react'
-import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tabs, Tooltip, type MenuProps } from 'antd'
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type WheelEvent } from 'react'
+import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tooltip, type MenuProps } from 'antd'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
-import { HostContextPanel } from '../../components/hosts/HostContextPanel'
-import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
-import { CustomSelect } from '../../components/ui/CustomSelect'
+import { HostAvatar } from '../../components/hosts/HostAvatar'
+import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
+import { FeatureSidePanel } from '../../components/ui/FeatureSidePanel'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
 import { usePersistentJsonState } from '../../hooks/usePersistentJsonState'
-import { useResizablePanelWidth } from '../../hooks/useResizablePanelWidth'
+import { useRafResizablePanelWidth } from '../../hooks/useRafResizablePanelWidth'
 import { ConnectionProgress } from '../terminal/ConnectionProgress'
 import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
-import { TerminalViewport } from '../terminal/TerminalViewport'
+import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
-import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, LocalShell, Session, ThemeMode } from '../../types/domain'
+import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
 import { FirewallPanel } from './FirewallPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
 import { SystemMonitorPanel } from './SystemMonitorPanel'
+import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import {
   areSessionTabPreferenceMapsEqual,
   compactSessionTabPreference,
@@ -60,12 +73,6 @@ import {
 } from './sessionTabPreferences'
 
 type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'firewall' | 'forwards' | 'snippets'
-
-const workbenchHostPanelWidth = {
-  default: 260,
-  min: 220,
-  max: 360,
-}
 
 const workbenchDetailsPanelWidth = {
   default: 300,
@@ -82,6 +89,13 @@ interface TerminalSearchState {
   result: TerminalSearchResult
 }
 
+interface TerminalTabDragState {
+  sessionId: string
+  start: TerminalDragPoint
+  point: TerminalDragPoint
+  dragging: boolean
+}
+
 interface WorkbenchPageProps {
   api: TermousApi
   data: AppData
@@ -89,9 +103,7 @@ interface WorkbenchPageProps {
   selectedHostId: string
   activeSession: Session | null
   actionBusy: boolean
-  onSelectHost: (hostId: string) => void
   onConnect: (hostId: string) => Promise<void>
-  onOpenLocal: (shell: LocalShell) => Promise<void>
   onSelectSession: (sessionId: string) => void
   onDisconnect: (sessionId: string) => Promise<void>
   onOpenFiles: (session: Session) => Promise<void>
@@ -108,9 +120,7 @@ export function WorkbenchPage({
   selectedHostId,
   activeSession,
   actionBusy,
-  onSelectHost,
   onConnect,
-  onOpenLocal,
   onSelectSession,
   onDisconnect,
   onOpenFiles,
@@ -122,30 +132,20 @@ export function WorkbenchPage({
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
   const { searchActive, clearActiveSearch, sendTextToSession } = useTerminalRuntime()
-  const [hostPanelCollapsed, setHostPanelCollapsed] = usePersistentBooleanState(
-    'termous.ui.workbench.hostPanelCollapsed.v1',
-    false,
-  )
   const [detailsCollapsed, setDetailsCollapsed] = usePersistentBooleanState(
     'termous.ui.workbench.detailsCollapsed.v1',
     false,
   )
-  const expandHostPanel = useCallback(() => setHostPanelCollapsed(false), [setHostPanelCollapsed])
+  const workbenchGridRef = useRef<HTMLElement>(null)
   const expandDetailsPanel = useCallback(() => setDetailsCollapsed(false), [setDetailsCollapsed])
-  const hostPanelResize = useResizablePanelWidth({
-    storageKey: 'termous.ui.workbench.hostPanelWidth.v1',
-    defaultWidth: workbenchHostPanelWidth.default,
-    minWidth: workbenchHostPanelWidth.min,
-    maxWidth: workbenchHostPanelWidth.max,
-    side: 'left',
-    onExpand: expandHostPanel,
-  })
-  const detailsPanelResize = useResizablePanelWidth({
+  const detailsPanelResize = useRafResizablePanelWidth({
     storageKey: 'termous.ui.workbench.detailsPanelWidth.v1',
     defaultWidth: workbenchDetailsPanelWidth.default,
     minWidth: workbenchDetailsPanelWidth.min,
     maxWidth: workbenchDetailsPanelWidth.max,
     side: 'right',
+    targetRef: workbenchGridRef,
+    cssVariableName: '--workbench-details-width',
     onExpand: expandDetailsPanel,
   })
   const [detailsActiveTab, setDetailsActiveTab] = usePersistentJsonState<DetailsTabKey>(
@@ -154,15 +154,19 @@ export function WorkbenchPage({
     parseDetailsTabKey,
   )
   const workbenchGridStyle = {
-    '--workbench-host-width': `${hostPanelResize.width}px`,
     '--workbench-details-width': `${detailsPanelResize.width}px`,
   } as CSSProperties
+  const terminalSplitRef = useRef<TerminalSplitWorkspaceHandle>(null)
   const tabViewportRef = useRef<HTMLDivElement>(null)
   const tabButtonRefs = useRef(new Map<string, HTMLElement>())
   const previousSessionStatusRef = useRef(new Map<string, Session['status']>())
+  const terminalTabDragRef = useRef<TerminalTabDragState | null>(null)
+  const suppressNextTabClickRef = useRef(false)
   const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
-  const [recentlyConnectedSessionId, setRecentlyConnectedSessionId] = useState<string | null>(null)
+  const recentConnectionTimersRef = useRef(new Map<string, number>())
+  const [recentlyConnectedSessionIds, setRecentlyConnectedSessionIds] = useState<Set<string>>(() => new Set())
   const [pendingSearchSessionId, setPendingSearchSessionId] = useState<string | null>(null)
+  const [terminalTabDrag, setTerminalTabDrag] = useState<TerminalTabDragState | null>(null)
   const [snippetQuery, setSnippetQuery] = useState('')
   const [terminalSearch, setTerminalSearch] = useState<TerminalSearchState>({
     open: false,
@@ -177,15 +181,16 @@ export function WorkbenchPage({
     {},
     parseSessionTabPreferences,
   )
+  const [durationNow, setDurationNow] = useState(() => Date.now())
   const [renamingSessionId, setRenamingSessionId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [colorSessionId, setColorSessionId] = useState<string | null>(null)
+  const [quickConnectOpen, setQuickConnectOpen] = useState(false)
+  const [quickConnectQuery, setQuickConnectQuery] = useState('')
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
-  const selectedCredential = data.credentials.find((item) => item.id === selectedHost?.credential_id)
   const activeSessionId = activeSession?.id
-  const activeSessionStatus = activeSession?.status
   const sessionStatus = activeSession?.status ?? 'disconnected'
-  const showRecentConnectionProgress = recentlyConnectedSessionId === activeSessionId
+  const showRecentConnectionProgress = Boolean(activeSessionId && recentlyConnectedSessionIds.has(activeSessionId))
   const hasConnectionProgress = Boolean(
     activeSession &&
       activeSession.status !== 'disconnected' &&
@@ -196,13 +201,23 @@ export function WorkbenchPage({
     setTerminalSize({ cols, rows })
   }, [])
   const sessionHost = activeSession?.host_id ? data.hosts.find((host) => host.id === activeSession.host_id) : undefined
-  const detailHost = sessionHost ?? selectedHost
+  const detailHost = activeSession?.kind === 'ssh' ? sessionHost : undefined
   const detailCredential = data.credentials.find((item) => item.id === detailHost?.credential_id)
+  const detailGroup = data.groups.find((group) => group.id === detailHost?.group_id)
   const detailJumpHost = data.hosts.find((host) => host.id === detailHost?.jump_host_id)
+  const detailTags = detailHost?.tags ?? []
+  const detailCredentialLabel = detailHost?.auth_method === 'system'
+    ? t('hosts.systemAuth')
+    : detailCredential
+      ? `${detailCredential.name} (${t(`vault.typeName.${detailCredential.type}`)})`
+      : t('fields.none')
   const visibleSessions = useMemo(
     () => sortSessionsForTabs(data.sessions, sessionTabPreferences),
     [data.sessions, sessionTabPreferences],
   )
+  const activeSessionIndex = activeSession ? visibleSessions.findIndex((session) => session.id === activeSession.id) : -1
+  const sessionPositionLabel =
+    activeSessionIndex >= 0 ? `${activeSessionIndex + 1} / ${visibleSessions.length}` : '0'
   const sessionStateLabel = activeSession?.phase ? t(`connection.phase.${activeSession.phase}`) : t(`status.${sessionStatus}`)
   const targetLabel =
     activeSession?.kind === 'local'
@@ -211,11 +226,12 @@ export function WorkbenchPage({
         ? `${sessionHost.username}@${sessionHost.address}:${sessionHost.port}`
         : t('workbench.noHost')
   const startedAt = activeSession?.started_at ? formatTime(activeSession.started_at) : t('fields.none')
-  const connectedAt = activeSession?.connected_at ? formatTime(activeSession.connected_at) : t('fields.none')
-  const sessionResult = activeSession?.last_error ?? (activeSession?.exit_code !== undefined ? String(activeSession.exit_code) : t('fields.none'))
+  const sessionDuration = formatSessionDuration(activeSession, durationNow, t('fields.none'))
   const terminalThemeMode = data.settings.terminal.theme_mode === 'follow_app' ? theme : data.settings.terminal.theme_mode
+  const activeSessionEnded = activeSession?.status === 'disconnected' || activeSession?.status === 'failed'
   const canOpenFiles = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected' && activeSession.host_id)
   const canSendSnippet = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected')
+  const canReconnectSession = Boolean(activeSession?.kind === 'ssh' && activeSession.host_id && activeSessionEnded)
   const filteredSnippets = useMemo(() => {
     const tokens = snippetQuery.trim().toLowerCase().split(/\s+/).filter(Boolean)
     const snippets = data.snippets
@@ -231,6 +247,10 @@ export function WorkbenchPage({
       })
       .slice(0, 8)
   }, [data.snippets, snippetQuery])
+  const quickConnectHosts = useMemo(
+    () => filterQuickConnectHosts(data.hosts, quickConnectQuery),
+    [data.hosts, quickConnectQuery],
+  )
   const resolveSessionTitle = useCallback(
     (session: Session) => sessionTabPreferences[session.id]?.title ?? sessionTitle(session, data.hosts, t),
     [data.hosts, sessionTabPreferences, t],
@@ -312,14 +332,76 @@ export function WorkbenchPage({
     },
     [colorSessionId, renamingSessionId, setSessionTabPreferences],
   )
+
+  const splitSessionFromMenu = useCallback(
+    (sessionId: string) => {
+      const result = terminalSplitRef.current?.splitSessionFromMenu(sessionId) ?? 'missing-session'
+      if (result === 'limit') {
+        notification.warning({
+          title: t('workbench.split.limitTitle'),
+          description: t('workbench.split.limitDescription'),
+          duration: 3,
+          role: 'status',
+          className: 'termous-notification',
+        })
+      } else if (result === 'not-enough-sessions') {
+        notification.warning({
+          title: t('workbench.split.notEnoughSessions'),
+          duration: 3,
+          role: 'status',
+          className: 'termous-notification',
+        })
+      } else if (result === 'missing-session') {
+        notification.warning({
+          title: t('workbench.split.sessionUnavailable'),
+          duration: 3,
+          role: 'status',
+          className: 'termous-notification',
+        })
+      }
+    },
+    [notification, t],
+  )
+
+  const duplicateSessionFromMenu = useCallback(
+    async (session: Session) => {
+      if (actionBusy || session.kind !== 'ssh' || !session.host_id) {
+        return
+      }
+      await onConnect(session.host_id)
+    },
+    [actionBusy, onConnect],
+  )
+  const connectQuickHost = useCallback(
+    async (hostId: string) => {
+      if (actionBusy) {
+        return
+      }
+      setQuickConnectOpen(false)
+      setQuickConnectQuery('')
+      await onConnect(hostId)
+    },
+    [actionBusy, onConnect],
+  )
+
   const buildSessionTabMenuItems = useCallback(
     (session: Session): MenuProps['items'] => {
       const preference = sessionTabPreferences[session.id]
       const pinned = Boolean(preference?.pinned)
+      const canDuplicateSession = session.kind === 'ssh' && Boolean(session.host_id)
       return [
         {
           key: 'search',
           label: <TerminalTabMenuItem icon={<Search size={15} />} title={t('terminal.search')} />,
+        },
+        {
+          key: 'duplicate',
+          disabled: !canDuplicateSession || actionBusy,
+          label: <TerminalTabMenuItem icon={<CopyPlus size={15} />} title={t('terminal.tabMenu.duplicate')} />,
+        },
+        {
+          key: 'split',
+          label: <TerminalTabMenuItem icon={<Layers size={15} />} title={t('terminal.tabMenu.split')} />,
         },
         {
           key: 'rename',
@@ -345,7 +427,7 @@ export function WorkbenchPage({
         },
       ]
     },
-    [sessionTabPreferences, t],
+    [actionBusy, sessionTabPreferences, t],
   )
 
   useEffect(() => {
@@ -519,6 +601,68 @@ export function WorkbenchPage({
     [updateTabScrollState],
   )
 
+  const updateTerminalTabDrag = useCallback((next: TerminalTabDragState | null) => {
+    terminalTabDragRef.current = next
+    setTerminalTabDrag(next)
+  }, [])
+
+  const beginTerminalTabDrag = useCallback(
+    (event: ReactPointerEvent<HTMLElement>, sessionId: string) => {
+      if (event.button !== 0 || actionBusy || (event.target as Element).closest('.session-tab-close')) {
+        return
+      }
+      const start = { x: event.clientX, y: event.clientY }
+      updateTerminalTabDrag({ sessionId, start, point: start, dragging: false })
+
+      const cleanup = () => {
+        document.body.classList.remove('is-terminal-tab-dragging')
+        window.removeEventListener('pointermove', handlePointerMove)
+        window.removeEventListener('pointerup', handlePointerUp)
+        window.removeEventListener('keydown', handleKeyDown)
+        updateTerminalTabDrag(null)
+      }
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const current = terminalTabDragRef.current
+        if (!current) {
+          return
+        }
+        const point = { x: moveEvent.clientX, y: moveEvent.clientY }
+        const moved = Math.abs(point.x - current.start.x) > 8 || Math.abs(point.y - current.start.y) > 8
+        const dragging = current.dragging || moved
+        if (dragging) {
+          moveEvent.preventDefault()
+          document.body.classList.add('is-terminal-tab-dragging')
+        }
+        updateTerminalTabDrag({ ...current, point, dragging })
+      }
+
+      const handlePointerUp = (upEvent: PointerEvent) => {
+        const current = terminalTabDragRef.current
+        if (current?.dragging) {
+          upEvent.preventDefault()
+          suppressNextTabClickRef.current = true
+          terminalSplitRef.current?.dropSessionAt({ x: upEvent.clientX, y: upEvent.clientY }, current.sessionId)
+          window.setTimeout(() => {
+            suppressNextTabClickRef.current = false
+          }, 0)
+        }
+        cleanup()
+      }
+
+      const handleKeyDown = (keyEvent: KeyboardEvent) => {
+        if (keyEvent.key === 'Escape') {
+          cleanup()
+        }
+      }
+
+      window.addEventListener('pointermove', handlePointerMove, { passive: false })
+      window.addEventListener('pointerup', handlePointerUp, { once: true })
+      window.addEventListener('keydown', handleKeyDown)
+    },
+    [actionBusy, updateTerminalTabDrag],
+  )
+
   const closeSessionTab = useCallback(
     (sessionId: string) => {
       if (actionBusy) {
@@ -648,6 +792,35 @@ export function WorkbenchPage({
     ],
   )
 
+  const reconnectActiveSession = useCallback(async () => {
+    if (!activeSession?.host_id || actionBusy) {
+      return
+    }
+    const previousSessionId = activeSession.id
+    const hostId = activeSession.host_id
+    try {
+      await onDisconnect(previousSessionId)
+    } catch {
+      // 旧会话已经断开时，删除失败不阻止重新连接同一主机。
+    }
+    await onConnect(hostId)
+  }, [actionBusy, activeSession?.host_id, activeSession?.id, onConnect, onDisconnect])
+
+  const reconnectSession = useCallback(
+    async (session: Session) => {
+      if (!session.host_id || actionBusy) {
+        return
+      }
+      try {
+        await onDisconnect(session.id)
+      } catch {
+        // 旧会话已经断开时，删除失败不阻止重新连接同一主机。
+      }
+      await onConnect(session.host_id)
+    },
+    [actionBusy, onConnect, onDisconnect],
+  )
+
   useEffect(() => {
     if (activeSession) {
       setTerminalSize({ cols: activeSession.pty_cols, rows: activeSession.pty_rows })
@@ -655,20 +828,74 @@ export function WorkbenchPage({
   }, [activeSession])
 
   useEffect(() => {
-    if (!activeSessionId || !activeSessionStatus) {
-      return undefined
+    const currentSessionIds = new Set(data.sessions.map((session) => session.id))
+    const clearReadyState = (sessionId: string) => {
+      const timer = recentConnectionTimersRef.current.get(sessionId)
+      if (timer !== undefined) {
+        window.clearTimeout(timer)
+        recentConnectionTimersRef.current.delete(sessionId)
+      }
+      setRecentlyConnectedSessionIds((current) => {
+        if (!current.has(sessionId)) {
+          return current
+        }
+        const next = new Set(current)
+        next.delete(sessionId)
+        return next
+      })
     }
-    const previousStatus = previousSessionStatusRef.current.get(activeSessionId)
-    previousSessionStatusRef.current.set(activeSessionId, activeSessionStatus)
-    if (previousStatus !== 'connecting' || activeSessionStatus !== 'connected') {
-      return undefined
+
+    for (const session of data.sessions) {
+      const previousStatus = previousSessionStatusRef.current.get(session.id)
+      previousSessionStatusRef.current.set(session.id, session.status)
+      if (session.status === 'disconnected' || session.status === 'failed') {
+        clearReadyState(session.id)
+        continue
+      }
+      if (previousStatus !== 'connecting' || session.status !== 'connected') {
+        continue
+      }
+
+      const existingTimer = recentConnectionTimersRef.current.get(session.id)
+      if (existingTimer !== undefined) {
+        window.clearTimeout(existingTimer)
+      }
+      setRecentlyConnectedSessionIds((current) => {
+        const next = new Set(current)
+        next.add(session.id)
+        return next
+      })
+      const timer = window.setTimeout(() => {
+        recentConnectionTimersRef.current.delete(session.id)
+        setRecentlyConnectedSessionIds((current) => {
+          if (!current.has(session.id)) {
+            return current
+          }
+          const next = new Set(current)
+          next.delete(session.id)
+          return next
+        })
+      }, 900)
+      recentConnectionTimersRef.current.set(session.id, timer)
     }
-    setRecentlyConnectedSessionId(activeSessionId)
-    const timer = window.setTimeout(() => {
-      setRecentlyConnectedSessionId((current) => (current === activeSessionId ? null : current))
-    }, 900)
-    return () => window.clearTimeout(timer)
-  }, [activeSessionId, activeSessionStatus])
+
+    for (const sessionId of Array.from(previousSessionStatusRef.current.keys())) {
+      if (!currentSessionIds.has(sessionId)) {
+        previousSessionStatusRef.current.delete(sessionId)
+        clearReadyState(sessionId)
+      }
+    }
+  }, [data.sessions])
+
+  useEffect(() => {
+    const timers = recentConnectionTimersRef.current
+    return () => {
+      for (const timer of timers.values()) {
+        window.clearTimeout(timer)
+      }
+      timers.clear()
+    }
+  }, [])
 
   useEffect(() => {
     if (!pendingSearchSessionId || activeSession?.id !== pendingSearchSessionId) {
@@ -709,190 +936,196 @@ export function WorkbenchPage({
     window.setTimeout(updateTabScrollState, 180)
   }, [activeSession?.id, data.sessions.length, updateTabScrollState])
 
+  useEffect(() => {
+    if (activeSession?.status !== 'connected') {
+      return undefined
+    }
+    setDurationNow(Date.now())
+    const timer = window.setInterval(() => setDurationNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [activeSession?.id, activeSession?.status])
+
   return (
     <>
       <section
-        className={`page-grid workbench-grid ${hostPanelCollapsed ? 'is-host-collapsed' : ''} ${
-          detailsCollapsed ? 'is-details-collapsed' : ''
-        }`}
+        ref={workbenchGridRef}
+        className={`page-grid workbench-grid ${detailsCollapsed ? 'is-details-collapsed' : ''}`}
         style={workbenchGridStyle}
       >
-      <HostContextPanel
-        hosts={data.hosts}
-        groups={data.groups}
-        selectedHostId={selectedHost?.id}
-        collapsed={hostPanelCollapsed}
-        title={t('workbench.hostPanel')}
-        collapsedTitle={t('workbench.hostsShort')}
-        subtitle={`${data.hosts.length} ${t('workbench.hostCount')}`}
-        emptyDescription={t('workbench.terminalHint')}
-        searchPlaceholder={t('workbench.hostSearch')}
-        resizing={hostPanelResize.resizing}
-        onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
-        onResizePointerDown={hostPanelResize.beginResize}
-        shouldSuppressToggleClick={hostPanelResize.shouldSuppressClick}
-        onSelectHost={onSelectHost}
-      />
-
-      <div className="terminal-workspace">
-        <div className="page-title-row">
-          <div>
-            <h1>{t('workbench.title')}</h1>
-            <p>{t('workbench.subtitle')}</p>
-          </div>
-          <div className="page-actions">
-            <Button className="secondary-button" disabled={actionBusy} onClick={() => void onOpenLocal('powershell')} icon={<Shell size={16} />}>
-              {t('workbench.openPowerShell')}
-            </Button>
-            <Button className="secondary-button" disabled={actionBusy} onClick={() => void onOpenLocal('cmd')} icon={<Monitor size={16} />}>
-              {t('workbench.openCmd')}
-            </Button>
-            <ConnectionActionButton
-              disabled={!selectedHost || actionBusy}
-              onClick={() => selectedHost && void onConnect(selectedHost.id)}
-              icon={<Cable size={16} />}
-            >
-              {t('app.connect')}
-            </ConnectionActionButton>
-          </div>
-        </div>
-
-        <div className="metric-strip">
-          <Metric icon={<Cable size={18} />} label={t('workbench.sessionCount')} value={String(data.sessions.length)} />
-          <Metric icon={<Layers size={18} />} label={t('workbench.hostCount')} value={String(data.hosts.length)} />
-          <Metric
-            icon={<Power size={18} />}
-            label={t('workbench.credentialState')}
-            value={selectedCredential ? t('status.available') : t('status.notConfigured')}
-          />
-        </div>
-
-        <div className="terminal-card">
-          <div className="terminal-toolbar">
-            <div className="session-tabs-shell">
-              <Tooltip title={t('workbench.scrollTabsLeft')}>
-                <Button
-                  type="text"
-                  className="session-scroll-button"
-                  aria-label={t('workbench.scrollTabsLeft')}
-                  disabled={!tabScrollState.canScrollLeft}
-                  icon={<ChevronLeft size={15} />}
-                  onClick={() => scrollTabs('left')}
-                />
-              </Tooltip>
-              <div
-                className={`terminal-tabs session-tabs ${tabScrollState.canScrollLeft ? 'has-left-overflow' : ''} ${
-                  tabScrollState.canScrollRight ? 'has-right-overflow' : ''
-                }`}
-                role="tablist"
-                aria-label={t('workbench.terminal')}
-                ref={tabViewportRef}
-                onWheel={handleTabWheel}
-              >
-                {visibleSessions.length === 0 ? (
-                  <SessionTabButton empty role="tab" icon={<SquareTerminal size={15} />} label={t('workbench.noSession')} />
-                ) : (
-                  visibleSessions.map((session) => {
-                    const preference = sessionTabPreferences[session.id]
-                    const title = resolveSessionTitle(session)
-                    return (
-                      <Dropdown
-                        key={session.id}
-                        trigger={['contextMenu']}
-                        classNames={{ root: 'terminal-tab-dropdown' }}
-                        menu={{
-                          items: buildSessionTabMenuItems(session),
-                          onClick: ({ key, domEvent }) => {
-                            domEvent.stopPropagation()
-                            if (key === 'search') {
-                              requestSessionSearch(session.id)
-                            } else if (key === 'rename') {
-                              openRenameSession(session)
-                            } else if (key === 'pin') {
-                              toggleSessionPinned(session.id)
-                            } else if (key === 'color') {
-                              setColorSessionId(session.id)
-                            } else if (key === 'reset') {
-                              resetSessionTabPreference(session.id)
-                            }
-                          },
-                        }}
-                      >
-                        <span className="session-tab-trigger">
-                          <Popover
-                            open={colorSessionId === session.id}
-                            placement="bottomLeft"
-                            arrow={false}
-                            trigger="click"
-                            overlayClassName="session-tab-color-popover"
-                            onOpenChange={(open) => {
-                              if (!open && colorSessionId === session.id) {
-                                setColorSessionId(null)
-                              }
+        <div className="terminal-workspace">
+          <div className="terminal-card">
+            <div className="terminal-toolbar">
+              <div className="session-tabs-shell">
+                <Tooltip title={t('workbench.scrollTabsLeft')}>
+                  <Button
+                    type="text"
+                    className="session-scroll-button"
+                    aria-label={t('workbench.scrollTabsLeft')}
+                    disabled={!tabScrollState.canScrollLeft}
+                    icon={<ChevronLeft size={15} />}
+                    onClick={() => scrollTabs('left')}
+                  />
+                </Tooltip>
+                <div className="session-tabs-stage">
+                  <div
+                    className={`terminal-tabs session-tabs ${tabScrollState.canScrollLeft ? 'has-left-overflow' : ''} ${
+                      tabScrollState.canScrollRight ? 'has-right-overflow' : ''
+                    }`}
+                    role="tablist"
+                    aria-label={t('workbench.terminal')}
+                    ref={tabViewportRef}
+                    onWheel={handleTabWheel}
+                  >
+                    {visibleSessions.length === 0 ? (
+                      <SessionTabButton empty role="tab" icon={<SquareTerminal size={15} />} label={t('workbench.noSession')} />
+                    ) : (
+                      visibleSessions.map((session) => {
+                        const preference = sessionTabPreferences[session.id]
+                        const title = resolveSessionTitle(session)
+                        return (
+                          <Dropdown
+                            key={session.id}
+                            trigger={['contextMenu']}
+                            classNames={{ root: 'terminal-tab-dropdown' }}
+                            menu={{
+                              items: buildSessionTabMenuItems(session),
+                              onClick: ({ key, domEvent }) => {
+                                domEvent.stopPropagation()
+                                if (key === 'search') {
+                                  requestSessionSearch(session.id)
+                                } else if (key === 'duplicate') {
+                                  void duplicateSessionFromMenu(session)
+                                } else if (key === 'split') {
+                                  splitSessionFromMenu(session.id)
+                                } else if (key === 'rename') {
+                                  openRenameSession(session)
+                                } else if (key === 'pin') {
+                                  toggleSessionPinned(session.id)
+                                } else if (key === 'color') {
+                                  setColorSessionId(session.id)
+                                } else if (key === 'reset') {
+                                  resetSessionTabPreference(session.id)
+                                }
+                              },
                             }}
-                            content={(
-                              <SessionTabColorPanel
-                                color={preference?.color}
-                                onSelect={(color, options) => setSessionTabColor(session.id, color, options)}
-                                onReset={() => resetSessionTabColor(session.id)}
-                              />
-                            )}
                           >
-                            <SessionTabButton
-                              ref={(node) => {
-                                if (node) {
-                                  tabButtonRefs.current.set(session.id, node)
-                                } else {
-                                  tabButtonRefs.current.delete(session.id)
-                                }
-                              }}
-                              active={session.id === activeSession?.id}
-                              role="tab"
-                              aria-selected={session.id === activeSession?.id}
-                              onClick={() => onSelectSession(session.id)}
-                              onMouseDown={(event) => {
-                                if (event.button === 1) {
-                                  event.preventDefault()
-                                }
-                              }}
-                              onAuxClick={(event) => closeSessionFromTab(event, session.id)}
-                              icon={<SquareTerminal size={15} />}
-                              label={title}
-                              status={session.status}
-                              pinned={preference?.pinned}
-                              pinLabel={t('terminal.tabMenu.pinned')}
-                              accentColor={preference?.color}
-                              closeLabel={`${t('app.close')} ${title}`}
-                              closeDisabled={actionBusy}
-                              onClose={() => closeSessionTab(session.id)}
-                            />
-                          </Popover>
-                        </span>
-                      </Dropdown>
-                    )
-                  })
-                )}
+                            <span className="session-tab-trigger">
+                              <Popover
+                                open={colorSessionId === session.id}
+                                placement="bottomLeft"
+                                arrow={false}
+                                trigger="click"
+                                overlayClassName="session-tab-color-popover"
+                                onOpenChange={(open) => {
+                                  if (!open && colorSessionId === session.id) {
+                                    setColorSessionId(null)
+                                  }
+                                }}
+                                content={(
+                                  <SessionTabColorPanel
+                                    color={preference?.color}
+                                    onSelect={(color, options) => setSessionTabColor(session.id, color, options)}
+                                    onReset={() => resetSessionTabColor(session.id)}
+                                  />
+                                )}
+                              >
+                                <SessionTabButton
+                                  ref={(node) => {
+                                    if (node) {
+                                      tabButtonRefs.current.set(session.id, node)
+                                    } else {
+                                      tabButtonRefs.current.delete(session.id)
+                                    }
+                                  }}
+                                  active={session.id === activeSession?.id}
+                                  role="tab"
+                                  aria-selected={session.id === activeSession?.id}
+                                  className={
+                                    terminalTabDrag?.dragging && terminalTabDrag.sessionId === session.id ? 'is-dragging' : undefined
+                                  }
+                                  onClick={(event) => {
+                                    if (suppressNextTabClickRef.current) {
+                                      event.preventDefault()
+                                      return
+                                    }
+                                    onSelectSession(session.id)
+                                  }}
+                                  onMouseDown={(event) => {
+                                    if (event.button === 1) {
+                                      event.preventDefault()
+                                    }
+                                  }}
+                                  onPointerDown={(event) => beginTerminalTabDrag(event, session.id)}
+                                  onAuxClick={(event) => closeSessionFromTab(event, session.id)}
+                                  icon={<SquareTerminal size={15} />}
+                                  label={title}
+                                  status={session.status}
+                                  pinned={preference?.pinned}
+                                  pinLabel={t('terminal.tabMenu.pinned')}
+                                  accentColor={preference?.color}
+                                  closeLabel={`${t('app.close')} ${title}`}
+                                  closeDisabled={actionBusy}
+                                  onClose={() => closeSessionTab(session.id)}
+                                />
+                              </Popover>
+                            </span>
+                          </Dropdown>
+                        )
+                      })
+                    )}
+                  </div>
+                  <Popover
+                    open={quickConnectOpen}
+                    trigger="click"
+                    placement="bottomLeft"
+                    arrow={false}
+                    overlayClassName="session-quick-connect-popover"
+                    onOpenChange={(open) => setQuickConnectOpen(open)}
+                    content={(
+                      <QuickConnectHostPanel
+                        hosts={quickConnectHosts}
+                        totalCount={data.hosts.length}
+                        query={quickConnectQuery}
+                        actionBusy={actionBusy}
+                        onQueryChange={setQuickConnectQuery}
+                        onConnect={connectQuickHost}
+                        getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+                      />
+                    )}
+                  >
+                    <Button
+                      type="text"
+                      className={`session-new-tab-button ${quickConnectOpen ? 'is-open' : ''}`}
+                      aria-label={t('workbench.quickConnect.trigger')}
+                      icon={<Plus size={17} strokeWidth={2.2} />}
+                    />
+                  </Popover>
+                </div>
+                <Tooltip title={t('workbench.scrollTabsRight')}>
+                  <Button
+                    type="text"
+                    className="session-scroll-button"
+                    aria-label={t('workbench.scrollTabsRight')}
+                    disabled={!tabScrollState.canScrollRight}
+                    icon={<ChevronRight size={15} />}
+                    onClick={() => scrollTabs('right')}
+                  />
+                </Tooltip>
               </div>
-              <Tooltip title={t('workbench.scrollTabsRight')}>
-                <Button
-                  type="text"
-                  className="session-scroll-button"
-                  aria-label={t('workbench.scrollTabsRight')}
-                  disabled={!tabScrollState.canScrollRight}
-                  icon={<ChevronRight size={15} />}
-                  onClick={() => scrollTabs('right')}
-                />
-              </Tooltip>
-            </div>
             <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
           </div>
           <div className={`terminal-progress-slot ${hasConnectionProgress ? 'is-active' : ''}`}>
             <ConnectionProgress session={activeSession} showReady={showRecentConnectionProgress} />
           </div>
-          <TerminalViewport
-            session={activeSession}
+          <TerminalSplitWorkspace
+            ref={terminalSplitRef}
+            sessions={visibleSessions}
+            activeSession={activeSession}
             themeMode={terminalThemeMode}
             placeholder={selectedHost ? t('workbench.terminalReady') : t('workbench.terminalHint')}
+            actionBusy={actionBusy}
+            dragSessionId={terminalTabDrag?.dragging ? terminalTabDrag.sessionId : null}
+            dragPoint={terminalTabDrag?.dragging ? terminalTabDrag.point : null}
             searchPanel={
               terminalSearch.open && terminalSearch.sessionId === activeSession?.id ? (
                 <TerminalSearchPanel
@@ -909,211 +1142,236 @@ export function WorkbenchPage({
                 />
               ) : null
             }
+            onSelectSession={onSelectSession}
             onResize={handleTerminalResize}
+            onReconnectSession={(session) => void reconnectSession(session)}
+            onCloseSession={(session) => void onDisconnect(session.id)}
           />
           <div className="terminal-statusbar">
+            <StatusItem className="is-session-position" label={t('workbench.sessionCount')} value={sessionPositionLabel} />
             <StatusItem label={t('workbench.target')} value={targetLabel} />
             <StatusItem label={t('workbench.sessionState')} value={sessionStateLabel} />
             <StatusItem label={t('workbench.startedAt')} value={startedAt} />
-            <StatusItem label={t('workbench.connectedAt')} value={connectedAt} />
+            <StatusItem label={t('workbench.duration')} value={sessionDuration} />
             <StatusItem label={t('workbench.terminalSize')} value={`${terminalSize.cols} x ${terminalSize.rows}`} />
-            <StatusItem label={t('workbench.result')} value={sessionResult} />
           </div>
         </div>
       </div>
 
-      <aside className={`details-panel ${detailsCollapsed ? 'is-collapsed' : ''} ${detailsPanelResize.resizing ? 'is-resizing' : ''}`}>
-        <Tooltip title={detailsCollapsed ? t('app.expand') : t('app.collapse')}>
-          <Button
-            type="text"
-            className="panel-side-toggle panel-side-toggle-right can-resize"
-            onPointerDown={detailsPanelResize.beginResize}
-            onClick={(event) => {
-              if (detailsPanelResize.shouldSuppressClick()) {
-                event.preventDefault()
-                event.stopPropagation()
-                return
-              }
-              setDetailsCollapsed((current) => !current)
-            }}
-            aria-label={detailsCollapsed ? t('app.expand') : t('app.collapse')}
-            icon={detailsCollapsed ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
-          />
-        </Tooltip>
-        <div className="panel-heading">
-          <div>
-            <h2>{detailsCollapsed ? t('workbench.detailsShort') : t('workbench.currentConnection')}</h2>
-            {!detailsCollapsed ? <span>{t('workbench.connectionDetails')}</span> : null}
-          </div>
-        </div>
-        {detailsCollapsed ? (
-          <div className="details-collapsed-rail">
-            <Server size={18} />
-            <span>{t(`status.${sessionStatus}`)}</span>
-          </div>
-        ) : (
-          <>
-            <Tabs
-              className="details-tabs"
-              size="small"
-              activeKey={detailsActiveTab}
-              onChange={(key) => setDetailsActiveTab(parseDetailsTabKey(key))}
-              items={[
-                {
-                  key: 'overview',
-                  label: t('workbench.detailsTabs.overview'),
-                  children: (
-                    <div className="connection-overview-panel">
-                      <CustomSelect
-                        label={t('workbench.selectHost')}
-                        value={selectedHost?.id ?? ''}
-                        onChange={onSelectHost}
-                        options={data.hosts.map((host) => ({ value: host.id, label: host.name, description: host.address }))}
-                        disabled={data.hosts.length === 0}
-                      />
-                      <dl className="detail-list">
-                        <div>
-                          <dt>{t('hosts.address')}</dt>
-                          <dd>{detailHost ? `${detailHost.address}:${detailHost.port}` : t('fields.none')}</dd>
-                        </div>
-                        <div>
-                          <dt>{t('hosts.username')}</dt>
-                          <dd>{detailHost?.username ?? t('fields.none')}</dd>
-                        </div>
-                        <div>
-                          <dt>{t('hosts.platform.label')}</dt>
-                          <dd>{detailHost?.platform === 'linux' ? t('hosts.platform.linux') : t('fields.none')}</dd>
-                        </div>
-                        <div>
-                          <dt>{t('workbench.credential')}</dt>
-                          <dd>{detailHost?.auth_method === 'system' ? t('hosts.systemAuth') : detailCredential?.name ?? t('fields.none')}</dd>
-                        </div>
-                        <div>
-                          <dt>{t('workbench.sessionState')}</dt>
-                          <dd>{sessionStateLabel}</dd>
-                        </div>
-                        {detailJumpHost ? (
-                          <div>
-                            <dt>{t('workbench.jumpHost')}</dt>
-                            <dd>{detailJumpHost.name}</dd>
-                          </div>
-                        ) : null}
-                      </dl>
-                      <div className="current-connection-actions">
-                        <Button
-                          className="secondary-button"
-                          disabled={!canOpenFiles || actionBusy || !activeSession}
-                          onClick={() => activeSession && void onOpenFiles(activeSession)}
-                          icon={<FolderOpen size={16} />}
-                        >
-                          {t('workbench.manageFiles')}
-                        </Button>
-                        <Button
-                          danger
-                          className="danger-button"
-                          disabled={!activeSession || actionBusy}
-                          onClick={() => activeSession && void onDisconnect(activeSession.id)}
-                          icon={<Power size={16} />}
-                        >
-                          {t('workbench.closeSession')}
-                        </Button>
-                      </div>
-                    </div>
-                  ),
-                },
-                {
-                  key: 'system',
-                  label: t('workbench.detailsTabs.systemInfo'),
-                  children: <SystemInfoPanel session={activeSession} t={t} />,
-                },
-                {
-                  key: 'monitor',
-                  label: t('workbench.detailsTabs.systemMonitor'),
-                  children: (
-                    <SystemMonitorPanel
-                      api={api}
-                      session={activeSession}
-                      enabled={detailsActiveTab === 'monitor' && !detailsCollapsed}
-                      theme={theme}
-                    />
-                  ),
-                },
-                {
-                  key: 'firewall',
-                  label: t('workbench.detailsTabs.firewall'),
-                  children: (
-                    <FirewallPanel
-                      api={api}
-                      session={activeSession}
-                      host={sessionHost}
-                      enabled={detailsActiveTab === 'firewall' && !detailsCollapsed}
-                    />
-                  ),
-                },
-                {
-                  key: 'forwards',
-                  label: t('workbench.detailsTabs.forwards'),
-                  children: (
-                    <ForwardSessionPanel
-                      session={activeSession}
-                      host={sessionHost}
-                      forwards={data.forwards}
-                      actionBusy={actionBusy}
-                      onStartForward={onStartForward}
-                      onStopForward={onStopForward}
-                    />
-                  ),
-                },
-                {
-                  key: 'snippets',
-                  label: t('workbench.detailsTabs.snippets'),
-                  children: (
-                    <section className="snippet-send-panel">
-                      <div className="snippet-send-head">
-                        <div>
-                          <h3>{t('snippets.sendPanelTitle')}</h3>
-                          <span>{canSendSnippet ? t('snippets.sendPanelHint') : t('snippets.noActiveSession')}</span>
-                        </div>
-                        <Code2 size={17} aria-hidden="true" />
-                      </div>
-                      <Input
-                        id="workbench-snippet-search"
-                        name="workbench-snippet-search"
-                        className="host-search-input snippet-quick-search termous-search-input"
-                        value={snippetQuery}
-                        allowClear
-                        variant="borderless"
-                        prefix={<Search size={14} aria-hidden="true" />}
-                        placeholder={t('snippets.searchPlaceholder')}
-                        onChange={(event) => setSnippetQuery(event.target.value)}
-                      />
-                      {data.snippets.length === 0 ? (
-                        <div className="snippet-send-empty">{t('snippets.emptyHint')}</div>
-                      ) : filteredSnippets.length === 0 ? (
-                        <div className="snippet-send-empty">{t('snippets.noFilterResults')}</div>
-                      ) : (
-                        <div className="snippet-send-list">
-                          {filteredSnippets.map((snippet) => (
-                            <SnippetSendRow
-                              key={snippet.id}
-                              snippet={snippet}
-                              disabled={!canSendSnippet || actionBusy}
-                              busy={actionBusy}
-                              onInsert={() => void sendSnippet(snippet, false)}
-                              onSend={() => void sendSnippet(snippet, true)}
-                              onToggleFavorite={() => void onToggleSnippetFavorite(snippet)}
-                            />
+      <FeatureSidePanel<DetailsTabKey>
+        activeKey={detailsActiveTab}
+        ariaLabel={t('workbench.currentConnection')}
+        collapsed={detailsCollapsed}
+        collapseLabel={t('app.collapse')}
+        expandLabel={t('app.expand')}
+        resizing={detailsPanelResize.resizing}
+        onActiveKeyChange={setDetailsActiveTab}
+        onCollapsedChange={setDetailsCollapsed}
+        onResizePointerDown={detailsPanelResize.beginResize}
+        tabs={[
+          {
+            key: 'overview',
+            label: t('workbench.detailsTabs.overview'),
+            icon: <Server size={17} aria-hidden="true" />,
+            children: detailHost ? (
+              <div className="connection-overview-panel">
+                <div className="connection-overview-hero">
+                  <HostAvatar
+                    host={detailHost}
+                    getIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+                    className="connection-overview-icon"
+                    size={42}
+                    iconSize={22}
+                  />
+                  <div className="connection-overview-copy">
+                    <strong>{detailHost.name}</strong>
+                    <small>{`${detailHost.username}@${detailHost.address}:${detailHost.port}`}</small>
+                  </div>
+                  <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
+                </div>
+                <dl className="detail-list">
+                  <div>
+                    <dt>{t('hosts.address')}</dt>
+                    <dd>{`${detailHost.address}:${detailHost.port}`}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.username')}</dt>
+                    <dd>{detailHost.username}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.platform.label')}</dt>
+                    <dd>{detailHost.platform === 'linux' ? t('hosts.platform.linux') : t('fields.none')}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.group')}</dt>
+                    <dd>{detailGroup?.name ?? t('hosts.ungrouped')}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.authMethod')}</dt>
+                    <dd>{t(`hosts.auth.${detailHost.auth_method}`)}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('workbench.credential')}</dt>
+                    <dd>{detailCredentialLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('workbench.sessionState')}</dt>
+                    <dd>{sessionStateLabel}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.tags')}</dt>
+                    <dd className="connection-overview-tags-cell">
+                      {detailTags.length > 0 ? (
+                        <span className="connection-overview-tags">
+                          {detailTags.map((tag, index) => (
+                            <span key={`${tag}-${index}`}>{tag}</span>
                           ))}
-                        </div>
-                      )}
-                    </section>
-                  ),
-                },
-              ]}
-            />
-          </>
-        )}
-      </aside>
+                        </span>
+                      ) : t('fields.none')}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{t('workbench.jumpHost')}</dt>
+                    <dd>{detailJumpHost?.name ?? t('fields.none')}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.note')}</dt>
+                    <dd>{detailHost.note || t('fields.none')}</dd>
+                  </div>
+                </dl>
+                <div className="current-connection-actions">
+                  <Button
+                    className="secondary-button"
+                    disabled={!canOpenFiles || actionBusy || !activeSession}
+                    onClick={() => activeSession && void onOpenFiles(activeSession)}
+                    icon={<FolderOpen size={16} />}
+                  >
+                    {t('workbench.manageFiles')}
+                  </Button>
+                  {canReconnectSession ? (
+                    <Button
+                      className="secondary-button"
+                      disabled={actionBusy}
+                      onClick={() => void reconnectActiveSession()}
+                      icon={<RotateCcw size={16} />}
+                    >
+                      {t('workbench.reconnectSession')}
+                    </Button>
+                  ) : null}
+                  <Button
+                    danger
+                    className="danger-button"
+                    disabled={!activeSession || actionBusy}
+                    onClick={() => activeSession && void onDisconnect(activeSession.id)}
+                    icon={<Power size={16} />}
+                  >
+                    {activeSessionEnded ? t('workbench.closeDisconnectedSession') : t('workbench.closeSession')}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <WorkbenchEmptyState
+                icon={<Server size={20} />}
+                title={t('workbench.connectionOverview.emptyTitle')}
+                description={t('workbench.connectionOverview.emptyHint')}
+              />
+            ),
+          },
+          {
+            key: 'system',
+            label: t('workbench.detailsTabs.systemInfo'),
+            icon: <Cpu size={17} aria-hidden="true" />,
+            children: <SystemInfoPanel session={activeSession} t={t} />,
+          },
+          {
+            key: 'monitor',
+            label: t('workbench.detailsTabs.systemMonitor'),
+            icon: <Monitor size={17} aria-hidden="true" />,
+            children: (
+              <SystemMonitorPanel
+                api={api}
+                session={activeSession}
+                enabled={detailsActiveTab === 'monitor' && !detailsCollapsed}
+                theme={theme}
+              />
+            ),
+          },
+          {
+            key: 'firewall',
+            label: t('workbench.detailsTabs.firewall'),
+            icon: <Shield size={17} aria-hidden="true" />,
+            children: (
+              <FirewallPanel
+                api={api}
+                session={activeSession}
+                host={sessionHost}
+                enabled={detailsActiveTab === 'firewall' && !detailsCollapsed}
+              />
+            ),
+          },
+          {
+            key: 'forwards',
+            label: t('workbench.detailsTabs.forwards'),
+            icon: <Cable size={17} aria-hidden="true" />,
+            children: (
+              <ForwardSessionPanel
+                session={activeSession}
+                host={sessionHost}
+                forwards={data.forwards}
+                actionBusy={actionBusy}
+                onStartForward={onStartForward}
+                onStopForward={onStopForward}
+              />
+            ),
+          },
+          {
+            key: 'snippets',
+            label: t('workbench.detailsTabs.snippets'),
+            icon: <Code2 size={17} aria-hidden="true" />,
+            children: (
+              <section className="snippet-send-panel">
+                <div className="snippet-send-head">
+                  <div>
+                    <h3>{t('snippets.sendPanelTitle')}</h3>
+                    <span>{canSendSnippet ? t('snippets.sendPanelHint') : t('snippets.noActiveSession')}</span>
+                  </div>
+                  <Code2 size={17} aria-hidden="true" />
+                </div>
+                <Input
+                  id="workbench-snippet-search"
+                  name="workbench-snippet-search"
+                  className="host-search-input snippet-quick-search termous-search-input"
+                  value={snippetQuery}
+                  allowClear
+                  variant="borderless"
+                  prefix={<Search size={14} aria-hidden="true" />}
+                  placeholder={t('snippets.searchPlaceholder')}
+                  onChange={(event) => setSnippetQuery(event.target.value)}
+                />
+                {data.snippets.length === 0 ? (
+                  <div className="snippet-send-empty">{t('snippets.emptyHint')}</div>
+                ) : filteredSnippets.length === 0 ? (
+                  <div className="snippet-send-empty">{t('snippets.noFilterResults')}</div>
+                ) : (
+                  <div className="snippet-send-list">
+                    {filteredSnippets.map((snippet) => (
+                      <SnippetSendRow
+                        key={snippet.id}
+                        snippet={snippet}
+                        disabled={!canSendSnippet || actionBusy}
+                        busy={actionBusy}
+                        onInsert={() => void sendSnippet(snippet, false)}
+                        onSend={() => void sendSnippet(snippet, true)}
+                        onToggleFavorite={() => void onToggleSnippetFavorite(snippet)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            ),
+          },
+        ]}
+      />
       </section>
       <Modal
         open={Boolean(renamingSessionId)}
@@ -1143,9 +1401,121 @@ export function WorkbenchPage({
   )
 }
 
-function StatusItem({ label, value }: { label: string; value: string }) {
+function QuickConnectHostPanel({
+  hosts,
+  totalCount,
+  query,
+  actionBusy,
+  onQueryChange,
+  onConnect,
+  getHostIconUrl,
+}: {
+  hosts: Host[]
+  totalCount: number
+  query: string
+  actionBusy: boolean
+  onQueryChange: (value: string) => void
+  onConnect: (hostId: string) => Promise<void>
+  getHostIconUrl: (iconId: string) => string
+}) {
+  const { t } = useTranslation()
+  const emptyTitle = totalCount === 0 ? t('workbench.quickConnect.empty') : t('workbench.quickConnect.noResults')
+
   return (
-    <span className="terminal-status-item">
+    <section className="session-quick-connect" aria-label={t('workbench.quickConnect.title')}>
+      <Input
+        id="workbench-quick-connect-search"
+        name="workbench-quick-connect-search"
+        className="termous-search-input session-quick-connect-search"
+        value={query}
+        allowClear
+        variant="borderless"
+        prefix={<Search size={14} aria-hidden="true" />}
+        placeholder={t('workbench.quickConnect.search')}
+        onChange={(event) => onQueryChange(event.target.value)}
+        onPressEnter={() => {
+          if (hosts.length === 1 && !actionBusy) {
+            void onConnect(hosts[0].id)
+          }
+        }}
+      />
+      <div className="session-quick-connect-list" role="listbox" aria-label={t('workbench.quickConnect.hostList')}>
+        {hosts.length === 0 ? (
+          <div className="session-quick-connect-empty">{emptyTitle}</div>
+        ) : (
+          hosts.map((host) => (
+            <button
+              key={host.id}
+              type="button"
+              className="session-quick-connect-row"
+              role="option"
+              disabled={actionBusy}
+              onClick={() => void onConnect(host.id)}
+            >
+              <HostAvatar host={host} getIconUrl={getHostIconUrl} className="session-quick-connect-host-icon" size={28} iconSize={15} />
+              <span className="session-quick-connect-copy">
+                <strong>
+                  {host.name}
+                  {host.favorite ? <Star size={12} aria-label={t('workbench.hostLauncher.favorite')} /> : null}
+                </strong>
+                <small>{host.username}@{host.address}:{host.port}</small>
+              </span>
+              <span className="session-quick-connect-meta">
+                <AuthMethodBadge method={host.auth_method} compact />
+              </span>
+            </button>
+          ))
+        )}
+      </div>
+      <footer className="session-quick-connect-footer">
+        <small>{t('workbench.quickConnect.count', { count: totalCount })}</small>
+      </footer>
+    </section>
+  )
+}
+
+function filterQuickConnectHosts(hosts: Host[], query: string) {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  const filtered = tokens.length === 0
+    ? hosts
+    : hosts.filter((host) => {
+      const searchable = [
+        host.name,
+        host.address,
+        host.username,
+        host.group_id,
+        host.auth_method,
+        ...(host.tags ?? []),
+      ]
+        .join(' ')
+        .toLowerCase()
+      return tokens.every((token) => searchable.includes(token))
+    })
+
+  return filtered.slice().sort((left, right) => {
+    if (left.favorite !== right.favorite) {
+      return left.favorite ? -1 : 1
+    }
+    const rightConnectedAt = readHostConnectedAt(right)
+    const leftConnectedAt = readHostConnectedAt(left)
+    if (rightConnectedAt !== leftConnectedAt) {
+      return rightConnectedAt - leftConnectedAt
+    }
+    return left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })
+  })
+}
+
+function readHostConnectedAt(host: Host) {
+  if (!host.last_connected_at) {
+    return 0
+  }
+  const value = new Date(host.last_connected_at).getTime()
+  return Number.isNaN(value) ? 0 : value
+}
+
+function StatusItem({ label, value, className }: { label: string; value: string; className?: string }) {
+  return (
+    <span className={['terminal-status-item', className].filter(Boolean).join(' ')}>
       <small>{label}</small>
       <strong>{value}</strong>
     </span>
@@ -1168,11 +1538,11 @@ function SystemInfoPanel({ session, t }: { session: Session | null; t: Workbench
   const [expandedKeys, setExpandedKeys] = useState(() => new Set<string>())
   if (!session || session.kind !== 'ssh' || session.status !== 'connected') {
     return (
-      <div className="system-info-empty">
-        <Monitor size={20} />
-        <strong>{t('workbench.systemInfo.emptyTitle')}</strong>
-        <span>{t('workbench.systemInfo.emptyHint')}</span>
-      </div>
+      <WorkbenchEmptyState
+        icon={<Monitor size={20} />}
+        title={t('workbench.systemInfo.emptyTitle')}
+        description={t('workbench.systemInfo.emptyHint')}
+      />
     )
   }
   if (status === 'collecting' || status === 'idle') {
@@ -1188,11 +1558,13 @@ function SystemInfoPanel({ session, t }: { session: Session | null; t: Workbench
   }
   if (status !== 'ready' || !info) {
     return (
-      <div className={`system-info-message is-${status}`}>
-        <TriangleAlert size={18} />
-        <strong>{status === 'unsupported' ? t('workbench.systemInfo.unsupportedTitle') : t('workbench.systemInfo.failedTitle')}</strong>
-        <span>{session.inventory_message || t('workbench.systemInfo.failedHint')}</span>
-      </div>
+      <WorkbenchEmptyState
+        className={`system-info-message is-${status}`}
+        tone={status === 'failed' ? 'danger' : 'warning'}
+        icon={<TriangleAlert size={18} />}
+        title={status === 'unsupported' ? t('workbench.systemInfo.unsupportedTitle') : t('workbench.systemInfo.failedTitle')}
+        description={session.inventory_message || t('workbench.systemInfo.failedHint')}
+      />
     )
   }
   const nodes = buildSystemInfoTree(info, t)
@@ -1366,22 +1738,37 @@ function formatTime(value: string) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+function formatSessionDuration(session: Session | null, now: number, fallback: string) {
+  if (!session) {
+    return fallback
+  }
+  const start = Date.parse(session.connected_at ?? session.started_at)
+  if (Number.isNaN(start)) {
+    return fallback
+  }
+  const end = session.status === 'connected' ? now : Date.parse(session.ended_at ?? session.connected_at ?? session.started_at)
+  if (Number.isNaN(end) || end < start) {
+    return fallback
+  }
+  const totalSeconds = Math.floor((end - start) / 1000)
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const clock = `${padDurationPart(hours)}:${padDurationPart(minutes)}:${padDurationPart(seconds)}`
+  return days > 0 ? `${days}d ${clock}` : clock
+}
+
+function padDurationPart(value: number) {
+  return String(value).padStart(2, '0')
+}
+
 function emptyTerminalSearchResult(): TerminalSearchResult {
   return {
     found: false,
     resultIndex: -1,
     resultCount: 0,
   }
-}
-
-function Metric({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
-  return (
-    <div className="metric-item">
-      {icon}
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  )
 }
 
 function TerminalTabMenuItem({

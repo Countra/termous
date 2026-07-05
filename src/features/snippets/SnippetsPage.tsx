@@ -1,4 +1,4 @@
-import { Button, Input, Popconfirm, Segmented, Select, Tag, Tooltip } from 'antd'
+import { Button, Empty, Input, Popconfirm, Segmented, Select, Tag, Tooltip } from 'antd'
 import {
   Code2,
   FileCode2,
@@ -14,7 +14,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
-import { EmptyState } from '../../components/ui/EmptyState'
 import type { AppData, CodeSnippet, CodeSnippetInput, SnippetShell } from '../../types/domain'
 import { analyzeSnippetRisk, extractSnippetVariables, normalizeSnippetInput, normalizeSnippetTags, snippetToInput } from './snippetUtils'
 
@@ -171,9 +170,13 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
             <FileCode2 size={18} aria-hidden="true" />
           </div>
           {data.snippets.length === 0 ? (
-            <EmptyState title={t('app.empty')} description={t('snippets.emptyHint')} />
+            <div className="snippet-empty-slot">
+              <Empty description={t('snippets.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            </div>
           ) : filteredSnippets.length === 0 ? (
-            <EmptyState title={t('snippets.noFilterResults')} description={t('hosts.noFilterResultsHint')} />
+            <div className="snippet-empty-slot">
+              <Empty description={t('snippets.noFilterResults')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            </div>
           ) : (
             <div className="data-list snippet-data-list">
               {filteredSnippets.map((snippet) => (

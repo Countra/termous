@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { App as AntdApp, ConfigProvider, Modal } from 'antd'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { App as AntdApp, Button, ConfigProvider, Modal } from 'antd'
+import { AlertTriangle } from 'lucide-react'
 import 'antd/dist/reset.css'
 import { useTranslation } from 'react-i18next'
 import { AppShell } from './components/layout/AppShell'
@@ -10,12 +11,13 @@ import { SettingsPage } from './features/settings/SettingsPage'
 import { SnippetsPage } from './features/snippets/SnippetsPage'
 import { snippetToInput } from './features/snippets/snippetUtils'
 import { VaultPage } from './features/vault/VaultPage'
+import { HostLauncherModal } from './features/workbench/HostLauncherModal'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostInput, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
+import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -53,6 +55,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const { api, data, initializing, refreshing, apiReady, error, activeSession, forwardErrorEvent, actions } = useTermousData()
   const updateForwardRef = useRef(actions.updateForward)
   const reloadForwardStateRef = useRef(actions.reloadForwardsSilent)
+  const updateHostReachabilityRef = useRef(actions.updateHostReachability)
   const notifiedForwardFailuresRef = useRef(new Set<string>())
   const notifiedForwardRuntimeErrorsRef = useRef(new Map<string, string>())
   const [page, setPage] = useState<PageKey>('workbench')
@@ -60,6 +63,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [selectedHostId, setSelectedHostId] = useState('')
   const [activeFileSessionId, setActiveFileSessionId] = useState('')
   const [closingFileSessionIds, setClosingFileSessionIds] = useState<string[]>([])
+  const [hostLauncherOpen, setHostLauncherOpen] = useState(false)
+  const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
+  const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
   const [appVersion, setAppVersion] = useState(import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev')
   const [coreFatal, setCoreFatal] = useState<CoreFatalEvent | null>(null)
@@ -90,7 +96,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   useEffect(() => {
     updateForwardRef.current = actions.updateForward
     reloadForwardStateRef.current = actions.reloadForwardsSilent
-  }, [actions.reloadForwardsSilent, actions.updateForward])
+    updateHostReachabilityRef.current = actions.updateHostReachability
+  }, [actions.reloadForwardsSilent, actions.updateForward, actions.updateHostReachability])
 
   useEffect(() => {
     if (!forwardErrorEvent) {
@@ -144,6 +151,44 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [api, apiReady, notification, t])
 
   useEffect(() => {
+    if (!apiReady) {
+      return undefined
+    }
+    let disposed = false
+    let reconnectTimer: number | undefined
+    let socket: WebSocket | undefined
+
+    const connect = () => {
+      socket = new WebSocket(api.hostReachabilityEventsUrl())
+      socket.onmessage = (event: MessageEvent<string>) => {
+        try {
+          updateHostReachabilityRef.current(JSON.parse(event.data) as HostReachabilityEvent)
+        } catch {
+          // 忽略无法解析的主机在线状态事件，避免单条异常消息中断状态同步。
+        }
+      }
+      socket.onerror = () => {
+        socket?.close()
+      }
+      socket.onclose = () => {
+        if (disposed) {
+          return
+        }
+        reconnectTimer = window.setTimeout(connect, 1500)
+      }
+    }
+
+    connect()
+    return () => {
+      disposed = true
+      if (reconnectTimer !== undefined) {
+        window.clearTimeout(reconnectTimer)
+      }
+      socket?.close()
+    }
+  }, [api, apiReady])
+
+  useEffect(() => {
     let disposed = false
     void window.termous?.getBuildInfo?.().then((info) => {
       if (!disposed && info?.version) {
@@ -192,18 +237,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   useEffect(() => {
     if (!error) {
-      notification.destroy('app-error')
+      setCoreFatal((current) => (current?.code === 'LOCAL_API_UNAVAILABLE' ? null : current))
       return
     }
-    notification.error({
-      key: 'app-error',
-      title: t('app.apiOffline'),
-      description: error,
-      duration: 5,
-      role: 'alert',
-      className: 'termous-notification',
+    setCoreFatal((current) => current ?? {
+      title: t('app.coreFatalTitle'),
+      message: error,
+      code: 'LOCAL_API_UNAVAILABLE',
     })
-  }, [error, notification, t])
+  }, [error, t])
 
   const runAction = async (task: () => Promise<void>, success?: string) => {
     setActionBusy(true)
@@ -238,6 +280,31 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         await actions.createHost(input)
       }
     }, t('app.save'))
+
+  const createHostGroup = async (name: string): Promise<HostGroup> => {
+    setActionBusy(true)
+    try {
+      const group = await actions.createHostGroup(name)
+      notification.success({
+        title: t('hosts.groupCreated'),
+        duration: 3,
+        role: 'status',
+        className: 'termous-notification',
+      })
+      return group
+    } catch (actionError) {
+      notification.error({
+        title: t('app.error'),
+        description: actionError instanceof Error ? actionError.message : t('app.error'),
+        duration: 5,
+        role: 'alert',
+        className: 'termous-notification',
+      })
+      throw actionError
+    } finally {
+      setActionBusy(false)
+    }
+  }
 
   const saveCredential = (id: string | null, input: CredentialInput) =>
     runAction(async () => {
@@ -311,6 +378,24 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
+  const uploadHostIcon = async (file: File): Promise<HostIcon> => {
+    try {
+      return await actions.uploadHostIcon(file)
+    } catch (actionError) {
+      showActionError(actionError)
+      throw actionError
+    }
+  }
+
+  const deleteHostIcon = async (id: string) => {
+    try {
+      await actions.deleteHostIcon(id)
+    } catch (actionError) {
+      showActionError(actionError)
+      throw actionError
+    }
+  }
+
   const shutdownBeforeClose = async () => {
     if (window.termous?.core) {
       await window.termous.core.shutdown()
@@ -343,6 +428,78 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
+  const openHostCreate = () => {
+    setPage('hosts')
+    setHostCreateIntentKey((current) => current + 1)
+  }
+
+  const openHostEdit = (hostId: string) => {
+    setSelectedHostId(hostId)
+    setPage('hosts')
+  }
+
+  const openFilesForHost = async (hostId: string) => {
+    setSelectedHostId(hostId)
+    setPage('files')
+    const existing = data.fileSessions.find(
+      (fileSession) =>
+        fileSession.host_id === hostId &&
+        fileSession.status !== 'disconnected' &&
+        fileSession.status !== 'failed',
+    )
+    if (existing) {
+      setActiveFileSessionId(existing.id)
+      return
+    }
+    try {
+      const fileSession = await actions.connectFileSession(hostId)
+      setActiveFileSessionId(fileSession.id)
+    } catch (actionError) {
+      showActionError(actionError)
+    }
+  }
+
+  const openTemporaryForwardForHost = (hostId: string) => {
+    setSelectedHostId(hostId)
+    setForwardTemporaryIntent({ key: Date.now(), hostId })
+    setPage('forwards')
+  }
+
+  const openHostLauncher = useCallback(() => {
+    if (actionBusy) {
+      return
+    }
+    setHostLauncherOpen(true)
+  }, [actionBusy])
+
+  const connectHostFromLauncher = (hostId: string) =>
+    runAction(async () => {
+      await actions.connect(hostId)
+      setPage('workbench')
+    })
+
+  const openLocalTerminalFromTopbar = (shell: LocalShell) => {
+    if (actionBusy) {
+      return
+    }
+    setPage('workbench')
+    void runAction(() => actions.openLocalTerminal(shell).then(() => undefined))
+  }
+
+  useEffect(() => {
+    const handleHostLauncherShortcut = (event: KeyboardEvent) => {
+      if (!isHostLauncherShortcut(event)) {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      openHostLauncher()
+    }
+
+    window.addEventListener('keydown', handleHostLauncherShortcut, true)
+    return () => window.removeEventListener('keydown', handleHostLauncherShortcut, true)
+  }, [openHostLauncher])
+
   return (
     <TerminalRuntimeProvider
       api={api}
@@ -357,9 +514,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         theme={theme}
         appVersion={appVersion}
         sidebarCollapsed={sidebarCollapsed}
-        apiReady={apiReady}
         refreshing={refreshing}
+        actionBusy={actionBusy}
         onNavigate={setPage}
+        onOpenConnectionLauncher={openHostLauncher}
+        onOpenLocalTerminal={openLocalTerminalFromTopbar}
         onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
         onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
         onReload={() => void actions.reload()}
@@ -368,7 +527,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       >
         {initializing ? <div className="app-inline-status" role="status">{t('app.loading')}</div> : null}
 
-        {page === 'workbench' ? (
+        <div
+          className={`app-keepalive-page ${page === 'workbench' ? 'is-active' : 'is-hidden'}`}
+          aria-hidden={page !== 'workbench'}
+        >
           <WorkbenchPage
             api={api}
             data={data}
@@ -376,9 +538,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             selectedHostId={selectedHostIdStable}
             activeSession={activeSession}
             actionBusy={actionBusy}
-            onSelectHost={setSelectedHostId}
             onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
-            onOpenLocal={(shell) => runAction(() => actions.openLocalTerminal(shell).then(() => undefined))}
             onSelectSession={actions.selectSession}
             onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
             onOpenFiles={openFilesFromSession}
@@ -387,17 +547,21 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onStartForward={(input) => actions.startForward(input)}
             onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
           />
-        ) : null}
+        </div>
 
         {page === 'hosts' ? (
           <HostsPage
             data={data}
             selectedHostId={selectedHostIdStable}
+            createIntentKey={hostCreateIntentKey}
             actionBusy={actionBusy}
             onSelectHost={setSelectedHostId}
             onSave={saveHost}
             onDelete={(id) => runAction(() => actions.deleteHost(id))}
-            onImport={() => runAction(() => actions.importSSHConfig().then(() => undefined), t('hosts.importAccepted'))}
+            onCreateGroup={createHostGroup}
+            onUploadHostIcon={uploadHostIcon}
+            onDeleteHostIcon={deleteHostIcon}
+            getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
           />
         ) : null}
 
@@ -439,6 +603,14 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onReconnectFileSession={actions.reconnectFileSession}
             onTrustFileSessionHost={actions.trustFileSessionHost}
             onUpdateFileSession={actions.updateFileSession}
+            onCreateFileBookmark={actions.createFileBookmark}
+            onUpdateFileBookmark={actions.updateFileBookmark}
+            onDeleteFileBookmark={actions.deleteFileBookmark}
+            onReorderFileBookmarks={actions.reorderFileBookmarks}
+            onCreateFileBookmarkGroup={actions.createFileBookmarkGroup}
+            onUpdateFileBookmarkGroup={actions.updateFileBookmarkGroup}
+            onDeleteFileBookmarkGroup={actions.deleteFileBookmarkGroup}
+            onReorderFileBookmarkGroups={actions.reorderFileBookmarkGroups}
           />
         ) : null}
 
@@ -446,6 +618,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           <ForwardingPage
             data={data}
             actionBusy={actionBusy}
+            temporaryIntent={forwardTemporaryIntent}
             onCreateProfile={(input) => actions.createForwardProfile(input)}
             onUpdateProfile={(id, input) => actions.updateForwardProfile(id, input)}
             onDeleteProfile={(id) => runAction(() => actions.deleteForwardProfile(id))}
@@ -477,17 +650,55 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           />
         ) : null}
       </AppShell>
+      <HostLauncherModal
+        open={hostLauncherOpen}
+        data={data}
+        selectedHostId={selectedHostIdStable}
+        actionBusy={actionBusy}
+        onClose={() => setHostLauncherOpen(false)}
+        onSelectHost={setSelectedHostId}
+        onConnect={connectHostFromLauncher}
+        onCreateHost={openHostCreate}
+        onEditHost={openHostEdit}
+        onOpenFiles={openFilesForHost}
+        onOpenForward={openTemporaryForwardForHost}
+        onToggleFavorite={(hostId) => runAction(() => actions.toggleHostFavorite(hostId))}
+        onRefreshReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
+        getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+      />
       <Modal
         centered
+        width={430}
         open={Boolean(coreFatal)}
-        title={coreFatal?.title ?? t('app.coreFatalTitle')}
-        okText={t('app.exit')}
-        cancelButtonProps={{ style: { display: 'none' } }}
+        title={null}
+        footer={null}
+        closable={false}
+        closeIcon={null}
         mask={{ closable: false }}
         keyboard={false}
-        onOk={() => void window.termous?.windowControls?.confirmClose()}
+        className="core-fatal-modal"
+        wrapClassName="confirm-modal-wrap"
+        rootClassName="termous-modal-root"
+        getContainer={() => document.body}
       >
-        <p>{coreFatal?.message ?? t('app.coreFatalDescription')}</p>
+        <section className="core-fatal-dialog" aria-labelledby="core-fatal-title">
+          <div className="core-fatal-icon">
+            <AlertTriangle size={22} aria-hidden="true" />
+          </div>
+          <div className="core-fatal-copy">
+            <h2 id="core-fatal-title">{coreFatal?.title ?? t('app.coreFatalTitle')}</h2>
+            <p>{coreFatal?.message ?? t('app.coreFatalDescription')}</p>
+          </div>
+          <div className="core-fatal-actions">
+            <Button
+              type="primary"
+              className="core-fatal-exit-button"
+              onClick={() => void window.termous?.windowControls?.confirmClose()}
+            >
+              {t('app.exit')}
+            </Button>
+          </div>
+        </section>
       </Modal>
     </TerminalRuntimeProvider>
   )
@@ -539,4 +750,8 @@ function notifyForwardError(
       className: 'termous-notification',
     })
   }
+}
+
+function isHostLauncherShortcut(event: KeyboardEvent) {
+  return event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 'h'
 }

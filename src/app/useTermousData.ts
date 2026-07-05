@@ -5,12 +5,21 @@ import type {
   CodeSnippet,
   CodeSnippetInput,
   CredentialInput,
+  FileBookmark,
+  FileBookmarkGroup,
+  FileBookmarkGroupInput,
+  FileBookmarkGroupReorderItem,
+  FileBookmarkInput,
+  FileBookmarkReorderItem,
   FileSession,
   ForwardEvent,
   ForwardInstance,
   ForwardProfile,
   ForwardProfileInput,
   ForwardStartRequest,
+  HostGroup,
+  HostReachability,
+  HostReachabilityEvent,
   HostInput,
   Language,
   LocalShell,
@@ -21,6 +30,7 @@ import type {
 } from '../types/domain'
 import { changeLanguage } from '../i18n'
 import { defaultTerminalSettings, normalizeSettings } from '../features/settings/terminalSettings'
+import { hostToInput } from '../features/hosts/hostInput'
 
 const initialSettings: Settings = { language: 'zh-CN', terminal: defaultTerminalSettings }
 type LoadMode = 'initial' | 'background' | 'silent'
@@ -35,8 +45,11 @@ const initialData: AppData = {
   forwardProfiles: [],
   forwards: [],
   snippets: [],
+  fileBookmarkGroups: [],
+  fileBookmarks: [],
   settings: initialSettings,
   terminalFonts: [],
+  hostReachability: {},
 }
 
 export function useTermousData() {
@@ -59,12 +72,30 @@ export function useTermousData() {
     setError(null)
     try {
       await apiClient.health()
-      const [settings, terminalFonts, snippets, groups, hosts, credentials, knownHosts, sessions, fileSessions, forwardProfiles, forwards] = await Promise.all([
+      const [
+        settings,
+        terminalFonts,
+        snippets,
+        fileBookmarkGroups,
+        fileBookmarks,
+        groups,
+        hosts,
+        hostReachability,
+        credentials,
+        knownHosts,
+        sessions,
+        fileSessions,
+        forwardProfiles,
+        forwards,
+      ] = await Promise.all([
         apiClient.settings(),
         apiClient.terminalFonts(),
         apiClient.codeSnippets(),
+        apiClient.fileBookmarkGroups(),
+        apiClient.fileBookmarks(),
         apiClient.hostGroups(),
         apiClient.hosts(),
+        apiClient.hostReachability(),
         apiClient.credentials(),
         apiClient.knownHosts(),
         apiClient.sessions(),
@@ -85,7 +116,10 @@ export function useTermousData() {
         forwardProfiles: forwardProfiles ?? [],
         forwards: visibleForwards(forwards ?? []),
         snippets: snippets ?? [],
+        fileBookmarkGroups: sortFileBookmarkGroups(fileBookmarkGroups ?? []),
+        fileBookmarks: sortFileBookmarks(fileBookmarks ?? []),
         terminalFonts: terminalFonts ?? [],
+        hostReachability: indexHostReachability(hostReachability ?? []),
       })
       setActiveSession((current) => reconcileActiveSession(current, nextSessions, mode))
       setApiReady(true)
@@ -178,6 +212,12 @@ export function useTermousData() {
           terminalFonts: terminalFonts ?? current.terminalFonts.filter((font) => font.id !== id),
         }))
       },
+      async uploadHostIcon(file: File) {
+        return api.uploadHostIcon(file)
+      },
+      async deleteHostIcon(id: string) {
+        await api.deleteHostIcon(id)
+      },
       async createCodeSnippet(input: CodeSnippetInput) {
         const snippet = await api.createCodeSnippet(input)
         setData((current) => ({ ...current, snippets: upsertCodeSnippet(current.snippets, snippet) }))
@@ -196,6 +236,58 @@ export function useTermousData() {
         const snippet = await api.markCodeSnippetUsed(id)
         setData((current) => ({ ...current, snippets: replaceCodeSnippet(current.snippets, snippet) }))
         return snippet
+      },
+      async createFileBookmarkGroup(input: FileBookmarkGroupInput) {
+        const group = await api.createFileBookmarkGroup(input)
+        setData((current) => ({ ...current, fileBookmarkGroups: upsertFileBookmarkGroup(current.fileBookmarkGroups, group) }))
+        return group
+      },
+      async updateFileBookmarkGroup(id: string, input: FileBookmarkGroupInput) {
+        const group = await api.updateFileBookmarkGroup(id, input)
+        setData((current) => ({ ...current, fileBookmarkGroups: upsertFileBookmarkGroup(current.fileBookmarkGroups, group) }))
+        return group
+      },
+      async deleteFileBookmarkGroup(id: string) {
+        await api.deleteFileBookmarkGroup(id)
+        let nextBookmarks: FileBookmark[] | null = null
+        try {
+          nextBookmarks = await api.fileBookmarks()
+        } catch {
+          nextBookmarks = null
+        }
+        setData((current) => ({
+          ...current,
+          fileBookmarkGroups: current.fileBookmarkGroups.filter((group) => group.id !== id),
+          fileBookmarks: nextBookmarks
+            ? sortFileBookmarks(nextBookmarks)
+            : sortFileBookmarks(current.fileBookmarks.map((bookmark) => (
+              bookmark.group_id === id ? { ...bookmark, group_id: '' } : bookmark
+            ))),
+        }))
+      },
+      async reorderFileBookmarkGroups(items: FileBookmarkGroupReorderItem[]) {
+        const groups = await api.reorderFileBookmarkGroups(items)
+        setData((current) => ({ ...current, fileBookmarkGroups: sortFileBookmarkGroups(groups ?? current.fileBookmarkGroups) }))
+        return groups
+      },
+      async createFileBookmark(input: FileBookmarkInput) {
+        const bookmark = await api.createFileBookmark(input)
+        setData((current) => ({ ...current, fileBookmarks: upsertFileBookmark(current.fileBookmarks, bookmark) }))
+        return bookmark
+      },
+      async updateFileBookmark(id: string, input: FileBookmarkInput) {
+        const bookmark = await api.updateFileBookmark(id, input)
+        setData((current) => ({ ...current, fileBookmarks: upsertFileBookmark(current.fileBookmarks, bookmark) }))
+        return bookmark
+      },
+      async deleteFileBookmark(id: string) {
+        await api.deleteFileBookmark(id)
+        setData((current) => ({ ...current, fileBookmarks: current.fileBookmarks.filter((bookmark) => bookmark.id !== id) }))
+      },
+      async reorderFileBookmarks(items: FileBookmarkReorderItem[]) {
+        const bookmarks = await api.reorderFileBookmarks(items)
+        setData((current) => ({ ...current, fileBookmarks: sortFileBookmarks(bookmarks ?? current.fileBookmarks) }))
+        return bookmarks
       },
       async createForwardProfile(input: ForwardProfileInput) {
         const profile = await api.createForwardProfile(input)
@@ -258,18 +350,42 @@ export function useTermousData() {
         await api.createHost(input)
         await load('silent')
       },
+      async createHostGroup(name: string) {
+        const group = await api.createHostGroup(name)
+        setData((current) => ({ ...current, groups: upsertHostGroup(current.groups, group) }))
+        return group
+      },
       async updateHost(id: string, input: HostInput) {
         await api.updateHost(id, input)
         await load('silent')
+      },
+      async toggleHostFavorite(hostId: string) {
+        const host = data.hosts.find((item) => item.id === hostId)
+        if (!host) {
+          return
+        }
+        const nextHost = await api.updateHost(host.id, { ...hostToInput(host), favorite: !host.favorite })
+        setData((current) => ({
+          ...current,
+          hosts: current.hosts.map((item) => (item.id === nextHost.id ? nextHost : item)),
+        }))
       },
       async deleteHost(id: string) {
         await api.deleteHost(id)
         await load('silent')
       },
-      async importSSHConfig() {
-        const result = await api.importSSHConfig()
-        await load('silent')
-        return result
+      async refreshHostReachability(hostIds: string[] = [], force = false) {
+        const states = await api.refreshHostReachability(hostIds, force)
+        setData((current) => ({
+          ...current,
+          hostReachability: mergeHostReachabilityStates(current.hostReachability, states ?? []),
+        }))
+      },
+      updateHostReachability(event: HostReachabilityEvent) {
+        setData((current) => ({
+          ...current,
+          hostReachability: mergeHostReachabilityEvent(current.hostReachability, event),
+        }))
       },
       async createCredential(input: CredentialInput) {
         await api.createCredential(input)
@@ -335,7 +451,12 @@ export function useTermousData() {
         setActiveSession((current) => (current?.id === sessionId ? { ...current, ...patch } : current))
         setData((current) => ({
           ...current,
-          sessions: current.sessions.map((session) => (session.id === sessionId ? { ...session, ...patch } : session)),
+          ...markHostRecentlyConnected(
+            current.hosts,
+            current.sessions,
+            sessionId,
+            patch,
+          ),
         }))
       },
       async connectFileSession(hostId: string, sourceSessionId = '', initialPath = '/') {
@@ -364,7 +485,7 @@ export function useTermousData() {
         setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
       },
     }),
-    [api, data.fileSessions, data.forwards, data.settings, data.sessions, load, reloadForwards],
+    [api, data.fileSessions, data.forwards, data.hosts, data.settings, data.sessions, load, reloadForwards],
   )
 
   return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, actions }
@@ -391,12 +512,46 @@ function upsertTerminalFont(fonts: TerminalFont[], next: TerminalFont) {
   return [next, ...fonts]
 }
 
+function upsertHostGroup(groups: HostGroup[], next: HostGroup) {
+  const exists = groups.some((group) => group.id === next.id)
+  const merged = exists ? groups.map((group) => (group.id === next.id ? next : group)) : [...groups, next]
+  return [...merged].sort(sortHostGroups)
+}
+
+function sortHostGroups(left: HostGroup, right: HostGroup) {
+  if (left.sort_order !== right.sort_order) {
+    return left.sort_order - right.sort_order
+  }
+  if (left.name !== right.name) {
+    return left.name.localeCompare(right.name)
+  }
+  return left.id.localeCompare(right.id)
+}
+
 function upsertSession(sessions: Session[], next: Session) {
   const exists = sessions.some((session) => session.id === next.id)
   if (exists) {
     return sessions.map((session) => (session.id === next.id ? next : session))
   }
-  return [next, ...sessions]
+  return [...sessions, next]
+}
+
+function markHostRecentlyConnected(
+  hosts: AppData['hosts'],
+  sessions: Session[],
+  sessionId: string,
+  patch: Partial<Session>,
+) {
+  const sessionsWithPatch = sessions.map((session) => (session.id === sessionId ? { ...session, ...patch } : session))
+  const updatedSession = sessionsWithPatch.find((session) => session.id === sessionId)
+  if (updatedSession?.kind !== 'ssh' || updatedSession.status !== 'connected' || !updatedSession.host_id) {
+    return { hosts, sessions: sessionsWithPatch }
+  }
+  const connectedAt = updatedSession.connected_at ?? new Date().toISOString()
+  return {
+    hosts: hosts.map((host) => (host.id === updatedSession.host_id ? { ...host, last_connected_at: connectedAt } : host)),
+    sessions: sessionsWithPatch,
+  }
 }
 
 function upsertFileSession(fileSessions: FileSession[], next: FileSession) {
@@ -418,6 +573,45 @@ function replaceCodeSnippet(snippets: CodeSnippet[], next: CodeSnippet) {
     return upsertCodeSnippet(snippets, next)
   }
   return snippets.map((snippet) => (snippet.id === next.id ? next : snippet))
+}
+
+function upsertFileBookmarkGroup(groups: FileBookmarkGroup[], next: FileBookmarkGroup) {
+  const exists = groups.some((group) => group.id === next.id)
+  const merged = exists ? groups.map((group) => (group.id === next.id ? next : group)) : [...groups, next]
+  return sortFileBookmarkGroups(merged)
+}
+
+function sortFileBookmarkGroups(groups: FileBookmarkGroup[]) {
+  return [...groups].sort((left, right) => {
+    if (left.sort_order !== right.sort_order) {
+      return left.sort_order - right.sort_order
+    }
+    if (left.name !== right.name) {
+      return left.name.localeCompare(right.name)
+    }
+    return left.id.localeCompare(right.id)
+  })
+}
+
+function upsertFileBookmark(bookmarks: FileBookmark[], next: FileBookmark) {
+  const exists = bookmarks.some((bookmark) => bookmark.id === next.id)
+  const merged = exists ? bookmarks.map((bookmark) => (bookmark.id === next.id ? next : bookmark)) : [...bookmarks, next]
+  return sortFileBookmarks(merged)
+}
+
+function sortFileBookmarks(bookmarks: FileBookmark[]) {
+  return [...bookmarks].sort((left, right) => {
+    if (left.group_id !== right.group_id) {
+      return left.group_id.localeCompare(right.group_id)
+    }
+    if (left.sort_order !== right.sort_order) {
+      return left.sort_order - right.sort_order
+    }
+    if (left.name !== right.name) {
+      return left.name.localeCompare(right.name)
+    }
+    return left.id.localeCompare(right.id)
+  })
 }
 
 function upsertForwardProfile(profiles: ForwardProfile[], next: ForwardProfile) {
@@ -462,6 +656,36 @@ function markAllForwardsStopped(forwards: ForwardInstance[]) {
 
 function visibleForwards(forwards: ForwardInstance[]) {
   return forwards.filter((forward) => !shouldRemoveForward(forward))
+}
+
+function indexHostReachability(states: HostReachability[]) {
+  return states.reduce<Record<string, HostReachability>>((acc, state) => {
+    acc[state.host_id] = state
+    return acc
+  }, {})
+}
+
+function mergeHostReachabilityStates(
+  current: Record<string, HostReachability>,
+  states: HostReachability[],
+) {
+  if (states.length === 0) {
+    return current
+  }
+  return { ...current, ...indexHostReachability(states) }
+}
+
+function mergeHostReachabilityEvent(
+  current: Record<string, HostReachability>,
+  event: HostReachabilityEvent,
+) {
+  if (event.type === 'snapshot' && event.items) {
+    return indexHostReachability(event.items)
+  }
+  if (event.state) {
+    return { ...current, [event.state.host_id]: event.state }
+  }
+  return current
 }
 
 function shouldRemoveForward(forward: ForwardInstance) {
