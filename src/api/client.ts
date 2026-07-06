@@ -39,6 +39,10 @@ import type {
   LocalShell,
   LocalFileGrant,
   LocalGrantSource,
+  LocalPathMapping,
+  LocalPathMappingInput,
+  LocalPathMappingReorderItem,
+  LocalTreeEntry,
   OverwritePolicy,
   RemoteDirectoryListing,
   RemoteFileEntry,
@@ -241,6 +245,45 @@ export class TermousApi {
       method: 'POST',
       body: { items },
     }).then(normalizeArray)
+  }
+
+  localPathMappings() {
+    return this.request<LocalPathMapping[]>('/api/v1/local-path-mappings').then(normalizeArray)
+  }
+
+  createLocalPathMapping(input: LocalPathMappingInput) {
+    return this.request<LocalPathMapping>('/api/v1/local-path-mappings', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  updateLocalPathMapping(id: string, input: LocalPathMappingInput) {
+    return this.request<LocalPathMapping>(`/api/v1/local-path-mappings/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  }
+
+  deleteLocalPathMapping(id: string) {
+    return this.request<void>(`/api/v1/local-path-mappings/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  reorderLocalPathMappings(items: LocalPathMappingReorderItem[]) {
+    return this.request<LocalPathMapping[]>('/api/v1/local-path-mappings/reorder', {
+      method: 'POST',
+      body: { items },
+    }).then(normalizeArray)
+  }
+
+  localPathMappingChildren(id: string, path = '') {
+    const query = path ? `?${new URLSearchParams({ path }).toString()}` : ''
+    return this.request<LocalTreeEntry[]>(`/api/v1/local-path-mappings/${encodeURIComponent(id)}/children${query}`).then(normalizeArray)
+  }
+
+  localPathMappingStat(id: string, path = '') {
+    const query = path ? `?${new URLSearchParams({ path }).toString()}` : ''
+    return this.request<LocalTreeEntry>(`/api/v1/local-path-mappings/${encodeURIComponent(id)}/stat${query}`)
   }
 
   forwardProfiles() {

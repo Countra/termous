@@ -574,6 +574,38 @@ export interface FileBookmarkReorderItem {
   sort_order: number
 }
 
+export interface LocalPathMapping {
+  id: string
+  name: string
+  path: string
+  sort_order: number
+  available: boolean
+  last_used_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface LocalPathMappingInput {
+  name: string
+  path: string
+}
+
+export interface LocalPathMappingReorderItem {
+  id: string
+  sort_order: number
+}
+
+export type LocalTreeEntryKind = 'file' | 'directory' | 'symlink' | 'other'
+
+export interface LocalTreeEntry {
+  name: string
+  path: string
+  kind: LocalTreeEntryKind
+  size: number
+  modified_at?: string
+  has_children: boolean
+}
+
 export interface Host {
   id: string
   name: string
@@ -830,6 +862,7 @@ export interface AppData {
   snippets: CodeSnippet[]
   fileBookmarkGroups: FileBookmarkGroup[]
   fileBookmarks: FileBookmark[]
+  localPathMappings: LocalPathMapping[]
   settings: Settings
   terminalFonts: TerminalFont[]
   hostReachability: Record<string, HostReachability>

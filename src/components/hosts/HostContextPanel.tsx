@@ -1,6 +1,6 @@
 import { Button, Input, Tooltip } from 'antd'
 import { ChevronLeft, ChevronRight, KeyRound, MapPin, Search, Tags, UserRound } from 'lucide-react'
-import { useEffect, useMemo, useState, type PointerEvent } from 'react'
+import { useEffect, useMemo, useState, type PointerEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Host, HostGroup } from '../../types/domain'
 import { AuthMethodBadge } from '../ui/AuthMethodBadge'
@@ -18,6 +18,7 @@ interface HostContextPanelProps {
   emptyDescription: string
   searchPlaceholder?: string
   className?: string
+  contentBefore?: ReactNode
   resizing?: boolean
   onToggleCollapsed: () => void
   onResizePointerDown?: (event: PointerEvent<HTMLDivElement>) => void
@@ -38,6 +39,7 @@ export function HostContextPanel({
   emptyDescription,
   searchPlaceholder,
   className = '',
+  contentBefore,
   resizing = false,
   onToggleCollapsed,
   onResizePointerDown,
@@ -97,6 +99,7 @@ export function HostContextPanel({
           </div>
         </div>
       ) : null}
+      {!contentCollapsed && contentBefore ? <div className="host-context-content-before">{contentBefore}</div> : null}
       {!contentCollapsed && searchPlaceholder ? (
         <Input
           id="host-context-search"

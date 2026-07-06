@@ -611,6 +611,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onUpdateFileBookmarkGroup={actions.updateFileBookmarkGroup}
             onDeleteFileBookmarkGroup={actions.deleteFileBookmarkGroup}
             onReorderFileBookmarkGroups={actions.reorderFileBookmarkGroups}
+            onCreateLocalPathMapping={actions.createLocalPathMapping}
+            onUpdateLocalPathMapping={actions.updateLocalPathMapping}
+            onDeleteLocalPathMapping={actions.deleteLocalPathMapping}
+            onReorderLocalPathMappings={actions.reorderLocalPathMappings}
           />
         ) : null}
 

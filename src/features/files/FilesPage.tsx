@@ -60,12 +60,16 @@ import type {
   FileSessionPhase,
   Host,
   LocalGrantSource,
+  LocalPathMapping,
+  LocalPathMappingInput,
+  LocalPathMappingReorderItem,
   RemoteDirectoryListing,
   RemoteFileEntry,
   TransferTask,
 } from '../../types/domain'
 import { fileSortValue, formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
 import { FileBookmarksPanel } from './FileBookmarksPanel'
+import { LocalPathMappingsPanel } from './LocalPathMappingsPanel'
 import { TransferQueuePanel } from './TransferQueuePanel'
 import { useTransferQueue } from './useTransferQueue'
 
@@ -89,6 +93,10 @@ interface FilesPageProps {
   onUpdateFileBookmarkGroup: (id: string, input: FileBookmarkGroupInput) => Promise<FileBookmarkGroup>
   onDeleteFileBookmarkGroup: (id: string) => Promise<void>
   onReorderFileBookmarkGroups: (items: FileBookmarkGroupReorderItem[]) => Promise<FileBookmarkGroup[]>
+  onCreateLocalPathMapping: (input: LocalPathMappingInput) => Promise<LocalPathMapping>
+  onUpdateLocalPathMapping: (id: string, input: LocalPathMappingInput) => Promise<LocalPathMapping>
+  onDeleteLocalPathMapping: (id: string) => Promise<void>
+  onReorderLocalPathMappings: (items: LocalPathMappingReorderItem[]) => Promise<LocalPathMapping[]>
 }
 
 interface RemoteClipboard {
@@ -120,6 +128,7 @@ interface ResizableFileHeaderCellProps extends HTMLAttributes<HTMLTableCellEleme
 }
 
 type FileSideTabKey = 'details' | 'transfers' | 'bookmarks'
+type FileLeftTabKey = 'hosts' | 'local'
 
 const fileSessionPhaseOrder: FileSessionPhase[] = [
   'queued',
@@ -199,6 +208,10 @@ export function FilesPage({
   onUpdateFileBookmarkGroup,
   onDeleteFileBookmarkGroup,
   onReorderFileBookmarkGroups,
+  onCreateLocalPathMapping,
+  onUpdateLocalPathMapping,
+  onDeleteLocalPathMapping,
+  onReorderLocalPathMappings,
 }: FilesPageProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -245,6 +258,11 @@ export function FilesPage({
     'termous.ui.files.detailsActiveTab.v1',
     'details',
     parseFileSideTabKey,
+  )
+  const [leftActiveTab, setLeftActiveTab] = usePersistentJsonState<FileLeftTabKey>(
+    'termous.ui.files.leftActiveTab.v1',
+    'hosts',
+    parseFileLeftTabKey,
   )
   const expandHostPanel = useCallback(() => setHostPanelCollapsed(false), [setHostPanelCollapsed])
   const expandDetailsPanel = useCallback(() => setDetailsCollapsed(false), [setDetailsCollapsed])
@@ -311,6 +329,33 @@ export function FilesPage({
   )
   const dropTargetDirectoryName = dropTargetDirectory?.name ?? (dropTargetDirectoryPath ? remotePathDisplayName(dropTargetDirectoryPath) : '')
   const remoteMoveTargetDirectoryName = remoteMoveTargetDirectory?.name ?? (remoteMoveTargetPath ? remotePathDisplayName(remoteMoveTargetPath) : '')
+  const filesLeftTabs = (
+    <div className="files-left-tabs" role="tablist" aria-label={t('files.leftTabs')}>
+      <button
+        type="button"
+        className={leftActiveTab === 'hosts' ? 'is-active' : ''}
+        role="tab"
+        aria-selected={leftActiveTab === 'hosts'}
+        onClick={() => setLeftActiveTab('hosts')}
+      >
+        {t('files.remoteHosts')}
+      </button>
+      <button
+        type="button"
+        className={leftActiveTab === 'local' ? 'is-active' : ''}
+        role="tab"
+        aria-selected={leftActiveTab === 'local'}
+        onClick={() => setLeftActiveTab('local')}
+        onDragEnter={(event) => {
+          if (remoteMoveDragRef.current || remoteMoveDrag || Array.from(event.dataTransfer.types).includes(remoteFileDragMime)) {
+            setLeftActiveTab('local')
+          }
+        }}
+      >
+        {t('files.localMappingsShort')}
+      </button>
+    </div>
+  )
 
   const applyListing = useCallback((listing: RemoteDirectoryListing) => {
     setCurrentPath(listing.path)
@@ -693,6 +738,17 @@ export function FilesPage({
     }, t('files.transferCreated'))
   }
 
+  const downloadPathsToLocalDir = async (paths: string[], localDir: string) => {
+    if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
+      return
+    }
+    await runFileAction(async () => {
+      const task = await api.createFileSessionDownloadTransfer(activeFileSessionId, paths, localDir, 'rename')
+      showTransferQueuePanel()
+      upsertTransfer(task)
+    }, t('files.transferCreated'))
+  }
+
   const downloadPaths = async (paths: string[]) => {
     if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
       return
@@ -702,11 +758,7 @@ export function FilesPage({
     if (!localDir) {
       return
     }
-    await runFileAction(async () => {
-      const task = await api.createFileSessionDownloadTransfer(activeFileSessionId, paths, localDir, 'rename')
-      showTransferQueuePanel()
-      upsertTransfer(task)
-    }, t('files.transferCreated'))
+    await downloadPathsToLocalDir(paths, localDir)
   }
 
   const downloadSelected = () => downloadPaths(selectedPaths)
@@ -1201,7 +1253,7 @@ export function FilesPage({
     remoteMoveDragRef.current = { paths }
     setRemoteMoveDrag({ paths })
     setRemoteMoveTargetPath(null)
-    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.effectAllowed = 'copyMove'
     event.dataTransfer.setData(remoteFileDragMime, JSON.stringify(paths))
     event.dataTransfer.setData('text/plain', entry.name)
   }
@@ -1372,21 +1424,41 @@ export function FilesPage({
       onDragEnd={resetDragState}
       onDrop={(event) => void onDrop(event)}
     >
-      <HostContextPanel
-        hosts={data.hosts}
-        groups={data.groups}
-        selectedHostId={selectedHostIdStable}
-        collapsed={hostPanelCollapsed}
-        collapsedTitle={t('nav.files')}
-        emptyDescription={t('files.noHostHint')}
-        searchPlaceholder={t('files.hostSearch')}
-        className="files-host-context-panel"
-        resizing={hostPanelResize.resizing}
-        onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
-        onResizePointerDown={hostPanelResize.beginResize}
-        getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
-        onSelectHost={onSelectHost}
-      />
+      {leftActiveTab === 'hosts' ? (
+        <HostContextPanel
+          hosts={data.hosts}
+          groups={data.groups}
+          selectedHostId={selectedHostIdStable}
+          collapsed={hostPanelCollapsed}
+          collapsedTitle={t('nav.files')}
+          emptyDescription={t('files.noHostHint')}
+          searchPlaceholder={t('files.hostSearch')}
+          className="files-host-context-panel"
+          contentBefore={filesLeftTabs}
+          resizing={hostPanelResize.resizing}
+          onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
+          onResizePointerDown={hostPanelResize.beginResize}
+          getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+          onSelectHost={onSelectHost}
+        />
+      ) : (
+        <LocalPathMappingsPanel
+          api={api}
+          mappings={data.localPathMappings}
+          collapsed={hostPanelCollapsed}
+          resizing={hostPanelResize.resizing}
+          remoteDragMime={remoteFileDragMime}
+          remoteDragPaths={remoteMoveDrag?.paths ?? []}
+          tabs={filesLeftTabs}
+          onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
+          onResizePointerDown={hostPanelResize.beginResize}
+          onCreateMapping={onCreateLocalPathMapping}
+          onUpdateMapping={onUpdateLocalPathMapping}
+          onDeleteMapping={onDeleteLocalPathMapping}
+          onReorderMappings={onReorderLocalPathMappings}
+          onDownloadToLocalDir={downloadPathsToLocalDir}
+        />
+      )}
 
       <main className="files-main-panel">
         <div className="files-session-toolbar">
@@ -1757,6 +1829,13 @@ function parseFileSideTabKey(value: unknown): FileSideTabKey {
     return value
   }
   return 'details'
+}
+
+function parseFileLeftTabKey(value: unknown): FileLeftTabKey {
+  if (value === 'local') {
+    return value
+  }
+  return 'hosts'
 }
 
 function ResizableFileHeaderCell({
