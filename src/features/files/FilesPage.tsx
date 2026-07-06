@@ -12,6 +12,7 @@ import {
   Copy,
   Download,
   File,
+  FilePenLine,
   Folder,
   FolderPlus,
   Link,
@@ -27,6 +28,8 @@ import {
 import {
   useCallback,
   useEffect,
+  lazy,
+  Suspense,
   useMemo,
   useRef,
   useState,
@@ -72,6 +75,8 @@ import { FileBookmarksPanel } from './FileBookmarksPanel'
 import { LocalPathMappingsPanel, type LocalPathRefreshRequest } from './LocalPathMappingsPanel'
 import { TransferQueuePanel } from './TransferQueuePanel'
 import { useTransferQueue } from './useTransferQueue'
+
+const RemoteTextEditorModal = lazy(() => import('./RemoteTextEditorModal').then((module) => ({ default: module.RemoteTextEditorModal })))
 
 interface FilesPageProps {
   api: TermousApi
@@ -246,6 +251,7 @@ export function FilesPage({
   const [localRefreshRequests, setLocalRefreshRequests] = useState<LocalPathRefreshRequest[]>([])
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
+  const [textEditorPath, setTextEditorPath] = useState<string | null>(null)
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [connectingHostIds, setConnectingHostIds] = useState<Set<string>>(() => new Set())
   const [activeHostKeyPromptKey, setActiveHostKeyPromptKey] = useState('')
@@ -943,6 +949,30 @@ export function FilesPage({
     setSelectedPaths([entry.path])
   }
 
+  const openTextEditor = (entry = selectedEntries[0]) => {
+    if (!entry || !fileSessionConnected) {
+      return
+    }
+    if (entry.kind !== 'file') {
+      notification.warning({
+        title: t('files.textEditorOnlyFiles'),
+        duration: 3,
+        role: 'status',
+        className: 'termous-notification',
+      })
+      return
+    }
+    setActiveEntry(entry)
+    setSelectedPaths([entry.path])
+    setTextEditorPath(entry.path)
+  }
+
+  const handleTextFileSaved = (entry: RemoteFileEntry) => {
+    setEntries((current) => current.map((item) => (item.path === entry.path ? entry : item)))
+    setActiveEntry(entry)
+    setSelectedPaths([entry.path])
+  }
+
   const applyPermissions = async (entry: RemoteFileEntry, mode: string) => {
     if (!activeFileSessionId) {
       return
@@ -1365,6 +1395,7 @@ export function FilesPage({
 
   const actionDisabled = !fileSessionConnected || loading
   const rowMenu = (): MenuProps['items'] => [
+    { key: 'editText', icon: <FilePenLine size={14} />, label: t('files.editText') },
     { key: 'download', icon: <Download size={14} />, label: t('files.download') },
     { key: 'copy', icon: <Copy size={14} />, label: t('files.copy') },
     { key: 'cut', icon: <Scissors size={14} />, label: t('files.cut') },
@@ -1464,6 +1495,7 @@ export function FilesPage({
             items: rowMenu(),
             onClick: ({ key }) => {
               setSelectedPaths([entry.path])
+              if (key === 'editText') openTextEditor(entry)
               if (key === 'download') void downloadPaths([entry.path])
               if (key === 'copy' && activeFileSession) setRemoteClipboard({ mode: 'copy', hostId: activeFileSession.host_id, paths: [entry.path] })
               if (key === 'cut' && activeFileSession) setRemoteClipboard({ mode: 'cut', hostId: activeFileSession.host_id, paths: [entry.path] })
@@ -1656,6 +1688,14 @@ export function FilesPage({
               {t('files.uploadFolder')}
             </Button>
             <Button
+              className="secondary-button"
+              disabled={actionDisabled || selectedEntries.length !== 1 || selectedEntries[0]?.kind !== 'file'}
+              icon={<FilePenLine size={15} />}
+              onClick={() => openTextEditor()}
+            >
+              {t('files.editText')}
+            </Button>
+            <Button
               type="primary"
               className="primary-button"
               disabled={selectedPaths.length === 0}
@@ -1778,6 +1818,7 @@ export function FilesPage({
               <FileDetailPanel
                 host={activeFileSessionHost ?? selectedHost}
                 entry={activeEntry ?? selectedEntries[0] ?? null}
+                onEditTextFile={openTextEditor}
                 onEditPermissions={openPermissions}
               />
             ),
@@ -1846,6 +1887,18 @@ export function FilesPage({
         onCancel={() => setPermissionEntry(null)}
         onSubmit={(entry, mode) => void applyPermissions(entry, mode)}
       />
+      {textEditorPath && activeFileSessionId ? (
+        <Suspense fallback={null}>
+          <RemoteTextEditorModal
+            api={api}
+            open={Boolean(textEditorPath && activeFileSessionId)}
+            fileSessionId={activeFileSessionId}
+            path={textEditorPath}
+            onClose={() => setTextEditorPath(null)}
+            onSaved={(entry) => handleTextFileSaved(entry)}
+          />
+        </Suspense>
+      ) : null}
     </section>
   )
 }
@@ -1941,10 +1994,12 @@ function ResizableFileHeaderCell({
 function FileDetailPanel({
   host,
   entry,
+  onEditTextFile,
   onEditPermissions,
 }: {
   host?: Host
   entry: RemoteFileEntry | null
+  onEditTextFile: (entry: RemoteFileEntry) => void
   onEditPermissions: (entry: RemoteFileEntry) => void
 }) {
   const { t } = useTranslation()
@@ -1995,6 +2050,22 @@ function FileDetailPanel({
                 </Button>
               </dd>
             </div>
+            {entry.kind === 'file' ? (
+              <div>
+                <dt>{t('files.editText')}</dt>
+                <dd>
+                  <Button
+                    type="text"
+                    size="small"
+                    className="files-inline-action"
+                    icon={<FilePenLine size={13} />}
+                    onClick={() => onEditTextFile(entry)}
+                  >
+                    {t('files.openTextEditor')}
+                  </Button>
+                </dd>
+              </div>
+            ) : null}
             <div>
               <dt>{t('files.modified')}</dt>
               <dd>{renderFileDetailValue(formatDate(entry.modified_at))}</dd>

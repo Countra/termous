@@ -46,6 +46,9 @@ import type {
   OverwritePolicy,
   RemoteDirectoryListing,
   RemoteFileEntry,
+  RemoteTextFile,
+  RemoteTextSaveRequest,
+  RemoteTextSaveResult,
   Session,
   Settings,
   TerminalFont,
@@ -597,6 +600,21 @@ export class TermousApi {
   statFileSessionFile(fileSessionId: string, path: string) {
     const query = new URLSearchParams({ path })
     return this.request<RemoteFileEntry>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/stat?${query.toString()}`)
+  }
+
+  openFileSessionTextFile(fileSessionId: string, path: string) {
+    const query = new URLSearchParams({ path })
+    return this.request<RemoteTextFile>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text?${query.toString()}`, {
+      timeoutMs: 90_000,
+    })
+  }
+
+  saveFileSessionTextFile(fileSessionId: string, body: RemoteTextSaveRequest) {
+    return this.request<RemoteTextSaveResult>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text`, {
+      method: 'PUT',
+      body,
+      timeoutMs: 90_000,
+    })
   }
 
   mkdirFileSessionFile(fileSessionId: string, path: string) {

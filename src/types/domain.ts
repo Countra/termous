@@ -75,6 +75,43 @@ export interface RemoteDirectoryListing {
   read_at: string
 }
 
+export type RemoteTextEncoding = 'utf-8'
+
+export type RemoteTextLineEnding = 'lf' | 'crlf' | 'cr' | 'mixed' | 'none'
+
+export interface RemoteTextFile {
+  file_session_id: string
+  path: string
+  name: string
+  content: string
+  encoding: RemoteTextEncoding
+  has_bom: boolean
+  line_ending: RemoteTextLineEnding
+  language?: string
+  size: number
+  sha256: string
+  modified_at?: string
+  mode?: string
+  permission_octal?: string
+  loaded_at: string
+}
+
+export interface RemoteTextSaveRequest {
+  path: string
+  content: string
+  base_sha256: string
+  base_size: number
+  base_modified_at?: string
+  line_ending: RemoteTextLineEnding
+  has_bom: boolean
+  force: boolean
+}
+
+export interface RemoteTextSaveResult {
+  file: RemoteTextFile
+  entry: RemoteFileEntry
+}
+
 export type FileSessionStatus = 'connecting' | 'connected' | 'waiting_trust' | 'disconnected' | 'failed'
 
 export type FileSessionPhase =
