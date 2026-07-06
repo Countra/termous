@@ -1,6 +1,7 @@
-import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Tooltip, Tree } from 'antd'
+import { App as AntdApp, Button, Empty, Input, Modal, Tooltip, Tree } from 'antd'
 import {
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   ChevronLeft,
   ChevronRight,
@@ -10,14 +11,15 @@ import {
   FolderOpen,
   FolderPlus,
   HardDrive,
-  Pencil,
+  LockKeyhole,
+  RefreshCw,
   Search,
-  Trash2,
 } from 'lucide-react'
 import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type DragEvent,
   type Key,
@@ -45,13 +47,17 @@ interface LocalPathMappingsPanelProps {
   onToggleCollapsed: () => void
   onResizePointerDown?: (event: PointerEvent<HTMLDivElement>) => void
   onCreateMapping: (input: LocalPathMappingInput) => Promise<LocalPathMapping>
-  onUpdateMapping: (id: string, input: LocalPathMappingInput) => Promise<LocalPathMapping>
-  onDeleteMapping: (id: string) => Promise<void>
   onReorderMappings: (items: LocalPathMappingReorderItem[]) => Promise<LocalPathMapping[]>
   onDownloadToLocalDir: (remotePaths: string[], localDir: string) => Promise<void>
+  refreshRequests: LocalPathRefreshRequest[]
 }
 
-type MappingDraft = LocalPathMappingInput & { id?: string }
+export interface LocalPathRefreshRequest {
+  id: string
+  targetPath: string
+}
+
+type MappingDraft = LocalPathMappingInput
 
 const emptyChildrenByPath: Record<string, LocalTreeEntry[]> = {}
 
@@ -73,21 +79,22 @@ export function LocalPathMappingsPanel({
   onToggleCollapsed,
   onResizePointerDown,
   onCreateMapping,
-  onUpdateMapping,
-  onDeleteMapping,
   onReorderMappings,
   onDownloadToLocalDir,
+  refreshRequests,
 }: LocalPathMappingsPanelProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const [query, setQuery] = useState('')
   const [selectedMappingId, setSelectedMappingId] = useState('')
+  const [detailMappingId, setDetailMappingId] = useState('')
   const [draft, setDraft] = useState<MappingDraft | null>(null)
   const [saving, setSaving] = useState(false)
   const [childrenByMapping, setChildrenByMapping] = useState<Record<string, Record<string, LocalTreeEntry[]>>>({})
   const [expandedKeys, setExpandedKeys] = useState<Key[]>([])
   const [loadingPath, setLoadingPath] = useState('')
   const [dropTargetPath, setDropTargetPath] = useState('')
+  const processedRefreshRequestIdsRef = useRef(new Set<string>())
 
   const visibleMappings = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -97,12 +104,16 @@ export function LocalPathMappingsPanel({
     return mappings.filter((mapping) => `${mapping.name} ${mapping.path}`.toLowerCase().includes(normalizedQuery))
   }, [mappings, query])
   const selectedMapping = useMemo(
-    () => mappings.find((mapping) => mapping.id === selectedMappingId) ?? mappings[0] ?? null,
+    () => mappings.find((mapping) => mapping.id === selectedMappingId) ?? null,
     [mappings, selectedMappingId],
   )
-  const selectedChildrenByPath = useMemo(
-    () => selectedMapping ? childrenByMapping[selectedMapping.id] ?? emptyChildrenByPath : emptyChildrenByPath,
-    [childrenByMapping, selectedMapping],
+  const detailMapping = useMemo(
+    () => mappings.find((mapping) => mapping.id === detailMappingId) ?? null,
+    [mappings, detailMappingId],
+  )
+  const detailChildrenByPath = useMemo(
+    () => detailMapping ? childrenByMapping[detailMapping.id] ?? emptyChildrenByPath : emptyChildrenByPath,
+    [childrenByMapping, detailMapping],
   )
   const selectedIndex = selectedMapping ? mappings.findIndex((mapping) => mapping.id === selectedMapping.id) : -1
   const contentCollapsed = collapsed
@@ -136,24 +147,61 @@ export function LocalPathMappingsPanel({
   }, [api, notifyError])
 
   useEffect(() => {
-    if (!selectedMapping || mappings.some((mapping) => mapping.id === selectedMappingId)) {
+    if (!selectedMappingId || mappings.some((mapping) => mapping.id === selectedMappingId)) {
       return
     }
-    setSelectedMappingId(selectedMapping.id)
-  }, [mappings, selectedMapping, selectedMappingId])
+    setSelectedMappingId('')
+  }, [mappings, selectedMappingId])
 
   useEffect(() => {
-    if (!selectedMapping || !selectedMapping.available || selectedChildrenByPath[selectedMapping.path]) {
+    if (!detailMappingId || mappings.some((mapping) => mapping.id === detailMappingId)) {
       return
     }
-    void loadChildren(selectedMapping, selectedMapping.path)
-  }, [loadChildren, selectedChildrenByPath, selectedMapping])
+    setDetailMappingId('')
+  }, [detailMappingId, mappings])
 
   useEffect(() => {
-    if (selectedMapping) {
-      setExpandedKeys((current) => current.includes(selectedMapping.path) ? current : [selectedMapping.path, ...current])
+    if (!detailMapping || !detailMapping.available || detailChildrenByPath[detailMapping.path]) {
+      return
     }
-  }, [selectedMapping])
+    void loadChildren(detailMapping, detailMapping.path)
+  }, [detailChildrenByPath, detailMapping, loadChildren])
+
+  useEffect(() => {
+    if (detailMapping) {
+      setExpandedKeys((current) => current.includes(detailMapping.path) ? current : [detailMapping.path, ...current])
+    }
+  }, [detailMapping])
+
+  useEffect(() => {
+    const activeRequestIds = new Set(refreshRequests.map((request) => request.id))
+    processedRefreshRequestIdsRef.current.forEach((requestId) => {
+      if (!activeRequestIds.has(requestId)) {
+        processedRefreshRequestIdsRef.current.delete(requestId)
+      }
+    })
+  }, [refreshRequests])
+
+  useEffect(() => {
+    if (!detailMapping || !detailMapping.available || refreshRequests.length === 0) {
+      return
+    }
+
+    const refreshPaths = new Map<string, string>()
+    const loadedPaths = Object.keys(detailChildrenByPath)
+    refreshRequests.forEach((request) => {
+      if (processedRefreshRequestIdsRef.current.has(request.id) || !isLocalPathWithin(request.targetPath, detailMapping.path)) {
+        return
+      }
+      processedRefreshRequestIdsRef.current.add(request.id)
+      const refreshPath = localTreeLoadedPath(request.targetPath, loadedPaths) ?? request.targetPath
+      refreshPaths.set(normalizeLocalPathForCompare(refreshPath), refreshPath)
+    })
+
+    refreshPaths.forEach((path) => {
+      void loadChildren(detailMapping, path)
+    })
+  }, [detailChildrenByPath, detailMapping, loadChildren, refreshRequests])
 
   const chooseDirectory = async () => {
     const paths = await window.termous?.files?.pickDirectory()
@@ -162,7 +210,6 @@ export function LocalPathMappingsPanel({
       return
     }
     setDraft((current) => ({
-      id: current?.id,
       name: current?.name?.trim() || localPathDisplayName(path),
       path,
     }))
@@ -172,8 +219,10 @@ export function LocalPathMappingsPanel({
     setDraft({ name: '', path: '' })
   }
 
-  const openEdit = (mapping: LocalPathMapping) => {
-    setDraft({ id: mapping.id, name: mapping.name, path: mapping.path })
+  const openDetail = (mapping: LocalPathMapping) => {
+    setSelectedMappingId(mapping.id)
+    setDetailMappingId(mapping.id)
+    setExpandedKeys((current) => current.includes(mapping.path) ? current : [mapping.path, ...current])
   }
 
   const saveDraft = async () => {
@@ -193,26 +242,13 @@ export function LocalPathMappingsPanel({
     }
     setSaving(true)
     try {
-      const saved = draft.id ? await onUpdateMapping(draft.id, input) : await onCreateMapping(input)
+      const saved = await onCreateMapping(input)
       setSelectedMappingId(saved.id)
       setDraft(null)
     } catch (error) {
       notifyError(error)
     } finally {
       setSaving(false)
-    }
-  }
-
-  const deleteMapping = async (mapping: LocalPathMapping) => {
-    try {
-      await onDeleteMapping(mapping.id)
-      setChildrenByMapping((current) => {
-        const next = { ...current }
-        delete next[mapping.id]
-        return next
-      })
-    } catch (error) {
-      notifyError(error)
     }
   }
 
@@ -273,8 +309,36 @@ export function LocalPathMappingsPanel({
     setDropTargetPath(targetPath)
   }, [remoteDragMime, remoteDragPaths])
 
+  const toggleTreeDirectory = useCallback((path: string) => {
+    if (!detailMapping) {
+      return
+    }
+    setExpandedKeys((current) => {
+      if (current.includes(path)) {
+        return current.filter((key) => key !== path)
+      }
+      return [...current, path]
+    })
+    if (!detailChildrenByPath[path]) {
+      void loadChildren(detailMapping, path)
+    }
+  }, [detailChildrenByPath, detailMapping, loadChildren])
+
+  const refreshCurrentTree = useCallback(() => {
+    if (!detailMapping) {
+      return
+    }
+    setChildrenByMapping((current) => {
+      const next = { ...current }
+      delete next[detailMapping.id]
+      return next
+    })
+    setExpandedKeys([detailMapping.path])
+    void loadChildren(detailMapping, detailMapping.path)
+  }, [detailMapping, loadChildren])
+
   const treeData = useMemo(() => {
-    if (!selectedMapping) {
+    if (!detailMapping) {
       return []
     }
     const buildNode = (entry: LocalTreeEntry): LocalTreeNode => ({
@@ -284,33 +348,42 @@ export function LocalPathMappingsPanel({
           name={entry.name}
           path={entry.path}
           kind={entry.kind}
-          active={dropTargetPath === entry.path}
-          onDragOver={(event) => prepareLocalDrop(entry.path, event)}
-          onDragLeave={() => setDropTargetPath((current) => current === entry.path ? '' : current)}
-          onDrop={(event) => void handleLocalDrop(entry.path, event)}
+          expanded={expandedKeys.includes(entry.path)}
+          expandable={entry.kind === 'directory' && entry.has_children}
+          active={entry.kind === 'directory' && dropTargetPath === entry.path}
+          onToggle={() => toggleTreeDirectory(entry.path)}
+          onDragOver={(event) => prepareLocalDrop(localTreeDropTargetPath(entry.path, entry.kind), event)}
+          onDragLeave={() => {
+            const targetPath = localTreeDropTargetPath(entry.path, entry.kind)
+            setDropTargetPath((current) => current === targetPath ? '' : current)
+          }}
+          onDrop={(event) => void handleLocalDrop(localTreeDropTargetPath(entry.path, entry.kind), event)}
         />
       ),
       isLeaf: entry.kind !== 'directory' || !entry.has_children,
-      children: entry.kind === 'directory' ? (selectedChildrenByPath[entry.path] ?? []).map(buildNode) : undefined,
+      children: entry.kind === 'directory' ? (detailChildrenByPath[entry.path] ?? []).map(buildNode) : undefined,
     })
     return [{
-      key: selectedMapping.path,
+      key: detailMapping.path,
       title: (
         <LocalTreeTitle
-          name={selectedMapping.name}
-          path={selectedMapping.path}
+          name={detailMapping.name}
+          path={detailMapping.path}
           kind="directory"
           root
-          active={dropTargetPath === selectedMapping.path}
-          onDragOver={(event) => prepareLocalDrop(selectedMapping.path, event)}
-          onDragLeave={() => setDropTargetPath((current) => current === selectedMapping.path ? '' : current)}
-          onDrop={(event) => void handleLocalDrop(selectedMapping.path, event)}
+          expanded={expandedKeys.includes(detailMapping.path)}
+          expandable
+          active={dropTargetPath === detailMapping.path}
+          onToggle={() => toggleTreeDirectory(detailMapping.path)}
+          onDragOver={(event) => prepareLocalDrop(detailMapping.path, event)}
+          onDragLeave={() => setDropTargetPath((current) => current === detailMapping.path ? '' : current)}
+          onDrop={(event) => void handleLocalDrop(detailMapping.path, event)}
         />
       ),
       isLeaf: false,
-      children: (selectedChildrenByPath[selectedMapping.path] ?? []).map(buildNode),
+      children: (detailChildrenByPath[detailMapping.path] ?? []).map(buildNode),
     }]
-  }, [dropTargetPath, handleLocalDrop, prepareLocalDrop, selectedChildrenByPath, selectedMapping])
+  }, [detailChildrenByPath, detailMapping, dropTargetPath, expandedKeys, handleLocalDrop, prepareLocalDrop, toggleTreeDirectory])
 
   return (
     <aside
@@ -328,67 +401,62 @@ export function LocalPathMappingsPanel({
           icon={collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
         />
       </Tooltip>
-      <div className="panel-heading">
-        <div className="panel-title-copy">
-          <h2>{contentCollapsed ? t('files.localMappingsShort') : t('files.localMappings')}</h2>
-          {!contentCollapsed ? <span>{t('files.localMappingsHint')}</span> : null}
-        </div>
-      </div>
       {!contentCollapsed ? (
         <>
           <div className="host-context-content-before">{tabs}</div>
-          <Input
-            id="local-path-mapping-search"
-            name="local-path-mapping-search"
-            className="host-search-input host-context-search termous-search-input"
-            value={query}
-            allowClear
-            variant="borderless"
-            onChange={(event) => setQuery(event.target.value)}
-            prefix={<Search size={15} aria-hidden="true" />}
-            placeholder={t('files.localMappingsSearch')}
-          />
-          <div className="local-path-actions">
-            <Button className="secondary-button" icon={<FolderPlus size={15} aria-hidden="true" />} onClick={openCreate}>
-              {t('files.addLocalMapping')}
-            </Button>
-            <Button className="secondary-button" disabled={!selectedMapping || selectedIndex <= 0} icon={<ArrowUp size={15} aria-hidden="true" />} onClick={() => void moveMapping(-1)} />
-            <Button className="secondary-button" disabled={!selectedMapping || selectedIndex < 0 || selectedIndex >= mappings.length - 1} icon={<ArrowDown size={15} aria-hidden="true" />} onClick={() => void moveMapping(1)} />
-          </div>
-          {mappings.length === 0 ? (
-            <EmptyState title={t('files.noLocalMappings')} description={t('files.noLocalMappingsHint')} />
-          ) : (
-            <div className="local-path-layout">
-              <div className="local-path-list">
-                {visibleMappings.length === 0 ? (
-                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('files.noLocalMappingResults')} />
-                ) : (
-                  visibleMappings.map((mapping) => (
-                    <MappingRow
-                      key={mapping.id}
-                      mapping={mapping}
-                      active={mapping.id === selectedMapping?.id}
-                      dropTarget={dropTargetPath === mapping.path}
-                      onSelect={() => setSelectedMappingId(mapping.id)}
-                      onEdit={() => openEdit(mapping)}
-                      onDelete={() => void deleteMapping(mapping)}
-                      onDragOver={(event) => prepareLocalDrop(mapping.path, event)}
-                      onDragLeave={() => setDropTargetPath((current) => current === mapping.path ? '' : current)}
-                      onDrop={(event) => void handleLocalDrop(mapping.path, event)}
-                    />
-                  ))
-                )}
+          {detailMapping ? (
+            <div className="local-path-detail">
+              <div className="local-path-detail-nav">
+                <Button
+                  type="text"
+                  className="local-path-back-button"
+                  icon={<ArrowLeft size={15} aria-hidden="true" />}
+                  onClick={() => {
+                    setDetailMappingId('')
+                    setDropTargetPath('')
+                  }}
+                >
+                  {t('files.backToLocalMappings')}
+                </Button>
               </div>
-              {selectedMapping ? (
+              <section
+                className={`local-path-detail-summary ${dropTargetPath === detailMapping.path ? 'is-drop-target' : ''} ${
+                  detailMapping.available ? '' : 'is-unavailable'
+                }`}
+                onDragOver={(event) => prepareLocalDrop(detailMapping.path, event)}
+                onDragLeave={() => setDropTargetPath((current) => current === detailMapping.path ? '' : current)}
+                onDrop={(event) => void handleLocalDrop(detailMapping.path, event)}
+              >
+                <span className="local-path-detail-icon">
+                  <HardDrive size={17} aria-hidden="true" />
+                </span>
+                <span className="local-path-detail-copy">
+                  <strong>{detailMapping.name}</strong>
+                  <Tooltip title={detailMapping.path} placement="topLeft" mouseEnterDelay={0.35} classNames={{ root: 'file-name-tooltip' }}>
+                    <small>{detailMapping.path}</small>
+                  </Tooltip>
+                </span>
+                <span className="local-path-readonly-badge">
+                  <LockKeyhole size={12} aria-hidden="true" />
+                  {t('files.localMappingReadonly')}
+                </span>
+              </section>
+              {detailMapping.available ? (
                 <div className="local-path-tree-card">
                   <div className="local-path-tree-head">
                     <span>
                       <FolderOpen size={15} aria-hidden="true" />
                       {t('files.localTree')}
                     </span>
-                    <Tooltip title={selectedMapping.path}>
-                      <code>{selectedMapping.path}</code>
-                    </Tooltip>
+                    <Button
+                      type="text"
+                      size="small"
+                      className="local-path-tree-refresh"
+                      icon={<RefreshCw size={14} aria-hidden="true" />}
+                      loading={loadingPath === detailMapping.path}
+                      onClick={refreshCurrentTree}
+                      aria-label={t('app.reload')}
+                    />
                   </div>
                   <Tree
                     className="local-path-tree"
@@ -396,24 +464,73 @@ export function LocalPathMappingsPanel({
                     expandedKeys={expandedKeys}
                     selectable={false}
                     blockNode
+                    switcherIcon={null}
                     loadData={(node) => {
                       const path = String(node.key)
-                      return !selectedMapping.available || selectedChildrenByPath[path] ? Promise.resolve() : loadChildren(selectedMapping, path)
+                      return detailChildrenByPath[path] ? Promise.resolve() : loadChildren(detailMapping, path)
                     }}
                     onExpand={(keys) => setExpandedKeys(keys)}
                   />
                   {loadingPath ? <span className="local-path-loading">{t('files.localTreeLoading')}</span> : null}
                 </div>
-              ) : null}
+              ) : (
+                <EmptyState title={t('files.localUnavailable')} description={t('files.localTreeUnavailable')} />
+              )}
             </div>
+          ) : (
+            <>
+              <Input
+                id="local-path-mapping-search"
+                name="local-path-mapping-search"
+                className="host-search-input host-context-search termous-search-input"
+                value={query}
+                allowClear
+                variant="borderless"
+                onChange={(event) => setQuery(event.target.value)}
+                prefix={<Search size={15} aria-hidden="true" />}
+                placeholder={t('files.localMappingsSearch')}
+              />
+              <div className="local-path-actions">
+                <Button className="secondary-button" icon={<FolderPlus size={15} aria-hidden="true" />} onClick={openCreate}>
+                  {t('files.addLocalMapping')}
+                </Button>
+                <Button className="secondary-button" disabled={!selectedMapping || selectedIndex <= 0} icon={<ArrowUp size={15} aria-hidden="true" />} onClick={() => void moveMapping(-1)} />
+                <Button className="secondary-button" disabled={!selectedMapping || selectedIndex < 0 || selectedIndex >= mappings.length - 1} icon={<ArrowDown size={15} aria-hidden="true" />} onClick={() => void moveMapping(1)} />
+              </div>
+              {mappings.length === 0 ? (
+                <EmptyState title={t('files.noLocalMappings')} description={t('files.noLocalMappingsHint')} />
+              ) : (
+                <div className="local-path-layout">
+                  <div className="local-path-list">
+                    {visibleMappings.length === 0 ? (
+                      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('files.noLocalMappingResults')} />
+                    ) : (
+                      visibleMappings.map((mapping) => (
+                        <MappingRow
+                          key={mapping.id}
+                          mapping={mapping}
+                          active={mapping.id === selectedMapping?.id}
+                          dropTarget={dropTargetPath === mapping.path}
+                          onSelect={() => setSelectedMappingId(mapping.id)}
+                          onOpenDetail={() => openDetail(mapping)}
+                          onDragOver={(event) => prepareLocalDrop(mapping.path, event)}
+                          onDragLeave={() => setDropTargetPath((current) => current === mapping.path ? '' : current)}
+                          onDrop={(event) => void handleLocalDrop(mapping.path, event)}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       ) : null}
       <Modal
         open={Boolean(draft)}
-        title={draft?.id ? t('files.editLocalMapping') : t('files.addLocalMapping')}
+        title={t('files.addLocalMapping')}
         className="termous-modal files-local-path-modal"
-        okText={draft?.id ? t('app.save') : t('app.create')}
+        okText={t('app.create')}
         cancelText={t('app.cancel')}
         confirmLoading={saving}
         onCancel={() => setDraft(null)}
@@ -448,8 +565,7 @@ function MappingRow({
   active,
   dropTarget,
   onSelect,
-  onEdit,
-  onDelete,
+  onOpenDetail,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -458,8 +574,7 @@ function MappingRow({
   active: boolean
   dropTarget: boolean
   onSelect: () => void
-  onEdit: () => void
-  onDelete: () => void
+  onOpenDetail: () => void
   onDragOver: (event: DragEvent<HTMLElement>) => void
   onDragLeave: () => void
   onDrop: (event: DragEvent<HTMLElement>) => void
@@ -471,6 +586,7 @@ function MappingRow({
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
+      onDoubleClick={onOpenDetail}
     >
       <button type="button" className="local-path-row-main" onClick={onSelect}>
         <span className="local-path-row-icon">
@@ -480,13 +596,17 @@ function MappingRow({
           <strong>{mapping.name}</strong>
           <small>{mapping.path}</small>
         </span>
-        {!mapping.available ? <em>{t('files.localUnavailable')}</em> : null}
       </button>
-      <div className="local-path-row-actions">
-        <Button size="small" type="text" icon={<Pencil size={14} aria-hidden="true" />} onClick={onEdit} />
-        <Popconfirm title={t('files.deleteLocalMappingTitle')} okText={t('app.delete')} cancelText={t('app.cancel')} onConfirm={onDelete}>
-          <Button size="small" type="text" danger icon={<Trash2 size={14} aria-hidden="true" />} />
-        </Popconfirm>
+      <div className="local-path-row-footer">
+        <Button
+          className="local-path-open-button"
+          size="small"
+          type="text"
+          icon={<FolderOpen size={14} aria-hidden="true" />}
+          onClick={onOpenDetail}
+        >
+          {t('files.viewLocalTree')}
+        </Button>
       </div>
     </article>
   )
@@ -497,7 +617,10 @@ function LocalTreeTitle({
   path,
   kind,
   root = false,
+  expanded,
+  expandable,
   active,
+  onToggle,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -506,21 +629,47 @@ function LocalTreeTitle({
   path: string
   kind: string
   root?: boolean
+  expanded: boolean
+  expandable: boolean
   active: boolean
+  onToggle: () => void
   onDragOver: (event: DragEvent<HTMLElement>) => void
   onDragLeave: () => void
   onDrop: (event: DragEvent<HTMLElement>) => void
 }) {
-  const icon = kind === 'directory' ? <Folder size={14} aria-hidden="true" /> : <File size={14} aria-hidden="true" />
+  const isDirectory = kind === 'directory'
+  const icon = isDirectory
+    ? expanded ? <FolderOpen size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />
+    : <File size={14} aria-hidden="true" />
+
+  const toggle = () => {
+    if (expandable) {
+      onToggle()
+    }
+  }
+
   return (
-    <Tooltip title={path} placement="topLeft" mouseEnterDelay={0.35} overlayClassName="file-name-tooltip">
+    <Tooltip title={path} placement="topLeft" mouseEnterDelay={0.35} classNames={{ root: 'file-name-tooltip' }}>
       <span
-        className={`local-path-tree-title ${root ? 'is-root' : ''} ${active ? 'is-drop-target' : ''}`}
+        className={`local-path-tree-title ${root ? 'is-root' : ''} ${isDirectory ? 'is-directory' : 'is-file'} ${
+          expanded ? 'is-expanded' : ''
+        } ${active ? 'is-drop-target' : ''}`}
+        role={expandable ? 'button' : undefined}
+        tabIndex={expandable ? 0 : undefined}
+        aria-expanded={expandable ? expanded : undefined}
+        onClick={toggle}
+        onKeyDown={(event) => {
+          if (!expandable || (event.key !== 'Enter' && event.key !== ' ')) {
+            return
+          }
+          event.preventDefault()
+          onToggle()
+        }}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
       >
-        <span className="local-path-tree-icon">{icon}</span>
+        <span className="local-path-tree-icon" data-empty={!expandable ? 'true' : undefined}>{icon}</span>
         <span className="local-path-tree-copy">{name}</span>
         {active ? <span className="local-path-drop-badge"><Download size={12} aria-hidden="true" /></span> : null}
       </span>
@@ -532,4 +681,40 @@ function localPathDisplayName(path: string) {
   const trimmed = path.trim().replace(/[\\/]+$/, '')
   const parts = trimmed.split(/[\\/]/).filter(Boolean)
   return parts[parts.length - 1] || trimmed || path
+}
+
+function localTreeDropTargetPath(path: string, kind: string) {
+  return kind === 'directory' ? path : localParentPath(path)
+}
+
+function localParentPath(path: string) {
+  const trimmed = path.trim().replace(/[\\/]+$/, '')
+  const separatorIndex = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'))
+  if (separatorIndex < 0) {
+    return trimmed || path
+  }
+  const parent = trimmed.slice(0, separatorIndex + 1)
+  if (/^[a-zA-Z]:[\\/]$/.test(parent) || parent === '/' || parent === '\\') {
+    return parent
+  }
+  return trimmed.slice(0, separatorIndex)
+}
+
+function localTreeLoadedPath(targetPath: string, loadedPaths: string[]) {
+  const normalizedTarget = normalizeLocalPathForCompare(targetPath)
+  return loadedPaths.find((path) => normalizeLocalPathForCompare(path) === normalizedTarget)
+}
+
+function isLocalPathWithin(path: string, rootPath: string) {
+  const normalizedPath = normalizeLocalPathForCompare(path)
+  const normalizedRoot = normalizeLocalPathForCompare(rootPath)
+  if (normalizedRoot === '/') {
+    return normalizedPath.startsWith('/')
+  }
+  return normalizedPath === normalizedRoot || normalizedPath.startsWith(`${normalizedRoot}/`)
+}
+
+function normalizeLocalPathForCompare(path: string) {
+  const normalized = path.trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  return normalized || '/'
 }

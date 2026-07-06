@@ -69,7 +69,7 @@ import type {
 } from '../../types/domain'
 import { fileSortValue, formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
 import { FileBookmarksPanel } from './FileBookmarksPanel'
-import { LocalPathMappingsPanel } from './LocalPathMappingsPanel'
+import { LocalPathMappingsPanel, type LocalPathRefreshRequest } from './LocalPathMappingsPanel'
 import { TransferQueuePanel } from './TransferQueuePanel'
 import { useTransferQueue } from './useTransferQueue'
 
@@ -94,8 +94,6 @@ interface FilesPageProps {
   onDeleteFileBookmarkGroup: (id: string) => Promise<void>
   onReorderFileBookmarkGroups: (items: FileBookmarkGroupReorderItem[]) => Promise<FileBookmarkGroup[]>
   onCreateLocalPathMapping: (input: LocalPathMappingInput) => Promise<LocalPathMapping>
-  onUpdateLocalPathMapping: (id: string, input: LocalPathMappingInput) => Promise<LocalPathMapping>
-  onDeleteLocalPathMapping: (id: string) => Promise<void>
   onReorderLocalPathMappings: (items: LocalPathMappingReorderItem[]) => Promise<LocalPathMapping[]>
 }
 
@@ -113,6 +111,13 @@ interface FileSessionEventMessage {
 interface UploadRefreshTarget {
   fileSessionId: string
   targetPath: string
+}
+
+interface UploadRefreshGroup extends UploadRefreshTarget {
+  taskIds: string[]
+  hasActive: boolean
+  hasCompleted: boolean
+  hasTerminal: boolean
 }
 
 interface RemoteMoveDragState {
@@ -209,8 +214,6 @@ export function FilesPage({
   onDeleteFileBookmarkGroup,
   onReorderFileBookmarkGroups,
   onCreateLocalPathMapping,
-  onUpdateLocalPathMapping,
-  onDeleteLocalPathMapping,
   onReorderLocalPathMappings,
 }: FilesPageProps) {
   const { t } = useTranslation()
@@ -223,6 +226,7 @@ export function FilesPage({
   const autoScrollSpeedRef = useRef(0)
   const remoteMoveDragRef = useRef<RemoteMoveDragState | null>(null)
   const uploadRefreshTasksRef = useRef(new Map<string, UploadRefreshTarget>())
+  const downloadRefreshTasksRef = useRef(new Map<string, string>())
   const lastSessionLoadKeyRef = useRef('')
   const lastActiveFileSessionIdRef = useRef('')
   const fileSessionSocketsRef = useRef(new Map<string, WebSocket>())
@@ -239,6 +243,7 @@ export function FilesPage({
   const [dropTargetDirectoryPath, setDropTargetDirectoryPath] = useState<string | null>(null)
   const [remoteMoveDrag, setRemoteMoveDrag] = useState<RemoteMoveDragState | null>(null)
   const [remoteMoveTargetPath, setRemoteMoveTargetPath] = useState<string | null>(null)
+  const [localRefreshRequests, setLocalRefreshRequests] = useState<LocalPathRefreshRequest[]>([])
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
   const [permissionSaving, setPermissionSaving] = useState(false)
@@ -416,6 +421,13 @@ export function FilesPage({
     })
   }, [])
 
+  const trackDownloadRefreshTask = useCallback((task: TransferTask) => {
+    if (!isDownloadTransfer(task) || !task.target_path) {
+      return
+    }
+    downloadRefreshTasksRef.current.set(task.id, task.target_path)
+  }, [])
+
   useEffect(() => {
     if (!activeFileSession) {
       lastSessionLoadKeyRef.current = ''
@@ -449,8 +461,10 @@ export function FilesPage({
   }, [activeFileSession, loadDirectory])
 
   useEffect(() => {
+    const transferById = new Map(transfers.map((task) => [task.id, task]))
+
     transfers.forEach((task) => {
-      if (isUploadTransfer(task) && isTransferActive(task) && task.file_session_id) {
+      if (isUploadTransfer(task) && task.file_session_id) {
         uploadRefreshTasksRef.current.set(task.id, {
           fileSessionId: task.file_session_id,
           targetPath: normalizeRemotePath(task.target_path || '/'),
@@ -459,36 +473,98 @@ export function FilesPage({
     })
 
     const currentTargetPath = normalizeRemotePath(currentPath)
-    const terminalTaskIds: string[] = []
-    let hasCurrentCompletedUpload = false
-    let hasCurrentActiveUpload = false
+    const refreshGroups = new Map<string, UploadRefreshGroup>()
+    const missingTaskIds: string[] = []
 
     uploadRefreshTasksRef.current.forEach((target, taskId) => {
-      const task = transfers.find((item) => item.id === taskId)
+      const task = transferById.get(taskId)
       if (!task) {
+        missingTaskIds.push(taskId)
         return
       }
 
-      const isCurrentTarget = target.fileSessionId === activeFileSessionId && target.targetPath === currentTargetPath
-      if (isCurrentTarget && isTransferActive(task)) {
-        hasCurrentActiveUpload = true
+      const groupKey = `${target.fileSessionId}\u0000${target.targetPath}`
+      let group = refreshGroups.get(groupKey)
+      if (!group) {
+        group = {
+          ...target,
+          taskIds: [],
+          hasActive: false,
+          hasCompleted: false,
+          hasTerminal: false,
+        }
+        refreshGroups.set(groupKey, group)
       }
-      if (isCurrentTarget && isTransferTerminal(task)) {
-        hasCurrentCompletedUpload = true
+      group.taskIds.push(taskId)
+      if (isTransferActive(task)) {
+        group.hasActive = true
+      }
+      if (task.status === 'completed') {
+        group.hasCompleted = true
       }
       if (isTransferTerminal(task)) {
-        terminalTaskIds.push(taskId)
+        group.hasTerminal = true
       }
     })
 
-    terminalTaskIds.forEach((taskId) => {
+    missingTaskIds.forEach((taskId) => {
       uploadRefreshTasksRef.current.delete(taskId)
     })
 
-    if (fileSessionConnected && hasCurrentCompletedUpload && !hasCurrentActiveUpload) {
-      void loadDirectory(currentTargetPath)
-    }
+    refreshGroups.forEach((group) => {
+      if (group.hasActive || !group.hasTerminal) {
+        return
+      }
+
+      const isCurrentTarget = group.fileSessionId === activeFileSessionId && group.targetPath === currentTargetPath
+      if (group.hasCompleted && fileSessionConnected && isCurrentTarget) {
+        void loadDirectory(group.targetPath)
+      }
+
+      group.taskIds.forEach((taskId) => {
+        const task = transferById.get(taskId)
+        if (!task || isTransferTerminal(task)) {
+          uploadRefreshTasksRef.current.delete(taskId)
+        }
+      })
+    })
   }, [activeFileSessionId, currentPath, fileSessionConnected, loadDirectory, transfers])
+
+  useEffect(() => {
+    const transferById = new Map(transfers.map((task) => [task.id, task]))
+    transfers.forEach((task) => {
+      if (isDownloadTransfer(task) && task.target_path && (isTransferActive(task) || downloadRefreshTasksRef.current.has(task.id))) {
+        downloadRefreshTasksRef.current.set(task.id, task.target_path)
+      }
+    })
+
+    const completedRequests: LocalPathRefreshRequest[] = []
+    const taskIdsToDelete: string[] = []
+    downloadRefreshTasksRef.current.forEach((targetPath, taskId) => {
+      const task = transferById.get(taskId)
+      if (!task) {
+        taskIdsToDelete.push(taskId)
+        return
+      }
+      if (isTransferActive(task)) {
+        return
+      }
+      if (task.status === 'completed') {
+        completedRequests.push({ id: task.id, targetPath })
+      }
+      if (isTransferTerminal(task)) {
+        taskIdsToDelete.push(taskId)
+      }
+    })
+
+    taskIdsToDelete.forEach((taskId) => {
+      downloadRefreshTasksRef.current.delete(taskId)
+    })
+
+    if (completedRequests.length > 0) {
+      setLocalRefreshRequests((current) => [...current, ...completedRequests].slice(-50))
+    }
+  }, [transfers])
 
   useEffect(() => {
     const ids = new Set(fileSessionIds ? fileSessionIds.split('|') : [])
@@ -744,6 +820,7 @@ export function FilesPage({
     }
     await runFileAction(async () => {
       const task = await api.createFileSessionDownloadTransfer(activeFileSessionId, paths, localDir, 'rename')
+      trackDownloadRefreshTask(task)
       showTransferQueuePanel()
       upsertTransfer(task)
     }, t('files.transferCreated'))
@@ -1348,7 +1425,7 @@ export function FilesPage({
               {entry.kind === 'directory' ? <Folder size={16} /> : <File size={16} />}
             </span>
             {entry.kind === 'directory' ? (
-              <Tooltip title={fullName} placement="topLeft" mouseEnterDelay={0.35} overlayClassName="file-name-tooltip">
+              <Tooltip title={fullName} placement="topLeft" mouseEnterDelay={0.35} classNames={{ root: 'file-name-tooltip' }}>
                 <button
                   type="button"
                   className="file-name-button"
@@ -1361,7 +1438,7 @@ export function FilesPage({
                 </button>
               </Tooltip>
             ) : (
-              <Tooltip title={fullName} placement="topLeft" mouseEnterDelay={0.35} overlayClassName="file-name-tooltip">
+              <Tooltip title={fullName} placement="topLeft" mouseEnterDelay={0.35} classNames={{ root: 'file-name-tooltip' }}>
                 <span className="file-name-copy">{nameCopy}</span>
               </Tooltip>
             )}
@@ -1396,7 +1473,7 @@ export function FilesPage({
             },
           }}
           trigger={['click', 'contextMenu']}
-          overlayClassName="files-row-menu"
+          classNames={{ root: 'files-row-menu' }}
         >
           <Button
             type="text"
@@ -1453,10 +1530,9 @@ export function FilesPage({
           onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
           onResizePointerDown={hostPanelResize.beginResize}
           onCreateMapping={onCreateLocalPathMapping}
-          onUpdateMapping={onUpdateLocalPathMapping}
-          onDeleteMapping={onDeleteLocalPathMapping}
           onReorderMappings={onReorderLocalPathMappings}
           onDownloadToLocalDir={downloadPathsToLocalDir}
+          refreshRequests={localRefreshRequests}
         />
       )}
 
@@ -1970,7 +2046,7 @@ function renderFileDetailValue(value?: string | number | null) {
       title={display === '-' ? null : display}
       placement="topRight"
       mouseEnterDelay={0.35}
-      overlayClassName="file-detail-tooltip"
+      classNames={{ root: 'file-detail-tooltip' }}
     >
       <span className="files-detail-value">{display}</span>
     </Tooltip>
@@ -2235,6 +2311,10 @@ function permissionBitsToOctal(bits: PermissionBits) {
 
 function isUploadTransfer(task: TransferTask) {
   return task.type.startsWith('upload')
+}
+
+function isDownloadTransfer(task: TransferTask) {
+  return task.type.startsWith('download')
 }
 
 function isTransferActive(task: TransferTask) {

@@ -17,7 +17,7 @@ import {
   Sun,
   TerminalSquare,
 } from 'lucide-react'
-import { Button, Dropdown, Tooltip, type MenuProps } from 'antd'
+import { Button, Dropdown, Space, Tooltip, type MenuProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { LocalShell, PageKey, ThemeMode } from '../../types/domain'
 import { WindowControls } from './WindowControls'
@@ -164,22 +164,23 @@ export function AppShell({
           </div>
           <div className="topbar-actions">
             <div className="topbar-connect-group" aria-label={t('app.connect')}>
-              <Dropdown.Button
-                type="primary"
-                className="topbar-connect-dropdown-button"
-                trigger={['click']}
-                placement="bottomRight"
-                disabled={actionBusy}
-                overlayClassName="topbar-connect-dropdown"
-                menu={{ items: connectionMenuItems, onClick: handleConnectionMenuClick }}
-                icon={<ChevronDown size={15} aria-hidden="true" />}
-                onClick={onOpenConnectionLauncher}
-              >
-                <span className="topbar-connect-content">
-                  <Cable size={16} aria-hidden="true" />
-                  <span>{t('app.connect')}</span>
-                </span>
-              </Dropdown.Button>
+              <Space.Compact className="topbar-connect-dropdown-button">
+                <Button type="primary" disabled={actionBusy} onClick={onOpenConnectionLauncher}>
+                  <span className="topbar-connect-content">
+                    <Cable size={16} aria-hidden="true" />
+                    <span>{t('app.connect')}</span>
+                  </span>
+                </Button>
+                <Dropdown
+                  trigger={['click']}
+                  placement="bottomRight"
+                  disabled={actionBusy}
+                  classNames={{ root: 'topbar-connect-dropdown' }}
+                  menu={{ items: connectionMenuItems, onClick: handleConnectionMenuClick }}
+                >
+                  <Button type="primary" disabled={actionBusy} aria-label={t('app.connect')} icon={<ChevronDown size={15} aria-hidden="true" />} />
+                </Dropdown>
+              </Space.Compact>
             </div>
             <span className="topbar-action-divider" aria-hidden="true" />
             <Tooltip title={t('app.reload')}>

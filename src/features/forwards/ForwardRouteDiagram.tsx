@@ -88,7 +88,7 @@ function ForwardEndpoint({
     </button>
   )
   return (
-    <Tooltip title={value} mouseEnterDelay={0.25} overlayClassName="forward-route-tooltip">
+    <Tooltip title={value} mouseEnterDelay={0.25} classNames={{ root: 'forward-route-tooltip' }}>
       {content}
     </Tooltip>
   )

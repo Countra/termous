@@ -75,7 +75,7 @@ export function FeatureSidePanel<Key extends string>({
       <div className={`details-content-shell ${collapsed ? 'is-hidden' : ''}`} aria-hidden={collapsed}>
         <Tabs
           className="details-tabs"
-          popupClassName={popupClassName}
+          classNames={{ popup: { root: popupClassName } }}
           size="small"
           activeKey={activeKey}
           destroyOnHidden={false}

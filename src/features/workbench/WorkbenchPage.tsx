@@ -1015,7 +1015,7 @@ export function WorkbenchPage({
                                 placement="bottomLeft"
                                 arrow={false}
                                 trigger="click"
-                                overlayClassName="session-tab-color-popover"
+                                classNames={{ root: 'session-tab-color-popover' }}
                                 onOpenChange={(open) => {
                                   if (!open && colorSessionId === session.id) {
                                     setColorSessionId(null)
@@ -1079,7 +1079,7 @@ export function WorkbenchPage({
                     trigger="click"
                     placement="bottomLeft"
                     arrow={false}
-                    overlayClassName="session-quick-connect-popover"
+                    classNames={{ root: 'session-quick-connect-popover' }}
                     onOpenChange={(open) => setQuickConnectOpen(open)}
                     content={(
                       <QuickConnectHostPanel
