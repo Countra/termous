@@ -445,12 +445,12 @@ export function FilesPage({
       setActiveEntry(null)
       return
     }
-    const nextPath = normalizeRemotePath(activeFileSession.current_path || '/')
     const sessionChanged = lastActiveFileSessionIdRef.current !== activeFileSession.id
     lastActiveFileSessionIdRef.current = activeFileSession.id
-    setCurrentPath(nextPath)
-    setPathInput(nextPath)
     if (sessionChanged) {
+      const nextPath = normalizeRemotePath(activeFileSession.current_path || '/')
+      setCurrentPath(nextPath)
+      setPathInput(nextPath)
       setEntries([])
       setSelectedPaths([])
       setActiveEntry(null)
@@ -462,6 +462,7 @@ export function FilesPage({
     const loadKey = `${activeFileSession.id}:${activeFileSession.connected_at ?? ''}`
     if (lastSessionLoadKeyRef.current !== loadKey) {
       lastSessionLoadKeyRef.current = loadKey
+      const nextPath = normalizeRemotePath(activeFileSession.current_path || '/')
       void loadDirectory(nextPath)
     }
   }, [activeFileSession, loadDirectory])
@@ -968,9 +969,16 @@ export function FilesPage({
   }
 
   const handleTextFileSaved = (entry: RemoteFileEntry) => {
+    const refreshPath = currentPath
     setEntries((current) => current.map((item) => (item.path === entry.path ? entry : item)))
     setActiveEntry(entry)
     setSelectedPaths([entry.path])
+    if (activeFileSessionId && fileSessionConnected) {
+      void loadDirectory(refreshPath).then(() => {
+        setActiveEntry(entry)
+        setSelectedPaths([entry.path])
+      })
+    }
   }
 
   const applyPermissions = async (entry: RemoteFileEntry, mode: string) => {
@@ -1394,16 +1402,22 @@ export function FilesPage({
   }
 
   const actionDisabled = !fileSessionConnected || loading
-  const rowMenu = (): MenuProps['items'] => [
-    { key: 'editText', icon: <FilePenLine size={14} />, label: t('files.editText') },
-    { key: 'download', icon: <Download size={14} />, label: t('files.download') },
-    { key: 'copy', icon: <Copy size={14} />, label: t('files.copy') },
-    { key: 'cut', icon: <Scissors size={14} />, label: t('files.cut') },
-    { key: 'permissions', icon: <ShieldCheck size={14} />, label: t('files.editPermissions') },
-    { key: 'rename', icon: <Pencil size={14} />, label: t('files.rename') },
-    { type: 'divider' },
-    { key: 'delete', danger: true, icon: <Trash2 size={14} />, label: t('app.delete') },
-  ]
+  const rowMenu = (entry: RemoteFileEntry): MenuProps['items'] => {
+    const items: NonNullable<MenuProps['items']> = []
+    if (entry.kind === 'file') {
+      items.push({ key: 'editText', icon: <FilePenLine size={14} />, label: t('files.editText') })
+    }
+    items.push(
+      { key: 'download', icon: <Download size={14} />, label: t('files.download') },
+      { key: 'copy', icon: <Copy size={14} />, label: t('files.copy') },
+      { key: 'cut', icon: <Scissors size={14} />, label: t('files.cut') },
+      { key: 'permissions', icon: <ShieldCheck size={14} />, label: t('files.editPermissions') },
+      { key: 'rename', icon: <Pencil size={14} />, label: t('files.rename') },
+      { type: 'divider' },
+      { key: 'delete', danger: true, icon: <Trash2 size={14} />, label: t('app.delete') },
+    )
+    return items
+  }
 
   const beginFileColumnResize = (key: FileColumnKey, event: MouseEvent<HTMLSpanElement>) => {
     event.preventDefault()
@@ -1492,7 +1506,7 @@ export function FilesPage({
       render: (_: unknown, entry: RemoteFileEntry) => (
         <Dropdown
           menu={{
-            items: rowMenu(),
+            items: rowMenu(entry),
             onClick: ({ key }) => {
               setSelectedPaths([entry.path])
               if (key === 'editText') openTextEditor(entry)
@@ -1688,14 +1702,6 @@ export function FilesPage({
               {t('files.uploadFolder')}
             </Button>
             <Button
-              className="secondary-button"
-              disabled={actionDisabled || selectedEntries.length !== 1 || selectedEntries[0]?.kind !== 'file'}
-              icon={<FilePenLine size={15} />}
-              onClick={() => openTextEditor()}
-            >
-              {t('files.editText')}
-            </Button>
-            <Button
               type="primary"
               className="primary-button"
               disabled={selectedPaths.length === 0}
@@ -1818,7 +1824,6 @@ export function FilesPage({
               <FileDetailPanel
                 host={activeFileSessionHost ?? selectedHost}
                 entry={activeEntry ?? selectedEntries[0] ?? null}
-                onEditTextFile={openTextEditor}
                 onEditPermissions={openPermissions}
               />
             ),
@@ -1994,12 +1999,10 @@ function ResizableFileHeaderCell({
 function FileDetailPanel({
   host,
   entry,
-  onEditTextFile,
   onEditPermissions,
 }: {
   host?: Host
   entry: RemoteFileEntry | null
-  onEditTextFile: (entry: RemoteFileEntry) => void
   onEditPermissions: (entry: RemoteFileEntry) => void
 }) {
   const { t } = useTranslation()
@@ -2050,22 +2053,6 @@ function FileDetailPanel({
                 </Button>
               </dd>
             </div>
-            {entry.kind === 'file' ? (
-              <div>
-                <dt>{t('files.editText')}</dt>
-                <dd>
-                  <Button
-                    type="text"
-                    size="small"
-                    className="files-inline-action"
-                    icon={<FilePenLine size={13} />}
-                    onClick={() => onEditTextFile(entry)}
-                  >
-                    {t('files.openTextEditor')}
-                  </Button>
-                </dd>
-              </div>
-            ) : null}
             <div>
               <dt>{t('files.modified')}</dt>
               <dd>{renderFileDetailValue(formatDate(entry.modified_at))}</dd>

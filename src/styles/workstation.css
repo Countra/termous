@@ -6128,15 +6128,27 @@ body.is-terminal-tab-dragging * {
   padding-top: 4px;
 }
 
-.remote-text-editor-modal .ant-modal-content {
+.remote-text-editor-root .remote-text-editor-modal.ant-modal {
+  --ant-modal-content-bg: #21252e;
+}
+
+:root[data-theme="light"] .remote-text-editor-root .remote-text-editor-modal.ant-modal {
+  --ant-modal-content-bg: #f7f9fc;
+}
+
+.remote-text-editor-root .remote-text-editor-modal.ant-modal .ant-modal-content {
   overflow: hidden;
-  border: 1px solid var(--border-strong);
-  border-radius: 18px;
-  background: var(--surface-strong);
+  border: 1px solid color-mix(in srgb, var(--border-strong) 82%, transparent);
+  border-radius: 20px;
+  background: var(--ant-modal-content-bg);
   box-shadow:
-    0 34px 96px rgb(0 0 0 / 42%),
-    inset 0 1px 0 rgb(255 255 255 / 9%);
-  padding: 0;
+    0 34px 94px rgb(0 0 0 / 44%),
+    inset 0 1px 0 rgb(255 255 255 / 8%);
+  padding: 0 !important;
+}
+
+.remote-text-editor-root .remote-text-editor-modal.ant-modal .ant-modal-body {
+  padding: 0 !important;
 }
 
 .remote-text-editor-modal .ant-modal-close {
@@ -6145,11 +6157,10 @@ body.is-terminal-tab-dragging * {
 
 .remote-text-editor {
   display: grid;
-  grid-template-rows: auto minmax(360px, 68vh) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: min(760px, calc(100vh - 88px));
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 58%, transparent), transparent 42%),
-    var(--surface-strong);
+  max-height: calc(100vh - 64px);
+  background: var(--ant-modal-content-bg);
 }
 
 .remote-text-editor-header,
@@ -6157,17 +6168,19 @@ body.is-terminal-tab-dragging * {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
   border-color: color-mix(in srgb, var(--border) 76%, transparent);
   padding: 14px 18px;
 }
 
 .remote-text-editor-header {
   border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  background: var(--ant-modal-content-bg);
 }
 
 .remote-text-editor-footer {
   border-top: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  background: var(--ant-modal-content-bg);
 }
 
 .remote-text-editor-title {
@@ -6179,31 +6192,41 @@ body.is-terminal-tab-dragging * {
 }
 
 .remote-text-editor-icon {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--accent) 13%, var(--surface-subtle));
+  display: flex;
+  flex: 0 0 40px;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface-subtle) 88%, var(--accent) 12%);
   color: var(--accent);
+  line-height: 0;
 }
 
-.remote-text-editor-title strong,
-.remote-text-editor-title span {
+.remote-text-editor-icon svg {
+  display: block;
+  width: 19px;
+  height: 19px;
+  stroke-width: 2.2;
+}
+
+.remote-text-editor-title > div > strong,
+.remote-text-editor-title > div > span {
   overflow: hidden;
   display: block;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.remote-text-editor-title strong {
+.remote-text-editor-title > div > strong {
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 780;
 }
 
-.remote-text-editor-title span {
+.remote-text-editor-title > div > span {
   margin-top: 3px;
   color: var(--text-muted);
   font-family: var(--font-mono);
@@ -6222,19 +6245,55 @@ body.is-terminal-tab-dragging * {
   margin: 0;
   border-color: color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-subtle) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 700;
 }
 
-.remote-text-editor-body {
-  min-height: 0;
-  background: color-mix(in srgb, #02060d 72%, var(--surface));
+.remote-text-editor-meta .ant-tag.is-dirty {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-subtle));
+  color: var(--accent);
 }
 
-:root[data-theme="light"] .remote-text-editor-body {
-  background: color-mix(in srgb, #f8fbff 80%, var(--surface));
+.remote-text-editor-body {
+  min-height: 0;
+  padding: 16px;
+  background: var(--ant-modal-content-bg);
+}
+
+.remote-text-editor-frame {
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 34px minmax(0, 1fr);
+  height: 100%;
+  min-height: 360px;
+  border: 1px solid color-mix(in srgb, var(--terminal-fg, #e6ebf4) 12%, transparent);
+  border-radius: 15px;
+  background: var(--terminal-bg, #080a0f);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--terminal-fg, #e6ebf4) 6%, transparent);
+}
+
+.remote-text-editor-framebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--terminal-fg, #e6ebf4) 10%, transparent);
+  background: var(--terminal-bg, #080a0f);
+  padding: 0 12px;
+  color: color-mix(in srgb, var(--terminal-fg, #e6ebf4) 62%, transparent);
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.remote-text-editor-framebar span {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .remote-text-editor-codemirror {
@@ -6245,9 +6304,11 @@ body.is-terminal-tab-dragging * {
 .remote-text-editor-codemirror .cm-editor {
   height: 100%;
   background: transparent;
-  color: var(--text-primary);
+  color: var(--terminal-fg, var(--text-primary));
   font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
-  font-size: 13px;
+  font-size: var(--terminal-font-size, 13px);
+  line-height: var(--terminal-line-height, 1.55);
+  letter-spacing: var(--terminal-letter-spacing, 0px);
 }
 
 .remote-text-editor-codemirror .cm-scroller {
@@ -6257,24 +6318,29 @@ body.is-terminal-tab-dragging * {
 }
 
 .remote-text-editor-codemirror .cm-content {
-  padding: 18px 14px 26px;
-  caret-color: var(--accent);
+  padding: 16px 14px 28px;
+  caret-color: var(--terminal-cursor, var(--accent));
 }
 
 .remote-text-editor-codemirror .cm-gutters {
-  border-right: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
-  background: color-mix(in srgb, var(--surface-subtle) 64%, transparent);
-  color: var(--text-muted);
+  border-right: 1px solid color-mix(in srgb, var(--terminal-fg, #e6ebf4) 10%, transparent);
+  background: var(--terminal-bg, #080a0f);
+  color: color-mix(in srgb, var(--terminal-fg, #e6ebf4) 52%, transparent);
+}
+
+.remote-text-editor-codemirror .cm-lineNumbers .cm-gutterElement {
+  padding: 0 10px 0 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .remote-text-editor-codemirror .cm-activeLine,
 .remote-text-editor-codemirror .cm-activeLineGutter {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  background: color-mix(in srgb, var(--terminal-cursor, var(--accent)) 10%, transparent);
 }
 
 .remote-text-editor-codemirror .cm-selectionBackground,
 .remote-text-editor-codemirror .cm-focused .cm-selectionBackground {
-  background: color-mix(in srgb, var(--accent) 38%, transparent);
+  background: var(--terminal-selection-bg, color-mix(in srgb, var(--accent) 38%, transparent));
 }
 
 .remote-text-editor-codemirror .cm-focused {
@@ -6310,11 +6376,38 @@ body.is-terminal-tab-dragging * {
   font-size: 12px;
 }
 
+.remote-text-editor-hint span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .remote-text-editor-actions {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 10px;
+}
+
+@media (width <= 860px) {
+  .remote-text-editor-header,
+  .remote-text-editor-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .remote-text-editor-meta,
+  .remote-text-editor-actions {
+    justify-content: flex-start;
+  }
+
+  .remote-text-editor-actions {
+    width: 100%;
+  }
+
+  .remote-text-editor-actions .ant-btn {
+    flex: 1 1 0;
+  }
 }
 
 .core-fatal-exit-button.ant-btn {

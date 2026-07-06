@@ -259,7 +259,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
                 <Tag>{file.language || t('files.textEditorPlainText')}</Tag>
                 <Tag>{lineEndingLabel(file.line_ending, t)}</Tag>
                 <Tag>{formatBytes(file.size)}</Tag>
-                {dirty ? <Tag color="processing">{t('files.textEditorDirty')}</Tag> : null}
+                {dirty ? <Tag className="is-dirty">{t('files.textEditorDirty')}</Tag> : null}
               </>
             ) : null}
           </div>
@@ -280,7 +280,13 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
               </Button>
             </div>
           ) : (
-            <div ref={editorHostRef} className="remote-text-editor-codemirror" />
+            <div className="remote-text-editor-frame">
+              <div className="remote-text-editor-framebar">
+                <span>{file?.language || t('files.textEditorPlainText')}</span>
+                <span>{file ? `${lineEndingLabel(file.line_ending, t)} · ${formatBytes(file.size)}` : ''}</span>
+              </div>
+              <div ref={editorHostRef} className="remote-text-editor-codemirror" />
+            </div>
           )}
         </div>
 
