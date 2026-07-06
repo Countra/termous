@@ -136,6 +136,8 @@ contextBridge.exposeInMainWorld('termous', {
     pickFiles: () => ipcRenderer.invoke('files:pick-paths', { mode: 'files', multiple: true }) as Promise<string[]>,
     pickDirectory: () =>
       ipcRenderer.invoke('files:pick-paths', { mode: 'directories', multiple: false }) as Promise<string[]>,
+    openDirectory: (localPath: string) =>
+      ipcRenderer.invoke('files:open-directory', localPath) as Promise<{ ok: boolean; error?: string }>,
     pathsFromFileList: (files: ArrayLike<File>) => {
       const paths = fileListToPaths(files)
       return Promise.resolve(paths.length > 0 ? paths : consumeRecentDroppedPaths(files.length))

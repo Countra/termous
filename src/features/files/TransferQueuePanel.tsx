@@ -1,6 +1,7 @@
-import { Button, Tooltip } from 'antd'
-import { Copy, DownloadCloud, RotateCcw, Trash2, UploadCloud, XCircle } from 'lucide-react'
+import { App as AntdApp, Button, Tooltip, type MenuProps } from 'antd'
+import { Copy, DownloadCloud, FolderOpen, RotateCcw, Trash2, UploadCloud, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { ContextActionMenu } from '../../components/ui/ContextActionMenu'
 import type { TransferTask } from '../../types/domain'
 import { formatBytes, formatSeconds, pathBase, transferProgress, transferStatusClass } from './fileUtils'
 
@@ -64,18 +65,63 @@ function TransferRow({
   onRetry: (id: string) => Promise<void>
 }) {
   const { t } = useTranslation()
+  const { notification } = AntdApp.useApp()
   const isUpload = task.type.startsWith('upload')
   const isDownload = task.type.startsWith('download')
   const canDelete = task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled'
+  const localDirectoryPath = resolveTransferLocalDirectory(task)
   const progress = transferProgress(task)
   const speed = task.speed_bytes_per_sec || task.average_speed_bytes_per_sec
   const currentName = task.current_file || pathBase(task.source_paths[0] ?? task.target_path)
   const totalFiles = Math.max(0, task.total_files || task.source_paths.length)
   const completedFiles = Math.max(0, Math.min(totalFiles, task.completed_files || 0))
   const Icon = isUpload ? UploadCloud : isDownload ? DownloadCloud : Copy
+  const openLocalDirectory = async () => {
+    if (!localDirectoryPath || !window.termous?.files?.openDirectory) {
+      notification.error({
+        message: t('files.openLocalDirectoryFailed'),
+        placement: 'topRight',
+        duration: 2.8,
+        className: 'termous-notification',
+      })
+      return
+    }
+    const result = await window.termous.files.openDirectory(localDirectoryPath)
+    if (!result.ok) {
+      notification.error({
+        message: t('files.openLocalDirectoryFailed'),
+        description: result.error,
+        placement: 'topRight',
+        duration: 3,
+        className: 'termous-notification',
+      })
+    }
+  }
+  const contextMenuItems: MenuProps['items'] = localDirectoryPath
+    ? [
+        {
+          key: 'open-local-directory',
+          label: (
+            <span className="context-action-menu-item">
+              <span className="context-action-menu-icon">
+                <FolderOpen size={14} aria-hidden="true" />
+              </span>
+              <span>{t('files.openLocalDirectory')}</span>
+            </span>
+          ),
+        },
+      ]
+    : []
+  const handleContextMenuClick: MenuProps['onClick'] = ({ key, domEvent }) => {
+    domEvent.stopPropagation()
+    if (key === 'open-local-directory') {
+      void openLocalDirectory()
+    }
+  }
 
   return (
-    <article className={`transfer-row ${transferStatusClass(task.status)} ${canDelete ? 'is-history' : ''}`}>
+    <ContextActionMenu items={contextMenuItems} onClick={handleContextMenuClick} disabled={!localDirectoryPath}>
+      <article className={`transfer-row ${transferStatusClass(task.status)} ${canDelete ? 'is-history' : ''}`}>
       <div className="transfer-row-main">
         <span className="transfer-kind-icon">
           <Icon size={16} aria-hidden="true" />
@@ -152,6 +198,17 @@ function TransferRow({
         </span>
       </div>
       {task.error_message ? <p className="transfer-error">{task.error_message}</p> : null}
-    </article>
+      </article>
+    </ContextActionMenu>
   )
+}
+
+function resolveTransferLocalDirectory(task: TransferTask) {
+  if (task.type.startsWith('download')) {
+    return task.local_directory_path || task.target_path
+  }
+  if (task.type.startsWith('upload')) {
+    return task.local_directory_path || ''
+  }
+  return ''
 }

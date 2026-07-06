@@ -126,6 +126,7 @@ export interface TransferTask {
   status: TransferStatus
   source_paths: string[]
   target_path: string
+  local_directory_path?: string
   total_bytes: number
   transferred_bytes: number
   remaining_bytes: number

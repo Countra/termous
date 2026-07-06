@@ -1,4 +1,4 @@
-import { App as AntdApp, Button, Empty, Input, Modal, Tooltip, Tree } from 'antd'
+import { App as AntdApp, Button, Empty, Input, Modal, Tooltip, Tree, type MenuProps } from 'antd'
 import {
   ArrowDown,
   ArrowLeft,
@@ -28,6 +28,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
+import { ContextActionMenu } from '../../components/ui/ContextActionMenu'
 import { EmptyState } from '../../components/ui/EmptyState'
 import type {
   LocalPathMapping,
@@ -145,6 +146,28 @@ export function LocalPathMappingsPanel({
       setLoadingPath('')
     }
   }, [api, notifyError])
+
+  const openLocalDirectory = useCallback(async (localPath: string) => {
+    if (!localPath || !window.termous?.files?.openDirectory) {
+      notification.error({
+        message: t('files.openLocalDirectoryFailed'),
+        placement: 'topRight',
+        duration: 2.8,
+        className: 'termous-notification',
+      })
+      return
+    }
+    const result = await window.termous.files.openDirectory(localPath)
+    if (!result.ok) {
+      notification.error({
+        message: t('files.openLocalDirectoryFailed'),
+        description: result.error,
+        placement: 'topRight',
+        duration: 3,
+        className: 'termous-notification',
+      })
+    }
+  }, [notification, t])
 
   useEffect(() => {
     if (!selectedMappingId || mappings.some((mapping) => mapping.id === selectedMappingId)) {
@@ -358,6 +381,7 @@ export function LocalPathMappingsPanel({
             setDropTargetPath((current) => current === targetPath ? '' : current)
           }}
           onDrop={(event) => void handleLocalDrop(localTreeDropTargetPath(entry.path, entry.kind), event)}
+          onOpenDirectory={openLocalDirectory}
         />
       ),
       isLeaf: entry.kind !== 'directory' || !entry.has_children,
@@ -378,12 +402,13 @@ export function LocalPathMappingsPanel({
           onDragOver={(event) => prepareLocalDrop(detailMapping.path, event)}
           onDragLeave={() => setDropTargetPath((current) => current === detailMapping.path ? '' : current)}
           onDrop={(event) => void handleLocalDrop(detailMapping.path, event)}
+          onOpenDirectory={openLocalDirectory}
         />
       ),
       isLeaf: false,
       children: (detailChildrenByPath[detailMapping.path] ?? []).map(buildNode),
     }]
-  }, [detailChildrenByPath, detailMapping, dropTargetPath, expandedKeys, handleLocalDrop, prepareLocalDrop, toggleTreeDirectory])
+  }, [detailChildrenByPath, detailMapping, dropTargetPath, expandedKeys, handleLocalDrop, openLocalDirectory, prepareLocalDrop, toggleTreeDirectory])
 
   return (
     <aside
@@ -419,28 +444,33 @@ export function LocalPathMappingsPanel({
                   {t('files.backToLocalMappings')}
                 </Button>
               </div>
-              <section
-                className={`local-path-detail-summary ${dropTargetPath === detailMapping.path ? 'is-drop-target' : ''} ${
-                  detailMapping.available ? '' : 'is-unavailable'
-                }`}
-                onDragOver={(event) => prepareLocalDrop(detailMapping.path, event)}
-                onDragLeave={() => setDropTargetPath((current) => current === detailMapping.path ? '' : current)}
-                onDrop={(event) => void handleLocalDrop(detailMapping.path, event)}
+              <ContextActionMenu
+                items={openLocalDirectoryMenuItems(t('files.openLocalDirectory'))}
+                onClick={openLocalDirectoryMenuClick(detailMapping.path, openLocalDirectory)}
               >
-                <span className="local-path-detail-icon">
-                  <HardDrive size={17} aria-hidden="true" />
-                </span>
-                <span className="local-path-detail-copy">
-                  <strong>{detailMapping.name}</strong>
-                  <Tooltip title={detailMapping.path} placement="topLeft" mouseEnterDelay={0.35} classNames={{ root: 'file-name-tooltip' }}>
-                    <small>{detailMapping.path}</small>
-                  </Tooltip>
-                </span>
-                <span className="local-path-readonly-badge">
-                  <LockKeyhole size={12} aria-hidden="true" />
-                  {t('files.localMappingReadonly')}
-                </span>
-              </section>
+                <section
+                  className={`local-path-detail-summary ${dropTargetPath === detailMapping.path ? 'is-drop-target' : ''} ${
+                    detailMapping.available ? '' : 'is-unavailable'
+                  }`}
+                  onDragOver={(event) => prepareLocalDrop(detailMapping.path, event)}
+                  onDragLeave={() => setDropTargetPath((current) => current === detailMapping.path ? '' : current)}
+                  onDrop={(event) => void handleLocalDrop(detailMapping.path, event)}
+                >
+                  <span className="local-path-detail-icon">
+                    <HardDrive size={17} aria-hidden="true" />
+                  </span>
+                  <span className="local-path-detail-copy">
+                    <strong>{detailMapping.name}</strong>
+                    <Tooltip title={detailMapping.path} placement="topLeft" mouseEnterDelay={0.35} classNames={{ root: 'file-name-tooltip' }}>
+                      <small>{detailMapping.path}</small>
+                    </Tooltip>
+                  </span>
+                  <span className="local-path-readonly-badge">
+                    <LockKeyhole size={12} aria-hidden="true" />
+                    {t('files.localMappingReadonly')}
+                  </span>
+                </section>
+              </ContextActionMenu>
               {detailMapping.available ? (
                 <div className="local-path-tree-card">
                   <div className="local-path-tree-head">
@@ -516,6 +546,7 @@ export function LocalPathMappingsPanel({
                           onDragOver={(event) => prepareLocalDrop(mapping.path, event)}
                           onDragLeave={() => setDropTargetPath((current) => current === mapping.path ? '' : current)}
                           onDrop={(event) => void handleLocalDrop(mapping.path, event)}
+                          onOpenDirectory={openLocalDirectory}
                         />
                       ))
                     )}
@@ -569,6 +600,7 @@ function MappingRow({
   onDragOver,
   onDragLeave,
   onDrop,
+  onOpenDirectory,
 }: {
   mapping: LocalPathMapping
   active: boolean
@@ -578,37 +610,43 @@ function MappingRow({
   onDragOver: (event: DragEvent<HTMLElement>) => void
   onDragLeave: () => void
   onDrop: (event: DragEvent<HTMLElement>) => void
+  onOpenDirectory: (path: string) => void
 }) {
   const { t } = useTranslation()
   return (
-    <article
-      className={`local-path-row ${active ? 'is-active' : ''} ${dropTarget ? 'is-drop-target' : ''} ${mapping.available ? '' : 'is-unavailable'}`}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-      onDoubleClick={onOpenDetail}
+    <ContextActionMenu
+      items={openLocalDirectoryMenuItems(t('files.openLocalDirectory'))}
+      onClick={openLocalDirectoryMenuClick(mapping.path, onOpenDirectory)}
     >
-      <button type="button" className="local-path-row-main" onClick={onSelect}>
-        <span className="local-path-row-icon">
-          <HardDrive size={15} aria-hidden="true" />
-        </span>
-        <span className="local-path-row-copy">
-          <strong>{mapping.name}</strong>
-          <small>{mapping.path}</small>
-        </span>
-      </button>
-      <div className="local-path-row-footer">
-        <Button
-          className="local-path-open-button"
-          size="small"
-          type="text"
-          icon={<FolderOpen size={14} aria-hidden="true" />}
-          onClick={onOpenDetail}
-        >
-          {t('files.viewLocalTree')}
-        </Button>
-      </div>
-    </article>
+      <article
+        className={`local-path-row ${active ? 'is-active' : ''} ${dropTarget ? 'is-drop-target' : ''} ${mapping.available ? '' : 'is-unavailable'}`}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onDoubleClick={onOpenDetail}
+      >
+        <button type="button" className="local-path-row-main" onClick={onSelect}>
+          <span className="local-path-row-icon">
+            <HardDrive size={15} aria-hidden="true" />
+          </span>
+          <span className="local-path-row-copy">
+            <strong>{mapping.name}</strong>
+            <small>{mapping.path}</small>
+          </span>
+        </button>
+        <div className="local-path-row-footer">
+          <Button
+            className="local-path-open-button"
+            size="small"
+            type="text"
+            icon={<FolderOpen size={14} aria-hidden="true" />}
+            onClick={onOpenDetail}
+          >
+            {t('files.viewLocalTree')}
+          </Button>
+        </div>
+      </article>
+    </ContextActionMenu>
   )
 }
 
@@ -624,6 +662,7 @@ function LocalTreeTitle({
   onDragOver,
   onDragLeave,
   onDrop,
+  onOpenDirectory,
 }: {
   name: string
   path: string
@@ -636,7 +675,9 @@ function LocalTreeTitle({
   onDragOver: (event: DragEvent<HTMLElement>) => void
   onDragLeave: () => void
   onDrop: (event: DragEvent<HTMLElement>) => void
+  onOpenDirectory: (path: string) => void
 }) {
+  const { t } = useTranslation()
   const isDirectory = kind === 'directory'
   const icon = isDirectory
     ? expanded ? <FolderOpen size={14} aria-hidden="true" /> : <Folder size={14} aria-hidden="true" />
@@ -648,33 +689,71 @@ function LocalTreeTitle({
     }
   }
 
-  return (
-    <Tooltip title={path} placement="topLeft" mouseEnterDelay={0.35} classNames={{ root: 'file-name-tooltip' }}>
-      <span
-        className={`local-path-tree-title ${root ? 'is-root' : ''} ${isDirectory ? 'is-directory' : 'is-file'} ${
-          expanded ? 'is-expanded' : ''
-        } ${active ? 'is-drop-target' : ''}`}
-        role={expandable ? 'button' : undefined}
-        tabIndex={expandable ? 0 : undefined}
-        aria-expanded={expandable ? expanded : undefined}
-        onClick={toggle}
-        onKeyDown={(event) => {
-          if (!expandable || (event.key !== 'Enter' && event.key !== ' ')) {
-            return
-          }
-          event.preventDefault()
-          onToggle()
-        }}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-      >
-        <span className="local-path-tree-icon" data-empty={!expandable ? 'true' : undefined}>{icon}</span>
+  const titleNode = (
+    <span
+      className={`local-path-tree-title ${root ? 'is-root' : ''} ${isDirectory ? 'is-directory' : 'is-file'} ${
+        expanded ? 'is-expanded' : ''
+      } ${active ? 'is-drop-target' : ''}`}
+      role={expandable ? 'button' : undefined}
+      tabIndex={expandable ? 0 : undefined}
+      aria-expanded={expandable ? expanded : undefined}
+      onClick={toggle}
+      onKeyDown={(event) => {
+        if (!expandable || (event.key !== 'Enter' && event.key !== ' ')) {
+          return
+        }
+        event.preventDefault()
+        onToggle()
+      }}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      <span className="local-path-tree-icon" data-empty={!expandable ? 'true' : undefined}>{icon}</span>
+      <Tooltip title={path} placement="topLeft" mouseEnterDelay={0.35} classNames={{ root: 'file-name-tooltip' }}>
         <span className="local-path-tree-copy">{name}</span>
-        {active ? <span className="local-path-drop-badge"><Download size={12} aria-hidden="true" /></span> : null}
-      </span>
-    </Tooltip>
+      </Tooltip>
+      {active ? <span className="local-path-drop-badge"><Download size={12} aria-hidden="true" /></span> : null}
+    </span>
   )
+
+  if (!isDirectory) {
+    return titleNode
+  }
+
+  return (
+    <ContextActionMenu
+      items={openLocalDirectoryMenuItems(t('files.openLocalDirectory'))}
+      onClick={openLocalDirectoryMenuClick(path, onOpenDirectory)}
+    >
+      {titleNode}
+    </ContextActionMenu>
+  )
+}
+
+function openLocalDirectoryMenuItems(label: string): MenuProps['items'] {
+  return [
+    {
+      key: 'open-local-directory',
+      label: (
+        <span className="context-action-menu-item">
+          <span className="context-action-menu-icon">
+            <FolderOpen size={14} aria-hidden="true" />
+          </span>
+          <span>{label}</span>
+        </span>
+      ),
+    },
+  ]
+}
+
+function openLocalDirectoryMenuClick(localPath: string, onOpenDirectory: (path: string) => void): MenuProps['onClick'] {
+  return ({ key, domEvent }) => {
+    domEvent.stopPropagation()
+    if (key === 'open-local-directory') {
+      onOpenDirectory(localPath)
+    }
+  }
 }
 
 function localPathDisplayName(path: string) {

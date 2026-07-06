@@ -713,6 +713,8 @@ export const resources = {
         cancelTransfer: '取消传输',
         retryTransfer: '重试传输',
         deleteTransferRecord: '删除记录',
+        openLocalDirectory: '打开本地目录',
+        openLocalDirectoryFailed: '打开本地目录失败',
         kindName: {
           file: '文件',
           directory: '文件夹',
@@ -1632,6 +1634,8 @@ export const resources = {
         cancelTransfer: 'Cancel transfer',
         retryTransfer: 'Retry transfer',
         deleteTransferRecord: 'Delete record',
+        openLocalDirectory: 'Open local folder',
+        openLocalDirectoryFailed: 'Failed to open local folder',
         kindName: {
           file: 'File',
           directory: 'Folder',

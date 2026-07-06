@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 import { CoreProcessManager } from './coreProcess'
@@ -198,6 +198,26 @@ function registerFilePickers() {
       return []
     }
     return result.filePaths
+  })
+  ipcMain.handle('files:open-directory', async (_event, localPath?: string) => {
+    if (typeof localPath !== 'string' || localPath.trim() === '') {
+      return { ok: false, error: 'invalid_directory' }
+    }
+    const targetPath = localPath.trim()
+    if (!existsSync(targetPath)) {
+      return { ok: false, error: 'directory_not_found' }
+    }
+    try {
+      const targetStat = statSync(targetPath)
+      const directoryPath = targetStat.isDirectory() ? targetPath : path.dirname(targetPath)
+      if (!existsSync(directoryPath) || !statSync(directoryPath).isDirectory()) {
+        return { ok: false, error: 'directory_not_found' }
+      }
+      const error = await shell.openPath(directoryPath)
+      return { ok: !error, error }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'open_directory_failed' }
+    }
   })
 }
 

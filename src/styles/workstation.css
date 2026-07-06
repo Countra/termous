@@ -2806,6 +2806,64 @@ body.is-panel-resizing * {
   white-space: nowrap;
 }
 
+.context-action-menu {
+  z-index: 2300;
+}
+
+.context-action-menu .ant-dropdown-menu {
+  min-width: 158px;
+  border: 1px solid #303540;
+  border-radius: 12px;
+  background: #1f232b !important;
+  background-color: #1f232b !important;
+  padding: 5px;
+  box-shadow:
+    0 18px 42px rgb(0 0 0 / 34%),
+    inset 0 1px 0 rgb(255 255 255 / 6%);
+}
+
+.context-action-menu .ant-dropdown-menu-item {
+  min-height: 34px;
+  border-radius: 9px;
+  color: var(--text-secondary);
+  padding: 5px 7px !important;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.context-action-menu .ant-dropdown-menu-item:hover,
+.context-action-menu .ant-dropdown-menu-item-active {
+  background: #2a2f39 !important;
+  background-color: #2a2f39 !important;
+  color: var(--text-primary);
+}
+
+.context-action-menu .ant-dropdown-menu-title-content {
+  min-width: 0;
+}
+
+.context-action-menu-item {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.context-action-menu-icon {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
 .session-dot {
   width: 7px;
   height: 7px;
@@ -3557,6 +3615,25 @@ body.is-terminal-tab-dragging * {
 :root[data-theme="light"] .terminal-tab-dropdown .ant-dropdown-menu-item:hover,
 :root[data-theme="light"] .terminal-tab-dropdown .ant-dropdown-menu-item-active {
   background: #f1f4f8 !important;
+}
+
+:root[data-theme="light"] .context-action-menu .ant-dropdown-menu {
+  border-color: rgb(30 42 58 / 12%);
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  box-shadow:
+    0 18px 44px rgb(23 31 45 / 14%),
+    inset 0 1px 0 rgb(255 255 255 / 92%);
+}
+
+:root[data-theme="light"] .context-action-menu .ant-dropdown-menu-item:hover,
+:root[data-theme="light"] .context-action-menu .ant-dropdown-menu-item-active {
+  background: #f1f4f8 !important;
+  background-color: #f1f4f8 !important;
+}
+
+:root[data-theme="light"] .context-action-menu-icon {
+  background: color-mix(in srgb, var(--accent) 10%, #edf1f6);
 }
 
 :root[data-theme="light"] .terminal-tab-menu-icon {
