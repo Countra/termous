@@ -1501,7 +1501,7 @@ export function FilesPage({
       onDragEnd={resetDragState}
       onDrop={(event) => void onDrop(event)}
     >
-      {leftActiveTab === 'hosts' ? (
+      {leftActiveTab === 'hosts' || hostPanelCollapsed ? (
         <HostContextPanel
           hosts={data.hosts}
           groups={data.groups}
