@@ -635,6 +635,7 @@ function lineEndingLabel(value: RemoteTextLineEnding, t: (key: string) => string
 
 function codeMirrorTheme(theme: ThemeMode) {
   const settings = {
+    caret: 'var(--remote-editor-cursor, #5da8ff)',
     fontFamily: 'var(--terminal-font-family, "JetBrains Mono", Consolas, monospace)',
     fontSize: 'var(--terminal-font-size, 13px)',
   }
