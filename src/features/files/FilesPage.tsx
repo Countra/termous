@@ -36,7 +36,6 @@ import {
   type CSSProperties,
   type DragEvent,
   type HTMLAttributes,
-  type KeyboardEvent,
   type MouseEvent,
   type WheelEvent,
 } from 'react'
@@ -246,6 +245,7 @@ export function FilesPage({
   const autoScrollFrameRef = useRef<number | null>(null)
   const autoScrollSpeedRef = useRef(0)
   const remoteMoveDragRef = useRef<RemoteMoveDragState | null>(null)
+  const directoryHistoryRef = useRef<string[]>([])
   const uploadRefreshTasksRef = useRef(new Map<string, UploadRefreshTarget>())
   const downloadRefreshTasksRef = useRef(new Map<string, string>())
   const pendingOperationTimersRef = useRef<number[]>([])
@@ -437,7 +437,7 @@ export function FilesPage({
   )
 
   const loadDirectory = useCallback(
-    async (nextPath: string) => {
+    async (nextPath: string, options?: { recordHistory?: boolean }) => {
       if (!activeFileSessionId || !fileSessionConnected) {
         setEntries([])
         return
@@ -447,6 +447,9 @@ export function FilesPage({
       setError(null)
       try {
         const listing = await api.listFileSessionFiles(activeFileSessionId, normalized)
+        if (options?.recordHistory !== false && normalizeRemotePath(currentPath) !== normalizeRemotePath(listing.path)) {
+          directoryHistoryRef.current.push(normalizeRemotePath(currentPath))
+        }
         applyListing(listing)
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : t('app.error'))
@@ -454,7 +457,7 @@ export function FilesPage({
         setLoading(false)
       }
     },
-    [activeFileSessionId, api, applyListing, fileSessionConnected, t],
+    [activeFileSessionId, api, applyListing, currentPath, fileSessionConnected, t],
   )
 
   const trackUploadRefreshTask = useCallback((task: TransferTask) => {
@@ -489,6 +492,7 @@ export function FilesPage({
     lastActiveFileSessionIdRef.current = activeFileSession.id
     if (sessionChanged) {
       const nextPath = normalizeRemotePath(activeFileSession.current_path || '/')
+      directoryHistoryRef.current = []
       setCurrentPath(nextPath)
       setPathInput(nextPath)
       setEntries([])
@@ -503,7 +507,7 @@ export function FilesPage({
     if (lastSessionLoadKeyRef.current !== loadKey) {
       lastSessionLoadKeyRef.current = loadKey
       const nextPath = normalizeRemotePath(activeFileSession.current_path || '/')
-      void loadDirectory(nextPath)
+      void loadDirectory(nextPath, { recordHistory: false })
     }
   }, [activeFileSession, loadDirectory])
 
@@ -1155,31 +1159,17 @@ export function FilesPage({
     }
   }
 
-  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    const target = event.target as HTMLElement
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+  const handleFilePageMouseDown = (event: MouseEvent<HTMLElement>) => {
+    if (event.button !== 3) {
       return
     }
-    const mod = event.ctrlKey || event.metaKey
-    if (mod && event.key.toLowerCase() === 'c') {
-      event.preventDefault()
-      copySelected('copy')
-    } else if (mod && event.key.toLowerCase() === 'x') {
-      event.preventDefault()
-      copySelected('cut')
-    } else if (mod && event.key.toLowerCase() === 'v') {
-      event.preventDefault()
-      void pasteFromClipboard()
-    } else if (event.key === 'Delete') {
-      event.preventDefault()
-      confirmDelete()
-    } else if (event.key === 'F2') {
-      event.preventDefault()
-      openRename()
-    } else if (event.key === 'Backspace') {
-      event.preventDefault()
-      void loadDirectory(parentPath(currentPath))
+    event.preventDefault()
+    event.stopPropagation()
+    const previousPath = directoryHistoryRef.current.pop()
+    if (!previousPath || previousPath === currentPath) {
+      return
     }
+    void loadDirectory(previousPath, { recordHistory: false })
   }
 
   const hasDraggedFiles = (event: DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes('Files')
@@ -1651,8 +1641,7 @@ export function FilesPage({
         detailsCollapsed ? 'is-details-collapsed' : ''
       } ${dragActive ? 'is-dragging' : ''} ${remoteMoveDrag ? 'is-moving' : ''}`}
       style={filesPageStyle}
-      tabIndex={0}
-      onKeyDown={onKeyDown}
+      onMouseDown={handleFilePageMouseDown}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
