@@ -9,7 +9,6 @@ import {
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
-  RefreshCw,
   Route,
   Server,
   Settings,
@@ -27,14 +26,12 @@ interface AppShellProps {
   theme: ThemeMode
   appVersion: string
   sidebarCollapsed: boolean
-  refreshing: boolean
   actionBusy: boolean
   onNavigate: (page: PageKey) => void
   onOpenConnectionLauncher: () => void
   onOpenLocalTerminal: (shell: LocalShell) => void
   onToggleTheme: () => void
   onToggleSidebar: () => void
-  onReload: () => void
   onBeforeClose?: () => Promise<void>
   onCloseError?: (error: unknown) => void
   children: React.ReactNode
@@ -58,14 +55,12 @@ export function AppShell({
   theme,
   appVersion,
   sidebarCollapsed,
-  refreshing,
   actionBusy,
   onNavigate,
   onOpenConnectionLauncher,
   onOpenLocalTerminal,
   onToggleTheme,
   onToggleSidebar,
-  onReload,
   onBeforeClose,
   onCloseError,
   children,
@@ -183,15 +178,6 @@ export function AppShell({
               </Space.Compact>
             </div>
             <span className="topbar-action-divider" aria-hidden="true" />
-            <Tooltip title={t('app.reload')}>
-              <Button
-                type="text"
-                className="icon-button"
-                onClick={onReload}
-                aria-label={t('app.reload')}
-                icon={<RefreshCw className={refreshing ? 'is-spinning' : ''} size={17} />}
-              />
-            </Tooltip>
             <Tooltip title={t('app.theme')}>
               <Button
                 type="text"

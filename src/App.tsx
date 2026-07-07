@@ -52,7 +52,7 @@ function App() {
 function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<SetStateAction<ThemeMode>> }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
-  const { api, data, initializing, refreshing, apiReady, error, activeSession, forwardErrorEvent, actions } = useTermousData()
+  const { api, data, initializing, apiReady, error, activeSession, forwardErrorEvent, actions } = useTermousData()
   const updateForwardRef = useRef(actions.updateForward)
   const reloadForwardStateRef = useRef(actions.reloadForwardsSilent)
   const updateHostReachabilityRef = useRef(actions.updateHostReachability)
@@ -514,14 +514,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         theme={theme}
         appVersion={appVersion}
         sidebarCollapsed={sidebarCollapsed}
-        refreshing={refreshing}
         actionBusy={actionBusy}
         onNavigate={setPage}
         onOpenConnectionLauncher={openHostLauncher}
         onOpenLocalTerminal={openLocalTerminalFromTopbar}
         onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
         onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
-        onReload={() => void actions.reload()}
         onBeforeClose={shutdownBeforeClose}
         onCloseError={showActionError}
       >
