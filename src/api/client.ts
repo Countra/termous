@@ -12,6 +12,7 @@ import type {
   FileBookmarkGroupReorderItem,
   FileBookmarkInput,
   FileBookmarkReorderItem,
+  FileOperationTask,
   FileSession,
   FirewallApplyResult,
   FirewallCapability,
@@ -615,6 +616,39 @@ export class TermousApi {
       body,
       timeoutMs: 90_000,
     })
+  }
+
+  createFileSessionTextReadOperation(fileSessionId: string, path: string) {
+    return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text/read`, {
+      method: 'POST',
+      body: { path },
+    })
+  }
+
+  createFileSessionTextSaveOperation(fileSessionId: string, body: RemoteTextSaveRequest) {
+    return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text/save`, {
+      method: 'POST',
+      body,
+      timeoutMs: 90_000,
+    })
+  }
+
+  fileOperation(id: string) {
+    return this.request<FileOperationTask>(`/api/v1/file-operations/${encodeURIComponent(id)}`)
+  }
+
+  fileOperationResult<T>(id: string) {
+    return this.request<T>(`/api/v1/file-operations/${encodeURIComponent(id)}/result`, {
+      timeoutMs: 90_000,
+    })
+  }
+
+  cancelFileOperation(id: string) {
+    return this.request<void>(`/api/v1/file-operations/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  fileOperationEventsUrl(fileSessionId: string) {
+    return this.websocketUrl(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/file-operations/events`)
   }
 
   mkdirFileSessionFile(fileSessionId: string, path: string) {

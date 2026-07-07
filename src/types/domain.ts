@@ -112,6 +112,49 @@ export interface RemoteTextSaveResult {
   entry: RemoteFileEntry
 }
 
+export type FileOperationType = 'read_text' | 'save_text'
+
+export type FileOperationStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export type FileOperationPhase =
+  | 'queued'
+  | 'stat'
+  | 'read'
+  | 'decode'
+  | 'verify'
+  | 'write_temp'
+  | 'replace'
+  | 'reload'
+  | 'done'
+
+export interface FileOperationTask {
+  id: string
+  file_session_id: string
+  host_id: string
+  type: FileOperationType
+  status: FileOperationStatus
+  phase: FileOperationPhase
+  phase_label?: string
+  path: string
+  total_bytes: number
+  transferred_bytes: number
+  remaining_bytes: number
+  phase_total_bytes: number
+  phase_transferred_bytes: number
+  phase_progress_percent: number
+  progress_percent: number
+  speed_bytes_per_sec: number
+  average_speed_bytes_per_sec: number
+  eta_seconds?: number
+  elapsed_seconds: number
+  cancellable: boolean
+  created_at: string
+  started_at?: string
+  finished_at?: string
+  error_code?: string
+  error_message?: string
+}
+
 export type FileSessionStatus = 'connecting' | 'connected' | 'waiting_trust' | 'disconnected' | 'failed'
 
 export type FileSessionPhase =

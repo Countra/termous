@@ -8,7 +8,7 @@ import { AlertTriangle, Code2, FileText, RefreshCw, Save } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError, type TermousApi } from '../../api/client'
-import type { RemoteFileEntry, RemoteTextFile, RemoteTextLineEnding } from '../../types/domain'
+import type { FileOperationTask, RemoteFileEntry, RemoteTextFile, RemoteTextLineEnding, RemoteTextSaveResult } from '../../types/domain'
 import { FileOperationProgress, type FileOperationProgressState } from './FileOperationProgress'
 import { formatBytes } from './fileUtils'
 
@@ -32,6 +32,9 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
   const saveFileRef = useRef<(force?: boolean) => void>(() => undefined)
   const savingRef = useRef(false)
   const operationTimersRef = useRef<number[]>([])
+  const operationCleanupRef = useRef<(() => void) | null>(null)
+  const activeOperationIdRef = useRef<string | null>(null)
+  const activeOperationDoneRef = useRef(false)
   const [file, setFile] = useState<RemoteTextFile | null>(null)
   const [content, setContent] = useState('')
   const [dirty, setDirty] = useState(false)
@@ -54,13 +57,6 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
     operationTimersRef.current = []
   }, [])
 
-  const scheduleOperationProgress = useCallback((delay: number, progress: FileOperationProgressState) => {
-    const timer = window.setTimeout(() => {
-      setOperationProgress(progress)
-    }, delay)
-    operationTimersRef.current.push(timer)
-  }, [])
-
   const finishOperationProgress = useCallback((progress: FileOperationProgressState, clearDelay = 900) => {
     clearOperationTimers()
     setOperationProgress(progress)
@@ -68,12 +64,139 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
     operationTimersRef.current.push(timer)
   }, [clearOperationTimers])
 
+  const cancelActiveOperation = useCallback(() => {
+    operationCleanupRef.current?.()
+    operationCleanupRef.current = null
+    const operationId = activeOperationIdRef.current
+    const done = activeOperationDoneRef.current
+    activeOperationIdRef.current = null
+    activeOperationDoneRef.current = false
+    if (operationId && !done) {
+      void api.cancelFileOperation(operationId).catch(() => undefined)
+    }
+  }, [api])
+
+  const progressFromTask = useCallback((task: FileOperationTask, title: string, successText: string, failedText: string): FileOperationProgressState => {
+    const failed = task.status === 'failed' || task.status === 'cancelled'
+    const completed = task.status === 'completed'
+    const phaseTotal = task.phase_total_bytes || task.total_bytes || 0
+    const phaseTransferred = task.phase_total_bytes > 0 ? task.phase_transferred_bytes : task.transferred_bytes
+    const detail = phaseTotal > 0 && task.status === 'running'
+      ? `${task.phase_label || title} · ${formatBytes(phaseTransferred)} / ${formatBytes(phaseTotal)}`
+      : task.phase_label || (completed ? successText : failed ? task.error_message || failedText : title)
+    return {
+      title,
+      description: detail,
+      progress: completed ? 100 : Math.max(0, Math.min(100, task.progress_percent || 0)),
+      status: completed ? 'success' : failed ? 'error' : 'running',
+      indeterminate: task.status === 'running' && phaseTotal <= 0 && (task.progress_percent || 0) <= 0,
+    }
+  }, [])
+
+  const watchFileOperation = useCallback((
+    initialTask: FileOperationTask,
+    title: string,
+    successText: string,
+    failedText: string,
+  ) => new Promise<FileOperationTask>((resolve, reject) => {
+    let settled = false
+    let disposed = false
+    let socket: WebSocket | null = null
+    let pollTimer = 0
+
+    const cleanup = () => {
+      disposed = true
+      if (pollTimer) {
+        window.clearTimeout(pollTimer)
+      }
+      if (socket && socket.readyState !== WebSocket.CLOSED && socket.readyState !== WebSocket.CLOSING) {
+        socket.close()
+      }
+      if (operationCleanupRef.current === cleanup) {
+        operationCleanupRef.current = null
+      }
+    }
+
+    const settle = (callback: () => void) => {
+      if (settled) {
+        return
+      }
+      settled = true
+      activeOperationDoneRef.current = true
+      activeOperationIdRef.current = null
+      cleanup()
+      callback()
+    }
+
+    const handleTask = (task: FileOperationTask) => {
+      if (disposed || task.id !== initialTask.id) {
+        return
+      }
+      setOperationProgress(progressFromTask(task, title, successText, failedText))
+      if (task.status === 'completed') {
+        settle(() => resolve(task))
+      } else if (task.status === 'failed' || task.status === 'cancelled') {
+        const code = task.error_code || (task.status === 'cancelled' ? 'FILE_OPERATION_CANCELLED' : 'FILE_OPERATION_FAILED')
+        settle(() => reject(new TermousApiError(task.error_message || failedText, code, 0)))
+      }
+    }
+
+    const poll = () => {
+      if (disposed || settled) {
+        return
+      }
+      pollTimer = 0
+      void api.fileOperation(initialTask.id)
+        .then(handleTask)
+        .catch(() => undefined)
+        .finally(() => {
+          if (!disposed && !settled) {
+            pollTimer = window.setTimeout(poll, 1000)
+          }
+        })
+    }
+
+    operationCleanupRef.current = cleanup
+    activeOperationIdRef.current = initialTask.id
+    activeOperationDoneRef.current = false
+    handleTask(initialTask)
+    try {
+      socket = new WebSocket(api.fileOperationEventsUrl(initialTask.file_session_id))
+      socket.addEventListener('message', (event: MessageEvent<string>) => {
+        try {
+          const payload = JSON.parse(String(event.data)) as { type?: string; task?: FileOperationTask }
+          if (payload.type === 'file_operation_update' && payload.task) {
+            handleTask(payload.task)
+          }
+        } catch {
+          // 忽略单条异常事件，轮询会继续兜底同步状态。
+        }
+      })
+      socket.addEventListener('close', () => {
+        if (!disposed && !settled && !pollTimer) {
+          pollTimer = window.setTimeout(poll, 250)
+        }
+      })
+      socket.addEventListener('error', () => {
+        if (!disposed && !settled && !pollTimer) {
+          pollTimer = window.setTimeout(poll, 250)
+        }
+      })
+    } catch {
+      pollTimer = window.setTimeout(poll, 250)
+    }
+    if (!pollTimer) {
+      pollTimer = window.setTimeout(poll, 1000)
+    }
+  }), [api, progressFromTask])
+
   const loadFile = useCallback(async () => {
     if (!open || !fileSessionId || !path) {
       return
     }
     const requestSeq = loadSeqRef.current + 1
     loadSeqRef.current = requestSeq
+    cancelActiveOperation()
     setLoading(true)
     setError(null)
     clearOperationTimers()
@@ -84,15 +207,15 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
       status: 'running',
       indeterminate: true,
     })
-    scheduleOperationProgress(650, {
-      title: t('files.fileOperationReadTitle'),
-      description: t('files.fileOperationReadSync'),
-      progress: 0,
-      status: 'running',
-      indeterminate: true,
-    })
     try {
-      const loaded = await api.openFileSessionTextFile(fileSessionId, path)
+      const operation = await api.createFileSessionTextReadOperation(fileSessionId, path)
+      await watchFileOperation(
+        operation,
+        t('files.fileOperationReadTitle'),
+        t('files.fileOperationReadReady'),
+        t('files.fileOperationReadFailed'),
+      )
+      const loaded = await api.fileOperationResult<RemoteTextFile>(operation.id)
       if (loadSeqRef.current !== requestSeq) {
         return
       }
@@ -120,12 +243,13 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
         setLoading(false)
       }
     }
-  }, [api, clearOperationTimers, fileSessionId, finishOperationProgress, open, path, scheduleOperationProgress, t])
+  }, [api, cancelActiveOperation, clearOperationTimers, fileSessionId, finishOperationProgress, open, path, t, watchFileOperation])
 
   const saveFile = useCallback(async (force = false) => {
     if (!file || !fileSessionId || savingRef.current) {
       return
     }
+    cancelActiveOperation()
     savingRef.current = true
     setSaving(true)
     setError(null)
@@ -137,22 +261,8 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
       status: 'running',
       indeterminate: true,
     })
-    scheduleOperationProgress(650, {
-      title: t('files.fileOperationSaveTitle'),
-      description: t('files.fileOperationSaveWrite'),
-      progress: 0,
-      status: 'running',
-      indeterminate: true,
-    })
-    scheduleOperationProgress(1400, {
-      title: t('files.fileOperationSaveTitle'),
-      description: t('files.fileOperationSaveVerify'),
-      progress: 0,
-      status: 'running',
-      indeterminate: true,
-    })
     try {
-      const result = await api.saveFileSessionTextFile(fileSessionId, {
+      const operation = await api.createFileSessionTextSaveOperation(fileSessionId, {
         path: file.path,
         content: currentContent(),
         base_sha256: file.sha256,
@@ -162,6 +272,13 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
         has_bom: file.has_bom,
         force,
       })
+      await watchFileOperation(
+        operation,
+        t('files.fileOperationSaveTitle'),
+        t('files.fileOperationSaveReady'),
+        t('files.fileOperationSaveFailed'),
+      )
+      const result = await api.fileOperationResult<RemoteTextSaveResult>(operation.id)
       setFile(result.file)
       setContent(result.file.content)
       setDirty(false)
@@ -196,7 +313,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
       savingRef.current = false
       setSaving(false)
     }
-  }, [api, clearOperationTimers, currentContent, file, fileSessionId, finishOperationProgress, message, modal, onSaved, scheduleOperationProgress, t])
+  }, [api, cancelActiveOperation, clearOperationTimers, currentContent, file, fileSessionId, finishOperationProgress, message, modal, onSaved, t, watchFileOperation])
 
   useEffect(() => {
     saveFileRef.current = (force = false) => {
@@ -226,12 +343,23 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
     }
   }, [loadFile, open])
 
+  useEffect(() => {
+    if (open) {
+      return
+    }
+    loadSeqRef.current++
+    cancelActiveOperation()
+    clearOperationTimers()
+    setOperationProgress(null)
+  }, [cancelActiveOperation, clearOperationTimers, open])
+
   useEffect(
     () => () => {
       loadSeqRef.current++
+      cancelActiveOperation()
       clearOperationTimers()
     },
-    [clearOperationTimers],
+    [cancelActiveOperation, clearOperationTimers],
   )
 
   useEffect(() => {
