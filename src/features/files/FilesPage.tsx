@@ -68,6 +68,7 @@ import type {
   LocalPathMappingReorderItem,
   RemoteDirectoryListing,
   RemoteFileEntry,
+  ThemeMode,
   TransferTask,
 } from '../../types/domain'
 import { fileSortValue, formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
@@ -81,6 +82,7 @@ const RemoteTextEditorModal = lazy(() => import('./RemoteTextEditorModal').then(
 interface FilesPageProps {
   api: TermousApi
   data: AppData
+  theme: ThemeMode
   selectedHostId: string
   activeFileSession: FileSession | null
   onSelectHost: (hostId: string) => void
@@ -207,6 +209,7 @@ const remotePathDisplayName = (path: string) => {
 export function FilesPage({
   api,
   data,
+  theme,
   selectedHostId,
   activeFileSession,
   onSelectHost,
@@ -2010,6 +2013,8 @@ export function FilesPage({
             open={Boolean(textEditorPath && activeFileSessionId)}
             fileSessionId={activeFileSessionId}
             path={textEditorPath}
+            theme={theme}
+            terminalSettings={data.settings.terminal}
             onClose={() => setTextEditorPath(null)}
             onSaved={(entry) => handleTextFileSaved(entry)}
           />

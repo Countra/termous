@@ -6156,11 +6156,24 @@ body.is-terminal-tab-dragging * {
 }
 
 .remote-text-editor {
+  --remote-editor-bg: #1e1e1e;
+  --remote-editor-fg: #d4d4d4;
+  --remote-editor-muted: #858585;
+  --remote-editor-active-line: #ffffff0f;
+  --remote-editor-selection: #6199ff2f;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: min(760px, calc(100vh - 88px));
   max-height: calc(100vh - 64px);
   background: var(--ant-modal-content-bg);
+}
+
+.remote-text-editor.is-editor-light {
+  --remote-editor-bg: #ffffff;
+  --remote-editor-fg: #383a42;
+  --remote-editor-muted: #237893;
+  --remote-editor-active-line: #99999926;
+  --remote-editor-selection: #add6ff;
 }
 
 .remote-text-editor-header,
@@ -6292,10 +6305,10 @@ body.is-terminal-tab-dragging * {
   grid-template-rows: 34px minmax(0, 1fr);
   height: 100%;
   min-height: 360px;
-  border: 1px solid color-mix(in srgb, var(--terminal-fg, #e6ebf4) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--remote-editor-fg) 12%, transparent);
   border-radius: 15px;
-  background: var(--terminal-bg, #080a0f);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--terminal-fg, #e6ebf4) 6%, transparent);
+  background: var(--remote-editor-bg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--remote-editor-fg) 6%, transparent);
 }
 
 .remote-text-editor-frame.is-placeholder {
@@ -6304,9 +6317,9 @@ body.is-terminal-tab-dragging * {
 
 .remote-text-editor-loading-canvas {
   background:
-    linear-gradient(90deg, color-mix(in srgb, var(--terminal-fg, #e6ebf4) 5%, transparent) 1px, transparent 1px),
-    linear-gradient(180deg, color-mix(in srgb, var(--terminal-fg, #e6ebf4) 4%, transparent) 1px, transparent 1px),
-    var(--terminal-bg, #080a0f);
+    linear-gradient(90deg, color-mix(in srgb, var(--remote-editor-fg) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(180deg, color-mix(in srgb, var(--remote-editor-fg) 4%, transparent) 1px, transparent 1px),
+    var(--remote-editor-bg);
   background-size: 64px 100%, 100% 32px, auto;
 }
 
@@ -6315,10 +6328,10 @@ body.is-terminal-tab-dragging * {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--terminal-fg, #e6ebf4) 10%, transparent);
-  background: var(--terminal-bg, #080a0f);
+  border-bottom: 1px solid color-mix(in srgb, var(--remote-editor-fg) 10%, transparent);
+  background: var(--remote-editor-bg);
   padding: 0 12px;
-  color: color-mix(in srgb, var(--terminal-fg, #e6ebf4) 62%, transparent);
+  color: color-mix(in srgb, var(--remote-editor-fg) 62%, transparent);
   font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
@@ -6338,8 +6351,8 @@ body.is-terminal-tab-dragging * {
 
 .remote-text-editor-codemirror .cm-editor {
   height: 100%;
-  background: transparent;
-  color: var(--terminal-fg, var(--text-primary));
+  background: var(--remote-editor-bg);
+  color: var(--remote-editor-fg);
   font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
   font-size: var(--terminal-font-size, 13px);
   line-height: var(--terminal-line-height, 1.55);
@@ -6347,20 +6360,29 @@ body.is-terminal-tab-dragging * {
 }
 
 .remote-text-editor-codemirror .cm-scroller {
-  font-family: inherit;
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
   scrollbar-color: var(--termous-scrollbar-thumb) var(--termous-scrollbar-track);
   scrollbar-width: thin;
 }
 
 .remote-text-editor-codemirror .cm-content {
   padding: 16px 14px 28px;
-  caret-color: var(--terminal-cursor, var(--accent));
+  caret-color: var(--accent);
+}
+
+.remote-text-editor-codemirror .cm-content,
+.remote-text-editor-codemirror .cm-line,
+.remote-text-editor-codemirror .cm-gutterElement {
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: var(--terminal-font-size, 13px);
+  line-height: var(--terminal-line-height, 1.55);
+  letter-spacing: var(--terminal-letter-spacing, 0px);
 }
 
 .remote-text-editor-codemirror .cm-gutters {
-  border-right: 1px solid color-mix(in srgb, var(--terminal-fg, #e6ebf4) 10%, transparent);
-  background: var(--terminal-bg, #080a0f);
-  color: color-mix(in srgb, var(--terminal-fg, #e6ebf4) 52%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--remote-editor-fg) 10%, transparent);
+  background: var(--remote-editor-bg);
+  color: var(--remote-editor-muted);
 }
 
 .remote-text-editor-codemirror .cm-lineNumbers .cm-gutterElement {
@@ -6370,12 +6392,12 @@ body.is-terminal-tab-dragging * {
 
 .remote-text-editor-codemirror .cm-activeLine,
 .remote-text-editor-codemirror .cm-activeLineGutter {
-  background: color-mix(in srgb, var(--terminal-cursor, var(--accent)) 10%, transparent);
+  background: var(--remote-editor-active-line);
 }
 
 .remote-text-editor-codemirror .cm-selectionBackground,
 .remote-text-editor-codemirror .cm-focused .cm-selectionBackground {
-  background: var(--terminal-selection-bg, color-mix(in srgb, var(--accent) 38%, transparent));
+  background: var(--remote-editor-selection);
 }
 
 .remote-text-editor-codemirror .cm-focused {

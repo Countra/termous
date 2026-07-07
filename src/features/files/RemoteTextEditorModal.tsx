@@ -4,11 +4,12 @@ import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { indentWithTab } from '@codemirror/commands'
 import { languages } from '@codemirror/language-data'
+import { vscodeDarkInit, vscodeLightInit } from '@uiw/codemirror-theme-vscode'
 import { AlertTriangle, Code2, FileText, RefreshCw, Save } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError, type TermousApi } from '../../api/client'
-import type { FileOperationTask, RemoteFileEntry, RemoteTextFile, RemoteTextLineEnding, RemoteTextSaveResult } from '../../types/domain'
+import type { FileOperationTask, RemoteFileEntry, RemoteTextFile, RemoteTextLineEnding, RemoteTextSaveResult, TerminalSettings, ThemeMode } from '../../types/domain'
 import { FileOperationProgress, type FileOperationProgressState } from './FileOperationProgress'
 import { formatBytes } from './fileUtils'
 
@@ -17,17 +18,24 @@ interface RemoteTextEditorModalProps {
   open: boolean
   fileSessionId: string
   path: string
+  theme: ThemeMode
+  terminalSettings: TerminalSettings
   onClose: () => void
   onSaved: (entry: RemoteFileEntry, file: RemoteTextFile) => void
 }
 
 const editorLanguage = new Compartment()
+const editorTheme = new Compartment()
 
-export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose, onSaved }: RemoteTextEditorModalProps) {
+export function RemoteTextEditorModal({ api, open, fileSessionId, path, theme, terminalSettings, onClose, onSaved }: RemoteTextEditorModalProps) {
   const { t } = useTranslation()
   const { message, modal } = AntdApp.useApp()
   const editorHostRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
+  const editorThemeMode = terminalSettings.theme_mode === 'follow_app' ? theme : terminalSettings.theme_mode
+  const editorThemeModeRef = useRef<ThemeMode>(editorThemeMode)
+  const fileRef = useRef<RemoteTextFile | null>(null)
+  const baseContentRef = useRef('')
   const loadSeqRef = useRef(0)
   const saveFileRef = useRef<(force?: boolean) => void>(() => undefined)
   const savingRef = useRef(false)
@@ -51,6 +59,11 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
   }, [file, path, t])
 
   const currentContent = useCallback(() => editorViewRef.current?.state.doc.toString() ?? content, [content])
+
+  useEffect(() => {
+    fileRef.current = file
+    baseContentRef.current = file?.content ?? ''
+  }, [file])
 
   const clearOperationTimers = useCallback(() => {
     operationTimersRef.current.forEach((timer) => window.clearTimeout(timer))
@@ -229,6 +242,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
     }
     const requestSeq = loadSeqRef.current + 1
     loadSeqRef.current = requestSeq
+    const existingFile = fileRef.current
     cancelActiveOperation()
     setLoading(true)
     setError(null)
@@ -261,9 +275,11 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
       if (loadSeqRef.current !== requestSeq) {
         return
       }
-      setFile(null)
-      setContent('')
-      setDirty(false)
+      if (!existingFile) {
+        setFile(null)
+        setContent('')
+        setDirty(false)
+      }
       setError(remoteTextErrorMessage(loadError, t))
       finishOperationProgress({
         title: t('files.fileOperationReadTitle'),
@@ -354,6 +370,14 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
     }
   }, [saveFile])
 
+  useEffect(() => {
+    editorThemeModeRef.current = editorThemeMode
+    if (!editorViewRef.current) {
+      return
+    }
+    editorViewRef.current.dispatch({ effects: editorTheme.reconfigure(codeMirrorTheme(editorThemeMode)) })
+  }, [editorThemeMode])
+
   const requestClose = useCallback(() => {
     if (!dirty) {
       onClose()
@@ -380,6 +404,8 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
     if (open) {
       return
     }
+    editorViewRef.current?.destroy()
+    editorViewRef.current = null
     loadSeqRef.current++
     cancelActiveOperation()
     clearOperationTimers()
@@ -389,6 +415,8 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
   useEffect(
     () => () => {
       loadSeqRef.current++
+      editorViewRef.current?.destroy()
+      editorViewRef.current = null
       cancelActiveOperation()
       clearOperationTimers()
     },
@@ -400,7 +428,24 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
       return
     }
 
-    editorViewRef.current?.destroy()
+    baseContentRef.current = file.content
+    const existingView = editorViewRef.current
+    if (existingView) {
+      const currentDoc = existingView.state.doc.toString()
+      if (currentDoc !== file.content) {
+        existingView.dispatch({
+          changes: {
+            from: 0,
+            to: existingView.state.doc.length,
+            insert: file.content,
+          },
+        })
+      }
+      setContent(file.content)
+      setDirty(false)
+      return
+    }
+
     const view = new EditorView({
       parent: editorHostRef.current,
       state: EditorState.create({
@@ -410,13 +455,14 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
           keymap.of([indentWithTab]),
           EditorView.lineWrapping,
           editorLanguage.of([]),
+          editorTheme.of(codeMirrorTheme(editorThemeModeRef.current)),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) {
               return
             }
             const nextContent = update.state.doc.toString()
             setContent(nextContent)
-            setDirty(nextContent !== file.content)
+            setDirty(nextContent !== baseContentRef.current)
           }),
         ],
       }),
@@ -424,12 +470,6 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
     editorViewRef.current = view
     setTimeout(() => view.focus(), 0)
 
-    return () => {
-      view.destroy()
-      if (editorViewRef.current === view) {
-        editorViewRef.current = null
-      }
-    }
   }, [file, open])
 
   useEffect(() => {
@@ -482,7 +522,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
       rootClassName="termous-modal-root remote-text-editor-root"
       onCancel={requestClose}
     >
-      <section className="remote-text-editor">
+      <section className={`remote-text-editor is-editor-${editorThemeMode}`}>
         <header className="remote-text-editor-header">
           <div className="remote-text-editor-title">
             <span className="remote-text-editor-icon">
@@ -506,7 +546,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
         </header>
 
         <div className="remote-text-editor-body">
-          {operationProgress && !error ? (
+          {operationProgress ? (
             <div className="remote-text-editor-operation-toast">
               <FileOperationProgress
                 title={operationProgress.title}
@@ -518,7 +558,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
               />
             </div>
           ) : null}
-          {loading ? (
+          {loading && !file ? (
             <div className="remote-text-editor-frame is-placeholder" aria-hidden="true">
               <div className="remote-text-editor-framebar">
                 <span>{t('files.textEditorPlainText')}</span>
@@ -526,7 +566,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
               </div>
               <div className="remote-text-editor-loading-canvas" />
             </div>
-          ) : error ? (
+          ) : error && !file ? (
             <div className="remote-text-editor-state is-error">
               <AlertTriangle size={24} aria-hidden="true" />
               <strong>{error}</strong>
@@ -591,6 +631,14 @@ function extensionOf(name: string) {
 
 function lineEndingLabel(value: RemoteTextLineEnding, t: (key: string) => string) {
   return t(`files.textEditorLineEnding.${value}`)
+}
+
+function codeMirrorTheme(theme: ThemeMode) {
+  const settings = {
+    fontFamily: 'var(--terminal-font-family, "JetBrains Mono", Consolas, monospace)',
+    fontSize: 'var(--terminal-font-size, 13px)',
+  }
+  return theme === 'light' ? vscodeLightInit({ settings }) : vscodeDarkInit({ settings })
 }
 
 function remoteTextErrorMessage(error: unknown, t: (key: string) => string) {

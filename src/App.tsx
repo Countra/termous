@@ -579,6 +579,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           <FilesPage
             api={api}
             data={filesPageData}
+            theme={theme}
             selectedHostId={selectedHostIdStable}
             activeFileSession={activeFileSession}
             onSelectHost={setSelectedHostId}
