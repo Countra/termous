@@ -11,8 +11,8 @@ import {
   Clipboard,
   Copy,
   Download,
+  Eye,
   File,
-  FilePenLine,
   Folder,
   FolderPlus,
   Link,
@@ -78,6 +78,7 @@ import { TransferQueuePanel, type PendingFileOperation } from './TransferQueuePa
 import { useTransferQueue } from './useTransferQueue'
 
 const RemoteTextEditorModal = lazy(() => import('./RemoteTextEditorModal').then((module) => ({ default: module.RemoteTextEditorModal })))
+const RemoteImageViewerModal = lazy(() => import('./RemoteImageViewerModal').then((module) => ({ default: module.RemoteImageViewerModal })))
 
 interface FilesPageProps {
   api: TermousApi
@@ -206,6 +207,12 @@ const remotePathDisplayName = (path: string) => {
   return parts[parts.length - 1] ?? normalized
 }
 
+const previewableImageExtensionPattern = /\.(png|jpe?g|gif|webp|bmp|svg)$/i
+
+function isPreviewableImageEntry(entry: RemoteFileEntry) {
+  return entry.kind === 'file' && previewableImageExtensionPattern.test(entry.name || entry.path)
+}
+
 export function FilesPage({
   api,
   data,
@@ -263,6 +270,7 @@ export function FilesPage({
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
   const [textEditorPath, setTextEditorPath] = useState<string | null>(null)
+  const [imageViewerPath, setImageViewerPath] = useState<string | null>(null)
   const [pendingTransferOperations, setPendingTransferOperations] = useState<PendingFileOperation[]>([])
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [connectingHostIds, setConnectingHostIds] = useState<Set<string>>(() => new Set())
@@ -1041,13 +1049,13 @@ export function FilesPage({
     setSelectedPaths([entry.path])
   }
 
-  const openTextEditor = (entry = selectedEntries[0]) => {
+  const openFileEntry = (entry = selectedEntries[0]) => {
     if (!entry || !fileSessionConnected) {
       return
     }
     if (entry.kind !== 'file') {
       notification.warning({
-        title: t('files.textEditorOnlyFiles'),
+        title: t('files.openFileOnlyFiles'),
         duration: 3,
         role: 'status',
         className: 'termous-notification',
@@ -1056,6 +1064,12 @@ export function FilesPage({
     }
     setActiveEntry(entry)
     setSelectedPaths([entry.path])
+    if (isPreviewableImageEntry(entry)) {
+      setTextEditorPath(null)
+      setImageViewerPath(entry.path)
+      return
+    }
+    setImageViewerPath(null)
     setTextEditorPath(entry.path)
   }
 
@@ -1496,7 +1510,7 @@ export function FilesPage({
   const rowMenu = (entry: RemoteFileEntry): MenuProps['items'] => {
     const items: NonNullable<MenuProps['items']> = []
     if (entry.kind === 'file') {
-      items.push({ key: 'editText', icon: <FilePenLine size={14} />, label: t('files.editText') })
+      items.push({ key: 'openFile', icon: <Eye size={14} />, label: t('files.openFile') })
     }
     items.push(
       { key: 'download', icon: <Download size={14} />, label: t('files.download') },
@@ -1513,7 +1527,7 @@ export function FilesPage({
     setFileContextMenu(null)
     setSelectedPaths([entry.path])
     setActiveEntry(entry)
-    if (key === 'editText') openTextEditor(entry)
+    if (key === 'openFile') openFileEntry(entry)
     if (key === 'download') void downloadPaths([entry.path])
     if (key === 'copy' && activeFileSession) setRemoteClipboard({ mode: 'copy', hostId: activeFileSession.host_id, paths: [entry.path] })
     if (key === 'cut' && activeFileSession) setRemoteClipboard({ mode: 'cut', hostId: activeFileSession.host_id, paths: [entry.path] })
@@ -2017,6 +2031,18 @@ export function FilesPage({
             terminalSettings={data.settings.terminal}
             onClose={() => setTextEditorPath(null)}
             onSaved={(entry) => handleTextFileSaved(entry)}
+          />
+        </Suspense>
+      ) : null}
+      {imageViewerPath && activeFileSessionId ? (
+        <Suspense fallback={null}>
+          <RemoteImageViewerModal
+            api={api}
+            open={Boolean(imageViewerPath && activeFileSessionId)}
+            fileSessionId={activeFileSessionId}
+            path={imageViewerPath}
+            theme={theme}
+            onClose={() => setImageViewerPath(null)}
           />
         </Suspense>
       ) : null}

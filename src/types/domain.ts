@@ -112,7 +112,18 @@ export interface RemoteTextSaveResult {
   entry: RemoteFileEntry
 }
 
-export type FileOperationType = 'read_text' | 'save_text'
+export interface RemoteImageFile {
+  file_session_id: string
+  path: string
+  name: string
+  content_type: string
+  size: number
+  sha256: string
+  modified_at?: string
+  loaded_at: string
+}
+
+export type FileOperationType = 'read_text' | 'save_text' | 'read_image'
 
 export type FileOperationStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 

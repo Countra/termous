@@ -633,12 +633,25 @@ export class TermousApi {
     })
   }
 
+  createFileSessionImageReadOperation(fileSessionId: string, path: string) {
+    return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/image/read`, {
+      method: 'POST',
+      body: { path },
+    })
+  }
+
   fileOperation(id: string) {
     return this.request<FileOperationTask>(`/api/v1/file-operations/${encodeURIComponent(id)}`)
   }
 
   fileOperationResult<T>(id: string) {
     return this.request<T>(`/api/v1/file-operations/${encodeURIComponent(id)}/result`, {
+      timeoutMs: 90_000,
+    })
+  }
+
+  fileOperationBlobResult(id: string) {
+    return this.requestBlob(`/api/v1/file-operations/${encodeURIComponent(id)}/blob`, {
       timeoutMs: 90_000,
     })
   }
@@ -841,6 +854,48 @@ export class TermousApi {
         return undefined as T
       }
       return (await response.json()) as T
+    } catch (error) {
+      if (error instanceof TermousApiError) {
+        throw error
+      }
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        if (!timedOut) {
+          throw new TermousApiError('请求已取消', 'REQUEST_ABORTED', 0)
+        }
+        throw new TermousApiError('请求超时', 'REQUEST_TIMEOUT', 0)
+      }
+      throw new TermousApiError(error instanceof Error ? error.message : '本地 API 不可用', 'NETWORK_ERROR', 0)
+    } finally {
+      window.clearTimeout(timeout)
+      options.signal?.removeEventListener('abort', abortByCaller)
+    }
+  }
+
+  private async requestBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
+    const controller = new AbortController()
+    let timedOut = false
+    const timeout = window.setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, options.timeoutMs ?? 12_000)
+    const abortByCaller = () => controller.abort()
+    if (options.signal?.aborted) {
+      controller.abort()
+    } else {
+      options.signal?.addEventListener('abort', abortByCaller, { once: true })
+    }
+    try {
+      const response = await fetch(new URL(path, this.config.apiBaseUrl), {
+        method: options.method ?? 'GET',
+        headers: {
+          ...(this.config.apiToken ? { 'X-Termous-Token': this.config.apiToken } : {}),
+        },
+        signal: controller.signal,
+      })
+      if (!response.ok) {
+        throw await this.toError(response)
+      }
+      return response.blob()
     } catch (error) {
       if (error instanceof TermousApiError) {
         throw error
