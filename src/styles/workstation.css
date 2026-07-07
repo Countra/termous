@@ -8827,16 +8827,6 @@ body.is-files-column-resizing * {
   font-size: 12px;
 }
 
-.files-error {
-  margin: 10px 12px 0;
-  border: 1px solid color-mix(in srgb, var(--danger) 32%, var(--border));
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--danger) 8%, transparent);
-  color: var(--danger);
-  padding: 9px 10px;
-  font-size: 12px;
-}
-
 .files-hostkey-dialog {
   display: grid;
   gap: 14px;

@@ -261,7 +261,6 @@ export function FilesPage({
   const [activeEntry, setActiveEntry] = useState<RemoteFileEntry | null>(null)
   const [fileContextMenu, setFileContextMenu] = useState<FileContextMenuState | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [dropTargetDirectoryPath, setDropTargetDirectoryPath] = useState<string | null>(null)
   const [remoteMoveDrag, setRemoteMoveDrag] = useState<RemoteMoveDragState | null>(null)
@@ -416,7 +415,6 @@ export function FilesPage({
     setActiveEntry(null)
     setDropTargetDirectoryPath(null)
     setRemoteMoveTargetPath(null)
-    setError(null)
   }, [])
 
   useEffect(() => {
@@ -444,7 +442,6 @@ export function FilesPage({
       }
       const normalized = normalizeRemotePath(nextPath)
       setLoading(true)
-      setError(null)
       try {
         const listing = await api.listFileSessionFiles(activeFileSessionId, normalized)
         if (options?.recordHistory !== false && normalizeRemotePath(currentPath) !== normalizeRemotePath(listing.path)) {
@@ -452,12 +449,18 @@ export function FilesPage({
         }
         applyListing(listing)
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : t('app.error'))
+        notification.error({
+          message: t('files.directoryReadFailed'),
+          description: loadError instanceof Error ? loadError.message : t('app.error'),
+          duration: 5,
+          role: 'alert',
+          className: 'termous-notification',
+        })
       } finally {
         setLoading(false)
       }
     },
-    [activeFileSessionId, api, applyListing, currentPath, fileSessionConnected, t],
+    [activeFileSessionId, api, applyListing, currentPath, fileSessionConnected, notification, t],
   )
 
   const trackUploadRefreshTask = useCallback((task: TransferTask) => {
@@ -1827,7 +1830,6 @@ export function FilesPage({
           </div>
         </div>
 
-        {error ? <div className="files-error">{error}</div> : null}
         <div ref={filesTableShellRef} className="files-table-shell">
           {!activeFileSession ? (
             <div className="files-session-empty">
