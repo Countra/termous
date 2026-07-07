@@ -129,6 +129,12 @@ interface RemoteMoveDragState {
   paths: string[]
 }
 
+interface FileContextMenuState {
+  entry: RemoteFileEntry
+  x: number
+  y: number
+}
+
 type FileColumnKey = 'name' | 'size' | 'modified' | 'permissions'
 type FileColumnWidths = Record<FileColumnKey, number>
 
@@ -242,6 +248,7 @@ export function FilesPage({
   const [entries, setEntries] = useState<RemoteFileEntry[]>([])
   const [selectedPaths, setSelectedPaths] = useState<string[]>([])
   const [activeEntry, setActiveEntry] = useState<RemoteFileEntry | null>(null)
+  const [fileContextMenu, setFileContextMenu] = useState<FileContextMenuState | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -700,6 +707,34 @@ export function FilesPage({
       },
     })
   }, [activeHostKeyPromptKey, hostKeyPromptQueue, modal, onTrustFileSessionHost, onUpdateFileSession, t])
+
+  useEffect(() => {
+    if (!fileContextMenu) {
+      return undefined
+    }
+
+    const closeOnPointerDown = (event: globalThis.PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.files-row-menu')) {
+        return
+      }
+      setFileContextMenu(null)
+    }
+    const closeOnKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setFileContextMenu(null)
+      }
+    }
+    const closeOnBlur = () => setFileContextMenu(null)
+
+    window.addEventListener('pointerdown', closeOnPointerDown)
+    window.addEventListener('keydown', closeOnKeyDown)
+    window.addEventListener('blur', closeOnBlur)
+    return () => {
+      window.removeEventListener('pointerdown', closeOnPointerDown)
+      window.removeEventListener('keydown', closeOnKeyDown)
+      window.removeEventListener('blur', closeOnBlur)
+    }
+  }, [fileContextMenu])
 
   const updateTabScrollState = useCallback(() => {
     const viewport = fileTabViewportRef.current
@@ -1418,6 +1453,25 @@ export function FilesPage({
     )
     return items
   }
+  const runRowMenuAction = (entry: RemoteFileEntry, key: string) => {
+    setFileContextMenu(null)
+    setSelectedPaths([entry.path])
+    setActiveEntry(entry)
+    if (key === 'editText') openTextEditor(entry)
+    if (key === 'download') void downloadPaths([entry.path])
+    if (key === 'copy' && activeFileSession) setRemoteClipboard({ mode: 'copy', hostId: activeFileSession.host_id, paths: [entry.path] })
+    if (key === 'cut' && activeFileSession) setRemoteClipboard({ mode: 'cut', hostId: activeFileSession.host_id, paths: [entry.path] })
+    if (key === 'permissions') openPermissions(entry)
+    if (key === 'rename') openRename(entry)
+    if (key === 'delete') confirmDelete([entry.path])
+  }
+  const fileRowMenuProps = (entry: RemoteFileEntry): MenuProps => ({
+    items: rowMenu(entry),
+    onClick: ({ key, domEvent }) => {
+      domEvent.stopPropagation()
+      runRowMenuAction(entry, String(key))
+    },
+  })
 
   const beginFileColumnResize = (key: FileColumnKey, event: MouseEvent<HTMLSpanElement>) => {
     event.preventDefault()
@@ -1505,20 +1559,8 @@ export function FilesPage({
       width: 44,
       render: (_: unknown, entry: RemoteFileEntry) => (
         <Dropdown
-          menu={{
-            items: rowMenu(entry),
-            onClick: ({ key }) => {
-              setSelectedPaths([entry.path])
-              if (key === 'editText') openTextEditor(entry)
-              if (key === 'download') void downloadPaths([entry.path])
-              if (key === 'copy' && activeFileSession) setRemoteClipboard({ mode: 'copy', hostId: activeFileSession.host_id, paths: [entry.path] })
-              if (key === 'cut' && activeFileSession) setRemoteClipboard({ mode: 'cut', hostId: activeFileSession.host_id, paths: [entry.path] })
-              if (key === 'permissions') openPermissions(entry)
-              if (key === 'rename') openRename(entry)
-              if (key === 'delete') confirmDelete([entry.path])
-            },
-          }}
-          trigger={['click', 'contextMenu']}
+          menu={fileRowMenuProps(entry)}
+          trigger={['click']}
           classNames={{ root: 'files-row-menu' }}
         >
           <Button
@@ -1665,6 +1707,7 @@ export function FilesPage({
             <Input.Search
               id="files-path-input"
               name="files-path-input"
+              size="large"
               value={pathInput}
               disabled={!fileSessionConnected}
               onChange={(event) => setPathInput(event.target.value)}
@@ -1719,17 +1762,6 @@ export function FilesPage({
             <Button className="secondary-button" disabled={actionDisabled} icon={<Clipboard size={15} />} onClick={() => void pasteFromClipboard()}>
               {t('files.paste')}
             </Button>
-            <Button
-              className="secondary-button"
-              disabled={actionDisabled || selectedPaths.length !== 1}
-              icon={<ShieldCheck size={15} />}
-              onClick={() => openPermissions()}
-            >
-              {t('files.editPermissions')}
-            </Button>
-            <Button className="secondary-button" disabled={selectedPaths.length !== 1} icon={<Pencil size={15} />} onClick={() => openRename()}>
-              {t('files.rename')}
-            </Button>
             <Button className="danger-button" disabled={selectedPaths.length === 0} icon={<Trash2 size={15} />} onClick={() => confirmDelete()}>
               {t('app.delete')}
             </Button>
@@ -1772,6 +1804,12 @@ export function FilesPage({
                 draggable: fileSessionConnected && !loading,
                 onClick: () => setActiveEntry(entry),
                 onDoubleClick: () => enterEntry(entry),
+                onContextMenu: (event) => {
+                  event.preventDefault()
+                  setSelectedPaths([entry.path])
+                  setActiveEntry(entry)
+                  setFileContextMenu({ entry, x: event.clientX, y: event.clientY })
+                },
                 onDragStart: (event) => startRemoteMoveDrag(entry, event),
                 onDragOver: (event) => updateRemoteMoveTarget(entry, event),
                 onDragLeave: (event) => {
@@ -1790,6 +1828,25 @@ export function FilesPage({
               locale={{ emptyText: <EmptyState title={t('files.emptyDirectory')} description={t('files.emptyDirectoryHint')} /> }}
             />
           )}
+          {fileContextMenu ? (
+            <Dropdown
+              open
+              trigger={[]}
+              placement="bottomLeft"
+              menu={fileRowMenuProps(fileContextMenu.entry)}
+              classNames={{ root: 'files-row-menu' }}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setFileContextMenu(null)
+                }
+              }}
+            >
+              <span
+                className="files-context-menu-anchor"
+                style={{ left: fileContextMenu.x, top: fileContextMenu.y }}
+              />
+            </Dropdown>
+          ) : null}
         </div>
         {dragActive || remoteMoveDrag ? (
           <div className={`files-drop-mask ${remoteMoveDrag ? 'is-move' : ''}`}>

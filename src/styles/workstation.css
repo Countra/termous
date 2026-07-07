@@ -6788,12 +6788,23 @@ body.is-panel-resizing .files-page {
   color: var(--text-primary);
 }
 
+.files-path-input.ant-input-search {
+  display: flex;
+  width: 100%;
+}
+
 .files-path-input .ant-input,
-.files-path-input .ant-input-group-addon,
-.files-path-input .ant-btn {
+.files-path-input .ant-input-search-btn.ant-btn {
   border-color: var(--border) !important;
   background: var(--input-bg) !important;
   color: var(--text-primary) !important;
+}
+
+.files-path-input .ant-input-search-btn.ant-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 720;
 }
 
 .files-toolbar-actions {
@@ -8662,11 +8673,30 @@ body.is-files-column-resizing * {
     var(--surface-strong);
 }
 
+.files-row-menu {
+  background: #21252e !important;
+}
+
 .files-row-menu .ant-dropdown-menu {
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--surface-strong) !important;
+  background: #21252e !important;
+  backdrop-filter: none !important;
   box-shadow: var(--shadow-soft);
+}
+
+.files-context-menu-anchor {
+  position: fixed;
+  display: block;
+  z-index: 1;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+:root[data-theme="light"] .files-row-menu,
+:root[data-theme="light"] .files-row-menu .ant-dropdown-menu {
+  background: #ffffff !important;
 }
 
 @media (max-width: 1100px) {
