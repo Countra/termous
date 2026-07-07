@@ -558,10 +558,17 @@ export class TermousApi {
     return this.request<FileSession[]>('/api/v1/file-sessions')
   }
 
-  createFileSession(hostId: string, sourceSessionId = '', initialPath = '/') {
+  createFileSession(hostId: string, sourceSessionId = '', initialPath = '') {
+    const body: { host_id: string; source_session_id?: string; initial_path?: string } = { host_id: hostId }
+    if (sourceSessionId) {
+      body.source_session_id = sourceSessionId
+    }
+    if (initialPath) {
+      body.initial_path = initialPath
+    }
     return this.request<FileSession>('/api/v1/file-sessions', {
       method: 'POST',
-      body: { host_id: hostId, source_session_id: sourceSessionId, initial_path: initialPath },
+      body,
     })
   }
 

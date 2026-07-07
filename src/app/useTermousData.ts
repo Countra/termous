@@ -485,7 +485,7 @@ export function useTermousData() {
           ),
         }))
       },
-      async connectFileSession(hostId: string, sourceSessionId = '', initialPath = '/') {
+      async connectFileSession(hostId: string, sourceSessionId = '', initialPath = '') {
         const fileSession = await api.createFileSession(hostId, sourceSessionId, initialPath)
         setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
         return fileSession

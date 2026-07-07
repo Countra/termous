@@ -716,6 +716,7 @@ export interface Host {
   favorite: boolean
   fingerprint_policy: string
   note?: string
+  last_file_directory?: string
   created_at?: string
   updated_at?: string
   last_connected_at?: string
