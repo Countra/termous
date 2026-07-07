@@ -73,7 +73,7 @@ import type {
 import { fileSortValue, formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
 import { FileBookmarksPanel } from './FileBookmarksPanel'
 import { LocalPathMappingsPanel, type LocalPathRefreshRequest } from './LocalPathMappingsPanel'
-import { TransferQueuePanel } from './TransferQueuePanel'
+import { TransferQueuePanel, type PendingFileOperation } from './TransferQueuePanel'
 import { useTransferQueue } from './useTransferQueue'
 
 const RemoteTextEditorModal = lazy(() => import('./RemoteTextEditorModal').then((module) => ({ default: module.RemoteTextEditorModal })))
@@ -238,6 +238,7 @@ export function FilesPage({
   const remoteMoveDragRef = useRef<RemoteMoveDragState | null>(null)
   const uploadRefreshTasksRef = useRef(new Map<string, UploadRefreshTarget>())
   const downloadRefreshTasksRef = useRef(new Map<string, string>())
+  const pendingOperationTimersRef = useRef<number[]>([])
   const lastSessionLoadKeyRef = useRef('')
   const lastActiveFileSessionIdRef = useRef('')
   const fileSessionSocketsRef = useRef(new Map<string, WebSocket>())
@@ -259,6 +260,7 @@ export function FilesPage({
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
   const [textEditorPath, setTextEditorPath] = useState<string | null>(null)
+  const [pendingTransferOperations, setPendingTransferOperations] = useState<PendingFileOperation[]>([])
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [connectingHostIds, setConnectingHostIds] = useState<Set<string>>(() => new Set())
   const [activeHostKeyPromptKey, setActiveHostKeyPromptKey] = useState('')
@@ -313,6 +315,26 @@ export function FilesPage({
     setDetailsCollapsed(false)
     setDetailsActiveTab('transfers')
   }
+  const updatePendingTransferOperation = useCallback((id: string, patch: Partial<PendingFileOperation>) => {
+    setPendingTransferOperations((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)))
+  }, [])
+  const startPendingTransferOperation = useCallback((operation: Omit<PendingFileOperation, 'id'>) => {
+    const id = `file-op-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    setPendingTransferOperations((current) => [{ ...operation, id }, ...current].slice(0, 4))
+    return id
+  }, [])
+  const finishPendingTransferOperation = useCallback((id: string, status: 'success' | 'error', description: string) => {
+    updatePendingTransferOperation(id, { status, description, progress: 100, indeterminate: false })
+    const timer = window.setTimeout(() => {
+      setPendingTransferOperations((current) => current.filter((item) => item.id !== id))
+    }, 900)
+    pendingOperationTimersRef.current.push(timer)
+  }, [updatePendingTransferOperation])
+
+  useEffect(() => () => {
+    pendingOperationTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+    pendingOperationTimersRef.current = []
+  }, [])
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const selectedHostIdStable = selectedHost?.id ?? ''
   const activeFileSessionHost = activeFileSession?.host_id ? data.hosts.find((host) => host.id === activeFileSession.host_id) : undefined
@@ -847,12 +869,30 @@ export function FilesPage({
     if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
       return
     }
+    showTransferQueuePanel()
     await runFileAction(async () => {
-      const grant = await api.createLocalFileGrant(source, paths)
-      const task = await api.createFileSessionUploadTransfer(activeFileSessionId, grant.id, targetPath, 'rename')
-      trackUploadRefreshTask(task)
-      showTransferQueuePanel()
-      upsertTransfer(task)
+      const pendingId = startPendingTransferOperation({
+        title: t('files.fileOperationUploadTitle'),
+        description: t('files.fileOperationTransferGrant'),
+        progress: 0,
+        status: 'running',
+        indeterminate: true,
+      })
+      try {
+        const grant = await api.createLocalFileGrant(source, paths)
+        updatePendingTransferOperation(pendingId, {
+          description: t('files.fileOperationTransferCreate'),
+          progress: 0,
+          indeterminate: true,
+        })
+        const task = await api.createFileSessionUploadTransfer(activeFileSessionId, grant.id, targetPath, 'rename')
+        trackUploadRefreshTask(task)
+        upsertTransfer(task)
+        finishPendingTransferOperation(pendingId, 'success', t('files.fileOperationTransferReady'))
+      } catch (actionError) {
+        finishPendingTransferOperation(pendingId, 'error', t('files.fileOperationTransferFailed'))
+        throw actionError
+      }
     }, t('files.transferCreated'))
   }
 
@@ -860,11 +900,24 @@ export function FilesPage({
     if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
       return
     }
+    showTransferQueuePanel()
     await runFileAction(async () => {
-      const task = await api.createFileSessionDownloadTransfer(activeFileSessionId, paths, localDir, 'rename')
-      trackDownloadRefreshTask(task)
-      showTransferQueuePanel()
-      upsertTransfer(task)
+      const pendingId = startPendingTransferOperation({
+        title: t('files.fileOperationDownloadTitle'),
+        description: t('files.fileOperationTransferCreate'),
+        progress: 0,
+        status: 'running',
+        indeterminate: true,
+      })
+      try {
+        const task = await api.createFileSessionDownloadTransfer(activeFileSessionId, paths, localDir, 'rename')
+        trackDownloadRefreshTask(task)
+        upsertTransfer(task)
+        finishPendingTransferOperation(pendingId, 'success', t('files.fileOperationTransferReady'))
+      } catch (actionError) {
+        finishPendingTransferOperation(pendingId, 'error', t('files.fileOperationTransferFailed'))
+        throw actionError
+      }
     }, t('files.transferCreated'))
   }
 
@@ -1892,6 +1945,7 @@ export function FilesPage({
             children: (
               <TransferQueuePanel
                 transfers={transfers}
+                pendingOperations={pendingTransferOperations}
                 onCancel={async (id) => {
                   try {
                     await api.deleteTransfer(id)

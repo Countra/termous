@@ -6258,9 +6258,32 @@ body.is-terminal-tab-dragging * {
 }
 
 .remote-text-editor-body {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   padding: 16px;
   background: var(--ant-modal-content-bg);
+}
+
+.remote-text-editor-operation-toast {
+  position: absolute;
+  z-index: 4;
+  top: 28px;
+  right: 30px;
+  width: min(340px, calc(100% - 60px));
+  pointer-events: none;
+}
+
+.remote-text-editor-operation-toast .file-operation-progress {
+  border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 88%, transparent), color-mix(in srgb, var(--surface) 98%, transparent)),
+    var(--surface);
+  box-shadow:
+    0 18px 42px rgb(0 0 0 / 30%),
+    var(--inner-highlight);
 }
 
 .remote-text-editor-frame {
@@ -6273,6 +6296,18 @@ body.is-terminal-tab-dragging * {
   border-radius: 15px;
   background: var(--terminal-bg, #080a0f);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--terminal-fg, #e6ebf4) 6%, transparent);
+}
+
+.remote-text-editor-frame.is-placeholder {
+  opacity: 0.9;
+}
+
+.remote-text-editor-loading-canvas {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--terminal-fg, #e6ebf4) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(180deg, color-mix(in srgb, var(--terminal-fg, #e6ebf4) 4%, transparent) 1px, transparent 1px),
+    var(--terminal-bg, #080a0f);
+  background-size: 64px 100%, 100% 32px, auto;
 }
 
 .remote-text-editor-framebar {
@@ -6365,6 +6400,157 @@ body.is-terminal-tab-dragging * {
 
 .remote-text-editor-state.is-error {
   color: var(--danger);
+}
+
+.remote-text-editor-state .file-operation-progress {
+  width: min(420px, 100%);
+}
+
+.file-operation-progress {
+  display: grid;
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 13px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 78%, transparent), color-mix(in srgb, var(--surface) 96%, transparent)),
+    var(--surface);
+  padding: 12px;
+  color: var(--text-secondary);
+  box-shadow: var(--inner-highlight);
+}
+
+.file-operation-progress.is-compact {
+  gap: 7px;
+  border-radius: 11px;
+  padding: 9px 10px;
+}
+
+.file-operation-progress-main {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.file-operation-progress.is-indeterminate.is-running .file-operation-progress-main {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.file-operation-progress-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-subtle));
+  color: var(--accent);
+  line-height: 0;
+}
+
+.file-operation-progress.is-compact .file-operation-progress-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+}
+
+.file-operation-progress.is-running .file-operation-progress-icon svg {
+  animation: termous-spin 0.9s linear infinite;
+}
+
+.file-operation-progress.is-success {
+  border-color: color-mix(in srgb, var(--success) 34%, var(--border));
+}
+
+.file-operation-progress.is-success .file-operation-progress-icon,
+.file-operation-progress.is-success .file-operation-progress-bar span {
+  background: var(--success);
+  color: var(--surface);
+}
+
+.file-operation-progress.is-error {
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
+}
+
+.file-operation-progress.is-error .file-operation-progress-icon,
+.file-operation-progress.is-error .file-operation-progress-bar span {
+  background: var(--danger);
+  color: var(--surface);
+}
+
+.file-operation-progress-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.file-operation-progress-copy strong,
+.file-operation-progress-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-operation-progress-copy strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.file-operation-progress-copy span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.file-operation-progress-main em {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 760;
+}
+
+.file-operation-progress-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+}
+
+.file-operation-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.22s ease;
+}
+
+.file-operation-progress.is-indeterminate .file-operation-progress-bar span {
+  width: 38%;
+  min-width: 72px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 12%, transparent),
+    var(--accent),
+    color-mix(in srgb, var(--accent) 12%, transparent)
+  );
+  animation: file-operation-indeterminate 1.15s ease-in-out infinite;
+}
+
+@keyframes termous-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes file-operation-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  100% {
+    transform: translateX(280%);
+  }
 }
 
 .remote-text-editor-hint {

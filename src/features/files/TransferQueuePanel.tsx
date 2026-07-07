@@ -3,21 +3,28 @@ import { Copy, DownloadCloud, FolderOpen, RotateCcw, Trash2, UploadCloud, XCircl
 import { useTranslation } from 'react-i18next'
 import { ContextActionMenu } from '../../components/ui/ContextActionMenu'
 import type { TransferTask } from '../../types/domain'
+import { FileOperationProgress, type FileOperationProgressState } from './FileOperationProgress'
 import { formatBytes, formatSeconds, pathBase, transferProgress, transferStatusClass } from './fileUtils'
+
+export interface PendingFileOperation extends FileOperationProgressState {
+  id: string
+}
 
 interface TransferQueuePanelProps {
   transfers: TransferTask[]
+  pendingOperations?: PendingFileOperation[]
   onCancel: (id: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onRetry: (id: string) => Promise<void>
 }
 
-export function TransferQueuePanel({ transfers, onCancel, onDelete, onRetry }: TransferQueuePanelProps) {
+export function TransferQueuePanel({ transfers, pendingOperations = [], onCancel, onDelete, onRetry }: TransferQueuePanelProps) {
   const { t } = useTranslation()
-  const runningCount = transfers.filter((task) => task.status === 'running' || task.status === 'queued').length
+  const runningTransferCount = transfers.filter((task) => task.status === 'running' || task.status === 'queued').length
+  const runningCount = runningTransferCount + pendingOperations.length
   const completedCount = transfers.filter((task) => task.status === 'completed').length
   const failedCount = transfers.filter((task) => task.status === 'failed').length
-  const historyCount = Math.max(0, transfers.length - runningCount)
+  const historyCount = Math.max(0, transfers.length - runningTransferCount)
 
   return (
     <section className="files-transfer-panel">
@@ -40,7 +47,18 @@ export function TransferQueuePanel({ transfers, onCancel, onDelete, onRetry }: T
         </span>
       </div>
       <div className="transfer-list">
-        {transfers.length === 0 ? (
+        {pendingOperations.map((operation) => (
+          <FileOperationProgress
+            key={operation.id}
+            title={operation.title}
+            description={operation.description}
+            progress={operation.progress}
+            status={operation.status}
+            indeterminate={operation.indeterminate}
+            compact
+          />
+        ))}
+        {transfers.length === 0 && pendingOperations.length === 0 ? (
           <div className="files-quiet-empty">
             <strong>{t('files.noTransfers')}</strong>
             <span>{t('files.noTransfersHint')}</span>

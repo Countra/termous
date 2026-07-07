@@ -1,4 +1,4 @@
-import { App as AntdApp, Button, Modal, Spin, Tag } from 'antd'
+import { App as AntdApp, Button, Modal, Tag } from 'antd'
 import { basicSetup } from 'codemirror'
 import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError, type TermousApi } from '../../api/client'
 import type { RemoteFileEntry, RemoteTextFile, RemoteTextLineEnding } from '../../types/domain'
+import { FileOperationProgress, type FileOperationProgressState } from './FileOperationProgress'
 import { formatBytes } from './fileUtils'
 
 interface RemoteTextEditorModalProps {
@@ -30,12 +31,14 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
   const loadSeqRef = useRef(0)
   const saveFileRef = useRef<(force?: boolean) => void>(() => undefined)
   const savingRef = useRef(false)
+  const operationTimersRef = useRef<number[]>([])
   const [file, setFile] = useState<RemoteTextFile | null>(null)
   const [content, setContent] = useState('')
   const [dirty, setDirty] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [operationProgress, setOperationProgress] = useState<FileOperationProgressState | null>(null)
 
   const title = useMemo(() => {
     if (!file) {
@@ -46,6 +49,25 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
 
   const currentContent = useCallback(() => editorViewRef.current?.state.doc.toString() ?? content, [content])
 
+  const clearOperationTimers = useCallback(() => {
+    operationTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+    operationTimersRef.current = []
+  }, [])
+
+  const scheduleOperationProgress = useCallback((delay: number, progress: FileOperationProgressState) => {
+    const timer = window.setTimeout(() => {
+      setOperationProgress(progress)
+    }, delay)
+    operationTimersRef.current.push(timer)
+  }, [])
+
+  const finishOperationProgress = useCallback((progress: FileOperationProgressState, clearDelay = 900) => {
+    clearOperationTimers()
+    setOperationProgress(progress)
+    const timer = window.setTimeout(() => setOperationProgress(null), clearDelay)
+    operationTimersRef.current.push(timer)
+  }, [clearOperationTimers])
+
   const loadFile = useCallback(async () => {
     if (!open || !fileSessionId || !path) {
       return
@@ -54,11 +76,28 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
     loadSeqRef.current = requestSeq
     setLoading(true)
     setError(null)
+    clearOperationTimers()
+    setOperationProgress({
+      title: t('files.fileOperationReadTitle'),
+      description: t('files.fileOperationReadPrepare'),
+      progress: 0,
+      status: 'running',
+      indeterminate: true,
+    })
+    scheduleOperationProgress(650, {
+      title: t('files.fileOperationReadTitle'),
+      description: t('files.fileOperationReadSync'),
+      progress: 0,
+      status: 'running',
+      indeterminate: true,
+    })
     try {
       const loaded = await api.openFileSessionTextFile(fileSessionId, path)
       if (loadSeqRef.current !== requestSeq) {
         return
       }
+      clearOperationTimers()
+      setOperationProgress(null)
       setFile(loaded)
       setContent(loaded.content)
       setDirty(false)
@@ -70,12 +109,18 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
       setContent('')
       setDirty(false)
       setError(remoteTextErrorMessage(loadError, t))
+      finishOperationProgress({
+        title: t('files.fileOperationReadTitle'),
+        description: t('files.fileOperationReadFailed'),
+        progress: 100,
+        status: 'error',
+      })
     } finally {
       if (loadSeqRef.current === requestSeq) {
         setLoading(false)
       }
     }
-  }, [api, fileSessionId, open, path, t])
+  }, [api, clearOperationTimers, fileSessionId, finishOperationProgress, open, path, scheduleOperationProgress, t])
 
   const saveFile = useCallback(async (force = false) => {
     if (!file || !fileSessionId || savingRef.current) {
@@ -84,6 +129,28 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
     savingRef.current = true
     setSaving(true)
     setError(null)
+    clearOperationTimers()
+    setOperationProgress({
+      title: t('files.fileOperationSaveTitle'),
+      description: t('files.fileOperationSaveCheck'),
+      progress: 0,
+      status: 'running',
+      indeterminate: true,
+    })
+    scheduleOperationProgress(650, {
+      title: t('files.fileOperationSaveTitle'),
+      description: t('files.fileOperationSaveWrite'),
+      progress: 0,
+      status: 'running',
+      indeterminate: true,
+    })
+    scheduleOperationProgress(1400, {
+      title: t('files.fileOperationSaveTitle'),
+      description: t('files.fileOperationSaveVerify'),
+      progress: 0,
+      status: 'running',
+      indeterminate: true,
+    })
     try {
       const result = await api.saveFileSessionTextFile(fileSessionId, {
         path: file.path,
@@ -100,8 +167,12 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
       setDirty(false)
       onSaved(result.entry, result.file)
       message.success(t('files.textEditorSaved'))
+      clearOperationTimers()
+      setOperationProgress(null)
     } catch (saveError) {
       if (saveError instanceof TermousApiError && saveError.code === 'SFTP_TEXT_CONFLICT' && !force) {
+        clearOperationTimers()
+        setOperationProgress(null)
         modal.confirm({
           title: t('files.textEditorConflictTitle'),
           content: t('files.textEditorConflictContent'),
@@ -112,13 +183,20 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
           onOk: () => saveFileRef.current(true),
         })
       } else {
-        setError(remoteTextErrorMessage(saveError, t))
+        const errorMessage = remoteTextErrorMessage(saveError, t)
+        message.error(errorMessage)
+        finishOperationProgress({
+          title: t('files.fileOperationSaveTitle'),
+          description: errorMessage || t('files.fileOperationSaveFailed'),
+          progress: 100,
+          status: 'error',
+        }, 2600)
       }
     } finally {
       savingRef.current = false
       setSaving(false)
     }
-  }, [api, currentContent, file, fileSessionId, message, modal, onSaved, t])
+  }, [api, clearOperationTimers, currentContent, file, fileSessionId, finishOperationProgress, message, modal, onSaved, scheduleOperationProgress, t])
 
   useEffect(() => {
     saveFileRef.current = (force = false) => {
@@ -151,8 +229,9 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
   useEffect(
     () => () => {
       loadSeqRef.current++
+      clearOperationTimers()
     },
-    [],
+    [clearOperationTimers],
   )
 
   useEffect(() => {
@@ -266,10 +345,25 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
         </header>
 
         <div className="remote-text-editor-body">
+          {operationProgress && !error ? (
+            <div className="remote-text-editor-operation-toast">
+              <FileOperationProgress
+                title={operationProgress.title}
+                description={operationProgress.description}
+                progress={operationProgress.progress}
+                status={operationProgress.status}
+                indeterminate={operationProgress.indeterminate}
+                compact
+              />
+            </div>
+          ) : null}
           {loading ? (
-            <div className="remote-text-editor-state">
-              <Spin />
-              <strong>{t('files.textEditorLoading')}</strong>
+            <div className="remote-text-editor-frame is-placeholder" aria-hidden="true">
+              <div className="remote-text-editor-framebar">
+                <span>{t('files.textEditorPlainText')}</span>
+                <span />
+              </div>
+              <div className="remote-text-editor-loading-canvas" />
             </div>
           ) : error ? (
             <div className="remote-text-editor-state is-error">
