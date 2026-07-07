@@ -129,6 +129,7 @@ export type FileOperationPhase =
 
 export interface FileOperationTask {
   id: string
+  revision: number
   file_session_id: string
   host_id: string
   type: FileOperationType

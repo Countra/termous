@@ -103,12 +103,12 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
     let disposed = false
     let socket: WebSocket | null = null
     let pollTimer = 0
+    let lastRevision = 0
+    let lastProgress = 0
 
     const cleanup = () => {
       disposed = true
-      if (pollTimer) {
-        window.clearTimeout(pollTimer)
-      }
+      clearPollTimer()
       if (socket && socket.readyState !== WebSocket.CLOSED && socket.readyState !== WebSocket.CLOSING) {
         socket.close()
       }
@@ -128,20 +128,22 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
       callback()
     }
 
-    const handleTask = (task: FileOperationTask) => {
-      if (disposed || task.id !== initialTask.id) {
-        return
-      }
-      setOperationProgress(progressFromTask(task, title, successText, failedText))
-      if (task.status === 'completed') {
-        settle(() => resolve(task))
-      } else if (task.status === 'failed' || task.status === 'cancelled') {
-        const code = task.error_code || (task.status === 'cancelled' ? 'FILE_OPERATION_CANCELLED' : 'FILE_OPERATION_FAILED')
-        settle(() => reject(new TermousApiError(task.error_message || failedText, code, 0)))
+    function clearPollTimer() {
+      if (pollTimer) {
+        window.clearTimeout(pollTimer)
+        pollTimer = 0
       }
     }
 
-    const poll = () => {
+    function schedulePoll(delay: number) {
+      if (disposed || settled) {
+        return
+      }
+      clearPollTimer()
+      pollTimer = window.setTimeout(poll, delay)
+    }
+
+    function poll() {
       if (disposed || settled) {
         return
       }
@@ -151,9 +153,40 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
         .catch(() => undefined)
         .finally(() => {
           if (!disposed && !settled) {
-            pollTimer = window.setTimeout(poll, 1000)
+            schedulePoll(1000)
           }
         })
+    }
+
+    const handleTask = (task: FileOperationTask) => {
+      if (disposed || task.id !== initialTask.id) {
+        return
+      }
+      const terminal = task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled'
+      const revision = task.revision || 0
+      if (revision > 0) {
+        if (revision < lastRevision || (revision === lastRevision && !terminal)) {
+          return
+        }
+        lastRevision = revision
+      } else if (!terminal && (task.progress_percent || 0) < lastProgress) {
+        return
+      }
+      const nextProgress = task.status === 'completed'
+        ? 100
+        : Math.max(lastProgress, Math.max(0, Math.min(100, task.progress_percent || 0)))
+      lastProgress = nextProgress
+      const displayTask = { ...task, progress_percent: nextProgress }
+      setOperationProgress(progressFromTask(displayTask, title, successText, failedText))
+      if (!terminal) {
+        schedulePoll(2000)
+      }
+      if (displayTask.status === 'completed') {
+        settle(() => resolve(task))
+      } else if (displayTask.status === 'failed' || displayTask.status === 'cancelled') {
+        const code = displayTask.error_code || (displayTask.status === 'cancelled' ? 'FILE_OPERATION_CANCELLED' : 'FILE_OPERATION_FAILED')
+        settle(() => reject(new TermousApiError(displayTask.error_message || failedText, code, 0)))
+      }
     }
 
     operationCleanupRef.current = cleanup
@@ -173,20 +206,20 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, onClose,
         }
       })
       socket.addEventListener('close', () => {
-        if (!disposed && !settled && !pollTimer) {
-          pollTimer = window.setTimeout(poll, 250)
+        if (!disposed && !settled) {
+          schedulePoll(250)
         }
       })
       socket.addEventListener('error', () => {
-        if (!disposed && !settled && !pollTimer) {
-          pollTimer = window.setTimeout(poll, 250)
+        if (!disposed && !settled) {
+          schedulePoll(250)
         }
       })
     } catch {
-      pollTimer = window.setTimeout(poll, 250)
+      schedulePoll(250)
     }
     if (!pollTimer) {
-      pollTimer = window.setTimeout(poll, 1000)
+      schedulePoll(1000)
     }
   }), [api, progressFromTask])
 
