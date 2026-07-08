@@ -13,6 +13,7 @@ dist-ssr
 dist-electron
 release
 build/core/
+docs-secret/
 _tmp_*
 *.local
 
