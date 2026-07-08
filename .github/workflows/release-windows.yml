@@ -1,0 +1,129 @@
+name: Release Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 0.1.0-beta"
+        required: true
+        default: "0.1.0-beta"
+      core_ref:
+        description: "termous-core ref, tag, branch, or commit SHA. Tag releases use the same tag by default."
+        required: false
+        default: "main"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Build Windows installer
+    runs-on: windows-latest
+    environment: release
+    defaults:
+      run:
+        shell: pwsh
+
+    env:
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+
+    steps:
+      - name: Resolve release metadata
+        id: meta
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = "${{ github.ref_name }}"
+            if ($version.StartsWith("v")) {
+              $version = $version.Substring(1)
+            }
+          }
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Release version is empty."
+          }
+
+          $coreRef = "${{ github.event.inputs.core_ref }}"
+          if ([string]::IsNullOrWhiteSpace($coreRef)) {
+            if ("${{ github.ref_type }}" -eq "tag") {
+              $coreRef = "${{ github.ref_name }}"
+            } else {
+              $coreRef = "${{ vars.TERMOUS_CORE_REF }}"
+            }
+          }
+          if ([string]::IsNullOrWhiteSpace($coreRef)) {
+            $coreRef = "main"
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "core_ref=$coreRef" >> $env:GITHUB_OUTPUT
+
+      - name: Validate secrets
+        run: |
+          if ([string]::IsNullOrWhiteSpace("${{ secrets.TERMOUS_CORE_READ_TOKEN }}")) {
+            throw "TERMOUS_CORE_READ_TOKEN is required to checkout Countra/termous-core."
+          }
+
+      - name: Checkout Termous
+        uses: actions/checkout@v4
+        with:
+          path: web
+
+      - name: Checkout Termous Core
+        uses: actions/checkout@v4
+        with:
+          repository: Countra/termous-core
+          ref: ${{ steps.meta.outputs.core_ref }}
+          path: backend
+          token: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ vars.PNPM_VERSION || '10' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ vars.NODE_VERSION || '22' }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ vars.GO_VERSION || '1.25.x' }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Build installer
+        env:
+          TERMOUS_WEB_DIR: ${{ github.workspace }}\web
+          TERMOUS_CORE_DIR: ${{ github.workspace }}\backend
+          TERMOUS_OUTPUT_DIR: ${{ github.workspace }}\build\windows
+          TERMOUS_VERSION: ${{ steps.meta.outputs.version }}
+        run: .\web\scripts\ci\build-windows.ps1
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Termous-Windows-${{ steps.meta.outputs.version }}
+          path: |
+            build/windows/installer/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Termous ${{ steps.meta.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ contains(steps.meta.outputs.version, '-') }}
+          files: |
+            build/windows/installer/*.exe
+            build/windows/installer/*.blockmap
+            build/windows/installer/latest.yml
