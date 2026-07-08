@@ -75,6 +75,33 @@ function Enable-MingwIfAvailable {
   throw "未找到 gcc。Termous Core 使用 SQLite CGO 驱动，Windows 构建需要可用的 MinGW gcc。"
 }
 
+function Use-CodeSigningDefaults {
+  $certificateVars = @("CSC_LINK", "WIN_CSC_LINK")
+  $passwordVars = @("CSC_KEY_PASSWORD", "WIN_CSC_KEY_PASSWORD")
+  $hasCertificate = $false
+
+  foreach ($name in $certificateVars) {
+    $value = [Environment]::GetEnvironmentVariable($name)
+    if ([string]::IsNullOrWhiteSpace($value)) {
+      Remove-Item -Path "Env:$name" -ErrorAction SilentlyContinue
+    } else {
+      $hasCertificate = $true
+    }
+  }
+
+  foreach ($name in $passwordVars) {
+    $value = [Environment]::GetEnvironmentVariable($name)
+    if ([string]::IsNullOrWhiteSpace($value)) {
+      Remove-Item -Path "Env:$name" -ErrorAction SilentlyContinue
+    }
+  }
+
+  if (-not $hasCertificate) {
+    $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
+    Write-Host "Windows code signing disabled; unsigned installer will be built."
+  }
+}
+
 $defaultWebDir = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).Path
 $webDir = Resolve-ExistingDirectory -Value $env:TERMOUS_WEB_DIR -Fallback $defaultWebDir -Name "TERMOUS_WEB_DIR"
 $workspaceDir = Split-Path -Parent $webDir
@@ -107,6 +134,7 @@ Write-Host "version=$version"
 Reset-Directory -Path $installerDir
 Reset-Directory -Path $coreOutputDir
 Enable-MingwIfAvailable
+Use-CodeSigningDefaults
 
 $env:VITE_TERMOUS_APP_VERSION = $version
 
