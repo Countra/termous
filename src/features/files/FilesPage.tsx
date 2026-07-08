@@ -11,6 +11,7 @@ import {
   Clipboard,
   Copy,
   Download,
+  Eye,
   File,
   Folder,
   FolderPlus,
@@ -27,13 +28,14 @@ import {
 import {
   useCallback,
   useEffect,
+  lazy,
+  Suspense,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
   type DragEvent,
   type HTMLAttributes,
-  type KeyboardEvent,
   type MouseEvent,
   type WheelEvent,
 } from 'react'
@@ -60,18 +62,27 @@ import type {
   FileSessionPhase,
   Host,
   LocalGrantSource,
+  LocalPathMapping,
+  LocalPathMappingInput,
+  LocalPathMappingReorderItem,
   RemoteDirectoryListing,
   RemoteFileEntry,
+  ThemeMode,
   TransferTask,
 } from '../../types/domain'
 import { fileSortValue, formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
 import { FileBookmarksPanel } from './FileBookmarksPanel'
-import { TransferQueuePanel } from './TransferQueuePanel'
+import { LocalPathMappingsPanel, type LocalPathRefreshRequest } from './LocalPathMappingsPanel'
+import { TransferQueuePanel, type PendingFileOperation } from './TransferQueuePanel'
 import { useTransferQueue } from './useTransferQueue'
+
+const RemoteTextEditorModal = lazy(() => import('./RemoteTextEditorModal').then((module) => ({ default: module.RemoteTextEditorModal })))
+const RemoteImageViewerModal = lazy(() => import('./RemoteImageViewerModal').then((module) => ({ default: module.RemoteImageViewerModal })))
 
 interface FilesPageProps {
   api: TermousApi
   data: AppData
+  theme: ThemeMode
   selectedHostId: string
   activeFileSession: FileSession | null
   onSelectHost: (hostId: string) => void
@@ -89,6 +100,8 @@ interface FilesPageProps {
   onUpdateFileBookmarkGroup: (id: string, input: FileBookmarkGroupInput) => Promise<FileBookmarkGroup>
   onDeleteFileBookmarkGroup: (id: string) => Promise<void>
   onReorderFileBookmarkGroups: (items: FileBookmarkGroupReorderItem[]) => Promise<FileBookmarkGroup[]>
+  onCreateLocalPathMapping: (input: LocalPathMappingInput) => Promise<LocalPathMapping>
+  onReorderLocalPathMappings: (items: LocalPathMappingReorderItem[]) => Promise<LocalPathMapping[]>
 }
 
 interface RemoteClipboard {
@@ -107,8 +120,21 @@ interface UploadRefreshTarget {
   targetPath: string
 }
 
+interface UploadRefreshGroup extends UploadRefreshTarget {
+  taskIds: string[]
+  hasActive: boolean
+  hasCompleted: boolean
+  hasTerminal: boolean
+}
+
 interface RemoteMoveDragState {
   paths: string[]
+}
+
+interface FileContextMenuState {
+  entry: RemoteFileEntry
+  x: number
+  y: number
 }
 
 type FileColumnKey = 'name' | 'size' | 'modified' | 'permissions'
@@ -120,6 +146,7 @@ interface ResizableFileHeaderCellProps extends HTMLAttributes<HTMLTableCellEleme
 }
 
 type FileSideTabKey = 'details' | 'transfers' | 'bookmarks'
+type FileLeftTabKey = 'hosts' | 'local'
 
 const fileSessionPhaseOrder: FileSessionPhase[] = [
   'queued',
@@ -179,9 +206,16 @@ const remotePathDisplayName = (path: string) => {
   return parts[parts.length - 1] ?? normalized
 }
 
+const previewableImageExtensionPattern = /\.(png|jpe?g|gif|webp|bmp|svg)$/i
+
+function isPreviewableImageEntry(entry: RemoteFileEntry) {
+  return entry.kind === 'file' && previewableImageExtensionPattern.test(entry.name || entry.path)
+}
+
 export function FilesPage({
   api,
   data,
+  theme,
   selectedHostId,
   activeFileSession,
   onSelectHost,
@@ -199,6 +233,8 @@ export function FilesPage({
   onUpdateFileBookmarkGroup,
   onDeleteFileBookmarkGroup,
   onReorderFileBookmarkGroups,
+  onCreateLocalPathMapping,
+  onReorderLocalPathMappings,
 }: FilesPageProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -209,7 +245,10 @@ export function FilesPage({
   const autoScrollFrameRef = useRef<number | null>(null)
   const autoScrollSpeedRef = useRef(0)
   const remoteMoveDragRef = useRef<RemoteMoveDragState | null>(null)
+  const directoryHistoryRef = useRef<string[]>([])
   const uploadRefreshTasksRef = useRef(new Map<string, UploadRefreshTarget>())
+  const downloadRefreshTasksRef = useRef(new Map<string, string>())
+  const pendingOperationTimersRef = useRef<number[]>([])
   const lastSessionLoadKeyRef = useRef('')
   const lastActiveFileSessionIdRef = useRef('')
   const fileSessionSocketsRef = useRef(new Map<string, WebSocket>())
@@ -220,14 +259,18 @@ export function FilesPage({
   const [entries, setEntries] = useState<RemoteFileEntry[]>([])
   const [selectedPaths, setSelectedPaths] = useState<string[]>([])
   const [activeEntry, setActiveEntry] = useState<RemoteFileEntry | null>(null)
+  const [fileContextMenu, setFileContextMenu] = useState<FileContextMenuState | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [dropTargetDirectoryPath, setDropTargetDirectoryPath] = useState<string | null>(null)
   const [remoteMoveDrag, setRemoteMoveDrag] = useState<RemoteMoveDragState | null>(null)
   const [remoteMoveTargetPath, setRemoteMoveTargetPath] = useState<string | null>(null)
+  const [localRefreshRequests, setLocalRefreshRequests] = useState<LocalPathRefreshRequest[]>([])
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
+  const [textEditorPath, setTextEditorPath] = useState<string | null>(null)
+  const [imageViewerPath, setImageViewerPath] = useState<string | null>(null)
+  const [pendingTransferOperations, setPendingTransferOperations] = useState<PendingFileOperation[]>([])
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [connectingHostIds, setConnectingHostIds] = useState<Set<string>>(() => new Set())
   const [activeHostKeyPromptKey, setActiveHostKeyPromptKey] = useState('')
@@ -245,6 +288,11 @@ export function FilesPage({
     'termous.ui.files.detailsActiveTab.v1',
     'details',
     parseFileSideTabKey,
+  )
+  const [leftActiveTab, setLeftActiveTab] = usePersistentJsonState<FileLeftTabKey>(
+    'termous.ui.files.leftActiveTab.v1',
+    'hosts',
+    parseFileLeftTabKey,
   )
   const expandHostPanel = useCallback(() => setHostPanelCollapsed(false), [setHostPanelCollapsed])
   const expandDetailsPanel = useCallback(() => setDetailsCollapsed(false), [setDetailsCollapsed])
@@ -277,6 +325,26 @@ export function FilesPage({
     setDetailsCollapsed(false)
     setDetailsActiveTab('transfers')
   }
+  const updatePendingTransferOperation = useCallback((id: string, patch: Partial<PendingFileOperation>) => {
+    setPendingTransferOperations((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)))
+  }, [])
+  const startPendingTransferOperation = useCallback((operation: Omit<PendingFileOperation, 'id'>) => {
+    const id = `file-op-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    setPendingTransferOperations((current) => [{ ...operation, id }, ...current].slice(0, 4))
+    return id
+  }, [])
+  const finishPendingTransferOperation = useCallback((id: string, status: 'success' | 'error', description: string) => {
+    updatePendingTransferOperation(id, { status, description, progress: 100, indeterminate: false })
+    const timer = window.setTimeout(() => {
+      setPendingTransferOperations((current) => current.filter((item) => item.id !== id))
+    }, 900)
+    pendingOperationTimersRef.current.push(timer)
+  }, [updatePendingTransferOperation])
+
+  useEffect(() => () => {
+    pendingOperationTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+    pendingOperationTimersRef.current = []
+  }, [])
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const selectedHostIdStable = selectedHost?.id ?? ''
   const activeFileSessionHost = activeFileSession?.host_id ? data.hosts.find((host) => host.id === activeFileSession.host_id) : undefined
@@ -311,6 +379,33 @@ export function FilesPage({
   )
   const dropTargetDirectoryName = dropTargetDirectory?.name ?? (dropTargetDirectoryPath ? remotePathDisplayName(dropTargetDirectoryPath) : '')
   const remoteMoveTargetDirectoryName = remoteMoveTargetDirectory?.name ?? (remoteMoveTargetPath ? remotePathDisplayName(remoteMoveTargetPath) : '')
+  const filesLeftTabs = (
+    <div className="files-left-tabs" role="tablist" aria-label={t('files.leftTabs')}>
+      <button
+        type="button"
+        className={leftActiveTab === 'hosts' ? 'is-active' : ''}
+        role="tab"
+        aria-selected={leftActiveTab === 'hosts'}
+        onClick={() => setLeftActiveTab('hosts')}
+      >
+        {t('files.remoteHosts')}
+      </button>
+      <button
+        type="button"
+        className={leftActiveTab === 'local' ? 'is-active' : ''}
+        role="tab"
+        aria-selected={leftActiveTab === 'local'}
+        onClick={() => setLeftActiveTab('local')}
+        onDragEnter={(event) => {
+          if (remoteMoveDragRef.current || remoteMoveDrag || Array.from(event.dataTransfer.types).includes(remoteFileDragMime)) {
+            setLeftActiveTab('local')
+          }
+        }}
+      >
+        {t('files.localMappingsShort')}
+      </button>
+    </div>
+  )
 
   const applyListing = useCallback((listing: RemoteDirectoryListing) => {
     setCurrentPath(listing.path)
@@ -320,7 +415,6 @@ export function FilesPage({
     setActiveEntry(null)
     setDropTargetDirectoryPath(null)
     setRemoteMoveTargetPath(null)
-    setError(null)
   }, [])
 
   useEffect(() => {
@@ -341,24 +435,32 @@ export function FilesPage({
   )
 
   const loadDirectory = useCallback(
-    async (nextPath: string) => {
+    async (nextPath: string, options?: { recordHistory?: boolean }) => {
       if (!activeFileSessionId || !fileSessionConnected) {
         setEntries([])
         return
       }
       const normalized = normalizeRemotePath(nextPath)
       setLoading(true)
-      setError(null)
       try {
         const listing = await api.listFileSessionFiles(activeFileSessionId, normalized)
+        if (options?.recordHistory !== false && normalizeRemotePath(currentPath) !== normalizeRemotePath(listing.path)) {
+          directoryHistoryRef.current.push(normalizeRemotePath(currentPath))
+        }
         applyListing(listing)
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : t('app.error'))
+        notification.error({
+          message: t('files.directoryReadFailed'),
+          description: loadError instanceof Error ? loadError.message : t('app.error'),
+          duration: 5,
+          role: 'alert',
+          className: 'termous-notification',
+        })
       } finally {
         setLoading(false)
       }
     },
-    [activeFileSessionId, api, applyListing, fileSessionConnected, t],
+    [activeFileSessionId, api, applyListing, currentPath, fileSessionConnected, notification, t],
   )
 
   const trackUploadRefreshTask = useCallback((task: TransferTask) => {
@@ -369,6 +471,13 @@ export function FilesPage({
       fileSessionId: task.file_session_id,
       targetPath: normalizeRemotePath(task.target_path || '/'),
     })
+  }, [])
+
+  const trackDownloadRefreshTask = useCallback((task: TransferTask) => {
+    if (!isDownloadTransfer(task) || !task.target_path) {
+      return
+    }
+    downloadRefreshTasksRef.current.set(task.id, task.target_path)
   }, [])
 
   useEffect(() => {
@@ -382,12 +491,13 @@ export function FilesPage({
       setActiveEntry(null)
       return
     }
-    const nextPath = normalizeRemotePath(activeFileSession.current_path || '/')
     const sessionChanged = lastActiveFileSessionIdRef.current !== activeFileSession.id
     lastActiveFileSessionIdRef.current = activeFileSession.id
-    setCurrentPath(nextPath)
-    setPathInput(nextPath)
     if (sessionChanged) {
+      const nextPath = normalizeRemotePath(activeFileSession.current_path || '/')
+      directoryHistoryRef.current = []
+      setCurrentPath(nextPath)
+      setPathInput(nextPath)
       setEntries([])
       setSelectedPaths([])
       setActiveEntry(null)
@@ -399,13 +509,16 @@ export function FilesPage({
     const loadKey = `${activeFileSession.id}:${activeFileSession.connected_at ?? ''}`
     if (lastSessionLoadKeyRef.current !== loadKey) {
       lastSessionLoadKeyRef.current = loadKey
-      void loadDirectory(nextPath)
+      const nextPath = normalizeRemotePath(activeFileSession.current_path || '/')
+      void loadDirectory(nextPath, { recordHistory: false })
     }
   }, [activeFileSession, loadDirectory])
 
   useEffect(() => {
+    const transferById = new Map(transfers.map((task) => [task.id, task]))
+
     transfers.forEach((task) => {
-      if (isUploadTransfer(task) && isTransferActive(task) && task.file_session_id) {
+      if (isUploadTransfer(task) && task.file_session_id) {
         uploadRefreshTasksRef.current.set(task.id, {
           fileSessionId: task.file_session_id,
           targetPath: normalizeRemotePath(task.target_path || '/'),
@@ -414,36 +527,98 @@ export function FilesPage({
     })
 
     const currentTargetPath = normalizeRemotePath(currentPath)
-    const terminalTaskIds: string[] = []
-    let hasCurrentCompletedUpload = false
-    let hasCurrentActiveUpload = false
+    const refreshGroups = new Map<string, UploadRefreshGroup>()
+    const missingTaskIds: string[] = []
 
     uploadRefreshTasksRef.current.forEach((target, taskId) => {
-      const task = transfers.find((item) => item.id === taskId)
+      const task = transferById.get(taskId)
       if (!task) {
+        missingTaskIds.push(taskId)
         return
       }
 
-      const isCurrentTarget = target.fileSessionId === activeFileSessionId && target.targetPath === currentTargetPath
-      if (isCurrentTarget && isTransferActive(task)) {
-        hasCurrentActiveUpload = true
+      const groupKey = `${target.fileSessionId}\u0000${target.targetPath}`
+      let group = refreshGroups.get(groupKey)
+      if (!group) {
+        group = {
+          ...target,
+          taskIds: [],
+          hasActive: false,
+          hasCompleted: false,
+          hasTerminal: false,
+        }
+        refreshGroups.set(groupKey, group)
       }
-      if (isCurrentTarget && isTransferTerminal(task)) {
-        hasCurrentCompletedUpload = true
+      group.taskIds.push(taskId)
+      if (isTransferActive(task)) {
+        group.hasActive = true
+      }
+      if (task.status === 'completed') {
+        group.hasCompleted = true
       }
       if (isTransferTerminal(task)) {
-        terminalTaskIds.push(taskId)
+        group.hasTerminal = true
       }
     })
 
-    terminalTaskIds.forEach((taskId) => {
+    missingTaskIds.forEach((taskId) => {
       uploadRefreshTasksRef.current.delete(taskId)
     })
 
-    if (fileSessionConnected && hasCurrentCompletedUpload && !hasCurrentActiveUpload) {
-      void loadDirectory(currentTargetPath)
-    }
+    refreshGroups.forEach((group) => {
+      if (group.hasActive || !group.hasTerminal) {
+        return
+      }
+
+      const isCurrentTarget = group.fileSessionId === activeFileSessionId && group.targetPath === currentTargetPath
+      if (group.hasCompleted && fileSessionConnected && isCurrentTarget) {
+        void loadDirectory(group.targetPath)
+      }
+
+      group.taskIds.forEach((taskId) => {
+        const task = transferById.get(taskId)
+        if (!task || isTransferTerminal(task)) {
+          uploadRefreshTasksRef.current.delete(taskId)
+        }
+      })
+    })
   }, [activeFileSessionId, currentPath, fileSessionConnected, loadDirectory, transfers])
+
+  useEffect(() => {
+    const transferById = new Map(transfers.map((task) => [task.id, task]))
+    transfers.forEach((task) => {
+      if (isDownloadTransfer(task) && task.target_path && (isTransferActive(task) || downloadRefreshTasksRef.current.has(task.id))) {
+        downloadRefreshTasksRef.current.set(task.id, task.target_path)
+      }
+    })
+
+    const completedRequests: LocalPathRefreshRequest[] = []
+    const taskIdsToDelete: string[] = []
+    downloadRefreshTasksRef.current.forEach((targetPath, taskId) => {
+      const task = transferById.get(taskId)
+      if (!task) {
+        taskIdsToDelete.push(taskId)
+        return
+      }
+      if (isTransferActive(task)) {
+        return
+      }
+      if (task.status === 'completed') {
+        completedRequests.push({ id: task.id, targetPath })
+      }
+      if (isTransferTerminal(task)) {
+        taskIdsToDelete.push(taskId)
+      }
+    })
+
+    taskIdsToDelete.forEach((taskId) => {
+      downloadRefreshTasksRef.current.delete(taskId)
+    })
+
+    if (completedRequests.length > 0) {
+      setLocalRefreshRequests((current) => [...current, ...completedRequests].slice(-50))
+    }
+  }, [transfers])
 
   useEffect(() => {
     const ids = new Set(fileSessionIds ? fileSessionIds.split('|') : [])
@@ -573,6 +748,34 @@ export function FilesPage({
     })
   }, [activeHostKeyPromptKey, hostKeyPromptQueue, modal, onTrustFileSessionHost, onUpdateFileSession, t])
 
+  useEffect(() => {
+    if (!fileContextMenu) {
+      return undefined
+    }
+
+    const closeOnPointerDown = (event: globalThis.PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.files-row-menu')) {
+        return
+      }
+      setFileContextMenu(null)
+    }
+    const closeOnKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setFileContextMenu(null)
+      }
+    }
+    const closeOnBlur = () => setFileContextMenu(null)
+
+    window.addEventListener('pointerdown', closeOnPointerDown)
+    window.addEventListener('keydown', closeOnKeyDown)
+    window.addEventListener('blur', closeOnBlur)
+    return () => {
+      window.removeEventListener('pointerdown', closeOnPointerDown)
+      window.removeEventListener('keydown', closeOnKeyDown)
+      window.removeEventListener('blur', closeOnBlur)
+    }
+  }, [fileContextMenu])
+
   const updateTabScrollState = useCallback(() => {
     const viewport = fileTabViewportRef.current
     if (!viewport) {
@@ -684,12 +887,55 @@ export function FilesPage({
     if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
       return
     }
+    showTransferQueuePanel()
     await runFileAction(async () => {
-      const grant = await api.createLocalFileGrant(source, paths)
-      const task = await api.createFileSessionUploadTransfer(activeFileSessionId, grant.id, targetPath, 'rename')
-      trackUploadRefreshTask(task)
-      showTransferQueuePanel()
-      upsertTransfer(task)
+      const pendingId = startPendingTransferOperation({
+        title: t('files.fileOperationUploadTitle'),
+        description: t('files.fileOperationTransferGrant'),
+        progress: 0,
+        status: 'running',
+        indeterminate: true,
+      })
+      try {
+        const grant = await api.createLocalFileGrant(source, paths)
+        updatePendingTransferOperation(pendingId, {
+          description: t('files.fileOperationTransferCreate'),
+          progress: 0,
+          indeterminate: true,
+        })
+        const task = await api.createFileSessionUploadTransfer(activeFileSessionId, grant.id, targetPath, 'rename')
+        trackUploadRefreshTask(task)
+        upsertTransfer(task)
+        finishPendingTransferOperation(pendingId, 'success', t('files.fileOperationTransferReady'))
+      } catch (actionError) {
+        finishPendingTransferOperation(pendingId, 'error', t('files.fileOperationTransferFailed'))
+        throw actionError
+      }
+    }, t('files.transferCreated'))
+  }
+
+  const downloadPathsToLocalDir = async (paths: string[], localDir: string) => {
+    if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
+      return
+    }
+    showTransferQueuePanel()
+    await runFileAction(async () => {
+      const pendingId = startPendingTransferOperation({
+        title: t('files.fileOperationDownloadTitle'),
+        description: t('files.fileOperationTransferCreate'),
+        progress: 0,
+        status: 'running',
+        indeterminate: true,
+      })
+      try {
+        const task = await api.createFileSessionDownloadTransfer(activeFileSessionId, paths, localDir, 'rename')
+        trackDownloadRefreshTask(task)
+        upsertTransfer(task)
+        finishPendingTransferOperation(pendingId, 'success', t('files.fileOperationTransferReady'))
+      } catch (actionError) {
+        finishPendingTransferOperation(pendingId, 'error', t('files.fileOperationTransferFailed'))
+        throw actionError
+      }
     }, t('files.transferCreated'))
   }
 
@@ -702,11 +948,7 @@ export function FilesPage({
     if (!localDir) {
       return
     }
-    await runFileAction(async () => {
-      const task = await api.createFileSessionDownloadTransfer(activeFileSessionId, paths, localDir, 'rename')
-      showTransferQueuePanel()
-      upsertTransfer(task)
-    }, t('files.transferCreated'))
+    await downloadPathsToLocalDir(paths, localDir)
   }
 
   const downloadSelected = () => downloadPaths(selectedPaths)
@@ -814,6 +1056,43 @@ export function FilesPage({
     setSelectedPaths([entry.path])
   }
 
+  const openFileEntry = (entry = selectedEntries[0]) => {
+    if (!entry || !fileSessionConnected) {
+      return
+    }
+    if (entry.kind !== 'file') {
+      notification.warning({
+        title: t('files.openFileOnlyFiles'),
+        duration: 3,
+        role: 'status',
+        className: 'termous-notification',
+      })
+      return
+    }
+    setActiveEntry(entry)
+    setSelectedPaths([entry.path])
+    if (isPreviewableImageEntry(entry)) {
+      setTextEditorPath(null)
+      setImageViewerPath(entry.path)
+      return
+    }
+    setImageViewerPath(null)
+    setTextEditorPath(entry.path)
+  }
+
+  const handleTextFileSaved = (entry: RemoteFileEntry) => {
+    const refreshPath = currentPath
+    setEntries((current) => current.map((item) => (item.path === entry.path ? entry : item)))
+    setActiveEntry(entry)
+    setSelectedPaths([entry.path])
+    if (activeFileSessionId && fileSessionConnected) {
+      void loadDirectory(refreshPath).then(() => {
+        setActiveEntry(entry)
+        setSelectedPaths([entry.path])
+      })
+    }
+  }
+
   const applyPermissions = async (entry: RemoteFileEntry, mode: string) => {
     if (!activeFileSessionId) {
       return
@@ -883,31 +1162,17 @@ export function FilesPage({
     }
   }
 
-  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    const target = event.target as HTMLElement
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+  const handleFilePageMouseDown = (event: MouseEvent<HTMLElement>) => {
+    if (event.button !== 3) {
       return
     }
-    const mod = event.ctrlKey || event.metaKey
-    if (mod && event.key.toLowerCase() === 'c') {
-      event.preventDefault()
-      copySelected('copy')
-    } else if (mod && event.key.toLowerCase() === 'x') {
-      event.preventDefault()
-      copySelected('cut')
-    } else if (mod && event.key.toLowerCase() === 'v') {
-      event.preventDefault()
-      void pasteFromClipboard()
-    } else if (event.key === 'Delete') {
-      event.preventDefault()
-      confirmDelete()
-    } else if (event.key === 'F2') {
-      event.preventDefault()
-      openRename()
-    } else if (event.key === 'Backspace') {
-      event.preventDefault()
-      void loadDirectory(parentPath(currentPath))
+    event.preventDefault()
+    event.stopPropagation()
+    const previousPath = directoryHistoryRef.current.pop()
+    if (!previousPath || previousPath === currentPath) {
+      return
     }
+    void loadDirectory(previousPath, { recordHistory: false })
   }
 
   const hasDraggedFiles = (event: DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes('Files')
@@ -1201,7 +1466,7 @@ export function FilesPage({
     remoteMoveDragRef.current = { paths }
     setRemoteMoveDrag({ paths })
     setRemoteMoveTargetPath(null)
-    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.effectAllowed = 'copyMove'
     event.dataTransfer.setData(remoteFileDragMime, JSON.stringify(paths))
     event.dataTransfer.setData('text/plain', entry.name)
   }
@@ -1235,15 +1500,41 @@ export function FilesPage({
   }
 
   const actionDisabled = !fileSessionConnected || loading
-  const rowMenu = (): MenuProps['items'] => [
-    { key: 'download', icon: <Download size={14} />, label: t('files.download') },
-    { key: 'copy', icon: <Copy size={14} />, label: t('files.copy') },
-    { key: 'cut', icon: <Scissors size={14} />, label: t('files.cut') },
-    { key: 'permissions', icon: <ShieldCheck size={14} />, label: t('files.editPermissions') },
-    { key: 'rename', icon: <Pencil size={14} />, label: t('files.rename') },
-    { type: 'divider' },
-    { key: 'delete', danger: true, icon: <Trash2 size={14} />, label: t('app.delete') },
-  ]
+  const rowMenu = (entry: RemoteFileEntry): MenuProps['items'] => {
+    const items: NonNullable<MenuProps['items']> = []
+    if (entry.kind === 'file') {
+      items.push({ key: 'openFile', icon: <Eye size={14} />, label: t('files.openFile') })
+    }
+    items.push(
+      { key: 'download', icon: <Download size={14} />, label: t('files.download') },
+      { key: 'copy', icon: <Copy size={14} />, label: t('files.copy') },
+      { key: 'cut', icon: <Scissors size={14} />, label: t('files.cut') },
+      { key: 'permissions', icon: <ShieldCheck size={14} />, label: t('files.editPermissions') },
+      { key: 'rename', icon: <Pencil size={14} />, label: t('files.rename') },
+      { type: 'divider' },
+      { key: 'delete', danger: true, icon: <Trash2 size={14} />, label: t('app.delete') },
+    )
+    return items
+  }
+  const runRowMenuAction = (entry: RemoteFileEntry, key: string) => {
+    setFileContextMenu(null)
+    setSelectedPaths([entry.path])
+    setActiveEntry(entry)
+    if (key === 'openFile') openFileEntry(entry)
+    if (key === 'download') void downloadPaths([entry.path])
+    if (key === 'copy' && activeFileSession) setRemoteClipboard({ mode: 'copy', hostId: activeFileSession.host_id, paths: [entry.path] })
+    if (key === 'cut' && activeFileSession) setRemoteClipboard({ mode: 'cut', hostId: activeFileSession.host_id, paths: [entry.path] })
+    if (key === 'permissions') openPermissions(entry)
+    if (key === 'rename') openRename(entry)
+    if (key === 'delete') confirmDelete([entry.path])
+  }
+  const fileRowMenuProps = (entry: RemoteFileEntry): MenuProps => ({
+    items: rowMenu(entry),
+    onClick: ({ key, domEvent }) => {
+      domEvent.stopPropagation()
+      runRowMenuAction(entry, String(key))
+    },
+  })
 
   const beginFileColumnResize = (key: FileColumnKey, event: MouseEvent<HTMLSpanElement>) => {
     event.preventDefault()
@@ -1296,7 +1587,7 @@ export function FilesPage({
               {entry.kind === 'directory' ? <Folder size={16} /> : <File size={16} />}
             </span>
             {entry.kind === 'directory' ? (
-              <Tooltip title={fullName} placement="topLeft" mouseEnterDelay={0.35} overlayClassName="file-name-tooltip">
+              <Tooltip title={fullName} placement="topLeft" mouseEnterDelay={0.35} classNames={{ root: 'file-name-tooltip' }}>
                 <button
                   type="button"
                   className="file-name-button"
@@ -1309,7 +1600,7 @@ export function FilesPage({
                 </button>
               </Tooltip>
             ) : (
-              <Tooltip title={fullName} placement="topLeft" mouseEnterDelay={0.35} overlayClassName="file-name-tooltip">
+              <Tooltip title={fullName} placement="topLeft" mouseEnterDelay={0.35} classNames={{ root: 'file-name-tooltip' }}>
                 <span className="file-name-copy">{nameCopy}</span>
               </Tooltip>
             )}
@@ -1331,20 +1622,9 @@ export function FilesPage({
       width: 44,
       render: (_: unknown, entry: RemoteFileEntry) => (
         <Dropdown
-          menu={{
-            items: rowMenu(),
-            onClick: ({ key }) => {
-              setSelectedPaths([entry.path])
-              if (key === 'download') void downloadPaths([entry.path])
-              if (key === 'copy' && activeFileSession) setRemoteClipboard({ mode: 'copy', hostId: activeFileSession.host_id, paths: [entry.path] })
-              if (key === 'cut' && activeFileSession) setRemoteClipboard({ mode: 'cut', hostId: activeFileSession.host_id, paths: [entry.path] })
-              if (key === 'permissions') openPermissions(entry)
-              if (key === 'rename') openRename(entry)
-              if (key === 'delete') confirmDelete([entry.path])
-            },
-          }}
-          trigger={['click', 'contextMenu']}
-          overlayClassName="files-row-menu"
+          menu={fileRowMenuProps(entry)}
+          trigger={['click']}
+          classNames={{ root: 'files-row-menu' }}
         >
           <Button
             type="text"
@@ -1364,29 +1644,47 @@ export function FilesPage({
         detailsCollapsed ? 'is-details-collapsed' : ''
       } ${dragActive ? 'is-dragging' : ''} ${remoteMoveDrag ? 'is-moving' : ''}`}
       style={filesPageStyle}
-      tabIndex={0}
-      onKeyDown={onKeyDown}
+      onMouseDown={handleFilePageMouseDown}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDragEnd={resetDragState}
       onDrop={(event) => void onDrop(event)}
     >
-      <HostContextPanel
-        hosts={data.hosts}
-        groups={data.groups}
-        selectedHostId={selectedHostIdStable}
-        collapsed={hostPanelCollapsed}
-        collapsedTitle={t('nav.files')}
-        emptyDescription={t('files.noHostHint')}
-        searchPlaceholder={t('files.hostSearch')}
-        className="files-host-context-panel"
-        resizing={hostPanelResize.resizing}
-        onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
-        onResizePointerDown={hostPanelResize.beginResize}
-        getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
-        onSelectHost={onSelectHost}
-      />
+      {leftActiveTab === 'hosts' || hostPanelCollapsed ? (
+        <HostContextPanel
+          hosts={data.hosts}
+          groups={data.groups}
+          selectedHostId={selectedHostIdStable}
+          collapsed={hostPanelCollapsed}
+          collapsedTitle={t('nav.files')}
+          emptyDescription={t('files.noHostHint')}
+          searchPlaceholder={t('files.hostSearch')}
+          className="files-host-context-panel"
+          contentBefore={filesLeftTabs}
+          resizing={hostPanelResize.resizing}
+          onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
+          onResizePointerDown={hostPanelResize.beginResize}
+          getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+          onSelectHost={onSelectHost}
+        />
+      ) : (
+        <LocalPathMappingsPanel
+          api={api}
+          mappings={data.localPathMappings}
+          collapsed={hostPanelCollapsed}
+          resizing={hostPanelResize.resizing}
+          remoteDragMime={remoteFileDragMime}
+          remoteDragPaths={remoteMoveDrag?.paths ?? []}
+          tabs={filesLeftTabs}
+          onToggleCollapsed={() => setHostPanelCollapsed((current) => !current)}
+          onResizePointerDown={hostPanelResize.beginResize}
+          onCreateMapping={onCreateLocalPathMapping}
+          onReorderMappings={onReorderLocalPathMappings}
+          onDownloadToLocalDir={downloadPathsToLocalDir}
+          refreshRequests={localRefreshRequests}
+        />
+      )}
 
       <main className="files-main-panel">
         <div className="files-session-toolbar">
@@ -1471,6 +1769,7 @@ export function FilesPage({
             <Input.Search
               id="files-path-input"
               name="files-path-input"
+              size="large"
               value={pathInput}
               disabled={!fileSessionConnected}
               onChange={(event) => setPathInput(event.target.value)}
@@ -1525,24 +1824,12 @@ export function FilesPage({
             <Button className="secondary-button" disabled={actionDisabled} icon={<Clipboard size={15} />} onClick={() => void pasteFromClipboard()}>
               {t('files.paste')}
             </Button>
-            <Button
-              className="secondary-button"
-              disabled={actionDisabled || selectedPaths.length !== 1}
-              icon={<ShieldCheck size={15} />}
-              onClick={() => openPermissions()}
-            >
-              {t('files.editPermissions')}
-            </Button>
-            <Button className="secondary-button" disabled={selectedPaths.length !== 1} icon={<Pencil size={15} />} onClick={() => openRename()}>
-              {t('files.rename')}
-            </Button>
             <Button className="danger-button" disabled={selectedPaths.length === 0} icon={<Trash2 size={15} />} onClick={() => confirmDelete()}>
               {t('app.delete')}
             </Button>
           </div>
         </div>
 
-        {error ? <div className="files-error">{error}</div> : null}
         <div ref={filesTableShellRef} className="files-table-shell">
           {!activeFileSession ? (
             <div className="files-session-empty">
@@ -1578,6 +1865,12 @@ export function FilesPage({
                 draggable: fileSessionConnected && !loading,
                 onClick: () => setActiveEntry(entry),
                 onDoubleClick: () => enterEntry(entry),
+                onContextMenu: (event) => {
+                  event.preventDefault()
+                  setSelectedPaths([entry.path])
+                  setActiveEntry(entry)
+                  setFileContextMenu({ entry, x: event.clientX, y: event.clientY })
+                },
                 onDragStart: (event) => startRemoteMoveDrag(entry, event),
                 onDragOver: (event) => updateRemoteMoveTarget(entry, event),
                 onDragLeave: (event) => {
@@ -1596,6 +1889,25 @@ export function FilesPage({
               locale={{ emptyText: <EmptyState title={t('files.emptyDirectory')} description={t('files.emptyDirectoryHint')} /> }}
             />
           )}
+          {fileContextMenu ? (
+            <Dropdown
+              open
+              trigger={[]}
+              placement="bottomLeft"
+              menu={fileRowMenuProps(fileContextMenu.entry)}
+              classNames={{ root: 'files-row-menu' }}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setFileContextMenu(null)
+                }
+              }}
+            >
+              <span
+                className="files-context-menu-anchor"
+                style={{ left: fileContextMenu.x, top: fileContextMenu.y }}
+              />
+            </Dropdown>
+          ) : null}
         </div>
         {dragActive || remoteMoveDrag ? (
           <div className={`files-drop-mask ${remoteMoveDrag ? 'is-move' : ''}`}>
@@ -1641,6 +1953,7 @@ export function FilesPage({
             children: (
               <TransferQueuePanel
                 transfers={transfers}
+                pendingOperations={pendingTransferOperations}
                 onCancel={async (id) => {
                   try {
                     await api.deleteTransfer(id)
@@ -1698,6 +2011,32 @@ export function FilesPage({
         onCancel={() => setPermissionEntry(null)}
         onSubmit={(entry, mode) => void applyPermissions(entry, mode)}
       />
+      {textEditorPath && activeFileSessionId ? (
+        <Suspense fallback={null}>
+          <RemoteTextEditorModal
+            api={api}
+            open={Boolean(textEditorPath && activeFileSessionId)}
+            fileSessionId={activeFileSessionId}
+            path={textEditorPath}
+            theme={theme}
+            terminalSettings={data.settings.terminal}
+            onClose={() => setTextEditorPath(null)}
+            onSaved={(entry) => handleTextFileSaved(entry)}
+          />
+        </Suspense>
+      ) : null}
+      {imageViewerPath && activeFileSessionId ? (
+        <Suspense fallback={null}>
+          <RemoteImageViewerModal
+            api={api}
+            open={Boolean(imageViewerPath && activeFileSessionId)}
+            fileSessionId={activeFileSessionId}
+            path={imageViewerPath}
+            theme={theme}
+            onClose={() => setImageViewerPath(null)}
+          />
+        </Suspense>
+      ) : null}
     </section>
   )
 }
@@ -1757,6 +2096,13 @@ function parseFileSideTabKey(value: unknown): FileSideTabKey {
     return value
   }
   return 'details'
+}
+
+function parseFileLeftTabKey(value: unknown): FileLeftTabKey {
+  if (value === 'local') {
+    return value
+  }
+  return 'hosts'
 }
 
 function ResizableFileHeaderCell({
@@ -1891,7 +2237,7 @@ function renderFileDetailValue(value?: string | number | null) {
       title={display === '-' ? null : display}
       placement="topRight"
       mouseEnterDelay={0.35}
-      overlayClassName="file-detail-tooltip"
+      classNames={{ root: 'file-detail-tooltip' }}
     >
       <span className="files-detail-value">{display}</span>
     </Tooltip>
@@ -2156,6 +2502,10 @@ function permissionBitsToOctal(bits: PermissionBits) {
 
 function isUploadTransfer(task: TransferTask) {
   return task.type.startsWith('upload')
+}
+
+function isDownloadTransfer(task: TransferTask) {
+  return task.type.startsWith('download')
 }
 
 function isTransferActive(task: TransferTask) {

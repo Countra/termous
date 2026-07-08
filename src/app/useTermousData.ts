@@ -22,17 +22,21 @@ import type {
   HostReachabilityEvent,
   HostInput,
   Language,
+  LocalPathMapping,
+  LocalPathMappingInput,
+  LocalPathMappingReorderItem,
   LocalShell,
   Session,
   Settings,
   TerminalFont,
   TerminalSettings,
+  WindowSettings,
 } from '../types/domain'
 import { changeLanguage } from '../i18n'
-import { defaultTerminalSettings, normalizeSettings } from '../features/settings/terminalSettings'
+import { defaultTerminalSettings, defaultWindowSettings, normalizeSettings } from '../features/settings/terminalSettings'
 import { hostToInput } from '../features/hosts/hostInput'
 
-const initialSettings: Settings = { language: 'zh-CN', terminal: defaultTerminalSettings }
+const initialSettings: Settings = { language: 'zh-CN', terminal: defaultTerminalSettings, window: defaultWindowSettings }
 type LoadMode = 'initial' | 'background' | 'silent'
 
 const initialData: AppData = {
@@ -47,6 +51,7 @@ const initialData: AppData = {
   snippets: [],
   fileBookmarkGroups: [],
   fileBookmarks: [],
+  localPathMappings: [],
   settings: initialSettings,
   terminalFonts: [],
   hostReachability: {},
@@ -78,6 +83,7 @@ export function useTermousData() {
         snippets,
         fileBookmarkGroups,
         fileBookmarks,
+        localPathMappings,
         groups,
         hosts,
         hostReachability,
@@ -93,6 +99,7 @@ export function useTermousData() {
         apiClient.codeSnippets(),
         apiClient.fileBookmarkGroups(),
         apiClient.fileBookmarks(),
+        apiClient.localPathMappings(),
         apiClient.hostGroups(),
         apiClient.hosts(),
         apiClient.hostReachability(),
@@ -118,6 +125,7 @@ export function useTermousData() {
         snippets: snippets ?? [],
         fileBookmarkGroups: sortFileBookmarkGroups(fileBookmarkGroups ?? []),
         fileBookmarks: sortFileBookmarks(fileBookmarks ?? []),
+        localPathMappings: sortLocalPathMappings(localPathMappings ?? []),
         terminalFonts: terminalFonts ?? [],
         hostReachability: indexHostReachability(hostReachability ?? []),
       })
@@ -191,6 +199,17 @@ export function useTermousData() {
         setData((current) => ({ ...current, settings: { ...current.settings, terminal } }))
         try {
           const settings = normalizeSettings(await api.updateTerminalSettings(terminal))
+          setData((current) => ({ ...current, settings }))
+        } catch (updateError) {
+          setData((current) => ({ ...current, settings: previousSettings }))
+          throw updateError
+        }
+      },
+      async setWindowSettings(windowSettings: WindowSettings) {
+        const previousSettings = data.settings
+        setData((current) => ({ ...current, settings: { ...current.settings, window: windowSettings } }))
+        try {
+          const settings = normalizeSettings(await api.updateWindowSettings(windowSettings))
           setData((current) => ({ ...current, settings }))
         } catch (updateError) {
           setData((current) => ({ ...current, settings: previousSettings }))
@@ -288,6 +307,25 @@ export function useTermousData() {
         const bookmarks = await api.reorderFileBookmarks(items)
         setData((current) => ({ ...current, fileBookmarks: sortFileBookmarks(bookmarks ?? current.fileBookmarks) }))
         return bookmarks
+      },
+      async createLocalPathMapping(input: LocalPathMappingInput) {
+        const mapping = await api.createLocalPathMapping(input)
+        setData((current) => ({ ...current, localPathMappings: upsertLocalPathMapping(current.localPathMappings, mapping) }))
+        return mapping
+      },
+      async updateLocalPathMapping(id: string, input: LocalPathMappingInput) {
+        const mapping = await api.updateLocalPathMapping(id, input)
+        setData((current) => ({ ...current, localPathMappings: upsertLocalPathMapping(current.localPathMappings, mapping) }))
+        return mapping
+      },
+      async deleteLocalPathMapping(id: string) {
+        await api.deleteLocalPathMapping(id)
+        setData((current) => ({ ...current, localPathMappings: current.localPathMappings.filter((mapping) => mapping.id !== id) }))
+      },
+      async reorderLocalPathMappings(items: LocalPathMappingReorderItem[]) {
+        const mappings = await api.reorderLocalPathMappings(items)
+        setData((current) => ({ ...current, localPathMappings: sortLocalPathMappings(mappings ?? current.localPathMappings) }))
+        return mappings
       },
       async createForwardProfile(input: ForwardProfileInput) {
         const profile = await api.createForwardProfile(input)
@@ -459,7 +497,7 @@ export function useTermousData() {
           ),
         }))
       },
-      async connectFileSession(hostId: string, sourceSessionId = '', initialPath = '/') {
+      async connectFileSession(hostId: string, sourceSessionId = '', initialPath = '') {
         const fileSession = await api.createFileSession(hostId, sourceSessionId, initialPath)
         setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
         return fileSession
@@ -604,6 +642,24 @@ function sortFileBookmarks(bookmarks: FileBookmark[]) {
     if (left.group_id !== right.group_id) {
       return left.group_id.localeCompare(right.group_id)
     }
+    if (left.sort_order !== right.sort_order) {
+      return left.sort_order - right.sort_order
+    }
+    if (left.name !== right.name) {
+      return left.name.localeCompare(right.name)
+    }
+    return left.id.localeCompare(right.id)
+  })
+}
+
+function upsertLocalPathMapping(mappings: LocalPathMapping[], next: LocalPathMapping) {
+  const exists = mappings.some((mapping) => mapping.id === next.id)
+  const merged = exists ? mappings.map((mapping) => (mapping.id === next.id ? next : mapping)) : [...mappings, next]
+  return sortLocalPathMappings(merged)
+}
+
+function sortLocalPathMappings(mappings: LocalPathMapping[]) {
+  return [...mappings].sort((left, right) => {
     if (left.sort_order !== right.sort_order) {
       return left.sort_order - right.sort_order
     }

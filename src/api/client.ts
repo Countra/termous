@@ -12,6 +12,7 @@ import type {
   FileBookmarkGroupReorderItem,
   FileBookmarkInput,
   FileBookmarkReorderItem,
+  FileOperationTask,
   FileSession,
   FirewallApplyResult,
   FirewallCapability,
@@ -39,14 +40,22 @@ import type {
   LocalShell,
   LocalFileGrant,
   LocalGrantSource,
+  LocalPathMapping,
+  LocalPathMappingInput,
+  LocalPathMappingReorderItem,
+  LocalTreeEntry,
   OverwritePolicy,
   RemoteDirectoryListing,
   RemoteFileEntry,
+  RemoteTextFile,
+  RemoteTextSaveRequest,
+  RemoteTextSaveResult,
   Session,
   Settings,
   TerminalFont,
   TerminalSettings,
   TransferTask,
+  WindowSettings,
 } from '../types/domain'
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -159,6 +168,13 @@ export class TermousApi {
     })
   }
 
+  updateWindowSettings(windowSettings: WindowSettings) {
+    return this.request<Settings>('/api/v1/settings/window', {
+      method: 'PATCH',
+      body: windowSettings,
+    })
+  }
+
   codeSnippets() {
     return this.request<CodeSnippet[]>('/api/v1/snippets')
   }
@@ -241,6 +257,45 @@ export class TermousApi {
       method: 'POST',
       body: { items },
     }).then(normalizeArray)
+  }
+
+  localPathMappings() {
+    return this.request<LocalPathMapping[]>('/api/v1/local-path-mappings').then(normalizeArray)
+  }
+
+  createLocalPathMapping(input: LocalPathMappingInput) {
+    return this.request<LocalPathMapping>('/api/v1/local-path-mappings', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  updateLocalPathMapping(id: string, input: LocalPathMappingInput) {
+    return this.request<LocalPathMapping>(`/api/v1/local-path-mappings/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  }
+
+  deleteLocalPathMapping(id: string) {
+    return this.request<void>(`/api/v1/local-path-mappings/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  reorderLocalPathMappings(items: LocalPathMappingReorderItem[]) {
+    return this.request<LocalPathMapping[]>('/api/v1/local-path-mappings/reorder', {
+      method: 'POST',
+      body: { items },
+    }).then(normalizeArray)
+  }
+
+  localPathMappingChildren(id: string, path = '') {
+    const query = path ? `?${new URLSearchParams({ path }).toString()}` : ''
+    return this.request<LocalTreeEntry[]>(`/api/v1/local-path-mappings/${encodeURIComponent(id)}/children${query}`).then(normalizeArray)
+  }
+
+  localPathMappingStat(id: string, path = '') {
+    const query = path ? `?${new URLSearchParams({ path }).toString()}` : ''
+    return this.request<LocalTreeEntry>(`/api/v1/local-path-mappings/${encodeURIComponent(id)}/stat${query}`)
   }
 
   forwardProfiles() {
@@ -511,10 +566,17 @@ export class TermousApi {
     return this.request<FileSession[]>('/api/v1/file-sessions')
   }
 
-  createFileSession(hostId: string, sourceSessionId = '', initialPath = '/') {
+  createFileSession(hostId: string, sourceSessionId = '', initialPath = '') {
+    const body: { host_id: string; source_session_id?: string; initial_path?: string } = { host_id: hostId }
+    if (sourceSessionId) {
+      body.source_session_id = sourceSessionId
+    }
+    if (initialPath) {
+      body.initial_path = initialPath
+    }
     return this.request<FileSession>('/api/v1/file-sessions', {
       method: 'POST',
-      body: { host_id: hostId, source_session_id: sourceSessionId, initial_path: initialPath },
+      body,
     })
   }
 
@@ -554,6 +616,67 @@ export class TermousApi {
   statFileSessionFile(fileSessionId: string, path: string) {
     const query = new URLSearchParams({ path })
     return this.request<RemoteFileEntry>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/stat?${query.toString()}`)
+  }
+
+  openFileSessionTextFile(fileSessionId: string, path: string) {
+    const query = new URLSearchParams({ path })
+    return this.request<RemoteTextFile>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text?${query.toString()}`, {
+      timeoutMs: 90_000,
+    })
+  }
+
+  saveFileSessionTextFile(fileSessionId: string, body: RemoteTextSaveRequest) {
+    return this.request<RemoteTextSaveResult>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text`, {
+      method: 'PUT',
+      body,
+      timeoutMs: 90_000,
+    })
+  }
+
+  createFileSessionTextReadOperation(fileSessionId: string, path: string) {
+    return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text/read`, {
+      method: 'POST',
+      body: { path },
+    })
+  }
+
+  createFileSessionTextSaveOperation(fileSessionId: string, body: RemoteTextSaveRequest) {
+    return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text/save`, {
+      method: 'POST',
+      body,
+      timeoutMs: 90_000,
+    })
+  }
+
+  createFileSessionImageReadOperation(fileSessionId: string, path: string) {
+    return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/image/read`, {
+      method: 'POST',
+      body: { path },
+    })
+  }
+
+  fileOperation(id: string) {
+    return this.request<FileOperationTask>(`/api/v1/file-operations/${encodeURIComponent(id)}`)
+  }
+
+  fileOperationResult<T>(id: string) {
+    return this.request<T>(`/api/v1/file-operations/${encodeURIComponent(id)}/result`, {
+      timeoutMs: 90_000,
+    })
+  }
+
+  fileOperationBlobResult(id: string) {
+    return this.requestBlob(`/api/v1/file-operations/${encodeURIComponent(id)}/blob`, {
+      timeoutMs: 90_000,
+    })
+  }
+
+  cancelFileOperation(id: string) {
+    return this.request<void>(`/api/v1/file-operations/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  fileOperationEventsUrl(fileSessionId: string) {
+    return this.websocketUrl(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/file-operations/events`)
   }
 
   mkdirFileSessionFile(fileSessionId: string, path: string) {
@@ -746,6 +869,48 @@ export class TermousApi {
         return undefined as T
       }
       return (await response.json()) as T
+    } catch (error) {
+      if (error instanceof TermousApiError) {
+        throw error
+      }
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        if (!timedOut) {
+          throw new TermousApiError('请求已取消', 'REQUEST_ABORTED', 0)
+        }
+        throw new TermousApiError('请求超时', 'REQUEST_TIMEOUT', 0)
+      }
+      throw new TermousApiError(error instanceof Error ? error.message : '本地 API 不可用', 'NETWORK_ERROR', 0)
+    } finally {
+      window.clearTimeout(timeout)
+      options.signal?.removeEventListener('abort', abortByCaller)
+    }
+  }
+
+  private async requestBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
+    const controller = new AbortController()
+    let timedOut = false
+    const timeout = window.setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, options.timeoutMs ?? 12_000)
+    const abortByCaller = () => controller.abort()
+    if (options.signal?.aborted) {
+      controller.abort()
+    } else {
+      options.signal?.addEventListener('abort', abortByCaller, { once: true })
+    }
+    try {
+      const response = await fetch(new URL(path, this.config.apiBaseUrl), {
+        method: options.method ?? 'GET',
+        headers: {
+          ...(this.config.apiToken ? { 'X-Termous-Token': this.config.apiToken } : {}),
+        },
+        signal: controller.signal,
+      })
+      if (!response.ok) {
+        throw await this.toError(response)
+      }
+      return response.blob()
     } catch (error) {
       if (error instanceof TermousApiError) {
         throw error

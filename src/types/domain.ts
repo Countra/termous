@@ -75,6 +75,98 @@ export interface RemoteDirectoryListing {
   read_at: string
 }
 
+export type RemoteTextEncoding = 'utf-8'
+
+export type RemoteTextLineEnding = 'lf' | 'crlf' | 'cr' | 'mixed' | 'none'
+
+export interface RemoteTextFile {
+  file_session_id: string
+  path: string
+  name: string
+  content: string
+  encoding: RemoteTextEncoding
+  has_bom: boolean
+  line_ending: RemoteTextLineEnding
+  language?: string
+  size: number
+  sha256: string
+  modified_at?: string
+  mode?: string
+  permission_octal?: string
+  loaded_at: string
+}
+
+export interface RemoteTextSaveRequest {
+  path: string
+  content: string
+  base_sha256: string
+  base_size: number
+  base_modified_at?: string
+  line_ending: RemoteTextLineEnding
+  has_bom: boolean
+  force: boolean
+}
+
+export interface RemoteTextSaveResult {
+  file: RemoteTextFile
+  entry: RemoteFileEntry
+}
+
+export interface RemoteImageFile {
+  file_session_id: string
+  path: string
+  name: string
+  content_type: string
+  size: number
+  sha256: string
+  modified_at?: string
+  loaded_at: string
+}
+
+export type FileOperationType = 'read_text' | 'save_text' | 'read_image'
+
+export type FileOperationStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export type FileOperationPhase =
+  | 'queued'
+  | 'stat'
+  | 'read'
+  | 'decode'
+  | 'verify'
+  | 'write_temp'
+  | 'replace'
+  | 'reload'
+  | 'done'
+
+export interface FileOperationTask {
+  id: string
+  revision: number
+  file_session_id: string
+  host_id: string
+  type: FileOperationType
+  status: FileOperationStatus
+  phase: FileOperationPhase
+  phase_label?: string
+  path: string
+  total_bytes: number
+  transferred_bytes: number
+  remaining_bytes: number
+  phase_total_bytes: number
+  phase_transferred_bytes: number
+  phase_progress_percent: number
+  progress_percent: number
+  speed_bytes_per_sec: number
+  average_speed_bytes_per_sec: number
+  eta_seconds?: number
+  elapsed_seconds: number
+  cancellable: boolean
+  created_at: string
+  started_at?: string
+  finished_at?: string
+  error_code?: string
+  error_message?: string
+}
+
 export type FileSessionStatus = 'connecting' | 'connected' | 'waiting_trust' | 'disconnected' | 'failed'
 
 export type FileSessionPhase =
@@ -126,6 +218,7 @@ export interface TransferTask {
   status: TransferStatus
   source_paths: string[]
   target_path: string
+  local_directory_path?: string
   total_bytes: number
   transferred_bytes: number
   remaining_bytes: number
@@ -499,6 +592,7 @@ export interface FirewallPersistenceInstallResult {
 export interface Settings {
   language: Language
   terminal: TerminalSettings
+  window: WindowSettings
 }
 
 export interface TerminalSettings {
@@ -510,6 +604,12 @@ export interface TerminalSettings {
   cursor_blink: boolean
   theme_mode: TerminalThemeMode
   scrollback: 1000 | 5000 | 10000 | 50000
+}
+
+export type WindowCloseBehavior = 'exit' | 'minimize_to_tray'
+
+export interface WindowSettings {
+  close_behavior: WindowCloseBehavior
 }
 
 export interface CodeSnippet {
@@ -574,6 +674,38 @@ export interface FileBookmarkReorderItem {
   sort_order: number
 }
 
+export interface LocalPathMapping {
+  id: string
+  name: string
+  path: string
+  sort_order: number
+  available: boolean
+  last_used_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface LocalPathMappingInput {
+  name: string
+  path: string
+}
+
+export interface LocalPathMappingReorderItem {
+  id: string
+  sort_order: number
+}
+
+export type LocalTreeEntryKind = 'file' | 'directory' | 'symlink' | 'other'
+
+export interface LocalTreeEntry {
+  name: string
+  path: string
+  kind: LocalTreeEntryKind
+  size: number
+  modified_at?: string
+  has_children: boolean
+}
+
 export interface Host {
   id: string
   name: string
@@ -591,6 +723,7 @@ export interface Host {
   favorite: boolean
   fingerprint_policy: string
   note?: string
+  last_file_directory?: string
   created_at?: string
   updated_at?: string
   last_connected_at?: string
@@ -793,6 +926,32 @@ export interface CoreFatalEvent {
   code: string
 }
 
+export interface TrayRecentHost {
+  id: string
+  name: string
+}
+
+export interface TrayMenuState {
+  language: Language
+  recentHosts: TrayRecentHost[]
+  labels: TrayMenuLabels
+}
+
+export interface TrayMenuLabels {
+  openApp: string
+  connectHost: string
+  recentHosts: string
+  emptyRecentHosts: string
+  forwards: string
+  quit: string
+}
+
+export type TrayCommand =
+  | { type: 'open-app' }
+  | { type: 'open-host-launcher' }
+  | { type: 'connect-recent-host'; hostId: string }
+  | { type: 'open-forwards' }
+
 export interface HostInput {
   name: string
   platform: HostPlatform
@@ -830,6 +989,7 @@ export interface AppData {
   snippets: CodeSnippet[]
   fileBookmarkGroups: FileBookmarkGroup[]
   fileBookmarks: FileBookmark[]
+  localPathMappings: LocalPathMapping[]
   settings: Settings
   terminalFonts: TerminalFont[]
   hostReachability: Record<string, HostReachability>

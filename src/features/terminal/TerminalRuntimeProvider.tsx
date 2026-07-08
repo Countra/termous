@@ -94,6 +94,7 @@ export function TerminalRuntimeProvider({
 
   useEffect(() => {
     themeRef.current = theme
+    syncTerminalCssVariables(terminalSettingsRef.current, theme, terminalFontsRef.current)
     entriesRef.current.forEach((entry) => {
       entry.terminal.options.theme = terminalTheme(terminalSettingsRef.current, theme)
     })
@@ -359,6 +360,7 @@ export function TerminalRuntimeProvider({
     const shouldResize = shouldFitAfterSettingsChange(previousSettings, nextSettings)
     const fonts = terminalFontsRef.current
     syncImportedFontFaces(apiRef.current, fonts)
+    syncTerminalCssVariables(nextSettings, themeRef.current, fonts)
     entriesRef.current.forEach((entry) => {
       applyTerminalSettings(entry.terminal, nextSettings, themeRef.current, fonts)
       if (shouldResize) {
@@ -374,6 +376,7 @@ export function TerminalRuntimeProvider({
     terminalFontsRef.current = terminalFonts
     syncImportedFontFaces(apiRef.current, terminalFonts)
     const settings = terminalSettingsRef.current
+    syncTerminalCssVariables(settings, themeRef.current, terminalFonts)
     entriesRef.current.forEach((entry) => {
       applyTerminalSettings(entry.terminal, settings, themeRef.current, terminalFonts)
       fitAndResize(entry)
@@ -741,6 +744,20 @@ function applyTerminalSettings(terminal: Terminal, settings: TerminalSettings, a
   terminal.options.lineHeight = normalizedSettings.line_height
   terminal.options.scrollback = normalizedSettings.scrollback
   terminal.options.theme = terminalTheme(normalizedSettings, appTheme)
+}
+
+function syncTerminalCssVariables(settings: TerminalSettings, appTheme: ThemeMode, fonts: TerminalFont[] = []) {
+  const normalizedSettings = normalizeTerminalSettings(settings)
+  const theme = terminalTheme(normalizedSettings, appTheme)
+  const root = document.documentElement
+  root.style.setProperty('--terminal-font-family', fontFamilyFromSetting(normalizedSettings.font_family, fonts))
+  root.style.setProperty('--terminal-font-size', `${normalizedSettings.font_size}px`)
+  root.style.setProperty('--terminal-line-height', String(normalizedSettings.line_height))
+  root.style.setProperty('--terminal-letter-spacing', `${normalizedSettings.letter_spacing}px`)
+  root.style.setProperty('--terminal-bg', theme.background ?? '#080a0f')
+  root.style.setProperty('--terminal-fg', theme.foreground ?? '#e6ebf4')
+  root.style.setProperty('--terminal-cursor', theme.cursor ?? '#61a8ff')
+  root.style.setProperty('--terminal-selection-bg', theme.selectionBackground ?? '#24476d')
 }
 
 function shouldFitAfterSettingsChange(previous: TerminalSettings, next: TerminalSettings) {

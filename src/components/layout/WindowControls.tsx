@@ -1,36 +1,51 @@
 import { Maximize2, Minus, Square, X } from 'lucide-react'
 import { Button, Tooltip } from 'antd'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
+import type { WindowCloseBehavior } from '../../types/domain'
 
 interface WindowControlsProps {
+  closeBehavior: WindowCloseBehavior
+  hasActiveRuntime: boolean
   onBeforeClose?: () => Promise<void>
   onCloseError?: (error: unknown) => void
 }
 
-export function WindowControls({ onBeforeClose, onCloseError }: WindowControlsProps) {
+export function WindowControls({ closeBehavior, hasActiveRuntime, onBeforeClose, onCloseError }: WindowControlsProps) {
   const { t } = useTranslation()
   const [isMaximized, setIsMaximized] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
   const [closing, setClosing] = useState(false)
+  const [hidingToTray, setHidingToTray] = useState(false)
 
-  useEffect(() => {
-    const controls = window.termous?.windowControls
-    void controls?.isMaximized().then(setIsMaximized).catch(() => setIsMaximized(false))
-    const cleanupMaximize = controls?.onMaximizeState(setIsMaximized)
-    const cleanupClose = controls?.onCloseRequest(() => setConfirmClose(true))
-    return () => {
-      cleanupMaximize?.()
-      cleanupClose?.()
+  const minimizeToTray = useCallback(async () => {
+    flushSync(() => {
+      setConfirmClose(false)
+      setHidingToTray(true)
+    })
+    try {
+      const hidden = await window.termous?.windowControls?.minimizeToTray?.()
+      if (!hidden) {
+        setConfirmClose(true)
+      }
+    } catch (closeError) {
+      onCloseError?.(closeError)
+    } finally {
+      setHidingToTray(false)
     }
-  }, [])
+  }, [onCloseError])
 
-  const requestClose = () => {
+  const requestClose = useCallback(async () => {
+    if (closeBehavior === 'minimize_to_tray' && !hasActiveRuntime) {
+      await minimizeToTray()
+      return
+    }
     setConfirmClose(true)
-  }
+  }, [closeBehavior, hasActiveRuntime, minimizeToTray])
 
-  const confirmAndClose = async () => {
+  const confirmAndClose = useCallback(async () => {
     setClosing(true)
     try {
       await onBeforeClose?.()
@@ -41,7 +56,20 @@ export function WindowControls({ onBeforeClose, onCloseError }: WindowControlsPr
     } finally {
       setClosing(false)
     }
-  }
+  }, [onBeforeClose, onCloseError])
+
+  useEffect(() => {
+    const controls = window.termous?.windowControls
+    void controls?.isMaximized().then(setIsMaximized).catch(() => setIsMaximized(false))
+    const cleanupMaximize = controls?.onMaximizeState(setIsMaximized)
+    const cleanupClose = controls?.onCloseRequest(() => {
+      void requestClose()
+    })
+    return () => {
+      cleanupMaximize?.()
+      cleanupClose?.()
+    }
+  }, [requestClose])
 
   return (
     <>
@@ -68,23 +96,30 @@ export function WindowControls({ onBeforeClose, onCloseError }: WindowControlsPr
           />
         </Tooltip>
         <Tooltip title={t('app.close')}>
-          <Button className="window-control danger" onClick={requestClose} aria-label={t('app.close')} icon={<X size={15} />} />
+          <Button className="window-control danger" onClick={() => void requestClose()} aria-label={t('app.close')} icon={<X size={15} />} />
         </Tooltip>
       </div>
-      <ConfirmDialog
-        open={confirmClose}
-        danger
-        title={t('app.closeConfirmTitle')}
-        description={t('app.closeConfirmDescription')}
-        confirmLabel={t('app.close')}
-        confirmLoading={closing}
-        onConfirm={() => void confirmAndClose()}
-        onCancel={() => {
-          if (!closing) {
-            setConfirmClose(false)
-          }
-        }}
-      />
+      {confirmClose ? (
+        <ConfirmDialog
+          open
+          danger
+          title={t('app.closeConfirmTitle')}
+          description={t('app.closeConfirmDescription')}
+          confirmLabel={t('app.exitAndDisconnect')}
+          secondaryLabel={t('app.minimizeToTray')}
+          confirmLoading={closing}
+          secondaryLoading={hidingToTray}
+          showCancelButton={false}
+          showCloseButton
+          onSecondary={() => void minimizeToTray()}
+          onConfirm={() => void confirmAndClose()}
+          onCancel={() => {
+            if (!closing && !hidingToTray) {
+              setConfirmClose(false)
+            }
+          }}
+        />
+      ) : null}
     </>
   )
 }

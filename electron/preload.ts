@@ -117,6 +117,7 @@ contextBridge.exposeInMainWorld('termous', {
     minimize: () => ipcRenderer.invoke('window:minimize'),
     toggleMaximize: () => ipcRenderer.invoke('window:toggle-maximize') as Promise<boolean>,
     requestClose: () => ipcRenderer.invoke('window:request-close'),
+    minimizeToTray: () => ipcRenderer.invoke('window:minimize-to-tray') as Promise<boolean>,
     confirmClose: () => ipcRenderer.invoke('window:confirm-close'),
     isMaximized: () => ipcRenderer.invoke('window:is-maximized') as Promise<boolean>,
     onMaximizeState: (callback: (maximized: boolean) => void) => {
@@ -130,12 +131,22 @@ contextBridge.exposeInMainWorld('termous', {
       return () => ipcRenderer.removeListener('window:close-requested', listener)
     },
   },
+  tray: {
+    updateState: (state: unknown) => ipcRenderer.invoke('tray:update-state', state) as Promise<boolean>,
+    onCommand: (callback: (command: unknown) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, command: unknown) => callback(command)
+      ipcRenderer.on('tray:command', listener)
+      return () => ipcRenderer.removeListener('tray:command', listener)
+    },
+  },
   files: {
     pickPaths: (options?: { mode?: 'files' | 'directories' | 'files-and-directories'; multiple?: boolean }) =>
       ipcRenderer.invoke('files:pick-paths', options) as Promise<string[]>,
     pickFiles: () => ipcRenderer.invoke('files:pick-paths', { mode: 'files', multiple: true }) as Promise<string[]>,
     pickDirectory: () =>
       ipcRenderer.invoke('files:pick-paths', { mode: 'directories', multiple: false }) as Promise<string[]>,
+    openDirectory: (localPath: string) =>
+      ipcRenderer.invoke('files:open-directory', localPath) as Promise<{ ok: boolean; error?: string }>,
     pathsFromFileList: (files: ArrayLike<File>) => {
       const paths = fileListToPaths(files)
       return Promise.resolve(paths.length > 0 ? paths : consumeRecentDroppedPaths(files.length))
