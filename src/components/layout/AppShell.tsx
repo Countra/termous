@@ -18,13 +18,15 @@ import {
 } from 'lucide-react'
 import { Button, Dropdown, Space, Tooltip, type MenuProps } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { LocalShell, PageKey, ThemeMode } from '../../types/domain'
+import type { LocalShell, PageKey, ThemeMode, WindowCloseBehavior } from '../../types/domain'
 import { WindowControls } from './WindowControls'
 
 interface AppShellProps {
   page: PageKey
   theme: ThemeMode
   appVersion: string
+  windowCloseBehavior: WindowCloseBehavior
+  hasActiveRuntime: boolean
   sidebarCollapsed: boolean
   actionBusy: boolean
   onNavigate: (page: PageKey) => void
@@ -54,6 +56,8 @@ export function AppShell({
   page,
   theme,
   appVersion,
+  windowCloseBehavior,
+  hasActiveRuntime,
   sidebarCollapsed,
   actionBusy,
   onNavigate,
@@ -187,7 +191,14 @@ export function AppShell({
                 icon={theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
               />
             </Tooltip>
-            {showWindowControls ? <WindowControls onBeforeClose={onBeforeClose} onCloseError={onCloseError} /> : null}
+            {showWindowControls ? (
+              <WindowControls
+                closeBehavior={windowCloseBehavior}
+                hasActiveRuntime={hasActiveRuntime}
+                onBeforeClose={onBeforeClose}
+                onCloseError={onCloseError}
+              />
+            ) : null}
           </div>
         </header>
         <main className="content-frame">{children}</main>

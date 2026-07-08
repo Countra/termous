@@ -1,4 +1,4 @@
-import type { AppBuildInfo, AppConfig, CoreFatalEvent, CoreStatus } from './domain'
+import type { AppBuildInfo, AppConfig, CoreFatalEvent, CoreStatus, TrayCommand, TrayMenuState } from './domain'
 
 declare global {
   interface Window {
@@ -20,10 +20,15 @@ declare global {
         minimize: () => Promise<boolean>
         toggleMaximize: () => Promise<boolean>
         requestClose: () => Promise<boolean>
+        minimizeToTray: () => Promise<boolean>
         confirmClose: () => Promise<boolean>
         isMaximized: () => Promise<boolean>
         onMaximizeState: (callback: (maximized: boolean) => void) => () => void
         onCloseRequest: (callback: () => void) => () => void
+      }
+      tray?: {
+        updateState: (state: TrayMenuState) => Promise<boolean>
+        onCommand: (callback: (command: TrayCommand) => void) => () => void
       }
       files?: {
         pickPaths: (options?: {

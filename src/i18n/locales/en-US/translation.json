@@ -24,6 +24,8 @@
     "close": "Close",
     "closeConfirmTitle": "Close Termous?",
     "closeConfirmDescription": "This window will close, and all active or connecting terminal sessions, SFTP file sessions, transfer tasks, and port forwards will be disconnected or stopped.",
+    "minimizeToTray": "Minimize to tray",
+    "exitAndDisconnect": "Exit and disconnect",
     "coreFatalTitle": "Core connection error",
     "coreFatalDescription": "The core service has stopped or is not responding. Exit and reopen Termous.",
     "exit": "Exit app",
@@ -39,6 +41,14 @@
     "forwards": "Port Forwarding",
     "snippets": "Snippets",
     "settings": "Settings"
+  },
+  "tray": {
+    "openApp": "Open Termous",
+    "connectHost": "Connect Host",
+    "recentHosts": "Recent Hosts",
+    "emptyRecentHosts": "No recent hosts",
+    "forwards": "Port Forwarding",
+    "quit": "Quit"
   },
   "status": {
     "connected": "Connected",
@@ -939,12 +949,18 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Interface language and terminal display preferences",
+    "subtitle": "General, language, and terminal display preferences",
+    "tabGeneral": "General",
     "tabLanguage": "Language",
     "tabTerminal": "Terminal style",
+    "generalSection": "General",
     "languageSection": "Language",
     "interfaceLanguage": "Interface language",
     "appVersion": "App version",
+    "closeBehavior": "When closing the window",
+    "closeBehaviorHint": "Tray quit always disconnects safely and exits the app.",
+    "closeBehaviorExit": "Exit Termous",
+    "closeBehaviorMinimizeToTray": "Minimize to tray",
     "chinese": "Simplified Chinese",
     "english": "English",
     "terminalSection": "Terminal style",

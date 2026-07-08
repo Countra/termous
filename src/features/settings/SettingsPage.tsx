@@ -1,17 +1,19 @@
-import { Languages, SquareTerminal } from 'lucide-react'
+import { Languages, Settings2, SquareTerminal } from 'lucide-react'
 import { Segmented, Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { Language, TerminalFont, TerminalSettings } from '../../types/domain'
+import type { Language, TerminalFont, TerminalSettings, WindowSettings } from '../../types/domain'
 import { TerminalStyleSettings } from './TerminalStyleSettings'
 
 interface SettingsPageProps {
   language: Language
   terminalSettings: TerminalSettings
+  windowSettings: WindowSettings
   terminalFonts: TerminalFont[]
   appVersion: string
   actionBusy: boolean
   onLanguageChange: (language: Language) => Promise<void>
   onTerminalSettingsChange: (settings: TerminalSettings) => Promise<void>
+  onWindowSettingsChange: (settings: WindowSettings) => Promise<void>
   onUploadTerminalFont: (file: File) => Promise<TerminalFont>
   onDeleteTerminalFont: (id: string) => Promise<void>
 }
@@ -19,11 +21,13 @@ interface SettingsPageProps {
 export function SettingsPage({
   language,
   terminalSettings,
+  windowSettings,
   terminalFonts,
   appVersion,
   actionBusy,
   onLanguageChange,
   onTerminalSettingsChange,
+  onWindowSettingsChange,
   onUploadTerminalFont,
   onDeleteTerminalFont,
 }: SettingsPageProps) {
@@ -40,6 +44,48 @@ export function SettingsPage({
       <Tabs
         className="settings-tabs"
         items={[
+          {
+            key: 'general',
+            label: (
+              <span className="settings-tab-label">
+                <Settings2 size={15} aria-hidden="true" />
+                {t('settings.tabGeneral')}
+              </span>
+            ),
+            children: (
+              <div className="settings-section">
+                <div className="settings-section-header">
+                  <Settings2 size={18} aria-hidden="true" />
+                  <h2>{t('settings.generalSection')}</h2>
+                </div>
+                <div className="settings-row">
+                  <div>
+                    <strong>{t('settings.appVersion')}</strong>
+                  </div>
+                  <div className="settings-version-value">v{appVersion}</div>
+                </div>
+                <div className="settings-row">
+                  <div>
+                    <strong>{t('settings.closeBehavior')}</strong>
+                    <p className="settings-row-hint">{t('settings.closeBehaviorHint')}</p>
+                  </div>
+                  <Segmented
+                    block
+                    className="settings-control-segmented"
+                    value={windowSettings.close_behavior}
+                    disabled={actionBusy}
+                    options={[
+                      { value: 'exit', label: t('settings.closeBehaviorExit') },
+                      { value: 'minimize_to_tray', label: t('settings.closeBehaviorMinimizeToTray') },
+                    ]}
+                    onChange={(value) =>
+                      void onWindowSettingsChange({ close_behavior: value as WindowSettings['close_behavior'] })
+                    }
+                  />
+                </div>
+              </div>
+            ),
+          },
           {
             key: 'language',
             label: (
@@ -69,12 +115,6 @@ export function SettingsPage({
                     ]}
                     onChange={(value) => void onLanguageChange(value as Language)}
                   />
-                </div>
-                <div className="settings-row">
-                  <div>
-                    <strong>{t('settings.appVersion')}</strong>
-                  </div>
-                  <div className="settings-version-value">v{appVersion}</div>
                 </div>
               </div>
             ),

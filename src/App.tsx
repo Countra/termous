@@ -17,7 +17,7 @@ import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode } from './types/domain'
+import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -69,6 +69,20 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [actionBusy, setActionBusy] = useState(false)
   const [appVersion, setAppVersion] = useState(import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev')
   const [coreFatal, setCoreFatal] = useState<CoreFatalEvent | null>(null)
+  const hasActiveRuntime = useMemo(
+    () =>
+      data.sessions.some((session) => session.status === 'connecting' || session.status === 'connected') ||
+      data.fileSessions.some(
+        (session) =>
+          session.status === 'connecting' ||
+          session.status === 'connected' ||
+          session.status === 'waiting_trust',
+      ) ||
+      data.forwards.some((forward) =>
+        forward.status === 'starting' || forward.status === 'running' || forward.status === 'stopping',
+      ),
+    [data.fileSessions, data.forwards, data.sessions],
+  )
 
   useEffect(() => {
     if (!selectedHostId && data.hosts[0]) {
@@ -230,6 +244,29 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     return data.hosts[0]?.id ?? ''
   }, [data.hosts, selectedHostId])
 
+  const trayRecentHosts = useMemo(
+    () =>
+      [...data.hosts]
+        .filter((host) => Boolean(host.last_connected_at))
+        .sort((left, right) => {
+          return readTimestamp(right.last_connected_at) - readTimestamp(left.last_connected_at)
+        })
+        .slice(0, 5)
+        .map((host) => ({ id: host.id, name: host.name })),
+    [data.hosts],
+  )
+  const trayLabels = useMemo(
+    () => ({
+      openApp: t('tray.openApp'),
+      connectHost: t('tray.connectHost'),
+      recentHosts: t('tray.recentHosts'),
+      emptyRecentHosts: t('tray.emptyRecentHosts'),
+      forwards: t('tray.forwards'),
+      quit: t('tray.quit'),
+    }),
+    [t],
+  )
+
   const activeFileSession = useMemo(
     () => visibleFileSessions.find((session) => session.id === activeFileSessionId) ?? visibleFileSessions[0] ?? null,
     [activeFileSessionId, visibleFileSessions],
@@ -247,7 +284,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     })
   }, [error, t])
 
-  const runAction = async (task: () => Promise<void>, success?: string) => {
+  useEffect(() => {
+    void window.termous?.tray?.updateState({
+      language: data.settings.language,
+      recentHosts: trayRecentHosts,
+      labels: trayLabels,
+    }).catch(() => undefined)
+  }, [data.settings.language, trayLabels, trayRecentHosts])
+
+  const runAction = useCallback(async (task: () => Promise<void>, success?: string) => {
     setActionBusy(true)
     try {
       await task()
@@ -270,7 +315,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     } finally {
       setActionBusy(false)
     }
-  }
+  }, [notification, t])
 
   const saveHost = (id: string | null, input: HostInput) =>
     runAction(async () => {
@@ -487,6 +532,29 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }
 
   useEffect(() => {
+    const cleanup = window.termous?.tray?.onCommand((command) => {
+      if (!isTrayCommand(command)) {
+        return
+      }
+      if (command.type === 'open-host-launcher') {
+        openHostLauncher()
+        return
+      }
+      if (command.type === 'open-forwards') {
+        setPage('forwards')
+        return
+      }
+      if (command.type === 'connect-recent-host') {
+        void runAction(async () => {
+          await actions.connect(command.hostId)
+          setPage('workbench')
+        })
+      }
+    })
+    return () => cleanup?.()
+  }, [actions, openHostLauncher, runAction])
+
+  useEffect(() => {
     const handleHostLauncherShortcut = (event: KeyboardEvent) => {
       if (!isHostLauncherShortcut(event)) {
         return
@@ -513,6 +581,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         page={page}
         theme={theme}
         appVersion={appVersion}
+        windowCloseBehavior={data.settings.window.close_behavior}
+        hasActiveRuntime={hasActiveRuntime}
         sidebarCollapsed={sidebarCollapsed}
         actionBusy={actionBusy}
         onNavigate={setPage}
@@ -641,11 +711,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           <SettingsPage
             language={data.settings.language}
             terminalSettings={data.settings.terminal}
+            windowSettings={data.settings.window}
             terminalFonts={data.terminalFonts}
             appVersion={appVersion}
             actionBusy={actionBusy}
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
             onTerminalSettingsChange={saveTerminalSettings}
+            onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
             onUploadTerminalFont={uploadTerminalFont}
             onDeleteTerminalFont={deleteTerminalFont}
           />
@@ -755,4 +827,20 @@ function notifyForwardError(
 
 function isHostLauncherShortcut(event: KeyboardEvent) {
   return event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 'h'
+}
+
+function readTimestamp(value?: string) {
+  const timestamp = new Date(value ?? '').getTime()
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function isTrayCommand(command: unknown): command is TrayCommand {
+  if (!command || typeof command !== 'object') {
+    return false
+  }
+  const value = command as { type?: unknown; hostId?: unknown }
+  if (value.type === 'connect-recent-host') {
+    return typeof value.hostId === 'string' && value.hostId.length > 0
+  }
+  return value.type === 'open-app' || value.type === 'open-host-launcher' || value.type === 'open-forwards'
 }

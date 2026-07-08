@@ -5730,6 +5730,13 @@ body.is-terminal-tab-dragging * {
   grid-template-columns: minmax(0, 1fr) 280px;
 }
 
+.settings-row-hint {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .settings-version-value {
   display: flex;
   align-items: center;
@@ -6065,6 +6072,33 @@ body.is-terminal-tab-dragging * {
     0 30px 90px rgb(0 0 0 / 36%),
     inset 0 1px 0 rgb(255 255 255 / 10%);
   padding: 0;
+}
+
+.confirm-modal .ant-modal-close {
+  top: 10px;
+  inset-inline-end: 10px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.confirm-modal .ant-modal-close:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.confirm-modal .ant-modal-close-x {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  line-height: 1;
 }
 
 .core-fatal-modal .ant-modal-content {

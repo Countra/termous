@@ -3,6 +3,7 @@ import { existsSync, statSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 import { CoreProcessManager } from './coreProcess'
+import { TermousTrayController } from './tray'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -17,9 +18,17 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 const APP_NAME = 'Termous'
 const APP_ID = 'dev.termous.app'
 const APP_ICON = path.join(process.env.VITE_PUBLIC, 'termous-icon.png')
+const TRAY_ICON = path.join(process.env.VITE_PUBLIC, process.platform === 'win32' ? 'favicon.ico' : 'termous-icon.png')
 const WEB_DEBUG_FILE = 'webDebug'
 const DEVTOOLS_CHORD_WINDOW_MS = 900
 const coreProcess = new CoreProcessManager()
+const trayController = new TermousTrayController({
+  appName: APP_NAME,
+  iconCandidates: [TRAY_ICON, APP_ICON],
+  getWindow: () => win,
+  showMainWindow,
+  quitApp: quitFromTray,
+})
 
 let win: BrowserWindow | null
 let closeConfirmed = false
@@ -133,6 +142,33 @@ function createWindow() {
   }
 }
 
+function showMainWindow() {
+  if (!win || win.isDestroyed()) {
+    createWindow()
+  }
+  if (!win) {
+    return
+  }
+  if (win.isMinimized()) {
+    win.restore()
+  }
+  if (!win.isVisible()) {
+    win.show()
+  }
+  win.focus()
+}
+
+async function quitFromTray() {
+  const target = win
+  await coreProcess.shutdownGracefully()
+  closeConfirmed = true
+  if (target && !target.isDestroyed()) {
+    target.close()
+    return
+  }
+  app.quit()
+}
+
 function registerWindowControls() {
   const currentWindow = () => BrowserWindow.getFocusedWindow() ?? win
   ipcMain.handle('window:minimize', () => {
@@ -157,6 +193,12 @@ function registerWindowControls() {
     focused.webContents.send('window:close-requested')
     return true
   })
+  ipcMain.handle('window:minimize-to-tray', () => {
+    const focused = currentWindow()
+    if (!focused) return false
+    focused.hide()
+    return true
+  })
   ipcMain.handle('window:confirm-close', async () => {
     const focused = currentWindow()
     if (!focused) return false
@@ -173,6 +215,13 @@ function registerCoreProcessControls() {
   ipcMain.handle('core:status', () => coreProcess.status())
   ipcMain.handle('core:shutdown', () => coreProcess.shutdownGracefully())
   ipcMain.handle('core:get-fatal', () => coreProcess.getFatal())
+}
+
+function registerTrayControls() {
+  ipcMain.handle('tray:update-state', (_event, state: unknown) => {
+    trayController.updateState(state ?? {})
+    return true
+  })
 }
 
 function registerFilePickers() {
@@ -228,6 +277,10 @@ app.on('window-all-closed', () => {
   }
 })
 
+app.on('before-quit', () => {
+  trayController.destroy()
+})
+
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
@@ -243,6 +296,8 @@ app.whenReady().then(async () => {
   await coreProcess.initialize()
   registerCoreProcessControls()
   registerWindowControls()
+  registerTrayControls()
   registerFilePickers()
   createWindow()
+  trayController.initialize()
 })

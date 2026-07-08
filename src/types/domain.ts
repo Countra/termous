@@ -592,6 +592,7 @@ export interface FirewallPersistenceInstallResult {
 export interface Settings {
   language: Language
   terminal: TerminalSettings
+  window: WindowSettings
 }
 
 export interface TerminalSettings {
@@ -603,6 +604,12 @@ export interface TerminalSettings {
   cursor_blink: boolean
   theme_mode: TerminalThemeMode
   scrollback: 1000 | 5000 | 10000 | 50000
+}
+
+export type WindowCloseBehavior = 'exit' | 'minimize_to_tray'
+
+export interface WindowSettings {
+  close_behavior: WindowCloseBehavior
 }
 
 export interface CodeSnippet {
@@ -918,6 +925,32 @@ export interface CoreFatalEvent {
   message: string
   code: string
 }
+
+export interface TrayRecentHost {
+  id: string
+  name: string
+}
+
+export interface TrayMenuState {
+  language: Language
+  recentHosts: TrayRecentHost[]
+  labels: TrayMenuLabels
+}
+
+export interface TrayMenuLabels {
+  openApp: string
+  connectHost: string
+  recentHosts: string
+  emptyRecentHosts: string
+  forwards: string
+  quit: string
+}
+
+export type TrayCommand =
+  | { type: 'open-app' }
+  | { type: 'open-host-launcher' }
+  | { type: 'connect-recent-host'; hostId: string }
+  | { type: 'open-forwards' }
 
 export interface HostInput {
   name: string

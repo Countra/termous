@@ -30,12 +30,13 @@ import type {
   Settings,
   TerminalFont,
   TerminalSettings,
+  WindowSettings,
 } from '../types/domain'
 import { changeLanguage } from '../i18n'
-import { defaultTerminalSettings, normalizeSettings } from '../features/settings/terminalSettings'
+import { defaultTerminalSettings, defaultWindowSettings, normalizeSettings } from '../features/settings/terminalSettings'
 import { hostToInput } from '../features/hosts/hostInput'
 
-const initialSettings: Settings = { language: 'zh-CN', terminal: defaultTerminalSettings }
+const initialSettings: Settings = { language: 'zh-CN', terminal: defaultTerminalSettings, window: defaultWindowSettings }
 type LoadMode = 'initial' | 'background' | 'silent'
 
 const initialData: AppData = {
@@ -198,6 +199,17 @@ export function useTermousData() {
         setData((current) => ({ ...current, settings: { ...current.settings, terminal } }))
         try {
           const settings = normalizeSettings(await api.updateTerminalSettings(terminal))
+          setData((current) => ({ ...current, settings }))
+        } catch (updateError) {
+          setData((current) => ({ ...current, settings: previousSettings }))
+          throw updateError
+        }
+      },
+      async setWindowSettings(windowSettings: WindowSettings) {
+        const previousSettings = data.settings
+        setData((current) => ({ ...current, settings: { ...current.settings, window: windowSettings } }))
+        try {
+          const settings = normalizeSettings(await api.updateWindowSettings(windowSettings))
           setData((current) => ({ ...current, settings }))
         } catch (updateError) {
           setData((current) => ({ ...current, settings: previousSettings }))

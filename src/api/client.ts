@@ -55,6 +55,7 @@ import type {
   TerminalFont,
   TerminalSettings,
   TransferTask,
+  WindowSettings,
 } from '../types/domain'
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -164,6 +165,13 @@ export class TermousApi {
     return this.request<Settings>('/api/v1/settings/terminal', {
       method: 'PATCH',
       body: terminal,
+    })
+  }
+
+  updateWindowSettings(windowSettings: WindowSettings) {
+    return this.request<Settings>('/api/v1/settings/window', {
+      method: 'PATCH',
+      body: windowSettings,
     })
   }
 

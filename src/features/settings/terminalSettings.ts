@@ -1,4 +1,4 @@
-import type { Settings, TerminalSettings } from '../../types/domain'
+import type { Settings, TerminalSettings, WindowSettings } from '../../types/domain'
 
 export const defaultTerminalSettings: TerminalSettings = {
   font_family: 'jetbrains_mono',
@@ -11,14 +11,27 @@ export const defaultTerminalSettings: TerminalSettings = {
   scrollback: 5000,
 }
 
+export const defaultWindowSettings: WindowSettings = {
+  close_behavior: 'exit',
+}
+
 const cursorStyles = new Set(['block', 'bar', 'underline'])
 const themeModes = new Set(['follow_app', 'dark', 'light'])
 const scrollbacks = new Set([1000, 5000, 10000, 50000])
+const closeBehaviors = new Set(['exit', 'minimize_to_tray'])
 
 export function normalizeSettings(settings: Partial<Settings> | null | undefined): Settings {
   return {
     language: settings?.language === 'en-US' ? 'en-US' : 'zh-CN',
     terminal: normalizeTerminalSettings(settings?.terminal),
+    window: normalizeWindowSettings(settings?.window),
+  }
+}
+
+export function normalizeWindowSettings(settings: Partial<WindowSettings> | null | undefined): WindowSettings {
+  const closeBehavior = settings?.close_behavior
+  return {
+    close_behavior: closeBehaviors.has(String(closeBehavior)) ? (closeBehavior as WindowSettings['close_behavior']) : defaultWindowSettings.close_behavior,
   }
 }
 

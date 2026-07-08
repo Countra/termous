@@ -24,6 +24,8 @@
     "close": "关闭",
     "closeConfirmTitle": "关闭 Termous？",
     "closeConfirmDescription": "当前窗口将关闭，所有正在连接或已连接的终端会话、SFTP 文件会话、传输任务和端口转发都会断开或停止。",
+    "minimizeToTray": "最小化到托盘",
+    "exitAndDisconnect": "退出并断开",
     "coreFatalTitle": "后端连接异常",
     "coreFatalDescription": "核心服务已停止或无响应，请退出后重新打开 Termous。",
     "exit": "退出软件",
@@ -39,6 +41,14 @@
     "forwards": "端口转发",
     "snippets": "代码片段",
     "settings": "设置"
+  },
+  "tray": {
+    "openApp": "打开 Termous",
+    "connectHost": "连接主机",
+    "recentHosts": "最近主机",
+    "emptyRecentHosts": "暂无最近主机",
+    "forwards": "端口转发",
+    "quit": "退出"
   },
   "status": {
     "connected": "已连接",
@@ -939,12 +949,18 @@
   },
   "settings": {
     "title": "设置",
-    "subtitle": "界面语言与终端显示偏好",
+    "subtitle": "通用、语言与终端显示偏好",
+    "tabGeneral": "通用",
     "tabLanguage": "语言",
     "tabTerminal": "终端样式",
+    "generalSection": "通用",
     "languageSection": "语言",
     "interfaceLanguage": "界面语言",
     "appVersion": "应用版本",
+    "closeBehavior": "关闭窗口时",
+    "closeBehaviorHint": "托盘退出始终会安全断开连接并退出软件。",
+    "closeBehaviorExit": "退出 Termous",
+    "closeBehaviorMinimizeToTray": "最小化到托盘",
     "chinese": "简体中文",
     "english": "英语",
     "terminalSection": "终端样式",
