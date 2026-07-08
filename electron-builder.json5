@@ -40,12 +40,17 @@
         ]
       }
     ],
-    "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
+    "artifactName": "${productName}-${version}-windows-${arch}-setup.${ext}"
   },
   "nsis": {
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": false,
+    "createStartMenuShortcut": false,
+    "shortcutName": "Termous",
+    "menuCategory": "Termous",
+    "include": "build/installer-options.nsh",
     "deleteAppDataOnUninstall": false
   },
   "linux": {
