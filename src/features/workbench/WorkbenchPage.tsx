@@ -1,4 +1,5 @@
 import {
+  Activity,
   Cable,
   ChevronDown,
   ChevronLeft,
@@ -59,6 +60,7 @@ import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } fro
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
 import { FirewallPanel } from './FirewallPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
+import { ProcessPanel } from './ProcessPanel'
 import { SystemMonitorPanel } from './SystemMonitorPanel'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import {
@@ -72,7 +74,7 @@ import {
   type SessionTabPreferenceMap,
 } from './sessionTabPreferences'
 
-type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'firewall' | 'forwards' | 'snippets'
+type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'processes' | 'firewall' | 'forwards' | 'snippets'
 
 const workbenchDetailsPanelWidth = {
   default: 300,
@@ -1297,6 +1299,12 @@ export function WorkbenchPage({
             ),
           },
           {
+            key: 'processes',
+            label: t('workbench.detailsTabs.processes'),
+            icon: <Activity size={17} aria-hidden="true" />,
+            children: <ProcessPanel api={api} session={activeSession} enabled={detailsActiveTab === 'processes' && !detailsCollapsed} />,
+          },
+          {
             key: 'firewall',
             label: t('workbench.detailsTabs.firewall'),
             icon: <Shield size={17} aria-hidden="true" />,
@@ -1663,7 +1671,15 @@ function buildSystemInfoTree(info: NonNullable<Session['linux_system_info']>, t:
 }
 
 function parseDetailsTabKey(value: unknown): DetailsTabKey {
-  return value === 'system' || value === 'monitor' || value === 'firewall' || value === 'forwards' || value === 'snippets' || value === 'overview' ? value : 'overview'
+  return value === 'system' ||
+    value === 'monitor' ||
+    value === 'processes' ||
+    value === 'firewall' ||
+    value === 'forwards' ||
+    value === 'snippets' ||
+    value === 'overview'
+    ? value
+    : 'overview'
 }
 
 function valueOrNone(value: string | undefined, t: WorkbenchTranslate) {

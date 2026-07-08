@@ -47,6 +47,11 @@ import type {
   OverwritePolicy,
   RemoteDirectoryListing,
   RemoteFileEntry,
+  RemoteProcessDetail,
+  RemoteProcessListResult,
+  RemoteProcessQuery,
+  RemoteProcessTerminateResult,
+  RemoteProcessTerminateSignal,
   RemoteTextFile,
   RemoteTextSaveRequest,
   RemoteTextSaveResult,
@@ -486,6 +491,54 @@ export class TermousApi {
 
   sessionMonitorUrl(id: string) {
     return this.websocketUrl(`/api/v1/sessions/${encodeURIComponent(id)}/monitor`)
+  }
+
+  sessionProcesses(id: string, query: RemoteProcessQuery = {}, options: Pick<RequestOptions, 'signal'> = {}) {
+    const params = new URLSearchParams()
+    if (query.query?.trim()) {
+      params.set('query', query.query.trim())
+    }
+    if (query.pid) {
+      params.set('pid', String(query.pid))
+    }
+    if (query.port) {
+      params.set('port', String(query.port))
+    }
+    if (query.sort) {
+      params.set('sort', query.sort)
+    }
+    if (query.limit) {
+      params.set('limit', String(query.limit))
+    }
+    const search = params.size > 0 ? `?${params.toString()}` : ''
+    return this.request<RemoteProcessListResult>(`/api/v1/sessions/${encodeURIComponent(id)}/processes${search}`, {
+      signal: options.signal,
+      timeoutMs: 20_000,
+    }).then(normalizeRemoteProcessListResult)
+  }
+
+  sessionProcessDetail(id: string, pid: number, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<RemoteProcessDetail>(`/api/v1/sessions/${encodeURIComponent(id)}/processes/${encodeURIComponent(pid)}`, {
+      signal: options.signal,
+      timeoutMs: 20_000,
+    }).then(normalizeRemoteProcessDetail)
+  }
+
+  terminateSessionProcess(
+    id: string,
+    pid: number,
+    signal: RemoteProcessTerminateSignal = 'term',
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    return this.request<RemoteProcessTerminateResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/processes/${encodeURIComponent(pid)}/terminate`,
+      {
+        method: 'POST',
+        body: { signal },
+        signal: options.signal,
+        timeoutMs: 20_000,
+      },
+    )
   }
 
   sessionFirewallProviders(id: string, options: Pick<RequestOptions, 'signal'> = {}) {
@@ -984,6 +1037,32 @@ function normalizeFirewallApplyResult(result: FirewallApplyResult): FirewallAppl
   return {
     ...result,
     snapshot: normalizeFirewallSnapshot(result.snapshot),
+  }
+}
+
+function normalizeRemoteProcessListResult(result: RemoteProcessListResult): RemoteProcessListResult {
+  return {
+    ...result,
+    items: normalizeArray(result.items).map((item) => ({
+      ...item,
+      listening_ports: normalizeArray(item.listening_ports),
+      warnings: normalizeArray(item.warnings),
+    })),
+    ports: normalizeArray(result.ports),
+    warnings: normalizeArray(result.warnings),
+  }
+}
+
+function normalizeRemoteProcessDetail(detail: RemoteProcessDetail): RemoteProcessDetail {
+  return {
+    ...detail,
+    summary: {
+      ...detail.summary,
+      listening_ports: normalizeArray(detail.summary.listening_ports),
+      warnings: normalizeArray(detail.summary.warnings),
+    },
+    ports: normalizeArray(detail.ports),
+    warnings: normalizeArray(detail.warnings),
   }
 }
 

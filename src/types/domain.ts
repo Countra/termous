@@ -860,6 +860,74 @@ export interface LinuxMonitorSnapshot {
   disks: LinuxMonitorDisk[]
 }
 
+export type RemoteProcessSort = 'cpu' | 'memory' | 'pid' | 'name' | 'runtime'
+
+export type RemoteProcessTerminateSignal = 'term' | 'kill'
+
+export interface RemoteProcessQuery {
+  query?: string
+  pid?: number
+  port?: number
+  sort?: RemoteProcessSort
+  limit?: number
+}
+
+export interface RemoteProcessPort {
+  protocol: string
+  local_address: string
+  local_port: number
+  pid?: number
+  process_name?: string
+  raw?: string
+}
+
+export interface RemoteProcessSummary {
+  pid: number
+  ppid: number
+  user: string
+  state: string
+  cpu_percent: number
+  memory_percent: number
+  rss_bytes: number
+  runtime_seconds: number
+  name: string
+  command_line: string
+  listening_ports?: number[]
+  warnings?: string[]
+  permission_state?: string
+}
+
+export interface RemoteProcessListResult {
+  items: RemoteProcessSummary[]
+  ports: RemoteProcessPort[]
+  total: number
+  filtered: number
+  collected_at: string
+  warnings?: string[]
+}
+
+export interface RemoteProcessDetail {
+  summary: RemoteProcessSummary
+  full_command_line?: string
+  cwd?: string
+  executable?: string
+  status?: Record<string, string>
+  ports?: RemoteProcessPort[]
+  warnings?: string[]
+  collected_at: string
+}
+
+export interface RemoteProcessTerminateRequest {
+  signal: RemoteProcessTerminateSignal
+}
+
+export interface RemoteProcessTerminateResult {
+  pid: number
+  signal: RemoteProcessTerminateSignal
+  attempted: boolean
+  message: string
+}
+
 export interface Session {
   id: string
   kind: SessionKind
