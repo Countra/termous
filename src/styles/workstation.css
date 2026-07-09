@@ -12129,22 +12129,50 @@ body.is-files-column-resizing * {
 .termous-select-dropdown.ant-select-dropdown {
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 12px;
-  background: var(--surface-strong);
+  background: #21252e !important;
+  background-color: #21252e !important;
   box-shadow: var(--shadow-soft);
+}
+
+.termous-select-dropdown .rc-virtual-list,
+.termous-select-dropdown .rc-virtual-list-holder,
+.termous-select-dropdown .rc-virtual-list-holder-inner {
+  background: #21252e !important;
 }
 
 .termous-select-dropdown .ant-select-item {
   color: var(--text-secondary);
+  background: #21252e;
 }
 
 .termous-select-dropdown .ant-select-item-option-active {
-  background: color-mix(in srgb, var(--surface-subtle) 80%, transparent);
+  background: #2b303a !important;
 }
 
 .termous-select-dropdown .ant-select-item-option-selected {
-  background: color-mix(in srgb, var(--accent) 18%, var(--surface-subtle));
+  background: #343b48 !important;
   color: var(--text-primary);
   font-weight: 760;
+}
+
+:root[data-theme="light"] .termous-select-dropdown.ant-select-dropdown,
+:root[data-theme="light"] .termous-select-dropdown .rc-virtual-list,
+:root[data-theme="light"] .termous-select-dropdown .rc-virtual-list-holder,
+:root[data-theme="light"] .termous-select-dropdown .rc-virtual-list-holder-inner {
+  background: #f7f9fc !important;
+  background-color: #f7f9fc !important;
+}
+
+:root[data-theme="light"] .termous-select-dropdown .ant-select-item {
+  background: #f7f9fc;
+}
+
+:root[data-theme="light"] .termous-select-dropdown .ant-select-item-option-active {
+  background: #eef3f9 !important;
+}
+
+:root[data-theme="light"] .termous-select-dropdown .ant-select-item-option-selected {
+  background: #e5edf8 !important;
 }
 
 .process-error-state.workbench-empty-state,
@@ -13298,20 +13326,23 @@ body.is-files-column-resizing * {
 
 .docker-list::-webkit-scrollbar,
 .docker-detail-card::-webkit-scrollbar,
-.docker-log-section pre::-webkit-scrollbar {
+.docker-log-section pre::-webkit-scrollbar,
+.docker-logs-console::-webkit-scrollbar {
   width: 7px;
   height: 7px;
 }
 
 .docker-list::-webkit-scrollbar-track,
 .docker-detail-card::-webkit-scrollbar-track,
-.docker-log-section pre::-webkit-scrollbar-track {
+.docker-log-section pre::-webkit-scrollbar-track,
+.docker-logs-console::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .docker-list::-webkit-scrollbar-thumb,
 .docker-detail-card::-webkit-scrollbar-thumb,
-.docker-log-section pre::-webkit-scrollbar-thumb {
+.docker-log-section pre::-webkit-scrollbar-thumb,
+.docker-logs-console::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: color-mix(in srgb, var(--text-muted) 28%, transparent);
 }
@@ -13337,9 +13368,9 @@ body.is-files-column-resizing * {
   position: relative;
   display: grid;
   width: 100%;
-  min-height: 70px;
+  min-height: 92px;
   margin: 0 0 8px;
-  padding: 9px 10px;
+  padding: 11px 12px;
   border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
   border-radius: 13px;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
@@ -13388,7 +13419,8 @@ body.is-files-column-resizing * {
 
 .docker-row-main strong,
 .docker-row-main small,
-.docker-row-statline span,
+.docker-row-statline small,
+.docker-row-statline strong,
 .docker-detail-head strong,
 .docker-detail-head small {
   display: block;
@@ -13415,11 +13447,30 @@ body.is-files-column-resizing * {
   display: grid;
   min-width: 0;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.docker-row-statline > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-subtle) 44%, transparent);
+}
+
+.docker-row-statline small {
   color: var(--text-muted);
+  font-size: 9.5px;
+  font-weight: 720;
+}
+
+.docker-row-statline strong {
+  color: var(--text-secondary);
   font-size: 10.5px;
-  font-weight: 680;
+  font-weight: 760;
 }
 
 .docker-state-tag.ant-tag {
@@ -13633,7 +13684,7 @@ body.is-files-column-resizing * {
 .docker-detail-list {
   display: grid;
   margin: 0;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 13px;
   background: color-mix(in srgb, var(--surface) 58%, transparent);
@@ -13642,9 +13693,8 @@ body.is-files-column-resizing * {
 .docker-detail-list > div {
   display: grid;
   min-width: 0;
-  grid-template-columns: 80px minmax(0, 1fr);
-  gap: 10px;
-  padding: 9px 10px;
+  gap: 5px;
+  padding: 11px 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
 }
 
@@ -13656,9 +13706,6 @@ body.is-files-column-resizing * {
 .docker-detail-list dd {
   min-width: 0;
   margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .docker-detail-list dt {
@@ -13671,6 +13718,10 @@ body.is-files-column-resizing * {
   color: var(--text-primary);
   font-size: 11.5px;
   font-weight: 730;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .docker-compact-section {
@@ -13709,6 +13760,13 @@ body.is-files-column-resizing * {
   gap: 8px;
 }
 
+.docker-log-actions {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
 .docker-section-head {
   display: flex;
   align-items: center;
@@ -13740,8 +13798,8 @@ body.is-files-column-resizing * {
 }
 
 .docker-log-section pre {
-  min-height: 220px;
-  max-height: 360px;
+  min-height: 142px;
+  max-height: 220px;
   margin: 0;
   overflow: auto;
   padding: 10px;
@@ -13753,6 +13811,452 @@ body.is-files-column-resizing * {
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.docker-logs-modal-root .docker-logs-modal.ant-modal {
+  --ant-modal-content-bg: #21252e;
+  --docker-log-toolbar-bg: #1a1f28;
+  --docker-log-console-bg: #080c12;
+  --docker-log-line-number-bg: #0e141e;
+  top: 0;
+  max-width: calc(100vw - 32px);
+  padding-bottom: 0;
+}
+
+:root[data-theme="light"] .docker-logs-modal-root .docker-logs-modal.ant-modal {
+  --ant-modal-content-bg: #f7f9fc;
+  --docker-log-toolbar-bg: #eef2f7;
+  --docker-log-console-bg: #fbfcff;
+  --docker-log-line-number-bg: #eef3fa;
+}
+
+.docker-logs-modal-root .docker-logs-modal.ant-modal .ant-modal-content {
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 78%, transparent);
+  border-radius: 18px;
+  background: var(--ant-modal-content-bg);
+  box-shadow:
+    0 30px 84px rgb(0 0 0 / 42%),
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 7%, transparent);
+}
+
+.docker-logs-modal-root .docker-logs-modal.ant-modal .ant-modal-body {
+  padding: 0 !important;
+}
+
+.docker-logs-modal .docker-logs-view {
+  display: grid;
+  min-height: min(684px, calc(90vh - 25px));
+  max-height: calc(90vh - 22px);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+  background: var(--ant-modal-content-bg);
+}
+
+.docker-logs-modal-header {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 50px 6px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  background: var(--ant-modal-content-bg);
+}
+
+.docker-logs-title {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.docker-logs-title-icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.docker-logs-title-icon svg {
+  display: block;
+}
+
+.docker-logs-title-copy {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: 2px;
+}
+
+.docker-logs-title-copy strong,
+.docker-logs-title-copy span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-logs-title-copy strong {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 820;
+}
+
+.docker-logs-title-copy span {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.docker-logs-header-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.docker-logs-state {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 260px;
+  height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-subtle) 66%, transparent);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.docker-logs-state svg {
+  flex: 0 0 auto;
+}
+
+.docker-logs-state.is-loading svg {
+  animation: termous-spin 0.9s linear infinite;
+}
+
+.docker-logs-state.is-ready {
+  border-color: color-mix(in srgb, var(--success) 32%, transparent);
+  background: color-mix(in srgb, var(--success) 10%, var(--surface-subtle));
+  color: var(--success);
+}
+
+.docker-logs-state.is-error {
+  border-color: color-mix(in srgb, var(--danger) 38%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-subtle));
+  color: var(--danger);
+}
+
+.docker-logs-close.ant-btn {
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  color: var(--text-muted);
+}
+
+.docker-logs-close.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  border-color: color-mix(in srgb, var(--border) 82%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
+  color: var(--text-primary);
+}
+
+.docker-logs-control-surface {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--docker-log-toolbar-bg);
+}
+
+.docker-log-tail-select.ant-select {
+  width: 90px;
+}
+
+.docker-log-tail-select .ant-select-selector {
+  height: 34px !important;
+  border-color: color-mix(in srgb, var(--border) 78%, transparent) !important;
+  border-radius: 11px !important;
+  background: var(--ant-modal-content-bg) !important;
+}
+
+.docker-log-tail-select .ant-select-selection-item {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 740;
+  line-height: 32px !important;
+}
+
+.docker-logs-primary-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.docker-logs-search.ant-input-affix-wrapper {
+  height: 34px;
+}
+
+.docker-logs-match-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.docker-log-tool-button.ant-btn {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 11px;
+  background: var(--ant-modal-content-bg);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 740;
+}
+
+.docker-log-tool-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.docker-log-tool-button.ant-btn:disabled {
+  opacity: 0.48;
+}
+
+.docker-log-tool-button.is-refresh.ant-btn {
+  margin-left: auto;
+}
+
+.docker-logs-secondary-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.docker-logs-options {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.docker-logs-options button:not(.ant-btn) {
+  height: 30px;
+  min-width: 34px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: 10px;
+  background: var(--ant-modal-content-bg);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.docker-logs-options button:not(.ant-btn):hover,
+.docker-logs-options button:not(.ant-btn).is-active {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.docker-logs-shell {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  margin: 8px 14px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  border-radius: 13px;
+  background: var(--docker-log-console-bg);
+}
+
+.docker-logs-console {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: var(--docker-log-console-bg);
+  color: #dce5ef;
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 12px;
+  line-height: 1.52;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 30%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.docker-logs-modal .docker-logs-console {
+  margin: 0;
+  min-height: 0;
+}
+
+.docker-log-line {
+  display: grid;
+  min-width: max-content;
+  grid-template-columns: 44px minmax(0, 1fr);
+  border-bottom: 1px solid color-mix(in srgb, #233040 44%, transparent);
+}
+
+.docker-log-line:last-child {
+  border-bottom: 0;
+}
+
+.docker-log-line-number {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  padding: 3px 8px;
+  background: var(--docker-log-line-number-bg);
+  color: #708198;
+  text-align: right;
+  user-select: none;
+}
+
+.docker-log-line code {
+  display: block;
+  min-width: 0;
+  padding: 3px 10px;
+  color: inherit;
+  white-space: pre;
+}
+
+.docker-logs-console.is-wrap .docker-log-line {
+  min-width: 0;
+}
+
+.docker-logs-console.is-wrap .docker-log-line code {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.docker-log-line.is-error code {
+  color: #ff9b9b;
+}
+
+.docker-log-line.is-warning code {
+  color: #f5c879;
+}
+
+.docker-log-line mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: inherit;
+}
+
+.docker-log-line mark.is-active {
+  background: #74a7ff;
+  color: #06101f;
+}
+
+.docker-logs-empty {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.docker-logs-empty strong {
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.docker-logs-status {
+  display: grid;
+  min-height: 28px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 680;
+}
+
+.docker-logs-modal .docker-logs-status {
+  min-height: 34px;
+  padding: 0 12px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  background: var(--docker-log-console-bg);
+}
+
+@media (width <= 860px) {
+  .docker-logs-modal-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .docker-logs-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .docker-logs-primary-row,
+  .docker-logs-secondary-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .docker-logs-match-controls {
+    justify-content: flex-start;
+  }
+
+  .docker-logs-status {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: 3px;
+    padding-block: 8px;
+  }
+}
+
+.docker-logs-status span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root[data-theme="light"] .docker-logs-console {
+  color: #1f2937;
+}
+
+:root[data-theme="light"] .docker-log-line {
+  border-bottom-color: color-mix(in srgb, #c9d4e4 54%, transparent);
+}
+
+:root[data-theme="light"] .docker-log-line-number {
+  color: #728198;
 }
 
 .docker-muted-line {

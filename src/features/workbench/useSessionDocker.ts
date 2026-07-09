@@ -57,6 +57,8 @@ export const defaultDockerQuery: SessionDockerQueryState = {
   logTail: 200,
 }
 
+const maxDockerLogTail = 1000
+
 const emptyDockerState: SessionDockerState = {
   query: defaultDockerQuery,
   capability: null,
@@ -83,6 +85,13 @@ function createDockerState(): SessionDockerState {
     ...emptyDockerState,
     query: { ...defaultDockerQuery },
   }
+}
+
+function normalizeDockerLogTail(tail: number) {
+  if (!Number.isFinite(tail) || tail <= 0) {
+    return defaultDockerQuery.logTail
+  }
+  return Math.min(Math.trunc(tail), maxDockerLogTail)
 }
 
 export function useSessionDocker({ api, session, enabled }: UseSessionDockerOptions) {
@@ -135,10 +144,16 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
 
   const updateQuery = useCallback(
     (patch: Partial<SessionDockerQueryState>) => {
-      updateSessionState(sessionId, (current) => ({
-        ...current,
-        query: { ...current.query, ...patch },
-      }))
+      updateSessionState(sessionId, (current) => {
+        const nextQuery = { ...current.query, ...patch }
+        return {
+          ...current,
+          query: {
+            ...nextQuery,
+            logTail: normalizeDockerLogTail(nextQuery.logTail),
+          },
+        }
+      })
     },
     [sessionId, updateSessionState],
   )
@@ -261,14 +276,14 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
           ...current,
           detail,
           stats: detail.stats ?? null,
-          logs: detail.logs_preview
+          logs: current.logs ?? (detail.logs_preview
             ? {
                 lines: detail.logs_preview,
-                tail: current.query.logTail,
+                tail: normalizeDockerLogTail(current.query.logTail),
                 timestamps: true,
                 collected_at: detail.collected_at,
               }
-            : current.logs,
+            : null),
           detailLoading: false,
           detailError: '',
         }))
@@ -357,7 +372,7 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
     async (refOverride?: string, tailOverride?: number) => {
       const state = statesRef.current[sessionId]
       const ref = refOverride || state?.selectedRef
-      const tail = tailOverride ?? state?.query.logTail ?? defaultDockerQuery.logTail
+      const tail = normalizeDockerLogTail(tailOverride ?? state?.query.logTail ?? defaultDockerQuery.logTail)
       if (!supported || !enabled || !sessionId || !ref) {
         return
       }
