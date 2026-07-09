@@ -1,4 +1,4 @@
-import { App, Button, Input, Popconfirm, Popover, Segmented, Tag, Tooltip } from 'antd'
+import { App, Button, Input, Popconfirm, Popover, Tag, Tooltip } from 'antd'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -7,6 +7,7 @@ import {
   Container,
   FileText,
   ListFilter,
+  LoaderCircle,
   Play,
   PlugZap,
   RotateCcw,
@@ -14,7 +15,6 @@ import {
   Square,
   Undo2,
 } from 'lucide-react'
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import type { DockerAction, DockerContainerDetail, DockerContainerPort, DockerContainerSummary, Session } from '../../types/domain'
@@ -39,33 +39,20 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
   const showingDetail = Boolean(docker.selectedRef)
   const capability = docker.capability
   const capabilityReady = Boolean(capability?.available)
+  const capabilityStatusText = capability ? getCapabilityTitle(capability.status, t) : t('workbench.docker.detecting')
   const updatedText = docker.lastUpdatedAt
     ? t('workbench.docker.collectedAt', { time: formatTime(docker.lastUpdatedAt) })
     : t('workbench.processes.updatedNever')
+  const capabilityMessage = capability?.message && capability.message !== capabilityStatusText ? capability.message : updatedText
   const listSummary = docker.list
     ? t('workbench.docker.filtered', { count: docker.list.filtered, total: docker.list.total })
     : t('workbench.docker.total', { count: 0 })
+  const selectedLabel = getSelectedContainerLabel(docker.selectedRef, items, detail)
   const hasActiveFilters = Boolean(
     docker.query.text ||
       docker.query.port ||
       docker.query.state !== defaultDockerQuery.state ||
       docker.query.health !== defaultDockerQuery.health,
-  )
-  const stateSelectOptions = useMemo(
-    () =>
-      stateOptions.map((value) => ({
-        value,
-        label: value ? formatDockerState(value) : t('workbench.docker.stateAll'),
-      })),
-    [t],
-  )
-  const healthSelectOptions = useMemo(
-    () =>
-      healthOptions.map((value) => ({
-        value,
-        label: value ? formatDockerState(value) : t('workbench.docker.healthAll'),
-      })),
-    [t],
   )
 
   const resetFilters = () => {
@@ -118,10 +105,13 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
           <span className="docker-capability-icon">
             {capabilityReady ? <Container size={17} /> : capability ? <AlertTriangle size={17} /> : <Boxes size={17} />}
           </span>
-          <div>
-            <strong>{capability ? getCapabilityTitle(capability.status, t) : t('workbench.docker.detecting')}</strong>
-            <span>{capability?.message || updatedText}</span>
+          <div className="docker-capability-copy">
+            <strong>{t('workbench.docker.managerTitle')}</strong>
+            <span>{capabilityMessage}</span>
           </div>
+          <span className={`docker-capability-status ${capabilityReady ? 'is-ready' : capability ? 'is-error' : 'is-loading'}`}>
+            {capabilityStatusText}
+          </span>
         </div>
         <Tooltip title={t('workbench.docker.refresh')}>
           <Button
@@ -185,26 +175,24 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
                     onChange={(event) => docker.updateQuery({ port: event.target.value.replace(/[^\d]/g, '') })}
                     onPressEnter={(event) => refreshWithQuery({ port: event.currentTarget.value.replace(/[^\d]/g, '') })}
                   />
-                  <label className="docker-filter-field">
-                    <span>{t('workbench.docker.state')}</span>
-                    <Segmented
-                      className="docker-filter-segment"
-                      size="small"
-                      value={docker.query.state}
-                      options={stateSelectOptions}
-                      onChange={(value) => refreshWithQuery({ state: String(value) })}
-                    />
-                  </label>
-                  <label className="docker-filter-field">
-                    <span>{t('workbench.docker.health')}</span>
-                    <Segmented
-                      className="docker-filter-segment"
-                      size="small"
-                      value={docker.query.health}
-                      options={healthSelectOptions}
-                      onChange={(value) => refreshWithQuery({ health: String(value) })}
-                    />
-                  </label>
+                  <DockerFilterOptionGroup
+                    label={t('workbench.docker.state')}
+                    value={docker.query.state}
+                    options={stateOptions.map((value) => ({
+                      value,
+                      label: value ? formatDockerState(value) : t('workbench.docker.stateAll'),
+                    }))}
+                    onChange={(value) => refreshWithQuery({ state: value })}
+                  />
+                  <DockerFilterOptionGroup
+                    label={t('workbench.docker.health')}
+                    value={docker.query.health}
+                    options={healthOptions.map((value) => ({
+                      value,
+                      label: value ? formatDockerState(value) : t('workbench.docker.healthAll'),
+                    }))}
+                    onChange={(value) => refreshWithQuery({ health: value })}
+                  />
                 </div>
               }
             >
@@ -235,14 +223,12 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
                 loading={docker.detailLoading}
                 error={docker.detailError}
                 selectedRef={docker.selectedRef}
+                selectedLabel={selectedLabel}
                 actionRef={docker.actionRef}
                 logs={docker.logs?.lines ?? detail?.logs_preview ?? []}
                 logsLoading={docker.logsLoading}
-                statsLoading={docker.statsLoading}
                 onBack={docker.clearSelection}
-                onRefreshDetail={() => void docker.selectContainer(docker.selectedRef)}
                 onRefreshLogs={() => void docker.refreshLogs()}
-                onRefreshStats={() => void docker.refreshStats()}
                 onAction={runAction}
               />
             ) : (
@@ -276,6 +262,33 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
   )
 }
 
+interface DockerFilterOptionGroupProps {
+  label: string
+  value: string
+  options: Array<{ value: string; label: string }>
+  onChange: (value: string) => void
+}
+
+function DockerFilterOptionGroup({ label, value, options, onChange }: DockerFilterOptionGroupProps) {
+  return (
+    <div className="docker-filter-field">
+      <span>{label}</span>
+      <div className="docker-filter-options">
+        {options.map((option) => (
+          <button
+            key={option.value || 'all'}
+            type="button"
+            className={`docker-filter-chip ${option.value === value ? 'is-selected' : ''}`}
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 interface DockerRowProps {
   item: DockerContainerSummary
   selected: boolean
@@ -288,18 +301,20 @@ function DockerRow({ item, selected, onSelect }: DockerRowProps) {
   const stats = item.stats
   return (
     <button type="button" className={`docker-row ${selected ? 'is-selected' : ''}`} onClick={onSelect}>
-      <div className="docker-row-main">
-        <span className="docker-row-icon">
-          <Container size={15} />
-        </span>
-        <div>
-          <strong>{item.name || item.short_id || item.id}</strong>
-          <Tooltip title={item.image} classNames={{ root: 'termous-tooltip' }}>
-            <small>{item.image}</small>
-          </Tooltip>
+      <div className="docker-row-top">
+        <div className="docker-row-main">
+          <span className="docker-row-icon">
+            <Container size={15} />
+          </span>
+          <div>
+            <strong>{item.name || item.short_id || item.id}</strong>
+            <Tooltip title={item.image} classNames={{ root: 'termous-tooltip' }}>
+              <small>{item.image}</small>
+            </Tooltip>
+          </div>
         </div>
+        <Tag className={`docker-state-tag is-${normalizeStateClass(item.state)}`}>{formatDockerState(item.state)}</Tag>
       </div>
-      <Tag className={`docker-state-tag is-${normalizeStateClass(item.state)}`}>{formatDockerState(item.state)}</Tag>
       <div className="docker-row-statline">
         <span>{stats?.cpu_percent || `${t('workbench.docker.stats')} -`}</span>
         <span>{stats?.memory_percent || `${t('workbench.docker.memory')} -`}</span>
@@ -316,14 +331,12 @@ interface DockerDetailViewProps {
   loading: boolean
   error: string
   selectedRef: string
+  selectedLabel: string
   actionRef: string
   logs: string[]
   logsLoading: boolean
-  statsLoading: boolean
   onBack: () => void
-  onRefreshDetail: () => void
   onRefreshLogs: () => void
-  onRefreshStats: () => void
   onAction: (ref: string, action: DockerAction) => void
 }
 
@@ -332,30 +345,32 @@ function DockerDetailView({
   loading,
   error,
   selectedRef,
+  selectedLabel,
   actionRef,
   logs,
   logsLoading,
-  statsLoading,
   onBack,
-  onRefreshDetail,
   onRefreshLogs,
-  onRefreshStats,
   onAction,
 }: DockerDetailViewProps) {
   const { t } = useTranslation()
-  if (loading) {
+  if (loading && !detail) {
     return (
       <div className="docker-detail-card is-loading">
-        <Button type="text" className="docker-detail-back" icon={<ArrowLeft size={14} />} onClick={onBack}>
-          {t('workbench.docker.backToList')}
-        </Button>
-        <span className="docker-detail-spinner" />
-        <strong>{t('workbench.docker.detailLoading')}</strong>
-        <small>{selectedRef}</small>
+        <div className="docker-detail-topbar">
+          <Button type="text" className="docker-detail-back" icon={<ArrowLeft size={14} />} onClick={onBack}>
+            {t('workbench.docker.backToList')}
+          </Button>
+        </div>
+        <div className="docker-detail-loading-body">
+          <span className="docker-detail-spinner" />
+          <strong>{t('workbench.docker.detailLoading')}</strong>
+          <small>{selectedLabel || selectedRef}</small>
+        </div>
       </div>
     )
   }
-  if (error) {
+  if (error && !detail) {
     return (
       <div className="docker-detail-card">
         <Button type="text" className="docker-detail-back" icon={<ArrowLeft size={14} />} onClick={onBack}>
@@ -386,15 +401,18 @@ function DockerDetailView({
         <Button type="text" className="docker-detail-back" icon={<ArrowLeft size={14} />} onClick={onBack}>
           {t('workbench.docker.backToList')}
         </Button>
-        <Tooltip title={t('workbench.docker.refresh')}>
-          <Button
-            type="text"
-            className="docker-icon-button"
-            aria-label={t('workbench.docker.refresh')}
-            icon={<RotateCcw size={14} />}
-            onClick={onRefreshDetail}
-          />
-        </Tooltip>
+        {loading ? (
+          <span className="docker-detail-refreshing">
+            <LoaderCircle size={13} />
+            {t('workbench.docker.detailRefreshing')}
+          </span>
+        ) : null}
+        {!loading && error ? (
+          <span className="docker-detail-refreshing is-error">
+            <AlertTriangle size={13} />
+            {t('workbench.docker.detailRefreshFailed')}
+          </span>
+        ) : null}
       </div>
       <div className="docker-detail-head">
         <span className="docker-detail-icon">
@@ -490,18 +508,6 @@ function DockerDetailView({
           <span className="docker-muted-line">{t('workbench.docker.noLogs')}</span>
         )}
       </div>
-      <div className="docker-section-head">
-        <span>{t('workbench.docker.stats')}</span>
-        <Button
-          type="text"
-          className="docker-mini-button"
-          loading={statsLoading}
-          icon={<RotateCcw size={13} />}
-          onClick={onRefreshStats}
-        >
-          {t('app.reload')}
-        </Button>
-      </div>
     </article>
   )
 }
@@ -546,6 +552,14 @@ function DockerCompactSection({ title, values }: { title: string; values: string
 
 function getContainerRef(item: DockerContainerSummary): string {
   return item.id || item.name || item.short_id
+}
+
+function getSelectedContainerLabel(ref: string, items: DockerContainerSummary[], detail: DockerContainerDetail | null): string {
+  if (detail) {
+    return detail.summary.name || detail.summary.short_id || detail.summary.id || ref
+  }
+  const matched = items.find((item) => getContainerRef(item) === ref || item.id === ref || item.short_id === ref || item.name === ref)
+  return matched?.name || matched?.short_id || matched?.id || ref
 }
 
 function getCapabilityTitle(status: string, t: (key: string) => string) {

@@ -230,13 +230,6 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
     }
   }, [api, enabled, sessionId, supported, updateSessionState])
 
-  const refreshAll = useCallback(async () => {
-    const capability = await refreshCapability()
-    if (capability?.available) {
-      await refreshList()
-    }
-  }, [refreshCapability, refreshList])
-
   const selectContainer = useCallback(
     async (ref: string) => {
       if (!supported || !enabled || !sessionId || !ref) {
@@ -247,12 +240,18 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
       detailAbortRef.current?.abort()
       const controller = new AbortController()
       detailAbortRef.current = controller
-      updateSessionState(sessionId, (current) => ({
-        ...current,
-        selectedRef: ref,
-        detailLoading: true,
-        detailError: '',
-      }))
+      updateSessionState(sessionId, (current) => {
+        const keepCurrentDetail = current.selectedRef === ref && Boolean(current.detail)
+        return {
+          ...current,
+          selectedRef: ref,
+          detail: keepCurrentDetail ? current.detail : null,
+          stats: keepCurrentDetail ? current.stats : null,
+          logs: keepCurrentDetail ? current.logs : null,
+          detailLoading: true,
+          detailError: '',
+        }
+      })
       try {
         const detail = await api.sessionDockerContainerDetail(sessionId, ref, { signal: controller.signal })
         if (detailRevisionRef.current[sessionId] !== revision) {
@@ -291,6 +290,18 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
     },
     [api, enabled, sessionId, supported, updateSessionState],
   )
+
+  const refreshAll = useCallback(async () => {
+    const capability = await refreshCapability()
+    if (!capability?.available) {
+      return
+    }
+    await refreshList()
+    const selectedRef = statesRef.current[sessionId]?.selectedRef
+    if (selectedRef) {
+      await selectContainer(selectedRef)
+    }
+  }, [refreshCapability, refreshList, selectContainer, sessionId])
 
   const clearSelection = useCallback(() => {
     updateSessionState(sessionId, (current) => ({

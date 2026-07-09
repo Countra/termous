@@ -13020,13 +13020,13 @@ body.is-files-column-resizing * {
 .docker-capability {
   display: grid;
   min-width: 0;
-  min-height: 56px;
-  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 48px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 10px;
+  gap: 9px;
+  padding: 8px 10px;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  border-radius: 14px;
+  border-radius: 13px;
   background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
 }
 
@@ -13040,12 +13040,18 @@ body.is-files-column-resizing * {
 
 .docker-capability-icon {
   display: inline-grid;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 10px;
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   color: var(--accent);
+}
+
+.docker-capability-icon svg,
+.docker-row-icon svg,
+.docker-detail-icon svg {
+  display: block;
 }
 
 .docker-capability.is-ready .docker-capability-icon {
@@ -13058,8 +13064,9 @@ body.is-files-column-resizing * {
   color: #ff7b7b;
 }
 
-.docker-capability strong,
-.docker-capability span {
+.docker-capability-copy,
+.docker-capability-copy strong,
+.docker-capability-copy span {
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -13067,17 +13074,47 @@ body.is-files-column-resizing * {
   white-space: nowrap;
 }
 
-.docker-capability strong {
+.docker-capability-copy strong {
   color: var(--text-primary);
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 780;
 }
 
-.docker-capability span {
+.docker-capability-copy span {
   margin-top: 2px;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 620;
+}
+
+.docker-capability-status {
+  display: inline-flex;
+  max-width: 92px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-capability-status.is-ready {
+  border-color: color-mix(in srgb, #31d0a0 34%, var(--border));
+  background: color-mix(in srgb, #31d0a0 11%, var(--surface));
+  color: #31d0a0;
+}
+
+.docker-capability-status.is-error {
+  border-color: color-mix(in srgb, #ff6b6b 34%, var(--border));
+  background: color-mix(in srgb, #ff6b6b 11%, var(--surface));
+  color: #ff8585;
 }
 
 .docker-icon-button.ant-btn {
@@ -13151,8 +13188,8 @@ body.is-files-column-resizing * {
 
 .docker-filter-popover-content {
   display: grid;
-  width: min(292px, calc(100vw - 40px));
-  gap: 10px;
+  width: min(318px, calc(100vw - 40px));
+  gap: 12px;
 }
 
 .docker-filter-popover-head {
@@ -13205,22 +13242,42 @@ body.is-files-column-resizing * {
   font-weight: 700;
 }
 
-.docker-filter-segment.ant-segmented {
-  width: 100%;
+.docker-filter-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
 }
 
-.docker-filter-segment .ant-segmented-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.docker-filter-segment .ant-segmented-item {
-  flex: 1 1 auto;
-  min-width: 64px;
+.docker-filter-chip {
+  min-width: 0;
+  height: 28px;
+  overflow: hidden;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
   font-size: 11px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.docker-filter-chip:hover,
+.docker-filter-chip.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-subtle));
+  color: var(--accent);
 }
 
 .docker-content {
@@ -13280,15 +13337,17 @@ body.is-files-column-resizing * {
   position: relative;
   display: grid;
   width: 100%;
-  min-height: 78px;
+  min-height: 70px;
   margin: 0 0 8px;
-  padding: 10px;
+  padding: 9px 10px;
   border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
-  border-radius: 14px;
+  border-radius: 13px;
   background: color-mix(in srgb, var(--surface) 72%, transparent);
   color: inherit;
+  font-family: inherit;
   text-align: left;
   cursor: pointer;
+  gap: 8px;
 }
 
 .docker-row:hover {
@@ -13301,21 +13360,28 @@ body.is-files-column-resizing * {
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
+.docker-row-top {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .docker-row-main {
   display: grid;
   min-width: 0;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 9px;
-  padding-right: 78px;
+  gap: 8px;
 }
 
 .docker-row-icon {
   display: inline-grid;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   place-items: center;
-  border-radius: 11px;
+  border-radius: 10px;
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   color: var(--accent);
 }
@@ -13351,7 +13417,6 @@ body.is-files-column-resizing * {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
   gap: 8px;
-  margin-top: 10px;
   color: var(--text-muted);
   font-size: 10.5px;
   font-weight: 680;
@@ -13372,6 +13437,13 @@ body.is-files-column-resizing * {
   font-weight: 780;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.docker-row .docker-state-tag.ant-tag {
+  position: static;
+  max-width: 86px;
+  height: 22px;
+  line-height: 20px;
 }
 
 .docker-state-tag.is-running.ant-tag {
@@ -13395,14 +13467,13 @@ body.is-files-column-resizing * {
 }
 
 .docker-detail-card {
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
 }
 
 .docker-detail-card.is-loading {
-  place-items: center;
-  align-content: center;
+  align-items: stretch;
   color: var(--text-secondary);
 }
 
@@ -13411,6 +13482,60 @@ body.is-files-column-resizing * {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  flex: 0 0 auto;
+}
+
+.docker-detail-refreshing {
+  display: inline-flex;
+  min-width: 0;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-subtle));
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.docker-detail-refreshing svg {
+  flex: 0 0 auto;
+  animation: termous-spin 0.9s linear infinite;
+}
+
+.docker-detail-refreshing.is-error {
+  border-color: color-mix(in srgb, #ff6b6b 34%, var(--border));
+  background: color-mix(in srgb, #ff6b6b 10%, var(--surface-subtle));
+  color: #ff8585;
+}
+
+.docker-detail-refreshing.is-error svg {
+  animation: none;
+}
+
+.docker-detail-loading-body {
+  display: grid;
+  min-height: 260px;
+  flex: 1 1 auto;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  border: 1px dashed color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+}
+
+.docker-detail-loading-body small {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .docker-detail-back.ant-btn {
@@ -13615,7 +13740,8 @@ body.is-files-column-resizing * {
 }
 
 .docker-log-section pre {
-  max-height: 190px;
+  min-height: 220px;
+  max-height: 360px;
   margin: 0;
   overflow: auto;
   padding: 10px;
@@ -13646,7 +13772,7 @@ body.is-files-column-resizing * {
   border: 3px solid color-mix(in srgb, var(--accent) 22%, transparent);
   border-top-color: var(--accent);
   border-radius: 999px;
-  animation: spin 0.9s linear infinite;
+  animation: termous-spin 0.9s linear infinite;
 }
 
 .docker-empty-list,
@@ -13661,7 +13787,9 @@ body.is-files-column-resizing * {
 :root[data-theme="light"] .docker-detail-head,
 :root[data-theme="light"] .docker-kpi,
 :root[data-theme="light"] .docker-compact-section,
-:root[data-theme="light"] .docker-detail-list {
+:root[data-theme="light"] .docker-detail-list,
+:root[data-theme="light"] .docker-filter-options,
+:root[data-theme="light"] .docker-detail-loading-body {
   background: #ffffff;
 }
 
