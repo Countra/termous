@@ -1,5 +1,6 @@
 import {
   Activity,
+  Boxes,
   Cable,
   ChevronDown,
   ChevronLeft,
@@ -60,6 +61,7 @@ import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } fro
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
 import { FirewallPanel } from './FirewallPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
+import { DockerPanel } from './DockerPanel'
 import { ProcessPanel } from './ProcessPanel'
 import { SystemMonitorPanel } from './SystemMonitorPanel'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
@@ -74,7 +76,7 @@ import {
   type SessionTabPreferenceMap,
 } from './sessionTabPreferences'
 
-type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'processes' | 'firewall' | 'forwards' | 'snippets'
+type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'processes' | 'docker' | 'firewall' | 'forwards' | 'snippets'
 
 const workbenchDetailsPanelWidth = {
   default: 300,
@@ -1305,6 +1307,12 @@ export function WorkbenchPage({
             children: <ProcessPanel api={api} session={activeSession} enabled={detailsActiveTab === 'processes' && !detailsCollapsed} />,
           },
           {
+            key: 'docker',
+            label: t('workbench.detailsTabs.docker'),
+            icon: <Boxes size={17} aria-hidden="true" />,
+            children: <DockerPanel api={api} session={activeSession} enabled={detailsActiveTab === 'docker' && !detailsCollapsed} />,
+          },
+          {
             key: 'firewall',
             label: t('workbench.detailsTabs.firewall'),
             icon: <Shield size={17} aria-hidden="true" />,
@@ -1674,6 +1682,7 @@ function parseDetailsTabKey(value: unknown): DetailsTabKey {
   return value === 'system' ||
     value === 'monitor' ||
     value === 'processes' ||
+    value === 'docker' ||
     value === 'firewall' ||
     value === 'forwards' ||
     value === 'snippets' ||
