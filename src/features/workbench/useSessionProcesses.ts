@@ -40,7 +40,7 @@ interface UseSessionProcessesOptions {
   enabled: boolean
 }
 
-const defaultProcessQuery: SessionProcessQueryState = {
+export const defaultProcessQuery: SessionProcessQueryState = {
   text: '',
   pid: '',
   port: '',
@@ -125,7 +125,7 @@ export function useSessionProcesses({ api, session, enabled }: UseSessionProcess
     }))
   }, [sessionId, updateSessionState])
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (queryOverride?: SessionProcessQueryState) => {
     if (!supported || !enabled || !sessionId) {
       return
     }
@@ -134,7 +134,7 @@ export function useSessionProcesses({ api, session, enabled }: UseSessionProcess
     listAbortRef.current?.abort()
     const controller = new AbortController()
     listAbortRef.current = controller
-    const query = buildProcessQuery(statesRef.current[sessionId]?.query ?? defaultProcessQuery)
+    const query = buildProcessQuery(queryOverride ?? statesRef.current[sessionId]?.query ?? defaultProcessQuery)
     updateSessionState(sessionId, (current) => ({ ...current, loading: true, error: '' }))
     try {
       const list = await api.sessionProcesses(sessionId, query, { signal: controller.signal })
