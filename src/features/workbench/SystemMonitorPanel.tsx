@@ -1,6 +1,6 @@
 import { Button, Progress, Segmented, Select, Tooltip } from 'antd'
 import type { EChartsCoreOption } from 'echarts/core'
-import { Activity, ArrowDown, ArrowUp, Cpu, Gauge, HardDrive, MemoryStick, Pause, Play, RadioTower, RotateCcw } from 'lucide-react'
+import { Activity, ArrowDownToLine, ArrowUpFromLine, Cpu, Gauge, HardDrive, MemoryStick, Pause, Play, RadioTower, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
@@ -47,6 +47,19 @@ const emptyDiskIOSessionState: DiskIOSessionState = {}
 
 function createNetworkSessionState(): NetworkSessionState {
   return { baselines: {} }
+}
+
+function MonitorDeviceOption({ value }: { value: string }) {
+  return (
+    <Tooltip
+      title={value}
+      placement="left"
+      mouseEnterDelay={0.3}
+      classNames={{ root: 'termous-tooltip' }}
+    >
+      <span className="monitor-device-select-option">{value}</span>
+    </Tooltip>
+  )
 }
 
 export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonitorPanelProps) {
@@ -373,8 +386,10 @@ function NetworkPanel({
         <Select
           size="small"
           className="monitor-network-select"
+          classNames={{ popup: { root: 'termous-select-dropdown monitor-device-select-dropdown' } }}
           value={selectedNetwork?.name ?? networkName}
-          options={snapshot.networks.map((item) => ({ label: item.name, value: item.name }))}
+          options={snapshot.networks.map((item) => ({ label: item.name, value: item.name, title: '' }))}
+          optionRender={(option) => <MonitorDeviceOption value={String(option.label ?? option.value ?? '')} />}
           onChange={onNetworkChange}
         />
       </div>
@@ -427,9 +442,11 @@ function DiskIOPanel({
         <Select
           size="small"
           className="monitor-disk-select"
+          classNames={{ popup: { root: 'termous-select-dropdown monitor-device-select-dropdown' } }}
           aria-label={t('workbench.systemMonitor.diskDevice')}
           value={selectedDevice?.name ?? deviceName}
-          options={diskIO.devices.map((item) => ({ label: item.name, value: item.name }))}
+          options={diskIO.devices.map((item) => ({ label: item.name, value: item.name, title: '' }))}
+          optionRender={(option) => <MonitorDeviceOption value={String(option.label ?? option.value ?? '')} />}
           disabled={diskIO.devices.length === 0}
           onChange={onDeviceChange}
         />
@@ -449,12 +466,12 @@ function DiskIOPanel({
         <>
           <div className="monitor-disk-io-rates">
             <span className="is-read">
-              <ArrowDown size={14} />
+              <ArrowUpFromLine size={14} />
               <small>{t('workbench.systemMonitor.diskRead')}</small>
               <strong>{formatRate(selectedDevice.read_bytes_per_sec)}</strong>
             </span>
             <span className="is-write">
-              <ArrowUp size={14} />
+              <ArrowDownToLine size={14} />
               <small>{t('workbench.systemMonitor.diskWrite')}</small>
               <strong>{formatRate(selectedDevice.write_bytes_per_sec)}</strong>
             </span>
@@ -529,34 +546,41 @@ function DiskPanel({ snapshot }: { snapshot: LinuxMonitorSnapshot }) {
             const percent = clampPercent(disk.used_percent)
             return (
               <div className={`monitor-disk-row is-${disk.severity}`} key={`${disk.filesystem}-${disk.mountpoint}`} role="listitem">
-                <div className="monitor-disk-row-top">
+                <div className="monitor-disk-row-summary">
                   <div className="monitor-disk-title">
                     <Tooltip title={disk.mountpoint} placement="topLeft">
                       <strong>{disk.mountpoint}</strong>
                     </Tooltip>
-                    <Tooltip title={`${disk.filesystem} · ${disk.type}`} placement="topLeft">
-                      <span>{disk.filesystem} · {disk.type}</span>
-                    </Tooltip>
+                    <div className="monitor-disk-source">
+                      <Tooltip title={disk.filesystem} placement="topLeft">
+                        <span>{disk.filesystem}</span>
+                      </Tooltip>
+                      <i aria-hidden="true" />
+                      <span>{disk.type}</span>
+                    </div>
                   </div>
-                  <em>{formatPercent(percent)}%</em>
+                  <div className="monitor-disk-usage">
+                    <strong>{formatPercent(percent)}%</strong>
+                    <small>{t('workbench.systemMonitor.diskUsed')}</small>
+                  </div>
                 </div>
                 <div className="monitor-disk-meter" aria-hidden="true">
                   <i style={{ width: `${percent}%` }} />
                 </div>
-                <div className="monitor-disk-row-meta">
-                  <span>
-                    <small>{t('workbench.systemMonitor.diskTotal')}</small>
-                    <strong>{formatBytes(disk.total_bytes)}</strong>
-                  </span>
-                  <span>
-                    <small>{t('workbench.systemMonitor.diskUsed')}</small>
-                    <strong>{formatBytes(disk.used_bytes)}</strong>
-                  </span>
-                  <span>
-                    <small>{t('workbench.systemMonitor.diskAvailable')}</small>
-                    <strong>{formatBytes(disk.available_bytes)}</strong>
-                  </span>
-                </div>
+                <dl className="monitor-disk-row-meta">
+                  <div>
+                    <dt>{t('workbench.systemMonitor.diskTotal')}</dt>
+                    <dd>{formatBytes(disk.total_bytes)}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('workbench.systemMonitor.diskUsed')}</dt>
+                    <dd>{formatBytes(disk.used_bytes)}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('workbench.systemMonitor.diskAvailable')}</dt>
+                    <dd>{formatBytes(disk.available_bytes)}</dd>
+                  </div>
+                </dl>
               </div>
             )
           })}

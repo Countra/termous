@@ -12901,6 +12901,20 @@ body.is-files-column-resizing * {
   max-width: 104px;
 }
 
+.monitor-device-select-dropdown .ant-select-item-option-content {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.monitor-device-select-option {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  cursor: default;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .monitor-disk-io-state {
   display: flex;
   min-height: 70px;
@@ -13023,6 +13037,7 @@ body.is-files-column-resizing * {
   max-height: 330px;
   overflow-x: hidden;
   overflow-y: auto;
+  border-top: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
   padding-right: 3px;
   scrollbar-color: color-mix(in srgb, var(--text-muted) 28%, transparent) transparent;
   scrollbar-width: thin;
@@ -13044,45 +13059,36 @@ body.is-files-column-resizing * {
 .monitor-disk-row {
   display: grid;
   min-width: 0;
-  gap: 7px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  padding: 10px 5px;
-  transition:
-    background 0.16s ease,
-    box-shadow 0.16s ease;
-}
-
-.monitor-disk-row:first-child {
-  padding-top: 4px;
+  gap: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+  padding: 10px 8px 11px;
+  transition: background-color 0.15s ease;
 }
 
 .monitor-disk-row:last-child {
   border-bottom: 0;
-  padding-bottom: 4px;
 }
 
 .monitor-disk-row:hover {
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 5%, transparent);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
 }
 
-.monitor-disk-row-top {
+.monitor-disk-row-summary {
   display: grid;
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
 }
 
 .monitor-disk-title {
   display: grid;
   min-width: 0;
-  gap: 3px;
+  gap: 4px;
 }
 
-.monitor-disk-title strong,
-.monitor-disk-title span {
+.monitor-disk-title > strong,
+.monitor-disk-source span {
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -13090,42 +13096,78 @@ body.is-files-column-resizing * {
   white-space: nowrap;
 }
 
-.monitor-disk-title strong {
+.monitor-disk-title > strong {
   color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 760;
+  font-size: 12.5px;
+  font-weight: 740;
+  line-height: 1.25;
 }
 
-.monitor-disk-title span {
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.monitor-disk-row em {
-  display: inline-flex;
-  min-width: 42px;
+.monitor-disk-source {
+  display: flex;
+  min-width: 0;
   align-items: center;
-  justify-content: flex-end;
+  gap: 6px;
+}
+
+.monitor-disk-source span {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+
+.monitor-disk-source span:first-child {
+  flex: 1 1 auto;
+}
+
+.monitor-disk-source span:last-child {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.monitor-disk-source i {
+  width: 3px;
+  height: 3px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text-muted) 58%, transparent);
+}
+
+.monitor-disk-usage {
+  display: grid;
+  min-width: 44px;
+  justify-items: end;
+  gap: 1px;
+}
+
+.monitor-disk-usage strong {
   color: var(--accent);
-  font-size: 12px;
-  font-weight: 760;
-  font-style: normal;
+  font-size: 14px;
+  font-weight: 780;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 
-.monitor-disk-row.is-warning em {
+.monitor-disk-usage small {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 620;
+  line-height: 1.2;
+}
+
+.monitor-disk-row.is-warning .monitor-disk-usage strong {
   color: #f5c542;
 }
 
-.monitor-disk-row.is-critical em {
+.monitor-disk-row.is-critical .monitor-disk-usage strong {
   color: #ff7b7b;
 }
 
 .monitor-disk-meter {
-  height: 4px;
+  height: 5px;
   overflow: hidden;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
 }
 
 .monitor-disk-meter i {
@@ -13133,6 +13175,12 @@ body.is-files-column-resizing * {
   height: 100%;
   border-radius: inherit;
   background: var(--accent);
+  opacity: 0.82;
+  transition: opacity 0.15s ease;
+}
+
+.monitor-disk-row:hover .monitor-disk-meter i {
+  opacity: 1;
 }
 
 .monitor-disk-row.is-warning .monitor-disk-meter i {
@@ -13148,34 +13196,44 @@ body.is-files-column-resizing * {
   min-width: 0;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
-  gap: 6px;
+  margin: 0;
 }
 
-.monitor-disk-row-meta span {
+.monitor-disk-row-meta > div {
   display: grid;
   min-width: 0;
-  gap: 1px;
+  gap: 2px;
+  padding-right: 7px;
 }
 
-.monitor-disk-row-meta small,
-.monitor-disk-row-meta strong {
+.monitor-disk-row-meta > div:not(:first-child) {
+  border-left: 1px solid color-mix(in srgb, var(--border) 48%, transparent);
+  padding-right: 0;
+  padding-left: 8px;
+}
+
+.monitor-disk-row-meta dt,
+.monitor-disk-row-meta dd {
   display: block;
   min-width: 0;
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.monitor-disk-row-meta small {
+.monitor-disk-row-meta dt {
   color: var(--text-muted);
-  font-size: 9.5px;
-  font-weight: 620;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
-.monitor-disk-row-meta strong {
+.monitor-disk-row-meta dd {
   color: var(--text-secondary);
-  font-size: 10.5px;
-  font-weight: 720;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
   font-variant-numeric: tabular-nums;
 }
 
