@@ -29,6 +29,7 @@ import {
   SquareTerminal,
   Star,
   TriangleAlert,
+  Wrench,
 } from 'lucide-react'
 import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tooltip, type MenuProps } from 'antd'
 import {
@@ -64,6 +65,7 @@ import { FirewallPanel } from './FirewallPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
 import { DockerPanel } from './DockerPanel'
 import { ProcessPanel } from './ProcessPanel'
+import { ServicePanel } from './ServicePanel'
 import { SystemMonitorPanel } from './SystemMonitorPanel'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import {
@@ -77,7 +79,7 @@ import {
   type SessionTabPreferenceMap,
 } from './sessionTabPreferences'
 
-type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'processes' | 'docker' | 'firewall' | 'forwards' | 'snippets'
+type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'processes' | 'services' | 'docker' | 'firewall' | 'forwards' | 'snippets'
 
 const workbenchDetailsPanelWidth = {
   default: 300,
@@ -1308,6 +1310,12 @@ export function WorkbenchPage({
             children: <ProcessPanel api={api} session={activeSession} enabled={detailsActiveTab === 'processes' && !detailsCollapsed} />,
           },
           {
+            key: 'services',
+            label: t('workbench.detailsTabs.services'),
+            icon: <Wrench size={17} aria-hidden="true" />,
+            children: <ServicePanel api={api} session={activeSession} enabled={detailsActiveTab === 'services' && !detailsCollapsed} />,
+          },
+          {
             key: 'docker',
             label: t('workbench.detailsTabs.docker'),
             icon: <Boxes size={17} aria-hidden="true" />,
@@ -1735,6 +1743,7 @@ function parseDetailsTabKey(value: unknown): DetailsTabKey {
   return value === 'system' ||
     value === 'monitor' ||
     value === 'processes' ||
+    value === 'services' ||
     value === 'docker' ||
     value === 'firewall' ||
     value === 'forwards' ||
