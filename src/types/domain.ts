@@ -866,6 +866,23 @@ export interface LinuxMonitorNetwork {
   is_loopback: boolean
 }
 
+export interface LinuxMonitorDiskIODevice {
+  name: string
+  read_bytes_per_sec: number
+  write_bytes_per_sec: number
+  read_iops: number
+  write_iops: number
+  read_latency_ms: number
+  write_latency_ms: number
+  busy_percent: number
+  in_flight: number
+}
+
+export interface LinuxMonitorDiskIO {
+  status: LinuxMonitorStatus
+  devices: LinuxMonitorDiskIODevice[]
+}
+
 export interface LinuxMonitorDisk {
   filesystem: string
   type: string
@@ -884,6 +901,7 @@ export interface LinuxMonitorSnapshot {
   cpu: LinuxMonitorCPU
   memory: LinuxMonitorMemory
   networks: LinuxMonitorNetwork[]
+  disk_io: LinuxMonitorDiskIO
   disks: LinuxMonitorDisk[]
 }
 
