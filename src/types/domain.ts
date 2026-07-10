@@ -800,7 +800,34 @@ export interface LinuxSystemInfo {
   cpu_frequency_mhz?: number
   memory_total_bytes?: number
   uptime_seconds?: number
+  network?: LinuxNetworkInfo | null
   collected_at?: string
+}
+
+export type LinuxNetworkStatus = 'ready' | 'partial' | 'unavailable' | 'failed'
+
+export type LinuxIPAddressFamily = 'ipv4' | 'ipv6'
+
+export interface LinuxIPAddress {
+  family: LinuxIPAddressFamily
+  address: string
+  prefix_length: number
+  scope?: string
+}
+
+export interface LinuxNetworkInterface {
+  index: number
+  name: string
+  oper_state?: string
+  mac_address?: string
+  mtu?: number
+  addresses: LinuxIPAddress[]
+}
+
+export interface LinuxNetworkInfo {
+  status: LinuxNetworkStatus
+  message?: string
+  interfaces: LinuxNetworkInterface[]
 }
 
 export type LinuxMonitorStatus = 'warming' | 'ready' | 'paused' | 'failed' | 'unsupported'

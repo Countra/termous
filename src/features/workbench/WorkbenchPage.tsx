@@ -12,6 +12,7 @@ import {
   HardDrive,
   Layers,
   Monitor,
+  Network as NetworkIcon,
   FolderOpen,
   Palette,
   Pencil,
@@ -1673,9 +1674,61 @@ function buildSystemInfoTree(info: NonNullable<Session['linux_system_info']>, t:
       ],
     },
     { key: 'memory', icon: <HardDrive size={15} />, label: t('workbench.systemInfo.memory'), value: formatMemory(info.memory_total_bytes, t) },
+    buildSystemNetworkNode(info, t),
     { key: 'architecture', icon: <Cable size={15} />, label: t('workbench.systemInfo.architecture'), value: valueOrNone(info.architecture, t) },
     { key: 'uptime', icon: <Clock3 size={15} />, label: t('workbench.systemInfo.uptime'), value: formatUptime(info.uptime_seconds, t) },
   ]
+}
+
+function buildSystemNetworkNode(info: NonNullable<Session['linux_system_info']>, t: WorkbenchTranslate): SystemInfoTreeNode {
+  const network = info.network
+  const interfaces = (Array.isArray(network?.interfaces) ? network.interfaces : []).filter(Boolean)
+  const addressCount = interfaces.reduce(
+    (total, networkInterface) => total + (Array.isArray(networkInterface?.addresses) ? networkInterface.addresses.length : 0),
+    0,
+  )
+  let value = t('workbench.systemInfo.networkUnavailable')
+  if (network?.status === 'failed') {
+    value = t('workbench.systemInfo.networkFailed')
+  } else if (network?.status === 'partial') {
+    value = t('workbench.systemInfo.networkSummaryPartial', { interfaces: interfaces.length, addresses: addressCount })
+  } else if (network?.status === 'ready') {
+    value = interfaces.length
+      ? t('workbench.systemInfo.networkSummary', { interfaces: interfaces.length, addresses: addressCount })
+      : t('workbench.systemInfo.networkNoInterfaces')
+  }
+  return {
+    key: 'network',
+    icon: <NetworkIcon size={15} />,
+    label: t('workbench.systemInfo.network'),
+    value,
+    children: interfaces.map((networkInterface, interfacePosition) => {
+      const addresses = (Array.isArray(networkInterface?.addresses) ? networkInterface.addresses : []).filter(Boolean)
+      const rawInterfaceName = networkInterface?.name?.trim() || ''
+      const interfaceName = rawInterfaceName || t('workbench.systemInfo.unnamedInterface', { index: interfacePosition + 1 })
+      const interfaceKey = `${networkInterface?.index ?? 0}-${rawInterfaceName || 'unnamed'}-${interfacePosition}`
+      return {
+        key: `network-interface-${interfaceKey}`,
+        label: interfaceName,
+        value: addresses.length
+          ? t('workbench.systemInfo.interfaceAddressCount', { count: addresses.length })
+          : t('workbench.systemInfo.noAssignedAddress'),
+        children: addresses.map((address, addressPosition) => ({
+          key: `network-address-${interfaceKey}-${address.family}-${address.address}-${address.prefix_length}-${addressPosition}`,
+          label: address.family === 'ipv6' ? t('workbench.systemInfo.ipv6') : t('workbench.systemInfo.ipv4'),
+          value: formatNetworkAddress(address.address, address.prefix_length, t),
+        })),
+      }
+    }),
+  }
+}
+
+function formatNetworkAddress(address: string, prefixLength: number, t: WorkbenchTranslate): string {
+  const normalizedAddress = address?.trim()
+  if (!normalizedAddress) {
+    return t('fields.none')
+  }
+  return Number.isInteger(prefixLength) && prefixLength >= 0 ? `${normalizedAddress}/${prefixLength}` : normalizedAddress
 }
 
 function parseDetailsTabKey(value: unknown): DetailsTabKey {

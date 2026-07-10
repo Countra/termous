@@ -5244,6 +5244,27 @@ body.is-terminal-tab-dragging * {
   border-bottom: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
 }
 
+.system-info-tree-node.level-1 > .system-info-tree-children {
+  padding-left: 14px;
+}
+
+.system-info-tree-node.level-2 .system-info-tree-row {
+  grid-template-columns: minmax(48px, 0.42fr) minmax(0, 1fr);
+  gap: 8px;
+  padding: 7px 0;
+}
+
+.system-info-tree-node.level-2 .system-info-tree-label,
+.system-info-tree-node.level-2 .system-info-tree-value {
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.system-info-tree-node.level-2 .system-info-tree-toggle {
+  width: 8px;
+  min-width: 8px;
+}
+
 .status-badge {
   min-width: 0;
   max-width: 100%;
