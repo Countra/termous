@@ -1,4 +1,8 @@
-import type { Settings, TerminalSettings, WindowSettings } from '../../types/domain'
+import type { AppearanceSettings, Settings, TerminalSettings, WindowSettings } from '../../types/domain'
+
+export const defaultAppearanceSettings: AppearanceSettings = {
+  theme: 'dark',
+}
 
 export const defaultTerminalSettings: TerminalSettings = {
   font_family: 'jetbrains_mono',
@@ -19,12 +23,21 @@ const cursorStyles = new Set(['block', 'bar', 'underline'])
 const themeModes = new Set(['follow_app', 'dark', 'light'])
 const scrollbacks = new Set([1000, 5000, 10000, 50000])
 const closeBehaviors = new Set(['exit', 'minimize_to_tray'])
+const appearanceThemes = new Set(['dark', 'light'])
 
 export function normalizeSettings(settings: Partial<Settings> | null | undefined): Settings {
   return {
     language: settings?.language === 'en-US' ? 'en-US' : 'zh-CN',
+    appearance: normalizeAppearanceSettings(settings?.appearance),
     terminal: normalizeTerminalSettings(settings?.terminal),
     window: normalizeWindowSettings(settings?.window),
+  }
+}
+
+export function normalizeAppearanceSettings(settings: Partial<AppearanceSettings> | null | undefined): AppearanceSettings {
+  const theme = settings?.theme
+  return {
+    theme: appearanceThemes.has(String(theme)) ? (theme as AppearanceSettings['theme']) : defaultAppearanceSettings.theme,
   }
 }
 

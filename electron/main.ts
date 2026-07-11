@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 import { CoreProcessManager } from './coreProcess'
@@ -22,6 +22,7 @@ const TRAY_ICON = path.join(process.env.VITE_PUBLIC, process.platform === 'win32
 const WEB_DEBUG_FILE = 'webDebug'
 const DEVTOOLS_CHORD_WINDOW_MS = 900
 const STARTUP_MIN_VISIBLE_MS = 650
+const APPEARANCE_CACHE_FILE = 'appearance.json'
 const coreProcess = new CoreProcessManager()
 const trayController = new TermousTrayController({
   appName: APP_NAME,
@@ -32,9 +33,11 @@ const trayController = new TermousTrayController({
 })
 
 type StartupPhase = 'core' | 'workspace' | 'error'
+type AppTheme = 'dark' | 'light'
 
 let win: BrowserWindow | null
 let splashWin: BrowserWindow | null = null
+let appTheme: AppTheme = 'dark'
 let closeConfirmed = false
 let mainWindowReady = false
 let startupReadyRequested = false
@@ -42,6 +45,36 @@ let startupCompleted = false
 let splashPhase: StartupPhase = 'core'
 let splashStartedAt = 0
 let startupCompletionTimer: NodeJS.Timeout | null = null
+
+function isAppTheme(value: unknown): value is AppTheme {
+  return value === 'dark' || value === 'light'
+}
+
+function appearanceCachePath() {
+  return path.join(app.getPath('userData'), APPEARANCE_CACHE_FILE)
+}
+
+function readCachedAppTheme(): AppTheme {
+  try {
+    const cached = JSON.parse(readFileSync(appearanceCachePath(), 'utf8')) as { theme?: unknown }
+    if (isAppTheme(cached.theme)) {
+      return cached.theme
+    }
+  } catch {
+    // 缓存缺失或损坏时使用系统主题，后端设置加载后会重新同步。
+  }
+  return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
+}
+
+function writeCachedAppTheme(theme: AppTheme) {
+  try {
+    mkdirSync(path.dirname(appearanceCachePath()), { recursive: true })
+    writeFileSync(appearanceCachePath(), JSON.stringify({ theme }), 'utf8')
+    return true
+  } catch {
+    return false
+  }
+}
 
 function createSplashWindow() {
   if (splashWin && !splashWin.isDestroyed()) {
@@ -62,7 +95,7 @@ function createSplashWindow() {
     skipTaskbar: true,
     hasShadow: true,
     title: `${APP_NAME} Startup`,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#181c24' : '#f7f8fa',
+    backgroundColor: appTheme === 'dark' ? '#181c24' : '#f7f8fa',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -79,9 +112,11 @@ function createSplashWindow() {
   splashWin.on('closed', () => {
     splashWin = null
   })
-  void splashWin.loadFile(path.join(process.env.VITE_PUBLIC, 'startup.html')).catch(() => {
-    closeSplashWindow()
-  })
+  void splashWin
+    .loadFile(path.join(process.env.VITE_PUBLIC, 'startup.html'), { query: { theme: appTheme } })
+    .catch(() => {
+      closeSplashWindow()
+    })
 }
 
 function applySplashPhase() {
@@ -89,7 +124,7 @@ function applySplashPhase() {
   if (!target || target.isDestroyed() || target.webContents.isLoading()) {
     return
   }
-  const script = `window.termousStartup?.setPhase(${JSON.stringify(splashPhase)})`
+  const script = `window.termousStartup?.setTheme(${JSON.stringify(appTheme)}); window.termousStartup?.setPhase(${JSON.stringify(splashPhase)})`
   void target.webContents.executeJavaScript(script).catch(() => undefined)
 }
 
@@ -183,7 +218,7 @@ function createWindow() {
     frame: isMac,
     titleBarStyle: isMac ? 'hiddenInset' : 'default',
     autoHideMenuBar: true,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f1116' : '#f4f5f7',
+    backgroundColor: appTheme === 'dark' ? '#0f1116' : '#f4f5f7',
     title: APP_NAME,
     icon: APP_ICON,
     show: false,
@@ -336,6 +371,24 @@ function registerStartupControls() {
   })
 }
 
+function registerAppearanceControls() {
+  ipcMain.handle('appearance:set-theme', (_event, theme: unknown) => {
+    if (!isAppTheme(theme)) {
+      return false
+    }
+    appTheme = theme
+    nativeTheme.themeSource = theme
+    if (splashWin && !splashWin.isDestroyed()) {
+      splashWin.setBackgroundColor(theme === 'dark' ? '#181c24' : '#f7f8fa')
+    }
+    if (win && !win.isDestroyed()) {
+      win.setBackgroundColor(theme === 'dark' ? '#0f1116' : '#f4f5f7')
+    }
+    applySplashPhase()
+    return writeCachedAppTheme(theme)
+  })
+}
+
 function registerTrayControls() {
   ipcMain.handle('tray:update-state', (_event, state: unknown) => {
     trayController.updateState(state ?? {})
@@ -416,12 +469,15 @@ app.on('activate', () => {
 
 app.whenReady().then(() => {
   app.setName(APP_NAME)
+  appTheme = readCachedAppTheme()
+  nativeTheme.themeSource = appTheme
   if (process.platform === 'win32') {
     app.setAppUserModelId(APP_ID)
   }
   Menu.setApplicationMenu(null)
   registerCoreProcessControls()
   registerStartupControls()
+  registerAppearanceControls()
   registerWindowControls()
   registerTrayControls()
   registerFilePickers()

@@ -5942,6 +5942,13 @@ body.is-terminal-tab-dragging * {
   white-space: nowrap;
 }
 
+.settings-segment-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
 .scrollback-segmented .ant-segmented-item-label {
   font-variant-numeric: tabular-nums;
 }

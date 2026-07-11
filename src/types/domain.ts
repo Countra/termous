@@ -591,8 +591,13 @@ export interface FirewallPersistenceInstallResult {
 
 export interface Settings {
   language: Language
+  appearance: AppearanceSettings
   terminal: TerminalSettings
   window: WindowSettings
+}
+
+export interface AppearanceSettings {
+  theme: ThemeMode
 }
 
 export interface TerminalSettings {

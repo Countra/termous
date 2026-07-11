@@ -15,6 +15,9 @@ declare global {
       startup?: {
         ready: () => Promise<boolean>
       }
+      appearance?: {
+        setTheme: (theme: 'dark' | 'light') => Promise<boolean>
+      }
       clipboard?: {
         readText: () => Promise<string>
         writeText: (text: string) => Promise<boolean>

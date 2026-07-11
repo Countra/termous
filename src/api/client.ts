@@ -1,5 +1,6 @@
 import type {
   ApiErrorBody,
+  AppearanceSettings,
   AppConfig,
   CodeSnippet,
   CodeSnippetInput,
@@ -181,6 +182,13 @@ export class TermousApi {
     return this.request<Settings>('/api/v1/settings/language', {
       method: 'PATCH',
       body: { language },
+    })
+  }
+
+  updateAppearanceSettings(appearance: AppearanceSettings) {
+    return this.request<Settings>('/api/v1/settings/appearance', {
+      method: 'PATCH',
+      body: appearance,
     })
   }
 

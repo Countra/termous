@@ -1,17 +1,19 @@
-import { Languages, Settings2, SquareTerminal } from 'lucide-react'
+import { Languages, Moon, Settings2, SquareTerminal, Sun } from 'lucide-react'
 import { Segmented, Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { Language, TerminalFont, TerminalSettings, WindowSettings } from '../../types/domain'
+import type { AppearanceSettings, Language, TerminalFont, TerminalSettings, WindowSettings } from '../../types/domain'
 import { TerminalStyleSettings } from './TerminalStyleSettings'
 
 interface SettingsPageProps {
   language: Language
+  appearanceSettings: AppearanceSettings
   terminalSettings: TerminalSettings
   windowSettings: WindowSettings
   terminalFonts: TerminalFont[]
   appVersion: string
   actionBusy: boolean
   onLanguageChange: (language: Language) => Promise<void>
+  onAppearanceSettingsChange: (settings: AppearanceSettings) => Promise<void>
   onTerminalSettingsChange: (settings: TerminalSettings) => Promise<void>
   onWindowSettingsChange: (settings: WindowSettings) => Promise<void>
   onUploadTerminalFont: (file: File) => Promise<TerminalFont>
@@ -20,12 +22,14 @@ interface SettingsPageProps {
 
 export function SettingsPage({
   language,
+  appearanceSettings,
   terminalSettings,
   windowSettings,
   terminalFonts,
   appVersion,
   actionBusy,
   onLanguageChange,
+  onAppearanceSettingsChange,
   onTerminalSettingsChange,
   onWindowSettingsChange,
   onUploadTerminalFont,
@@ -63,6 +67,40 @@ export function SettingsPage({
                     <strong>{t('settings.appVersion')}</strong>
                   </div>
                   <div className="settings-version-value">v{appVersion}</div>
+                </div>
+                <div className="settings-row">
+                  <div>
+                    <strong>{t('settings.appearanceTheme')}</strong>
+                  </div>
+                  <Segmented
+                    block
+                    className="settings-control-segmented"
+                    value={appearanceSettings.theme}
+                    disabled={actionBusy}
+                    options={[
+                      {
+                        value: 'dark',
+                        label: (
+                          <span className="settings-segment-label">
+                            <Moon size={14} aria-hidden="true" />
+                            {t('settings.themeDark')}
+                          </span>
+                        ),
+                      },
+                      {
+                        value: 'light',
+                        label: (
+                          <span className="settings-segment-label">
+                            <Sun size={14} aria-hidden="true" />
+                            {t('settings.themeLight')}
+                          </span>
+                        ),
+                      },
+                    ]}
+                    onChange={(value) =>
+                      void onAppearanceSettingsChange({ theme: value as AppearanceSettings['theme'] })
+                    }
+                  />
                 </div>
                 <div className="settings-row">
                   <div>

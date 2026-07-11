@@ -21,14 +21,19 @@ import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, Fo
 import './App.css'
 import './styles/workstation.css'
 
+const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
+
 function App() {
-  const [theme, setTheme] = useState<ThemeMode>(() =>
-    window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark',
-  )
+  const [theme, setTheme] = useState<ThemeMode>(readInitialTheme)
   const antdTheme = useMemo(() => createAntdTheme(theme), [theme])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
+    try {
+      window.localStorage.setItem(APP_THEME_STORAGE_KEY, theme)
+    } catch {
+      // 本地镜像仅用于避免启动首帧闪烁，写入失败不影响后端持久化设置。
+    }
   }, [theme])
 
   return (
@@ -83,6 +88,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       ),
     [data.fileSessions, data.forwards, data.sessions],
   )
+
+  useEffect(() => {
+    if (initializing || !apiReady) {
+      return
+    }
+    const appearanceTheme = data.settings.appearance.theme
+    setTheme(appearanceTheme)
+    void window.termous?.appearance?.setTheme(appearanceTheme).catch(() => undefined)
+  }, [apiReady, data.settings.appearance.theme, initializing, setTheme])
 
   useEffect(() => {
     if (!selectedHostId && data.hosts[0]) {
@@ -586,7 +600,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     >
       <AppShell
         page={page}
-        theme={theme}
         appVersion={appVersion}
         windowCloseBehavior={data.settings.window.close_behavior}
         hasActiveRuntime={hasActiveRuntime}
@@ -595,7 +608,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         onNavigate={setPage}
         onOpenConnectionLauncher={openHostLauncher}
         onOpenLocalTerminal={openLocalTerminalFromTopbar}
-        onToggleTheme={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
         onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
         onBeforeClose={shutdownBeforeClose}
         onCloseError={showActionError}
@@ -715,12 +727,14 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         {page === 'settings' ? (
           <SettingsPage
             language={data.settings.language}
+            appearanceSettings={data.settings.appearance}
             terminalSettings={data.settings.terminal}
             windowSettings={data.settings.window}
             terminalFonts={data.terminalFonts}
             appVersion={appVersion}
             actionBusy={actionBusy}
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
+            onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
             onTerminalSettingsChange={saveTerminalSettings}
             onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
             onUploadTerminalFont={uploadTerminalFont}
@@ -780,6 +794,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       </Modal>
     </TerminalRuntimeProvider>
   )
+}
+
+function readInitialTheme(): ThemeMode {
+  try {
+    const stored = window.localStorage.getItem(APP_THEME_STORAGE_KEY)
+    if (stored === 'dark' || stored === 'light') {
+      return stored
+    }
+  } catch {
+    // 本地存储不可用时继续使用系统主题作为启动回退值。
+  }
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
 }
 
 export default App

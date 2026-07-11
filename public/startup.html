@@ -4,9 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Termous</title>
+    <script>
+      (() => {
+        const requestedTheme = new URLSearchParams(window.location.search).get('theme')
+        const fallbackTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+        document.documentElement.dataset.theme = requestedTheme === 'dark' || requestedTheme === 'light'
+          ? requestedTheme
+          : fallbackTheme
+      })()
+    </script>
     <style>
       :root {
-        color-scheme: dark light;
+        color-scheme: dark;
         --startup-bg: #181c24;
         --startup-border: #303745;
         --startup-title: #f3f5f9;
@@ -14,6 +23,17 @@
         --startup-track: rgb(255 255 255 / 9%);
         --startup-accent: #61a8ff;
         --startup-shadow: rgb(0 0 0 / 22%);
+      }
+
+      :root[data-theme="light"] {
+        color-scheme: light;
+        --startup-bg: #f7f8fa;
+        --startup-border: #d9dde5;
+        --startup-title: #171c24;
+        --startup-muted: #6d7786;
+        --startup-track: rgb(30 42 58 / 10%);
+        --startup-accent: #1f6feb;
+        --startup-shadow: rgb(31 45 66 / 12%);
       }
 
       * {
@@ -59,6 +79,10 @@
         object-fit: contain;
         filter: drop-shadow(0 10px 18px rgb(0 0 0 / 22%));
         animation: startup-icon 1.8s ease-in-out infinite;
+      }
+
+      :root[data-theme="light"] .startup-icon {
+        filter: drop-shadow(0 10px 18px rgb(30 44 64 / 12%));
       }
 
       .startup-title {
@@ -113,22 +137,6 @@
 
       body[data-phase="error"] {
         --startup-accent: #e4a853;
-      }
-
-      @media (prefers-color-scheme: light) {
-        :root {
-          --startup-bg: #f7f8fa;
-          --startup-border: #d9dde5;
-          --startup-title: #171c24;
-          --startup-muted: #6d7786;
-          --startup-track: rgb(30 42 58 / 10%);
-          --startup-accent: #1f6feb;
-          --startup-shadow: rgb(31 45 66 / 12%);
-        }
-
-        .startup-icon {
-          filter: drop-shadow(0 10px 18px rgb(30 44 64 / 12%));
-        }
       }
 
       @media (prefers-reduced-motion: reduce) {
@@ -186,6 +194,9 @@
         const status = document.getElementById('startup-status')
         document.documentElement.lang = isChinese ? 'zh-CN' : 'en-US'
         window.termousStartup = {
+          setTheme(theme) {
+            document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark'
+          },
           setPhase(phase) {
             const nextPhase = Object.prototype.hasOwnProperty.call(messages, phase) ? phase : 'core'
             document.body.dataset.phase = nextPhase
