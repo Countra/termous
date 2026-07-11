@@ -59,6 +59,12 @@ import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorks
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
 import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
+import { SnippetFilterBar, SnippetList } from '../snippets/SnippetCatalog'
+import {
+  buildSnippetTags,
+  filterSnippets,
+  type SnippetCatalogFilter,
+} from '../snippets/snippetCatalogUtils'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
 import { FirewallPanel } from './FirewallPanel'
@@ -174,7 +180,9 @@ export function WorkbenchPage({
   const [recentlyConnectedSessionIds, setRecentlyConnectedSessionIds] = useState<Set<string>>(() => new Set())
   const [pendingSearchSessionId, setPendingSearchSessionId] = useState<string | null>(null)
   const [terminalTabDrag, setTerminalTabDrag] = useState<TerminalTabDragState | null>(null)
+  const [snippetFilter, setSnippetFilter] = useState<SnippetCatalogFilter>('all')
   const [snippetQuery, setSnippetQuery] = useState('')
+  const [snippetSelectedTags, setSnippetSelectedTags] = useState<string[]>([])
   const [terminalSearch, setTerminalSearch] = useState<TerminalSearchState>({
     open: false,
     sessionId: null,
@@ -239,21 +247,15 @@ export function WorkbenchPage({
   const canOpenFiles = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected' && activeSession.host_id)
   const canSendSnippet = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected')
   const canReconnectSession = Boolean(activeSession?.kind === 'ssh' && activeSession.host_id && activeSessionEnded)
-  const filteredSnippets = useMemo(() => {
-    const tokens = snippetQuery.trim().toLowerCase().split(/\s+/).filter(Boolean)
-    const snippets = data.snippets
-    if (tokens.length === 0) {
-      return snippets.slice(0, 8)
-    }
-    return snippets
-      .filter((snippet) => {
-        const searchable = [snippet.name, snippet.description ?? '', snippet.command, snippet.shell, ...(snippet.tags ?? [])]
-          .join(' ')
-          .toLowerCase()
-        return tokens.every((token) => searchable.includes(token))
-      })
-      .slice(0, 8)
-  }, [data.snippets, snippetQuery])
+  const snippetTags = useMemo(() => buildSnippetTags(data.snippets), [data.snippets])
+  const filteredSnippets = useMemo(
+    () => filterSnippets(data.snippets, {
+      filter: snippetFilter,
+      query: snippetQuery,
+      selectedTags: snippetSelectedTags,
+    }),
+    [data.snippets, snippetFilter, snippetQuery, snippetSelectedTags],
+  )
   const quickConnectHosts = useMemo(
     () => filterQuickConnectHosts(data.hosts, quickConnectQuery),
     [data.hosts, quickConnectQuery],
@@ -1356,42 +1358,73 @@ export function WorkbenchPage({
             children: (
               <section className="snippet-send-panel">
                 <div className="snippet-send-head">
+                  <span className="snippet-send-head-icon">
+                    <Code2 size={16} aria-hidden="true" />
+                  </span>
                   <div>
                     <h3>{t('snippets.sendPanelTitle')}</h3>
                     <span>{canSendSnippet ? t('snippets.sendPanelHint') : t('snippets.noActiveSession')}</span>
                   </div>
-                  <Code2 size={17} aria-hidden="true" />
                 </div>
-                <Input
-                  id="workbench-snippet-search"
-                  name="workbench-snippet-search"
-                  className="host-search-input snippet-quick-search termous-search-input"
-                  value={snippetQuery}
-                  allowClear
-                  variant="borderless"
-                  prefix={<Search size={14} aria-hidden="true" />}
-                  placeholder={t('snippets.searchPlaceholder')}
-                  onChange={(event) => setSnippetQuery(event.target.value)}
+                <SnippetFilterBar
+                  filter={snippetFilter}
+                  query={snippetQuery}
+                  selectedTags={snippetSelectedTags}
+                  availableTags={snippetTags}
+                  filteredCount={filteredSnippets.length}
+                  totalCount={data.snippets.length}
+                  density="compact"
+                  onFilterChange={setSnippetFilter}
+                  onQueryChange={setSnippetQuery}
+                  onSelectedTagsChange={setSnippetSelectedTags}
+                  onClear={() => {
+                    setSnippetFilter('all')
+                    setSnippetQuery('')
+                    setSnippetSelectedTags([])
+                  }}
                 />
-                {data.snippets.length === 0 ? (
-                  <div className="snippet-send-empty">{t('snippets.emptyHint')}</div>
-                ) : filteredSnippets.length === 0 ? (
-                  <div className="snippet-send-empty">{t('snippets.noFilterResults')}</div>
-                ) : (
-                  <div className="snippet-send-list">
-                    {filteredSnippets.map((snippet) => (
-                      <SnippetSendRow
-                        key={snippet.id}
-                        snippet={snippet}
-                        disabled={!canSendSnippet || actionBusy}
-                        busy={actionBusy}
-                        onInsert={() => void sendSnippet(snippet, false)}
-                        onSend={() => void sendSnippet(snippet, true)}
-                        onToggleFavorite={() => void onToggleSnippetFavorite(snippet)}
-                      />
-                    ))}
-                  </div>
-                )}
+                <SnippetList
+                  snippets={filteredSnippets}
+                  totalCount={data.snippets.length}
+                  density="compact"
+                  emptyDescription={t('snippets.emptyHint')}
+                  noResultsDescription={t('snippets.noFilterResults')}
+                  renderActions={(snippet) => (
+                    <>
+                      <Tooltip title={snippet.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}>
+                        <Button
+                          type="text"
+                          className={`snippet-workbench-action is-favorite ${snippet.favorite ? 'is-active' : ''}`}
+                          disabled={actionBusy}
+                          aria-label={snippet.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}
+                          aria-pressed={snippet.favorite}
+                          icon={<Star size={14} fill={snippet.favorite ? 'currentColor' : 'none'} />}
+                          onClick={() => void onToggleSnippetFavorite(snippet)}
+                        />
+                      </Tooltip>
+                      <Tooltip title={t('snippets.action.insert')}>
+                        <Button
+                          type="text"
+                          className="snippet-workbench-action"
+                          disabled={!canSendSnippet || actionBusy}
+                          aria-label={t('snippets.action.insert')}
+                          icon={<Play size={14} />}
+                          onClick={() => void sendSnippet(snippet, false)}
+                        />
+                      </Tooltip>
+                      <Tooltip title={t('snippets.action.send')}>
+                        <Button
+                          type="text"
+                          className="snippet-workbench-action"
+                          disabled={!canSendSnippet || actionBusy}
+                          aria-label={t('snippets.action.send')}
+                          icon={<Send size={14} />}
+                          onClick={() => void sendSnippet(snippet, true)}
+                        />
+                      </Tooltip>
+                    </>
+                  )}
+                />
               </section>
             ),
           },
@@ -1870,56 +1903,6 @@ function TerminalTabMenuItem({
       <span className="terminal-tab-menu-icon">{icon}</span>
       <span className="terminal-tab-menu-label">{title}</span>
     </span>
-  )
-}
-
-function SnippetSendRow({
-  snippet,
-  disabled,
-  busy,
-  onInsert,
-  onSend,
-  onToggleFavorite,
-}: {
-  snippet: CodeSnippet
-  disabled: boolean
-  busy: boolean
-  onInsert: () => void
-  onSend: () => void
-  onToggleFavorite: () => void
-}) {
-  const { t } = useTranslation()
-  const risk = analyzeSnippetRisk(snippet.command)
-  return (
-    <div className="snippet-send-row">
-      <div className="snippet-send-copy">
-        <strong>
-          {snippet.favorite ? <Star size={12} aria-hidden="true" /> : null}
-          {snippet.name}
-          {risk.risky ? <TriangleAlert size={13} aria-label={t('snippets.riskDetected')} /> : null}
-        </strong>
-        <small>{snippet.command}</small>
-      </div>
-      <div className="snippet-send-actions">
-        <Tooltip title={snippet.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}>
-          <Button
-            type="text"
-            className={`snippet-favorite-icon-button ${snippet.favorite ? 'is-active' : ''}`}
-            disabled={busy}
-            aria-label={snippet.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}
-            aria-pressed={snippet.favorite}
-            icon={<Star size={14} fill={snippet.favorite ? 'currentColor' : 'none'} />}
-            onClick={onToggleFavorite}
-          />
-        </Tooltip>
-        <Tooltip title={t('snippets.action.insert')}>
-          <Button type="text" disabled={disabled} aria-label={t('snippets.action.insert')} icon={<Play size={14} />} onClick={onInsert} />
-        </Tooltip>
-        <Tooltip title={t('snippets.action.send')}>
-          <Button type="text" disabled={disabled} aria-label={t('snippets.action.send')} icon={<Send size={14} />} onClick={onSend} />
-        </Tooltip>
-      </div>
-    </div>
   )
 }
 

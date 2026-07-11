@@ -1,0 +1,246 @@
+import { Button, Empty, Input, Popover, Segmented, Tag, Tooltip } from 'antd'
+import { Code2, Filter, Search, Star, TriangleAlert } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { CodeSnippet } from '../../types/domain'
+import { analyzeSnippetRisk, normalizeSnippetTags } from './snippetUtils'
+import {
+  snippetTagKey,
+  type SnippetCatalogDensity,
+  type SnippetCatalogFilter,
+  type SnippetFilterState,
+  type SnippetTagSummary,
+} from './snippetCatalogUtils'
+import './snippets.css'
+
+interface SnippetFilterBarProps extends SnippetFilterState {
+  availableTags: SnippetTagSummary[]
+  filteredCount: number
+  totalCount: number
+  density: SnippetCatalogDensity
+  allowTagFilter?: boolean
+  onFilterChange: (filter: SnippetCatalogFilter) => void
+  onQueryChange: (query: string) => void
+  onSelectedTagsChange: (tags: string[]) => void
+  onClear: () => void
+}
+
+interface SnippetListProps {
+  snippets: CodeSnippet[]
+  totalCount: number
+  density: SnippetCatalogDensity
+  selectedId?: string | null
+  emptyDescription: ReactNode
+  noResultsDescription: ReactNode
+  onSelect?: (snippet: CodeSnippet) => void
+  renderActions?: (snippet: CodeSnippet) => ReactNode
+}
+
+export function SnippetFilterBar({
+  filter,
+  query,
+  selectedTags,
+  availableTags,
+  filteredCount,
+  totalCount,
+  density,
+  allowTagFilter = true,
+  onFilterChange,
+  onQueryChange,
+  onSelectedTagsChange,
+  onClear,
+}: SnippetFilterBarProps) {
+  const { t } = useTranslation()
+  const selectedTagKeys = new Set(selectedTags.map(snippetTagKey))
+  const hasFilters = filter !== 'all' || query.trim().length > 0 || selectedTags.length > 0
+  const filterContent = (
+    <div className="snippet-filter-popover-content">
+      <div className="snippet-filter-popover-head">
+        <strong>{t('snippets.tags')}</strong>
+        {hasFilters ? (
+          <Button type="text" size="small" onClick={onClear}>
+            {t('hosts.clearFilters')}
+          </Button>
+        ) : null}
+      </div>
+      {availableTags.length > 0 ? (
+        <div className="snippet-filter-popover-tags">
+          {availableTags.map((tag) => (
+            <Tag.CheckableTag
+              key={tag.key}
+              checked={selectedTagKeys.has(tag.key)}
+              onChange={(checked) => {
+                onSelectedTagsChange(
+                  checked
+                    ? normalizeSnippetTags([...selectedTags, tag.label])
+                    : selectedTags.filter((item) => snippetTagKey(item) !== tag.key),
+                )
+              }}
+            >
+              <span>{tag.label}</span>
+              <small>{tag.count}</small>
+            </Tag.CheckableTag>
+          ))}
+        </div>
+      ) : (
+        <span className="snippet-filter-popover-empty">{t('snippets.noTags')}</span>
+      )}
+    </div>
+  )
+
+  return (
+    <div className={`snippet-catalog-filters is-${density}`}>
+      <div className="snippet-catalog-search-row">
+        <Input
+          className="termous-search-input snippet-catalog-search"
+          value={query}
+          allowClear
+          variant="borderless"
+          prefix={<Search size={15} aria-hidden="true" />}
+          placeholder={t('snippets.searchPlaceholder')}
+          onChange={(event) => onQueryChange(event.target.value)}
+        />
+        {allowTagFilter ? (
+          <Popover
+            trigger="click"
+            placement="bottomRight"
+            arrow={false}
+            content={filterContent}
+            rootClassName="termous-snippet-filter-popover"
+          >
+            <Tooltip title={t('snippets.filter')}>
+              <Button
+                className={`snippet-filter-button ${selectedTags.length > 0 ? 'is-active' : ''}`}
+                aria-label={t('snippets.filter')}
+                icon={<Filter size={15} aria-hidden="true" />}
+              />
+            </Tooltip>
+          </Popover>
+        ) : null}
+      </div>
+      <Segmented
+        block
+        className="segmented-control snippet-catalog-segmented"
+        value={filter}
+        options={[
+          { value: 'all', label: t('snippets.all') },
+          { value: 'favorites', label: t('snippets.favorites') },
+        ]}
+        onChange={(value) => onFilterChange(value as SnippetCatalogFilter)}
+      />
+      <div className="snippet-catalog-filter-meta">
+        <span>{t('snippets.filterResult', { count: filteredCount, total: totalCount })}</span>
+        {selectedTags.length > 0 ? (
+          <div className="snippet-catalog-active-tags">
+            {selectedTags.map((tag) => <Tag key={tag}>{tag}</Tag>)}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+export function SnippetList({
+  snippets,
+  totalCount,
+  density,
+  selectedId,
+  emptyDescription,
+  noResultsDescription,
+  onSelect,
+  renderActions,
+}: SnippetListProps) {
+  if (snippets.length === 0) {
+    return (
+      <div className={`snippet-catalog-empty is-${density}`}>
+        <Empty
+          description={totalCount === 0 ? emptyDescription : noResultsDescription}
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className={`snippet-catalog-list is-${density}`} role="list">
+      {snippets.map((snippet) => (
+        <SnippetListItem
+          key={snippet.id}
+          snippet={snippet}
+          density={density}
+          selected={snippet.id === selectedId}
+          onSelect={onSelect ? () => onSelect(snippet) : undefined}
+          actions={renderActions?.(snippet)}
+        />
+      ))}
+    </div>
+  )
+}
+
+function SnippetListItem({
+  snippet,
+  density,
+  selected,
+  onSelect,
+  actions,
+}: {
+  snippet: CodeSnippet
+  density: SnippetCatalogDensity
+  selected: boolean
+  onSelect?: () => void
+  actions?: ReactNode
+}) {
+  const { t } = useTranslation()
+  const risk = analyzeSnippetRisk(snippet.command)
+  const copy = (
+    <>
+      <span className="snippet-catalog-row-icon">
+        <Code2 size={density === 'compact' ? 14 : 16} aria-hidden="true" />
+      </span>
+      <span className="snippet-catalog-row-copy">
+        <span className="snippet-catalog-row-title">
+          {snippet.favorite ? <Star size={12} fill="currentColor" aria-label={t('snippets.favorited')} /> : null}
+          <Tooltip title={snippet.name} mouseEnterDelay={0.45}>
+            <strong>{snippet.name}</strong>
+          </Tooltip>
+          {risk.risky ? (
+            <Tooltip title={t('snippets.riskDetected')}>
+              <TriangleAlert className="snippet-catalog-risk-icon" size={13} aria-label={t('snippets.riskDetected')} />
+            </Tooltip>
+          ) : null}
+        </span>
+        <Tooltip title={snippet.command} mouseEnterDelay={0.55}>
+          <code>{snippet.command}</code>
+        </Tooltip>
+        {density === 'management' ? (
+          <span className="snippet-catalog-row-meta">
+            <span>{t(`snippets.shell.${snippet.shell || 'any'}`)}</span>
+            {snippet.tags?.slice(0, 2).map((tag) => <span key={tag}>#{tag}</span>)}
+            <span>{t('snippets.useCount', { count: snippet.use_count ?? 0 })}</span>
+          </span>
+        ) : null}
+      </span>
+    </>
+  )
+
+  return (
+    <div
+      className={`snippet-catalog-row is-${density} ${selected ? 'is-selected' : ''}`}
+      role="listitem"
+    >
+      {onSelect ? (
+        <button
+          type="button"
+          className="snippet-catalog-row-main"
+          aria-current={selected ? 'true' : undefined}
+          onClick={onSelect}
+        >
+          {copy}
+        </button>
+      ) : (
+        <div className="snippet-catalog-row-main">{copy}</div>
+      )}
+      {actions ? <div className="snippet-catalog-row-actions">{actions}</div> : null}
+    </div>
+  )
+}
