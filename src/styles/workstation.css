@@ -5244,6 +5244,27 @@ body.is-terminal-tab-dragging * {
   border-bottom: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
 }
 
+.system-info-tree-node.level-1 > .system-info-tree-children {
+  padding-left: 14px;
+}
+
+.system-info-tree-node.level-2 .system-info-tree-row {
+  grid-template-columns: minmax(48px, 0.42fr) minmax(0, 1fr);
+  gap: 8px;
+  padding: 7px 0;
+}
+
+.system-info-tree-node.level-2 .system-info-tree-label,
+.system-info-tree-node.level-2 .system-info-tree-value {
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.system-info-tree-node.level-2 .system-info-tree-toggle {
+  width: 8px;
+  min-width: 8px;
+}
+
 .status-badge {
   min-width: 0;
   max-width: 100%;
@@ -5919,6 +5940,13 @@ body.is-terminal-tab-dragging * {
 .settings-control-segmented .ant-segmented-item-label {
   padding-inline: 8px;
   white-space: nowrap;
+}
+
+.settings-segment-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
 }
 
 .scrollback-segmented .ant-segmented-item-label {
@@ -11800,6 +11828,831 @@ body.is-files-column-resizing * {
   gap: 10px;
 }
 
+.process-panel {
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  gap: 9px;
+}
+
+.process-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface-subtle) 52%, transparent);
+  padding: 7px 9px;
+}
+
+.process-toolbar-status {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.process-toolbar-status strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-toolbar-status span:last-child {
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--success);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 14%, transparent);
+}
+
+.process-status-dot.is-loading {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.process-status-dot.is-danger {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.process-icon-button.ant-btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-subtle) 60%, transparent);
+  color: var(--text-secondary);
+}
+
+.process-icon-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.process-filter-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.process-sort-strip {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
+  padding: 5px;
+}
+
+.process-sort-label {
+  padding-left: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.process-sort-options {
+  display: flex;
+  min-width: 0;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.process-sort-options::-webkit-scrollbar {
+  display: none;
+}
+
+.process-sort-option {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1;
+  padding: 0 9px;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.process-sort-option:hover {
+  background: color-mix(in srgb, var(--surface) 64%, transparent);
+  color: var(--text-primary);
+}
+
+.process-sort-option.is-active {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.process-search-input.ant-input-affix-wrapper,
+.process-compact-input.ant-input-affix-wrapper {
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
+  box-shadow: none;
+}
+
+.process-filter-button.ant-btn {
+  height: 34px;
+  min-width: 34px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-subtle) 76%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 760;
+  padding-inline: 10px;
+}
+
+.process-filter-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
+.process-filter-button.ant-btn.is-active {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.process-filter-popover.ant-popover {
+  --ant-popover-bg: var(--surface-strong);
+  --antd-arrow-background-color: var(--surface-strong);
+}
+
+.process-filter-popover.ant-popover .ant-popover-container {
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 15px;
+  background: var(--surface-strong) !important;
+  background-color: var(--surface-strong) !important;
+  box-shadow: var(--shadow-soft);
+}
+
+.process-filter-popover.ant-popover .ant-popover-content {
+  border-radius: 15px;
+  background: var(--surface-strong) !important;
+  background-color: var(--surface-strong) !important;
+}
+
+.process-filter-popover.ant-popover .ant-popover-inner {
+  border: 0;
+  border-radius: 15px;
+  background: var(--surface-strong) !important;
+  background-color: var(--surface-strong) !important;
+  box-shadow: none;
+}
+
+.process-filter-popover.ant-popover .ant-popover-inner-content {
+  padding: 12px;
+}
+
+.process-filter-popover.ant-popover .ant-popover-arrow::before {
+  background: var(--surface-strong) !important;
+}
+
+:root[data-theme="light"] .process-filter-popover.ant-popover {
+  --ant-popover-bg: #ffffff;
+  --antd-arrow-background-color: #ffffff;
+}
+
+:root[data-theme="light"] .process-filter-popover.ant-popover .ant-popover-container {
+  border-color: rgb(30 42 58 / 12%);
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  box-shadow: 0 18px 44px rgb(23 31 45 / 14%);
+}
+
+:root[data-theme="light"] .process-filter-popover.ant-popover .ant-popover-content,
+:root[data-theme="light"] .process-filter-popover.ant-popover .ant-popover-inner,
+:root[data-theme="light"] .process-filter-popover.ant-popover .ant-popover-arrow::before {
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+}
+
+.process-filter-popover-content {
+  display: grid;
+  width: min(272px, calc(100vw - 40px));
+  gap: 10px;
+}
+
+.process-filter-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.process-filter-popover-head strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.process-filter-popover-head .ant-btn {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.process-filter-popover-head .ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  background: color-mix(in srgb, var(--surface-subtle) 80%, transparent);
+  color: var(--accent);
+}
+
+.process-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.process-filter-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  margin: 0;
+}
+
+.process-filter-field > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.process-select.ant-select .ant-select-selector {
+  min-height: 32px;
+  border-color: color-mix(in srgb, var(--border) 82%, transparent) !important;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-subtle) 76%, transparent) !important;
+  color: var(--text-primary);
+  box-shadow: none !important;
+}
+
+.process-select.ant-select .ant-select-selection-item {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-primary);
+  font-weight: 680;
+}
+
+.process-select.ant-select .ant-select-arrow {
+  color: var(--text-muted);
+}
+
+.process-refresh-segment.ant-segmented {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 80%, transparent);
+}
+
+.process-refresh-segment .ant-segmented-item {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.process-refresh-segment .ant-segmented-group {
+  width: 100%;
+}
+
+.process-refresh-segment .ant-segmented-item {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.process-refresh-segment .ant-segmented-item-selected {
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-subtle));
+  color: var(--text-primary);
+}
+
+.termous-select-dropdown.ant-select-dropdown {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 12px;
+  background: #21252e !important;
+  background-color: #21252e !important;
+  box-shadow: var(--shadow-soft);
+}
+
+.termous-select-dropdown .rc-virtual-list,
+.termous-select-dropdown .rc-virtual-list-holder,
+.termous-select-dropdown .rc-virtual-list-holder-inner {
+  background: #21252e !important;
+}
+
+.termous-select-dropdown .ant-select-item {
+  color: var(--text-secondary);
+  background: #21252e;
+}
+
+.termous-select-dropdown .ant-select-item-option-active {
+  background: #2b303a !important;
+}
+
+.termous-select-dropdown .ant-select-item-option-selected {
+  background: #343b48 !important;
+  color: var(--text-primary);
+  font-weight: 760;
+}
+
+:root[data-theme="light"] .termous-select-dropdown.ant-select-dropdown,
+:root[data-theme="light"] .termous-select-dropdown .rc-virtual-list,
+:root[data-theme="light"] .termous-select-dropdown .rc-virtual-list-holder,
+:root[data-theme="light"] .termous-select-dropdown .rc-virtual-list-holder-inner {
+  background: #f7f9fc !important;
+  background-color: #f7f9fc !important;
+}
+
+:root[data-theme="light"] .termous-select-dropdown .ant-select-item {
+  background: #f7f9fc;
+}
+
+:root[data-theme="light"] .termous-select-dropdown .ant-select-item-option-active {
+  background: #eef3f9 !important;
+}
+
+:root[data-theme="light"] .termous-select-dropdown .ant-select-item-option-selected {
+  background: #e5edf8 !important;
+}
+
+.process-error-state.workbench-empty-state,
+.process-empty-list.workbench-empty-state,
+.process-detail-empty.workbench-empty-state {
+  min-height: 116px;
+  padding: 16px 12px;
+}
+
+.process-content {
+  display: grid;
+  min-height: 0;
+  min-width: 0;
+  gap: 10px;
+  overflow: auto;
+  padding-right: 2px;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 28%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.process-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.process-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.process-content::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 30%, transparent);
+  background-clip: padding-box;
+}
+
+.process-list {
+  display: grid;
+  gap: 7px;
+}
+
+.process-row {
+  display: grid;
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-subtle) 64%, transparent);
+  color: inherit;
+  padding: 9px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.process-row:hover {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
+  background: color-mix(in srgb, var(--surface-subtle) 78%, var(--accent-soft));
+}
+
+.process-row.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface-subtle));
+}
+
+.process-row-main {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.process-row-main > div {
+  min-width: 0;
+}
+
+.process-row-icon {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+  color: var(--accent);
+}
+
+.process-row-main strong,
+.process-detail-head strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-row-main small,
+.process-detail-head small {
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-row.has-ports .process-row-main strong,
+.process-row.has-ports .process-row-main small {
+  padding-right: 64px;
+}
+
+.process-row-statline {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 680;
+}
+
+.process-row-statline span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-row-port-summary {
+  display: inline-flex;
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 1;
+  max-width: 62px;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 76%, var(--accent-soft));
+  color: var(--accent);
+  font-size: 9.5px;
+  font-weight: 720;
+  line-height: 1;
+  padding: 0 5px;
+  height: 20px;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent);
+  pointer-events: auto;
+}
+
+.process-row-port-summary > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.process-row-port-summary em {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  color: var(--text-muted);
+  font-style: normal;
+  font-size: 8.5px;
+  padding: 2px;
+}
+
+.process-port-list span,
+.process-state-tag.ant-tag {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 680;
+  line-height: 1;
+  margin: 0;
+  padding: 5px 7px;
+}
+
+.process-detail-card {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface-subtle) 64%, transparent);
+  padding: 10px;
+}
+
+.process-detail-card.is-loading {
+  min-height: 128px;
+  align-content: center;
+  justify-items: center;
+  color: var(--text-secondary);
+}
+
+.process-detail-card.is-loading .process-detail-back {
+  justify-self: stretch;
+}
+
+.process-detail-card.is-loading small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.process-detail-back.ant-btn {
+  justify-self: start;
+  width: fit-content;
+  height: 28px;
+  min-height: 28px;
+  border-radius: 9px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 760;
+  padding-inline: 8px 10px;
+}
+
+.process-detail-back.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+  color: var(--accent);
+}
+
+.process-detail-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: termous-spin 0.9s linear infinite;
+}
+
+.process-detail-head {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.process-state-tag.ant-tag {
+  color: var(--accent);
+  cursor: help;
+}
+
+.termous-tooltip.ant-tooltip {
+  --ant-tooltip-bg: #222733;
+  --antd-arrow-background-color: #222733;
+}
+
+.termous-tooltip.ant-tooltip .ant-tooltip-inner,
+.termous-tooltip.ant-tooltip .ant-tooltip-container {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent) !important;
+  border-radius: 10px;
+  background: #222733 !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 16px 32px rgb(0 0 0 / 24%) !important;
+}
+
+.termous-tooltip.ant-tooltip .ant-tooltip-arrow::before {
+  background: #222733 !important;
+}
+
+:root[data-theme="light"] .termous-tooltip.ant-tooltip {
+  --ant-tooltip-bg: #ffffff;
+  --antd-arrow-background-color: #ffffff;
+}
+
+:root[data-theme="light"] .termous-tooltip.ant-tooltip .ant-tooltip-inner,
+:root[data-theme="light"] .termous-tooltip.ant-tooltip .ant-tooltip-container {
+  border-color: rgb(30 42 58 / 14%) !important;
+  background: #ffffff !important;
+  box-shadow: 0 16px 32px rgb(20 32 48 / 14%) !important;
+}
+
+:root[data-theme="light"] .termous-tooltip.ant-tooltip .ant-tooltip-arrow::before {
+  background: #ffffff !important;
+}
+
+.process-state-tooltip {
+  display: grid;
+  max-width: 260px;
+  gap: 5px;
+}
+
+.process-state-tooltip strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.process-state-tooltip span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.process-state-tooltip ul {
+  display: grid;
+  gap: 4px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.process-state-tooltip li {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.process-detail-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.process-kpi {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface) 56%, transparent);
+  padding: 8px;
+}
+
+.process-kpi span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-kpi strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-detail-list {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 44%, transparent);
+  margin: 0;
+}
+
+.process-detail-list > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
+  padding: 8px;
+}
+
+.process-detail-list > div:last-child {
+  border-bottom: 0;
+}
+
+.process-detail-list dt {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 680;
+}
+
+.process-detail-list dd {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-port-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.process-port-list span {
+  color: var(--accent);
+}
+
+.process-port-empty {
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 54%, transparent);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 8px;
+}
+
+.process-warning-strip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 9%, transparent);
+  color: color-mix(in srgb, var(--warning) 86%, var(--text-primary));
+  font-size: 11px;
+  padding: 8px;
+}
+
+.process-warning-strip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.process-detail-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.process-terminate-button.ant-btn {
+  min-width: 0;
+  height: 34px;
+  min-height: 34px;
+  padding-inline: 10px;
+}
+
 .system-monitor-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -12048,60 +12901,80 @@ body.is-files-column-resizing * {
   max-width: 96px;
 }
 
-.monitor-disk-panel {
-  gap: 10px;
-}
-
-.monitor-disk-head {
-  align-items: start;
-}
-
-.monitor-disk-list {
-  display: grid;
-  max-height: none;
+.monitor-disk-io-panel {
   gap: 8px;
-  overflow: visible;
 }
 
-.monitor-disk-row {
-  display: grid;
+.monitor-disk-select {
+  min-width: 78px;
+  max-width: 104px;
+}
+
+.monitor-device-select-dropdown .ant-select-item-option-content {
   min-width: 0;
+  overflow: hidden;
+}
+
+.monitor-device-select-option {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  cursor: default;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-disk-io-state {
+  display: flex;
+  min-height: 70px;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface) 50%, transparent);
-  padding: 9px;
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    transform 0.14s ease;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 48%, transparent);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-align: center;
 }
 
-.monitor-disk-row:hover {
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
-  background: color-mix(in srgb, var(--surface) 66%, transparent);
+.monitor-disk-io-state.is-warming svg {
+  color: var(--accent);
 }
 
-.monitor-disk-row:active {
-  transform: translateY(1px);
+.monitor-disk-io-rates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-block: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
 }
 
-.monitor-disk-row-top {
+.monitor-disk-io-rates > span {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 7px;
+  padding: 8px 6px;
 }
 
-.monitor-disk-title {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
+.monitor-disk-io-rates > span + span {
+  border-left: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
 }
 
-.monitor-disk-title strong,
-.monitor-disk-title span {
+.monitor-disk-io-rates svg {
+  grid-row: 1 / 3;
+}
+
+.monitor-disk-io-rates .is-read svg {
+  color: #70a7ff;
+}
+
+.monitor-disk-io-rates .is-write svg {
+  color: #48d597;
+}
+
+.monitor-disk-io-rates small,
+.monitor-disk-io-rates strong {
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -12109,39 +12982,193 @@ body.is-files-column-resizing * {
   white-space: nowrap;
 }
 
-.monitor-disk-title strong {
+.monitor-disk-io-rates small {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.monitor-disk-io-rates strong {
   color: var(--text-primary);
   font-size: 12px;
-  font-weight: 760;
-}
-
-.monitor-disk-title span {
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.monitor-disk-row em {
-  display: inline-flex;
-  height: 24px;
-  min-width: 46px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 760;
-  font-style: normal;
   font-variant-numeric: tabular-nums;
 }
 
-.monitor-disk-row.is-warning em {
-  background: color-mix(in srgb, #f2c94c 18%, transparent);
+.monitor-disk-io-chart.echart-view {
+  min-height: 84px;
+}
+
+.monitor-disk-io-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 54%, transparent);
+}
+
+.monitor-disk-io-facts > div {
+  min-width: 0;
+  padding: 7px 6px 2px;
+}
+
+.monitor-disk-io-facts dt,
+.monitor-disk-io-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-disk-io-facts dt {
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: default;
+}
+
+.monitor-disk-io-facts dd {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 720;
+  font-variant-numeric: tabular-nums;
+}
+
+.monitor-disk-panel {
+  gap: 8px;
+}
+
+.monitor-disk-head {
+  align-items: center;
+}
+
+.monitor-disk-list {
+  display: grid;
+  max-height: 330px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-top: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+  padding-right: 3px;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 28%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.monitor-disk-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.monitor-disk-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.monitor-disk-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+}
+
+.monitor-disk-row {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+  padding: 10px 8px 11px;
+  transition: background-color 0.15s ease;
+}
+
+.monitor-disk-row:last-child {
+  border-bottom: 0;
+}
+
+.monitor-disk-row:hover {
+  background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
+}
+
+.monitor-disk-row-summary {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.monitor-disk-title {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.monitor-disk-title > strong,
+.monitor-disk-source span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-disk-title > strong {
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 740;
+  line-height: 1.25;
+}
+
+.monitor-disk-source {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.monitor-disk-source span {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+
+.monitor-disk-source span:first-child {
+  flex: 1 1 auto;
+}
+
+.monitor-disk-source span:last-child {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.monitor-disk-source i {
+  width: 3px;
+  height: 3px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text-muted) 58%, transparent);
+}
+
+.monitor-disk-usage {
+  display: grid;
+  min-width: 44px;
+  justify-items: end;
+  gap: 1px;
+}
+
+.monitor-disk-usage strong {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 780;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.monitor-disk-usage small {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 620;
+  line-height: 1.2;
+}
+
+.monitor-disk-row.is-warning .monitor-disk-usage strong {
   color: #f5c542;
 }
 
-.monitor-disk-row.is-critical em {
-  background: color-mix(in srgb, #ff6b6b 18%, transparent);
+.monitor-disk-row.is-critical .monitor-disk-usage strong {
   color: #ff7b7b;
 }
 
@@ -12149,48 +13176,74 @@ body.is-files-column-resizing * {
   height: 5px;
   overflow: hidden;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
 }
 
 .monitor-disk-meter i {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 68%, #8bbcff), var(--accent));
+  background: var(--accent);
+  opacity: 0.82;
+  transition: opacity 0.15s ease;
+}
+
+.monitor-disk-row:hover .monitor-disk-meter i {
+  opacity: 1;
 }
 
 .monitor-disk-row.is-warning .monitor-disk-meter i {
-  background: linear-gradient(90deg, #d7b54b, #f2c94c);
+  background: #f2c94c;
 }
 
 .monitor-disk-row.is-critical .monitor-disk-meter i {
-  background: linear-gradient(90deg, #ff8c7f, #ff5f70);
+  background: #ff6b6b;
 }
 
 .monitor-disk-row-meta {
   display: grid;
   min-width: 0;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
-  gap: 8px;
+  margin: 0;
 }
 
-.monitor-disk-row-meta span {
+.monitor-disk-row-meta > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding-right: 7px;
+}
+
+.monitor-disk-row-meta > div:not(:first-child) {
+  border-left: 1px solid color-mix(in srgb, var(--border) 48%, transparent);
+  padding-right: 0;
+  padding-left: 8px;
+}
+
+.monitor-disk-row-meta dt,
+.monitor-disk-row-meta dd {
+  display: block;
+  min-width: 0;
+  margin: 0;
   overflow: hidden;
-  color: var(--text-muted);
-  font-size: 10.5px;
-  font-weight: 620;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.monitor-disk-row-meta span:nth-child(2) {
-  color: var(--text-secondary);
-  text-align: center;
+.monitor-disk-row-meta dt {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
-.monitor-disk-row-meta span:last-child {
-  text-align: right;
+.monitor-disk-row-meta dd {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
 }
 
 .monitor-disk-empty {
@@ -12203,4 +13256,1290 @@ body.is-files-column-resizing * {
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 680;
+}
+
+.docker-panel {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.docker-toolbar {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.docker-capability {
+  display: grid;
+  min-width: 0;
+  min-height: 48px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+}
+
+.docker-capability.is-ready {
+  border-color: color-mix(in srgb, #31d0a0 30%, var(--border));
+}
+
+.docker-capability.is-error {
+  border-color: color-mix(in srgb, #ff6b6b 34%, var(--border));
+}
+
+.docker-capability-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent);
+}
+
+.docker-capability-icon svg,
+.docker-row-icon svg,
+.docker-detail-icon svg {
+  display: block;
+}
+
+.docker-capability.is-ready .docker-capability-icon {
+  background: color-mix(in srgb, #31d0a0 14%, var(--surface));
+  color: #31d0a0;
+}
+
+.docker-capability.is-error .docker-capability-icon {
+  background: color-mix(in srgb, #ff6b6b 14%, var(--surface));
+  color: #ff7b7b;
+}
+
+.docker-capability-copy,
+.docker-capability-copy strong,
+.docker-capability-copy span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-capability-copy strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.docker-capability-copy span {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.docker-capability-status {
+  display: inline-flex;
+  max-width: 92px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-capability-status.is-ready {
+  border-color: color-mix(in srgb, #31d0a0 34%, var(--border));
+  background: color-mix(in srgb, #31d0a0 11%, var(--surface));
+  color: #31d0a0;
+}
+
+.docker-capability-status.is-error {
+  border-color: color-mix(in srgb, #ff6b6b 34%, var(--border));
+  background: color-mix(in srgb, #ff6b6b 11%, var(--surface));
+  color: #ff8585;
+}
+
+.docker-icon-button.ant-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-subtle) 70%, transparent);
+  color: var(--text-secondary);
+}
+
+.docker-icon-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.docker-filter-panel {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.docker-search-input.ant-input-affix-wrapper {
+  min-width: 0;
+}
+
+.docker-filter-button.ant-btn {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-subtle) 70%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.docker-filter-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
+.docker-filter-button.ant-btn.is-active {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.docker-filter-popover.ant-popover {
+  --ant-popover-bg: var(--surface-strong);
+  --antd-arrow-background-color: var(--surface-strong);
+}
+
+.docker-filter-popover.ant-popover .ant-popover-container {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 15px;
+  background: var(--surface-strong) !important;
+  box-shadow: none !important;
+}
+
+.docker-filter-popover.ant-popover .ant-popover-content,
+.docker-filter-popover.ant-popover .ant-popover-inner,
+.docker-filter-popover.ant-popover .ant-popover-inner-content {
+  border-radius: 15px;
+  background: var(--surface-strong) !important;
+}
+
+.docker-filter-popover.ant-popover .ant-popover-inner-content {
+  padding: 12px;
+}
+
+.docker-filter-popover-content {
+  display: grid;
+  width: min(318px, calc(100vw - 40px));
+  gap: 12px;
+}
+
+.docker-filter-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.docker-filter-popover-head strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.docker-filter-popover-head .ant-btn {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.docker-filter-popover-head .ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  background: color-mix(in srgb, var(--surface-subtle) 80%, transparent);
+  color: var(--accent);
+}
+
+.docker-compact-input.ant-input-affix-wrapper {
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-subtle) 86%, transparent);
+  color: var(--text-primary);
+}
+
+.docker-compact-input.ant-input-affix-wrapper:hover,
+.docker-compact-input.ant-input-affix-wrapper-focused {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--surface-subtle) 92%, transparent);
+}
+
+.docker-filter-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.docker-filter-field > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.docker-filter-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.docker-filter-chip {
+  min-width: 0;
+  height: 28px;
+  overflow: hidden;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.docker-filter-chip:hover,
+.docker-filter-chip.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.docker-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.docker-list,
+.docker-detail-card {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 30%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.docker-list::-webkit-scrollbar,
+.docker-detail-card::-webkit-scrollbar,
+.docker-log-section pre::-webkit-scrollbar,
+.docker-logs-console::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.docker-list::-webkit-scrollbar-track,
+.docker-detail-card::-webkit-scrollbar-track,
+.docker-log-section pre::-webkit-scrollbar-track,
+.docker-logs-console::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.docker-list::-webkit-scrollbar-thumb,
+.docker-detail-card::-webkit-scrollbar-thumb,
+.docker-log-section pre::-webkit-scrollbar-thumb,
+.docker-logs-console::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+}
+
+.docker-list-summary {
+  display: flex;
+  min-height: 26px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.docker-list-summary strong {
+  color: var(--text-secondary);
+  font-weight: 760;
+}
+
+.docker-row {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 92px;
+  margin: 0 0 8px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  gap: 8px;
+}
+
+.docker-row:hover {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+
+.docker-row.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.docker-row-top {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.docker-row-main {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.docker-row-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent);
+}
+
+.docker-row-main strong,
+.docker-row-main small,
+.docker-row-statline small,
+.docker-row-statline strong,
+.docker-detail-head strong,
+.docker-detail-head small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-row-main strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.docker-row-main small {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.docker-row-statline {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 6px;
+}
+
+.docker-row-statline > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-subtle) 44%, transparent);
+}
+
+.docker-row-statline small {
+  color: var(--text-muted);
+  font-size: 9.5px;
+  font-weight: 720;
+}
+
+.docker-row-statline strong {
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 760;
+}
+
+.docker-state-tag.ant-tag {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  max-width: 74px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-subtle) 80%, transparent);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-row .docker-state-tag.ant-tag {
+  position: static;
+  max-width: 86px;
+  height: 22px;
+  line-height: 20px;
+}
+
+.docker-state-tag.is-running.ant-tag {
+  border-color: color-mix(in srgb, #31d0a0 42%, var(--border));
+  background: color-mix(in srgb, #31d0a0 14%, var(--surface));
+  color: #31d0a0;
+}
+
+.docker-state-tag.is-exited.ant-tag,
+.docker-state-tag.is-dead.ant-tag {
+  border-color: color-mix(in srgb, #ff6b6b 34%, var(--border));
+  background: color-mix(in srgb, #ff6b6b 12%, var(--surface));
+  color: #ff8585;
+}
+
+.docker-state-tag.is-paused.ant-tag,
+.docker-state-tag.is-restarting.ant-tag {
+  border-color: color-mix(in srgb, #f5c542 34%, var(--border));
+  background: color-mix(in srgb, #f5c542 12%, var(--surface));
+  color: #f5c542;
+}
+
+.docker-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.docker-detail-card.is-loading {
+  align-items: stretch;
+  color: var(--text-secondary);
+}
+
+.docker-detail-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.docker-detail-refreshing {
+  display: inline-flex;
+  min-width: 0;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-subtle));
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.docker-detail-refreshing svg {
+  flex: 0 0 auto;
+  animation: termous-spin 0.9s linear infinite;
+}
+
+.docker-detail-refreshing.is-error {
+  border-color: color-mix(in srgb, #ff6b6b 34%, var(--border));
+  background: color-mix(in srgb, #ff6b6b 10%, var(--surface-subtle));
+  color: #ff8585;
+}
+
+.docker-detail-refreshing.is-error svg {
+  animation: none;
+}
+
+.docker-detail-loading-body {
+  display: grid;
+  min-height: 260px;
+  flex: 1 1 auto;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  border: 1px dashed color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+}
+
+.docker-detail-loading-body small {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-detail-back.ant-btn {
+  height: 30px;
+  padding: 0 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.docker-detail-back.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+  color: var(--accent);
+}
+
+.docker-detail-head {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 62px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 12px 86px 12px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.docker-detail-icon {
+  display: inline-grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
+  color: var(--accent);
+}
+
+.docker-detail-head strong {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.docker-detail-head small {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.docker-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.docker-action-button.ant-btn {
+  flex: 1 1 92px;
+  min-width: 0;
+}
+
+.docker-detail-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.docker-kpi {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-subtle) 72%, transparent);
+}
+
+.docker-kpi span {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.docker-kpi strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-detail-list {
+  display: grid;
+  margin: 0;
+  overflow: visible;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+}
+
+.docker-detail-list > div {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  padding: 11px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.docker-detail-list > div:last-child {
+  border-bottom: 0;
+}
+
+.docker-detail-list dt,
+.docker-detail-list dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.docker-detail-list dt {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.docker-detail-list dd {
+  color: var(--text-primary);
+  font-size: 11.5px;
+  font-weight: 730;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.docker-compact-section {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface-subtle) 66%, transparent);
+}
+
+.docker-compact-section strong {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.docker-compact-section div {
+  display: grid;
+  gap: 6px;
+}
+
+.docker-compact-section span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-log-section {
+  display: grid;
+  min-height: 0;
+  gap: 8px;
+}
+
+.docker-log-actions {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.docker-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.docker-section-head span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.docker-mini-button.ant-btn {
+  height: 28px;
+  padding: 0 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.docker-mini-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+  color: var(--accent);
+}
+
+.docker-log-section pre {
+  min-height: 142px;
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border-radius: 12px;
+  background: #070b11;
+  color: #dce5ef;
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.docker-logs-modal-root .docker-logs-modal.ant-modal {
+  --ant-modal-content-bg: #21252e;
+  --docker-log-toolbar-bg: #1a1f28;
+  --docker-log-console-bg: #080c12;
+  --docker-log-line-number-bg: #0e141e;
+  top: 0;
+  max-width: calc(100vw - 32px);
+  padding-bottom: 0;
+}
+
+:root[data-theme="light"] .docker-logs-modal-root .docker-logs-modal.ant-modal {
+  --ant-modal-content-bg: #f7f9fc;
+  --docker-log-toolbar-bg: #eef2f7;
+  --docker-log-console-bg: #fbfcff;
+  --docker-log-line-number-bg: #eef3fa;
+}
+
+.docker-logs-modal-root .docker-logs-modal.ant-modal .ant-modal-content {
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 78%, transparent);
+  border-radius: 18px;
+  background: var(--ant-modal-content-bg);
+  box-shadow:
+    0 30px 84px rgb(0 0 0 / 42%),
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 7%, transparent);
+}
+
+.docker-logs-modal-root .docker-logs-modal.ant-modal .ant-modal-body {
+  padding: 0 !important;
+}
+
+.docker-logs-modal .docker-logs-view {
+  display: grid;
+  min-height: min(684px, calc(90vh - 25px));
+  max-height: calc(90vh - 22px);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+  background: var(--ant-modal-content-bg);
+}
+
+.docker-logs-modal-header {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 50px 6px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  background: var(--ant-modal-content-bg);
+}
+
+.docker-logs-title {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.docker-logs-title-icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.docker-logs-title-icon svg {
+  display: block;
+}
+
+.docker-logs-title-copy {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: 2px;
+}
+
+.docker-logs-title-copy strong,
+.docker-logs-title-copy span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-logs-title-copy strong {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 820;
+}
+
+.docker-logs-title-copy span {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.docker-logs-header-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.docker-logs-state {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 260px;
+  height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-subtle) 66%, transparent);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.docker-logs-state svg {
+  flex: 0 0 auto;
+}
+
+.docker-logs-state.is-loading svg {
+  animation: termous-spin 0.9s linear infinite;
+}
+
+.docker-logs-state.is-ready {
+  border-color: color-mix(in srgb, var(--success) 32%, transparent);
+  background: color-mix(in srgb, var(--success) 10%, var(--surface-subtle));
+  color: var(--success);
+}
+
+.docker-logs-state.is-error {
+  border-color: color-mix(in srgb, var(--danger) 38%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-subtle));
+  color: var(--danger);
+}
+
+.docker-logs-close.ant-btn {
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  color: var(--text-muted);
+}
+
+.docker-logs-close.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  border-color: color-mix(in srgb, var(--border) 82%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
+  color: var(--text-primary);
+}
+
+.docker-logs-control-surface {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--docker-log-toolbar-bg);
+}
+
+.docker-log-tail-select.ant-select {
+  width: 90px;
+}
+
+.docker-log-tail-select .ant-select-selector {
+  height: 34px !important;
+  border-color: color-mix(in srgb, var(--border) 78%, transparent) !important;
+  border-radius: 11px !important;
+  background: var(--ant-modal-content-bg) !important;
+}
+
+.docker-log-tail-select .ant-select-selection-item {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 740;
+  line-height: 32px !important;
+}
+
+.docker-logs-primary-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.docker-logs-search.ant-input-affix-wrapper {
+  height: 34px;
+}
+
+.docker-logs-match-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.docker-log-tool-button.ant-btn {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 11px;
+  background: var(--ant-modal-content-bg);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 740;
+}
+
+.docker-log-tool-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.docker-log-tool-button.ant-btn:disabled {
+  opacity: 0.48;
+}
+
+.docker-log-tool-button.is-refresh.ant-btn {
+  margin-left: auto;
+}
+
+.docker-logs-secondary-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.docker-logs-options {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.docker-logs-options button:not(.ant-btn) {
+  height: 30px;
+  min-width: 34px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: 10px;
+  background: var(--ant-modal-content-bg);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.docker-logs-options button:not(.ant-btn):hover,
+.docker-logs-options button:not(.ant-btn).is-active {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.docker-logs-shell {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  margin: 8px 14px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  border-radius: 13px;
+  background: var(--docker-log-console-bg);
+}
+
+.docker-logs-console {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  background: var(--docker-log-console-bg);
+  color: #dce5ef;
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 12px;
+  line-height: 1.52;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 30%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.docker-logs-modal .docker-logs-console {
+  margin: 0;
+  min-height: 0;
+}
+
+.docker-log-line {
+  display: grid;
+  min-width: max-content;
+  grid-template-columns: 44px minmax(0, 1fr);
+  border-bottom: 1px solid color-mix(in srgb, #233040 44%, transparent);
+}
+
+.docker-log-line:last-child {
+  border-bottom: 0;
+}
+
+.docker-log-line-number {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  padding: 3px 8px;
+  background: var(--docker-log-line-number-bg);
+  color: #708198;
+  text-align: right;
+  user-select: none;
+}
+
+.docker-log-line code {
+  display: block;
+  min-width: 0;
+  padding: 3px 10px;
+  color: inherit;
+  white-space: pre;
+}
+
+.docker-logs-console.is-wrap .docker-log-line {
+  min-width: 0;
+}
+
+.docker-logs-console.is-wrap .docker-log-line code {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.docker-log-line.is-error code {
+  color: #ff9b9b;
+}
+
+.docker-log-line.is-warning code {
+  color: #f5c879;
+}
+
+.docker-log-line mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  color: inherit;
+}
+
+.docker-log-line mark.is-active {
+  background: #74a7ff;
+  color: #06101f;
+}
+
+.docker-logs-empty {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.docker-logs-empty strong {
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.docker-logs-status {
+  display: grid;
+  min-height: 28px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 680;
+}
+
+.docker-logs-modal .docker-logs-status {
+  min-height: 34px;
+  padding: 0 12px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  background: var(--docker-log-console-bg);
+}
+
+@media (width <= 860px) {
+  .docker-logs-modal-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .docker-logs-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .docker-logs-primary-row,
+  .docker-logs-secondary-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .docker-logs-match-controls {
+    justify-content: flex-start;
+  }
+
+  .docker-logs-status {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: 3px;
+    padding-block: 8px;
+  }
+}
+
+.docker-logs-status span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root[data-theme="light"] .docker-logs-console {
+  color: #1f2937;
+}
+
+:root[data-theme="light"] .docker-log-line {
+  border-bottom-color: color-mix(in srgb, #c9d4e4 54%, transparent);
+}
+
+:root[data-theme="light"] .docker-log-line-number {
+  color: #728198;
+}
+
+.docker-muted-line {
+  display: grid;
+  min-height: 54px;
+  place-items: center;
+  border: 1px dashed color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.docker-detail-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: termous-spin 0.9s linear infinite;
+}
+
+.docker-empty-list,
+.docker-unavailable-state,
+.docker-error-state,
+.docker-detail-empty {
+  min-height: 140px;
+}
+
+:root[data-theme="light"] .docker-capability,
+:root[data-theme="light"] .docker-row,
+:root[data-theme="light"] .docker-detail-head,
+:root[data-theme="light"] .docker-kpi,
+:root[data-theme="light"] .docker-compact-section,
+:root[data-theme="light"] .docker-detail-list,
+:root[data-theme="light"] .docker-filter-options,
+:root[data-theme="light"] .docker-detail-loading-body {
+  background: #ffffff;
+}
+
+:root[data-theme="light"] .docker-filter-popover.ant-popover {
+  --ant-popover-bg: #ffffff;
+  --antd-arrow-background-color: #ffffff;
+}
+
+:root[data-theme="light"] .docker-filter-popover.ant-popover .ant-popover-container,
+:root[data-theme="light"] .docker-filter-popover.ant-popover .ant-popover-content,
+:root[data-theme="light"] .docker-filter-popover.ant-popover .ant-popover-inner,
+:root[data-theme="light"] .docker-filter-popover.ant-popover .ant-popover-inner-content {
+  background: #ffffff !important;
+}
+
+:root[data-theme="light"] .docker-log-section pre {
+  background: #f8fafc;
+  color: #1f2937;
 }

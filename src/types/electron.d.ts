@@ -12,6 +12,12 @@ declare global {
         getFatal: () => Promise<CoreFatalEvent | null>
         onFatal: (callback: (event: CoreFatalEvent) => void) => () => void
       }
+      startup?: {
+        ready: () => Promise<boolean>
+      }
+      appearance?: {
+        setTheme: (theme: 'dark' | 'light') => Promise<boolean>
+      }
       clipboard?: {
         readText: () => Promise<string>
         writeText: (text: string) => Promise<boolean>

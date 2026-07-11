@@ -591,8 +591,13 @@ export interface FirewallPersistenceInstallResult {
 
 export interface Settings {
   language: Language
+  appearance: AppearanceSettings
   terminal: TerminalSettings
   window: WindowSettings
+}
+
+export interface AppearanceSettings {
+  theme: ThemeMode
 }
 
 export interface TerminalSettings {
@@ -800,7 +805,34 @@ export interface LinuxSystemInfo {
   cpu_frequency_mhz?: number
   memory_total_bytes?: number
   uptime_seconds?: number
+  network?: LinuxNetworkInfo | null
   collected_at?: string
+}
+
+export type LinuxNetworkStatus = 'ready' | 'partial' | 'unavailable' | 'failed'
+
+export type LinuxIPAddressFamily = 'ipv4' | 'ipv6'
+
+export interface LinuxIPAddress {
+  family: LinuxIPAddressFamily
+  address: string
+  prefix_length: number
+  scope?: string
+}
+
+export interface LinuxNetworkInterface {
+  index: number
+  name: string
+  oper_state?: string
+  mac_address?: string
+  mtu?: number
+  addresses: LinuxIPAddress[]
+}
+
+export interface LinuxNetworkInfo {
+  status: LinuxNetworkStatus
+  message?: string
+  interfaces: LinuxNetworkInterface[]
 }
 
 export type LinuxMonitorStatus = 'warming' | 'ready' | 'paused' | 'failed' | 'unsupported'
@@ -839,6 +871,23 @@ export interface LinuxMonitorNetwork {
   is_loopback: boolean
 }
 
+export interface LinuxMonitorDiskIODevice {
+  name: string
+  read_bytes_per_sec: number
+  write_bytes_per_sec: number
+  read_iops: number
+  write_iops: number
+  read_latency_ms: number
+  write_latency_ms: number
+  busy_percent: number
+  in_flight: number
+}
+
+export interface LinuxMonitorDiskIO {
+  status: LinuxMonitorStatus
+  devices: LinuxMonitorDiskIODevice[]
+}
+
 export interface LinuxMonitorDisk {
   filesystem: string
   type: string
@@ -857,7 +906,332 @@ export interface LinuxMonitorSnapshot {
   cpu: LinuxMonitorCPU
   memory: LinuxMonitorMemory
   networks: LinuxMonitorNetwork[]
+  disk_io: LinuxMonitorDiskIO
   disks: LinuxMonitorDisk[]
+}
+
+export type RemoteProcessSort = 'cpu' | 'memory' | 'pid' | 'name' | 'runtime'
+
+export type RemoteProcessTerminateSignal = 'term' | 'kill'
+
+export interface RemoteProcessQuery {
+  query?: string
+  pid?: number
+  port?: number
+  sort?: RemoteProcessSort
+  limit?: number
+}
+
+export interface RemoteProcessPort {
+  protocol: string
+  local_address: string
+  local_port: number
+  pid?: number
+  process_name?: string
+  raw?: string
+}
+
+export interface RemoteProcessSummary {
+  pid: number
+  ppid: number
+  user: string
+  state: string
+  cpu_percent: number
+  memory_percent: number
+  rss_bytes: number
+  runtime_seconds: number
+  name: string
+  command_line: string
+  listening_ports?: number[]
+  warnings?: string[]
+  permission_state?: string
+}
+
+export interface RemoteProcessListResult {
+  items: RemoteProcessSummary[]
+  ports: RemoteProcessPort[]
+  total: number
+  filtered: number
+  collected_at: string
+  warnings?: string[]
+}
+
+export interface RemoteProcessDetail {
+  summary: RemoteProcessSummary
+  full_command_line?: string
+  cwd?: string
+  executable?: string
+  status?: Record<string, string>
+  ports?: RemoteProcessPort[]
+  warnings?: string[]
+  collected_at: string
+}
+
+export interface RemoteProcessTerminateRequest {
+  signal: RemoteProcessTerminateSignal
+}
+
+export interface RemoteProcessTerminateResult {
+  pid: number
+  signal: RemoteProcessTerminateSignal
+  attempted: boolean
+  message: string
+}
+
+export type SystemServiceCapabilityStatus = 'ready' | 'read_only' | 'unsupported' | 'manager_unavailable' | 'unknown'
+
+export type SystemServiceManageMode = 'direct' | 'sudo' | 'read_only'
+
+export type SystemServiceRuntimeFilter = '' | 'running' | 'stopped' | 'active' | 'inactive' | 'failed' | 'activating' | 'deactivating' | 'reloading' | 'maintenance' | 'refreshing'
+
+export type SystemServiceSort = 'name' | 'description' | 'runtime' | 'unit_file'
+
+export type SystemServiceAction = 'start' | 'stop' | 'restart' | 'reload' | 'reset_failed' | 'enable' | 'disable' | 'mask' | 'unmask'
+
+export type SystemServiceOperationPhase = 'queued' | 'enqueued' | 'verifying' | 'succeeded' | 'failed' | 'uncertain' | 'cancelled'
+
+export interface SystemServiceCapability {
+  provider: string
+  available: boolean
+  manageable: boolean
+  status: SystemServiceCapabilityStatus
+  message?: string
+  version?: string
+  manager_state?: string
+  manage_mode: SystemServiceManageMode
+  journal_readable: boolean
+  warnings: string[]
+  collected_at: string
+}
+
+export interface SystemServiceQuery {
+  query?: string
+  runtime_state?: SystemServiceRuntimeFilter
+  unit_file_state?: string
+  sort?: SystemServiceSort
+  order?: 'asc' | 'desc'
+  limit?: number
+}
+
+export interface SystemServiceSummary {
+  id: string
+  names: string[]
+  description?: string
+  load_state: string
+  active_state: string
+  sub_state: string
+  unit_file_state: string
+  template: boolean
+}
+
+export interface SystemServiceListResult {
+  items: SystemServiceSummary[]
+  total: number
+  filtered: number
+  running: number
+  failed: number
+  collected_at: string
+  warnings: string[]
+}
+
+export interface SystemServiceDetail {
+  summary: SystemServiceSummary
+  main_pid: number
+  control_pid: number
+  result?: string
+  exec_main_code?: string
+  exec_main_status: number
+  restart_count: number
+  can_start: boolean
+  can_stop: boolean
+  can_reload: boolean
+  refuse_manual_start: boolean
+  refuse_manual_stop: boolean
+  fragment_path?: string
+  drop_in_paths: string[]
+  user?: string
+  group?: string
+  working_directory?: string
+  exec_start?: string
+  restart_policy?: string
+  type?: string
+  active_duration_seconds: number
+  memory_current_bytes?: number
+  tasks_current?: number
+  cpu_usage_nanoseconds?: number
+  warnings: string[]
+  collected_at: string
+}
+
+export interface SystemServiceLogQuery {
+  limit?: number
+  priority?: string
+  boot?: 'current' | 'all'
+  after_cursor?: string
+}
+
+export interface SystemServiceLogEntry {
+  cursor?: string
+  timestamp: string
+  priority: number
+  message: string
+  pid?: number
+  command?: string
+}
+
+export interface SystemServiceLogsResult {
+  entries: SystemServiceLogEntry[]
+  cursor?: string
+  collected_at: string
+  warnings: string[]
+}
+
+export interface SystemServiceActionRequest {
+  action: SystemServiceAction
+}
+
+export interface SystemServiceOperation {
+  id: string
+  revision: number
+  session_id: string
+  unit_id: string
+  action: SystemServiceAction
+  phase: SystemServiceOperationPhase
+  message: string
+  error_code?: string
+  state?: SystemServiceSummary
+  started_at: string
+  updated_at: string
+  completed_at?: string
+}
+
+export type DockerCapabilityStatus = 'available' | 'missing_cli' | 'daemon_unavailable' | 'permission_denied' | 'unknown'
+
+export type DockerContainerState = 'created' | 'running' | 'paused' | 'restarting' | 'removing' | 'exited' | 'dead' | string
+
+export type DockerHealthStatus = 'healthy' | 'unhealthy' | 'starting' | 'none' | string
+
+export type DockerAction = 'start' | 'stop' | 'restart' | 'pause' | 'unpause'
+
+export interface DockerCapability {
+  available: boolean
+  status: DockerCapabilityStatus
+  message?: string
+  docker_version?: string
+  server_version?: string
+  context?: string
+  warnings?: string[]
+  collected_at: string
+}
+
+export interface DockerContainerQuery {
+  query?: string
+  state?: string
+  health?: string
+  port?: number
+  limit?: number
+}
+
+export interface DockerContainerPort {
+  ip?: string
+  public_port?: number
+  private_port?: number
+  type?: string
+  raw?: string
+}
+
+export interface DockerContainerStats {
+  id?: string
+  name?: string
+  cpu_percent?: string
+  memory?: string
+  memory_percent?: string
+  net_io?: string
+  block_io?: string
+  pids?: string
+}
+
+export interface DockerContainerSummary {
+  id: string
+  short_id: string
+  name: string
+  image: string
+  command?: string
+  created_at?: string
+  running_for?: string
+  ports?: DockerContainerPort[]
+  raw_ports?: string
+  state: DockerContainerState
+  status?: string
+  health?: DockerHealthStatus
+  compose_project?: string
+  stats?: DockerContainerStats
+  warnings?: string[]
+}
+
+export interface DockerContainerMount {
+  type?: string
+  source?: string
+  destination?: string
+  mode?: string
+  rw: boolean
+}
+
+export interface DockerContainerNetwork {
+  name: string
+  ip_address?: string
+  mac_address?: string
+  gateway?: string
+}
+
+export interface DockerEnvVar {
+  key: string
+  value?: string
+  redacted?: boolean
+}
+
+export interface DockerContainerDetail {
+  summary: DockerContainerSummary
+  mounts?: DockerContainerMount[]
+  networks?: DockerContainerNetwork[]
+  labels?: Record<string, string>
+  env?: DockerEnvVar[]
+  restart_policy?: string
+  created?: string
+  path?: string
+  args?: string[]
+  stats?: DockerContainerStats
+  logs_preview?: string[]
+  collected_at: string
+  warnings?: string[]
+}
+
+export interface DockerListResult {
+  items: DockerContainerSummary[]
+  total: number
+  filtered: number
+  collected_at: string
+  warnings?: string[]
+}
+
+export interface DockerLogsResult {
+  lines: string[]
+  tail: number
+  timestamps: boolean
+  collected_at: string
+}
+
+export interface DockerActionRequest {
+  action: DockerAction
+  timeout_seconds?: number
+}
+
+export interface DockerActionResult {
+  id?: string
+  action: DockerAction
+  attempted: boolean
+  message: string
+  completed_at: string
 }
 
 export interface Session {

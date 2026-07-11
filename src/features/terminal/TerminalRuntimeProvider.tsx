@@ -433,13 +433,16 @@ export function TerminalRuntimeProvider({
         }
         onSessionEventRef.current?.(targetSessionId, patch)
       }
-      const sendTerminalInput = (data: string) => {
-        if (activeSessionIdRef.current !== sessionId) {
+      const sendTerminalInput = (data: string | Uint8Array) => {
+        const viewport = getViewportForSession(sessionId)
+        if (entry.disposed || isEntryEnded(entry) || !entry.isReady || socket.readyState !== WebSocket.OPEN || !viewport?.host) {
           return
         }
-        if (!isEntryEnded(entry) && socket.readyState === WebSocket.OPEN) {
+        if (typeof data === 'string') {
           socket.send(JSON.stringify({ type: 'input', data }))
+          return
         }
+        socket.send(data)
       }
       const handleClipboardKey = (event: KeyboardEvent) => {
         const key = event.key.toLowerCase()
@@ -516,6 +519,9 @@ export function TerminalRuntimeProvider({
         terminal.onData((data) => {
           sendTerminalInput(data)
         }),
+        terminal.onBinary((data) => {
+          sendTerminalInput(binaryStringToBytes(data))
+        }),
       )
 
       socket.addEventListener('open', () => {
@@ -562,7 +568,7 @@ export function TerminalRuntimeProvider({
 
       return entry
     },
-    [applyEntrySessionState, closeSocket, copyEntrySelection, fitAndResize, isEntryEnded, pasteEntryClipboard],
+    [applyEntrySessionState, closeSocket, copyEntrySelection, fitAndResize, getViewportForSession, isEntryEnded, pasteEntryClipboard],
   )
 
   const moveEntryToHost = useCallback((entry: TerminalEntry, host: HTMLDivElement | null, active: boolean, visible: boolean) => {
@@ -724,7 +730,6 @@ function createTerminal(theme: ThemeMode, settings: TerminalSettings = defaultTe
     allowProposedApi: true,
     cursorBlink: normalizedSettings.cursor_blink,
     cursorStyle: normalizedSettings.cursor_style,
-    convertEol: true,
     fontFamily: fontFamilyFromSetting(normalizedSettings.font_family, fonts),
     fontSize: normalizedSettings.font_size,
     letterSpacing: normalizedSettings.letter_spacing,
@@ -982,6 +987,14 @@ function fallbackCopyText(text: string) {
     textarea.remove()
   }
   return copied
+}
+
+function binaryStringToBytes(data: string) {
+  const bytes = new Uint8Array(data.length)
+  for (let index = 0; index < data.length; index += 1) {
+    bytes[index] = data.charCodeAt(index) & 0xff
+  }
+  return bytes
 }
 
 function ensureTerminalEnter(text: string) {

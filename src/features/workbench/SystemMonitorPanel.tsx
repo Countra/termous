@@ -1,11 +1,18 @@
 import { Button, Progress, Segmented, Select, Tooltip } from 'antd'
 import type { EChartsCoreOption } from 'echarts/core'
-import { Activity, Cpu, HardDrive, MemoryStick, Pause, Play, RadioTower, RotateCcw } from 'lucide-react'
+import { Activity, ArrowDownToLine, ArrowUpFromLine, Cpu, Gauge, HardDrive, MemoryStick, Pause, Play, RadioTower, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { EChartView } from '../../components/charts/EChartView'
-import type { LinuxMonitorLoadAverage, LinuxMonitorNetwork, LinuxMonitorSnapshot, Session, ThemeMode } from '../../types/domain'
+import type {
+  LinuxMonitorDiskIODevice,
+  LinuxMonitorLoadAverage,
+  LinuxMonitorNetwork,
+  LinuxMonitorSnapshot,
+  Session,
+  ThemeMode,
+} from '../../types/domain'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import { useSessionMonitor } from './useSessionMonitor'
 
@@ -28,24 +35,50 @@ interface NetworkSessionState {
   baselines: Record<string, NetworkCounter>
 }
 
+interface DiskIOSessionState {
+  deviceName?: string
+}
+
 const emptyNetworkSessionState: NetworkSessionState = {
   baselines: {},
 }
 
+const emptyDiskIOSessionState: DiskIOSessionState = {}
+
 function createNetworkSessionState(): NetworkSessionState {
   return { baselines: {} }
+}
+
+function MonitorDeviceOption({ value }: { value: string }) {
+  return (
+    <Tooltip
+      title={value}
+      placement="left"
+      mouseEnterDelay={0.3}
+      classNames={{ root: 'termous-tooltip' }}
+    >
+      <span className="monitor-device-select-option">{value}</span>
+    </Tooltip>
+  )
 }
 
 export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonitorPanelProps) {
   const { t } = useTranslation()
   const [intervalSeconds, setIntervalSeconds] = useState(5)
   const [networkStates, setNetworkStates] = useState<Record<string, NetworkSessionState>>({})
+  const [diskIOStates, setDiskIOStates] = useState<Record<string, DiskIOSessionState>>({})
   const sessionId = session?.id ?? ''
   const networkState = sessionId ? networkStates[sessionId] ?? emptyNetworkSessionState : emptyNetworkSessionState
+  const diskIOState = sessionId ? diskIOStates[sessionId] ?? emptyDiskIOSessionState : emptyDiskIOSessionState
   const networkName = networkState.networkName
   const monitor = useSessionMonitor({ api, session, enabled, intervalSeconds })
   const networks = useMemo(() => monitor.sample?.networks ?? [], [monitor.sample?.networks])
+  const diskDevices = useMemo(() => monitor.sample?.disk_io.devices ?? [], [monitor.sample?.disk_io.devices])
   const selectedNetwork = useMemo(() => selectNetwork(networks, networkName), [networkName, networks])
+  const selectedDiskDevice = useMemo(
+    () => selectDiskIODevice(diskDevices, diskIOState.deviceName),
+    [diskDevices, diskIOState.deviceName],
+  )
   const networkBaselineKey = selectedNetwork?.name ?? ''
   const networkTotals = useMemo(
     () => calculateNetworkTotals(selectedNetwork, networkState.baselines[networkBaselineKey]),
@@ -68,6 +101,13 @@ export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonit
     })
   }, [sessionId])
 
+  const setSessionDiskDeviceName = useCallback((name: string) => {
+    if (!sessionId) {
+      return
+    }
+    setDiskIOStates((current) => ({ ...current, [sessionId]: { deviceName: name } }))
+  }, [sessionId])
+
   useEffect(() => {
     if (!sessionId || networks.length === 0) {
       return
@@ -78,10 +118,30 @@ export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonit
   }, [networkName, networks, sessionId, setSessionNetworkName])
 
   useEffect(() => {
+    if (!sessionId || diskDevices.length === 0) {
+      return
+    }
+    if (!diskIOState.deviceName || !diskDevices.some((item) => item.name === diskIOState.deviceName)) {
+      const nextDevice = selectDiskIODevice(diskDevices)
+      if (nextDevice) {
+        setSessionDiskDeviceName(nextDevice.name)
+      }
+    }
+  }, [diskDevices, diskIOState.deviceName, sessionId, setSessionDiskDeviceName])
+
+  useEffect(() => {
     if (!sessionId || !session || (session.kind === 'ssh' && session.status === 'connected')) {
       return
     }
     setNetworkStates((current) => {
+      if (!current[sessionId]) {
+        return current
+      }
+      const next = { ...current }
+      delete next[sessionId]
+      return next
+    })
+    setDiskIOStates((current) => {
       if (!current[sessionId]) {
         return current
       }
@@ -190,6 +250,14 @@ export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonit
             theme={theme}
             downloadLabel={t('workbench.systemMonitor.download')}
             uploadLabel={t('workbench.systemMonitor.upload')}
+          />
+          <DiskIOPanel
+            snapshot={latest}
+            history={monitor.history}
+            selectedDevice={selectedDiskDevice}
+            deviceName={diskIOState.deviceName}
+            onDeviceChange={setSessionDiskDeviceName}
+            theme={theme}
           />
           <DiskPanel snapshot={latest} />
         </div>
@@ -318,8 +386,10 @@ function NetworkPanel({
         <Select
           size="small"
           className="monitor-network-select"
+          classNames={{ popup: { root: 'termous-select-dropdown monitor-device-select-dropdown' } }}
           value={selectedNetwork?.name ?? networkName}
-          options={snapshot.networks.map((item) => ({ label: item.name, value: item.name }))}
+          options={snapshot.networks.map((item) => ({ label: item.name, value: item.name, title: '' }))}
+          optionRender={(option) => <MonitorDeviceOption value={String(option.label ?? option.value ?? '')} />}
           onChange={onNetworkChange}
         />
       </div>
@@ -336,6 +406,119 @@ function NetworkPanel({
         </span>
       </div>
       <EChartView theme={theme} option={networkOption(history, selectedNetwork, theme, downloadLabel, uploadLabel)} />
+    </article>
+  )
+}
+
+function DiskIOPanel({
+  snapshot,
+  history,
+  selectedDevice,
+  deviceName,
+  onDeviceChange,
+  theme,
+}: {
+  snapshot: LinuxMonitorSnapshot
+  history: LinuxMonitorSnapshot[]
+  selectedDevice?: LinuxMonitorDiskIODevice
+  deviceName?: string
+  onDeviceChange: (name: string) => void
+  theme: ThemeMode
+}) {
+  const { t } = useTranslation()
+  const diskIO = snapshot.disk_io
+  const warming = diskIO.status === 'warming'
+  const unavailable = !warming && (diskIO.status === 'unsupported' || diskIO.devices.length === 0)
+  return (
+    <article className="monitor-metric-panel monitor-disk-io-panel">
+      <div className="monitor-card-head">
+        <span>
+          <Gauge size={17} />
+        </span>
+        <div>
+          <small>{t('workbench.systemMonitor.diskIO')}</small>
+          <strong>{selectedDevice?.name ?? t('fields.none')}</strong>
+        </div>
+        <Select
+          size="small"
+          className="monitor-disk-select"
+          classNames={{ popup: { root: 'termous-select-dropdown monitor-device-select-dropdown' } }}
+          aria-label={t('workbench.systemMonitor.diskDevice')}
+          value={selectedDevice?.name ?? deviceName}
+          options={diskIO.devices.map((item) => ({ label: item.name, value: item.name, title: '' }))}
+          optionRender={(option) => <MonitorDeviceOption value={String(option.label ?? option.value ?? '')} />}
+          disabled={diskIO.devices.length === 0}
+          onChange={onDeviceChange}
+        />
+      </div>
+      {unavailable || warming || !selectedDevice ? (
+        <div className={`monitor-disk-io-state is-${diskIO.status}`}>
+          <RotateCcw size={15} />
+          <span>
+            {t(
+              unavailable
+                ? 'workbench.systemMonitor.diskIOUnsupported'
+                : 'workbench.systemMonitor.diskIOWarming',
+            )}
+          </span>
+        </div>
+      ) : (
+        <>
+          <div className="monitor-disk-io-rates">
+            <span className="is-read">
+              <ArrowUpFromLine size={14} />
+              <small>{t('workbench.systemMonitor.diskRead')}</small>
+              <strong>{formatRate(selectedDevice.read_bytes_per_sec)}</strong>
+            </span>
+            <span className="is-write">
+              <ArrowDownToLine size={14} />
+              <small>{t('workbench.systemMonitor.diskWrite')}</small>
+              <strong>{formatRate(selectedDevice.write_bytes_per_sec)}</strong>
+            </span>
+          </div>
+          <EChartView
+            className="monitor-disk-io-chart"
+            theme={theme}
+            option={diskIOOption(
+              history,
+              selectedDevice.name,
+              theme,
+              t('workbench.systemMonitor.diskRead'),
+              t('workbench.systemMonitor.diskWrite'),
+            )}
+          />
+          <dl className="monitor-disk-io-facts">
+            <div>
+              <dt>{t('workbench.systemMonitor.diskIOPS')}</dt>
+              <dd>
+                {t('workbench.systemMonitor.diskIOPSValue', {
+                  read: formatMetric(selectedDevice.read_iops),
+                  write: formatMetric(selectedDevice.write_iops),
+                })}
+              </dd>
+            </div>
+            <div>
+              <dt>{t('workbench.systemMonitor.diskLatency')}</dt>
+              <dd>
+                {t('workbench.systemMonitor.diskLatencyValue', {
+                  read: formatMetric(selectedDevice.read_latency_ms),
+                  write: formatMetric(selectedDevice.write_latency_ms),
+                })}
+              </dd>
+            </div>
+            <div>
+              <Tooltip title={t('workbench.systemMonitor.diskBusyHint')}>
+                <dt>{t('workbench.systemMonitor.diskBusy')}</dt>
+              </Tooltip>
+              <dd>{formatPercent(selectedDevice.busy_percent)}%</dd>
+            </div>
+            <div>
+              <dt>{t('workbench.systemMonitor.diskInFlight')}</dt>
+              <dd>{selectedDevice.in_flight}</dd>
+            </div>
+          </dl>
+        </>
+      )}
     </article>
   )
 }
@@ -363,25 +546,41 @@ function DiskPanel({ snapshot }: { snapshot: LinuxMonitorSnapshot }) {
             const percent = clampPercent(disk.used_percent)
             return (
               <div className={`monitor-disk-row is-${disk.severity}`} key={`${disk.filesystem}-${disk.mountpoint}`} role="listitem">
-                <div className="monitor-disk-row-top">
+                <div className="monitor-disk-row-summary">
                   <div className="monitor-disk-title">
                     <Tooltip title={disk.mountpoint} placement="topLeft">
                       <strong>{disk.mountpoint}</strong>
                     </Tooltip>
-                    <Tooltip title={`${disk.filesystem} · ${disk.type}`} placement="topLeft">
-                      <span>{disk.filesystem} · {disk.type}</span>
-                    </Tooltip>
+                    <div className="monitor-disk-source">
+                      <Tooltip title={disk.filesystem} placement="topLeft">
+                        <span>{disk.filesystem}</span>
+                      </Tooltip>
+                      <i aria-hidden="true" />
+                      <span>{disk.type}</span>
+                    </div>
                   </div>
-                  <em>{formatPercent(percent)}%</em>
+                  <div className="monitor-disk-usage">
+                    <strong>{formatPercent(percent)}%</strong>
+                    <small>{t('workbench.systemMonitor.diskUsed')}</small>
+                  </div>
                 </div>
                 <div className="monitor-disk-meter" aria-hidden="true">
                   <i style={{ width: `${percent}%` }} />
                 </div>
-                <div className="monitor-disk-row-meta">
-                  <span>{t('workbench.systemMonitor.diskTotal')} {formatBytes(disk.total_bytes)}</span>
-                  <span>{t('workbench.systemMonitor.diskUsed')} {formatBytes(disk.used_bytes)}</span>
-                  <span>{t('workbench.systemMonitor.diskAvailable')} {formatBytes(disk.available_bytes)}</span>
-                </div>
+                <dl className="monitor-disk-row-meta">
+                  <div>
+                    <dt>{t('workbench.systemMonitor.diskTotal')}</dt>
+                    <dd>{formatBytes(disk.total_bytes)}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('workbench.systemMonitor.diskUsed')}</dt>
+                    <dd>{formatBytes(disk.used_bytes)}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('workbench.systemMonitor.diskAvailable')}</dt>
+                    <dd>{formatBytes(disk.available_bytes)}</dd>
+                  </div>
+                </dl>
               </div>
             )
           })}
@@ -471,6 +670,57 @@ function networkOption(
   }
 }
 
+function diskIOOption(
+  history: LinuxMonitorSnapshot[],
+  deviceName: string,
+  theme: ThemeMode,
+  readLabel: string,
+  writeLabel: string,
+): EChartsCoreOption {
+  const textColor = theme === 'dark' ? '#b8c1d6' : '#4b5565'
+  const points = history.map(
+    (snapshot) => snapshot.disk_io.devices.find((item) => item.name === deviceName) ?? null,
+  )
+  return {
+    backgroundColor: 'transparent',
+    grid: { left: 0, right: 0, top: 12, bottom: 0, containLabel: false },
+    xAxis: { type: 'category', show: false, data: history.map((snapshot) => formatTime(snapshot.collected_at)) },
+    yAxis: { type: 'value', min: 0, show: false },
+    tooltip: {
+      trigger: 'axis',
+      renderMode: 'html',
+      appendToBody: true,
+      confine: false,
+      className: 'monitor-chart-tooltip',
+      extraCssText: 'z-index:3600;border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.24);',
+      backgroundColor: theme === 'dark' ? '#20242f' : '#ffffff',
+      borderWidth: 0,
+      textStyle: { color: textColor },
+      valueFormatter: (value: unknown) => formatRate(Number(value)),
+    },
+    series: [
+      {
+        name: readLabel,
+        type: 'line',
+        data: points.map((item) => item?.read_bytes_per_sec ?? null),
+        showSymbol: false,
+        connectNulls: false,
+        smooth: 0.28,
+        lineStyle: { color: '#70a7ff', width: 2 },
+      },
+      {
+        name: writeLabel,
+        type: 'line',
+        data: points.map((item) => item?.write_bytes_per_sec ?? null),
+        showSymbol: false,
+        connectNulls: false,
+        smooth: 0.28,
+        lineStyle: { color: '#48d597', width: 2 },
+      },
+    ],
+  }
+}
+
 function selectNetwork(networks: LinuxMonitorNetwork[], preferred?: string) {
   if (preferred) {
     const found = networks.find((item) => item.name === preferred)
@@ -479,6 +729,26 @@ function selectNetwork(networks: LinuxMonitorNetwork[], preferred?: string) {
     }
   }
   return networks.find((item) => !item.is_loopback) ?? networks[0]
+}
+
+function selectDiskIODevice(devices: LinuxMonitorDiskIODevice[], preferred?: string) {
+  if (preferred) {
+    const found = devices.find((item) => item.name === preferred)
+    if (found) {
+      return found
+    }
+  }
+  return devices.reduce<LinuxMonitorDiskIODevice | undefined>((selected, item) => {
+    if (!selected) {
+      return item
+    }
+    const selectedActivity = selected.read_bytes_per_sec + selected.write_bytes_per_sec
+    const itemActivity = item.read_bytes_per_sec + item.write_bytes_per_sec
+    if (itemActivity === selectedActivity) {
+      return item.name.localeCompare(selected.name) < 0 ? item : selected
+    }
+    return itemActivity > selectedActivity ? item : selected
+  }, undefined)
 }
 
 function calculateNetworkTotals(selectedNetwork: LinuxMonitorNetwork | undefined, baseline: NetworkCounter | undefined): NetworkCounter {
@@ -529,6 +799,13 @@ function formatBytes(value: number) {
 
 function formatRate(value: number) {
   return `${formatBytes(value)}/s`
+}
+
+function formatMetric(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return '0'
+  }
+  return value >= 100 ? value.toFixed(0) : value.toFixed(1)
 }
 
 function formatPercent(value: number) {

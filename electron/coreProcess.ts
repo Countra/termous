@@ -39,6 +39,7 @@ const coreStartupFailureMessage = '核心服务启动异常，请退出后重新
 
 export class CoreProcessManager {
   private child: ChildProcessWithoutNullStreams | null = null
+  private initializePromise: Promise<CoreRuntimeConfig> | null = null
   private config: CoreRuntimeConfig = {
     apiBaseUrl: process.env.TERMOUS_API_BASE_URL ?? `http://127.0.0.1:${externalCoreDefaultPort}`,
     apiToken: process.env.TERMOUS_API_TOKEN ?? (process.env.NODE_ENV === 'development' ? 'dev-token' : ''),
@@ -50,7 +51,21 @@ export class CoreProcessManager {
   private lastHeartbeatAt = Date.now()
   private shuttingDown = false
 
-  async initialize() {
+  initialize() {
+    if (!this.initializePromise) {
+      this.initializePromise = this.initializeOnce().catch((error) => {
+        this.raiseFatal({
+          title: '后端连接异常',
+          message: this.describeStartupError(error),
+          code: 'CORE_START_FAILED',
+        })
+        return this.config
+      })
+    }
+    return this.initializePromise
+  }
+
+  private async initializeOnce() {
     if (this.shouldUseExternalCore()) {
       this.config = {
         apiBaseUrl: process.env.TERMOUS_API_BASE_URL ?? `http://127.0.0.1:${externalCoreDefaultPort}`,
@@ -70,16 +85,26 @@ export class CoreProcessManager {
     let lastError: unknown = null
     const portStart = this.resolveManagedCorePortStart()
     for (let offset = 0; offset <= maxPortSwitches; offset += 1) {
+      if (this.shuttingDown) {
+        return this.config
+      }
       const port = portStart + offset
       const apiBaseUrl = `http://127.0.0.1:${port}`
       try {
         await this.startManagedCore(binaryPath, apiBaseUrl, token)
+        if (this.shuttingDown) {
+          await this.stopChildOnly()
+          return this.config
+        }
         this.config = { apiBaseUrl, apiToken: token, version: process.env.VITE_TERMOUS_APP_VERSION ?? app.getVersion(), managed: true }
         this.startHeartbeat()
         return this.config
       } catch (error) {
         lastError = error
         await this.stopChildOnly()
+        if (this.shuttingDown) {
+          return this.config
+        }
       }
     }
     this.raiseFatal({
@@ -109,8 +134,14 @@ export class CoreProcessManager {
   async shutdownGracefully() {
     this.shuttingDown = true
     this.stopHeartbeat()
-    if (!this.config.managed || !this.child) {
+    if (!this.child) {
       return true
+    }
+    if (!this.config.managed) {
+      if (this.child.exitCode === null) {
+        this.child.kill()
+      }
+      return this.waitForExit(2_000)
     }
     try {
       await this.fetchWithTimeout('/api/v1/runtime/shutdown', {
@@ -140,9 +171,13 @@ export class CoreProcessManager {
       return process.env.TERMOUS_CORE_PATH
     }
     const binary = process.platform === 'win32' ? 'termous-core.exe' : 'termous-core'
-    return app.isPackaged
-      ? path.join(path.dirname(process.execPath), binary)
-      : path.join(process.env.APP_ROOT, 'build', 'core', binary)
+    if (!app.isPackaged) {
+      return path.join(process.env.APP_ROOT, 'build', 'core', binary)
+    }
+    const executableDir = path.dirname(process.execPath)
+    return process.platform === 'darwin'
+      ? path.resolve(executableDir, '..', binary)
+      : path.join(executableDir, binary)
   }
 
   private validateCoreBinary(binaryPath: string): CoreFatalEvent | null {
@@ -171,6 +206,9 @@ export class CoreProcessManager {
     const portNumber = Number(port)
     if (!await isPortAvailable(host, portNumber)) {
       throw new Error('端口被占用')
+    }
+    if (this.shuttingDown) {
+      throw new Error('核心服务启动已取消')
     }
     let ready = false
     this.child = spawn(binaryPath, ['--addr', `${host}:${port}`], {
@@ -214,6 +252,9 @@ export class CoreProcessManager {
   private async waitUntilReady(apiBaseUrl: string, token: string, expectedPID: number) {
     const startedAt = Date.now()
     while (Date.now() - startedAt < readyTimeoutMs) {
+      if (this.shuttingDown) {
+        throw new Error('核心服务启动已取消')
+      }
       if (this.child && this.child.exitCode !== null) {
         throw new Error('Termous Core 启动后立即退出')
       }
@@ -310,14 +351,18 @@ export class CoreProcessManager {
   }
 
   private async stopChildOnly() {
+    const wasShuttingDown = this.shuttingDown
     this.shuttingDown = true
-    this.stopHeartbeat()
-    if (this.child && this.child.exitCode === null) {
-      this.child.kill()
-      await this.waitForExit(2000)
+    try {
+      this.stopHeartbeat()
+      if (this.child && this.child.exitCode === null) {
+        this.child.kill()
+        await this.waitForExit(2000)
+      }
+      this.child = null
+    } finally {
+      this.shuttingDown = wasShuttingDown
     }
-    this.child = null
-    this.shuttingDown = false
   }
 
   private raiseFatal(event: CoreFatalEvent) {

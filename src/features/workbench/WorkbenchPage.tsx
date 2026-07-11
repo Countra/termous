@@ -1,4 +1,6 @@
 import {
+  Activity,
+  Boxes,
   Cable,
   ChevronDown,
   ChevronLeft,
@@ -10,6 +12,7 @@ import {
   HardDrive,
   Layers,
   Monitor,
+  Network as NetworkIcon,
   FolderOpen,
   Palette,
   Pencil,
@@ -26,6 +29,7 @@ import {
   SquareTerminal,
   Star,
   TriangleAlert,
+  Wrench,
 } from 'lucide-react'
 import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tooltip, type MenuProps } from 'antd'
 import {
@@ -59,6 +63,9 @@ import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } fro
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
 import { FirewallPanel } from './FirewallPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
+import { DockerPanel } from './DockerPanel'
+import { ProcessPanel } from './ProcessPanel'
+import { ServicePanel } from './ServicePanel'
 import { SystemMonitorPanel } from './SystemMonitorPanel'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import {
@@ -72,7 +79,7 @@ import {
   type SessionTabPreferenceMap,
 } from './sessionTabPreferences'
 
-type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'firewall' | 'forwards' | 'snippets'
+type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'processes' | 'services' | 'docker' | 'firewall' | 'forwards' | 'snippets'
 
 const workbenchDetailsPanelWidth = {
   default: 300,
@@ -1297,6 +1304,24 @@ export function WorkbenchPage({
             ),
           },
           {
+            key: 'processes',
+            label: t('workbench.detailsTabs.processes'),
+            icon: <Activity size={17} aria-hidden="true" />,
+            children: <ProcessPanel api={api} session={activeSession} enabled={detailsActiveTab === 'processes' && !detailsCollapsed} />,
+          },
+          {
+            key: 'services',
+            label: t('workbench.detailsTabs.services'),
+            icon: <Wrench size={17} aria-hidden="true" />,
+            children: <ServicePanel api={api} session={activeSession} enabled={detailsActiveTab === 'services' && !detailsCollapsed} />,
+          },
+          {
+            key: 'docker',
+            label: t('workbench.detailsTabs.docker'),
+            icon: <Boxes size={17} aria-hidden="true" />,
+            children: <DockerPanel api={api} session={activeSession} enabled={detailsActiveTab === 'docker' && !detailsCollapsed} />,
+          },
+          {
             key: 'firewall',
             label: t('workbench.detailsTabs.firewall'),
             icon: <Shield size={17} aria-hidden="true" />,
@@ -1657,13 +1682,75 @@ function buildSystemInfoTree(info: NonNullable<Session['linux_system_info']>, t:
       ],
     },
     { key: 'memory', icon: <HardDrive size={15} />, label: t('workbench.systemInfo.memory'), value: formatMemory(info.memory_total_bytes, t) },
+    buildSystemNetworkNode(info, t),
     { key: 'architecture', icon: <Cable size={15} />, label: t('workbench.systemInfo.architecture'), value: valueOrNone(info.architecture, t) },
     { key: 'uptime', icon: <Clock3 size={15} />, label: t('workbench.systemInfo.uptime'), value: formatUptime(info.uptime_seconds, t) },
   ]
 }
 
+function buildSystemNetworkNode(info: NonNullable<Session['linux_system_info']>, t: WorkbenchTranslate): SystemInfoTreeNode {
+  const network = info.network
+  const interfaces = (Array.isArray(network?.interfaces) ? network.interfaces : []).filter(Boolean)
+  const addressCount = interfaces.reduce(
+    (total, networkInterface) => total + (Array.isArray(networkInterface?.addresses) ? networkInterface.addresses.length : 0),
+    0,
+  )
+  let value = t('workbench.systemInfo.networkUnavailable')
+  if (network?.status === 'failed') {
+    value = t('workbench.systemInfo.networkFailed')
+  } else if (network?.status === 'partial') {
+    value = t('workbench.systemInfo.networkSummaryPartial', { interfaces: interfaces.length, addresses: addressCount })
+  } else if (network?.status === 'ready') {
+    value = interfaces.length
+      ? t('workbench.systemInfo.networkSummary', { interfaces: interfaces.length, addresses: addressCount })
+      : t('workbench.systemInfo.networkNoInterfaces')
+  }
+  return {
+    key: 'network',
+    icon: <NetworkIcon size={15} />,
+    label: t('workbench.systemInfo.network'),
+    value,
+    children: interfaces.map((networkInterface, interfacePosition) => {
+      const addresses = (Array.isArray(networkInterface?.addresses) ? networkInterface.addresses : []).filter(Boolean)
+      const rawInterfaceName = networkInterface?.name?.trim() || ''
+      const interfaceName = rawInterfaceName || t('workbench.systemInfo.unnamedInterface', { index: interfacePosition + 1 })
+      const interfaceKey = `${networkInterface?.index ?? 0}-${rawInterfaceName || 'unnamed'}-${interfacePosition}`
+      return {
+        key: `network-interface-${interfaceKey}`,
+        label: interfaceName,
+        value: addresses.length
+          ? t('workbench.systemInfo.interfaceAddressCount', { count: addresses.length })
+          : t('workbench.systemInfo.noAssignedAddress'),
+        children: addresses.map((address, addressPosition) => ({
+          key: `network-address-${interfaceKey}-${address.family}-${address.address}-${address.prefix_length}-${addressPosition}`,
+          label: address.family === 'ipv6' ? t('workbench.systemInfo.ipv6') : t('workbench.systemInfo.ipv4'),
+          value: formatNetworkAddress(address.address, address.prefix_length, t),
+        })),
+      }
+    }),
+  }
+}
+
+function formatNetworkAddress(address: string, prefixLength: number, t: WorkbenchTranslate): string {
+  const normalizedAddress = address?.trim()
+  if (!normalizedAddress) {
+    return t('fields.none')
+  }
+  return Number.isInteger(prefixLength) && prefixLength >= 0 ? `${normalizedAddress}/${prefixLength}` : normalizedAddress
+}
+
 function parseDetailsTabKey(value: unknown): DetailsTabKey {
-  return value === 'system' || value === 'monitor' || value === 'firewall' || value === 'forwards' || value === 'snippets' || value === 'overview' ? value : 'overview'
+  return value === 'system' ||
+    value === 'monitor' ||
+    value === 'processes' ||
+    value === 'services' ||
+    value === 'docker' ||
+    value === 'firewall' ||
+    value === 'forwards' ||
+    value === 'snippets' ||
+    value === 'overview'
+    ? value
+    : 'overview'
 }
 
 function valueOrNone(value: string | undefined, t: WorkbenchTranslate) {

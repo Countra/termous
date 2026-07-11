@@ -133,12 +133,13 @@ export function useSessionMonitor({ api, session, enabled, intervalSeconds }: Us
         return
       }
       if (msg.type === 'sample' && msg.sample) {
+        const sample = normalizeMonitorSnapshot(msg.sample)
         updateSessionState(sessionId, (current) => ({
           ...current,
-          sample: msg.sample as LinuxMonitorSnapshot,
-          status: msg.sample?.status ?? current.status,
+          sample,
+          status: sample.status ?? current.status,
           message: '',
-          history: [...current.history, msg.sample as LinuxMonitorSnapshot].slice(-120),
+          history: [...current.history, sample].slice(-120),
         }))
         return
       }
@@ -205,6 +206,19 @@ export function useSessionMonitor({ api, session, enabled, intervalSeconds }: Us
   }, [sessionId, updateSessionState])
 
   return { ...currentState, pause, resume }
+}
+
+function normalizeMonitorSnapshot(sample: LinuxMonitorSnapshot): LinuxMonitorSnapshot {
+  const diskIO = sample.disk_io
+  return {
+    ...sample,
+    networks: Array.isArray(sample.networks) ? sample.networks : [],
+    disks: Array.isArray(sample.disks) ? sample.disks : [],
+    disk_io: {
+      status: diskIO?.status ?? 'unsupported',
+      devices: Array.isArray(diskIO?.devices) ? diskIO.devices : [],
+    },
+  }
 }
 
 function parseMonitorMessage(data: unknown): MonitorMessage | null {

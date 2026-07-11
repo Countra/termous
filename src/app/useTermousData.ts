@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createApiFromRuntime, TermousApi, TermousApiError } from '../api/client'
 import type {
   AppData,
+  AppearanceSettings,
   CodeSnippet,
   CodeSnippetInput,
   CredentialInput,
@@ -33,10 +34,15 @@ import type {
   WindowSettings,
 } from '../types/domain'
 import { changeLanguage } from '../i18n'
-import { defaultTerminalSettings, defaultWindowSettings, normalizeSettings } from '../features/settings/terminalSettings'
+import { defaultAppearanceSettings, defaultTerminalSettings, defaultWindowSettings, normalizeSettings } from '../features/settings/terminalSettings'
 import { hostToInput } from '../features/hosts/hostInput'
 
-const initialSettings: Settings = { language: 'zh-CN', terminal: defaultTerminalSettings, window: defaultWindowSettings }
+const initialSettings: Settings = {
+  language: 'zh-CN',
+  appearance: defaultAppearanceSettings,
+  terminal: defaultTerminalSettings,
+  window: defaultWindowSettings,
+}
 type LoadMode = 'initial' | 'background' | 'silent'
 
 const initialData: AppData = {
@@ -193,6 +199,17 @@ export function useTermousData() {
         const settings = normalizeSettings(await api.updateLanguage(language))
         setData((current) => ({ ...current, settings }))
         await changeLanguage(settings.language)
+      },
+      async setAppearanceSettings(appearance: AppearanceSettings) {
+        const previousSettings = data.settings
+        setData((current) => ({ ...current, settings: { ...current.settings, appearance } }))
+        try {
+          const settings = normalizeSettings(await api.updateAppearanceSettings(appearance))
+          setData((current) => ({ ...current, settings }))
+        } catch (updateError) {
+          setData((current) => ({ ...current, settings: previousSettings }))
+          throw updateError
+        }
       },
       async setTerminalSettings(terminal: TerminalSettings) {
         const previousSettings = data.settings

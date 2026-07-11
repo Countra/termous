@@ -106,6 +106,12 @@ contextBridge.exposeInMainWorld('termous', {
       return () => ipcRenderer.removeListener('core:fatal', listener)
     },
   },
+  startup: {
+    ready: () => ipcRenderer.invoke('startup:ready') as Promise<boolean>,
+  },
+  appearance: {
+    setTheme: (theme: 'dark' | 'light') => ipcRenderer.invoke('appearance:set-theme', theme) as Promise<boolean>,
+  },
   clipboard: {
     readText: () => Promise.resolve(clipboard.readText()),
     writeText: (text: string) => {

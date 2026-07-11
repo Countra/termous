@@ -1,11 +1,21 @@
 import type {
   ApiErrorBody,
+  AppearanceSettings,
   AppConfig,
   CodeSnippet,
   CodeSnippetInput,
   CoreRuntimeInfo,
   CredentialInput,
   CredentialView,
+  DockerActionRequest,
+  DockerActionResult,
+  DockerCapability,
+  DockerContainerDetail,
+  DockerContainerQuery,
+  DockerContainerSummary,
+  DockerContainerStats,
+  DockerListResult,
+  DockerLogsResult,
   FileBookmark,
   FileBookmarkGroup,
   FileBookmarkGroupInput,
@@ -47,11 +57,25 @@ import type {
   OverwritePolicy,
   RemoteDirectoryListing,
   RemoteFileEntry,
+  RemoteProcessDetail,
+  RemoteProcessListResult,
+  RemoteProcessQuery,
+  RemoteProcessTerminateResult,
+  RemoteProcessTerminateSignal,
   RemoteTextFile,
   RemoteTextSaveRequest,
   RemoteTextSaveResult,
   Session,
   Settings,
+  SystemServiceAction,
+  SystemServiceCapability,
+  SystemServiceDetail,
+  SystemServiceListResult,
+  SystemServiceLogQuery,
+  SystemServiceLogsResult,
+  SystemServiceOperation,
+  SystemServiceQuery,
+  SystemServiceSummary,
   TerminalFont,
   TerminalSettings,
   TransferTask,
@@ -158,6 +182,13 @@ export class TermousApi {
     return this.request<Settings>('/api/v1/settings/language', {
       method: 'PATCH',
       body: { language },
+    })
+  }
+
+  updateAppearanceSettings(appearance: AppearanceSettings) {
+    return this.request<Settings>('/api/v1/settings/appearance', {
+      method: 'PATCH',
+      body: appearance,
     })
   }
 
@@ -486,6 +517,225 @@ export class TermousApi {
 
   sessionMonitorUrl(id: string) {
     return this.websocketUrl(`/api/v1/sessions/${encodeURIComponent(id)}/monitor`)
+  }
+
+  sessionProcesses(id: string, query: RemoteProcessQuery = {}, options: Pick<RequestOptions, 'signal'> = {}) {
+    const params = new URLSearchParams()
+    if (query.query?.trim()) {
+      params.set('query', query.query.trim())
+    }
+    if (query.pid) {
+      params.set('pid', String(query.pid))
+    }
+    if (query.port) {
+      params.set('port', String(query.port))
+    }
+    if (query.sort) {
+      params.set('sort', query.sort)
+    }
+    if (query.limit) {
+      params.set('limit', String(query.limit))
+    }
+    const search = params.size > 0 ? `?${params.toString()}` : ''
+    return this.request<RemoteProcessListResult>(`/api/v1/sessions/${encodeURIComponent(id)}/processes${search}`, {
+      signal: options.signal,
+      timeoutMs: 20_000,
+    }).then(normalizeRemoteProcessListResult)
+  }
+
+  sessionProcessDetail(id: string, pid: number, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<RemoteProcessDetail>(`/api/v1/sessions/${encodeURIComponent(id)}/processes/${encodeURIComponent(pid)}`, {
+      signal: options.signal,
+      timeoutMs: 20_000,
+    }).then(normalizeRemoteProcessDetail)
+  }
+
+  terminateSessionProcess(
+    id: string,
+    pid: number,
+    signal: RemoteProcessTerminateSignal = 'term',
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    return this.request<RemoteProcessTerminateResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/processes/${encodeURIComponent(pid)}/terminate`,
+      {
+        method: 'POST',
+        body: { signal },
+        signal: options.signal,
+        timeoutMs: 20_000,
+      },
+    )
+  }
+
+  sessionServiceCapability(id: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<SystemServiceCapability>(`/api/v1/sessions/${encodeURIComponent(id)}/services/capability`, {
+      signal: options.signal,
+      timeoutMs: 12_000,
+    }).then(normalizeSystemServiceCapability)
+  }
+
+  sessionServices(id: string, query: SystemServiceQuery = {}, options: Pick<RequestOptions, 'signal'> = {}) {
+    const params = new URLSearchParams()
+    if (query.query?.trim()) {
+      params.set('query', query.query.trim())
+    }
+    if (query.runtime_state) {
+      params.set('runtime_state', query.runtime_state)
+    }
+    if (query.unit_file_state?.trim()) {
+      params.set('unit_file_state', query.unit_file_state.trim())
+    }
+    if (query.sort) {
+      params.set('sort', query.sort)
+    }
+    if (query.order) {
+      params.set('order', query.order)
+    }
+    if (query.limit) {
+      params.set('limit', String(query.limit))
+    }
+    const search = params.size > 0 ? `?${params.toString()}` : ''
+    return this.request<SystemServiceListResult>(`/api/v1/sessions/${encodeURIComponent(id)}/services${search}`, {
+      signal: options.signal,
+      timeoutMs: 20_000,
+    }).then(normalizeSystemServiceListResult)
+  }
+
+  sessionServiceDetail(id: string, unitId: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<SystemServiceDetail>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/services/${encodeURIComponent(unitId)}`,
+      { signal: options.signal, timeoutMs: 12_000 },
+    ).then(normalizeSystemServiceDetail)
+  }
+
+  sessionServiceLogs(
+    id: string,
+    unitId: string,
+    query: SystemServiceLogQuery = {},
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    const params = new URLSearchParams()
+    if (query.limit) {
+      params.set('limit', String(query.limit))
+    }
+    if (query.priority?.trim()) {
+      params.set('priority', query.priority.trim())
+    }
+    if (query.boot) {
+      params.set('boot', query.boot)
+    }
+    if (query.after_cursor?.trim()) {
+      params.set('after_cursor', query.after_cursor.trim())
+    }
+    const search = params.size > 0 ? `?${params.toString()}` : ''
+    return this.request<SystemServiceLogsResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/services/${encodeURIComponent(unitId)}/logs${search}`,
+      { signal: options.signal, timeoutMs: 15_000 },
+    ).then(normalizeSystemServiceLogsResult)
+  }
+
+  runSessionServiceAction(
+    id: string,
+    unitId: string,
+    action: SystemServiceAction,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    return this.request<SystemServiceOperation>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/services/${encodeURIComponent(unitId)}/actions`,
+      { method: 'POST', body: { action }, signal: options.signal, timeoutMs: 15_000 },
+    ).then(normalizeSystemServiceOperation)
+  }
+
+  sessionServiceOperation(id: string, operationId: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<SystemServiceOperation>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/service-operations/${encodeURIComponent(operationId)}`,
+      { signal: options.signal, timeoutMs: 12_000 },
+    ).then(normalizeSystemServiceOperation)
+  }
+
+  sessionDockerCapability(id: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<DockerCapability>(`/api/v1/sessions/${encodeURIComponent(id)}/docker/capability`, {
+      signal: options.signal,
+      timeoutMs: 12_000,
+    }).then(normalizeDockerCapability)
+  }
+
+  sessionDockerContainers(id: string, query: DockerContainerQuery = {}, options: Pick<RequestOptions, 'signal'> = {}) {
+    const params = new URLSearchParams()
+    if (query.query?.trim()) {
+      params.set('query', query.query.trim())
+    }
+    if (query.state?.trim()) {
+      params.set('state', query.state.trim())
+    }
+    if (query.health?.trim()) {
+      params.set('health', query.health.trim())
+    }
+    if (query.port) {
+      params.set('port', String(query.port))
+    }
+    if (query.limit) {
+      params.set('limit', String(query.limit))
+    }
+    const search = params.size > 0 ? `?${params.toString()}` : ''
+    return this.request<DockerListResult>(`/api/v1/sessions/${encodeURIComponent(id)}/docker/containers${search}`, {
+      signal: options.signal,
+      timeoutMs: 20_000,
+    }).then(normalizeDockerListResult)
+  }
+
+  sessionDockerContainerDetail(id: string, ref: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<DockerContainerDetail>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/docker/containers/${encodeURIComponent(ref)}`,
+      {
+        signal: options.signal,
+        timeoutMs: 25_000,
+      },
+    ).then(normalizeDockerContainerDetail)
+  }
+
+  sessionDockerContainerStats(id: string, ref: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<DockerContainerStats>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/docker/containers/${encodeURIComponent(ref)}/stats`,
+      {
+        signal: options.signal,
+        timeoutMs: 20_000,
+      },
+    )
+  }
+
+  sessionDockerContainerLogs(
+    id: string,
+    ref: string,
+    tail = 200,
+    timestamps = true,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    const params = new URLSearchParams({ tail: String(tail), timestamps: String(timestamps) })
+    return this.request<DockerLogsResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/docker/containers/${encodeURIComponent(ref)}/logs?${params.toString()}`,
+      {
+        signal: options.signal,
+        timeoutMs: 25_000,
+      },
+    ).then(normalizeDockerLogsResult)
+  }
+
+  sessionDockerContainerAction(
+    id: string,
+    ref: string,
+    input: DockerActionRequest,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    return this.request<DockerActionResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/docker/containers/${encodeURIComponent(ref)}/actions`,
+      {
+        method: 'POST',
+        body: input,
+        signal: options.signal,
+        timeoutMs: 35_000,
+      },
+    )
   }
 
   sessionFirewallProviders(id: string, options: Pick<RequestOptions, 'signal'> = {}) {
@@ -984,6 +1234,121 @@ function normalizeFirewallApplyResult(result: FirewallApplyResult): FirewallAppl
   return {
     ...result,
     snapshot: normalizeFirewallSnapshot(result.snapshot),
+  }
+}
+
+function normalizeDockerCapability(capability: DockerCapability): DockerCapability {
+  return {
+    ...capability,
+    warnings: normalizeArray(capability.warnings),
+  }
+}
+
+function normalizeSystemServiceCapability(capability: SystemServiceCapability): SystemServiceCapability {
+  return {
+    ...capability,
+    warnings: normalizeArray(capability.warnings),
+  }
+}
+
+function normalizeSystemServiceSummary(summary: SystemServiceSummary): SystemServiceSummary {
+  return {
+    ...summary,
+    names: normalizeArray(summary.names),
+  }
+}
+
+function normalizeSystemServiceListResult(result: SystemServiceListResult): SystemServiceListResult {
+  return {
+    ...result,
+    items: normalizeArray(result.items).map(normalizeSystemServiceSummary),
+    warnings: normalizeArray(result.warnings),
+  }
+}
+
+function normalizeSystemServiceDetail(detail: SystemServiceDetail): SystemServiceDetail {
+  return {
+    ...detail,
+    summary: normalizeSystemServiceSummary(detail.summary),
+    drop_in_paths: normalizeArray(detail.drop_in_paths),
+    warnings: normalizeArray(detail.warnings),
+  }
+}
+
+function normalizeSystemServiceLogsResult(result: SystemServiceLogsResult): SystemServiceLogsResult {
+  return {
+    ...result,
+    entries: normalizeArray(result.entries),
+    warnings: normalizeArray(result.warnings),
+  }
+}
+
+function normalizeSystemServiceOperation(operation: SystemServiceOperation): SystemServiceOperation {
+  return {
+    ...operation,
+    state: operation.state ? normalizeSystemServiceSummary(operation.state) : undefined,
+  }
+}
+
+function normalizeDockerContainerSummary(summary: DockerContainerSummary): DockerContainerSummary {
+  return {
+    ...summary,
+    ports: normalizeArray(summary.ports),
+    warnings: normalizeArray(summary.warnings),
+  }
+}
+
+function normalizeDockerListResult(result: DockerListResult): DockerListResult {
+  return {
+    ...result,
+    items: normalizeArray(result.items).map(normalizeDockerContainerSummary),
+    warnings: normalizeArray(result.warnings),
+  }
+}
+
+function normalizeDockerContainerDetail(detail: DockerContainerDetail): DockerContainerDetail {
+  return {
+    ...detail,
+    summary: normalizeDockerContainerSummary(detail.summary),
+    mounts: normalizeArray(detail.mounts),
+    networks: normalizeArray(detail.networks),
+    env: normalizeArray(detail.env),
+    args: normalizeArray(detail.args),
+    logs_preview: normalizeArray(detail.logs_preview),
+    warnings: normalizeArray(detail.warnings),
+  }
+}
+
+function normalizeDockerLogsResult(result: DockerLogsResult): DockerLogsResult {
+  return {
+    ...result,
+    lines: normalizeArray(result.lines),
+  }
+}
+
+function normalizeRemoteProcessListResult(result: RemoteProcessListResult): RemoteProcessListResult {
+  return {
+    ...result,
+    items: normalizeArray(result.items).map((item) => ({
+      ...item,
+      listening_ports: normalizeArray(item.listening_ports),
+      warnings: normalizeArray(item.warnings),
+    })),
+    ports: normalizeArray(result.ports),
+    warnings: normalizeArray(result.warnings),
+  }
+}
+
+function normalizeRemoteProcessDetail(detail: RemoteProcessDetail): RemoteProcessDetail {
+  return {
+    ...detail,
+    summary: {
+      ...detail.summary,
+      listening_ports: normalizeArray(detail.summary.listening_ports),
+      warnings: normalizeArray(detail.summary.warnings),
+    },
+    ports: normalizeArray(detail.ports),
+    warnings: normalizeArray(detail.warnings),
   }
 }
 

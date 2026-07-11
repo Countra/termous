@@ -6,24 +6,21 @@ import {
   FolderTree,
   Monitor,
   MonitorCog,
-  Moon,
   PanelLeftClose,
   PanelLeftOpen,
   Route,
   Server,
   Settings,
   Shell,
-  Sun,
   TerminalSquare,
 } from 'lucide-react'
 import { Button, Dropdown, Space, Tooltip, type MenuProps } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { LocalShell, PageKey, ThemeMode, WindowCloseBehavior } from '../../types/domain'
+import type { LocalShell, PageKey, WindowCloseBehavior } from '../../types/domain'
 import { WindowControls } from './WindowControls'
 
 interface AppShellProps {
   page: PageKey
-  theme: ThemeMode
   appVersion: string
   windowCloseBehavior: WindowCloseBehavior
   hasActiveRuntime: boolean
@@ -32,7 +29,6 @@ interface AppShellProps {
   onNavigate: (page: PageKey) => void
   onOpenConnectionLauncher: () => void
   onOpenLocalTerminal: (shell: LocalShell) => void
-  onToggleTheme: () => void
   onToggleSidebar: () => void
   onBeforeClose?: () => Promise<void>
   onCloseError?: (error: unknown) => void
@@ -54,7 +50,6 @@ const topbarPageIcons: Partial<Record<PageKey, typeof TerminalSquare>> = {
 
 export function AppShell({
   page,
-  theme,
   appVersion,
   windowCloseBehavior,
   hasActiveRuntime,
@@ -63,7 +58,6 @@ export function AppShell({
   onNavigate,
   onOpenConnectionLauncher,
   onOpenLocalTerminal,
-  onToggleTheme,
   onToggleSidebar,
   onBeforeClose,
   onCloseError,
@@ -182,15 +176,6 @@ export function AppShell({
               </Space.Compact>
             </div>
             <span className="topbar-action-divider" aria-hidden="true" />
-            <Tooltip title={t('app.theme')}>
-              <Button
-                type="text"
-                className="icon-button"
-                onClick={onToggleTheme}
-                aria-label={t('app.theme')}
-                icon={theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
-              />
-            </Tooltip>
             {showWindowControls ? (
               <WindowControls
                 closeBehavior={windowCloseBehavior}
