@@ -91,6 +91,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [data.hosts, selectedHostId])
 
   useEffect(() => {
+    if (initializing && !coreFatal) {
+      return
+    }
+    void window.termous?.startup?.ready()
+  }, [coreFatal, initializing])
+
+  useEffect(() => {
     const preventFileDropNavigation = (event: globalThis.DragEvent) => {
       if (!Array.from(event.dataTransfer?.types ?? []).includes('Files')) {
         return
@@ -593,8 +600,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         onBeforeClose={shutdownBeforeClose}
         onCloseError={showActionError}
       >
-        {initializing ? <div className="app-inline-status" role="status">{t('app.loading')}</div> : null}
-
         <div
           className={`app-keepalive-page ${page === 'workbench' ? 'is-active' : 'is-hidden'}`}
           aria-hidden={page !== 'workbench'}
