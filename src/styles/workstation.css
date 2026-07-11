@@ -11834,8 +11834,10 @@ body.is-files-column-resizing * {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  padding: 0 0 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface-subtle) 52%, transparent);
+  padding: 7px 9px;
 }
 
 .process-toolbar-status {

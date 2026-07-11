@@ -1,21 +1,21 @@
-import { App, Button, Dropdown, Input, Popover, Segmented, Select, Tag, Tooltip, type MenuProps } from 'antd'
+import { App, Button, Dropdown, Input, Popover, Progress, Segmented, Select, Tag, Tooltip, type MenuProps } from 'antd'
 import {
   AlertTriangle,
   ArrowLeft,
+  CheckCircle2,
   Cog,
   FileText,
-  Gauge,
   ListFilter,
   LoaderCircle,
   MoreHorizontal,
   Play,
   RefreshCw,
   Search,
-  ShieldAlert,
   SlidersHorizontal,
   Square,
+  XCircle,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import type {
@@ -23,6 +23,7 @@ import type {
   SystemServiceAction,
   SystemServiceDetail,
   SystemServiceOperation,
+  SystemServiceOperationPhase,
   SystemServiceSummary,
 } from '../../types/domain'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
@@ -43,11 +44,28 @@ interface ServicePanelProps {
 const unitFileStates = ['', 'enabled', 'disabled', 'masked', 'static', 'indirect']
 const serviceSorts: SessionServiceQueryState['sort'][] = ['name', 'description', 'runtime', 'unit_file']
 
+interface ServiceOperationNotificationEntry {
+  operationId: string
+  notificationKey: string
+  progress: number
+}
+
+interface ServiceOperationNoticeConfig {
+  unitId: string
+  phase: SystemServiceOperationPhase
+  message?: string
+  notificationKey: string
+  progress: number
+}
+
+type ServiceOperationTone = 'running' | 'success' | 'warning' | 'error'
+
 export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
   const { t } = useTranslation()
   const { modal, notification } = App.useApp()
   const services = useSessionServices({ api, session, enabled })
   const [logsOpen, setLogsOpen] = useState(false)
+  const operationNotificationsRef = useRef(new Map<string, ServiceOperationNotificationEntry>())
   const items = services.list?.items ?? []
   const detail = services.detail
   const selectedUnitId = services.selectedUnitId
@@ -87,23 +105,123 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
     void services.refreshList(defaultServiceQuery)
   }
 
+  const openOperationNotification = useCallback((notice: ServiceOperationNoticeConfig) => {
+    const tone = serviceOperationTone(notice.phase)
+    const config = {
+      key: notice.notificationKey,
+      title: <strong className="service-operation-notification-title">{displayUnitName(notice.unitId)}</strong>,
+      description: (
+        <ServiceOperationNotice
+          phaseLabel={t(`workbench.services.operationPhases.${notice.phase}`)}
+          message={notice.message}
+          progress={notice.progress}
+          tone={tone}
+        />
+      ),
+      duration: serviceOperationDuration(tone),
+      role: (tone === 'error' || tone === 'warning' ? 'alert' : 'status') as 'alert' | 'status',
+      className: `termous-notification service-operation-notification is-${tone}`,
+      icon: serviceOperationStatusIcon(notice.phase),
+    }
+
+    if (tone === 'success') {
+      notification.success(config)
+      return
+    }
+    if (tone === 'warning') {
+      notification.warning(config)
+      return
+    }
+    if (tone === 'error') {
+      notification.error(config)
+      return
+    }
+    notification.open(config)
+  }, [notification, t])
+
+  const showOperationNotification = useCallback((nextOperation: SystemServiceOperation) => {
+    const tracked = operationNotificationsRef.current.get(nextOperation.unit_id)
+    const notificationKey = tracked?.notificationKey
+      || serviceOperationNotificationKey(nextOperation.session_id, nextOperation.unit_id)
+    const progress = Math.max(tracked?.progress ?? 0, serviceOperationProgress(nextOperation.phase))
+
+    if (tracked) {
+      operationNotificationsRef.current.set(nextOperation.unit_id, { ...tracked, progress })
+    }
+    openOperationNotification({
+      unitId: nextOperation.unit_id,
+      phase: nextOperation.phase,
+      message: nextOperation.message,
+      notificationKey,
+      progress,
+    })
+    if (isTerminalOperation(nextOperation)) {
+      operationNotificationsRef.current.delete(nextOperation.unit_id)
+    }
+  }, [openOperationNotification])
+
+  useEffect(() => {
+    for (const [unitId, tracked] of operationNotificationsRef.current) {
+      const nextOperation = services.operations[unitId]
+      if (!tracked.operationId || nextOperation?.id !== tracked.operationId) {
+        continue
+      }
+      const operationError = services.operationErrors[unitId]
+      if (operationError && !isTerminalOperation(nextOperation)) {
+        showOperationNotification({
+          ...nextOperation,
+          phase: 'uncertain',
+          message: operationError,
+        })
+        continue
+      }
+      showOperationNotification(nextOperation)
+    }
+  }, [services.operationErrors, services.operations, showOperationNotification])
+
+  useEffect(() => () => {
+    for (const tracked of operationNotificationsRef.current.values()) {
+      notification.destroy(tracked.notificationKey)
+    }
+    operationNotificationsRef.current.clear()
+  }, [notification, session?.id])
+
   const executeAction = async (unitId: string, action: SystemServiceAction) => {
+    const notificationKey = serviceOperationNotificationKey(session?.id || '', unitId)
+    const initialProgress = serviceOperationProgress('queued')
+    operationNotificationsRef.current.set(unitId, {
+      operationId: '',
+      notificationKey,
+      progress: initialProgress,
+    })
+    openOperationNotification({
+      unitId,
+      phase: 'queued',
+      notificationKey,
+      progress: initialProgress,
+    })
     try {
-      await services.runAction(unitId, action)
-      notification.info({
-        title: t('workbench.services.actionQueued'),
-        description: t(`workbench.services.actions.${action}`),
-        duration: 2.5,
-        role: 'status',
-        className: 'termous-notification',
+      const nextOperation = await services.runAction(unitId, action)
+      if (!nextOperation) {
+        operationNotificationsRef.current.delete(unitId)
+        notification.destroy(notificationKey)
+        return
+      }
+      const tracked = operationNotificationsRef.current.get(unitId)
+      operationNotificationsRef.current.set(unitId, {
+        operationId: nextOperation.id,
+        notificationKey,
+        progress: tracked?.progress ?? initialProgress,
       })
+      showOperationNotification(nextOperation)
     } catch (error) {
-      notification.error({
-        title: t('workbench.services.actionFailed'),
-        description: error instanceof Error ? error.message : undefined,
-        duration: 4,
-        role: 'alert',
-        className: 'termous-notification',
+      operationNotificationsRef.current.delete(unitId)
+      openOperationNotification({
+        unitId,
+        phase: 'failed',
+        message: error instanceof Error ? error.message : t('workbench.services.actionFailed'),
+        notificationKey,
+        progress: 100,
       })
     }
   }
@@ -250,7 +368,7 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
                   <span>{t('workbench.services.unitFileState')}</span>
                   <Select
                     value={services.query.unitFileState}
-                    classNames={{ popup: { root: 'termous-select-dropdown' } }}
+                    classNames={{ popup: { root: 'termous-select-dropdown service-filter-select-dropdown' } }}
                     options={unitFileStates.map((state) => ({
                       value: state,
                       label: state ? t(`workbench.services.unitStates.${state}`) : t('workbench.services.filtersAll'),
@@ -262,7 +380,7 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
                   <span>{t('workbench.services.sort')}</span>
                   <Select
                     value={services.query.sort}
-                    classNames={{ popup: { root: 'termous-select-dropdown' } }}
+                    classNames={{ popup: { root: 'termous-select-dropdown service-filter-select-dropdown' } }}
                     options={serviceSorts.map((sort) => ({ value: sort, label: t(`workbench.services.sortOptions.${sort}`) }))}
                     onChange={(value) => applyQuery({ sort: value })}
                   />
@@ -300,8 +418,6 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
             detail={detail}
             loading={services.detailLoading}
             error={services.detailError}
-            operation={operation}
-            operationError={services.operationErrors[selectedUnitId] || ''}
             operationBusy={operationBusy}
             manageable={services.capability.manageable}
             journalReadable={services.capability.journal_readable}
@@ -421,8 +537,6 @@ function ServiceDetailView({
   detail,
   loading,
   error,
-  operation,
-  operationError,
   operationBusy,
   manageable,
   journalReadable,
@@ -433,8 +547,6 @@ function ServiceDetailView({
   detail: SystemServiceDetail | null
   loading: boolean
   error: string
-  operation?: SystemServiceOperation
-  operationError: string
   operationBusy: boolean
   manageable: boolean
   journalReadable: boolean
@@ -446,9 +558,16 @@ function ServiceDetailView({
   if (!detail && loading) {
     return (
       <div className="service-detail is-loading">
-        <Button type="text" className="service-back" icon={<ArrowLeft size={14} />} onClick={onBack}>{t('workbench.services.backToList')}</Button>
-        <span className="service-detail-spinner" />
-        <strong>{t('workbench.services.detailLoading')}</strong>
+        <div className="service-detail-topbar">
+          <Button type="text" className="service-back" icon={<ArrowLeft size={14} />} onClick={onBack}>{t('workbench.services.backToList')}</Button>
+        </div>
+        <div className="service-detail-loading-body" role="status" aria-live="polite">
+          <span className="service-detail-loading-mark" aria-hidden="true">
+            <span className="service-detail-spinner" />
+          </span>
+          <strong>{t('workbench.services.detailLoading')}</strong>
+          <span className="service-detail-loading-track" aria-hidden="true"><span /></span>
+        </div>
       </div>
     )
   }
@@ -497,8 +616,6 @@ function ServiceDetailView({
           <Tag className="service-unit-tag">{unitStateLabel(summary.unit_file_state, t)}</Tag>
         </div>
       </header>
-
-      {operation ? <OperationStrip operation={operation} error={operationError} /> : null}
 
       <div className="service-detail-kpis">
         <ServiceKpi label={t('workbench.services.mainPid')} value={detail.main_pid > 0 ? String(detail.main_pid) : '-'} />
@@ -550,27 +667,44 @@ function ServiceDetailView({
   )
 }
 
-function OperationStrip({ operation, error }: { operation: SystemServiceOperation; error: string }) {
-  const { t } = useTranslation()
-  const terminal = isTerminalOperation(operation)
-  const failed = operation.phase === 'failed' || operation.phase === 'uncertain' || operation.phase === 'cancelled'
-  return (
-    <div className={`service-operation ${terminal ? 'is-terminal' : 'is-running'} ${failed ? 'is-error' : ''}`}>
-      <span>{terminal ? failed ? <ShieldAlert size={14} /> : <Gauge size={14} /> : <LoaderCircle className="service-spin" size={14} />}</span>
-      <div>
-        <strong>{t(`workbench.services.operationPhases.${operation.phase}`)}</strong>
-        <small>{error || operation.message}</small>
-      </div>
-    </div>
-  )
-}
-
 function ServiceKpi({ label, value }: { label: string; value: string }) {
   return <div className="service-kpi"><span>{label}</span><strong>{value}</strong></div>
 }
 
 function ServiceDetailItem({ label, value }: { label: string; value: string }) {
   return <div><dt>{label}</dt><Tooltip title={value}><dd>{value}</dd></Tooltip></div>
+}
+
+function ServiceOperationNotice({
+  phaseLabel,
+  message,
+  progress,
+  tone,
+}: {
+  phaseLabel: string
+  message?: string
+  progress: number
+  tone: ServiceOperationTone
+}) {
+  const normalizedMessage = message?.trim()
+  const progressStatus = tone === 'success' ? 'success' : tone === 'error' ? 'exception' : tone === 'running' ? 'active' : 'normal'
+  return (
+    <div className={`service-operation-notice is-${tone}`}>
+      <div className="service-operation-notice-state">
+        <span>{phaseLabel}</span>
+        <strong>{progress}%</strong>
+      </div>
+      <Progress
+        className="service-operation-notice-progress"
+        percent={progress}
+        showInfo={false}
+        size="small"
+        status={progressStatus}
+        strokeLinecap="round"
+      />
+      {normalizedMessage ? <Tooltip title={normalizedMessage}><p>{normalizedMessage}</p></Tooltip> : null}
+    </div>
+  )
 }
 
 function displayUnitName(unitId: string): string {
@@ -602,6 +736,39 @@ function isCriticalService(unitId: string): boolean {
 
 function isTerminalOperation(operation: SystemServiceOperation): boolean {
   return operation.phase === 'succeeded' || operation.phase === 'failed' || operation.phase === 'uncertain' || operation.phase === 'cancelled'
+}
+
+function serviceOperationNotificationKey(sessionId: string, unitId: string): string {
+  return `service-operation-${sessionId}-${unitId}`
+}
+
+function serviceOperationProgress(phase: SystemServiceOperationPhase): number {
+  switch (phase) {
+    case 'queued': return 12
+    case 'enqueued': return 46
+    case 'verifying': return 78
+    default: return 100
+  }
+}
+
+function serviceOperationTone(phase: SystemServiceOperationPhase): ServiceOperationTone {
+  if (phase === 'succeeded') return 'success'
+  if (phase === 'failed') return 'error'
+  if (phase === 'uncertain' || phase === 'cancelled') return 'warning'
+  return 'running'
+}
+
+function serviceOperationDuration(tone: ServiceOperationTone): number {
+  if (tone === 'running') return 0
+  if (tone === 'success') return 2.5
+  return 4
+}
+
+function serviceOperationStatusIcon(phase: SystemServiceOperationPhase): ReactNode {
+  if (phase === 'succeeded') return <CheckCircle2 size={18} />
+  if (phase === 'failed' || phase === 'cancelled') return <XCircle size={18} />
+  if (phase === 'uncertain') return <AlertTriangle size={18} />
+  return <LoaderCircle className="service-spin" size={18} />
 }
 
 function formatTime(value: string): string {
