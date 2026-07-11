@@ -2,6 +2,7 @@ import { ArrowLeftRight, Cable, Monitor, Network, RadioTower, Route, Server, typ
 import { App as AntdApp, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { ForwardMode } from '../../types/domain'
+import './forwarding.css'
 
 interface ForwardRouteDiagramProps {
   mode: ForwardMode
@@ -104,16 +105,19 @@ async function writeClipboardText(value: string) {
   textarea.style.position = 'fixed'
   textarea.style.opacity = '0'
   document.body.appendChild(textarea)
-  textarea.select()
-  const copied = document.execCommand('copy')
-  textarea.remove()
-  if (!copied) {
-    throw new Error('copy failed')
+  try {
+    textarea.select()
+    if (!document.execCommand('copy')) {
+      throw new Error('copy failed')
+    }
+  } finally {
+    textarea.remove()
   }
 }
 
 function isConcreteAddress(value: string) {
-  return value.includes(':') && !value.includes('-')
+  const normalized = value.trim()
+  return normalized.includes(':') && !normalized.startsWith('-:') && !normalized.endsWith(':-')
 }
 
 function routeCopy(mode: ForwardMode, t: (key: string) => string) {
