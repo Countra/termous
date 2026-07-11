@@ -1,0 +1,364 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 0.1.0-beta"
+        required: true
+        default: "0.1.0"
+      core_ref:
+        description: "termous-core ref, tag, branch, or commit SHA. Tag releases use the same tag by default."
+        required: false
+        default: "main"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    name: Resolve release metadata
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      core_ref: ${{ steps.meta.outputs.core_ref }}
+
+    steps:
+      - name: Resolve version and core ref
+        id: meta
+        shell: bash
+        env:
+          MANUAL_VERSION: ${{ github.event.inputs.version }}
+          MANUAL_CORE_REF: ${{ github.event.inputs.core_ref }}
+          DEFAULT_CORE_REF: ${{ vars.TERMOUS_CORE_REF }}
+        run: |
+          version="$MANUAL_VERSION"
+          if [[ -z "$version" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release version: $version" >&2
+            exit 1
+          fi
+
+          core_ref="$MANUAL_CORE_REF"
+          if [[ -z "$core_ref" ]]; then
+            if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+              core_ref="$GITHUB_REF_NAME"
+            else
+              core_ref="$DEFAULT_CORE_REF"
+            fi
+          fi
+          if [[ -z "$core_ref" ]]; then
+            core_ref="main"
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "core_ref=$core_ref" >> "$GITHUB_OUTPUT"
+
+  build-windows:
+    name: Build Windows x64
+    needs: metadata
+    runs-on: windows-latest
+    environment: release
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Validate core repository token
+        env:
+          CORE_READ_TOKEN: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CORE_READ_TOKEN)) {
+            throw "TERMOUS_CORE_READ_TOKEN is required to checkout Countra/termous-core."
+          }
+
+      - name: Configure Windows code signing
+        env:
+          WINDOWS_CSC_LINK: ${{ secrets.CSC_LINK }}
+          WINDOWS_CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CSC_LINK)) {
+            "CSC_IDENTITY_AUTO_DISCOVERY=false" >> $env:GITHUB_ENV
+            Write-Host "Windows code signing disabled; unsigned installer will be built."
+          } else {
+            "CSC_LINK=$($env:WINDOWS_CSC_LINK)" >> $env:GITHUB_ENV
+            if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_CSC_KEY_PASSWORD)) {
+              "CSC_KEY_PASSWORD=$($env:WINDOWS_CSC_KEY_PASSWORD)" >> $env:GITHUB_ENV
+            }
+            Write-Host "Windows code signing enabled."
+          }
+
+      - name: Checkout Termous
+        uses: actions/checkout@v4
+        with:
+          path: web
+
+      - name: Checkout Termous Core
+        uses: actions/checkout@v4
+        with:
+          repository: Countra/termous-core
+          ref: ${{ needs.metadata.outputs.core_ref }}
+          path: backend
+          token: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ vars.PNPM_VERSION || '10' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ vars.NODE_VERSION || '22' }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ vars.GO_VERSION || '1.25.x' }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Build Windows installer
+        env:
+          TERMOUS_WEB_DIR: ${{ github.workspace }}\web
+          TERMOUS_CORE_DIR: ${{ github.workspace }}\backend
+          TERMOUS_OUTPUT_DIR: ${{ github.workspace }}\build\windows-x64
+          TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
+        run: .\web\scripts\ci\build-windows.ps1
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Termous-Windows-${{ needs.metadata.outputs.version }}-x64
+          path: |
+            build/windows-x64/installer/*.exe
+            build/windows-x64/installer/*.exe.blockmap
+            build/windows-x64/installer/latest.yml
+          if-no-files-found: error
+          retention-days: 14
+
+  build-linux:
+    name: Build Linux x64
+    needs: metadata
+    runs-on: ubuntu-24.04
+    environment: release
+
+    steps:
+      - name: Validate core repository token
+        shell: bash
+        env:
+          CORE_READ_TOKEN: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+        run: |
+          if [[ -z "$CORE_READ_TOKEN" ]]; then
+            echo "TERMOUS_CORE_READ_TOKEN is required to checkout Countra/termous-core." >&2
+            exit 1
+          fi
+
+      - name: Checkout Termous
+        uses: actions/checkout@v4
+        with:
+          path: web
+
+      - name: Checkout Termous Core
+        uses: actions/checkout@v4
+        with:
+          repository: Countra/termous-core
+          ref: ${{ needs.metadata.outputs.core_ref }}
+          path: backend
+          token: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ vars.PNPM_VERSION || '10' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ vars.NODE_VERSION || '22' }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ vars.GO_VERSION || '1.25.x' }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install Linux packaging dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libopenjp2-tools
+
+      - name: Build Linux package
+        shell: bash
+        env:
+          TERMOUS_WEB_DIR: ${{ github.workspace }}/web
+          TERMOUS_CORE_DIR: ${{ github.workspace }}/backend
+          TERMOUS_OUTPUT_DIR: ${{ github.workspace }}/build/linux-x64
+          TERMOUS_TARGET_OS: linux
+          TERMOUS_ARCH: x64
+          TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
+        run: bash ./web/scripts/ci/build-unix.sh
+
+      - name: Upload Linux package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Termous-Linux-${{ needs.metadata.outputs.version }}-x64
+          path: |
+            build/linux-x64/installer/*.AppImage
+            build/linux-x64/installer/*.AppImage.blockmap
+            build/linux-x64/installer/latest-linux.yml
+          if-no-files-found: error
+          retention-days: 14
+
+  build-macos:
+    name: Build macOS ${{ matrix.arch }}
+    needs: metadata
+    runs-on: ${{ matrix.runner }}
+    environment: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: macos-15-intel
+          - arch: arm64
+            runner: macos-15
+
+    steps:
+      - name: Validate core repository token
+        shell: bash
+        env:
+          CORE_READ_TOKEN: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+        run: |
+          if [[ -z "$CORE_READ_TOKEN" ]]; then
+            echo "TERMOUS_CORE_READ_TOKEN is required to checkout Countra/termous-core." >&2
+            exit 1
+          fi
+
+      - name: Configure macOS code signing
+        shell: bash
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+        run: |
+          if [[ -z "$MAC_CSC_LINK" ]]; then
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+            echo "macOS code signing disabled; unsigned DMG will be built."
+          else
+            echo "CSC_LINK=$MAC_CSC_LINK" >> "$GITHUB_ENV"
+            if [[ -n "$MAC_CSC_KEY_PASSWORD" ]]; then
+              echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD" >> "$GITHUB_ENV"
+            fi
+            echo "macOS code signing enabled."
+          fi
+
+      - name: Checkout Termous
+        uses: actions/checkout@v4
+        with:
+          path: web
+
+      - name: Checkout Termous Core
+        uses: actions/checkout@v4
+        with:
+          repository: Countra/termous-core
+          ref: ${{ needs.metadata.outputs.core_ref }}
+          path: backend
+          token: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ vars.PNPM_VERSION || '10' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ vars.NODE_VERSION || '22' }}
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ vars.GO_VERSION || '1.25.x' }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Build macOS package
+        shell: bash
+        env:
+          TERMOUS_WEB_DIR: ${{ github.workspace }}/web
+          TERMOUS_CORE_DIR: ${{ github.workspace }}/backend
+          TERMOUS_OUTPUT_DIR: ${{ github.workspace }}/build/macos-${{ matrix.arch }}
+          TERMOUS_TARGET_OS: darwin
+          TERMOUS_ARCH: ${{ matrix.arch }}
+          TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
+        run: bash ./web/scripts/ci/build-unix.sh
+
+      - name: Upload macOS package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Termous-macOS-${{ needs.metadata.outputs.version }}-${{ matrix.arch }}
+          path: |
+            build/macos-${{ matrix.arch }}/installer/*.dmg
+            build/macos-${{ matrix.arch }}/installer/*.dmg.blockmap
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - metadata
+      - build-windows
+      - build-linux
+      - build-macos
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Termous
+        uses: actions/checkout@v4
+        with:
+          path: web
+
+      - name: Generate release notes
+        shell: pwsh
+        env:
+          TERMOUS_CHANGELOG_FILE: ${{ github.workspace }}/web/docs/CHANGELOG.md
+          TERMOUS_RELEASE_NOTES_FILE: ${{ github.workspace }}/build/release-notes.md
+          TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
+        run: ./web/scripts/ci/extract-changelog.ps1
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Termous-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Termous ${{ needs.metadata.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ contains(needs.metadata.outputs.version, '-') }}
+          body_path: build/release-notes.md
+          files: release-assets/*

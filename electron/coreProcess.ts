@@ -171,9 +171,13 @@ export class CoreProcessManager {
       return process.env.TERMOUS_CORE_PATH
     }
     const binary = process.platform === 'win32' ? 'termous-core.exe' : 'termous-core'
-    return app.isPackaged
-      ? path.join(path.dirname(process.execPath), binary)
-      : path.join(process.env.APP_ROOT, 'build', 'core', binary)
+    if (!app.isPackaged) {
+      return path.join(process.env.APP_ROOT, 'build', 'core', binary)
+    }
+    const executableDir = path.dirname(process.execPath)
+    return process.platform === 'darwin'
+      ? path.resolve(executableDir, '..', binary)
+      : path.join(executableDir, binary)
   }
 
   private validateCoreBinary(binaryPath: string): CoreFatalEvent | null {

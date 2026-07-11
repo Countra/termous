@@ -28,7 +28,7 @@
     "target": [
       "dmg"
     ],
-    "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
+    "artifactName": "${productName}-${version}-macos-${arch}.${ext}"
   },
   "win": {
     "icon": "build/icon.ico",
@@ -58,6 +58,6 @@
     "target": [
       "AppImage"
     ],
-    "artifactName": "${productName}-Linux-${version}.${ext}"
+    "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
   }
 }
