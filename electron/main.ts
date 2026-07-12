@@ -1,5 +1,8 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron'
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell, type WebContents } from 'electron'
+import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { open, rename, rm, stat } from 'node:fs/promises'
+import { randomBytes, randomUUID } from 'node:crypto'
+import { Readable } from 'node:stream'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 import { CoreProcessManager } from './coreProcess'
@@ -23,6 +26,9 @@ const WEB_DEBUG_FILE = 'webDebug'
 const DEVTOOLS_CHORD_WINDOW_MS = 900
 const STARTUP_MIN_VISIBLE_MS = 650
 const APPEARANCE_CACHE_FILE = 'appearance.json'
+const BACKUP_EXTENSION = '.tobp'
+const BACKUP_MAX_BYTES = 1 << 30
+const BACKUP_PASSWORD_MAX_BYTES = 1024
 const coreProcess = new CoreProcessManager()
 const trayController = new TermousTrayController({
   appName: APP_NAME,
@@ -45,6 +51,48 @@ let startupCompleted = false
 let splashPhase: StartupPhase = 'core'
 let splashStartedAt = 0
 let startupCompletionTimer: NodeJS.Timeout | null = null
+
+interface PortabilityProgress {
+  operation: 'export' | 'import'
+  phase: 'selecting' | 'transferring' | 'finalizing' | 'complete'
+  transferred_bytes?: number
+  total_bytes?: number
+}
+
+function emitPortabilityProgress(sender: WebContents, progress: PortabilityProgress) {
+  if (!sender.isDestroyed()) {
+    sender.send('portability:progress', progress)
+  }
+}
+
+function validateBackupPassword(password: unknown): asserts password is string {
+  if (typeof password !== 'string' || password.trim() === '' || Buffer.byteLength(password, 'utf8') > BACKUP_PASSWORD_MAX_BYTES) {
+    throw new Error('备份密码不能为空且不能超过 1024 字节')
+  }
+}
+
+async function portabilityResponseError(response: Response) {
+  try {
+    const body = await response.json() as { error?: { message?: string } }
+    if (body.error?.message) {
+      return new Error(body.error.message)
+    }
+  } catch {
+    // 非 JSON 错误响应统一使用通用消息。
+  }
+  return new Error(`数据操作失败（${response.status}）`)
+}
+
+async function writeFileChunk(handle: Awaited<ReturnType<typeof open>>, value: Uint8Array) {
+  let offset = 0
+  while (offset < value.byteLength) {
+    const result = await handle.write(value, offset, value.byteLength - offset)
+    if (result.bytesWritten <= 0) {
+      throw new Error('写入备份文件失败')
+    }
+    offset += result.bytesWritten
+  }
+}
 
 function isAppTheme(value: unknown): value is AppTheme {
   return value === 'dark' || value === 'light'
@@ -442,6 +490,153 @@ function registerFilePickers() {
   })
 }
 
+function registerDataPortabilityControls() {
+  const currentWindow = () => BrowserWindow.getFocusedWindow() ?? win
+  ipcMain.handle('portability:export', async (event, password: unknown) => {
+    validateBackupPassword(password)
+    emitPortabilityProgress(event.sender, { operation: 'export', phase: 'selecting' })
+    const focused = currentWindow()
+    const options = {
+      title: '导出 Termous 数据',
+      defaultPath: `${randomUUID()}${BACKUP_EXTENSION}`,
+      filters: [{ name: 'Termous Backup', extensions: ['tobp'] }],
+      properties: ['showOverwriteConfirmation' as const],
+    }
+    const selected = focused ? await dialog.showSaveDialog(focused, options) : await dialog.showSaveDialog(options)
+    if (selected.canceled || !selected.filePath) {
+      return { canceled: true }
+    }
+    const finalPath = selected.filePath.toLowerCase().endsWith(BACKUP_EXTENSION)
+      ? selected.filePath
+      : `${selected.filePath}${BACKUP_EXTENSION}`
+    const partialPath = `${finalPath}.partial`
+    const config = await coreProcess.initialize()
+    let handle: Awaited<ReturnType<typeof open>> | null = null
+    try {
+      await rm(partialPath, { force: true })
+      handle = await open(partialPath, 'wx', 0o600)
+      const response = await fetch(new URL('/api/v1/data-portability/exports', config.apiBaseUrl), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(config.apiToken ? { 'X-Termous-Token': config.apiToken } : {}),
+        },
+        body: JSON.stringify({ password }),
+      })
+      if (!response.ok) {
+        throw await portabilityResponseError(response)
+      }
+      if (!response.body) {
+        throw new Error('备份导出流不可用')
+      }
+      const totalHeader = Number(response.headers.get('content-length') ?? 0)
+      const totalBytes = Number.isFinite(totalHeader) && totalHeader > 0 ? totalHeader : undefined
+      const reader = response.body.getReader()
+      let transferredBytes = 0
+      let chunk = await reader.read()
+      while (!chunk.done) {
+        await writeFileChunk(handle, chunk.value)
+        transferredBytes += chunk.value.byteLength
+        emitPortabilityProgress(event.sender, {
+          operation: 'export', phase: 'transferring', transferred_bytes: transferredBytes, total_bytes: totalBytes,
+        })
+        chunk = await reader.read()
+      }
+      emitPortabilityProgress(event.sender, {
+        operation: 'export', phase: 'finalizing', transferred_bytes: transferredBytes, total_bytes: totalBytes,
+      })
+      await handle.sync()
+      await handle.close()
+      handle = null
+      await rename(partialPath, finalPath)
+      emitPortabilityProgress(event.sender, {
+        operation: 'export', phase: 'complete', transferred_bytes: transferredBytes, total_bytes: transferredBytes,
+      })
+      return { canceled: false, file_name: path.basename(finalPath) }
+    } catch (error) {
+      if (handle) {
+        await handle.close().catch(() => undefined)
+      }
+      await rm(partialPath, { force: true }).catch(() => undefined)
+      throw error
+    }
+  })
+
+  ipcMain.handle('portability:inspect', async (event, password: unknown) => {
+    validateBackupPassword(password)
+    emitPortabilityProgress(event.sender, { operation: 'import', phase: 'selecting' })
+    const focused = currentWindow()
+    const options = {
+      title: '导入 Termous 数据',
+      filters: [{ name: 'Termous Backup', extensions: ['tobp'] }],
+      properties: ['openFile' as const],
+    }
+    const selected = focused ? await dialog.showOpenDialog(focused, options) : await dialog.showOpenDialog(options)
+    if (selected.canceled || selected.filePaths.length !== 1) {
+      return { canceled: true }
+    }
+    const sourcePath = selected.filePaths[0]
+    if (!sourcePath.toLowerCase().endsWith(BACKUP_EXTENSION)) {
+      throw new Error('请选择 .tobp 备份文件')
+    }
+    const sourceStat = await stat(sourcePath)
+    if (!sourceStat.isFile() || sourceStat.size <= 0 || sourceStat.size > BACKUP_MAX_BYTES) {
+      throw new Error('备份文件为空或超过大小上限')
+    }
+    const boundary = `----termous-${randomBytes(18).toString('hex')}`
+    const prefix = Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="password"\r\n\r\n${password}\r\n` +
+      `--${boundary}\r\nContent-Disposition: form-data; name="backup"; filename="backup.tobp"\r\n` +
+      `Content-Type: application/vnd.termous.backup\r\n\r\n`,
+      'utf8',
+    )
+    const suffix = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8')
+    const totalLength = prefix.byteLength + sourceStat.size + suffix.byteLength
+    const config = await coreProcess.initialize()
+    const upload = async function* () {
+      yield prefix
+      let transferredBytes = 0
+      for await (const chunk of createReadStream(sourcePath)) {
+        const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+        transferredBytes += value.byteLength
+        emitPortabilityProgress(event.sender, {
+          operation: 'import', phase: 'transferring', transferred_bytes: transferredBytes, total_bytes: sourceStat.size,
+        })
+        yield value
+      }
+      yield suffix
+    }
+    try {
+      const request = {
+        method: 'POST',
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+          'Content-Length': String(totalLength),
+          ...(config.apiToken ? { 'X-Termous-Token': config.apiToken } : {}),
+        },
+        body: Readable.from(upload()) as unknown as BodyInit,
+        duplex: 'half' as const,
+      }
+      const response = await fetch(new URL('/api/v1/data-portability/imports', config.apiBaseUrl), request)
+      if (!response.ok) {
+        throw await portabilityResponseError(response)
+      }
+      emitPortabilityProgress(event.sender, {
+        operation: 'import', phase: 'finalizing', transferred_bytes: sourceStat.size, total_bytes: sourceStat.size,
+      })
+      const inspection = await response.json()
+      emitPortabilityProgress(event.sender, {
+        operation: 'import', phase: 'complete', transferred_bytes: sourceStat.size, total_bytes: sourceStat.size,
+      })
+      return { canceled: false, inspection }
+    } finally {
+      prefix.fill(0)
+    }
+  })
+
+  ipcMain.handle('portability:restart-after-restore', () => coreProcess.restartAfterRestore())
+}
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
@@ -481,6 +676,7 @@ app.whenReady().then(() => {
   registerWindowControls()
   registerTrayControls()
   registerFilePickers()
+  registerDataPortabilityControls()
   createSplashWindow()
   createWindow()
   trayController.initialize()

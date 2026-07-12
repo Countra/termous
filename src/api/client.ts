@@ -7,6 +7,13 @@ import type {
   CoreRuntimeInfo,
   CredentialInput,
   CredentialView,
+  DataPortabilityApplyResult,
+  DataPortabilityPlanItemPage,
+  DataPortabilityPlanItemQuery,
+  DataPortabilityPlanRequest,
+  DataPortabilityResolutionRequest,
+  DataPortabilityRestorePlan,
+  DataPortabilitySummary,
   DockerActionRequest,
   DockerActionResult,
   DockerCapability,
@@ -1080,6 +1087,47 @@ export class TermousApi {
 
   transferEventsUrl() {
     return this.websocketUrl('/api/v1/transfers/events')
+  }
+
+  dataPortabilitySummary() {
+    return this.request<DataPortabilitySummary>('/api/v1/data-portability/summary')
+  }
+
+  createDataPortabilityPlan(importId: string, body: DataPortabilityPlanRequest) {
+    return this.request<DataPortabilityRestorePlan>(
+      `/api/v1/data-portability/imports/${encodeURIComponent(importId)}/plans`,
+      { method: 'POST', body },
+    )
+  }
+
+  dataPortabilityPlanItems(importId: string, planId: string, query: DataPortabilityPlanItemQuery = {}) {
+    const params = new URLSearchParams()
+    if (query.dataset) params.set('dataset', query.dataset)
+    if (query.status) params.set('status', query.status)
+    if (query.cursor) params.set('cursor', query.cursor)
+    if (query.limit) params.set('limit', String(query.limit))
+    const suffix = params.size > 0 ? `?${params.toString()}` : ''
+    return this.request<DataPortabilityPlanItemPage>(
+      `/api/v1/data-portability/imports/${encodeURIComponent(importId)}/plans/${encodeURIComponent(planId)}/items${suffix}`,
+    )
+  }
+
+  resolveDataPortabilityPlan(importId: string, planId: string, body: DataPortabilityResolutionRequest) {
+    return this.request<DataPortabilityRestorePlan>(
+      `/api/v1/data-portability/imports/${encodeURIComponent(importId)}/plans/${encodeURIComponent(planId)}/resolutions`,
+      { method: 'PATCH', body },
+    )
+  }
+
+  applyDataPortabilityPlan(importId: string, planId: string) {
+    return this.request<DataPortabilityApplyResult>(
+      `/api/v1/data-portability/imports/${encodeURIComponent(importId)}/plans/${encodeURIComponent(planId)}/apply`,
+      { method: 'POST', body: {} },
+    )
+  }
+
+  cancelDataPortabilityImport(importId: string) {
+    return this.request<void>(`/api/v1/data-portability/imports/${encodeURIComponent(importId)}`, { method: 'DELETE' })
   }
 
   private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {

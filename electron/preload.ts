@@ -112,6 +112,16 @@ contextBridge.exposeInMainWorld('termous', {
   appearance: {
     setTheme: (theme: 'dark' | 'light') => ipcRenderer.invoke('appearance:set-theme', theme) as Promise<boolean>,
   },
+  portability: {
+    exportBackup: (password: string) => ipcRenderer.invoke('portability:export', password),
+    inspectBackup: (password: string) => ipcRenderer.invoke('portability:inspect', password),
+    restartAfterRestore: () => ipcRenderer.invoke('portability:restart-after-restore'),
+    onProgress: (callback: (progress: unknown) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: unknown) => callback(progress)
+      ipcRenderer.on('portability:progress', listener)
+      return () => ipcRenderer.removeListener('portability:progress', listener)
+    },
+  },
   clipboard: {
     readText: () => Promise.resolve(clipboard.readText()),
     writeText: (text: string) => {

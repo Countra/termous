@@ -18,6 +18,12 @@ export interface CoreFatalEvent {
   code: string
 }
 
+export interface CoreRestartResult {
+  restarted: boolean
+  requires_manual_restart: boolean
+  config: CoreRuntimeConfig
+}
+
 interface CoreProcessState {
   config: CoreRuntimeConfig
   fatal: CoreFatalEvent | null
@@ -156,6 +162,47 @@ export class CoreProcessManager {
       // 退出阶段后端可能已经停止，后续等待进程退出即可。
     }
     return this.waitForExit(8_000)
+  }
+
+  async restartAfterRestore(): Promise<CoreRestartResult> {
+    await this.initialize()
+    if (!this.config.managed) {
+      return { restarted: false, requires_manual_restart: true, config: this.config }
+    }
+    this.shuttingDown = true
+    this.stopHeartbeat()
+    try {
+      const response = await this.fetchWithTimeout('/api/v1/runtime/shutdown', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Termous-Token': this.config.apiToken,
+        },
+        body: JSON.stringify({ reason: 'data_restore' }),
+      })
+      if (!response.ok) {
+        throw new Error('核心服务拒绝恢复重启请求')
+      }
+      if (!await this.waitForExit(8_000)) {
+        throw new Error('核心服务未能安全退出')
+      }
+    } catch (error) {
+      this.shuttingDown = false
+      if (this.child && this.child.exitCode === null) {
+        this.startHeartbeat()
+      }
+      throw error
+    }
+    this.child = null
+    this.initializePromise = null
+    this.fatal = null
+    this.shuttingDown = false
+    const config = await this.initialize()
+    const fatal = this.getFatal() as CoreFatalEvent | null
+    if (fatal) {
+      throw new Error(fatal.message)
+    }
+    return { restarted: true, requires_manual_restart: false, config }
   }
 
   private shouldUseExternalCore() {

@@ -1,4 +1,15 @@
-import type { AppBuildInfo, AppConfig, CoreFatalEvent, CoreStatus, TrayCommand, TrayMenuState } from './domain'
+import type {
+  AppBuildInfo,
+  AppConfig,
+  CoreFatalEvent,
+  CoreStatus,
+  DataPortabilityExportDialogResult,
+  DataPortabilityImportDialogResult,
+  DataPortabilityProgress,
+  DataPortabilityRestartResult,
+  TrayCommand,
+  TrayMenuState,
+} from './domain'
 
 declare global {
   interface Window {
@@ -17,6 +28,12 @@ declare global {
       }
       appearance?: {
         setTheme: (theme: 'dark' | 'light') => Promise<boolean>
+      }
+      portability?: {
+        exportBackup: (password: string) => Promise<DataPortabilityExportDialogResult>
+        inspectBackup: (password: string) => Promise<DataPortabilityImportDialogResult>
+        restartAfterRestore: () => Promise<DataPortabilityRestartResult>
+        onProgress: (callback: (progress: DataPortabilityProgress) => void) => () => void
       }
       clipboard?: {
         readText: () => Promise<string>
