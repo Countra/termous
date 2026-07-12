@@ -1,5 +1,5 @@
-import { Button, Input, InputNumber, Popconfirm, Segmented, Select, Tooltip } from 'antd'
-import { ArrowLeft, ImageOff, ImagePlus, KeyRound, Network, Plus, ServerCog, Settings2, Trash2 } from 'lucide-react'
+import { Button, Input, InputNumber, Popconfirm, Radio, Select, Tooltip } from 'antd'
+import { ArrowLeft, FileKey2, ImageOff, ImagePlus, KeyRound, Network, Plus, ServerCog, Settings2, SquareTerminal, Trash2 } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
@@ -77,6 +77,15 @@ export function HostEditor({
   const hasErrors = Object.values(errors).some(Boolean)
   const visibleErrors = dirty ? errors : {}
   const displayName = draft.name.trim() || draft.address.trim() || t('hosts.newHost')
+
+  const changeAuthMethod = (authMethod: AuthMethod) => {
+    const expectedType = authMethod === 'password' ? 'password' : 'private_key'
+    const currentCredential = data.credentials.find((credential) => credential.id === draft.credential_id)
+    onChange({
+      auth_method: authMethod,
+      credential_id: authMethod === 'system' || currentCredential?.type !== expectedType ? '' : draft.credential_id,
+    })
+  }
 
   const createGroup = async () => {
     const name = normalizeGroupName(groupDraft)
@@ -231,57 +240,58 @@ export function HostEditor({
         </div>
       </HostEditorSection>
 
-      <HostEditorSection icon={<Network size={16} />} title={t('hosts.connectionSection')}>
-        <div className="host-editor-grid is-connection">
-          <HostTextField label={t('hosts.address')} value={draft.address} error={visibleErrors.address} onChange={(address) => onChange({ address })} />
-          <label className="host-editor-field is-port">
-            <span className="host-editor-field-label">{t('hosts.port')}</span>
-            <InputNumber
-              min={1}
-              max={65535}
-              value={draft.port}
-              status={visibleErrors.port ? 'error' : undefined}
-              onChange={(port) => onChange({ port: Number(port) || 0 })}
-            />
-            {visibleErrors.port ? <small className="host-editor-field-error">{visibleErrors.port}</small> : null}
-          </label>
-          <HostTextField label={t('hosts.username')} value={draft.username} error={visibleErrors.username} onChange={(username) => onChange({ username })} />
-          <HostSelectField
-            label={t('hosts.jumpHost')}
-            value={draft.jump_host_id}
-            options={[{ value: '', label: t('hosts.noJumpHost') }, ...jumpHostOptions]}
-            onChange={(jump_host_id) => onChange({ jump_host_id: jump_host_id as string })}
-          />
+      <HostEditorSection icon={<Settings2 size={16} />} title={t('hosts.accessSection')}>
+        <div className="host-access-layout">
+          <section className="host-access-pane is-connection">
+            <div className="host-access-pane-title"><Network size={16} /><h4>{t('hosts.connectionSection')}</h4></div>
+            <div className="host-editor-grid is-connection">
+              <HostTextField label={t('hosts.address')} value={draft.address} error={visibleErrors.address} onChange={(address) => onChange({ address })} />
+              <label className="host-editor-field is-port">
+                <span className="host-editor-field-label">{t('hosts.port')}</span>
+                <InputNumber
+                  min={1}
+                  max={65535}
+                  value={draft.port}
+                  status={visibleErrors.port ? 'error' : undefined}
+                  onChange={(port) => onChange({ port: Number(port) || 0 })}
+                />
+                {visibleErrors.port ? <small className="host-editor-field-error">{visibleErrors.port}</small> : null}
+              </label>
+              <HostTextField label={t('hosts.username')} value={draft.username} error={visibleErrors.username} onChange={(username) => onChange({ username })} />
+              <HostSelectField
+                label={t('hosts.jumpHost')}
+                value={draft.jump_host_id}
+                options={[{ value: '', label: t('hosts.noJumpHost') }, ...jumpHostOptions]}
+                onChange={(jump_host_id) => onChange({ jump_host_id: jump_host_id as string })}
+              />
+            </div>
+          </section>
+          <section className="host-access-pane is-authentication">
+            <div className="host-access-pane-title"><KeyRound size={16} /><h4>{t('hosts.authSection')}</h4></div>
+            <Radio.Group
+              className="host-auth-methods"
+              value={draft.auth_method}
+              onChange={(event) => changeAuthMethod(event.target.value as AuthMethod)}
+            >
+              <Radio.Button value="system"><SquareTerminal size={15} /><span>{t('hosts.auth.system')}</span></Radio.Button>
+              <Radio.Button value="password"><KeyRound size={15} /><span>{t('hosts.auth.password')}</span></Radio.Button>
+              <Radio.Button value="private_key"><FileKey2 size={15} /><span>{t('hosts.auth.private_key')}</span></Radio.Button>
+            </Radio.Group>
+            <div className="host-auth-selection">
+              {draft.auth_method === 'system' ? (
+                <div className="host-system-auth-hint"><Settings2 size={16} /><span>{t('hosts.systemAuthHint')}</span></div>
+              ) : (
+                <HostSelectField
+                  label={t('hosts.credential')}
+                  value={draft.credential_id}
+                  options={[{ value: '', label: t('fields.none') }, ...credentialOptions]}
+                  error={visibleErrors.credentialId}
+                  onChange={(credential_id) => onChange({ credential_id: credential_id as string })}
+                />
+              )}
+            </div>
+          </section>
         </div>
-      </HostEditorSection>
-
-      <HostEditorSection icon={<KeyRound size={16} />} title={t('hosts.authSection')}>
-        <Segmented
-          block
-          className="segmented-control host-auth-segmented"
-          value={draft.auth_method}
-          options={( ['system', 'password', 'private_key'] as AuthMethod[]).map((method) => ({ value: method, label: t(`hosts.auth.${method}`) }))}
-          onChange={(value) => {
-            const authMethod = value as AuthMethod
-            const expectedType = authMethod === 'password' ? 'password' : 'private_key'
-            const currentCredential = data.credentials.find((credential) => credential.id === draft.credential_id)
-            onChange({
-              auth_method: authMethod,
-              credential_id: authMethod === 'system' || currentCredential?.type !== expectedType ? '' : draft.credential_id,
-            })
-          }}
-        />
-        {draft.auth_method === 'system' ? (
-          <div className="host-system-auth-hint"><Settings2 size={16} /><span>{t('hosts.systemAuthHint')}</span></div>
-        ) : (
-          <HostSelectField
-            label={t('hosts.credential')}
-            value={draft.credential_id}
-            options={[{ value: '', label: t('fields.none') }, ...credentialOptions]}
-            error={visibleErrors.credentialId}
-            onChange={(credential_id) => onChange({ credential_id: credential_id as string })}
-          />
-        )}
       </HostEditorSection>
     </ManagementPanel>
   )

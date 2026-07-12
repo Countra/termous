@@ -1,5 +1,5 @@
-import { Button, Input, Popconfirm, Segmented, Select, Tooltip } from 'antd'
-import { ArrowLeft, DatabaseZap, KeyRound, LockKeyhole, ShieldCheck, Trash2 } from 'lucide-react'
+import { Button, Input, Popconfirm, Radio, Select, Tooltip } from 'antd'
+import { ArrowLeft, DatabaseZap, KeyRound, Trash2 } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ManagementPanel } from '../../components/management/ManagementWorkspace'
@@ -103,16 +103,21 @@ export function CredentialEditor({
       )}
     >
       <CredentialEditorSection icon={<KeyRound size={16} />} title={t('vault.typeSection')}>
-        <Segmented
-          block
-          className="segmented-control credential-type-segmented"
+        <Radio.Group
+          className="credential-type-options"
           value={draft.type}
-          options={( ['password', 'private_key', 'private_key_passphrase'] as CredentialType[]).map((type) => ({
-            value: type,
-            label: t(`vault.typeName.${type}`),
-          }))}
-          onChange={(value) => changeType(value as CredentialType)}
-        />
+          onChange={(event) => changeType(event.target.value as CredentialType)}
+        >
+          {(['password', 'private_key', 'private_key_passphrase'] as CredentialType[]).map((type) => {
+            const TypeIcon = credentialTypeIcon(type)
+            return (
+              <Radio.Button key={type} value={type}>
+                <TypeIcon size={16} aria-hidden="true" />
+                <span>{t(`vault.typeName.${type}`)}</span>
+              </Radio.Button>
+            )
+          })}
+        </Radio.Group>
         <p className="credential-type-description">{t(`vault.typeHint.${draft.type}`)}</p>
       </CredentialEditorSection>
 
@@ -167,13 +172,6 @@ export function CredentialEditor({
         </div>
       </CredentialEditorSection>
 
-      <CredentialEditorSection icon={<ShieldCheck size={16} />} title={t('vault.metadata')}>
-        <div className="credential-security-list">
-          <SecurityItem icon={<ShieldCheck size={15} />} text={t('vault.encrypted')} />
-          <SecurityItem icon={<LockKeyhole size={15} />} text={t('vault.protected')} />
-          <SecurityItem icon={<DatabaseZap size={15} />} text={t('vault.memory')} />
-        </div>
-      </CredentialEditorSection>
     </ManagementPanel>
   )
 }
@@ -185,10 +183,6 @@ function CredentialEditorSection({ icon, title, children }: { icon: ReactNode; t
       {children}
     </section>
   )
-}
-
-function SecurityItem({ icon, text }: { icon: ReactNode; text: string }) {
-  return <span>{icon}<span>{text}</span></span>
 }
 
 function omitKey(source: Record<string, string>, key: string) {

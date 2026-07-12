@@ -1,4 +1,4 @@
-import { Button, Input, Segmented, Tooltip } from 'antd'
+import { Button, Input, Tabs, Tooltip } from 'antd'
 import { Link2, Plus, Search, ShieldCheck, Wand2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -62,15 +62,15 @@ export function CredentialCatalog({
           placeholder={t('vault.searchPlaceholder')}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <Segmented
-          block
-          className="segmented-control credential-filter-segmented"
-          value={filter}
-          options={[
-            { value: 'all', label: t('vault.filterAll') },
-            { value: 'password', label: t('vault.filterPasswords') },
-            { value: 'private_key', label: t('vault.filterKeys') },
-            { value: 'private_key_passphrase', label: t('vault.filterPassphrases') },
+        <Tabs
+          className="credential-filter-tabs"
+          activeKey={filter}
+          animated={{ inkBar: true, tabPane: false }}
+          items={[
+            { key: 'all', label: t('vault.filterAll') },
+            { key: 'password', label: t('vault.filterPasswords') },
+            { key: 'private_key', label: t('vault.filterKeys') },
+            { key: 'private_key_passphrase', label: t('vault.filterPassphrases') },
           ]}
           onChange={(value) => setFilter(value as CredentialCatalogFilter)}
         />

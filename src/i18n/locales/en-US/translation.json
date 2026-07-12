@@ -935,6 +935,7 @@
     "unsavedTitle": "Discard unsaved changes?",
     "unsavedDescription": "Continuing will discard the unsaved content in the host editor.",
     "basicSection": "Basic information",
+    "accessSection": "Connection and authentication",
     "connectionSection": "Connection",
     "authSection": "Authentication",
     "nameHint": "If left blank, the host address will be used after saving.",

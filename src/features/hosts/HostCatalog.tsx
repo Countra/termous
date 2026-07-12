@@ -1,5 +1,5 @@
 import { Button, Input, Popover, Select, Tag, Tooltip } from 'antd'
-import { ChevronDown, ChevronRight, Filter, Plus, Search, ServerCog, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Filter, Plus, Search, Server, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
@@ -72,7 +72,7 @@ export function HostCatalog({
         <Select
           value={filters.groupId}
           className="termous-select"
-          classNames={{ popup: { root: 'termous-select-popup' } }}
+          classNames={{ popup: { root: 'termous-select-popup host-filter-select-popup' } }}
           options={[
             { value: '', label: t('hosts.allGroups') },
             ...groups.map((group) => ({ value: group.id, label: group.name })),
@@ -129,7 +129,7 @@ export function HostCatalog({
       bodyClassName="host-catalog-body"
       header={(
         <div className="host-panel-heading">
-          <span className="host-panel-heading-icon"><ServerCog size={18} aria-hidden="true" /></span>
+          <span className="host-panel-heading-icon"><Server size={18} aria-hidden="true" /></span>
           <div><h2>{t('hosts.list')}</h2><span>{t('hosts.hostCount', { count: hosts.length })}</span></div>
         </div>
       )}

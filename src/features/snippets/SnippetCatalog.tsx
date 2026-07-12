@@ -53,15 +53,31 @@ export function SnippetFilterBar({
   const { t } = useTranslation()
   const selectedTagKeys = new Set(selectedTags.map(snippetTagKey))
   const hasFilters = filter !== 'all' || query.trim().length > 0 || selectedTags.length > 0
+  const scopeControl = (
+    <Segmented
+      block
+      className="segmented-control snippet-catalog-segmented"
+      value={filter}
+      options={[
+        { value: 'all', label: t('snippets.all'), icon: <Code2 size={13} aria-hidden="true" /> },
+        { value: 'favorites', label: t('snippets.favorites'), icon: <Star size={13} aria-hidden="true" /> },
+      ]}
+      onChange={(value) => onFilterChange(value as SnippetCatalogFilter)}
+    />
+  )
   const filterContent = (
     <div className="snippet-filter-popover-content">
       <div className="snippet-filter-popover-head">
-        <strong>{t('snippets.tags')}</strong>
+        <span><Filter size={14} aria-hidden="true" /><strong>{t('snippets.filter')}</strong></span>
         {hasFilters ? (
           <Button type="text" size="small" onClick={onClear}>
             {t('hosts.clearFilters')}
           </Button>
         ) : null}
+      </div>
+      <div className="snippet-filter-popover-section-head">
+        <span>{t('snippets.tags')}</span>
+        <small>{selectedTags.length > 0 ? selectedTags.length : availableTags.length}</small>
       </div>
       {availableTags.length > 0 ? (
         <div className="snippet-filter-popover-tags">
@@ -108,34 +124,56 @@ export function SnippetFilterBar({
             content={filterContent}
             rootClassName="termous-snippet-filter-popover"
           >
-            <Tooltip title={t('snippets.filter')}>
-              <Button
-                className={`snippet-filter-button ${selectedTags.length > 0 ? 'is-active' : ''}`}
-                aria-label={t('snippets.filter')}
-                icon={<Filter size={15} aria-hidden="true" />}
-              />
-            </Tooltip>
+            <Button
+              className={`snippet-filter-button ${selectedTags.length > 0 ? 'is-active' : ''}`}
+              aria-label={t('snippets.filter')}
+              icon={<Filter size={15} aria-hidden="true" />}
+            >
+              {selectedTags.length > 0 ? <small className="snippet-filter-count">{selectedTags.length}</small> : null}
+            </Button>
           </Popover>
         ) : null}
       </div>
-      <Segmented
-        block
-        className="segmented-control snippet-catalog-segmented"
-        value={filter}
-        options={[
-          { value: 'all', label: t('snippets.all') },
-          { value: 'favorites', label: t('snippets.favorites') },
-        ]}
-        onChange={(value) => onFilterChange(value as SnippetCatalogFilter)}
-      />
-      <div className="snippet-catalog-filter-meta">
-        <span>{t('snippets.filterResult', { count: filteredCount, total: totalCount })}</span>
-        {selectedTags.length > 0 ? (
-          <div className="snippet-catalog-active-tags">
-            {selectedTags.map((tag) => <Tag key={tag}>{tag}</Tag>)}
+      {density === 'compact' ? (
+        <>
+          <div className="snippet-compact-filter-toolbar">
+            {scopeControl}
+            <span className="snippet-compact-filter-result">
+              <Code2 size={13} aria-hidden="true" />
+              <strong>{filteredCount}</strong>
+              <small>/ {totalCount}</small>
+            </span>
           </div>
-        ) : null}
-      </div>
+          {selectedTags.length > 0 ? (
+            <div className="snippet-compact-selected-tags">
+              {selectedTags.map((tag) => (
+                <Tag
+                  key={tag}
+                  closable
+                  onClose={(event) => {
+                    event.preventDefault()
+                    onSelectedTagsChange(selectedTags.filter((item) => snippetTagKey(item) !== snippetTagKey(tag)))
+                  }}
+                >
+                  {tag}
+                </Tag>
+              ))}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          {scopeControl}
+          <div className="snippet-catalog-filter-meta">
+            <span>{t('snippets.filterResult', { count: filteredCount, total: totalCount })}</span>
+            {selectedTags.length > 0 ? (
+              <div className="snippet-catalog-active-tags">
+                {selectedTags.map((tag) => <Tag key={tag}>{tag}</Tag>)}
+              </div>
+            ) : null}
+          </div>
+        </>
+      )}
     </div>
   )
 }

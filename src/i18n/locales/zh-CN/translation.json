@@ -935,6 +935,7 @@
     "unsavedTitle": "放弃未保存的更改？",
     "unsavedDescription": "继续操作会丢弃当前主机编辑器中的未保存内容。",
     "basicSection": "基本信息",
+    "accessSection": "连接与认证",
     "connectionSection": "连接信息",
     "authSection": "认证信息",
     "nameHint": "名称留空时，保存后将使用主机地址。",
