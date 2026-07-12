@@ -1395,7 +1395,7 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Appearance, language, and terminal display preferences",
+    "subtitle": "Application preferences, language, terminal, and data management",
     "tabGeneral": "General",
     "tabLanguage": "Language",
     "tabTerminal": "Terminal style",
@@ -1436,7 +1436,119 @@
     "deleteFont": "Delete font",
     "currentFontInUse": "This font is currently in use and cannot be deleted.",
     "fontImported": "Font imported",
-    "fontDeleted": "Font deleted"
+    "fontDeleted": "Font deleted",
+    "tabData": "Data",
+    "data": {
+      "exportTitle": "Export data",
+      "exportHint": "Encrypt settings, hosts, credentials, and local assets into one Termous backup file.",
+      "importTitle": "Import and restore",
+      "importHint": "Inspect a backup, choose the restore scope, and resolve each conflict before applying it.",
+      "password": "Backup password",
+      "confirmPassword": "Confirm backup password",
+      "exportAction": "Export backup",
+      "chooseBackup": "Choose backup file",
+      "resetImport": "Cancel this import",
+      "totalItems": "Data items",
+      "datasetsCount": "Data types",
+      "assets": "Local assets",
+      "sourceVersion": "Source version",
+      "createdAt": "Created",
+      "summaryFailed": "Could not load the data summary",
+      "exportComplete": "Backup export complete",
+      "exportFailed": "Backup export failed",
+      "inspectFailed": "Could not read the backup file",
+      "passwordMismatch": "The passwords do not match",
+      "passwordRequired": "Enter the backup password",
+      "nativeUnavailable": "Native backup file operations are unavailable in this environment",
+      "cancelFailed": "Could not cancel the import",
+      "planFailed": "Restore analysis failed",
+      "resolveFailed": "Could not update the conflict decision",
+      "pageFailed": "Could not load restore items",
+      "applyFailed": "Could not apply the restore",
+      "restartFailed": "Termous Core could not restart",
+      "selectDatasetRequired": "Select at least one data type to restore",
+      "selectItemRequired": "Select at least one item to restore",
+      "analyzeRestore": "Analyze restore impact",
+      "planTitle": "Restore impact",
+      "impactTotal": "Affected items",
+      "itemFilter": "Show",
+      "unresolvedCount": "{{count}} conflicts need a decision",
+      "planReady": "All conflicts are resolved",
+      "noPlanItems": "No items in this view",
+      "pageSummary": "Page {{page}} · {{total}} items",
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
+      "editSelection": "Adjust selection",
+      "applyRestore": "Apply restore",
+      "itemSelectionTitle": "Select restore items",
+      "itemSelectionHint": "Dependencies are included automatically. Reanalyze to see the final impact.",
+      "reanalyze": "Reanalyze",
+      "confirmRestoreTitle": "Confirm restore",
+      "confirmRestore": "Confirm and apply",
+      "confirmRestoreHint": "Restore {{count}} items using the current decisions. Termous Core must restart afterward.",
+      "pathWarnings": "{{count}} local path notices found",
+      "sensitiveChanged": "Sensitive content changed",
+      "restorePrepared": "Restored data is ready",
+      "restorePreparedHint": "Restart Termous Core to load the restored data.",
+      "retryRestart": "Retry restart",
+      "manualRestartTitle": "Manual restart required",
+      "manualRestartHint": "Termous Core is externally managed in development mode. Exit Termous, restart termous-core, then open the app again.",
+      "steps": {
+        "select": "Choose file",
+        "review": "Review",
+        "resolve": "Resolve",
+        "apply": "Apply"
+      },
+      "modes": {
+        "replace_all": {
+          "title": "Replace all",
+          "hint": "Replace all current user data with this backup. Data absent from the backup will be removed."
+        },
+        "merge_all": {
+          "title": "Merge all",
+          "hint": "Keep current data and merge everything in the backup, resolving conflicts explicitly."
+        },
+        "selective": {
+          "title": "Selective restore",
+          "hint": "Choose data types first, then refine the restore down to individual items."
+        }
+      },
+      "status": {
+        "all": "All",
+        "added": "Add",
+        "unchanged": "Same",
+        "conflict": "Conflict",
+        "dependency": "Dependency",
+        "skipped": "Skip",
+        "removed": "Remove"
+      },
+      "actions": {
+        "keep_current": "Keep current",
+        "use_backup": "Use backup",
+        "keep_both": "Keep both"
+      },
+      "progress": {
+        "selecting": "Waiting for a file",
+        "transferring": "Transferring encrypted backup",
+        "finalizing": "Verifying and finalizing",
+        "complete": "Operation complete"
+      },
+      "datasets": {
+        "settings": "App settings",
+        "host_groups": "Host groups",
+        "host_icons": "Host icons",
+        "credentials": "Credentials",
+        "hosts": "Hosts",
+        "known_hosts": "Host fingerprints",
+        "terminal_fonts": "Terminal fonts",
+        "code_snippets": "Code snippets",
+        "file_bookmark_groups": "Bookmark groups",
+        "file_bookmarks": "File bookmarks",
+        "local_path_mappings": "Local folder mappings",
+        "forward_profiles": "Port forwarding profiles",
+        "firewall_disabled_rules": "Disabled firewall rules"
+      }
+    }
   },
   "fields": {
     "required": "Required",

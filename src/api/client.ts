@@ -1090,14 +1090,15 @@ export class TermousApi {
   }
 
   dataPortabilitySummary() {
-    return this.request<DataPortabilitySummary>('/api/v1/data-portability/summary')
+    return this.request<DataPortabilitySummary>('/api/v1/data-portability/summary', { timeoutMs: 30_000 })
+      .then(normalizeDataPortabilitySummary)
   }
 
   createDataPortabilityPlan(importId: string, body: DataPortabilityPlanRequest) {
     return this.request<DataPortabilityRestorePlan>(
       `/api/v1/data-portability/imports/${encodeURIComponent(importId)}/plans`,
-      { method: 'POST', body },
-    )
+      { method: 'POST', body, timeoutMs: 60_000 },
+    ).then(normalizeDataPortabilityPlan)
   }
 
   dataPortabilityPlanItems(importId: string, planId: string, query: DataPortabilityPlanItemQuery = {}) {
@@ -1109,25 +1110,29 @@ export class TermousApi {
     const suffix = params.size > 0 ? `?${params.toString()}` : ''
     return this.request<DataPortabilityPlanItemPage>(
       `/api/v1/data-portability/imports/${encodeURIComponent(importId)}/plans/${encodeURIComponent(planId)}/items${suffix}`,
-    )
+      { timeoutMs: 30_000 },
+    ).then(normalizeDataPortabilityPlanItemPage)
   }
 
   resolveDataPortabilityPlan(importId: string, planId: string, body: DataPortabilityResolutionRequest) {
     return this.request<DataPortabilityRestorePlan>(
       `/api/v1/data-portability/imports/${encodeURIComponent(importId)}/plans/${encodeURIComponent(planId)}/resolutions`,
-      { method: 'PATCH', body },
-    )
+      { method: 'PATCH', body, timeoutMs: 30_000 },
+    ).then(normalizeDataPortabilityPlan)
   }
 
   applyDataPortabilityPlan(importId: string, planId: string) {
     return this.request<DataPortabilityApplyResult>(
       `/api/v1/data-portability/imports/${encodeURIComponent(importId)}/plans/${encodeURIComponent(planId)}/apply`,
-      { method: 'POST', body: {} },
+      { method: 'POST', body: {}, timeoutMs: 120_000 },
     )
   }
 
   cancelDataPortabilityImport(importId: string) {
-    return this.request<void>(`/api/v1/data-portability/imports/${encodeURIComponent(importId)}`, { method: 'DELETE' })
+    return this.request<void>(`/api/v1/data-portability/imports/${encodeURIComponent(importId)}`, {
+      method: 'DELETE',
+      timeoutMs: 30_000,
+    })
   }
 
   private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -1251,6 +1256,32 @@ function firewallProviderQuery(provider?: FirewallProvider) {
 
 function normalizeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : []
+}
+
+function normalizeDataPortabilitySummary(summary: DataPortabilitySummary): DataPortabilitySummary {
+  return {
+    ...summary,
+    datasets: normalizeArray(summary.datasets),
+  }
+}
+
+function normalizeDataPortabilityPlan(plan: DataPortabilityRestorePlan): DataPortabilityRestorePlan {
+  return {
+    ...plan,
+    items: normalizeArray(plan.items),
+    summary: {
+      ...plan.summary,
+      by_status: plan.summary?.by_status ?? {},
+      by_dataset: plan.summary?.by_dataset ?? {},
+    },
+  }
+}
+
+function normalizeDataPortabilityPlanItemPage(page: DataPortabilityPlanItemPage): DataPortabilityPlanItemPage {
+  return {
+    ...page,
+    items: normalizeArray(page.items),
+  }
 }
 
 function normalizeFirewallProviderList(list: FirewallProviderList): FirewallProviderList {

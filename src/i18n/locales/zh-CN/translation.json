@@ -1395,7 +1395,7 @@
   },
   "settings": {
     "title": "设置",
-    "subtitle": "外观、语言与终端显示偏好",
+    "subtitle": "应用偏好、语言、终端与数据管理",
     "tabGeneral": "通用",
     "tabLanguage": "语言",
     "tabTerminal": "终端样式",
@@ -1436,7 +1436,119 @@
     "deleteFont": "删除字体",
     "currentFontInUse": "当前正在使用，不能删除",
     "fontImported": "字体已导入",
-    "fontDeleted": "字体已删除"
+    "fontDeleted": "字体已删除",
+    "tabData": "数据",
+    "data": {
+      "exportTitle": "导出数据",
+      "exportHint": "将设置、主机、凭据和本地资源加密保存为一个 Termous 备份文件。",
+      "importTitle": "导入与恢复",
+      "importHint": "检查备份内容，选择恢复范围并逐项处理冲突后再应用。",
+      "password": "备份密码",
+      "confirmPassword": "确认备份密码",
+      "exportAction": "导出备份",
+      "chooseBackup": "选择备份文件",
+      "resetImport": "取消本次导入",
+      "totalItems": "数据条目",
+      "datasetsCount": "数据类型",
+      "assets": "本地资源",
+      "sourceVersion": "来源版本",
+      "createdAt": "创建时间",
+      "summaryFailed": "读取数据摘要失败",
+      "exportComplete": "备份导出完成",
+      "exportFailed": "备份导出失败",
+      "inspectFailed": "无法读取备份文件",
+      "passwordMismatch": "两次输入的密码不一致",
+      "passwordRequired": "请输入备份密码",
+      "nativeUnavailable": "当前环境不支持原生备份文件操作",
+      "cancelFailed": "取消导入失败",
+      "planFailed": "恢复分析失败",
+      "resolveFailed": "冲突处理失败",
+      "pageFailed": "读取恢复条目失败",
+      "applyFailed": "应用恢复失败",
+      "restartFailed": "核心服务重启失败",
+      "selectDatasetRequired": "请至少选择一种要恢复的数据",
+      "selectItemRequired": "请至少选择一个要恢复的条目",
+      "analyzeRestore": "分析恢复影响",
+      "planTitle": "恢复影响",
+      "impactTotal": "涉及条目",
+      "itemFilter": "显示范围",
+      "unresolvedCount": "{{count}} 个冲突待处理",
+      "planReady": "所有冲突均已处理",
+      "noPlanItems": "当前范围没有条目",
+      "pageSummary": "第 {{page}} 页 · 共 {{total}} 项",
+      "previousPage": "上一页",
+      "nextPage": "下一页",
+      "editSelection": "调整选择",
+      "applyRestore": "应用恢复",
+      "itemSelectionTitle": "选择恢复条目",
+      "itemSelectionHint": "依赖项由系统自动补齐，重新分析后会显示最终影响范围。",
+      "reanalyze": "重新分析",
+      "confirmRestoreTitle": "确认应用恢复",
+      "confirmRestore": "确认并应用",
+      "confirmRestoreHint": "将按当前决策恢复 {{count}} 个条目。应用后需要重启核心服务。",
+      "pathWarnings": "发现 {{count}} 项本机路径提醒",
+      "sensitiveChanged": "敏感内容已变化",
+      "restorePrepared": "恢复数据已准备完成",
+      "restorePreparedHint": "请重启核心服务以载入恢复后的数据。",
+      "retryRestart": "重试重启",
+      "manualRestartTitle": "需要手动重启",
+      "manualRestartHint": "开发模式下核心服务由外部管理。请退出 Termous，重启 termous-core 后重新打开软件。",
+      "steps": {
+        "select": "选择文件",
+        "review": "检查内容",
+        "resolve": "处理冲突",
+        "apply": "应用恢复"
+      },
+      "modes": {
+        "replace_all": {
+          "title": "完整替换",
+          "hint": "使用备份完整替换当前用户数据。当前备份中不存在的数据将被移除。"
+        },
+        "merge_all": {
+          "title": "合并全部",
+          "hint": "保留当前数据并合并备份中的全部内容，冲突由你逐项决定。"
+        },
+        "selective": {
+          "title": "选择性恢复",
+          "hint": "先选择数据类型，再按具体条目调整恢复范围。"
+        }
+      },
+      "status": {
+        "all": "全部",
+        "added": "新增",
+        "unchanged": "相同",
+        "conflict": "冲突",
+        "dependency": "依赖",
+        "skipped": "跳过",
+        "removed": "移除"
+      },
+      "actions": {
+        "keep_current": "保留当前",
+        "use_backup": "使用备份",
+        "keep_both": "两者保留"
+      },
+      "progress": {
+        "selecting": "等待选择文件",
+        "transferring": "正在传输加密备份",
+        "finalizing": "正在校验并完成",
+        "complete": "操作完成"
+      },
+      "datasets": {
+        "settings": "应用设置",
+        "host_groups": "主机分组",
+        "host_icons": "主机图标",
+        "credentials": "凭据",
+        "hosts": "主机",
+        "known_hosts": "主机指纹",
+        "terminal_fonts": "终端字体",
+        "code_snippets": "代码片段",
+        "file_bookmark_groups": "书签分组",
+        "file_bookmarks": "文件书签",
+        "local_path_mappings": "本地目录映射",
+        "forward_profiles": "端口转发配置",
+        "firewall_disabled_rules": "防火墙禁用规则"
+      }
+    }
   },
   "fields": {
     "required": "必填",

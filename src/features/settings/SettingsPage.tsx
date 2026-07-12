@@ -1,8 +1,9 @@
-import { Languages, Moon, Settings2, SquareTerminal, Sun } from 'lucide-react'
+import { DatabaseBackup, Languages, Moon, Settings2, SquareTerminal, Sun } from 'lucide-react'
 import { Segmented, Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { AppearanceSettings, Language, TerminalFont, TerminalSettings, WindowSettings } from '../../types/domain'
 import { TerminalStyleSettings } from './TerminalStyleSettings'
+import { DataPortabilitySettings } from './DataPortabilitySettings'
 
 interface SettingsPageProps {
   language: Language
@@ -175,6 +176,16 @@ export function SettingsPage({
                 onDeleteFont={onDeleteTerminalFont}
               />
             ),
+          },
+          {
+            key: 'data',
+            label: (
+              <span className="settings-tab-label">
+                <DatabaseBackup size={15} aria-hidden="true" />
+                {t('settings.tabData')}
+              </span>
+            ),
+            children: <DataPortabilitySettings />,
           },
         ]}
       />
