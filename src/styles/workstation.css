@@ -3876,10 +3876,6 @@ body.is-terminal-tab-dragging * {
   white-space: nowrap;
 }
 
-.host-filter-panel + .management-empty-slot {
-  padding-top: 14px;
-}
-
 .host-search-input.ant-input-affix-wrapper {
   height: 38px;
   border-radius: 12px;
@@ -4578,91 +4574,6 @@ body.is-terminal-tab-dragging * {
   border-radius: 999px;
   background: color-mix(in srgb, var(--surface-subtle) 84%, var(--accent-soft) 16%);
   color: var(--text-secondary);
-  font-weight: 650;
-}
-
-.credential-list {
-  gap: 8px;
-}
-
-.credential-list .data-row {
-  min-height: 54px;
-  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-subtle) 68%, transparent);
-  padding: 10px;
-}
-
-.credential-list .data-row:hover {
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
-  background: color-mix(in srgb, var(--accent-soft) 36%, var(--surface-subtle));
-}
-
-.credential-list .data-row.is-active {
-  border-color: color-mix(in srgb, var(--accent) 64%, var(--border));
-  background: color-mix(in srgb, var(--accent-soft) 54%, var(--surface-subtle));
-  box-shadow:
-    inset 3px 0 0 var(--accent),
-    var(--inner-highlight);
-}
-
-.management-empty-slot {
-  display: grid;
-  flex: 1 1 auto;
-  min-height: 0;
-  padding: 16px 4px 2px;
-}
-
-.management-empty-slot.is-filtered {
-  padding-top: 12px;
-}
-
-.management-empty-slot .empty-state {
-  min-height: 212px;
-  border-color: color-mix(in srgb, var(--border) 82%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 88%, transparent), color-mix(in srgb, var(--surface-subtle) 72%, transparent)),
-    var(--surface-subtle);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
-}
-
-:root[data-theme="light"] .management-empty-slot .empty-state {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 92%, #ffffff 8%), color-mix(in srgb, var(--surface-subtle) 84%, #ffffff 16%)),
-    var(--surface-subtle);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 82%),
-    0 10px 26px rgb(35 48 68 / 5%);
-}
-
-.host-empty-slot.management-empty-slot {
-  flex: 0 0 auto;
-  min-height: 180px;
-  place-items: center;
-  margin: 14px 6px 0;
-  border: 1px dashed color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 16px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 48%, transparent), color-mix(in srgb, var(--surface) 36%, transparent)),
-    color-mix(in srgb, var(--surface-subtle) 38%, transparent);
-  padding: 0;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
-}
-
-.host-empty-slot .ant-empty {
-  margin: 0;
-  color: var(--text-muted);
-}
-
-.host-empty-slot .ant-empty-image {
-  height: 54px;
-  margin-bottom: 8px;
-  opacity: 0.72;
-}
-
-.host-empty-slot .ant-empty-description {
-  color: var(--text-muted);
-  font-size: 14px;
   font-weight: 650;
 }
 
@@ -5438,62 +5349,6 @@ body.is-terminal-tab-dragging * {
 
 .auth-choice:active {
   transform: translateY(1px);
-}
-
-.vault-page.management-grid > .editor-panel {
-  overflow: auto;
-  scrollbar-gutter: stable;
-}
-
-.vault-page.management-grid > .editor-panel .editor-sections {
-  flex: 0 0 auto;
-  align-content: start;
-  overflow: visible;
-  padding-right: 0;
-}
-
-.vault-page .form-section {
-  gap: 12px;
-  padding: 14px;
-}
-
-.vault-page .credential-type-grid {
-  align-items: stretch;
-  gap: 10px;
-}
-
-.vault-page .credential-type-grid .auth-choice {
-  min-height: 44px;
-  justify-content: center;
-  padding: 0 12px;
-}
-
-.vault-page .management-empty-slot {
-  flex: 0 0 auto;
-  min-height: 220px;
-  place-items: center;
-  margin: 14px 6px 0;
-  border: 1px dashed color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--surface-subtle) 48%, transparent);
-  padding: 0;
-}
-
-.vault-page .vault-empty-slot .ant-empty {
-  margin: 0;
-  color: var(--text-muted);
-}
-
-.vault-page .vault-empty-slot .ant-empty-image {
-  height: 54px;
-  margin-bottom: 8px;
-  opacity: 0.72;
-}
-
-.vault-page .vault-empty-slot .ant-empty-description {
-  color: var(--text-muted);
-  font-size: 14px;
-  font-weight: 650;
 }
 
 .field,
@@ -6932,9 +6787,6 @@ body.is-terminal-tab-dragging * {
     min-height: 560px;
   }
 
-  .management-empty-slot {
-    padding-top: 14px;
-  }
 }
 
 @media (max-width: 980px) {

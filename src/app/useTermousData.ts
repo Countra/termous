@@ -402,8 +402,9 @@ export function useTermousData() {
         })
       },
       async createHost(input: HostInput) {
-        await api.createHost(input)
+        const host = await api.createHost(input)
         await load('silent')
+        return host
       },
       async createHostGroup(name: string) {
         const group = await api.createHostGroup(name)
@@ -411,8 +412,9 @@ export function useTermousData() {
         return group
       },
       async updateHost(id: string, input: HostInput) {
-        await api.updateHost(id, input)
+        const host = await api.updateHost(id, input)
         await load('silent')
+        return host
       },
       async toggleHostFavorite(hostId: string) {
         const host = data.hosts.find((item) => item.id === hostId)
@@ -443,20 +445,23 @@ export function useTermousData() {
         }))
       },
       async createCredential(input: CredentialInput) {
-        await api.createCredential(input)
+        const credential = await api.createCredential(input)
         await load('silent')
+        return credential
       },
       async updateCredential(id: string, input: CredentialInput) {
-        await api.updateCredential(id, input)
+        const credential = await api.updateCredential(id, input)
         await load('silent')
+        return credential
       },
       async deleteCredential(id: string) {
         await api.deleteCredential(id)
         await load('silent')
       },
       async generateKey() {
-        await api.generateKey()
+        const credential = await api.generateKey()
         await load('silent')
+        return credential
       },
       async connect(hostId: string, cols = 120, rows = 32) {
         const session = await api.createSession(hostId, cols, rows)

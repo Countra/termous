@@ -17,7 +17,7 @@ import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
+import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -313,10 +313,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }).catch(() => undefined)
   }, [data.settings.language, trayLabels, trayRecentHosts])
 
-  const runAction = useCallback(async (task: () => Promise<void>, success?: string) => {
+  const runAction = useCallback(async <T,>(task: () => Promise<T>, success?: string): Promise<T | undefined> => {
     setActionBusy(true)
     try {
-      await task()
+      const result = await task()
       if (success) {
         notification.success({
           title: success,
@@ -325,6 +325,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           className: 'termous-notification',
         })
       }
+      return result
     } catch (actionError) {
       notification.error({
         title: t('app.error'),
@@ -333,18 +334,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         role: 'alert',
         className: 'termous-notification',
       })
+      return undefined
     } finally {
       setActionBusy(false)
     }
   }, [notification, t])
 
-  const saveHost = (id: string | null, input: HostInput) =>
+  const saveHost = (id: string | null, input: HostInput): Promise<Host | undefined> =>
     runAction(async () => {
       if (id) {
-        await actions.updateHost(id, input)
-      } else {
-        await actions.createHost(input)
+        return actions.updateHost(id, input)
       }
+      return actions.createHost(input)
     }, t('app.save'))
 
   const createHostGroup = async (name: string): Promise<HostGroup> => {
@@ -372,13 +373,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
-  const saveCredential = (id: string | null, input: CredentialInput) =>
+  const saveCredential = (id: string | null, input: CredentialInput): Promise<CredentialView | undefined> =>
     runAction(async () => {
       if (id) {
-        await actions.updateCredential(id, input)
-      } else {
-        await actions.createCredential(input)
+        return actions.updateCredential(id, input)
       }
+      return actions.createCredential(input)
     }, t('app.save'))
 
   const saveCodeSnippet = (id: string | null, input: CodeSnippetInput) =>
@@ -642,7 +642,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             actionBusy={actionBusy}
             onSelectHost={setSelectedHostId}
             onSave={saveHost}
-            onDelete={(id) => runAction(() => actions.deleteHost(id))}
+            onDelete={(id) => runAction(async () => {
+              await actions.deleteHost(id)
+              return true
+            })}
             onCreateGroup={createHostGroup}
             onUploadHostIcon={uploadHostIcon}
             onDeleteHostIcon={deleteHostIcon}
@@ -655,8 +658,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             data={data}
             actionBusy={actionBusy}
             onSave={saveCredential}
-            onDelete={(id) => runAction(() => actions.deleteCredential(id))}
-            onGenerateKey={() => runAction(actions.generateKey)}
+            onDelete={(id) => runAction(async () => {
+              await actions.deleteCredential(id)
+              return true
+            })}
+            onGenerateKey={() => runAction(actions.generateKey, t('vault.keyGenerated'))}
           />
         ) : null}
 
