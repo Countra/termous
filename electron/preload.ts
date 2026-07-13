@@ -114,7 +114,8 @@ contextBridge.exposeInMainWorld('termous', {
   },
   portability: {
     exportBackup: (password: string) => ipcRenderer.invoke('portability:export', password),
-    inspectBackup: (password: string) => ipcRenderer.invoke('portability:inspect', password),
+    selectBackup: () => ipcRenderer.invoke('portability:select-import'),
+    inspectBackup: (selectionId: string, password: string) => ipcRenderer.invoke('portability:inspect', selectionId, password),
     restartAfterRestore: () => ipcRenderer.invoke('portability:restart-after-restore'),
     onProgress: (callback: (progress: unknown) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, progress: unknown) => callback(progress)

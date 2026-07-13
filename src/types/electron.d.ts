@@ -5,6 +5,7 @@ import type {
   CoreStatus,
   DataPortabilityExportDialogResult,
   DataPortabilityImportDialogResult,
+  DataPortabilityImportSelectionResult,
   DataPortabilityProgress,
   DataPortabilityRestartResult,
   TrayCommand,
@@ -31,7 +32,8 @@ declare global {
       }
       portability?: {
         exportBackup: (password: string) => Promise<DataPortabilityExportDialogResult>
-        inspectBackup: (password: string) => Promise<DataPortabilityImportDialogResult>
+        selectBackup: () => Promise<DataPortabilityImportSelectionResult>
+        inspectBackup: (selectionId: string, password: string) => Promise<DataPortabilityImportDialogResult>
         restartAfterRestore: () => Promise<DataPortabilityRestartResult>
         onProgress: (callback: (progress: DataPortabilityProgress) => void) => () => void
       }

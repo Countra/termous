@@ -111,8 +111,7 @@
   padding: 0;
 }
 
-.data-portability-password-grid,
-.data-portability-import-start {
+.data-portability-password-grid {
   display: grid;
   min-width: 0;
   align-items: center;
@@ -121,10 +120,6 @@
 
 .data-portability-password-grid {
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
-}
-
-.data-portability-import-start {
-  grid-template-columns: minmax(220px, 1fr) auto;
 }
 
 .data-portability-section .ant-input-affix-wrapper,
@@ -164,6 +159,108 @@
 .data-portability-progress strong {
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
+}
+
+.data-portability-password-modal .ant-modal-content {
+  border: 1px solid var(--border);
+  background: var(--app-bg-elevated);
+  padding: 18px;
+}
+
+.data-portability-password-modal .ant-modal-header {
+  margin-bottom: 16px;
+  background: transparent;
+}
+
+.data-portability-password-modal .ant-modal-footer {
+  margin-top: 18px;
+}
+
+.data-portability-password-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+  padding-right: 28px;
+}
+
+.data-portability-password-title > span {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.data-portability-password-title > div,
+.data-portability-selected-file > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.data-portability-password-title strong {
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.data-portability-password-title small,
+.data-portability-selected-file small {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.data-portability-password-content {
+  display: grid;
+  gap: 11px;
+}
+
+.data-portability-password-content > label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.data-portability-password-content .ant-input-affix-wrapper {
+  background: var(--input-bg);
+}
+
+.data-portability-selected-file {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  padding: 10px;
+}
+
+.data-portability-selected-file > span {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.data-portability-selected-file strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .data-portability-steps {
@@ -592,7 +689,6 @@
 
   .data-portability-summary,
   .data-portability-password-grid,
-  .data-portability-import-start,
   .data-portability-import-overview,
   .data-portability-differences {
     grid-template-columns: 1fr;

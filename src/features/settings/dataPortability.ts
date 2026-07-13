@@ -83,7 +83,3 @@ export function formatDifferenceValue(value: unknown) {
     return '—'
   }
 }
-
-export function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
-}

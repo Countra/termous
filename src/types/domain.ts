@@ -1434,6 +1434,13 @@ export interface DataPortabilityImportDialogResult {
   inspection?: DataPortabilityImport
 }
 
+export interface DataPortabilityImportSelectionResult {
+  canceled: boolean
+  selection_id?: string
+  file_name?: string
+  size_bytes?: number
+}
+
 export interface DataPortabilityRestartResult {
   restarted: boolean
   requires_manual_restart: boolean

@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Alert, App as AntdApp, Button, Checkbox, Input, Modal, Progress, Segmented, Steps, Tree } from 'antd'
 import {
-  ArchiveRestore,
   CheckCircle2,
-  DatabaseBackup,
+  Download,
   FileArchive,
   KeyRound,
   RefreshCw,
   RotateCcw,
   ShieldCheck,
   SlidersHorizontal,
+  Upload,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { createApiFromRuntime, type TermousApi } from '../../api/client'
 import type {
   DataPortabilityDatasetKey,
   DataPortabilityImport,
+  DataPortabilityImportSelectionResult,
   DataPortabilityItemRef,
   DataPortabilityPlanItemPage,
   DataPortabilityPlanStatus,
@@ -27,7 +28,6 @@ import type {
 } from '../../types/domain'
 import { DataPortabilityPlanView } from './DataPortabilityPlanView'
 import {
-  errorMessage,
   formatPortabilityBytes,
   itemSelectionKey,
   normalizePortabilityImport,
@@ -39,6 +39,8 @@ import {
 import '../../styles/data-portability.css'
 
 type PlanStatusFilter = 'all' | DataPortabilityPlanStatus
+
+type SelectedBackup = Required<Pick<DataPortabilityImportSelectionResult, 'selection_id' | 'file_name' | 'size_bytes'>>
 
 const PAGE_SIZE = 20
 
@@ -52,6 +54,9 @@ export function DataPortabilitySettings() {
   const [exportPassword, setExportPassword] = useState('')
   const [exportConfirm, setExportConfirm] = useState('')
   const [importPassword, setImportPassword] = useState('')
+  const [selectedBackup, setSelectedBackup] = useState<SelectedBackup | null>(null)
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false)
+  const [passwordModalError, setPasswordModalError] = useState('')
   const [exportBusy, setExportBusy] = useState(false)
   const [importBusy, setImportBusy] = useState(false)
   const [progress, setProgress] = useState<DataPortabilityProgress | null>(null)
@@ -79,8 +84,8 @@ export function DataPortabilitySettings() {
     try {
       const api = await getApi()
       setSummary(normalizePortabilitySummary(await api.dataPortabilitySummary()))
-    } catch (error) {
-      notification.error({ title: t('settings.data.summaryFailed'), description: errorMessage(error) })
+    } catch {
+      notification.error({ title: t('settings.data.summaryFailed'), description: t('settings.data.summaryFailedHint') })
     } finally {
       setSummaryBusy(false)
     }
@@ -118,6 +123,9 @@ export function DataPortabilitySettings() {
     setCurrentCursor('')
     setStatusFilter('all')
     setImportPassword('')
+    setSelectedBackup(null)
+    setPasswordModalOpen(false)
+    setPasswordModalError('')
     setRestorePrepared(false)
   }, [])
 
@@ -128,8 +136,8 @@ export function DataPortabilitySettings() {
     try {
       const api = await getApi()
       await api.cancelDataPortabilityImport(importId)
-    } catch (error) {
-      notification.warning({ title: t('settings.data.cancelFailed'), description: errorMessage(error) })
+    } catch {
+      notification.warning({ title: t('settings.data.cancelFailed'), description: t('settings.data.cancelFailedHint') })
     }
   }, [getApi, notification, resetImportState, t])
 
@@ -149,8 +157,8 @@ export function DataPortabilitySettings() {
       if (!result.canceled) {
         notification.success({ title: t('settings.data.exportComplete'), description: result.file_name })
       }
-    } catch (error) {
-      notification.error({ title: t('settings.data.exportFailed'), description: errorMessage(error) })
+    } catch {
+      notification.error({ title: t('settings.data.exportFailed'), description: t('settings.data.exportFailedHint') })
     } finally {
       setExportPassword('')
       setExportConfirm('')
@@ -158,11 +166,7 @@ export function DataPortabilitySettings() {
     }
   }
 
-  const handleInspect = async () => {
-    if (!importPassword) {
-      notification.warning({ title: t('settings.data.passwordRequired') })
-      return
-    }
+  const handleSelectBackup = async () => {
     const bridge = window.termous?.portability
     if (!bridge) {
       notification.error({ title: t('settings.data.nativeUnavailable') })
@@ -170,7 +174,47 @@ export function DataPortabilitySettings() {
     }
     setImportBusy(true)
     try {
-      const result = await bridge.inspectBackup(importPassword)
+      const result = await bridge.selectBackup()
+      if (result.canceled) return
+      if (!result.selection_id || !result.file_name || !Number.isFinite(result.size_bytes)) {
+        notification.error({ title: t('settings.data.selectFailed'), description: t('settings.data.selectFailedHint') })
+        return
+      }
+      setSelectedBackup({
+        selection_id: result.selection_id,
+        file_name: result.file_name,
+        size_bytes: result.size_bytes ?? 0,
+      })
+      setImportPassword('')
+      setPasswordModalError('')
+      setPasswordModalOpen(true)
+    } catch {
+      notification.error({ title: t('settings.data.selectFailed'), description: t('settings.data.selectFailedHint') })
+    } finally {
+      setImportBusy(false)
+    }
+  }
+
+  const handleInspect = async () => {
+    if (!importPassword) {
+      setPasswordModalError(t('settings.data.passwordRequired'))
+      return
+    }
+    if (!selectedBackup) {
+      setPasswordModalOpen(false)
+      notification.warning({ title: t('settings.data.selectFailed'), description: t('settings.data.selectExpiredHint') })
+      return
+    }
+    const bridge = window.termous?.portability
+    if (!bridge) {
+      notification.error({ title: t('settings.data.nativeUnavailable') })
+      return
+    }
+    setPasswordModalOpen(false)
+    setPasswordModalError('')
+    setImportBusy(true)
+    try {
+      const result = await bridge.inspectBackup(selectedBackup.selection_id, importPassword)
       if (result.canceled || !result.inspection) return
       const nextInspection = normalizePortabilityImport(result.inspection)
       activeImportIdRef.current = nextInspection.import_id
@@ -179,8 +223,11 @@ export function DataPortabilitySettings() {
       setMode('merge_all')
       setPlan(null)
       setPage(null)
-    } catch (error) {
-      notification.error({ title: t('settings.data.inspectFailed'), description: errorMessage(error) })
+      setSelectedBackup(null)
+    } catch {
+      setProgress(null)
+      setPasswordModalError(t('settings.data.inspectFailedHint'))
+      setPasswordModalOpen(true)
     } finally {
       setImportPassword('')
       setImportBusy(false)
@@ -225,8 +272,8 @@ export function DataPortabilitySettings() {
       if (mode === 'selective') {
         setSelectedItemKeys(result.items.filter((item) => item.status !== 'removed' && item.status !== 'skipped').map(itemSelectionKey))
       }
-    } catch (error) {
-      notification.error({ title: t('settings.data.planFailed'), description: errorMessage(error) })
+    } catch {
+      notification.error({ title: t('settings.data.planFailed'), description: t('settings.data.planFailedHint') })
     } finally {
       setPlanBusy(false)
     }
@@ -245,8 +292,8 @@ export function DataPortabilitySettings() {
       setPlan(updated)
       setCursorStack([])
       await fetchPlanPage(updated, '', statusFilter)
-    } catch (error) {
-      notification.error({ title: t('settings.data.resolveFailed'), description: errorMessage(error) })
+    } catch {
+      notification.error({ title: t('settings.data.resolveFailed'), description: t('settings.data.resolveFailedHint') })
     } finally {
       setPlanBusy(false)
     }
@@ -265,8 +312,8 @@ export function DataPortabilitySettings() {
         return
       }
       window.location.reload()
-    } catch (error) {
-      notification.error({ title: t('settings.data.restartFailed'), description: errorMessage(error), duration: 0 })
+    } catch {
+      notification.error({ title: t('settings.data.restartFailed'), description: t('settings.data.restartFailedHint'), duration: 0 })
     }
   }
 
@@ -281,8 +328,8 @@ export function DataPortabilitySettings() {
       setRestorePrepared(true)
       notification.success({ title: t('settings.data.restorePrepared') })
       await restartAfterRestore()
-    } catch (error) {
-      notification.error({ title: t('settings.data.applyFailed'), description: errorMessage(error), duration: 6 })
+    } catch {
+      notification.error({ title: t('settings.data.applyFailed'), description: t('settings.data.applyFailedHint'), duration: 6 })
     } finally {
       setPlanBusy(false)
     }
@@ -295,8 +342,8 @@ export function DataPortabilitySettings() {
     setPlanBusy(true)
     try {
       await fetchPlanPage(plan, '', value)
-    } catch (error) {
-      notification.error({ title: t('settings.data.pageFailed'), description: errorMessage(error) })
+    } catch {
+      notification.error({ title: t('settings.data.pageFailed'), description: t('settings.data.pageFailedHint') })
     } finally {
       setPlanBusy(false)
     }
@@ -308,8 +355,8 @@ export function DataPortabilitySettings() {
     setPlanBusy(true)
     try {
       await fetchPlanPage(plan, page.next_cursor)
-    } catch (error) {
-      notification.error({ title: t('settings.data.pageFailed'), description: errorMessage(error) })
+    } catch {
+      notification.error({ title: t('settings.data.pageFailed'), description: t('settings.data.pageFailedHint') })
       setCursorStack((value) => value.slice(0, -1))
     } finally {
       setPlanBusy(false)
@@ -323,8 +370,8 @@ export function DataPortabilitySettings() {
     setPlanBusy(true)
     try {
       await fetchPlanPage(plan, previous)
-    } catch (error) {
-      notification.error({ title: t('settings.data.pageFailed'), description: errorMessage(error) })
+    } catch {
+      notification.error({ title: t('settings.data.pageFailed'), description: t('settings.data.pageFailedHint') })
       setCursorStack((value) => [...value, previous])
     } finally {
       setPlanBusy(false)
@@ -363,12 +410,12 @@ export function DataPortabilitySettings() {
   return (
     <div className="data-portability-section">
       <section className="data-portability-band">
-        <BandHeader icon={<DatabaseBackup size={18} />} title={t('settings.data.exportTitle')} hint={t('settings.data.exportHint')} />
+        <BandHeader icon={<Download size={18} />} title={t('settings.data.exportTitle')} hint={t('settings.data.exportHint')} />
         <SummaryStrip summary={summary} busy={summaryBusy} onReload={loadSummary} />
         <div className="data-portability-password-grid">
           <Input.Password id="data-portability-export-password" autoComplete="off" value={exportPassword} maxLength={1024} prefix={<KeyRound size={15} />} placeholder={t('settings.data.password')} onChange={(event) => setExportPassword(event.target.value)} />
           <Input.Password id="data-portability-export-confirm" autoComplete="off" value={exportConfirm} maxLength={1024} prefix={<ShieldCheck size={15} />} placeholder={t('settings.data.confirmPassword')} onChange={(event) => setExportConfirm(event.target.value)} />
-          <Button type="primary" icon={<FileArchive size={16} />} loading={exportBusy} onClick={() => void handleExport()}>
+          <Button type="primary" icon={<Download size={16} />} loading={exportBusy} onClick={() => void handleExport()}>
             {t('settings.data.exportAction')}
           </Button>
         </div>
@@ -377,10 +424,14 @@ export function DataPortabilitySettings() {
 
       <section className="data-portability-band">
         <BandHeader
-          icon={<ArchiveRestore size={18} />}
+          icon={<Upload size={18} />}
           title={t('settings.data.importTitle')}
           hint={t('settings.data.importHint')}
-          action={inspection && !restorePrepared ? <Button icon={<RotateCcw size={15} />} onClick={() => void cancelImport()}>{t('settings.data.resetImport')}</Button> : undefined}
+          action={inspection && !restorePrepared
+            ? <Button icon={<RotateCcw size={15} />} onClick={() => void cancelImport()}>{t('settings.data.resetImport')}</Button>
+            : !restorePrepared
+              ? <Button type="primary" icon={<Upload size={16} />} loading={importBusy} onClick={() => void handleSelectBackup()}>{t('settings.data.chooseBackup')}</Button>
+              : undefined}
         />
         <Steps
           className="data-portability-steps"
@@ -388,15 +439,9 @@ export function DataPortabilitySettings() {
           size="small"
           items={['select', 'review', 'resolve', 'apply'].map((key) => ({ title: t(`settings.data.steps.${key}`) }))}
         />
+        {progress?.operation === 'import' ? <OperationProgress progress={progress} /> : null}
 
-        {!inspection ? (
-          <div className="data-portability-import-start">
-            <Input.Password id="data-portability-import-password" autoComplete="off" value={importPassword} maxLength={1024} prefix={<KeyRound size={15} />} placeholder={t('settings.data.password')} onChange={(event) => setImportPassword(event.target.value)} />
-            <Button type="primary" icon={<FileArchive size={16} />} loading={importBusy} onClick={() => void handleInspect()}>
-              {t('settings.data.chooseBackup')}
-            </Button>
-          </div>
-        ) : (
+        {inspection ? (
           <>
             <ImportOverview inspection={inspection} locale={i18n.language} />
             {inspection.warnings.length > 0 ? (
@@ -420,8 +465,7 @@ export function DataPortabilitySettings() {
               </div>
             ) : null}
           </>
-        )}
-        {progress?.operation === 'import' ? <OperationProgress progress={progress} /> : null}
+        ) : null}
         {plan && inspection && !restorePrepared ? (
           <DataPortabilityPlanView
             plan={plan}
@@ -443,6 +487,59 @@ export function DataPortabilitySettings() {
           <Alert type="success" showIcon message={t('settings.data.restorePrepared')} description={t('settings.data.restorePreparedHint')} action={<Button onClick={() => void restartAfterRestore()}>{t('settings.data.retryRestart')}</Button>} />
         ) : null}
       </section>
+
+      <Modal
+        rootClassName="data-portability-password-modal"
+        open={passwordModalOpen}
+        centered
+        width={460}
+        title={(
+          <div className="data-portability-password-title">
+            <span><KeyRound size={18} /></span>
+            <div><strong>{t('settings.data.passwordDialogTitle')}</strong><small>{t('settings.data.passwordDialogHint')}</small></div>
+          </div>
+        )}
+        okText={t('settings.data.continueImport')}
+        cancelText={t('app.cancel')}
+        confirmLoading={importBusy}
+        okButtonProps={{ disabled: !importPassword.trim() }}
+        maskClosable={!importBusy}
+        keyboard={!importBusy}
+        onOk={() => void handleInspect()}
+        onCancel={() => {
+          if (importBusy) return
+          setPasswordModalOpen(false)
+          setSelectedBackup(null)
+          setImportPassword('')
+          setPasswordModalError('')
+        }}
+      >
+        <div className="data-portability-password-content">
+          <div className="data-portability-selected-file">
+            <span><FileArchive size={18} /></span>
+            <div><strong title={selectedBackup?.file_name}>{selectedBackup?.file_name}</strong><small>{formatPortabilityBytes(selectedBackup?.size_bytes)}</small></div>
+          </div>
+          <label htmlFor="data-portability-import-password">{t('settings.data.password')}</label>
+          <Input.Password
+            id="data-portability-import-password"
+            autoFocus
+            autoComplete="off"
+            value={importPassword}
+            maxLength={1024}
+            prefix={<KeyRound size={15} />}
+            placeholder={t('settings.data.password')}
+            status={passwordModalError ? 'error' : undefined}
+            onChange={(event) => {
+              setImportPassword(event.target.value)
+              if (passwordModalError) setPasswordModalError('')
+            }}
+            onPressEnter={() => {
+              if (importPassword.trim() && !importBusy) void handleInspect()
+            }}
+          />
+          {passwordModalError ? <Alert type="error" showIcon message={passwordModalError} /> : null}
+        </div>
+      </Modal>
 
       <Modal open={selectionOpen} centered width={700} title={t('settings.data.itemSelectionTitle')} onCancel={() => setSelectionOpen(false)} onOk={() => void applyItemSelection()} okText={t('settings.data.reanalyze')} cancelText={t('app.cancel')}>
         <p className="data-portability-modal-hint">{t('settings.data.itemSelectionHint')}</p>
@@ -487,5 +584,8 @@ function DatasetSelection({ inspection, value, onChange }: { inspection: DataPor
 function OperationProgress({ progress }: { progress: DataPortabilityProgress }) {
   const { t } = useTranslation()
   const percent = portabilityProgressPercent(progress)
-  return <div className="data-portability-progress"><div>{progress.phase === 'complete' ? <CheckCircle2 size={16} /> : <RefreshCw className="is-spinning" size={16} />}<span>{t(`settings.data.progress.${progress.phase}`)}</span><strong>{percent}%</strong></div><Progress percent={percent} showInfo={false} size="small" /></div>
+  const progressLabel = progress.operation === 'import' && progress.phase === 'transferring'
+    ? t('settings.data.progress.importTransferring')
+    : t(`settings.data.progress.${progress.phase}`)
+  return <div className="data-portability-progress"><div>{progress.phase === 'complete' ? <CheckCircle2 size={16} /> : <RefreshCw className="is-spinning" size={16} />}<span>{progressLabel}</span><strong>{percent}%</strong></div><Progress percent={percent} showInfo={false} size="small" /></div>
 }

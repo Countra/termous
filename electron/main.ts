@@ -29,6 +29,7 @@ const APPEARANCE_CACHE_FILE = 'appearance.json'
 const BACKUP_EXTENSION = '.tobp'
 const BACKUP_MAX_BYTES = 1 << 30
 const BACKUP_PASSWORD_MAX_BYTES = 1024
+const BACKUP_SELECTION_TTL_MS = 10 * 60 * 1000
 const coreProcess = new CoreProcessManager()
 const trayController = new TermousTrayController({
   appName: APP_NAME,
@@ -59,6 +60,17 @@ interface PortabilityProgress {
   total_bytes?: number
 }
 
+interface PendingBackupSelection {
+  id: string
+  ownerId: number
+  sourcePath: string
+  fileName: string
+  sizeBytes: number
+  expiresAt: number
+}
+
+const pendingBackupSelections = new Map<string, PendingBackupSelection>()
+
 function emitPortabilityProgress(sender: WebContents, progress: PortabilityProgress) {
   if (!sender.isDestroyed()) {
     sender.send('portability:progress', progress)
@@ -68,6 +80,15 @@ function emitPortabilityProgress(sender: WebContents, progress: PortabilityProgr
 function validateBackupPassword(password: unknown): asserts password is string {
   if (typeof password !== 'string' || password.trim() === '' || Buffer.byteLength(password, 'utf8') > BACKUP_PASSWORD_MAX_BYTES) {
     throw new Error('备份密码不能为空且不能超过 1024 字节')
+  }
+}
+
+function pruneBackupSelections(ownerId?: number) {
+  const now = Date.now()
+  for (const [id, selection] of pendingBackupSelections) {
+    if (selection.expiresAt <= now || selection.ownerId === ownerId) {
+      pendingBackupSelections.delete(id)
+    }
   }
 }
 
@@ -562,9 +583,8 @@ function registerDataPortabilityControls() {
     }
   })
 
-  ipcMain.handle('portability:inspect', async (event, password: unknown) => {
-    validateBackupPassword(password)
-    emitPortabilityProgress(event.sender, { operation: 'import', phase: 'selecting' })
+  ipcMain.handle('portability:select-import', async (event) => {
+    pruneBackupSelections(event.sender.id)
     const focused = currentWindow()
     const options = {
       title: '导入 Termous 数据',
@@ -577,12 +597,46 @@ function registerDataPortabilityControls() {
     }
     const sourcePath = selected.filePaths[0]
     if (!sourcePath.toLowerCase().endsWith(BACKUP_EXTENSION)) {
-      throw new Error('请选择 .tobp 备份文件')
+      throw new Error('请选择 Termous 备份文件')
     }
     const sourceStat = await stat(sourcePath)
     if (!sourceStat.isFile() || sourceStat.size <= 0 || sourceStat.size > BACKUP_MAX_BYTES) {
-      throw new Error('备份文件为空或超过大小上限')
+      throw new Error('备份文件不可用')
     }
+    const selection: PendingBackupSelection = {
+      id: randomUUID(),
+      ownerId: event.sender.id,
+      sourcePath,
+      fileName: path.basename(sourcePath),
+      sizeBytes: sourceStat.size,
+      expiresAt: Date.now() + BACKUP_SELECTION_TTL_MS,
+    }
+    pendingBackupSelections.set(selection.id, selection)
+    return {
+      canceled: false,
+      selection_id: selection.id,
+      file_name: selection.fileName,
+      size_bytes: selection.sizeBytes,
+    }
+  })
+
+  ipcMain.handle('portability:inspect', async (event, selectionId: unknown, password: unknown) => {
+    validateBackupPassword(password)
+    if (typeof selectionId !== 'string' || selectionId.trim() === '') {
+      throw new Error('备份文件选择已失效')
+    }
+    const selection = pendingBackupSelections.get(selectionId)
+    if (!selection || selection.ownerId !== event.sender.id || selection.expiresAt <= Date.now()) {
+      pendingBackupSelections.delete(selectionId)
+      throw new Error('备份文件选择已失效')
+    }
+    const sourcePath = selection.sourcePath
+    const sourceStat = await stat(sourcePath)
+    if (!sourceStat.isFile() || sourceStat.size !== selection.sizeBytes || sourceStat.size <= 0 || sourceStat.size > BACKUP_MAX_BYTES) {
+      pendingBackupSelections.delete(selectionId)
+      throw new Error('备份文件已发生变化')
+    }
+    emitPortabilityProgress(event.sender, { operation: 'import', phase: 'transferring', transferred_bytes: 0, total_bytes: sourceStat.size })
     const boundary = `----termous-${randomBytes(18).toString('hex')}`
     const prefix = Buffer.from(
       `--${boundary}\r\nContent-Disposition: form-data; name="password"\r\n\r\n${password}\r\n` +
@@ -628,6 +682,7 @@ function registerDataPortabilityControls() {
       emitPortabilityProgress(event.sender, {
         operation: 'import', phase: 'complete', transferred_bytes: sourceStat.size, total_bytes: sourceStat.size,
       })
+      pendingBackupSelections.delete(selectionId)
       return { canceled: false, inspection }
     } finally {
       prefix.fill(0)
