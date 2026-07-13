@@ -183,6 +183,8 @@ export function WorkbenchPage({
   const [snippetFilter, setSnippetFilter] = useState<SnippetCatalogFilter>('all')
   const [snippetQuery, setSnippetQuery] = useState('')
   const [snippetSelectedTags, setSnippetSelectedTags] = useState<string[]>([])
+  const [snippetSelectedGroupId, setSnippetSelectedGroupId] = useState('')
+  const [collapsedSnippetGroups, setCollapsedSnippetGroups] = useState<Set<string>>(() => new Set())
   const [terminalSearch, setTerminalSearch] = useState<TerminalSearchState>({
     open: false,
     sessionId: null,
@@ -253,9 +255,36 @@ export function WorkbenchPage({
       filter: snippetFilter,
       query: snippetQuery,
       selectedTags: snippetSelectedTags,
+      groupId: snippetSelectedGroupId,
     }),
-    [data.snippets, snippetFilter, snippetQuery, snippetSelectedTags],
+    [data.snippets, snippetFilter, snippetQuery, snippetSelectedGroupId, snippetSelectedTags],
   )
+  const groupedFilteredSnippets = useMemo(() => {
+    const snippetsByGroup = new Map(data.snippetGroups.map((group) => [group.id, [] as CodeSnippet[]]))
+    const ungrouped: CodeSnippet[] = []
+    filteredSnippets.forEach((snippet) => {
+      const groupSnippets = snippetsByGroup.get(snippet.group_id)
+      if (groupSnippets) {
+        groupSnippets.push(snippet)
+      } else {
+        ungrouped.push(snippet)
+      }
+    })
+    return [
+      ...data.snippetGroups.map((group) => ({
+        id: group.id,
+        name: group.name,
+        snippets: snippetsByGroup.get(group.id) ?? [],
+      })),
+      { id: '__ungrouped__', name: t('snippets.ungrouped'), snippets: ungrouped },
+    ].filter((group) => group.snippets.length > 0)
+  }, [data.snippetGroups, filteredSnippets, t])
+  useEffect(() => {
+    if (!snippetSelectedGroupId || snippetSelectedGroupId === '__ungrouped__') return
+    if (!data.snippetGroups.some((group) => group.id === snippetSelectedGroupId)) {
+      setSnippetSelectedGroupId('')
+    }
+  }, [data.snippetGroups, snippetSelectedGroupId])
   const quickConnectHosts = useMemo(
     () => filterQuickConnectHosts(data.hosts, quickConnectQuery),
     [data.hosts, quickConnectQuery],
@@ -1358,73 +1387,121 @@ export function WorkbenchPage({
             children: (
               <section className="snippet-send-panel">
                 <div className="snippet-send-head">
-                  <span className="snippet-send-head-icon">
-                    <Code2 size={16} aria-hidden="true" />
-                  </span>
-                  <div>
-                    <h3>{t('snippets.sendPanelTitle')}</h3>
-                    <span>{canSendSnippet ? t('snippets.sendPanelHint') : t('snippets.noActiveSession')}</span>
+                  <div className="snippet-send-head-main">
+                    <span className="snippet-send-head-icon">
+                      <Code2 size={16} aria-hidden="true" />
+                    </span>
+                    <div>
+                      <h3>{t('snippets.sendPanelTitle')}</h3>
+                      <span>{t('snippets.sendPanelHint')}</span>
+                    </div>
                   </div>
+                  <span className="snippet-send-head-count">{t('snippets.libraryCount', { count: filteredSnippets.length })}</span>
                 </div>
-                <SnippetFilterBar
-                  filter={snippetFilter}
-                  query={snippetQuery}
-                  selectedTags={snippetSelectedTags}
-                  availableTags={snippetTags}
-                  filteredCount={filteredSnippets.length}
-                  totalCount={data.snippets.length}
-                  density="compact"
-                  onFilterChange={setSnippetFilter}
-                  onQueryChange={setSnippetQuery}
-                  onSelectedTagsChange={setSnippetSelectedTags}
-                  onClear={() => {
-                    setSnippetFilter('all')
-                    setSnippetQuery('')
-                    setSnippetSelectedTags([])
-                  }}
-                />
-                <SnippetList
-                  snippets={filteredSnippets}
-                  totalCount={data.snippets.length}
-                  density="compact"
-                  emptyDescription={t('snippets.emptyHint')}
-                  noResultsDescription={t('snippets.noFilterResults')}
-                  renderActions={(snippet) => (
-                    <>
-                      <Tooltip title={snippet.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}>
-                        <Button
-                          type="text"
-                          className={`snippet-workbench-action is-favorite ${snippet.favorite ? 'is-active' : ''}`}
-                          disabled={actionBusy}
-                          aria-label={snippet.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}
-                          aria-pressed={snippet.favorite}
-                          icon={<Star size={14} fill={snippet.favorite ? 'currentColor' : 'none'} />}
-                          onClick={() => void onToggleSnippetFavorite(snippet)}
-                        />
-                      </Tooltip>
-                      <Tooltip title={t('snippets.action.insert')}>
-                        <Button
-                          type="text"
-                          className="snippet-workbench-action"
-                          disabled={!canSendSnippet || actionBusy}
-                          aria-label={t('snippets.action.insert')}
-                          icon={<Play size={14} />}
-                          onClick={() => void sendSnippet(snippet, false)}
-                        />
-                      </Tooltip>
-                      <Tooltip title={t('snippets.action.send')}>
-                        <Button
-                          type="text"
-                          className="snippet-workbench-action"
-                          disabled={!canSendSnippet || actionBusy}
-                          aria-label={t('snippets.action.send')}
-                          icon={<Send size={14} />}
-                          onClick={() => void sendSnippet(snippet, true)}
-                        />
-                      </Tooltip>
-                    </>
-                  )}
-                />
+                <div className="snippet-send-filter-shell">
+                  <SnippetFilterBar
+                    filter={snippetFilter}
+                    query={snippetQuery}
+                    selectedTags={snippetSelectedTags}
+                    groups={data.snippetGroups}
+                    selectedGroupId={snippetSelectedGroupId}
+                    availableTags={snippetTags}
+                    filteredCount={filteredSnippets.length}
+                    totalCount={data.snippets.length}
+                    density="compact"
+                    onFilterChange={setSnippetFilter}
+                    onQueryChange={setSnippetQuery}
+                    onSelectedTagsChange={setSnippetSelectedTags}
+                    onSelectedGroupChange={setSnippetSelectedGroupId}
+                    onClear={() => {
+                      setSnippetFilter('all')
+                      setSnippetQuery('')
+                      setSnippetSelectedTags([])
+                      setSnippetSelectedGroupId('')
+                    }}
+                  />
+                </div>
+                {filteredSnippets.length === 0 ? (
+                  <SnippetList
+                    snippets={[]}
+                    totalCount={data.snippets.length}
+                    density="compact"
+                    emptyDescription={t('snippets.emptyHint')}
+                    noResultsDescription={t('snippets.noFilterResults')}
+                  />
+                ) : (
+                  <div className="snippet-workbench-grouped-list">
+                    {groupedFilteredSnippets.map((group) => {
+                      const collapsed = collapsedSnippetGroups.has(group.id)
+                      return (
+                        <section key={group.id} className="snippet-workbench-group">
+                          <button
+                            type="button"
+                            className="snippet-workbench-group-head"
+                            aria-expanded={!collapsed}
+                            onClick={() => {
+                              setCollapsedSnippetGroups((current) => {
+                                const next = new Set(current)
+                                if (next.has(group.id)) next.delete(group.id)
+                                else next.add(group.id)
+                                return next
+                              })
+                            }}
+                          >
+                            {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                            <FolderOpen size={14} />
+                            <strong>{group.name}</strong>
+                            <span>{group.snippets.length}</span>
+                          </button>
+                          {!collapsed ? (
+                            <SnippetList
+                              snippets={group.snippets}
+                              totalCount={group.snippets.length}
+                              density="compact"
+                              emptyDescription={t('snippets.emptyHint')}
+                              noResultsDescription={t('snippets.noFilterResults')}
+                              renderActions={(snippet) => (
+                                <>
+                                  <Tooltip title={snippet.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}>
+                                    <Button
+                                      type="text"
+                                      className={`snippet-workbench-action is-favorite ${snippet.favorite ? 'is-active' : ''}`}
+                                      disabled={actionBusy}
+                                      aria-label={snippet.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}
+                                      aria-pressed={snippet.favorite}
+                                      icon={<Star size={14} fill={snippet.favorite ? 'currentColor' : 'none'} />}
+                                      onClick={() => void onToggleSnippetFavorite(snippet)}
+                                    />
+                                  </Tooltip>
+                                  <Tooltip title={t('snippets.action.insert')}>
+                                    <Button
+                                      type="text"
+                                      className="snippet-workbench-action"
+                                      disabled={!canSendSnippet || actionBusy}
+                                      aria-label={t('snippets.action.insert')}
+                                      icon={<Play size={14} />}
+                                      onClick={() => void sendSnippet(snippet, false)}
+                                    />
+                                  </Tooltip>
+                                  <Tooltip title={t('snippets.action.send')}>
+                                    <Button
+                                      type="text"
+                                      className="snippet-workbench-action"
+                                      disabled={!canSendSnippet || actionBusy}
+                                      aria-label={t('snippets.action.send')}
+                                      icon={<Send size={14} />}
+                                      onClick={() => void sendSnippet(snippet, true)}
+                                    />
+                                  </Tooltip>
+                                </>
+                              )}
+                            />
+                          ) : null}
+                        </section>
+                      )
+                    })}
+                  </div>
+                )}
               </section>
             ),
           },

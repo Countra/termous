@@ -1,8 +1,8 @@
-import { Button, Empty, Input, Popover, Segmented, Tag, Tooltip } from 'antd'
+import { Button, Empty, Input, Popover, Segmented, Select, Tag, Tooltip } from 'antd'
 import { Code2, Filter, Search, Star, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { CodeSnippet } from '../../types/domain'
+import type { CodeSnippet, CodeSnippetGroup } from '../../types/domain'
 import { analyzeSnippetRisk, normalizeSnippetTags } from './snippetUtils'
 import {
   snippetTagKey,
@@ -19,6 +19,9 @@ interface SnippetFilterBarProps extends SnippetFilterState {
   totalCount: number
   density: SnippetCatalogDensity
   allowTagFilter?: boolean
+  groups?: CodeSnippetGroup[]
+  selectedGroupId?: string
+  onSelectedGroupChange?: (groupId: string) => void
   onFilterChange: (filter: SnippetCatalogFilter) => void
   onQueryChange: (query: string) => void
   onSelectedTagsChange: (tags: string[]) => void
@@ -45,6 +48,9 @@ export function SnippetFilterBar({
   totalCount,
   density,
   allowTagFilter = true,
+  groups = [],
+  selectedGroupId = '',
+  onSelectedGroupChange,
   onFilterChange,
   onQueryChange,
   onSelectedTagsChange,
@@ -52,7 +58,8 @@ export function SnippetFilterBar({
 }: SnippetFilterBarProps) {
   const { t } = useTranslation()
   const selectedTagKeys = new Set(selectedTags.map(snippetTagKey))
-  const hasFilters = filter !== 'all' || query.trim().length > 0 || selectedTags.length > 0
+  const hasFilters = filter !== 'all' || query.trim().length > 0 || selectedTags.length > 0 || Boolean(selectedGroupId)
+  const activeFilterCount = selectedTags.length + (selectedGroupId ? 1 : 0)
   const scopeControl = (
     <Segmented
       block
@@ -75,6 +82,24 @@ export function SnippetFilterBar({
           </Button>
         ) : null}
       </div>
+      {groups.length > 0 && onSelectedGroupChange ? (
+        <div className="snippet-filter-popover-group">
+          <div className="snippet-filter-popover-section-head">
+            <span>{t('snippets.group')}</span>
+          </div>
+          <Select
+            value={selectedGroupId}
+            className="termous-select"
+            classNames={{ popup: { root: 'termous-select-popup snippet-filter-select-popup' } }}
+            options={[
+              { value: '', label: t('snippets.allGroups') },
+              { value: '__ungrouped__', label: t('snippets.ungrouped') },
+              ...groups.map((group) => ({ value: group.id, label: group.name })),
+            ]}
+            onChange={(value) => onSelectedGroupChange(value)}
+          />
+        </div>
+      ) : null}
       <div className="snippet-filter-popover-section-head">
         <span>{t('snippets.tags')}</span>
         <small>{selectedTags.length > 0 ? selectedTags.length : availableTags.length}</small>
@@ -125,11 +150,11 @@ export function SnippetFilterBar({
             rootClassName="termous-snippet-filter-popover"
           >
             <Button
-              className={`snippet-filter-button ${selectedTags.length > 0 ? 'is-active' : ''}`}
+              className={`snippet-filter-button ${activeFilterCount > 0 ? 'is-active' : ''}`}
               aria-label={t('snippets.filter')}
               icon={<Filter size={15} aria-hidden="true" />}
             >
-              {selectedTags.length > 0 ? <small className="snippet-filter-count">{selectedTags.length}</small> : null}
+              {activeFilterCount > 0 ? <small className="snippet-filter-count">{activeFilterCount}</small> : null}
             </Button>
           </Popover>
         ) : null}

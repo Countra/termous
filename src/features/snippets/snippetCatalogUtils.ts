@@ -14,6 +14,7 @@ export interface SnippetFilterState {
   filter: SnippetCatalogFilter
   query: string
   selectedTags: string[]
+  groupId?: string
 }
 
 export function buildSnippetTags(snippets: CodeSnippet[]) {
@@ -37,6 +38,8 @@ export function filterSnippets(snippets: CodeSnippet[], state: SnippetFilterStat
   const selectedTagKeys = state.selectedTags.map(snippetTagKey)
   return snippets.filter((snippet) => {
     if (state.filter === 'favorites' && !snippet.favorite) return false
+    if (state.groupId === '__ungrouped__' && snippet.group_id) return false
+    if (state.groupId && state.groupId !== '__ungrouped__' && snippet.group_id !== state.groupId) return false
     const tags = normalizeSnippetTags(snippet.tags ?? [])
     const keys = new Set(tags.map(snippetTagKey))
     if (selectedTagKeys.some((tag) => !keys.has(tag))) return false

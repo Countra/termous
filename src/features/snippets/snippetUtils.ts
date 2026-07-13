@@ -44,6 +44,7 @@ export function analyzeSnippetRisk(command: string): SnippetRiskAnalysis {
 
 export function normalizeSnippetInput(input: CodeSnippetInput): CodeSnippetInput {
   return {
+    group_id: input.group_id.trim(),
     name: input.name.trim(),
     description: input.description.trim(),
     command: input.command.trim(),
@@ -55,6 +56,7 @@ export function normalizeSnippetInput(input: CodeSnippetInput): CodeSnippetInput
 
 export function snippetToInput(snippet: CodeSnippet): CodeSnippetInput {
   return {
+    group_id: snippet.group_id ?? '',
     name: snippet.name,
     description: snippet.description ?? '',
     command: snippet.command,

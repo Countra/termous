@@ -3,6 +3,8 @@ import type {
   AppearanceSettings,
   AppConfig,
   CodeSnippet,
+  CodeSnippetGroup,
+  CodeSnippetGroupInput,
   CodeSnippetInput,
   CoreRuntimeInfo,
   CredentialInput,
@@ -214,7 +216,29 @@ export class TermousApi {
   }
 
   codeSnippets() {
-    return this.request<CodeSnippet[]>('/api/v1/snippets')
+    return this.request<CodeSnippet[]>('/api/v1/snippets').then(normalizeArray)
+  }
+
+  codeSnippetGroups() {
+    return this.request<CodeSnippetGroup[]>('/api/v1/snippet-groups').then(normalizeArray)
+  }
+
+  createCodeSnippetGroup(input: CodeSnippetGroupInput) {
+    return this.request<CodeSnippetGroup>('/api/v1/snippet-groups', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  updateCodeSnippetGroup(id: string, input: CodeSnippetGroupInput) {
+    return this.request<CodeSnippetGroup>(`/api/v1/snippet-groups/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  }
+
+  deleteCodeSnippetGroup(id: string) {
+    return this.request<void>(`/api/v1/snippet-groups/${encodeURIComponent(id)}`, { method: 'DELETE' })
   }
 
   createCodeSnippet(input: CodeSnippetInput) {

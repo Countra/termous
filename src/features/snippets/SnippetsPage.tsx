@@ -1,23 +1,30 @@
-import { Button, Input, Modal, Popconfirm, Select, Tag, Tooltip } from 'antd'
+import { Button, Empty, Input, Modal, Popconfirm, Select, Tag, Tooltip } from 'antd'
 import {
   ArrowLeft,
   Braces,
+  Check,
+  ChevronDown,
+  ChevronRight,
   ChevronUp,
   Code2,
   FileCode2,
+  Folder,
+  FolderCog,
+  Pencil,
   Plus,
   Save,
   Star,
   Tags,
   Trash2,
   TriangleAlert,
+  X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
-import type { AppData, CodeSnippetInput, SnippetShell } from '../../types/domain'
+import type { AppData, CodeSnippetGroup, CodeSnippetInput, SnippetShell } from '../../types/domain'
 import {
   SnippetFilterBar,
   SnippetList,
@@ -40,12 +47,16 @@ interface SnippetsPageProps {
   actionBusy: boolean
   onSave: (id: string | null, input: CodeSnippetInput) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  onCreateGroup: (name: string) => Promise<CodeSnippetGroup | undefined>
+  onRenameGroup: (id: string, name: string) => Promise<CodeSnippetGroup | undefined>
+  onDeleteGroup: (id: string) => Promise<void>
 }
 
 type SnippetView = 'library' | 'editor'
 type SnippetIntent = { type: 'select'; id: string } | { type: 'create' }
 
 const blankSnippet: CodeSnippetInput = {
+  group_id: '',
   name: '',
   description: '',
   command: '',
@@ -56,13 +67,23 @@ const blankSnippet: CodeSnippetInput = {
 
 const snippetShells: SnippetShell[] = ['any', 'sh', 'bash', 'zsh', 'powershell', 'cmd']
 
-export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPageProps) {
+export function SnippetsPage({
+  data,
+  actionBusy,
+  onSave,
+  onDelete,
+  onCreateGroup,
+  onRenameGroup,
+  onDeleteGroup,
+}: SnippetsPageProps) {
   const { t } = useTranslation()
   const initialSnippet = data.snippets[0]
   const initialForm = initialSnippet ? snippetToInput(initialSnippet) : blankSnippet
   const [filter, setFilter] = useState<SnippetCatalogFilter>('all')
   const [query, setQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [selectedGroupId, setSelectedGroupId] = useState('')
+  const [groupManagerOpen, setGroupManagerOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(initialSnippet?.id ?? null)
   const [form, setForm] = useState<CodeSnippetInput>(initialForm)
   const [baseline, setBaseline] = useState<CodeSnippetInput>(initialForm)
@@ -72,8 +93,8 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
 
   const availableTags = useMemo(() => buildSnippetTags(data.snippets), [data.snippets])
   const filteredSnippets = useMemo(
-    () => filterSnippets(data.snippets, { filter, query, selectedTags }),
-    [data.snippets, filter, query, selectedTags],
+    () => filterSnippets(data.snippets, { filter, query, selectedTags, groupId: selectedGroupId }),
+    [data.snippets, filter, query, selectedGroupId, selectedTags],
   )
   const shellOptions = useMemo(
     () => snippetShells.map((shell) => ({ value: shell, label: t(`snippets.shell.${shell}`) })),
@@ -92,6 +113,13 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
   const risk = useMemo(() => analyzeSnippetRisk(normalizedForm.command), [normalizedForm.command])
   const variables = useMemo(() => extractSnippetVariables(normalizedForm.command), [normalizedForm.command])
   const canSave = Boolean(normalizedForm.name && normalizedForm.command)
+
+  useEffect(() => {
+    if (!selectedGroupId || selectedGroupId === '__ungrouped__') return
+    if (!data.snippetGroups.some((group) => group.id === selectedGroupId)) {
+      setSelectedGroupId('')
+    }
+  }, [data.snippetGroups, selectedGroupId])
 
   useEffect(() => {
     if (!editing || dirty) return
@@ -129,6 +157,7 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
     setFilter('all')
     setQuery('')
     setSelectedTags([])
+    setSelectedGroupId('')
   }
 
   const save = async () => {
@@ -158,22 +187,27 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
     <section className={`snippets-workspace is-${activeView}`}>
       <SnippetLibrary
         snippets={data.snippets}
+        groups={data.snippetGroups}
         filteredSnippets={filteredSnippets}
         editingId={editingId}
         filter={filter}
         query={query}
         selectedTags={selectedTags}
+        selectedGroupId={selectedGroupId}
         availableTags={availableTags}
         onFilterChange={setFilter}
         onQueryChange={setQuery}
         onSelectedTagsChange={setSelectedTags}
+        onSelectedGroupChange={setSelectedGroupId}
         onClearFilters={clearFilters}
         onCreate={() => requestIntent({ type: 'create' })}
+        onManageGroups={() => setGroupManagerOpen(true)}
         onSelect={(id) => requestIntent({ type: 'select', id })}
       />
       <SnippetEditor
         key={editingId ?? 'new'}
         form={form}
+        groups={data.snippetGroups}
         editingId={editingId}
         actionBusy={actionBusy}
         dirty={dirty}
@@ -183,9 +217,19 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
         shellOptions={shellOptions}
         tagOptions={tagOptions}
         onFormChange={setForm}
+        onCreateGroup={onCreateGroup}
         onBack={() => setActiveView('library')}
         onSave={() => void save()}
         onDelete={() => void remove()}
+      />
+      <SnippetGroupManager
+        open={groupManagerOpen}
+        groups={data.snippetGroups}
+        actionBusy={actionBusy}
+        onClose={() => setGroupManagerOpen(false)}
+        onCreate={onCreateGroup}
+        onRename={onRenameGroup}
+        onDelete={onDeleteGroup}
       />
       <Modal
         centered
@@ -210,34 +254,66 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
 
 function SnippetLibrary({
   snippets,
+  groups,
   filteredSnippets,
   editingId,
   filter,
   query,
   selectedTags,
+  selectedGroupId,
   availableTags,
   onFilterChange,
   onQueryChange,
   onSelectedTagsChange,
+  onSelectedGroupChange,
   onClearFilters,
   onCreate,
+  onManageGroups,
   onSelect,
 }: {
   snippets: AppData['snippets']
+  groups: CodeSnippetGroup[]
   filteredSnippets: AppData['snippets']
   editingId: string | null
   filter: SnippetCatalogFilter
   query: string
   selectedTags: string[]
+  selectedGroupId: string
   availableTags: ReturnType<typeof buildSnippetTags>
   onFilterChange: (value: SnippetCatalogFilter) => void
   onQueryChange: (value: string) => void
   onSelectedTagsChange: (value: string[]) => void
+  onSelectedGroupChange: (value: string) => void
   onClearFilters: () => void
   onCreate: () => void
+  onManageGroups: () => void
   onSelect: (id: string) => void
 }) {
   const { t } = useTranslation()
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set())
+  const groupedSnippets = useMemo(() => {
+    const groupMap = new Map(groups.map((group) => [group.id, [] as AppData['snippets']]))
+    const ungrouped: AppData['snippets'] = []
+    filteredSnippets.forEach((snippet) => {
+      const target = groupMap.get(snippet.group_id)
+      if (target) target.push(snippet)
+      else ungrouped.push(snippet)
+    })
+    return [
+      ...groups.map((group) => ({ id: group.id, name: group.name, snippets: groupMap.get(group.id) ?? [] })),
+      { id: '__ungrouped__', name: t('snippets.ungrouped'), snippets: ungrouped },
+    ].filter((section) => section.snippets.length > 0)
+  }, [filteredSnippets, groups, t])
+
+  const toggleGroup = (id: string) => {
+    setCollapsedGroups((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   return (
     <aside className="snippet-management-library">
       <header className="snippet-management-library-head">
@@ -248,14 +324,26 @@ function SnippetLibrary({
             <span>{t('snippets.libraryCount', { count: snippets.length })}</span>
           </div>
         </div>
-        <ConnectionActionButton className="snippet-create-button" onClick={onCreate} icon={<Plus size={16} />}>
-          {t('snippets.add')}
-        </ConnectionActionButton>
+        <div className="snippet-management-head-actions">
+          <Tooltip title={t('snippets.manageGroups')}>
+            <Button
+              className="snippet-group-manager-trigger"
+              aria-label={t('snippets.manageGroups')}
+              icon={<FolderCog size={16} />}
+              onClick={onManageGroups}
+            />
+          </Tooltip>
+          <ConnectionActionButton className="snippet-create-button" onClick={onCreate} icon={<Plus size={16} />}>
+            {t('snippets.add')}
+          </ConnectionActionButton>
+        </div>
       </header>
       <SnippetFilterBar
         filter={filter}
         query={query}
         selectedTags={selectedTags}
+        groups={groups}
+        selectedGroupId={selectedGroupId}
         availableTags={availableTags}
         filteredCount={filteredSnippets.length}
         totalCount={snippets.length}
@@ -263,23 +351,59 @@ function SnippetLibrary({
         onFilterChange={onFilterChange}
         onQueryChange={onQueryChange}
         onSelectedTagsChange={onSelectedTagsChange}
+        onSelectedGroupChange={onSelectedGroupChange}
         onClear={onClearFilters}
       />
-      <SnippetList
-        snippets={filteredSnippets}
-        totalCount={snippets.length}
-        density="management"
-        selectedId={editingId}
-        emptyDescription={t('snippets.empty')}
-        noResultsDescription={t('snippets.noFilterResults')}
-        onSelect={(snippet) => onSelect(snippet.id)}
-      />
+      {filteredSnippets.length === 0 ? (
+        <SnippetList
+          snippets={[]}
+          totalCount={snippets.length}
+          density="management"
+          selectedId={editingId}
+          emptyDescription={t('snippets.empty')}
+          noResultsDescription={t('snippets.noFilterResults')}
+          onSelect={(snippet) => onSelect(snippet.id)}
+        />
+      ) : (
+        <div className="snippet-grouped-list">
+          {groupedSnippets.map((section) => {
+            const collapsed = collapsedGroups.has(section.id)
+            return (
+              <section key={section.id} className="snippet-group-section">
+                <button
+                  type="button"
+                  className="snippet-group-section-head"
+                  aria-expanded={!collapsed}
+                  onClick={() => toggleGroup(section.id)}
+                >
+                  {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                  <Folder size={15} />
+                  <strong>{section.name}</strong>
+                  <span>{section.snippets.length}</span>
+                </button>
+                {!collapsed ? (
+                  <SnippetList
+                    snippets={section.snippets}
+                    totalCount={section.snippets.length}
+                    density="management"
+                    selectedId={editingId}
+                    emptyDescription={t('snippets.empty')}
+                    noResultsDescription={t('snippets.noFilterResults')}
+                    onSelect={(snippet) => onSelect(snippet.id)}
+                  />
+                ) : null}
+              </section>
+            )
+          })}
+        </div>
+      )}
     </aside>
   )
 }
 
 function SnippetEditor({
   form,
+  groups,
   editingId,
   actionBusy,
   dirty,
@@ -289,11 +413,13 @@ function SnippetEditor({
   shellOptions,
   tagOptions,
   onFormChange,
+  onCreateGroup,
   onBack,
   onSave,
   onDelete,
 }: {
   form: CodeSnippetInput
+  groups: CodeSnippetGroup[]
   editingId: string | null
   actionBusy: boolean
   dirty: boolean
@@ -303,6 +429,7 @@ function SnippetEditor({
   shellOptions: Array<{ value: SnippetShell; label: string }>
   tagOptions: Array<{ value: string; label: string }>
   onFormChange: (form: CodeSnippetInput) => void
+  onCreateGroup: (name: string) => Promise<CodeSnippetGroup | undefined>
   onBack: () => void
   onSave: () => void
   onDelete: () => void
@@ -314,8 +441,26 @@ function SnippetEditor({
   const commandSelectionRef = useRef({ start: form.command.length, end: form.command.length })
   const [variableHelperOpen, setVariableHelperOpen] = useState(false)
   const [variableName, setVariableName] = useState('')
+  const [groupCreatorOpen, setGroupCreatorOpen] = useState(false)
+  const [groupName, setGroupName] = useState('')
+  const [creatingGroup, setCreatingGroup] = useState(false)
   const normalizedVariableName = variableName.trim()
   const variableNameValid = /^[a-zA-Z_][\w.-]{0,63}$/.test(normalizedVariableName)
+  const normalizedGroupName = groupName.trim().replace(/\s+/g, ' ')
+
+  const createGroup = async () => {
+    if (!normalizedGroupName || creatingGroup) return
+    setCreatingGroup(true)
+    try {
+      const group = await onCreateGroup(normalizedGroupName)
+      if (!group) return
+      onFormChange({ ...form, group_id: group.id })
+      setGroupName('')
+      setGroupCreatorOpen(false)
+    } finally {
+      setCreatingGroup(false)
+    }
+  }
 
   useEffect(() => {
     if (!variableHelperOpen) return
@@ -417,6 +562,59 @@ function SnippetEditor({
               options={shellOptions}
               onChange={(shell) => onFormChange({ ...form, shell: shell as SnippetShell })}
             />
+            <div className="field snippet-editor-group-field snippet-editor-wide-field">
+              <span className="field-label">{t('snippets.group')}</span>
+              <div className="snippet-editor-group-control">
+                <Select
+                  value={form.group_id}
+                  className="termous-select"
+                  classNames={{ popup: { root: 'termous-select-popup' } }}
+                  options={[
+                    { value: '', label: t('snippets.ungrouped') },
+                    ...groups.map((group) => ({ value: group.id, label: group.name })),
+                  ]}
+                  onChange={(group_id) => onFormChange({ ...form, group_id })}
+                />
+                <Tooltip title={t('snippets.addGroup')}>
+                  <Button
+                    aria-label={t('snippets.addGroup')}
+                    icon={<Plus size={15} />}
+                    onClick={() => setGroupCreatorOpen((open) => !open)}
+                  />
+                </Tooltip>
+              </div>
+            </div>
+            {groupCreatorOpen ? (
+              <div className="snippet-editor-group-create">
+                <Input
+                  autoFocus
+                  value={groupName}
+                  maxLength={64}
+                  placeholder={t('snippets.groupNamePlaceholder')}
+                  disabled={creatingGroup}
+                  onChange={(event) => setGroupName(event.target.value)}
+                  onPressEnter={() => void createGroup()}
+                />
+                <Button
+                  type="primary"
+                  loading={creatingGroup}
+                  disabled={!normalizedGroupName}
+                  onClick={() => void createGroup()}
+                >
+                  {t('app.create')}
+                </Button>
+                <Button
+                  type="text"
+                  disabled={creatingGroup}
+                  onClick={() => {
+                    setGroupCreatorOpen(false)
+                    setGroupName('')
+                  }}
+                >
+                  {t('app.cancel')}
+                </Button>
+              </div>
+            ) : null}
             <label className="field snippet-editor-wide-field">
               <span className="field-label">{t('snippets.description')}</span>
               <Input.TextArea
@@ -567,6 +765,166 @@ function SnippetEditor({
         </ConnectionActionButton>
       </footer>
     </section>
+  )
+}
+
+function SnippetGroupManager({
+  open,
+  groups,
+  actionBusy,
+  onClose,
+  onCreate,
+  onRename,
+  onDelete,
+}: {
+  open: boolean
+  groups: CodeSnippetGroup[]
+  actionBusy: boolean
+  onClose: () => void
+  onCreate: (name: string) => Promise<CodeSnippetGroup | undefined>
+  onRename: (id: string, name: string) => Promise<CodeSnippetGroup | undefined>
+  onDelete: (id: string) => Promise<void>
+}) {
+  const { t } = useTranslation()
+  const [name, setName] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
+  const normalizedName = name.trim().replace(/\s+/g, ' ')
+  const normalizedEditingName = editingName.trim().replace(/\s+/g, ' ')
+
+  const create = async () => {
+    if (!normalizedName || actionBusy) return
+    const group = await onCreate(normalizedName)
+    if (group) setName('')
+  }
+
+  const rename = async () => {
+    if (!editingId || !normalizedEditingName || actionBusy) return
+    const group = await onRename(editingId, normalizedEditingName)
+    if (group) {
+      setEditingId(null)
+      setEditingName('')
+    }
+  }
+
+  return (
+    <Modal
+      centered
+      width={480}
+      open={open}
+      footer={null}
+      title={(
+        <span className="snippet-group-manager-title">
+          <FolderCog size={18} aria-hidden="true" />
+          {t('snippets.manageGroups')}
+        </span>
+      )}
+      rootClassName="snippet-group-manager-modal"
+      onCancel={onClose}
+    >
+      <div className="snippet-group-create-row">
+        <Input
+          value={name}
+          maxLength={64}
+          placeholder={t('snippets.groupNamePlaceholder')}
+          disabled={actionBusy}
+          onChange={(event) => setName(event.target.value)}
+          onPressEnter={() => void create()}
+        />
+        <Button
+          type="primary"
+          disabled={!normalizedName || actionBusy}
+          icon={<Plus size={15} />}
+          onClick={() => void create()}
+        >
+          {t('snippets.addGroup')}
+        </Button>
+      </div>
+      <div className="snippet-group-manager-list">
+        {groups.length === 0 ? (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('snippets.noGroups')} />
+        ) : groups.map((group) => {
+          const editing = editingId === group.id
+          return (
+            <div key={group.id} className="snippet-group-manager-row">
+              <span className="snippet-group-manager-row-icon"><Folder size={16} /></span>
+              {editing ? (
+                <Input
+                  autoFocus
+                  value={editingName}
+                  maxLength={64}
+                  disabled={actionBusy}
+                  onChange={(event) => setEditingName(event.target.value)}
+                  onPressEnter={() => void rename()}
+                />
+              ) : (
+                <strong>{group.name}</strong>
+              )}
+              <div className="snippet-group-manager-row-actions">
+                {editing ? (
+                  <>
+                    <Tooltip title={t('app.save')}>
+                      <Button
+                        type="text"
+                        aria-label={t('app.save')}
+                        disabled={!normalizedEditingName || actionBusy}
+                        icon={<Check size={15} />}
+                        onClick={() => void rename()}
+                      />
+                    </Tooltip>
+                    <Tooltip title={t('app.cancel')}>
+                      <Button
+                        type="text"
+                        aria-label={t('app.cancel')}
+                        disabled={actionBusy}
+                        icon={<X size={15} />}
+                        onClick={() => {
+                          setEditingId(null)
+                          setEditingName('')
+                        }}
+                      />
+                    </Tooltip>
+                  </>
+                ) : (
+                  <>
+                    <Tooltip title={t('app.edit')}>
+                      <Button
+                        type="text"
+                        aria-label={t('app.edit')}
+                        disabled={actionBusy}
+                        icon={<Pencil size={15} />}
+                        onClick={() => {
+                          setEditingId(group.id)
+                          setEditingName(group.name)
+                        }}
+                      />
+                    </Tooltip>
+                    <Popconfirm
+                      title={t('snippets.deleteGroupTitle')}
+                      description={t('snippets.deleteGroupHint')}
+                      okText={t('app.delete')}
+                      cancelText={t('app.cancel')}
+                      okButtonProps={{ danger: true }}
+                      onConfirm={() => onDelete(group.id)}
+                    >
+                      <Tooltip title={t('app.delete')}>
+                        <Button
+                          type="text"
+                          danger
+                          aria-label={t('app.delete')}
+                          disabled={actionBusy}
+                          icon={<Trash2 size={15} />}
+                        />
+                      </Tooltip>
+                    </Popconfirm>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </Modal>
   )
 }
 

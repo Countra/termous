@@ -4,6 +4,8 @@ import type {
   AppData,
   AppearanceSettings,
   CodeSnippet,
+  CodeSnippetGroup,
+  CodeSnippetGroupInput,
   CodeSnippetInput,
   CredentialInput,
   FileBookmark,
@@ -54,6 +56,7 @@ const initialData: AppData = {
   fileSessions: [],
   forwardProfiles: [],
   forwards: [],
+  snippetGroups: [],
   snippets: [],
   fileBookmarkGroups: [],
   fileBookmarks: [],
@@ -86,6 +89,7 @@ export function useTermousData() {
       const [
         settings,
         terminalFonts,
+        snippetGroups,
         snippets,
         fileBookmarkGroups,
         fileBookmarks,
@@ -102,6 +106,7 @@ export function useTermousData() {
       ] = await Promise.all([
         apiClient.settings(),
         apiClient.terminalFonts(),
+        apiClient.codeSnippetGroups(),
         apiClient.codeSnippets(),
         apiClient.fileBookmarkGroups(),
         apiClient.fileBookmarks(),
@@ -128,6 +133,7 @@ export function useTermousData() {
         fileSessions: fileSessions ?? [],
         forwardProfiles: forwardProfiles ?? [],
         forwards: visibleForwards(forwards ?? []),
+        snippetGroups: sortCodeSnippetGroups(snippetGroups ?? []),
         snippets: snippets ?? [],
         fileBookmarkGroups: sortFileBookmarkGroups(fileBookmarkGroups ?? []),
         fileBookmarks: sortFileBookmarks(fileBookmarks ?? []),
@@ -272,6 +278,32 @@ export function useTermousData() {
         const snippet = await api.markCodeSnippetUsed(id)
         setData((current) => ({ ...current, snippets: replaceCodeSnippet(current.snippets, snippet) }))
         return snippet
+      },
+      async createCodeSnippetGroup(input: CodeSnippetGroupInput) {
+        const group = await api.createCodeSnippetGroup(input)
+        setData((current) => ({
+          ...current,
+          snippetGroups: upsertCodeSnippetGroup(current.snippetGroups, group),
+        }))
+        return group
+      },
+      async updateCodeSnippetGroup(id: string, input: CodeSnippetGroupInput) {
+        const group = await api.updateCodeSnippetGroup(id, input)
+        setData((current) => ({
+          ...current,
+          snippetGroups: upsertCodeSnippetGroup(current.snippetGroups, group),
+        }))
+        return group
+      },
+      async deleteCodeSnippetGroup(id: string) {
+        await api.deleteCodeSnippetGroup(id)
+        setData((current) => ({
+          ...current,
+          snippetGroups: current.snippetGroups.filter((group) => group.id !== id),
+          snippets: current.snippets.map((snippet) => (
+            snippet.group_id === id ? { ...snippet, group_id: '' } : snippet
+          )),
+        }))
       },
       async createFileBookmarkGroup(input: FileBookmarkGroupInput) {
         const group = await api.createFileBookmarkGroup(input)
@@ -626,6 +658,21 @@ function upsertCodeSnippet(snippets: CodeSnippet[], next: CodeSnippet) {
   const exists = snippets.some((snippet) => snippet.id === next.id)
   const merged = exists ? snippets.map((snippet) => (snippet.id === next.id ? next : snippet)) : [next, ...snippets]
   return [...merged].sort(sortCodeSnippets)
+}
+
+function sortCodeSnippetGroups(groups: CodeSnippetGroup[]) {
+  return [...groups].sort((left, right) => (
+    left.sort_order - right.sort_order
+    || left.name.localeCompare(right.name)
+    || left.id.localeCompare(right.id)
+  ))
+}
+
+function upsertCodeSnippetGroup(groups: CodeSnippetGroup[], next: CodeSnippetGroup) {
+  const exists = groups.some((group) => group.id === next.id)
+  return sortCodeSnippetGroups(
+    exists ? groups.map((group) => (group.id === next.id ? next : group)) : [...groups, next],
+  )
 }
 
 function replaceCodeSnippet(snippets: CodeSnippet[], next: CodeSnippet) {

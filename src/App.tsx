@@ -17,7 +17,7 @@ import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
+import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -390,6 +390,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       }
     }, t('app.save'))
 
+  const createCodeSnippetGroup = (name: string): Promise<CodeSnippetGroup | undefined> =>
+    runAction(
+      () => actions.createCodeSnippetGroup({ name }),
+      t('snippets.groupCreated'),
+    )
+
+  const renameCodeSnippetGroup = (id: string, name: string): Promise<CodeSnippetGroup | undefined> =>
+    runAction(
+      () => actions.updateCodeSnippetGroup(id, { name }),
+      t('snippets.groupUpdated'),
+    )
+
   const toggleCodeSnippetFavorite = (snippet: CodeSnippet) =>
     runAction(async () => {
       await actions.updateCodeSnippet(snippet.id, { ...snippetToInput(snippet), favorite: !snippet.favorite })
@@ -727,6 +739,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             actionBusy={actionBusy}
             onSave={saveCodeSnippet}
             onDelete={(id) => runAction(() => actions.deleteCodeSnippet(id))}
+            onCreateGroup={createCodeSnippetGroup}
+            onRenameGroup={renameCodeSnippetGroup}
+            onDeleteGroup={(id) => runAction(
+              () => actions.deleteCodeSnippetGroup(id),
+              t('snippets.groupDeleted'),
+            )}
           />
         ) : null}
 

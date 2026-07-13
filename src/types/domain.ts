@@ -619,6 +619,7 @@ export interface WindowSettings {
 
 export interface CodeSnippet {
   id: string
+  group_id: string
   name: string
   description?: string
   command: string
@@ -632,12 +633,26 @@ export interface CodeSnippet {
 }
 
 export interface CodeSnippetInput {
+  group_id: string
   name: string
   description: string
   command: string
   tags: string[]
   shell: SnippetShell
   favorite: boolean
+}
+
+export interface CodeSnippetGroup {
+  id: string
+  name: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CodeSnippetGroupInput {
+  name: string
+  sort_order?: number
 }
 
 export interface FileBookmarkGroup {
@@ -1308,6 +1323,7 @@ export type DataPortabilityDatasetKey =
   | 'known_hosts'
   | 'terminal_fonts'
   | 'settings'
+  | 'code_snippet_groups'
   | 'code_snippets'
   | 'file_bookmark_groups'
   | 'file_bookmarks'
@@ -1514,6 +1530,7 @@ export interface AppData {
   fileSessions: FileSession[]
   forwardProfiles: ForwardProfile[]
   forwards: ForwardInstance[]
+  snippetGroups: CodeSnippetGroup[]
   snippets: CodeSnippet[]
   fileBookmarkGroups: FileBookmarkGroup[]
   fileBookmarks: FileBookmark[]
