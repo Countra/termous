@@ -1,6 +1,16 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell, type WebContents } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeTheme,
+  shell,
+  type IpcMainInvokeEvent,
+  type WebContents,
+} from 'electron'
 import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { open, rename, rm, stat } from 'node:fs/promises'
+import { chmod, lstat, open, rename, rm, stat } from 'node:fs/promises'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -30,6 +40,9 @@ const BACKUP_EXTENSION = '.tobp'
 const BACKUP_MAX_BYTES = 1 << 30
 const BACKUP_PASSWORD_MAX_BYTES = 1024
 const BACKUP_SELECTION_TTL_MS = 10 * 60 * 1000
+const SSH_KEY_FILE_MAX_BYTES = 1 << 20
+const SSH_KEY_FILE_NAME_MAX_BYTES = 255
+const SSH_PUBLIC_KEY_SUFFIX = '.pub'
 const coreProcess = new CoreProcessManager()
 const trayController = new TermousTrayController({
   appName: APP_NAME,
@@ -68,6 +81,19 @@ interface PendingBackupSelection {
   sizeBytes: number
   expiresAt: number
 }
+
+interface SSHKeyFileContentInput {
+  suggestedName?: unknown
+  content?: unknown
+}
+
+interface SSHKeyPairFileInput {
+  suggestedName?: unknown
+  privateKey?: unknown
+  publicKey?: unknown
+}
+
+class SSHKeyFileOperationError extends Error {}
 
 const pendingBackupSelections = new Map<string, PendingBackupSelection>()
 
@@ -112,6 +138,170 @@ async function writeFileChunk(handle: Awaited<ReturnType<typeof open>>, value: U
       throw new Error('写入备份文件失败')
     }
     offset += result.bytesWritten
+  }
+}
+
+function sshKeyFileError(code: string) {
+  return new SSHKeyFileOperationError(code)
+}
+
+function normalizeSSHKeyFileError(error: unknown, fallback: string) {
+  if (error instanceof SSHKeyFileOperationError) {
+    return error
+  }
+  if ((error as NodeJS.ErrnoException | undefined)?.code === 'EEXIST') {
+    return sshKeyFileError('ssh_key_file_conflict')
+  }
+  return sshKeyFileError(fallback)
+}
+
+function isTrustedRendererURL(url: string) {
+  try {
+    const actual = new URL(url)
+    if (VITE_DEV_SERVER_URL) {
+      return actual.origin === new URL(VITE_DEV_SERVER_URL).origin
+    }
+    actual.hash = ''
+    actual.search = ''
+    return actual.href === pathToFileURL(path.join(RENDERER_DIST, 'index.html')).href
+  } catch {
+    return false
+  }
+}
+
+function trustedIPCWindow(event: IpcMainInvokeEvent) {
+  const target = win
+  const senderWindow = BrowserWindow.fromWebContents(event.sender)
+  const senderFrame = event.senderFrame
+  if (
+    !target ||
+    target.isDestroyed() ||
+    senderWindow !== target ||
+    !senderFrame ||
+    senderFrame !== event.sender.mainFrame ||
+    !isTrustedRendererURL(senderFrame.url)
+  ) {
+    throw sshKeyFileError('ssh_key_ipc_sender_not_allowed')
+  }
+  return target
+}
+
+function validateSSHKeyText(value: unknown, field: 'private' | 'public') {
+  if (typeof value !== 'string' || !/\S/.test(value)) {
+    throw sshKeyFileError(`ssh_${field}_key_required`)
+  }
+  if (Buffer.byteLength(value, 'utf8') > SSH_KEY_FILE_MAX_BYTES) {
+    throw sshKeyFileError(`ssh_${field}_key_too_large`)
+  }
+  return value
+}
+
+function normalizeSuggestedKeyName(value: unknown, fallback: string) {
+  if (value !== undefined && typeof value !== 'string') {
+    throw sshKeyFileError('ssh_key_file_name_invalid')
+  }
+  if (typeof value === 'string' && Buffer.byteLength(value, 'utf8') > SSH_KEY_FILE_NAME_MAX_BYTES) {
+    throw sshKeyFileError('ssh_key_file_name_invalid')
+  }
+  const input = typeof value === 'string' ? value.trim() : ''
+  const withoutControls = Array.from(input, (character) => {
+    const codePoint = character.codePointAt(0) ?? 0
+    return codePoint < 32 || codePoint === 127 ? '_' : character
+  }).join('')
+  const sanitized = withoutControls.replace(/[\\/:*?"<>|]/g, '_').replace(/[. ]+$/g, '')
+  return sanitized && sanitized !== '.' && sanitized !== '..' ? sanitized : fallback
+}
+
+async function pathExists(targetPath: string) {
+  try {
+    await lstat(targetPath)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false
+    }
+    throw error
+  }
+}
+
+async function assertSSHKeyTargetsAvailable(targetPaths: string[]) {
+  for (const targetPath of targetPaths) {
+    if (await pathExists(targetPath)) {
+      throw sshKeyFileError('ssh_key_file_conflict')
+    }
+  }
+}
+
+async function writeSSHKeyPartialFile(targetPath: string, content: string, mode: number) {
+  const partialPath = path.join(path.dirname(targetPath), `.${path.basename(targetPath)}.${randomUUID()}.partial`)
+  const buffer = Buffer.from(content, 'utf8')
+  let handle: Awaited<ReturnType<typeof open>> | null = null
+  try {
+    handle = await open(partialPath, 'wx', mode)
+    await writeFileChunk(handle, buffer)
+    await handle.sync()
+    await handle.close()
+    handle = null
+    if (process.platform !== 'win32') {
+      await chmod(partialPath, mode)
+    }
+    return partialPath
+  } catch (error) {
+    if (handle) {
+      await handle.close().catch(() => undefined)
+    }
+    await rm(partialPath, { force: true }).catch(() => undefined)
+    throw normalizeSSHKeyFileError(error, 'ssh_key_file_write_failed')
+  } finally {
+    buffer.fill(0)
+  }
+}
+
+async function saveSSHKeyFile(targetPath: string, content: string, mode: number) {
+  await assertSSHKeyTargetsAvailable([targetPath])
+  let partialPath = await writeSSHKeyPartialFile(targetPath, content, mode)
+  try {
+    await assertSSHKeyTargetsAvailable([targetPath])
+    await rename(partialPath, targetPath)
+    partialPath = ''
+  } catch (error) {
+    if (partialPath) {
+      await rm(partialPath, { force: true }).catch(() => undefined)
+    }
+    throw normalizeSSHKeyFileError(error, 'ssh_key_file_write_failed')
+  }
+}
+
+async function saveSSHKeyPairFiles(privatePath: string, privateKey: string, publicKey: string) {
+  const publicPath = `${privatePath}${SSH_PUBLIC_KEY_SUFFIX}`
+  await assertSSHKeyTargetsAvailable([privatePath, publicPath])
+  let privatePartialPath = ''
+  let publicPartialPath = ''
+  let privateCommitted = false
+  let publicCommitted = false
+  try {
+    privatePartialPath = await writeSSHKeyPartialFile(privatePath, privateKey, 0o600)
+    publicPartialPath = await writeSSHKeyPartialFile(publicPath, publicKey, 0o644)
+    await assertSSHKeyTargetsAvailable([privatePath, publicPath])
+    await rename(privatePartialPath, privatePath)
+    privatePartialPath = ''
+    privateCommitted = true
+    await rename(publicPartialPath, publicPath)
+    publicPartialPath = ''
+    publicCommitted = true
+    return publicPath
+  } catch (error) {
+    const cleanupTargets = [
+      ...(privatePartialPath ? [privatePartialPath] : []),
+      ...(publicPartialPath ? [publicPartialPath] : []),
+      ...(privateCommitted ? [privatePath] : []),
+      ...(publicCommitted ? [publicPath] : []),
+    ]
+    const cleanupResults = await Promise.allSettled(cleanupTargets.map((targetPath) => rm(targetPath, { force: true })))
+    if (cleanupResults.some((result) => result.status === 'rejected')) {
+      throw sshKeyFileError('ssh_key_pair_rollback_failed')
+    }
+    throw normalizeSSHKeyFileError(error, 'ssh_key_pair_write_failed')
   }
 }
 
@@ -511,6 +701,103 @@ function registerFilePickers() {
   })
 }
 
+function registerSSHKeyFileControls() {
+  ipcMain.handle('ssh-keys:select-private-key', async (event) => {
+    const target = trustedIPCWindow(event)
+    const selected = await dialog.showOpenDialog(target, {
+      title: '导入 SSH 私钥',
+      filters: [
+        { name: 'SSH Private Key', extensions: ['pem', 'key', 'ppk'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+      properties: ['openFile'],
+    })
+    if (selected.canceled || selected.filePaths.length !== 1) {
+      return { canceled: true }
+    }
+    const sourcePath = selected.filePaths[0]
+    let handle: Awaited<ReturnType<typeof open>> | null = null
+    let content: Buffer | null = null
+    try {
+      handle = await open(sourcePath, 'r')
+      const sourceStat = await handle.stat()
+      if (!sourceStat.isFile()) {
+        throw sshKeyFileError('ssh_private_key_not_regular_file')
+      }
+      if (sourceStat.size <= 0) {
+        throw sshKeyFileError('ssh_private_key_empty')
+      }
+      if (sourceStat.size > SSH_KEY_FILE_MAX_BYTES) {
+        throw sshKeyFileError('ssh_private_key_too_large')
+      }
+      content = await handle.readFile()
+      if (content.byteLength <= 0 || content.byteLength > SSH_KEY_FILE_MAX_BYTES) {
+        throw sshKeyFileError(content.byteLength <= 0 ? 'ssh_private_key_empty' : 'ssh_private_key_too_large')
+      }
+      return {
+        canceled: false,
+        file_name: path.basename(sourcePath),
+        private_key: content.toString('utf8'),
+      }
+    } catch (error) {
+      throw normalizeSSHKeyFileError(error, 'ssh_private_key_read_failed')
+    } finally {
+      if (handle) {
+        await handle.close().catch(() => undefined)
+      }
+      content?.fill(0)
+    }
+  })
+
+  ipcMain.handle('ssh-keys:save-public-key', async (event, input: SSHKeyFileContentInput) => {
+    const target = trustedIPCWindow(event)
+    if (!input || typeof input !== 'object') {
+      throw sshKeyFileError('ssh_public_key_save_input_invalid')
+    }
+    const content = validateSSHKeyText(input.content, 'public')
+    const baseName = normalizeSuggestedKeyName(input.suggestedName, 'id_ssh')
+    const suggestedName = baseName.toLowerCase().endsWith(SSH_PUBLIC_KEY_SUFFIX)
+      ? baseName
+      : `${baseName}${SSH_PUBLIC_KEY_SUFFIX}`
+    const selected = await dialog.showSaveDialog(target, {
+      title: '保存 SSH 公钥',
+      defaultPath: suggestedName,
+      filters: [{ name: 'SSH Public Key', extensions: ['pub'] }],
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+    })
+    if (selected.canceled || !selected.filePath) {
+      return { canceled: true }
+    }
+    await saveSSHKeyFile(selected.filePath, content, 0o644)
+    return { canceled: false, file_name: path.basename(selected.filePath) }
+  })
+
+  ipcMain.handle('ssh-keys:save-key-pair', async (event, input: SSHKeyPairFileInput) => {
+    const target = trustedIPCWindow(event)
+    if (!input || typeof input !== 'object') {
+      throw sshKeyFileError('ssh_key_pair_save_input_invalid')
+    }
+    const privateKey = validateSSHKeyText(input.privateKey, 'private')
+    const publicKey = validateSSHKeyText(input.publicKey, 'public')
+    const suggestedName = normalizeSuggestedKeyName(input.suggestedName, 'id_ssh')
+    const selected = await dialog.showSaveDialog(target, {
+      title: '保存 SSH 密钥对',
+      defaultPath: suggestedName,
+      filters: [{ name: 'SSH Private Key', extensions: ['pem', 'key'] }],
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+    })
+    if (selected.canceled || !selected.filePath) {
+      return { canceled: true }
+    }
+    const publicPath = await saveSSHKeyPairFiles(selected.filePath, privateKey, publicKey)
+    return {
+      canceled: false,
+      file_name: path.basename(selected.filePath),
+      public_file_name: path.basename(publicPath),
+    }
+  })
+}
+
 function registerDataPortabilityControls() {
   const currentWindow = () => BrowserWindow.getFocusedWindow() ?? win
   ipcMain.handle('portability:export', async (event, password: unknown) => {
@@ -731,6 +1018,7 @@ app.whenReady().then(() => {
   registerWindowControls()
   registerTrayControls()
   registerFilePickers()
+  registerSSHKeyFileControls()
   registerDataPortabilityControls()
   createSplashWindow()
   createWindow()

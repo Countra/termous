@@ -178,4 +178,11 @@ contextBridge.exposeInMainWorld('termous', {
     },
     readClipboardFilePaths: () => Promise.resolve(readClipboardFilePaths()),
   },
+  sshKeys: {
+    selectPrivateKey: () => ipcRenderer.invoke('ssh-keys:select-private-key'),
+    savePublicKey: (input: { suggestedName: string; content: string }) =>
+      ipcRenderer.invoke('ssh-keys:save-public-key', input),
+    saveKeyPair: (input: { suggestedName: string; privateKey: string; publicKey: string }) =>
+      ipcRenderer.invoke('ssh-keys:save-key-pair', input),
+  },
 })

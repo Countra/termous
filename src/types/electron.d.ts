@@ -12,6 +12,18 @@ import type {
   TrayMenuState,
 } from './domain'
 
+interface SSHPrivateKeySelectionResult {
+  canceled: boolean
+  file_name?: string
+  private_key?: string
+}
+
+interface SSHKeyFileSaveResult {
+  canceled: boolean
+  file_name?: string
+  public_file_name?: string
+}
+
 declare global {
   interface Window {
     termous?: {
@@ -66,6 +78,15 @@ declare global {
         pathsFromFileList: (files: ArrayLike<File>) => Promise<string[]>
         consumeDroppedFilePaths: (fileCount?: number) => Promise<string[]>
         readClipboardFilePaths: () => Promise<string[]>
+      }
+      sshKeys?: {
+        selectPrivateKey: () => Promise<SSHPrivateKeySelectionResult>
+        savePublicKey: (input: { suggestedName: string; content: string }) => Promise<SSHKeyFileSaveResult>
+        saveKeyPair: (input: {
+          suggestedName: string
+          privateKey: string
+          publicKey: string
+        }) => Promise<SSHKeyFileSaveResult>
       }
     }
   }
