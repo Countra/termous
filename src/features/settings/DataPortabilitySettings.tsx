@@ -410,12 +410,12 @@ export function DataPortabilitySettings() {
   return (
     <div className="data-portability-section">
       <section className="data-portability-band">
-        <BandHeader icon={<Download size={18} />} title={t('settings.data.exportTitle')} hint={t('settings.data.exportHint')} />
+        <BandHeader icon={<Upload size={18} />} title={t('settings.data.exportTitle')} hint={t('settings.data.exportHint')} />
         <SummaryStrip summary={summary} busy={summaryBusy} onReload={loadSummary} />
         <div className="data-portability-password-grid">
           <Input.Password id="data-portability-export-password" autoComplete="off" value={exportPassword} maxLength={1024} prefix={<KeyRound size={15} />} placeholder={t('settings.data.password')} onChange={(event) => setExportPassword(event.target.value)} />
           <Input.Password id="data-portability-export-confirm" autoComplete="off" value={exportConfirm} maxLength={1024} prefix={<ShieldCheck size={15} />} placeholder={t('settings.data.confirmPassword')} onChange={(event) => setExportConfirm(event.target.value)} />
-          <Button type="primary" icon={<Download size={16} />} loading={exportBusy} onClick={() => void handleExport()}>
+          <Button type="primary" icon={<Upload size={16} />} loading={exportBusy} onClick={() => void handleExport()}>
             {t('settings.data.exportAction')}
           </Button>
         </div>
@@ -424,13 +424,13 @@ export function DataPortabilitySettings() {
 
       <section className="data-portability-band">
         <BandHeader
-          icon={<Upload size={18} />}
+          icon={<Download size={18} />}
           title={t('settings.data.importTitle')}
           hint={t('settings.data.importHint')}
           action={inspection && !restorePrepared
             ? <Button icon={<RotateCcw size={15} />} onClick={() => void cancelImport()}>{t('settings.data.resetImport')}</Button>
             : !restorePrepared
-              ? <Button type="primary" icon={<Upload size={16} />} loading={importBusy} onClick={() => void handleSelectBackup()}>{t('settings.data.chooseBackup')}</Button>
+              ? <Button type="primary" icon={<Download size={16} />} loading={importBusy} onClick={() => void handleSelectBackup()}>{t('settings.data.chooseBackup')}</Button>
               : undefined}
         />
         <Steps

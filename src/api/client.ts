@@ -48,6 +48,7 @@ import type {
   ForwardProfile,
   ForwardProfileInput,
   ForwardStartRequest,
+  GroupReorderItem,
   Host,
   HostGroup,
   HostIcon,
@@ -239,6 +240,13 @@ export class TermousApi {
 
   deleteCodeSnippetGroup(id: string) {
     return this.request<void>(`/api/v1/snippet-groups/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  reorderCodeSnippetGroups(items: GroupReorderItem[]) {
+    return this.request<CodeSnippetGroup[]>('/api/v1/snippet-groups/reorder', {
+      method: 'POST',
+      body: { items },
+    }).then(normalizeArray)
   }
 
   createCodeSnippet(input: CodeSnippetInput) {
@@ -442,8 +450,26 @@ export class TermousApi {
   createHostGroup(name: string) {
     return this.request<HostGroup>('/api/v1/host-groups', {
       method: 'POST',
-      body: { name, sort_order: 0 },
+      body: { name },
     })
+  }
+
+  updateHostGroup(id: string, name: string) {
+    return this.request<HostGroup>(`/api/v1/host-groups/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: { name },
+    })
+  }
+
+  deleteHostGroup(id: string) {
+    return this.request<void>(`/api/v1/host-groups/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  reorderHostGroups(items: GroupReorderItem[]) {
+    return this.request<HostGroup[]>('/api/v1/host-groups/reorder', {
+      method: 'POST',
+      body: { items },
+    }).then(normalizeArray)
   }
 
   hosts() {

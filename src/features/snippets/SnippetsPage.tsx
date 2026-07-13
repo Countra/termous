@@ -1,8 +1,7 @@
-import { Button, Empty, Input, Modal, Popconfirm, Select, Tag, Tooltip } from 'antd'
+import { Button, Input, Modal, Popconfirm, Select, Tag, Tooltip } from 'antd'
 import {
   ArrowLeft,
   Braces,
-  Check,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -10,21 +9,20 @@ import {
   FileCode2,
   Folder,
   FolderCog,
-  Pencil,
   Plus,
   Save,
   Star,
   Tags,
   Trash2,
   TriangleAlert,
-  X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
+import { GroupManagerModal } from '../../components/management/GroupManagerModal'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
-import type { AppData, CodeSnippetGroup, CodeSnippetInput, SnippetShell } from '../../types/domain'
+import type { AppData, CodeSnippetGroup, CodeSnippetInput, GroupReorderItem, SnippetShell } from '../../types/domain'
 import {
   SnippetFilterBar,
   SnippetList,
@@ -50,6 +48,7 @@ interface SnippetsPageProps {
   onCreateGroup: (name: string) => Promise<CodeSnippetGroup | undefined>
   onRenameGroup: (id: string, name: string) => Promise<CodeSnippetGroup | undefined>
   onDeleteGroup: (id: string) => Promise<void>
+  onReorderGroups: (items: GroupReorderItem[]) => Promise<CodeSnippetGroup[] | undefined>
 }
 
 type SnippetView = 'library' | 'editor'
@@ -75,6 +74,7 @@ export function SnippetsPage({
   onCreateGroup,
   onRenameGroup,
   onDeleteGroup,
+  onReorderGroups,
 }: SnippetsPageProps) {
   const { t } = useTranslation()
   const initialSnippet = data.snippets[0]
@@ -90,6 +90,10 @@ export function SnippetsPage({
   const [activeView, setActiveView] = useState<SnippetView>('library')
   const [pendingIntent, setPendingIntent] = useState<SnippetIntent | null>(null)
   const editing = data.snippets.find((snippet) => snippet.id === editingId)
+  const groupItemCounts = useMemo(() => data.snippets.reduce<Record<string, number>>((counts, snippet) => {
+    if (snippet.group_id) counts[snippet.group_id] = (counts[snippet.group_id] ?? 0) + 1
+    return counts
+  }, {}), [data.snippets])
 
   const availableTags = useMemo(() => buildSnippetTags(data.snippets), [data.snippets])
   const filteredSnippets = useMemo(
@@ -222,14 +226,30 @@ export function SnippetsPage({
         onSave={() => void save()}
         onDelete={() => void remove()}
       />
-      <SnippetGroupManager
+      <GroupManagerModal
         open={groupManagerOpen}
         groups={data.snippetGroups}
         actionBusy={actionBusy}
+        title={t('snippets.manageGroups')}
+        addLabel={t('snippets.addGroup')}
+        namePlaceholder={t('snippets.groupNamePlaceholder')}
+        emptyLabel={t('snippets.noGroups')}
+        deleteTitle={t('snippets.deleteGroupTitle')}
+        deleteDescription={t('snippets.deleteGroupHint')}
+        saveLabel={t('app.save')}
+        cancelLabel={t('app.cancel')}
+        editLabel={t('app.edit')}
+        deleteLabel={t('app.delete')}
+        reorderLabel={t('app.reorder')}
+        moveUpLabel={t('app.moveUp')}
+        moveDownLabel={t('app.moveDown')}
+        itemCounts={groupItemCounts}
+        itemCountLabel={(count) => t('snippets.groupItemCount', { count })}
         onClose={() => setGroupManagerOpen(false)}
         onCreate={onCreateGroup}
         onRename={onRenameGroup}
         onDelete={onDeleteGroup}
+        onReorder={onReorderGroups}
       />
       <Modal
         centered
@@ -765,166 +785,6 @@ function SnippetEditor({
         </ConnectionActionButton>
       </footer>
     </section>
-  )
-}
-
-function SnippetGroupManager({
-  open,
-  groups,
-  actionBusy,
-  onClose,
-  onCreate,
-  onRename,
-  onDelete,
-}: {
-  open: boolean
-  groups: CodeSnippetGroup[]
-  actionBusy: boolean
-  onClose: () => void
-  onCreate: (name: string) => Promise<CodeSnippetGroup | undefined>
-  onRename: (id: string, name: string) => Promise<CodeSnippetGroup | undefined>
-  onDelete: (id: string) => Promise<void>
-}) {
-  const { t } = useTranslation()
-  const [name, setName] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editingName, setEditingName] = useState('')
-  const normalizedName = name.trim().replace(/\s+/g, ' ')
-  const normalizedEditingName = editingName.trim().replace(/\s+/g, ' ')
-
-  const create = async () => {
-    if (!normalizedName || actionBusy) return
-    const group = await onCreate(normalizedName)
-    if (group) setName('')
-  }
-
-  const rename = async () => {
-    if (!editingId || !normalizedEditingName || actionBusy) return
-    const group = await onRename(editingId, normalizedEditingName)
-    if (group) {
-      setEditingId(null)
-      setEditingName('')
-    }
-  }
-
-  return (
-    <Modal
-      centered
-      width={480}
-      open={open}
-      footer={null}
-      title={(
-        <span className="snippet-group-manager-title">
-          <FolderCog size={18} aria-hidden="true" />
-          {t('snippets.manageGroups')}
-        </span>
-      )}
-      rootClassName="snippet-group-manager-modal"
-      onCancel={onClose}
-    >
-      <div className="snippet-group-create-row">
-        <Input
-          value={name}
-          maxLength={64}
-          placeholder={t('snippets.groupNamePlaceholder')}
-          disabled={actionBusy}
-          onChange={(event) => setName(event.target.value)}
-          onPressEnter={() => void create()}
-        />
-        <Button
-          type="primary"
-          disabled={!normalizedName || actionBusy}
-          icon={<Plus size={15} />}
-          onClick={() => void create()}
-        >
-          {t('snippets.addGroup')}
-        </Button>
-      </div>
-      <div className="snippet-group-manager-list">
-        {groups.length === 0 ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('snippets.noGroups')} />
-        ) : groups.map((group) => {
-          const editing = editingId === group.id
-          return (
-            <div key={group.id} className="snippet-group-manager-row">
-              <span className="snippet-group-manager-row-icon"><Folder size={16} /></span>
-              {editing ? (
-                <Input
-                  autoFocus
-                  value={editingName}
-                  maxLength={64}
-                  disabled={actionBusy}
-                  onChange={(event) => setEditingName(event.target.value)}
-                  onPressEnter={() => void rename()}
-                />
-              ) : (
-                <strong>{group.name}</strong>
-              )}
-              <div className="snippet-group-manager-row-actions">
-                {editing ? (
-                  <>
-                    <Tooltip title={t('app.save')}>
-                      <Button
-                        type="text"
-                        aria-label={t('app.save')}
-                        disabled={!normalizedEditingName || actionBusy}
-                        icon={<Check size={15} />}
-                        onClick={() => void rename()}
-                      />
-                    </Tooltip>
-                    <Tooltip title={t('app.cancel')}>
-                      <Button
-                        type="text"
-                        aria-label={t('app.cancel')}
-                        disabled={actionBusy}
-                        icon={<X size={15} />}
-                        onClick={() => {
-                          setEditingId(null)
-                          setEditingName('')
-                        }}
-                      />
-                    </Tooltip>
-                  </>
-                ) : (
-                  <>
-                    <Tooltip title={t('app.edit')}>
-                      <Button
-                        type="text"
-                        aria-label={t('app.edit')}
-                        disabled={actionBusy}
-                        icon={<Pencil size={15} />}
-                        onClick={() => {
-                          setEditingId(group.id)
-                          setEditingName(group.name)
-                        }}
-                      />
-                    </Tooltip>
-                    <Popconfirm
-                      title={t('snippets.deleteGroupTitle')}
-                      description={t('snippets.deleteGroupHint')}
-                      okText={t('app.delete')}
-                      cancelText={t('app.cancel')}
-                      okButtonProps={{ danger: true }}
-                      onConfirm={() => onDelete(group.id)}
-                    >
-                      <Tooltip title={t('app.delete')}>
-                        <Button
-                          type="text"
-                          danger
-                          aria-label={t('app.delete')}
-                          disabled={actionBusy}
-                          icon={<Trash2 size={15} />}
-                        />
-                      </Tooltip>
-                    </Popconfirm>
-                  </>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </Modal>
   )
 }
 

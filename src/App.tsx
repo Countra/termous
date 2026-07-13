@@ -17,7 +17,7 @@ import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
+import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 
@@ -373,6 +373,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
+  const renameHostGroup = (id: string, name: string): Promise<HostGroup | undefined> =>
+    runAction(
+      () => actions.updateHostGroup(id, name),
+      t('hosts.groupUpdated'),
+    )
+
+  const reorderHostGroups = (items: GroupReorderItem[]): Promise<HostGroup[] | undefined> =>
+    runAction(() => actions.reorderHostGroups(items))
+
   const saveCredential = (id: string | null, input: CredentialInput): Promise<CredentialView | undefined> =>
     runAction(async () => {
       if (id) {
@@ -401,6 +410,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       () => actions.updateCodeSnippetGroup(id, { name }),
       t('snippets.groupUpdated'),
     )
+
+  const reorderCodeSnippetGroups = (items: GroupReorderItem[]): Promise<CodeSnippetGroup[] | undefined> =>
+    runAction(() => actions.reorderCodeSnippetGroups(items))
 
   const toggleCodeSnippetFavorite = (snippet: CodeSnippet) =>
     runAction(async () => {
@@ -659,6 +671,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               return true
             })}
             onCreateGroup={createHostGroup}
+            onRenameGroup={renameHostGroup}
+            onDeleteGroup={(id) => runAction(
+              () => actions.deleteHostGroup(id),
+              t('hosts.groupDeleted'),
+            ).then(() => undefined)}
+            onReorderGroups={reorderHostGroups}
             onUploadHostIcon={uploadHostIcon}
             onDeleteHostIcon={deleteHostIcon}
             getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
@@ -745,6 +763,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               () => actions.deleteCodeSnippetGroup(id),
               t('snippets.groupDeleted'),
             )}
+            onReorderGroups={reorderCodeSnippetGroups}
           />
         ) : null}
 

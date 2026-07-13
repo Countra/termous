@@ -20,6 +20,7 @@ import type {
   ForwardProfile,
   ForwardProfileInput,
   ForwardStartRequest,
+  GroupReorderItem,
   HostGroup,
   HostReachability,
   HostReachabilityEvent,
@@ -305,6 +306,11 @@ export function useTermousData() {
           )),
         }))
       },
+      async reorderCodeSnippetGroups(items: GroupReorderItem[]) {
+        const groups = await api.reorderCodeSnippetGroups(items)
+        setData((current) => ({ ...current, snippetGroups: sortCodeSnippetGroups(groups) }))
+        return groups
+      },
       async createFileBookmarkGroup(input: FileBookmarkGroupInput) {
         const group = await api.createFileBookmarkGroup(input)
         setData((current) => ({ ...current, fileBookmarkGroups: upsertFileBookmarkGroup(current.fileBookmarkGroups, group) }))
@@ -442,6 +448,24 @@ export function useTermousData() {
         const group = await api.createHostGroup(name)
         setData((current) => ({ ...current, groups: upsertHostGroup(current.groups, group) }))
         return group
+      },
+      async updateHostGroup(id: string, name: string) {
+        const group = await api.updateHostGroup(id, name)
+        setData((current) => ({ ...current, groups: upsertHostGroup(current.groups, group) }))
+        return group
+      },
+      async deleteHostGroup(id: string) {
+        await api.deleteHostGroup(id)
+        setData((current) => ({
+          ...current,
+          groups: current.groups.filter((group) => group.id !== id),
+          hosts: current.hosts.map((host) => (host.group_id === id ? { ...host, group_id: '' } : host)),
+        }))
+      },
+      async reorderHostGroups(items: GroupReorderItem[]) {
+        const groups = await api.reorderHostGroups(items)
+        setData((current) => ({ ...current, groups: [...groups].sort(sortHostGroups) }))
+        return groups
       },
       async updateHost(id: string, input: HostInput) {
         const host = await api.updateHost(id, input)

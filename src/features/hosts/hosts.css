@@ -55,6 +55,26 @@
   min-width: 0;
 }
 
+.host-group-manager-trigger.ant-btn {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  flex: 0 0 auto;
+  place-items: center;
+  border-color: var(--border);
+  border-radius: 9px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  padding: 0;
+}
+
+.host-group-manager-trigger.ant-btn:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 26%, var(--surface-subtle));
+  color: var(--accent);
+}
+
 .host-panel-heading span,
 .host-editor-title span,
 .host-catalog-result {

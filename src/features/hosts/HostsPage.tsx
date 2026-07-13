@@ -1,9 +1,10 @@
 import { App as AntdApp } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { GroupManagerModal } from '../../components/management/GroupManagerModal'
 import { ManagementWorkspace, type ManagementWorkspaceView } from '../../components/management/ManagementWorkspace'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import type { AppData, Host, HostGroup, HostIcon, HostInput } from '../../types/domain'
+import type { AppData, GroupReorderItem, Host, HostGroup, HostIcon, HostInput } from '../../types/domain'
 import { HostCatalog } from './HostCatalog'
 import { HostEditor } from './HostEditor'
 import { hostToInput } from './hostInput'
@@ -25,6 +26,9 @@ interface HostsPageProps {
   onSave: (id: string | null, input: HostInput) => Promise<Host | undefined>
   onDelete: (id: string) => Promise<boolean | undefined>
   onCreateGroup: (name: string) => Promise<HostGroup>
+  onRenameGroup: (id: string, name: string) => Promise<HostGroup | undefined>
+  onDeleteGroup: (id: string) => Promise<void>
+  onReorderGroups: (items: GroupReorderItem[]) => Promise<HostGroup[] | undefined>
   onUploadHostIcon: (file: File) => Promise<HostIcon>
   onDeleteHostIcon: (id: string) => Promise<void>
   getHostIconUrl: (iconId: string) => string
@@ -44,6 +48,9 @@ export function HostsPage({
   onSave,
   onDelete,
   onCreateGroup,
+  onRenameGroup,
+  onDeleteGroup,
+  onReorderGroups,
   onUploadHostIcon,
   onDeleteHostIcon,
   getHostIconUrl,
@@ -56,6 +63,7 @@ export function HostsPage({
   const [draft, setDraft] = useState<HostInput>(initialInput)
   const [baseline, setBaseline] = useState<HostInput>(initialInput)
   const [activeView, setActiveView] = useState<ManagementWorkspaceView>(initialHost ? 'editor' : 'catalog')
+  const [groupManagerOpen, setGroupManagerOpen] = useState(false)
   const [pendingIntent, setPendingIntent] = useState<HostIntent | null>(null)
   const [uploadingIcon, setUploadingIcon] = useState(false)
   const pendingIconIdRef = useRef('')
@@ -66,6 +74,10 @@ export function HostsPage({
   const ignoredExternalSelectionRef = useRef('')
   const dirty = useMemo(() => !hostInputsEqual(draft, baseline), [baseline, draft])
   const editingHost = useMemo(() => data.hosts.find((host) => host.id === editingId), [data.hosts, editingId])
+  const groupItemCounts = useMemo(() => data.hosts.reduce<Record<string, number>>((counts, host) => {
+    if (host.group_id) counts[host.group_id] = (counts[host.group_id] ?? 0) + 1
+    return counts
+  }, {}), [data.hosts])
   const validCredentialIds = useMemo(() => new Set(data.credentials
     .filter((credential) => credential.type === (draft.auth_method === 'password' ? 'password' : 'private_key'))
     .map((credential) => credential.id)), [data.credentials, draft.auth_method])
@@ -289,8 +301,33 @@ export function HostsPage({
         activeView={activeView}
         catalogLabel={t('hosts.list')}
         editorLabel={t('hosts.editor')}
-        catalog={<HostCatalog hosts={data.hosts} groups={data.groups} selectedHostId={editingId} actionBusy={actionBusy} getHostIconUrl={getHostIconUrl} onSelect={(hostId) => requestIntent({ type: 'select', hostId })} onCreate={() => requestIntent({ type: 'create' })} />}
+        catalog={<HostCatalog hosts={data.hosts} groups={data.groups} selectedHostId={editingId} actionBusy={actionBusy} getHostIconUrl={getHostIconUrl} onSelect={(hostId) => requestIntent({ type: 'select', hostId })} onCreate={() => requestIntent({ type: 'create' })} onManageGroups={() => setGroupManagerOpen(true)} />}
         editor={<HostEditor key={editingId ?? 'new'} data={data} editingHost={editingHost} draft={draft} dirty={dirty} errors={errors} actionBusy={actionBusy} uploadingIcon={uploadingIcon} getHostIconUrl={getHostIconUrl} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} onBack={() => requestIntent({ type: 'back' })} onSave={() => void save()} onDelete={() => void removeCurrentHost()} onDiscard={() => { releasePendingIcon(); setDraft(baseline) }} onCreateGroup={onCreateGroup} onUploadIcon={uploadIcon} onRemoveIcon={removeIcon} />}
+      />
+      <GroupManagerModal
+        open={groupManagerOpen}
+        groups={data.groups}
+        actionBusy={actionBusy}
+        title={t('hosts.manageGroups')}
+        addLabel={t('hosts.addGroup')}
+        namePlaceholder={t('hosts.groupNamePlaceholder')}
+        emptyLabel={t('hosts.noGroups')}
+        deleteTitle={t('hosts.deleteGroupTitle')}
+        deleteDescription={t('hosts.deleteGroupHint')}
+        saveLabel={t('app.save')}
+        cancelLabel={t('app.cancel')}
+        editLabel={t('app.edit')}
+        deleteLabel={t('app.delete')}
+        reorderLabel={t('app.reorder')}
+        moveUpLabel={t('app.moveUp')}
+        moveDownLabel={t('app.moveDown')}
+        itemCounts={groupItemCounts}
+        itemCountLabel={(count) => t('hosts.groupItemCount', { count })}
+        onClose={() => setGroupManagerOpen(false)}
+        onCreate={onCreateGroup}
+        onRename={onRenameGroup}
+        onDelete={onDeleteGroup}
+        onReorder={onReorderGroups}
       />
       <ConfirmDialog
         open={Boolean(pendingIntent)}

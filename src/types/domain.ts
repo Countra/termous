@@ -655,6 +655,11 @@ export interface CodeSnippetGroupInput {
   sort_order?: number
 }
 
+export interface GroupReorderItem {
+  id: string
+  sort_order: number
+}
+
 export interface FileBookmarkGroup {
   id: string
   name: string

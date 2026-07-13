@@ -1,6 +1,6 @@
 import { Button, Input, Popover, Select, Tag, Tooltip } from 'antd'
-import { ChevronDown, ChevronRight, Filter, Plus, Search, Server, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { ChevronDown, ChevronRight, Filter, FolderCog, Plus, Search, Server, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { ManagementPanel } from '../../components/management/ManagementWorkspace'
@@ -24,6 +24,7 @@ interface HostCatalogProps {
   getHostIconUrl: (iconId: string) => string
   onSelect: (hostId: string) => void
   onCreate: () => void
+  onManageGroups: () => void
 }
 
 const defaultFilters: HostCatalogFilters = { groupId: '', tags: [], authMethods: [] }
@@ -36,10 +37,16 @@ export function HostCatalog({
   getHostIconUrl,
   onSelect,
   onCreate,
+  onManageGroups,
 }: HostCatalogProps) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<HostCatalogFilters>(defaultFilters)
+
+  useEffect(() => {
+    if (!filters.groupId || groups.some((group) => group.id === filters.groupId)) return
+    setFilters((current) => ({ ...current, groupId: '' }))
+  }, [filters.groupId, groups])
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set())
   const tags = useMemo(() => buildHostTagOptions(hosts), [hosts])
   const filteredHosts = useMemo(() => filterHosts(hosts, groups, query, filters), [filters, groups, hosts, query])
@@ -131,6 +138,14 @@ export function HostCatalog({
         <div className="host-panel-heading">
           <span className="host-panel-heading-icon"><Server size={18} aria-hidden="true" /></span>
           <div><h2>{t('hosts.list')}</h2><span>{t('hosts.hostCount', { count: hosts.length })}</span></div>
+          <Tooltip title={t('hosts.manageGroups')}>
+            <Button
+              className="host-group-manager-trigger"
+              aria-label={t('hosts.manageGroups')}
+              icon={<FolderCog size={16} />}
+              onClick={onManageGroups}
+            />
+          </Tooltip>
         </div>
       )}
       footer={<span className="host-catalog-result">{t('hosts.filterResult', { count: filteredHosts.length, total: hosts.length })}</span>}
