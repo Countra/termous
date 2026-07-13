@@ -784,6 +784,10 @@ button.snippet-catalog-row-main:focus-visible {
   padding: 7px 9px;
 }
 
+.snippet-command-insight.is-variables {
+  align-content: center;
+}
+
 .snippet-command-insight > svg {
   flex: 0 0 auto;
   color: var(--accent);
@@ -809,6 +813,16 @@ button.snippet-catalog-row-main:focus-visible {
   gap: 5px;
 }
 
+.snippet-command-variable-list button {
+  display: inline-flex;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
 .snippet-command-variable-list code {
   border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
   border-radius: 6px;
@@ -816,6 +830,153 @@ button.snippet-catalog-row-main:focus-visible {
   color: var(--text-primary);
   font-size: 10px;
   padding: 2px 5px;
+}
+
+.snippet-command-variable-list button:hover code,
+.snippet-command-variable-list button:focus-visible code {
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 44%, var(--surface));
+  color: var(--accent);
+}
+
+.snippet-command-variable-list button:focus-visible {
+  outline: none;
+}
+
+.snippet-variable-toggle.ant-btn {
+  height: 24px;
+  margin-left: auto;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  padding: 0 6px;
+  font-size: 10px;
+}
+
+.snippet-variable-toggle.ant-btn:not(:disabled):hover,
+.snippet-variable-toggle.ant-btn.is-active {
+  background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface));
+  color: var(--accent);
+}
+
+.snippet-variable-helper {
+  display: grid;
+  gap: 11px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent-soft) 14%, var(--surface-subtle));
+  padding: 12px;
+  animation: snippet-variable-helper-enter 140ms ease-out;
+}
+
+.snippet-variable-helper-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.snippet-variable-helper-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--surface));
+  color: var(--accent);
+}
+
+.snippet-variable-helper-copy > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.snippet-variable-helper-copy strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 740;
+}
+
+.snippet-variable-helper-copy span:not(.snippet-variable-helper-icon) {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.snippet-variable-examples {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(90px, auto) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.snippet-variable-examples code {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--terminal-bg) 72%, var(--surface));
+  color: var(--text-secondary);
+  padding: 4px 7px;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snippet-variable-compose {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.snippet-variable-compose .ant-input-affix-wrapper {
+  min-width: 0;
+  background: var(--surface) !important;
+}
+
+.snippet-variable-compose .ant-input-prefix,
+.snippet-variable-compose .ant-input-suffix {
+  color: var(--accent);
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 11px;
+}
+
+.snippet-variable-insert.ant-btn {
+  height: 34px;
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 30%, var(--surface));
+  color: var(--accent);
+}
+
+.snippet-variable-insert.ant-btn:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--surface));
+  color: var(--accent);
+}
+
+.snippet-variable-helper > small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.snippet-variable-helper > small.is-invalid {
+  color: var(--danger);
+}
+
+@keyframes snippet-variable-helper-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .snippet-management-editor-footer {
@@ -958,6 +1119,18 @@ button.snippet-catalog-row-main:focus-visible {
 
   .snippet-command-insight.is-risk {
     justify-content: flex-start;
+  }
+
+  .snippet-variable-examples {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .snippet-variable-compose {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .snippet-variable-insert.ant-btn {
+    width: 100%;
   }
 }
 

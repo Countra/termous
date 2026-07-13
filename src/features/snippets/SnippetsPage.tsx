@@ -1,6 +1,8 @@
 import { Button, Input, Modal, Popconfirm, Select, Tag, Tooltip } from 'antd'
 import {
   ArrowLeft,
+  Braces,
+  ChevronUp,
   Code2,
   FileCode2,
   Plus,
@@ -10,8 +12,9 @@ import {
   Trash2,
   TriangleAlert,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import type { AppData, CodeSnippetInput, SnippetShell } from '../../types/domain'
@@ -169,6 +172,7 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
         onSelect={(id) => requestIntent({ type: 'select', id })}
       />
       <SnippetEditor
+        key={editingId ?? 'new'}
         form={form}
         editingId={editingId}
         actionBusy={actionBusy}
@@ -305,6 +309,59 @@ function SnippetEditor({
 }) {
   const { t } = useTranslation()
   const risky = riskReasons.length > 0
+  const editorScrollRef = useRef<HTMLDivElement>(null)
+  const commandInputRef = useRef<TextAreaRef>(null)
+  const commandSelectionRef = useRef({ start: form.command.length, end: form.command.length })
+  const [variableHelperOpen, setVariableHelperOpen] = useState(false)
+  const [variableName, setVariableName] = useState('')
+  const normalizedVariableName = variableName.trim()
+  const variableNameValid = /^[a-zA-Z_][\w.-]{0,63}$/.test(normalizedVariableName)
+
+  useEffect(() => {
+    if (!variableHelperOpen) return
+
+    const frame = requestAnimationFrame(() => {
+      const container = editorScrollRef.current
+      if (!container) return
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: reduceMotion ? 'auto' : 'smooth',
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [variableHelperOpen])
+
+  const rememberCommandSelection = (target: HTMLTextAreaElement) => {
+    commandSelectionRef.current = {
+      start: target.selectionStart,
+      end: target.selectionEnd,
+    }
+  }
+
+  const insertVariable = (name: string) => {
+    const normalizedName = name.trim()
+    if (!/^[a-zA-Z_][\w.-]{0,63}$/.test(normalizedName)) return
+
+    const token = `{{${normalizedName}}}`
+    const start = Math.min(commandSelectionRef.current.start, form.command.length)
+    const end = Math.min(commandSelectionRef.current.end, form.command.length)
+    const command = `${form.command.slice(0, start)}${token}${form.command.slice(end)}`
+    const nextCaret = start + token.length
+    onFormChange({ ...form, command })
+    commandSelectionRef.current = { start: nextCaret, end: nextCaret }
+    setVariableName('')
+
+    requestAnimationFrame(() => {
+      commandInputRef.current?.focus()
+      const nativeElement = commandInputRef.current?.nativeElement
+      const textarea = nativeElement instanceof HTMLTextAreaElement
+        ? nativeElement
+        : nativeElement?.querySelector('textarea')
+      textarea?.setSelectionRange(nextCaret, nextCaret)
+    })
+  }
+
   return (
     <section className="snippet-management-editor">
       <header className="snippet-management-editor-head">
@@ -338,7 +395,7 @@ function SnippetEditor({
           </Tooltip>
         </div>
       </header>
-      <div className="snippet-management-editor-scroll">
+      <div ref={editorScrollRef} className="snippet-management-editor-scroll">
         <section className="snippet-editor-section snippet-editor-basics">
           <div className="snippet-editor-section-head">
             <div>
@@ -397,6 +454,7 @@ function SnippetEditor({
             <Tag className="snippet-shell-tag">{t(`snippets.shell.${form.shell || 'any'}`)}</Tag>
           </div>
           <Input.TextArea
+            ref={commandInputRef}
             id="snippet-command"
             className="snippet-command-input"
             value={form.command}
@@ -404,16 +462,32 @@ function SnippetEditor({
             spellCheck={false}
             placeholder={t('snippets.commandPlaceholder')}
             onChange={(event) => onFormChange({ ...form, command: event.target.value })}
+            onSelect={(event) => rememberCommandSelection(event.currentTarget)}
           />
           <div className="snippet-command-insights">
-            <div className="snippet-command-insight">
+            <div className="snippet-command-insight is-variables">
               <Tags size={14} aria-hidden="true" />
               <span>{t('snippets.variables')}</span>
               {variables.length > 0 ? (
                 <div className="snippet-command-variable-list">
-                  {variables.map((variable) => <code key={variable}>{`{{${variable}}}`}</code>)}
+                  {variables.map((variable) => (
+                    <Tooltip key={variable} title={t('snippets.insertVariableAgain')}>
+                      <button type="button" onClick={() => insertVariable(variable)}>
+                        <code>{`{{${variable}}}`}</code>
+                      </button>
+                    </Tooltip>
+                  ))}
                 </div>
               ) : <small>{t('snippets.noVariables')}</small>}
+              <Button
+                type="text"
+                className={`snippet-variable-toggle ${variableHelperOpen ? 'is-active' : ''}`}
+                icon={variableHelperOpen ? <ChevronUp size={13} /> : <Plus size={13} />}
+                aria-expanded={variableHelperOpen}
+                onClick={() => setVariableHelperOpen((open) => !open)}
+              >
+                {t('snippets.addVariable')}
+              </Button>
             </div>
             <div className={`snippet-command-insight is-risk ${risky ? 'is-detected' : ''}`}>
               <TriangleAlert size={14} aria-hidden="true" />
@@ -425,6 +499,48 @@ function SnippetEditor({
               ) : null}
             </div>
           </div>
+          {variableHelperOpen ? (
+            <div className="snippet-variable-helper">
+              <div className="snippet-variable-helper-copy">
+                <span className="snippet-variable-helper-icon"><Braces size={16} aria-hidden="true" /></span>
+                <div>
+                  <strong>{t('snippets.variableHelperTitle')}</strong>
+                  <span>{t('snippets.variableHelperDescription')}</span>
+                </div>
+              </div>
+              <div className="snippet-variable-examples" aria-label={t('snippets.variableSyntax')}>
+                <span>{t('snippets.variableSyntax')}</span>
+                <code>{'{{variable}}'}</code>
+                <span>{t('snippets.variableExample')}</span>
+                <code>{'tail -n {{lines}} "{{file}}"'}</code>
+              </div>
+              <div className="snippet-variable-compose">
+                <Input
+                  value={variableName}
+                  prefix="{{"
+                  suffix="}}"
+                  status={normalizedVariableName && !variableNameValid ? 'error' : undefined}
+                  placeholder={t('snippets.variableNamePlaceholder')}
+                  aria-label={t('snippets.variableName')}
+                  onChange={(event) => setVariableName(event.target.value)}
+                  onPressEnter={() => insertVariable(variableName)}
+                />
+                <Button
+                  className="snippet-variable-insert"
+                  disabled={!variableNameValid}
+                  icon={<Plus size={14} />}
+                  onClick={() => insertVariable(variableName)}
+                >
+                  {t('snippets.insertVariable')}
+                </Button>
+              </div>
+              <small className={normalizedVariableName && !variableNameValid ? 'is-invalid' : ''}>
+                {normalizedVariableName && !variableNameValid
+                  ? t('snippets.invalidVariableName')
+                  : t('snippets.variableNameHint')}
+              </small>
+            </div>
+          ) : null}
         </section>
       </div>
       <footer className="snippet-management-editor-footer">
