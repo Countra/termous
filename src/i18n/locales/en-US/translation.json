@@ -1407,11 +1407,6 @@
     "modeFilter": "Filter by forwarding mode",
     "allModes": "All modes",
     "filteredCount": "{{count}} / {{total}}",
-    "view": {
-      "profiles": "Profiles",
-      "running": "Running",
-      "recent": "Recent"
-    },
     "newProfile": "New profile",
     "newTemporary": "Temporary forward",
     "temporaryTitle": "Start temporary forward",
@@ -1421,10 +1416,6 @@
     "noProfileResults": "No matching forward profiles",
     "noRunning": "No running forwards",
     "noRunningResults": "No matching runtime instances",
-    "recent": "Recent",
-    "recentHint": "Recently completed background forwards",
-    "noRecent": "No recently completed forwards",
-    "noRecentResults": "No matching history entries",
     "active": "Active",
     "connections": "Connections",
     "traffic": "Traffic",

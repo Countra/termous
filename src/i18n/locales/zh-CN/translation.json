@@ -1405,11 +1405,6 @@
     "modeFilter": "按转发模式筛选",
     "allModes": "全部模式",
     "filteredCount": "{{count}} / {{total}}",
-    "view": {
-      "profiles": "配置",
-      "running": "运行中",
-      "recent": "最近结束"
-    },
     "newProfile": "新建配置",
     "newTemporary": "临时转发",
     "temporaryTitle": "启动临时转发",
@@ -1419,10 +1414,6 @@
     "noProfileResults": "没有匹配的转发配置",
     "noRunning": "暂无运行中的转发",
     "noRunningResults": "没有匹配的运行实例",
-    "recent": "最近结束",
-    "recentHint": "最近结束的后台转发任务",
-    "noRecent": "暂无最近结束的转发",
-    "noRecentResults": "没有匹配的历史记录",
     "active": "运行中",
     "connections": "连接数",
     "traffic": "流量",

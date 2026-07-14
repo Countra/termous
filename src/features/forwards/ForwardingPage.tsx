@@ -3,7 +3,6 @@ import {
   Cable,
   Edit3,
   Gauge,
-  History,
   Play,
   Plus,
   Route,
@@ -11,7 +10,7 @@ import {
   Square,
   Trash2,
 } from 'lucide-react'
-import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Segmented, Tabs, Tooltip } from 'antd'
+import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Tabs, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
@@ -33,7 +32,6 @@ import type {
 import { useForwardDurationTick } from './forwardTiming'
 
 type EditorMode = 'profile' | 'temporary'
-type ForwardWorkspaceView = 'profiles' | 'running' | 'recent'
 type ForwardModeFilter = 'all' | ForwardMode
 
 interface ForwardingPageProps {
@@ -89,7 +87,6 @@ export function ForwardingPage({
   const [form, setForm] = useState<ForwardFormState>(() => ({ ...defaultForm }))
   const [searchValue, setSearchValue] = useState('')
   const [modeFilter, setModeFilter] = useState<ForwardModeFilter>('all')
-  const [workspaceView, setWorkspaceView] = useState<ForwardWorkspaceView>('profiles')
   const consumedTemporaryIntentKeyRef = useRef<number | null>(null)
   const hostOptions = useMemo(
     () => data.hosts.map((host) => ({ value: host.id, label: host.name, description: `${host.username}@${host.address}:${host.port}` })),
@@ -98,10 +95,6 @@ export function ForwardingPage({
   const hostLookup = useMemo(() => new Map(data.hosts.map((host) => [host.id, host])), [data.hosts])
   const runningForwards = useMemo(
     () => data.forwards.filter((forward) => activeStatuses.has(forward.status)),
-    [data.forwards],
-  )
-  const stoppedForwards = useMemo(
-    () => data.forwards.filter((forward) => !activeStatuses.has(forward.status)).slice(0, 8),
     [data.forwards],
   )
   const normalizedSearch = searchValue.trim().toLocaleLowerCase()
@@ -119,16 +112,9 @@ export function ForwardingPage({
     )),
     [hostLookup, modeFilter, normalizedSearch, runningForwards],
   )
-  const filteredStoppedForwards = useMemo(
-    () => stoppedForwards.filter((forward) => (
-      matchesMode(forward.mode, modeFilter)
-      && matchesForwardInstance(forward, forward.host_id ? hostLookup.get(forward.host_id) : undefined, normalizedSearch)
-    )),
-    [hostLookup, modeFilter, normalizedSearch, stoppedForwards],
-  )
   const activeConnections = runningForwards.reduce((sum, forward) => sum + forward.active_connections, 0)
-  const filteredCount = filteredProfiles.length + filteredRunningForwards.length + filteredStoppedForwards.length
-  const searchableCount = data.forwardProfiles.length + runningForwards.length + stoppedForwards.length
+  const filteredCount = filteredProfiles.length + filteredRunningForwards.length
+  const searchableCount = data.forwardProfiles.length + runningForwards.length
   const durationNow = useForwardDurationTick(runningForwards.length > 0)
 
   const openCreateProfile = () => {
@@ -254,16 +240,17 @@ export function ForwardingPage({
           placeholder={t('forwards.searchPlaceholder')}
           onChange={(event) => setSearchValue(event.target.value)}
         />
-        <Segmented
-          className="forwarding-mode-filter"
-          value={modeFilter}
+        <Tabs
+          className="credential-filter-tabs forwarding-mode-tabs"
+          activeKey={modeFilter}
+          animated={{ inkBar: true, tabPane: false }}
           aria-label={t('forwards.modeFilter')}
           onChange={(value) => setModeFilter(value as ForwardModeFilter)}
-          options={[
-            { label: t('forwards.allModes'), value: 'all' },
-            { label: t('forwards.modeName.local'), value: 'local' },
-            { label: t('forwards.modeName.remote'), value: 'remote' },
-            { label: t('forwards.modeName.dynamic'), value: 'dynamic' },
+          items={[
+            { label: t('forwards.allModes'), key: 'all' },
+            { label: t('forwards.modeName.local'), key: 'local' },
+            { label: t('forwards.modeName.remote'), key: 'remote' },
+            { label: t('forwards.modeName.dynamic'), key: 'dynamic' },
           ]}
         />
         <span className="forwarding-filter-count">
@@ -271,114 +258,63 @@ export function ForwardingPage({
         </span>
       </div>
 
-      <Tabs
-        className="forwarding-workspace-tabs"
-        activeKey={workspaceView}
-        animated={false}
-        destroyOnHidden={false}
-        onChange={(key) => setWorkspaceView(key as ForwardWorkspaceView)}
-        items={[
-          {
-            key: 'profiles',
-            forceRender: true,
-            label: <WorkspaceTabLabel label={t('forwards.view.profiles')} count={filteredProfiles.length} />,
-            children: (
-              <ForwardWorkspacePane
-                className="is-profiles"
-                icon={<Route size={17} />}
-                title={t('forwards.profiles')}
-                hint={t('forwards.profilesHint')}
-                count={filteredProfiles.length}
-              >
-                {filteredProfiles.length === 0 ? (
-                  <ForwardingEmpty
-                    description={data.forwardProfiles.length === 0 ? t('forwards.noProfiles') : t('forwards.noProfileResults')}
-                  />
-                ) : (
-                  <div className="forwarding-profile-list">
-                    {filteredProfiles.map((profile) => (
-                      <ForwardProfileRow
-                        key={profile.id}
-                        profile={profile}
-                        host={hostById(profile.host_id)}
-                        running={runningForwards.find((forward) => forward.profile_id === profile.id)}
-                        actionBusy={actionBusy}
-                        onStart={() => void startForwardProfile(profile)}
-                        onEdit={() => openEditProfile(profile)}
-                        onDelete={() => void onDeleteProfile(profile.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </ForwardWorkspacePane>
-            ),
-          },
-          {
-            key: 'running',
-            forceRender: true,
-            label: <WorkspaceTabLabel label={t('forwards.view.running')} count={filteredRunningForwards.length} />,
-            children: (
-              <ForwardWorkspacePane
-                className="is-running"
-                icon={<Gauge size={17} />}
-                title={t('forwards.runtime')}
-                hint={t('forwards.runtimeHint', { count: runningForwards.length })}
-                count={filteredRunningForwards.length}
-              >
-                {filteredRunningForwards.length === 0 ? (
-                  <ForwardingEmpty
-                    description={runningForwards.length === 0 ? t('forwards.noRunning') : t('forwards.noRunningResults')}
-                  />
-                ) : (
-                  <div className="forwarding-runtime-list">
-                    {filteredRunningForwards.map((forward) => (
-                      <ForwardRuntimeRow
-                        key={forward.id}
-                        forward={forward}
-                        hostName={hostById(forward.host_id)?.name ?? t('fields.none')}
-                        now={durationNow}
-                        actionBusy={actionBusy}
-                        onStop={() => void onStopForward(forward.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </ForwardWorkspacePane>
-            ),
-          },
-          {
-            key: 'recent',
-            forceRender: true,
-            label: <WorkspaceTabLabel label={t('forwards.view.recent')} count={filteredStoppedForwards.length} />,
-            children: (
-              <ForwardWorkspacePane
-                className="is-recent"
-                icon={<History size={17} />}
-                title={t('forwards.recent')}
-                hint={t('forwards.recentHint')}
-                count={filteredStoppedForwards.length}
-              >
-                {filteredStoppedForwards.length === 0 ? (
-                  <ForwardingEmpty
-                    compact
-                    description={stoppedForwards.length === 0 ? t('forwards.noRecent') : t('forwards.noRecentResults')}
-                  />
-                ) : (
-                  <div className="forwarding-history-list">
-                    {filteredStoppedForwards.map((forward) => (
-                      <ForwardHistoryRow
-                        key={forward.id}
-                        forward={forward}
-                        hostName={hostById(forward.host_id)?.name ?? t('fields.none')}
-                      />
-                    ))}
-                  </div>
-                )}
-              </ForwardWorkspacePane>
-            ),
-          },
-        ]}
-      />
+      <div className="forwarding-workspace-grid">
+        <ForwardWorkspacePane
+          className="is-profiles"
+          icon={<Route size={17} />}
+          title={t('forwards.profiles')}
+          hint={t('forwards.profilesHint')}
+          count={filteredProfiles.length}
+        >
+          {filteredProfiles.length === 0 ? (
+            <ForwardingEmpty
+              description={data.forwardProfiles.length === 0 ? t('forwards.noProfiles') : t('forwards.noProfileResults')}
+            />
+          ) : (
+            <div className="forwarding-profile-list">
+              {filteredProfiles.map((profile) => (
+                <ForwardProfileRow
+                  key={profile.id}
+                  profile={profile}
+                  host={hostById(profile.host_id)}
+                  running={runningForwards.find((forward) => forward.profile_id === profile.id)}
+                  actionBusy={actionBusy}
+                  onStart={() => void startForwardProfile(profile)}
+                  onEdit={() => openEditProfile(profile)}
+                  onDelete={() => void onDeleteProfile(profile.id)}
+                />
+              ))}
+            </div>
+          )}
+        </ForwardWorkspacePane>
+
+        <ForwardWorkspacePane
+          className="is-running"
+          icon={<Gauge size={17} />}
+          title={t('forwards.runtime')}
+          hint={t('forwards.runtimeHint', { count: runningForwards.length })}
+          count={filteredRunningForwards.length}
+        >
+          {filteredRunningForwards.length === 0 ? (
+            <ForwardingEmpty
+              description={runningForwards.length === 0 ? t('forwards.noRunning') : t('forwards.noRunningResults')}
+            />
+          ) : (
+            <div className="forwarding-runtime-list">
+              {filteredRunningForwards.map((forward) => (
+                <ForwardRuntimeRow
+                  key={forward.id}
+                  forward={forward}
+                  hostName={hostById(forward.host_id)?.name ?? t('fields.none')}
+                  now={durationNow}
+                  actionBusy={actionBusy}
+                  onStop={() => void onStopForward(forward.id)}
+                />
+              ))}
+            </div>
+          )}
+        </ForwardWorkspacePane>
+      </div>
 
       <Modal
         centered
@@ -614,32 +550,6 @@ function ForwardRuntimeRow({
   )
 }
 
-function ForwardHistoryRow({ forward, hostName }: { forward: ForwardInstance; hostName: string }) {
-  const { t } = useTranslation()
-  const status = forward.status === 'failed' ? 'failed' : 'disconnected'
-  const endpoint = formatForwardEndpoint(forward)
-
-  return (
-    <article className={`forwarding-history-row is-${forward.status}`}>
-      <div className="forwarding-history-main">
-        <ForwardModeBadge compact mode={forward.mode} />
-        <div>
-          <strong>{forward.name || hostName}</strong>
-          <span>{hostName} · {endpoint}</span>
-        </div>
-      </div>
-      <div className="forwarding-history-status">
-        {forward.last_error ? (
-          <Tooltip title={forward.last_error} mouseEnterDelay={0.3} classNames={{ root: 'forward-route-tooltip' }}>
-            <span className="forwarding-history-error">{forward.last_error}</span>
-          </Tooltip>
-        ) : null}
-        <StatusBadge status={status} label={t(`forwards.status.${forward.status}`)} />
-      </div>
-    </article>
-  )
-}
-
 function ForwardWorkspacePane({
   className,
   icon,
@@ -670,15 +580,6 @@ function ForwardWorkspacePane({
   )
 }
 
-function WorkspaceTabLabel({ label, count }: { label: string; count: number }) {
-  return (
-    <span className="forwarding-tab-label">
-      <span>{label}</span>
-      <small>{count}</small>
-    </span>
-  )
-}
-
 function OverviewMetric({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
   return (
     <span className="forwarding-overview-metric">
@@ -689,9 +590,9 @@ function OverviewMetric({ icon, label, value }: { icon: JSX.Element; label: stri
   )
 }
 
-function ForwardingEmpty({ description, compact = false }: { description: string; compact?: boolean }) {
+function ForwardingEmpty({ description }: { description: string }) {
   return (
-    <div className={`forwarding-empty${compact ? ' is-compact' : ''}`}>
+    <div className="forwarding-empty">
       <Empty description={description} image={Empty.PRESENTED_IMAGE_SIMPLE} />
     </div>
   )
@@ -746,14 +647,6 @@ function matchesForwardInstance(
 
 function includesForwardSearch(values: Array<string | number | undefined>, search: string) {
   return values.some((value) => String(value ?? '').toLocaleLowerCase().includes(search))
-}
-
-function formatForwardEndpoint(forward: ForwardInstance) {
-  const bind = forward.bound_address || `${forward.bind_host}:${forward.bind_port}`
-  if (forward.mode === 'dynamic') {
-    return `${bind} · SOCKS5`
-  }
-  return `${bind} → ${forward.target_host}:${forward.target_port}`
 }
 
 function formToInput(form: ForwardFormState): ForwardProfileInput {

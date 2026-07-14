@@ -420,13 +420,10 @@ export function useTermousData() {
       },
       async stopForward(id: string) {
         await api.stopForward(id)
-        setData((current) => {
-          const existing = current.forwards.find((forward) => forward.id === id)
-          if (existing && isTransientForward(existing)) {
-            return { ...current, forwards: current.forwards.filter((forward) => forward.id !== id) }
-          }
-          return { ...current, forwards: markForwardStopped(current.forwards, id) }
-        })
+        setData((current) => ({
+          ...current,
+          forwards: current.forwards.filter((forward) => forward.id !== id),
+        }))
       },
       updateForward(event: ForwardEvent) {
         if (shouldEmitForwardError(event)) {
@@ -563,7 +560,7 @@ export function useTermousData() {
         if (failed && failed.status === 'rejected') {
           throw failed.reason
         }
-        setData((current) => ({ ...current, sessions: [], fileSessions: [], forwards: markAllForwardsStopped(current.forwards) }))
+        setData((current) => ({ ...current, sessions: [], fileSessions: [], forwards: [] }))
         setActiveSession(null)
         void load('silent')
       },
@@ -795,24 +792,6 @@ function upsertForward(forwards: ForwardInstance[], next: ForwardInstance) {
   return [...merged].sort(sortForwards)
 }
 
-function markForwardStopped(forwards: ForwardInstance[], id: string) {
-  return forwards.map((forward) => (
-    forward.id === id
-      ? { ...forward, status: 'stopped' as const, phase: 'stopped' as const, progress: 100, status_message: '端口转发已停止' }
-      : forward
-  ))
-}
-
-function markAllForwardsStopped(forwards: ForwardInstance[]) {
-  return forwards
-    .filter((forward) => !isTransientForward(forward))
-    .map((forward) => (
-      forward.status === 'starting' || forward.status === 'running' || forward.status === 'stopping'
-        ? { ...forward, status: 'stopped' as const, phase: 'stopped' as const, progress: 100, status_message: '端口转发已停止' }
-        : forward
-    ))
-}
-
 function visibleForwards(forwards: ForwardInstance[]) {
   return forwards.filter((forward) => !shouldRemoveForward(forward))
 }
@@ -848,7 +827,7 @@ function mergeHostReachabilityEvent(
 }
 
 function shouldRemoveForward(forward: ForwardInstance) {
-  return isTransientForward(forward) && (forward.status === 'stopped' || forward.status === 'failed')
+  return forward.status === 'stopped' || forward.status === 'failed'
 }
 
 function shouldEmitForwardError(event: ForwardEvent) {
@@ -859,10 +838,6 @@ function shouldEmitForwardError(event: ForwardEvent) {
     return true
   }
   return event.type === 'update' && event.forward.status === 'running' && Boolean(event.forward.last_error)
-}
-
-function isTransientForward(forward: ForwardInstance) {
-  return forward.scope === 'session' || forward.scope === 'background_once'
 }
 
 function sortForwards(left: ForwardInstance, right: ForwardInstance) {
