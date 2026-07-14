@@ -20,6 +20,7 @@ interface CredentialEditorProps {
   importBusy: boolean
   importError: string
   onChange: (patch: Partial<CredentialInput>) => void
+  onTypeChange: (type: CredentialType) => void
   onBack: () => void
   onSave: () => void
   onDelete: () => void
@@ -38,6 +39,7 @@ export function CredentialEditor({
   importBusy,
   importError,
   onChange,
+  onTypeChange,
   onBack,
   onSave,
   onDelete,
@@ -67,7 +69,7 @@ export function CredentialEditor({
     if (type === draft.type) {
       return
     }
-    onChange({ type, secret: '', metadata: {}, ssh_key_info: undefined, pending_passphrase: undefined })
+    onTypeChange(type)
   }
 
   return (
@@ -193,7 +195,7 @@ export function CredentialEditor({
             {visibleErrors.secret
               ? <small className="credential-editor-field-error">{visibleErrors.secret}</small>
               : <small className="credential-editor-field-hint">{requireSecret ? t('vault.secretRequiredHint') : t('vault.secretKeepHint')}</small>}
-            {importError ? <Alert className="credential-import-error" type="error" showIcon message={importError} /> : null}
+            {importError ? <Alert className="credential-import-error" type="error" showIcon title={importError} /> : null}
             {draft.ssh_key_info ? (
               <div className="credential-key-summary">
                 <span className="credential-key-summary-icon"><FileKey2 size={18} aria-hidden="true" /></span>

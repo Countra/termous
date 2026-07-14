@@ -1553,6 +1553,7 @@ export interface SSHKeyGenerateRequest {
 export interface SSHKeyInspectRequest {
   private_key_openssh: string
   passphrase?: string
+  passphrase_credential_id?: string
 }
 
 export interface SSHKeyPair {
@@ -1582,6 +1583,7 @@ export interface PrivateKeyCredentialBundleInput {
   }
   ssh_key_info: SSHKeyInfo
   passphrase?: PendingPrivateKeyPassphrase
+  passphrase_credential_id?: string
 }
 
 export interface PrivateKeyCredentialBundleResult {

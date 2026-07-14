@@ -501,16 +501,20 @@ export function useTermousData() {
         }))
       },
       async createCredential(input: CredentialInput) {
+        const passphraseCredentialId = input.metadata.passphrase_credential_id?.trim()
+        const privateKeyMetadata = { ...input.metadata }
+        delete privateKeyMetadata.passphrase_credential_id
         const credential = input.type === 'private_key' && input.ssh_key_info
           ? (await api.createPrivateKeyCredentialBundle({
               private_key: {
                 name: input.name,
                 vault_id: input.vault_id,
                 secret: input.secret,
-                metadata: input.metadata,
+                metadata: privateKeyMetadata,
               },
               ssh_key_info: input.ssh_key_info,
               passphrase: input.pending_passphrase,
+              passphrase_credential_id: input.pending_passphrase ? undefined : passphraseCredentialId,
             })).private_key
           : await api.createCredential(input)
         await load('silent')

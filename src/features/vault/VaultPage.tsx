@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { createApiFromRuntime, TermousApiError } from '../../api/client'
 import { ManagementWorkspace, type ManagementWorkspaceView } from '../../components/management/ManagementWorkspace'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import type { AppData, CredentialInput, CredentialView, SSHKeyGenerateRequest, SSHKeyInspectResult, SSHKeyPair } from '../../types/domain'
+import type { AppData, CredentialInput, CredentialType, CredentialView, SSHKeyGenerateRequest, SSHKeyInspectResult, SSHKeyPair } from '../../types/domain'
 import { CredentialCatalog } from './CredentialCatalog'
 import { CredentialEditor } from './CredentialEditor'
-import { PrivateKeyPassphraseModal } from './PrivateKeyPassphraseModal'
+import { PrivateKeyPassphraseModal, type PrivateKeyUnlockInput } from './PrivateKeyPassphraseModal'
 import { SSHKeyGenerationModal } from './SSHKeyGenerationModal'
 import {
   createBlankCredentialInput,
@@ -15,7 +15,7 @@ import {
   normalizeCredentialInput,
   validateCredentialInput,
 } from './credentialManagementUtils'
-import { buildPrivateKeyDraft, privateKeyNameFromFile, sshKeyErrorMessage } from './sshKeyUi'
+import { privateKeyNameFromFile, sshKeyErrorMessage } from './sshKeyUi'
 import './vault.css'
 
 interface VaultPageProps {
@@ -23,6 +23,7 @@ interface VaultPageProps {
   actionBusy: boolean
   onSave: (id: string | null, input: CredentialInput) => Promise<CredentialView | undefined>
   onDelete: (id: string) => Promise<boolean | undefined>
+  onDirtyChange: (dirty: boolean) => void
 }
 
 type CredentialIntent =
@@ -30,14 +31,14 @@ type CredentialIntent =
   | { type: 'create' }
   | { type: 'back' }
   | { type: 'generate' }
-  | { type: 'import' }
+  | { type: 'change_type'; credentialType: CredentialType }
 
 interface PendingPrivateKeyImport {
   fileName: string
   privateKey: string
 }
 
-export function VaultPage({ data, actionBusy, onSave, onDelete }: VaultPageProps) {
+export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }: VaultPageProps) {
   const { t } = useTranslation()
   const initialInput = createBlankCredentialInput()
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -56,6 +57,10 @@ export function VaultPage({ data, actionBusy, onSave, onDelete }: VaultPageProps
   const editingCredential = useMemo(
     () => data.credentials.find((credential) => credential.id === editingId),
     [data.credentials, editingId],
+  )
+  const passphraseCredentials = useMemo(
+    () => data.credentials.filter((credential) => credential.type === 'private_key_passphrase'),
+    [data.credentials],
   )
   const requireSecret = !editingCredential || draft.type !== editingCredential.type
   const errors = useMemo(() => validateCredentialInput(draft, requireSecret, {
@@ -109,19 +114,36 @@ export function VaultPage({ data, actionBusy, onSave, onDelete }: VaultPageProps
     setPendingImport(null)
   }, [])
 
-  const applyImportedKey = useCallback((source: PendingPrivateKeyImport, result: SSHKeyInspectResult, passphrase?: string) => {
-    const credentialName = privateKeyNameFromFile(source.fileName, t('vault.sshKey.defaultName'))
-    applyPrivateKeyDraft(buildPrivateKeyDraft(
-      credentialName,
-      source.privateKey,
-      result.info,
-      result.encrypted ? passphrase : undefined,
-      t('vault.sshKey.generatedPassphraseName', { name: credentialName }),
-    ))
+  const applyImportedKey = useCallback((source: PendingPrivateKeyImport, result: SSHKeyInspectResult, unlock?: PrivateKeyUnlockInput) => {
+    const importedName = privateKeyNameFromFile(source.fileName, t('vault.sshKey.defaultName'))
+    setDraft((current) => {
+      const credentialName = current.name.trim() || importedName
+      const metadata = { ...current.metadata }
+      delete metadata.passphrase_credential_id
+      if (result.encrypted && unlock?.source === 'existing') {
+        metadata.passphrase_credential_id = unlock.credentialId
+      }
+      return {
+        ...current,
+        name: credentialName,
+        type: 'private_key',
+        secret: source.privateKey,
+        metadata,
+        ssh_key_info: result.info,
+        pending_passphrase: result.encrypted && unlock?.source === 'new'
+          ? {
+              name: t('vault.sshKey.generatedPassphraseName', { name: credentialName }),
+              secret: unlock.passphrase,
+            }
+          : undefined,
+      }
+    })
+    setImportError('')
+    setActiveView('editor')
     clearPendingImport()
-  }, [applyPrivateKeyDraft, clearPendingImport, t])
+  }, [clearPendingImport, t])
 
-  const inspectImportedKey = useCallback(async (source: PendingPrivateKeyImport, passphrase?: string) => {
+  const inspectImportedKey = useCallback(async (source: PendingPrivateKeyImport, unlock?: PrivateKeyUnlockInput) => {
     const revision = importRevisionRef.current + 1
     importRevisionRef.current = revision
     importControllerRef.current?.abort()
@@ -133,16 +155,17 @@ export function VaultPage({ data, actionBusy, onSave, onDelete }: VaultPageProps
       const api = await getApi()
       const result = await api.inspectSSHKey({
         private_key_openssh: source.privateKey,
-        passphrase,
+        passphrase: unlock?.source === 'new' ? unlock.passphrase : undefined,
+        passphrase_credential_id: unlock?.source === 'existing' ? unlock.credentialId : undefined,
       }, controller.signal)
       if (revision === importRevisionRef.current) {
-        applyImportedKey(source, result, passphrase)
+        applyImportedKey(source, result, unlock)
       }
     } catch (error) {
       if (revision !== importRevisionRef.current || controller.signal.aborted) {
         return
       }
-      if (!passphrase && error instanceof TermousApiError && error.code === 'passphrase_required') {
+      if (!unlock && error instanceof TermousApiError && error.code === 'passphrase_required') {
         setPendingImport(source)
         setImportError('')
       } else {
@@ -200,13 +223,20 @@ export function VaultPage({ data, actionBusy, onSave, onDelete }: VaultPageProps
       setGenerationOpen(true)
       return
     }
-    if (intent.type === 'import') {
-      await beginImport()
+    if (intent.type === 'change_type') {
+      setDraft({
+        ...baseline,
+        type: intent.credentialType,
+        secret: '',
+        metadata: {},
+        ssh_key_info: undefined,
+        pending_passphrase: undefined,
+      })
       return
     }
     setDraft(baseline)
     setActiveView('catalog')
-  }, [baseline, beginImport, loadCredentialById, startCreate])
+  }, [baseline, loadCredentialById, startCreate])
 
   const requestIntent = useCallback((intent: CredentialIntent) => {
     if (intent.type === 'select' && intent.credentialId === editingId) {
@@ -230,6 +260,12 @@ export function VaultPage({ data, actionBusy, onSave, onDelete }: VaultPageProps
       setBaseline(next)
     }
   }, [baseline, dirty, editingCredential])
+
+  useLayoutEffect(() => {
+    onDirtyChange(dirty)
+  }, [dirty, onDirtyChange])
+
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange])
 
   useEffect(() => () => {
     importRevisionRef.current += 1
@@ -296,11 +332,12 @@ export function VaultPage({ data, actionBusy, onSave, onDelete }: VaultPageProps
             importBusy={importBusy}
             importError={pendingImport ? '' : importError}
             onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+            onTypeChange={(credentialType) => requestIntent({ type: 'change_type', credentialType })}
             onBack={() => requestIntent({ type: 'back' })}
             onSave={() => void save()}
             onDelete={() => void removeCurrentCredential()}
             onDiscard={() => setDraft(baseline)}
-            onImportKey={() => requestIntent({ type: 'import' })}
+            onImportKey={() => void beginImport()}
           />
         )}
       />
@@ -334,10 +371,13 @@ export function VaultPage({ data, actionBusy, onSave, onDelete }: VaultPageProps
         fileName={pendingImport?.fileName ?? ''}
         busy={importBusy}
         error={importError}
+        credentials={passphraseCredentials}
+        defaultCredentialId={draft.metadata.passphrase_credential_id}
         onCancel={() => { clearPendingImport(); setImportError('') }}
-        onConfirm={(passphrase) => {
+        onInputChange={() => setImportError('')}
+        onConfirm={(unlock) => {
           if (pendingImport) {
-            void inspectImportedKey(pendingImport, passphrase)
+            void inspectImportedKey(pendingImport, unlock)
           }
         }}
       />

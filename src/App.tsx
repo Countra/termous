@@ -4,6 +4,7 @@ import { AlertTriangle } from 'lucide-react'
 import 'antd/dist/reset.css'
 import { useTranslation } from 'react-i18next'
 import { AppShell } from './components/layout/AppShell'
+import { ConfirmDialog } from './components/ui/ConfirmDialog'
 import { HostsPage } from './features/hosts/HostsPage'
 import { FilesPage } from './features/files/FilesPage'
 import { ForwardingPage } from './features/forwards/ForwardingPage'
@@ -64,6 +65,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const notifiedForwardFailuresRef = useRef(new Set<string>())
   const notifiedForwardRuntimeErrorsRef = useRef(new Map<string, string>())
   const [page, setPage] = useState<PageKey>('workbench')
+  const [vaultDirty, setVaultDirty] = useState(false)
+  const [pendingPage, setPendingPage] = useState<PageKey | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const [selectedHostId, setSelectedHostId] = useState('')
   const [activeFileSessionId, setActiveFileSessionId] = useState('')
@@ -88,6 +91,17 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       ),
     [data.fileSessions, data.forwards, data.sessions],
   )
+
+  const navigateToPage = useCallback((nextPage: PageKey) => {
+    if (nextPage === page) {
+      return
+    }
+    if (page === 'vault' && vaultDirty) {
+      setPendingPage(nextPage)
+      return
+    }
+    setPage(nextPage)
+  }, [page, vaultDirty])
 
   useEffect(() => {
     if (initializing || !apiReady) {
@@ -629,7 +643,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         hasActiveRuntime={hasActiveRuntime}
         sidebarCollapsed={sidebarCollapsed}
         actionBusy={actionBusy}
-        onNavigate={setPage}
+        onNavigate={navigateToPage}
         onOpenConnectionLauncher={openHostLauncher}
         onOpenLocalTerminal={openLocalTerminalFromTopbar}
         onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
@@ -692,6 +706,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               await actions.deleteCredential(id)
               return true
             })}
+            onDirtyChange={setVaultDirty}
           />
         ) : null}
 
@@ -784,6 +799,23 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           />
         ) : null}
       </AppShell>
+      <ConfirmDialog
+        open={Boolean(pendingPage)}
+        title={t('vault.unsavedTitle')}
+        description={t('vault.unsavedDescription')}
+        confirmLabel={t('vault.discardAndContinue')}
+        cancelLabel={t('app.cancel')}
+        danger
+        onCancel={() => setPendingPage(null)}
+        onConfirm={() => {
+          const nextPage = pendingPage
+          setPendingPage(null)
+          setVaultDirty(false)
+          if (nextPage) {
+            setPage(nextPage)
+          }
+        }}
+      />
       <HostLauncherModal
         open={hostLauncherOpen}
         data={data}

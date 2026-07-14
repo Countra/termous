@@ -660,14 +660,20 @@ html:root[data-theme="light"] .credential-passphrase-popup .ant-select-item {
   white-space: nowrap;
 }
 
-.ssh-key-generation-modal,
-.ssh-key-passphrase-modal {
+.ssh-key-generation-modal {
   --ant-modal-content-bg: #21252e;
-  --ant-modal-header-bg: #21252e;
+  --ant-modal-header-bg: transparent;
+}
+
+.ssh-key-passphrase-modal {
+  --ssh-key-passphrase-surface: #21252e;
+  --ant-modal-content-bg: var(--ssh-key-passphrase-surface);
+  --ant-modal-header-bg: var(--ssh-key-passphrase-surface);
 }
 
 .ssh-key-generation-modal .ant-modal-content,
-.ssh-key-passphrase-modal .ant-modal-content {
+.ssh-key-passphrase-modal .ant-modal-content,
+.ssh-key-passphrase-modal .ant-modal-container {
   max-height: calc(100vh - 32px);
   border: 1px solid var(--border);
   background: #21252e !important;
@@ -679,8 +685,39 @@ html:root[data-theme="light"] .credential-passphrase-popup .ant-select-item {
 .ssh-key-generation-modal .ant-modal-header,
 .ssh-key-passphrase-modal .ant-modal-header {
   border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
-  background: #21252e !important;
   padding-bottom: 13px;
+}
+
+.ssh-key-generation-modal .ant-modal-header {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+.ssh-key-passphrase-modal .ant-modal-header {
+  background: var(--ssh-key-passphrase-surface) !important;
+  background-color: var(--ssh-key-passphrase-surface) !important;
+}
+
+.ssh-key-passphrase-modal .ant-modal-content,
+.ssh-key-passphrase-modal .ant-modal-container,
+.ssh-key-passphrase-modal .ant-modal-body,
+.ssh-key-passphrase-modal .ant-modal-footer {
+  background: var(--ssh-key-passphrase-surface) !important;
+  background-color: var(--ssh-key-passphrase-surface) !important;
+  opacity: 1;
+  backdrop-filter: none;
+}
+
+.ssh-key-passphrase-modal .ant-modal-content,
+.ssh-key-passphrase-modal .ant-modal-container {
+  overflow: hidden;
+  padding: 0;
+}
+
+.ssh-key-passphrase-modal .ant-modal-header {
+  margin: 0;
+  border-bottom: 0;
+  padding: 18px 20px 10px;
 }
 
 .ssh-key-generation-modal .ant-modal-title,
@@ -699,7 +736,7 @@ html:root[data-theme="light"] .credential-passphrase-popup .ant-select-item {
 }
 
 .ssh-key-passphrase-modal .ant-modal-body {
-  padding-top: 16px;
+  padding: 8px 20px 0;
 }
 
 .ssh-key-generation-modal .ant-modal-footer,
@@ -708,18 +745,34 @@ html:root[data-theme="light"] .credential-passphrase-popup .ant-select-item {
   padding-top: 13px;
 }
 
-:root[data-theme="light"] .ssh-key-generation-modal,
-:root[data-theme="light"] .ssh-key-passphrase-modal {
+.ssh-key-passphrase-modal .ant-modal-footer {
+  margin: 0;
+  border-top: 0;
+  padding: 14px 20px 18px;
+}
+
+:root[data-theme="light"] .ssh-key-generation-modal {
   --ant-modal-content-bg: #ffffff;
-  --ant-modal-header-bg: #ffffff;
+  --ant-modal-header-bg: transparent;
+}
+
+:root[data-theme="light"] .ssh-key-passphrase-modal {
+  --ssh-key-passphrase-surface: #ffffff;
+  --ant-modal-content-bg: var(--ssh-key-passphrase-surface);
+  --ant-modal-header-bg: var(--ssh-key-passphrase-surface);
 }
 
 :root[data-theme="light"] .ssh-key-generation-modal .ant-modal-content,
-:root[data-theme="light"] .ssh-key-generation-modal .ant-modal-header,
 :root[data-theme="light"] .ssh-key-passphrase-modal .ant-modal-content,
+:root[data-theme="light"] .ssh-key-passphrase-modal .ant-modal-container,
 :root[data-theme="light"] .ssh-key-passphrase-modal .ant-modal-header {
   background: #ffffff !important;
   background-color: #ffffff !important;
+}
+
+:root[data-theme="light"] .ssh-key-generation-modal .ant-modal-header {
+  background: transparent !important;
+  background-color: transparent !important;
 }
 
 .ssh-key-modal-intro,
@@ -801,6 +854,46 @@ html:root[data-theme="light"] .credential-passphrase-popup .ant-select-item {
   background: var(--surface-subtle);
 }
 
+.ssh-key-form-field small {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.ssh-key-unlock-method {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.ssh-key-unlock-method .ant-segmented {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface-subtle);
+  box-shadow: none;
+}
+
+.ssh-key-unlock-method .ant-segmented-item {
+  min-height: 34px;
+}
+
+.ssh-key-unlock-method .ant-segmented-item-label {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.ssh-key-passphrase-modal .ssh-key-form-field .termous-select {
+  width: 100%;
+}
+
 .ssh-key-passphrase-setting {
   display: flex;
   grid-column: 1 / -1;
@@ -811,20 +904,9 @@ html:root[data-theme="light"] .credential-passphrase-popup .ant-select-item {
   padding-top: 14px;
 }
 
-.ssh-key-passphrase-setting > div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
 .ssh-key-passphrase-setting strong {
   color: var(--text-primary);
   font-size: 12px;
-}
-
-.ssh-key-passphrase-setting small {
-  color: var(--text-muted);
-  font-size: 11px;
 }
 
 .ssh-key-passphrase-fields {

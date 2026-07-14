@@ -225,7 +225,7 @@ export function SSHKeyGenerationModal({ open, onClose, onGenerate, onApply }: SS
         <span><ShieldCheck size={19} aria-hidden="true" /></span>
         <div>
           <strong>{stage === 'configure' ? t('vault.sshKey.configureTitle') : t('vault.sshKey.resultTitle')}</strong>
-          <small>{stage === 'configure' ? t('vault.sshKey.configureHint') : t('vault.sshKey.resultHint')}</small>
+          {stage === 'result' ? <small>{t('vault.sshKey.resultHint')}</small> : null}
         </div>
       </div>
 
@@ -266,10 +266,7 @@ export function SSHKeyGenerationModal({ open, onClose, onGenerate, onApply }: SS
             <Input name="ssh-key-comment" value={comment} maxLength={255} placeholder={t('vault.sshKey.commentPlaceholder')} onChange={(event) => setComment(event.target.value)} />
           </label>
           <div className="ssh-key-passphrase-setting">
-            <div>
-              <strong>{t('vault.sshKey.protectWithPassphrase')}</strong>
-              <small>{t('vault.sshKey.passphraseHint')}</small>
-            </div>
+            <strong>{t('vault.sshKey.protectWithPassphrase')}</strong>
             <Switch checked={protectWithPassphrase} onChange={(checked) => { setProtectWithPassphrase(checked); if (!checked) { setPassphrase(''); setPassphraseConfirm('') } }} />
           </div>
           {protectWithPassphrase ? (
