@@ -692,7 +692,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               await actions.deleteCredential(id)
               return true
             })}
-            onGenerateKey={() => runAction(actions.generateKey, t('vault.keyGenerated'))}
           />
         ) : null}
 

@@ -23,7 +23,6 @@ interface VaultPageProps {
   actionBusy: boolean
   onSave: (id: string | null, input: CredentialInput) => Promise<CredentialView | undefined>
   onDelete: (id: string) => Promise<boolean | undefined>
-  onGenerateKey: () => Promise<CredentialView | undefined>
 }
 
 type CredentialIntent =

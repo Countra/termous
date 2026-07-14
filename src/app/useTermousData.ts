@@ -525,9 +525,6 @@ export function useTermousData() {
         await api.deleteCredential(id)
         await load('silent')
       },
-      async generateKey() {
-        return undefined
-      },
       async connect(hostId: string, cols = 120, rows = 32) {
         const session = await api.createSession(hostId, cols, rows)
         setActiveSession(session)
