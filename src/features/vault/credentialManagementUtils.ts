@@ -24,21 +24,33 @@ export function credentialToInput(credential: CredentialView): CredentialInput {
     vault_id: credential.vault_id,
     secret: '',
     metadata: credential.metadata ?? {},
+    ssh_key_info: credential.ssh_key_info,
   })
 }
 
 export function normalizeCredentialInput(input: CredentialInput): CredentialInput {
   const metadata = { ...input.metadata }
+  const pendingPassphrase = input.type === 'private_key' && input.pending_passphrase
+    ? {
+        name: input.pending_passphrase.name.trim(),
+        secret: input.pending_passphrase.secret,
+      }
+    : undefined
   if (input.type !== 'private_key' || !metadata.passphrase_credential_id?.trim()) {
     delete metadata.passphrase_credential_id
   } else {
     metadata.passphrase_credential_id = metadata.passphrase_credential_id.trim()
+  }
+  if (pendingPassphrase) {
+    delete metadata.passphrase_credential_id
   }
   return {
     ...input,
     name: input.name.trim(),
     vault_id: input.vault_id.trim() || 'local',
     metadata,
+    ssh_key_info: input.type === 'private_key' ? input.ssh_key_info : undefined,
+    pending_passphrase: pendingPassphrase,
   }
 }
 
@@ -75,7 +87,7 @@ export function filterCredentials(
     if (tokens.length === 0) {
       return true
     }
-    const searchable = [credential.name, typeLabels[credential.type], credential.metadata?.algorithm ?? '']
+    const searchable = [credential.name, typeLabels[credential.type], credential.ssh_key_info?.algorithm ?? '']
       .join(' ')
       .toLocaleLowerCase()
     return tokens.every((token) => searchable.includes(token))

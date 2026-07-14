@@ -1,5 +1,5 @@
-import { Button, Input, Popconfirm, Radio, Select, Tooltip } from 'antd'
-import { ArrowLeft, DatabaseZap, KeyRound, Trash2 } from 'lucide-react'
+import { Alert, Button, Input, Popconfirm, Radio, Select, Tooltip } from 'antd'
+import { ArrowLeft, DatabaseZap, FileKey2, FileUp, Fingerprint, KeyRound, ShieldCheck, Trash2 } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ManagementPanel } from '../../components/management/ManagementWorkspace'
@@ -7,6 +7,7 @@ import { ConnectionActionButton } from '../../components/ui/ConnectionActionButt
 import type { CredentialInput, CredentialType, CredentialView } from '../../types/domain'
 import { credentialTypeIcon } from './credentialIcons'
 import type { CredentialValidationErrors } from './credentialManagementUtils'
+import { sshKeyAlgorithmSummary } from './sshKeyUi'
 
 interface CredentialEditorProps {
   credentials: CredentialView[]
@@ -16,11 +17,14 @@ interface CredentialEditorProps {
   requireSecret: boolean
   errors: CredentialValidationErrors
   actionBusy: boolean
+  importBusy: boolean
+  importError: string
   onChange: (patch: Partial<CredentialInput>) => void
   onBack: () => void
   onSave: () => void
   onDelete: () => void
   onDiscard: () => void
+  onImportKey: () => void
 }
 
 export function CredentialEditor({
@@ -31,11 +35,14 @@ export function CredentialEditor({
   requireSecret,
   errors,
   actionBusy,
+  importBusy,
+  importError,
   onChange,
   onBack,
   onSave,
   onDelete,
   onDiscard,
+  onImportKey,
 }: CredentialEditorProps) {
   const { t } = useTranslation()
   const Icon = credentialTypeIcon(draft.type)
@@ -45,19 +52,22 @@ export function CredentialEditor({
   const deleteBlocked = Boolean(editingCredential?.bound_host_count)
   const passphraseOptions = useMemo(
     () => [
+      ...(draft.pending_passphrase
+        ? [{ value: '__pending__', label: t('vault.sshKey.pendingPassphrase', { name: draft.pending_passphrase.name }) }]
+        : []),
       { value: '', label: t('vault.noPassphrase') },
       ...credentials
         .filter((credential) => credential.type === 'private_key_passphrase')
         .map((credential) => ({ value: credential.id, label: credential.name })),
     ],
-    [credentials, t],
+    [credentials, draft.pending_passphrase, t],
   )
 
   const changeType = (type: CredentialType) => {
     if (type === draft.type) {
       return
     }
-    onChange({ type, secret: '', metadata: {} })
+    onChange({ type, secret: '', metadata: {}, ssh_key_info: undefined, pending_passphrase: undefined })
   }
 
   return (
@@ -126,6 +136,7 @@ export function CredentialEditor({
           <label className="credential-editor-field">
             <span className="credential-editor-field-label">{t('vault.name')}</span>
             <Input
+              name="credential-name"
               value={draft.name}
               status={visibleErrors.name ? 'error' : undefined}
               placeholder={t('vault.namePlaceholder')}
@@ -137,8 +148,9 @@ export function CredentialEditor({
             <label className="credential-editor-field">
               <span className="credential-editor-field-label">{t('vault.bindPassphrase')}</span>
               <Select
-                value={draft.metadata.passphrase_credential_id ?? ''}
+                value={draft.pending_passphrase ? '__pending__' : draft.metadata.passphrase_credential_id ?? ''}
                 options={passphraseOptions}
+                disabled={Boolean(draft.pending_passphrase)}
                 className="termous-select"
                 classNames={{ popup: { root: 'termous-select-popup credential-passphrase-popup' } }}
                 onChange={(value) => onChange({ metadata: value
@@ -147,18 +159,31 @@ export function CredentialEditor({
               />
             </label>
           ) : null}
-          <label className="credential-editor-field is-wide">
-            <span className="credential-editor-field-label">{t('vault.secret')}</span>
+          <div className="credential-editor-field is-wide">
+            <span className="credential-editor-field-heading">
+              <span className="credential-editor-field-label">{t('vault.secret')}</span>
+              {draft.type === 'private_key' ? (
+                <Button size="small" icon={<FileUp size={14} />} loading={importBusy} disabled={actionBusy} onClick={onImportKey}>
+                  {t('vault.importKey')}
+                </Button>
+              ) : null}
+            </span>
             {draft.type === 'private_key' ? (
               <Input.TextArea
+                name="credential-private-key"
                 value={draft.secret}
                 autoSize={{ minRows: 7, maxRows: 12 }}
                 status={visibleErrors.secret ? 'error' : undefined}
                 placeholder={requireSecret ? t('vault.secretRequiredPlaceholder') : t('vault.secretKeepPlaceholder')}
-                onChange={(event) => onChange({ secret: event.target.value })}
+                onChange={(event) => onChange({
+                  secret: event.target.value,
+                  ssh_key_info: undefined,
+                  pending_passphrase: undefined,
+                })}
               />
             ) : (
               <Input.Password
+                name="credential-secret"
                 value={draft.secret}
                 status={visibleErrors.secret ? 'error' : undefined}
                 placeholder={requireSecret ? t('vault.secretRequiredPlaceholder') : t('vault.secretKeepPlaceholder')}
@@ -168,7 +193,18 @@ export function CredentialEditor({
             {visibleErrors.secret
               ? <small className="credential-editor-field-error">{visibleErrors.secret}</small>
               : <small className="credential-editor-field-hint">{requireSecret ? t('vault.secretRequiredHint') : t('vault.secretKeepHint')}</small>}
-          </label>
+            {importError ? <Alert className="credential-import-error" type="error" showIcon message={importError} /> : null}
+            {draft.ssh_key_info ? (
+              <div className="credential-key-summary">
+                <span className="credential-key-summary-icon"><FileKey2 size={18} aria-hidden="true" /></span>
+                <div className="credential-key-summary-main">
+                  <strong>{sshKeyAlgorithmSummary(draft.ssh_key_info, t)}</strong>
+                  <span><Fingerprint size={13} aria-hidden="true" />{draft.ssh_key_info.fingerprint_sha256}</span>
+                </div>
+                <span className="credential-key-verified"><ShieldCheck size={13} />{t('vault.sshKey.verified')}</span>
+              </div>
+            ) : null}
+          </div>
         </div>
       </CredentialEditorSection>
 

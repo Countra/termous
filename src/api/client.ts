@@ -65,6 +65,8 @@ import type {
   LocalPathMappingReorderItem,
   LocalTreeEntry,
   OverwritePolicy,
+  PrivateKeyCredentialBundleInput,
+  PrivateKeyCredentialBundleResult,
   RemoteDirectoryListing,
   RemoteFileEntry,
   RemoteProcessDetail,
@@ -77,6 +79,10 @@ import type {
   RemoteTextSaveResult,
   Session,
   Settings,
+  SSHKeyGenerateRequest,
+  SSHKeyInspectRequest,
+  SSHKeyInspectResult,
+  SSHKeyPair,
   SystemServiceAction,
   SystemServiceCapability,
   SystemServiceDetail,
@@ -515,16 +521,18 @@ export class TermousApi {
   }
 
   createCredential(input: CredentialInput) {
+    const credential = toCredentialRequest(input)
     return this.request<CredentialView>('/api/v1/credentials', {
       method: 'POST',
-      body: input,
+      body: credential,
     })
   }
 
   updateCredential(id: string, input: CredentialInput) {
+    const credential = toCredentialRequest(input)
     return this.request<CredentialView>(`/api/v1/credentials/${id}`, {
       method: 'PATCH',
-      body: input,
+      body: credential,
     })
   }
 
@@ -532,10 +540,26 @@ export class TermousApi {
     return this.request<void>(`/api/v1/credentials/${id}`, { method: 'DELETE' })
   }
 
-  generateKey() {
-    return this.request<CredentialView>('/api/v1/credentials/generate-key', {
+  generateSSHKey(input: SSHKeyGenerateRequest, signal?: AbortSignal) {
+    return this.request<SSHKeyPair>('/api/v1/credentials/ssh-keys/generate', {
       method: 'POST',
-      body: {},
+      body: input,
+      signal,
+    })
+  }
+
+  inspectSSHKey(input: SSHKeyInspectRequest, signal?: AbortSignal) {
+    return this.request<SSHKeyInspectResult>('/api/v1/credentials/ssh-keys/inspect', {
+      method: 'POST',
+      body: input,
+      signal,
+    })
+  }
+
+  createPrivateKeyCredentialBundle(input: PrivateKeyCredentialBundleInput) {
+    return this.request<PrivateKeyCredentialBundleResult>('/api/v1/credentials/private-key-bundles', {
+      method: 'POST',
+      body: input,
     })
   }
 
@@ -1484,4 +1508,10 @@ function normalizeRemoteProcessDetail(detail: RemoteProcessDetail): RemoteProces
 export async function createApiFromRuntime() {
   const runtimeConfig = window.termous ? await window.termous.getConfig() : {}
   return new TermousApi(runtimeConfig)
+}
+
+function toCredentialRequest(input: CredentialInput) {
+  const credential = { ...input }
+  delete credential.pending_passphrase
+  return credential
 }

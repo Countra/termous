@@ -501,7 +501,18 @@ export function useTermousData() {
         }))
       },
       async createCredential(input: CredentialInput) {
-        const credential = await api.createCredential(input)
+        const credential = input.type === 'private_key' && input.ssh_key_info
+          ? (await api.createPrivateKeyCredentialBundle({
+              private_key: {
+                name: input.name,
+                vault_id: input.vault_id,
+                secret: input.secret,
+                metadata: input.metadata,
+              },
+              ssh_key_info: input.ssh_key_info,
+              passphrase: input.pending_passphrase,
+            })).private_key
+          : await api.createCredential(input)
         await load('silent')
         return credential
       },
@@ -515,9 +526,7 @@ export function useTermousData() {
         await load('silent')
       },
       async generateKey() {
-        const credential = await api.generateKey()
-        await load('silent')
-        return credential
+        return undefined
       },
       async connect(hostId: string, cols = 120, rows = 32) {
         const session = await api.createSession(hostId, cols, rows)
