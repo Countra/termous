@@ -32,7 +32,7 @@ export function ForwardEditorFields({
   const { t } = useTranslation()
 
   return (
-    <div className={`forward-editor-fields${compact ? ' is-compact' : ''}`}>
+    <div className={`forward-editor-fields is-${mode}${compact ? ' is-compact' : ''}`}>
       <div className="forward-editor-endpoint-group">
         <span className="forward-editor-group-label">
           {mode === 'remote' ? t('forwards.route.remoteListen') : t('forwards.route.localListen')}

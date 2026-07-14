@@ -209,53 +209,49 @@ export function ForwardingPage({
 
   return (
     <section className="forwarding-page">
-      <div className="forwarding-page-header">
-        <div>
-          <h1>{t('forwards.title')}</h1>
-          <p>{t('forwards.subtitle')}</p>
+      <div className="forwarding-commandbar">
+        <div className="forwarding-command-primary">
+          <div className="forwarding-overview-strip" aria-label={t('forwards.overview')}>
+            <OverviewMetric icon={<Route size={16} />} label={t('forwards.profiles')} value={String(data.forwardProfiles.length)} />
+            <OverviewMetric icon={<Activity size={16} />} label={t('forwards.active')} value={String(runningForwards.length)} />
+            <OverviewMetric icon={<Cable size={16} />} label={t('forwards.connections')} value={String(activeConnections)} />
+          </div>
+          <div className="page-actions">
+            <Button className="secondary-button" disabled={actionBusy || data.hosts.length === 0} icon={<Plus size={16} />} onClick={openTemporaryForward}>
+              {t('forwards.newTemporary')}
+            </Button>
+            <ConnectionActionButton disabled={actionBusy || data.hosts.length === 0} icon={<Plus size={16} />} onClick={openCreateProfile}>
+              {t('forwards.newProfile')}
+            </ConnectionActionButton>
+          </div>
         </div>
-        <div className="page-actions">
-          <Button className="secondary-button" disabled={actionBusy || data.hosts.length === 0} icon={<Plus size={16} />} onClick={openTemporaryForward}>
-            {t('forwards.newTemporary')}
-          </Button>
-          <ConnectionActionButton disabled={actionBusy || data.hosts.length === 0} icon={<Plus size={16} />} onClick={openCreateProfile}>
-            {t('forwards.newProfile')}
-          </ConnectionActionButton>
+        <div className="forwarding-filterbar">
+          <Input
+            allowClear
+            className="forwarding-search"
+            prefix={<Search size={15} aria-hidden="true" />}
+            value={searchValue}
+            aria-label={t('forwards.searchPlaceholder')}
+            placeholder={t('forwards.searchPlaceholder')}
+            onChange={(event) => setSearchValue(event.target.value)}
+          />
+          <Tabs
+            className="credential-filter-tabs forwarding-mode-tabs"
+            activeKey={modeFilter}
+            animated={{ inkBar: true, tabPane: false }}
+            aria-label={t('forwards.modeFilter')}
+            onChange={(value) => setModeFilter(value as ForwardModeFilter)}
+            items={[
+              { label: t('forwards.allModes'), key: 'all' },
+              { label: t('forwards.modeName.local'), key: 'local' },
+              { label: t('forwards.modeName.remote'), key: 'remote' },
+              { label: t('forwards.modeName.dynamic'), key: 'dynamic' },
+            ]}
+          />
+          <span className="forwarding-filter-count">
+            {t('forwards.filteredCount', { count: filteredCount, total: searchableCount })}
+          </span>
         </div>
-      </div>
-
-      <div className="forwarding-overview-strip" aria-label={t('forwards.overview')}>
-        <OverviewMetric icon={<Route size={16} />} label={t('forwards.profiles')} value={String(data.forwardProfiles.length)} />
-        <OverviewMetric icon={<Activity size={16} />} label={t('forwards.active')} value={String(runningForwards.length)} />
-        <OverviewMetric icon={<Cable size={16} />} label={t('forwards.connections')} value={String(activeConnections)} />
-      </div>
-
-      <div className="forwarding-filterbar">
-        <Input
-          allowClear
-          className="forwarding-search"
-          prefix={<Search size={15} aria-hidden="true" />}
-          value={searchValue}
-          aria-label={t('forwards.searchPlaceholder')}
-          placeholder={t('forwards.searchPlaceholder')}
-          onChange={(event) => setSearchValue(event.target.value)}
-        />
-        <Tabs
-          className="credential-filter-tabs forwarding-mode-tabs"
-          activeKey={modeFilter}
-          animated={{ inkBar: true, tabPane: false }}
-          aria-label={t('forwards.modeFilter')}
-          onChange={(value) => setModeFilter(value as ForwardModeFilter)}
-          items={[
-            { label: t('forwards.allModes'), key: 'all' },
-            { label: t('forwards.modeName.local'), key: 'local' },
-            { label: t('forwards.modeName.remote'), key: 'remote' },
-            { label: t('forwards.modeName.dynamic'), key: 'dynamic' },
-          ]}
-        />
-        <span className="forwarding-filter-count">
-          {t('forwards.filteredCount', { count: filteredCount, total: searchableCount })}
-        </span>
       </div>
 
       <div className="forwarding-workspace-grid">
@@ -319,9 +315,22 @@ export function ForwardingPage({
       <Modal
         centered
         open={editorOpen}
-        width={620}
+        width={580}
         className="termous-modal forwarding-modal"
-        title={editorMode === 'temporary' ? t('forwards.temporaryTitle') : editingProfile ? t('forwards.editProfile') : t('forwards.newProfile')}
+        title={
+          <span className="forwarding-modal-title">
+            <span className="forwarding-modal-title-icon" aria-hidden="true">
+              <Cable size={18} strokeWidth={2.15} />
+            </span>
+            <span>
+              {editorMode === 'temporary'
+                ? t('forwards.temporaryTitle')
+                : editingProfile
+                  ? t('forwards.editProfile')
+                  : t('forwards.newProfile')}
+            </span>
+          </span>
+        }
         okText={editorMode === 'temporary' ? t('forwards.start') : t('app.save')}
         cancelText={t('app.cancel')}
         okButtonProps={{ disabled: actionBusy }}
@@ -354,34 +363,53 @@ function ForwardEditorForm({
   const selectedHost = hosts.find((host) => host.id === form.host_id)
   return (
     <div className="forwarding-editor-form">
-      <div className="forwarding-editor-section">
-        <span className="forwarding-editor-section-title">{t('forwards.basicInfo')}</span>
-        <label className="forward-field">
-          <span className="field-label">{t('forwards.name')}</span>
-          <Input
-            id="forward-name"
-            name="forward-name"
-            value={form.name}
-            onChange={(event) => onChange({ name: event.target.value })}
-            placeholder={t('forwards.namePlaceholder')}
+      <section className="forwarding-editor-section is-basic">
+        <header className="forwarding-editor-section-header">
+          <span className="forwarding-editor-section-icon" aria-hidden="true">
+            <Activity size={15} />
+          </span>
+          <span className="forwarding-editor-section-title">{t('forwards.basicInfo')}</span>
+        </header>
+        <div className="forwarding-editor-basic-grid">
+          <label className="forward-field">
+            <span className="field-label">{t('forwards.name')}</span>
+            <Input
+              id="forward-name"
+              name="forward-name"
+              value={form.name}
+              onChange={(event) => onChange({ name: event.target.value })}
+              placeholder={t('forwards.namePlaceholder')}
+            />
+          </label>
+          <CustomSelect
+            label={t('forwards.host')}
+            value={form.host_id}
+            options={hostOptions}
+            onChange={(value) => onChange({ host_id: value })}
+            disabled={hostOptions.length === 0}
           />
-        </label>
-        <CustomSelect
-          label={t('forwards.host')}
-          value={form.host_id}
-          options={hostOptions}
-          onChange={(value) => onChange({ host_id: value })}
-          disabled={hostOptions.length === 0}
-        />
+        </div>
         <label className="forward-field">
           <span className="field-label">{t('forwards.mode')}</span>
           <ForwardModeSelector value={form.mode} onChange={(mode) => onChange({ mode })} />
         </label>
         {selectedHost?.auth_method === 'system' ? <p className="forwarding-card-warning">{t('forwards.systemAuthUnsupported')}</p> : null}
-      </div>
+      </section>
 
-      <div className="forwarding-editor-section">
-        <span className="forwarding-editor-section-title">{t('forwards.endpointSettings')}</span>
+      <section className="forwarding-editor-section is-endpoints">
+        <header className="forwarding-editor-section-header">
+          <span className="forwarding-editor-section-icon" aria-hidden="true">
+            <Route size={15} />
+          </span>
+          <span className="forwarding-editor-section-title">{t('forwards.endpointSettings')}</span>
+        </header>
+        <ForwardRouteDiagram
+          mode={form.mode}
+          bindHost={form.bind_host}
+          bindPort={form.bind_port}
+          targetHost={form.target_host}
+          targetPort={form.target_port ?? undefined}
+        />
         <ForwardEditorFields
           idPrefix="forward-editor"
           mode={form.mode}
@@ -396,12 +424,12 @@ function ForwardEditorForm({
           <Input.TextArea
             id="forward-description"
             name="forward-description"
-            rows={3}
+            autoSize={{ minRows: 3, maxRows: 5 }}
             value={form.description}
             onChange={(event) => onChange({ description: event.target.value })}
           />
         </label>
-      </div>
+      </section>
     </div>
   )
 }

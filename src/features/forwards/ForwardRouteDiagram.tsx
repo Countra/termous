@@ -7,7 +7,7 @@ import './forwarding.css'
 interface ForwardRouteDiagramProps {
   mode: ForwardMode
   bindHost: string
-  bindPort: number
+  bindPort: number | null
   boundAddress?: string
   targetHost?: string
   targetPort?: number
@@ -26,7 +26,7 @@ export function ForwardRouteDiagram({
   const { t } = useTranslation()
   const { message } = AntdApp.useApp()
   const route = routeCopy(mode, t)
-  const sourceValue = boundAddress || `${bindHost}:${bindPort}`
+  const sourceValue = boundAddress || `${bindHost || '-'}:${bindPort || '-'}`
   const targetValue = mode === 'dynamic' ? t('forwards.route.requestTarget') : `${targetHost || '-'}:${targetPort || '-'}`
   const copyAddress = async (value: string) => {
     try {
