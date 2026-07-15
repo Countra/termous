@@ -154,11 +154,12 @@ if (-not (Test-Path -LiteralPath $coreExe -PathType Leaf)) {
 }
 
 Invoke-Native -Name "Install web dependencies" -FilePath "pnpm" -Arguments @("install", "--frozen-lockfile") -WorkingDirectory $webDir
-Invoke-Native -Name "Typecheck web" -FilePath "pnpm" -Arguments @("exec", "tsc", "--noEmit") -WorkingDirectory $webDir
-Invoke-Native -Name "Build Vite bundles" -FilePath "pnpm" -Arguments @("exec", "vite", "build") -WorkingDirectory $webDir
+Invoke-Native -Name "Typecheck web" -FilePath "pnpm" -Arguments @("run", "typecheck") -WorkingDirectory $webDir
+Invoke-Native -Name "Build Vite bundles" -FilePath "pnpm" -Arguments @("run", "build:renderer") -WorkingDirectory $webDir
 Invoke-Native -Name "Build Windows installer" -FilePath "pnpm" -Arguments @(
-  "exec",
-  "electron-builder",
+  "run",
+  "build:package",
+  "--",
   "--win",
   "nsis",
   "--x64",

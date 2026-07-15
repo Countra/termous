@@ -274,11 +274,11 @@ function MetricPanel({
   chart,
   children,
 }: {
-  icon: JSX.Element
+  icon: ReactNode
   label: string
   value: string
   subValue: string
-  chart: JSX.Element
+  chart: ReactNode
   children?: ReactNode
 }) {
   return (

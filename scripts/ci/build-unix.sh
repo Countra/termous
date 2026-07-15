@@ -171,9 +171,9 @@ if [[ ! -x "$core_binary" ]]; then
 fi
 
 run_step "Install web dependencies" "$web_dir" pnpm install --frozen-lockfile
-run_step "Typecheck web" "$web_dir" pnpm exec tsc --noEmit
-run_step "Build Vite bundles" "$web_dir" pnpm exec vite build
-run_step "Build $target_os package" "$web_dir" pnpm exec electron-builder \
+run_step "Typecheck web" "$web_dir" pnpm run typecheck
+run_step "Build Vite bundles" "$web_dir" pnpm run build:renderer
+run_step "Build $target_os package" "$web_dir" pnpm run build:package -- \
   "$builder_platform" \
   "$builder_target" \
   "$builder_arch" \

@@ -37,7 +37,8 @@ export function pathBase(path: string) {
   if (cleaned === '/') {
     return '/'
   }
-  return cleaned.split('/').filter(Boolean).at(-1) ?? cleaned
+  const segments = cleaned.split('/').filter(Boolean)
+  return segments[segments.length - 1] ?? cleaned
 }
 
 export function formatBytes(value: number) {

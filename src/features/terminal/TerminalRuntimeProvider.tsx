@@ -442,7 +442,9 @@ export function TerminalRuntimeProvider({
           socket.send(JSON.stringify({ type: 'input', data }))
           return
         }
-        socket.send(data)
+        const payload = new ArrayBuffer(data.byteLength)
+        new Uint8Array(payload).set(data)
+        socket.send(payload)
       }
       const handleClipboardKey = (event: KeyboardEvent) => {
         const key = event.key.toLowerCase()
@@ -980,13 +982,11 @@ function fallbackCopyText(text: string) {
   textarea.style.top = '0'
   document.body.appendChild(textarea)
   textarea.select()
-  let copied = false
   try {
-    copied = document.execCommand('copy')
+    return document.execCommand('copy')
   } finally {
     textarea.remove()
   }
-  return copied
 }
 
 function binaryStringToBytes(data: string) {

@@ -1,3 +1,8 @@
 allowBuilds:
-  electron: set this to true or false
-  esbuild: set this to true or false
+  electron: true
+  electron-winstaller: false
+  esbuild: true
+minimumReleaseAgeExclude:
+  - electron@43.1.1
+overrides:
+  '@codemirror/state': 6.7.1

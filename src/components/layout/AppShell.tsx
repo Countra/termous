@@ -15,6 +15,7 @@ import {
   TerminalSquare,
 } from 'lucide-react'
 import { Button, Dropdown, Space, Tooltip, type MenuProps } from 'antd'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { LocalShell, PageKey, WindowCloseBehavior } from '../../types/domain'
 import { WindowControls } from './WindowControls'
@@ -192,7 +193,7 @@ export function AppShell({
   )
 }
 
-function TopbarConnectionMenuItem({ icon, title }: { icon: JSX.Element; title: string }) {
+function TopbarConnectionMenuItem({ icon, title }: { icon: ReactNode; title: string }) {
   return (
     <span className="topbar-connect-menu-item">
       <span className="topbar-connect-menu-icon">{icon}</span>

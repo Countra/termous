@@ -41,6 +41,7 @@ import {
   type CSSProperties,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type WheelEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -1661,7 +1662,7 @@ type WorkbenchTranslate = (key: string, options?: Record<string, string | number
 
 interface SystemInfoTreeNode {
   key: string
-  icon?: JSX.Element
+  icon?: ReactNode
   label: string
   value: string
   children?: SystemInfoTreeNode[]
@@ -1972,7 +1973,7 @@ function TerminalTabMenuItem({
   icon,
   title,
 }: {
-  icon: JSX.Element
+  icon: ReactNode
   title: string
 }) {
   return (

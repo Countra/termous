@@ -1,4 +1,5 @@
 import { ArrowDownLeft, ArrowUpRight, Cable, Clock3, Timer } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ForwardInstance } from '../../types/domain'
 import { formatBytes } from '../files/fileUtils'
@@ -34,7 +35,7 @@ export function ForwardRuntimeMetrics({
   )
 }
 
-function Metric({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
+function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <span className="forward-runtime-metric">
       <span className="forward-runtime-metric-icon" aria-hidden="true">{icon}</span>

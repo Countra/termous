@@ -1306,7 +1306,7 @@ export class TermousApi {
   }
 
   private async toError(response: Response) {
-    let body: ApiErrorBody = {}
+    let body: ApiErrorBody
     try {
       body = (await response.json()) as ApiErrorBody
     } catch {

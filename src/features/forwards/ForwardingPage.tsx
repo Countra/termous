@@ -11,7 +11,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Tabs, Tooltip } from 'antd'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
@@ -587,11 +587,11 @@ function ForwardWorkspacePane({
   children,
 }: {
   className: string
-  icon: JSX.Element
+  icon: ReactNode
   title: string
   hint: string
   count: number
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <section className={`forwarding-workspace-pane ${className}`}>
@@ -608,7 +608,7 @@ function ForwardWorkspacePane({
   )
 }
 
-function OverviewMetric({ icon, label, value }: { icon: JSX.Element; label: string; value: string }) {
+function OverviewMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <span className="forwarding-overview-metric">
       <span aria-hidden="true">{icon}</span>
