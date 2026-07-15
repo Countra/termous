@@ -17,8 +17,7 @@
 }
 
 .host-panel-heading-icon,
-.host-editor-section-title > span,
-.host-system-auth-hint > svg {
+.host-editor-section-title > span {
   display: inline-grid;
   flex: 0 0 auto;
   place-items: center;
@@ -679,19 +678,6 @@ html:root[data-theme="light"] .host-filter-select-popup .ant-select-item {
 
 .host-auth-selection {
   min-height: 65px;
-}
-
-.host-system-auth-hint {
-  display: flex;
-  min-height: 42px;
-  align-items: center;
-  gap: 9px;
-  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 9px;
-  background: var(--surface);
-  color: var(--text-secondary);
-  padding: 10px 12px;
-  font-size: 12px;
 }
 
 .host-editor-footer-actions {

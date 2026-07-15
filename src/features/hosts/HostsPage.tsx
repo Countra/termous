@@ -88,7 +88,7 @@ export function HostsPage({
       username: t('hosts.validation.usernameRequired'),
       credentialId: t('hosts.validation.credentialRequired'),
     })
-    if (draft.auth_method !== 'system' && draft.credential_id && !validCredentialIds.has(draft.credential_id)) {
+    if (draft.credential_id && !validCredentialIds.has(draft.credential_id)) {
       next.credentialId = t('hosts.validation.credentialMismatch')
     }
     return next

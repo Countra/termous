@@ -1,4 +1,4 @@
-import { Cable, ChevronDown, ChevronUp, Network, Play, Plus, Square } from 'lucide-react'
+import { Cable, ChevronDown, ChevronUp, Play, Plus, Square } from 'lucide-react'
 import { App as AntdApp, Button, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -69,8 +69,7 @@ export function ForwardSessionPanel({
   const composerToggleRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const connectedSSH = Boolean(session?.kind === 'ssh' && session.status === 'connected')
-  const unsupported = connectedSSH && host?.auth_method === 'system'
-  const canCreate = connectedSSH && !unsupported
+  const canCreate = connectedSSH
 
   useEffect(() => {
     if (previousSessionIdRef.current !== session?.id) {
@@ -143,18 +142,6 @@ export function ForwardSessionPanel({
         icon={<Cable size={20} />}
         title={t('workbench.detailsTabs.forwards')}
         description={t('forwards.sessionEmpty')}
-      />
-    )
-  }
-
-  if (unsupported) {
-    return (
-      <WorkbenchEmptyState
-        className="forward-session-empty"
-        tone="warning"
-        icon={<Network size={20} />}
-        title={t('workbench.detailsTabs.forwards')}
-        description={t('forwards.systemAuthSessionUnsupported')}
       />
     )
   }

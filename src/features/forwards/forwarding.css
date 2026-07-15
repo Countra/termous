@@ -1209,16 +1209,6 @@
   margin: 0 12px 12px;
 }
 
-.forwarding-card-warning {
-  margin: 0;
-  border-radius: 8px;
-  background: color-mix(in srgb, #e9b85b 8%, var(--surface));
-  color: color-mix(in srgb, #e9b85b 84%, var(--text-primary));
-  font-size: 11px;
-  line-height: 1.45;
-  padding: 7px 9px;
-}
-
 .forwarding-modal {
   --forwarding-modal-bg: #21252e;
   --forwarding-modal-panel-bg: #262b35;

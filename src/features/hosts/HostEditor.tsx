@@ -1,5 +1,5 @@
 import { Button, Input, InputNumber, Popconfirm, Radio, Select, Tooltip } from 'antd'
-import { ArrowLeft, FileKey2, ImageOff, ImagePlus, KeyRound, Network, Plus, ServerCog, Settings2, SquareTerminal, Trash2 } from 'lucide-react'
+import { ArrowLeft, FileKey2, ImageOff, ImagePlus, KeyRound, Network, Plus, ServerCog, Settings2, Trash2 } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
@@ -56,9 +56,6 @@ export function HostEditor({
   const [groupDraft, setGroupDraft] = useState('')
   const [creatingGroup, setCreatingGroup] = useState(false)
   const credentialOptions = useMemo(() => {
-    if (draft.auth_method === 'system') {
-      return []
-    }
     const type = draft.auth_method === 'password' ? 'password' : 'private_key'
     return data.credentials
       .filter((credential) => credential.type === type)
@@ -83,7 +80,7 @@ export function HostEditor({
     const currentCredential = data.credentials.find((credential) => credential.id === draft.credential_id)
     onChange({
       auth_method: authMethod,
-      credential_id: authMethod === 'system' || currentCredential?.type !== expectedType ? '' : draft.credential_id,
+      credential_id: currentCredential?.type !== expectedType ? '' : draft.credential_id,
     })
   }
 
@@ -273,22 +270,17 @@ export function HostEditor({
               value={draft.auth_method}
               onChange={(event) => changeAuthMethod(event.target.value as AuthMethod)}
             >
-              <Radio.Button value="system"><SquareTerminal size={15} /><span>{t('hosts.auth.system')}</span></Radio.Button>
               <Radio.Button value="password"><KeyRound size={15} /><span>{t('hosts.auth.password')}</span></Radio.Button>
               <Radio.Button value="private_key"><FileKey2 size={15} /><span>{t('hosts.auth.private_key')}</span></Radio.Button>
             </Radio.Group>
             <div className="host-auth-selection">
-              {draft.auth_method === 'system' ? (
-                <div className="host-system-auth-hint"><Settings2 size={16} /><span>{t('hosts.systemAuthHint')}</span></div>
-              ) : (
-                <HostSelectField
-                  label={t('hosts.credential')}
-                  value={draft.credential_id}
-                  options={[{ value: '', label: t('fields.none') }, ...credentialOptions]}
-                  error={visibleErrors.credentialId}
-                  onChange={(credential_id) => onChange({ credential_id: credential_id as string })}
-                />
-              )}
+              <HostSelectField
+                label={t('hosts.credential')}
+                value={draft.credential_id}
+                options={[{ value: '', label: t('fields.none') }, ...credentialOptions]}
+                error={visibleErrors.credentialId}
+                onChange={(credential_id) => onChange({ credential_id: credential_id as string })}
+              />
             </div>
           </section>
         </div>

@@ -262,7 +262,7 @@ export type TerminalThemeMode = 'follow_app' | 'dark' | 'light'
 
 export type SnippetShell = 'any' | 'sh' | 'bash' | 'zsh' | 'powershell' | 'cmd'
 
-export type AuthMethod = 'password' | 'private_key' | 'system'
+export type AuthMethod = 'password' | 'private_key'
 
 export type HostPlatform = 'linux'
 

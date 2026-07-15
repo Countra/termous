@@ -224,11 +224,9 @@ export function WorkbenchPage({
   const detailGroup = data.groups.find((group) => group.id === detailHost?.group_id)
   const detailJumpHost = data.hosts.find((host) => host.id === detailHost?.jump_host_id)
   const detailTags = detailHost?.tags ?? []
-  const detailCredentialLabel = detailHost?.auth_method === 'system'
-    ? t('hosts.systemAuth')
-    : detailCredential
-      ? `${detailCredential.name} (${t(`vault.typeName.${detailCredential.type}`)})`
-      : t('fields.none')
+  const detailCredentialLabel = detailCredential
+    ? `${detailCredential.name} (${t(`vault.typeName.${detailCredential.type}`)})`
+    : t('fields.none')
   const visibleSessions = useMemo(
     () => sortSessionsForTabs(data.sessions, sessionTabPreferences),
     [data.sessions, sessionTabPreferences],

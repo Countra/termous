@@ -90,7 +90,7 @@ export function HostCatalog({
       <div className="host-filter-field">
         <span>{t('hosts.filterAuth')}</span>
         <div className="host-filter-chip-grid">
-          {(['system', 'password', 'private_key'] as AuthMethod[]).map((method) => (
+          {(['password', 'private_key'] as AuthMethod[]).map((method) => (
             <Tag.CheckableTag
               key={method}
               checked={filters.authMethods.includes(method)}

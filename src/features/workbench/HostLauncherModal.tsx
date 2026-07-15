@@ -307,7 +307,6 @@ export function HostLauncherModal({
                 { value: 'all', label: t('workbench.hostLauncher.filters.allAuthMethods') },
                 { value: 'password', label: t('hosts.auth.password') },
                 { value: 'private_key', label: t('hosts.auth.private_key') },
-                { value: 'system', label: t('hosts.auth.system') },
               ]}
             />
           </label>
@@ -515,7 +514,7 @@ export function HostLauncherModal({
                   <DetailItem
                     icon={<KeyRound size={14} />}
                     label={t('workbench.credential')}
-                    value={selectedHost.auth_method === 'system' ? t('hosts.systemAuth') : selectedHostCredential || t('fields.none')}
+                    value={selectedHostCredential || t('fields.none')}
                   />
                   <DetailItem
                     icon={<Tags size={14} />}

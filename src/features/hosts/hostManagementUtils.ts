@@ -37,7 +37,7 @@ export function createBlankHostInput(): HostInput {
     address: '',
     port: 22,
     username: '',
-    auth_method: 'system',
+    auth_method: 'password',
     credential_id: '',
     jump_host_id: '',
     tags: [],
@@ -54,7 +54,7 @@ export function normalizeHostInput(input: HostInput): HostInput {
     address: input.address.trim(),
     username: input.username.trim(),
     group_id: input.group_id.trim(),
-    credential_id: input.auth_method === 'system' ? '' : input.credential_id.trim(),
+    credential_id: input.credential_id.trim(),
     jump_host_id: input.jump_host_id.trim(),
     tags: normalizeHostTags(input.tags),
     note: input.note.trim(),
@@ -76,7 +76,7 @@ export function validateHostInput(input: HostInput, messages: HostValidationErro
   if (!Number.isInteger(input.port) || input.port < 1 || input.port > 65535) {
     errors.port = messages.port
   }
-  if (input.auth_method !== 'system' && !input.credential_id.trim()) {
+  if (!input.credential_id.trim()) {
     errors.credentialId = messages.credentialId
   }
   return errors

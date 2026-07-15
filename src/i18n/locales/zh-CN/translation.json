@@ -935,12 +935,9 @@
     },
     "password": "密码",
     "privateKey": "私钥",
-    "systemAuth": "系统 SSH",
-    "systemAuthHint": "使用本机 ssh 配置、默认密钥或 agent",
     "auth": {
       "password": "密码",
-      "private_key": "私钥",
-      "system": "系统 SSH"
+      "private_key": "私钥"
     },
     "noJumpHost": "不使用跳板机",
     "ungrouped": "未分组",
@@ -1429,8 +1426,6 @@
     "runtimeError": "{{mode}}异常",
     "deleteProfileTitle": "删除转发配置？",
     "deleteProfileDescription": "只删除保存的配置，不影响其他主机或凭据。",
-    "systemAuthUnsupported": "系统 SSH 主机首版暂不支持端口转发。",
-    "systemAuthSessionUnsupported": "当前系统 SSH 会话暂不支持复用连接创建端口转发。",
     "sessionEmpty": "连接托管 SSH 会话后，可在这里创建绑定当前会话的临时转发。",
     "sessionCreateTitle": "当前会话转发",
     "sessionCount": "{{count}} 个转发",

@@ -339,7 +339,6 @@ export function ForwardingPage({
       >
         <ForwardEditorForm
           form={form}
-          hosts={data.hosts}
           hostOptions={hostOptions}
           onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
         />
@@ -350,17 +349,14 @@ export function ForwardingPage({
 
 function ForwardEditorForm({
   form,
-  hosts,
   hostOptions,
   onChange,
 }: {
   form: ForwardFormState
-  hosts: AppData['hosts']
   hostOptions: Array<{ value: string; label: string; description?: string }>
   onChange: (patch: Partial<ForwardFormState>) => void
 }) {
   const { t } = useTranslation()
-  const selectedHost = hosts.find((host) => host.id === form.host_id)
   return (
     <div className="forwarding-editor-form">
       <section className="forwarding-editor-section is-basic">
@@ -393,7 +389,6 @@ function ForwardEditorForm({
           <span className="field-label">{t('forwards.mode')}</span>
           <ForwardModeSelector value={form.mode} onChange={(mode) => onChange({ mode })} />
         </label>
-        {selectedHost?.auth_method === 'system' ? <p className="forwarding-card-warning">{t('forwards.systemAuthUnsupported')}</p> : null}
       </section>
 
       <section className="forwarding-editor-section is-endpoints">
@@ -452,8 +447,7 @@ function ForwardProfileRow({
   onDelete: () => void
 }) {
   const { t } = useTranslation()
-  const unsupported = host?.auth_method === 'system'
-  const startHint = unsupported ? t('forwards.systemAuthUnsupported') : running ? t('forwards.running') : t('forwards.start')
+  const startHint = running ? t('forwards.running') : t('forwards.start')
   const secondary = [host?.name ?? t('fields.none'), profile.description].filter(Boolean).join(' · ')
 
   return (
@@ -473,7 +467,7 @@ function ForwardProfileRow({
                 type="text"
                 className="forwarding-row-action is-start"
                 aria-label={startHint}
-                disabled={actionBusy || Boolean(running) || unsupported}
+                disabled={actionBusy || Boolean(running)}
                 icon={<Play size={14} />}
                 onClick={onStart}
               />

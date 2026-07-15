@@ -937,12 +937,9 @@
     },
     "password": "Password",
     "privateKey": "Private key",
-    "systemAuth": "System SSH",
-    "systemAuthHint": "Use local ssh config, default keys, or agent",
     "auth": {
       "password": "Password",
-      "private_key": "Private key",
-      "system": "System SSH"
+      "private_key": "Private key"
     },
     "noJumpHost": "No jump host",
     "ungrouped": "Ungrouped",
@@ -1431,8 +1428,6 @@
     "runtimeError": "{{mode}} error",
     "deleteProfileTitle": "Delete forward profile?",
     "deleteProfileDescription": "Only the saved profile is deleted. Hosts and credentials are not changed.",
-    "systemAuthUnsupported": "System SSH hosts do not support port forwarding in this version.",
-    "systemAuthSessionUnsupported": "This system SSH session cannot be reused for port forwarding yet.",
     "sessionEmpty": "Connect a managed SSH session to create temporary forwards bound to it.",
     "sessionCreateTitle": "Current-session forward",
     "sessionCount": "{{count}} forwards",
