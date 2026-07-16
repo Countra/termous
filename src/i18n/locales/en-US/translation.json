@@ -1141,6 +1141,8 @@
     "fingerprint": "SHA256 fingerprint",
     "savedFingerprint": "Saved fingerprint",
     "currentFingerprint": "Current fingerprint",
+    "copyFingerprint": "Copy fingerprint",
+    "fingerprintCopied": "Fingerprint copied",
     "affectedWorkflows": "Connections waiting for this decision",
     "expiresAt": "This request expires at {{time}}",
     "reject": "Reject connection",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, App as AntdApp, Button, Modal, Tag, Typography } from 'antd'
-import { KeyRound, Server, ShieldAlert, ShieldQuestion, XCircle } from 'lucide-react'
+import { Clock3, Server, ShieldAlert, ShieldCheck, ShieldQuestion, ShieldX } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError, type TermousApi } from '../../api/client'
 import type {
@@ -164,7 +164,7 @@ export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorPr
     <Modal
       open={Boolean(challenge)}
       centered
-      width={560}
+      width={600}
       title={null}
       footer={null}
       closable={false}
@@ -195,15 +195,15 @@ export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorPr
           ) : null}
 
           <div className="host-key-endpoint">
-            <span aria-hidden="true"><Server size={17} /></span>
-            <div>
+            <span className="host-key-endpoint-icon" aria-hidden="true"><Server size={18} /></span>
+            <div className="host-key-endpoint-copy">
               <small>{t('hostKey.endpoint')}</small>
               <strong>{formatEndpoint(challenge)}</strong>
             </div>
-            <Tag>{challenge.observed_key.algorithm || t('fields.none')}</Tag>
+            <Tag className="host-key-algorithm">{challenge.observed_key.algorithm || t('fields.none')}</Tag>
           </div>
 
-          <dl className="host-key-facts">
+          <dl className="host-key-facts" aria-label={t('hostKey.fingerprint')}>
             {changed ? (
               <div>
                 <dt>{t('hostKey.savedFingerprint')}</dt>
@@ -219,20 +219,23 @@ export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorPr
           <AffectedWorkflows challenge={challenge} hostNames={hostNames} />
 
           <footer className="host-key-dialog-footer">
-            <span>{t('hostKey.expiresAt', { time: formatExpiry(challenge.expires_at, i18n.language) })}</span>
-            <div>
+            <span className="host-key-expiry">
+              <Clock3 size={14} aria-hidden="true" />
+              {t('hostKey.expiresAt', { time: formatExpiry(challenge.expires_at, i18n.language) })}
+            </span>
+            <div className="host-key-dialog-actions">
               <Button
+                className="danger-button host-key-action host-key-action-reject"
                 danger
-                icon={<XCircle size={15} />}
+                icon={<ShieldX size={16} />}
                 disabled={decisionBusy}
                 onClick={() => void decide('reject')}
               >
                 {t('hostKey.reject')}
               </Button>
               <Button
-                type="primary"
-                danger={changed}
-                icon={<KeyRound size={15} />}
+                className={`host-key-action ${changed ? 'host-key-action-replace' : 'primary-button'}`}
+                icon={changed ? <ShieldAlert size={16} /> : <ShieldCheck size={16} />}
                 loading={decisionBusy}
                 onClick={() => void decide(changed ? 'replace' : 'trust')}
               >
@@ -278,8 +281,12 @@ function AffectedWorkflows({
 }
 
 function Fingerprint({ value }: { value?: string }) {
+  const { t } = useTranslation()
   return (
-    <Typography.Text copyable={Boolean(value)} className="host-key-fingerprint">
+    <Typography.Text
+      copyable={value ? { tooltips: [t('hostKey.copyFingerprint'), t('hostKey.fingerprintCopied')] } : false}
+      className="host-key-fingerprint"
+    >
       {value || '—'}
     </Typography.Text>
   )

@@ -1139,6 +1139,8 @@
     "fingerprint": "SHA256 指纹",
     "savedFingerprint": "已保存指纹",
     "currentFingerprint": "当前指纹",
+    "copyFingerprint": "复制指纹",
+    "fingerprintCopied": "指纹已复制",
     "affectedWorkflows": "等待此确认的连接",
     "expiresAt": "确认请求将在 {{time}} 过期",
     "reject": "拒绝连接",
