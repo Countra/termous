@@ -53,9 +53,11 @@ import type {
   HostGroup,
   HostIcon,
   HostInput,
+  HostKeyChallengeSnapshot,
+  HostKeyDecisionAction,
+  HostKeyResolution,
+  HostKeyTrustRecord,
   HostReachability,
-  KnownHost,
-  KnownHostInput,
   Language,
   LocalShell,
   LocalFileGrant,
@@ -563,15 +565,28 @@ export class TermousApi {
     })
   }
 
-  knownHosts() {
-    return this.request<KnownHost[]>('/api/v1/known-hosts')
+  hostKeyChallenges(signal?: AbortSignal) {
+    return this.request<HostKeyChallengeSnapshot>('/api/v1/host-key-challenges?status=pending', { signal })
+      .then(normalizeHostKeyChallengeSnapshot)
   }
 
-  confirmKnownHost(input: KnownHostInput) {
-    return this.request<KnownHost>('/api/v1/known-hosts/confirm', {
+  decideHostKeyChallenge(id: string, action: HostKeyDecisionAction) {
+    return this.request<HostKeyResolution>(`/api/v1/host-key-challenges/${encodeURIComponent(id)}/decision`, {
       method: 'POST',
-      body: input,
+      body: { action },
     })
+  }
+
+  hostKeyTrust() {
+    return this.request<HostKeyTrustRecord[]>('/api/v1/host-key-trust').then(normalizeArray)
+  }
+
+  deleteHostKeyTrust(id: string) {
+    return this.request<void>(`/api/v1/host-key-trust/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  hostKeyEventsUrl() {
+    return this.websocketUrl('/api/v1/host-key-events')
   }
 
   sessions() {
@@ -921,13 +936,6 @@ export class TermousApi {
 
   reconnectFileSession(id: string) {
     return this.request<FileSession>(`/api/v1/file-sessions/${encodeURIComponent(id)}/reconnect`, { method: 'POST' })
-  }
-
-  trustFileSessionHost(id: string, decision: 'trust' | 'replace' | 'reject', fingerprintSHA256: string) {
-    return this.request<FileSession>(`/api/v1/file-sessions/${encodeURIComponent(id)}/trust-host`, {
-      method: 'POST',
-      body: { decision, fingerprint_sha256: fingerprintSHA256 },
-    })
   }
 
   fileSessionEventsUrl(id: string) {
@@ -1355,6 +1363,16 @@ function normalizeDataPortabilityPlanItemPage(page: DataPortabilityPlanItemPage)
   return {
     ...page,
     items: normalizeArray(page.items),
+  }
+}
+
+function normalizeHostKeyChallengeSnapshot(snapshot: HostKeyChallengeSnapshot): HostKeyChallengeSnapshot {
+  return {
+    ...snapshot,
+    challenges: normalizeArray(snapshot.challenges).map((challenge) => ({
+      ...challenge,
+      contexts: normalizeArray(challenge.contexts),
+    })),
   }
 }
 

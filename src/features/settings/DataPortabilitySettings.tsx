@@ -12,7 +12,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { createApiFromRuntime, type TermousApi } from '../../api/client'
+import { createApiFromRuntime, TermousApiError, type TermousApi } from '../../api/client'
 import type {
   DataPortabilityDatasetKey,
   DataPortabilityImport,
@@ -44,7 +44,7 @@ type SelectedBackup = Required<Pick<DataPortabilityImportSelectionResult, 'selec
 
 const PAGE_SIZE = 20
 
-export function DataPortabilitySettings() {
+export function DataPortabilitySettings({ appVersion }: { appVersion: string }) {
   const { t, i18n } = useTranslation()
   const { notification, modal } = AntdApp.useApp()
   const apiRef = useRef<Promise<TermousApi> | null>(null)
@@ -224,8 +224,17 @@ export function DataPortabilitySettings() {
       setPlan(null)
       setPage(null)
       setSelectedBackup(null)
-    } catch {
+    } catch (error) {
       setProgress(null)
+      if (isBackupVersionError(error)) {
+        setSelectedBackup(null)
+        setPasswordModalOpen(false)
+        notification.error({
+          title: t('settings.data.versionMismatchTitle'),
+          description: t('settings.data.versionMismatchHint', { version: appVersion }),
+        })
+        return
+      }
       setPasswordModalError(t('settings.data.inspectFailedHint'))
       setPasswordModalOpen(true)
     } finally {
@@ -426,7 +435,7 @@ export function DataPortabilitySettings() {
         <BandHeader
           icon={<Download size={18} />}
           title={t('settings.data.importTitle')}
-          hint={t('settings.data.importHint')}
+          hint={t('settings.data.importHintWithVersion', { version: appVersion })}
           action={inspection && !restorePrepared
             ? <Button icon={<RotateCcw size={15} />} onClick={() => void cancelImport()}>{t('settings.data.resetImport')}</Button>
             : !restorePrepared
@@ -503,7 +512,7 @@ export function DataPortabilitySettings() {
         cancelText={t('app.cancel')}
         confirmLoading={importBusy}
         okButtonProps={{ disabled: !importPassword.trim() }}
-        maskClosable={!importBusy}
+        mask={{ closable: !importBusy }}
         keyboard={!importBusy}
         onOk={() => void handleInspect()}
         onCancel={() => {
@@ -588,4 +597,13 @@ function OperationProgress({ progress }: { progress: DataPortabilityProgress }) 
     ? t('settings.data.progress.importTransferring')
     : t(`settings.data.progress.${progress.phase}`)
   return <div className="data-portability-progress"><div>{progress.phase === 'complete' ? <CheckCircle2 size={16} /> : <RefreshCw className="is-spinning" size={16} />}<span>{progressLabel}</span><strong>{percent}%</strong></div><Progress percent={percent} showInfo={false} size="small" /></div>
+}
+
+function isBackupVersionError(error: unknown) {
+  if (error instanceof TermousApiError) {
+    return error.code === 'BACKUP_APP_VERSION_MISMATCH' || error.code === 'BACKUP_FORMAT_UNSUPPORTED'
+  }
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  return message.includes('仅支持导入当前版本 Termous 创建的备份文件') ||
+    message.includes('此备份文件版本不受当前 Termous 支持')
 }

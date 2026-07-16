@@ -10,7 +10,7 @@ interface ForwardStateFeedbackProps {
 
 export function ForwardStateFeedback({ forward, compact = false }: ForwardStateFeedbackProps) {
   const { t } = useTranslation()
-  const transitioning = forward.status === 'starting' || forward.status === 'stopping'
+  const transitioning = forward.status === 'starting' || forward.status === 'waiting_host_trust' || forward.status === 'stopping'
 
   if (!transitioning && forward.status !== 'failed') {
     return null

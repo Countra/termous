@@ -13,7 +13,7 @@ export const portabilityDatasets: DataPortabilityDatasetKey[] = [
   'host_icons',
   'credentials',
   'hosts',
-  'known_hosts',
+  'host_key_trust_records',
   'terminal_fonts',
   'code_snippet_groups',
   'code_snippets',

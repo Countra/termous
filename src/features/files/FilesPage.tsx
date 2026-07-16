@@ -58,7 +58,6 @@ import type {
   FileBookmarkInput,
   FileBookmarkReorderItem,
   FileSession,
-  FileSessionHostKey,
   FileSessionPhase,
   Host,
   LocalGrantSource,
@@ -90,7 +89,6 @@ interface FilesPageProps {
   onSelectFileSession: (fileSessionId: string) => void
   onCloseFileSession: (fileSessionId: string) => Promise<void>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
-  onTrustFileSessionHost: (fileSessionId: string, decision: 'trust' | 'replace' | 'reject', fingerprintSHA256: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
   onCreateFileBookmark: (input: FileBookmarkInput) => Promise<FileBookmark>
   onUpdateFileBookmark: (id: string, input: FileBookmarkInput) => Promise<FileBookmark>
@@ -223,7 +221,6 @@ export function FilesPage({
   onSelectFileSession,
   onCloseFileSession,
   onReconnectFileSession,
-  onTrustFileSessionHost,
   onUpdateFileSession,
   onCreateFileBookmark,
   onUpdateFileBookmark,
@@ -273,7 +270,6 @@ export function FilesPage({
   const [pendingTransferOperations, setPendingTransferOperations] = useState<PendingFileOperation[]>([])
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [connectingHostIds, setConnectingHostIds] = useState<Set<string>>(() => new Set())
-  const [activeHostKeyPromptKey, setActiveHostKeyPromptKey] = useState('')
   const [fileColumnWidths, setFileColumnWidths] = useState<FileColumnWidths>(defaultFileColumnWidths)
   const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
   const [hostPanelCollapsed, setHostPanelCollapsed] = usePersistentBooleanState(
@@ -689,64 +685,6 @@ export function FilesPage({
       window.clearInterval(timer)
     }
   }, [api, syncingFileSessionIds])
-
-  const hostKeyPromptQueue = useMemo(
-    () =>
-      data.fileSessions
-        .filter((session) => session.status === 'waiting_trust' && session.host_key)
-        .map((session) => ({
-          session,
-          hostKey: session.host_key as FileSessionHostKey,
-          key: `${session.id}:${session.host_key?.reason ?? ''}:${session.host_key?.fingerprint_sha256 ?? ''}`,
-        })),
-    [data.fileSessions],
-  )
-
-  useEffect(() => {
-    if (activeHostKeyPromptKey) {
-      const stillPending = hostKeyPromptQueue.some((item) => item.key === activeHostKeyPromptKey)
-      if (!stillPending) {
-        setActiveHostKeyPromptKey('')
-      }
-      return
-    }
-    const pendingItem = hostKeyPromptQueue[0]
-    const pendingSession = pendingItem?.session
-    const hostKey = pendingItem?.hostKey
-    if (!pendingSession || !hostKey) {
-      return
-    }
-    const promptKey = pendingItem.key
-    setActiveHostKeyPromptKey(promptKey)
-    const clearPrompt = () => {
-      setActiveHostKeyPromptKey((current) => (current === promptKey ? '' : current))
-    }
-    const changed = hostKey.reason === 'changed'
-    modal.confirm({
-      title: changed ? t('files.hostKeyChangedTitle') : t('files.trustHostTitle'),
-      okText: changed ? t('files.replaceHostKey') : t('files.trustAndRetry'),
-      cancelText: t('app.cancel'),
-      okButtonProps: { danger: changed },
-      centered: true,
-      className: 'termous-modal',
-      content: <HostKeyDialog hostKey={hostKey} changed={changed} />,
-      onOk: async () => {
-        const next = await onTrustFileSessionHost(
-          pendingSession.id,
-          changed ? 'replace' : 'trust',
-          hostKey.fingerprint_sha256,
-        )
-        onUpdateFileSession(next)
-        clearPrompt()
-      },
-      onCancel: () => {
-        void onTrustFileSessionHost(pendingSession.id, 'reject', hostKey.fingerprint_sha256)
-          .then(onUpdateFileSession)
-          .catch(() => undefined)
-          .finally(clearPrompt)
-      },
-    })
-  }, [activeHostKeyPromptKey, hostKeyPromptQueue, modal, onTrustFileSessionHost, onUpdateFileSession, t])
 
   useEffect(() => {
     if (!fileContextMenu) {
@@ -2514,35 +2452,6 @@ function isTransferActive(task: TransferTask) {
 
 function isTransferTerminal(task: TransferTask) {
   return task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled'
-}
-
-function HostKeyDialog({ hostKey, changed }: { hostKey: FileSessionHostKey; changed: boolean }) {
-  const { t } = useTranslation()
-  return (
-    <div className="files-hostkey-dialog">
-      <p>{changed ? t('files.hostKeyChangedDescription') : t('files.trustHostDescription')}</p>
-      <dl>
-        <div>
-          <dt>{t('files.hostKeyAddress')}</dt>
-          <dd>{hostKey.address}:{hostKey.port}</dd>
-        </div>
-        <div>
-          <dt>{t('files.hostKeyType')}</dt>
-          <dd>{hostKey.host_key_type || 'unknown'}</dd>
-        </div>
-        {changed ? (
-          <div>
-            <dt>{t('files.hostKeyExpected')}</dt>
-            <dd>{hostKey.expected || '-'}</dd>
-          </div>
-        ) : null}
-        <div>
-          <dt>{changed ? t('files.hostKeyActual') : t('files.hostKeyFingerprint')}</dt>
-          <dd>{hostKey.fingerprint_sha256}</dd>
-        </div>
-      </dl>
-    </div>
-  )
 }
 
 function shortId(id: string) {

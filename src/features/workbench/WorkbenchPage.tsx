@@ -207,7 +207,8 @@ export function WorkbenchPage({
   const [quickConnectQuery, setQuickConnectQuery] = useState('')
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const activeSessionId = activeSession?.id
-  const sessionStatus = activeSession?.status ?? 'disconnected'
+  const sessionStatus = String(activeSession?.status ?? 'disconnected')
+  const sessionBadgeStatus = normalizeSessionBadgeStatus(sessionStatus)
   const showRecentConnectionProgress = Boolean(activeSessionId && recentlyConnectedSessionIds.has(activeSessionId))
   const hasConnectionProgress = Boolean(
     activeSession &&
@@ -1149,7 +1150,7 @@ export function WorkbenchPage({
                   />
                 </Tooltip>
               </div>
-            <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
+            <StatusBadge status={sessionBadgeStatus} label={t(`status.${sessionStatus}`)} />
           </div>
           <div className={`terminal-progress-slot ${hasConnectionProgress ? 'is-active' : ''}`}>
             <ConnectionProgress session={activeSession} showReady={showRecentConnectionProgress} />
@@ -1224,7 +1225,7 @@ export function WorkbenchPage({
                     <strong>{detailHost.name}</strong>
                     <small>{`${detailHost.username}@${detailHost.address}:${detailHost.port}`}</small>
                   </div>
-                  <StatusBadge status={sessionStatus} label={t(`status.${sessionStatus}`)} />
+                  <StatusBadge status={sessionBadgeStatus} label={t(`status.${sessionStatus}`)} />
                 </div>
                 <dl className="detail-list">
                   <div>
@@ -1953,6 +1954,16 @@ function formatSessionDuration(session: Session | null, now: number, fallback: s
   const seconds = totalSeconds % 60
   const clock = `${padDurationPart(hours)}:${padDurationPart(minutes)}:${padDurationPart(seconds)}`
   return days > 0 ? `${days}d ${clock}` : clock
+}
+
+function normalizeSessionBadgeStatus(status: string): 'connecting' | 'connected' | 'disconnected' | 'failed' {
+  if (status === 'waiting_host_trust') {
+    return 'connecting'
+  }
+  if (status === 'connecting' || status === 'connected' || status === 'failed') {
+    return status
+  }
+  return 'disconnected'
 }
 
 function padDurationPart(value: number) {

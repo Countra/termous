@@ -14,6 +14,7 @@ import { snippetToInput } from './features/snippets/snippetUtils'
 import { VaultPage } from './features/vault/VaultPage'
 import { HostLauncherModal } from './features/workbench/HostLauncherModal'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
+import { HostKeyCoordinator } from './components/hostkey/HostKeyCoordinator'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
@@ -79,16 +80,19 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [coreFatal, setCoreFatal] = useState<CoreFatalEvent | null>(null)
   const hasActiveRuntime = useMemo(
     () =>
-      data.sessions.some((session) => session.status === 'connecting' || session.status === 'connected') ||
+      data.sessions.some((session) => isSessionRuntimeActive(session.status)) ||
       data.fileSessions.some(
         (session) =>
           session.status === 'connecting' ||
           session.status === 'connected' ||
           session.status === 'waiting_trust',
       ) ||
-      data.forwards.some((forward) =>
-        forward.status === 'starting' || forward.status === 'running' || forward.status === 'stopping',
-      ),
+      data.forwards.some((forward) => (
+        forward.status === 'starting' ||
+        forward.status === 'waiting_host_trust' ||
+        forward.status === 'running' ||
+        forward.status === 'stopping'
+      )),
     [data.fileSessions, data.forwards, data.sessions],
   )
 
@@ -737,7 +741,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               }
             }}
             onReconnectFileSession={actions.reconnectFileSession}
-            onTrustFileSessionHost={actions.trustFileSessionHost}
             onUpdateFileSession={actions.updateFileSession}
             onCreateFileBookmark={actions.createFileBookmark}
             onUpdateFileBookmark={actions.updateFileBookmark}
@@ -832,6 +835,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         onRefreshReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
         getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
       />
+      <HostKeyCoordinator api={api} enabled={apiReady && !coreFatal} hosts={data.hosts} />
       <Modal
         centered
         width={430}
@@ -937,6 +941,10 @@ function isHostLauncherShortcut(event: KeyboardEvent) {
 function readTimestamp(value?: string) {
   const timestamp = new Date(value ?? '').getTime()
   return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function isSessionRuntimeActive(status: Session['status']) {
+  return status === 'connecting' || status === 'connected' || (status as string) === 'waiting_host_trust'
 }
 
 function isTrayCommand(command: unknown): command is TrayCommand {

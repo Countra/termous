@@ -52,7 +52,6 @@ const initialData: AppData = {
   hosts: [],
   groups: [],
   credentials: [],
-  knownHosts: [],
   sessions: [],
   fileSessions: [],
   forwardProfiles: [],
@@ -99,7 +98,6 @@ export function useTermousData() {
         hosts,
         hostReachability,
         credentials,
-        knownHosts,
         sessions,
         fileSessions,
         forwardProfiles,
@@ -116,7 +114,6 @@ export function useTermousData() {
         apiClient.hosts(),
         apiClient.hostReachability(),
         apiClient.credentials(),
-        apiClient.knownHosts(),
         apiClient.sessions(),
         apiClient.fileSessions(),
         apiClient.forwardProfiles(),
@@ -129,7 +126,6 @@ export function useTermousData() {
         groups: groups ?? [],
         hosts: hosts ?? [],
         credentials: credentials ?? [],
-        knownHosts: knownHosts ?? [],
         sessions: nextSessions,
         fileSessions: fileSessions ?? [],
         forwardProfiles: forwardProfiles ?? [],
@@ -550,7 +546,12 @@ export function useTermousData() {
       async disconnectAllConnections() {
         const sessionsToClose = data.sessions
         const fileSessionsToClose = data.fileSessions
-        const forwardsToClose = data.forwards.filter((forward) => forward.status === 'starting' || forward.status === 'running' || forward.status === 'stopping')
+        const forwardsToClose = data.forwards.filter((forward) => (
+          forward.status === 'starting' ||
+          forward.status === 'waiting_host_trust' ||
+          forward.status === 'running' ||
+          forward.status === 'stopping'
+        ))
         const results = await Promise.allSettled([
           ...sessionsToClose.map((session) => api.deleteSession(session.id)),
           ...fileSessionsToClose.map((fileSession) => api.deleteFileSession(fileSession.id)),
@@ -596,11 +597,6 @@ export function useTermousData() {
       },
       async reconnectFileSession(fileSessionId: string) {
         const fileSession = await api.reconnectFileSession(fileSessionId)
-        setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
-        return fileSession
-      },
-      async trustFileSessionHost(fileSessionId: string, decision: 'trust' | 'replace' | 'reject', fingerprintSHA256: string) {
-        const fileSession = await api.trustFileSessionHost(fileSessionId, decision, fingerprintSHA256)
         setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
         return fileSession
       },

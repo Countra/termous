@@ -185,7 +185,7 @@ export function SettingsPage({
                 {t('settings.tabData')}
               </span>
             ),
-            children: <DataPortabilitySettings />,
+            children: <DataPortabilitySettings appVersion={appVersion} />,
           },
         ]}
       />

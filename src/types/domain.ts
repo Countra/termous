@@ -180,20 +180,6 @@ export type FileSessionPhase =
   | 'failed'
   | 'disconnected'
 
-export type FileSessionHostKeyReason = 'unknown' | 'changed'
-
-export interface FileSessionHostKey {
-  reason: FileSessionHostKeyReason
-  host_id?: string
-  address: string
-  port: number
-  host_key_type: string
-  fingerprint_sha256: string
-  expected?: string
-  actual?: string
-  last_seen_at?: string
-}
-
 export interface FileSession {
   id: string
   host_id: string
@@ -207,7 +193,6 @@ export interface FileSession {
   connected_at?: string
   ended_at?: string
   last_error?: string
-  host_key?: FileSessionHostKey
 }
 
 export interface TransferTask {
@@ -283,6 +268,7 @@ export type SessionPhase =
   | 'resolving_auth'
   | 'dialing'
   | 'ssh_handshake_auth'
+  | 'waiting_host_trust'
   | 'requesting_pty'
   | 'starting_shell'
   | 'starting_local_shell'
@@ -298,7 +284,7 @@ export type ForwardMode = 'local' | 'remote' | 'dynamic'
 
 export type ForwardScope = 'session' | 'background_once' | 'background_profile'
 
-export type ForwardStatus = 'starting' | 'running' | 'stopping' | 'stopped' | 'failed'
+export type ForwardStatus = 'starting' | 'waiting_host_trust' | 'running' | 'stopping' | 'stopped' | 'failed'
 
 export type FirewallProvider = 'unsupported' | 'iptables' | 'nftables'
 
@@ -319,6 +305,7 @@ export type ForwardPhase =
   | 'resolving_session'
   | 'resolving_auth'
   | 'dialing_ssh'
+  | 'waiting_host_trust'
   | 'starting_listener'
   | 'ready'
   | 'stopping'
@@ -377,6 +364,7 @@ export interface ForwardInstance {
   phase: ForwardPhase
   progress: number
   status_message?: string
+  host_key_challenge_id?: string
   bind_host: string
   bind_port: number
   bound_address?: string
@@ -797,25 +785,78 @@ export interface CredentialView {
   last_used_at?: string
 }
 
-export interface KnownHost {
-  id: string
-  host_id: string
-  address: string
+export interface HostKeyEndpoint {
+  canonical_host: string
   port: number
-  host_key_type: string
-  fingerprint_sha256: string
-  trusted_at?: string
-  last_seen_at?: string
-  created_at?: string
-  updated_at?: string
 }
 
-export interface KnownHostInput {
+export type HostKeyConsumerType = 'session' | 'sftp' | 'forward'
+export type HostKeyEndpointRole = 'target' | 'jump'
+export type HostKeyChallengeReason = 'unknown' | 'changed'
+export type HostKeyChallengeState = 'pending' | 'trusted' | 'replaced' | 'rejected' | 'expired' | 'cancelled'
+export type HostKeyDecisionAction = 'trust' | 'replace' | 'reject'
+export type HostKeyEventType = 'challenge_upsert' | 'challenge_resolved' | 'challenge_expired' | 'trust_deleted'
+
+export interface HostKeyObservationContext {
+  consumer_type: HostKeyConsumerType
+  consumer_id: string
   host_id?: string
-  address: string
-  port: number
-  host_key_type: string
+  role: HostKeyEndpointRole
+}
+
+export interface HostKeyMaterial {
+  algorithm: string
   fingerprint_sha256: string
+}
+
+export interface HostKeyChallenge {
+  id: string
+  instance_id: string
+  endpoint: HostKeyEndpoint
+  reason: HostKeyChallengeReason
+  observed_key: HostKeyMaterial
+  existing_trust_id?: string
+  existing_fingerprint_sha256?: string
+  expected_revision?: number
+  contexts: HostKeyObservationContext[]
+  context_count: number
+  state: HostKeyChallengeState
+  created_at: string
+  expires_at: string
+}
+
+export interface HostKeyResolution {
+  challenge_id: string
+  state: HostKeyChallengeState
+  trust_record_id?: string
+  resolved_at: string
+  error_code?: string
+}
+
+export interface HostKeyChallengeSnapshot {
+  instance_id: string
+  snapshot_revision: number
+  challenges: HostKeyChallenge[]
+}
+
+export interface HostKeyEvent {
+  instance_id: string
+  snapshot_revision: number
+  type: HostKeyEventType
+  challenge?: HostKeyChallenge
+  resolution?: HostKeyResolution
+  trust_id?: string
+}
+
+export interface HostKeyTrustRecord {
+  id: string
+  endpoint: HostKeyEndpoint
+  key: HostKeyMaterial
+  revision: number
+  first_seen_at: string
+  last_seen_at: string
+  created_at: string
+  updated_at: string
 }
 
 export interface LinuxSystemInfo {
@@ -1268,6 +1309,7 @@ export interface Session {
   status_message?: string
   phase?: SessionPhase
   progress?: number
+  host_key_challenge_id?: string
   inventory_status?: InventoryStatus
   inventory_message?: string
   linux_system_info?: LinuxSystemInfo
@@ -1330,7 +1372,7 @@ export type DataPortabilityDatasetKey =
   | 'host_icons'
   | 'credentials'
   | 'hosts'
-  | 'known_hosts'
+  | 'host_key_trust_records'
   | 'terminal_fonts'
   | 'settings'
   | 'code_snippet_groups'
@@ -1595,7 +1637,6 @@ export interface AppData {
   hosts: Host[]
   groups: HostGroup[]
   credentials: CredentialView[]
-  knownHosts: KnownHost[]
   sessions: Session[]
   fileSessions: FileSession[]
   forwardProfiles: ForwardProfile[]

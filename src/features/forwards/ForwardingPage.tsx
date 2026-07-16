@@ -67,7 +67,7 @@ const defaultForm: ForwardFormState = {
   target_port: 80,
 }
 
-const activeStatuses = new Set(['starting', 'running', 'stopping'])
+const activeStatuses = new Set(['starting', 'waiting_host_trust', 'running', 'stopping'])
 
 export function ForwardingPage({
   data,
