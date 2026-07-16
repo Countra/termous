@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { App as AntdApp, Button, ConfigProvider, Modal } from 'antd'
-import { AlertTriangle } from 'lucide-react'
+import { LogOut, ServerOff } from 'lucide-react'
 import 'antd/dist/reset.css'
 import { useTranslation } from 'react-i18next'
 import { AppShell } from './components/layout/AppShell'
@@ -851,18 +851,20 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         rootClassName="termous-modal-root"
         getContainer={() => document.body}
       >
-        <section className="core-fatal-dialog" aria-labelledby="core-fatal-title">
+        <section className="core-fatal-dialog" aria-labelledby="core-fatal-title" aria-describedby="core-fatal-description">
           <div className="core-fatal-icon">
-            <AlertTriangle size={22} aria-hidden="true" />
+            <ServerOff size={22} aria-hidden="true" />
           </div>
           <div className="core-fatal-copy">
             <h2 id="core-fatal-title">{coreFatal?.title ?? t('app.coreFatalTitle')}</h2>
-            <p>{coreFatal?.message ?? t('app.coreFatalDescription')}</p>
+            <p id="core-fatal-description">{coreFatal?.message ?? t('app.coreFatalDescription')}</p>
           </div>
           <div className="core-fatal-actions">
             <Button
               type="primary"
+              danger
               className="core-fatal-exit-button"
+              icon={<LogOut size={16} aria-hidden="true" />}
               onClick={() => void window.termous?.windowControls?.confirmClose()}
             >
               {t('app.exit')}

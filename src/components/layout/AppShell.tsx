@@ -1,5 +1,4 @@
 import {
-  Cable,
   ChevronDown,
   DatabaseZap,
   FileCode2,
@@ -8,6 +7,7 @@ import {
   MonitorCog,
   PanelLeftClose,
   PanelLeftOpen,
+  PlugZap,
   Route,
   Server,
   Settings,
@@ -72,7 +72,7 @@ export function AppShell({
   const connectionMenuItems: MenuProps['items'] = [
     {
       key: 'host',
-      label: <TopbarConnectionMenuItem icon={<Cable size={15} />} title={t('workbench.hostLauncher.kicker')} />,
+      label: <TopbarConnectionMenuItem icon={<PlugZap size={15} />} title={t('workbench.hostLauncher.kicker')} />,
     },
     {
       key: 'powershell',
@@ -161,8 +161,10 @@ export function AppShell({
               <Space.Compact className="topbar-connect-dropdown-button">
                 <Button type="primary" disabled={actionBusy} onClick={onOpenConnectionLauncher}>
                   <span className="topbar-connect-content">
-                    <Cable size={16} aria-hidden="true" />
-                    <span>{t('app.connect')}</span>
+                    <span className="topbar-connect-mark" aria-hidden="true">
+                      <PlugZap size={18} strokeWidth={2.15} />
+                    </span>
+                    <span className="topbar-connect-label">{t('app.connect')}</span>
                   </span>
                 </Button>
                 <Dropdown
