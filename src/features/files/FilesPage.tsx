@@ -11,13 +11,11 @@ import {
   Clipboard,
   Copy,
   Download,
-  Eye,
   File,
   Folder,
   FolderPlus,
   Link,
   MoreHorizontal,
-  Pencil,
   RefreshCw,
   Scissors,
   ShieldCheck,
@@ -69,11 +67,17 @@ import type {
   ThemeMode,
   TransferTask,
 } from '../../types/domain'
+import { TransferRuntimeProvider } from '../../app/TransferRuntimeProvider'
+import { useTransferRuntime } from '../../app/useTransferRuntime'
+import { buildRemoteFileActionMenu } from '../../components/files/RemoteFileActionMenu'
+import {
+  runRemoteFileAction,
+  type RemoteFileActionHandlers,
+} from '../../components/files/remoteFileActions'
 import { fileSortValue, formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
 import { FileBookmarksPanel } from './FileBookmarksPanel'
 import { LocalPathMappingsPanel, type LocalPathRefreshRequest } from './LocalPathMappingsPanel'
 import { TransferQueuePanel, type PendingFileOperation } from './TransferQueuePanel'
-import { useTransferQueue } from './useTransferQueue'
 
 const RemoteTextEditorModal = lazy(() => import('./RemoteTextEditorModal').then((module) => ({ default: module.RemoteTextEditorModal })))
 const RemoteImageViewerModal = lazy(() => import('./RemoteImageViewerModal').then((module) => ({ default: module.RemoteImageViewerModal })))
@@ -210,7 +214,15 @@ function isPreviewableImageEntry(entry: RemoteFileEntry) {
   return entry.kind === 'file' && previewableImageExtensionPattern.test(entry.name || entry.path)
 }
 
-export function FilesPage({
+export function FilesPage(props: FilesPageProps) {
+  return (
+    <TransferRuntimeProvider api={props.api}>
+      <FilesPageContent {...props} />
+    </TransferRuntimeProvider>
+  )
+}
+
+function FilesPageContent({
   api,
   data,
   theme,
@@ -316,7 +328,7 @@ export function FilesPage({
     '--files-host-width': `${hostPanelResize.width}px`,
     '--files-details-width': `${detailsPanelResize.width}px`,
   } as CSSProperties
-  const { transfers, upsertTransfer, removeTransfer } = useTransferQueue(api)
+  const { transfers, upsertTransfer, removeTransfer } = useTransferRuntime()
   const showTransferQueuePanel = () => {
     setDetailsCollapsed(false)
     setDetailsActiveTab('transfers')
@@ -1438,33 +1450,29 @@ export function FilesPage({
   }
 
   const actionDisabled = !fileSessionConnected || loading
-  const rowMenu = (entry: RemoteFileEntry): MenuProps['items'] => {
-    const items: NonNullable<MenuProps['items']> = []
-    if (entry.kind === 'file') {
-      items.push({ key: 'openFile', icon: <Eye size={14} />, label: t('files.openFile') })
-    }
-    items.push(
-      { key: 'download', icon: <Download size={14} />, label: t('files.download') },
-      { key: 'copy', icon: <Copy size={14} />, label: t('files.copy') },
-      { key: 'cut', icon: <Scissors size={14} />, label: t('files.cut') },
-      { key: 'permissions', icon: <ShieldCheck size={14} />, label: t('files.editPermissions') },
-      { key: 'rename', icon: <Pencil size={14} />, label: t('files.rename') },
-      { type: 'divider' },
-      { key: 'delete', danger: true, icon: <Trash2 size={14} />, label: t('app.delete') },
-    )
-    return items
-  }
+  const rowMenu = (entry: RemoteFileEntry): MenuProps['items'] => buildRemoteFileActionMenu(entry, t)
   const runRowMenuAction = (entry: RemoteFileEntry, key: string) => {
     setFileContextMenu(null)
     setSelectedPaths([entry.path])
     setActiveEntry(entry)
-    if (key === 'openFile') openFileEntry(entry)
-    if (key === 'download') void downloadPaths([entry.path])
-    if (key === 'copy' && activeFileSession) setRemoteClipboard({ mode: 'copy', hostId: activeFileSession.host_id, paths: [entry.path] })
-    if (key === 'cut' && activeFileSession) setRemoteClipboard({ mode: 'cut', hostId: activeFileSession.host_id, paths: [entry.path] })
-    if (key === 'permissions') openPermissions(entry)
-    if (key === 'rename') openRename(entry)
-    if (key === 'delete') confirmDelete([entry.path])
+    const handlers: RemoteFileActionHandlers = {
+      openFile: openFileEntry,
+      download: (target) => void downloadPaths([target.path]),
+      copy: (target) => {
+        if (activeFileSession) {
+          setRemoteClipboard({ mode: 'copy', hostId: activeFileSession.host_id, paths: [target.path] })
+        }
+      },
+      cut: (target) => {
+        if (activeFileSession) {
+          setRemoteClipboard({ mode: 'cut', hostId: activeFileSession.host_id, paths: [target.path] })
+        }
+      },
+      permissions: openPermissions,
+      rename: openRename,
+      delete: (target) => confirmDelete([target.path]),
+    }
+    runRemoteFileAction(entry, key, handlers)
   }
   const fileRowMenuProps = (entry: RemoteFileEntry): MenuProps => ({
     items: rowMenu(entry),
