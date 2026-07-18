@@ -19,6 +19,11 @@ import {
   type SessionFilesSyncStatus,
   type SessionFilesViewStateMap,
 } from './sessionFilesState'
+import {
+  buildSourceSessionContexts,
+  canApplyCreatedFileSession,
+  isCurrentSourceSession,
+} from './workbenchFileSessionLifecycle'
 
 interface FileSessionEventMessage {
   type: string
@@ -40,14 +45,27 @@ export function useWorkbenchSessionFiles({
 }: UseWorkbenchSessionFilesOptions) {
   const cwdRuntime = useTerminalCwdRuntime()
   const sourceSessionId = activeSession?.kind === 'ssh' ? activeSession.id : null
+  const sourceSessionStatus = activeSession?.kind === 'ssh' ? activeSession.status : null
+  const sourceHostId = activeSession?.kind === 'ssh' ? activeSession.host_id : null
   const cwdState = useSessionCwdState(sourceSessionId)
   const [viewStates, setViewStates] = useState<SessionFilesViewStateMap>({})
   const [sessionOverrides, setSessionOverrides] = useState<Record<string, FileSession>>({})
   const [createRetrySequence, setCreateRetrySequence] = useState(0)
+  const mountedRef = useRef(true)
+  const sourceSessionContextsRef = useRef(buildSourceSessionContexts(data.sessions))
   const creatingSessionsRef = useRef(new Set<string>())
   const createFailureSessionIdsRef = useRef(new Set<string>())
   const directoryRequestSequencesRef = useRef(new Map<string, number>())
   const listRef = useRef<HTMLDivElement>(null)
+
+  sourceSessionContextsRef.current = buildSourceSessionContexts(data.sessions)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     const activeIds = new Set(data.sessions.map((session) => session.id))
@@ -108,40 +126,65 @@ export function useWorkbenchSessionFiles({
   useEffect(() => {
     if (
       !enabled ||
-      !activeSession ||
-      activeSession.kind !== 'ssh' ||
-      activeSession.status !== 'connected' ||
-      !activeSession.host_id ||
+      !sourceSessionId ||
+      sourceSessionStatus !== 'connected' ||
+      !sourceHostId ||
       fileSession ||
-      createFailureSessionIdsRef.current.has(activeSession.id) ||
-      creatingSessionsRef.current.has(activeSession.id)
+      createFailureSessionIdsRef.current.has(sourceSessionId) ||
+      creatingSessionsRef.current.has(sourceSessionId)
     ) {
       return
     }
-    let disposed = false
-    creatingSessionsRef.current.add(activeSession.id)
+    const requestedSourceSessionId = sourceSessionId
+    const requestedInitialPath = cwdState?.confirmed_path || '/'
+    creatingSessionsRef.current.add(requestedSourceSessionId)
     void api.createFileSession(
-      activeSession.host_id,
-      activeSession.id,
-      cwdState?.confirmed_path || '/',
+      sourceHostId,
+      requestedSourceSessionId,
+      requestedInitialPath,
     ).then((created) => {
-      if (!disposed) {
-        createFailureSessionIdsRef.current.delete(activeSession.id)
-        updateFileSession(created)
+      if (
+        !mountedRef.current ||
+        !canApplyCreatedFileSession(
+          created,
+          sourceSessionContextsRef.current,
+          requestedSourceSessionId,
+          sourceHostId,
+        )
+      ) {
+        return
       }
+      createFailureSessionIdsRef.current.delete(requestedSourceSessionId)
+      updateFileSession(created)
     }).catch((error) => {
-      if (!disposed) {
-        createFailureSessionIdsRef.current.add(activeSession.id)
-        const message = error instanceof Error ? error.message : ''
-        updateView({ error: message || 'file_session_create_failed', loading: false }, cwdState?.confirmed_path || '/')
+      if (
+        !mountedRef.current ||
+        !isCurrentSourceSession(
+          sourceSessionContextsRef.current,
+          requestedSourceSessionId,
+          sourceHostId,
+        )
+      ) {
+        return
       }
+      createFailureSessionIdsRef.current.add(requestedSourceSessionId)
+      const message = error instanceof Error ? error.message : ''
+      updateView({ error: message || 'file_session_create_failed', loading: false }, requestedInitialPath)
     }).finally(() => {
-      creatingSessionsRef.current.delete(activeSession.id)
+      creatingSessionsRef.current.delete(requestedSourceSessionId)
     })
-    return () => {
-      disposed = true
-    }
-  }, [activeSession, api, createRetrySequence, cwdState?.confirmed_path, enabled, fileSession, updateFileSession, updateView])
+  }, [
+    api,
+    createRetrySequence,
+    cwdState?.confirmed_path,
+    enabled,
+    fileSession,
+    sourceHostId,
+    sourceSessionId,
+    sourceSessionStatus,
+    updateFileSession,
+    updateView,
+  ])
 
   useEffect(() => {
     if (!fileSession?.id) {

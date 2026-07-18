@@ -363,12 +363,12 @@ function WorkbenchFilesPanelContent({
         </div>
         <Input.Search
           value={pathInput}
-          enterButton={t('files.jump')}
+          enterButton={t('files.go')}
           onChange={(event) => setPathInput(event.target.value)}
           onSearch={(value) => void files.navigateDirectory(value)}
         />
         <div className="workbench-files-toolbar-row">
-          <Tooltip title={t('files.refresh')}>
+          <Tooltip title={t('app.reload')}>
             <Button type="text" icon={<RefreshCw size={15} />} onClick={() => void files.loadDirectory(files.viewState?.path || '/')} />
           </Tooltip>
           <Tooltip title={t('files.newFolder')}>
