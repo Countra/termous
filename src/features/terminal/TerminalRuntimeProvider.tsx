@@ -13,7 +13,17 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApi } from '../../api/client'
-import type { Session, SessionPhase, SessionStatus, TerminalFont, TerminalSettings, ThemeMode } from '../../types/domain'
+import { TerminalCwdRuntimeProvider } from '../../app/TerminalCwdRuntimeProvider'
+import type {
+  Session,
+  SessionCwdChangeRequest,
+  SessionCwdState,
+  SessionPhase,
+  SessionStatus,
+  TerminalFont,
+  TerminalSettings,
+  ThemeMode,
+} from '../../types/domain'
 import { defaultTerminalSettings, normalizeTerminalSettings } from '../settings/terminalSettings'
 import {
   TerminalRuntimeContext,
@@ -26,6 +36,12 @@ import {
   type TerminalSendResult,
   type TerminalViewportOptions,
 } from './terminalRuntimeContext'
+import {
+  parseOSC7Payload,
+  parsePrivateCwdPayload,
+  TERMOUS_CWD_PRIVATE_OSC,
+  TerminalCwdRuntime,
+} from './terminalCwdRuntime'
 import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from './terminalFonts'
 
 interface TerminalRuntimeProviderProps {
@@ -82,6 +98,11 @@ export function TerminalRuntimeProvider({
   const terminalFontsRef = useRef(terminalFonts)
   const onSessionEventRef = useRef(onSessionEvent)
   const tRef = useRef<(key: string) => string>((key) => key)
+  const cwdRuntimeRef = useRef<TerminalCwdRuntime | null>(null)
+  if (!cwdRuntimeRef.current) {
+    cwdRuntimeRef.current = new TerminalCwdRuntime()
+  }
+  const cwdRuntime = cwdRuntimeRef.current
   const { t } = useTranslation()
   const { message } = AntdApp.useApp()
   const sessionSnapshot = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
@@ -525,6 +546,40 @@ export function TerminalRuntimeProvider({
           sendTerminalInput(binaryStringToBytes(data))
         }),
       )
+      entry.disposables.push(
+        terminal.parser.registerOscHandler(7, (payload) => {
+          const observation = parseOSC7Payload(payload)
+          return observation
+            ? cwdRuntime.observeTerminalPath(sessionId, observation)
+            : false
+        }),
+        terminal.parser.registerOscHandler(TERMOUS_CWD_PRIVATE_OSC, (payload) => {
+          const observation = parsePrivateCwdPayload(payload)
+          return observation
+            ? cwdRuntime.observePrivateControl(sessionId, observation)
+            : false
+        }),
+      )
+      const unregisterCwdTransport = cwdRuntime.registerTransport(sessionId, (request) => {
+        if (
+          entry.disposed ||
+          isEntryEnded(entry) ||
+          !entry.isReady ||
+          socket.readyState !== WebSocket.OPEN
+        ) {
+          return false
+        }
+        try {
+          socket.send(JSON.stringify({
+            type: 'cwd_change',
+            cwd_change: request,
+          }))
+          return true
+        } catch {
+          return false
+        }
+      })
+      entry.disposables.push({ dispose: unregisterCwdTransport })
 
       socket.addEventListener('open', () => {
         if (isEntryEnded(entry)) {
@@ -541,7 +596,16 @@ export function TerminalRuntimeProvider({
         if (entry.disposed) {
           return
         }
-        handleSocketMessage(entry, String(event.data), relaySessionEvent, tRef.current)
+        handleSocketMessage(
+          entry,
+          String(event.data),
+          relaySessionEvent,
+          (state) => cwdRuntime.applyServerState(sessionId, state),
+          (message, operationId) => {
+            cwdRuntime.applyRequestError(sessionId, message, operationId)
+          },
+          tRef.current,
+        )
         applyEntrySessionState(entry)
       })
       socket.addEventListener('close', () => {
@@ -570,7 +634,16 @@ export function TerminalRuntimeProvider({
 
       return entry
     },
-    [applyEntrySessionState, closeSocket, copyEntrySelection, fitAndResize, getViewportForSession, isEntryEnded, pasteEntryClipboard],
+    [
+      applyEntrySessionState,
+      closeSocket,
+      copyEntrySelection,
+      cwdRuntime,
+      fitAndResize,
+      getViewportForSession,
+      isEntryEnded,
+      pasteEntryClipboard,
+    ],
   )
 
   const moveEntryToHost = useCallback((entry: TerminalEntry, host: HTMLDivElement | null, active: boolean, visible: boolean) => {
@@ -676,14 +749,16 @@ export function TerminalRuntimeProvider({
       }
       applyEntrySessionState(entry)
     })
+    cwdRuntime.retainSessions(allowedSessionIds)
     syncViewports()
-  }, [applyEntrySessionState, disposeEntry, sessions, syncViewports])
+  }, [applyEntrySessionState, cwdRuntime, disposeEntry, sessions, syncViewports])
 
   useEffect(() => {
     return () => {
       disposeAll()
+      cwdRuntime.dispose()
     }
-  }, [api, disposeAll])
+  }, [api, cwdRuntime, disposeAll])
 
   const value = useMemo<TerminalRuntimeContextValue>(
     () => ({
@@ -719,10 +794,12 @@ export function TerminalRuntimeProvider({
   )
 
   return (
-    <TerminalRuntimeContext.Provider value={value}>
-      {children}
-      <div className="terminal-runtime-parking" ref={parkingHostRef} aria-hidden="true" />
-    </TerminalRuntimeContext.Provider>
+    <TerminalCwdRuntimeProvider runtime={cwdRuntime}>
+      <TerminalRuntimeContext.Provider value={value}>
+        {children}
+        <div className="terminal-runtime-parking" ref={parkingHostRef} aria-hidden="true" />
+      </TerminalRuntimeContext.Provider>
+    </TerminalCwdRuntimeProvider>
   )
 }
 
@@ -780,6 +857,8 @@ function handleSocketMessage(
   entry: TerminalEntry,
   data: string,
   onSessionEvent: TerminalRuntimeProviderProps['onSessionEvent'],
+  onCwdState: (state: SessionCwdState) => void,
+  onCwdError: (message: string, operationId?: string) => void,
   t: (key: string) => string,
 ) {
   try {
@@ -792,6 +871,8 @@ function handleSocketMessage(
       phase?: SessionPhase
       progress?: number
       session?: Session
+      cwd_change?: SessionCwdChangeRequest
+      cwd_state?: SessionCwdState
     }
     if (msg.session) {
       onSessionEvent?.(entry.sessionId, msg.session)
@@ -806,6 +887,12 @@ function handleSocketMessage(
     }
     if (msg.type === 'output' && msg.data) {
       entry.terminal.write(msg.data)
+    }
+    if (msg.type === 'cwd_state' && msg.cwd_state) {
+      onCwdState(msg.cwd_state)
+    }
+    if (msg.type === 'cwd_error' && msg.message) {
+      onCwdError(msg.message, msg.cwd_change?.operation_id)
     }
     if (msg.type === 'error' && msg.message) {
       onSessionEvent?.(entry.sessionId, {

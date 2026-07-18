@@ -263,6 +263,49 @@ export type SessionStatus = 'connecting' | 'connected' | 'disconnected' | 'faile
 
 export type InventoryStatus = 'idle' | 'collecting' | 'ready' | 'failed' | 'unsupported'
 
+export type SessionCwdSource = 'none' | 'terminal' | 'files'
+
+export type SessionCwdCapability = 'probing' | 'supported' | 'unsupported'
+
+export type SessionCwdShellPhase = 'unknown' | 'prompt' | 'running' | 'alternate-screen'
+
+export type SessionCwdOperationStatus =
+  | 'queued'
+  | 'waiting-idle'
+  | 'publishing'
+  | 'applying'
+  | 'failed'
+
+export interface SessionCwdOperation {
+  id: string
+  file_session_id: string
+  path: string
+  revision: number
+  status: SessionCwdOperationStatus
+  error?: string
+}
+
+export interface SessionCwdState {
+  confirmed_path?: string
+  desired_path?: string
+  revision: number
+  source: SessionCwdSource
+  capability: SessionCwdCapability
+  capability_cause?: string
+  shell?: string
+  shell_phase: SessionCwdShellPhase
+  prompt_generation: number
+  source_generation: number
+  pending_operation?: SessionCwdOperation
+}
+
+export interface SessionCwdChangeRequest {
+  operation_id: string
+  revision: number
+  file_session_id: string
+  path: string
+}
+
 export type SessionPhase =
   | 'queued'
   | 'resolving_auth'
