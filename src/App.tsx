@@ -15,6 +15,7 @@ import { VaultPage } from './features/vault/VaultPage'
 import { HostLauncherModal } from './features/workbench/HostLauncherModal'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
 import { HostKeyCoordinator } from './components/hostkey/HostKeyCoordinator'
+import { TransferRuntimeProvider } from './app/TransferRuntimeProvider'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
@@ -632,14 +633,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [openHostLauncher])
 
   return (
-    <TerminalRuntimeProvider
-      api={api}
-      sessions={data.sessions}
-      theme={theme}
-      terminalSettings={data.settings.terminal}
-      terminalFonts={data.terminalFonts}
-      onSessionEvent={actions.updateSession}
-    >
+    <TransferRuntimeProvider api={api}>
+      <TerminalRuntimeProvider
+        api={api}
+        sessions={data.sessions}
+        theme={theme}
+        terminalSettings={data.settings.terminal}
+        terminalFonts={data.terminalFonts}
+        onSessionEvent={actions.updateSession}
+      >
       <AppShell
         page={page}
         appVersion={appVersion}
@@ -871,8 +873,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             </Button>
           </div>
         </section>
-      </Modal>
-    </TerminalRuntimeProvider>
+        </Modal>
+      </TerminalRuntimeProvider>
+    </TransferRuntimeProvider>
   )
 }
 

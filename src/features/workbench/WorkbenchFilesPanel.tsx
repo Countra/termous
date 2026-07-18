@@ -14,7 +14,6 @@ import {
 import { lazy, Suspense, useEffect, useRef, useState, type DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
-import { TransferRuntimeProvider } from '../../app/TransferRuntimeProvider'
 import { useTransferRuntime } from '../../app/useTransferRuntime'
 import { buildRemoteFileActionMenu } from '../../components/files/RemoteFileActionMenu'
 import {
@@ -60,11 +59,7 @@ interface TrackedUploadRefresh {
 }
 
 export function WorkbenchFilesPanel(props: WorkbenchFilesPanelProps) {
-  return (
-    <TransferRuntimeProvider api={props.api}>
-      <WorkbenchFilesPanelContent {...props} />
-    </TransferRuntimeProvider>
-  )
+  return <WorkbenchFilesPanelContent {...props} />
 }
 
 function WorkbenchFilesPanelContent({

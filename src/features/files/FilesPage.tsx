@@ -67,7 +67,6 @@ import type {
   ThemeMode,
   TransferTask,
 } from '../../types/domain'
-import { TransferRuntimeProvider } from '../../app/TransferRuntimeProvider'
 import { useTransferRuntime } from '../../app/useTransferRuntime'
 import { buildRemoteFileActionMenu } from '../../components/files/RemoteFileActionMenu'
 import { RemotePermissionModal } from '../../components/files/RemotePermissionModal'
@@ -216,11 +215,7 @@ function isPreviewableImageEntry(entry: RemoteFileEntry) {
 }
 
 export function FilesPage(props: FilesPageProps) {
-  return (
-    <TransferRuntimeProvider api={props.api}>
-      <FilesPageContent {...props} />
-    </TransferRuntimeProvider>
-  )
+  return <FilesPageContent {...props} />
 }
 
 function FilesPageContent({
