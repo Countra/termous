@@ -75,6 +75,7 @@ import { ProcessPanel } from './ProcessPanel'
 import { ServicePanel } from './ServicePanel'
 import { SystemMonitorPanel } from './SystemMonitorPanel'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
+import { WorkbenchFilesPanel } from './WorkbenchFilesPanel'
 import {
   areSessionTabPreferenceMapsEqual,
   compactSessionTabPreference,
@@ -86,7 +87,7 @@ import {
   type SessionTabPreferenceMap,
 } from './sessionTabPreferences'
 
-type DetailsTabKey = 'overview' | 'system' | 'monitor' | 'processes' | 'services' | 'docker' | 'firewall' | 'forwards' | 'snippets'
+type DetailsTabKey = 'overview' | 'files' | 'system' | 'monitor' | 'processes' | 'services' | 'docker' | 'firewall' | 'forwards' | 'snippets'
 
 const workbenchDetailsPanelWidth = {
   default: 300,
@@ -1316,6 +1317,21 @@ export function WorkbenchPage({
             ),
           },
           {
+            key: 'files',
+            label: t('workbench.detailsTabs.files'),
+            icon: <FolderOpen size={17} aria-hidden="true" />,
+            children: (
+              <WorkbenchFilesPanel
+                api={api}
+                data={data}
+                session={activeSession}
+                enabled={detailsActiveTab === 'files' && !detailsCollapsed}
+                theme={theme}
+                onOpenFull={onOpenFiles}
+              />
+            ),
+          },
+          {
             key: 'system',
             label: t('workbench.detailsTabs.systemInfo'),
             icon: <Cpu size={17} aria-hidden="true" />,
@@ -1850,7 +1866,8 @@ function formatNetworkAddress(address: string, prefixLength: number, t: Workbenc
 }
 
 function parseDetailsTabKey(value: unknown): DetailsTabKey {
-  return value === 'system' ||
+  return value === 'files' ||
+    value === 'system' ||
     value === 'monitor' ||
     value === 'processes' ||
     value === 'services' ||
