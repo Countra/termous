@@ -9,6 +9,7 @@ import type { TransferTask } from '../types/domain'
 import {
   TransferRuntimeContext,
   mergeTransferSnapshot,
+  mergeTransferUpdate,
   sortTransfers,
   TransferSnapshotGate,
   type TransferRuntimeValue,
@@ -139,10 +140,14 @@ class SharedTransferRuntime {
     }
     this.eventEpoch += 1
     this.taskEventEpochs.set(task.id, this.eventEpoch)
-    const exists = this.transfers.some((item) => item.id === task.id)
-    this.transfers = sortTransfers(exists
-      ? this.transfers.map((item) => (item.id === task.id ? task : item))
-      : [task, ...this.transfers])
+    const current = this.transfers.find((item) => item.id === task.id)
+    const nextTask = current ? mergeTransferUpdate(current, task) : task
+    if (nextTask === current) {
+      return
+    }
+    this.transfers = sortTransfers(current
+      ? this.transfers.map((item) => (item.id === task.id ? nextTask : item))
+      : [nextTask, ...this.transfers])
     this.publish()
   }
 

@@ -16,7 +16,6 @@ export interface SessionFilesViewState {
   path: string
   selectedPaths: string[]
   followTerminal: boolean
-  scrollTop: number
   listing: RemoteDirectoryListing | null
   loading: boolean
   error: string
@@ -32,7 +31,6 @@ export function createSessionFilesViewState(initialPath = '/'): SessionFilesView
     path: normalizeRemotePath(initialPath),
     selectedPaths: [],
     followTerminal: false,
-    scrollTop: 0,
     listing: null,
     loading: false,
     error: '',
@@ -92,15 +90,23 @@ export function completeDirectoryRequest(
   if (requestSequence !== state.requestSequence) {
     return state
   }
+  const path = normalizeRemotePath(listing.path)
+  const entries = listing.entries ?? []
+  const sameDirectory = state.listing
+    ? normalizeRemotePath(state.listing.path) === path
+    : false
+  const entryPaths = new Set(entries.map((entry) => entry.path))
   return {
     ...state,
-    path: normalizeRemotePath(listing.path),
-    selectedPaths: [],
+    path,
+    selectedPaths: sameDirectory
+      ? state.selectedPaths.filter((selectedPath) => entryPaths.has(selectedPath))
+      : [],
     listing: {
       ...listing,
-      path: normalizeRemotePath(listing.path),
+      path,
       parent_path: normalizeRemotePath(listing.parent_path),
-      entries: listing.entries ?? [],
+      entries,
     },
     loading: false,
     error: '',
@@ -119,6 +125,7 @@ export function failDirectoryRequest(
   }
   return {
     ...state,
+    path: state.listing ? normalizeRemotePath(state.listing.path) : state.path,
     loading: false,
     error: message,
   }

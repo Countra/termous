@@ -1,15 +1,29 @@
-import { App as AntdApp, Breadcrumb, Button, Dropdown, Input, Progress, Switch, Tooltip, type MenuProps } from 'antd'
 import {
+  App as AntdApp,
+  Breadcrumb,
+  Button,
+  Dropdown,
+  Input,
+  Progress,
+  Switch,
+  Tooltip,
+  type InputRef,
+  type MenuProps,
+} from 'antd'
+import {
+  Check,
   ChevronLeft,
   CircleAlert,
   Clipboard,
+  ExternalLink,
   FolderInput,
   FolderOpen,
   FolderPlus,
-  LoaderCircle,
   MoreHorizontal,
+  PencilLine,
   RefreshCw,
   Upload,
+  X,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState, type DragEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +47,9 @@ import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import { WorkbenchFileList } from './WorkbenchFileList'
 import { WorkbenchTransferBar } from './WorkbenchTransferBar'
 import { useWorkbenchSessionFiles } from './useWorkbenchSessionFiles'
+import { isLocalFileDrag } from './workbenchFileDrag'
+import './workbench-files-panel.css'
+import './workbench-file-controls.css'
 
 const RemoteTextEditorModal = lazy(() => import('../files/RemoteTextEditorModal').then((module) => ({ default: module.RemoteTextEditorModal })))
 const RemoteImageViewerModal = lazy(() => import('../files/RemoteImageViewerModal').then((module) => ({ default: module.RemoteImageViewerModal })))
@@ -80,11 +97,17 @@ function WorkbenchFilesPanelContent({
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [textEditorPath, setTextEditorPath] = useState<string | null>(null)
   const [imageViewerPath, setImageViewerPath] = useState<string | null>(null)
-  const [dropDownloadActive, setDropDownloadActive] = useState(false)
+  const [editingPath, setEditingPath] = useState(false)
+  const [uploadPicking, setUploadPicking] = useState(false)
+  const pathInputRef = useRef<InputRef>(null)
   const uploadRefreshTasksRef = useRef(new Map<string, TrackedUploadRefresh>())
   const completedUploadPathsRef = useRef(new Map<string, Set<string>>())
-  const currentPath = normalizeRemotePath(files.viewState?.path || '/')
+  const currentPath = normalizeRemotePath(
+    files.viewState?.listing?.path || files.viewState?.path || '/',
+  )
   const fileSessionId = files.fileSession?.id
+  const pathInputId = `workbench-remote-path-${files.sourceSessionId || 'inactive'}`
+  const pathErrorId = `${pathInputId}-error`
   const loadDirectory = files.loadDirectory
   const syncStatus = files.viewState?.syncStatus ?? ''
   const syncMessage = syncStatusMessage(syncStatus, t)
@@ -92,10 +115,44 @@ function WorkbenchFilesPanelContent({
     || syncStatus === 'unsupported'
     || syncStatus === 'not_ready'
     || syncStatus === 'invalid_path'
+  const followTerminal = Boolean(files.viewState?.followTerminal)
+  const followVisualState = !followTerminal
+    ? 'off'
+    : syncStatus === 'failed'
+      ? 'failed'
+      : syncStatus === 'unsupported' || syncStatus === 'not_ready'
+        ? 'warning'
+        : syncStatus === 'waiting-idle'
+          ? 'waiting'
+          : syncStatus === 'queued' || syncStatus === 'publishing' || syncStatus === 'applying'
+            ? 'syncing'
+            : 'active'
+  const followHasDetail = followVisualState !== 'off' && followVisualState !== 'active'
+  const followTooltip = followHasDetail && syncMessage
+    ? syncMessage
+    : t(followTerminal ? 'workbench.files.followEnabled' : 'workbench.files.followDisabled')
 
   useEffect(() => {
     setPathInput(files.viewState?.path || '/')
-  }, [files.viewState?.path])
+    setEditingPath(false)
+  }, [files.sourceSessionId, files.viewState?.path])
+
+  useEffect(() => {
+    setPermissionEntry(null)
+    setTextEditorPath(null)
+    setImageViewerPath(null)
+  }, [fileSessionId, files.sourceSessionId])
+
+  useEffect(() => {
+    if (!editingPath) {
+      return
+    }
+    const frame = window.requestAnimationFrame(() => {
+      pathInputRef.current?.focus()
+      pathInputRef.current?.select()
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [editingPath])
 
   useEffect(() => {
     if (uploadRefreshTasksRef.current.size === 0 && completedUploadPathsRef.current.size === 0) {
@@ -155,7 +212,7 @@ function WorkbenchFilesPanelContent({
     if (!files.fileSession?.id || paths.length === 0) {
       return
     }
-    const remoteDir = normalizeRemotePath(targetPath || files.viewState?.path || '/')
+    const remoteDir = normalizeRemotePath(targetPath || currentPath)
     await runAction(async () => {
       const grant = await api.createLocalFileGrant(source, paths)
       const task = await api.createFileSessionUploadTransfer(files.fileSession!.id, grant.id, remoteDir, 'rename')
@@ -182,7 +239,7 @@ function WorkbenchFilesPanelContent({
   }
 
   const uploadDrop = async (targetPath: string, event: DragEvent<HTMLDivElement>) => {
-    if (!event.dataTransfer.types.includes('Files')) {
+    if (!isLocalFileDrag(Array.from(event.dataTransfer.types))) {
       return
     }
     event.preventDefault()
@@ -195,17 +252,16 @@ function WorkbenchFilesPanelContent({
       notification.warning({ title: t('files.dropPathUnavailable'), duration: 3 })
       return
     }
-    await uploadPaths('drop', paths, targetPath || files.viewState?.path)
+    await uploadPaths('drop', paths, targetPath || currentPath)
   }
 
-  const openEntry = (entry: RemoteFileEntry) => {
+  const openEntry = async (entry: RemoteFileEntry) => {
     files.setSelectedPaths([entry.path])
     if (entry.kind === 'directory') {
-      void files.navigateDirectory(entry.path)
-      return
+      return files.navigateDirectory(entry.path)
     }
     if (entry.kind !== 'file') {
-      return
+      return false
     }
     if (imagePattern.test(entry.name)) {
       setImageViewerPath(entry.path)
@@ -214,6 +270,7 @@ function WorkbenchFilesPanelContent({
       setTextEditorPath(entry.path)
       setImageViewerPath(null)
     }
+    return true
   }
 
   const createDirectory = () => {
@@ -230,8 +287,8 @@ function WorkbenchFilesPanelContent({
         if (!name.trim() || !files.fileSession?.id) {
           throw new Error(t('files.nameRequired'))
         }
-        await api.mkdirFileSessionFile(files.fileSession.id, joinPath(files.viewState?.path || '/', name.trim()))
-        await files.loadDirectory(files.viewState?.path || '/')
+        await api.mkdirFileSessionFile(files.fileSession.id, joinPath(currentPath, name.trim()))
+        await files.loadDirectory(currentPath)
       },
     })
   }
@@ -251,7 +308,7 @@ function WorkbenchFilesPanelContent({
           throw new Error(t('files.nameRequired'))
         }
         await api.renameFileSessionFile(files.fileSession.id, entry.path, joinPath(parentPath(entry.path), name.trim()))
-        await files.loadDirectory(files.viewState?.path || '/')
+        await files.loadDirectory(currentPath)
       },
     })
   }
@@ -267,7 +324,7 @@ function WorkbenchFilesPanelContent({
     onOk: async () => {
       if (files.fileSession?.id) {
         await api.deleteFileSessionFiles(files.fileSession.id, [entry.path], true)
-        await files.loadDirectory(files.viewState?.path || '/')
+        await files.loadDirectory(currentPath)
       }
     },
   })
@@ -278,7 +335,7 @@ function WorkbenchFilesPanelContent({
       domEvent.stopPropagation()
       files.setSelectedPaths([entry.path])
       const handlers: RemoteFileActionHandlers = {
-        openFile: openEntry,
+        openFile: (target) => void openEntry(target),
         download: (target) => void downloadPaths([target.path]),
         copy: (target) => {
           if (files.fileSession) {
@@ -302,7 +359,7 @@ function WorkbenchFilesPanelContent({
     if (!files.fileSession?.id) {
       return
     }
-    const targetPath = files.viewState?.path || '/'
+    const targetPath = currentPath
     if (remoteClipboard?.hostId === files.fileSession.host_id) {
       await runAction(async () => {
         if (remoteClipboard.mode === 'cut') {
@@ -318,6 +375,42 @@ function WorkbenchFilesPanelContent({
     const localPaths = await window.termous?.files?.readClipboardFilePaths()
     await uploadPaths('clipboard', localPaths ?? [])
   }
+
+  const uploadPickedFiles = async () => {
+    if (uploadPicking) {
+      return
+    }
+    setUploadPicking(true)
+    try {
+      await uploadPaths('picker', await window.termous?.files?.pickFiles() ?? [])
+    } finally {
+      setUploadPicking(false)
+    }
+  }
+
+  const clearInvalidPath = () => {
+    if (files.viewState?.syncStatus === 'invalid_path') {
+      files.updateView({ syncStatus: '', syncError: '' })
+    }
+  }
+
+  const submitPath = async () => {
+    clearInvalidPath()
+    if (await files.navigateDirectory(pathInput)) {
+      setEditingPath(false)
+    }
+  }
+
+  const cancelPathEditing = () => {
+    clearInvalidPath()
+    setPathInput(currentPath)
+    setEditingPath(false)
+  }
+
+  const selectedCount = files.viewState?.selectedPaths.length ?? 0
+  const itemCountLabel = selectedCount > 0
+    ? t('workbench.files.selectedCount', { count: selectedCount })
+    : t('workbench.files.itemCount', { count: files.entries.length })
 
   if (!session || session.kind !== 'ssh') {
     return <WorkbenchEmptyState icon={<FolderOpen size={20} />} title={t('workbench.files.emptyTitle')} description={t('workbench.files.emptyHint')} />
@@ -336,7 +429,7 @@ function WorkbenchFilesPanelContent({
         <span>{files.fileSession?.status_message || t('workbench.files.preparing')}</span>
         <Progress percent={progress} showInfo={false} size="small" />
         {files.viewState?.error || files.fileSession?.status === 'failed' || files.fileSession?.status === 'disconnected' ? (
-        <Button icon={<RefreshCw size={14} />} onClick={() => void runAction(files.reconnect)}>{t('app.retry')}</Button>
+          <Button icon={<RefreshCw size={14} />} onClick={() => void runAction(files.reconnect)}>{t('app.retry')}</Button>
         ) : null}
       </div>
     )
@@ -345,45 +438,162 @@ function WorkbenchFilesPanelContent({
   return (
     <section className="workbench-files-panel">
       <div className="workbench-files-toolbar">
+        <header className="workbench-files-summary">
+          <div className="workbench-files-summary-copy">
+            <span className="workbench-files-summary-icon" aria-hidden="true">
+              <FolderOpen size={16} />
+            </span>
+            <span className="workbench-files-summary-text">
+              <strong>{t('workbench.files.remoteFiles')}</strong>
+              <small>
+                <span className="workbench-files-ready-dot" aria-hidden="true" />
+                {t('workbench.files.sftpReady')}
+              </small>
+            </span>
+          </div>
+          <div className="workbench-files-summary-actions">
+            <Tooltip title={t('app.reload')}>
+              <Button
+                type="text"
+                className="workbench-files-icon-button"
+                aria-label={t('app.reload')}
+                icon={<RefreshCw className={files.viewState?.loading ? 'is-spinning' : ''} size={14} />}
+                onClick={() => void files.loadDirectory(currentPath)}
+              />
+            </Tooltip>
+            <Tooltip title={t('workbench.manageFiles')}>
+              <Button
+                type="text"
+                className="workbench-files-icon-button"
+                aria-label={t('workbench.manageFiles')}
+                icon={<ExternalLink size={14} />}
+                onClick={() => void runAction(() => onOpenFull(session))}
+              />
+            </Tooltip>
+          </div>
+        </header>
         <div className="workbench-files-location">
           <Tooltip title={t('files.parent')}>
             <Button
               type="text"
               className="workbench-files-back"
+              aria-label={t('files.parent')}
               icon={<ChevronLeft size={16} />}
               disabled={currentPath === '/'}
               onClick={() => void files.navigateDirectory(parentPath(currentPath))}
             />
           </Tooltip>
-          <Breadcrumb
-            className="workbench-files-breadcrumb"
-            separator="/"
-            items={buildBreadcrumbItems(currentPath, files.navigateDirectory)}
-          />
+          <div
+            className={[
+              'workbench-files-address',
+              editingPath ? 'is-editing' : '',
+              syncStatus === 'invalid_path' ? 'is-invalid' : '',
+            ].filter(Boolean).join(' ')}
+          >
+            {editingPath ? (
+              <>
+                <Input
+                  ref={pathInputRef}
+                  id={pathInputId}
+                  name="workbench-remote-path"
+                  value={pathInput}
+                  className="workbench-files-path-input"
+                  status={syncStatus === 'invalid_path' ? 'error' : undefined}
+                  aria-label={t('workbench.files.pathInput')}
+                  aria-invalid={syncStatus === 'invalid_path'}
+                  aria-describedby={syncStatus === 'invalid_path' ? pathErrorId : undefined}
+                  onChange={(event) => {
+                    clearInvalidPath()
+                    setPathInput(event.target.value)
+                  }}
+                  onPressEnter={() => void submitPath()}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      cancelPathEditing()
+                    }
+                  }}
+                />
+                <Button
+                  type="text"
+                  className="workbench-files-address-action"
+                  aria-label={t('files.go')}
+                  icon={<Check size={14} />}
+                  onClick={() => void submitPath()}
+                />
+                <Button
+                  type="text"
+                  className="workbench-files-address-action"
+                  aria-label={t('workbench.files.cancelPathEdit')}
+                  icon={<X size={14} />}
+                  onClick={cancelPathEditing}
+                />
+              </>
+            ) : (
+              <>
+                <Breadcrumb
+                  className="workbench-files-breadcrumb"
+                  separator="/"
+                  items={buildBreadcrumbItems(currentPath, files.navigateDirectory)}
+                />
+                <Tooltip title={t('workbench.files.editPath')}>
+                  <Button
+                    type="text"
+                    className="workbench-files-address-action"
+                    aria-label={t('workbench.files.editPath')}
+                    icon={<PencilLine size={13} />}
+                    onClick={() => setEditingPath(true)}
+                  />
+                </Tooltip>
+              </>
+            )}
+          </div>
         </div>
-        <Input.Search
-          value={pathInput}
-          enterButton={t('files.go')}
-          onChange={(event) => setPathInput(event.target.value)}
-          onSearch={(value) => void files.navigateDirectory(value)}
-        />
         <div className="workbench-files-toolbar-row">
-          <Tooltip title={t('app.reload')}>
-            <Button type="text" icon={<RefreshCw size={15} />} onClick={() => void files.loadDirectory(files.viewState?.path || '/')} />
+          <Tooltip title={t('files.uploadFiles')}>
+            <Button
+              type="default"
+              className="workbench-files-upload-button"
+              aria-label={t('files.uploadFiles')}
+              icon={<Upload size={15} />}
+              loading={uploadPicking}
+              onClick={() => void uploadPickedFiles()}
+            >
+              <span className="workbench-files-upload-label">{t('files.uploadFiles')}</span>
+            </Button>
           </Tooltip>
           <Tooltip title={t('files.newFolder')}>
-            <Button type="text" icon={<FolderPlus size={15} />} onClick={createDirectory} />
-          </Tooltip>
-          <Tooltip title={t('files.uploadFiles')}>
-            <Button type="text" icon={<Upload size={15} />} onClick={async () => uploadPaths('picker', await window.termous?.files?.pickFiles() ?? [])} />
+            <Button
+              type="text"
+              className="workbench-files-action-button"
+              aria-label={t('files.newFolder')}
+              icon={<FolderPlus size={15} />}
+              onClick={createDirectory}
+            />
           </Tooltip>
           <Tooltip title={t('files.paste')}>
-            <Button type="text" icon={<Clipboard size={15} />} onClick={() => void paste()} />
+            <Button
+              type="text"
+              className="workbench-files-action-button"
+              aria-label={t('files.paste')}
+              icon={<Clipboard size={15} />}
+              onClick={() => void paste()}
+            />
           </Tooltip>
-          <div className="workbench-files-follow">
-            <span>{t('workbench.files.followTerminal')}</span>
-            <Switch size="small" checked={Boolean(files.viewState?.followTerminal)} onChange={files.setFollowTerminal} />
-          </div>
+          <Tooltip title={followTooltip}>
+            <div
+              className="workbench-files-follow"
+              data-state={followVisualState}
+            >
+              <span className="workbench-files-follow-dot" aria-hidden="true" />
+              <span>{t('workbench.files.followLabel')}</span>
+              <Switch
+                size="small"
+                aria-label={t('workbench.files.followTerminal')}
+                checked={followTerminal}
+                onChange={files.setFollowTerminal}
+              />
+            </div>
+          </Tooltip>
           <Dropdown
             menu={{
               items: [
@@ -400,68 +610,62 @@ function WorkbenchFilesPanelContent({
             }}
             classNames={{ root: 'files-row-menu' }}
           >
-            <Button type="text" icon={<MoreHorizontal size={15} />} />
+            <Button
+              type="text"
+              className="workbench-files-action-button"
+              aria-label={t('workbench.files.moreActions')}
+              icon={<MoreHorizontal size={15} />}
+            />
           </Dropdown>
         </div>
-        {files.viewState?.followTerminal && syncMessage ? (
-          <div className={`workbench-file-sync ${syncWarning ? 'is-warning' : ''}`}>
-            {syncWarning
-              ? <CircleAlert size={13} />
-              : <LoaderCircle className="is-spinning" size={13} />}
+        {syncWarning && syncMessage ? (
+          <div
+            id={syncStatus === 'invalid_path' ? pathErrorId : undefined}
+            className="workbench-file-sync is-warning"
+            role="alert"
+          >
+            <CircleAlert size={13} />
             <span>{syncMessage}</span>
           </div>
         ) : null}
       </div>
+      <div className="workbench-file-list-caption">
+        <span>{itemCountLabel}</span>
+        <span>{t('workbench.files.rightClickHint')}</span>
+      </div>
       <WorkbenchFileList
         entries={files.entries}
         selectedPaths={files.viewState?.selectedPaths ?? []}
+        listingPath={normalizeRemotePath(files.viewState?.listing?.path || currentPath)}
         loading={Boolean(files.viewState?.loading)}
+        initialLoading={Boolean(files.viewState?.loading && !files.viewState.listing)}
         listRef={files.listRef}
         menuFor={menuFor}
         onSelect={(entry) => files.setSelectedPaths([entry.path])}
         onOpen={openEntry}
         onScroll={files.recordScroll}
         onUploadDrop={(target, event) => void uploadDrop(target, event)}
+        onUploadFiles={() => void uploadPickedFiles()}
+        uploading={uploadPicking}
       />
       {files.viewState?.error ? (
-        <button className="workbench-file-inline-error" type="button" onClick={() => void files.loadDirectory(files.viewState?.path || '/')}>
-          {t('workbench.files.readFailed')}
-        </button>
+        <div role="alert">
+          <button
+            className="workbench-file-inline-error"
+            type="button"
+            onClick={() => void files.loadDirectory(currentPath)}
+          >
+            {t('workbench.files.readFailed')}
+          </button>
+        </div>
       ) : null}
-      <WorkbenchTransferBar
-        api={api}
-        fileSessionId={files.fileSession.id}
-        downloadDropActive={dropDownloadActive}
-        onActionError={notifyFailure}
-        onDownloadDragEnter={(event) => {
-          if (event.dataTransfer.types.includes('application/x-termous-remote-download')) {
-            event.preventDefault()
-            setDropDownloadActive(true)
-          }
-        }}
-        onDownloadDragLeave={(event) => {
-          const nextTarget = event.relatedTarget
-          if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
-            setDropDownloadActive(false)
-          }
-        }}
-        onDownloadDragOver={(event) => {
-          if (event.dataTransfer.types.includes('application/x-termous-remote-download')) {
-            event.preventDefault()
-            event.dataTransfer.dropEffect = 'copy'
-          }
-        }}
-        onDownloadDrop={(event) => {
-          event.preventDefault()
-          setDropDownloadActive(false)
-          try {
-            const payload = JSON.parse(event.dataTransfer.getData('application/x-termous-remote-download')) as { paths?: string[] }
-            void downloadPaths(payload.paths ?? [])
-          } catch {
-            notifyFailure()
-          }
-        }}
-      />
+      <div className="workbench-file-transfer-overlay">
+        <WorkbenchTransferBar
+          api={api}
+          fileSessionId={files.fileSession.id}
+          onActionError={notifyFailure}
+        />
+      </div>
       <RemotePermissionModal
         entry={permissionEntry}
         open={Boolean(permissionEntry)}
@@ -472,7 +676,7 @@ function WorkbenchFilesPanelContent({
           try {
             await runAction(async () => {
               await api.chmodFileSessionFile(files.fileSession!.id, entry.path, mode)
-              await files.loadDirectory(files.viewState?.path || '/')
+              await files.loadDirectory(currentPath)
               setPermissionEntry(null)
             }, t('files.permissionsUpdated'))
           } finally {
@@ -490,7 +694,7 @@ function WorkbenchFilesPanelContent({
             theme={theme}
             terminalSettings={data.settings.terminal}
             onClose={() => setTextEditorPath(null)}
-            onSaved={() => void files.loadDirectory(files.viewState?.path || '/')}
+            onSaved={() => void files.loadDirectory(currentPath)}
           />
         </Suspense>
       ) : null}

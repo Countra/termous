@@ -47,9 +47,47 @@ test('目录请求只接受最新响应并在失败时保留最后一次列表',
   assert.equal(stale.listing?.path, '/srv')
 
   const failed = failDirectoryRequest(stale, second.requestSequence, '读取失败')
-  assert.equal(failed.path, '/srv/new')
+  assert.equal(failed.path, '/srv')
   assert.equal(failed.listing?.path, '/srv')
   assert.equal(failed.error, '读取失败')
+})
+
+test('同目录刷新保留仍存在的选择，切换目录时清空选择', () => {
+  const currentListing = {
+    ...listing('/srv'),
+    entries: [
+      {
+        name: 'keep.txt',
+        path: '/srv/keep.txt',
+        kind: 'file' as const,
+        size: 12,
+        mode: '0644',
+        modified_at: '2026-07-18T00:00:00Z',
+        is_hidden: false,
+      },
+    ],
+  }
+  const initial = {
+    ...createSessionFilesViewState('/srv'),
+    selectedPaths: ['/srv/keep.txt', '/srv/removed.txt'],
+    listing: currentListing,
+  }
+
+  const refresh = beginDirectoryRequest(initial, '/srv')
+  const refreshed = completeDirectoryRequest(
+    refresh.state,
+    refresh.requestSequence,
+    currentListing,
+  )
+  assert.deepEqual(refreshed.selectedPaths, ['/srv/keep.txt'])
+
+  const navigation = beginDirectoryRequest(refreshed, '/var')
+  const navigated = completeDirectoryRequest(
+    navigation.state,
+    navigation.requestSequence,
+    listing('/var'),
+  )
+  assert.deepEqual(navigated.selectedPaths, [])
 })
 
 test('目录请求可以使用调用方同步分配的序号', () => {

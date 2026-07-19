@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { TermousApi } from '../../api/client'
 import type {
   AppData,
@@ -36,6 +36,11 @@ interface FileSessionEventMessage {
   session?: FileSession
 }
 
+interface FileListScrollPosition {
+  path: string
+  scrollTop: number
+}
+
 interface UseWorkbenchSessionFilesOptions {
   api: TermousApi
   data: AppData
@@ -64,6 +69,7 @@ export function useWorkbenchSessionFiles({
   const creatingSessionsRef = useRef(new Set<string>())
   const createFailureSessionIdsRef = useRef(new Set<string>())
   const directoryRequestSequencesRef = useRef(new Map<string, number>())
+  const scrollPositionsRef = useRef(new Map<string, FileListScrollPosition>())
   const listRef = useRef<HTMLDivElement>(null)
 
   sourceSessionContextsRef.current = buildSourceSessionContexts(data.sessions)
@@ -86,6 +92,9 @@ export function useWorkbenchSessionFiles({
     )
     directoryRequestSequencesRef.current = new Map(
       [...directoryRequestSequencesRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
+    )
+    scrollPositionsRef.current = new Map(
+      [...scrollPositionsRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
     )
   }, [data.sessions])
 
@@ -110,6 +119,9 @@ export function useWorkbenchSessionFiles({
   const viewState = sourceSessionId
     ? getSessionFilesViewState(viewStates, sourceSessionId, initialPath)
     : null
+  const listingPath = viewState?.listing?.path
+    ? normalizeRemotePath(viewState.listing.path)
+    : ''
   const maintainFileSessionEventStream = shouldMaintainFileSessionEventStream(
     sourceSessionStatus,
     sourceSessionEndedAt,
@@ -369,13 +381,15 @@ export function useWorkbenchSessionFiles({
     viewState?.followTerminal,
   ])
 
-  useEffect(() => {
-    const scrollTop = viewState?.scrollTop
-    if (scrollTop === undefined || !listRef.current) {
+  useLayoutEffect(() => {
+    if (!sourceSessionId || !listingPath || !listRef.current) {
       return
     }
+    const saved = scrollPositionsRef.current.get(sourceSessionId)
+    const scrollTop = saved?.path === listingPath ? saved.scrollTop : 0
     listRef.current.scrollTop = scrollTop
-  }, [sourceSessionId, viewState?.listing?.path, viewState?.scrollTop])
+    scrollPositionsRef.current.set(sourceSessionId, { path: listingPath, scrollTop })
+  }, [listingPath, sourceSessionId])
 
   const navigateDirectory = useCallback(async (targetPath: string) => {
     if (!sourceSessionId || !fileSession || !viewState) {
@@ -429,10 +443,13 @@ export function useWorkbenchSessionFiles({
   }, [initialPath, updateView])
 
   const recordScroll = useCallback(() => {
-    if (listRef.current) {
-      updateView({ scrollTop: listRef.current.scrollTop }, initialPath)
+    if (sourceSessionId && listingPath && listRef.current) {
+      scrollPositionsRef.current.set(sourceSessionId, {
+        path: listingPath,
+        scrollTop: listRef.current.scrollTop,
+      })
     }
-  }, [initialPath, updateView])
+  }, [listingPath, sourceSessionId])
 
   const reconnect = useCallback(async () => {
     if (!fileSession) {
@@ -446,13 +463,27 @@ export function useWorkbenchSessionFiles({
     updateFileSession(await api.reconnectFileSession(fileSession.id))
   }, [api, fileSession, initialPath, sourceSessionId, updateFileSession, updateView])
 
+  const entries = useMemo(
+    () => [...(viewState?.listing?.entries ?? [])].sort((left, right) => {
+      const sortValue = fileSortValue(left).localeCompare(fileSortValue(right))
+      if (sortValue !== 0) {
+        return sortValue
+      }
+      if (left.name !== right.name) {
+        return left.name < right.name ? -1 : 1
+      }
+      return left.path.localeCompare(right.path)
+    }),
+    [viewState?.listing?.entries],
+  )
+
   return {
     sourceSessionId,
     fileSession,
     viewState,
     cwdState,
     listRef,
-    entries: [...(viewState?.listing?.entries ?? [])].sort((left, right) => fileSortValue(left).localeCompare(fileSortValue(right))),
+    entries,
     connected: fileSession?.status === 'connected',
     loadDirectory,
     navigateDirectory,

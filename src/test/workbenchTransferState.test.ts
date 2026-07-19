@@ -41,11 +41,30 @@ test('仅聚合当前文件会话的传输任务', () => {
 
 test('进度按传输字节加权且速度求和', () => {
   const summary = summarizeWorkbenchTransfers([
-    task({ id: 'a', total_bytes: 100, progress_percent: 50, speed_bytes_per_sec: 12 }),
-    task({ id: 'b', total_bytes: 300, progress_percent: 25, speed_bytes_per_sec: 8, eta_seconds: 9 }),
+    task({ id: 'a', total_bytes: 100, transferred_bytes: 50, progress_percent: 50, speed_bytes_per_sec: 12 }),
+    task({ id: 'b', total_bytes: 300, transferred_bytes: 75, progress_percent: 25, speed_bytes_per_sec: 8, eta_seconds: 9 }),
   ], 'file-1')
 
   assert.equal(summary.progress, 31)
   assert.equal(summary.speed, 20)
+  assert.equal(summary.activeTransferredBytes, 125)
+  assert.equal(summary.activeTotalBytes, 400)
   assert.equal(summary.eta, 9)
+})
+
+test('传输汇总清洗越界字节并在瞬时速度为空时使用平均速度', () => {
+  const summary = summarizeWorkbenchTransfers([
+    task({
+      total_bytes: 100,
+      transferred_bytes: 140,
+      progress_percent: 130,
+      speed_bytes_per_sec: 0,
+      average_speed_bytes_per_sec: 16,
+    }),
+  ], 'file-1')
+
+  assert.equal(summary.progress, 100)
+  assert.equal(summary.speed, 16)
+  assert.equal(summary.activeTransferredBytes, 100)
+  assert.equal(summary.activeTotalBytes, 100)
 })

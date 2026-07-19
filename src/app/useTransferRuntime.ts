@@ -43,6 +43,25 @@ export function useTransferRuntime() {
   return runtime
 }
 
+export function mergeTransferUpdate(current: TransferTask, incoming: TransferTask) {
+  const currentRank = transferLifecycleRank(current.status)
+  const incomingRank = transferLifecycleRank(incoming.status)
+  if (incomingRank < currentRank) {
+    return current
+  }
+  if (
+    incomingRank === currentRank
+    && (incoming.status === 'queued' || incoming.status === 'running')
+    && (
+      incoming.transferred_bytes < current.transferred_bytes
+      || incoming.progress_percent < current.progress_percent
+    )
+  ) {
+    return current
+  }
+  return incoming
+}
+
 export function mergeTransferSnapshot(
   current: TransferTask[],
   snapshot: TransferTask[],
@@ -93,4 +112,14 @@ export function sortTransfers(transfers: TransferTask[]) {
 
 function isActiveTransfer(task: TransferTask) {
   return task.status === 'queued' || task.status === 'running'
+}
+
+function transferLifecycleRank(status: TransferTask['status']) {
+  if (status === 'queued') {
+    return 0
+  }
+  if (status === 'running') {
+    return 1
+  }
+  return 2
 }

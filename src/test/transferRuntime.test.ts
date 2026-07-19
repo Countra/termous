@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  mergeTransferUpdate,
   mergeTransferSnapshot,
   TransferSnapshotGate,
 } from '../app/useTransferRuntime.ts'
@@ -90,4 +91,42 @@ test('并发刷新只允许最后发起的请求应用快照', () => {
   assert.equal(gate.isCurrent(second), true)
   assert.equal(gate.isCurrent(first), false)
   assert.equal(second.eventEpoch, 3)
+})
+
+test('创建请求的旧排队响应不会覆盖已到达的实时进度', () => {
+  const running = transfer({
+    status: 'running',
+    transferred_bytes: 80,
+    remaining_bytes: 20,
+    progress_percent: 80,
+  })
+  const staleQueued = transfer({
+    status: 'queued',
+    transferred_bytes: 0,
+    remaining_bytes: 100,
+    progress_percent: 0,
+  })
+
+  assert.equal(mergeTransferUpdate(running, staleQueued), running)
+})
+
+test('活动任务不会被同阶段的旧字节进度回退', () => {
+  const current = transfer({
+    transferred_bytes: 80,
+    remaining_bytes: 20,
+    progress_percent: 80,
+  })
+  const stale = transfer({
+    transferred_bytes: 40,
+    remaining_bytes: 60,
+    progress_percent: 40,
+  })
+  const next = transfer({
+    transferred_bytes: 90,
+    remaining_bytes: 10,
+    progress_percent: 90,
+  })
+
+  assert.equal(mergeTransferUpdate(current, stale), current)
+  assert.equal(mergeTransferUpdate(current, next), next)
 })
