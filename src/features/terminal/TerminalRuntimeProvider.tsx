@@ -16,9 +16,7 @@ import { TermousApi } from '../../api/client'
 import { TerminalCwdRuntimeProvider } from '../../app/TerminalCwdRuntimeProvider'
 import type {
   Session,
-  SessionCwdChangeRequest,
   SessionCwdState,
-  SessionPhase,
   SessionStatus,
   TerminalFont,
   TerminalSettings,
@@ -37,12 +35,17 @@ import {
   type TerminalViewportOptions,
 } from './terminalRuntimeContext'
 import {
-  parseOSC7Payload,
-  parsePrivateCwdPayload,
-  TERMOUS_CWD_PRIVATE_OSC,
   TerminalCwdRuntime,
+  type SessionCwdRequestError,
 } from './terminalCwdRuntime'
 import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from './terminalFonts'
+import {
+  TerminalTransport,
+  type TerminalTransportEvent,
+  type TerminalTransportState,
+} from './terminalTransport'
+
+const terminalTextEncoder = new TextEncoder()
 
 interface TerminalRuntimeProviderProps {
   api: TermousApi
@@ -61,13 +64,13 @@ interface TerminalEntry {
   search: SearchAddon
   searchResult: TerminalSearchResult
   searchDecorationKey: string
-  socket: WebSocket
+  transport: TerminalTransport
+  transportState: TerminalTransportState
   container: HTMLDivElement
   disposables: Array<{ dispose: () => void }>
   lastSize: { cols: number; rows: number }
   resizeTimer: number | null
   disposed: boolean
-  isReady: boolean
 }
 
 interface ViewportState {
@@ -126,17 +129,6 @@ export function TerminalRuntimeProvider({
     tRef.current = t
   }, [onSessionEvent, t])
 
-  const closeSocket = useCallback((socket: WebSocket | null) => {
-    if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
-      return
-    }
-    if (socket.readyState === WebSocket.CONNECTING) {
-      socket.addEventListener('open', () => socket.close(), { once: true })
-      return
-    }
-    socket.close()
-  }, [])
-
   const disposeEntry = useCallback(
     (entry: TerminalEntry) => {
       if (entry.disposed) {
@@ -148,12 +140,12 @@ export function TerminalRuntimeProvider({
         entry.resizeTimer = null
       }
       entry.disposables.forEach((disposable) => disposable.dispose())
-      closeSocket(entry.socket)
+      entry.transport.dispose()
       entry.terminal.dispose()
       entry.container.remove()
       entriesRef.current.delete(entry.sessionId)
     },
-    [closeSocket],
+    [],
   )
 
   const disposeSession = useCallback(
@@ -178,16 +170,14 @@ export function TerminalRuntimeProvider({
   }, [])
 
   const sendResize = useCallback((entry: TerminalEntry) => {
-    const { terminal, socket, lastSize } = entry
+    const { terminal, lastSize } = entry
     if (terminal.cols === lastSize.cols && terminal.rows === lastSize.rows) {
       return
     }
     lastSize.cols = terminal.cols
     lastSize.rows = terminal.rows
     getViewportForSession(entry.sessionId)?.onResize?.(terminal.cols, terminal.rows)
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type: 'resize', cols: terminal.cols, rows: terminal.rows }))
-    }
+    entry.transport.sendResize(terminal.cols, terminal.rows)
   }, [getViewportForSession])
 
   const fitAndResize = useCallback(
@@ -231,13 +221,14 @@ export function TerminalRuntimeProvider({
     return isEndedSessionStatus(sessionsRef.current.get(entry.sessionId)?.status)
   }, [])
 
+  const isEntryWritable = useCallback((entry: TerminalEntry) => {
+    return sessionsRef.current.get(entry.sessionId)?.status === 'connected'
+  }, [])
+
   const applyEntrySessionState = useCallback(
     (entry: TerminalEntry) => {
       const ended = isEntryEnded(entry)
       entry.container.classList.toggle('is-terminal-ended', ended)
-      if (ended) {
-        entry.isReady = false
-      }
     },
     [isEntryEnded],
   )
@@ -247,18 +238,24 @@ export function TerminalRuntimeProvider({
     if (!entry) {
       return 'missing_session'
     }
-    if (isEntryEnded(entry) || activeSessionIdRef.current !== sessionId || !entry.isReady || entry.socket.readyState !== WebSocket.OPEN) {
+    if (
+      !isEntryWritable(entry) ||
+      activeSessionIdRef.current !== sessionId ||
+      !entry.transport.isLive()
+    ) {
       return 'not_ready'
     }
     try {
       const payload = options?.execute ? ensureTerminalEnter(text) : text
-      entry.socket.send(JSON.stringify({ type: 'input', data: payload }))
+      if (!entry.transport.sendInput(terminalTextEncoder.encode(payload))) {
+        return 'not_ready'
+      }
       entry.terminal.focus()
       return 'sent'
     } catch {
       return 'failed'
     }
-  }, [isEntryEnded])
+  }, [isEntryWritable])
 
   const sendTextToActive = useCallback(
     (text: string, options?: { execute?: boolean }) => {
@@ -304,7 +301,7 @@ export function TerminalRuntimeProvider({
 
   const pasteEntryClipboard = useCallback(
     async (entry: TerminalEntry): Promise<TerminalClipboardAction> => {
-      if (isEntryEnded(entry)) {
+      if (!isEntryWritable(entry) || !entry.transport.isLive()) {
         return 'none'
       }
       try {
@@ -320,7 +317,7 @@ export function TerminalRuntimeProvider({
         return 'failed'
       }
     },
-    [isEntryEnded, notifyClipboardError],
+    [isEntryWritable, notifyClipboardError],
   )
 
   const copyActiveSelection = useCallback(async () => {
@@ -417,7 +414,6 @@ export function TerminalRuntimeProvider({
       pane.dataset.sessionId = sessionId
       ;(parkingHostRef.current ?? document.body).appendChild(pane)
 
-      const socket = new WebSocket(apiRef.current.websocketUrl(`/api/v1/sessions/${sessionId}/terminal`))
       const fit = new FitAddon()
       const search = new SearchAddon({ highlightLimit: 2000 })
       const terminal = createTerminal(themeRef.current, terminalSettingsRef.current, terminalFontsRef.current)
@@ -429,22 +425,6 @@ export function TerminalRuntimeProvider({
         helperInput.name = `terminal-input-${sessionId}`
       }
 
-      const entry: TerminalEntry = {
-        sessionId,
-        terminal,
-        fit,
-        search,
-        searchResult: emptySearchResult(),
-        searchDecorationKey: '',
-        socket,
-        container: pane,
-        disposables: [],
-        lastSize: { cols: 0, rows: 0 },
-        resizeTimer: null,
-        disposed: false,
-        isReady: false,
-      }
-      entriesRef.current.set(sessionId, entry)
       const relaySessionEvent = (targetSessionId: string, patch: Partial<Session>) => {
         const existing = sessionsRef.current.get(targetSessionId)
         if (existing) {
@@ -454,18 +434,61 @@ export function TerminalRuntimeProvider({
         }
         onSessionEventRef.current?.(targetSessionId, patch)
       }
+      const transport = new TerminalTransport({
+        url: apiRef.current.websocketUrl(`/api/v1/sessions/${sessionId}/terminal`),
+        onEvent: (event) => {
+          const currentEntry = entriesRef.current.get(sessionId)
+          if (!currentEntry || currentEntry.disposed) {
+            return
+          }
+          handleTerminalTransportEvent(
+            currentEntry,
+            event,
+            relaySessionEvent,
+            (state) => cwdRuntime.applyServerState(sessionId, state),
+            (requestError) => {
+              cwdRuntime.applyRequestError(sessionId, requestError)
+            },
+            tRef.current('workbench.terminalOutputGap'),
+          )
+          applyEntrySessionState(currentEntry)
+          if (
+            event.type === 'attached' &&
+            activeSessionIdRef.current === sessionId
+          ) {
+            fitAndResize(currentEntry, true)
+          }
+        },
+      })
+      const entry: TerminalEntry = {
+        sessionId,
+        terminal,
+        fit,
+        search,
+        searchResult: emptySearchResult(),
+        searchDecorationKey: '',
+        transport,
+        transportState: 'idle',
+        container: pane,
+        disposables: [],
+        lastSize: { cols: 0, rows: 0 },
+        resizeTimer: null,
+        disposed: false,
+      }
+      entriesRef.current.set(sessionId, entry)
       const sendTerminalInput = (data: string | Uint8Array) => {
         const viewport = getViewportForSession(sessionId)
-        if (entry.disposed || isEntryEnded(entry) || !entry.isReady || socket.readyState !== WebSocket.OPEN || !viewport?.host) {
+        if (
+          entry.disposed ||
+          !isEntryWritable(entry) ||
+          !entry.transport.isLive() ||
+          !viewport?.host
+        ) {
           return
         }
-        if (typeof data === 'string') {
-          socket.send(JSON.stringify({ type: 'input', data }))
-          return
-        }
-        const payload = new ArrayBuffer(data.byteLength)
-        new Uint8Array(payload).set(data)
-        socket.send(payload)
+        entry.transport.sendInput(
+          typeof data === 'string' ? terminalTextEncoder.encode(data) : data,
+        )
       }
       const handleClipboardKey = (event: KeyboardEvent) => {
         const key = event.key.toLowerCase()
@@ -479,7 +502,7 @@ export function TerminalRuntimeProvider({
           void copyEntrySelection(entry)
           return
         }
-        if (isEntryEnded(entry)) {
+        if (!isEntryWritable(entry)) {
           event.preventDefault()
           event.stopPropagation()
           return
@@ -508,7 +531,7 @@ export function TerminalRuntimeProvider({
           }
           return
         }
-        if (isEntryEnded(entry)) {
+        if (!isEntryWritable(entry)) {
           return
         }
         sendTerminalInput('\x03')
@@ -516,7 +539,7 @@ export function TerminalRuntimeProvider({
       const handlePasteEvent = (event: ClipboardEvent) => {
         event.preventDefault()
         event.stopPropagation()
-        if (isEntryEnded(entry)) {
+        if (!isEntryWritable(entry)) {
           return
         }
         const text = event.clipboardData?.getData('text/plain')
@@ -546,102 +569,28 @@ export function TerminalRuntimeProvider({
           sendTerminalInput(binaryStringToBytes(data))
         }),
       )
-      entry.disposables.push(
-        terminal.parser.registerOscHandler(7, (payload) => {
-          const observation = parseOSC7Payload(payload)
-          return observation
-            ? cwdRuntime.observeTerminalPath(sessionId, observation)
-            : false
-        }),
-        terminal.parser.registerOscHandler(TERMOUS_CWD_PRIVATE_OSC, (payload) => {
-          const observation = parsePrivateCwdPayload(payload)
-          return observation
-            ? cwdRuntime.observePrivateControl(sessionId, observation)
-            : false
-        }),
-      )
       const unregisterCwdTransport = cwdRuntime.registerTransport(sessionId, (request) => {
         if (
           entry.disposed ||
-          isEntryEnded(entry) ||
-          !entry.isReady ||
-          socket.readyState !== WebSocket.OPEN
+          !isEntryWritable(entry) ||
+          !entry.transport.isLive()
         ) {
           return false
         }
-        try {
-          socket.send(JSON.stringify({
-            type: 'cwd_change',
-            cwd_change: request,
-          }))
-          return true
-        } catch {
-          return false
-        }
+        return entry.transport.sendCwdChange(request)
       })
       entry.disposables.push({ dispose: unregisterCwdTransport })
-
-      socket.addEventListener('open', () => {
-        if (isEntryEnded(entry)) {
-          closeSocket(socket)
-          applyEntrySessionState(entry)
-          return
-        }
-        entry.isReady = true
-        if (activeSessionIdRef.current === sessionId) {
-          fitAndResize(entry, true)
-        }
-      })
-      socket.addEventListener('message', (event) => {
-        if (entry.disposed) {
-          return
-        }
-        handleSocketMessage(
-          entry,
-          String(event.data),
-          relaySessionEvent,
-          (state) => cwdRuntime.applyServerState(sessionId, state),
-          (message, operationId) => {
-            cwdRuntime.applyRequestError(sessionId, message, operationId)
-          },
-          tRef.current,
-        )
-        applyEntrySessionState(entry)
-      })
-      socket.addEventListener('close', () => {
-        if (!entry.disposed) {
-          const currentStatus = sessionsRef.current.get(sessionId)?.status
-          if (!isEndedSessionStatus(currentStatus)) {
-            relaySessionEvent(sessionId, {
-              status: 'disconnected',
-              phase: 'disconnected',
-              status_message: tRef.current('status.disconnected'),
-            })
-          }
-          applyEntrySessionState(entry)
-        }
-      })
-      socket.addEventListener('error', () => {
-        relaySessionEvent(sessionId, {
-          status: 'failed',
-          phase: 'failed',
-          progress: 100,
-          status_message: tRef.current('app.apiOffline'),
-          last_error: tRef.current('app.apiOffline'),
-        })
-        applyEntrySessionState(entry)
-      })
+      transport.start()
 
       return entry
     },
     [
       applyEntrySessionState,
-      closeSocket,
       copyEntrySelection,
       cwdRuntime,
       fitAndResize,
       getViewportForSession,
-      isEntryEnded,
+      isEntryWritable,
       pasteEntryClipboard,
     ],
   )
@@ -677,11 +626,7 @@ export function TerminalRuntimeProvider({
     })
 
     visibleViewports.forEach((viewport, sessionId) => {
-      const existingEntry = entriesRef.current.get(sessionId)
-      if (!existingEntry && isEndedSessionStatus(sessionsRef.current.get(sessionId)?.status)) {
-        return
-      }
-      const entry = existingEntry ?? createEntry(sessionId)
+      const entry = entriesRef.current.get(sessionId) ?? createEntry(sessionId)
       moveEntryToHost(entry, viewport.host, sessionId === activeSessionIdRef.current, true)
       fitAndResize(entry, sessionId === activeSessionIdRef.current && !isEndedSessionStatus(sessionsRef.current.get(sessionId)?.status))
     })
@@ -853,71 +798,69 @@ function shouldFitAfterSettingsChange(previous: TerminalSettings, next: Terminal
   )
 }
 
-function handleSocketMessage(
+function handleTerminalTransportEvent(
   entry: TerminalEntry,
-  data: string,
+  event: TerminalTransportEvent,
   onSessionEvent: TerminalRuntimeProviderProps['onSessionEvent'],
   onCwdState: (state: SessionCwdState) => void,
-  onCwdError: (message: string, operationId?: string) => void,
-  t: (key: string) => string,
+  onCwdError: (error: SessionCwdRequestError) => void,
+  outputGapMessage: string,
 ) {
-  try {
-    const msg = JSON.parse(data) as {
-      type: string
-      data?: string
-      message?: string
-      reason?: string
-      status?: SessionStatus
-      phase?: SessionPhase
-      progress?: number
-      session?: Session
-      cwd_change?: SessionCwdChangeRequest
-      cwd_state?: SessionCwdState
-    }
-    if (msg.session) {
-      onSessionEvent?.(entry.sessionId, msg.session)
-    } else if (msg.type === 'status' || msg.type === 'phase' || msg.type === 'ready' || msg.type === 'inventory') {
-      if (msg.status || msg.phase || typeof msg.progress === 'number') {
-        const patch: Partial<Session> = { status_message: msg.message }
-        if (msg.status) patch.status = msg.status
-        if (msg.phase) patch.phase = msg.phase
-        if (typeof msg.progress === 'number') patch.progress = msg.progress
-        onSessionEvent?.(entry.sessionId, patch)
+  switch (event.type) {
+    case 'transport_state':
+      entry.transportState = event.state
+      entry.container.dataset.transportState = event.state
+      entry.container.classList.toggle(
+        'is-terminal-transport-reconnecting',
+        event.state === 'connecting' ||
+          event.state === 'attaching' ||
+          event.state === 'retry_wait',
+      )
+      return
+    case 'attached':
+      delete entry.container.dataset.transportError
+      onSessionEvent?.(entry.sessionId, event.message.session)
+      onCwdState(event.message.cwd_state)
+      return
+    case 'output':
+      entry.terminal.write(event.data)
+      return
+    case 'output_gap':
+      entry.container.dataset.outputGapReason = event.reason
+      entry.container.dataset.outputGapMessage = outputGapMessage
+      return
+    case 'session_state':
+      onSessionEvent?.(entry.sessionId, event.message.session)
+      return
+    case 'cwd_state':
+      onCwdState(event.message.cwd_state)
+      return
+    case 'request_error':
+      entry.container.dataset.transportError = event.code
+      if (event.scope === 'cwd_change' && event.requestId) {
+        onCwdError({
+          operation_id: event.requestId,
+          code: event.code,
+          retryable: event.retryable,
+          message: event.message,
+        })
       }
+      return
+    case 'session_ended': {
+      const patch: Partial<Session> = {
+        ...event.message.session,
+        status_message:
+          event.message.session.status_message || event.message.reason,
+      }
+      if (event.message.exit_code !== undefined) {
+        patch.exit_code = event.message.exit_code
+      }
+      onSessionEvent?.(entry.sessionId, patch)
+      return
     }
-    if (msg.type === 'output' && msg.data) {
-      entry.terminal.write(msg.data)
-    }
-    if (msg.type === 'cwd_state' && msg.cwd_state) {
-      onCwdState(msg.cwd_state)
-    }
-    if (msg.type === 'cwd_error' && msg.message) {
-      onCwdError(msg.message, msg.cwd_change?.operation_id)
-    }
-    if (msg.type === 'error' && msg.message) {
-      onSessionEvent?.(entry.sessionId, {
-        status: 'failed',
-        phase: 'failed',
-        progress: 100,
-        status_message: msg.message,
-        last_error: msg.message,
-      })
-    }
-    if (msg.type === 'closed') {
-      onSessionEvent?.(entry.sessionId, {
-        status: 'disconnected',
-        phase: 'disconnected',
-        status_message: msg.reason ?? t('status.disconnected'),
-      })
-    }
-  } catch {
-    onSessionEvent?.(entry.sessionId, {
-      status: 'failed',
-      phase: 'failed',
-      progress: 100,
-      status_message: t('app.error'),
-      last_error: t('app.error'),
-    })
+    case 'protocol_error':
+      entry.container.dataset.transportError = event.error.message
+      return
   }
 }
 

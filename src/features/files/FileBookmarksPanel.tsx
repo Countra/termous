@@ -22,6 +22,7 @@ import type {
   FileBookmarkReorderItem,
 } from '../../types/domain'
 import { normalizeRemotePath } from './fileUtils'
+import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
 
 interface FileBookmarksPanelProps {
   bookmarks: FileBookmark[]
@@ -145,9 +146,18 @@ export function FileBookmarksPanel({
     if (!bookmarkDraft) {
       return
     }
+    const normalizedPath = normalizeRemotePosixPath(bookmarkDraft.path)
+    if (!normalizedPath) {
+      notification.warning({
+        message: t('workbench.files.invalidPath'),
+        placement: 'topRight',
+        duration: 2.4,
+      })
+      return
+    }
     const input = {
       name: bookmarkDraft.name.trim(),
-      path: normalizeRemotePath(bookmarkDraft.path),
+      path: normalizedPath,
       group_id: bookmarkDraft.group_id,
     }
     if (!input.name) {

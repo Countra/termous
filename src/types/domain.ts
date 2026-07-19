@@ -288,6 +288,7 @@ export interface SessionCwdOperation {
 export interface SessionCwdState {
   confirmed_path?: string
   desired_path?: string
+  state_seq: number
   revision: number
   source: SessionCwdSource
   capability: SessionCwdCapability
@@ -301,7 +302,7 @@ export interface SessionCwdState {
 
 export interface SessionCwdChangeRequest {
   operation_id: string
-  revision: number
+  base_revision: number
   file_session_id: string
   path: string
 }

@@ -38,3 +38,16 @@ export function canApplyCreatedFileSession(
     && created.source_session_id === sourceSessionId
     && created.host_id === hostId
 }
+
+export function shouldMaintainFileSessionEventStream(
+  sourceStatus: Session['status'] | null,
+  sourceEndedAt: string | undefined,
+  fileSessionStatus: FileSession['status'] | null,
+) {
+  if (sourceStatus !== 'connected' || sourceEndedAt) {
+    return false
+  }
+  return fileSessionStatus === 'connecting'
+    || fileSessionStatus === 'connected'
+    || fileSessionStatus === 'waiting_trust'
+}

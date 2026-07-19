@@ -6,8 +6,13 @@ import type {
   RemoteFileEntry,
   Session,
 } from '../../types/domain'
+import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
 import { fileSortValue, normalizeRemotePath } from '../files/fileUtils'
-import { useSessionCwdState, useTerminalCwdRuntime } from '../terminal/terminalCwdContext'
+import {
+  useSessionCwdRequestError,
+  useSessionCwdState,
+  useTerminalCwdRuntime,
+} from '../terminal/terminalCwdContext'
 import {
   applySessionFilesSyncState,
   beginDirectoryRequest,
@@ -23,6 +28,7 @@ import {
   buildSourceSessionContexts,
   canApplyCreatedFileSession,
   isCurrentSourceSession,
+  shouldMaintainFileSessionEventStream,
 } from './workbenchFileSessionLifecycle'
 
 interface FileSessionEventMessage {
@@ -46,8 +52,10 @@ export function useWorkbenchSessionFiles({
   const cwdRuntime = useTerminalCwdRuntime()
   const sourceSessionId = activeSession?.kind === 'ssh' ? activeSession.id : null
   const sourceSessionStatus = activeSession?.kind === 'ssh' ? activeSession.status : null
+  const sourceSessionEndedAt = activeSession?.kind === 'ssh' ? activeSession.ended_at : undefined
   const sourceHostId = activeSession?.kind === 'ssh' ? activeSession.host_id : null
   const cwdState = useSessionCwdState(sourceSessionId)
+  const cwdRequestError = useSessionCwdRequestError(sourceSessionId)
   const [viewStates, setViewStates] = useState<SessionFilesViewStateMap>({})
   const [sessionOverrides, setSessionOverrides] = useState<Record<string, FileSession>>({})
   const [createRetrySequence, setCreateRetrySequence] = useState(0)
@@ -102,6 +110,11 @@ export function useWorkbenchSessionFiles({
   const viewState = sourceSessionId
     ? getSessionFilesViewState(viewStates, sourceSessionId, initialPath)
     : null
+  const maintainFileSessionEventStream = shouldMaintainFileSessionEventStream(
+    sourceSessionStatus,
+    sourceSessionEndedAt,
+    fileSession?.status ?? null,
+  )
 
   const updateView = useCallback((
     update: Parameters<typeof updateSessionFilesViewState>[2],
@@ -187,7 +200,7 @@ export function useWorkbenchSessionFiles({
   ])
 
   useEffect(() => {
-    if (!fileSession?.id) {
+    if (!fileSession?.id || !maintainFileSessionEventStream) {
       return
     }
     let disposed = false
@@ -225,7 +238,7 @@ export function useWorkbenchSessionFiles({
       }
       socket?.close()
     }
-  }, [api, fileSession?.id, updateFileSession])
+  }, [api, fileSession?.id, maintainFileSessionEventStream, updateFileSession])
 
   useEffect(() => {
     if (
@@ -259,7 +272,15 @@ export function useWorkbenchSessionFiles({
     if (!sourceSessionId || !fileSession || fileSession.status !== 'connected') {
       return false
     }
-    const normalized = normalizeRemotePath(targetPath)
+    const normalized = normalizeRemotePosixPath(targetPath)
+    if (!normalized) {
+      updateView({
+        loading: false,
+        error: 'invalid_path',
+        syncStatus: 'invalid_path',
+      })
+      return false
+    }
     const sequence = (directoryRequestSequencesRef.current.get(sourceSessionId) ?? 0) + 1
     directoryRequestSequencesRef.current.set(sourceSessionId, sequence)
     setViewStates((current) => {
@@ -286,7 +307,7 @@ export function useWorkbenchSessionFiles({
       ))
       return false
     }
-  }, [api, fileSession, sourceSessionId])
+  }, [api, fileSession, sourceSessionId, updateView])
 
   useEffect(() => {
     if (
@@ -324,9 +345,14 @@ export function useWorkbenchSessionFiles({
       return
     }
     const pending = cwdState.pending_operation
-    const nextStatus: SessionFilesSyncStatus = pending?.status
-      ?? (cwdState.capability === 'unsupported' ? 'unsupported' : '')
-    const nextError = pending?.error ?? cwdState.capability_cause ?? ''
+    const nextStatus: SessionFilesSyncStatus = cwdRequestError
+      ? 'failed'
+      : pending?.status
+        ?? (cwdState.capability === 'unsupported' ? 'unsupported' : '')
+    const nextError = cwdRequestError?.message
+      ?? pending?.error
+      ?? cwdState.capability_cause
+      ?? ''
     const confirmedPath = cwdState.confirmed_path
       ? normalizeRemotePath(cwdState.confirmed_path)
       : ''
@@ -336,6 +362,7 @@ export function useWorkbenchSessionFiles({
     )
   }, [
     cwdState,
+    cwdRequestError,
     enabled,
     initialPath,
     updateView,
@@ -354,7 +381,14 @@ export function useWorkbenchSessionFiles({
     if (!sourceSessionId || !fileSession || !viewState) {
       return false
     }
-    const normalized = normalizeRemotePath(targetPath)
+    const normalized = normalizeRemotePosixPath(targetPath)
+    if (!normalized) {
+      updateView({
+        syncStatus: 'invalid_path',
+        syncError: '',
+      })
+      return false
+    }
     if (!viewState.followTerminal) {
       return loadDirectory(normalized)
     }

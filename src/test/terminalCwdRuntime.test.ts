@@ -1,16 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { SessionCwdState } from '../types/domain.ts'
-import {
-  normalizePosixPath,
-  parseOSC7Payload,
-  parsePrivateCwdPayload,
-  TerminalCwdRuntime,
-} from '../features/terminal/terminalCwdRuntime.ts'
+import { TerminalCwdRuntime } from '../features/terminal/terminalCwdRuntime.ts'
 
 function cwdState(overrides: Partial<SessionCwdState> = {}): SessionCwdState {
   return {
     confirmed_path: '/root',
+    state_seq: 1,
     revision: 1,
     source: 'terminal',
     capability: 'supported',
@@ -22,18 +18,23 @@ function cwdState(overrides: Partial<SessionCwdState> = {}): SessionCwdState {
   }
 }
 
-test('服务端 CWD 状态按 source generation 和 revision 单调合并', () => {
+test('服务端 CWD 状态按 state sequence 单调合并', () => {
   const runtime = new TerminalCwdRuntime()
 
+  assert.equal(runtime.applyServerState('ses-1', cwdState({ state_seq: 0 })), true)
   assert.equal(runtime.applyServerState('ses-1', cwdState()), true)
   assert.equal(runtime.applyServerState('ses-1', cwdState({
+    confirmed_path: '/same-sequence',
+  })), false)
+  assert.equal(runtime.applyServerState('ses-1', cwdState({
     confirmed_path: '/stale',
-    revision: 0,
+    state_seq: 0,
   })), false)
   assert.equal(runtime.getSnapshot('ses-1').confirmed_path, '/root')
 
   assert.equal(runtime.applyServerState('ses-1', cwdState({
     confirmed_path: '/new-source',
+    state_seq: 2,
     revision: 0,
     prompt_generation: 0,
     source_generation: 8,
@@ -41,23 +42,12 @@ test('服务端 CWD 状态按 source generation 和 revision 单调合并', () =
   assert.equal(runtime.getSnapshot('ses-1').confirmed_path, '/new-source')
 })
 
-test('同一 revision 的旧 prompt generation 不会覆盖新状态', () => {
+test('目录请求 latest-wins 且只携带服务端基准 revision', () => {
   const runtime = new TerminalCwdRuntime()
-  runtime.applyServerState('ses-1', cwdState({ prompt_generation: 4 }))
-
-  assert.equal(runtime.applyServerState('ses-1', cwdState({
-    confirmed_path: '/stale',
-    prompt_generation: 3,
-  })), false)
-  assert.equal(runtime.getSnapshot('ses-1').confirmed_path, '/root')
-})
-
-test('目录请求 latest-wins 且使用递增 revision', () => {
-  const runtime = new TerminalCwdRuntime()
-  const requests: Array<{ path: string; revision: number }> = []
+  const requests: Array<{ path: string; baseRevision: number }> = []
   runtime.applyServerState('ses-1', cwdState())
   runtime.registerTransport('ses-1', (request) => {
-    requests.push({ path: request.path, revision: request.revision })
+    requests.push({ path: request.path, baseRevision: request.base_revision })
     return true
   })
 
@@ -67,11 +57,12 @@ test('目录请求 latest-wins 且使用递增 revision', () => {
   assert.equal(first.status, 'queued')
   assert.equal(second.status, 'queued')
   assert.deepEqual(requests, [
-    { path: '/root/first', revision: 2 },
-    { path: '/root/second', revision: 3 },
+    { path: '/root/first', baseRevision: 1 },
+    { path: '/root/second', baseRevision: 1 },
   ])
-  assert.equal(runtime.getSnapshot('ses-1').desired_path, '/root/second')
-  assert.equal(runtime.getSnapshot('ses-1').pending_operation?.revision, 3)
+  assert.equal(runtime.getSnapshot('ses-1').desired_path, undefined)
+  assert.equal(runtime.getSnapshot('ses-1').revision, 1)
+  assert.equal(runtime.getSnapshot('ses-1').pending_operation, undefined)
 })
 
 test('重复目录、unsupported 和未就绪 transport 不发送请求', () => {
@@ -103,21 +94,35 @@ test('重复目录、unsupported 和未就绪 transport 不发送请求', () => 
   )
 })
 
-test('cwd_error 只失败当前 pending operation 并保留 last-good path', () => {
+test('request_error 与服务端 CWD 状态分离并保留 last-good path', () => {
   const runtime = new TerminalCwdRuntime()
   runtime.applyServerState('ses-1', cwdState())
   runtime.registerTransport('ses-1', () => true)
-  runtime.requestDirectoryChange('ses-1', 'fil-1', '/tmp')
+  const result = runtime.requestDirectoryChange('ses-1', 'fil-1', '/tmp')
 
-  assert.equal(runtime.applyRequestError('ses-1', '当前 Shell 正忙'), true)
+  assert.equal(result.status, 'queued')
+  if (result.status !== 'queued') {
+    assert.fail('目录切换请求应进入队列')
+  }
+  assert.equal(runtime.applyRequestError('ses-1', {
+    operation_id: result.request.operation_id,
+    code: 'CWD_BUSY',
+    retryable: true,
+    message: '当前 Shell 正忙',
+  }), true)
   const state = runtime.getSnapshot('ses-1')
   assert.equal(state.confirmed_path, '/root')
   assert.equal(state.desired_path, undefined)
-  assert.equal(state.pending_operation?.status, 'failed')
-  assert.equal(state.pending_operation?.error, '当前 Shell 正忙')
+  assert.equal(state.pending_operation, undefined)
+  assert.deepEqual(runtime.getRequestErrorSnapshot('ses-1'), {
+    operation_id: result.request.operation_id,
+    code: 'CWD_BUSY',
+    retryable: true,
+    message: '当前 Shell 正忙',
+  })
 })
 
-test('过期 cwd_error 不会覆盖较新的 pending operation', () => {
+test('过期 request_error 不会覆盖较新的目录请求结果', () => {
   const runtime = new TerminalCwdRuntime()
   runtime.applyServerState('ses-1', cwdState())
   runtime.registerTransport('ses-1', () => true)
@@ -130,14 +135,15 @@ test('过期 cwd_error 不会覆盖较新的 pending operation', () => {
     assert.fail('目录切换请求应进入队列')
   }
   assert.equal(
-    runtime.applyRequestError('ses-1', '过期错误', first.request.operation_id),
+    runtime.applyRequestError('ses-1', {
+      operation_id: first.request.operation_id,
+      code: 'STALE',
+      retryable: false,
+      message: '过期错误',
+    }),
     false,
   )
-  assert.equal(
-    runtime.getSnapshot('ses-1').pending_operation?.id,
-    second.request.operation_id,
-  )
-  assert.equal(runtime.getSnapshot('ses-1').pending_operation?.status, 'queued')
+  assert.equal(runtime.getRequestErrorSnapshot('ses-1'), null)
 })
 
 test('transport 抛出异常时不会留下伪 pending operation', () => {
@@ -153,55 +159,6 @@ test('transport 抛出异常时不会留下伪 pending operation', () => {
   )
   assert.equal(runtime.getSnapshot('ses-1').pending_operation, undefined)
   assert.equal(runtime.getSnapshot('ses-1').desired_path, undefined)
-})
-
-test('OSC 7 只接受无凭据、无查询且为绝对路径的 file URI', () => {
-  assert.deepEqual(parseOSC7Payload('file://server/root/a%20b'), {
-    authority: 'server',
-    path: '/root/a b',
-  })
-  assert.equal(parseOSC7Payload('https://server/root'), null)
-  assert.equal(parseOSC7Payload('file://user@server/root'), null)
-  assert.equal(parseOSC7Payload('file://server/root?query=1'), null)
-  assert.equal(parseOSC7Payload('file:///root'), null)
-})
-
-test('私有 OSC 仅接受版本化 phase 与 cwd ack', () => {
-  assert.deepEqual(
-    parsePrivateCwdPayload('termous;1;phase;nonce_1;7;3;prompt'),
-    {
-      kind: 'phase',
-      nonce: 'nonce_1',
-      sourceGeneration: 7,
-      promptGeneration: 3,
-      phase: 'prompt',
-    },
-  )
-  assert.deepEqual(
-    parsePrivateCwdPayload('termous;1;cwd;nonce_1;7;3;9;cwd-op_1;ok;prompt'),
-    {
-      kind: 'ack',
-      nonce: 'nonce_1',
-      sourceGeneration: 7,
-      promptGeneration: 3,
-      revision: 9,
-      operationId: 'cwd-op_1',
-      status: 'ok',
-      phase: 'prompt',
-    },
-  )
-  assert.equal(parsePrivateCwdPayload('termous;2;phase;nonce_1;7;3;prompt'), null)
-  assert.equal(parsePrivateCwdPayload('termous;1;cwd;bad nonce;7;3;9;op;ok;prompt'), null)
-})
-
-test('POSIX 路径规范化拒绝相对路径和控制字符', () => {
-  assert.equal(normalizePosixPath('/root/./a/../b'), '/root/b')
-  assert.equal(normalizePosixPath('/'), '/')
-  assert.equal(normalizePosixPath('root'), null)
-  assert.equal(normalizePosixPath('/root\u0000bad'), null)
-  assert.equal(normalizePosixPath('/root/\ud800bad'), null)
-  assert.equal(normalizePosixPath('/root/\udc00bad'), null)
-  assert.equal(normalizePosixPath('/root/😀'), '/root/😀')
 })
 
 test('销毁会话会释放 transport 与订阅状态', () => {

@@ -3247,6 +3247,34 @@ body.is-terminal-tab-dragging * {
   padding: 0;
 }
 
+.terminal-session-pane[data-output-gap-message]::after {
+  position: absolute;
+  z-index: 4;
+  top: 8px;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  transform: translateX(-50%);
+  border: 1px solid color-mix(in srgb, #e7ad52 54%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, #241a0d 92%, transparent);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 24%);
+  color: #f3c775;
+  content: attr(data-output-gap-message);
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
+}
+
+:root[data-theme="light"] .terminal-session-pane[data-output-gap-message]::after {
+  border-color: color-mix(in srgb, #9e6a18 42%, transparent);
+  background: color-mix(in srgb, #fff8e9 96%, transparent);
+  box-shadow: 0 8px 22px rgb(73 48 10 / 14%);
+  color: #7d5110;
+}
+
 .terminal-session-pane .xterm,
 .terminal-session-pane .xterm-screen,
 .terminal-session-pane .xterm-viewport {

@@ -1,4 +1,5 @@
 import type { RemoteFileEntry, TransferStatus, TransferTask } from '../../types/domain'
+import { requireRemotePosixPath } from '../../shared/remotePosixPath.ts'
 
 export function parentPath(path: string) {
   const cleaned = normalizeRemotePath(path)
@@ -12,24 +13,12 @@ export function parentPath(path: string) {
 
 export function joinPath(base: string, name: string) {
   const left = normalizeRemotePath(base)
-  const right = name.replace(/\\/g, '/').replace(/^\/+/, '')
+  const right = name.replace(/^\/+/, '')
   return normalizeRemotePath(`${left === '/' ? '' : left}/${right}`)
 }
 
 export function normalizeRemotePath(value: string) {
-  const segments: string[] = []
-  for (const segment of value.replace(/\\/g, '/').split('/')) {
-    const clean = segment.trim()
-    if (!clean || clean === '.') {
-      continue
-    }
-    if (clean === '..') {
-      segments.pop()
-      continue
-    }
-    segments.push(clean)
-  }
-  return segments.length ? `/${segments.join('/')}` : '/'
+  return requireRemotePosixPath(value)
 }
 
 export function pathBase(path: string) {

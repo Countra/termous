@@ -114,6 +114,7 @@
     "reconnectSession": "Reconnect",
     "terminalDisconnectedTitle": "Connection closed",
     "terminalDisconnectedHint": "The remote connection has ended. Terminal output is preserved.",
+    "terminalOutputGap": "Some terminal output exceeded the replay buffer. Display continues from the earliest recoverable position.",
     "terminalFailedTitle": "Connection unavailable",
     "terminalFailedHint": "This terminal session is unavailable. You can reconnect.",
     "connectionDetails": "Connection details",

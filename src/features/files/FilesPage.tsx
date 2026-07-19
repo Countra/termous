@@ -75,6 +75,7 @@ import {
   type RemoteFileActionHandlers,
 } from '../../components/files/remoteFileActions'
 import { fileSortValue, formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
+import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
 import { FileBookmarksPanel } from './FileBookmarksPanel'
 import { LocalPathMappingsPanel, type LocalPathRefreshRequest } from './LocalPathMappingsPanel'
 import { TransferQueuePanel, type PendingFileOperation } from './TransferQueuePanel'
@@ -444,7 +445,16 @@ function FilesPageContent({
         setEntries([])
         return
       }
-      const normalized = normalizeRemotePath(nextPath)
+      const normalized = normalizeRemotePosixPath(nextPath)
+      if (!normalized) {
+        notification.warning({
+          message: t('workbench.files.invalidPath'),
+          duration: 3,
+          role: 'alert',
+          className: 'termous-notification',
+        })
+        return
+      }
       setLoading(true)
       try {
         const listing = await api.listFileSessionFiles(activeFileSessionId, normalized)
