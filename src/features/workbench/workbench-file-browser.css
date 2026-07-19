@@ -61,7 +61,7 @@
   padding: 5px 7px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 48%, transparent);
   color: var(--text-secondary);
-  cursor: default;
+  cursor: pointer;
   outline: none;
   transition:
     background-color 130ms ease,
@@ -91,17 +91,35 @@
 
 .workbench-file-row:hover,
 .workbench-file-row:focus-visible {
-  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface-subtle));
   color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, var(--border));
 }
 
 .workbench-file-row:focus-visible {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 42%, var(--border));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, var(--border)),
+    inset 3px 0 0 color-mix(in srgb, var(--accent) 76%, transparent);
+}
+
+.workbench-file-row:active {
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface-subtle));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, var(--border));
 }
 
 .workbench-file-row.is-selected {
   background: color-mix(in srgb, var(--accent) 10%, var(--surface-subtle));
   color: var(--text-primary);
+}
+
+.workbench-file-row.is-selected:hover {
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface-subtle));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 24%, var(--border));
+}
+
+.workbench-file-row.is-selected:active {
+  background: color-mix(in srgb, var(--accent) 19%, var(--surface-subtle));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, var(--border));
 }
 
 .workbench-file-row.is-selected::before {
@@ -122,11 +140,31 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface-strong) 68%, transparent);
   color: var(--text-muted);
+  transition:
+    background-color 130ms ease,
+    color 130ms ease,
+    transform 130ms ease;
 }
 
 .workbench-file-row.is-directory .workbench-file-row-icon {
   background: color-mix(in srgb, var(--accent) 9%, var(--surface-strong));
   color: color-mix(in srgb, var(--accent) 82%, var(--text-primary));
+}
+
+.workbench-file-row:hover .workbench-file-row-icon,
+.workbench-file-row:focus-visible .workbench-file-row-icon {
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface-strong));
+  color: var(--text-primary);
+}
+
+.workbench-file-row.is-directory:hover .workbench-file-row-icon,
+.workbench-file-row.is-directory:focus-visible .workbench-file-row-icon {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-strong));
+  color: var(--accent);
+}
+
+.workbench-file-row:active .workbench-file-row-icon {
+  transform: scale(0.94);
 }
 
 .workbench-file-row-copy {
@@ -177,8 +215,12 @@
 
 .workbench-file-row.is-directory:hover .workbench-file-row-disclosure,
 .workbench-file-row.is-directory:focus-visible .workbench-file-row-disclosure {
-  color: var(--text-secondary);
-  transform: translateX(1px);
+  color: var(--accent);
+  transform: translateX(2px);
+}
+
+.workbench-file-list.is-upload-active .workbench-file-row {
+  cursor: copy;
 }
 
 .workbench-file-list-loading {
