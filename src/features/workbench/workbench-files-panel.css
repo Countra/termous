@@ -188,27 +188,82 @@
     inset 0 1px 0 rgb(255 255 255 / 4%);
 }
 
-.workbench-files-breadcrumb {
+.workbench-files-breadcrumb-shell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  overflow: hidden;
+}
+
+.workbench-files-breadcrumb-shell::before,
+.workbench-files-breadcrumb-shell::after {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: 34px;
+  opacity: 0;
+  content: "";
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+.workbench-files-breadcrumb-shell::before {
+  left: 0;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface-subtle) 92%, transparent) 38%,
+    transparent
+  );
+}
+
+.workbench-files-breadcrumb-shell::after {
+  right: 0;
+  background: linear-gradient(
+    270deg,
+    color-mix(in srgb, var(--surface-subtle) 92%, transparent) 38%,
+    transparent
+  );
+}
+
+.workbench-files-breadcrumb-shell.has-left-overflow::before,
+.workbench-files-breadcrumb-shell.has-right-overflow::after {
+  opacity: 1;
+}
+
+.workbench-files-breadcrumb-viewport {
   min-width: 0;
   flex: 1 1 auto;
   overflow-x: auto;
   overflow-y: hidden;
+  overscroll-behavior-inline: contain;
   white-space: nowrap;
   scrollbar-width: none;
 }
 
-.workbench-files-breadcrumb::-webkit-scrollbar {
+.workbench-files-breadcrumb-viewport::-webkit-scrollbar {
   display: none;
 }
 
+.workbench-files-breadcrumb {
+  display: block;
+  width: max-content;
+  min-width: max-content;
+}
+
 .workbench-files-breadcrumb .ant-breadcrumb-ol {
+  align-items: center;
   width: max-content;
   flex-wrap: nowrap;
 }
 
 .workbench-files-breadcrumb .ant-breadcrumb-separator {
-  margin-inline: 2px;
-  color: color-mix(in srgb, var(--text-muted) 72%, transparent);
+  display: inline-grid;
+  margin-inline: 1px;
+  place-items: center;
+  color: color-mix(in srgb, var(--text-muted) 58%, transparent);
 }
 
 .workbench-files-crumb {
@@ -227,11 +282,78 @@
   cursor: pointer;
 }
 
+.workbench-files-crumb.is-root {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  place-items: center;
+  color: color-mix(in srgb, var(--accent) 72%, var(--text-secondary));
+}
+
 .workbench-files-crumb:hover,
 .workbench-files-crumb:focus-visible {
   background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
   color: var(--text-primary);
   outline: none;
+}
+
+.workbench-files-crumb.is-current {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.workbench-files-breadcrumb-scroll.ant-btn {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  display: inline-flex;
+  width: 23px;
+  min-width: 23px;
+  height: 25px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-subtle) 94%, transparent);
+  color: var(--text-secondary);
+  box-shadow:
+    0 2px 7px rgb(0 0 0 / 12%),
+    inset 0 1px 0 rgb(255 255 255 / 5%);
+  transform: translateY(-50%);
+  transition:
+    opacity 150ms ease,
+    visibility 150ms ease,
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease;
+}
+
+.workbench-files-breadcrumb-scroll.ant-btn.is-left {
+  left: 0;
+}
+
+.workbench-files-breadcrumb-scroll.ant-btn.is-right {
+  right: 0;
+}
+
+.workbench-files-breadcrumb-scroll.ant-btn:not(:disabled):hover,
+.workbench-files-breadcrumb-scroll.ant-btn:not(:disabled):focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--surface-strong) 88%, var(--accent) 5%);
+  color: var(--text-primary);
+  transform: translateY(-50%) scale(1.03);
+}
+
+.workbench-files-breadcrumb-scroll.ant-btn:not(:disabled):active {
+  transform: translateY(calc(-50% + 1px)) scale(0.98);
+}
+
+.workbench-files-breadcrumb-scroll.ant-btn:disabled {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .workbench-files-address-action.ant-btn {

@@ -13,19 +13,30 @@ import {
 import {
   Check,
   ChevronLeft,
+  ChevronRight,
   CircleAlert,
   Clipboard,
   ExternalLink,
   FolderInput,
   FolderOpen,
   FolderPlus,
+  FolderRoot,
   MoreHorizontal,
   PencilLine,
   RefreshCw,
   Upload,
   X,
 } from 'lucide-react'
-import { lazy, Suspense, useEffect, useRef, useState, type DragEvent } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type WheelEvent,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { useTransferRuntime } from '../../app/useTransferRuntime'
@@ -99,7 +110,13 @@ function WorkbenchFilesPanelContent({
   const [imageViewerPath, setImageViewerPath] = useState<string | null>(null)
   const [editingPath, setEditingPath] = useState(false)
   const [uploadPicking, setUploadPicking] = useState(false)
+  const [breadcrumbScrollState, setBreadcrumbScrollState] = useState({
+    canScrollLeft: false,
+    canScrollRight: false,
+  })
   const pathInputRef = useRef<InputRef>(null)
+  const breadcrumbViewportRef = useRef<HTMLDivElement>(null)
+  const breadcrumbPinnedToEndRef = useRef(true)
   const uploadRefreshTasksRef = useRef(new Map<string, TrackedUploadRefresh>())
   const completedUploadPathsRef = useRef(new Map<string, Set<string>>())
   const currentPath = normalizeRemotePath(
@@ -407,6 +424,91 @@ function WorkbenchFilesPanelContent({
     setEditingPath(false)
   }
 
+  const updateBreadcrumbScrollState = useCallback((preserveEnd = false) => {
+    const viewport = breadcrumbViewportRef.current
+    if (!viewport) {
+      setBreadcrumbScrollState((current) => (
+        current.canScrollLeft || current.canScrollRight
+          ? { canScrollLeft: false, canScrollRight: false }
+          : current
+      ))
+      return
+    }
+    const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth)
+    if (preserveEnd && breadcrumbPinnedToEndRef.current) {
+      viewport.scrollLeft = maxScrollLeft
+    }
+    const next = {
+      canScrollLeft: viewport.scrollLeft > 1,
+      canScrollRight: viewport.scrollLeft < maxScrollLeft - 1,
+    }
+    breadcrumbPinnedToEndRef.current = !next.canScrollRight
+    setBreadcrumbScrollState((current) => (
+      current.canScrollLeft === next.canScrollLeft && current.canScrollRight === next.canScrollRight
+        ? current
+        : next
+    ))
+  }, [])
+
+  const scrollBreadcrumb = useCallback((direction: 'left' | 'right') => {
+    const viewport = breadcrumbViewportRef.current
+    if (!viewport) {
+      return
+    }
+    const distance = Math.max(96, viewport.clientWidth * 0.68)
+    viewport.scrollBy({
+      left: direction === 'left' ? -distance : distance,
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    })
+  }, [])
+
+  const handleBreadcrumbWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
+    const viewport = breadcrumbViewportRef.current
+    if (!viewport) {
+      return
+    }
+    const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth
+    if (maxScrollLeft <= 1) {
+      return
+    }
+    const wheelDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+    if (wheelDelta === 0) {
+      return
+    }
+    const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, viewport.scrollLeft + wheelDelta))
+    if (Math.abs(nextScrollLeft - viewport.scrollLeft) < 1) {
+      return
+    }
+    event.preventDefault()
+    viewport.scrollLeft = nextScrollLeft
+    updateBreadcrumbScrollState()
+  }, [updateBreadcrumbScrollState])
+
+  useEffect(() => {
+    if (editingPath) {
+      return
+    }
+    const viewport = breadcrumbViewportRef.current
+    if (!viewport) {
+      return
+    }
+    breadcrumbPinnedToEndRef.current = true
+    const frame = window.requestAnimationFrame(() => {
+      viewport.scrollLeft = viewport.scrollWidth
+      updateBreadcrumbScrollState()
+    })
+    const observer = new ResizeObserver(() => updateBreadcrumbScrollState(true))
+    observer.observe(viewport)
+    const breadcrumbList = viewport.querySelector<HTMLElement>('.ant-breadcrumb-ol')
+    if (breadcrumbList) {
+      observer.observe(breadcrumbList)
+    }
+    return () => {
+      window.cancelAnimationFrame(frame)
+      observer.disconnect()
+    }
+  }, [currentPath, editingPath, updateBreadcrumbScrollState])
+
   const selectedCount = files.viewState?.selectedPaths.length ?? 0
   const itemCountLabel = selectedCount > 0
     ? t('workbench.files.selectedCount', { count: selectedCount })
@@ -530,11 +632,50 @@ function WorkbenchFilesPanelContent({
               </>
             ) : (
               <>
-                <Breadcrumb
-                  className="workbench-files-breadcrumb"
-                  separator="/"
-                  items={buildBreadcrumbItems(currentPath, files.navigateDirectory)}
-                />
+                <div
+                  className={[
+                    'workbench-files-breadcrumb-shell',
+                    breadcrumbScrollState.canScrollLeft ? 'has-left-overflow' : '',
+                    breadcrumbScrollState.canScrollRight ? 'has-right-overflow' : '',
+                  ].filter(Boolean).join(' ')}
+                >
+                  <div
+                    ref={breadcrumbViewportRef}
+                    className="workbench-files-breadcrumb-viewport"
+                    onScroll={() => updateBreadcrumbScrollState()}
+                    onWheel={handleBreadcrumbWheel}
+                  >
+                    <Breadcrumb
+                      className="workbench-files-breadcrumb"
+                      separator={<ChevronRight size={11} strokeWidth={1.8} aria-hidden="true" />}
+                      items={buildBreadcrumbItems(
+                        currentPath,
+                        files.navigateDirectory,
+                        t('workbench.files.rootDirectory'),
+                      )}
+                    />
+                  </div>
+                  <Tooltip title={t('workbench.files.scrollPathLeft')}>
+                    <Button
+                      type="text"
+                      className="workbench-files-breadcrumb-scroll is-left"
+                      aria-label={t('workbench.files.scrollPathLeft')}
+                      disabled={!breadcrumbScrollState.canScrollLeft}
+                      icon={<ChevronLeft size={13} />}
+                      onClick={() => scrollBreadcrumb('left')}
+                    />
+                  </Tooltip>
+                  <Tooltip title={t('workbench.files.scrollPathRight')}>
+                    <Button
+                      type="text"
+                      className="workbench-files-breadcrumb-scroll is-right"
+                      aria-label={t('workbench.files.scrollPathRight')}
+                      disabled={!breadcrumbScrollState.canScrollRight}
+                      icon={<ChevronRight size={13} />}
+                      onClick={() => scrollBreadcrumb('right')}
+                    />
+                  </Tooltip>
+                </div>
                 <Tooltip title={t('workbench.files.editPath')}>
                   <Button
                     type="text"
@@ -631,7 +772,6 @@ function WorkbenchFilesPanelContent({
       </div>
       <div className="workbench-file-list-caption">
         <span>{itemCountLabel}</span>
-        <span>{t('workbench.files.rightClickHint')}</span>
       </div>
       <WorkbenchFileList
         entries={files.entries}
@@ -717,6 +857,7 @@ function WorkbenchFilesPanelContent({
 function buildBreadcrumbItems(
   path: string,
   navigateDirectory: (targetPath: string) => Promise<boolean>,
+  rootLabel: string,
 ) {
   const segments = normalizeRemotePath(path).split('/').filter(Boolean)
   const paths = ['/']
@@ -728,10 +869,17 @@ function buildBreadcrumbItems(
     title: (
       <button
         type="button"
-        className="workbench-files-crumb"
+        className={[
+          'workbench-files-crumb',
+          index === 0 ? 'is-root' : '',
+          index === paths.length - 1 ? 'is-current' : '',
+        ].filter(Boolean).join(' ')}
+        aria-current={index === paths.length - 1 ? 'page' : undefined}
+        aria-label={index === 0 ? rootLabel : undefined}
+        title={index === 0 ? rootLabel : segments[index - 1]}
         onClick={() => void navigateDirectory(targetPath)}
       >
-        {index === 0 ? '/' : segments[index - 1]}
+        {index === 0 ? <FolderRoot size={13} strokeWidth={1.9} aria-hidden="true" /> : segments[index - 1]}
       </button>
     ),
   }))

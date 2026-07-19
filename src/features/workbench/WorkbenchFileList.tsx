@@ -1,6 +1,7 @@
 import { Button, Dropdown, type MenuProps } from 'antd'
 import { ChevronRight, File, FileQuestion, Folder, Link2, LoaderCircle, UploadCloud } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { RemoteFileEntry } from '../../types/domain'
 import { formatBytes, formatDate } from '../files/fileUtils'
@@ -23,6 +24,15 @@ interface WorkbenchFileListProps {
   onUploadFiles: () => void
 }
 
+interface FileNameTooltipState {
+  path: string
+  name: string
+  left: number
+  top: number
+  maxWidth: number
+  placement: 'above' | 'below'
+}
+
 export function WorkbenchFileList({
   entries,
   selectedPaths,
@@ -41,9 +51,16 @@ export function WorkbenchFileList({
   const { t } = useTranslation()
   const [uploadTargetPath, setUploadTargetPath] = useState<string | null>(null)
   const [focusedPath, setFocusedPath] = useState<string | null>(null)
+  const [nameTooltip, setNameTooltip] = useState<FileNameTooltipState | null>(null)
   const rowRefs = useRef(new Map<string, HTMLDivElement>())
+  const nameRefs = useRef(new Map<string, HTMLElement>())
   const pendingKeyboardDirectoryPathRef = useRef<string | null>(null)
   const focusFrameRef = useRef<number | null>(null)
+  const tooltipTimerRef = useRef<number | null>(null)
+  const tooltipListingRevision = useMemo(
+    () => `${listingPath}\u0000${entries.map((entry) => entry.path).join('\u0000')}`,
+    [entries, listingPath],
+  )
   const uploadTarget = entries.find((entry) => entry.kind === 'directory' && entry.path === uploadTargetPath)
   const tabbablePath = entries.some((entry) => entry.path === focusedPath)
     ? focusedPath
@@ -87,11 +104,64 @@ export function WorkbenchFileList({
     })
   }
 
-  useEffect(() => () => {
-    if (focusFrameRef.current !== null) {
-      window.cancelAnimationFrame(focusFrameRef.current)
+  useEffect(() => {
+    const handleViewportResize = () => {
+      if (tooltipTimerRef.current !== null) {
+        window.clearTimeout(tooltipTimerRef.current)
+        tooltipTimerRef.current = null
+      }
+      setNameTooltip(null)
+    }
+    window.addEventListener('resize', handleViewportResize)
+    return () => {
+      window.removeEventListener('resize', handleViewportResize)
+      if (focusFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusFrameRef.current)
+      }
+      if (tooltipTimerRef.current !== null) {
+        window.clearTimeout(tooltipTimerRef.current)
+      }
     }
   }, [])
+
+  const hideNameTooltip = () => {
+    if (tooltipTimerRef.current !== null) {
+      window.clearTimeout(tooltipTimerRef.current)
+      tooltipTimerRef.current = null
+    }
+    setNameTooltip(null)
+  }
+
+  const revealNameTooltip = (entry: RemoteFileEntry) => {
+    hideNameTooltip()
+    const node = nameRefs.current.get(entry.path)
+    if (!node || node.scrollWidth <= node.clientWidth) {
+      return
+    }
+    tooltipTimerRef.current = window.setTimeout(() => {
+      tooltipTimerRef.current = null
+      const currentNode = nameRefs.current.get(entry.path)
+      const list = listRef.current
+      if (!currentNode || !list || currentNode.scrollWidth <= currentNode.clientWidth) {
+        return
+      }
+      const nameRect = currentNode.getBoundingClientRect()
+      const listRect = list.getBoundingClientRect()
+      const left = Math.max(listRect.left + 8, nameRect.left)
+      const maxWidth = Math.max(80, listRect.right - left - 8)
+      const estimatedLines = Math.max(1, Math.ceil(currentNode.scrollWidth / maxWidth))
+      const estimatedHeight = estimatedLines * 18 + 18
+      const placement = nameRect.top - estimatedHeight - 8 >= 8 ? 'above' : 'below'
+      setNameTooltip({
+        path: entry.path,
+        name: entry.name,
+        left,
+        top: placement === 'above' ? nameRect.top - 8 : nameRect.bottom + 8,
+        maxWidth,
+        placement,
+      })
+    }, 350)
+  }
 
   const clearUploadTargetWhenLeaving = (event: DragEvent<HTMLDivElement>) => {
     const nextTarget = event.relatedTarget
@@ -99,6 +169,14 @@ export function WorkbenchFileList({
       setUploadTargetPath(null)
     }
   }
+
+  useLayoutEffect(() => {
+    if (tooltipTimerRef.current !== null) {
+      window.clearTimeout(tooltipTimerRef.current)
+      tooltipTimerRef.current = null
+    }
+    setNameTooltip(null)
+  }, [tooltipListingRevision])
 
   useLayoutEffect(() => {
     const pendingPath = pendingKeyboardDirectoryPathRef.current
@@ -131,7 +209,10 @@ export function WorkbenchFileList({
         tabIndex={entries.length === 0 ? 0 : -1}
         aria-label={t('workbench.files.remoteFiles')}
         aria-busy={loading}
-        onScroll={onScroll}
+        onScroll={() => {
+          hideNameTooltip()
+          onScroll()
+        }}
         onDragEnter={(event) => {
           if (!acceptsLocalFiles(event)) {
             return
@@ -215,12 +296,19 @@ export function WorkbenchFileList({
                 tabIndex={entry.path === tabbablePath ? 0 : -1}
                 aria-selected={selected}
                 aria-label={entry.name}
+                aria-describedby={nameTooltip?.path === entry.path ? 'workbench-file-name-tooltip' : undefined}
+                onMouseEnter={() => revealNameTooltip(entry)}
+                onMouseLeave={hideNameTooltip}
                 onClick={() => {
                   setFocusedPath(entry.path)
                   onSelect(entry)
                 }}
-                onDoubleClick={() => void onOpen(entry)}
+                onDoubleClick={() => {
+                  hideNameTooltip()
+                  void onOpen(entry)
+                }}
                 onContextMenu={() => {
+                  hideNameTooltip()
                   setFocusedPath(entry.path)
                   onSelect(entry)
                 }}
@@ -248,6 +336,7 @@ export function WorkbenchFileList({
                       break
                     case 'Enter':
                       event.preventDefault()
+                      hideNameTooltip()
                       if (directory) {
                         pendingKeyboardDirectoryPathRef.current = entry.path
                       }
@@ -305,7 +394,17 @@ export function WorkbenchFileList({
               >
                 <span className="workbench-file-row-icon">{fileIcon(entry)}</span>
                 <span className="workbench-file-row-copy">
-                  <strong title={entry.name}>{entry.name}</strong>
+                  <strong
+                    ref={(node) => {
+                      if (node) {
+                        nameRefs.current.set(entry.path, node)
+                      } else {
+                        nameRefs.current.delete(entry.path)
+                      }
+                    }}
+                  >
+                    {entry.name}
+                  </strong>
                   <small>{formatDate(entry.modified_at)}</small>
                 </span>
                 <span className="workbench-file-row-meta">
@@ -336,6 +435,22 @@ export function WorkbenchFileList({
           </strong>
           <small>{t('workbench.files.releaseToUpload')}</small>
         </div>
+      ) : null}
+      {nameTooltip ? createPortal(
+        <div
+          id="workbench-file-name-tooltip"
+          className="workbench-file-name-tooltip"
+          data-placement={nameTooltip.placement}
+          role="tooltip"
+          style={{
+            left: nameTooltip.left,
+            top: nameTooltip.top,
+            maxWidth: nameTooltip.maxWidth,
+          }}
+        >
+          {nameTooltip.name}
+        </div>,
+        document.body,
       ) : null}
     </div>
   )
