@@ -134,6 +134,7 @@ export function TerminalRuntimeProvider({
       if (entry.disposed) {
         return
       }
+      cwdRuntime.applyTransportState(entry.sessionId, 'disposed')
       entry.disposed = true
       if (entry.resizeTimer) {
         window.clearTimeout(entry.resizeTimer)
@@ -145,7 +146,7 @@ export function TerminalRuntimeProvider({
       entry.container.remove()
       entriesRef.current.delete(entry.sessionId)
     },
-    [],
+    [cwdRuntime],
   )
 
   const disposeSession = useCallback(
@@ -449,6 +450,7 @@ export function TerminalRuntimeProvider({
             (requestError) => {
               cwdRuntime.applyRequestError(sessionId, requestError)
             },
+            (state) => cwdRuntime.applyTransportState(sessionId, state),
             tRef.current('workbench.terminalOutputGap'),
           )
           applyEntrySessionState(currentEntry)
@@ -569,16 +571,29 @@ export function TerminalRuntimeProvider({
           sendTerminalInput(binaryStringToBytes(data))
         }),
       )
-      const unregisterCwdTransport = cwdRuntime.registerTransport(sessionId, (request) => {
-        if (
-          entry.disposed ||
-          !isEntryWritable(entry) ||
-          !entry.transport.isLive()
-        ) {
-          return false
-        }
-        return entry.transport.sendCwdChange(request)
-      })
+      const unregisterCwdTransport = cwdRuntime.registerTransport(
+        sessionId,
+        (request) => {
+          if (
+            entry.disposed ||
+            !isEntryWritable(entry) ||
+            !entry.transport.isLive()
+          ) {
+            return false
+          }
+          return entry.transport.sendCwdChange(request)
+        },
+        (requestId) => {
+          if (
+            entry.disposed ||
+            !isEntryWritable(entry) ||
+            !entry.transport.isLive()
+          ) {
+            return false
+          }
+          return entry.transport.sendCwdRefresh(requestId)
+        },
+      )
       entry.disposables.push({ dispose: unregisterCwdTransport })
       transport.start()
 
@@ -804,11 +819,13 @@ function handleTerminalTransportEvent(
   onSessionEvent: TerminalRuntimeProviderProps['onSessionEvent'],
   onCwdState: (state: SessionCwdState) => void,
   onCwdError: (error: SessionCwdRequestError) => void,
+  onTransportState: (state: TerminalTransportState) => void,
   outputGapMessage: string,
 ) {
   switch (event.type) {
     case 'transport_state':
       entry.transportState = event.state
+      onTransportState(event.state)
       entry.container.dataset.transportState = event.state
       entry.container.classList.toggle(
         'is-terminal-transport-reconnecting',
@@ -837,9 +854,13 @@ function handleTerminalTransportEvent(
       return
     case 'request_error':
       entry.container.dataset.transportError = event.code
-      if (event.scope === 'cwd_change' && event.requestId) {
+      if (
+        (event.scope === 'cwd_change' || event.scope === 'cwd_refresh')
+        && event.requestId
+      ) {
         onCwdError({
-          operation_id: event.requestId,
+          scope: event.scope,
+          request_id: event.requestId,
           code: event.code,
           retryable: event.retryable,
           message: event.message,

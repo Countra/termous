@@ -14,6 +14,8 @@ interface WorkbenchFileListProps {
   listingPath: string
   loading: boolean
   initialLoading: boolean
+  navigationPending: boolean
+  pendingPath: string
   uploading: boolean
   listRef: RefObject<HTMLDivElement | null>
   menuFor: (entry: RemoteFileEntry) => MenuProps
@@ -39,6 +41,8 @@ export function WorkbenchFileList({
   listingPath,
   loading,
   initialLoading,
+  navigationPending,
+  pendingPath,
   uploading,
   listRef,
   menuFor,
@@ -197,31 +201,35 @@ export function WorkbenchFileList({
 
   return (
     <div className="workbench-file-list-shell">
+      {navigationPending ? (
+        <span className="workbench-file-navigation-progress" aria-hidden="true" />
+      ) : null}
       <div
         ref={listRef}
         className={[
           'workbench-file-list',
           loading ? 'is-loading' : '',
+          navigationPending ? 'is-navigating' : '',
           entries.length === 0 ? 'is-empty' : '',
           uploadTargetPath !== null ? 'is-upload-active' : '',
         ].filter(Boolean).join(' ')}
         role="listbox"
-        tabIndex={entries.length === 0 ? 0 : -1}
+        tabIndex={navigationPending || entries.length === 0 ? 0 : -1}
         aria-label={t('workbench.files.remoteFiles')}
-        aria-busy={loading}
+        aria-busy={loading || navigationPending}
         onScroll={() => {
           hideNameTooltip()
           onScroll()
         }}
         onDragEnter={(event) => {
-          if (!acceptsLocalFiles(event)) {
+          if (navigationPending || !acceptsLocalFiles(event)) {
             return
           }
           event.preventDefault()
           setUploadTargetPath('')
         }}
         onDragOver={(event) => {
-          if (!acceptsLocalFiles(event)) {
+          if (navigationPending || !acceptsLocalFiles(event)) {
             return
           }
           event.preventDefault()
@@ -231,12 +239,13 @@ export function WorkbenchFileList({
         onDragLeave={clearUploadTargetWhenLeaving}
         onDrop={(event) => {
           setUploadTargetPath(null)
-          if (!acceptsLocalFiles(event)) {
+          if (navigationPending || !acceptsLocalFiles(event)) {
             return
           }
           onUploadDrop('', event)
         }}
       >
+      <div className="workbench-file-list-content" role="presentation">
       {initialLoading ? (
         <div className="workbench-file-skeleton" aria-label={t('workbench.files.refreshing')}>
           {Array.from({ length: 6 }, (_, index) => (
@@ -259,6 +268,7 @@ export function WorkbenchFileList({
             size="small"
             icon={<UploadCloud size={14} />}
             loading={uploading}
+            disabled={navigationPending}
             onClick={onUploadFiles}
           >
             {t('files.uploadFiles')}
@@ -269,11 +279,13 @@ export function WorkbenchFileList({
           const selected = selectedPaths.includes(entry.path)
           const menu = menuFor(entry)
           const directory = entry.kind === 'directory'
+          const opening = navigationPending && directory && entry.path === pendingPath
           return (
             <Dropdown
               key={entry.path}
               menu={menu}
               trigger={['contextMenu']}
+              disabled={navigationPending}
               classNames={{ root: 'files-row-menu' }}
             >
               <div
@@ -288,33 +300,44 @@ export function WorkbenchFileList({
                   'workbench-file-row',
                   selected ? 'is-selected' : '',
                   directory ? 'is-directory' : '',
+                  opening ? 'is-opening' : '',
                   uploadTargetPath === entry.path ? 'is-upload-target' : '',
                 ].filter(Boolean).join(' ')}
                 data-workbench-file-path={entry.path}
                 data-workbench-file-kind={entry.kind}
                 role="option"
-                tabIndex={entry.path === tabbablePath ? 0 : -1}
+                tabIndex={!navigationPending && entry.path === tabbablePath ? 0 : -1}
                 aria-selected={selected}
+                aria-disabled={navigationPending || undefined}
                 aria-label={entry.name}
                 aria-describedby={nameTooltip?.path === entry.path ? 'workbench-file-name-tooltip' : undefined}
                 onMouseEnter={() => revealNameTooltip(entry)}
                 onMouseLeave={hideNameTooltip}
                 onClick={() => {
+                  if (navigationPending) {
+                    return
+                  }
                   setFocusedPath(entry.path)
                   onSelect(entry)
                 }}
                 onDoubleClick={() => {
+                  if (navigationPending) {
+                    return
+                  }
                   hideNameTooltip()
                   void onOpen(entry)
                 }}
                 onContextMenu={() => {
+                  if (navigationPending) {
+                    return
+                  }
                   hideNameTooltip()
                   setFocusedPath(entry.path)
                   onSelect(entry)
                 }}
                 onFocus={() => setFocusedPath(entry.path)}
                 onKeyDown={(event) => {
-                  if (event.target !== event.currentTarget) {
+                  if (navigationPending || event.target !== event.currentTarget) {
                     return
                   }
                   switch (event.key) {
@@ -357,7 +380,7 @@ export function WorkbenchFileList({
                   }
                 }}
                 onDragEnter={(event) => {
-                  if (!directory || !acceptsLocalFiles(event)) {
+                  if (navigationPending || !directory || !acceptsLocalFiles(event)) {
                     return
                   }
                   event.preventDefault()
@@ -365,7 +388,7 @@ export function WorkbenchFileList({
                   setUploadTargetPath(entry.path)
                 }}
                 onDragOver={(event) => {
-                  if (!directory || !acceptsLocalFiles(event)) {
+                  if (navigationPending || !directory || !acceptsLocalFiles(event)) {
                     return
                   }
                   event.preventDefault()
@@ -383,7 +406,7 @@ export function WorkbenchFileList({
                   }
                 }}
                 onDrop={(event) => {
-                  if (!directory || !acceptsLocalFiles(event)) {
+                  if (navigationPending || !directory || !acceptsLocalFiles(event)) {
                     return
                   }
                   event.preventDefault()
@@ -411,7 +434,9 @@ export function WorkbenchFileList({
                   {directory ? t('files.kindName.directory') : formatBytes(entry.size)}
                 </span>
                 <span className="workbench-file-row-disclosure" aria-hidden="true">
-                  {directory ? <ChevronRight size={14} /> : null}
+                  {opening
+                    ? <LoaderCircle className="is-spinning" size={13} />
+                    : directory ? <ChevronRight size={14} /> : null}
                 </span>
               </div>
             </Dropdown>
@@ -419,7 +444,8 @@ export function WorkbenchFileList({
         })
       )}
       </div>
-      {loading && !initialLoading ? (
+      </div>
+      {loading && !initialLoading && !navigationPending ? (
         <div className="workbench-file-list-loading" role="status">
           <LoaderCircle className="is-spinning" size={12} />
           {t('workbench.files.refreshing')}

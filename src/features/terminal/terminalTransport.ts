@@ -4,6 +4,7 @@ import {
   decodeTerminalOutputFrame,
   encodeTerminalAttach,
   encodeTerminalCwdChange,
+  encodeTerminalCwdRefresh,
   encodeTerminalHeartbeatAck,
   encodeTerminalResize,
   parseTerminalStreamOffset,
@@ -208,6 +209,20 @@ export class TerminalTransport {
     }
     try {
       socket.send(encodeTerminalCwdChange(request))
+      return true
+    } catch {
+      this.closeCurrentSocket()
+      return false
+    }
+  }
+
+  sendCwdRefresh(requestId: string) {
+    const socket = this.liveSocket()
+    if (!socket) {
+      return false
+    }
+    try {
+      socket.send(encodeTerminalCwdRefresh(requestId))
       return true
     } catch {
       this.closeCurrentSocket()

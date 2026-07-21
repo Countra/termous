@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  crashReporter,
   dialog,
   ipcMain,
   Menu,
@@ -9,7 +10,7 @@ import {
   type IpcMainInvokeEvent,
   type WebContents,
 } from 'electron'
-import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { chmod, lstat, open, rename, rm, stat } from 'node:fs/promises'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
@@ -35,6 +36,8 @@ const TRAY_ICON = path.join(process.env.VITE_PUBLIC, process.platform === 'win32
 const WEB_DEBUG_FILE = 'webDebug'
 const DEVTOOLS_CHORD_WINDOW_MS = 900
 const STARTUP_MIN_VISIBLE_MS = 650
+const ELECTRON_PROCESS_LOG_FILE = 'electron-process.log'
+const ELECTRON_PROCESS_LOG_MAX_BYTES = 512 * 1024
 const APPEARANCE_CACHE_FILE = 'appearance.json'
 const BACKUP_EXTENSION = '.tobp'
 const BACKUP_MAX_BYTES = 1 << 30
@@ -96,6 +99,150 @@ interface SSHKeyPairFileInput {
 class SSHKeyFileOperationError extends Error {}
 
 const pendingBackupSelections = new Map<string, PendingBackupSelection>()
+const rendererRecoveryCooldownMs = 30_000
+
+function reportElectronProcessEvent(event: string, details: Record<string, unknown>) {
+  const line = `[termous:electron] ${JSON.stringify({
+    timestamp: new Date().toISOString(),
+    event,
+    ...details,
+  })}`
+  console.error(line)
+  try {
+    const logDirectory = app.getPath('logs')
+    const logPath = path.join(logDirectory, ELECTRON_PROCESS_LOG_FILE)
+    mkdirSync(logDirectory, { recursive: true })
+    if (existsSync(logPath) && statSync(logPath).size >= ELECTRON_PROCESS_LOG_MAX_BYTES) {
+      writeFileSync(logPath, '', 'utf8')
+    }
+    appendFileSync(logPath, `${line}\n`, 'utf8')
+  } catch (error) {
+    console.error(`[termous:electron] 无法写入进程诊断日志: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+function startLocalCrashReporter() {
+  try {
+    crashReporter.start({
+      productName: APP_NAME,
+      uploadToServer: false,
+      globalExtra: {
+        runtime: VITE_DEV_SERVER_URL ? 'development' : 'production',
+      },
+    })
+  } catch (error) {
+    reportElectronProcessEvent('crash-reporter-start-failed', {
+      message: error instanceof Error ? error.message : String(error),
+    })
+  }
+}
+
+function isRecoverableRendererFailure(reason: string) {
+  return reason === 'abnormal-exit'
+    || reason === 'crashed'
+    || reason === 'oom'
+    || reason === 'memory-eviction'
+}
+
+function registerRendererHealth(target: BrowserWindow) {
+  const contents = target.webContents
+  let disposed = false
+  let lastRecoveryAt = 0
+  let pendingRecoveryReason = ''
+  let recoveryTimer: NodeJS.Timeout | null = null
+
+  const clearRecoveryTimer = () => {
+    if (!recoveryTimer) {
+      return
+    }
+    clearTimeout(recoveryTimer)
+    recoveryTimer = null
+  }
+  const disposeRecovery = () => {
+    if (disposed) {
+      return
+    }
+    disposed = true
+    pendingRecoveryReason = ''
+    clearRecoveryTimer()
+  }
+  // 同一窗口只保留一个恢复任务，冷却期内的后续故障合并处理，避免连续 reload。
+  const scheduleRecovery = (reason: string) => {
+    if (disposed) {
+      return
+    }
+    pendingRecoveryReason = reason
+    const now = Date.now()
+    const delay = Math.max(0, rendererRecoveryCooldownMs - (now - lastRecoveryAt))
+    if (recoveryTimer) {
+      reportElectronProcessEvent('renderer-recovery-coalesced', {
+        reason,
+        retry_after_ms: delay,
+      })
+      return
+    }
+    recoveryTimer = setTimeout(() => {
+      recoveryTimer = null
+      if (disposed || target.isDestroyed() || contents.isDestroyed()) {
+        pendingRecoveryReason = ''
+        return
+      }
+      const recoveryReason = pendingRecoveryReason
+      pendingRecoveryReason = ''
+      lastRecoveryAt = Date.now()
+      try {
+        contents.reload()
+        reportElectronProcessEvent('renderer-recovery-requested', {
+          reason: recoveryReason,
+        })
+      } catch (error) {
+        reportElectronProcessEvent('renderer-recovery-failed', {
+          reason: recoveryReason,
+          message: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }, delay)
+    reportElectronProcessEvent('renderer-recovery-scheduled', {
+      reason,
+      delay_ms: delay,
+    })
+  }
+
+  contents.on('render-process-gone', (_event, details) => {
+    reportElectronProcessEvent('render-process-gone', {
+      reason: details.reason,
+      exit_code: details.exitCode,
+    })
+    if (!isRecoverableRendererFailure(details.reason)) {
+      return
+    }
+    scheduleRecovery(details.reason)
+  })
+  contents.on('unresponsive', () => {
+    reportElectronProcessEvent('renderer-unresponsive', {})
+  })
+  contents.on('responsive', () => {
+    reportElectronProcessEvent('renderer-responsive', {})
+  })
+  contents.once('destroyed', disposeRecovery)
+  target.once('closed', disposeRecovery)
+}
+
+// 个别显卡驱动异常时允许显式进入软件渲染安全模式，默认继续保留硬件加速性能。
+if (process.env.TERMOUS_DISABLE_GPU === '1') {
+  app.disableHardwareAcceleration()
+}
+startLocalCrashReporter()
+
+app.on('child-process-gone', (_event, details) => {
+  reportElectronProcessEvent('child-process-gone', {
+    type: details.type,
+    reason: details.reason,
+    exit_code: details.exitCode,
+    service_name: details.serviceName,
+    name: details.name,
+  })
+})
 
 function emitPortabilityProgress(sender: WebContents, progress: PortabilityProgress) {
   if (!sender.isDestroyed()) {
@@ -489,6 +636,7 @@ function createWindow() {
     },
   })
   registerDevToolsShortcut(win)
+  registerRendererHealth(win)
 
   win.once('ready-to-show', () => {
     mainWindowReady = true

@@ -5,6 +5,7 @@ import {
   decodeTerminalOutputFrame,
   encodeTerminalAttach,
   encodeTerminalCwdChange,
+  encodeTerminalCwdRefresh,
   encodeTerminalHeartbeatAck,
   parseTerminalStreamOffset,
   TerminalProtocolError,
@@ -38,6 +39,28 @@ test('CWD 请求只编码 operation id、base revision、文件会话和路径',
       file_session_id: 'file-session',
       path: '/srv/ data\\set ',
     },
+  })
+})
+
+test('CWD 刷新请求使用独立消息且错误作用域可被识别', () => {
+  assert.deepEqual(JSON.parse(encodeTerminalCwdRefresh('refresh-1')), {
+    type: 'cwd_refresh',
+    request_id: 'refresh-1',
+  })
+  assert.deepEqual(decodeTerminalControlMessage(JSON.stringify({
+    type: 'request_error',
+    scope: 'cwd_refresh',
+    request_id: 'refresh-1',
+    code: 'CWD_REFRESH_FAILED',
+    retryable: true,
+    message: '当前目录刷新失败',
+  })), {
+    type: 'request_error',
+    scope: 'cwd_refresh',
+    code: 'CWD_REFRESH_FAILED',
+    request_id: 'refresh-1',
+    retryable: true,
+    message: '当前目录刷新失败',
   })
 })
 
@@ -77,7 +100,21 @@ test('attached 统一解码会话、CWD 与流快照', () => {
     assert.fail('attached 消息应保持统一类型')
   }
   assert.equal(message.cwd_state.state_seq, 3)
+  assert.equal(message.cwd_state.refresh_seq, 0)
   assert.equal(message.stream.resume_offset, '20')
+})
+
+test('旧服务端未发送 refresh sequence 时按零兼容', () => {
+  const message = decodeTerminalControlMessage(JSON.stringify({
+    type: 'cwd_state',
+    cwd_state: { state_seq: 7 },
+  }))
+
+  assert.equal(message.type, 'cwd_state')
+  if (message.type !== 'cwd_state') {
+    assert.fail('CWD 状态消息应保持统一类型')
+  }
+  assert.equal(message.cwd_state.refresh_seq, 0)
 })
 
 test('decoder 拒绝旧消息名和缺少 state sequence 的 CWD 状态', () => {

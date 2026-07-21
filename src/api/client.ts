@@ -947,9 +947,15 @@ export class TermousApi {
     return this.request<RemoteDirectoryListing>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files?${query.toString()}`)
   }
 
-  listFileSessionFiles(fileSessionId: string, path: string) {
+  listFileSessionFiles(
+    fileSessionId: string,
+    path: string,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
     const query = new URLSearchParams({ path })
-    return this.request<RemoteDirectoryListing>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files?${query.toString()}`)
+    return this.request<RemoteDirectoryListing>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files?${query.toString()}`, {
+      signal: options.signal,
+    })
   }
 
   statFileSessionFile(fileSessionId: string, path: string) {

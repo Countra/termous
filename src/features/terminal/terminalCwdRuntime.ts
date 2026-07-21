@@ -4,6 +4,7 @@ import type {
   SessionCwdState,
 } from '../../types/domain'
 import { normalizeRemotePosixPath } from '../../shared/remotePosixPath.ts'
+import type { TerminalTransportState } from './terminalTransport.ts'
 
 export type SessionCwdRequestResult =
   | { status: 'queued'; request: SessionCwdChangeRequest }
@@ -12,10 +13,18 @@ export type SessionCwdRequestResult =
   | { status: 'not_ready' }
   | { status: 'invalid_path' }
 
+export type SessionCwdRefreshResult =
+  | { status: 'queued'; requestId: string; baseRefreshSequence: number }
+  | { status: 'not_ready' }
+
+export type SessionCwdRequestScope = 'cwd_change' | 'cwd_refresh'
+
 export type SessionCwdTransport = (request: SessionCwdChangeRequest) => boolean
+export type SessionCwdRefreshTransport = (requestId: string) => boolean
 
 export interface SessionCwdRequestError {
-  operation_id: string
+  scope: SessionCwdRequestScope
+  request_id: string
   code: string
   retryable: boolean
   message: string
@@ -26,14 +35,20 @@ type SessionListener = () => void
 interface SessionCwdEntry {
   state: SessionCwdState
   transport?: SessionCwdTransport
+  refreshTransport?: SessionCwdRefreshTransport
   listeners: Set<SessionListener>
-  latestRequestId?: string
-  requestError: SessionCwdRequestError | null
+  latestRequestIds: Partial<Record<SessionCwdRequestScope, string>>
+  latestChangeBaseRevision?: number
+  latestRefreshBaseSequence?: number
+  latestRefreshObservedChangeRequestId?: string
+  requestErrors: Record<SessionCwdRequestScope, SessionCwdRequestError | null>
+  transportState: TerminalTransportState
   hasServerState: boolean
 }
 
 const initialState: SessionCwdState = {
   state_seq: 0,
+  refresh_seq: 0,
   revision: 0,
   source: 'none',
   capability: 'probing',
@@ -49,8 +64,15 @@ export class TerminalCwdRuntime {
     return this.entries.get(sessionId)?.state ?? initialState
   }
 
-  getRequestErrorSnapshot = (sessionId: string) => {
-    return this.entries.get(sessionId)?.requestError ?? null
+  getRequestErrorSnapshot = (
+    sessionId: string,
+    scope: SessionCwdRequestScope = 'cwd_change',
+  ) => {
+    return this.entries.get(sessionId)?.requestErrors[scope] ?? null
+  }
+
+  getTransportStateSnapshot = (sessionId: string): TerminalTransportState => {
+    return this.entries.get(sessionId)?.transportState ?? 'idle'
   }
 
   subscribe = (sessionId: string, listener: SessionListener) => {
@@ -61,14 +83,68 @@ export class TerminalCwdRuntime {
     }
   }
 
-  registerTransport(sessionId: string, transport: SessionCwdTransport) {
+  registerTransport(
+    sessionId: string,
+    transport: SessionCwdTransport,
+    refreshTransport?: SessionCwdRefreshTransport,
+  ) {
     const entry = this.ensureEntry(sessionId)
     entry.transport = transport
+    entry.refreshTransport = refreshTransport
     return () => {
       const current = this.entries.get(sessionId)
       if (current?.transport === transport) {
         current.transport = undefined
+        current.refreshTransport = undefined
       }
+    }
+  }
+
+  applyTransportState(sessionId: string, state: TerminalTransportState) {
+    const entry = this.ensureEntry(sessionId)
+    if (entry.transportState === state) {
+      return false
+    }
+    entry.transportState = state
+    this.notify(entry)
+    return true
+  }
+
+  refreshDirectory(sessionId: string): SessionCwdRefreshResult {
+    const entry = this.entries.get(sessionId)
+    if (
+      !entry ||
+      entry.state.capability !== 'supported' ||
+      entry.state.shell_phase !== 'prompt' ||
+      isCwdOperationInFlight(entry.state.pending_operation) ||
+      !entry.transport ||
+      !entry.refreshTransport
+    ) {
+      return { status: 'not_ready' }
+    }
+    const requestId = createOperationId('cwd-refresh')
+    const previousRequestId = entry.latestRequestIds.cwd_refresh
+    entry.latestRequestIds.cwd_refresh = requestId
+    try {
+      if (!entry.refreshTransport(requestId)) {
+        entry.latestRequestIds.cwd_refresh = previousRequestId
+        return { status: 'not_ready' }
+      }
+    } catch {
+      entry.latestRequestIds.cwd_refresh = previousRequestId
+      return { status: 'not_ready' }
+    }
+    const hadRequestError = entry.requestErrors.cwd_refresh !== null
+    entry.requestErrors.cwd_refresh = null
+    entry.latestRefreshBaseSequence = entry.state.refresh_seq
+    entry.latestRefreshObservedChangeRequestId = entry.latestRequestIds.cwd_change
+    if (hadRequestError) {
+      this.notify(entry)
+    }
+    return {
+      status: 'queued',
+      requestId,
+      baseRefreshSequence: entry.state.refresh_seq,
     }
   }
 
@@ -81,9 +157,39 @@ export class TerminalCwdRuntime {
     if (!shouldApplyServerState(entry.state, next, entry.hasServerState)) {
       return false
     }
+    const refreshAdvanced = next.refresh_seq > entry.state.refresh_seq
+    const confirmedPathChanged = next.confirmed_path !== entry.state.confirmed_path
+    const changeBaseRevision = entry.latestChangeBaseRevision
     entry.state = next
     entry.hasServerState = true
-    entry.requestError = null
+    if (refreshAdvanced) {
+      entry.requestErrors.cwd_refresh = null
+      entry.latestRequestIds.cwd_refresh = undefined
+      entry.latestRefreshBaseSequence = undefined
+      if (
+        entry.latestRefreshObservedChangeRequestId
+        && entry.latestRefreshObservedChangeRequestId === entry.latestRequestIds.cwd_change
+      ) {
+        entry.requestErrors.cwd_change = null
+        entry.latestRequestIds.cwd_change = undefined
+        entry.latestChangeBaseRevision = undefined
+      }
+      entry.latestRefreshObservedChangeRequestId = undefined
+    } else {
+      if (confirmedPathChanged) {
+        entry.requestErrors.cwd_refresh = null
+        entry.latestRequestIds.cwd_refresh = undefined
+        entry.latestRefreshBaseSequence = undefined
+        entry.latestRefreshObservedChangeRequestId = undefined
+      }
+      if (changeBaseRevision !== undefined && next.revision > changeBaseRevision) {
+        entry.requestErrors.cwd_change = null
+        if (!next.pending_operation) {
+          entry.latestRequestIds.cwd_change = undefined
+          entry.latestChangeBaseRevision = undefined
+        }
+      }
+    }
     this.notify(entry)
     return true
   }
@@ -92,12 +198,12 @@ export class TerminalCwdRuntime {
     const entry = this.entries.get(sessionId)
     if (
       !entry ||
-      !entry.latestRequestId ||
-      error.operation_id !== entry.latestRequestId
+      !entry.latestRequestIds[error.scope] ||
+      error.request_id !== entry.latestRequestIds[error.scope]
     ) {
       return false
     }
-    entry.requestError = error
+    entry.requestErrors[error.scope] = error
     this.notify(entry)
     return true
   }
@@ -141,9 +247,14 @@ export class TerminalCwdRuntime {
       return { status: 'not_ready' }
     }
 
-    const hadRequestError = entry.requestError !== null
-    entry.latestRequestId = request.operation_id
-    entry.requestError = null
+    const hadRequestError = entry.requestErrors.cwd_change !== null
+      || entry.requestErrors.cwd_refresh !== null
+    entry.latestRequestIds.cwd_change = request.operation_id
+    entry.latestChangeBaseRevision = request.base_revision
+    entry.requestErrors.cwd_change = null
+    entry.latestRequestIds.cwd_refresh = undefined
+    entry.latestRefreshBaseSequence = undefined
+    entry.requestErrors.cwd_refresh = null
     if (hadRequestError) {
       this.notify(entry)
     }
@@ -184,7 +295,12 @@ export class TerminalCwdRuntime {
     const entry: SessionCwdEntry = {
       state: { ...initialState },
       listeners: new Set(),
-      requestError: null,
+      latestRequestIds: {},
+      requestErrors: {
+        cwd_change: null,
+        cwd_refresh: null,
+      },
+      transportState: 'idle',
       hasServerState: false,
     }
     this.entries.set(sessionId, entry)
@@ -203,6 +319,8 @@ function normalizeServerState(candidate: SessionCwdState): SessionCwdState | nul
     !isCwdShellPhase(candidate.shell_phase) ||
     !Number.isSafeInteger(candidate.state_seq) ||
     candidate.state_seq < 0 ||
+    !Number.isSafeInteger(candidate.refresh_seq) ||
+    candidate.refresh_seq < 0 ||
     !Number.isSafeInteger(candidate.revision) ||
     candidate.revision < 0 ||
     !Number.isSafeInteger(candidate.prompt_generation) ||
@@ -261,11 +379,11 @@ function shouldApplyServerState(
   return !hasServerState || next.state_seq > current.state_seq
 }
 
-function createOperationId() {
+function createOperationId(prefix = 'cwd') {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return `cwd-${crypto.randomUUID()}`
+    return `${prefix}-${crypto.randomUUID()}`
   }
-  return `cwd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`
 }
 
 function isValidIdentifier(value: string) {
@@ -297,4 +415,8 @@ function isCwdOperationStatus(value: string) {
     value === 'applying' ||
     value === 'failed'
   )
+}
+
+function isCwdOperationInFlight(operation: SessionCwdOperation | undefined) {
+  return Boolean(operation && operation.status !== 'failed')
 }

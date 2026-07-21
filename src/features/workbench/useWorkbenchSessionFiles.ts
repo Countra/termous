@@ -11,18 +11,34 @@ import { fileSortValue, normalizeRemotePath } from '../files/fileUtils'
 import {
   useSessionCwdRequestError,
   useSessionCwdState,
+  useSessionCwdTransportState,
   useTerminalCwdRuntime,
 } from '../terminal/terminalCwdContext'
 import {
   applySessionFilesSyncState,
   beginDirectoryRequest,
+  cancelDirectoryRequest,
+  cancelDirectoryRequestForFollowRefresh,
   completeDirectoryRequest,
+  deriveRejectedSessionFilesSyncState,
+  deriveSessionFilesCwdRefreshSuccessState,
+  deriveSessionFilesFollowSyncState,
+  deriveSessionFilesSyncState,
+  ensureSessionFilesCwdRefreshTransportWaitDeadline,
   failDirectoryRequest,
   getSessionFilesViewState,
+  isSessionFilesCwdRefreshComplete,
   removeInactiveSessionFileStates,
+  sessionFilesCwdRefreshRetryDelay,
+  sessionFilesCwdRefreshTransportDisposition,
+  sessionFilesCwdRefreshTransportWaitRemaining,
+  shouldRefreshFollowedDirectory,
+  shouldRequestInitialSessionFilesDirectory,
+  shouldRequestFollowedDirectory,
   updateSessionFilesViewState,
-  type SessionFilesSyncStatus,
   type SessionFilesViewStateMap,
+  type SessionFilesCwdRefreshBaseline,
+  type SessionFilesCwdRefreshFlight,
 } from './sessionFilesState'
 import {
   buildSourceSessionContexts,
@@ -41,6 +57,7 @@ interface FileListScrollPosition {
   scrollTop: number
 }
 
+const cwdRefreshRequestTimeoutMs = 10_000
 interface UseWorkbenchSessionFilesOptions {
   api: TermousApi
   data: AppData
@@ -60,7 +77,9 @@ export function useWorkbenchSessionFiles({
   const sourceSessionEndedAt = activeSession?.kind === 'ssh' ? activeSession.ended_at : undefined
   const sourceHostId = activeSession?.kind === 'ssh' ? activeSession.host_id : null
   const cwdState = useSessionCwdState(sourceSessionId)
-  const cwdRequestError = useSessionCwdRequestError(sourceSessionId)
+  const cwdRequestError = useSessionCwdRequestError(sourceSessionId, 'cwd_change')
+  const cwdRefreshError = useSessionCwdRequestError(sourceSessionId, 'cwd_refresh')
+  const cwdTransportState = useSessionCwdTransportState(sourceSessionId)
   const [viewStates, setViewStates] = useState<SessionFilesViewStateMap>({})
   const [sessionOverrides, setSessionOverrides] = useState<Record<string, FileSession>>({})
   const [createRetrySequence, setCreateRetrySequence] = useState(0)
@@ -69,15 +88,26 @@ export function useWorkbenchSessionFiles({
   const creatingSessionsRef = useRef(new Set<string>())
   const createFailureSessionIdsRef = useRef(new Set<string>())
   const directoryRequestSequencesRef = useRef(new Map<string, number>())
+  const directoryRequestControllersRef = useRef(new Map<string, AbortController>())
+  const cwdRefreshPendingSessionIdsRef = useRef(new Set<string>())
+  const cwdRefreshFlightsRef = useRef(new Map<string, SessionFilesCwdRefreshFlight>())
+  const cwdRefreshAttemptsRef = useRef(new Map<string, number>())
+  const cwdRefreshRetryAtRef = useRef(new Map<string, number>())
+  const cwdRefreshBaselinesRef = useRef(new Map<string, SessionFilesCwdRefreshBaseline>())
+  const cwdRefreshTerminalErrorsRef = useRef(new Map<string, string>())
+  const [cwdRefreshWakeSequence, setCwdRefreshWakeSequence] = useState(0)
   const scrollPositionsRef = useRef(new Map<string, FileListScrollPosition>())
   const listRef = useRef<HTMLDivElement>(null)
 
   sourceSessionContextsRef.current = buildSourceSessionContexts(data.sessions)
 
   useEffect(() => {
+    const directoryRequestControllers = directoryRequestControllersRef.current
     mountedRef.current = true
     return () => {
       mountedRef.current = false
+      directoryRequestControllers.forEach((controller) => controller.abort())
+      directoryRequestControllers.clear()
     }
   }, [])
 
@@ -93,6 +123,30 @@ export function useWorkbenchSessionFiles({
     directoryRequestSequencesRef.current = new Map(
       [...directoryRequestSequencesRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
     )
+    cwdRefreshPendingSessionIdsRef.current = new Set(
+      [...cwdRefreshPendingSessionIdsRef.current].filter((sessionId) => activeIds.has(sessionId)),
+    )
+    cwdRefreshFlightsRef.current = new Map(
+      [...cwdRefreshFlightsRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
+    )
+    cwdRefreshAttemptsRef.current = new Map(
+      [...cwdRefreshAttemptsRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
+    )
+    cwdRefreshRetryAtRef.current = new Map(
+      [...cwdRefreshRetryAtRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
+    )
+    cwdRefreshBaselinesRef.current = new Map(
+      [...cwdRefreshBaselinesRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
+    )
+    cwdRefreshTerminalErrorsRef.current = new Map(
+      [...cwdRefreshTerminalErrorsRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
+    )
+    for (const [sessionId, controller] of directoryRequestControllersRef.current) {
+      if (!activeIds.has(sessionId)) {
+        directoryRequestControllersRef.current.delete(sessionId)
+        controller.abort()
+      }
+    }
     scrollPositionsRef.current = new Map(
       [...scrollPositionsRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
     )
@@ -114,6 +168,8 @@ export function useWorkbenchSessionFiles({
     const persistedTime = Date.parse(persisted.connected_at ?? persisted.started_at)
     return overrideTime >= persistedTime ? override : persisted
   }, [data.fileSessions, sessionOverrides, sourceSessionId])
+  const fileSessionId = fileSession?.id ?? ''
+  const fileSessionStatus = fileSession?.status ?? null
 
   const initialPath = cwdState?.confirmed_path || fileSession?.current_path || '/'
   const viewState = sourceSessionId
@@ -281,7 +337,7 @@ export function useWorkbenchSessionFiles({
   }, [api, fileSession, updateFileSession])
 
   const loadDirectory = useCallback(async (targetPath: string) => {
-    if (!sourceSessionId || !fileSession || fileSession.status !== 'connected') {
+    if (!sourceSessionId || !fileSessionId || fileSessionStatus !== 'connected') {
       return false
     }
     const normalized = normalizeRemotePosixPath(targetPath)
@@ -295,13 +351,22 @@ export function useWorkbenchSessionFiles({
     }
     const sequence = (directoryRequestSequencesRef.current.get(sourceSessionId) ?? 0) + 1
     directoryRequestSequencesRef.current.set(sourceSessionId, sequence)
+    const controller = new AbortController()
+    const previousController = directoryRequestControllersRef.current.get(sourceSessionId)
+    directoryRequestControllersRef.current.set(sourceSessionId, controller)
+    previousController?.abort()
     setViewStates((current) => {
       const currentView = getSessionFilesViewState(current, sourceSessionId, normalized)
       const request = beginDirectoryRequest(currentView, normalized, sequence)
       return { ...current, [sourceSessionId]: request.state }
     })
     try {
-      const listing = await api.listFileSessionFiles(fileSession.id, normalized)
+      const listing = await api.listFileSessionFiles(fileSessionId, normalized, {
+        signal: controller.signal,
+      })
+      if (directoryRequestControllersRef.current.get(sourceSessionId) !== controller) {
+        return false
+      }
       setViewStates((current) => updateSessionFilesViewState(
         current,
         sourceSessionId,
@@ -310,73 +375,369 @@ export function useWorkbenchSessionFiles({
       ))
       return true
     } catch (error) {
+      if (directoryRequestControllersRef.current.get(sourceSessionId) !== controller) {
+        return false
+      }
       const message = error instanceof Error ? error.message : ''
       setViewStates((current) => updateSessionFilesViewState(
         current,
         sourceSessionId,
-        (state) => failDirectoryRequest(state, sequence, message),
+        (state) => failDirectoryRequest(state, sequence, message, normalized),
         normalized,
       ))
       return false
+    } finally {
+      if (directoryRequestControllersRef.current.get(sourceSessionId) === controller) {
+        directoryRequestControllersRef.current.delete(sourceSessionId)
+      }
     }
-  }, [api, fileSession, sourceSessionId, updateView])
+  }, [api, fileSessionId, fileSessionStatus, sourceSessionId, updateView])
 
   useEffect(() => {
     if (
       !enabled ||
       !sourceSessionId ||
       fileSession?.status !== 'connected' ||
-      viewState?.listing ||
-      viewState?.loading ||
-      viewState?.error
+      cwdRefreshPendingSessionIdsRef.current.has(sourceSessionId) ||
+      !viewState ||
+      !shouldRequestInitialSessionFilesDirectory(viewState)
     ) {
       return
     }
     void loadDirectory(viewState?.path || initialPath)
-  }, [enabled, fileSession?.status, initialPath, loadDirectory, sourceSessionId, viewState?.error, viewState?.listing, viewState?.loading, viewState?.path])
+  }, [enabled, fileSession?.status, initialPath, loadDirectory, sourceSessionId, viewState])
 
   useEffect(() => {
     if (
       !enabled ||
       !viewState?.followTerminal ||
       !cwdState?.confirmed_path ||
-      fileSession?.status !== 'connected'
+      fileSessionStatus !== 'connected' ||
+      (sourceSessionId && cwdRefreshPendingSessionIdsRef.current.has(sourceSessionId))
     ) {
       return
     }
     const confirmedPath = normalizeRemotePath(cwdState.confirmed_path)
-    if (confirmedPath === viewState.path && viewState.listing?.path === confirmedPath) {
+    const pendingPath = cwdState.pending_operation?.status === 'failed'
+      ? ''
+      : cwdState.pending_operation?.path ?? ''
+    if (!shouldRequestFollowedDirectory(viewState, confirmedPath, pendingPath)) {
       return
     }
-    const timer = window.setTimeout(() => void loadDirectory(confirmedPath), 140)
+    const timer = window.setTimeout(() => {
+      if (
+        !sourceSessionId
+        || cwdRefreshPendingSessionIdsRef.current.has(sourceSessionId)
+      ) {
+        return
+      }
+      void loadDirectory(confirmedPath)
+    }, 140)
     return () => window.clearTimeout(timer)
-  }, [cwdState?.confirmed_path, enabled, fileSession?.status, loadDirectory, viewState?.followTerminal, viewState?.listing?.path, viewState?.path])
+  }, [
+    cwdState?.confirmed_path,
+    cwdState?.pending_operation?.path,
+    cwdState?.pending_operation?.status,
+    enabled,
+    fileSessionStatus,
+    loadDirectory,
+    sourceSessionId,
+    viewState,
+  ])
 
   useEffect(() => {
     if (!enabled || !viewState?.followTerminal || !cwdState) {
       return
     }
-    const pending = cwdState.pending_operation
-    const nextStatus: SessionFilesSyncStatus = cwdRequestError
-      ? 'failed'
-      : pending?.status
-        ?? (cwdState.capability === 'unsupported' ? 'unsupported' : '')
-    const nextError = cwdRequestError?.message
-      ?? pending?.error
-      ?? cwdState.capability_cause
-      ?? ''
+    const refreshBaseline = sourceSessionId
+      ? cwdRefreshBaselinesRef.current.get(sourceSessionId)
+      : undefined
+    const refreshConfirmed = refreshBaseline
+      ? isSessionFilesCwdRefreshComplete(cwdState, refreshBaseline)
+      : false
+    const terminalRefreshError = sourceSessionId && !refreshConfirmed
+      ? cwdRefreshTerminalErrorsRef.current.get(sourceSessionId)
+      : ''
+    const derived = deriveSessionFilesFollowSyncState(
+      cwdState,
+      cwdRequestError,
+      terminalRefreshError ?? '',
+      Boolean(sourceSessionId && cwdRefreshPendingSessionIdsRef.current.has(sourceSessionId)),
+      refreshConfirmed,
+      sessionFilesCwdRefreshTransportDisposition(cwdTransportState),
+    )
     const confirmedPath = cwdState.confirmed_path
       ? normalizeRemotePath(cwdState.confirmed_path)
       : ''
     updateView(
-      (state) => applySessionFilesSyncState(state, nextStatus, nextError, confirmedPath),
+      (state) => applySessionFilesSyncState(
+        state,
+        derived.status,
+        derived.error,
+        confirmedPath,
+      ),
       initialPath,
     )
   }, [
     cwdState,
     cwdRequestError,
+    cwdTransportState,
     enabled,
     initialPath,
+    sourceSessionId,
+    updateView,
+    viewState?.followTerminal,
+  ])
+
+  useEffect(() => {
+    if (!sourceSessionId) {
+      return
+    }
+    if (!viewState?.followTerminal) {
+      cwdRefreshPendingSessionIdsRef.current.delete(sourceSessionId)
+      cwdRefreshFlightsRef.current.delete(sourceSessionId)
+      cwdRefreshAttemptsRef.current.delete(sourceSessionId)
+      cwdRefreshRetryAtRef.current.delete(sourceSessionId)
+      cwdRefreshBaselinesRef.current.delete(sourceSessionId)
+      cwdRefreshTerminalErrorsRef.current.delete(sourceSessionId)
+      return
+    }
+
+    let wakeTimer: number | undefined
+    const updateRefreshStatus = (status: 'locating' | 'failed', error = '') => {
+      updateView({ syncStatus: status, syncError: error }, initialPath)
+    }
+    const clearRefresh = () => {
+      cwdRefreshPendingSessionIdsRef.current.delete(sourceSessionId)
+      cwdRefreshFlightsRef.current.delete(sourceSessionId)
+      cwdRefreshAttemptsRef.current.delete(sourceSessionId)
+      cwdRefreshRetryAtRef.current.delete(sourceSessionId)
+      cwdRefreshBaselinesRef.current.delete(sourceSessionId)
+      cwdRefreshTerminalErrorsRef.current.delete(sourceSessionId)
+    }
+    const stopRefresh = (error: string) => {
+      cwdRefreshPendingSessionIdsRef.current.delete(sourceSessionId)
+      cwdRefreshFlightsRef.current.delete(sourceSessionId)
+      cwdRefreshAttemptsRef.current.delete(sourceSessionId)
+      cwdRefreshRetryAtRef.current.delete(sourceSessionId)
+      cwdRefreshTerminalErrorsRef.current.set(sourceSessionId, error)
+      updateRefreshStatus('failed', error)
+    }
+    const scheduleRetry = (error: string) => {
+      cwdRefreshFlightsRef.current.delete(sourceSessionId)
+      const attempt = cwdRefreshAttemptsRef.current.get(sourceSessionId) ?? 0
+      const delay = sessionFilesCwdRefreshRetryDelay(attempt)
+      if (delay === null) {
+        stopRefresh(error)
+        return
+      }
+      cwdRefreshRetryAtRef.current.set(sourceSessionId, Date.now() + delay)
+      setCwdRefreshWakeSequence((current) => current + 1)
+    }
+
+    let baseline = cwdRefreshBaselinesRef.current.get(sourceSessionId)
+    if (baseline && isSessionFilesCwdRefreshComplete(cwdState, baseline)) {
+      clearRefresh()
+      const derived = deriveSessionFilesCwdRefreshSuccessState(cwdState)
+      updateView(
+        (state) => applySessionFilesSyncState(
+          state,
+          derived.status,
+          derived.error,
+          cwdState?.confirmed_path ? normalizeRemotePath(cwdState.confirmed_path) : '',
+        ),
+        initialPath,
+      )
+      return
+    }
+    if (cwdState?.capability === 'unsupported') {
+      clearRefresh()
+      const derived = deriveSessionFilesSyncState(cwdState, cwdRequestError)
+      updateView(
+        (state) => applySessionFilesSyncState(
+          state,
+          derived.status,
+          derived.error,
+          cwdState.confirmed_path ? normalizeRemotePath(cwdState.confirmed_path) : '',
+        ),
+        initialPath,
+      )
+      return
+    }
+    if (!enabled || sourceSessionStatus !== 'connected') {
+      return
+    }
+    if (!cwdRefreshPendingSessionIdsRef.current.has(sourceSessionId)) {
+      return
+    }
+
+    const transportDisposition = sessionFilesCwdRefreshTransportDisposition(cwdTransportState)
+    if (cwdState?.capability === 'probing') {
+      if (transportDisposition === 'failed') {
+        stopRefresh('cwd_refresh_transport_unavailable')
+        return
+      }
+      const pendingState = deriveSessionFilesFollowSyncState(
+        cwdState,
+        cwdRequestError,
+        '',
+        true,
+        false,
+        transportDisposition,
+      )
+      updateView({
+        syncStatus: pendingState.status,
+        syncError: pendingState.error,
+      }, initialPath)
+      return
+    }
+
+    const waitForTransport = () => {
+      const now = Date.now()
+      const deadline = ensureSessionFilesCwdRefreshTransportWaitDeadline(
+        baseline?.transportWaitDeadline ?? 0,
+        now,
+      )
+      if (!baseline || baseline.transportWaitDeadline !== deadline) {
+        baseline = {
+          baseRefreshSequence: baseline?.baseRefreshSequence ?? cwdState?.refresh_seq ?? 0,
+          baseConfirmedPath: baseline?.baseConfirmedPath ?? cwdState?.confirmed_path ?? '',
+          transportWaitDeadline: deadline,
+        }
+        cwdRefreshBaselinesRef.current.set(sourceSessionId, baseline)
+      }
+      const waitRemaining = sessionFilesCwdRefreshTransportWaitRemaining(
+        deadline,
+        now,
+      )
+      if (waitRemaining <= 0) {
+        stopRefresh('cwd_refresh_transport_timeout')
+        return undefined
+      }
+      const pendingState = deriveSessionFilesFollowSyncState(
+        cwdState,
+        cwdRequestError,
+        '',
+        true,
+        false,
+        transportDisposition,
+      )
+      updateView({
+        syncStatus: pendingState.status,
+        syncError: pendingState.error,
+      }, initialPath)
+      wakeTimer = window.setTimeout(
+        () => setCwdRefreshWakeSequence((current) => current + 1),
+        waitRemaining,
+      )
+      return () => window.clearTimeout(wakeTimer)
+    }
+    const flight = cwdRefreshFlightsRef.current.get(sourceSessionId)
+    if (flight) {
+      if (cwdRefreshError?.request_id === flight.requestId) {
+        if (cwdRefreshError.retryable) {
+          scheduleRetry(cwdRefreshError.code)
+        } else {
+          stopRefresh(cwdRefreshError.code)
+        }
+        return
+      }
+      if (transportDisposition === 'failed') {
+        stopRefresh('cwd_refresh_transport_unavailable')
+        return
+      }
+      if (transportDisposition === 'wait') {
+        cwdRefreshFlightsRef.current.delete(sourceSessionId)
+        cwdRefreshAttemptsRef.current.delete(sourceSessionId)
+        return waitForTransport()
+      }
+      const timeoutRemaining = cwdRefreshRequestTimeoutMs - (Date.now() - flight.startedAt)
+      if (timeoutRemaining <= 0) {
+        scheduleRetry('cwd_refresh_timeout')
+        return
+      }
+      wakeTimer = window.setTimeout(() => {
+        const current = cwdRefreshFlightsRef.current.get(sourceSessionId)
+        if (current?.requestId === flight.requestId) {
+          scheduleRetry('cwd_refresh_timeout')
+        }
+      }, timeoutRemaining)
+      return () => window.clearTimeout(wakeTimer)
+    }
+
+    if (transportDisposition === 'failed') {
+      stopRefresh('cwd_refresh_transport_unavailable')
+      return
+    }
+    if (transportDisposition === 'wait') {
+      return waitForTransport()
+    }
+
+    const retryAt = cwdRefreshRetryAtRef.current.get(sourceSessionId)
+    if (retryAt !== undefined) {
+      const retryDelay = retryAt - Date.now()
+      if (retryDelay > 0) {
+        wakeTimer = window.setTimeout(
+          () => setCwdRefreshWakeSequence((current) => current + 1),
+          retryDelay,
+        )
+        return () => window.clearTimeout(wakeTimer)
+      }
+      cwdRefreshRetryAtRef.current.delete(sourceSessionId)
+    }
+
+    if (!shouldRefreshFollowedDirectory(true, cwdState, true)) {
+      return
+    }
+    cwdRefreshTerminalErrorsRef.current.delete(sourceSessionId)
+    const pendingState = deriveSessionFilesFollowSyncState(
+      cwdState,
+      cwdRequestError,
+      '',
+      true,
+      false,
+      transportDisposition,
+    )
+    updateView({
+      syncStatus: pendingState.status,
+      syncError: pendingState.error,
+    }, initialPath)
+    const result = cwdRuntime.refreshDirectory(sourceSessionId)
+    if (result.status === 'not_ready') {
+      return
+    }
+    const refreshBaseline = cwdRefreshBaselinesRef.current.get(sourceSessionId) ?? {
+      baseRefreshSequence: result.baseRefreshSequence,
+      baseConfirmedPath: cwdState?.confirmed_path ?? '',
+      transportWaitDeadline: 0,
+    }
+    cwdRefreshBaselinesRef.current.set(sourceSessionId, refreshBaseline)
+    cwdRefreshFlightsRef.current.set(sourceSessionId, {
+      requestId: result.requestId,
+      ...refreshBaseline,
+      startedAt: Date.now(),
+    })
+    cwdRefreshAttemptsRef.current.set(
+      sourceSessionId,
+      (cwdRefreshAttemptsRef.current.get(sourceSessionId) ?? 0) + 1,
+    )
+    setCwdRefreshWakeSequence((current) => current + 1)
+    return () => {
+      if (wakeTimer !== undefined) {
+        window.clearTimeout(wakeTimer)
+      }
+    }
+  }, [
+    cwdRuntime,
+    cwdState,
+    cwdRefreshError,
+    cwdRefreshWakeSequence,
+    cwdRequestError,
+    cwdTransportState,
+    enabled,
+    initialPath,
+    sourceSessionId,
+    sourceSessionStatus,
     updateView,
     viewState?.followTerminal,
   ])
@@ -392,7 +753,7 @@ export function useWorkbenchSessionFiles({
   }, [listingPath, sourceSessionId])
 
   const navigateDirectory = useCallback(async (targetPath: string) => {
-    if (!sourceSessionId || !fileSession || !viewState) {
+    if (!sourceSessionId || !fileSessionId || !viewState) {
       return false
     }
     const normalized = normalizeRemotePosixPath(targetPath)
@@ -406,17 +767,43 @@ export function useWorkbenchSessionFiles({
     if (!viewState.followTerminal) {
       return loadDirectory(normalized)
     }
-    const result = cwdRuntime.requestDirectoryChange(sourceSessionId, fileSession.id, normalized)
+    if (cwdRefreshPendingSessionIdsRef.current.has(sourceSessionId)) {
+      const pendingState = deriveSessionFilesFollowSyncState(
+        cwdState,
+        cwdRequestError,
+        '',
+        true,
+        false,
+        sessionFilesCwdRefreshTransportDisposition(cwdTransportState),
+      )
+      updateView({
+        syncStatus: pendingState.status,
+        syncError: pendingState.error,
+      }, normalized)
+      return false
+    }
+    const result = cwdRuntime.requestDirectoryChange(sourceSessionId, fileSessionId, normalized)
     if (result.status === 'already_current') {
       return loadDirectory(normalized)
     }
     if (result.status !== 'queued') {
+      const rejected = deriveRejectedSessionFilesSyncState(
+        result.status,
+        cwdState,
+        result.status === 'unsupported' ? result.reason : '',
+      )
       updateView({
-        syncStatus: result.status,
-        syncError: result.status === 'unsupported' ? result.reason ?? '' : '',
+        syncStatus: rejected.status,
+        syncError: rejected.error,
       }, normalized)
       return false
     }
+    cwdRefreshPendingSessionIdsRef.current.delete(sourceSessionId)
+    cwdRefreshFlightsRef.current.delete(sourceSessionId)
+    cwdRefreshAttemptsRef.current.delete(sourceSessionId)
+    cwdRefreshRetryAtRef.current.delete(sourceSessionId)
+    cwdRefreshBaselinesRef.current.delete(sourceSessionId)
+    cwdRefreshTerminalErrorsRef.current.delete(sourceSessionId)
     updateView({
       path: normalized,
       error: '',
@@ -424,19 +811,81 @@ export function useWorkbenchSessionFiles({
       syncError: '',
     }, normalized)
     return true
-  }, [cwdRuntime, fileSession, loadDirectory, sourceSessionId, updateView, viewState])
+  }, [cwdRequestError, cwdRuntime, cwdState, cwdTransportState, fileSessionId, loadDirectory, sourceSessionId, updateView, viewState])
 
   const setFollowTerminal = useCallback((followTerminal: boolean) => {
-    updateView({
-      followTerminal,
-      error: '',
-      syncStatus: followTerminal && cwdState?.capability === 'unsupported' ? 'unsupported' : '',
-      syncError: followTerminal ? cwdState?.capability_cause ?? '' : '',
-    }, initialPath)
-    if (followTerminal && cwdState?.confirmed_path) {
-      void loadDirectory(cwdState.confirmed_path)
+    const startsRefresh = followTerminal && !viewState?.followTerminal
+    let invalidatedRequestSequence = 0
+    if (startsRefresh && sourceSessionId) {
+      const controller = directoryRequestControllersRef.current.get(sourceSessionId)
+      directoryRequestControllersRef.current.delete(sourceSessionId)
+      controller?.abort()
+      invalidatedRequestSequence = Math.max(
+        directoryRequestSequencesRef.current.get(sourceSessionId) ?? 0,
+        viewState?.requestSequence ?? 0,
+      ) + 1
+      directoryRequestSequencesRef.current.set(sourceSessionId, invalidatedRequestSequence)
     }
-  }, [cwdState?.capability, cwdState?.capability_cause, cwdState?.confirmed_path, initialPath, loadDirectory, updateView])
+    const derived = startsRefresh
+      ? deriveSessionFilesFollowSyncState(
+          cwdState,
+          cwdRequestError,
+          '',
+          true,
+          false,
+          sessionFilesCwdRefreshTransportDisposition(cwdTransportState),
+        )
+      : followTerminal
+        ? deriveSessionFilesSyncState(cwdState, cwdRequestError)
+        : { status: '' as const, error: '' }
+    if (sourceSessionId) {
+      if (startsRefresh) {
+        cwdRefreshPendingSessionIdsRef.current.add(sourceSessionId)
+        cwdRefreshFlightsRef.current.delete(sourceSessionId)
+        cwdRefreshAttemptsRef.current.delete(sourceSessionId)
+        cwdRefreshRetryAtRef.current.delete(sourceSessionId)
+        cwdRefreshBaselinesRef.current.set(sourceSessionId, {
+          baseRefreshSequence: cwdState?.refresh_seq ?? 0,
+          baseConfirmedPath: cwdState?.confirmed_path ?? '',
+          transportWaitDeadline: 0,
+        })
+        cwdRefreshTerminalErrorsRef.current.delete(sourceSessionId)
+      } else if (!followTerminal) {
+        cwdRefreshPendingSessionIdsRef.current.delete(sourceSessionId)
+        cwdRefreshFlightsRef.current.delete(sourceSessionId)
+        cwdRefreshAttemptsRef.current.delete(sourceSessionId)
+        cwdRefreshRetryAtRef.current.delete(sourceSessionId)
+        cwdRefreshBaselinesRef.current.delete(sourceSessionId)
+        cwdRefreshTerminalErrorsRef.current.delete(sourceSessionId)
+      }
+    }
+    if (!followTerminal && sourceSessionId && viewState?.listing) {
+      const controller = directoryRequestControllersRef.current.get(sourceSessionId)
+      if (controller) {
+        directoryRequestControllersRef.current.delete(sourceSessionId)
+        controller.abort()
+      }
+    }
+    updateView((state) => {
+      const next = startsRefresh
+        ? cancelDirectoryRequestForFollowRefresh(state, invalidatedRequestSequence)
+        : followTerminal
+          ? state
+          : cancelDirectoryRequest(state)
+      return {
+        ...next,
+        followTerminal,
+        error: '',
+        failedRequestPath: '',
+        syncStatus: derived.status,
+        syncError: derived.error,
+      }
+    }, initialPath)
+  }, [cwdRequestError, cwdState, cwdTransportState, initialPath, sourceSessionId, updateView, viewState?.followTerminal, viewState?.listing, viewState?.requestSequence])
+
+  const retryDirectory = useCallback(() => loadDirectory(
+    viewState?.failedRequestPath || viewState?.path || initialPath,
+  ), [initialPath, loadDirectory, viewState?.failedRequestPath, viewState?.path])
 
   const setSelectedPaths = useCallback((selectedPaths: string[]) => {
     updateView({ selectedPaths }, initialPath)
@@ -486,6 +935,7 @@ export function useWorkbenchSessionFiles({
     entries,
     connected: fileSession?.status === 'connected',
     loadDirectory,
+    retryDirectory,
     navigateDirectory,
     reconnect,
     setFollowTerminal,

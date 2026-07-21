@@ -17,6 +17,7 @@ export type TerminalRequestScope =
   | 'attach'
   | 'resize'
   | 'cwd_change'
+  | 'cwd_refresh'
   | 'message'
   | 'terminal_input'
 
@@ -105,6 +106,10 @@ export function encodeTerminalResize(cols: number, rows: number) {
 
 export function encodeTerminalCwdChange(request: SessionCwdChangeRequest) {
   return JSON.stringify({ type: 'cwd_change', cwd_change: request })
+}
+
+export function encodeTerminalCwdRefresh(requestId: string) {
+  return JSON.stringify({ type: 'cwd_refresh', request_id: requestId })
 }
 
 export function encodeTerminalHeartbeatAck(sentAt: string) {
@@ -254,7 +259,14 @@ function decodeCwdState(value: unknown): SessionCwdState {
   if (!Number.isSafeInteger(state.state_seq) || Number(state.state_seq) < 0) {
     throw new TerminalProtocolError('Terminal CWD state sequence is invalid')
   }
-  return state as unknown as SessionCwdState
+  const refreshSequence = state.refresh_seq ?? 0
+  if (!Number.isSafeInteger(refreshSequence) || Number(refreshSequence) < 0) {
+    throw new TerminalProtocolError('Terminal CWD refresh sequence is invalid')
+  }
+  return {
+    ...state,
+    refresh_seq: Number(refreshSequence),
+  } as unknown as SessionCwdState
 }
 
 function decodeGapReason(value: unknown): TerminalOutputGapReason {
@@ -273,6 +285,7 @@ function decodeRequestScope(value: unknown): TerminalRequestScope {
     value === 'attach' ||
     value === 'resize' ||
     value === 'cwd_change' ||
+    value === 'cwd_refresh' ||
     value === 'message' ||
     value === 'terminal_input'
   ) {

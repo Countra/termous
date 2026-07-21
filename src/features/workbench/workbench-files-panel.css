@@ -148,6 +148,7 @@
 }
 
 .workbench-files-address {
+  position: relative;
   display: flex;
   height: 34px;
   min-width: 0;
@@ -166,6 +167,27 @@
     border-color 150ms ease,
     background-color 150ms ease,
     box-shadow 150ms ease;
+}
+
+.workbench-files-address.is-navigating {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-subtle));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 8%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 4%);
+}
+
+.workbench-files-address.is-navigating::after {
+  position: absolute;
+  z-index: 3;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 72%, transparent);
+  content: "";
+  pointer-events: none;
 }
 
 .workbench-files-address:hover,
@@ -382,31 +404,45 @@
   box-shadow: none;
 }
 
-.workbench-file-sync {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  border-left: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
-  border-radius: 5px 8px 8px 5px;
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface-subtle));
+.workbench-files-panel .workbench-files-follow[data-state="preparing"],
+.workbench-files-panel .workbench-files-follow[data-state="locating"],
+.workbench-files-panel .workbench-files-follow[data-state="syncing"],
+.workbench-files-panel .workbench-files-follow[data-state="waiting"] {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
   color: var(--text-secondary);
-  font-size: 10px;
-  line-height: 1.3;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
 }
 
-.workbench-file-sync > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.workbench-files-panel .workbench-files-follow[data-state="preparing"] .workbench-files-follow-dot,
+.workbench-files-panel .workbench-files-follow[data-state="locating"] .workbench-files-follow-dot,
+.workbench-files-panel .workbench-files-follow[data-state="syncing"] .workbench-files-follow-dot,
+.workbench-files-panel .workbench-files-follow[data-state="waiting"] .workbench-files-follow-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
-.workbench-file-sync.is-warning {
-  border-left-color: color-mix(in srgb, var(--warning) 68%, transparent);
-  background: color-mix(in srgb, var(--warning) 8%, var(--surface-subtle));
-  color: color-mix(in srgb, var(--warning) 72%, var(--text-primary));
+.workbench-files-panel .workbench-files-follow[data-state="unsupported"] {
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--border));
+  background: color-mix(in srgb, var(--warning) 9%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--warning) 68%, var(--text-primary));
+}
+
+.workbench-files-panel .workbench-files-follow[data-state="unsupported"] .workbench-files-follow-dot {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.workbench-files-panel .workbench-files-follow[data-state="failed"] {
+  border-color: color-mix(in srgb, var(--danger) 44%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--danger) 72%, var(--text-primary));
+}
+
+.workbench-files-panel .workbench-files-follow[data-state="failed"] .workbench-files-follow-dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent);
+  animation: none;
 }
 
 .workbench-files-panel .is-spinning {

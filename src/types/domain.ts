@@ -289,6 +289,7 @@ export interface SessionCwdState {
   confirmed_path?: string
   desired_path?: string
   state_seq: number
+  refresh_seq: number
   revision: number
   source: SessionCwdSource
   capability: SessionCwdCapability

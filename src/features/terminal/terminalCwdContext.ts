@@ -7,8 +7,10 @@ import {
 import type { SessionCwdState } from '../../types/domain'
 import type {
   SessionCwdRequestError,
+  SessionCwdRequestScope,
   TerminalCwdRuntime,
 } from './terminalCwdRuntime'
+import type { TerminalTransportState } from './terminalTransport'
 
 export const TerminalCwdRuntimeContext = createContext<TerminalCwdRuntime | null>(null)
 
@@ -31,6 +33,7 @@ export function useSessionCwdState(sessionId: string | null): SessionCwdState | 
 
 export function useSessionCwdRequestError(
   sessionId: string | null,
+  scope: SessionCwdRequestScope = 'cwd_change',
 ): SessionCwdRequestError | null {
   const runtime = useTerminalCwdRuntime()
   const subscribe = useCallback(
@@ -40,8 +43,19 @@ export function useSessionCwdRequestError(
     [runtime, sessionId],
   )
   const getSnapshot = useCallback(
-    () => (sessionId ? runtime.getRequestErrorSnapshot(sessionId) : null),
-    [runtime, sessionId],
+    () => (sessionId ? runtime.getRequestErrorSnapshot(sessionId, scope) : null),
+    [runtime, scope, sessionId],
   )
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+export function useSessionCwdTransportState(
+  sessionId: string | null,
+): TerminalTransportState {
+  const runtime = useTerminalCwdRuntime()
+  return useSyncExternalStore(
+    (listener) => sessionId ? runtime.subscribe(sessionId, listener) : () => undefined,
+    () => sessionId ? runtime.getTransportStateSnapshot(sessionId) : 'idle',
+    () => sessionId ? runtime.getTransportStateSnapshot(sessionId) : 'idle',
+  )
 }

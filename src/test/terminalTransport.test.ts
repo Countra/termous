@@ -72,6 +72,7 @@ test('transport 保留流游标、去重输出、确认心跳并独立重连', (
   })
 
   try {
+    assert.equal(transport.sendCwdRefresh('refresh-before-open'), false)
     transport.start()
     socket.open()
     assert.deepEqual(JSON.parse(String(socket.sent[0])), { type: 'attach' })
@@ -88,6 +89,12 @@ test('transport 保留流游标、去重输出、确认心跳并独立重连', (
       },
     }))
     assert.equal(transport.isLive(), true)
+
+    assert.equal(transport.sendCwdRefresh('refresh-1'), true)
+    assert.deepEqual(JSON.parse(String(socket.sent[socket.sent.length - 1])), {
+      type: 'cwd_refresh',
+      request_id: 'refresh-1',
+    })
 
     socket.receive(outputFrame(0n, [0x61, 0x62, 0x63]))
     socket.receive(outputFrame(1n, [0x62, 0x63, 0x64, 0x65]))

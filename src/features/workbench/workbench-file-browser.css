@@ -1,11 +1,15 @@
 .workbench-file-list-shell {
   position: relative;
+  height: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+  border-radius: 13px;
 }
 
 .workbench-file-list-caption {
   display: flex;
+  height: 20px;
   min-width: 0;
   align-items: center;
   justify-content: flex-start;
@@ -20,6 +24,120 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.workbench-file-navigation-status {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: color-mix(in srgb, var(--accent) 76%, var(--text-secondary));
+}
+
+.workbench-file-navigation-status > svg,
+.workbench-file-navigation-status > span {
+  flex: 0 0 auto;
+}
+
+.workbench-file-navigation-status > span {
+  font-weight: 650;
+}
+
+.workbench-file-navigation-status > code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-file-caption-notice {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  font-weight: 650;
+}
+
+.workbench-file-caption-notice > svg {
+  flex: 0 0 auto;
+}
+
+.workbench-file-caption-notice > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-file-caption-notice.is-unsupported {
+  color: color-mix(in srgb, var(--warning) 76%, var(--text-secondary));
+}
+
+.workbench-file-caption-notice.is-error {
+  color: color-mix(in srgb, var(--danger) 80%, var(--text-secondary));
+}
+
+.workbench-file-caption-error {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 20px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 3px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: color-mix(in srgb, var(--danger) 76%, var(--text-secondary));
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workbench-file-caption-error:hover {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: color-mix(in srgb, var(--danger) 88%, var(--text-primary));
+}
+
+.workbench-file-caption-error:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--danger) 28%, transparent);
+  outline-offset: 1px;
+}
+
+.workbench-file-caption-error > svg,
+.workbench-file-caption-error > strong {
+  flex: 0 0 auto;
+}
+
+.workbench-file-caption-error > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-file-caption-error > strong {
+  margin-left: auto;
+  color: inherit;
+  font-weight: 700;
+}
+
+.workbench-file-navigation-progress {
+  position: absolute;
+  z-index: 6;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 13px 13px 0 0;
+  background: color-mix(in srgb, var(--accent) 72%, transparent);
+  pointer-events: none;
 }
 
 .workbench-file-list {
@@ -47,6 +165,16 @@
 
 .workbench-file-list.is-loading:not(.is-empty) {
   border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+}
+
+.workbench-file-list.is-navigating {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: color-mix(in srgb, var(--accent) 3%, var(--surface-subtle));
+  cursor: progress;
+}
+
+.workbench-file-list-content {
+  min-height: 100%;
 }
 
 .workbench-file-list::-webkit-scrollbar {
@@ -91,10 +219,42 @@
   cursor: pointer;
   outline: none;
   transition:
+    opacity 130ms ease,
     background-color 130ms ease,
     border-color 130ms ease,
     color 130ms ease,
     box-shadow 130ms ease;
+}
+
+.workbench-file-list.is-navigating .workbench-file-row {
+  opacity: 0.48;
+  pointer-events: none;
+}
+
+.workbench-file-list.is-navigating .workbench-file-row.is-opening {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface-strong));
+  color: var(--text-primary);
+  opacity: 1;
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 8%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 4%);
+}
+
+.workbench-file-row.is-opening::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.workbench-file-row.is-opening .workbench-file-row-icon {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface-strong));
+  color: var(--accent);
+}
+
+.workbench-file-row.is-opening .workbench-file-row-disclosure {
+  color: var(--accent);
+  opacity: 1;
+  transform: none;
 }
 
 .workbench-file-row + .workbench-file-row {
