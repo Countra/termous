@@ -26,6 +26,8 @@ jobs:
   metadata:
     name: Resolve release metadata
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.meta.outputs.version }}
       core_ref: ${{ steps.meta.outputs.core_ref }}
@@ -63,11 +65,51 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "core_ref=$core_ref" >> "$GITHUB_OUTPUT"
 
+      - name: Checkout Termous
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/checkout@v4
+        with:
+          path: web
+
+      - name: Generate release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          TERMOUS_CHANGELOG_FILE: ${{ github.workspace }}/web/docs/CHANGELOG.md
+          TERMOUS_RELEASE_NOTES_FILE: ${{ github.workspace }}/build/release-notes.md
+          TERMOUS_VERSION: ${{ steps.meta.outputs.version }}
+        run: ./web/scripts/ci/extract-changelog.ps1
+
+      - name: Validate GitHub Release target
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if is_draft="$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null)"; then
+            if [[ "$is_draft" != "true" ]]; then
+              echo "标签 $GITHUB_REF_NAME 已存在正式 GitHub Release，拒绝覆盖公开发布资产。" >&2
+              exit 1
+            fi
+          fi
+
+      - name: Prepare draft GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Termous ${{ steps.meta.outputs.version }}
+          tag_name: ${{ github.ref_name }}
+          prerelease: ${{ contains(steps.meta.outputs.version, '-') }}
+          draft: true
+          body_path: build/release-notes.md
+
   build-windows:
     name: Build Windows x64
     needs: metadata
     runs-on: windows-latest
     environment: release
+    permissions:
+      contents: write
     defaults:
       run:
         shell: pwsh
@@ -137,22 +179,31 @@ jobs:
           TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
         run: .\web\scripts\ci\build-windows.ps1
 
-      - name: Upload Windows installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: Termous-Windows-${{ needs.metadata.outputs.version }}-x64
-          path: |
-            build/windows-x64/installer/*.exe
-            build/windows-x64/installer/*.exe.blockmap
-            build/windows-x64/installer/latest.yml
-          if-no-files-found: error
-          retention-days: 14
+      - name: Upload Windows installer to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $installerDir = Join-Path $env:GITHUB_WORKSPACE "build\windows-x64\installer"
+          $assetPaths = @(
+            Get-ChildItem -LiteralPath $installerDir -Filter "*.exe" -File |
+              ForEach-Object { $_.FullName }
+          )
+          if ($assetPaths.Count -eq 0) {
+            throw "未找到待发布的 Windows 安装包: $installerDir"
+          }
+          & gh release upload $env:GITHUB_REF_NAME @assetPaths --clobber --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) {
+            throw "上传 Windows Release Asset 失败，退出码: $LASTEXITCODE"
+          }
 
   build-linux:
     name: Build Linux x64
     needs: metadata
     runs-on: ubuntu-24.04
     environment: release
+    permissions:
+      contents: write
 
     steps:
       - name: Validate core repository token
@@ -214,22 +265,27 @@ jobs:
           TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
         run: bash ./web/scripts/ci/build-unix.sh
 
-      - name: Upload Linux package
-        uses: actions/upload-artifact@v4
-        with:
-          name: Termous-Linux-${{ needs.metadata.outputs.version }}-x64
-          path: |
-            build/linux-x64/installer/*.AppImage
-            build/linux-x64/installer/*.AppImage.blockmap
-            build/linux-x64/installer/latest-linux.yml
-          if-no-files-found: error
-          retention-days: 14
+      - name: Upload Linux package to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          assets=(build/linux-x64/installer/*.AppImage)
+          if (( ${#assets[@]} == 0 )); then
+            echo "未找到待发布的 Linux 安装包。" >&2
+            exit 1
+          fi
+          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
 
   build-macos:
     name: Build macOS ${{ matrix.arch }}
     needs: metadata
     runs-on: ${{ matrix.runner }}
     environment: release
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -310,15 +366,19 @@ jobs:
           TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
         run: bash ./web/scripts/ci/build-unix.sh
 
-      - name: Upload macOS package
-        uses: actions/upload-artifact@v4
-        with:
-          name: Termous-macOS-${{ needs.metadata.outputs.version }}-${{ matrix.arch }}
-          path: |
-            build/macos-${{ matrix.arch }}/installer/*.dmg
-            build/macos-${{ matrix.arch }}/installer/*.dmg.blockmap
-          if-no-files-found: error
-          retention-days: 14
+      - name: Upload macOS package to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          assets=(build/macos-${{ matrix.arch }}/installer/*.dmg)
+          if (( ${#assets[@]} == 0 )); then
+            echo "未找到待发布的 macOS 安装包。" >&2
+            exit 1
+          fi
+          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
 
   publish:
     name: Publish GitHub Release
@@ -334,34 +394,8 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout Termous
-        uses: actions/checkout@v4
-        with:
-          path: web
-
-      - name: Generate release notes
-        shell: pwsh
-        env:
-          TERMOUS_CHANGELOG_FILE: ${{ github.workspace }}/web/docs/CHANGELOG.md
-          TERMOUS_RELEASE_NOTES_FILE: ${{ github.workspace }}/build/release-notes.md
-          TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
-        run: ./web/scripts/ci/extract-changelog.ps1
-
-      - name: Download release artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: Termous-*
-          path: release-assets
-          merge-multiple: true
-
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Termous ${{ needs.metadata.outputs.version }}
-          tag_name: ${{ github.ref_name }}
-          prerelease: ${{ contains(needs.metadata.outputs.version, '-') }}
-          body_path: build/release-notes.md
-          files: |
-            release-assets/*.exe
-            release-assets/*.AppImage
-            release-assets/*.dmg
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --repo "$GITHUB_REPOSITORY"
