@@ -3,7 +3,6 @@ import type { MenuProps } from 'antd'
 import {
   ArrowLeft,
   Bookmark,
-  ChevronLeft,
   ChevronRight,
   CheckCircle2,
   Circle,
@@ -35,7 +34,6 @@ import {
   type DragEvent,
   type HTMLAttributes,
   type MouseEvent,
-  type WheelEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
@@ -44,6 +42,7 @@ import { ConnectionActionButton } from '../../components/ui/ConnectionActionButt
 import { EmptyState } from '../../components/ui/EmptyState'
 import { FeatureSidePanel } from '../../components/ui/FeatureSidePanel'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
+import { SessionTabStrip } from '../../components/ui/SessionTabStrip'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
 import { usePersistentJsonState } from '../../hooks/usePersistentJsonState'
 import { useRafResizablePanelWidth } from '../../hooks/useRafResizablePanelWidth'
@@ -246,7 +245,6 @@ function FilesPageContent({
   const { modal, notification } = AntdApp.useApp()
   const filesPageRef = useRef<HTMLElement>(null)
   const filesTableShellRef = useRef<HTMLDivElement>(null)
-  const fileTabViewportRef = useRef<HTMLDivElement>(null)
   const dragDepthRef = useRef(0)
   const autoScrollFrameRef = useRef<number | null>(null)
   const autoScrollSpeedRef = useRef(0)
@@ -280,7 +278,6 @@ function FilesPageContent({
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [connectingHostIds, setConnectingHostIds] = useState<Set<string>>(() => new Set())
   const [fileColumnWidths, setFileColumnWidths] = useState<FileColumnWidths>(defaultFileColumnWidths)
-  const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
   const [hostPanelCollapsed, setHostPanelCollapsed] = usePersistentBooleanState(
     'termous.ui.files.hostPanelCollapsed.v1',
     false,
@@ -732,38 +729,6 @@ function FilesPageContent({
     }
   }, [fileContextMenu])
 
-  const updateTabScrollState = useCallback(() => {
-    const viewport = fileTabViewportRef.current
-    if (!viewport) {
-      setTabScrollState({ canScrollLeft: false, canScrollRight: false })
-      return
-    }
-    const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth
-    setTabScrollState({
-      canScrollLeft: viewport.scrollLeft > 1,
-      canScrollRight: viewport.scrollLeft < maxScrollLeft - 1,
-    })
-  }, [])
-
-  const scrollFileTabs = useCallback((direction: 'left' | 'right') => {
-    const viewport = fileTabViewportRef.current
-    if (!viewport) {
-      return
-    }
-    viewport.scrollBy({ left: direction === 'left' ? -220 : 220, behavior: 'smooth' })
-    window.setTimeout(updateTabScrollState, 180)
-  }, [updateTabScrollState])
-
-  const handleFileTabWheel = useCallback((event: WheelEvent<HTMLDivElement>) => {
-    const viewport = fileTabViewportRef.current
-    if (!viewport || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
-      return
-    }
-    event.preventDefault()
-    viewport.scrollLeft += event.deltaY
-    updateTabScrollState()
-  }, [updateTabScrollState])
-
   const closeFileSessionTab = useCallback(
     (fileSessionId: string) => {
       void onCloseFileSession(fileSessionId)
@@ -782,21 +747,6 @@ function FilesPageContent({
     },
     [closeFileSessionTab],
   )
-
-  useEffect(() => {
-    const viewport = fileTabViewportRef.current
-    if (!viewport) {
-      return undefined
-    }
-    const observer = new ResizeObserver(updateTabScrollState)
-    observer.observe(viewport)
-    viewport.addEventListener('scroll', updateTabScrollState, { passive: true })
-    updateTabScrollState()
-    return () => {
-      observer.disconnect()
-      viewport.removeEventListener('scroll', updateTabScrollState)
-    }
-  }, [fileSessionIds, updateTabScrollState])
 
   const notifyError = (actionError: unknown) => {
     notification.error({
@@ -1640,65 +1590,46 @@ function FilesPageContent({
 
       <main className="files-main-panel">
         <div className="files-session-toolbar">
-          <div className="session-tabs-shell files-session-tabs-shell">
-            <Tooltip title={t('workbench.scrollTabsLeft')}>
-              <Button
-                type="text"
-                className="session-scroll-button"
-                aria-label={t('workbench.scrollTabsLeft')}
-                disabled={!tabScrollState.canScrollLeft}
-                icon={<ChevronLeft size={15} />}
-                onClick={() => scrollFileTabs('left')}
-              />
-            </Tooltip>
-            <div
-              ref={fileTabViewportRef}
-              className={`session-tabs files-session-tabs ${tabScrollState.canScrollLeft ? 'has-left-overflow' : ''} ${
-                tabScrollState.canScrollRight ? 'has-right-overflow' : ''
-              }`}
-              role="tablist"
-              aria-label={t('files.sessions')}
-              onWheel={handleFileTabWheel}
-            >
-              {data.fileSessions.length === 0 ? (
-                <SessionTabButton empty role="tab" icon={<Folder size={15} />} label={t('files.noFileSession')} />
-              ) : (
-                  data.fileSessions.map((fileSession) => {
-                    const host = data.hosts.find((item) => item.id === fileSession.host_id)
-                    return (
-                      <SessionTabButton
-                        key={fileSession.id}
-                        active={fileSession.id === activeFileSessionId}
-                        role="tab"
-                        aria-selected={fileSession.id === activeFileSessionId}
-                        onClick={() => onSelectFileSession(fileSession.id)}
-                        onMouseDown={(event) => {
-                          if (event.button === 1) {
-                            event.preventDefault()
-                          }
-                        }}
-                        onAuxClick={(event) => closeFileSessionFromTab(event, fileSession.id)}
-                        icon={<Folder size={15} />}
-                        label={host?.name ?? shortId(fileSession.id)}
-                        status={fileSession.status}
-                        closeLabel={`${t('app.close')} ${host?.name ?? shortId(fileSession.id)}`}
-                        onClose={() => closeFileSessionTab(fileSession.id)}
-                      />
-                    )
-                  })
-              )}
-            </div>
-            <Tooltip title={t('workbench.scrollTabsRight')}>
-              <Button
-                type="text"
-                className="session-scroll-button"
-                aria-label={t('workbench.scrollTabsRight')}
-                disabled={!tabScrollState.canScrollRight}
-                icon={<ChevronRight size={15} />}
-                onClick={() => scrollFileTabs('right')}
-              />
-            </Tooltip>
-          </div>
+          <SessionTabStrip
+            ariaLabel={t('files.sessions')}
+            activeId={activeFileSessionId}
+            contentKey={fileSessionIds}
+            scrollLeftLabel={t('workbench.scrollTabsLeft')}
+            scrollRightLabel={t('workbench.scrollTabsRight')}
+            className="files-session-tabs-shell"
+            tabsClassName="files-session-tabs"
+          >
+            {data.fileSessions.length === 0 ? (
+              <SessionTabButton empty icon={<Folder size={18} />} label={t('files.noFileSession')} />
+            ) : (
+              data.fileSessions.map((fileSession) => {
+                const host = data.hosts.find((item) => item.id === fileSession.host_id)
+                const label = host?.name ?? shortId(fileSession.id)
+                return (
+                  <SessionTabButton
+                    key={fileSession.id}
+                    active={fileSession.id === activeFileSessionId}
+                    role="tab"
+                    aria-selected={fileSession.id === activeFileSessionId}
+                    data-session-tab-id={fileSession.id}
+                    onClick={() => onSelectFileSession(fileSession.id)}
+                    onMouseDown={(event) => {
+                      if (event.button === 1) {
+                        event.preventDefault()
+                      }
+                    }}
+                    onAuxClick={(event) => closeFileSessionFromTab(event, fileSession.id)}
+                    icon={<Folder size={18} />}
+                    label={label}
+                    status={fileSession.status}
+                    statusLabel={t(`files.sessionStatus.${fileSession.status}`)}
+                    closeLabel={`${t('app.close')} ${label}`}
+                    onClose={() => closeFileSessionTab(fileSession.id)}
+                  />
+                )
+              })
+            )}
+          </SessionTabStrip>
           <ConnectionActionButton
             disabled={!selectedHostIdStable || selectedHostConnecting}
             loading={selectedHostConnecting}

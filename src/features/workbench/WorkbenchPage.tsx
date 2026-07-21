@@ -3,7 +3,6 @@ import {
   Boxes,
   Cable,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   Code2,
   Clock3,
@@ -42,7 +41,6 @@ import {
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
-  type WheelEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
@@ -50,6 +48,7 @@ import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { FeatureSidePanel } from '../../components/ui/FeatureSidePanel'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
+import { SessionTabStrip } from '../../components/ui/SessionTabStrip'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
 import { usePersistentJsonState } from '../../hooks/usePersistentJsonState'
@@ -172,12 +171,9 @@ export function WorkbenchPage({
     '--workbench-details-width': `${detailsPanelResize.width}px`,
   } as CSSProperties
   const terminalSplitRef = useRef<TerminalSplitWorkspaceHandle>(null)
-  const tabViewportRef = useRef<HTMLDivElement>(null)
-  const tabButtonRefs = useRef(new Map<string, HTMLElement>())
   const previousSessionStatusRef = useRef(new Map<string, Session['status']>())
   const terminalTabDragRef = useRef<TerminalTabDragState | null>(null)
   const suppressNextTabClickRef = useRef(false)
-  const [tabScrollState, setTabScrollState] = useState({ canScrollLeft: false, canScrollRight: false })
   const recentConnectionTimersRef = useRef(new Map<string, number>())
   const [recentlyConnectedSessionIds, setRecentlyConnectedSessionIds] = useState<Set<string>>(() => new Set())
   const [pendingSearchSessionId, setPendingSearchSessionId] = useState<string | null>(null)
@@ -593,53 +589,6 @@ export function WorkbenchPage({
     })
   }, [activeSession?.id, searchActive])
 
-  const updateTabScrollState = useCallback(() => {
-    const viewport = tabViewportRef.current
-    if (!viewport) {
-      setTabScrollState({ canScrollLeft: false, canScrollRight: false })
-      return
-    }
-    const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth
-    setTabScrollState({
-      canScrollLeft: viewport.scrollLeft > 1,
-      canScrollRight: viewport.scrollLeft < maxScrollLeft - 1,
-    })
-  }, [])
-
-  const scrollTabs = useCallback((direction: 'left' | 'right') => {
-    const viewport = tabViewportRef.current
-    if (!viewport) {
-      return
-    }
-    viewport.scrollBy({ left: direction === 'left' ? -220 : 220, behavior: 'smooth' })
-    window.setTimeout(updateTabScrollState, 180)
-  }, [updateTabScrollState])
-
-  const handleTabWheel = useCallback(
-    (event: WheelEvent<HTMLDivElement>) => {
-      const viewport = tabViewportRef.current
-      if (!viewport) {
-        return
-      }
-      const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth
-      if (maxScrollLeft <= 1) {
-        return
-      }
-      const wheelDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
-      if (wheelDelta === 0) {
-        return
-      }
-      const nextScrollLeft = Math.min(maxScrollLeft, Math.max(0, viewport.scrollLeft + wheelDelta))
-      if (Math.abs(nextScrollLeft - viewport.scrollLeft) < 1) {
-        return
-      }
-      event.preventDefault()
-      viewport.scrollLeft = nextScrollLeft
-      updateTabScrollState()
-    },
-    [updateTabScrollState],
-  )
-
   const updateTerminalTabDrag = useCallback((next: TerminalTabDragState | null) => {
     terminalTabDragRef.current = next
     setTerminalTabDrag(next)
@@ -954,28 +903,6 @@ export function WorkbenchPage({
   }, [activeSession?.id, closeTerminalSearch, pendingSearchSessionId, terminalSearch.open, terminalSearch.sessionId])
 
   useEffect(() => {
-    const viewport = tabViewportRef.current
-    if (!viewport) {
-      return undefined
-    }
-    const observer = new ResizeObserver(updateTabScrollState)
-    observer.observe(viewport)
-    viewport.addEventListener('scroll', updateTabScrollState, { passive: true })
-    updateTabScrollState()
-    return () => {
-      observer.disconnect()
-      viewport.removeEventListener('scroll', updateTabScrollState)
-    }
-  }, [data.sessions.length, updateTabScrollState])
-
-  useEffect(() => {
-    updateTabScrollState()
-    const activeButton = activeSession?.id ? tabButtonRefs.current.get(activeSession.id) : undefined
-    activeButton?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
-    window.setTimeout(updateTabScrollState, 180)
-  }, [activeSession?.id, data.sessions.length, updateTabScrollState])
-
-  useEffect(() => {
     if (activeSession?.status !== 'connected') {
       return undefined
     }
@@ -994,125 +921,14 @@ export function WorkbenchPage({
         <div className="terminal-workspace">
           <div className="terminal-card">
             <div className="terminal-toolbar">
-              <div className="session-tabs-shell">
-                <Tooltip title={t('workbench.scrollTabsLeft')}>
-                  <Button
-                    type="text"
-                    className="session-scroll-button"
-                    aria-label={t('workbench.scrollTabsLeft')}
-                    disabled={!tabScrollState.canScrollLeft}
-                    icon={<ChevronLeft size={15} />}
-                    onClick={() => scrollTabs('left')}
-                  />
-                </Tooltip>
-                <div className="session-tabs-stage">
-                  <div
-                    className={`terminal-tabs session-tabs ${tabScrollState.canScrollLeft ? 'has-left-overflow' : ''} ${
-                      tabScrollState.canScrollRight ? 'has-right-overflow' : ''
-                    }`}
-                    role="tablist"
-                    aria-label={t('workbench.terminal')}
-                    ref={tabViewportRef}
-                    onWheel={handleTabWheel}
-                  >
-                    {visibleSessions.length === 0 ? (
-                      <SessionTabButton empty role="tab" icon={<SquareTerminal size={15} />} label={t('workbench.noSession')} />
-                    ) : (
-                      visibleSessions.map((session) => {
-                        const preference = sessionTabPreferences[session.id]
-                        const title = resolveSessionTitle(session)
-                        return (
-                          <Dropdown
-                            key={session.id}
-                            trigger={['contextMenu']}
-                            classNames={{ root: 'terminal-tab-dropdown' }}
-                            menu={{
-                              items: buildSessionTabMenuItems(session),
-                              onClick: ({ key, domEvent }) => {
-                                domEvent.stopPropagation()
-                                if (key === 'search') {
-                                  requestSessionSearch(session.id)
-                                } else if (key === 'duplicate') {
-                                  void duplicateSessionFromMenu(session)
-                                } else if (key === 'split') {
-                                  splitSessionFromMenu(session.id)
-                                } else if (key === 'rename') {
-                                  openRenameSession(session)
-                                } else if (key === 'pin') {
-                                  toggleSessionPinned(session.id)
-                                } else if (key === 'color') {
-                                  setColorSessionId(session.id)
-                                } else if (key === 'reset') {
-                                  resetSessionTabPreference(session.id)
-                                }
-                              },
-                            }}
-                          >
-                            <span className="session-tab-trigger">
-                              <Popover
-                                open={colorSessionId === session.id}
-                                placement="bottomLeft"
-                                arrow={false}
-                                trigger="click"
-                                classNames={{ root: 'session-tab-color-popover' }}
-                                onOpenChange={(open) => {
-                                  if (!open && colorSessionId === session.id) {
-                                    setColorSessionId(null)
-                                  }
-                                }}
-                                content={(
-                                  <SessionTabColorPanel
-                                    color={preference?.color}
-                                    onSelect={(color, options) => setSessionTabColor(session.id, color, options)}
-                                    onReset={() => resetSessionTabColor(session.id)}
-                                  />
-                                )}
-                              >
-                                <SessionTabButton
-                                  ref={(node) => {
-                                    if (node) {
-                                      tabButtonRefs.current.set(session.id, node)
-                                    } else {
-                                      tabButtonRefs.current.delete(session.id)
-                                    }
-                                  }}
-                                  active={session.id === activeSession?.id}
-                                  role="tab"
-                                  aria-selected={session.id === activeSession?.id}
-                                  className={
-                                    terminalTabDrag?.dragging && terminalTabDrag.sessionId === session.id ? 'is-dragging' : undefined
-                                  }
-                                  onClick={(event) => {
-                                    if (suppressNextTabClickRef.current) {
-                                      event.preventDefault()
-                                      return
-                                    }
-                                    onSelectSession(session.id)
-                                  }}
-                                  onMouseDown={(event) => {
-                                    if (event.button === 1) {
-                                      event.preventDefault()
-                                    }
-                                  }}
-                                  onPointerDown={(event) => beginTerminalTabDrag(event, session.id)}
-                                  onAuxClick={(event) => closeSessionFromTab(event, session.id)}
-                                  icon={<SquareTerminal size={15} />}
-                                  label={title}
-                                  status={session.status}
-                                  pinned={preference?.pinned}
-                                  pinLabel={t('terminal.tabMenu.pinned')}
-                                  accentColor={preference?.color}
-                                  closeLabel={`${t('app.close')} ${title}`}
-                                  closeDisabled={actionBusy}
-                                  onClose={() => closeSessionTab(session.id)}
-                                />
-                              </Popover>
-                            </span>
-                          </Dropdown>
-                        )
-                      })
-                    )}
-                  </div>
+              <SessionTabStrip
+                ariaLabel={t('workbench.terminal')}
+                activeId={activeSession?.id}
+                contentKey={visibleSessions.map((session) => session.id).join('|')}
+                scrollLeftLabel={t('workbench.scrollTabsLeft')}
+                scrollRightLabel={t('workbench.scrollTabsRight')}
+                tabsClassName="terminal-tabs"
+                trailing={(
                   <Popover
                     open={quickConnectOpen}
                     trigger="click"
@@ -1132,27 +948,120 @@ export function WorkbenchPage({
                       />
                     )}
                   >
-                    <Button
-                      type="text"
-                      className={`session-new-tab-button ${quickConnectOpen ? 'is-open' : ''}`}
-                      aria-label={t('workbench.quickConnect.trigger')}
-                      icon={<Plus size={17} strokeWidth={2.2} />}
-                    />
+                    <Tooltip
+                      title={quickConnectOpen ? null : t('workbench.quickConnect.trigger')}
+                      placement="bottom"
+                      arrow={false}
+                      mouseEnterDelay={0.35}
+                      mouseLeaveDelay={0}
+                      classNames={{ root: 'termous-tooltip session-tab-tooltip' }}
+                      destroyOnHidden
+                    >
+                      <Button
+                        type="text"
+                        className={`session-new-tab-button ${quickConnectOpen ? 'is-open' : ''}`}
+                        aria-label={t('workbench.quickConnect.trigger')}
+                        icon={<Plus size={16} strokeWidth={2.2} />}
+                      />
+                    </Tooltip>
                   </Popover>
-                </div>
-                <Tooltip title={t('workbench.scrollTabsRight')}>
-                  <Button
-                    type="text"
-                    className="session-scroll-button"
-                    aria-label={t('workbench.scrollTabsRight')}
-                    disabled={!tabScrollState.canScrollRight}
-                    icon={<ChevronRight size={15} />}
-                    onClick={() => scrollTabs('right')}
-                  />
-                </Tooltip>
-              </div>
-            <StatusBadge status={sessionBadgeStatus} label={t(`status.${sessionStatus}`)} />
-          </div>
+                )}
+              >
+                {visibleSessions.length === 0 ? (
+                  <SessionTabButton empty icon={<SquareTerminal size={18} />} label={t('workbench.noSession')} />
+                ) : (
+                  visibleSessions.map((session) => {
+                    const preference = sessionTabPreferences[session.id]
+                    const title = resolveSessionTitle(session)
+                    return (
+                      <Dropdown
+                        key={session.id}
+                        trigger={['contextMenu']}
+                        classNames={{ root: 'terminal-tab-dropdown' }}
+                        menu={{
+                          items: buildSessionTabMenuItems(session),
+                          onClick: ({ key, domEvent }) => {
+                            domEvent.stopPropagation()
+                            if (key === 'search') {
+                              requestSessionSearch(session.id)
+                            } else if (key === 'duplicate') {
+                              void duplicateSessionFromMenu(session)
+                            } else if (key === 'split') {
+                              splitSessionFromMenu(session.id)
+                            } else if (key === 'rename') {
+                              openRenameSession(session)
+                            } else if (key === 'pin') {
+                              toggleSessionPinned(session.id)
+                            } else if (key === 'color') {
+                              setColorSessionId(session.id)
+                            } else if (key === 'reset') {
+                              resetSessionTabPreference(session.id)
+                            }
+                          },
+                        }}
+                      >
+                        <span className="session-tab-trigger">
+                          <Popover
+                            open={colorSessionId === session.id}
+                            placement="bottomLeft"
+                            arrow={false}
+                            trigger="click"
+                            classNames={{ root: 'session-tab-color-popover' }}
+                            onOpenChange={(open) => {
+                              if (!open && colorSessionId === session.id) {
+                                setColorSessionId(null)
+                              }
+                            }}
+                            content={(
+                              <SessionTabColorPanel
+                                color={preference?.color}
+                                onSelect={(color, options) => setSessionTabColor(session.id, color, options)}
+                                onReset={() => resetSessionTabColor(session.id)}
+                              />
+                            )}
+                          >
+                            <SessionTabButton
+                              active={session.id === activeSession?.id}
+                              role="tab"
+                              aria-selected={session.id === activeSession?.id}
+                              data-session-tab-id={session.id}
+                              className={
+                                terminalTabDrag?.dragging && terminalTabDrag.sessionId === session.id ? 'is-dragging' : undefined
+                              }
+                              onClick={(event) => {
+                                if (suppressNextTabClickRef.current) {
+                                  event.preventDefault()
+                                  return
+                                }
+                                onSelectSession(session.id)
+                              }}
+                              onMouseDown={(event) => {
+                                if (event.button === 1) {
+                                  event.preventDefault()
+                                }
+                              }}
+                              onPointerDown={(event) => beginTerminalTabDrag(event, session.id)}
+                              onAuxClick={(event) => closeSessionFromTab(event, session.id)}
+                              icon={<SquareTerminal size={18} />}
+                              label={title}
+                              status={session.status}
+                              statusLabel={t(`status.${session.status}`)}
+                              pinned={preference?.pinned}
+                              pinLabel={t('terminal.tabMenu.pinned')}
+                              accentColor={preference?.color}
+                              closeLabel={`${t('app.close')} ${title}`}
+                              closeDisabled={actionBusy}
+                              onClose={() => closeSessionTab(session.id)}
+                            />
+                          </Popover>
+                        </span>
+                      </Dropdown>
+                    )
+                  })
+                )}
+              </SessionTabStrip>
+              <StatusBadge status={sessionBadgeStatus} label={t(`status.${sessionStatus}`)} />
+            </div>
           <div className={`terminal-progress-slot ${hasConnectionProgress ? 'is-active' : ''}`}>
             <ConnectionProgress session={activeSession} showReady={showRecentConnectionProgress} />
           </div>
