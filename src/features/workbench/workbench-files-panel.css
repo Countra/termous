@@ -177,17 +177,25 @@
     inset 0 1px 0 rgb(255 255 255 / 4%);
 }
 
-.workbench-files-address.is-navigating::after {
+.workbench-files-address.is-loading::after {
   position: absolute;
   z-index: 3;
   bottom: 0;
-  left: 0;
-  width: 100%;
+  left: -42%;
+  width: 42%;
   height: 2px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 72%, transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 84%, white 8%) 34%,
+    var(--accent) 70%,
+    transparent
+  );
+  box-shadow: 0 0 7px color-mix(in srgb, var(--accent) 28%, transparent);
   content: "";
   pointer-events: none;
+  animation: workbench-files-loading-track 1.1s ease-in-out infinite;
 }
 
 .workbench-files-address:hover,
@@ -313,8 +321,8 @@
   color: color-mix(in srgb, var(--accent) 72%, var(--text-secondary));
 }
 
-.workbench-files-crumb:hover,
-.workbench-files-crumb:focus-visible {
+.workbench-files-crumb:not(:disabled):hover,
+.workbench-files-crumb:not(:disabled):focus-visible {
   background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
   color: var(--text-primary);
   outline: none;
@@ -323,6 +331,15 @@
 .workbench-files-crumb.is-current {
   color: var(--text-primary);
   font-weight: 600;
+}
+
+.workbench-files-crumb:disabled {
+  cursor: default;
+}
+
+.workbench-files-crumb:disabled:not(.is-current) {
+  color: var(--text-muted);
+  opacity: 0.58;
 }
 
 .workbench-files-breadcrumb-scroll.ant-btn {
@@ -468,6 +485,22 @@
   }
 }
 
+@keyframes workbench-files-loading-track {
+  0% {
+    opacity: 0.35;
+    transform: translateX(0);
+  }
+
+  48% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.35;
+    transform: translateX(338%);
+  }
+}
+
 :root[data-theme="light"] .workbench-files-address {
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 72%),
@@ -494,5 +527,13 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .workbench-files-address.is-loading::after {
+    left: 0;
+    width: 100%;
+    opacity: 0.72;
+    transform: none;
+    animation: none !important;
   }
 }

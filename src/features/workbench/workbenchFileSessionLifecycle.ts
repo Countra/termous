@@ -39,6 +39,42 @@ export function canApplyCreatedFileSession(
     && created.host_id === hostId
 }
 
+export function mergeFileSessionUpdate(
+  current: FileSession | null | undefined,
+  next: FileSession,
+  resetProgress = false,
+) {
+  const nextProgress = normalizeFileSessionProgress(next.progress)
+  if (!current || current.id !== next.id || resetProgress) {
+    return nextProgress === next.progress ? next : { ...next, progress: nextProgress }
+  }
+  if (isSettledFileSession(current.status) && isPendingFileSession(next.status)) {
+    return current
+  }
+  const currentProgress = normalizeFileSessionProgress(current.progress)
+  const progress = nextProgress === undefined
+    ? currentProgress
+    : currentProgress === undefined
+      ? nextProgress
+      : Math.max(currentProgress, nextProgress)
+  return progress === next.progress ? next : { ...next, progress }
+}
+
+function normalizeFileSessionProgress(progress: number | undefined) {
+  if (progress === undefined || !Number.isFinite(progress)) {
+    return undefined
+  }
+  return Math.max(0, Math.min(100, progress))
+}
+
+function isSettledFileSession(status: FileSession['status']) {
+  return status === 'connected' || status === 'disconnected' || status === 'failed'
+}
+
+function isPendingFileSession(status: FileSession['status']) {
+  return status === 'connecting' || status === 'waiting_trust'
+}
+
 export function shouldMaintainFileSessionEventStream(
   sourceStatus: Session['status'] | null,
   sourceEndedAt: string | undefined,

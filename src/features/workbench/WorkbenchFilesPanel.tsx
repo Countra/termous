@@ -138,6 +138,19 @@ function WorkbenchFilesPanelContent({
   const directoryReadFailed = Boolean(
     files.viewState?.error && files.viewState.failedRequestPath,
   )
+  const syncStatus = files.viewState?.syncStatus ?? ''
+  const followDirectoryBlocked = syncStatus === 'failed'
+    || syncStatus === 'unsupported'
+    || syncStatus === 'invalid_path'
+  const initialDirectoryPlaceholder = !files.viewState?.listing
+  const initialDirectoryPending = initialDirectoryPlaceholder
+    && !files.viewState?.error
+    && (!followTerminal || !followDirectoryBlocked)
+  const directoryRefreshing = Boolean(
+    navigationState?.refreshing && files.viewState?.listing,
+  )
+  const directoryLoading = initialDirectoryPending || directoryChanging || directoryRefreshing
+  const directoryNavigationLocked = initialDirectoryPlaceholder || directoryChanging
   const followingTerminalDirectory = followTerminal
     && Boolean(files.cwdState?.confirmed_path)
     && normalizeRemotePath(files.cwdState?.confirmed_path || '/') === pendingDirectoryPath
@@ -145,7 +158,6 @@ function WorkbenchFilesPanelContent({
   const pathInputId = `workbench-remote-path-${files.sourceSessionId || 'inactive'}`
   const pathErrorId = `${pathInputId}-error`
   const loadDirectory = files.loadDirectory
-  const syncStatus = files.viewState?.syncStatus ?? ''
   const syncMessage = syncStatusMessage(syncStatus, t)
   const syncNoticeTone = syncStatus === 'failed' || syncStatus === 'invalid_path'
     ? 'error'
@@ -554,7 +566,7 @@ function WorkbenchFilesPanelContent({
   }
 
   if (!files.fileSession || files.fileSession.status !== 'connected') {
-    const progress = Math.max(4, Math.min(100, files.fileSession?.progress ?? 8))
+    const progress = Math.max(4, Math.min(100, files.fileSession?.progress ?? 4))
     return (
       <div className="workbench-file-connect">
         <FolderOpen size={21} />
@@ -595,8 +607,8 @@ function WorkbenchFilesPanelContent({
                 type="text"
                 className="workbench-files-icon-button"
                 aria-label={t('app.reload')}
-                icon={<RefreshCw className={files.viewState?.loading ? 'is-spinning' : ''} size={14} />}
-                disabled={directoryChanging}
+                icon={<RefreshCw className={directoryRefreshing ? 'is-spinning' : ''} size={14} />}
+                disabled={directoryLoading}
                 onClick={() => void files.loadDirectory(currentPath)}
               />
             </Tooltip>
@@ -618,7 +630,7 @@ function WorkbenchFilesPanelContent({
               className="workbench-files-back"
               aria-label={t('files.parent')}
               icon={<ChevronLeft size={16} />}
-              disabled={currentPath === '/'}
+              disabled={currentPath === '/' || directoryNavigationLocked}
               onClick={() => void files.navigateDirectory(parentPath(currentPath))}
             />
           </Tooltip>
@@ -626,10 +638,11 @@ function WorkbenchFilesPanelContent({
             className={[
               'workbench-files-address',
               editingPath ? 'is-editing' : '',
+              directoryLoading ? 'is-loading' : '',
               directoryChanging ? 'is-navigating' : '',
               syncStatus === 'invalid_path' ? 'is-invalid' : '',
             ].filter(Boolean).join(' ')}
-            aria-busy={directoryChanging}
+            aria-busy={directoryLoading}
           >
             {editingPath ? (
               <>
@@ -640,6 +653,7 @@ function WorkbenchFilesPanelContent({
                   value={pathInput}
                   className="workbench-files-path-input"
                   status={syncStatus === 'invalid_path' ? 'error' : undefined}
+                  disabled={directoryChanging}
                   aria-label={t('workbench.files.pathInput')}
                   aria-invalid={syncStatus === 'invalid_path'}
                   aria-describedby={syncStatus === 'invalid_path' ? pathErrorId : undefined}
@@ -659,6 +673,7 @@ function WorkbenchFilesPanelContent({
                   className="workbench-files-address-action"
                   aria-label={t('files.go')}
                   icon={<Check size={14} />}
+                  disabled={directoryChanging}
                   onClick={() => void submitPath()}
                 />
                 <Button
@@ -691,6 +706,7 @@ function WorkbenchFilesPanelContent({
                         currentPath,
                         files.navigateDirectory,
                         t('workbench.files.rootDirectory'),
+                        directoryNavigationLocked,
                       )}
                     />
                   </div>
@@ -721,6 +737,7 @@ function WorkbenchFilesPanelContent({
                     className="workbench-files-address-action"
                     aria-label={t('workbench.files.editPath')}
                     icon={<PencilLine size={13} />}
+                    disabled={directoryNavigationLocked}
                     onClick={() => setEditingPath(true)}
                   />
                 </Tooltip>
@@ -736,7 +753,7 @@ function WorkbenchFilesPanelContent({
               aria-label={t('files.uploadFiles')}
               icon={<Upload size={15} />}
               loading={uploadPicking}
-              disabled={directoryChanging}
+              disabled={directoryNavigationLocked}
               onClick={() => void uploadPickedFiles()}
             >
               <span className="workbench-files-upload-label">{t('files.uploadFiles')}</span>
@@ -748,7 +765,7 @@ function WorkbenchFilesPanelContent({
               className="workbench-files-action-button"
               aria-label={t('files.newFolder')}
               icon={<FolderPlus size={15} />}
-              disabled={directoryChanging}
+              disabled={directoryNavigationLocked}
               onClick={createDirectory}
             />
           </Tooltip>
@@ -758,7 +775,7 @@ function WorkbenchFilesPanelContent({
               className="workbench-files-action-button"
               aria-label={t('files.paste')}
               icon={<Clipboard size={15} />}
-              disabled={directoryChanging}
+              disabled={directoryNavigationLocked}
               onClick={() => void paste()}
             />
           </Tooltip>
@@ -766,8 +783,15 @@ function WorkbenchFilesPanelContent({
             <div
               className="workbench-files-follow"
               data-state={followVisualState}
+              aria-busy={followProgressVisible}
             >
-              <span className="workbench-files-follow-dot" aria-hidden="true" />
+              <span className="workbench-files-follow-indicator" aria-hidden="true">
+                {followProgressVisible ? (
+                  <LoaderCircle className="workbench-files-follow-spinner" size={11} />
+                ) : (
+                  <span className="workbench-files-follow-dot" />
+                )}
+              </span>
               <span>{t('workbench.files.followLabel')}</span>
               <Switch
                 size="small"
@@ -780,7 +804,7 @@ function WorkbenchFilesPanelContent({
           <Dropdown
             menu={{
               items: [
-                { key: 'upload-folder', icon: <FolderInput size={14} />, label: t('files.uploadFolder'), disabled: directoryChanging },
+                { key: 'upload-folder', icon: <FolderInput size={14} />, label: t('files.uploadFolder'), disabled: directoryNavigationLocked },
                 { key: 'open-full', icon: <FolderOpen size={14} />, label: t('workbench.manageFiles') },
               ],
               onClick: async ({ key }) => {
@@ -835,7 +859,7 @@ function WorkbenchFilesPanelContent({
               current: currentPath,
             })}
           >
-            <LoaderCircle className="is-spinning" size={12} aria-hidden="true" />
+            <FileStatusSpinner />
             <span>
               {t(followingTerminalDirectory
                 ? 'workbench.files.followingDirectory'
@@ -858,8 +882,17 @@ function WorkbenchFilesPanelContent({
             role="status"
             aria-live="polite"
           >
-            <LoaderCircle className="is-spinning" size={12} aria-hidden="true" />
+            <FileStatusSpinner />
             <span>{followDetailMessage}</span>
+          </span>
+        ) : initialDirectoryPending || directoryRefreshing ? (
+          <span
+            className="workbench-file-navigation-status"
+            role="status"
+            aria-live="polite"
+          >
+            <FileStatusSpinner />
+            <span>{t('workbench.files.refreshing')}</span>
           </span>
         ) : (
           <span>{itemCountLabel}</span>
@@ -870,7 +903,8 @@ function WorkbenchFilesPanelContent({
         selectedPaths={files.viewState?.selectedPaths ?? []}
         listingPath={normalizeRemotePath(files.viewState?.listing?.path || currentPath)}
         loading={Boolean(files.viewState?.loading)}
-        initialLoading={Boolean(files.viewState?.loading && !files.viewState.listing)}
+        initialPlaceholder={initialDirectoryPlaceholder}
+        initialPending={initialDirectoryPending}
         navigationPending={directoryChanging}
         pendingPath={pendingDirectoryPath}
         listRef={files.listRef}
@@ -941,6 +975,7 @@ function buildBreadcrumbItems(
   path: string,
   navigateDirectory: (targetPath: string) => Promise<boolean>,
   rootLabel: string,
+  navigationLocked: boolean,
 ) {
   const segments = normalizeRemotePath(path).split('/').filter(Boolean)
   const paths = ['/']
@@ -960,12 +995,21 @@ function buildBreadcrumbItems(
         aria-current={index === paths.length - 1 ? 'page' : undefined}
         aria-label={index === 0 ? rootLabel : undefined}
         title={index === 0 ? rootLabel : segments[index - 1]}
+        disabled={navigationLocked || index === paths.length - 1}
         onClick={() => void navigateDirectory(targetPath)}
       >
         {index === 0 ? <FolderRoot size={13} strokeWidth={1.9} aria-hidden="true" /> : segments[index - 1]}
       </button>
     ),
   }))
+}
+
+function FileStatusSpinner() {
+  return (
+    <span className="workbench-file-status-spinner" aria-hidden="true">
+      <LoaderCircle size={12} />
+    </span>
+  )
 }
 
 function syncStatusMessage(

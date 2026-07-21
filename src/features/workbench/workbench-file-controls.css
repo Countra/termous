@@ -106,6 +106,32 @@
     transform 150ms ease;
 }
 
+.workbench-files-follow-indicator {
+  position: relative;
+  display: inline-grid;
+  width: 11px;
+  height: 11px;
+  flex: 0 0 11px;
+  place-items: center;
+}
+
+.workbench-files-follow-spinner {
+  position: relative;
+  z-index: 1;
+  color: color-mix(in srgb, var(--accent) 88%, white 8%);
+  animation: workbench-files-follow-spin 780ms linear infinite;
+}
+
+.workbench-files-follow[aria-busy="true"] .workbench-files-follow-indicator::before {
+  position: absolute;
+  inset: 1px;
+  border-radius: 50%;
+  background: var(--accent);
+  content: "";
+  opacity: 0;
+  animation: workbench-files-follow-halo 1.25s ease-out infinite;
+}
+
 .workbench-files-follow:hover {
   border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
   background: color-mix(in srgb, var(--surface-subtle) 72%, var(--accent) 3%);
@@ -138,7 +164,6 @@
 .workbench-files-follow[data-state="syncing"] .workbench-files-follow-dot {
   background: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
-  animation: workbench-files-follow-pulse 1.25s ease-in-out infinite;
 }
 
 .workbench-files-follow[data-state="waiting"] {
@@ -170,10 +195,22 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
-@keyframes workbench-files-follow-pulse {
-  50% {
-    box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 5%, transparent);
-    transform: scale(0.86);
+@keyframes workbench-files-follow-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes workbench-files-follow-halo {
+  0% {
+    opacity: 0.22;
+    transform: scale(0.55);
+  }
+
+  72%,
+  100% {
+    opacity: 0;
+    transform: scale(1.45);
   }
 }
 

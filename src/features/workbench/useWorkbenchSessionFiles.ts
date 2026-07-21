@@ -44,6 +44,7 @@ import {
   buildSourceSessionContexts,
   canApplyCreatedFileSession,
   isCurrentSourceSession,
+  mergeFileSessionUpdate,
   shouldMaintainFileSessionEventStream,
 } from './workbenchFileSessionLifecycle'
 
@@ -85,6 +86,7 @@ export function useWorkbenchSessionFiles({
   const [createRetrySequence, setCreateRetrySequence] = useState(0)
   const mountedRef = useRef(true)
   const sourceSessionContextsRef = useRef(buildSourceSessionContexts(data.sessions))
+  const fileSessionsRef = useRef(data.fileSessions)
   const creatingSessionsRef = useRef(new Set<string>())
   const createFailureSessionIdsRef = useRef(new Set<string>())
   const directoryRequestSequencesRef = useRef(new Map<string, number>())
@@ -100,6 +102,7 @@ export function useWorkbenchSessionFiles({
   const listRef = useRef<HTMLDivElement>(null)
 
   sourceSessionContextsRef.current = buildSourceSessionContexts(data.sessions)
+  fileSessionsRef.current = data.fileSessions
 
   useEffect(() => {
     const directoryRequestControllers = directoryRequestControllersRef.current
@@ -194,14 +197,19 @@ export function useWorkbenchSessionFiles({
     setViewStates((current) => updateSessionFilesViewState(current, sourceSessionId, update, initial))
   }, [sourceSessionId])
 
-  const updateFileSession = useCallback((session: FileSession) => {
+  const updateFileSession = useCallback((session: FileSession, resetProgress = false) => {
     if (!session.source_session_id) {
       return
     }
-    setSessionOverrides((current) => ({
-      ...current,
-      [session.source_session_id as string]: session,
-    }))
+    setSessionOverrides((current) => {
+      const sourceID = session.source_session_id as string
+      const previous = current[sourceID]
+        ?? fileSessionsRef.current.find((item) => item.id === session.id)
+      return {
+        ...current,
+        [sourceID]: mergeFileSessionUpdate(previous, session, resetProgress),
+      }
+    })
   }, [])
 
   useEffect(() => {
@@ -281,6 +289,9 @@ export function useWorkbenchSessionFiles({
       const nextSocket = new WebSocket(api.fileSessionEventsUrl(fileSession.id))
       socket = nextSocket
       nextSocket.addEventListener('message', (event) => {
+        if (disposed || socket !== nextSocket) {
+          return
+        }
         try {
           const message = JSON.parse(String(event.data)) as FileSessionEventMessage
           if (message.session?.id === fileSession.id) {
@@ -399,12 +410,19 @@ export function useWorkbenchSessionFiles({
       !sourceSessionId ||
       fileSession?.status !== 'connected' ||
       cwdRefreshPendingSessionIdsRef.current.has(sourceSessionId) ||
+      directoryRequestControllersRef.current.has(sourceSessionId) ||
       !viewState ||
       !shouldRequestInitialSessionFilesDirectory(viewState)
     ) {
       return
     }
-    void loadDirectory(viewState?.path || initialPath)
+    // 延迟到下一任务，允许 StrictMode 的试运行清理先取消重复首读。
+    const timer = window.setTimeout(() => {
+      if (!directoryRequestControllersRef.current.has(sourceSessionId)) {
+        void loadDirectory(viewState?.path || initialPath)
+      }
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [enabled, fileSession?.status, initialPath, loadDirectory, sourceSessionId, viewState])
 
   useEffect(() => {
@@ -909,7 +927,7 @@ export function useWorkbenchSessionFiles({
       }
       return
     }
-    updateFileSession(await api.reconnectFileSession(fileSession.id))
+    updateFileSession(await api.reconnectFileSession(fileSession.id), true)
   }, [api, fileSession, initialPath, sourceSessionId, updateFileSession, updateView])
 
   const entries = useMemo(
