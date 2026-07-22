@@ -450,6 +450,17 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent);
 }
 
+.workbench-files-panel .workbench-files-follow[data-state="reconnect-required"] {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--accent) 68%, var(--text-primary));
+}
+
+.workbench-files-panel .workbench-files-follow[data-state="reconnect-required"] .workbench-files-follow-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 .workbench-files-panel .workbench-files-follow[data-state="failed"] {
   border-color: color-mix(in srgb, var(--danger) 44%, var(--border));
   background: color-mix(in srgb, var(--danger) 8%, var(--surface-subtle));

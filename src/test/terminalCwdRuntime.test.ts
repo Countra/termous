@@ -41,6 +41,20 @@ test('服务端 CWD 状态按 state sequence 单调合并', () => {
     source_generation: 8,
   })), true)
   assert.equal(runtime.getSnapshot('ses-1').confirmed_path, '/new-source')
+
+  assert.equal(runtime.applyServerState('ses-1', cwdState({
+    confirmed_path: '/next-generation',
+    state_seq: 0,
+    revision: 0,
+    prompt_generation: 0,
+    source_generation: 9,
+  })), true)
+  assert.equal(runtime.applyServerState('ses-1', cwdState({
+    confirmed_path: '/older-generation',
+    state_seq: 999,
+    source_generation: 8,
+  })), false)
+  assert.equal(runtime.getSnapshot('ses-1').confirmed_path, '/next-generation')
 })
 
 test('terminal transport 状态变化可订阅且重复状态不通知', () => {
@@ -59,6 +73,45 @@ test('terminal transport 状态变化可订阅且重复状态不通知', () => {
   assert.equal(runtime.applyTransportState('ses-1', 'live'), true)
   assert.equal(runtime.getTransportStateSnapshot('ses-1'), 'live')
   assert.equal(notifications, 2)
+})
+
+test('source generation 前进会取消旧刷新关联并允许新事务', () => {
+  const runtime = new TerminalCwdRuntime()
+  let calls = 0
+  runtime.applyServerState('ses-1', cwdState())
+  runtime.registerTransport('ses-1', () => true, () => {
+    calls += 1
+    return true
+  })
+  const stale = runtime.refreshDirectory('ses-1')
+  assert.equal(stale.status, 'queued')
+  if (stale.status !== 'queued') {
+    assert.fail('首个刷新应创建事务')
+  }
+
+  runtime.applyServerState('ses-1', cwdState({
+    state_seq: 0,
+    refresh_seq: 0,
+    revision: 0,
+    prompt_generation: 0,
+    source_generation: 8,
+    refresh_request_id: 'server-new-generation',
+    refresh_status: 'pending',
+  }))
+  assert.equal(runtime.applyRequestError('ses-1', {
+    scope: 'cwd_refresh',
+    request_id: stale.requestId,
+    code: 'CWD_STALE',
+    retryable: false,
+    message: '旧事务已失效',
+  }), false)
+  const current = runtime.refreshDirectory('ses-1')
+  assert.equal(current.status, 'queued')
+  if (current.status !== 'queued') {
+    assert.fail('新 generation 应允许新刷新事务')
+  }
+  assert.notEqual(current.requestId, stale.requestId)
+  assert.equal(calls, 2)
 })
 
 test('目录请求 latest-wins 且只携带服务端基准 revision', () => {
@@ -209,6 +262,8 @@ test('目录刷新仅在服务端支持且刷新 transport 就绪时发送', () 
   }
   assert.match(queued.requestId, /^cwd-refresh-/)
   assert.equal(queued.baseRefreshSequence, 0)
+  assert.equal(queued.baseSourceGeneration, 7)
+  assert.equal(queued.baseConfirmedPath, '/root')
   assert.deepEqual(refreshRequestIds, [queued.requestId])
   assert.equal(refreshCalls, 1)
   unregister()
@@ -230,6 +285,16 @@ test('目录刷新仅在服务端支持且刷新 transport 就绪时发送', () 
     return true
   })
   assert.deepEqual(runtime.refreshDirectory('ses-3'), { status: 'not_ready' })
+
+  runtime.applyServerState('ses-inactive', cwdState({
+    capability: 'probing',
+    control_status: 'inactive',
+  }))
+  runtime.registerTransport('ses-inactive', () => true, () => {
+    refreshCalls += 1
+    return true
+  })
+  assert.deepEqual(runtime.refreshDirectory('ses-inactive'), { status: 'not_ready' })
 
   runtime.applyServerState('ses-4', cwdState({
     desired_path: '/srv',
@@ -269,6 +334,44 @@ test('目录刷新仅在服务端支持且刷新 transport 就绪时发送', () 
   assert.equal(refreshCalls, 2)
 })
 
+test('目录刷新在首次实际发送时原子捕获当前服务端基线', () => {
+  const runtime = new TerminalCwdRuntime()
+  let calls = 0
+  runtime.applyServerState('ses-1', cwdState({
+    confirmed_path: undefined,
+    state_seq: 0,
+    refresh_seq: 0,
+    source_generation: 0,
+    capability: 'probing',
+    control_status: 'inactive',
+  }))
+  runtime.registerTransport('ses-1', () => true, () => {
+    calls += 1
+    return true
+  })
+
+  assert.deepEqual(runtime.refreshDirectory('ses-1'), { status: 'not_ready' })
+  assert.equal(calls, 0)
+
+  runtime.applyServerState('ses-1', cwdState({
+    confirmed_path: '/srv/ready',
+    state_seq: 0,
+    refresh_seq: 4,
+    source_generation: 7,
+    capability: 'supported',
+    control_status: 'ready',
+  }))
+  const queued = runtime.refreshDirectory('ses-1')
+  assert.equal(queued.status, 'queued')
+  if (queued.status !== 'queued') {
+    assert.fail('控制状态就绪后应发送同一刷新事务')
+  }
+  assert.equal(queued.baseRefreshSequence, 4)
+  assert.equal(queued.baseSourceGeneration, 7)
+  assert.equal(queued.baseConfirmedPath, '/srv/ready')
+  assert.equal(calls, 1)
+})
+
 test('目录刷新 transport 抛出异常时返回失败', () => {
   const runtime = new TerminalCwdRuntime()
   runtime.applyServerState('ses-1', cwdState())
@@ -279,10 +382,14 @@ test('目录刷新 transport 抛出异常时返回失败', () => {
   assert.deepEqual(runtime.refreshDirectory('ses-1'), { status: 'not_ready' })
 })
 
-test('目录刷新按 scope 与 request id 关联错误并忽略过期响应', () => {
+test('目录刷新复用在途 request id 并忽略其他事务错误', () => {
   const runtime = new TerminalCwdRuntime()
   runtime.applyServerState('ses-1', cwdState())
-  runtime.registerTransport('ses-1', () => true, () => true)
+  let calls = 0
+  runtime.registerTransport('ses-1', () => true, () => {
+    calls += 1
+    return true
+  })
 
   const first = runtime.refreshDirectory('ses-1')
   const second = runtime.refreshDirectory('ses-1')
@@ -291,32 +398,46 @@ test('目录刷新按 scope 与 request id 关联错误并忽略过期响应', (
   if (first.status !== 'queued' || second.status !== 'queued') {
     assert.fail('目录刷新请求应进入队列')
   }
+  assert.equal(second.requestId, first.requestId)
+  assert.equal(calls, 1)
 
   assert.equal(runtime.applyRequestError('ses-1', {
     scope: 'cwd_refresh',
-    request_id: first.requestId,
+    request_id: 'refresh-stale',
     code: 'STALE_REFRESH',
     retryable: true,
     message: '过期刷新错误',
   }), false)
   assert.equal(runtime.applyRequestError('ses-1', {
     scope: 'cwd_change',
-    request_id: second.requestId,
+    request_id: first.requestId,
     code: 'WRONG_SCOPE',
     retryable: false,
     message: '错误作用域',
   }), false)
   assert.equal(runtime.applyRequestError('ses-1', {
     scope: 'cwd_refresh',
-    request_id: second.requestId,
+    request_id: first.requestId,
     code: 'CWD_REFRESH_BUSY',
     retryable: true,
     message: '稍后重试',
   }), true)
   assert.equal(
     runtime.getRequestErrorSnapshot('ses-1', 'cwd_refresh')?.request_id,
-    second.requestId,
+    first.requestId,
   )
+
+  const retry = runtime.retryRefreshDirectory('ses-1', first.requestId)
+  assert.equal(retry.status, 'queued')
+  if (retry.status !== 'queued') {
+    assert.fail('可重试错误应沿用原事务重新发送')
+  }
+  assert.equal(retry.requestId, first.requestId)
+  assert.equal(retry.baseRefreshSequence, first.baseRefreshSequence)
+  assert.equal(retry.baseSourceGeneration, first.baseSourceGeneration)
+  assert.equal(retry.baseConfirmedPath, first.baseConfirmedPath)
+  assert.equal(calls, 2)
+  assert.equal(runtime.getRequestErrorSnapshot('ses-1', 'cwd_refresh'), null)
 })
 
 test('同路径刷新确认会清理刷新错误和旧目录切换错误', () => {

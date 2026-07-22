@@ -117,6 +117,30 @@ test('旧服务端未发送 refresh sequence 时按零兼容', () => {
   assert.equal(message.cwd_state.refresh_seq, 0)
 })
 
+test('CWD 状态保留可选观察、控制和刷新事务字段', () => {
+  const message = decodeTerminalControlMessage(JSON.stringify({
+    type: 'cwd_state',
+    cwd_state: {
+      state_seq: 8,
+      refresh_seq: 4,
+      observation_status: 'ready',
+      control_status: 'preparing',
+      control_code: 'CWD_NOT_READY',
+      control_retryable: true,
+      refresh_request_id: 'cwd-refresh-current',
+      refresh_status: 'pending',
+    },
+  }))
+  assert.equal(message.type, 'cwd_state')
+  if (message.type !== 'cwd_state') {
+    assert.fail('CWD 状态消息应保持统一类型')
+  }
+  assert.equal(message.cwd_state.observation_status, 'ready')
+  assert.equal(message.cwd_state.control_status, 'preparing')
+  assert.equal(message.cwd_state.refresh_request_id, 'cwd-refresh-current')
+  assert.equal(message.cwd_state.refresh_status, 'pending')
+})
+
 test('decoder 拒绝旧消息名和缺少 state sequence 的 CWD 状态', () => {
   assert.throws(
     () => decodeTerminalControlMessage(JSON.stringify({ type: 'snapshot' })),

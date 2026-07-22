@@ -122,13 +122,21 @@ function WorkbenchFilesPanelContent({
   const uploadRefreshTasksRef = useRef(new Map<string, TrackedUploadRefresh>())
   const completedUploadPathsRef = useRef(new Map<string, Set<string>>())
   const followTerminal = Boolean(files.viewState?.followTerminal)
-  const cwdPendingPath = files.cwdState?.pending_operation?.status === 'failed'
-    ? ''
-    : files.cwdState?.pending_operation?.path ?? ''
+  const cwdPendingPath = files.viewState?.pendingTerminalPath || (
+    files.cwdState?.pending_operation?.status === 'failed'
+      ? ''
+      : files.cwdState?.pending_operation?.path ?? ''
+  )
+  const confirmedCwdPath = (
+    files.cwdState?.observation_status === undefined
+    || files.cwdState.observation_status === 'ready'
+  )
+    ? files.cwdState?.confirmed_path
+    : undefined
   const navigationState = files.viewState
     ? getSessionFilesNavigationState(
         files.viewState,
-        files.cwdState?.confirmed_path,
+        confirmedCwdPath,
         cwdPendingPath,
       )
     : null
@@ -141,6 +149,7 @@ function WorkbenchFilesPanelContent({
   const syncStatus = files.viewState?.syncStatus ?? ''
   const followDirectoryBlocked = syncStatus === 'failed'
     || syncStatus === 'unsupported'
+    || syncStatus === 'reconnect-required'
     || syncStatus === 'invalid_path'
   const initialDirectoryPlaceholder = !files.viewState?.listing
   const initialDirectoryPending = initialDirectoryPlaceholder
@@ -163,6 +172,8 @@ function WorkbenchFilesPanelContent({
     ? 'error'
     : syncStatus === 'unsupported'
       ? 'unsupported'
+      : syncStatus === 'reconnect-required'
+        ? 'reconnect-required'
       : ''
   const followDirectoryLoading = followTerminal && Boolean(files.viewState?.loading)
   const followVisualState = !followTerminal
@@ -171,6 +182,8 @@ function WorkbenchFilesPanelContent({
       ? 'failed'
       : syncStatus === 'unsupported'
         ? 'unsupported'
+        : syncStatus === 'reconnect-required'
+          ? 'reconnect-required'
         : syncStatus === 'preparing' || syncStatus === 'not_ready'
           ? 'preparing'
           : syncStatus === 'locating'
@@ -1031,6 +1044,8 @@ function syncStatusMessage(
       return t('workbench.files.syncFailed')
     case 'unsupported':
       return t('workbench.files.followUnsupported')
+    case 'reconnect-required':
+      return t('workbench.files.followReconnectRequired')
     case 'not_ready':
       return t('workbench.files.followNotReady')
     case 'invalid_path':

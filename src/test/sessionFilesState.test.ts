@@ -5,29 +5,35 @@ import type {
   SessionCwdState,
 } from '../types/domain.ts'
 import {
+  adoptSessionFilesCwdRefreshPending,
+  applySessionFilesCwdRefreshDispatch,
   applySessionFilesSyncState,
+  beginSessionFilesCwdRefresh,
   beginDirectoryRequest,
   cancelDirectoryRequest,
   cancelDirectoryRequestForFollowRefresh,
   completeDirectoryRequest,
-  createSessionFilesCwdRefreshTransportWaitDeadline,
+  createSessionFilesCwdRefreshWatchdogDeadline,
   createSessionFilesViewState,
   deriveRejectedSessionFilesSyncState,
   deriveSessionFilesCwdRefreshSuccessState,
   deriveSessionFilesFollowSyncState,
   deriveSessionFilesSyncState,
-  ensureSessionFilesCwdRefreshTransportWaitDeadline,
+  finishSessionFilesCwdRefresh,
   failDirectoryRequest,
   getSessionFilesNavigationState,
   getSessionFilesViewState,
   isSessionFilesCwdRefreshComplete,
   removeInactiveSessionFileStates,
+  scheduleSessionFilesCwdLocalRetry,
+  scheduleSessionFilesCwdRefreshRetry,
   sessionFilesCwdRefreshRetryDelay,
   sessionFilesCwdRefreshTransportDisposition,
-  sessionFilesCwdRefreshTransportWaitRemaining,
+  sessionFilesCwdRefreshWatchdogRemaining,
   shouldRefreshFollowedDirectory,
   shouldRequestInitialSessionFilesDirectory,
   shouldRequestFollowedDirectory,
+  sessionFilesViewStatesReducer,
   updateSessionFilesViewState,
   type SessionFilesViewStateMap,
 } from '../features/workbench/sessionFilesState.ts'
@@ -123,13 +129,91 @@ test('目录跟随状态区分能力准备、路径定位和就绪', () => {
   })
 })
 
+test('新控制状态在准备和降级期间保持可恢复且只在明确终态提示不支持', () => {
+  for (const control_status of ['inactive', 'preparing', 'degraded'] as const) {
+    assert.deepEqual(deriveSessionFilesSyncState(
+      cwdState({
+        capability: 'probing',
+        control_status,
+        control_code: 'CWD_NOT_READY',
+        capability_cause: '目录控制仍在准备',
+        observation_status: 'ready',
+        confirmed_path: '/srv',
+      }),
+      null,
+    ), {
+      status: 'preparing',
+      error: '目录控制仍在准备',
+    })
+  }
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({
+      capability: 'unsupported',
+      control_status: 'unsupported',
+      capability_cause: '当前终端不可控制',
+    }),
+    null,
+  ), {
+    status: 'unsupported',
+    error: '当前终端不可控制',
+  })
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({
+      capability: 'unsupported',
+      control_status: 'reconnect_required',
+      capability_cause: '组件已安装',
+    }),
+    null,
+  ), {
+    status: 'reconnect-required',
+    error: '组件已安装',
+  })
+})
+
+test('开启跟随在单一会话 reducer 中保留最后列表并建立固定事务', () => {
+  const current = {
+    ...createSessionFilesViewState('/srv/current'),
+    listing: listing('/srv/current'),
+  }
+  const started = beginSessionFilesCwdRefresh(
+    current,
+    cwdState({ confirmed_path: '/srv/terminal', refresh_seq: 7, source_generation: 9 }),
+    1_000,
+  )
+  assert.equal(started.listing, current.listing)
+  assert.equal(started.followTerminal, true)
+  assert.equal(started.followGeneration, 1)
+  assert.deepEqual(started.cwdRefresh, {
+    phase: 'waiting',
+    requestId: '',
+    baseRefreshSequence: 7,
+    baseConfirmedPath: '/srv/terminal',
+    baseSourceGeneration: 9,
+    startedAt: 1_000,
+    deadlineAt: 66_000,
+    retryCount: 0,
+    retryAt: 0,
+    error: '',
+  })
+
+  const states = sessionFilesViewStatesReducer({}, {
+    type: 'update',
+    sessionId: 'session-1',
+    update: started,
+  })
+  const finished = sessionFilesViewStatesReducer(states, {
+    type: 'update',
+    sessionId: 'session-1',
+    update: (state) => finishSessionFilesCwdRefresh(state),
+  })
+  assert.equal(finished['session-1']?.cwdRefresh.phase, 'idle')
+  assert.equal(finished['session-1']?.listing, current.listing)
+})
+
 test('目录刷新只接受 refresh sequence 前进的服务端确认', () => {
   const flight = {
-    requestId: 'refresh-1',
     baseRefreshSequence: 4,
     baseConfirmedPath: '/root',
-    transportWaitDeadline: 35_100,
-    startedAt: 100,
   }
 
   assert.equal(isSessionFilesCwdRefreshComplete(
@@ -152,6 +236,34 @@ test('目录刷新只接受 refresh sequence 前进的服务端确认', () => {
     cwdState({ refresh_seq: 4, confirmed_path: 'root' }),
     { ...flight, baseConfirmedPath: '' },
   ), false)
+})
+
+test('新服务端目录刷新只接受完全匹配的 request id 成功终态', () => {
+  const baseline = {
+    requestId: 'refresh-current',
+    baseRefreshSequence: 4,
+    baseConfirmedPath: '/root',
+  }
+  assert.equal(isSessionFilesCwdRefreshComplete(cwdState({
+    refresh_request_id: 'refresh-current',
+    refresh_status: 'pending',
+    refresh_seq: 5,
+  }), baseline), false)
+  assert.equal(isSessionFilesCwdRefreshComplete(cwdState({
+    refresh_request_id: 'refresh-stale',
+    refresh_status: 'succeeded',
+    refresh_seq: 5,
+  }), baseline), false)
+  assert.equal(isSessionFilesCwdRefreshComplete(cwdState({
+    refresh_request_id: 'refresh-current',
+    refresh_status: 'failed',
+    refresh_seq: 5,
+  }), baseline), false)
+  assert.equal(isSessionFilesCwdRefreshComplete(cwdState({
+    refresh_request_id: 'refresh-current',
+    refresh_status: 'succeeded',
+    refresh_seq: 5,
+  }), baseline), true)
 })
 
 test('目录刷新确认清理历史失败且保留新的在途操作', () => {
@@ -363,13 +475,6 @@ test('目录刷新 pending 时不可恢复 transport 结束探测且不覆盖权
   })
 })
 
-test('目录刷新重试采用有限退避', () => {
-  assert.equal(sessionFilesCwdRefreshRetryDelay(1), 400)
-  assert.equal(sessionFilesCwdRefreshRetryDelay(2), 1_000)
-  assert.equal(sessionFilesCwdRefreshRetryDelay(3), 2_000)
-  assert.equal(sessionFilesCwdRefreshRetryDelay(4), null)
-})
-
 test('明确不支持和探测状态优先于遗留请求错误', () => {
   const requestError = {
     code: 'CWD_CHANGE_FAILED',
@@ -508,15 +613,107 @@ test('目录刷新根据 transport 生命周期决定等待、发送或失败', 
   assert.equal(sessionFilesCwdRefreshTransportDisposition('disposed'), 'failed')
 })
 
-test('目录刷新 transport 等待期限跨状态变化保持固定', () => {
-  const deadline = createSessionFilesCwdRefreshTransportWaitDeadline(1_000)
-  assert.equal(deadline, 36_000)
-  assert.equal(ensureSessionFilesCwdRefreshTransportWaitDeadline(0, 1_000), 36_000)
-  assert.equal(ensureSessionFilesCwdRefreshTransportWaitDeadline(deadline, 40_000), deadline)
-  assert.equal(sessionFilesCwdRefreshTransportWaitRemaining(deadline, 1_000), 35_000)
-  assert.equal(sessionFilesCwdRefreshTransportWaitRemaining(deadline, 20_000), 16_000)
-  assert.equal(sessionFilesCwdRefreshTransportWaitRemaining(deadline, 36_000), 0)
-  assert.equal(sessionFilesCwdRefreshTransportWaitRemaining(deadline, 40_000), 0)
+test('目录刷新只保留单一 65 秒安全看门狗', () => {
+  const deadline = createSessionFilesCwdRefreshWatchdogDeadline(1_000)
+  assert.equal(deadline, 66_000)
+  assert.equal(sessionFilesCwdRefreshWatchdogRemaining(deadline, 1_000), 65_000)
+  assert.equal(sessionFilesCwdRefreshWatchdogRemaining(deadline, 40_000), 26_000)
+  assert.equal(sessionFilesCwdRefreshWatchdogRemaining(deadline, 66_000), 0)
+  assert.equal(sessionFilesCwdRefreshWatchdogRemaining(deadline, 70_000), 0)
+})
+
+test('目录刷新实际发送时使用当前服务端代际并保留原事务时限', () => {
+  const started = beginSessionFilesCwdRefresh(
+    createSessionFilesViewState('/root'),
+    cwdState({
+      confirmed_path: undefined,
+      refresh_seq: 0,
+      source_generation: 0,
+    }),
+    1_000,
+  )
+  const dispatched = applySessionFilesCwdRefreshDispatch(started.cwdRefresh, {
+    requestId: 'refresh-ready',
+    baseRefreshSequence: 4,
+    baseSourceGeneration: 7,
+    baseConfirmedPath: '/srv/ready',
+  })
+
+  assert.equal(dispatched.requestId, 'refresh-ready')
+  assert.equal(dispatched.baseRefreshSequence, 4)
+  assert.equal(dispatched.baseSourceGeneration, 7)
+  assert.equal(dispatched.baseConfirmedPath, '/srv/ready')
+  assert.equal(dispatched.startedAt, 1_000)
+  assert.equal(dispatched.deadlineAt, 66_000)
+})
+
+test('目录刷新可从服务端 pending 快照接管同一事务基线', () => {
+  const started = beginSessionFilesCwdRefresh(
+    createSessionFilesViewState('/root'),
+    cwdState({ source_generation: 0 }),
+    2_000,
+  )
+  const adopted = adoptSessionFilesCwdRefreshPending(started.cwdRefresh, cwdState({
+    confirmed_path: '/srv/pending',
+    refresh_seq: 5,
+    source_generation: 8,
+    refresh_request_id: 'refresh-attached',
+    refresh_status: 'pending',
+  }))
+
+  assert.equal(adopted.phase, 'pending')
+  assert.equal(adopted.requestId, 'refresh-attached')
+  assert.equal(adopted.baseRefreshSequence, 5)
+  assert.equal(adopted.baseSourceGeneration, 8)
+  assert.equal(adopted.baseConfirmedPath, '/srv/pending')
+  assert.equal(adopted.startedAt, 2_000)
+  assert.equal(adopted.deadlineAt, 67_000)
+})
+
+test('本地未就绪短唤醒沿用刷新事务且不消耗服务端重试次数', () => {
+  const original = {
+    ...createSessionFilesViewState('/').cwdRefresh,
+    phase: 'pending' as const,
+    requestId: 'refresh-local-wake',
+    startedAt: 1_000,
+    deadlineAt: 66_000,
+    retryCount: 2,
+  }
+  const scheduled = scheduleSessionFilesCwdLocalRetry(original, 2_000)
+
+  assert.equal(scheduled.phase, 'waiting')
+  assert.equal(scheduled.requestId, 'refresh-local-wake')
+  assert.equal(scheduled.retryAt, 2_250)
+  assert.equal(scheduled.retryCount, 2)
+  assert.equal(scheduled.startedAt, 1_000)
+  assert.equal(scheduled.deadlineAt, 66_000)
+})
+
+test('可重试刷新沿用 request id 和原始 deadline 并采用有限退避', () => {
+  const original = {
+    ...createSessionFilesViewState('/').cwdRefresh,
+    phase: 'pending' as const,
+    requestId: 'refresh-same',
+    startedAt: 1_000,
+    deadlineAt: 66_000,
+  }
+  const first = scheduleSessionFilesCwdRefreshRetry(original, 2_000)
+  assert.ok(first)
+  assert.equal(first.requestId, 'refresh-same')
+  assert.equal(first.deadlineAt, 66_000)
+  assert.equal(first.retryAt, 2_400)
+  const second = scheduleSessionFilesCwdRefreshRetry(first, 2_400)
+  assert.ok(second)
+  assert.equal(second.requestId, 'refresh-same')
+  assert.equal(second.deadlineAt, 66_000)
+  assert.equal(second.retryAt, 3_400)
+  const third = scheduleSessionFilesCwdRefreshRetry(second, 3_400)
+  assert.ok(third)
+  assert.equal(third.requestId, 'refresh-same')
+  assert.equal(third.deadlineAt, 66_000)
+  assert.equal(third.retryAt, 5_400)
+  assert.equal(scheduleSessionFilesCwdRefreshRetry(third, 5_400), null)
+  assert.equal(sessionFilesCwdRefreshRetryDelay(3), null)
 })
 
 test('目录请求只接受最新响应并在失败时保留最后一次列表', () => {
@@ -630,7 +827,7 @@ test('目录跟随失败后等待显式重试或新的终端路径', () => {
   assert.equal(retry.state.loading, true)
 })
 
-test('目录跟随同步受阻时不会请求旧确认路径', () => {
+test('目录观察就绪后控制准备状态不会阻塞文件列表跟随', () => {
   const initial = {
     ...createSessionFilesViewState('/srv/current'),
     followTerminal: true,
@@ -640,8 +837,7 @@ test('目录跟随同步受阻时不会请求旧确认路径', () => {
   for (const syncStatus of [
     'failed',
     'unsupported',
-    'preparing',
-    'locating',
+    'reconnect-required',
     'not_ready',
     'invalid_path',
   ] as const) {
@@ -649,6 +845,12 @@ test('目录跟随同步受阻时不会请求旧确认路径', () => {
       { ...initial, syncStatus },
       '/srv/stale-confirmed',
     ), false)
+  }
+  for (const syncStatus of ['preparing', 'locating'] as const) {
+    assert.equal(shouldRequestFollowedDirectory(
+      { ...initial, syncStatus },
+      '/srv/observed',
+    ), true)
   }
   assert.equal(shouldRequestFollowedDirectory(
     { ...initial, syncStatus: '' },

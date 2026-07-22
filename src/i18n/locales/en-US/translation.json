@@ -263,6 +263,7 @@
       "waitingTerminalIdle": "Waiting for terminal to become idle",
       "syncFailed": "Directory sync failed",
       "followUnsupported": "Directory follow is not supported by this shell",
+      "followReconnectRequired": "Directory follow is ready; reconnect this session to activate it",
       "followNotReady": "Restoring the directory follow connection",
       "invalidPath": "Invalid path",
       "pathInput": "Remote path",

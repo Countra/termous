@@ -263,6 +263,7 @@
       "waitingTerminalIdle": "等待终端空闲",
       "syncFailed": "目录同步失败",
       "followUnsupported": "当前 Shell 不支持目录跟随",
+      "followReconnectRequired": "目录跟随组件已就绪，请重新连接当前会话",
       "followNotReady": "正在恢复目录跟随连接",
       "invalidPath": "路径不合法",
       "pathInput": "远程路径",

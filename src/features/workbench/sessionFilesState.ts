@@ -14,6 +14,7 @@ export type SessionFilesSyncStatus =
   | 'applying'
   | 'failed'
   | 'unsupported'
+  | 'reconnect-required'
   | 'preparing'
   | 'locating'
   | 'not_ready'
@@ -29,22 +30,32 @@ export interface SessionFilesDerivedSyncState {
   error: string
 }
 
-export interface SessionFilesCwdRefreshFlight {
+export type SessionFilesCwdRefreshPhase = 'idle' | 'waiting' | 'pending' | 'failed'
+
+export interface SessionFilesCwdRefreshTransaction {
+  phase: SessionFilesCwdRefreshPhase
   requestId: string
   baseRefreshSequence: number
   baseConfirmedPath: string
+  baseSourceGeneration: number
   startedAt: number
+  deadlineAt: number
+  retryCount: number
+  retryAt: number
+  error: string
 }
 
 export type SessionFilesCwdRefreshTransportDisposition = 'wait' | 'ready' | 'failed'
 
 export interface SessionFilesCwdRefreshBaseline {
+  requestId?: string
   baseRefreshSequence: number
   baseConfirmedPath: string
-  transportWaitDeadline: number
 }
 
-export const sessionFilesCwdRefreshTransportWaitTimeoutMs = 35_000
+export const sessionFilesCwdRefreshWatchdogTimeoutMs = 65_000
+export const sessionFilesCwdLocalRetryDelayMs = 250
+const sessionFilesCwdRefreshRetryDelaysMs = [400, 1_000, 2_000] as const
 
 export type SessionFilesCwdRequestRejection = 'unsupported' | 'not_ready' | 'invalid_path'
 
@@ -59,6 +70,9 @@ export interface SessionFilesViewState {
   requestSequence: number
   syncStatus: SessionFilesSyncStatus
   syncError: string
+  followGeneration: number
+  pendingTerminalPath: string
+  cwdRefresh: SessionFilesCwdRefreshTransaction
 }
 
 export interface SessionFilesNavigationState {
@@ -70,6 +84,7 @@ export interface SessionFilesNavigationState {
 export type SessionFilesViewStateMap = Record<string, SessionFilesViewState>
 
 const recoverableCwdRequestErrorCodes = new Set([
+  'CWD_BUSY',
   'CWD_NOT_READY',
   'TERMINAL_NOT_READY',
 ])
@@ -78,7 +93,15 @@ export function deriveSessionFilesSyncState(
   cwdState: SessionCwdState | null,
   requestError: SessionFilesCwdRequestError | null,
 ): SessionFilesDerivedSyncState {
-  if (cwdState?.capability === 'unsupported') {
+  if (cwdState?.control_status === 'reconnect_required') {
+    return {
+      status: 'reconnect-required',
+      error: cwdState.capability_cause ?? '',
+    }
+  }
+  const unsupported = cwdState?.control_status === 'unsupported'
+    || (cwdState?.control_status === undefined && cwdState?.capability === 'unsupported')
+  if (unsupported) {
     return {
       status: 'unsupported',
       error: cwdState.capability_cause ?? '',
@@ -90,10 +113,15 @@ export function deriveSessionFilesSyncState(
       error: '',
     }
   }
-  if (cwdState.capability === 'probing') {
+  if (
+    cwdState.control_status === 'inactive'
+    || cwdState.control_status === 'preparing'
+    || cwdState.control_status === 'degraded'
+    || (cwdState.control_status === undefined && cwdState.capability === 'probing')
+  ) {
     return {
       status: cwdState.shell_phase === 'running' ? 'waiting-idle' : 'preparing',
-      error: cwdState.capability_cause ?? '',
+      error: cwdState.refresh_error ?? cwdState.capability_cause ?? '',
     }
   }
 
@@ -124,6 +152,12 @@ export function deriveRejectedSessionFilesSyncState(
   reason = '',
 ): SessionFilesDerivedSyncState {
   if (rejection !== 'not_ready') {
+    if (rejection === 'unsupported' && cwdState?.control_status === 'reconnect_required') {
+      return {
+        status: 'reconnect-required',
+        error: reason || cwdState.capability_cause || '',
+      }
+    }
     return {
       status: rejection,
       error: rejection === 'unsupported'
@@ -165,7 +199,8 @@ export function deriveSessionFilesFollowSyncState(
     return cwdDerived
   }
   if (
-    cwdState?.capability === 'unsupported'
+    cwdDerived.status === 'unsupported'
+    || cwdDerived.status === 'reconnect-required'
     || (cwdState?.pending_operation && cwdState.pending_operation.status !== 'failed')
   ) {
     return cwdDerived
@@ -176,7 +211,12 @@ export function deriveSessionFilesFollowSyncState(
   if (refreshPending && transportDisposition === 'failed') {
     return { status: 'failed', error: 'cwd_refresh_transport_unavailable' }
   }
-  if (cwdState?.capability === 'probing') {
+  if (
+    cwdState?.control_status === 'inactive'
+    || cwdState?.control_status === 'preparing'
+    || cwdState?.control_status === 'degraded'
+    || (cwdState?.control_status === undefined && cwdState?.capability === 'probing')
+  ) {
     return cwdDerived
   }
   if (refreshPending) {
@@ -208,8 +248,14 @@ export function shouldRefreshFollowedDirectory(
   return Boolean(
     followTerminal
     && refreshPending
-    && cwdState?.capability === 'supported'
-    && cwdState.shell_phase === 'prompt'
+    && (
+      cwdState?.control_status === 'ready'
+      || (
+        cwdState?.control_status === undefined
+        && cwdState?.capability === 'supported'
+        && cwdState.shell_phase === 'prompt'
+      )
+    )
     && (!cwdState.pending_operation || cwdState.pending_operation.status === 'failed'),
   )
 }
@@ -218,6 +264,12 @@ export function isSessionFilesCwdRefreshComplete(
   cwdState: SessionCwdState | null,
   baseline: SessionFilesCwdRefreshBaseline,
 ) {
+  if (baseline.requestId) {
+    if (cwdState?.refresh_request_id !== baseline.requestId) {
+      return false
+    }
+    return cwdState.refresh_status === 'succeeded'
+  }
   if ((cwdState?.refresh_seq ?? 0) > baseline.baseRefreshSequence) {
     return true
   }
@@ -233,11 +285,6 @@ export function isSessionFilesCwdRefreshComplete(
   return baseConfirmedPath === null || confirmedPath !== baseConfirmedPath
 }
 
-export function sessionFilesCwdRefreshRetryDelay(attempt: number) {
-  const delays = [400, 1_000, 2_000] as const
-  return delays[attempt - 1] ?? null
-}
-
 export function sessionFilesCwdRefreshTransportDisposition(
   state: TerminalTransportState,
 ): SessionFilesCwdRefreshTransportDisposition {
@@ -250,24 +297,85 @@ export function sessionFilesCwdRefreshTransportDisposition(
   return 'wait'
 }
 
-export function createSessionFilesCwdRefreshTransportWaitDeadline(startedAt: number) {
-  return startedAt + sessionFilesCwdRefreshTransportWaitTimeoutMs
+export function createSessionFilesCwdRefreshWatchdogDeadline(startedAt: number) {
+  return startedAt + sessionFilesCwdRefreshWatchdogTimeoutMs
 }
 
-export function ensureSessionFilesCwdRefreshTransportWaitDeadline(
-  deadline: number,
-  startedAt: number,
-) {
-  return deadline > 0
-    ? deadline
-    : createSessionFilesCwdRefreshTransportWaitDeadline(startedAt)
-}
-
-export function sessionFilesCwdRefreshTransportWaitRemaining(
+export function sessionFilesCwdRefreshWatchdogRemaining(
   deadline: number,
   now: number,
 ) {
   return Math.max(0, deadline - now)
+}
+
+export function sessionFilesCwdRefreshRetryDelay(retryCount: number) {
+  return sessionFilesCwdRefreshRetryDelaysMs[retryCount] ?? null
+}
+
+export function scheduleSessionFilesCwdRefreshRetry(
+  transaction: SessionFilesCwdRefreshTransaction,
+  now: number,
+) {
+  const delay = sessionFilesCwdRefreshRetryDelay(transaction.retryCount)
+  if (delay === null) {
+    return null
+  }
+  return {
+    ...transaction,
+    phase: 'waiting' as const,
+    retryCount: transaction.retryCount + 1,
+    retryAt: now + delay,
+    error: '',
+  }
+}
+
+export interface SessionFilesCwdRefreshDispatchBaseline {
+  requestId: string
+  baseRefreshSequence: number
+  baseSourceGeneration: number
+  baseConfirmedPath: string
+}
+
+export function applySessionFilesCwdRefreshDispatch(
+  transaction: SessionFilesCwdRefreshTransaction,
+  baseline: SessionFilesCwdRefreshDispatchBaseline,
+) {
+  return {
+    ...transaction,
+    phase: 'pending' as const,
+    requestId: baseline.requestId,
+    baseRefreshSequence: baseline.baseRefreshSequence,
+    baseSourceGeneration: baseline.baseSourceGeneration,
+    baseConfirmedPath: baseline.baseConfirmedPath,
+    retryAt: 0,
+    error: '',
+  }
+}
+
+export function adoptSessionFilesCwdRefreshPending(
+  transaction: SessionFilesCwdRefreshTransaction,
+  cwdState: SessionCwdState,
+) {
+  if (!cwdState.refresh_request_id || cwdState.refresh_status !== 'pending') {
+    return transaction
+  }
+  return applySessionFilesCwdRefreshDispatch(transaction, {
+    requestId: cwdState.refresh_request_id,
+    baseRefreshSequence: cwdState.refresh_seq,
+    baseSourceGeneration: cwdState.source_generation,
+    baseConfirmedPath: cwdState.confirmed_path ?? '',
+  })
+}
+
+export function scheduleSessionFilesCwdLocalRetry(
+  transaction: SessionFilesCwdRefreshTransaction,
+  now: number,
+) {
+  return {
+    ...transaction,
+    phase: 'waiting' as const,
+    retryAt: Math.min(transaction.deadlineAt, now + sessionFilesCwdLocalRetryDelayMs),
+  }
 }
 
 export function createSessionFilesViewState(initialPath = '/'): SessionFilesViewState {
@@ -282,7 +390,85 @@ export function createSessionFilesViewState(initialPath = '/'): SessionFilesView
     requestSequence: 0,
     syncStatus: '',
     syncError: '',
+    followGeneration: 0,
+    pendingTerminalPath: '',
+    cwdRefresh: createIdleSessionFilesCwdRefreshTransaction(),
   }
+}
+
+export function createIdleSessionFilesCwdRefreshTransaction(): SessionFilesCwdRefreshTransaction {
+  return {
+    phase: 'idle',
+    requestId: '',
+    baseRefreshSequence: 0,
+    baseConfirmedPath: '',
+    baseSourceGeneration: 0,
+    startedAt: 0,
+    deadlineAt: 0,
+    retryCount: 0,
+    retryAt: 0,
+    error: '',
+  }
+}
+
+export function beginSessionFilesCwdRefresh(
+  state: SessionFilesViewState,
+  cwdState: SessionCwdState | null,
+  startedAt: number,
+) {
+  return {
+    ...state,
+    followTerminal: true,
+    followGeneration: state.followGeneration + 1,
+    cwdRefresh: {
+      phase: 'waiting' as const,
+      requestId: '',
+      baseRefreshSequence: cwdState?.refresh_seq ?? 0,
+      baseConfirmedPath: cwdState?.confirmed_path ?? '',
+      baseSourceGeneration: cwdState?.source_generation ?? 0,
+      startedAt,
+      deadlineAt: createSessionFilesCwdRefreshWatchdogDeadline(startedAt),
+      retryCount: 0,
+      retryAt: 0,
+      error: '',
+    },
+  }
+}
+
+export function finishSessionFilesCwdRefresh(
+  state: SessionFilesViewState,
+  error = '',
+) {
+  return {
+    ...state,
+    cwdRefresh: error
+      ? { ...state.cwdRefresh, phase: 'failed' as const, error }
+      : createIdleSessionFilesCwdRefreshTransaction(),
+  }
+}
+
+export type SessionFilesViewStatesAction =
+  | {
+    type: 'update'
+    sessionId: string
+    update: Partial<SessionFilesViewState> | ((current: SessionFilesViewState) => SessionFilesViewState)
+    initialPath?: string
+  }
+  | { type: 'retain'; activeSessionIds: ReadonlySet<string> }
+
+export function sessionFilesViewStatesReducer(
+  states: SessionFilesViewStateMap,
+  action: SessionFilesViewStatesAction,
+) {
+  if (action.type === 'retain') {
+    return removeInactiveSessionFileStates(states, action.activeSessionIds)
+  }
+  return updateSessionFilesViewState(
+    states,
+    action.sessionId,
+    action.update,
+    action.initialPath,
+  )
 }
 
 export function getSessionFilesViewState(
@@ -438,8 +624,7 @@ export function shouldRequestFollowedDirectory(
     || state.syncStatus === 'applying'
   const syncBlocked = state.syncStatus === 'failed'
     || state.syncStatus === 'unsupported'
-    || state.syncStatus === 'preparing'
-    || state.syncStatus === 'locating'
+    || state.syncStatus === 'reconnect-required'
     || state.syncStatus === 'not_ready'
     || state.syncStatus === 'invalid_path'
 
@@ -482,6 +667,7 @@ export function getSessionFilesNavigationState(
     || state.syncStatus === 'applying'
   const syncBlocked = state.syncStatus === 'failed'
     || state.syncStatus === 'unsupported'
+    || state.syncStatus === 'reconnect-required'
     || state.syncStatus === 'preparing'
     || state.syncStatus === 'locating'
     || state.syncStatus === 'not_ready'

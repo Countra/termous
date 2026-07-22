@@ -14,7 +14,13 @@ export type SessionCwdRequestResult =
   | { status: 'invalid_path' }
 
 export type SessionCwdRefreshResult =
-  | { status: 'queued'; requestId: string; baseRefreshSequence: number }
+  | {
+    status: 'queued'
+    requestId: string
+    baseRefreshSequence: number
+    baseSourceGeneration: number
+    baseConfirmedPath: string
+  }
   | { status: 'not_ready' }
 
 export type SessionCwdRequestScope = 'cwd_change' | 'cwd_refresh'
@@ -38,8 +44,11 @@ interface SessionCwdEntry {
   refreshTransport?: SessionCwdRefreshTransport
   listeners: Set<SessionListener>
   latestRequestIds: Partial<Record<SessionCwdRequestScope, string>>
+  latestChangeRequest?: SessionCwdChangeRequest
   latestChangeBaseRevision?: number
   latestRefreshBaseSequence?: number
+  latestRefreshBaseSourceGeneration?: number
+  latestRefreshBaseConfirmedPath?: string
   latestRefreshObservedChangeRequestId?: string
   requestErrors: Record<SessionCwdRequestScope, SessionCwdRequestError | null>
   transportState: TerminalTransportState
@@ -114,29 +123,54 @@ export class TerminalCwdRuntime {
     const entry = this.entries.get(sessionId)
     if (
       !entry ||
-      entry.state.capability !== 'supported' ||
-      entry.state.shell_phase !== 'prompt' ||
+      !canRequestCwdRefresh(entry.state) ||
       isCwdOperationInFlight(entry.state.pending_operation) ||
       !entry.transport ||
       !entry.refreshTransport
     ) {
       return { status: 'not_ready' }
     }
+    const activeRequestId = entry.latestRequestIds.cwd_refresh
+    if (activeRequestId) {
+      return {
+        status: 'queued',
+        requestId: activeRequestId,
+        baseRefreshSequence: entry.latestRefreshBaseSequence ?? entry.state.refresh_seq,
+        baseSourceGeneration:
+          entry.latestRefreshBaseSourceGeneration ?? entry.state.source_generation,
+        baseConfirmedPath:
+          entry.latestRefreshBaseConfirmedPath ?? entry.state.confirmed_path ?? '',
+      }
+    }
     const requestId = createOperationId('cwd-refresh')
     const previousRequestId = entry.latestRequestIds.cwd_refresh
+    const previousBaseRefreshSequence = entry.latestRefreshBaseSequence
+    const previousBaseSourceGeneration = entry.latestRefreshBaseSourceGeneration
+    const previousBaseConfirmedPath = entry.latestRefreshBaseConfirmedPath
+    const baseRefreshSequence = entry.state.refresh_seq
+    const baseSourceGeneration = entry.state.source_generation
+    const baseConfirmedPath = entry.state.confirmed_path ?? ''
     entry.latestRequestIds.cwd_refresh = requestId
+    entry.latestRefreshBaseSequence = baseRefreshSequence
+    entry.latestRefreshBaseSourceGeneration = baseSourceGeneration
+    entry.latestRefreshBaseConfirmedPath = baseConfirmedPath
     try {
       if (!entry.refreshTransport(requestId)) {
         entry.latestRequestIds.cwd_refresh = previousRequestId
+        entry.latestRefreshBaseSequence = previousBaseRefreshSequence
+        entry.latestRefreshBaseSourceGeneration = previousBaseSourceGeneration
+        entry.latestRefreshBaseConfirmedPath = previousBaseConfirmedPath
         return { status: 'not_ready' }
       }
     } catch {
       entry.latestRequestIds.cwd_refresh = previousRequestId
+      entry.latestRefreshBaseSequence = previousBaseRefreshSequence
+      entry.latestRefreshBaseSourceGeneration = previousBaseSourceGeneration
+      entry.latestRefreshBaseConfirmedPath = previousBaseConfirmedPath
       return { status: 'not_ready' }
     }
     const hadRequestError = entry.requestErrors.cwd_refresh !== null
     entry.requestErrors.cwd_refresh = null
-    entry.latestRefreshBaseSequence = entry.state.refresh_seq
     entry.latestRefreshObservedChangeRequestId = entry.latestRequestIds.cwd_change
     if (hadRequestError) {
       this.notify(entry)
@@ -144,8 +178,59 @@ export class TerminalCwdRuntime {
     return {
       status: 'queued',
       requestId,
-      baseRefreshSequence: entry.state.refresh_seq,
+      baseRefreshSequence,
+      baseSourceGeneration,
+      baseConfirmedPath,
     }
+  }
+
+  retryRefreshDirectory(sessionId: string, requestId: string): SessionCwdRefreshResult {
+    const entry = this.entries.get(sessionId)
+    if (
+      !entry
+      || entry.latestRequestIds.cwd_refresh !== requestId
+      || !canRequestCwdRefresh(entry.state)
+      || isCwdOperationInFlight(entry.state.pending_operation)
+      || !entry.transport
+      || !entry.refreshTransport
+    ) {
+      return { status: 'not_ready' }
+    }
+    try {
+      if (!entry.refreshTransport(requestId)) {
+        return { status: 'not_ready' }
+      }
+    } catch {
+      return { status: 'not_ready' }
+    }
+    const hadRequestError = entry.requestErrors.cwd_refresh !== null
+    entry.requestErrors.cwd_refresh = null
+    if (hadRequestError) {
+      this.notify(entry)
+    }
+    return {
+      status: 'queued',
+      requestId,
+      baseRefreshSequence: entry.latestRefreshBaseSequence ?? entry.state.refresh_seq,
+      baseSourceGeneration:
+        entry.latestRefreshBaseSourceGeneration ?? entry.state.source_generation,
+      baseConfirmedPath:
+        entry.latestRefreshBaseConfirmedPath ?? entry.state.confirmed_path ?? '',
+    }
+  }
+
+  clearRequestError(
+    sessionId: string,
+    scope: SessionCwdRequestScope,
+    requestId: string,
+  ) {
+    const entry = this.entries.get(sessionId)
+    if (entry?.requestErrors[scope]?.request_id !== requestId) {
+      return false
+    }
+    entry.requestErrors[scope] = null
+    this.notify(entry)
+    return true
   }
 
   applyServerState(sessionId: string, candidate: SessionCwdState) {
@@ -157,35 +242,57 @@ export class TerminalCwdRuntime {
     if (!shouldApplyServerState(entry.state, next, entry.hasServerState)) {
       return false
     }
-    const refreshAdvanced = next.refresh_seq > entry.state.refresh_seq
+    const previousState = entry.state
+    const sourceChanged = next.source_generation > previousState.source_generation
+    const refreshAdvanced = sourceChanged || next.refresh_seq > previousState.refresh_seq
     const confirmedPathChanged = next.confirmed_path !== entry.state.confirmed_path
     const changeBaseRevision = entry.latestChangeBaseRevision
     entry.state = next
     entry.hasServerState = true
-    if (refreshAdvanced) {
+    if (sourceChanged) {
+      entry.requestErrors.cwd_change = null
+      entry.latestRequestIds.cwd_change = undefined
+      entry.latestChangeRequest = undefined
+      entry.latestChangeBaseRevision = undefined
       entry.requestErrors.cwd_refresh = null
       entry.latestRequestIds.cwd_refresh = undefined
       entry.latestRefreshBaseSequence = undefined
+      entry.latestRefreshBaseSourceGeneration = undefined
+      entry.latestRefreshBaseConfirmedPath = undefined
+      entry.latestRefreshObservedChangeRequestId = undefined
+    }
+    const refreshRequestId = entry.latestRequestIds.cwd_refresh
+    const refreshCorrelated = Boolean(
+      refreshRequestId
+      && next.refresh_request_id === refreshRequestId,
+    )
+    const refreshTerminal = refreshCorrelated
+      && next.refresh_status !== undefined
+      && next.refresh_status !== 'pending'
+    const legacyRefreshComplete = !next.refresh_request_id
+      && (refreshAdvanced || confirmedPathChanged)
+    if (refreshTerminal || legacyRefreshComplete) {
+      entry.requestErrors.cwd_refresh = null
+      entry.latestRequestIds.cwd_refresh = undefined
+      entry.latestRefreshBaseSequence = undefined
+      entry.latestRefreshBaseSourceGeneration = undefined
+      entry.latestRefreshBaseConfirmedPath = undefined
       if (
         entry.latestRefreshObservedChangeRequestId
         && entry.latestRefreshObservedChangeRequestId === entry.latestRequestIds.cwd_change
       ) {
         entry.requestErrors.cwd_change = null
         entry.latestRequestIds.cwd_change = undefined
+        entry.latestChangeRequest = undefined
         entry.latestChangeBaseRevision = undefined
       }
       entry.latestRefreshObservedChangeRequestId = undefined
     } else {
-      if (confirmedPathChanged) {
-        entry.requestErrors.cwd_refresh = null
-        entry.latestRequestIds.cwd_refresh = undefined
-        entry.latestRefreshBaseSequence = undefined
-        entry.latestRefreshObservedChangeRequestId = undefined
-      }
       if (changeBaseRevision !== undefined && next.revision > changeBaseRevision) {
         entry.requestErrors.cwd_change = null
         if (!next.pending_operation) {
           entry.latestRequestIds.cwd_change = undefined
+          entry.latestChangeRequest = undefined
           entry.latestChangeBaseRevision = undefined
         }
       }
@@ -204,6 +311,14 @@ export class TerminalCwdRuntime {
       return false
     }
     entry.requestErrors[error.scope] = error
+    if (error.scope === 'cwd_change') {
+      entry.latestChangeRequest = undefined
+    } else if (!error.retryable) {
+      entry.latestRequestIds.cwd_refresh = undefined
+      entry.latestRefreshBaseSequence = undefined
+      entry.latestRefreshBaseSourceGeneration = undefined
+      entry.latestRefreshBaseConfirmedPath = undefined
+    }
     this.notify(entry)
     return true
   }
@@ -230,6 +345,9 @@ export class TerminalCwdRuntime {
     if (entry.state.confirmed_path === path && !entry.state.pending_operation) {
       return { status: 'already_current' }
     }
+    if (entry.latestChangeRequest?.path === path) {
+      return { status: 'queued', request: entry.latestChangeRequest }
+    }
 
     const request: SessionCwdChangeRequest = {
       operation_id: createOperationId(),
@@ -250,10 +368,13 @@ export class TerminalCwdRuntime {
     const hadRequestError = entry.requestErrors.cwd_change !== null
       || entry.requestErrors.cwd_refresh !== null
     entry.latestRequestIds.cwd_change = request.operation_id
+    entry.latestChangeRequest = request
     entry.latestChangeBaseRevision = request.base_revision
     entry.requestErrors.cwd_change = null
     entry.latestRequestIds.cwd_refresh = undefined
     entry.latestRefreshBaseSequence = undefined
+    entry.latestRefreshBaseSourceGeneration = undefined
+    entry.latestRefreshBaseConfirmedPath = undefined
     entry.requestErrors.cwd_refresh = null
     if (hadRequestError) {
       this.notify(entry)
@@ -317,6 +438,14 @@ function normalizeServerState(candidate: SessionCwdState): SessionCwdState | nul
     !isCwdSource(candidate.source) ||
     !isCwdCapability(candidate.capability) ||
     !isCwdShellPhase(candidate.shell_phase) ||
+    (candidate.observation_status !== undefined
+      && !isCwdObservationStatus(candidate.observation_status)) ||
+    (candidate.control_status !== undefined
+      && !isCwdControlStatus(candidate.control_status)) ||
+    (candidate.refresh_status !== undefined
+      && !isCwdRefreshStatus(candidate.refresh_status)) ||
+    (candidate.control_retryable !== undefined
+      && typeof candidate.control_retryable !== 'boolean') ||
     !Number.isSafeInteger(candidate.state_seq) ||
     candidate.state_seq < 0 ||
     !Number.isSafeInteger(candidate.refresh_seq) ||
@@ -376,7 +505,13 @@ function shouldApplyServerState(
   next: SessionCwdState,
   hasServerState: boolean,
 ) {
-  return !hasServerState || next.state_seq > current.state_seq
+  if (!hasServerState) {
+    return true
+  }
+  if (next.source_generation !== current.source_generation) {
+    return next.source_generation > current.source_generation
+  }
+  return next.state_seq > current.state_seq
 }
 
 function createOperationId(prefix = 'cwd') {
@@ -407,6 +542,30 @@ function isCwdShellPhase(value: string) {
   )
 }
 
+function isCwdObservationStatus(value: string) {
+  return value === 'probing' || value === 'ready' || value === 'unavailable'
+}
+
+function isCwdControlStatus(value: string) {
+  return (
+    value === 'inactive' ||
+    value === 'preparing' ||
+    value === 'ready' ||
+    value === 'degraded' ||
+    value === 'reconnect_required' ||
+    value === 'unsupported'
+  )
+}
+
+function isCwdRefreshStatus(value: string) {
+  return (
+    value === 'pending' ||
+    value === 'succeeded' ||
+    value === 'failed' ||
+    value === 'canceled'
+  )
+}
+
 function isCwdOperationStatus(value: string) {
   return (
     value === 'queued' ||
@@ -419,4 +578,15 @@ function isCwdOperationStatus(value: string) {
 
 function isCwdOperationInFlight(operation: SessionCwdOperation | undefined) {
   return Boolean(operation && operation.status !== 'failed')
+}
+
+function canRequestCwdRefresh(state: SessionCwdState) {
+  if (state.control_status !== undefined) {
+    return (
+      state.control_status === 'preparing' ||
+      state.control_status === 'ready' ||
+      state.control_status === 'degraded'
+    )
+  }
+  return state.capability === 'supported' && state.shell_phase === 'prompt'
 }

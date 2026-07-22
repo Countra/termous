@@ -91,6 +91,10 @@
   color: color-mix(in srgb, var(--warning) 76%, var(--text-secondary));
 }
 
+.workbench-file-caption-notice.is-reconnect-required {
+  color: color-mix(in srgb, var(--accent) 76%, var(--text-secondary));
+}
+
 .workbench-file-caption-notice.is-error {
   color: color-mix(in srgb, var(--danger) 80%, var(--text-secondary));
 }

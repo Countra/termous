@@ -269,6 +269,18 @@ export type SessionCwdCapability = 'probing' | 'supported' | 'unsupported'
 
 export type SessionCwdShellPhase = 'unknown' | 'prompt' | 'running' | 'alternate-screen'
 
+export type SessionCwdObservationStatus = 'probing' | 'ready' | 'unavailable'
+
+export type SessionCwdControlStatus =
+  | 'inactive'
+  | 'preparing'
+  | 'ready'
+  | 'degraded'
+  | 'reconnect_required'
+  | 'unsupported'
+
+export type SessionCwdRefreshStatus = 'pending' | 'succeeded' | 'failed' | 'canceled'
+
 export type SessionCwdOperationStatus =
   | 'queued'
   | 'waiting-idle'
@@ -282,6 +294,7 @@ export interface SessionCwdOperation {
   path: string
   revision: number
   status: SessionCwdOperationStatus
+  error_code?: string
   error?: string
 }
 
@@ -299,6 +312,14 @@ export interface SessionCwdState {
   prompt_generation: number
   source_generation: number
   pending_operation?: SessionCwdOperation
+  observation_status?: SessionCwdObservationStatus
+  control_status?: SessionCwdControlStatus
+  control_code?: string
+  control_retryable?: boolean
+  refresh_request_id?: string
+  refresh_status?: SessionCwdRefreshStatus
+  refresh_error_code?: string
+  refresh_error?: string
 }
 
 export interface SessionCwdChangeRequest {
