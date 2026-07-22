@@ -665,6 +665,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
             onSelectSession={actions.selectSession}
             onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
+            onRefreshInventory={actions.refreshSessionInventory}
             onOpenFiles={openFilesFromSession}
             onSnippetUsed={(snippetId) => actions.markCodeSnippetUsed(snippetId).then(() => undefined)}
             onToggleSnippetFavorite={toggleCodeSnippetFavorite}

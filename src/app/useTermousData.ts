@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createApiFromRuntime, TermousApi, TermousApiError } from '../api/client'
 import type {
   AppData,
@@ -39,6 +39,11 @@ import type {
 import { changeLanguage } from '../i18n'
 import { defaultAppearanceSettings, defaultTerminalSettings, defaultWindowSettings, normalizeSettings } from '../features/settings/terminalSettings'
 import { hostToInput } from '../features/hosts/hostInput'
+import {
+  mergeSessionReloadSnapshot,
+  sessionChangedSince,
+  shouldApplySessionInventoryResponse,
+} from './sessionInventoryState'
 
 const initialSettings: Settings = {
   language: 'zh-CN',
@@ -76,8 +81,21 @@ export function useTermousData() {
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
   const [forwardErrorEvent, setForwardErrorEvent] = useState<ForwardEvent | null>(null)
+  const sessionEventRevisionsRef = useRef(new Map<string, number>())
+  const inventoryEventRevisionsRef = useRef(new Map<string, number>())
+  const inventoryStateSignaturesRef = useRef(new Map<string, string>())
+  const inventoryRequestRevisionsRef = useRef(new Map<string, number>())
+  const loadRevisionRef = useRef(0)
+  data.sessions.forEach((session) => {
+    if (!inventoryStateSignaturesRef.current.has(session.id)) {
+      inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
+    }
+  })
 
   const loadWithApi = useCallback(async (apiClient: TermousApi, mode: LoadMode = 'background') => {
+    const loadRevision = loadRevisionRef.current + 1
+    loadRevisionRef.current = loadRevision
+    const sessionRevisionBaseline = new Map(sessionEventRevisionsRef.current)
     if (mode === 'initial') {
       setInitializing(true)
     } else if (mode === 'background') {
@@ -119,14 +137,36 @@ export function useTermousData() {
         apiClient.forwardProfiles(),
         apiClient.forwards(),
       ])
-      const nextSessions = sessions ?? []
+      if (loadRevision !== loadRevisionRef.current) {
+        return
+      }
+      const reloadedSessions = sessions ?? []
       const nextSettings = normalizeSettings(settings)
-      setData({
+      reloadedSessions.forEach((session) => {
+        if (!sessionChangedSince(
+          session.id,
+          sessionRevisionBaseline,
+          sessionEventRevisionsRef.current,
+        )) {
+          const signature = sessionInventorySignature(session)
+          const previous = inventoryStateSignaturesRef.current.get(session.id)
+          inventoryStateSignaturesRef.current.set(session.id, signature)
+          if (previous !== undefined && previous !== signature) {
+            bumpSessionRevision(inventoryEventRevisionsRef.current, session.id)
+          }
+        }
+      })
+      setData((current) => ({
         settings: nextSettings,
         groups: groups ?? [],
         hosts: hosts ?? [],
         credentials: credentials ?? [],
-        sessions: nextSessions,
+        sessions: mergeSessionReloadSnapshot(
+          current.sessions,
+          reloadedSessions,
+          sessionRevisionBaseline,
+          sessionEventRevisionsRef.current,
+        ),
         fileSessions: fileSessions ?? [],
         forwardProfiles: forwardProfiles ?? [],
         forwards: visibleForwards(forwards ?? []),
@@ -137,18 +177,28 @@ export function useTermousData() {
         localPathMappings: sortLocalPathMappings(localPathMappings ?? []),
         terminalFonts: terminalFonts ?? [],
         hostReachability: indexHostReachability(hostReachability ?? []),
+      }))
+      setActiveSession((current) => {
+        if (current && sessionChangedSince(
+          current.id,
+          sessionRevisionBaseline,
+          sessionEventRevisionsRef.current,
+        )) {
+          return current
+        }
+        return reconcileActiveSession(current, reloadedSessions, mode)
       })
-      setActiveSession((current) => reconcileActiveSession(current, nextSessions, mode))
       setApiReady(true)
       setLastUpdatedAt(new Date().toISOString())
       await changeLanguage(nextSettings.language)
     } catch (loadError) {
-      setApiReady(false)
-      setError(publicMessage(loadError))
+      if (loadRevision === loadRevisionRef.current) {
+        setApiReady(false)
+        setError(publicMessage(loadError))
+      }
     } finally {
-      if (mode === 'initial') {
+      if (loadRevision === loadRevisionRef.current) {
         setInitializing(false)
-      } else if (mode === 'background') {
         setRefreshing(false)
       }
     }
@@ -524,6 +574,8 @@ export function useTermousData() {
       },
       async connect(hostId: string, cols = 120, rows = 32) {
         const session = await api.createSession(hostId, cols, rows)
+        bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
+        inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
         setActiveSession(session)
         setData((current) => ({ ...current, sessions: upsertSession(current.sessions, session) }))
         void load('silent')
@@ -531,6 +583,8 @@ export function useTermousData() {
       },
       async openLocalTerminal(shell: LocalShell, cols = 120, rows = 32) {
         const session = await api.createLocalSession(shell, cols, rows)
+        bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
+        inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
         setActiveSession(session)
         setData((current) => ({ ...current, sessions: upsertSession(current.sessions, session) }))
         void load('silent')
@@ -538,10 +592,45 @@ export function useTermousData() {
       },
       async disconnect(sessionId: string) {
         await api.deleteSession(sessionId)
+        inventoryRequestRevisionsRef.current.delete(sessionId)
+        inventoryEventRevisionsRef.current.delete(sessionId)
+        inventoryStateSignaturesRef.current.delete(sessionId)
+        bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
         const fallbackSession = data.sessions.find((session) => session.id !== sessionId) ?? null
         setData((current) => ({ ...current, sessions: current.sessions.filter((session) => session.id !== sessionId) }))
         setActiveSession((current) => (current?.id === sessionId ? fallbackSession : current))
         void load('silent')
+      },
+      async refreshSessionInventory(sessionId: string, force = false, signal?: AbortSignal) {
+        const requestRevision = (inventoryRequestRevisionsRef.current.get(sessionId) ?? 0) + 1
+        inventoryRequestRevisionsRef.current.set(sessionId, requestRevision)
+        const baselineEventRevision = inventoryEventRevisionsRef.current.get(sessionId) ?? 0
+        let refreshed: Session
+        try {
+          refreshed = await api.refreshSessionInventory(sessionId, force, { signal })
+        } catch (requestError) {
+          if (baselineEventRevision !== (inventoryEventRevisionsRef.current.get(sessionId) ?? 0)) {
+            throw new TermousApiError('系统信息状态已由实时事件更新', 'REQUEST_SUPERSEDED', 0)
+          }
+          throw requestError
+        }
+        if (!shouldApplySessionInventoryResponse({
+          sessionId,
+          responseSessionId: refreshed.id,
+          requestRevision,
+          latestRequestRevision: inventoryRequestRevisionsRef.current.get(sessionId) ?? 0,
+          baselineEventRevision,
+          latestEventRevision: inventoryEventRevisionsRef.current.get(sessionId) ?? 0,
+          aborted: Boolean(signal?.aborted),
+        })) {
+          return refreshed
+        }
+        bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
+        bumpSessionRevision(inventoryEventRevisionsRef.current, sessionId)
+        inventoryStateSignaturesRef.current.set(sessionId, sessionInventorySignature(refreshed))
+        setData((current) => ({ ...current, sessions: upsertSession(current.sessions, refreshed) }))
+        setActiveSession((current) => (current?.id === refreshed.id ? refreshed : current))
+        return refreshed
       },
       async disconnectAllConnections() {
         const sessionsToClose = data.sessions
@@ -561,6 +650,12 @@ export function useTermousData() {
         if (failed && failed.status === 'rejected') {
           throw failed.reason
         }
+        inventoryRequestRevisionsRef.current.clear()
+        sessionsToClose.forEach((session) => {
+          bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
+          inventoryEventRevisionsRef.current.delete(session.id)
+          inventoryStateSignaturesRef.current.delete(session.id)
+        })
         setData((current) => ({ ...current, sessions: [], fileSessions: [], forwards: [] }))
         setActiveSession(null)
         void load('silent')
@@ -572,6 +667,12 @@ export function useTermousData() {
         }
       },
       updateSession(sessionId: string, patch: Partial<Session>) {
+        bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
+        const nextInventorySignature = sessionInventorySignature(patch)
+        if (inventoryStateSignaturesRef.current.get(sessionId) !== nextInventorySignature) {
+          inventoryStateSignaturesRef.current.set(sessionId, nextInventorySignature)
+          bumpSessionRevision(inventoryEventRevisionsRef.current, sessionId)
+        }
         setActiveSession((current) => (current?.id === sessionId ? { ...current, ...patch } : current))
         setData((current) => ({
           ...current,
@@ -795,6 +896,18 @@ function upsertForward(forwards: ForwardInstance[], next: ForwardInstance) {
 
 function visibleForwards(forwards: ForwardInstance[]) {
   return forwards.filter((forward) => !shouldRemoveForward(forward))
+}
+
+function bumpSessionRevision(revisions: Map<string, number>, sessionId: string) {
+  revisions.set(sessionId, (revisions.get(sessionId) ?? 0) + 1)
+}
+
+function sessionInventorySignature(session: Partial<Session>) {
+  return [
+    session.inventory_status ?? 'idle',
+    session.inventory_message ?? '',
+    session.linux_system_info?.collected_at ?? '',
+  ].join('\u0000')
 }
 
 function indexHostReachability(states: HostReachability[]) {

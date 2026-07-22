@@ -24,6 +24,7 @@ import {
   getSessionFilesNavigationState,
   getSessionFilesViewState,
   isSessionFilesCwdRefreshComplete,
+  reconcileSessionFilesCwdPending,
   removeInactiveSessionFileStates,
   scheduleSessionFilesCwdLocalRetry,
   scheduleSessionFilesCwdRefreshRetry,
@@ -31,6 +32,7 @@ import {
   sessionFilesCwdRefreshTransportDisposition,
   sessionFilesCwdRefreshWatchdogRemaining,
   shouldRefreshFollowedDirectory,
+  shouldPrepareSessionFilesCwdControl,
   shouldRequestInitialSessionFilesDirectory,
   shouldRequestFollowedDirectory,
   sessionFilesViewStatesReducer,
@@ -602,6 +604,26 @@ test('目录刷新仅在开启跟随且终端进入可控提示符后调度一�
   ), true)
 })
 
+test('快照观察就绪后仅可恢复控制状态允许按需准备', () => {
+  for (const control_status of ['inactive', 'preparing', 'degraded'] as const) {
+    assert.equal(shouldPrepareSessionFilesCwdControl(cwdState({
+      observation_status: 'ready',
+      control_status,
+      capability: 'probing',
+      confirmed_path: '/srv/snapshot',
+    })), true)
+  }
+  assert.equal(shouldPrepareSessionFilesCwdControl(cwdState({
+    control_status: 'ready',
+  })), false)
+  assert.equal(shouldPrepareSessionFilesCwdControl(cwdState({
+    control_status: 'reconnect_required',
+  })), false)
+  assert.equal(shouldPrepareSessionFilesCwdControl(cwdState({
+    control_status: 'unsupported',
+  })), false)
+})
+
 test('目录刷新根据 transport 生命周期决定等待、发送或失败', () => {
   assert.equal(sessionFilesCwdRefreshTransportDisposition('idle'), 'wait')
   assert.equal(sessionFilesCwdRefreshTransportDisposition('connecting'), 'wait')
@@ -687,6 +709,98 @@ test('本地未就绪短唤醒沿用刷新事务且不消耗服务端重试次�
   assert.equal(scheduled.retryCount, 2)
   assert.equal(scheduled.startedAt, 1_000)
   assert.equal(scheduled.deadlineAt, 66_000)
+})
+
+test('降级 pending 在固定期限内使用同一 request id 有界重驱动', () => {
+  const original = {
+    ...createSessionFilesViewState('/').cwdRefresh,
+    phase: 'pending' as const,
+    requestId: 'refresh-degraded',
+    baseRefreshSequence: 4,
+    baseSourceGeneration: 7,
+    baseConfirmedPath: '/srv/current',
+    startedAt: 1_000,
+    deadlineAt: 66_000,
+  }
+  const degraded = cwdState({
+    control_status: 'degraded',
+    control_retryable: true,
+    refresh_request_id: 'refresh-degraded',
+    refresh_status: 'pending',
+  })
+  const first = reconcileSessionFilesCwdPending(original, degraded, true, 2_000)
+
+  assert.equal(first.phase, 'waiting')
+  assert.equal(first.requestId, 'refresh-degraded')
+  assert.equal(first.retryAt, 2_400)
+  assert.equal(first.retryCount, 1)
+  assert.equal(first.baseRefreshSequence, 4)
+  assert.equal(first.baseSourceGeneration, 7)
+  assert.equal(first.baseConfirmedPath, '/srv/current')
+  assert.equal(first.startedAt, 1_000)
+  assert.equal(first.deadlineAt, 66_000)
+  assert.equal(reconcileSessionFilesCwdPending(first, degraded, true, 2_200), first)
+
+  const secondPending = { ...first, phase: 'pending' as const, retryAt: 0 }
+  const second = reconcileSessionFilesCwdPending(secondPending, degraded, true, 3_000)
+  const thirdPending = { ...second, phase: 'pending' as const, retryAt: 0 }
+  const third = reconcileSessionFilesCwdPending(thirdPending, degraded, true, 5_000)
+  const exhausted = { ...third, phase: 'pending' as const, retryAt: 0 }
+  assert.equal(exhausted.retryCount, 3)
+  assert.equal(reconcileSessionFilesCwdPending(exhausted, degraded, true, 8_000), exhausted)
+})
+
+test('降级刷新迟到 ready 时保留已安排的同事务重驱动', () => {
+  const scheduled = {
+    ...createSessionFilesViewState('/').cwdRefresh,
+    phase: 'waiting' as const,
+    requestId: 'refresh-late-ready',
+    startedAt: 1_000,
+    deadlineAt: 66_000,
+    retryCount: 1,
+    retryAt: 2_400,
+  }
+  const ready = cwdState({
+    control_status: 'ready',
+    control_retryable: false,
+    refresh_request_id: 'refresh-late-ready',
+    refresh_status: 'pending',
+  })
+
+  assert.equal(reconcileSessionFilesCwdPending(scheduled, ready, true, 2_200), scheduled)
+})
+
+test('关闭跟随和 deadline 到期后不会安排 pending 重驱动', () => {
+  const transaction = {
+    ...createSessionFilesViewState('/').cwdRefresh,
+    phase: 'pending' as const,
+    requestId: 'refresh-stop',
+    startedAt: 1_000,
+    deadlineAt: 66_000,
+  }
+  const degraded = cwdState({
+    control_status: 'degraded',
+    control_retryable: true,
+    refresh_request_id: 'refresh-stop',
+    refresh_status: 'pending',
+  })
+
+  assert.equal(reconcileSessionFilesCwdPending(transaction, degraded, false, 2_000), transaction)
+  assert.equal(reconcileSessionFilesCwdPending(transaction, degraded, true, 66_000), transaction)
+  assert.equal(reconcileSessionFilesCwdPending(
+    { ...transaction, retryCount: 2 },
+    degraded,
+    true,
+    65_000,
+  ).retryAt, 0)
+
+  const closed = finishSessionFilesCwdRefresh({
+    ...createSessionFilesViewState('/'),
+    followTerminal: true,
+    cwdRefresh: transaction,
+  })
+  assert.equal(closed.cwdRefresh.phase, 'idle')
+  assert.equal(closed.cwdRefresh.requestId, '')
 })
 
 test('可重试刷新沿用 request id 和原始 deadline 并采用有限退避', () => {

@@ -583,6 +583,7 @@ function isCwdOperationInFlight(operation: SessionCwdOperation | undefined) {
 function canRequestCwdRefresh(state: SessionCwdState) {
   if (state.control_status !== undefined) {
     return (
+      state.control_status === 'inactive' ||
       state.control_status === 'preparing' ||
       state.control_status === 'ready' ||
       state.control_status === 'degraded'

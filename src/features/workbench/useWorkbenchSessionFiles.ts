@@ -32,11 +32,13 @@ import {
   failDirectoryRequest,
   getSessionFilesViewState,
   isSessionFilesCwdRefreshComplete,
+  reconcileSessionFilesCwdPending,
   sessionFilesCwdRefreshTransportDisposition,
   sessionFilesCwdRefreshWatchdogRemaining,
   scheduleSessionFilesCwdLocalRetry,
   scheduleSessionFilesCwdRefreshRetry,
   sessionFilesViewStatesReducer,
+  shouldPrepareSessionFilesCwdControl,
   shouldRequestInitialSessionFilesDirectory,
   shouldRequestFollowedDirectory,
   updateSessionFilesViewState,
@@ -502,6 +504,7 @@ export function useWorkbenchSessionFiles({
       return
     }
     const refresh = viewState.cwdRefresh
+    const now = Date.now()
     const finishRefresh = (
       error = '',
       statusOverride?: 'unsupported' | 'reconnect-required',
@@ -568,25 +571,6 @@ export function useWorkbenchSessionFiles({
       return
     }
 
-    if (
-      refresh.requestId
-      && cwdState?.refresh_request_id === refresh.requestId
-      && cwdState.refresh_status === 'pending'
-      && (refresh.phase !== 'pending' || refresh.retryAt > 0)
-    ) {
-      cwdRuntime.clearRequestError(sourceSessionId, 'cwd_refresh', refresh.requestId)
-      updateView((state) => ({
-        ...state,
-        cwdRefresh: {
-          ...state.cwdRefresh,
-          phase: 'pending',
-          retryAt: 0,
-          error: '',
-        },
-      }), initialPath)
-      return
-    }
-
     if (cwdRefreshError?.request_id === refresh.requestId && refresh.requestId) {
       if (cwdRefreshError.retryable) {
         const retry = scheduleSessionFilesCwdRefreshRetry(refresh, Date.now())
@@ -603,7 +587,26 @@ export function useWorkbenchSessionFiles({
       return
     }
 
-    const now = Date.now()
+    const reconciledPending = reconcileSessionFilesCwdPending(
+      refresh,
+      cwdState,
+      viewState.followTerminal,
+      now,
+    )
+    if (reconciledPending !== refresh) {
+      cwdRuntime.clearRequestError(sourceSessionId, 'cwd_refresh', refresh.requestId)
+      updateView((state) => ({
+        ...state,
+        cwdRefresh: reconcileSessionFilesCwdPending(
+          state.cwdRefresh,
+          cwdState,
+          state.followTerminal,
+          now,
+        ),
+      }), initialPath)
+      return
+    }
+
     const scheduleLocalWake = () => {
       updateView((state) => {
         const current = state.cwdRefresh
@@ -796,10 +799,20 @@ export function useWorkbenchSessionFiles({
         false,
         sessionFilesCwdRefreshTransportDisposition(cwdTransportState),
       )
-      updateView({
-        pendingTerminalPath: normalized,
-        syncStatus: pendingState.status,
-        syncError: pendingState.error,
+      updateView((state) => {
+        const pending = {
+          ...state,
+          pendingTerminalPath: normalized,
+          syncStatus: pendingState.status,
+          syncError: pendingState.error,
+        }
+        if (
+          state.cwdRefresh.phase === 'idle'
+          && shouldPrepareSessionFilesCwdControl(cwdState)
+        ) {
+          return beginSessionFilesCwdRefresh(pending, cwdState, Date.now())
+        }
+        return pending
       }, normalized)
       return loadDirectory(normalized)
     }
@@ -981,7 +994,8 @@ function canAttemptCwdRefresh(state: SessionCwdState | null) {
   }
   if (state.control_status !== undefined) {
     return (
-      state.control_status === 'preparing'
+      state.control_status === 'inactive'
+      || state.control_status === 'preparing'
       || state.control_status === 'ready'
       || state.control_status === 'degraded'
     )

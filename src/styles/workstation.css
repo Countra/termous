@@ -5189,6 +5189,16 @@ body.is-terminal-tab-dragging * {
   line-height: 1.5;
 }
 
+.workbench-empty-state-action {
+  display: inline-flex;
+  justify-content: center;
+  margin-top: 3px;
+}
+
+.system-monitor-inventory-alert {
+  margin-bottom: 12px;
+}
+
 .system-info-loading {
   justify-items: stretch;
   text-align: left;

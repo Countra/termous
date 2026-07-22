@@ -260,6 +260,20 @@ export function shouldRefreshFollowedDirectory(
   )
 }
 
+export function shouldPrepareSessionFilesCwdControl(cwdState: SessionCwdState | null) {
+  if (!cwdState) {
+    return false
+  }
+  if (cwdState.control_status !== undefined) {
+    return (
+      cwdState.control_status === 'inactive'
+      || cwdState.control_status === 'preparing'
+      || cwdState.control_status === 'degraded'
+    )
+  }
+  return cwdState.capability === 'probing'
+}
+
 export function isSessionFilesCwdRefreshComplete(
   cwdState: SessionCwdState | null,
   baseline: SessionFilesCwdRefreshBaseline,
@@ -317,7 +331,11 @@ export function scheduleSessionFilesCwdRefreshRetry(
   now: number,
 ) {
   const delay = sessionFilesCwdRefreshRetryDelay(transaction.retryCount)
-  if (delay === null) {
+  if (
+    delay === null
+    || now >= transaction.deadlineAt
+    || now + delay >= transaction.deadlineAt
+  ) {
     return null
   }
   return {
@@ -325,6 +343,41 @@ export function scheduleSessionFilesCwdRefreshRetry(
     phase: 'waiting' as const,
     retryCount: transaction.retryCount + 1,
     retryAt: now + delay,
+    error: '',
+  }
+}
+
+export function reconcileSessionFilesCwdPending(
+  transaction: SessionFilesCwdRefreshTransaction,
+  cwdState: SessionCwdState | null,
+  followTerminal: boolean,
+  now: number,
+) {
+  if (
+    !followTerminal
+    || now >= transaction.deadlineAt
+    || !transaction.requestId
+    || cwdState?.refresh_request_id !== transaction.requestId
+    || cwdState.refresh_status !== 'pending'
+  ) {
+    return transaction
+  }
+  if (cwdState.control_status === 'degraded' && cwdState.control_retryable) {
+    if (transaction.retryAt > 0) {
+      return transaction
+    }
+    return scheduleSessionFilesCwdRefreshRetry(transaction, now) ?? transaction
+  }
+  if (cwdState.control_status === 'ready' && transaction.retryAt > 0) {
+    return transaction
+  }
+  if (transaction.phase === 'pending' && transaction.retryAt === 0) {
+    return transaction
+  }
+  return {
+    ...transaction,
+    phase: 'pending' as const,
+    retryAt: 0,
     error: '',
   }
 }

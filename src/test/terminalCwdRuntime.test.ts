@@ -75,6 +75,31 @@ test('terminal transport 状态变化可订阅且重复状态不通知', () => {
   assert.equal(notifications, 2)
 })
 
+test('嵌套 Shell 快照按 state sequence 合并并允许 prompt generation 重置', () => {
+  const runtime = new TerminalCwdRuntime()
+  assert.equal(runtime.applyServerState('ses-1', cwdState({
+    confirmed_path: '/srv/parent',
+    state_seq: 10,
+    prompt_generation: 12,
+    control_status: 'ready',
+  })), true)
+  assert.equal(runtime.applyServerState('ses-1', cwdState({
+    confirmed_path: '/srv/child',
+    state_seq: 11,
+    prompt_generation: 1,
+    control_status: 'inactive',
+  })), true)
+  assert.equal(runtime.getSnapshot('ses-1').confirmed_path, '/srv/child')
+  assert.equal(runtime.getSnapshot('ses-1').prompt_generation, 1)
+  assert.equal(runtime.applyServerState('ses-1', cwdState({
+    confirmed_path: '/srv/parent/returned',
+    state_seq: 12,
+    prompt_generation: 13,
+    control_status: 'ready',
+  })), true)
+  assert.equal(runtime.getSnapshot('ses-1').confirmed_path, '/srv/parent/returned')
+})
+
 test('source generation 前进会取消旧刷新关联并允许新事务', () => {
   const runtime = new TerminalCwdRuntime()
   let calls = 0
@@ -294,7 +319,7 @@ test('目录刷新仅在服务端支持且刷新 transport 就绪时发送', () 
     refreshCalls += 1
     return true
   })
-  assert.deepEqual(runtime.refreshDirectory('ses-inactive'), { status: 'not_ready' })
+  assert.equal(runtime.refreshDirectory('ses-inactive').status, 'queued')
 
   runtime.applyServerState('ses-4', cwdState({
     desired_path: '/srv',
@@ -312,7 +337,7 @@ test('目录刷新仅在服务端支持且刷新 transport 就绪时发送', () 
     return true
   })
   assert.deepEqual(runtime.refreshDirectory('ses-4'), { status: 'not_ready' })
-  assert.equal(refreshCalls, 1)
+  assert.equal(refreshCalls, 2)
 
   runtime.applyServerState('ses-5', cwdState({
     desired_path: '/srv',
@@ -331,7 +356,7 @@ test('目录刷新仅在服务端支持且刷新 transport 就绪时发送', () 
     return true
   })
   assert.equal(runtime.refreshDirectory('ses-5').status, 'queued')
-  assert.equal(refreshCalls, 2)
+  assert.equal(refreshCalls, 3)
 })
 
 test('目录刷新在首次实际发送时原子捕获当前服务端基线', () => {
@@ -345,10 +370,7 @@ test('目录刷新在首次实际发送时原子捕获当前服务端基线', ()
     capability: 'probing',
     control_status: 'inactive',
   }))
-  runtime.registerTransport('ses-1', () => true, () => {
-    calls += 1
-    return true
-  })
+  runtime.registerTransport('ses-1', () => true)
 
   assert.deepEqual(runtime.refreshDirectory('ses-1'), { status: 'not_ready' })
   assert.equal(calls, 0)
@@ -361,6 +383,10 @@ test('目录刷新在首次实际发送时原子捕获当前服务端基线', ()
     capability: 'supported',
     control_status: 'ready',
   }))
+  runtime.registerTransport('ses-1', () => true, () => {
+    calls += 1
+    return true
+  })
   const queued = runtime.refreshDirectory('ses-1')
   assert.equal(queued.status, 'queued')
   if (queued.status !== 'queued') {

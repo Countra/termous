@@ -1,4 +1,4 @@
-import { Button, Progress, Segmented, Select, Tooltip } from 'antd'
+import { Alert, Button, Progress, Segmented, Select, Tooltip } from 'antd'
 import type { EChartsCoreOption } from 'echarts/core'
 import { Activity, ArrowDownToLine, ArrowUpFromLine, Cpu, Gauge, HardDrive, MemoryStick, Pause, Play, RadioTower, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
@@ -21,6 +21,9 @@ interface SystemMonitorPanelProps {
   session: Session | null
   enabled: boolean
   theme: ThemeMode
+  inventoryRequesting: boolean
+  inventoryRequestError: string
+  onRetryInventory: () => void
 }
 
 const intervalOptions = [2, 5, 10, 30]
@@ -62,7 +65,15 @@ function MonitorDeviceOption({ value }: { value: string }) {
   )
 }
 
-export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonitorPanelProps) {
+export function SystemMonitorPanel({
+  api,
+  session,
+  enabled,
+  theme,
+  inventoryRequesting,
+  inventoryRequestError,
+  onRetryInventory,
+}: SystemMonitorPanelProps) {
   const { t } = useTranslation()
   const [intervalSeconds, setIntervalSeconds] = useState(5)
   const [networkStates, setNetworkStates] = useState<Record<string, NetworkSessionState>>({})
@@ -189,8 +200,29 @@ export function SystemMonitorPanel({ api, session, enabled, theme }: SystemMonit
 
   const statusText = monitor.message || t(`workbench.systemMonitor.status.${monitor.status}`)
   const latest = monitor.sample
+  const inventoryFailed = session.inventory_status === 'failed' || Boolean(inventoryRequestError)
   return (
     <section className="system-monitor-panel">
+      {inventoryFailed ? (
+        <Alert
+          className="system-monitor-inventory-alert"
+          type="warning"
+          showIcon
+          message={t('workbench.systemInfo.failedTitle')}
+          description={inventoryRequestError || session.inventory_message || t('workbench.systemInfo.failedHint')}
+          action={(
+            <Button
+              size="small"
+              loading={inventoryRequesting}
+              disabled={inventoryRequesting}
+              icon={<RotateCcw size={14} />}
+              onClick={onRetryInventory}
+            >
+              {inventoryRequesting ? t('workbench.systemInfo.retrying') : t('workbench.systemInfo.retry')}
+            </Button>
+          )}
+        />
+      ) : null}
       <div className="system-monitor-toolbar">
         <div className="system-monitor-status">
           <span className={`monitor-status-dot is-${monitor.status}`} />

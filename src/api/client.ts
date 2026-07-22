@@ -611,6 +611,14 @@ export class TermousApi {
     return this.request<void>(`/api/v1/sessions/${id}`, { method: 'DELETE' })
   }
 
+  refreshSessionInventory(id: string, force = false, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<Session>(`/api/v1/sessions/${encodeURIComponent(id)}/inventory/refresh`, {
+      method: 'POST',
+      body: { force },
+      signal: options.signal,
+    })
+  }
+
   sessionMonitorUrl(id: string) {
     return this.websocketUrl(`/api/v1/sessions/${encodeURIComponent(id)}/monitor`)
   }

@@ -76,6 +76,13 @@ import { SystemMonitorPanel } from './SystemMonitorPanel'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import { WorkbenchFilesPanel } from './WorkbenchFilesPanel'
 import {
+  canRetrySessionInventory,
+  getAutomaticSessionInventoryDemand,
+  getSessionInventoryVisibleScope,
+  isSessionInventoryRequestCurrent,
+  type SessionInventoryRequestIdentity,
+} from './sessionInventoryDemand'
+import {
   areSessionTabPreferenceMapsEqual,
   compactSessionTabPreference,
   normalizeSessionTabTitle,
@@ -110,6 +117,18 @@ interface TerminalTabDragState {
   dragging: boolean
 }
 
+interface SessionInventoryRequest extends SessionInventoryRequestIdentity {
+  controller: AbortController
+  baselineSignature: string
+}
+
+interface SessionInventoryRequestView {
+  sessionId: string
+  loading: boolean
+  error: string
+  baselineSignature: string
+}
+
 interface WorkbenchPageProps {
   api: TermousApi
   data: AppData
@@ -120,6 +139,7 @@ interface WorkbenchPageProps {
   onConnect: (hostId: string) => Promise<void>
   onSelectSession: (sessionId: string) => void
   onDisconnect: (sessionId: string) => Promise<void>
+  onRefreshInventory: (sessionId: string, force: boolean, signal?: AbortSignal) => Promise<Session>
   onOpenFiles: (session: Session) => Promise<void>
   onSnippetUsed: (snippetId: string) => Promise<void>
   onToggleSnippetFavorite: (snippet: CodeSnippet) => Promise<void>
@@ -137,6 +157,7 @@ export function WorkbenchPage({
   onConnect,
   onSelectSession,
   onDisconnect,
+  onRefreshInventory,
   onOpenFiles,
   onSnippetUsed,
   onToggleSnippetFavorite,
@@ -174,6 +195,12 @@ export function WorkbenchPage({
   const closingSessionIdsRef = useRef(new Set<string>())
   const previousSessionStatusRef = useRef(new Map<string, Session['status']>())
   const terminalTabDragRef = useRef<TerminalTabDragState | null>(null)
+  const inventoryRequestRef = useRef<SessionInventoryRequest | null>(null)
+  const inventoryRequestRevisionRef = useRef(0)
+  const inventoryVisibleSessionIdRef = useRef('')
+  const inventoryVisibleSignatureRef = useRef('')
+  const refreshInventoryRef = useRef(onRefreshInventory)
+  const translateRef = useRef(t)
   const suppressNextTabClickRef = useRef(false)
   const recentConnectionTimersRef = useRef(new Map<string, number>())
   const [recentlyConnectedSessionIds, setRecentlyConnectedSessionIds] = useState<Set<string>>(() => new Set())
@@ -204,8 +231,24 @@ export function WorkbenchPage({
   const [colorSessionId, setColorSessionId] = useState<string | null>(null)
   const [quickConnectOpen, setQuickConnectOpen] = useState(false)
   const [quickConnectQuery, setQuickConnectQuery] = useState('')
+  const [inventoryRequestView, setInventoryRequestView] = useState<SessionInventoryRequestView>({
+    sessionId: '',
+    loading: false,
+    error: '',
+    baselineSignature: '',
+  })
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const activeSessionId = activeSession?.id
+  const inventoryVisibleSessionId = getSessionInventoryVisibleScope(activeSession, detailsActiveTab, detailsCollapsed)
+  const automaticInventorySessionId = getAutomaticSessionInventoryDemand(activeSession, detailsActiveTab, detailsCollapsed)
+  const activeInventorySignature = sessionInventoryViewSignature(activeSession)
+  inventoryVisibleSessionIdRef.current = inventoryVisibleSessionId
+  inventoryVisibleSignatureRef.current = activeInventorySignature
+  refreshInventoryRef.current = onRefreshInventory
+  translateRef.current = t
+  const currentInventoryRequestView = inventoryRequestView.sessionId === activeSessionId
+    ? inventoryRequestView
+    : { sessionId: activeSessionId ?? '', loading: false, error: '', baselineSignature: '' }
   const activeSessionClosing = Boolean(activeSessionId && closingSessionIds.has(activeSessionId))
   const sessionStatus = String(activeSession?.status ?? 'disconnected')
   const sessionBadgeStatus = activeSessionClosing ? 'connecting' : normalizeSessionBadgeStatus(sessionStatus)
@@ -284,6 +327,101 @@ export function WorkbenchPage({
       { id: '__ungrouped__', name: t('snippets.ungrouped'), snippets: ungrouped },
     ].filter((group) => group.snippets.length > 0)
   }, [data.snippetGroups, filteredSnippets, t])
+  const requestSessionInventory = useCallback(async (sessionId: string, force: boolean) => {
+    inventoryRequestRef.current?.controller.abort()
+    const request: SessionInventoryRequest = {
+      sessionId,
+      revision: inventoryRequestRevisionRef.current + 1,
+      controller: new AbortController(),
+      baselineSignature: inventoryVisibleSignatureRef.current,
+    }
+    inventoryRequestRevisionRef.current = request.revision
+    inventoryRequestRef.current = request
+    setInventoryRequestView({
+      sessionId,
+      loading: true,
+      error: '',
+      baselineSignature: request.baselineSignature,
+    })
+    try {
+      await refreshInventoryRef.current(sessionId, force, request.controller.signal)
+      if (isSessionInventoryRequestCurrent(
+        request,
+        inventoryRequestRef.current,
+        inventoryVisibleSessionIdRef.current,
+        request.controller.signal.aborted,
+      )) {
+        setInventoryRequestView({ sessionId, loading: false, error: '', baselineSignature: '' })
+      }
+    } catch (error) {
+      if (
+        !shouldIgnoreInventoryRequestError(error) &&
+        isSessionInventoryRequestCurrent(
+          request,
+          inventoryRequestRef.current,
+          inventoryVisibleSessionIdRef.current,
+          request.controller.signal.aborted,
+        )
+      ) {
+        setInventoryRequestView({
+          sessionId,
+          loading: false,
+          error: error instanceof Error ? error.message : translateRef.current('workbench.systemInfo.requestFailed'),
+          baselineSignature: request.baselineSignature,
+        })
+      }
+    } finally {
+      if (inventoryRequestRef.current === request) {
+        inventoryRequestRef.current = null
+      }
+    }
+  }, [])
+  useEffect(() => {
+    const request = inventoryRequestRef.current
+    if (request && request.sessionId !== inventoryVisibleSessionId) {
+      request.controller.abort()
+      inventoryRequestRef.current = null
+    }
+    setInventoryRequestView((current) => {
+      if (!inventoryVisibleSessionId) {
+        return current.sessionId || current.loading || current.error
+          ? { sessionId: '', loading: false, error: '', baselineSignature: '' }
+          : current
+      }
+      return current.sessionId === inventoryVisibleSessionId
+        ? current
+        : { sessionId: inventoryVisibleSessionId, loading: false, error: '', baselineSignature: '' }
+    })
+  }, [inventoryVisibleSessionId])
+  useEffect(() => {
+    setInventoryRequestView((current) => {
+      if (
+        !current.error ||
+        current.sessionId !== activeSessionId ||
+        current.baselineSignature === activeInventorySignature
+      ) {
+        return current
+      }
+      return { ...current, error: '', baselineSignature: '' }
+    })
+  }, [activeInventorySignature, activeSessionId])
+  useEffect(() => {
+    if (!automaticInventorySessionId) {
+      return undefined
+    }
+    const timer = window.setTimeout(() => {
+      const current = inventoryRequestRef.current
+      if (current?.sessionId === automaticInventorySessionId) {
+        return
+      }
+      void requestSessionInventory(automaticInventorySessionId, false)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [automaticInventorySessionId, requestSessionInventory])
+  useEffect(() => () => {
+    inventoryRequestRef.current?.controller.abort()
+    inventoryRequestRef.current = null
+  }, [])
   useEffect(() => {
     if (!snippetSelectedGroupId || snippetSelectedGroupId === '__ungrouped__') return
     if (!data.snippetGroups.some((group) => group.id === snippetSelectedGroupId)) {
@@ -1276,7 +1414,21 @@ export function WorkbenchPage({
             key: 'system',
             label: t('workbench.detailsTabs.systemInfo'),
             icon: <Cpu size={17} aria-hidden="true" />,
-            children: <SystemInfoPanel session={activeSession} t={t} />,
+            children: (
+              <SystemInfoPanel
+                session={activeSession}
+                t={t}
+                requesting={currentInventoryRequestView.loading}
+                requestError={currentInventoryRequestView.error}
+                onRetry={() => {
+                  if (activeSessionId && (
+                    canRetrySessionInventory(activeSession) || currentInventoryRequestView.error
+                  )) {
+                    void requestSessionInventory(activeSessionId, true)
+                  }
+                }}
+              />
+            ),
           },
           {
             key: 'monitor',
@@ -1288,6 +1440,15 @@ export function WorkbenchPage({
                 session={activeSession}
                 enabled={detailsActiveTab === 'monitor' && !detailsCollapsed}
                 theme={theme}
+                inventoryRequesting={currentInventoryRequestView.loading}
+                inventoryRequestError={currentInventoryRequestView.error}
+                onRetryInventory={() => {
+                  if (activeSessionId && (
+                    canRetrySessionInventory(activeSession) || currentInventoryRequestView.error
+                  )) {
+                    void requestSessionInventory(activeSessionId, true)
+                  }
+                }}
               />
             ),
           },
@@ -1624,7 +1785,19 @@ interface SystemInfoTreeNode {
   children?: SystemInfoTreeNode[]
 }
 
-function SystemInfoPanel({ session, t }: { session: Session | null; t: WorkbenchTranslate }) {
+function SystemInfoPanel({
+  session,
+  t,
+  requesting,
+  requestError,
+  onRetry,
+}: {
+  session: Session | null
+  t: WorkbenchTranslate
+  requesting: boolean
+  requestError: string
+  onRetry: () => void
+}) {
   const status = session?.inventory_status ?? 'idle'
   const info = session?.linux_system_info
   const [expandedKeys, setExpandedKeys] = useState(() => new Set<string>())
@@ -1637,7 +1810,7 @@ function SystemInfoPanel({ session, t }: { session: Session | null; t: Workbench
       />
     )
   }
-  if (status === 'collecting' || status === 'idle') {
+  if ((status === 'collecting' || status === 'idle') && !requestError) {
     return (
       <div className="system-info-loading">
         <div>
@@ -1649,13 +1822,26 @@ function SystemInfoPanel({ session, t }: { session: Session | null; t: Workbench
     )
   }
   if (status !== 'ready' || !info) {
+    const failed = status === 'failed' || Boolean(requestError)
     return (
       <WorkbenchEmptyState
         className={`system-info-message is-${status}`}
-        tone={status === 'failed' ? 'danger' : 'warning'}
+        tone={failed ? 'danger' : 'warning'}
         icon={<TriangleAlert size={18} />}
         title={status === 'unsupported' ? t('workbench.systemInfo.unsupportedTitle') : t('workbench.systemInfo.failedTitle')}
-        description={session.inventory_message || t('workbench.systemInfo.failedHint')}
+        description={requestError || session.inventory_message || t('workbench.systemInfo.failedHint')}
+        action={failed ? (
+          <Button
+            size="small"
+            className="secondary-button"
+            loading={requesting}
+            disabled={requesting}
+            icon={<RotateCcw size={14} />}
+            onClick={onRetry}
+          >
+            {requesting ? t('workbench.systemInfo.retrying') : t('workbench.systemInfo.retry')}
+          </Button>
+        ) : undefined}
       />
     )
   }
@@ -1926,6 +2112,22 @@ function normalizeSessionBadgeStatus(status: string): 'connecting' | 'connected'
 
 function padDurationPart(value: number) {
   return String(value).padStart(2, '0')
+}
+
+function shouldIgnoreInventoryRequestError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+  const code = (error as { code?: string }).code
+  return code === 'REQUEST_ABORTED' || code === 'REQUEST_SUPERSEDED'
+}
+
+function sessionInventoryViewSignature(session: Session | null) {
+  return [
+    session?.inventory_status ?? 'idle',
+    session?.inventory_message ?? '',
+    session?.linux_system_info?.collected_at ?? '',
+  ].join('\u0000')
 }
 
 function emptyTerminalSearchResult(): TerminalSearchResult {
