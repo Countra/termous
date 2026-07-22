@@ -57,6 +57,7 @@
     "connected": "Connected",
     "connecting": "Connecting",
     "waiting_host_trust": "Waiting for fingerprint approval",
+    "closing": "Closing",
     "disconnected": "Disconnected",
     "failed": "Failed",
     "available": "Available",
@@ -111,6 +112,7 @@
     "terminalHint": "Select a host, then connect",
     "closeSession": "Disconnect current session",
     "closeDisconnectedSession": "Close session",
+    "closingSession": "Closing session",
     "reconnectSession": "Reconnect",
     "terminalDisconnectedTitle": "Connection closed",
     "terminalDisconnectedHint": "The remote connection has ended. Terminal output is preserved.",
@@ -1352,6 +1354,7 @@
       "connecting": "Connecting",
       "connected": "Connected",
       "waiting_trust": "Waiting for fingerprint approval",
+      "closing": "Closing",
       "disconnected": "Disconnected",
       "failed": "Connection failed"
     },

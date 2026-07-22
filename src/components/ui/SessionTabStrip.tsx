@@ -151,26 +151,42 @@ export function SessionTabStrip({
       return
     }
     const tabs = Array.from(viewport.querySelectorAll<HTMLElement>('[role="tab"]'))
-      .filter((tab) => tab.getAttribute('aria-disabled') !== 'true' && !tab.hasAttribute('disabled'))
     const currentIndex = tabs.indexOf(currentTab)
     if (currentIndex < 0 || tabs.length === 0) {
       return
     }
 
-    let nextIndex = currentIndex
+    const isAvailable = (tab: HTMLElement) => (
+      tab.getAttribute('aria-disabled') !== 'true' && !tab.hasAttribute('disabled')
+    )
+    let nextTab: HTMLElement | undefined
     if (event.key === 'Home') {
-      nextIndex = 0
+      nextTab = tabs.find(isAvailable)
     } else if (event.key === 'End') {
-      nextIndex = tabs.length - 1
-    } else if (event.key === 'ArrowLeft') {
-      nextIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1
-    } else if (event.key === 'ArrowRight') {
-      nextIndex = currentIndex === tabs.length - 1 ? 0 : currentIndex + 1
+      for (let index = tabs.length - 1; index >= 0; index -= 1) {
+        const candidate = tabs[index]
+        if (candidate && isAvailable(candidate)) {
+          nextTab = candidate
+          break
+        }
+      }
+    } else {
+      const direction = event.key === 'ArrowLeft' ? -1 : 1
+      for (let offset = 1; offset <= tabs.length; offset += 1) {
+        const candidate = tabs[(currentIndex + direction * offset + tabs.length) % tabs.length]
+        if (candidate && isAvailable(candidate)) {
+          nextTab = candidate
+          break
+        }
+      }
+    }
+    if (!nextTab) {
+      return
     }
 
     event.preventDefault()
-    tabs[nextIndex]?.focus()
-    tabs[nextIndex]?.click()
+    nextTab.focus()
+    nextTab.click()
   }, [])
 
   const handleClickCapture = useCallback((event: MouseEvent<HTMLDivElement>) => {

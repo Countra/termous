@@ -73,6 +73,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [selectedHostId, setSelectedHostId] = useState('')
   const [activeFileSessionId, setActiveFileSessionId] = useState('')
   const [closingFileSessionIds, setClosingFileSessionIds] = useState<string[]>([])
+  const closingFileSessionIdsRef = useRef(new Set<string>())
   const [hostLauncherOpen, setHostLauncherOpen] = useState(false)
   const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
   const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
@@ -261,21 +262,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }, [])
 
-  const visibleFileSessions = useMemo(
-    () => data.fileSessions.filter((session) => !closingFileSessionIds.includes(session.id)),
-    [closingFileSessionIds, data.fileSessions],
-  )
-  const filesPageData = useMemo(() => ({ ...data, fileSessions: visibleFileSessions }), [data, visibleFileSessions])
-
   useEffect(() => {
-    if (!activeFileSessionId && visibleFileSessions[0]) {
-      setActiveFileSessionId(visibleFileSessions[0].id)
+    if (!activeFileSessionId && data.fileSessions[0]) {
+      setActiveFileSessionId(data.fileSessions[0].id)
       return
     }
-    if (activeFileSessionId && !visibleFileSessions.some((session) => session.id === activeFileSessionId)) {
-      setActiveFileSessionId(visibleFileSessions[0]?.id ?? '')
+    if (activeFileSessionId && !data.fileSessions.some((session) => session.id === activeFileSessionId)) {
+      setActiveFileSessionId(data.fileSessions[0]?.id ?? '')
     }
-  }, [activeFileSessionId, visibleFileSessions])
+  }, [activeFileSessionId, data.fileSessions])
 
   const selectedHostIdStable = useMemo(() => {
     if (data.hosts.some((host) => host.id === selectedHostId)) {
@@ -308,8 +303,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   )
 
   const activeFileSession = useMemo(
-    () => visibleFileSessions.find((session) => session.id === activeFileSessionId) ?? visibleFileSessions[0] ?? null,
-    [activeFileSessionId, visibleFileSessions],
+    () => data.fileSessions.find((session) => session.id === activeFileSessionId) ?? data.fileSessions[0] ?? null,
+    [activeFileSessionId, data.fileSessions],
   )
 
   useEffect(() => {
@@ -719,10 +714,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         {page === 'files' ? (
           <FilesPage
             api={api}
-            data={filesPageData}
+            data={data}
             theme={theme}
             selectedHostId={selectedHostIdStable}
             activeFileSession={activeFileSession}
+            closingFileSessionIds={closingFileSessionIds}
             onSelectHost={setSelectedHostId}
             onConnectFileSession={async (hostId) => {
               const fileSession = await actions.connectFileSession(hostId)
@@ -731,15 +727,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             }}
             onSelectFileSession={setActiveFileSessionId}
             onCloseFileSession={async (fileSessionId) => {
-              const nextFileSessionId = visibleFileSessions.find((session) => session.id !== fileSessionId)?.id ?? ''
-              setClosingFileSessionIds((current) => current.includes(fileSessionId) ? current : [...current, fileSessionId])
-              if (activeFileSessionId === fileSessionId) {
-                setActiveFileSessionId(nextFileSessionId)
+              if (closingFileSessionIdsRef.current.has(fileSessionId)) {
+                return
               }
+              closingFileSessionIdsRef.current.add(fileSessionId)
+              setClosingFileSessionIds([...closingFileSessionIdsRef.current])
               try {
                 await actions.closeFileSession(fileSessionId)
+              } catch (actionError) {
+                showActionError(actionError)
               } finally {
-                setClosingFileSessionIds((current) => current.filter((id) => id !== fileSessionId))
+                closingFileSessionIdsRef.current.delete(fileSessionId)
+                setClosingFileSessionIds([...closingFileSessionIdsRef.current])
               }
             }}
             onReconnectFileSession={actions.reconnectFileSession}

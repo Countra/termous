@@ -601,7 +601,12 @@ export function useTermousData() {
         return fileSession
       },
       updateFileSession(fileSession: FileSession) {
-        setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
+        setData((current) => {
+          if (!current.fileSessions.some((session) => session.id === fileSession.id)) {
+            return current
+          }
+          return { ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }
+        })
       },
     }),
     [api, data.fileSessions, data.forwards, data.hosts, data.settings, data.sessions, load, reloadForwards],

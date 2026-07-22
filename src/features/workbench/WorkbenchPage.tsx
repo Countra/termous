@@ -171,11 +171,13 @@ export function WorkbenchPage({
     '--workbench-details-width': `${detailsPanelResize.width}px`,
   } as CSSProperties
   const terminalSplitRef = useRef<TerminalSplitWorkspaceHandle>(null)
+  const closingSessionIdsRef = useRef(new Set<string>())
   const previousSessionStatusRef = useRef(new Map<string, Session['status']>())
   const terminalTabDragRef = useRef<TerminalTabDragState | null>(null)
   const suppressNextTabClickRef = useRef(false)
   const recentConnectionTimersRef = useRef(new Map<string, number>())
   const [recentlyConnectedSessionIds, setRecentlyConnectedSessionIds] = useState<Set<string>>(() => new Set())
+  const [closingSessionIds, setClosingSessionIds] = useState<Set<string>>(() => new Set())
   const [pendingSearchSessionId, setPendingSearchSessionId] = useState<string | null>(null)
   const [terminalTabDrag, setTerminalTabDrag] = useState<TerminalTabDragState | null>(null)
   const [snippetFilter, setSnippetFilter] = useState<SnippetCatalogFilter>('all')
@@ -204,8 +206,10 @@ export function WorkbenchPage({
   const [quickConnectQuery, setQuickConnectQuery] = useState('')
   const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
   const activeSessionId = activeSession?.id
+  const activeSessionClosing = Boolean(activeSessionId && closingSessionIds.has(activeSessionId))
   const sessionStatus = String(activeSession?.status ?? 'disconnected')
-  const sessionBadgeStatus = normalizeSessionBadgeStatus(sessionStatus)
+  const sessionBadgeStatus = activeSessionClosing ? 'connecting' : normalizeSessionBadgeStatus(sessionStatus)
+  const sessionStatusLabel = activeSessionClosing ? t('workbench.closingSession') : t(`status.${sessionStatus}`)
   const showRecentConnectionProgress = Boolean(activeSessionId && recentlyConnectedSessionIds.has(activeSessionId))
   const hasConnectionProgress = Boolean(
     activeSession &&
@@ -232,7 +236,11 @@ export function WorkbenchPage({
   const activeSessionIndex = activeSession ? visibleSessions.findIndex((session) => session.id === activeSession.id) : -1
   const sessionPositionLabel =
     activeSessionIndex >= 0 ? `${activeSessionIndex + 1} / ${visibleSessions.length}` : '0'
-  const sessionStateLabel = activeSession?.phase ? t(`connection.phase.${activeSession.phase}`) : t(`status.${sessionStatus}`)
+  const sessionStateLabel = activeSessionClosing
+    ? t('workbench.closingSession')
+    : activeSession?.phase
+      ? t(`connection.phase.${activeSession.phase}`)
+      : t(`status.${sessionStatus}`)
   const targetLabel =
     activeSession?.kind === 'local'
       ? t('workbench.localTerminal')
@@ -652,16 +660,26 @@ export function WorkbenchPage({
   )
 
   const closeSessionTab = useCallback(
-    (sessionId: string) => {
-      if (actionBusy) {
+    async (sessionId: string) => {
+      if (actionBusy || closingSessionIdsRef.current.has(sessionId)) {
         return
       }
+      closingSessionIdsRef.current.add(sessionId)
+      setClosingSessionIds(new Set(closingSessionIdsRef.current))
       if (terminalSearch.sessionId === sessionId) {
         closeTerminalSearch()
       }
-      void onDisconnect(sessionId)
+      if (colorSessionId === sessionId) {
+        setColorSessionId(null)
+      }
+      try {
+        await onDisconnect(sessionId)
+      } finally {
+        closingSessionIdsRef.current.delete(sessionId)
+        setClosingSessionIds(new Set(closingSessionIdsRef.current))
+      }
     },
-    [actionBusy, closeTerminalSearch, onDisconnect, terminalSearch.sessionId],
+    [actionBusy, closeTerminalSearch, colorSessionId, onDisconnect, terminalSearch.sessionId],
   )
 
   const closeSessionFromTab = useCallback(
@@ -671,7 +689,7 @@ export function WorkbenchPage({
       }
       event.preventDefault()
       event.stopPropagation()
-      closeSessionTab(sessionId)
+      void closeSessionTab(sessionId)
     },
     [closeSessionTab],
   )
@@ -973,9 +991,11 @@ export function WorkbenchPage({
                   visibleSessions.map((session) => {
                     const preference = sessionTabPreferences[session.id]
                     const title = resolveSessionTitle(session)
+                    const sessionClosing = closingSessionIds.has(session.id)
                     return (
                       <Dropdown
                         key={session.id}
+                        disabled={sessionClosing}
                         trigger={['contextMenu']}
                         classNames={{ root: 'terminal-tab-dropdown' }}
                         menu={{
@@ -1029,8 +1049,9 @@ export function WorkbenchPage({
                                 terminalTabDrag?.dragging && terminalTabDrag.sessionId === session.id ? 'is-dragging' : undefined
                               }
                               onClick={(event) => {
-                                if (suppressNextTabClickRef.current) {
+                                if (sessionClosing || suppressNextTabClickRef.current) {
                                   event.preventDefault()
+                                  event.stopPropagation()
                                   return
                                 }
                                 onSelectSession(session.id)
@@ -1040,18 +1061,24 @@ export function WorkbenchPage({
                                   event.preventDefault()
                                 }
                               }}
-                              onPointerDown={(event) => beginTerminalTabDrag(event, session.id)}
+                              onPointerDown={(event) => {
+                                if (!sessionClosing) {
+                                  beginTerminalTabDrag(event, session.id)
+                                }
+                              }}
                               onAuxClick={(event) => closeSessionFromTab(event, session.id)}
                               icon={<SquareTerminal size={18} />}
                               label={title}
                               status={session.status}
                               statusLabel={t(`status.${session.status}`)}
+                              closing={sessionClosing}
+                              closingLabel={t('workbench.closingSession')}
                               pinned={preference?.pinned}
                               pinLabel={t('terminal.tabMenu.pinned')}
                               accentColor={preference?.color}
                               closeLabel={`${t('app.close')} ${title}`}
-                              closeDisabled={actionBusy}
-                              onClose={() => closeSessionTab(session.id)}
+                              closeDisabled={actionBusy && !sessionClosing}
+                              onClose={() => void closeSessionTab(session.id)}
                             />
                           </Popover>
                         </span>
@@ -1060,7 +1087,7 @@ export function WorkbenchPage({
                   })
                 )}
               </SessionTabStrip>
-              <StatusBadge status={sessionBadgeStatus} label={t(`status.${sessionStatus}`)} />
+              <StatusBadge status={sessionBadgeStatus} label={sessionStatusLabel} />
             </div>
           <div className={`terminal-progress-slot ${hasConnectionProgress ? 'is-active' : ''}`}>
             <ConnectionProgress session={activeSession} showReady={showRecentConnectionProgress} />
@@ -1093,7 +1120,7 @@ export function WorkbenchPage({
             onSelectSession={onSelectSession}
             onResize={handleTerminalResize}
             onReconnectSession={(session) => void reconnectSession(session)}
-            onCloseSession={(session) => void onDisconnect(session.id)}
+            onCloseSession={(session) => void closeSessionTab(session.id)}
           />
           <div className="terminal-statusbar">
             <StatusItem className="is-session-position" label={t('workbench.sessionCount')} value={sessionPositionLabel} />
@@ -1135,7 +1162,7 @@ export function WorkbenchPage({
                     <strong>{detailHost.name}</strong>
                     <small>{`${detailHost.username}@${detailHost.address}:${detailHost.port}`}</small>
                   </div>
-                  <StatusBadge status={sessionBadgeStatus} label={t(`status.${sessionStatus}`)} />
+                  <StatusBadge status={sessionBadgeStatus} label={sessionStatusLabel} />
                 </div>
                 <dl className="detail-list">
                   <div>
@@ -1209,11 +1236,16 @@ export function WorkbenchPage({
                   <Button
                     danger
                     className="danger-button"
-                    disabled={!activeSession || actionBusy}
-                    onClick={() => activeSession && void onDisconnect(activeSession.id)}
+                    disabled={!activeSession || (actionBusy && !activeSessionClosing)}
+                    loading={activeSessionClosing}
+                    onClick={() => activeSession && void closeSessionTab(activeSession.id)}
                     icon={<Power size={16} />}
                   >
-                    {activeSessionEnded ? t('workbench.closeDisconnectedSession') : t('workbench.closeSession')}
+                    {activeSessionClosing
+                      ? t('workbench.closingSession')
+                      : activeSessionEnded
+                        ? t('workbench.closeDisconnectedSession')
+                        : t('workbench.closeSession')}
                   </Button>
                 </div>
               </div>

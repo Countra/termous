@@ -17,6 +17,7 @@ import { useFileOperationWatcher } from './useFileOperationWatcher'
 interface RemoteTextEditorModalProps {
   api: TermousApi
   open: boolean
+  disabled?: boolean
   fileSessionId: string
   path: string
   theme: ThemeMode
@@ -27,14 +28,17 @@ interface RemoteTextEditorModalProps {
 
 const editorLanguage = new Compartment()
 const editorTheme = new Compartment()
+const editorEditable = new Compartment()
 
-export function RemoteTextEditorModal({ api, open, fileSessionId, path, theme, terminalSettings, onClose, onSaved }: RemoteTextEditorModalProps) {
+export function RemoteTextEditorModal({ api, open, disabled = false, fileSessionId, path, theme, terminalSettings, onClose, onSaved }: RemoteTextEditorModalProps) {
   const { t } = useTranslation()
   const { message, modal } = AntdApp.useApp()
   const editorHostRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
   const editorThemeMode = terminalSettings.theme_mode === 'follow_app' ? theme : terminalSettings.theme_mode
   const editorThemeModeRef = useRef<ThemeMode>(editorThemeMode)
+  const disabledRef = useRef(disabled)
+  disabledRef.current = disabled
   const fileRef = useRef<RemoteTextFile | null>(null)
   const baseContentRef = useRef('')
   const loadSeqRef = useRef(0)
@@ -69,7 +73,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, theme, t
   }, [file])
 
   const loadFile = useCallback(async () => {
-    if (!open || !fileSessionId || !path) {
+    if (!open || disabledRef.current || !fileSessionId || !path) {
       return
     }
     const requestSeq = loadSeqRef.current + 1
@@ -127,7 +131,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, theme, t
   }, [api, cancelActiveOperation, clearOperationTimers, fileSessionId, finishOperationProgress, open, path, t, watchFileOperation])
 
   const saveFile = useCallback(async (force = false) => {
-    if (!file || !fileSessionId || savingRef.current) {
+    if (disabledRef.current || !file || !fileSessionId || savingRef.current) {
       return
     }
     cancelActiveOperation()
@@ -210,6 +214,10 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, theme, t
     editorViewRef.current.dispatch({ effects: editorTheme.reconfigure(codeMirrorTheme(editorThemeMode)) })
   }, [editorThemeMode])
 
+  useEffect(() => {
+    editorViewRef.current?.dispatch({ effects: editorEditable.reconfigure(EditorView.editable.of(!disabled)) })
+  }, [disabled])
+
   const requestClose = useCallback(() => {
     if (!dirty) {
       onClose()
@@ -288,6 +296,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, theme, t
           EditorView.lineWrapping,
           editorLanguage.of([]),
           editorTheme.of(codeMirrorTheme(editorThemeModeRef.current)),
+          editorEditable.of(EditorView.editable.of(!disabledRef.current)),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) {
               return
@@ -354,7 +363,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, theme, t
       rootClassName="termous-modal-root remote-text-editor-root"
       onCancel={requestClose}
     >
-      <section className={`remote-text-editor is-editor-${editorThemeMode}`}>
+      <section className={`remote-text-editor is-editor-${editorThemeMode}`} aria-busy={disabled || undefined}>
         <header className="remote-text-editor-header">
           <div className="remote-text-editor-title">
             <span className="remote-text-editor-icon">
@@ -366,6 +375,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, theme, t
             </div>
           </div>
           <div className="remote-text-editor-meta">
+            {disabled ? <Tag color="processing">{t('files.sessionStatus.closing')}</Tag> : null}
             {file ? (
               <>
                 <Tag>{file.language || t('files.textEditorPlainText')}</Tag>
@@ -402,7 +412,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, theme, t
             <div className="remote-text-editor-state is-error">
               <AlertTriangle size={24} aria-hidden="true" />
               <strong>{error}</strong>
-              <Button className="secondary-button" icon={<RefreshCw size={14} />} onClick={() => void loadFile()}>
+              <Button className="secondary-button" disabled={disabled} icon={<RefreshCw size={14} />} onClick={() => void loadFile()}>
                 {t('files.textEditorReload')}
               </Button>
             </div>
@@ -423,7 +433,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, theme, t
             <span>{t('files.textEditorHint')}</span>
           </div>
           <div className="remote-text-editor-actions">
-            <Button className="secondary-button" disabled={loading || saving} onClick={() => void loadFile()}>
+            <Button className="secondary-button" disabled={disabled || loading || saving} onClick={() => void loadFile()}>
               {t('files.textEditorReload')}
             </Button>
             <Button className="secondary-button" disabled={saving} onClick={requestClose}>
@@ -432,7 +442,7 @@ export function RemoteTextEditorModal({ api, open, fileSessionId, path, theme, t
             <Button
               type="primary"
               className="primary-button"
-              disabled={!file || loading || !dirty}
+              disabled={disabled || !file || loading || !dirty}
               loading={saving}
               icon={<Save size={14} />}
               onClick={() => void saveFile(false)}

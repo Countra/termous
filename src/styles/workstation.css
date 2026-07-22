@@ -2195,7 +2195,7 @@ body.is-panel-resizing * {
   position: relative;
   display: grid;
   min-width: 0;
-  height: 34px;
+  height: 36px;
   flex: 1;
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
@@ -2217,7 +2217,7 @@ body.is-panel-resizing * {
   display: flex;
   min-width: 0;
   max-width: 100%;
-  height: 28px;
+  height: 30px;
   align-items: center;
   justify-content: flex-start;
   overflow: hidden;
@@ -2227,7 +2227,7 @@ body.is-panel-resizing * {
   position: relative;
   display: block;
   min-width: 0;
-  height: 28px;
+  height: 30px;
   flex: 1 1 auto;
   overflow: auto hidden;
   scroll-behavior: smooth;
@@ -2258,14 +2258,14 @@ body.is-panel-resizing * {
   display: flex;
   width: max-content;
   min-width: 100%;
-  min-height: 28px;
+  min-height: 30px;
   align-items: center;
   gap: 3px;
 }
 
 .session-tabs-trailing {
   display: inline-flex;
-  height: 26px;
+  height: 28px;
   flex: 0 0 auto;
   align-items: center;
   border-left: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
@@ -2276,7 +2276,7 @@ body.is-panel-resizing * {
 .session-new-tab-button.ant-btn {
   display: inline-flex;
   width: 26px;
-  height: 26px;
+  height: 28px;
   min-width: 26px;
   align-items: center;
   justify-content: center;
@@ -2308,7 +2308,7 @@ body.is-panel-resizing * {
 .session-scroll-button.ant-btn {
   display: inline-flex;
   width: 24px;
-  height: 28px;
+  height: 30px;
   min-width: 24px;
   align-items: center;
   justify-content: center;
@@ -2340,8 +2340,8 @@ body.is-panel-resizing * {
   min-width: var(--session-tab-width);
   max-width: var(--session-tab-width);
   flex: 0 0 var(--session-tab-width);
-  height: 28px;
-  min-height: 28px;
+  height: 30px;
+  min-height: 30px;
   grid-template-columns: minmax(0, 1fr) 20px;
   align-items: center;
   border: 1px solid transparent;
@@ -2420,11 +2420,28 @@ body.is-panel-resizing * {
   opacity: 0.56;
 }
 
+.session-tab-button.is-closing,
+.session-tab-button.is-closing:hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--surface-strong) 84%, var(--session-tab-accent) 16%);
+  color: var(--text-primary);
+  cursor: progress;
+  opacity: 1;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--session-tab-accent) 26%, var(--border-strong)),
+    inset 0 1px 0 rgb(255 255 255 / 7%);
+}
+
+.session-tab-button.is-closing .session-tab-main.ant-btn,
+.session-tab-button.is-closing .session-tab-close {
+  cursor: progress;
+}
+
 .session-tab-main.ant-btn {
   display: inline-flex;
   width: 100%;
   min-width: 0;
-  height: 26px;
+  height: 28px;
   align-items: center;
   justify-content: center;
   border: 0;
@@ -2481,6 +2498,7 @@ body.is-panel-resizing * {
   display: inline-flex;
   width: 100%;
   min-width: 0;
+  height: 100%;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -2488,7 +2506,7 @@ body.is-panel-resizing * {
 }
 
 .session-tab-empty-content {
-  height: 26px;
+  height: 28px;
   padding: 0 6px;
 }
 
@@ -2590,10 +2608,24 @@ body.is-panel-resizing * {
   pointer-events: none;
 }
 
+.session-tab-button.is-closing .session-tab-close,
+.session-tab-button.is-closing .session-tab-close:hover,
+.session-tab-button.is-closing .session-tab-close:focus-visible {
+  background: transparent;
+  color: color-mix(in srgb, var(--session-tab-accent) 82%, var(--text-primary));
+  opacity: 1;
+}
+
+.session-tab-closing-spinner {
+  animation: termous-spin 0.78s linear infinite;
+}
+
 .session-tab-label {
+  display: block;
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
+  line-height: 18px;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3026,6 +3058,10 @@ body.is-panel-resizing * {
   background: #f59e0b;
 }
 
+.session-dot.is-closing {
+  background: var(--accent);
+}
+
 .session-dot.is-failed {
   background: var(--danger);
 }
@@ -3054,7 +3090,8 @@ body.is-panel-resizing * {
 
 @media (prefers-reduced-motion: reduce) {
   .session-tab-leading .session-dot.is-connecting,
-  .session-tab-leading .session-dot.is-waiting_trust {
+  .session-tab-leading .session-dot.is-waiting_trust,
+  .session-tab-closing-spinner {
     animation: none;
   }
 }
@@ -3827,6 +3864,15 @@ body.is-terminal-tab-dragging * {
 :root[data-theme="light"] .session-tab-button.is-active:hover {
   border-color: transparent;
   background: color-mix(in srgb, #ffffff 90%, var(--session-tab-accent) 10%);
+}
+
+:root[data-theme="light"] .session-tab-button.is-closing,
+:root[data-theme="light"] .session-tab-button.is-closing:hover {
+  border-color: transparent;
+  background: color-mix(in srgb, #ffffff 86%, var(--session-tab-accent) 14%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--session-tab-accent) 24%, rgb(30 42 58 / 14%)),
+    inset 0 1px 0 rgb(255 255 255 / 96%);
 }
 
 :root[data-theme="light"] .session-tab-button:not(.is-empty):has(.session-tab-main:focus-visible),

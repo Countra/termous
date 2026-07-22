@@ -88,6 +88,7 @@ interface FilesPageProps {
   theme: ThemeMode
   selectedHostId: string
   activeFileSession: FileSession | null
+  closingFileSessionIds: readonly string[]
   onSelectHost: (hostId: string) => void
   onConnectFileSession: (hostId: string) => Promise<FileSession>
   onSelectFileSession: (fileSessionId: string) => void
@@ -224,6 +225,7 @@ function FilesPageContent({
   theme,
   selectedHostId,
   activeFileSession,
+  closingFileSessionIds,
   onSelectHost,
   onConnectFileSession,
   onSelectFileSession,
@@ -351,15 +353,32 @@ function FilesPageContent({
   const selectedHostIdStable = selectedHost?.id ?? ''
   const activeFileSessionHost = activeFileSession?.host_id ? data.hosts.find((host) => host.id === activeFileSession.host_id) : undefined
   const activeFileSessionId = activeFileSession?.id ?? ''
-  const fileSessionConnected = activeFileSession?.status === 'connected'
-  const fileSessionIds = useMemo(() => data.fileSessions.map((session) => session.id).join('|'), [data.fileSessions])
+  const closingFileSessionIdSet = useMemo(() => new Set(closingFileSessionIds), [closingFileSessionIds])
+  const activeFileSessionClosing = Boolean(activeFileSessionId && closingFileSessionIdSet.has(activeFileSessionId))
+  const fileSessionConnected = activeFileSession?.status === 'connected' && !activeFileSessionClosing
+  const fileSessionConnectedRef = useRef(fileSessionConnected)
+  fileSessionConnectedRef.current = fileSessionConnected
+  const displayedFileSessionKey = useMemo(
+    () => data.fileSessions.map((session) => session.id).join('|'),
+    [data.fileSessions],
+  )
+  const socketFileSessionIds = useMemo(
+    () => data.fileSessions
+      .filter((session) => !closingFileSessionIdSet.has(session.id))
+      .map((session) => session.id)
+      .join('|'),
+    [closingFileSessionIdSet, data.fileSessions],
+  )
   const syncingFileSessionIds = useMemo(
     () =>
       data.fileSessions
-        .filter((session) => session.status === 'connecting' || session.status === 'waiting_trust')
+        .filter((session) => (
+          !closingFileSessionIdSet.has(session.id)
+          && (session.status === 'connecting' || session.status === 'waiting_trust')
+        ))
         .map((session) => session.id)
         .join('|'),
-    [data.fileSessions],
+    [closingFileSessionIdSet, data.fileSessions],
   )
   const selectedHostConnecting = selectedHostIdStable ? connectingHostIds.has(selectedHostIdStable) : false
 
@@ -500,6 +519,8 @@ function FilesPageContent({
       setEntries([])
       setSelectedPaths([])
       setActiveEntry(null)
+      setTextEditorPath(null)
+      setImageViewerPath(null)
       return
     }
     const sessionChanged = lastActiveFileSessionIdRef.current !== activeFileSession.id
@@ -512,6 +533,8 @@ function FilesPageContent({
       setEntries([])
       setSelectedPaths([])
       setActiveEntry(null)
+      setTextEditorPath(null)
+      setImageViewerPath(null)
     }
     if (activeFileSession.status !== 'connected') {
       lastSessionLoadKeyRef.current = ''
@@ -632,7 +655,7 @@ function FilesPageContent({
   }, [transfers])
 
   useEffect(() => {
-    const ids = new Set(fileSessionIds ? fileSessionIds.split('|') : [])
+    const ids = new Set(socketFileSessionIds ? socketFileSessionIds.split('|') : [])
     fileSessionSocketsRef.current.forEach((socket, fileSessionId) => {
       if (!ids.has(fileSessionId)) {
         socket.close()
@@ -661,7 +684,7 @@ function FilesPageContent({
         }
       })
     })
-  }, [api, fileSessionIds])
+  }, [api, socketFileSessionIds])
 
   useEffect(
     () => () => {
@@ -731,9 +754,12 @@ function FilesPageContent({
 
   const closeFileSessionTab = useCallback(
     (fileSessionId: string) => {
+      if (closingFileSessionIdSet.has(fileSessionId)) {
+        return
+      }
       void onCloseFileSession(fileSessionId)
     },
-    [onCloseFileSession],
+    [closingFileSessionIdSet, onCloseFileSession],
   )
 
   const closeFileSessionFromTab = useCallback(
@@ -876,7 +902,7 @@ function FilesPageContent({
   }
 
   const pasteRemoteClipboard = async () => {
-    if (!remoteClipboard || !activeFileSession || remoteClipboard.hostId !== activeFileSession.host_id) {
+    if (!fileSessionConnected || !remoteClipboard || !activeFileSession || remoteClipboard.hostId !== activeFileSession.host_id) {
       return false
     }
     await runFileAction(async () => {
@@ -902,6 +928,9 @@ function FilesPageContent({
   }
 
   const openCreateDirectory = () => {
+    if (!fileSessionConnected) {
+      return
+    }
     let name = ''
     modal.confirm({
       title: t('files.newFolder'),
@@ -912,6 +941,9 @@ function FilesPageContent({
       className: 'confirm-modal',
       rootClassName: 'termous-modal-root',
       onOk: async () => {
+        if (!fileSessionConnectedRef.current) {
+          return
+        }
         const cleanName = name.trim()
         if (!cleanName) {
           throw new Error(t('files.nameRequired'))
@@ -927,7 +959,7 @@ function FilesPageContent({
   }
 
   const openRename = (entry = selectedEntries[0]) => {
-    if (!entry) {
+    if (!entry || !fileSessionConnected) {
       return
     }
     let name = entry.name
@@ -940,6 +972,9 @@ function FilesPageContent({
       className: 'confirm-modal',
       rootClassName: 'termous-modal-root',
       onOk: async () => {
+        if (!fileSessionConnectedRef.current) {
+          return
+        }
         const cleanName = name.trim()
         if (!cleanName) {
           throw new Error(t('files.nameRequired'))
@@ -1000,7 +1035,7 @@ function FilesPageContent({
   }
 
   const applyPermissions = async (entry: RemoteFileEntry, mode: string) => {
-    if (!activeFileSessionId) {
+    if (!activeFileSessionId || !fileSessionConnectedRef.current) {
       return
     }
     setPermissionSaving(true)
@@ -1025,7 +1060,7 @@ function FilesPageContent({
   }
 
   const confirmDelete = (paths = selectedPaths) => {
-    if (!activeFileSessionId || paths.length === 0) {
+    if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
       return
     }
     modal.confirm({
@@ -1037,6 +1072,9 @@ function FilesPageContent({
       className: 'confirm-modal',
       rootClassName: 'termous-modal-root',
       onOk: async () => {
+        if (!fileSessionConnectedRef.current) {
+          return
+        }
         await api.deleteFileSessionFiles(activeFileSessionId, paths, true)
         await loadDirectory(currentPath)
       },
@@ -1054,7 +1092,7 @@ function FilesPageContent({
   }
 
   const copySelected = (mode: 'copy' | 'cut') => {
-    if (selectedPaths.length === 0 || !activeFileSession) {
+    if (selectedPaths.length === 0 || !activeFileSession || !fileSessionConnected) {
       return
     }
     setRemoteClipboard({ mode, hostId: activeFileSession.host_id, paths: selectedPaths })
@@ -1062,6 +1100,9 @@ function FilesPageContent({
   }
 
   const enterEntry = (entry: RemoteFileEntry) => {
+    if (!fileSessionConnected) {
+      return
+    }
     setActiveEntry(entry)
     if (entry.kind === 'directory') {
       void loadDirectory(entry.path)
@@ -1406,9 +1447,31 @@ function FilesPageContent({
   }
 
   const actionDisabled = !fileSessionConnected || loading
+  useEffect(() => {
+    if (!activeFileSessionClosing) {
+      return
+    }
+    setFileContextMenu(null)
+    setImageViewerPath(null)
+    setPermissionEntry(null)
+    dragDepthRef.current = 0
+    setDragActive(false)
+    setDropTargetDirectoryPath(null)
+    remoteMoveDragRef.current = null
+    setRemoteMoveDrag(null)
+    setRemoteMoveTargetPath(null)
+    if (autoScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(autoScrollFrameRef.current)
+      autoScrollFrameRef.current = null
+    }
+    autoScrollSpeedRef.current = 0
+  }, [activeFileSessionClosing])
   const rowMenu = (entry: RemoteFileEntry): MenuProps['items'] => buildRemoteFileActionMenu(entry, t)
   const runRowMenuAction = (entry: RemoteFileEntry, key: string) => {
     setFileContextMenu(null)
+    if (!fileSessionConnected) {
+      return
+    }
     setSelectedPaths([entry.path])
     setActiveEntry(entry)
     const handlers: RemoteFileActionHandlers = {
@@ -1524,6 +1587,7 @@ function FilesPageContent({
       width: 44,
       render: (_: unknown, entry: RemoteFileEntry) => (
         <Dropdown
+          disabled={!fileSessionConnected}
           menu={fileRowMenuProps(entry)}
           trigger={['click']}
           classNames={{ root: 'files-row-menu' }}
@@ -1593,7 +1657,7 @@ function FilesPageContent({
           <SessionTabStrip
             ariaLabel={t('files.sessions')}
             activeId={activeFileSessionId}
-            contentKey={fileSessionIds}
+            contentKey={displayedFileSessionKey}
             scrollLeftLabel={t('workbench.scrollTabsLeft')}
             scrollRightLabel={t('workbench.scrollTabsRight')}
             className="files-session-tabs-shell"
@@ -1605,6 +1669,7 @@ function FilesPageContent({
               data.fileSessions.map((fileSession) => {
                 const host = data.hosts.find((item) => item.id === fileSession.host_id)
                 const label = host?.name ?? shortId(fileSession.id)
+                const sessionClosing = closingFileSessionIdSet.has(fileSession.id)
                 return (
                   <SessionTabButton
                     key={fileSession.id}
@@ -1612,7 +1677,11 @@ function FilesPageContent({
                     role="tab"
                     aria-selected={fileSession.id === activeFileSessionId}
                     data-session-tab-id={fileSession.id}
-                    onClick={() => onSelectFileSession(fileSession.id)}
+                    onClick={() => {
+                      if (!sessionClosing) {
+                        onSelectFileSession(fileSession.id)
+                      }
+                    }}
                     onMouseDown={(event) => {
                       if (event.button === 1) {
                         event.preventDefault()
@@ -1623,6 +1692,8 @@ function FilesPageContent({
                     label={label}
                     status={fileSession.status}
                     statusLabel={t(`files.sessionStatus.${fileSession.status}`)}
+                    closing={sessionClosing}
+                    closingLabel={t('files.sessionStatus.closing')}
                     closeLabel={`${t('app.close')} ${label}`}
                     onClose={() => closeFileSessionTab(fileSession.id)}
                   />
@@ -1644,6 +1715,7 @@ function FilesPageContent({
             <PathTrail
               path={currentPath}
               dropTargetPath={remoteMoveTargetPath ?? dropTargetDirectoryPath}
+              disabled={!fileSessionConnected}
               onNavigate={(path) => void loadDirectory(path)}
               onDragOver={onBreadcrumbDragOver}
               onDragLeave={onBreadcrumbDragLeave}
@@ -1692,22 +1764,22 @@ function FilesPageContent({
             <Button
               type="primary"
               className="primary-button"
-              disabled={selectedPaths.length === 0}
+              disabled={!fileSessionConnected || selectedPaths.length === 0}
               icon={<Download size={15} />}
               onClick={() => void downloadSelected()}
             >
               {t('files.download')}
             </Button>
-            <Button className="secondary-button" disabled={selectedPaths.length === 0} icon={<Copy size={15} />} onClick={() => copySelected('copy')}>
+            <Button className="secondary-button" disabled={!fileSessionConnected || selectedPaths.length === 0} icon={<Copy size={15} />} onClick={() => copySelected('copy')}>
               {t('files.copy')}
             </Button>
-            <Button className="secondary-button" disabled={selectedPaths.length === 0} icon={<Scissors size={15} />} onClick={() => copySelected('cut')}>
+            <Button className="secondary-button" disabled={!fileSessionConnected || selectedPaths.length === 0} icon={<Scissors size={15} />} onClick={() => copySelected('cut')}>
               {t('files.cut')}
             </Button>
             <Button className="secondary-button" disabled={actionDisabled} icon={<Clipboard size={15} />} onClick={() => void pasteFromClipboard()}>
               {t('files.paste')}
             </Button>
-            <Button className="danger-button" disabled={selectedPaths.length === 0} icon={<Trash2 size={15} />} onClick={() => confirmDelete()}>
+            <Button className="danger-button" disabled={!fileSessionConnected || selectedPaths.length === 0} icon={<Trash2 size={15} />} onClick={() => confirmDelete()}>
               {t('app.delete')}
             </Button>
           </div>
@@ -1735,7 +1807,12 @@ function FilesPageContent({
               rowSelection={{
                 columnWidth: 44,
                 selectedRowKeys: selectedPaths,
-                onChange: (keys) => setSelectedPaths(keys.map(String)),
+                getCheckboxProps: () => ({ disabled: !fileSessionConnected }),
+                onChange: (keys) => {
+                  if (fileSessionConnected) {
+                    setSelectedPaths(keys.map(String))
+                  }
+                },
               }}
               rowClassName={(entry) => [
                 'files-table-row',
@@ -1746,10 +1823,17 @@ function FilesPageContent({
               ].filter(Boolean).join(' ')}
               onRow={(entry) => ({
                 draggable: fileSessionConnected && !loading,
-                onClick: () => setActiveEntry(entry),
+                onClick: () => {
+                  if (fileSessionConnected) {
+                    setActiveEntry(entry)
+                  }
+                },
                 onDoubleClick: () => enterEntry(entry),
                 onContextMenu: (event) => {
                   event.preventDefault()
+                  if (!fileSessionConnected) {
+                    return
+                  }
                   setSelectedPaths([entry.path])
                   setActiveEntry(entry)
                   setFileContextMenu({ entry, x: event.clientX, y: event.clientY })
@@ -1772,7 +1856,7 @@ function FilesPageContent({
               locale={{ emptyText: <EmptyState title={t('files.emptyDirectory')} description={t('files.emptyDirectoryHint')} /> }}
             />
           )}
-          {fileContextMenu ? (
+          {fileContextMenu && fileSessionConnected ? (
             <Dropdown
               open
               trigger={[]}
@@ -1899,6 +1983,7 @@ function FilesPageContent({
           <RemoteTextEditorModal
             api={api}
             open={Boolean(textEditorPath && activeFileSessionId)}
+            disabled={activeFileSessionClosing}
             fileSessionId={activeFileSessionId}
             path={textEditorPath}
             theme={theme}
@@ -1927,13 +2012,14 @@ function FilesPageContent({
 interface PathTrailProps {
   path: string
   dropTargetPath: string | null
+  disabled: boolean
   onNavigate: (path: string) => void
   onDragOver: (path: string, event: DragEvent<HTMLButtonElement>) => void
   onDragLeave: (path: string, event: DragEvent<HTMLButtonElement>) => void
   onDrop: (path: string, event: DragEvent<HTMLButtonElement>) => void
 }
 
-function PathTrail({ path, dropTargetPath, onNavigate, onDragOver, onDragLeave, onDrop }: PathTrailProps) {
+function PathTrail({ path, dropTargetPath, disabled, onNavigate, onDragOver, onDragLeave, onDrop }: PathTrailProps) {
   const parts = normalizeRemotePath(path).split('/').filter(Boolean)
   const normalizedDropTargetPath = dropTargetPath ? normalizeRemotePath(dropTargetPath) : null
   const crumbs = [{ label: '/', path: '/' }]
@@ -1952,6 +2038,7 @@ function PathTrail({ path, dropTargetPath, onNavigate, onDragOver, onDragLeave, 
             dropTarget ? 'is-drop-target' : ''
           }`}
           aria-current={current ? 'page' : undefined}
+          disabled={disabled}
           onClick={() => onNavigate(crumb.path)}
           onDragEnter={(event) => onDragOver(crumb.path, event)}
           onDragOver={(event) => onDragOver(crumb.path, event)}
