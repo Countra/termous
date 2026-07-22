@@ -73,6 +73,7 @@ interface WorkbenchFilesPanelProps {
   data: AppData
   session: Session | null
   enabled: boolean
+  closingSessionIds: ReadonlySet<string>
   theme: ThemeMode
   onOpenFull: (session: Session) => Promise<void>
 }
@@ -97,13 +98,21 @@ function WorkbenchFilesPanelContent({
   data,
   session,
   enabled,
+  closingSessionIds,
   theme,
   onOpenFull,
 }: WorkbenchFilesPanelProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
   const runtime = useTransferRuntime()
-  const files = useWorkbenchSessionFiles({ api, data, activeSession: session, enabled })
+  const closing = Boolean(session?.id && closingSessionIds.has(session.id))
+  const files = useWorkbenchSessionFiles({
+    api,
+    data,
+    activeSession: session,
+    enabled,
+    closingSessionIds,
+  })
   const [pathInput, setPathInput] = useState('/')
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
@@ -159,7 +168,7 @@ function WorkbenchFilesPanelContent({
     navigationState?.refreshing && files.viewState?.listing,
   )
   const directoryLoading = initialDirectoryPending || directoryChanging || directoryRefreshing
-  const directoryNavigationLocked = initialDirectoryPlaceholder || directoryChanging
+  const directoryNavigationLocked = closing || initialDirectoryPlaceholder || directoryChanging
   const followingTerminalDirectory = followTerminal
     && Boolean(files.cwdState?.confirmed_path)
     && normalizeRemotePath(files.cwdState?.confirmed_path || '/') === pendingDirectoryPath
@@ -810,6 +819,7 @@ function WorkbenchFilesPanelContent({
                 size="small"
                 aria-label={t('workbench.files.followTerminal')}
                 checked={followTerminal}
+                disabled={closing}
                 onChange={files.setFollowTerminal}
               />
             </div>

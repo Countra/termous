@@ -39,6 +39,35 @@ export function canApplyCreatedFileSession(
     && created.host_id === hostId
 }
 
+export function canUseSourceFileSession(
+  contexts: Map<string, SourceSessionContext>,
+  sourceSessionId: string,
+  hostId: string,
+  closingSourceSessionIds: ReadonlySet<string>,
+) {
+  return !closingSourceSessionIds.has(sourceSessionId)
+    && isCurrentSourceSession(contexts, sourceSessionId, hostId)
+}
+
+export function resolveSourceFileSession(
+  sourceAvailable: boolean,
+  override: FileSession | undefined,
+  persisted: FileSession | undefined,
+) {
+  if (!sourceAvailable) {
+    return null
+  }
+  if (!override) {
+    return persisted ?? null
+  }
+  if (!persisted) {
+    return override
+  }
+  const overrideTime = Date.parse(override.connected_at ?? override.started_at)
+  const persistedTime = Date.parse(persisted.connected_at ?? persisted.started_at)
+  return overrideTime >= persistedTime ? override : persisted
+}
+
 export function mergeFileSessionUpdate(
   current: FileSession | null | undefined,
   next: FileSession,
@@ -79,8 +108,9 @@ export function shouldMaintainFileSessionEventStream(
   sourceStatus: Session['status'] | null,
   sourceEndedAt: string | undefined,
   fileSessionStatus: FileSession['status'] | null,
+  sourceClosing = false,
 ) {
-  if (sourceStatus !== 'connected' || sourceEndedAt) {
+  if (sourceClosing || sourceStatus !== 'connected' || sourceEndedAt) {
     return false
   }
   return fileSessionStatus === 'connecting'

@@ -46,10 +46,22 @@ import {
 import {
   buildSourceSessionContexts,
   canApplyCreatedFileSession,
-  isCurrentSourceSession,
+  canUseSourceFileSession,
   mergeFileSessionUpdate,
+  resolveSourceFileSession,
   shouldMaintainFileSessionEventStream,
 } from './workbenchFileSessionLifecycle'
+
+function closeFileSessionSocket(socket: WebSocket) {
+  if (socket.readyState === WebSocket.CONNECTING) {
+    // Chromium 会把握手阶段的直接 close 记为失败；等待 open 后立即关闭可避免无意义告警。
+    socket.addEventListener('open', () => socket.close(), { once: true })
+    return
+  }
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.close()
+  }
+}
 
 interface FileSessionEventMessage {
   type: string
@@ -66,6 +78,7 @@ interface UseWorkbenchSessionFilesOptions {
   data: AppData
   activeSession: Session | null
   enabled: boolean
+  closingSessionIds: ReadonlySet<string>
 }
 
 export function useWorkbenchSessionFiles({
@@ -73,6 +86,7 @@ export function useWorkbenchSessionFiles({
   data,
   activeSession,
   enabled,
+  closingSessionIds,
 }: UseWorkbenchSessionFilesOptions) {
   const cwdRuntime = useTerminalCwdRuntime()
   const sourceSessionId = activeSession?.kind === 'ssh' ? activeSession.id : null
@@ -87,6 +101,8 @@ export function useWorkbenchSessionFiles({
   const [sessionOverrides, setSessionOverrides] = useState<Record<string, FileSession>>({})
   const [createRetrySequence, setCreateRetrySequence] = useState(0)
   const mountedRef = useRef(true)
+  const closingSessionIdsRef = useRef(closingSessionIds)
+  const observedClosingSessionIdsRef = useRef<ReadonlySet<string>>(new Set())
   const sourceSessionContextsRef = useRef(buildSourceSessionContexts(data.sessions))
   const fileSessionsRef = useRef(data.fileSessions)
   const creatingSessionsRef = useRef(new Set<string>())
@@ -99,6 +115,18 @@ export function useWorkbenchSessionFiles({
 
   sourceSessionContextsRef.current = buildSourceSessionContexts(data.sessions)
   fileSessionsRef.current = data.fileSessions
+  closingSessionIdsRef.current = closingSessionIds
+  const sourceSessionClosing = Boolean(sourceSessionId && closingSessionIds.has(sourceSessionId))
+  const sourceSessionAvailable = Boolean(
+    sourceSessionId
+    && sourceHostId
+    && canUseSourceFileSession(
+      sourceSessionContextsRef.current,
+      sourceSessionId,
+      sourceHostId,
+      closingSessionIds,
+    )
+  )
 
   useEffect(() => {
     const directoryRequestControllers = directoryRequestControllersRef.current
@@ -110,12 +138,14 @@ export function useWorkbenchSessionFiles({
     }
   }, [])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const activeIds = new Set(data.sessions.map((session) => session.id))
     dispatchViewStates({ type: 'retain', activeSessionIds: activeIds })
-    setSessionOverrides((current) => Object.fromEntries(
-      Object.entries(current).filter(([sessionId]) => activeIds.has(sessionId)),
-    ))
+    setSessionOverrides((current) => {
+      const entries = Object.entries(current)
+      const retained = entries.filter(([sessionId]) => activeIds.has(sessionId))
+      return retained.length === entries.length ? current : Object.fromEntries(retained)
+    })
     createFailureSessionIdsRef.current = new Set(
       [...createFailureSessionIdsRef.current].filter((sessionId) => activeIds.has(sessionId)),
     )
@@ -133,22 +163,37 @@ export function useWorkbenchSessionFiles({
     )
   }, [data.sessions])
 
+  useLayoutEffect(() => {
+    const previouslyClosing = observedClosingSessionIdsRef.current
+    for (const closingSessionId of closingSessionIds) {
+      if (previouslyClosing.has(closingSessionId)) {
+        continue
+      }
+      const controller = directoryRequestControllersRef.current.get(closingSessionId)
+      if (!controller) {
+        continue
+      }
+      directoryRequestControllersRef.current.delete(closingSessionId)
+      controller.abort()
+      const requestSequence = (directoryRequestSequencesRef.current.get(closingSessionId) ?? 0) + 1
+      directoryRequestSequencesRef.current.set(closingSessionId, requestSequence)
+      dispatchViewStates({
+        type: 'invalidate-directory-request',
+        sessionId: closingSessionId,
+        requestSequence,
+      })
+    }
+    observedClosingSessionIdsRef.current = new Set(closingSessionIds)
+  }, [closingSessionIds])
+
   const fileSession = useMemo(() => {
     if (!sourceSessionId) {
       return null
     }
     const override = sessionOverrides[sourceSessionId]
     const persisted = data.fileSessions.find((session) => session.source_session_id === sourceSessionId)
-    if (!override) {
-      return persisted ?? null
-    }
-    if (!persisted) {
-      return override
-    }
-    const overrideTime = Date.parse(override.connected_at ?? override.started_at)
-    const persistedTime = Date.parse(persisted.connected_at ?? persisted.started_at)
-    return overrideTime >= persistedTime ? override : persisted
-  }, [data.fileSessions, sessionOverrides, sourceSessionId])
+    return resolveSourceFileSession(sourceSessionAvailable, override, persisted)
+  }, [data.fileSessions, sessionOverrides, sourceSessionAvailable, sourceSessionId])
   const fileSessionId = fileSession?.id ?? ''
   const fileSessionStatus = fileSession?.status ?? null
 
@@ -163,6 +208,7 @@ export function useWorkbenchSessionFiles({
     sourceSessionStatus,
     sourceSessionEndedAt,
     fileSession?.status ?? null,
+    sourceSessionClosing,
   )
 
   const updateView = useCallback((
@@ -181,7 +227,15 @@ export function useWorkbenchSessionFiles({
   }, [sourceSessionId])
 
   const updateFileSession = useCallback((session: FileSession, resetProgress = false) => {
-    if (!session.source_session_id) {
+    if (
+      !session.source_session_id
+      || !canUseSourceFileSession(
+        sourceSessionContextsRef.current,
+        session.source_session_id,
+        session.host_id,
+        closingSessionIdsRef.current,
+      )
+    ) {
       return
     }
     setSessionOverrides((current) => {
@@ -198,6 +252,7 @@ export function useWorkbenchSessionFiles({
   useEffect(() => {
     if (
       !enabled ||
+      !sourceSessionAvailable ||
       !sourceSessionId ||
       sourceSessionStatus !== 'connected' ||
       !sourceHostId ||
@@ -217,6 +272,12 @@ export function useWorkbenchSessionFiles({
     ).then((created) => {
       if (
         !mountedRef.current ||
+        !canUseSourceFileSession(
+          sourceSessionContextsRef.current,
+          requestedSourceSessionId,
+          sourceHostId,
+          closingSessionIdsRef.current,
+        ) ||
         !canApplyCreatedFileSession(
           created,
           sourceSessionContextsRef.current,
@@ -231,10 +292,11 @@ export function useWorkbenchSessionFiles({
     }).catch((error) => {
       if (
         !mountedRef.current ||
-        !isCurrentSourceSession(
+        !canUseSourceFileSession(
           sourceSessionContextsRef.current,
           requestedSourceSessionId,
           sourceHostId,
+          closingSessionIdsRef.current,
         )
       ) {
         return
@@ -252,21 +314,35 @@ export function useWorkbenchSessionFiles({
     enabled,
     fileSession,
     sourceHostId,
+    sourceSessionAvailable,
     sourceSessionId,
     sourceSessionStatus,
     updateFileSession,
     updateView,
   ])
 
-  useEffect(() => {
-    if (!fileSession?.id || !maintainFileSessionEventStream) {
+  useLayoutEffect(() => {
+    if (
+      !sourceSessionId
+      || !sourceHostId
+      || !fileSession?.id
+      || !maintainFileSessionEventStream
+    ) {
       return
     }
+    const requestedSourceSessionId = sourceSessionId
+    const requestedSourceHostId = sourceHostId
+    const sourceAvailable = () => canUseSourceFileSession(
+      sourceSessionContextsRef.current,
+      requestedSourceSessionId,
+      requestedSourceHostId,
+      closingSessionIdsRef.current,
+    )
     let disposed = false
     let reconnectTimer: number | undefined
     let socket: WebSocket | undefined
     const connect = () => {
-      if (disposed) {
+      if (disposed || !sourceAvailable()) {
         return
       }
       const nextSocket = new WebSocket(api.fileSessionEventsUrl(fileSession.id))
@@ -277,16 +353,21 @@ export function useWorkbenchSessionFiles({
         }
         try {
           const message = JSON.parse(String(event.data)) as FileSessionEventMessage
-          if (message.session?.id === fileSession.id) {
+          if (
+            sourceAvailable()
+            && message.session?.id === fileSession.id
+            && message.session.source_session_id === requestedSourceSessionId
+            && message.session.host_id === requestedSourceHostId
+          ) {
             updateFileSession(message.session)
           }
         } catch {
           nextSocket.close()
         }
       })
-      nextSocket.addEventListener('error', () => nextSocket.close())
+      nextSocket.addEventListener('error', () => closeFileSessionSocket(nextSocket))
       nextSocket.addEventListener('close', () => {
-        if (!disposed && socket === nextSocket) {
+        if (!disposed && sourceAvailable() && socket === nextSocket) {
           socket = undefined
           reconnectTimer = window.setTimeout(connect, 1200)
         }
@@ -298,12 +379,17 @@ export function useWorkbenchSessionFiles({
       if (reconnectTimer !== undefined) {
         window.clearTimeout(reconnectTimer)
       }
-      socket?.close()
+      if (socket) {
+        closeFileSessionSocket(socket)
+      }
     }
-  }, [api, fileSession?.id, maintainFileSessionEventStream, updateFileSession])
+  }, [api, fileSession?.id, maintainFileSessionEventStream, sourceHostId, sourceSessionId, updateFileSession])
 
   useEffect(() => {
     if (
+      !sourceSessionAvailable ||
+      !sourceSessionId ||
+      !sourceHostId ||
       !fileSession ||
       fileSession.status === 'connected' ||
       fileSession.status === 'disconnected' ||
@@ -312,11 +398,28 @@ export function useWorkbenchSessionFiles({
     ) {
       return
     }
+    const requestedSourceSessionId = sourceSessionId
+    const requestedSourceHostId = sourceHostId
+    const sourceAvailable = () => canUseSourceFileSession(
+      sourceSessionContextsRef.current,
+      requestedSourceSessionId,
+      requestedSourceHostId,
+      closingSessionIdsRef.current,
+    )
     let disposed = false
     const refreshSession = async () => {
+      if (disposed || !sourceAvailable()) {
+        return
+      }
       try {
         const next = await api.getFileSession(fileSession.id)
-        if (!disposed) {
+        if (
+          mountedRef.current
+          && sourceAvailable()
+          && next.id === fileSession.id
+          && next.source_session_id === requestedSourceSessionId
+          && next.host_id === requestedSourceHostId
+        ) {
           updateFileSession(next)
         }
       } catch {
@@ -328,10 +431,21 @@ export function useWorkbenchSessionFiles({
       disposed = true
       window.clearInterval(timer)
     }
-  }, [api, fileSession, updateFileSession])
+  }, [api, fileSession, sourceHostId, sourceSessionAvailable, sourceSessionId, updateFileSession])
 
   const loadDirectory = useCallback(async (targetPath: string) => {
-    if (!sourceSessionId || !fileSessionId || fileSessionStatus !== 'connected') {
+    if (
+      !sourceSessionId
+      || !sourceHostId
+      || !canUseSourceFileSession(
+        sourceSessionContextsRef.current,
+        sourceSessionId,
+        sourceHostId,
+        closingSessionIdsRef.current,
+      )
+      || !fileSessionId
+      || fileSessionStatus !== 'connected'
+    ) {
       return false
     }
     const normalized = normalizeRemotePosixPath(targetPath)
@@ -359,7 +473,15 @@ export function useWorkbenchSessionFiles({
       const listing = await api.listFileSessionFiles(fileSessionId, normalized, {
         signal: controller.signal,
       })
-      if (directoryRequestControllersRef.current.get(sourceSessionId) !== controller) {
+      if (
+        directoryRequestControllersRef.current.get(sourceSessionId) !== controller
+        || !canUseSourceFileSession(
+          sourceSessionContextsRef.current,
+          sourceSessionId,
+          sourceHostId,
+          closingSessionIdsRef.current,
+        )
+      ) {
         return false
       }
       dispatchViewStates({
@@ -386,11 +508,12 @@ export function useWorkbenchSessionFiles({
         directoryRequestControllersRef.current.delete(sourceSessionId)
       }
     }
-  }, [api, fileSessionId, fileSessionStatus, sourceSessionId, updateView])
+  }, [api, fileSessionId, fileSessionStatus, sourceHostId, sourceSessionId, updateView])
 
   useEffect(() => {
     if (
       !enabled ||
+      !sourceSessionAvailable ||
       !sourceSessionId ||
       fileSession?.status !== 'connected' ||
       directoryRequestControllersRef.current.has(sourceSessionId) ||
@@ -406,11 +529,12 @@ export function useWorkbenchSessionFiles({
       }
     }, 0)
     return () => window.clearTimeout(timer)
-  }, [enabled, fileSession?.status, initialPath, loadDirectory, sourceSessionId, viewState])
+  }, [enabled, fileSession?.status, initialPath, loadDirectory, sourceSessionAvailable, sourceSessionId, viewState])
 
   useEffect(() => {
     if (
       !enabled ||
+      !sourceSessionAvailable ||
       !viewState?.followTerminal ||
       !cwdState?.confirmed_path ||
       fileSessionStatus !== 'connected' ||
@@ -445,12 +569,13 @@ export function useWorkbenchSessionFiles({
     fileSessionStatus,
     loadDirectory,
     sourceSessionId,
+    sourceSessionAvailable,
     viewState?.pendingTerminalPath,
     viewState,
   ])
 
   useEffect(() => {
-    if (!enabled || !viewState?.followTerminal || !cwdState) {
+    if (!sourceSessionAvailable || !enabled || !viewState?.followTerminal || !cwdState) {
       return
     }
     const refreshPending = viewState.cwdRefresh.phase === 'waiting'
@@ -488,6 +613,7 @@ export function useWorkbenchSessionFiles({
     enabled,
     initialPath,
     sourceSessionId,
+    sourceSessionAvailable,
     updateView,
     viewState?.cwdRefresh,
     viewState?.followTerminal,
@@ -496,6 +622,7 @@ export function useWorkbenchSessionFiles({
   useEffect(() => {
     if (
       !sourceSessionId
+      || !sourceSessionAvailable
       || !enabled
       || !viewState?.followTerminal
       || viewState.cwdRefresh.phase === 'idle'
@@ -709,6 +836,7 @@ export function useWorkbenchSessionFiles({
     initialPath,
     sourceSessionId,
     sourceSessionStatus,
+    sourceSessionAvailable,
     updateView,
     viewState?.cwdRefresh,
     viewState?.followTerminal,
@@ -727,6 +855,7 @@ export function useWorkbenchSessionFiles({
   useEffect(() => {
     if (
       !enabled
+      || !sourceSessionAvailable
       || !sourceSessionId
       || !fileSessionId
       || !viewState?.followTerminal
@@ -769,6 +898,7 @@ export function useWorkbenchSessionFiles({
     enabled,
     fileSessionId,
     sourceSessionId,
+    sourceSessionAvailable,
     updateView,
     viewState?.cwdRefresh.phase,
     viewState?.followTerminal,
@@ -776,7 +906,18 @@ export function useWorkbenchSessionFiles({
   ])
 
   const navigateDirectory = useCallback(async (targetPath: string) => {
-    if (!sourceSessionId || !fileSessionId || !viewState) {
+    if (
+      !sourceSessionId
+      || !sourceHostId
+      || !canUseSourceFileSession(
+        sourceSessionContextsRef.current,
+        sourceSessionId,
+        sourceHostId,
+        closingSessionIdsRef.current,
+      )
+      || !fileSessionId
+      || !viewState
+    ) {
       return false
     }
     const normalized = normalizeRemotePosixPath(targetPath)
@@ -840,7 +981,7 @@ export function useWorkbenchSessionFiles({
       syncError: '',
     }, normalized)
     return true
-  }, [cwdRequestError, cwdRuntime, cwdState, cwdTransportState, fileSessionId, loadDirectory, sourceSessionId, updateView, viewState])
+  }, [cwdRequestError, cwdRuntime, cwdState, cwdTransportState, fileSessionId, loadDirectory, sourceHostId, sourceSessionId, updateView, viewState])
 
   const setFollowTerminal = useCallback((followTerminal: boolean) => {
     const startsRefresh = followTerminal && !viewState?.followTerminal
@@ -919,6 +1060,18 @@ export function useWorkbenchSessionFiles({
   }, [listingPath, sourceSessionId])
 
   const reconnect = useCallback(async () => {
+    if (
+      !sourceSessionId
+      || !sourceHostId
+      || !canUseSourceFileSession(
+        sourceSessionContextsRef.current,
+        sourceSessionId,
+        sourceHostId,
+        closingSessionIdsRef.current,
+      )
+    ) {
+      return
+    }
     if (!fileSession) {
       if (sourceSessionId) {
         createFailureSessionIdsRef.current.delete(sourceSessionId)
@@ -927,8 +1080,36 @@ export function useWorkbenchSessionFiles({
       }
       return
     }
-    updateFileSession(await api.reconnectFileSession(fileSession.id), true)
-  }, [api, fileSession, initialPath, sourceSessionId, updateFileSession, updateView])
+    const requestedSourceSessionId = sourceSessionId
+    const requestedSourceHostId = sourceHostId
+    let reconnected: FileSession
+    try {
+      reconnected = await api.reconnectFileSession(fileSession.id)
+    } catch (error) {
+      if (!canUseSourceFileSession(
+        sourceSessionContextsRef.current,
+        requestedSourceSessionId,
+        requestedSourceHostId,
+        closingSessionIdsRef.current,
+      )) {
+        return
+      }
+      throw error
+    }
+    if (canUseSourceFileSession(
+      sourceSessionContextsRef.current,
+      requestedSourceSessionId,
+      requestedSourceHostId,
+      closingSessionIdsRef.current,
+    ) && canApplyCreatedFileSession(
+      reconnected,
+      sourceSessionContextsRef.current,
+      requestedSourceSessionId,
+      requestedSourceHostId,
+    )) {
+      updateFileSession(reconnected, true)
+    }
+  }, [api, fileSession, initialPath, sourceHostId, sourceSessionId, updateFileSession, updateView])
 
   const entries = useMemo(
     () => [...(viewState?.listing?.entries ?? [])].sort((left, right) => {

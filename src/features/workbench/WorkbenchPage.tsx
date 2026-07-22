@@ -42,6 +42,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
+import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
@@ -803,7 +804,10 @@ export function WorkbenchPage({
         return
       }
       closingSessionIdsRef.current.add(sessionId)
-      setClosingSessionIds(new Set(closingSessionIdsRef.current))
+      // 文件事件流和目录请求必须先停，再删除后端会话，避免关闭期间重新访问已释放资源。
+      flushSync(() => {
+        setClosingSessionIds(new Set(closingSessionIdsRef.current))
+      })
       if (terminalSearch.sessionId === sessionId) {
         closeTerminalSearch()
       }
@@ -1405,6 +1409,7 @@ export function WorkbenchPage({
                 data={data}
                 session={activeSession}
                 enabled={detailsActiveTab === 'files' && !detailsCollapsed}
+                closingSessionIds={closingSessionIds}
                 theme={theme}
                 onOpenFull={onOpenFiles}
               />

@@ -507,6 +507,12 @@ export type SessionFilesViewStatesAction =
     update: Partial<SessionFilesViewState> | ((current: SessionFilesViewState) => SessionFilesViewState)
     initialPath?: string
   }
+  | {
+    type: 'invalidate-directory-request'
+    sessionId: string
+    requestSequence: number
+    initialPath?: string
+  }
   | { type: 'retain'; activeSessionIds: ReadonlySet<string> }
 
 export function sessionFilesViewStatesReducer(
@@ -516,12 +522,37 @@ export function sessionFilesViewStatesReducer(
   if (action.type === 'retain') {
     return removeInactiveSessionFileStates(states, action.activeSessionIds)
   }
+  if (action.type === 'invalidate-directory-request') {
+    return updateSessionFilesViewState(
+      states,
+      action.sessionId,
+      (current) => invalidateDirectoryRequest(current, action.requestSequence),
+      action.initialPath,
+    )
+  }
   return updateSessionFilesViewState(
     states,
     action.sessionId,
     action.update,
     action.initialPath,
   )
+}
+
+export function invalidateDirectoryRequest(
+  state: SessionFilesViewState,
+  requestSequence: number,
+) {
+  if (requestSequence <= state.requestSequence) {
+    return state
+  }
+  return {
+    ...state,
+    path: state.listing ? normalizeRemotePath(state.listing.path) : state.path,
+    loading: false,
+    error: '',
+    failedRequestPath: '',
+    requestSequence,
+  }
 }
 
 export function getSessionFilesViewState(

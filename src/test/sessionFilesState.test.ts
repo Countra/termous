@@ -1132,6 +1132,51 @@ test('首次目录列表尚未完成时关闭跟随会保留唯一的初始读�
   assert.equal(request.state.loading, true)
 })
 
+test('初次目录读取在会话关闭前失效，关闭失败回滚后允许重新加载', () => {
+  const initialRequest = beginDirectoryRequest(
+    createSessionFilesViewState('/root'),
+    '/root',
+    7,
+  )
+  let states: SessionFilesViewStateMap = {
+    'session-1': initialRequest.state,
+  }
+
+  states = sessionFilesViewStatesReducer(states, {
+    type: 'invalidate-directory-request',
+    sessionId: 'session-1',
+    requestSequence: 8,
+  })
+  const invalidated = getSessionFilesViewState(states, 'session-1')
+  assert.equal(invalidated.loading, false)
+  assert.equal(invalidated.listing, null)
+  assert.equal(invalidated.path, '/root')
+  assert.equal(invalidated.requestSequence, 8)
+  assert.equal(shouldRequestInitialSessionFilesDirectory(invalidated), true)
+  assert.equal(
+    completeDirectoryRequest(invalidated, initialRequest.requestSequence, listing('/stale')),
+    invalidated,
+  )
+
+  const retry = beginDirectoryRequest(invalidated, '/root', 9)
+  assert.equal(retry.state.loading, true)
+  assert.equal(retry.requestSequence, 9)
+
+  const withLastGood = beginDirectoryRequest({
+    ...createSessionFilesViewState('/srv/current'),
+    listing: listing('/srv/current'),
+  }, '/srv/pending', 10)
+  const retained = sessionFilesViewStatesReducer({ 'session-2': withLastGood.state }, {
+    type: 'invalidate-directory-request',
+    sessionId: 'session-2',
+    requestSequence: 11,
+  })['session-2']
+  assert.equal(retained.loading, false)
+  assert.equal(retained.path, '/srv/current')
+  assert.equal(retained.listing?.path, '/srv/current')
+  assert.equal(retained.requestSequence, 11)
+})
+
 test('文件区发起目录切换时不会回读终端的旧确认路径', () => {
   const state = {
     ...createSessionFilesViewState('/srv/current'),
