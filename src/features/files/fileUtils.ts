@@ -56,15 +56,22 @@ export function formatDate(value?: string) {
 }
 
 export function formatSeconds(value?: number) {
-  if (!value || value <= 0) {
+  if (!Number.isFinite(value) || !value || value <= 0) {
     return '-'
   }
-  if (value < 60) {
-    return `${Math.ceil(value)}s`
+
+  const totalSeconds = Math.ceil(value)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`
   }
-  const minutes = Math.floor(value / 60)
-  const seconds = Math.ceil(value % 60)
-  return `${minutes}m ${seconds}s`
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`
+  }
+  return `${seconds}s`
 }
 
 export function fileSortValue(file: RemoteFileEntry) {

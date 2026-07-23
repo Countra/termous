@@ -50,9 +50,9 @@ import {
   type FileSessionClosureState,
 } from '../features/files/fileSessionRecovery'
 import {
-  mergeFileSessionSnapshot,
   reconcileFileSessionSnapshotList,
   replaceFileSessionSnapshot,
+  upsertFileSessionSnapshot,
 } from '../shared/fileSessionSnapshot'
 import {
   mergeSessionReloadSnapshot,
@@ -946,7 +946,10 @@ export function useTermousData() {
           fileSession.id,
         )
         bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
-        setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
+        setData((current) => ({
+          ...current,
+          fileSessions: upsertFileSessionSnapshot(current.fileSessions, fileSession),
+        }))
         if (fileSession.source_session_id) {
           setFileSessionClosures((current) => removeMatchingFileSessionClosure(
             current,
@@ -968,7 +971,10 @@ export function useTermousData() {
           if (!current.fileSessions.some((session) => session.id === fileSession.id)) {
             return current
           }
-          return { ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }
+          return {
+            ...current,
+            fileSessions: upsertFileSessionSnapshot(current.fileSessions, fileSession),
+          }
         })
       },
     }),
@@ -1065,23 +1071,6 @@ function markHostRecentlyConnected(
     hosts: hosts.map((host) => (host.id === updatedSession.host_id ? { ...host, last_connected_at: connectedAt } : host)),
     sessions: sessionsWithPatch,
   }
-}
-
-function upsertFileSession(fileSessions: FileSession[], next: FileSession) {
-  const exists = fileSessions.some((session) => session.id === next.id)
-  if (exists) {
-    let changed = false
-    const merged = fileSessions.map((session) => {
-      if (session.id !== next.id) {
-        return session
-      }
-      const resolved = mergeFileSessionSnapshot(session, next)
-      changed = changed || resolved !== session
-      return resolved
-    })
-    return changed ? merged : fileSessions
-  }
-  return [next, ...fileSessions]
 }
 
 function upsertCodeSnippet(snippets: CodeSnippet[], next: CodeSnippet) {

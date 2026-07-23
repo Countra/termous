@@ -787,10 +787,15 @@ export type LocalTreeEntryKind = 'file' | 'directory' | 'symlink' | 'other'
 export interface LocalTreeEntry {
   name: string
   path: string
+  relative_path?: string
   kind: LocalTreeEntryKind
   size: number
   modified_at?: string
+  is_hidden?: boolean
+  is_accessible?: boolean
+  children_loaded?: boolean
   has_children: boolean
+  error_message?: string
 }
 
 export interface Host {

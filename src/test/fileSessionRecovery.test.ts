@@ -17,6 +17,7 @@ import {
   resolveFileSessionClosure,
   runFileSessionRecoveryOperation,
   runQueuedFileSessionRecoveryOperation,
+  selectActiveFileSessionAfterConnect,
   selectFileSessionCloseFallback,
   selectFileSessionForNavigation,
   selectFileSessionNavigationTarget,
@@ -416,6 +417,21 @@ test('快速关闭真实与合成标签时只从当前未关闭会话选择回�
   assert.equal(
     selectFileSessionCloseFallback([first, second, third], closures, unavailable),
     '',
+  )
+})
+
+test('恢复创建替代会话时不会抢回用户已经切换的活动标签', () => {
+  assert.equal(
+    selectActiveFileSessionAfterConnect('fs-old', 'fs-new', 'fs-old'),
+    'fs-new',
+  )
+  assert.equal(
+    selectActiveFileSessionAfterConnect('fs-other', 'fs-new', 'fs-old'),
+    'fs-other',
+  )
+  assert.equal(
+    selectActiveFileSessionAfterConnect('fs-other', 'fs-new'),
+    'fs-new',
   )
 })
 

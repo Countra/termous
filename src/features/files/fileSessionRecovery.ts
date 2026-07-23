@@ -292,6 +292,17 @@ export function selectFileSessionCloseFallback(
   return ''
 }
 
+export function selectActiveFileSessionAfterConnect(
+  currentSessionId: string,
+  connectedSessionId: string,
+  replacedSessionId = '',
+) {
+  if (!replacedSessionId) {
+    return connectedSessionId
+  }
+  return currentSessionId === replacedSessionId ? connectedSessionId : currentSessionId
+}
+
 export function pruneRetiredFileSessionIds(
   retiredSessionIds: Set<string>,
   sessions: FileSession[],

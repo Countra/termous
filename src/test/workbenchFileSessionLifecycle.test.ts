@@ -5,6 +5,7 @@ import {
   mergeFileSessionSnapshot,
   reconcileFileSessionSnapshotList,
   replaceFileSessionSnapshot,
+  upsertFileSessionSnapshot,
 } from '../shared/fileSessionSnapshot.ts'
 import {
   beginFileSessionRecovery,
@@ -460,6 +461,28 @@ test('创建替代会话时原子移除旧 ID 并保留其他会话', () => {
   assert.deepEqual(
     replaceFileSessionSnapshot([oldSession, other], replacement, oldSession.id),
     [replacement, other],
+  )
+})
+
+test('新增文件会话追加到会话栏末尾，替代会话保持原位置', () => {
+  const first = fileSession({ id: 'fs-first' })
+  const oldSession = fileSession({ id: 'fs-old' })
+  const last = fileSession({ id: 'fs-last' })
+  const added = fileSession({ id: 'fs-added' })
+  const replacement = fileSession({ id: 'fs-new' })
+
+  assert.deepEqual(
+    upsertFileSessionSnapshot([first, oldSession, last], added)
+      .map((session) => session.id),
+    ['fs-first', 'fs-old', 'fs-last', 'fs-added'],
+  )
+  assert.deepEqual(
+    replaceFileSessionSnapshot(
+      [first, oldSession, last],
+      replacement,
+      oldSession.id,
+    ).map((session) => session.id),
+    ['fs-first', 'fs-new', 'fs-last'],
   )
 })
 

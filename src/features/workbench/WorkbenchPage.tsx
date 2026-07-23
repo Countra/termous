@@ -17,7 +17,6 @@ import {
   Pencil,
   Pin,
   PinOff,
-  Plus,
   Power,
   Play,
   RotateCcw,
@@ -46,7 +45,7 @@ import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
-import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
+import { SessionQuickConnect } from '../../components/hosts/SessionQuickConnect'
 import { FeatureSidePanel } from '../../components/ui/FeatureSidePanel'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { SessionTabStrip } from '../../components/ui/SessionTabStrip'
@@ -258,6 +257,14 @@ export function WorkbenchPage({
   const activeSessionId = activeSession?.id
   const inventoryVisibleSessionId = getSessionInventoryVisibleScope(activeSession, detailsActiveTab, detailsCollapsed)
   const automaticInventorySessionId = getAutomaticSessionInventoryDemand(activeSession, detailsActiveTab, detailsCollapsed)
+
+  useEffect(() => {
+    if (active) {
+      return
+    }
+    setQuickConnectOpen(false)
+    setQuickConnectQuery('')
+  }, [active])
   const activeInventorySignature = sessionInventoryViewSignature(activeSession)
   inventoryVisibleSessionIdRef.current = inventoryVisibleSessionId
   inventoryVisibleSignatureRef.current = activeInventorySignature
@@ -445,10 +452,6 @@ export function WorkbenchPage({
       setSnippetSelectedGroupId('')
     }
   }, [data.snippetGroups, snippetSelectedGroupId])
-  const quickConnectHosts = useMemo(
-    () => filterQuickConnectHosts(data.hosts, quickConnectQuery),
-    [data.hosts, quickConnectQuery],
-  )
   const resolveSessionTitle = useCallback(
     (session: Session) => sessionTabPreferences[session.id]?.title ?? sessionTitle(session, data.hosts, t),
     [data.hosts, sessionTabPreferences, t],
@@ -581,7 +584,6 @@ export function WorkbenchPage({
     },
     [actionBusy, onConnect],
   )
-
   const buildSessionTabMenuItems = useCallback(
     (session: Session): MenuProps['items'] => {
       const preference = sessionTabPreferences[session.id]
@@ -1105,42 +1107,17 @@ export function WorkbenchPage({
                 scrollRightLabel={t('workbench.scrollTabsRight')}
                 tabsClassName="terminal-tabs"
                 trailing={(
-                  <Popover
+                  <SessionQuickConnect
+                    hosts={data.hosts}
+                    actionBusy={actionBusy}
+                    triggerLabel={t('workbench.quickConnect.trigger')}
                     open={quickConnectOpen}
-                    trigger="click"
-                    placement="bottomLeft"
-                    arrow={false}
-                    classNames={{ root: 'session-quick-connect-popover' }}
-                    onOpenChange={(open) => setQuickConnectOpen(open)}
-                    content={(
-                      <QuickConnectHostPanel
-                        hosts={quickConnectHosts}
-                        totalCount={data.hosts.length}
-                        query={quickConnectQuery}
-                        actionBusy={actionBusy}
-                        onQueryChange={setQuickConnectQuery}
-                        onConnect={connectQuickHost}
-                        getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
-                      />
-                    )}
-                  >
-                    <Tooltip
-                      title={quickConnectOpen ? null : t('workbench.quickConnect.trigger')}
-                      placement="bottom"
-                      arrow={false}
-                      mouseEnterDelay={0.35}
-                      mouseLeaveDelay={0}
-                      classNames={{ root: 'termous-tooltip session-tab-tooltip' }}
-                      destroyOnHidden
-                    >
-                      <Button
-                        type="text"
-                        className={`session-new-tab-button ${quickConnectOpen ? 'is-open' : ''}`}
-                        aria-label={t('workbench.quickConnect.trigger')}
-                        icon={<Plus size={16} strokeWidth={2.2} />}
-                      />
-                    </Tooltip>
-                  </Popover>
+                    query={quickConnectQuery}
+                    onOpenChange={setQuickConnectOpen}
+                    onQueryChange={setQuickConnectQuery}
+                    onConnect={connectQuickHost}
+                    getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+                  />
                 )}
               >
                 {visibleSessions.length === 0 ? (
@@ -1677,118 +1654,6 @@ export function WorkbenchPage({
       </Modal>
     </>
   )
-}
-
-function QuickConnectHostPanel({
-  hosts,
-  totalCount,
-  query,
-  actionBusy,
-  onQueryChange,
-  onConnect,
-  getHostIconUrl,
-}: {
-  hosts: Host[]
-  totalCount: number
-  query: string
-  actionBusy: boolean
-  onQueryChange: (value: string) => void
-  onConnect: (hostId: string) => Promise<void>
-  getHostIconUrl: (iconId: string) => string
-}) {
-  const { t } = useTranslation()
-  const emptyTitle = totalCount === 0 ? t('workbench.quickConnect.empty') : t('workbench.quickConnect.noResults')
-
-  return (
-    <section className="session-quick-connect" aria-label={t('workbench.quickConnect.title')}>
-      <Input
-        id="workbench-quick-connect-search"
-        name="workbench-quick-connect-search"
-        className="termous-search-input session-quick-connect-search"
-        value={query}
-        allowClear
-        variant="borderless"
-        prefix={<Search size={14} aria-hidden="true" />}
-        placeholder={t('workbench.quickConnect.search')}
-        onChange={(event) => onQueryChange(event.target.value)}
-        onPressEnter={() => {
-          if (hosts.length === 1 && !actionBusy) {
-            void onConnect(hosts[0].id)
-          }
-        }}
-      />
-      <div className="session-quick-connect-list" role="listbox" aria-label={t('workbench.quickConnect.hostList')}>
-        {hosts.length === 0 ? (
-          <div className="session-quick-connect-empty">{emptyTitle}</div>
-        ) : (
-          hosts.map((host) => (
-            <button
-              key={host.id}
-              type="button"
-              className="session-quick-connect-row"
-              role="option"
-              disabled={actionBusy}
-              onClick={() => void onConnect(host.id)}
-            >
-              <HostAvatar host={host} getIconUrl={getHostIconUrl} className="session-quick-connect-host-icon" size={28} iconSize={15} />
-              <span className="session-quick-connect-copy">
-                <strong>
-                  {host.name}
-                  {host.favorite ? <Star size={12} aria-label={t('workbench.hostLauncher.favorite')} /> : null}
-                </strong>
-                <small>{host.username}@{host.address}:{host.port}</small>
-              </span>
-              <span className="session-quick-connect-meta">
-                <AuthMethodBadge method={host.auth_method} compact />
-              </span>
-            </button>
-          ))
-        )}
-      </div>
-      <footer className="session-quick-connect-footer">
-        <small>{t('workbench.quickConnect.count', { count: totalCount })}</small>
-      </footer>
-    </section>
-  )
-}
-
-function filterQuickConnectHosts(hosts: Host[], query: string) {
-  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  const filtered = tokens.length === 0
-    ? hosts
-    : hosts.filter((host) => {
-      const searchable = [
-        host.name,
-        host.address,
-        host.username,
-        host.group_id,
-        host.auth_method,
-        ...(host.tags ?? []),
-      ]
-        .join(' ')
-        .toLowerCase()
-      return tokens.every((token) => searchable.includes(token))
-    })
-
-  return filtered.slice().sort((left, right) => {
-    if (left.favorite !== right.favorite) {
-      return left.favorite ? -1 : 1
-    }
-    const rightConnectedAt = readHostConnectedAt(right)
-    const leftConnectedAt = readHostConnectedAt(left)
-    if (rightConnectedAt !== leftConnectedAt) {
-      return rightConnectedAt - leftConnectedAt
-    }
-    return left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })
-  })
-}
-
-function readHostConnectedAt(host: Host) {
-  if (!host.last_connected_at) {
-    return 0
-  }
-  const value = new Date(host.last_connected_at).getTime()
-  return Number.isNaN(value) ? 0 : value
 }
 
 function StatusItem({ label, value, className }: { label: string; value: string; className?: string }) {

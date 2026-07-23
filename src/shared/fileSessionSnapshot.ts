@@ -10,23 +10,47 @@ export function mergeFileSessionSnapshot(
   return next
 }
 
+export function upsertFileSessionSnapshot(
+  current: FileSession[],
+  next: FileSession,
+) {
+  const existingIndex = current.findIndex((session) => session.id === next.id)
+  if (existingIndex < 0) {
+    return [...current, next]
+  }
+  const existing = current[existingIndex]
+  const resolved = mergeFileSessionSnapshot(existing, next)
+  if (resolved === existing) {
+    return current
+  }
+  return current.map((session, index) => (index === existingIndex ? resolved : session))
+}
+
 export function replaceFileSessionSnapshot(
   current: FileSession[],
   next: FileSession,
   replacedSessionId = '',
 ) {
+  if (!replacedSessionId || replacedSessionId === next.id) {
+    return upsertFileSessionSnapshot(current, next)
+  }
+  const replacedIndex = current.findIndex((session) => session.id === replacedSessionId)
   const retained = replacedSessionId && replacedSessionId !== next.id
     ? current.filter((session) => session.id !== replacedSessionId)
     : current
   const existing = retained.find((session) => session.id === next.id)
-  if (!existing) {
-    return [next, ...retained]
+  if (existing) {
+    return upsertFileSessionSnapshot(retained, next)
   }
-  const resolved = mergeFileSessionSnapshot(existing, next)
-  if (resolved === existing && retained === current) {
-    return current
+  if (replacedIndex < 0) {
+    return [...retained, next]
   }
-  return retained.map((session) => (session.id === next.id ? resolved : session))
+  const insertionIndex = Math.min(replacedIndex, retained.length)
+  return [
+    ...retained.slice(0, insertionIndex),
+    next,
+    ...retained.slice(insertionIndex),
+  ]
 }
 
 export function reconcileFileSessionSnapshotList(

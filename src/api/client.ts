@@ -366,9 +366,12 @@ export class TermousApi {
     }).then(normalizeArray)
   }
 
-  localPathMappingChildren(id: string, path = '') {
+  localPathMappingChildren(id: string, path = '', signal?: AbortSignal) {
     const query = path ? `?${new URLSearchParams({ path }).toString()}` : ''
-    return this.request<LocalTreeEntry[]>(`/api/v1/local-path-mappings/${encodeURIComponent(id)}/children${query}`).then(normalizeArray)
+    return this.request<LocalTreeEntry[]>(
+      `/api/v1/local-path-mappings/${encodeURIComponent(id)}/children${query}`,
+      { signal },
+    ).then(normalizeArray)
   }
 
   localPathMappingStat(id: string, path = '') {

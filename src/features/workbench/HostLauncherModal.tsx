@@ -27,6 +27,11 @@ import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { EmptyState } from '../../components/ui/EmptyState'
 import type { AppData, Host, HostReachability } from '../../types/domain'
+import {
+  hostLauncherActionPlan,
+  type HostLauncherActionId,
+  type HostLauncherIntent,
+} from './hostLauncherIntent'
 
 type LauncherFilter = 'all' | 'recent' | 'online' | 'favorite'
 type LauncherPlatformFilter = 'all' | Host['platform']
@@ -35,6 +40,7 @@ type LauncherGroupFilter = 'all' | '__ungrouped' | string
 
 interface HostLauncherModalProps {
   open: boolean
+  intent?: HostLauncherIntent
   data: AppData
   selectedHostId: string
   actionBusy: boolean
@@ -52,6 +58,7 @@ interface HostLauncherModalProps {
 
 export function HostLauncherModal({
   open,
+  intent = 'terminal',
   data,
   selectedHostId,
   actionBusy,
@@ -76,7 +83,8 @@ export function HostLauncherModal({
   const [filterOpen, setFilterOpen] = useState(false)
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => new Set())
   const [refreshingReachability, setRefreshingReachability] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
+  const [pendingHostAction, setPendingHostAction] = useState<HostLauncherActionId | null>(null)
+  const pendingHostActionRef = useRef<HostLauncherActionId | null>(null)
   const refreshReachabilityRef = useRef(onRefreshReachability)
   const autoRefreshOpenRef = useRef(false)
   const filterAnchorRef = useRef<HTMLDivElement>(null)
@@ -101,6 +109,8 @@ export function HostLauncherModal({
     authFilter !== 'all',
     selectedTags.length > 0,
   ].filter(Boolean).length
+  const actionPlan = hostLauncherActionPlan(intent)
+  const hostActionBusy = actionBusy || pendingHostAction !== null
 
   useEffect(() => {
     refreshReachabilityRef.current = onRefreshReachability
@@ -159,32 +169,42 @@ export function HostLauncherModal({
     return () => window.removeEventListener('pointerdown', handlePointerDown, true)
   }, [filterOpen])
 
-  const connectHost = async (hostId: string) => {
-    if (!hostId || submitting || actionBusy) {
+  const executeHostAction = async (actionId: HostLauncherActionId, hostId: string) => {
+    if (actionId === 'connect') {
+      await onConnect(hostId)
       return
     }
-    setSubmitting(true)
+    if (actionId === 'openFiles') {
+      await onOpenFiles(hostId)
+      return
+    }
+    if (actionId === 'editHost') {
+      onEditHost(hostId)
+      return
+    }
+    onOpenForward(hostId)
+  }
+
+  const runHostAction = async (actionId: HostLauncherActionId, hostId: string) => {
+    if (!hostId || actionBusy || pendingHostActionRef.current !== null) {
+      return
+    }
+    pendingHostActionRef.current = actionId
+    setPendingHostAction(actionId)
     try {
-      await onConnect(hostId)
+      await executeHostAction(actionId, hostId)
       onClose()
     } finally {
-      setSubmitting(false)
+      pendingHostActionRef.current = null
+      setPendingHostAction(null)
     }
   }
 
-  const connectSelectedHost = () => {
+  const runSelectedPrimaryAction = () => {
     if (!selectedHost) {
       return
     }
-    return connectHost(selectedHost.id)
-  }
-
-  const runShortcut = async (action: () => void | Promise<void>) => {
-    if (!selectedHost) {
-      return
-    }
-    await action()
-    onClose()
+    return runHostAction(actionPlan.primary, selectedHost.id)
   }
 
   const runGlobalShortcut = async (action: () => void | Promise<void>) => {
@@ -204,7 +224,7 @@ export function HostLauncherModal({
     }
     if (event.key === 'Enter') {
       event.preventDefault()
-      void connectSelectedHost()
+      void runSelectedPrimaryAction()
       return
     }
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
@@ -349,8 +369,12 @@ export function HostLauncherModal({
       <section className="host-launcher" tabIndex={-1} onKeyDown={handleKeyDown}>
         <header className="host-launcher-titlebar">
           <span className="host-launcher-title">
-            <Cable size={15} aria-hidden="true" />
-            {t('workbench.hostLauncher.kicker')}
+            {intent === 'files'
+              ? <FolderOpen size={15} aria-hidden="true" />
+              : <Cable size={15} aria-hidden="true" />}
+            {intent === 'files'
+              ? t('files.openFileSession')
+              : t('workbench.hostLauncher.kicker')}
           </span>
           <Tooltip title={t('workbench.hostLauncher.refreshReachability')}>
             <Button
@@ -445,7 +469,7 @@ export function HostLauncherModal({
                               role="option"
                               aria-selected={host.id === selectedHost?.id}
                               onClick={() => onSelectHost(host.id)}
-                              onDoubleClick={() => void connectHost(host.id)}
+                              onDoubleClick={() => void runHostAction(actionPlan.primary, host.id)}
                             >
                               <span className="host-launcher-row-avatar-wrap">
                                 <HostAvatar host={host} getIconUrl={getHostIconUrl} className="host-launcher-row-avatar" size={30} iconSize={15} />
@@ -498,7 +522,7 @@ export function HostLauncherModal({
                           className={`host-launcher-favorite ${selectedHost.favorite ? 'is-active' : ''}`}
                           aria-label={selectedHost.favorite ? t('workbench.hostLauncher.unfavorite') : t('workbench.hostLauncher.favorite')}
                           icon={<Star size={16} fill={selectedHost.favorite ? 'currentColor' : 'none'} />}
-                          disabled={actionBusy}
+                          disabled={hostActionBusy}
                           onClick={() => void onToggleFavorite(selectedHost.id)}
                         />
                       </Tooltip>
@@ -539,26 +563,29 @@ export function HostLauncherModal({
                 <div className="host-launcher-shortcut-section">
                   <span>{t('workbench.hostLauncher.quickActions')}</span>
                   <div className="host-launcher-shortcuts">
-                    <Button className="secondary-button" icon={<Edit3 size={15} />} onClick={() => runShortcut(() => onEditHost(selectedHost.id))}>
-                      {t('workbench.hostLauncher.editHost')}
-                    </Button>
-                    <Button className="secondary-button" icon={<FolderOpen size={15} />} onClick={() => runShortcut(() => onOpenFiles(selectedHost.id))}>
-                      {t('workbench.hostLauncher.openFiles')}
-                    </Button>
-                    <Button className="secondary-button" icon={<Network size={15} />} onClick={() => runShortcut(() => onOpenForward(selectedHost.id))}>
-                      {t('workbench.hostLauncher.openForward')}
-                    </Button>
+                    {actionPlan.shortcuts.map((actionId) => (
+                      <Button
+                        key={actionId}
+                        className="secondary-button"
+                        icon={hostLauncherActionIcon(actionId, 15)}
+                        loading={pendingHostAction === actionId}
+                        disabled={hostActionBusy}
+                        onClick={() => void runHostAction(actionId, selectedHost.id)}
+                      >
+                        {hostLauncherActionLabel(actionId, t)}
+                      </Button>
+                    ))}
                   </div>
                 </div>
                 <ConnectionActionButton
                   block
                   size="large"
-                  icon={<Cable size={17} />}
-                  loading={submitting}
-                  disabled={actionBusy}
-                  onClick={() => void connectSelectedHost()}
+                  icon={hostLauncherActionIcon(actionPlan.primary, 17)}
+                  loading={pendingHostAction === actionPlan.primary}
+                  disabled={hostActionBusy}
+                  onClick={() => void runSelectedPrimaryAction()}
                 >
-                  {t('app.connect')}
+                  {hostLauncherActionLabel(actionPlan.primary, t)}
                 </ConnectionActionButton>
               </>
             ) : (
@@ -574,6 +601,35 @@ export function HostLauncherModal({
       </section>
     </Modal>
   )
+}
+
+function hostLauncherActionLabel(
+  actionId: HostLauncherActionId,
+  t: ReturnType<typeof useTranslation>['t'],
+) {
+  if (actionId === 'connect') {
+    return t('app.connect')
+  }
+  if (actionId === 'openFiles') {
+    return t('workbench.hostLauncher.openFiles')
+  }
+  if (actionId === 'editHost') {
+    return t('workbench.hostLauncher.editHost')
+  }
+  return t('workbench.hostLauncher.openForward')
+}
+
+function hostLauncherActionIcon(actionId: HostLauncherActionId, size: number) {
+  if (actionId === 'connect') {
+    return <Cable size={size} />
+  }
+  if (actionId === 'openFiles') {
+    return <FolderOpen size={size} />
+  }
+  if (actionId === 'editHost') {
+    return <Edit3 size={size} />
+  }
+  return <Network size={size} />
 }
 
 function DetailItem({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {

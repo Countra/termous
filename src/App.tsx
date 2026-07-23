@@ -7,9 +7,11 @@ import { AppShell } from './components/layout/AppShell'
 import { ConfirmDialog } from './components/ui/ConfirmDialog'
 import { HostsPage } from './features/hosts/HostsPage'
 import { FilesPage } from './features/files/FilesPage'
+import { FilesWorkspaceRuntimeProvider } from './features/files/FilesWorkspaceRuntimeProvider'
 import {
   includeActiveFileSessionClosure,
   pruneRetiredFileSessionIds,
+  selectActiveFileSessionAfterConnect,
   selectFileSessionCloseFallback,
   selectFileSessionForNavigation,
   selectFileSessionNavigationTarget,
@@ -20,6 +22,10 @@ import { SnippetsPage } from './features/snippets/SnippetsPage'
 import { snippetToInput } from './features/snippets/snippetUtils'
 import { VaultPage } from './features/vault/VaultPage'
 import { HostLauncherModal } from './features/workbench/HostLauncherModal'
+import {
+  hostLauncherIntentForPage,
+  type HostLauncherIntent,
+} from './features/workbench/hostLauncherIntent'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
 import { HostKeyCoordinator } from './components/hostkey/HostKeyCoordinator'
 import { TransferRuntimeProvider } from './app/TransferRuntimeProvider'
@@ -30,6 +36,10 @@ import { createAntdTheme } from './theme/antdTheme'
 import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
+import './styles/files-workspace.css'
+import './styles/files-workspace-panels.css'
+import './styles/files-workspace-transfers.css'
+import './styles/files-workspace-transfer-rows.css'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
 
@@ -86,7 +96,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const fileSessionClosuresRef = useRef(fileSessionClosures)
   fileSessionsRef.current = data.fileSessions
   fileSessionClosuresRef.current = fileSessionClosures
-  const [hostLauncherOpen, setHostLauncherOpen] = useState(false)
+  const [hostLauncherState, setHostLauncherState] = useState<{
+    open: boolean
+    intent: HostLauncherIntent
+  }>({
+    open: false,
+    intent: 'terminal',
+  })
   const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
   const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
@@ -591,10 +607,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     const existing = selectFileSessionForNavigation(data.fileSessions, hostId)
     if (existing) {
       setActiveFileSessionId(existing.id)
-      return
+      if (
+        existing.status === 'connected'
+        || existing.status === 'connecting'
+        || existing.status === 'waiting_trust'
+      ) {
+        return
+      }
     }
     try {
-      const fileSession = await actions.connectFileSession(hostId)
+      const fileSession = existing
+        ? await actions.reconnectFileSession(existing.id)
+        : await actions.connectFileSession(hostId)
       setActiveFileSessionId(fileSession.id)
     } catch (actionError) {
       showActionError(actionError)
@@ -607,12 +631,26 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     setPage('forwards')
   }
 
-  const openHostLauncher = useCallback(() => {
+  const openHostLauncher = useCallback((intent: HostLauncherIntent) => {
     if (actionBusy) {
       return
     }
-    setHostLauncherOpen(true)
+    setHostLauncherState({ open: true, intent })
   }, [actionBusy])
+
+  const openContextualHostLauncher = useCallback(
+    () => openHostLauncher(hostLauncherIntentForPage(page)),
+    [openHostLauncher, page],
+  )
+
+  const openFileSessionLauncher = useCallback(
+    () => openHostLauncher('files'),
+    [openHostLauncher],
+  )
+
+  const closeHostLauncher = useCallback(() => {
+    setHostLauncherState((current) => ({ ...current, open: false }))
+  }, [])
 
   const connectHostFromLauncher = (hostId: string) =>
     runAction(async () => {
@@ -634,7 +672,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         return
       }
       if (command.type === 'open-host-launcher') {
-        openHostLauncher()
+        openHostLauncher('terminal')
         return
       }
       if (command.type === 'open-forwards') {
@@ -658,37 +696,38 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       }
       event.preventDefault()
       event.stopPropagation()
-      openHostLauncher()
+      openContextualHostLauncher()
     }
 
     window.addEventListener('keydown', handleHostLauncherShortcut, true)
     return () => window.removeEventListener('keydown', handleHostLauncherShortcut, true)
-  }, [openHostLauncher])
+  }, [openContextualHostLauncher])
 
   return (
-    <TransferRuntimeProvider api={api}>
-      <TerminalRuntimeProvider
-        api={api}
-        sessions={data.sessions}
-        theme={theme}
-        terminalSettings={data.settings.terminal}
-        terminalFonts={data.terminalFonts}
-        onSessionEvent={actions.updateSession}
-      >
-      <AppShell
-        page={page}
-        appVersion={appVersion}
-        windowCloseBehavior={data.settings.window.close_behavior}
-        hasActiveRuntime={hasActiveRuntime}
-        sidebarCollapsed={sidebarCollapsed}
-        actionBusy={actionBusy}
-        onNavigate={navigateToPage}
-        onOpenConnectionLauncher={openHostLauncher}
-        onOpenLocalTerminal={openLocalTerminalFromTopbar}
-        onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
-        onBeforeClose={shutdownBeforeClose}
-        onCloseError={showActionError}
-      >
+    <FilesWorkspaceRuntimeProvider>
+      <TransferRuntimeProvider api={api}>
+        <TerminalRuntimeProvider
+          api={api}
+          sessions={data.sessions}
+          theme={theme}
+          terminalSettings={data.settings.terminal}
+          terminalFonts={data.terminalFonts}
+          onSessionEvent={actions.updateSession}
+        >
+          <AppShell
+            page={page}
+            appVersion={appVersion}
+            windowCloseBehavior={data.settings.window.close_behavior}
+            hasActiveRuntime={hasActiveRuntime}
+            sidebarCollapsed={sidebarCollapsed}
+            actionBusy={actionBusy}
+            onNavigate={navigateToPage}
+            onOpenConnectionLauncher={openContextualHostLauncher}
+            onOpenLocalTerminal={openLocalTerminalFromTopbar}
+            onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+            onBeforeClose={shutdownBeforeClose}
+            onCloseError={showActionError}
+          >
         <div
           className={`app-keepalive-page ${page === 'workbench' ? 'is-active' : 'is-hidden'}`}
           inert={page !== 'workbench'}
@@ -760,10 +799,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             api={api}
             data={filesPageData}
             theme={theme}
-            selectedHostId={selectedHostIdStable}
             activeFileSession={activeFileSession}
             closingFileSessionIds={closingFileSessionIds}
-            onSelectHost={setSelectedHostId}
+            onOpenFileSession={openFilesForHost}
+            onOpenFileSessionLauncher={openFileSessionLauncher}
             onConnectFileSession={async (
               hostId,
               sourceSessionId,
@@ -777,7 +816,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                 replacedFileSessionId,
               )
               retiredFileSessionIdsRef.current.delete(fileSession.id)
-              setActiveFileSessionId(fileSession.id)
+              setActiveFileSessionId((current) => selectActiveFileSessionAfterConnect(
+                current,
+                fileSession.id,
+                replacedFileSessionId,
+              ))
               return fileSession
             }}
             onSelectFileSession={setActiveFileSessionId}
@@ -844,6 +887,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onDeleteFileBookmarkGroup={actions.deleteFileBookmarkGroup}
             onReorderFileBookmarkGroups={actions.reorderFileBookmarkGroups}
             onCreateLocalPathMapping={actions.createLocalPathMapping}
+            onUpdateLocalPathMapping={actions.updateLocalPathMapping}
+            onDeleteLocalPathMapping={actions.deleteLocalPathMapping}
             onReorderLocalPathMappings={actions.reorderLocalPathMappings}
           />
         ) : null}
@@ -894,7 +939,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onDeleteTerminalFont={deleteTerminalFont}
           />
         ) : null}
-      </AppShell>
+          </AppShell>
       <ConfirmDialog
         open={Boolean(pendingPage)}
         title={t('vault.unsavedTitle')}
@@ -913,11 +958,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         }}
       />
       <HostLauncherModal
-        open={hostLauncherOpen}
+        open={hostLauncherState.open}
+        intent={hostLauncherState.intent}
         data={data}
         selectedHostId={selectedHostIdStable}
         actionBusy={actionBusy}
-        onClose={() => setHostLauncherOpen(false)}
+        onClose={closeHostLauncher}
         onSelectHost={setSelectedHostId}
         onConnect={connectHostFromLauncher}
         onCreateHost={openHostCreate}
@@ -965,8 +1011,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           </div>
         </section>
         </Modal>
-      </TerminalRuntimeProvider>
-    </TransferRuntimeProvider>
+        </TerminalRuntimeProvider>
+      </TransferRuntimeProvider>
+    </FilesWorkspaceRuntimeProvider>
   )
 }
 

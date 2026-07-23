@@ -7134,22 +7134,6 @@ body.is-panel-resizing .files-page {
   box-shadow: var(--shadow-soft), var(--inner-highlight);
 }
 
-.files-session-toolbar {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  min-height: 64px;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
-  padding: 10px 12px;
-}
-
-.files-session-tabs {
-  white-space: nowrap;
-}
-
 .files-session-progress {
   display: grid;
   width: min(680px, calc(100% - 32px));
