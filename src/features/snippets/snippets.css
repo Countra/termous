@@ -353,9 +353,8 @@
 }
 
 .snippet-catalog-row.is-selected {
-  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
-  background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface-subtle));
-  box-shadow: inset 2px 0 0 var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 52%, var(--surface-subtle));
 }
 
 .snippet-catalog-row-main {
