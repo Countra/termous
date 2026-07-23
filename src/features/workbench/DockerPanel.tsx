@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import type { DockerAction, DockerContainerDetail, DockerContainerPort, DockerContainerSummary, Session } from '../../types/domain'
+import { WorkbenchDetectionLoading } from './WorkbenchDetectionLoading'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import { defaultDockerQuery, type SessionDockerQueryState, useSessionDocker } from './useSessionDocker'
 
@@ -99,6 +100,10 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
         description={t(unavailableKey === 'empty' ? 'workbench.docker.emptyHint' : 'workbench.docker.unsupportedHint')}
       />
     )
+  }
+
+  if (!capability || (capability.available && !docker.list && !docker.error)) {
+    return <WorkbenchDetectionLoading icon={<Boxes size={15} />} label={t('workbench.docker.detecting')} />
   }
 
   return (

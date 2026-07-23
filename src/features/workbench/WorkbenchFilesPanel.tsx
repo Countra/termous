@@ -895,13 +895,10 @@ function WorkbenchFilesPanelContent({
             menu={{
               items: [
                 { key: 'upload-folder', icon: <FolderInput size={14} />, label: t('files.uploadFolder'), disabled: directoryNavigationLocked },
-                { key: 'open-full', icon: <FolderOpen size={14} />, label: t('workbench.manageFiles') },
               ],
               onClick: async ({ key }) => {
                 if (key === 'upload-folder') {
                   await uploadPaths('picker', await window.termous?.files?.pickDirectory() ?? [])
-                } else {
-                  await runAction(() => onOpenFull(session))
                 }
               },
             }}

@@ -10359,7 +10359,7 @@ body.is-files-column-resizing * {
 }
 
 .firewall-inline-empty,
-.firewall-loading {
+.workbench-detection-loading {
   display: grid;
   min-height: 150px;
   place-items: center;
@@ -10371,14 +10371,14 @@ body.is-files-column-resizing * {
   text-align: center;
 }
 
-.firewall-loading-card {
+.workbench-detection-loading-card {
   display: grid;
   width: 100%;
   gap: 12px;
   padding: 18px;
 }
 
-.firewall-loading-card > span {
+.workbench-detection-loading-card > span {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -10511,7 +10511,7 @@ body.is-files-column-resizing * {
 }
 
 :root[data-theme="light"] .firewall-inline-empty,
-:root[data-theme="light"] .firewall-loading {
+:root[data-theme="light"] .workbench-detection-loading {
   background: rgb(248 250 253 / 68%);
 }
 

@@ -1,5 +1,5 @@
 import { Activity, AlertTriangle, Ban, Copy, Database, ExternalLink, Globe2, LockKeyhole, Pencil, Plus, Power, RefreshCw, Save, Shield, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react'
-import { App as AntdApp, Button, Modal, Popconfirm, Select, Skeleton, Switch, Tooltip } from 'antd'
+import { App as AntdApp, Button, Modal, Popconfirm, Select, Switch, Tooltip } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError, type TermousApi } from '../../api/client'
@@ -7,6 +7,7 @@ import type { FirewallDesiredState, FirewallPersistenceStatus, FirewallProvider,
 import { formatBytes } from '../files/fileUtils'
 import { FirewallPersistencePanel } from './FirewallPersistencePanel'
 import { FirewallRuleModal } from './FirewallRuleModal'
+import { WorkbenchDetectionLoading } from './WorkbenchDetectionLoading'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import {
   compactFirewallRuleInput,
@@ -310,13 +311,13 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
     return <FirewallEmpty title={t('workbench.firewall.unsupportedPlatform')} description={t('workbench.firewall.unsupportedPlatformHint')} />
   }
   if (loading && !snapshot) {
-    return <FirewallLoading label={t('workbench.firewall.detecting')} />
+    return <WorkbenchDetectionLoading icon={<ShieldAlert size={15} />} label={t('workbench.firewall.detecting')} />
   }
   if (loadError && !snapshot) {
     return <FirewallEmpty title={t('workbench.firewall.loadFailed')} description={loadError} />
   }
   if (!snapshot) {
-    return <FirewallLoading label={t('workbench.firewall.detecting')} />
+    return <WorkbenchDetectionLoading icon={<ShieldAlert size={15} />} label={t('workbench.firewall.detecting')} />
   }
   const providerOptions = providers.length ? providers.filter((provider) => provider.provider !== 'unsupported') : fallbackFirewallProviders()
   const currentProvider = providerOptions.find((provider) => provider.provider === selectedProvider)
@@ -604,17 +605,6 @@ function FirewallEmpty({ title, description }: { title: string; description: str
       title={title}
       description={description}
     />
-  )
-}
-
-function FirewallLoading({ label }: { label: string }) {
-  return (
-    <div className="firewall-loading">
-      <div className="firewall-loading-card">
-        <span><ShieldAlert size={15} />{label}</span>
-        <Skeleton active title={false} paragraph={{ rows: 4 }} />
-      </div>
-    </div>
   )
 }
 
