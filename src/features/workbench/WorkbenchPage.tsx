@@ -59,7 +59,8 @@ import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
-import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
+import type { AppData, CodeSnippet, FileSession, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
+import type { FileSessionClosureState } from '../files/fileSessionRecovery'
 import { SnippetFilterBar, SnippetList } from '../snippets/SnippetCatalog'
 import {
   buildSnippetTags,
@@ -133,7 +134,9 @@ interface SessionInventoryRequestView {
 interface WorkbenchPageProps {
   api: TermousApi
   data: AppData
+  fileSessionClosures: Readonly<Record<string, FileSessionClosureState>>
   theme: ThemeMode
+  active: boolean
   selectedHostId: string
   activeSession: Session | null
   actionBusy: boolean
@@ -142,6 +145,14 @@ interface WorkbenchPageProps {
   onDisconnect: (sessionId: string) => Promise<void>
   onRefreshInventory: (sessionId: string, force: boolean, signal?: AbortSignal) => Promise<Session>
   onOpenFiles: (session: Session) => Promise<void>
+  onConnectFileSession: (
+    hostId: string,
+    sourceSessionId?: string,
+    initialPath?: string,
+    replacedFileSessionId?: string,
+  ) => Promise<FileSession>
+  onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
+  onUpdateFileSession: (fileSession: FileSession) => void
   onSnippetUsed: (snippetId: string) => Promise<void>
   onToggleSnippetFavorite: (snippet: CodeSnippet) => Promise<void>
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
@@ -151,7 +162,9 @@ interface WorkbenchPageProps {
 export function WorkbenchPage({
   api,
   data,
+  fileSessionClosures,
   theme,
+  active,
   selectedHostId,
   activeSession,
   actionBusy,
@@ -160,6 +173,9 @@ export function WorkbenchPage({
   onDisconnect,
   onRefreshInventory,
   onOpenFiles,
+  onConnectFileSession,
+  onReconnectFileSession,
+  onUpdateFileSession,
   onSnippetUsed,
   onToggleSnippetFavorite,
   onStartForward,
@@ -1407,11 +1423,15 @@ export function WorkbenchPage({
               <WorkbenchFilesPanel
                 api={api}
                 data={data}
+                fileSessionClosures={fileSessionClosures}
                 session={activeSession}
-                enabled={detailsActiveTab === 'files' && !detailsCollapsed}
+                enabled={active && detailsActiveTab === 'files' && !detailsCollapsed}
                 closingSessionIds={closingSessionIds}
                 theme={theme}
                 onOpenFull={onOpenFiles}
+                onConnectFileSession={onConnectFileSession}
+                onReconnectFileSession={onReconnectFileSession}
+                onUpdateFileSession={onUpdateFileSession}
               />
             ),
           },

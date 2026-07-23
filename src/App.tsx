@@ -7,6 +7,13 @@ import { AppShell } from './components/layout/AppShell'
 import { ConfirmDialog } from './components/ui/ConfirmDialog'
 import { HostsPage } from './features/hosts/HostsPage'
 import { FilesPage } from './features/files/FilesPage'
+import {
+  includeActiveFileSessionClosure,
+  pruneRetiredFileSessionIds,
+  selectFileSessionCloseFallback,
+  selectFileSessionForNavigation,
+  selectFileSessionNavigationTarget,
+} from './features/files/fileSessionRecovery'
 import { ForwardingPage } from './features/forwards/ForwardingPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { SnippetsPage } from './features/snippets/SnippetsPage'
@@ -60,7 +67,7 @@ function App() {
 function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<SetStateAction<ThemeMode>> }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
-  const { api, data, initializing, apiReady, error, activeSession, forwardErrorEvent, actions } = useTermousData()
+  const { api, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
   const updateForwardRef = useRef(actions.updateForward)
   const reloadForwardStateRef = useRef(actions.reloadForwardsSilent)
   const updateHostReachabilityRef = useRef(actions.updateHostReachability)
@@ -74,6 +81,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [activeFileSessionId, setActiveFileSessionId] = useState('')
   const [closingFileSessionIds, setClosingFileSessionIds] = useState<string[]>([])
   const closingFileSessionIdsRef = useRef(new Set<string>())
+  const retiredFileSessionIdsRef = useRef(new Set<string>())
+  const fileSessionsRef = useRef(data.fileSessions)
+  const fileSessionClosuresRef = useRef(fileSessionClosures)
+  fileSessionsRef.current = data.fileSessions
+  fileSessionClosuresRef.current = fileSessionClosures
   const [hostLauncherOpen, setHostLauncherOpen] = useState(false)
   const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
   const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
@@ -263,14 +275,29 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [])
 
   useEffect(() => {
+    pruneRetiredFileSessionIds(
+      retiredFileSessionIdsRef.current,
+      data.fileSessions,
+      fileSessionClosures,
+    )
+  }, [data.fileSessions, fileSessionClosures])
+
+  useEffect(() => {
     if (!activeFileSessionId && data.fileSessions[0]) {
       setActiveFileSessionId(data.fileSessions[0].id)
       return
     }
-    if (activeFileSessionId && !data.fileSessions.some((session) => session.id === activeFileSessionId)) {
+    const activeClosureExists = Object.values(fileSessionClosures).some(
+      (closure) => closure.session.id === activeFileSessionId,
+    )
+    if (
+      activeFileSessionId
+      && !activeClosureExists
+      && !data.fileSessions.some((session) => session.id === activeFileSessionId)
+    ) {
       setActiveFileSessionId(data.fileSessions[0]?.id ?? '')
     }
-  }, [activeFileSessionId, data.fileSessions])
+  }, [activeFileSessionId, data.fileSessions, fileSessionClosures])
 
   const selectedHostIdStable = useMemo(() => {
     if (data.hosts.some((host) => host.id === selectedHostId)) {
@@ -302,9 +329,25 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     [t],
   )
 
+  const filesPageFileSessions = useMemo(
+    () => includeActiveFileSessionClosure(
+      data.fileSessions,
+      fileSessionClosures,
+      activeFileSessionId,
+    ),
+    [activeFileSessionId, data.fileSessions, fileSessionClosures],
+  )
+  const filesPageData = useMemo(
+    () => filesPageFileSessions === data.fileSessions
+      ? data
+      : { ...data, fileSessions: filesPageFileSessions },
+    [data, filesPageFileSessions],
+  )
   const activeFileSession = useMemo(
-    () => data.fileSessions.find((session) => session.id === activeFileSessionId) ?? data.fileSessions[0] ?? null,
-    [activeFileSessionId, data.fileSessions],
+    () => filesPageFileSessions.find((session) => session.id === activeFileSessionId)
+      ?? filesPageFileSessions[0]
+      ?? null,
+    [activeFileSessionId, filesPageFileSessions],
   )
 
   useEffect(() => {
@@ -514,11 +557,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
     setSelectedHostId(session.host_id)
     setPage('files')
-    const existing = data.fileSessions.find(
-      (fileSession) =>
-        fileSession.source_session_id === session.id &&
-        fileSession.status !== 'disconnected' &&
-        fileSession.status !== 'failed',
+    const existing = selectFileSessionNavigationTarget(
+      data.fileSessions,
+      fileSessionClosures,
+      session.host_id,
+      session.id,
     )
     if (existing) {
       setActiveFileSessionId(existing.id)
@@ -545,12 +588,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const openFilesForHost = async (hostId: string) => {
     setSelectedHostId(hostId)
     setPage('files')
-    const existing = data.fileSessions.find(
-      (fileSession) =>
-        fileSession.host_id === hostId &&
-        fileSession.status !== 'disconnected' &&
-        fileSession.status !== 'failed',
-    )
+    const existing = selectFileSessionForNavigation(data.fileSessions, hostId)
     if (existing) {
       setActiveFileSessionId(existing.id)
       return
@@ -653,12 +691,14 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       >
         <div
           className={`app-keepalive-page ${page === 'workbench' ? 'is-active' : 'is-hidden'}`}
-          aria-hidden={page !== 'workbench'}
+          inert={page !== 'workbench'}
         >
           <WorkbenchPage
             api={api}
             data={data}
+            fileSessionClosures={fileSessionClosures}
             theme={theme}
+            active={page === 'workbench'}
             selectedHostId={selectedHostIdStable}
             activeSession={activeSession}
             actionBusy={actionBusy}
@@ -667,6 +707,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
             onRefreshInventory={actions.refreshSessionInventory}
             onOpenFiles={openFilesFromSession}
+            onConnectFileSession={actions.connectFileSession}
+            onReconnectFileSession={actions.reconnectFileSession}
+            onUpdateFileSession={actions.updateFileSession}
             onSnippetUsed={(snippetId) => actions.markCodeSnippetUsed(snippetId).then(() => undefined)}
             onToggleSnippetFavorite={toggleCodeSnippetFavorite}
             onStartForward={(input) => actions.startForward(input)}
@@ -715,19 +758,53 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         {page === 'files' ? (
           <FilesPage
             api={api}
-            data={data}
+            data={filesPageData}
             theme={theme}
             selectedHostId={selectedHostIdStable}
             activeFileSession={activeFileSession}
             closingFileSessionIds={closingFileSessionIds}
             onSelectHost={setSelectedHostId}
-            onConnectFileSession={async (hostId) => {
-              const fileSession = await actions.connectFileSession(hostId)
+            onConnectFileSession={async (
+              hostId,
+              sourceSessionId,
+              initialPath,
+              replacedFileSessionId,
+            ) => {
+              const fileSession = await actions.connectFileSession(
+                hostId,
+                sourceSessionId,
+                initialPath,
+                replacedFileSessionId,
+              )
+              retiredFileSessionIdsRef.current.delete(fileSession.id)
               setActiveFileSessionId(fileSession.id)
               return fileSession
             }}
             onSelectFileSession={setActiveFileSessionId}
             onCloseFileSession={async (fileSessionId) => {
+              const isClosedLocalSnapshot = !data.fileSessions.some(
+                (session) => session.id === fileSessionId,
+              ) && Object.values(fileSessionClosures).some(
+                (closure) => closure.phase === 'closed' && closure.session.id === fileSessionId,
+              )
+              if (isClosedLocalSnapshot) {
+                actions.supersedeFileSessionRecovery(fileSessionId)
+                retiredFileSessionIdsRef.current.add(fileSessionId)
+                setActiveFileSessionId((current) => {
+                  if (current !== fileSessionId) {
+                    return current
+                  }
+                  return selectFileSessionCloseFallback(
+                    fileSessionsRef.current,
+                    fileSessionClosuresRef.current,
+                    new Set([
+                      ...closingFileSessionIdsRef.current,
+                      ...retiredFileSessionIdsRef.current,
+                    ]),
+                  )
+                })
+                return
+              }
               if (closingFileSessionIdsRef.current.has(fileSessionId)) {
                 return
               }
@@ -735,6 +812,20 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               setClosingFileSessionIds([...closingFileSessionIdsRef.current])
               try {
                 await actions.closeFileSession(fileSessionId)
+                retiredFileSessionIdsRef.current.add(fileSessionId)
+                setActiveFileSessionId((current) => {
+                  if (current !== fileSessionId) {
+                    return current
+                  }
+                  return selectFileSessionCloseFallback(
+                    fileSessionsRef.current,
+                    fileSessionClosuresRef.current,
+                    new Set([
+                      ...closingFileSessionIdsRef.current,
+                      ...retiredFileSessionIdsRef.current,
+                    ]),
+                  )
+                })
               } catch (actionError) {
                 showActionError(actionError)
               } finally {

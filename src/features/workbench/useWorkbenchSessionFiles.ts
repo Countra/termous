@@ -8,7 +8,13 @@ import type {
   SessionCwdState,
 } from '../../types/domain'
 import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
+import { retireWebSocket } from '../../shared/webSocketLifecycle'
 import { fileSortValue, normalizeRemotePath } from '../files/fileUtils'
+import {
+  resolveFileSessionClosure,
+  terminatedFileSessionSnapshot,
+  type FileSessionClosureState,
+} from '../files/fileSessionRecovery'
 import {
   useSessionCwdRequestError,
   useSessionCwdState,
@@ -44,24 +50,33 @@ import {
   updateSessionFilesViewState,
 } from './sessionFilesState'
 import {
+  beginFileSessionRecovery,
   buildSourceSessionContexts,
+  cancelSupersededFileSessionRecovery,
+  canRetryFileSessionRecovery,
+  canCompleteFileSessionRecovery,
   canApplyCreatedFileSession,
   canUseSourceFileSession,
-  mergeFileSessionUpdate,
+  completeFileSessionRecovery,
+  failFileSessionRecovery,
+  fileSessionRecoveryMethod,
+  idleFileSessionRecoveryState,
+  isRecoveredFileSessionReady,
+  markFileSessionRecoveryTerminated,
+  pruneFileSessionRecoveries,
+  reconcileDisconnectedFileSessionRecovery,
+  requireFileSessionRecovery,
+  resolveFileSessionUpdate,
   resolveSourceFileSession,
+  resolveSourceFileSessionWithClosure,
+  runSingleFileSessionRecovery,
+  selectCurrentFileSessionSnapshot,
+  shouldCreateFileSessionAfterReconnect,
   shouldMaintainFileSessionEventStream,
+  shouldSilentlyCancelFileSessionRecovery,
+  waitForFileSessionRecovery,
+  type FileSessionRecoveryState,
 } from './workbenchFileSessionLifecycle'
-
-function closeFileSessionSocket(socket: WebSocket) {
-  if (socket.readyState === WebSocket.CONNECTING) {
-    // Chromium 会把握手阶段的直接 close 记为失败；等待 open 后立即关闭可避免无意义告警。
-    socket.addEventListener('open', () => socket.close(), { once: true })
-    return
-  }
-  if (socket.readyState === WebSocket.OPEN) {
-    socket.close()
-  }
-}
 
 interface FileSessionEventMessage {
   type: string
@@ -73,20 +88,37 @@ interface FileListScrollPosition {
   scrollTop: number
 }
 
+type FileSessionRecoveryUpdater = (
+  current: FileSessionRecoveryState,
+) => FileSessionRecoveryState
+
 interface UseWorkbenchSessionFilesOptions {
   api: TermousApi
   data: AppData
+  fileSessionClosures: Readonly<Record<string, FileSessionClosureState>>
   activeSession: Session | null
   enabled: boolean
   closingSessionIds: ReadonlySet<string>
+  onConnectFileSession: (
+    hostId: string,
+    sourceSessionId?: string,
+    initialPath?: string,
+    replacedFileSessionId?: string,
+  ) => Promise<FileSession>
+  onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
+  onUpdateFileSession: (fileSession: FileSession) => void
 }
 
 export function useWorkbenchSessionFiles({
   api,
   data,
+  fileSessionClosures,
   activeSession,
   enabled,
   closingSessionIds,
+  onConnectFileSession,
+  onReconnectFileSession,
+  onUpdateFileSession,
 }: UseWorkbenchSessionFilesOptions) {
   const cwdRuntime = useTerminalCwdRuntime()
   const sourceSessionId = activeSession?.kind === 'ssh' ? activeSession.id : null
@@ -99,12 +131,18 @@ export function useWorkbenchSessionFiles({
   const cwdTransportState = useSessionCwdTransportState(sourceSessionId)
   const [viewStates, dispatchViewStates] = useReducer(sessionFilesViewStatesReducer, {})
   const [sessionOverrides, setSessionOverrides] = useState<Record<string, FileSession>>({})
-  const [createRetrySequence, setCreateRetrySequence] = useState(0)
+  const [recoveryStates, setRecoveryStates] = useState<Record<string, FileSessionRecoveryState>>({})
   const mountedRef = useRef(true)
   const closingSessionIdsRef = useRef(closingSessionIds)
   const observedClosingSessionIdsRef = useRef<ReadonlySet<string>>(new Set())
   const sourceSessionContextsRef = useRef(buildSourceSessionContexts(data.sessions))
   const fileSessionsRef = useRef(data.fileSessions)
+  const onUpdateFileSessionRef = useRef(onUpdateFileSession)
+  const sessionOverridesRef = useRef(sessionOverrides)
+  const currentFileSessionsRef = useRef(new Map<string, FileSession>())
+  const recoveryStatesRef = useRef(recoveryStates)
+  const fileSessionClosuresRef = useRef(fileSessionClosures)
+  const recoveryPromisesRef = useRef(new Map<string, Promise<void>>())
   const creatingSessionsRef = useRef(new Set<string>())
   const createFailureSessionIdsRef = useRef(new Set<string>())
   const directoryRequestSequencesRef = useRef(new Map<string, number>())
@@ -115,6 +153,10 @@ export function useWorkbenchSessionFiles({
 
   sourceSessionContextsRef.current = buildSourceSessionContexts(data.sessions)
   fileSessionsRef.current = data.fileSessions
+  onUpdateFileSessionRef.current = onUpdateFileSession
+  sessionOverridesRef.current = sessionOverrides
+  recoveryStatesRef.current = recoveryStates
+  fileSessionClosuresRef.current = fileSessionClosures
   closingSessionIdsRef.current = closingSessionIds
   const sourceSessionClosing = Boolean(sourceSessionId && closingSessionIds.has(sourceSessionId))
   const sourceSessionAvailable = Boolean(
@@ -144,8 +186,23 @@ export function useWorkbenchSessionFiles({
     setSessionOverrides((current) => {
       const entries = Object.entries(current)
       const retained = entries.filter(([sessionId]) => activeIds.has(sessionId))
-      return retained.length === entries.length ? current : Object.fromEntries(retained)
+      const next = retained.length === entries.length ? current : Object.fromEntries(retained)
+      sessionOverridesRef.current = next
+      return next
     })
+    setRecoveryStates((current) => {
+      const entries = Object.entries(current)
+      const retained = entries.filter(([sessionId]) => activeIds.has(sessionId))
+      const next = retained.length === entries.length ? current : Object.fromEntries(retained)
+      recoveryStatesRef.current = next
+      return next
+    })
+    pruneFileSessionRecoveries(recoveryPromisesRef.current, activeIds)
+    for (const activeSourceSessionId of currentFileSessionsRef.current.keys()) {
+      if (!activeIds.has(activeSourceSessionId)) {
+        currentFileSessionsRef.current.delete(activeSourceSessionId)
+      }
+    }
     createFailureSessionIdsRef.current = new Set(
       [...createFailureSessionIdsRef.current].filter((sessionId) => activeIds.has(sessionId)),
     )
@@ -192,10 +249,29 @@ export function useWorkbenchSessionFiles({
     }
     const override = sessionOverrides[sourceSessionId]
     const persisted = data.fileSessions.find((session) => session.source_session_id === sourceSessionId)
-    return resolveSourceFileSession(sourceSessionAvailable, override, persisted)
-  }, [data.fileSessions, sessionOverrides, sourceSessionAvailable, sourceSessionId])
+    return resolveSourceFileSessionWithClosure(
+      sourceSessionAvailable,
+      override,
+      persisted,
+      fileSessionClosures[sourceSessionId],
+    )
+  }, [data.fileSessions, fileSessionClosures, sessionOverrides, sourceSessionAvailable, sourceSessionId])
   const fileSessionId = fileSession?.id ?? ''
   const fileSessionStatus = fileSession?.status ?? null
+  const recoveryState = sourceSessionId
+    ? recoveryStates[sourceSessionId] ?? idleFileSessionRecoveryState
+    : idleFileSessionRecoveryState
+  if (sourceSessionId) {
+    if (fileSession) {
+      const previous = currentFileSessionsRef.current.get(sourceSessionId)
+      currentFileSessionsRef.current.set(
+        sourceSessionId,
+        resolveSourceFileSession(true, previous, fileSession) ?? fileSession,
+      )
+    } else {
+      currentFileSessionsRef.current.delete(sourceSessionId)
+    }
+  }
 
   const initialPath = cwdState?.confirmed_path || fileSession?.current_path || '/'
   const viewState = sourceSessionId
@@ -209,6 +285,7 @@ export function useWorkbenchSessionFiles({
     sourceSessionEndedAt,
     fileSession?.status ?? null,
     sourceSessionClosing,
+    enabled,
   )
 
   const updateView = useCallback((
@@ -226,7 +303,30 @@ export function useWorkbenchSessionFiles({
     })
   }, [sourceSessionId])
 
-  const updateFileSession = useCallback((session: FileSession, resetProgress = false) => {
+  const updateRecoveryState = useCallback((
+    requestedSourceSessionId: string,
+    update: FileSessionRecoveryUpdater,
+  ) => {
+    const current = recoveryStatesRef.current[requestedSourceSessionId]
+      ?? idleFileSessionRecoveryState
+    const next = update(current)
+    if (next === current) {
+      return current
+    }
+    const states = {
+      ...recoveryStatesRef.current,
+      [requestedSourceSessionId]: next,
+    }
+    recoveryStatesRef.current = states
+    setRecoveryStates(states)
+    return next
+  }, [])
+
+  const updateFileSession = useCallback((
+    session: FileSession,
+    resetProgress = false,
+    allowSessionChange = false,
+  ) => {
     if (
       !session.source_session_id
       || !canUseSourceFileSession(
@@ -236,18 +336,95 @@ export function useWorkbenchSessionFiles({
         closingSessionIdsRef.current,
       )
     ) {
+      return null
+    }
+    const sourceID = session.source_session_id
+    const previous = selectCurrentFileSessionSnapshot(
+      currentFileSessionsRef.current.get(sourceID),
+      sessionOverridesRef.current[sourceID],
+      fileSessionsRef.current.find((item) => item.source_session_id === sourceID),
+    )
+    const result = resolveFileSessionUpdate(
+      previous,
+      session,
+      resetProgress,
+      allowSessionChange,
+    )
+    if (!result.accepted) {
+      return result
+    }
+    const overrides = {
+      ...sessionOverridesRef.current,
+      [sourceID]: result.session,
+    }
+    sessionOverridesRef.current = overrides
+    currentFileSessionsRef.current.set(sourceID, result.session)
+    setSessionOverrides(overrides)
+    onUpdateFileSessionRef.current(result.session)
+    return result
+  }, [])
+
+  const markFileSessionRecoveryRequired = useCallback((
+    session: FileSession,
+    terminated: boolean,
+  ) => {
+    const requestedSourceSessionId = session.source_session_id
+    if (!requestedSourceSessionId) {
       return
     }
-    setSessionOverrides((current) => {
-      const sourceID = session.source_session_id as string
-      const previous = current[sourceID]
-        ?? fileSessionsRef.current.find((item) => item.id === session.id)
-      return {
-        ...current,
-        [sourceID]: mergeFileSessionUpdate(previous, session, resetProgress),
-      }
-    })
-  }, [])
+    const current = selectCurrentFileSessionSnapshot(
+      currentFileSessionsRef.current.get(requestedSourceSessionId),
+      sessionOverridesRef.current[requestedSourceSessionId],
+      fileSessionsRef.current.find((item) => item.source_session_id === requestedSourceSessionId),
+    )
+    if (current && current.id !== session.id) {
+      return
+    }
+    const result = updateFileSession(session)
+    if (!result?.accepted) {
+      return
+    }
+    updateRecoveryState(requestedSourceSessionId, (recovery) => (
+      requireFileSessionRecovery(recovery, session, terminated)
+    ))
+  }, [updateFileSession, updateRecoveryState])
+
+  const applyDisconnectedFileSession = useCallback((session: FileSession) => {
+    const requestedSourceSessionId = session.source_session_id
+    if (!requestedSourceSessionId) {
+      return
+    }
+    const result = updateFileSession(session)
+    if (!result?.accepted) {
+      return
+    }
+    updateRecoveryState(requestedSourceSessionId, (current) => (
+      reconcileDisconnectedFileSessionRecovery(current, result.session)
+    ))
+  }, [updateFileSession, updateRecoveryState])
+
+  const markFileSessionMissing = useCallback((
+    requestedSourceSessionId: string,
+    requestedFileSessionId: string,
+  ) => {
+    const current = selectCurrentFileSessionSnapshot(
+      currentFileSessionsRef.current.get(requestedSourceSessionId),
+      sessionOverridesRef.current[requestedSourceSessionId],
+      fileSessionsRef.current.find((item) => item.source_session_id === requestedSourceSessionId),
+    )
+    if (!current || current.id !== requestedFileSessionId) {
+      return
+    }
+    markFileSessionRecoveryRequired({
+      ...current,
+      status: 'disconnected',
+      phase: 'disconnected',
+      progress: undefined,
+      error_code: 'SFTP_FILE_SESSION_NOT_FOUND',
+      retryable: true,
+      state_seq: current.state_seq === undefined ? undefined : current.state_seq + 1,
+    }, true)
+  }, [markFileSessionRecoveryRequired])
 
   useEffect(() => {
     if (
@@ -265,7 +442,7 @@ export function useWorkbenchSessionFiles({
     const requestedSourceSessionId = sourceSessionId
     const requestedInitialPath = cwdState?.confirmed_path || '/'
     creatingSessionsRef.current.add(requestedSourceSessionId)
-    void api.createFileSession(
+    void onConnectFileSession(
       sourceHostId,
       requestedSourceSessionId,
       requestedInitialPath,
@@ -308,8 +485,6 @@ export function useWorkbenchSessionFiles({
       creatingSessionsRef.current.delete(requestedSourceSessionId)
     })
   }, [
-    api,
-    createRetrySequence,
     cwdState?.confirmed_path,
     enabled,
     fileSession,
@@ -317,13 +492,15 @@ export function useWorkbenchSessionFiles({
     sourceSessionAvailable,
     sourceSessionId,
     sourceSessionStatus,
+    onConnectFileSession,
     updateFileSession,
     updateView,
   ])
 
   useLayoutEffect(() => {
     if (
-      !sourceSessionId
+      !enabled
+      || !sourceSessionId
       || !sourceHostId
       || !fileSession?.id
       || !maintainFileSessionEventStream
@@ -339,6 +516,7 @@ export function useWorkbenchSessionFiles({
       closingSessionIdsRef.current,
     )
     let disposed = false
+    let terminalMessageReceived = false
     let reconnectTimer: number | undefined
     let socket: WebSocket | undefined
     const connect = () => {
@@ -359,17 +537,51 @@ export function useWorkbenchSessionFiles({
             && message.session.source_session_id === requestedSourceSessionId
             && message.session.host_id === requestedSourceHostId
           ) {
-            updateFileSession(message.session)
+            if (message.type === 'closed') {
+              terminalMessageReceived = true
+              markFileSessionRecoveryRequired(
+                terminatedFileSessionSnapshot(message.session),
+                true,
+              )
+              retireWebSocket(nextSocket)
+            } else if (
+              message.session.status === 'disconnected'
+              || message.session.status === 'failed'
+            ) {
+              applyDisconnectedFileSession(message.session)
+            } else {
+              updateFileSession(message.session)
+            }
           }
         } catch {
-          nextSocket.close()
+          retireWebSocket(nextSocket)
         }
       })
-      nextSocket.addEventListener('error', () => closeFileSessionSocket(nextSocket))
+      nextSocket.addEventListener('error', () => retireWebSocket(nextSocket))
       nextSocket.addEventListener('close', () => {
-        if (!disposed && sourceAvailable() && socket === nextSocket) {
+        if (!disposed && !terminalMessageReceived && sourceAvailable() && socket === nextSocket) {
           socket = undefined
-          reconnectTimer = window.setTimeout(connect, 1200)
+          const scheduleReconnect = () => {
+            if (!disposed && sourceAvailable()) {
+              reconnectTimer = window.setTimeout(connect, 1200)
+            }
+          }
+          void api.getFileSession(fileSession.id).then((snapshot) => {
+            if (!disposed && sourceAvailable()) {
+              updateFileSession(snapshot)
+              scheduleReconnect()
+            }
+          }).catch((error) => {
+            if (
+              !disposed
+              && sourceAvailable()
+              && shouldCreateFileSessionAfterReconnect(error)
+            ) {
+              markFileSessionMissing(requestedSourceSessionId, fileSession.id)
+              return
+            }
+            scheduleReconnect()
+          })
         }
       })
     }
@@ -380,10 +592,10 @@ export function useWorkbenchSessionFiles({
         window.clearTimeout(reconnectTimer)
       }
       if (socket) {
-        closeFileSessionSocket(socket)
+        retireWebSocket(socket)
       }
     }
-  }, [api, fileSession?.id, maintainFileSessionEventStream, sourceHostId, sourceSessionId, updateFileSession])
+  }, [api, applyDisconnectedFileSession, enabled, fileSession?.id, maintainFileSessionEventStream, markFileSessionMissing, markFileSessionRecoveryRequired, sourceHostId, sourceSessionId, updateFileSession])
 
   useEffect(() => {
     if (
@@ -393,8 +605,7 @@ export function useWorkbenchSessionFiles({
       !fileSession ||
       fileSession.status === 'connected' ||
       fileSession.status === 'disconnected' ||
-      fileSession.status === 'failed' ||
-      fileSession.status === 'waiting_trust'
+      fileSession.status === 'failed'
     ) {
       return
     }
@@ -422,8 +633,14 @@ export function useWorkbenchSessionFiles({
         ) {
           updateFileSession(next)
         }
-      } catch {
-        // WS 仍是主通道，轮询仅补偿连接阶段的事件丢失。
+      } catch (error) {
+        if (
+          mountedRef.current
+          && sourceAvailable()
+          && shouldCreateFileSessionAfterReconnect(error)
+        ) {
+          markFileSessionMissing(requestedSourceSessionId, fileSession.id)
+        }
       }
     }
     const timer = window.setInterval(() => void refreshSession(), 1000)
@@ -431,7 +648,25 @@ export function useWorkbenchSessionFiles({
       disposed = true
       window.clearInterval(timer)
     }
-  }, [api, fileSession, sourceHostId, sourceSessionAvailable, sourceSessionId, updateFileSession])
+  }, [api, fileSession, markFileSessionMissing, sourceHostId, sourceSessionAvailable, sourceSessionId, updateFileSession])
+
+  useEffect(() => {
+    if (!sourceSessionId || !fileSession) {
+      return
+    }
+    if (fileSession.status !== 'disconnected' && fileSession.status !== 'failed') {
+      if (
+        fileSession.status === 'connected'
+        && recoveryState.phase === 'required'
+      ) {
+        updateRecoveryState(sourceSessionId, completeFileSessionRecovery)
+      }
+      return
+    }
+    updateRecoveryState(sourceSessionId, (current) => (
+      reconcileDisconnectedFileSessionRecovery(current, fileSession)
+    ))
+  }, [fileSession, recoveryState.phase, sourceSessionId, updateRecoveryState])
 
   const loadDirectory = useCallback(async (targetPath: string) => {
     if (
@@ -509,6 +744,42 @@ export function useWorkbenchSessionFiles({
       }
     }
   }, [api, fileSessionId, fileSessionStatus, sourceHostId, sourceSessionId, updateView])
+
+  useEffect(() => {
+    if (
+      !sourceSessionId
+      || !fileSession
+      || !isRecoveredFileSessionReady(recoveryState, fileSession)
+    ) {
+      return
+    }
+    const transaction = recoveryState.transaction
+    const expectedSessionId = fileSession.id
+    const expectedConnectionGeneration = fileSession.connection_generation
+    const refreshedPath = viewState?.listing?.path
+      || fileSession.current_path
+      || cwdState?.confirmed_path
+      || '/'
+    let completed = false
+    updateRecoveryState(sourceSessionId, (current) => {
+      if (!canCompleteFileSessionRecovery(
+        current,
+        transaction,
+        expectedSessionId,
+        expectedConnectionGeneration,
+        currentFileSessionsRef.current.get(sourceSessionId),
+      )) {
+        return current
+      }
+      completed = true
+      return completeFileSessionRecovery(current)
+    })
+    if (!completed) {
+      return
+    }
+    updateView({ error: '', loading: false }, refreshedPath)
+    void loadDirectory(refreshedPath)
+  }, [cwdState?.confirmed_path, fileSession, loadDirectory, recoveryState, sourceSessionId, updateRecoveryState, updateView, viewState?.listing?.path])
 
   useEffect(() => {
     if (
@@ -1059,7 +1330,7 @@ export function useWorkbenchSessionFiles({
     }
   }, [listingPath, sourceSessionId])
 
-  const reconnect = useCallback(async () => {
+  const reconnect = useCallback(() => {
     if (
       !sourceSessionId
       || !sourceHostId
@@ -1070,46 +1341,125 @@ export function useWorkbenchSessionFiles({
         closingSessionIdsRef.current,
       )
     ) {
-      return
-    }
-    if (!fileSession) {
-      if (sourceSessionId) {
-        createFailureSessionIdsRef.current.delete(sourceSessionId)
-        updateView({ error: '', loading: false }, initialPath)
-        setCreateRetrySequence((current) => current + 1)
-      }
-      return
+      return Promise.resolve()
     }
     const requestedSourceSessionId = sourceSessionId
     const requestedSourceHostId = sourceHostId
-    let reconnected: FileSession
-    try {
-      reconnected = await api.reconnectFileSession(fileSession.id)
-    } catch (error) {
-      if (!canUseSourceFileSession(
-        sourceSessionContextsRef.current,
-        requestedSourceSessionId,
-        requestedSourceHostId,
-        closingSessionIdsRef.current,
-      )) {
-        return
-      }
-      throw error
-    }
-    if (canUseSourceFileSession(
-      sourceSessionContextsRef.current,
+    const requestedFileSession = fileSession
+    return runSingleFileSessionRecovery(
+      recoveryPromisesRef.current,
       requestedSourceSessionId,
-      requestedSourceHostId,
-      closingSessionIdsRef.current,
-    ) && canApplyCreatedFileSession(
-      reconnected,
-      sourceSessionContextsRef.current,
-      requestedSourceSessionId,
-      requestedSourceHostId,
-    )) {
-      updateFileSession(reconnected, true)
-    }
-  }, [api, fileSession, initialPath, sourceHostId, sourceSessionId, updateFileSession, updateView])
+      async () => {
+        const currentRecovery = recoveryStatesRef.current[requestedSourceSessionId]
+          ?? idleFileSessionRecoveryState
+        const terminated = Boolean(
+          requestedFileSession
+          && currentRecovery.sessionId === requestedFileSession.id
+          && currentRecovery.terminated,
+        )
+        const started = updateRecoveryState(requestedSourceSessionId, (current) => (
+          beginFileSessionRecovery(current, requestedFileSession?.id ?? '', terminated)
+        ))
+        updateView({ error: '', loading: false }, initialPath)
+        try {
+          let next: FileSession
+          let replacesSession = fileSessionRecoveryMethod(requestedFileSession, started) === 'create'
+          if (!replacesSession && requestedFileSession) {
+            try {
+              next = await onReconnectFileSession(requestedFileSession.id)
+            } catch (error) {
+              if (!shouldCreateFileSessionAfterReconnect(error)) {
+                throw error
+              }
+              replacesSession = true
+              updateRecoveryState(requestedSourceSessionId, (current) => (
+                current.transaction === started.transaction
+                  ? markFileSessionRecoveryTerminated(current, requestedFileSession.id)
+                  : current
+              ))
+              next = await onConnectFileSession(
+                requestedSourceHostId,
+                requestedSourceSessionId,
+                viewState?.listing?.path || requestedFileSession.current_path || initialPath,
+                requestedFileSession.id,
+              )
+            }
+          } else {
+            next = await onConnectFileSession(
+              requestedSourceHostId,
+              requestedSourceSessionId,
+              viewState?.listing?.path || requestedFileSession?.current_path || initialPath,
+              requestedFileSession?.id,
+            )
+          }
+          if (
+            !mountedRef.current
+            || !canUseSourceFileSession(
+              sourceSessionContextsRef.current,
+              requestedSourceSessionId,
+              requestedSourceHostId,
+              closingSessionIdsRef.current,
+            )
+            || !canApplyCreatedFileSession(
+              next,
+              sourceSessionContextsRef.current,
+              requestedSourceSessionId,
+              requestedSourceHostId,
+            )
+            || recoveryStatesRef.current[requestedSourceSessionId]?.transaction !== started.transaction
+          ) {
+            return
+          }
+          createFailureSessionIdsRef.current.delete(requestedSourceSessionId)
+          const applied = updateFileSession(next, true, replacesSession)
+          if (!applied || applied.session.id !== next.id) {
+            return
+          }
+          updateRecoveryState(requestedSourceSessionId, (current) => (
+            current.transaction === started.transaction
+              ? waitForFileSessionRecovery(current, applied.session)
+              : current
+          ))
+        } catch (error) {
+          if (shouldSilentlyCancelFileSessionRecovery(error)) {
+            const closure = fileSessionClosuresRef.current[requestedSourceSessionId]
+            const authoritative = resolveFileSessionClosure(
+              selectCurrentFileSessionSnapshot(
+                currentFileSessionsRef.current.get(requestedSourceSessionId),
+                sessionOverridesRef.current[requestedSourceSessionId],
+                fileSessionsRef.current.find(
+                  (item) => item.source_session_id === requestedSourceSessionId,
+                ),
+              ) ?? null,
+              closure,
+            )
+            updateRecoveryState(requestedSourceSessionId, (current) => (
+              cancelSupersededFileSessionRecovery(
+                current,
+                started.transaction,
+                authoritative,
+                closure?.phase === 'closed',
+              )
+            ))
+            return
+          }
+          if (!canUseSourceFileSession(
+            sourceSessionContextsRef.current,
+            requestedSourceSessionId,
+            requestedSourceHostId,
+            closingSessionIdsRef.current,
+          )) {
+            return
+          }
+          updateRecoveryState(requestedSourceSessionId, (current) => (
+            current.transaction === started.transaction
+              ? failFileSessionRecovery(current, fileSessionRecoveryErrorCode(error))
+              : current
+          ))
+        }
+      },
+    )
+  }, [fileSession, initialPath, onConnectFileSession, onReconnectFileSession, sourceHostId, sourceSessionId, updateFileSession, updateRecoveryState, updateView, viewState?.listing?.path])
 
   const entries = useMemo(
     () => [...(viewState?.listing?.entries ?? [])].sort((left, right) => {
@@ -1133,6 +1483,13 @@ export function useWorkbenchSessionFiles({
     listRef,
     entries,
     connected: fileSession?.status === 'connected',
+    recoveryState,
+    recoveryBusy: recoveryState.phase === 'requesting' || recoveryState.phase === 'waiting_ready',
+    recoveryCanRetry: canRetryFileSessionRecovery(
+      fileSession,
+      recoveryState,
+      Boolean(viewState?.error),
+    ),
     loadDirectory,
     retryDirectory,
     navigateDirectory,
@@ -1182,4 +1539,14 @@ function canAttemptCwdRefresh(state: SessionCwdState | null) {
     )
   }
   return state.capability === 'supported' && state.shell_phase === 'prompt'
+}
+
+function fileSessionRecoveryErrorCode(error: unknown) {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const code = (error as { code?: unknown }).code
+    if (typeof code === 'string' && code) {
+      return code
+    }
+  }
+  return 'SFTP_RECONNECT_FAILED'
 }

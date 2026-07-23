@@ -40,6 +40,21 @@ import { changeLanguage } from '../i18n'
 import { defaultAppearanceSettings, defaultTerminalSettings, defaultWindowSettings, normalizeSettings } from '../features/settings/terminalSettings'
 import { hostToInput } from '../features/hosts/hostInput'
 import {
+  adoptSuppressedFileSessionRecoveryResult,
+  cleanupSuppressedFileSessionRecoveryResult,
+  filterSuppressedFileSessions,
+  isFileSessionRecoverySupersededError,
+  runQueuedFileSessionRecoveryOperation,
+  suppressFileSessionRecoveryResult,
+  supersedeQueuedFileSessionRecovery,
+  type FileSessionClosureState,
+} from '../features/files/fileSessionRecovery'
+import {
+  mergeFileSessionSnapshot,
+  reconcileFileSessionSnapshotList,
+  replaceFileSessionSnapshot,
+} from '../shared/fileSessionSnapshot'
+import {
   mergeSessionReloadSnapshot,
   sessionChangedSince,
   shouldApplySessionInventoryResponse,
@@ -81,7 +96,13 @@ export function useTermousData() {
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
   const [forwardErrorEvent, setForwardErrorEvent] = useState<ForwardEvent | null>(null)
+  const [fileSessionClosures, setFileSessionClosures] = useState<Record<string, FileSessionClosureState>>({})
+  const fileSessionRecoveryCloseEpochsRef = useRef(new Map<string, number>())
+  const fileSessionRecoveryQueuesRef = useRef(new Map<string, Promise<void>>())
+  const suppressedFileSessionIdsRef = useRef(new Map<string, string>())
+  const scheduledFileSessionCleanupIdsRef = useRef(new Set<string>())
   const sessionEventRevisionsRef = useRef(new Map<string, number>())
+  const fileSessionEventRevisionsRef = useRef(new Map<string, number>())
   const inventoryEventRevisionsRef = useRef(new Map<string, number>())
   const inventoryStateSignaturesRef = useRef(new Map<string, string>())
   const inventoryRequestRevisionsRef = useRef(new Map<string, number>())
@@ -92,10 +113,82 @@ export function useTermousData() {
     }
   })
 
+  const releaseFileSessionRecoveryEpoch = useCallback((fileSessionId: string) => {
+    fileSessionRecoveryCloseEpochsRef.current.delete(fileSessionId)
+  }, [])
+
+  const supersedeFileSessionRecoveryOperation = useCallback((fileSessionId: string) => {
+    supersedeQueuedFileSessionRecovery(
+      fileSessionRecoveryCloseEpochsRef.current,
+      fileSessionRecoveryQueuesRef.current,
+      fileSessionId,
+    )
+  }, [])
+
+  const scheduleSuppressedFileSessionCleanup = useCallback((
+    apiClient: TermousApi,
+    fileSessionId: string,
+    originalSessionId: string,
+  ) => {
+    if (
+      suppressedFileSessionIdsRef.current.get(fileSessionId) !== originalSessionId
+      || scheduledFileSessionCleanupIdsRef.current.has(fileSessionId)
+    ) {
+      return
+    }
+    scheduledFileSessionCleanupIdsRef.current.add(fileSessionId)
+    const cleanup = runQueuedFileSessionRecoveryOperation(
+      fileSessionRecoveryCloseEpochsRef.current,
+      fileSessionRecoveryQueuesRef.current,
+      originalSessionId,
+      () => cleanupSuppressedFileSessionRecoveryResult(
+        suppressedFileSessionIdsRef.current,
+        fileSessionId,
+        originalSessionId,
+        () => apiClient.deleteFileSession(fileSessionId),
+      ).then((cleaned) => {
+        if (cleaned) {
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
+        }
+        return cleaned
+      }),
+      undefined,
+      releaseFileSessionRecoveryEpoch,
+    )
+    void cleanup.catch((error) => {
+      if (!isFileSessionRecoverySupersededError(error)) {
+        console.error('重试清理已抑制的文件会话失败', { fileSessionId, error })
+      }
+    }).finally(() => {
+      scheduledFileSessionCleanupIdsRef.current.delete(fileSessionId)
+    })
+  }, [releaseFileSessionRecoveryEpoch])
+
+  useEffect(() => {
+    const activeSourceSessionIds = new Set(data.sessions.map((session) => session.id))
+    const fileSessionBySource = new Map(
+      data.fileSessions.flatMap((session) => (
+        session.source_session_id ? [[session.source_session_id, session] as const] : []
+      )),
+    )
+    setFileSessionClosures((current) => {
+      const entries = Object.entries(current)
+      const retained = entries.filter(([sourceSessionId, closure]) => {
+        if (!activeSourceSessionIds.has(sourceSessionId)) {
+          return false
+        }
+        const replacement = fileSessionBySource.get(sourceSessionId)
+        return !replacement || replacement.id === closure.session.id
+      })
+      return retained.length === entries.length ? current : Object.fromEntries(retained)
+    })
+  }, [data.fileSessions, data.sessions])
+
   const loadWithApi = useCallback(async (apiClient: TermousApi, mode: LoadMode = 'background') => {
     const loadRevision = loadRevisionRef.current + 1
     loadRevisionRef.current = loadRevision
     const sessionRevisionBaseline = new Map(sessionEventRevisionsRef.current)
+    const fileSessionRevisionBaseline = new Map(fileSessionEventRevisionsRef.current)
     if (mode === 'initial') {
       setInitializing(true)
     } else if (mode === 'background') {
@@ -104,6 +197,9 @@ export function useTermousData() {
     setError(null)
     try {
       await apiClient.health()
+      for (const [fileSessionId, originalSessionId] of suppressedFileSessionIdsRef.current) {
+        scheduleSuppressedFileSessionCleanup(apiClient, fileSessionId, originalSessionId)
+      }
       const [
         settings,
         terminalFonts,
@@ -167,7 +263,15 @@ export function useTermousData() {
           sessionRevisionBaseline,
           sessionEventRevisionsRef.current,
         ),
-        fileSessions: fileSessions ?? [],
+        fileSessions: reconcileFileSessionSnapshotList(
+          current.fileSessions,
+          filterSuppressedFileSessions(
+            fileSessions ?? [],
+            suppressedFileSessionIdsRef.current,
+          ),
+          fileSessionRevisionBaseline,
+          fileSessionEventRevisionsRef.current,
+        ),
         forwardProfiles: forwardProfiles ?? [],
         forwards: visibleForwards(forwards ?? []),
         snippetGroups: sortCodeSnippetGroups(snippetGroups ?? []),
@@ -202,7 +306,7 @@ export function useTermousData() {
         setRefreshing(false)
       }
     }
-  }, [])
+  }, [scheduleSuppressedFileSessionCleanup])
 
   const load = useCallback(
     (mode: LoadMode = 'background') => loadWithApi(api, mode),
@@ -641,6 +745,9 @@ export function useTermousData() {
           forward.status === 'running' ||
           forward.status === 'stopping'
         ))
+        fileSessionsToClose.forEach((fileSession) => {
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
+        })
         const results = await Promise.allSettled([
           ...sessionsToClose.map((session) => api.deleteSession(session.id)),
           ...fileSessionsToClose.map((fileSession) => api.deleteFileSession(fileSession.id)),
@@ -655,6 +762,9 @@ export function useTermousData() {
           bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
           inventoryEventRevisionsRef.current.delete(session.id)
           inventoryStateSignaturesRef.current.delete(session.id)
+        })
+        fileSessionsToClose.forEach((fileSession) => {
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
         })
         setData((current) => ({ ...current, sessions: [], fileSessions: [], forwards: [] }))
         setActiveSession(null)
@@ -684,24 +794,176 @@ export function useTermousData() {
           ),
         }))
       },
-      async connectFileSession(hostId: string, sourceSessionId = '', initialPath = '') {
-        const fileSession = await api.createFileSession(hostId, sourceSessionId, initialPath)
-        setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
+      async connectFileSession(
+        hostId: string,
+        sourceSessionId = '',
+        initialPath = '',
+        replacedFileSessionId = '',
+      ) {
+        if (replacedFileSessionId) {
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, replacedFileSessionId)
+        }
+        const createFileSession = () => api.createFileSession(hostId, sourceSessionId, initialPath)
+        const fileSession = replacedFileSessionId
+          ? await runQueuedFileSessionRecoveryOperation(
+              fileSessionRecoveryCloseEpochsRef.current,
+              fileSessionRecoveryQueuesRef.current,
+              replacedFileSessionId,
+              createFileSession,
+              async (supersededSession) => {
+                if (supersededSession.id !== replacedFileSessionId) {
+                  suppressFileSessionRecoveryResult(
+                    suppressedFileSessionIdsRef.current,
+                    supersededSession.id,
+                    replacedFileSessionId,
+                  )
+                  bumpSessionRevision(
+                    fileSessionEventRevisionsRef.current,
+                    supersededSession.id,
+                  )
+                  setData((current) => ({
+                    ...current,
+                    fileSessions: current.fileSessions.filter(
+                      (session) => session.id !== supersededSession.id,
+                    ),
+                  }))
+                  try {
+                    const cleaned = await cleanupSuppressedFileSessionRecoveryResult(
+                      suppressedFileSessionIdsRef.current,
+                      supersededSession.id,
+                      replacedFileSessionId,
+                      () => api.deleteFileSession(supersededSession.id),
+                    )
+                    if (cleaned) {
+                      bumpSessionRevision(
+                        fileSessionEventRevisionsRef.current,
+                        supersededSession.id,
+                      )
+                    }
+                  } catch (error) {
+                    console.error('清理已被显式关闭覆盖的文件会话失败', {
+                      fileSessionId: supersededSession.id,
+                      error,
+                    })
+                    scheduleSuppressedFileSessionCleanup(
+                      api,
+                      supersededSession.id,
+                      replacedFileSessionId,
+                    )
+                    throw error
+                  }
+                }
+              },
+              releaseFileSessionRecoveryEpoch,
+            )
+          : await createFileSession()
+        adoptSuppressedFileSessionRecoveryResult(
+          suppressedFileSessionIdsRef.current,
+          fileSession.id,
+        )
+        if (replacedFileSessionId && replacedFileSessionId !== fileSession.id) {
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, replacedFileSessionId)
+        }
+        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
+        setData((current) => ({
+          ...current,
+          fileSessions: replaceFileSessionSnapshot(
+            current.fileSessions,
+            fileSession,
+            replacedFileSessionId,
+          ),
+        }))
+        if (fileSession.source_session_id) {
+          setFileSessionClosures((current) => {
+            if (!current[fileSession.source_session_id as string]) {
+              return current
+            }
+            const next = { ...current }
+            delete next[fileSession.source_session_id as string]
+            return next
+          })
+        }
         return fileSession
       },
       async closeFileSession(fileSessionId: string) {
-        await api.deleteFileSession(fileSessionId)
+        supersedeFileSessionRecoveryOperation(fileSessionId)
+        const closingFileSession = data.fileSessions.find((session) => session.id === fileSessionId)
+        const sourceSessionId = closingFileSession?.source_session_id ?? ''
+        if (closingFileSession && sourceSessionId) {
+          setFileSessionClosures((current) => ({
+            ...current,
+            [sourceSessionId]: {
+              session: closingFileSession,
+              phase: 'closing',
+            },
+          }))
+        }
+        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
+        try {
+          await api.deleteFileSession(fileSessionId)
+        } catch (error) {
+          if (sourceSessionId) {
+            setFileSessionClosures((current) => removeMatchingFileSessionClosure(
+              current,
+              sourceSessionId,
+              fileSessionId,
+            ))
+          }
+          throw error
+        }
+        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
+        if (closingFileSession && sourceSessionId) {
+          setFileSessionClosures((current) => {
+            const closure = current[sourceSessionId]
+            if (!closure || closure.session.id !== fileSessionId) {
+              return current
+            }
+            return {
+              ...current,
+              [sourceSessionId]: {
+                session: closingFileSession,
+                phase: 'closed',
+              },
+            }
+          })
+        }
         setData((current) => ({
           ...current,
           fileSessions: current.fileSessions.filter((session) => session.id !== fileSessionId),
         }))
       },
       async reconnectFileSession(fileSessionId: string) {
-        const fileSession = await api.reconnectFileSession(fileSessionId)
+        const fileSession = await runQueuedFileSessionRecoveryOperation(
+          fileSessionRecoveryCloseEpochsRef.current,
+          fileSessionRecoveryQueuesRef.current,
+          fileSessionId,
+          () => api.reconnectFileSession(fileSessionId),
+          undefined,
+          releaseFileSessionRecoveryEpoch,
+        )
+        adoptSuppressedFileSessionRecoveryResult(
+          suppressedFileSessionIdsRef.current,
+          fileSession.id,
+        )
+        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
         setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
+        if (fileSession.source_session_id) {
+          setFileSessionClosures((current) => removeMatchingFileSessionClosure(
+            current,
+            fileSession.source_session_id as string,
+            fileSession.id,
+          ))
+        }
         return fileSession
       },
+      supersedeFileSessionRecovery(fileSessionId: string) {
+        supersedeFileSessionRecoveryOperation(fileSessionId)
+      },
       updateFileSession(fileSession: FileSession) {
+        if (suppressedFileSessionIdsRef.current.has(fileSession.id)) {
+          return
+        }
+        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
         setData((current) => {
           if (!current.fileSessions.some((session) => session.id === fileSession.id)) {
             return current
@@ -710,10 +972,36 @@ export function useTermousData() {
         })
       },
     }),
-    [api, data.fileSessions, data.forwards, data.hosts, data.settings, data.sessions, load, reloadForwards],
+    [
+      api,
+      data.fileSessions,
+      data.forwards,
+      data.hosts,
+      data.settings,
+      data.sessions,
+      load,
+      releaseFileSessionRecoveryEpoch,
+      reloadForwards,
+      scheduleSuppressedFileSessionCleanup,
+      supersedeFileSessionRecoveryOperation,
+    ],
   )
 
-  return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, actions }
+  return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, fileSessionClosures, actions }
+}
+
+function removeMatchingFileSessionClosure(
+  closures: Record<string, FileSessionClosureState>,
+  sourceSessionId: string,
+  fileSessionId: string,
+) {
+  const closure = closures[sourceSessionId]
+  if (!closure || closure.session.id !== fileSessionId) {
+    return closures
+  }
+  const next = { ...closures }
+  delete next[sourceSessionId]
+  return next
 }
 
 function reconcileActiveSession(current: Session | null, nextSessions: Session[], mode: LoadMode) {
@@ -782,7 +1070,16 @@ function markHostRecentlyConnected(
 function upsertFileSession(fileSessions: FileSession[], next: FileSession) {
   const exists = fileSessions.some((session) => session.id === next.id)
   if (exists) {
-    return fileSessions.map((session) => (session.id === next.id ? next : session))
+    let changed = false
+    const merged = fileSessions.map((session) => {
+      if (session.id !== next.id) {
+        return session
+      }
+      const resolved = mergeFileSessionSnapshot(session, next)
+      changed = changed || resolved !== session
+      return resolved
+    })
+    return changed ? merged : fileSessions
   }
   return [next, ...fileSessions]
 }

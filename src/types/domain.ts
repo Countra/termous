@@ -193,6 +193,10 @@ export interface FileSession {
   connected_at?: string
   ended_at?: string
   last_error?: string
+  connection_generation?: number
+  state_seq?: number
+  error_code?: string
+  retryable?: boolean
 }
 
 export interface TransferTask {

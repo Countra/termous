@@ -36,7 +36,7 @@ import {
   type MouseEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TermousApi } from '../../api/client'
+import { TermousApiError, type TermousApi } from '../../api/client'
 import { HostContextPanel } from '../../components/hosts/HostContextPanel'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { EmptyState } from '../../components/ui/EmptyState'
@@ -76,6 +76,25 @@ import {
 import { fileSortValue, formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
 import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
 import { FileBookmarksPanel } from './FileBookmarksPanel'
+import {
+  subscribeFileSessionEvents,
+  type FileSessionEventSubscription,
+} from './fileSessionEventSubscription'
+import {
+  canReuseFileSessionDirectoryCache,
+  canRecoverFileSession,
+  cancelFileSessionRecoveryAttempt,
+  fileSessionDirectoryCacheOwner,
+  fileSessionRecoveryOutcome,
+  fileSessionRecoveryRequestMethod,
+  findFileSessionRecoveryAttempt,
+  isFileSessionRecoverySupersededError,
+  isTerminatedFileSession,
+  shouldCreateFileSessionAfterReconnect,
+  terminatedFileSessionSnapshot,
+  type FileSessionDirectoryCacheOwner,
+  type FileSessionRecoveryAttempt,
+} from './fileSessionRecovery'
 import { LocalPathMappingsPanel, type LocalPathRefreshRequest } from './LocalPathMappingsPanel'
 import { TransferQueuePanel, type PendingFileOperation } from './TransferQueuePanel'
 
@@ -90,7 +109,12 @@ interface FilesPageProps {
   activeFileSession: FileSession | null
   closingFileSessionIds: readonly string[]
   onSelectHost: (hostId: string) => void
-  onConnectFileSession: (hostId: string) => Promise<FileSession>
+  onConnectFileSession: (
+    hostId: string,
+    sourceSessionId?: string,
+    initialPath?: string,
+    replacedFileSessionId?: string,
+  ) => Promise<FileSession>
   onSelectFileSession: (fileSessionId: string) => void
   onCloseFileSession: (fileSessionId: string) => Promise<void>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
@@ -257,7 +281,10 @@ function FilesPageContent({
   const pendingOperationTimersRef = useRef<number[]>([])
   const lastSessionLoadKeyRef = useRef('')
   const lastActiveFileSessionIdRef = useRef('')
-  const fileSessionSocketsRef = useRef(new Map<string, WebSocket>())
+  const fileSessionSubscriptionsRef = useRef(new Map<string, FileSessionEventSubscription>())
+  const fileSessionRecoveryAttemptsRef = useRef(new Map<string, FileSessionRecoveryAttempt>())
+  const directoryCacheOwnerRef = useRef<FileSessionDirectoryCacheOwner | null>(null)
+  const fileSessionsRef = useRef(data.fileSessions)
   const fileResizeCleanupRef = useRef<(() => void) | null>(null)
   const onUpdateFileSessionRef = useRef(onUpdateFileSession)
   const [currentPath, setCurrentPath] = useState('/')
@@ -279,6 +306,11 @@ function FilesPageContent({
   const [pendingTransferOperations, setPendingTransferOperations] = useState<PendingFileOperation[]>([])
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [connectingHostIds, setConnectingHostIds] = useState<Set<string>>(() => new Set())
+  const [directoryCacheOwner, setDirectoryCacheOwner] = useState<FileSessionDirectoryCacheOwner | null>(null)
+  const [fileSessionRecoveryAttempts, setFileSessionRecoveryAttempts] = useState<ReadonlyMap<
+    string,
+    FileSessionRecoveryAttempt
+  >>(() => new Map())
   const [fileColumnWidths, setFileColumnWidths] = useState<FileColumnWidths>(defaultFileColumnWidths)
   const [hostPanelCollapsed, setHostPanelCollapsed] = usePersistentBooleanState(
     'termous.ui.files.hostPanelCollapsed.v1',
@@ -353,18 +385,40 @@ function FilesPageContent({
   const selectedHostIdStable = selectedHost?.id ?? ''
   const activeFileSessionHost = activeFileSession?.host_id ? data.hosts.find((host) => host.id === activeFileSession.host_id) : undefined
   const activeFileSessionId = activeFileSession?.id ?? ''
+  const activeFileSessionRecovery = useMemo(
+    () => activeFileSessionId
+      ? findFileSessionRecoveryAttempt(
+          fileSessionRecoveryAttempts,
+          activeFileSessionId,
+        )
+      : undefined,
+    [activeFileSessionId, fileSessionRecoveryAttempts],
+  )
+  const activeFileSessionHasCachedDirectory = Boolean(
+    activeFileSession
+    && directoryCacheOwner
+    && canReuseFileSessionDirectoryCache(
+      directoryCacheOwner,
+      activeFileSession,
+      fileSessionRecoveryAttempts,
+    ),
+  )
   const closingFileSessionIdSet = useMemo(() => new Set(closingFileSessionIds), [closingFileSessionIds])
   const activeFileSessionClosing = Boolean(activeFileSessionId && closingFileSessionIdSet.has(activeFileSessionId))
   const fileSessionConnected = activeFileSession?.status === 'connected' && !activeFileSessionClosing
   const fileSessionConnectedRef = useRef(fileSessionConnected)
   fileSessionConnectedRef.current = fileSessionConnected
+  fileSessionsRef.current = data.fileSessions
   const displayedFileSessionKey = useMemo(
     () => data.fileSessions.map((session) => session.id).join('|'),
     [data.fileSessions],
   )
   const socketFileSessionIds = useMemo(
     () => data.fileSessions
-      .filter((session) => !closingFileSessionIdSet.has(session.id))
+      .filter((session) => (
+        !closingFileSessionIdSet.has(session.id)
+        && !isTerminatedFileSession(session)
+      ))
       .map((session) => session.id)
       .join('|'),
     [closingFileSessionIdSet, data.fileSessions],
@@ -428,7 +482,13 @@ function FilesPageContent({
     </div>
   )
 
-  const applyListing = useCallback((listing: RemoteDirectoryListing) => {
+  const updateDirectoryCacheOwner = useCallback((owner: FileSessionDirectoryCacheOwner | null) => {
+    directoryCacheOwnerRef.current = owner
+    setDirectoryCacheOwner(owner)
+  }, [])
+
+  const applyListing = useCallback((listing: RemoteDirectoryListing, session: FileSession) => {
+    updateDirectoryCacheOwner(fileSessionDirectoryCacheOwner(session))
     setCurrentPath(listing.path)
     setPathInput(listing.path)
     setEntries([...listing.entries].sort((left, right) => fileSortValue(left).localeCompare(fileSortValue(right))))
@@ -436,7 +496,7 @@ function FilesPageContent({
     setActiveEntry(null)
     setDropTargetDirectoryPath(null)
     setRemoteMoveTargetPath(null)
-  }, [])
+  }, [updateDirectoryCacheOwner])
 
   useEffect(() => {
     onUpdateFileSessionRef.current = onUpdateFileSession
@@ -457,10 +517,10 @@ function FilesPageContent({
 
   const loadDirectory = useCallback(
     async (nextPath: string, options?: { recordHistory?: boolean }) => {
-      if (!activeFileSessionId || !fileSessionConnected) {
-        setEntries([])
+      if (!activeFileSession || !fileSessionConnected) {
         return
       }
+      const requestSession = activeFileSession
       const normalized = normalizeRemotePosixPath(nextPath)
       if (!normalized) {
         notification.warning({
@@ -473,11 +533,14 @@ function FilesPageContent({
       }
       setLoading(true)
       try {
-        const listing = await api.listFileSessionFiles(activeFileSessionId, normalized)
+        const listing = await api.listFileSessionFiles(requestSession.id, normalized)
+        if (lastActiveFileSessionIdRef.current !== requestSession.id) {
+          return
+        }
         if (options?.recordHistory !== false && normalizeRemotePath(currentPath) !== normalizeRemotePath(listing.path)) {
           directoryHistoryRef.current.push(normalizeRemotePath(currentPath))
         }
-        applyListing(listing)
+        applyListing(listing, requestSession)
       } catch (loadError) {
         notification.error({
           message: t('files.directoryReadFailed'),
@@ -490,7 +553,7 @@ function FilesPageContent({
         setLoading(false)
       }
     },
-    [activeFileSessionId, api, applyListing, currentPath, fileSessionConnected, notification, t],
+    [activeFileSession, api, applyListing, currentPath, fileSessionConnected, notification, t],
   )
 
   const trackUploadRefreshTask = useCallback((task: TransferTask) => {
@@ -521,16 +584,31 @@ function FilesPageContent({
       setActiveEntry(null)
       setTextEditorPath(null)
       setImageViewerPath(null)
+      updateDirectoryCacheOwner(null)
       return
     }
     const sessionChanged = lastActiveFileSessionIdRef.current !== activeFileSession.id
     lastActiveFileSessionIdRef.current = activeFileSession.id
     if (sessionChanged) {
-      const nextPath = normalizeRemotePath(activeFileSession.current_path || '/')
       directoryHistoryRef.current = []
-      setCurrentPath(nextPath)
-      setPathInput(nextPath)
-      setEntries([])
+      const cachedOwner = directoryCacheOwnerRef.current
+      const reuseCachedDirectory = Boolean(
+        cachedOwner
+        && canReuseFileSessionDirectoryCache(
+          cachedOwner,
+          activeFileSession,
+          fileSessionRecoveryAttemptsRef.current,
+        ),
+      )
+      if (reuseCachedDirectory) {
+        updateDirectoryCacheOwner(fileSessionDirectoryCacheOwner(activeFileSession))
+      } else {
+        const nextPath = normalizeRemotePath(activeFileSession.current_path || '/')
+        setCurrentPath(nextPath)
+        setPathInput(nextPath)
+        setEntries([])
+        updateDirectoryCacheOwner(null)
+      }
       setSelectedPaths([])
       setActiveEntry(null)
       setTextEditorPath(null)
@@ -546,7 +624,7 @@ function FilesPageContent({
       const nextPath = normalizeRemotePath(activeFileSession.current_path || '/')
       void loadDirectory(nextPath, { recordHistory: false })
     }
-  }, [activeFileSession, loadDirectory])
+  }, [activeFileSession, loadDirectory, updateDirectoryCacheOwner])
 
   useEffect(() => {
     const transferById = new Map(transfers.map((task) => [task.id, task]))
@@ -656,40 +734,61 @@ function FilesPageContent({
 
   useEffect(() => {
     const ids = new Set(socketFileSessionIds ? socketFileSessionIds.split('|') : [])
-    fileSessionSocketsRef.current.forEach((socket, fileSessionId) => {
+    fileSessionSubscriptionsRef.current.forEach((subscription, fileSessionId) => {
       if (!ids.has(fileSessionId)) {
-        socket.close()
-        fileSessionSocketsRef.current.delete(fileSessionId)
+        fileSessionSubscriptionsRef.current.delete(fileSessionId)
+        subscription.dispose()
       }
     })
     ids.forEach((fileSessionId) => {
-      if (fileSessionSocketsRef.current.has(fileSessionId)) {
+      if (fileSessionSubscriptionsRef.current.has(fileSessionId)) {
         return
       }
-      const socket = new WebSocket(api.fileSessionEventsUrl(fileSessionId))
-      fileSessionSocketsRef.current.set(fileSessionId, socket)
-      socket.addEventListener('message', (event) => {
-        try {
-          const message = JSON.parse(String(event.data)) as FileSessionEventMessage
-          if (message.session?.id) {
-            onUpdateFileSessionRef.current(message.session)
+      const subscription = subscribeFileSessionEvents({
+        createSocket: () => new WebSocket(api.fileSessionEventsUrl(fileSessionId)),
+        getSnapshot: async () => {
+          const snapshot = await api.getFileSession(fileSessionId)
+          if (snapshot.id !== fileSessionId) {
+            throw new Error('file session snapshot identity mismatch')
           }
-        } catch {
-          socket.close()
-        }
+          return snapshot
+        },
+        onSnapshot: (snapshot) => onUpdateFileSessionRef.current(snapshot),
+        onMessage: (data) => {
+          const message = JSON.parse(String(data)) as FileSessionEventMessage
+          if (!message.session) {
+            return false
+          }
+          if (message.session.id !== fileSessionId) {
+            throw new Error('file session event identity mismatch')
+          }
+          if (message.type === 'closed') {
+            onUpdateFileSessionRef.current(terminatedFileSessionSnapshot(message.session))
+            return 'stop'
+          }
+          onUpdateFileSessionRef.current(message.session)
+          return true
+        },
+        onSnapshotError: (error) => {
+          if (!isMissingFileSessionError(error)) {
+            return 'retry'
+          }
+          const current = fileSessionsRef.current.find((session) => session.id === fileSessionId)
+          if (current) {
+            onUpdateFileSessionRef.current(terminatedFileSessionSnapshot(current))
+          }
+          return 'stop'
+        },
       })
-      socket.addEventListener('close', () => {
-        if (fileSessionSocketsRef.current.get(fileSessionId) === socket) {
-          fileSessionSocketsRef.current.delete(fileSessionId)
-        }
-      })
+      fileSessionSubscriptionsRef.current.set(fileSessionId, subscription)
     })
   }, [api, socketFileSessionIds])
 
   useEffect(
     () => () => {
-      fileSessionSocketsRef.current.forEach((socket) => socket.close())
-      fileSessionSocketsRef.current.clear()
+      const subscriptions = [...fileSessionSubscriptionsRef.current.values()]
+      fileSessionSubscriptionsRef.current.clear()
+      subscriptions.forEach((subscription) => subscription.dispose())
     },
     [],
   )
@@ -752,14 +851,30 @@ function FilesPageContent({
     }
   }, [fileContextMenu])
 
+  const cancelRecoveryForFileSession = useCallback((fileSessionId: string) => {
+    if (!cancelFileSessionRecoveryAttempt(
+      fileSessionRecoveryAttemptsRef.current,
+      fileSessionId,
+    )) {
+      return
+    }
+    notification.destroy(`files-session-recovery-${fileSessionId}`)
+    setFileSessionRecoveryAttempts(new Map(fileSessionRecoveryAttemptsRef.current))
+  }, [notification])
+
+  useEffect(() => {
+    closingFileSessionIds.forEach(cancelRecoveryForFileSession)
+  }, [cancelRecoveryForFileSession, closingFileSessionIds])
+
   const closeFileSessionTab = useCallback(
     (fileSessionId: string) => {
       if (closingFileSessionIdSet.has(fileSessionId)) {
         return
       }
+      cancelRecoveryForFileSession(fileSessionId)
       void onCloseFileSession(fileSessionId)
     },
-    [closingFileSessionIdSet, onCloseFileSession],
+    [cancelRecoveryForFileSession, closingFileSessionIdSet, onCloseFileSession],
   )
 
   const closeFileSessionFromTab = useCallback(
@@ -814,6 +929,132 @@ function FilesPageContent({
       })
     }
   }
+
+  const publishFileSessionRecoveryState = useCallback(() => {
+    setFileSessionRecoveryAttempts(new Map(fileSessionRecoveryAttemptsRef.current))
+  }, [])
+
+  const adoptDirectoryCacheForRecoveredSession = useCallback((
+    originalSessionId: string,
+    recovered: FileSession,
+  ) => {
+    if (directoryCacheOwnerRef.current?.fileSessionId !== originalSessionId) {
+      return
+    }
+    updateDirectoryCacheOwner(fileSessionDirectoryCacheOwner(recovered))
+  }, [updateDirectoryCacheOwner])
+
+  const notifyFileSessionRecoveryFailure = useCallback((
+    sourceSessionId: string,
+    errorCode: string,
+  ) => {
+    notification.error({
+      key: `files-session-recovery-${sourceSessionId}`,
+      title: t('workbench.files.recoveryFailed'),
+      description: fileSessionRecoveryErrorMessage(errorCode, t),
+      duration: 4,
+      role: 'alert',
+      className: 'termous-notification',
+    })
+  }, [notification, t])
+
+  const recoverFileSession = useCallback(async (session: FileSession) => {
+    if (findFileSessionRecoveryAttempt(fileSessionRecoveryAttemptsRef.current, session.id)) {
+      return
+    }
+    const attempt: FileSessionRecoveryAttempt = {
+      originalSessionId: session.id,
+      targetSessionId: session.id,
+      phase: 'requesting',
+    }
+    notification.destroy(`files-session-recovery-${session.id}`)
+    fileSessionRecoveryAttemptsRef.current.set(session.id, attempt)
+    publishFileSessionRecoveryState()
+    try {
+      let recovered: FileSession
+      const createReplacement = fileSessionRecoveryRequestMethod(session) === 'create'
+      if (!createReplacement) {
+        try {
+          recovered = await onReconnectFileSession(session.id)
+        } catch (error) {
+          if (!shouldCreateFileSessionAfterReconnect(error)) {
+            throw error
+          }
+          recovered = await onConnectFileSession(
+            session.host_id,
+            session.source_session_id ?? '',
+            normalizeRemotePath(currentPath || session.current_path || '/'),
+            session.id,
+          )
+        }
+      } else {
+        recovered = await onConnectFileSession(
+          session.host_id,
+          session.source_session_id ?? '',
+          normalizeRemotePath(currentPath || session.current_path || '/'),
+          session.id,
+        )
+      }
+      adoptDirectoryCacheForRecoveredSession(session.id, recovered)
+      attempt.targetSessionId = recovered.id
+      attempt.phase = 'waiting_ready'
+      attempt.connectionGeneration = recovered.connection_generation
+      fileSessionRecoveryAttemptsRef.current.set(attempt.originalSessionId, attempt)
+      publishFileSessionRecoveryState()
+    } catch (error) {
+      fileSessionRecoveryAttemptsRef.current.delete(attempt.originalSessionId)
+      publishFileSessionRecoveryState()
+      if (isFileSessionRecoverySupersededError(error)) {
+        return
+      }
+      notifyFileSessionRecoveryFailure(
+        attempt.originalSessionId,
+        fileSessionRecoveryErrorCode(error),
+      )
+    }
+  }, [
+    adoptDirectoryCacheForRecoveredSession,
+    currentPath,
+    notifyFileSessionRecoveryFailure,
+    notification,
+    onConnectFileSession,
+    onReconnectFileSession,
+    publishFileSessionRecoveryState,
+  ])
+
+  useEffect(() => {
+    let changed = false
+    const failures: Array<{ sourceSessionId: string; errorCode: string }> = []
+    for (const [originalSessionId, attempt] of fileSessionRecoveryAttemptsRef.current) {
+      const session = data.fileSessions.find((item) => item.id === attempt.targetSessionId)
+      const outcome = fileSessionRecoveryOutcome(attempt, session)
+      if (outcome === 'pending') {
+        continue
+      }
+      fileSessionRecoveryAttemptsRef.current.delete(originalSessionId)
+      changed = true
+      if (outcome === 'failed') {
+        failures.push({
+          sourceSessionId: originalSessionId,
+          errorCode: session?.error_code || 'SFTP_RECONNECT_FAILED',
+        })
+      } else {
+        notification.destroy(`files-session-recovery-${originalSessionId}`)
+      }
+    }
+    if (changed) {
+      publishFileSessionRecoveryState()
+    }
+    failures.forEach(({ sourceSessionId, errorCode }) => {
+      notifyFileSessionRecoveryFailure(sourceSessionId, errorCode)
+    })
+  }, [
+    data.fileSessions,
+    fileSessionRecoveryAttempts,
+    notifyFileSessionRecoveryFailure,
+    notification,
+    publishFileSessionRecoveryState,
+  ])
 
   const uploadLocalPaths = async (source: LocalGrantSource, paths: string[], targetPath = currentPath) => {
     if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
@@ -1790,71 +2031,84 @@ function FilesPageContent({
             <div className="files-session-empty">
               <Empty description={t('files.noFileSession')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
             </div>
-          ) : activeFileSession.status !== 'connected' ? (
-            <FileSessionProgress fileSession={activeFileSession} onReconnect={onReconnectFileSession} />
-          ) : (
-            <Table
-              rowKey="path"
-              columns={columns}
-              dataSource={entries}
-              loading={loading}
-              pagination={false}
-              components={{ header: { cell: ResizableFileHeaderCell } }}
-              scroll={{ x: fileTableScrollWidth }}
-              size="middle"
-              tableLayout="fixed"
-              className="files-table"
-              rowSelection={{
-                columnWidth: 44,
-                selectedRowKeys: selectedPaths,
-                getCheckboxProps: () => ({ disabled: !fileSessionConnected }),
-                onChange: (keys) => {
-                  if (fileSessionConnected) {
-                    setSelectedPaths(keys.map(String))
-                  }
-                },
-              }}
-              rowClassName={(entry) => [
-                'files-table-row',
-                `is-${entry.kind}`,
-                dropTargetDirectoryPath === entry.path || remoteMoveTargetPath === entry.path ? 'is-drop-target' : '',
-                remoteMoveTargetPath === entry.path ? 'is-move-target' : '',
-                remoteMoveDrag?.paths.includes(entry.path) ? 'is-being-dragged' : '',
-              ].filter(Boolean).join(' ')}
-              onRow={(entry) => ({
-                draggable: fileSessionConnected && !loading,
-                onClick: () => {
-                  if (fileSessionConnected) {
-                    setActiveEntry(entry)
-                  }
-                },
-                onDoubleClick: () => enterEntry(entry),
-                onContextMenu: (event) => {
-                  event.preventDefault()
-                  if (!fileSessionConnected) {
-                    return
-                  }
-                  setSelectedPaths([entry.path])
-                  setActiveEntry(entry)
-                  setFileContextMenu({ entry, x: event.clientX, y: event.clientY })
-                },
-                onDragStart: (event) => startRemoteMoveDrag(entry, event),
-                onDragOver: (event) => updateRemoteMoveTarget(entry, event),
-                onDragLeave: (event) => {
-                  const remoteDrag = remoteMoveDragRef.current ?? remoteMoveDrag
-                  if (!remoteDrag || entry.kind !== 'directory') {
-                    return
-                  }
-                  if (event.currentTarget instanceof HTMLElement && event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
-                    return
-                  }
-                  setRemoteMoveTargetPath((current) => current === entry.path ? null : current)
-                },
-                onDrop: (event) => void dropRemoteMoveTarget(entry, event),
-                onDragEnd: resetDragState,
-              })}
-              locale={{ emptyText: <EmptyState title={t('files.emptyDirectory')} description={t('files.emptyDirectoryHint')} /> }}
+          ) : activeFileSession.status !== 'connected' && !activeFileSessionHasCachedDirectory ? (
+            <FileSessionProgress
+              fileSession={activeFileSession}
+              recovering={Boolean(activeFileSessionRecovery)}
+              onRecover={recoverFileSession}
             />
+          ) : (
+            <>
+              <Table
+                rowKey="path"
+                columns={columns}
+                dataSource={entries}
+                loading={fileSessionConnected && loading}
+                pagination={false}
+                components={{ header: { cell: ResizableFileHeaderCell } }}
+                scroll={{ x: fileTableScrollWidth }}
+                size="middle"
+                tableLayout="fixed"
+                className="files-table"
+                rowSelection={{
+                  columnWidth: 44,
+                  selectedRowKeys: selectedPaths,
+                  getCheckboxProps: () => ({ disabled: !fileSessionConnected }),
+                  onChange: (keys) => {
+                    if (fileSessionConnected) {
+                      setSelectedPaths(keys.map(String))
+                    }
+                  },
+                }}
+                rowClassName={(entry) => [
+                  'files-table-row',
+                  `is-${entry.kind}`,
+                  dropTargetDirectoryPath === entry.path || remoteMoveTargetPath === entry.path ? 'is-drop-target' : '',
+                  remoteMoveTargetPath === entry.path ? 'is-move-target' : '',
+                  remoteMoveDrag?.paths.includes(entry.path) ? 'is-being-dragged' : '',
+                ].filter(Boolean).join(' ')}
+                onRow={(entry) => ({
+                  draggable: fileSessionConnected && !loading,
+                  onClick: () => {
+                    if (fileSessionConnected) {
+                      setActiveEntry(entry)
+                    }
+                  },
+                  onDoubleClick: () => enterEntry(entry),
+                  onContextMenu: (event) => {
+                    event.preventDefault()
+                    if (!fileSessionConnected) {
+                      return
+                    }
+                    setSelectedPaths([entry.path])
+                    setActiveEntry(entry)
+                    setFileContextMenu({ entry, x: event.clientX, y: event.clientY })
+                  },
+                  onDragStart: (event) => startRemoteMoveDrag(entry, event),
+                  onDragOver: (event) => updateRemoteMoveTarget(entry, event),
+                  onDragLeave: (event) => {
+                    const remoteDrag = remoteMoveDragRef.current ?? remoteMoveDrag
+                    if (!remoteDrag || entry.kind !== 'directory') {
+                      return
+                    }
+                    if (event.currentTarget instanceof HTMLElement && event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) {
+                      return
+                    }
+                    setRemoteMoveTargetPath((current) => current === entry.path ? null : current)
+                  },
+                  onDrop: (event) => void dropRemoteMoveTarget(entry, event),
+                  onDragEnd: resetDragState,
+                })}
+                locale={{ emptyText: <EmptyState title={t('files.emptyDirectory')} description={t('files.emptyDirectoryHint')} /> }}
+              />
+              {!fileSessionConnected ? (
+                <FileSessionCachedDirectoryOverlay
+                  fileSession={activeFileSession}
+                  recovering={Boolean(activeFileSessionRecovery)}
+                  onRecover={recoverFileSession}
+                />
+              ) : null}
+            </>
           )}
           {fileContextMenu && fileSessionConnected ? (
             <Dropdown
@@ -2214,24 +2468,92 @@ function renderFileDetailValue(value?: string | number | null) {
   )
 }
 
-function FileSessionProgress({
+function FileSessionCachedDirectoryOverlay({
   fileSession,
-  onReconnect,
+  recovering,
+  onRecover,
 }: {
   fileSession: FileSession
-  onReconnect: (fileSessionId: string) => Promise<FileSession>
+  recovering: boolean
+  onRecover: (fileSession: FileSession) => Promise<void>
+}) {
+  const { t } = useTranslation()
+  const terminal = fileSession.status === 'failed' || fileSession.status === 'disconnected'
+  const copy = fileSessionRecoveryStatusCopy(fileSession, recovering, t)
+  const showRecoveryAction = recovering || (terminal && canRecoverFileSession(fileSession))
+
+  return (
+    <div
+      className={`files-session-cache-overlay${recovering ? ' is-recovering' : ''}`}
+      role={terminal && !recovering ? 'alert' : 'status'}
+      aria-live="polite"
+    >
+      <span className="files-session-cache-overlay-icon" aria-hidden="true">
+        {recovering ? <CircleDashed size={16} /> : <XCircle size={16} />}
+      </span>
+      <span className="files-session-cache-overlay-copy">
+        <strong>{copy.title}</strong>
+        <small>{copy.detail}</small>
+      </span>
+      {showRecoveryAction ? (
+        <Button
+          className="secondary-button"
+          size="small"
+          loading={recovering}
+          disabled={recovering}
+          onClick={() => void onRecover(fileSession)}
+        >
+          {t('files.reconnect')}
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+function FileSessionProgress({
+  fileSession,
+  recovering,
+  onRecover,
+}: {
+  fileSession: FileSession
+  recovering: boolean
+  onRecover: (fileSession: FileSession) => Promise<void>
 }) {
   const { t } = useTranslation()
   const progress = Math.max(0, Math.min(100, fileSession.progress ?? 0))
   const phase = fileSession.phase ?? 'queued'
-  const failed = fileSession.status === 'failed'
-  const phaseOrder: FileSessionPhase[] = failed
-    ? [...fileSessionPhaseOrder.filter((item) => item !== 'ready'), 'failed' as const]
-    : fileSession.status === 'waiting_trust'
-      ? waitingTrustFileSessionPhaseOrder
-      : fileSessionPhaseOrder
+  const terminal = fileSession.status === 'failed' || fileSession.status === 'disconnected'
+  const phaseOrder: FileSessionPhase[] = fileSession.status === 'waiting_trust'
+    ? waitingTrustFileSessionPhaseOrder
+    : fileSessionPhaseOrder
   const currentIndex = phaseOrder.indexOf(phase)
-  const message = fileSession.last_error || fileSession.status_message
+
+  if (terminal) {
+    const copy = fileSessionRecoveryStatusCopy(fileSession, recovering, t)
+
+    return (
+      <div className="files-session-progress is-terminal" role="status" aria-live="polite">
+        <div className={`files-session-terminal-icon${recovering ? ' is-recovering' : ''}`}>
+          {recovering ? <CircleDashed size={22} aria-hidden="true" /> : <XCircle size={22} aria-hidden="true" />}
+        </div>
+        <div className="files-session-terminal-copy">
+          <strong>{copy.title}</strong>
+          <span>{copy.detail}</span>
+        </div>
+        {canRecoverFileSession(fileSession) ? (
+          <Button
+            className="secondary-button"
+            size="small"
+            loading={recovering}
+            disabled={recovering}
+            onClick={() => void onRecover(fileSession)}
+          >
+            {t('files.reconnect')}
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <div className="files-session-progress" role="status" aria-live="polite">
@@ -2256,15 +2578,60 @@ function FileSessionProgress({
       </div>
       <div className="files-session-progress-footer">
         <span>{t(`files.sessionStatus.${fileSession.status}`)}</span>
-        {message ? <small>{message}</small> : null}
-        {failed ? (
-          <Button className="secondary-button" size="small" onClick={() => void onReconnect(fileSession.id)}>
+        {recovering ? (
+          <Button
+            className="secondary-button"
+            size="small"
+            loading
+            disabled
+          >
             {t('files.reconnect')}
           </Button>
         ) : null}
       </div>
     </div>
   )
+}
+
+function fileSessionRecoveryStatusCopy(
+  fileSession: FileSession,
+  recovering: boolean,
+  t: ReturnType<typeof useTranslation>['t'],
+) {
+  if (recovering) {
+    return {
+      title: t('workbench.files.recovering'),
+      detail: t('workbench.files.recoveringHint'),
+    }
+  }
+  if (isTerminatedFileSession(fileSession)) {
+    return {
+      title: t('workbench.files.sessionExpired'),
+      detail: t('workbench.files.sessionExpiredHint'),
+    }
+  }
+  if (fileSession.status === 'disconnected') {
+    return {
+      title: t('workbench.files.fileDisconnected'),
+      detail: t('workbench.files.fileDisconnectedHint'),
+    }
+  }
+  if (fileSession.status === 'failed') {
+    return {
+      title: t('workbench.files.connectFailed'),
+      detail: fileSessionRecoveryErrorMessage(fileSession.error_code || '', t),
+    }
+  }
+  if (fileSession.status === 'waiting_trust') {
+    return {
+      title: t('workbench.files.waitingTrust'),
+      detail: t('workbench.files.waitingTrustHint'),
+    }
+  }
+  return {
+    title: t('workbench.files.connecting'),
+    detail: t('workbench.files.preparing'),
+  }
 }
 
 function fileSessionPhaseState(fileSession: FileSession, index: number, currentIndex: number) {
@@ -2311,4 +2678,48 @@ function isTransferTerminal(task: TransferTask) {
 
 function shortId(id: string) {
   return id.length > 6 ? id.slice(-6) : id
+}
+
+function fileSessionRecoveryErrorCode(error: unknown) {
+  if (error && typeof error === 'object' && 'code' in error) {
+    const code = (error as { code?: unknown }).code
+    if (typeof code === 'string' && code) {
+      return code
+    }
+  }
+  return 'SFTP_RECONNECT_FAILED'
+}
+
+function fileSessionRecoveryErrorMessage(
+  errorCode: string,
+  t: ReturnType<typeof useTranslation>['t'],
+) {
+  switch (errorCode) {
+    case 'SFTP_FILE_SESSION_NOT_FOUND':
+      return t('workbench.files.sessionExpiredHint')
+    case 'REQUEST_TIMEOUT':
+    case 'SFTP_CONNECT_TIMEOUT':
+      return t('workbench.files.recoveryTimeout')
+    case 'SFTP_SOURCE_SESSION_NOT_FOUND':
+    case 'SFTP_SOURCE_SESSION_DISCONNECTED':
+      return t('workbench.files.recoverySourceUnavailable')
+    case 'NETWORK_ERROR':
+    case 'SFTP_CONNECT_FAILED':
+    case 'SFTP_RECONNECT_FAILED':
+      return t('workbench.files.recoveryUnavailable')
+    default:
+      return t('workbench.files.recoveryUnknown')
+  }
+}
+
+function isMissingFileSessionError(error: unknown) {
+  if (error instanceof TermousApiError) {
+    return error.code === 'SFTP_FILE_SESSION_NOT_FOUND'
+  }
+  return Boolean(
+    error
+    && typeof error === 'object'
+    && 'code' in error
+    && (error as { code?: unknown }).code === 'SFTP_FILE_SESSION_NOT_FOUND',
+  )
 }
