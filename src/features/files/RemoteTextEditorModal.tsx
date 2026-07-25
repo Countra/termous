@@ -1,4 +1,4 @@
-import { App as AntdApp, Button, Modal, Tag } from 'antd'
+import { Alert, App as AntdApp, Button, Modal, Tag } from 'antd'
 import { basicSetup } from 'codemirror'
 import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
@@ -18,7 +18,9 @@ interface RemoteTextEditorModalProps {
   api: TermousApi
   open: boolean
   disabled?: boolean
+  closing?: boolean
   fileSessionId: string
+  connectionGeneration: number
   path: string
   theme: ThemeMode
   terminalSettings: TerminalSettings
@@ -30,18 +32,31 @@ const editorLanguage = new Compartment()
 const editorTheme = new Compartment()
 const editorEditable = new Compartment()
 
-export function RemoteTextEditorModal({ api, open, disabled = false, fileSessionId, path, theme, terminalSettings, onClose, onSaved }: RemoteTextEditorModalProps) {
+export function RemoteTextEditorModal({ api, open, disabled = false, closing = false, fileSessionId, connectionGeneration, path, theme, terminalSettings, onClose, onSaved }: RemoteTextEditorModalProps) {
   const { t } = useTranslation()
   const { message, modal } = AntdApp.useApp()
   const editorHostRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
   const editorThemeMode = terminalSettings.theme_mode === 'follow_app' ? theme : terminalSettings.theme_mode
   const editorThemeModeRef = useRef<ThemeMode>(editorThemeMode)
+  const openRef = useRef(open)
+  openRef.current = open
   const disabledRef = useRef(disabled)
   disabledRef.current = disabled
+  const connectionGenerationRef = useRef(connectionGeneration)
+  const previousConnectionGenerationRef = useRef(connectionGeneration)
+  connectionGenerationRef.current = connectionGeneration
   const fileRef = useRef<RemoteTextFile | null>(null)
   const baseContentRef = useRef('')
   const loadSeqRef = useRef(0)
+  const saveSeqRef = useRef(0)
+  const loadControllerRef = useRef<AbortController | null>(null)
+  const saveControllerRef = useRef<AbortController | null>(null)
+  const loadingRef = useRef(false)
+  const dirtyRef = useRef(false)
+  const generationStaleRef = useRef(false)
+  const reloadConfirmationOpenRef = useRef(false)
+  const reloadConfirmationDestroyRef = useRef<(() => void) | null>(null)
   const saveFileRef = useRef<(force?: boolean) => void>(() => undefined)
   const savingRef = useRef(false)
   const [file, setFile] = useState<RemoteTextFile | null>(null)
@@ -49,6 +64,7 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
   const [dirty, setDirty] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [generationStale, setGenerationStale] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [operationProgress, setOperationProgress] = useState<FileOperationProgressState | null>(null)
   const {
@@ -57,6 +73,7 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
     finishOperationProgress,
     watchFileOperation,
   } = useFileOperationWatcher({ api, setOperationProgress })
+  dirtyRef.current = dirty
 
   const title = useMemo(() => {
     if (!file) {
@@ -72,14 +89,26 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
     baseContentRef.current = file?.content ?? ''
   }, [file])
 
-  const loadFile = useCallback(async () => {
-    if (!open || disabledRef.current || !fileSessionId || !path) {
+  const loadFile = useCallback(async (allowStaleGeneration = false) => {
+    if (
+      !open
+      || !openRef.current
+      || disabledRef.current
+      || !fileSessionId
+      || !path
+      || (generationStaleRef.current && !allowStaleGeneration)
+    ) {
       return
     }
     const requestSeq = loadSeqRef.current + 1
+    const requestGeneration = connectionGenerationRef.current
+    const controller = new AbortController()
     loadSeqRef.current = requestSeq
+    loadControllerRef.current?.abort()
+    loadControllerRef.current = controller
     const existingFile = fileRef.current
     cancelActiveOperation()
+    loadingRef.current = true
     setLoading(true)
     setError(null)
     clearOperationTimers()
@@ -91,7 +120,19 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
       indeterminate: true,
     })
     try {
-      const operation = await api.createFileSessionTextReadOperation(fileSessionId, path)
+      const operation = await api.createFileSessionTextReadOperation(
+        fileSessionId,
+        path,
+        controller.signal,
+      )
+      if (
+        loadSeqRef.current !== requestSeq
+        || connectionGenerationRef.current !== requestGeneration
+        || controller.signal.aborted
+      ) {
+        void api.cancelFileOperation(operation.id).catch(() => undefined)
+        return
+      }
       await watchFileOperation(
         operation,
         t('files.fileOperationReadTitle'),
@@ -99,7 +140,10 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
         t('files.fileOperationReadFailed'),
       )
       const loaded = await api.fileOperationResult<RemoteTextFile>(operation.id)
-      if (loadSeqRef.current !== requestSeq) {
+      if (
+        loadSeqRef.current !== requestSeq
+        || connectionGenerationRef.current !== requestGeneration
+      ) {
         return
       }
       clearOperationTimers()
@@ -107,8 +151,13 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
       setFile(loaded)
       setContent(loaded.content)
       setDirty(false)
+      generationStaleRef.current = false
+      setGenerationStale(false)
     } catch (loadError) {
-      if (loadSeqRef.current !== requestSeq) {
+      if (
+        loadSeqRef.current !== requestSeq
+        || connectionGenerationRef.current !== requestGeneration
+      ) {
         return
       }
       if (!existingFile) {
@@ -124,16 +173,37 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
         status: 'error',
       })
     } finally {
-      if (loadSeqRef.current === requestSeq) {
+      if (
+        loadSeqRef.current === requestSeq
+        && connectionGenerationRef.current === requestGeneration
+      ) {
+        loadingRef.current = false
         setLoading(false)
+      }
+      if (loadControllerRef.current === controller) {
+        loadControllerRef.current = null
       }
     }
   }, [api, cancelActiveOperation, clearOperationTimers, fileSessionId, finishOperationProgress, open, path, t, watchFileOperation])
 
   const saveFile = useCallback(async (force = false) => {
-    if (disabledRef.current || !file || !fileSessionId || savingRef.current) {
+    if (
+      disabledRef.current
+      || generationStaleRef.current
+      || loadingRef.current
+      || reloadConfirmationOpenRef.current
+      || !file
+      || !fileSessionId
+      || savingRef.current
+    ) {
       return
     }
+    const saveSequence = saveSeqRef.current + 1
+    const requestGeneration = connectionGenerationRef.current
+    const controller = new AbortController()
+    saveSeqRef.current = saveSequence
+    saveControllerRef.current?.abort()
+    saveControllerRef.current = controller
     cancelActiveOperation()
     savingRef.current = true
     setSaving(true)
@@ -147,16 +217,29 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
       indeterminate: true,
     })
     try {
-      const operation = await api.createFileSessionTextSaveOperation(fileSessionId, {
-        path: file.path,
-        content: currentContent(),
-        base_sha256: file.sha256,
-        base_size: file.size,
-        base_modified_at: file.modified_at,
-        line_ending: file.line_ending,
-        has_bom: file.has_bom,
-        force,
-      })
+      const operation = await api.createFileSessionTextSaveOperation(
+        fileSessionId,
+        {
+          path: file.path,
+          content: currentContent(),
+          base_sha256: file.sha256,
+          base_size: file.size,
+          base_modified_at: file.modified_at,
+          line_ending: file.line_ending,
+          has_bom: file.has_bom,
+          force,
+        },
+        controller.signal,
+      )
+      if (
+        saveSeqRef.current !== saveSequence
+        || connectionGenerationRef.current !== requestGeneration
+        || generationStaleRef.current
+        || controller.signal.aborted
+      ) {
+        void api.cancelFileOperation(operation.id).catch(() => undefined)
+        return
+      }
       await watchFileOperation(
         operation,
         t('files.fileOperationSaveTitle'),
@@ -164,6 +247,13 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
         t('files.fileOperationSaveFailed'),
       )
       const result = await api.fileOperationResult<RemoteTextSaveResult>(operation.id)
+      if (
+        saveSeqRef.current !== saveSequence
+        || connectionGenerationRef.current !== requestGeneration
+        || generationStaleRef.current
+      ) {
+        return
+      }
       setFile(result.file)
       setContent(result.file.content)
       setDirty(false)
@@ -172,6 +262,13 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
       clearOperationTimers()
       setOperationProgress(null)
     } catch (saveError) {
+      if (
+        saveSeqRef.current !== saveSequence
+        || connectionGenerationRef.current !== requestGeneration
+        || generationStaleRef.current
+      ) {
+        return
+      }
       if (saveError instanceof TermousApiError && saveError.code === 'SFTP_TEXT_CONFLICT' && !force) {
         clearOperationTimers()
         setOperationProgress(null)
@@ -195,8 +292,13 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
         }, 2600)
       }
     } finally {
-      savingRef.current = false
-      setSaving(false)
+      if (saveSeqRef.current === saveSequence) {
+        savingRef.current = false
+        setSaving(false)
+      }
+      if (saveControllerRef.current === controller) {
+        saveControllerRef.current = null
+      }
     }
   }, [api, cancelActiveOperation, clearOperationTimers, currentContent, file, fileSessionId, finishOperationProgress, message, modal, onSaved, t, watchFileOperation])
 
@@ -234,11 +336,70 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
     })
   }, [dirty, modal, onClose, t])
 
-  useEffect(() => {
-    if (open) {
-      void loadFile()
+  const requestReload = useCallback(() => {
+    if (reloadConfirmationOpenRef.current) {
+      return
     }
-  }, [loadFile, open])
+    const reload = () => {
+      void loadFile(true)
+    }
+    if (!dirty) {
+      reload()
+      return
+    }
+    reloadConfirmationOpenRef.current = true
+    const confirmation = modal.confirm({
+      title: t('files.textEditorReloadConfirmTitle'),
+      content: t('files.textEditorReloadConfirmContent'),
+      okText: t('files.textEditorReload'),
+      cancelText: t('app.cancel'),
+      className: 'confirm-modal remote-text-confirm-modal',
+      rootClassName: 'confirm-modal-wrap',
+      onOk: reload,
+      afterClose: () => {
+        reloadConfirmationOpenRef.current = false
+        reloadConfirmationDestroyRef.current = null
+      },
+    })
+    reloadConfirmationDestroyRef.current = confirmation.destroy
+  }, [dirty, loadFile, modal, t])
+
+  useEffect(() => {
+    if (previousConnectionGenerationRef.current === connectionGeneration) {
+      return
+    }
+    previousConnectionGenerationRef.current = connectionGeneration
+    loadSeqRef.current += 1
+    saveSeqRef.current += 1
+    loadControllerRef.current?.abort()
+    loadControllerRef.current = null
+    saveControllerRef.current?.abort()
+    saveControllerRef.current = null
+    cancelActiveOperation()
+    clearOperationTimers()
+    savingRef.current = false
+    loadingRef.current = false
+    setLoading(false)
+    setSaving(false)
+    setOperationProgress(null)
+    setError(null)
+    generationStaleRef.current = true
+    setGenerationStale(true)
+  }, [
+    cancelActiveOperation,
+    clearOperationTimers,
+    connectionGeneration,
+  ])
+
+  useEffect(() => {
+    if (
+      open
+      && !disabled
+      && !(generationStaleRef.current && dirtyRef.current)
+    ) {
+      void loadFile(generationStaleRef.current)
+    }
+  }, [connectionGeneration, disabled, loadFile, open])
 
   useEffect(() => {
     if (open) {
@@ -247,6 +408,19 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
     editorViewRef.current?.destroy()
     editorViewRef.current = null
     loadSeqRef.current++
+    saveSeqRef.current++
+    loadControllerRef.current?.abort()
+    loadControllerRef.current = null
+    saveControllerRef.current?.abort()
+    saveControllerRef.current = null
+    savingRef.current = false
+    loadingRef.current = false
+    reloadConfirmationOpenRef.current = false
+    const destroyReloadConfirmation = reloadConfirmationDestroyRef.current
+    reloadConfirmationDestroyRef.current = null
+    destroyReloadConfirmation?.()
+    setLoading(false)
+    setSaving(false)
     cancelActiveOperation()
     clearOperationTimers()
     setOperationProgress(null)
@@ -255,6 +429,17 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
   useEffect(
     () => () => {
       loadSeqRef.current++
+      saveSeqRef.current++
+      loadControllerRef.current?.abort()
+      loadControllerRef.current = null
+      saveControllerRef.current?.abort()
+      saveControllerRef.current = null
+      savingRef.current = false
+      loadingRef.current = false
+      reloadConfirmationOpenRef.current = false
+      const destroyReloadConfirmation = reloadConfirmationDestroyRef.current
+      reloadConfirmationDestroyRef.current = null
+      destroyReloadConfirmation?.()
       editorViewRef.current?.destroy()
       editorViewRef.current = null
       cancelActiveOperation()
@@ -363,7 +548,7 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
       rootClassName="termous-modal-root remote-text-editor-root"
       onCancel={requestClose}
     >
-      <section className={`remote-text-editor is-editor-${editorThemeMode}`} aria-busy={disabled || undefined}>
+      <section className={`remote-text-editor is-editor-${editorThemeMode}`} aria-busy={loading || saving || undefined}>
         <header className="remote-text-editor-header">
           <div className="remote-text-editor-title">
             <span className="remote-text-editor-icon">
@@ -375,7 +560,12 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
             </div>
           </div>
           <div className="remote-text-editor-meta">
-            {disabled ? <Tag color="processing">{t('files.sessionStatus.closing')}</Tag> : null}
+            {closing ? (
+              <Tag color="processing">{t('files.sessionStatus.closing')}</Tag>
+            ) : disabled ? (
+              <Tag color="warning">{t('files.sessionStatus.disconnected')}</Tag>
+            ) : null}
+            {generationStale ? <Tag color="warning">{t('files.textEditorConnectionChangedShort')}</Tag> : null}
             {file ? (
               <>
                 <Tag>{file.language || t('files.textEditorPlainText')}</Tag>
@@ -387,7 +577,26 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
           </div>
         </header>
 
-        <div className="remote-text-editor-body">
+        <div className={`remote-text-editor-body ${generationStale ? 'has-connection-alert' : ''}`}>
+          {generationStale ? (
+            <Alert
+              type="warning"
+              showIcon
+              className="remote-text-editor-connection-alert"
+              title={t('files.textEditorConnectionChanged')}
+              description={error || t('files.textEditorConnectionChangedHint')}
+              action={(
+                <Button
+                  type="text"
+                  size="small"
+                  disabled={disabled || loading || saving}
+                  onClick={requestReload}
+                >
+                  {t('files.textEditorReload')}
+                </Button>
+              )}
+            />
+          ) : null}
           {operationProgress ? (
             <div className="remote-text-editor-operation-toast">
               <FileOperationProgress
@@ -412,7 +621,7 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
             <div className="remote-text-editor-state is-error">
               <AlertTriangle size={24} aria-hidden="true" />
               <strong>{error}</strong>
-              <Button className="secondary-button" disabled={disabled} icon={<RefreshCw size={14} />} onClick={() => void loadFile()}>
+              <Button className="secondary-button" disabled={disabled} icon={<RefreshCw size={14} />} onClick={requestReload}>
                 {t('files.textEditorReload')}
               </Button>
             </div>
@@ -433,7 +642,7 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
             <span>{t('files.textEditorHint')}</span>
           </div>
           <div className="remote-text-editor-actions">
-            <Button className="secondary-button" disabled={disabled || loading || saving} onClick={() => void loadFile()}>
+            <Button className="secondary-button" disabled={disabled || loading || saving} onClick={requestReload}>
               {t('files.textEditorReload')}
             </Button>
             <Button className="secondary-button" disabled={saving} onClick={requestClose}>
@@ -442,7 +651,7 @@ export function RemoteTextEditorModal({ api, open, disabled = false, fileSession
             <Button
               type="primary"
               className="primary-button"
-              disabled={disabled || !file || loading || !dirty}
+              disabled={disabled || generationStale || !file || loading || !dirty}
               loading={saving}
               icon={<Save size={14} />}
               onClick={() => void saveFile(false)}

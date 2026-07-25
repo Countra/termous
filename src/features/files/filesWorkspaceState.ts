@@ -1,4 +1,5 @@
 import type {
+  FileSession,
   RemoteDirectoryListing,
   RemoteFileEntry,
 } from '../../types/domain.ts'
@@ -64,8 +65,24 @@ export interface RemoteDirectoryViewState {
   requestSequence: number
   error: string
   lastLoadedAt: number | null
+  listingConnectionGeneration: number | null
   activeRequest: FilesWorkspaceDirectoryRequest | null
   failedRequest: FilesWorkspaceFailedDirectoryRequest | null
+}
+
+/**
+ * 目录结果可以写入所属会话缓存，但只有仍属于当前活动连接时才能驱动当前页面行为。
+ */
+export function isActiveFilesWorkspaceDirectoryResult(
+  requestSession: Pick<FileSession, 'id' | 'connection_generation'>,
+  activeSessionId: string,
+  currentSession: Pick<FileSession, 'id' | 'status' | 'connection_generation'> | undefined,
+) {
+  return currentSession?.id === requestSession.id
+    && activeSessionId === requestSession.id
+    && currentSession.status === 'connected'
+    && (currentSession.connection_generation ?? 0)
+      === (requestSession.connection_generation ?? 0)
 }
 
 export type FilesWorkspaceRuntimeState = Record<string, RemoteDirectoryViewState>
@@ -93,8 +110,9 @@ export interface FilesWorkspaceSelectionModifiers {
 }
 
 export interface FilesWorkspaceLayoutPreferences {
-  inspectorWidth: number
-  transferDockHeight: number
+  bookmarkRailExpanded: boolean
+  sidePanelWidth: number
+  bottomDrawerHeight: number
   columnWidths: {
     name: number
     size: number
@@ -115,9 +133,20 @@ export const filesWorkspaceColumnWidthBounds = {
   permissions: { min: 82, max: 180 },
 } as const
 
+export const filesWorkspaceSidePanelWidthBounds = {
+  min: 300,
+  max: 440,
+} as const
+
+export const filesWorkspaceBottomDrawerHeightBounds = {
+  min: 260,
+  max: 420,
+} as const
+
 export const defaultFilesWorkspaceLayoutPreferences: FilesWorkspaceLayoutPreferences = {
-  inspectorWidth: 352,
-  transferDockHeight: 260,
+  bookmarkRailExpanded: true,
+  sidePanelWidth: 352,
+  bottomDrawerHeight: 260,
   columnWidths: {
     name: 300,
     size: 84,
@@ -156,6 +185,7 @@ export function createRemoteDirectoryViewState(
     requestSequence: 0,
     error: '',
     lastLoadedAt: null,
+    listingConnectionGeneration: null,
     activeRequest: null,
     failedRequest: null,
   }
@@ -223,6 +253,7 @@ export function resolveFilesWorkspaceAutomaticDirectoryRequest(
   now: number,
   cacheMaxAgeMs: number,
   cacheDirty: boolean,
+  connectionGeneration?: number,
 ): FilesWorkspaceAutomaticDirectoryRequest | null {
   if (state.directoryStatus === 'failed' && state.failedRequest !== null) {
     return null
@@ -235,7 +266,9 @@ export function resolveFilesWorkspaceAutomaticDirectoryRequest(
   }
   const cacheFresh = state.lastLoadedAt !== null
     && now - state.lastLoadedAt <= cacheMaxAgeMs
-  if (cacheFresh && !cacheDirty) {
+  const cacheBelongsToCurrentConnection = connectionGeneration === undefined
+    || state.listingConnectionGeneration === connectionGeneration
+  if (cacheFresh && !cacheDirty && cacheBelongsToCurrentConnection) {
     return null
   }
   return {
@@ -312,6 +345,7 @@ export function completeFilesWorkspaceDirectoryRequest(
   requestSequence: number,
   listing: RemoteDirectoryListing,
   loadedAt: number,
+  connectionGeneration: number | null = state.listingConnectionGeneration,
 ): RemoteDirectoryViewState {
   if (!isCurrentDirectoryRequest(state, requestSequence)) {
     return state
@@ -338,6 +372,7 @@ export function completeFilesWorkspaceDirectoryRequest(
       directoryStatus: 'idle',
       error: '',
       lastLoadedAt: loadedAt,
+      listingConnectionGeneration: connectionGeneration,
       activeRequest: null,
       failedRequest: null,
     }
@@ -362,6 +397,7 @@ export function completeFilesWorkspaceDirectoryRequest(
     directoryStatus: 'idle',
     error: '',
     lastLoadedAt: loadedAt,
+    listingConnectionGeneration: connectionGeneration,
     activeRequest: null,
     failedRequest: null,
   }
@@ -653,18 +689,45 @@ export function parseFilesWorkspaceLayoutPreferences(
       && parsedColumnWidths.modifiedAt === 180
       && parsedColumnWidths.permissions === 120
     )
+    const defaultSidePanelWidth = defaultFilesWorkspaceLayoutPreferences.sidePanelWidth
+    const currentSidePanelWidth = (
+      typeof value.sidePanelWidth === 'number' && Number.isFinite(value.sidePanelWidth)
+        ? value.sidePanelWidth
+        : undefined
+    )
+    const legacyInspectorWidth = (
+      typeof value.inspectorWidth === 'number' && Number.isFinite(value.inspectorWidth)
+        ? value.inspectorWidth
+        : undefined
+    )
+    const legacyBookmarkWidth = (
+      typeof value.bookmarkSidebarWidth === 'number' && Number.isFinite(value.bookmarkSidebarWidth)
+        ? value.bookmarkSidebarWidth
+        : undefined
+    )
+    // 旧偏好曾分别保存两套宽度；优先迁移实际定制值，避免默认值覆盖用户设置。
+    const legacySidePanelWidth = (
+      legacyBookmarkWidth !== undefined && legacyBookmarkWidth !== defaultSidePanelWidth
+        ? legacyBookmarkWidth
+        : legacyInspectorWidth !== undefined && legacyInspectorWidth !== defaultSidePanelWidth
+          ? legacyInspectorWidth
+          : legacyBookmarkWidth ?? legacyInspectorWidth
+    )
     return {
-      inspectorWidth: boundedNumberOrDefault(
-        value.inspectorWidth,
-        280,
-        440,
-        defaultFilesWorkspaceLayoutPreferences.inspectorWidth,
+      bookmarkRailExpanded: typeof value.bookmarkRailExpanded === 'boolean'
+        ? value.bookmarkRailExpanded
+        : defaultFilesWorkspaceLayoutPreferences.bookmarkRailExpanded,
+      sidePanelWidth: boundedNumberOrDefault(
+        currentSidePanelWidth ?? legacySidePanelWidth,
+        filesWorkspaceSidePanelWidthBounds.min,
+        filesWorkspaceSidePanelWidthBounds.max,
+        defaultSidePanelWidth,
       ),
-      transferDockHeight: boundedNumberOrDefault(
-        value.transferDockHeight,
-        180,
-        420,
-        defaultFilesWorkspaceLayoutPreferences.transferDockHeight,
+      bottomDrawerHeight: boundedNumberOrDefault(
+        value.bottomDrawerHeight ?? value.transferDockHeight,
+        filesWorkspaceBottomDrawerHeightBounds.min,
+        filesWorkspaceBottomDrawerHeightBounds.max,
+        defaultFilesWorkspaceLayoutPreferences.bottomDrawerHeight,
       ),
       // 开发期旧默认值不属于用户定制，直接收敛到更紧凑的新默认宽度。
       columnWidths: usesPreviousDefaultWidths

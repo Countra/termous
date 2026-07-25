@@ -1058,7 +1058,10 @@ function WorkbenchFilesPanelContent({
           <RemoteTextEditorModal
             api={api}
             open
+            disabled={closing || !files.connected}
+            closing={closing}
             fileSessionId={files.fileSession.id}
+            connectionGeneration={files.fileSession.connection_generation ?? 0}
             path={textEditorPath}
             theme={theme}
             terminalSettings={data.settings.terminal}

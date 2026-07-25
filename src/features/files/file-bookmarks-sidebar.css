@@ -1,0 +1,680 @@
+.files-bookmarks-sidebar-content {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--text-secondary);
+}
+
+.files-bookmarks-sidebar-heading,
+.files-bookmarks-sidebar-editor-heading {
+  display: grid;
+  min-height: 42px;
+  flex: 0 0 42px;
+  align-items: center;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.files-bookmarks-sidebar-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 0 7px 0 12px;
+}
+
+.files-bookmarks-sidebar-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.files-bookmarks-sidebar-title > svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.files-bookmarks-sidebar-title strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-bookmarks-sidebar-title small {
+  min-width: 20px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 680;
+}
+
+.files-bookmarks-sidebar-heading-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.files-bookmarks-sidebar-action.ant-btn,
+.files-bookmarks-sidebar-more.ant-btn {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0;
+  box-shadow: none;
+}
+
+.files-bookmarks-sidebar-action.ant-btn:not(:disabled):hover,
+.files-bookmarks-sidebar-action.ant-btn.is-active,
+.files-bookmarks-sidebar-more.ant-btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface-subtle));
+  color: var(--text-primary);
+}
+
+.files-bookmarks-sidebar-action.ant-btn.is-active {
+  color: var(--accent);
+}
+
+.files-bookmarks-sidebar-search {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 7px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  padding: 8px 10px;
+}
+
+.files-bookmarks-sidebar-search .ant-input-affix-wrapper {
+  height: 32px;
+  border-color: color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--input-bg) 88%, transparent);
+  box-shadow: none;
+}
+
+.files-bookmarks-sidebar-search .ant-input-affix-wrapper:hover,
+.files-bookmarks-sidebar-search .ant-input-affix-wrapper-focused {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+}
+
+.files-bookmarks-sidebar-search .ant-input-prefix {
+  color: var(--text-muted);
+}
+
+.files-bookmarks-sidebar-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  outline: none;
+  scrollbar-color: var(--termous-scrollbar-thumb) var(--termous-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+.files-bookmarks-sidebar-list > .ant-empty {
+  display: grid;
+  min-height: 210px;
+  place-content: center;
+  color: var(--text-muted);
+  padding: 20px;
+}
+
+.files-bookmarks-sidebar-list > .ant-empty .ant-empty-description {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.files-bookmarks-sidebar-list > .ant-empty .ant-btn {
+  margin-top: 8px;
+}
+
+.files-bookmarks-sidebar-search-summary {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+  color: var(--text-muted);
+  padding: 0 11px;
+  font-size: 10px;
+  font-weight: 660;
+}
+
+.files-bookmarks-sidebar-search-summary small {
+  font-size: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.files-bookmarks-sidebar-footer {
+  display: flex;
+  min-height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  color: var(--text-muted);
+  padding: 0 10px;
+  font-size: 10px;
+}
+
+.files-bookmarks-sidebar-footer .is-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  font-weight: 680;
+}
+
+.files-bookmarks-sidebar-group {
+  position: relative;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+}
+
+.files-bookmarks-sidebar-group.is-dragging {
+  opacity: 0.5;
+}
+
+.files-bookmarks-sidebar-group::before {
+  position: absolute;
+  z-index: 3;
+  right: 7px;
+  left: 7px;
+  height: 2px;
+  background: var(--accent);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+}
+
+.files-bookmarks-sidebar-group.is-drop-before::before {
+  top: -1px;
+  opacity: 1;
+}
+
+.files-bookmarks-sidebar-group.is-drop-after::before {
+  bottom: -1px;
+  opacity: 1;
+}
+
+.files-bookmarks-sidebar-group-head {
+  display: grid;
+  min-height: 36px;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 2px;
+  background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
+  padding: 3px 6px 3px 8px;
+}
+
+.files-bookmarks-sidebar-group-head.has-sort-handle {
+  grid-template-columns: 22px minmax(0, 1fr) 28px;
+}
+
+.files-bookmarks-sidebar-group-toggle {
+  display: grid;
+  min-width: 0;
+  height: 29px;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0 5px;
+  text-align: left;
+}
+
+.files-bookmarks-sidebar-group-toggle:not(:disabled):hover {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.files-bookmarks-sidebar-group-toggle:disabled {
+  cursor: default;
+}
+
+.files-bookmarks-sidebar-group-toggle span {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-bookmarks-sidebar-group-toggle small {
+  min-width: 18px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 660;
+  text-align: right;
+}
+
+.files-bookmarks-sidebar-group-body {
+  display: grid;
+  min-height: 0;
+}
+
+.files-bookmarks-sidebar-group.is-bookmark-drop-target .files-bookmarks-sidebar-group-head {
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--surface-subtle));
+}
+
+.files-bookmarks-sidebar-group-empty {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.files-bookmarks-sidebar-row {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 49px;
+  grid-template-columns: 22px minmax(0, 1fr) 30px;
+  align-items: stretch;
+  border-top: 1px solid color-mix(in srgb, var(--border) 42%, transparent);
+  background: transparent;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
+}
+
+.files-bookmarks-sidebar-row:hover,
+.files-bookmarks-sidebar-row:focus-within {
+  background: color-mix(in srgb, var(--row-hover-bg) 86%, transparent);
+}
+
+.files-bookmarks-sidebar-row.is-current {
+  background: color-mix(in srgb, var(--accent-soft) 46%, transparent);
+}
+
+.files-bookmarks-sidebar-row.is-current:hover,
+.files-bookmarks-sidebar-row.is-current:focus-within {
+  background: color-mix(in srgb, var(--accent-soft) 62%, var(--row-hover-bg));
+}
+
+.files-bookmarks-sidebar-row.is-loading {
+  background: color-mix(in srgb, var(--accent-soft) 52%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.files-bookmarks-sidebar-row.is-loading .files-bookmarks-sidebar-more.ant-btn {
+  opacity: 0.28;
+}
+
+.files-bookmarks-sidebar-row.is-dragging {
+  opacity: 0.46;
+}
+
+.files-bookmarks-sidebar-row::before {
+  position: absolute;
+  z-index: 3;
+  right: 7px;
+  left: 7px;
+  height: 2px;
+  background: var(--accent);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+}
+
+.files-bookmarks-sidebar-row.is-drop-before::before {
+  top: -1px;
+  opacity: 1;
+}
+
+.files-bookmarks-sidebar-row.is-drop-after::before {
+  bottom: -1px;
+  opacity: 1;
+}
+
+.files-bookmarks-sidebar-grip {
+  display: grid;
+  width: 22px;
+  height: 100%;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: grab;
+  opacity: 0.32;
+  padding: 0;
+  transition:
+    color 140ms ease,
+    opacity 140ms ease;
+}
+
+.files-bookmarks-sidebar-grip:hover,
+.files-bookmarks-sidebar-grip:focus-visible {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.files-bookmarks-sidebar-grip:active {
+  cursor: grabbing;
+}
+
+.files-bookmarks-sidebar-row-main {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 5px 5px 5px 10px;
+  text-align: left;
+}
+
+.files-bookmarks-sidebar-row:hover .files-bookmarks-sidebar-grip,
+.files-bookmarks-sidebar-row:focus-within .files-bookmarks-sidebar-grip,
+.files-bookmarks-sidebar-group-head:hover .files-bookmarks-sidebar-grip,
+.files-bookmarks-sidebar-group-head:focus-within .files-bookmarks-sidebar-grip {
+  opacity: 0.88;
+}
+
+.files-bookmarks-sidebar-grip:disabled {
+  cursor: default;
+  opacity: 0.18;
+}
+
+.files-bookmarks-sidebar-row-main:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.files-bookmarks-sidebar-row-icon {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  color: var(--text-muted);
+}
+
+.files-bookmarks-sidebar-row.is-current .files-bookmarks-sidebar-row-icon {
+  color: var(--accent);
+}
+
+.files-bookmarks-sidebar-row-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.files-bookmarks-sidebar-row-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.files-bookmarks-sidebar-row-title strong,
+.files-bookmarks-sidebar-row-path,
+.files-bookmarks-sidebar-row-group {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-bookmarks-sidebar-row-title strong {
+  color: var(--text-primary);
+  font-size: 11.5px;
+  font-weight: 690;
+}
+
+.files-bookmarks-sidebar-row-title small {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.files-bookmarks-sidebar-row-path {
+  color: var(--text-muted);
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 10px;
+}
+
+.files-bookmarks-sidebar-row-group {
+  color: color-mix(in srgb, var(--accent) 64%, var(--text-muted));
+  font-size: 9px;
+}
+
+.files-bookmarks-sidebar-more.ant-btn {
+  align-self: center;
+  opacity: 0.38;
+}
+
+.files-bookmarks-sidebar-row:hover .files-bookmarks-sidebar-more.ant-btn,
+.files-bookmarks-sidebar-row:focus-within .files-bookmarks-sidebar-more.ant-btn,
+.files-bookmarks-sidebar-group-head:hover .files-bookmarks-sidebar-more.ant-btn,
+.files-bookmarks-sidebar-group-head:focus-within .files-bookmarks-sidebar-more.ant-btn {
+  opacity: 1;
+}
+
+.files-bookmarks-sidebar button:focus-visible,
+.files-bookmarks-sidebar [role="separator"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 64%, transparent);
+  outline-offset: -2px;
+}
+
+.files-bookmarks-sidebar .is-spinning {
+  animation: files-bookmarks-sidebar-spin 0.82s linear infinite;
+}
+
+.files-bookmarks-sidebar-delete {
+  display: grid;
+  min-height: 70px;
+  align-content: center;
+  gap: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--danger) 24%, var(--border));
+  background: color-mix(in srgb, var(--danger) 6%, var(--surface));
+  padding: 8px 10px;
+}
+
+.files-bookmarks-sidebar-delete > span:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.files-bookmarks-sidebar-delete strong,
+.files-bookmarks-sidebar-delete small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-bookmarks-sidebar-delete strong {
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.files-bookmarks-sidebar-delete small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.files-bookmarks-sidebar-delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.files-bookmarks-sidebar-delete-actions .ant-btn {
+  height: 27px;
+  border-radius: 6px;
+  font-size: 10px;
+}
+
+.files-bookmarks-sidebar-editor {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.files-bookmarks-sidebar-editor-heading {
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  gap: 5px;
+  padding: 0 6px;
+}
+
+.files-bookmarks-sidebar-editor-heading > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.files-bookmarks-sidebar-editor-heading > span svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.files-bookmarks-sidebar-editor-heading strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-bookmarks-sidebar-editor-body {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  align-content: start;
+  gap: 16px;
+  overflow: auto;
+  padding: 18px 15px 24px;
+}
+
+.files-bookmarks-sidebar-editor-intro {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 2px;
+}
+
+.files-bookmarks-sidebar-editor-intro strong {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 740;
+}
+
+.files-bookmarks-sidebar-editor-intro span {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.files-bookmarks-sidebar-editor-body label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 660;
+}
+
+.files-bookmarks-sidebar-editor-body .ant-input,
+.files-bookmarks-sidebar-editor-body .ant-select-selector {
+  min-height: 36px !important;
+  border-color: color-mix(in srgb, var(--border) 88%, transparent) !important;
+  border-radius: 8px !important;
+  background: color-mix(in srgb, var(--input-bg) 88%, var(--surface)) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+.files-bookmarks-sidebar-editor-body .ant-input:hover,
+.files-bookmarks-sidebar-editor-body .ant-input:focus,
+.files-bookmarks-sidebar-editor-body .ant-select:hover .ant-select-selector,
+.files-bookmarks-sidebar-editor-body .ant-select-focused .ant-select-selector {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border)) !important;
+}
+
+.files-bookmarks-sidebar-editor-body .ant-select {
+  width: 100%;
+}
+
+.files-bookmarks-sidebar-editor-footer {
+  display: flex;
+  min-height: 54px;
+  flex: 0 0 54px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  padding: 8px 10px;
+}
+
+.files-bookmarks-sidebar-editor-footer .ant-btn {
+  min-width: 72px;
+  height: 32px;
+  border-radius: 7px;
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 660;
+}
+
+.files-bookmarks-sidebar-menu.ant-dropdown .ant-dropdown-menu {
+  min-width: 172px;
+}
+
+.files-bookmarks-sidebar-menu .ant-dropdown-menu-item-icon {
+  color: color-mix(in srgb, var(--accent) 76%, var(--text-secondary));
+}
+
+.files-bookmarks-sidebar-menu .ant-dropdown-menu-item-danger {
+  color: var(--danger) !important;
+}
+
+.files-bookmarks-sidebar-menu .ant-dropdown-menu-item-danger:hover,
+.files-bookmarks-sidebar-menu .ant-dropdown-menu-item-danger.ant-dropdown-menu-item-active {
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-strong)) !important;
+  color: var(--danger) !important;
+}
+
+.files-bookmarks-sidebar-menu .ant-dropdown-menu-item:active {
+  transform: translateY(1px);
+}
+
+@keyframes files-bookmarks-sidebar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .files-bookmarks-sidebar-row,
+  .files-bookmarks-sidebar {
+    transition: none;
+  }
+
+  .files-bookmarks-sidebar .is-spinning {
+    animation: none;
+  }
+
+}

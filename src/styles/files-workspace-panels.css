@@ -82,14 +82,22 @@
   animation: files-skeleton 1.45s ease-in-out infinite;
 }
 
-.files-inspector {
+.files-side-panel {
   position: relative;
-  width: var(--files-inspector-width);
-  min-width: var(--files-inspector-width);
+  display: flex;
+  width: var(--files-side-panel-width);
+  min-width: var(--files-side-panel-width);
   min-height: 0;
+  flex: 0 0 var(--files-side-panel-width);
+  flex-direction: column;
   overflow: hidden;
-  border-left: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-strong) 80%, var(--surface));
+  border-left: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 84%, var(--surface));
+  color: var(--text-secondary);
+}
+
+.files-side-panel.is-docked {
+  overflow: visible;
 }
 
 .files-panel-heading {
@@ -118,69 +126,47 @@
   padding: 12px;
 }
 
-.files-inspector-resize-edge,
-.files-transfer-resize-edge {
+.files-side-panel-resize-edge {
   position: absolute;
-  z-index: 3;
-}
-
-.files-inspector-resize-edge {
+  z-index: 5;
   top: 0;
+  left: -8px;
   bottom: 0;
-  left: -4px;
   width: 8px;
+  outline: none;
   cursor: col-resize;
+  touch-action: none;
 }
 
-.files-transfer-resize-edge {
-  top: -4px;
+.files-side-panel-resize-edge::after {
+  position: absolute;
+  top: 0;
   right: 0;
-  left: 0;
-  height: 8px;
-  cursor: row-resize;
+  bottom: 0;
+  width: 2px;
+  background: color-mix(in srgb, var(--accent) 56%, var(--border));
+  box-shadow: none;
+  content: "";
+  opacity: 0;
+  transform: scaleY(0.7);
+  transition:
+    opacity 150ms ease,
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.files-locations-drawer {
-  position: absolute;
-  z-index: 42;
-  top: 53px;
-  bottom: 30px;
-  left: 0;
-  display: flex;
-  width: min(352px, calc(100% - 24px));
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-  border-right: 1px solid var(--border);
-  border-radius: 0 10px 10px 0;
-  background: color-mix(in srgb, var(--surface-strong) 96%, transparent);
-  box-shadow: 18px 0 42px color-mix(in srgb, var(--app-bg) 58%, transparent);
-  animation: files-drawer-in 0.2s cubic-bezier(0.22, 0.82, 0.32, 1);
+.files-side-panel-resize-edge:hover::after,
+.files-side-panel-resize-edge:focus-visible::after,
+body.is-panel-resizing .files-side-panel-resize-edge::after {
+  opacity: 1;
+  transform: scaleY(1);
 }
 
-.files-locations-scrim {
-  position: absolute;
-  z-index: 41;
-  inset: 53px 0 30px;
-  display: block;
-  border: 0;
-  background: transparent;
-}
-
-.files-locations-tabs,
 .files-transfer-scope {
   display: flex;
   align-items: center;
   gap: 3px;
 }
 
-.files-locations-tabs {
-  flex: 0 0 auto;
-  border-bottom: 1px solid var(--border);
-  padding: 7px 9px;
-}
-
-.files-locations-tabs button,
 .files-transfer-scope button {
   display: inline-flex;
   height: 29px;
@@ -196,52 +182,24 @@
   font-weight: 650;
 }
 
-.files-locations-tabs button:hover,
 .files-transfer-scope button:hover {
   background: var(--surface-subtle);
   color: var(--text-primary);
 }
 
-.files-locations-tabs button.is-active,
 .files-transfer-scope button.is-active {
   background: var(--accent-soft);
   color: var(--accent);
 }
 
-.files-locations-content {
-  min-height: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
-}
-
-.files-locations-content .files-bookmarks-panel {
-  height: 100%;
-  overflow: auto;
-  padding: 10px;
-}
-
-.files-local-path-panel.is-embedded {
+.files-transfer-dock {
+  display: flex;
   width: 100%;
   height: 100%;
   min-height: 0;
-  overflow: auto;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 10px;
-}
-
-.files-transfer-dock {
-  position: relative;
-  display: flex;
-  height: var(--files-transfer-dock-height);
-  min-height: 180px;
-  max-height: 420px;
-  flex: 0 0 var(--files-transfer-dock-height);
+  flex: 1 1 auto;
   flex-direction: column;
   overflow: hidden;
-  border-top: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-strong) 90%, var(--surface));
 }
 
@@ -251,30 +209,58 @@
 }
 
 .files-status-bar {
-  display: grid;
-  min-height: 29px;
-  flex: 0 0 29px;
-  grid-template-columns: minmax(120px, 1fr) auto minmax(160px, 1fr);
+  display: flex;
+  min-height: var(--files-status-bar-height);
+  flex: 0 0 var(--files-status-bar-height);
   align-items: center;
-  gap: 14px;
+  gap: 8px;
   border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: color-mix(in srgb, var(--chrome-bg) 86%, transparent);
   color: var(--text-muted);
-  padding: 0 10px;
+  padding: 0 0 0 10px;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
 
+.files-status-overview {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 14px;
+  overflow: hidden;
+}
+
+.files-status-count {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
 .files-status-connection {
   display: inline-flex;
+  min-width: 0;
   align-items: center;
   gap: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.files-status-actions {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex: 0 1 auto;
+  align-items: stretch;
+  margin-left: auto;
 }
 
 .files-transfer-summary {
   display: inline-flex;
-  min-width: 0;
+  min-width: 164px;
+  height: 100%;
+  flex: 0 1 auto;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
@@ -283,13 +269,20 @@
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 3px 0;
+  padding: 0 12px;
   font-size: 10px;
   text-overflow: ellipsis;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
   white-space: nowrap;
 }
 
-.files-transfer-summary:hover,
+.files-transfer-summary:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
 .files-transfer-summary.is-active {
   color: var(--text-primary);
 }
@@ -319,17 +312,6 @@
   }
 }
 
-@keyframes files-drawer-in {
-  from {
-    opacity: 0;
-    transform: translateX(-18px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
 @keyframes files-status-pulse {
   0%,
   100% {
@@ -340,14 +322,42 @@
   }
 }
 
+@keyframes files-side-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 @media (max-width: 1279px) {
-  .files-inspector {
+  .files-side-panel {
     position: absolute;
     z-index: 34;
     top: 0;
     right: 0;
     bottom: 0;
+    width: min(var(--files-side-panel-width), calc(100% - 44px));
+    min-width: min(var(--files-side-panel-width), calc(100% - 44px));
+    flex-basis: auto;
     box-shadow: -18px 0 42px color-mix(in srgb, var(--app-bg) 58%, transparent);
+    animation: files-side-panel-enter 170ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .files-side-panel-resize-edge {
+    display: none;
+  }
+}
+
+@media (max-width: 699px) {
+  .files-side-panel {
+    width: 100%;
+    min-width: 100%;
+    border-left: 0;
   }
 }
 
@@ -375,17 +385,16 @@
     display: inline-flex;
   }
 
-  .files-locations-scrim {
-    background: color-mix(in srgb, var(--app-bg) 58%, transparent);
-    backdrop-filter: blur(1px);
-  }
-
   .files-status-bar {
-    grid-template-columns: minmax(100px, 1fr) auto;
+    gap: 4px;
   }
 
   .files-status-connection {
     display: none;
+  }
+
+  .files-status-actions {
+    flex: 0 1 min(58vw, 480px);
   }
 }
 
@@ -409,15 +418,46 @@
   }
 
   .files-status-bar {
-    grid-template-columns: minmax(0, 1fr) auto;
+    padding-left: 8px;
   }
 
-  .files-transfer-summary span:nth-of-type(n + 2) {
+  .files-status-overview {
+    flex: 0 0 auto;
+  }
+
+  .files-status-actions {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .files-transfer-summary {
+    width: 36px;
+    min-width: 36px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .files-transfer-summary span {
     display: none;
   }
 }
 
+@media (max-width: 620px) {
+  .files-status-overview {
+    display: none;
+  }
+
+  .files-status-actions {
+    width: 100%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .files-side-panel {
+    animation: none !important;
+  }
+
+  .files-side-panel-resize-edge::after,
   .files-path-progress::after,
   .files-directory-skeleton-row span,
   .files-workspace-page .is-spinning,
@@ -426,10 +466,6 @@
   .files-workspace-page .file-operation-progress.is-running .file-operation-progress-icon svg,
   .file-operation-progress.is-indeterminate .file-operation-progress-bar span {
     animation: none !important;
-  }
-
-  .files-locations-drawer {
-    animation: none;
   }
 
   .file-operation-progress-bar span,

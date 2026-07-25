@@ -35,7 +35,7 @@ import {
 import {
   formatBytes,
   formatSeconds,
-  pathBase,
+  transferDisplayName,
   transferProgress,
   transferStatusClass,
 } from './fileUtils'
@@ -413,7 +413,7 @@ function TransferRow({
   const localDirectoryPath = resolveTransferLocalDirectory(task)
   const progress = transferProgress(task)
   const speed = task.speed_bytes_per_sec || task.average_speed_bytes_per_sec
-  const currentName = task.current_file || pathBase(task.source_paths[0] ?? task.target_path)
+  const currentName = transferDisplayName(task)
   const totalFiles = Math.max(0, task.total_files || task.source_paths.length)
   const completedFiles = Math.max(0, Math.min(totalFiles, task.completed_files || 0))
   const Icon = isUpload ? UploadCloud : isDownload ? DownloadCloud : Copy

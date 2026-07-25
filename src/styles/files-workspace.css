@@ -1,4 +1,5 @@
 .files-workspace-page {
+  --files-status-bar-height: 36px;
   position: relative;
   display: block;
   height: 100%;
@@ -203,6 +204,47 @@
 
 .files-path-action.ant-btn.is-error {
   color: var(--danger);
+}
+
+.files-path-action-divider {
+  width: 1px;
+  height: 16px;
+  flex: 0 0 1px;
+  margin: 0 2px;
+  background: color-mix(in srgb, var(--border) 68%, transparent);
+}
+
+.files-path-action.ant-btn.is-bookmark-rail-toggle {
+  color: var(--text-muted);
+}
+
+.files-path-action.ant-btn.is-bookmark-rail-toggle.is-active {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--accent);
+}
+
+.files-bookmark-rail-region {
+  display: grid;
+  min-height: 0;
+  flex: 0 0 46px;
+  grid-template-rows: 1fr;
+  overflow: hidden;
+  opacity: 1;
+  transition:
+    flex-basis 170ms cubic-bezier(0.16, 1, 0.3, 1),
+    grid-template-rows 170ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 120ms ease;
+}
+
+.files-bookmark-rail-region.is-collapsed {
+  flex-basis: 0;
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.files-bookmark-rail-region-content {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .files-breadcrumb-shell {
@@ -524,6 +566,17 @@
   overflow: hidden;
   outline: none;
   padding: 0;
+}
+
+.files-workspace-page.has-bookmarks-sidebar .files-table-shell,
+.files-workspace-page.has-bookmarks-sidebar .files-table,
+.files-workspace-page.has-bookmarks-sidebar .files-table .ant-spin-nested-loading,
+.files-workspace-page.has-bookmarks-sidebar .files-table .ant-spin-container,
+.files-workspace-page.has-bookmarks-sidebar .files-table .ant-table,
+.files-workspace-page.has-bookmarks-sidebar .files-table .ant-table-container,
+.files-workspace-page.has-bookmarks-sidebar .files-table .ant-table-header {
+  border-top-right-radius: 0 !important;
+  border-start-end-radius: 0 !important;
 }
 
 .files-workspace-page .files-table-shell:focus-visible {
@@ -883,6 +936,10 @@ body[data-files-resize-key="permissions"] .files-workspace-page [data-resize-key
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .files-bookmark-rail-region {
+    transition: none;
+  }
+
   .files-workspace-page > .files-drop-mask {
     animation: none;
   }

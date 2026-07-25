@@ -374,9 +374,12 @@ export class TermousApi {
     ).then(normalizeArray)
   }
 
-  localPathMappingStat(id: string, path = '') {
+  localPathMappingStat(id: string, path = '', signal?: AbortSignal) {
     const query = path ? `?${new URLSearchParams({ path }).toString()}` : ''
-    return this.request<LocalTreeEntry>(`/api/v1/local-path-mappings/${encodeURIComponent(id)}/stat${query}`)
+    return this.request<LocalTreeEntry>(
+      `/api/v1/local-path-mappings/${encodeURIComponent(id)}/stat${query}`,
+      { signal },
+    )
   }
 
   forwardProfiles() {
@@ -989,17 +992,19 @@ export class TermousApi {
     })
   }
 
-  createFileSessionTextReadOperation(fileSessionId: string, path: string) {
+  createFileSessionTextReadOperation(fileSessionId: string, path: string, signal?: AbortSignal) {
     return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text/read`, {
       method: 'POST',
       body: { path },
+      signal,
     })
   }
 
-  createFileSessionTextSaveOperation(fileSessionId: string, body: RemoteTextSaveRequest) {
+  createFileSessionTextSaveOperation(fileSessionId: string, body: RemoteTextSaveRequest, signal?: AbortSignal) {
     return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text/save`, {
       method: 'POST',
       body,
+      signal,
       timeoutMs: 90_000,
     })
   }
@@ -1164,7 +1169,13 @@ export class TermousApi {
     })
   }
 
-  createFileSessionDownloadTransfer(fileSessionId: string, remotePaths: string[], localDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+  createFileSessionDownloadTransfer(
+    fileSessionId: string,
+    remotePaths: string[],
+    localDir: string,
+    overwritePolicy: OverwritePolicy = 'rename',
+    signal?: AbortSignal,
+  ) {
     return this.request<TransferTask>('/api/v1/transfers/download', {
       method: 'POST',
       body: {
@@ -1173,6 +1184,7 @@ export class TermousApi {
         local_dir: localDir,
         overwrite_policy: overwritePolicy,
       },
+      signal,
     })
   }
 

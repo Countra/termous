@@ -6413,6 +6413,15 @@ body.is-terminal-tab-dragging * {
   background: var(--ant-modal-content-bg);
 }
 
+.remote-text-editor-body.has-connection-alert {
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.remote-text-editor-connection-alert {
+  min-width: 0;
+}
+
 .remote-text-editor-operation-toast {
   position: absolute;
   z-index: 4;

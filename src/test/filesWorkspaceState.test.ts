@@ -19,6 +19,7 @@ import {
   filesWorkspaceLayoutStorageKey,
   getFilesWorkspaceHistoryTarget,
   getFilesWorkspaceSessionState,
+  isActiveFilesWorkspaceDirectoryResult,
   parseFilesWorkspaceLayoutPreferences,
   removeFilesWorkspaceSessionState,
   resolveFilesWorkspaceAutomaticDirectoryRequest,
@@ -152,6 +153,78 @@ test('只有最新 requestSequence 能提交或失败', () => {
   assert.equal(completed.committedPath, '/two')
   assert.equal(completed.directoryStatus, 'idle')
   assert.equal(completed.lastLoadedAt, 300)
+})
+
+test('目录结果只有仍属于当前活动连接代际时才能驱动页面行为', () => {
+  const requestSession = {
+    id: 'files-1',
+    connection_generation: 4,
+  }
+  const currentSession = {
+    id: 'files-1',
+    status: 'connected' as const,
+    connection_generation: 4,
+  }
+
+  assert.equal(
+    isActiveFilesWorkspaceDirectoryResult(requestSession, 'files-1', currentSession),
+    true,
+  )
+  assert.equal(
+    isActiveFilesWorkspaceDirectoryResult(requestSession, 'files-2', currentSession),
+    false,
+  )
+  assert.equal(
+    isActiveFilesWorkspaceDirectoryResult(requestSession, 'files-1', {
+      ...currentSession,
+      connection_generation: 5,
+    }),
+    false,
+  )
+  assert.equal(
+    isActiveFilesWorkspaceDirectoryResult(requestSession, 'files-1', {
+      ...currentSession,
+      status: 'disconnected',
+    }),
+    false,
+  )
+})
+
+test('新连接代际不会把旧连接的目录缓存视为新鲜', () => {
+  const request = beginFilesWorkspaceNavigation(createRemoteDirectoryViewState('/'), '/srv')
+  const cached = completeFilesWorkspaceDirectoryRequest(
+    request.state,
+    request.requestSequence,
+    listing('/srv'),
+    9_500,
+    3,
+  )
+  assert.equal(cached.listingConnectionGeneration, 3)
+  assert.equal(
+    resolveFilesWorkspaceAutomaticDirectoryRequest(
+      cached,
+      '/srv',
+      10_000,
+      5_000,
+      false,
+      3,
+    ),
+    null,
+  )
+  assert.deepEqual(
+    resolveFilesWorkspaceAutomaticDirectoryRequest(
+      cached,
+      '/srv',
+      10_000,
+      5_000,
+      false,
+      4,
+    ),
+    {
+      path: '/srv',
+      kind: 'refresh',
+    },
+  )
 })
 
 test('导航失败恢复已提交目录、列表、历史、选择和滚动', () => {
@@ -568,11 +641,13 @@ test('布局偏好使用无版本 key，非法内容安全回落且尺寸有界'
     defaultFilesWorkspaceLayoutPreferences,
   )
   const parsed = parseFilesWorkspaceLayoutPreferences(JSON.stringify({
+    bookmarkRailExpanded: false,
     locationsPanelOpen: true,
     inspectorOpen: 'yes',
     transfersDockOpen: true,
     inspectorWidth: 999,
-    transferDockHeight: 100,
+    bookmarkSidebarWidth: 999,
+    bottomDrawerHeight: 100,
     columnWidths: {
       name: 10,
       size: 144.4,
@@ -582,8 +657,9 @@ test('布局偏好使用无版本 key，非法内容安全回落且尺寸有界'
     committedPath: '/should-not-be-restored',
   }))
   assert.deepEqual(parsed, {
-    inspectorWidth: 440,
-    transferDockHeight: 180,
+    bookmarkRailExpanded: false,
+    sidePanelWidth: 440,
+    bottomDrawerHeight: 260,
     columnWidths: {
       name: 180,
       size: 144,
@@ -598,8 +674,79 @@ test('布局偏好使用无版本 key，非法内容安全回落且尺寸有界'
   assert.equal(
     parseFilesWorkspaceLayoutPreferences(
       JSON.stringify({ transferDockHeight: 999 }),
-    ).transferDockHeight,
+    ).bottomDrawerHeight,
     420,
+  )
+  assert.equal(
+    parseFilesWorkspaceLayoutPreferences(
+      JSON.stringify({ transferDockHeight: 180 }),
+    ).bottomDrawerHeight,
+    260,
+  )
+  assert.equal(
+    parseFilesWorkspaceLayoutPreferences(
+      JSON.stringify({ sidePanelWidth: 100 }),
+    ).sidePanelWidth,
+    300,
+  )
+  assert.equal(
+    parseFilesWorkspaceLayoutPreferences(
+      JSON.stringify({ sidePanelWidth: 999 }),
+    ).sidePanelWidth,
+    440,
+  )
+  assert.equal(
+    parseFilesWorkspaceLayoutPreferences(
+      JSON.stringify({
+        inspectorWidth: 400,
+        bookmarkSidebarWidth: 352,
+        bottomDrawerHeight: 320,
+        columnWidths: {
+          name: 500,
+          size: 100,
+          modifiedAt: 150,
+          permissions: 110,
+        },
+      }),
+    ).sidePanelWidth,
+    400,
+  )
+  assert.equal(
+    parseFilesWorkspaceLayoutPreferences(
+      JSON.stringify({
+        inspectorWidth: 352,
+        bookmarkSidebarWidth: 416,
+      }),
+    ).sidePanelWidth,
+    416,
+  )
+  assert.equal(
+    parseFilesWorkspaceLayoutPreferences(
+      JSON.stringify({
+        inspectorWidth: 400,
+        bookmarkSidebarWidth: 416,
+      }),
+    ).sidePanelWidth,
+    416,
+  )
+  assert.equal(
+    parseFilesWorkspaceLayoutPreferences(
+      JSON.stringify({
+        sidePanelWidth: 388,
+        inspectorWidth: 400,
+        bookmarkSidebarWidth: 416,
+      }),
+    ).sidePanelWidth,
+    388,
+  )
+  assert.equal(
+    parseFilesWorkspaceLayoutPreferences(
+      JSON.stringify({
+        sidePanelWidth: 'invalid',
+        inspectorWidth: 404,
+      }),
+    ).sidePanelWidth,
+    404,
   )
 })
 
@@ -636,8 +783,9 @@ test('旧版默认列宽迁移到紧凑值且保留用户自定义列宽', () =>
 test('布局偏好序列化只输出受支持字段并可稳定往返', () => {
   const preferences = {
     ...defaultFilesWorkspaceLayoutPreferences,
-    inspectorWidth: 400,
-    transferDockHeight: 360,
+    bookmarkRailExpanded: false,
+    sidePanelWidth: 416,
+    bottomDrawerHeight: 360,
     columnWidths: {
       ...defaultFilesWorkspaceLayoutPreferences.columnWidths,
       name: 500,
@@ -648,7 +796,15 @@ test('布局偏好序列化只输出受支持字段并可稳定往返', () => {
     parseFilesWorkspaceLayoutPreferences(serialized),
     preferences,
   )
+  assert.equal(
+    serializeFilesWorkspaceLayoutPreferences(
+      parseFilesWorkspaceLayoutPreferences(serialized),
+    ),
+    serialized,
+  )
   assert.equal(serialized.includes('committedPath'), false)
+  assert.equal(serialized.includes('inspectorWidth'), false)
+  assert.equal(serialized.includes('bookmarkSidebarWidth'), false)
 })
 
 test('初始状态包含规划要求的完整会话视图字段', () => {
@@ -671,6 +827,7 @@ test('初始状态包含规划要求的完整会话视图字段', () => {
     requestSequence: 0,
     error: '',
     lastLoadedAt: null,
+    listingConnectionGeneration: null,
     activeRequest: null,
     failedRequest: null,
   })

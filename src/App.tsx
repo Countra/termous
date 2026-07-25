@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { App as AntdApp, Button, ConfigProvider, Modal } from 'antd'
+import enUS from 'antd/locale/en_US'
+import zhCN from 'antd/locale/zh_CN'
 import { LogOut, ServerOff } from 'lucide-react'
 import 'antd/dist/reset.css'
 import { useTranslation } from 'react-i18next'
@@ -44,8 +46,10 @@ import './styles/files-workspace-transfer-rows.css'
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
 
 function App() {
+  const { i18n } = useTranslation()
   const [theme, setTheme] = useState<ThemeMode>(readInitialTheme)
   const antdTheme = useMemo(() => createAntdTheme(theme), [theme])
+  const antdLocale = i18n.resolvedLanguage?.startsWith('zh') ? zhCN : enUS
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -57,7 +61,7 @@ function App() {
   }, [theme])
 
   return (
-    <ConfigProvider theme={antdTheme} button={{ autoInsertSpace: false }}>
+    <ConfigProvider locale={antdLocale} theme={antdTheme} button={{ autoInsertSpace: false }}>
       <AntdApp
         className="termous-antd-root"
         notification={{

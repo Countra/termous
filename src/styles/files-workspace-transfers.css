@@ -8,34 +8,6 @@
   background: color-mix(in srgb, var(--chrome-bg) 64%, transparent);
 }
 
-.files-transfer-resize-edge::after {
-  position: absolute;
-  top: 3px;
-  left: 50%;
-  width: 36px;
-  height: 2px;
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--text-muted) 36%, transparent);
-  content: "";
-  opacity: 0;
-  transform: translateX(-50%);
-  transition:
-    background 0.16s ease,
-    opacity 0.16s ease,
-    width 0.16s ease;
-}
-
-.files-transfer-resize-edge:hover::after,
-.files-transfer-resize-edge:focus-visible::after {
-  width: 46px;
-  background: color-mix(in srgb, var(--accent) 72%, var(--text-muted));
-  opacity: 1;
-}
-
-.files-transfer-resize-edge:focus-visible {
-  outline: none;
-}
-
 .files-transfer-dock .files-transfer-panel {
   display: flex;
   min-height: 0;

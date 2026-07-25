@@ -19,7 +19,6 @@ import {
   FolderDown,
   FolderPlus,
   Info,
-  ListTree,
   MoreHorizontal,
   PanelRight,
   Pencil,
@@ -41,12 +40,10 @@ import {
   useRef,
   useState,
   startTransition,
-  type CSSProperties,
   type DragEvent,
   type HTMLAttributes,
   type KeyboardEvent,
   type MouseEvent,
-  type PointerEvent,
   type SetStateAction,
   type WheelEvent,
 } from 'react'
@@ -85,7 +82,10 @@ import {
 } from '../../components/files/remoteFileActions'
 import { formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
 import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
-import { FileBookmarksPanel } from './FileBookmarksPanel'
+import { FileBookmarksRail } from './FileBookmarksRail'
+import { FileBookmarksSidebar } from './FileBookmarksSidebar'
+import { FilesBottomDrawer } from './FilesBottomDrawer'
+import { FilesSidePanel, type FilesSidePanelMode } from './FilesSidePanel'
 import {
   subscribeFileSessionEvents,
   type FileSessionEventSubscription,
@@ -102,8 +102,25 @@ import {
   terminatedFileSessionSnapshot,
   type FileSessionRecoveryAttempt,
 } from './fileSessionRecovery'
-import { LocalPathMappingsPanel, type LocalPathRefreshRequest } from './LocalPathMappingsPanel'
-import { LocalDownloadDestinationModal } from './LocalDownloadDestinationModal'
+import { LocalDownloadConsole } from './local-download/LocalDownloadConsole'
+import { LocalDownloadQuickTarget } from './local-download/LocalDownloadQuickTarget'
+import type {
+  LocalDownloadRequest,
+  LocalDownloadTarget,
+} from './local-download/types'
+import type { LocalDownloadRefreshRequest } from './local-download/useLocalDownloadWorkspace'
+import {
+  isLocalPathWithin,
+  resolveLocalDownloadQuickTarget,
+} from './local-download/localDownloadWorkspaceState'
+import {
+  beginRemoteFileDrag,
+  releaseRemoteFileDrag,
+  resolveRemoteFileDrag,
+  REMOTE_FILE_DRAG_MIME,
+  validateRemoteFileDrag,
+  type RemoteFileDragTransaction,
+} from './local-download/remoteFileDragRegistry'
 import { TransferQueuePanel } from './TransferQueuePanel'
 import { useFilesWorkspaceRuntime } from './useFilesWorkspaceRuntime'
 import {
@@ -122,6 +139,7 @@ import {
   filesWorkspaceLayoutStorageKey,
   getFilesWorkspaceHistoryTarget,
   getFilesWorkspaceSessionState,
+  isActiveFilesWorkspaceDirectoryResult,
   parseFilesWorkspaceLayoutPreferences,
   resolveFilesWorkspaceAutomaticDirectoryRequest,
   resolveFilesWorkspaceSortState,
@@ -171,8 +189,17 @@ interface FilesPageProps {
 
 interface RemoteClipboard {
   mode: 'copy' | 'cut'
+  fileSessionId: string
   hostId: string
+  connectionGeneration: number
   paths: string[]
+}
+
+function matchesRemoteClipboard(
+  current: RemoteClipboard | null,
+  expected: RemoteClipboard | null,
+) {
+  return current !== null && current === expected
 }
 
 interface FileSessionEventMessage {
@@ -182,7 +209,10 @@ interface FileSessionEventMessage {
 
 interface RemoteMoveDragState {
   paths: string[]
+  transactionId: string
 }
+
+type LocalDownloadDropSource = 'console' | 'quick-target'
 
 interface FileContextMenuState {
   fileSessionId: string
@@ -204,6 +234,7 @@ interface SessionBoundRemotePath {
 interface DownloadDestinationRequest {
   fileSessionId: string
   hostId: string
+  connectionGeneration: number
   paths: string[]
 }
 
@@ -212,6 +243,7 @@ interface LoadDirectoryOptions {
   historyMode?: FilesWorkspaceHistoryMode
   historyIndex?: number
   quiet?: boolean
+  onError?: (description: string) => void
 }
 
 type FileColumnKey = 'name' | 'size' | 'modified' | 'permissions'
@@ -227,7 +259,8 @@ interface ResizableFileHeaderCellProps extends HTMLAttributes<HTMLTableCellEleme
   onResizeKeyDown?: (key: FileColumnKey, event: KeyboardEvent<HTMLSpanElement>) => void
 }
 
-type FileLocationTabKey = 'bookmarks' | 'local'
+type FilesAuxiliarySurface = 'none' | 'local' | 'transfers'
+type FilesSidePanelState = FilesSidePanelMode | 'none'
 type TransferScope = 'session' | 'all'
 
 const fileSessionPhaseOrder: FileSessionPhase[] = [
@@ -263,7 +296,6 @@ const maxFileColumnWidths: FileColumnWidths = {
   permissions: filesWorkspaceColumnWidthBounds.permissions.max,
 }
 
-const remoteFileDragMime = 'application/x-termous-remote-files'
 const fileDragAutoScrollEdge = 72
 const fileDragAutoScrollMaxSpeed = 18
 const filesWorkspaceCacheMaxAgeMs = 5_000
@@ -331,26 +363,37 @@ function FilesPageContent({
   const autoScrollSpeedRef = useRef(0)
   const remoteMoveDragRef = useRef<RemoteMoveDragState | null>(null)
   const remoteDragPreviewRef = useRef<HTMLElement | null>(null)
+  const localDownloadDropSourcesRef = useRef(new Set<LocalDownloadDropSource>())
+  const localDownloadOperationSourcesRef = useRef(new Set<LocalDownloadDropSource>())
+  const localDownloadTaskRef = useRef<{ key: string; promise: Promise<boolean> } | null>(null)
   const resetDragStateRef = useRef<() => void>(() => undefined)
-  const directoryRequestControllersRef = useRef(new Map<string, AbortController>())
-  const downloadRefreshTasksRef = useRef(new Map<string, string>())
+  const directoryRequestControllersRef = useRef(new Map<string, {
+    controller: AbortController
+    connectionGeneration: number
+  }>())
+  const downloadRefreshTasksRef = useRef(new Map<string, { mappingId?: string; targetPath: string }>())
   const lastSessionLoadKeyRef = useRef('')
-  const lastActiveFileSessionIdRef = useRef('')
+  const lastActiveFileSessionRef = useRef<{
+    id: string
+    connectionGeneration: number
+  } | null>(null)
   const fileSessionSubscriptionsRef = useRef(new Map<string, FileSessionEventSubscription>())
   const fileSessionRecoveryAttemptsRef = useRef(new Map<string, FileSessionRecoveryAttempt>())
   const fileSessionsRef = useRef(data.fileSessions)
+  const localPathMappingsRef = useRef(data.localPathMappings)
   const fileResizeCleanupRef = useRef<(() => void) | null>(null)
-  const panelResizeCleanupRef = useRef<(() => void) | null>(null)
   const breadcrumbViewportRef = useRef<HTMLDivElement>(null)
   const breadcrumbPinnedToEndRef = useRef(true)
   const pathInputRef = useRef<InputRef>(null)
-  const locationsToggleRef = useRef<HTMLButtonElement>(null)
-  const bookmarksLocationTabRef = useRef<HTMLButtonElement>(null)
-  const localLocationTabRef = useRef<HTMLButtonElement>(null)
+  const bookmarkRailToggleRef = useRef<HTMLButtonElement>(null)
+  const bookmarkMutationPendingRef = useRef(false)
+  const localConsoleToggleRef = useRef<HTMLButtonElement>(null)
   const inspectorToggleRef = useRef<HTMLButtonElement>(null)
+  const sidePanelRef = useRef<HTMLElement>(null)
+  const sidePanelModeRef = useRef<FilesSidePanelState>('none')
   const transferToggleRef = useRef<HTMLButtonElement>(null)
   const lastTransferTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const pendingPanelFocusRestoreRef = useRef<'locations' | 'inspector' | 'transfers' | null>(null)
+  const pendingPanelFocusRestoreRef = useRef<'local' | 'inspector' | 'transfers' | null>(null)
   const onUpdateFileSessionRef = useRef(onUpdateFileSession)
   const {
     states: workspaceStates,
@@ -388,47 +431,173 @@ function FilesPageContent({
   const [dropTargetDirectoryPath, setDropTargetDirectoryPath] = useState<string | null>(null)
   const [remoteMoveDrag, setRemoteMoveDrag] = useState<RemoteMoveDragState | null>(null)
   const [remoteMoveTargetPath, setRemoteMoveTargetPath] = useState<string | null>(null)
-  const [localRefreshRequests, setLocalRefreshRequests] = useState<LocalPathRefreshRequest[]>([])
+  const [localDownloadDropActive, setLocalDownloadDropActive] = useState(false)
+  const [localDownloadOperationActive, setLocalDownloadOperationActive] = useState(false)
+  const [localRefreshRequests, setLocalRefreshRequests] = useState<LocalDownloadRefreshRequest[]>([])
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionTarget, setPermissionTarget] = useState<SessionBoundRemoteEntry | null>(null)
   const [textEditorTarget, setTextEditorTarget] = useState<SessionBoundRemotePath | null>(null)
   const [imageViewerTarget, setImageViewerTarget] = useState<SessionBoundRemotePath | null>(null)
+
+  const updateLocalDownloadDropSource = useCallback((
+    source: LocalDownloadDropSource,
+    active: boolean,
+  ) => {
+    const sources = localDownloadDropSourcesRef.current
+    if (active) {
+      sources.add(source)
+      dragDepthRef.current = 0
+      setDragActive(false)
+      setDropTargetDirectoryPath(null)
+      setRemoteMoveTargetPath(null)
+      if (autoScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(autoScrollFrameRef.current)
+        autoScrollFrameRef.current = null
+      }
+      autoScrollSpeedRef.current = 0
+    } else {
+      sources.delete(source)
+    }
+    setLocalDownloadDropActive(sources.size > 0)
+  }, [])
+
+  const handleLocalConsoleDropActiveChange = useCallback(
+    (active: boolean) => updateLocalDownloadDropSource('console', active),
+    [updateLocalDownloadDropSource],
+  )
+
+  const handleLocalQuickTargetDropActiveChange = useCallback(
+    (active: boolean) => updateLocalDownloadDropSource('quick-target', active),
+    [updateLocalDownloadDropSource],
+  )
+  const updateLocalDownloadOperationSource = useCallback((
+    source: LocalDownloadDropSource,
+    active: boolean,
+  ) => {
+    const sources = localDownloadOperationSourcesRef.current
+    if (active) {
+      if (sources.size > 0 && !sources.has(source)) {
+        return false
+      }
+      sources.add(source)
+    } else {
+      sources.delete(source)
+    }
+    setLocalDownloadOperationActive(sources.size > 0)
+    return true
+  }, [])
+  const handleLocalConsoleOperationActiveChange = useCallback(
+    (active: boolean) => updateLocalDownloadOperationSource('console', active),
+    [updateLocalDownloadOperationSource],
+  )
+  const handleLocalQuickTargetOperationActiveChange = useCallback(
+    (active: boolean) => updateLocalDownloadOperationSource('quick-target', active),
+    [updateLocalDownloadOperationSource],
+  )
   const [downloadDestinationRequest, setDownloadDestinationRequest] = useState<DownloadDestinationRequest | null>(null)
+  const [localDownloadTarget, setLocalDownloadTarget] = useState<LocalDownloadTarget | null>(null)
+  const effectiveLocalDownloadTarget = useMemo(
+    () => resolveLocalDownloadQuickTarget(data.localPathMappings, localDownloadTarget),
+    [data.localPathMappings, localDownloadTarget],
+  )
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [fileSessionRecoveryAttempts, setFileSessionRecoveryAttempts] = useState<ReadonlyMap<
     string,
     FileSessionRecoveryAttempt
   >>(() => new Map())
-  const [locationsOpen, setLocationsOpen] = useState(false)
-  const [locationTab, setLocationTab] = useState<FileLocationTabKey>('bookmarks')
-  const [inspectorOpen, setInspectorOpen] = useState(false)
-  const [transfersOpen, setTransfersOpen] = useState(false)
+  const [auxiliarySurface, setAuxiliarySurface] = useState<FilesAuxiliarySurface>('none')
+  const [bookmarkMutationPending, setBookmarkMutationPending] = useState(false)
+  const [sidePanelMode, setSidePanelMode] = useState<FilesSidePanelState>('none')
   const [transferScope, setTransferScope] = useState<TransferScope>('session')
   const [tableViewportHeight, setTableViewportHeight] = useState(0)
-  const closeLocations = useCallback(() => {
-    pendingPanelFocusRestoreRef.current = 'locations'
-    setLocationsOpen(false)
+  sidePanelModeRef.current = sidePanelMode
+  const bookmarksExpanded = sidePanelMode === 'bookmarks'
+  const inspectorOpen = sidePanelMode === 'details'
+  const localConsoleOpen = auxiliarySurface === 'local'
+  const transfersOpen = auxiliarySurface === 'transfers'
+  const updateSidePanelMode = useCallback((mode: FilesSidePanelState) => {
+    sidePanelModeRef.current = mode
+    setSidePanelMode(mode)
   }, [])
-  const closeInspector = useCallback(() => {
-    pendingPanelFocusRestoreRef.current = 'inspector'
-    setInspectorOpen(false)
+  const closeLocalConsole = useCallback(() => {
+    pendingPanelFocusRestoreRef.current = 'local'
+    setAuxiliarySurface('none')
   }, [])
-  const openInspector = useCallback(() => {
-    setInspectorOpen(true)
-    if (window.innerWidth < 1280) {
-      setLocationsOpen(false)
+  const closeBookmarksWorkbench = useCallback((
+    reason: 'dismiss' | 'navigation' | 'pointer' = 'dismiss',
+  ) => {
+    const panel = reason === 'pointer'
+      ? document.getElementById('files-bookmarks-workbench')
+      : null
+    if (sidePanelModeRef.current !== 'bookmarks') {
+      return
     }
-  }, [])
+    updateSidePanelMode('none')
+    window.requestAnimationFrame(() => {
+      if (sidePanelModeRef.current !== 'none') {
+        return
+      }
+      if (reason === 'navigation') {
+        filesTableShellRef.current?.focus()
+      } else if (reason === 'pointer') {
+        const active = document.activeElement
+        if (!active || active === document.body || panel?.contains(active)) {
+          filesTableShellRef.current?.focus()
+        }
+      } else {
+        bookmarkRailToggleRef.current?.focus()
+      }
+    })
+  }, [updateSidePanelMode])
+  const openBookmarksWorkbench = useCallback(() => {
+    if (localDownloadOperationSourcesRef.current.size > 0) {
+      return
+    }
+    setAuxiliarySurface('none')
+    updateSidePanelMode('bookmarks')
+  }, [updateSidePanelMode])
+  const openLocalConsole = useCallback(() => {
+    if (localDownloadOperationSourcesRef.current.size > 0) {
+      return
+    }
+    setAuxiliarySurface('local')
+    if (
+      sidePanelModeRef.current === 'bookmarks'
+      || window.innerWidth < 1280
+    ) {
+      updateSidePanelMode('none')
+    }
+  }, [updateSidePanelMode])
+  const closeInspector = useCallback(() => {
+    if (sidePanelModeRef.current !== 'details') {
+      return
+    }
+    pendingPanelFocusRestoreRef.current = 'inspector'
+    updateSidePanelMode('none')
+  }, [updateSidePanelMode])
+  const openInspector = useCallback(() => {
+    if (
+      window.innerWidth < 1280
+      && auxiliarySurface !== 'none'
+      && localDownloadOperationSourcesRef.current.size > 0
+    ) {
+      return
+    }
+    updateSidePanelMode('details')
+    if (window.innerWidth < 1280 && auxiliarySurface !== 'none') {
+      setAuxiliarySurface('none')
+    }
+  }, [auxiliarySurface, updateSidePanelMode])
   const closeTransfers = useCallback(() => {
     pendingPanelFocusRestoreRef.current = 'transfers'
-    setTransfersOpen(false)
+    setAuxiliarySurface('none')
   }, [])
 
   useEffect(() => {
     const target = pendingPanelFocusRestoreRef.current
     if (
       !target
-      || (target === 'locations' && locationsOpen)
+      || (target === 'local' && localConsoleOpen)
       || (target === 'inspector' && inspectorOpen)
       || (target === 'transfers' && transfersOpen)
     ) {
@@ -436,20 +605,31 @@ function FilesPageContent({
     }
     pendingPanelFocusRestoreRef.current = null
     window.requestAnimationFrame(() => {
-      if (target === 'locations') {
-        locationsToggleRef.current?.focus()
+      if (target === 'local') {
+        localConsoleToggleRef.current?.focus()
       } else if (target === 'inspector') {
         inspectorToggleRef.current?.focus()
       } else {
         (lastTransferTriggerRef.current ?? transferToggleRef.current)?.focus()
       }
     })
-  }, [inspectorOpen, locationsOpen, transfersOpen])
+  }, [inspectorOpen, localConsoleOpen, transfersOpen])
   const [layoutPreferences, setLayoutPreferences] = usePersistentJsonState(
     filesWorkspaceLayoutStorageKey,
     defaultFilesWorkspaceLayoutPreferences,
     (value) => parseFilesWorkspaceLayoutPreferences(JSON.stringify(value)),
   )
+  const bookmarkRailExpanded = layoutPreferences.bookmarkRailExpanded
+  const toggleBookmarkRail = useCallback(() => {
+    const expanded = !bookmarkRailExpanded
+    setLayoutPreferences((current) => ({
+      ...current,
+      bookmarkRailExpanded: expanded,
+    }))
+    if (!expanded && sidePanelModeRef.current === 'bookmarks') {
+      updateSidePanelMode('none')
+    }
+  }, [bookmarkRailExpanded, setLayoutPreferences, updateSidePanelMode])
   const fileColumnWidths = useMemo<FileColumnWidths>(() => ({
     name: layoutPreferences.columnWidths.name,
     size: layoutPreferences.columnWidths.size,
@@ -476,10 +656,61 @@ function FilesPageContent({
       }
     })
   }, [setLayoutPreferences])
-  const filesPageStyle = {
-    '--files-inspector-width': `${layoutPreferences.inspectorWidth}px`,
-    '--files-transfer-dock-height': `${layoutPreferences.transferDockHeight}px`,
-  } as CSSProperties
+  const runBookmarkMutation = useCallback(async <T,>(operation: () => Promise<T>) => {
+    if (bookmarkMutationPendingRef.current) {
+      throw new Error(t('files.bookmarkMutationBusy'))
+    }
+    bookmarkMutationPendingRef.current = true
+    setBookmarkMutationPending(true)
+    try {
+      return await operation()
+    } finally {
+      bookmarkMutationPendingRef.current = false
+      setBookmarkMutationPending(false)
+    }
+  }, [t])
+  const createFileBookmark = useCallback(
+    (input: FileBookmarkInput) => runBookmarkMutation(() => onCreateFileBookmark(input)),
+    [onCreateFileBookmark, runBookmarkMutation],
+  )
+  const updateFileBookmark = useCallback(
+    (id: string, input: FileBookmarkInput) => (
+      runBookmarkMutation(() => onUpdateFileBookmark(id, input))
+    ),
+    [onUpdateFileBookmark, runBookmarkMutation],
+  )
+  const deleteFileBookmark = useCallback(
+    (id: string) => runBookmarkMutation(() => onDeleteFileBookmark(id)),
+    [onDeleteFileBookmark, runBookmarkMutation],
+  )
+  const reorderFileBookmarks = useCallback(
+    (items: FileBookmarkReorderItem[]) => (
+      runBookmarkMutation(() => onReorderFileBookmarks(items))
+    ),
+    [onReorderFileBookmarks, runBookmarkMutation],
+  )
+  const createFileBookmarkGroup = useCallback(
+    (input: FileBookmarkGroupInput) => (
+      runBookmarkMutation(() => onCreateFileBookmarkGroup(input))
+    ),
+    [onCreateFileBookmarkGroup, runBookmarkMutation],
+  )
+  const updateFileBookmarkGroup = useCallback(
+    (id: string, input: FileBookmarkGroupInput) => (
+      runBookmarkMutation(() => onUpdateFileBookmarkGroup(id, input))
+    ),
+    [onUpdateFileBookmarkGroup, runBookmarkMutation],
+  )
+  const deleteFileBookmarkGroup = useCallback(
+    (id: string) => runBookmarkMutation(() => onDeleteFileBookmarkGroup(id)),
+    [onDeleteFileBookmarkGroup, runBookmarkMutation],
+  )
+  const reorderFileBookmarkGroups = useCallback(
+    (items: FileBookmarkGroupReorderItem[]) => (
+      runBookmarkMutation(() => onReorderFileBookmarkGroups(items))
+    ),
+    [onReorderFileBookmarkGroups, runBookmarkMutation],
+  )
   const {
     transfers,
     connected: transferEventsConnected,
@@ -571,12 +802,62 @@ function FilesPageContent({
   closingFileSessionIdsRef.current = closingFileSessionIdSet
   const activeFileSessionClosing = Boolean(activeFileSessionId && closingFileSessionIdSet.has(activeFileSessionId))
   const fileSessionConnected = activeFileSession?.status === 'connected' && !activeFileSessionClosing
+  const activeFileSessionHostId = activeFileSession?.host_id ?? ''
+  const activeFileSessionConnectionGeneration = activeFileSession?.connection_generation ?? 0
+  const fileListingCurrent = (
+    workspaceViewState.listing !== null
+    && workspaceViewState.listingConnectionGeneration
+      === activeFileSessionConnectionGeneration
+  )
+  const fileActionsEnabled = fileSessionConnected && fileListingCurrent
+  const selectedPathsKey = [...selectedPaths].sort().join('\u0000')
+  const stableSelectedPaths = useMemo(
+    () => selectedPathsKey ? selectedPathsKey.split('\u0000') : [],
+    [selectedPathsKey],
+  )
+  const localDownloadSession = useMemo(() => activeFileSessionId ? {
+    connected: fileActionsEnabled,
+    fileSessionId: activeFileSessionId,
+    hostId: activeFileSessionHostId,
+    connectionGeneration: activeFileSessionConnectionGeneration,
+  } : null, [
+    activeFileSessionConnectionGeneration,
+    activeFileSessionHostId,
+    activeFileSessionId,
+    fileActionsEnabled,
+  ])
+  const localDownloadSelection = useMemo<LocalDownloadRequest['selection'] | null>(() => {
+    if (downloadDestinationRequest) {
+      return {
+        fileSessionId: downloadDestinationRequest.fileSessionId,
+        hostId: downloadDestinationRequest.hostId,
+        connectionGeneration: downloadDestinationRequest.connectionGeneration,
+        paths: downloadDestinationRequest.paths,
+      }
+    }
+    if (!activeFileSessionId || stableSelectedPaths.length === 0) {
+      return null
+    }
+    return {
+      fileSessionId: activeFileSessionId,
+      hostId: activeFileSessionHostId,
+      connectionGeneration: activeFileSessionConnectionGeneration,
+      paths: stableSelectedPaths,
+    }
+  }, [
+    activeFileSessionConnectionGeneration,
+    activeFileSessionHostId,
+    activeFileSessionId,
+    downloadDestinationRequest,
+    stableSelectedPaths,
+  ])
   const initialDirectoryLoading = fileSessionConnected
     && workspaceViewState.listing === null
     && workspaceViewState.directoryStatus === 'idle'
     && !workspaceViewState.error
   const loading = directoryRequestLoading || initialDirectoryLoading
   fileSessionsRef.current = data.fileSessions
+  localPathMappingsRef.current = data.localPathMappings
   const displayedFileSessionKey = useMemo(
     () => data.fileSessions.map((session) => session.id).join('|'),
     [data.fileSessions],
@@ -637,16 +918,16 @@ function FilesPageContent({
       lastSessionLoadKeyRef.current = ''
       fileResizeCleanupRef.current?.()
       fileResizeCleanupRef.current = null
-      panelResizeCleanupRef.current?.()
-      panelResizeCleanupRef.current = null
-      directoryRequestControllersRef.current.forEach((controller, fileSessionId) => {
-        controller.abort()
+      directoryRequestControllersRef.current.forEach((request, fileSessionId) => {
+        request.controller.abort()
         updateExistingWorkspaceSession(
           fileSessionId,
           cancelFilesWorkspaceDirectoryRequest,
         )
       })
       directoryRequestControllersRef.current.clear()
+      releaseRemoteFileDrag(remoteMoveDragRef.current?.transactionId)
+      remoteMoveDragRef.current = null
       remoteDragPreviewRef.current?.remove()
       remoteDragPreviewRef.current = null
       if (autoScrollFrameRef.current !== null) {
@@ -670,10 +951,22 @@ function FilesPageContent({
 
   const loadDirectory = useCallback(
     async (nextPath: string, options: LoadDirectoryOptions = {}) => {
-      if (!activeFileSession || !fileSessionConnected) {
-        return
+      if (!activeFileSession) {
+        return false
       }
-      const requestSession = activeFileSession
+      const requestSession = fileSessionsRef.current.find(
+        (session) => session.id === activeFileSession.id,
+      )
+      if (
+        !requestSession
+        || activeFileSessionIdRef.current !== activeFileSession.id
+        || requestSession.status !== 'connected'
+        || (requestSession.connection_generation ?? 0)
+          !== (activeFileSession.connection_generation ?? 0)
+        || closingFileSessionIdsRef.current.has(requestSession.id)
+      ) {
+        return false
+      }
       const normalized = normalizeRemotePosixPath(nextPath)
       if (!normalized) {
         notification.warning({
@@ -682,7 +975,7 @@ function FilesPageContent({
           role: 'alert',
           className: 'termous-notification',
         })
-        return
+        return false
       }
 
       const currentState = getFilesWorkspaceSessionState(
@@ -701,24 +994,51 @@ function FilesPageContent({
               historyMode: options.historyMode,
             })
       if (!request) {
-        return
+        return false
       }
 
       const controller = new AbortController()
-      directoryRequestControllersRef.current.get(requestSession.id)?.abort()
-      directoryRequestControllersRef.current.set(requestSession.id, controller)
+      directoryRequestControllersRef.current.get(requestSession.id)?.controller.abort()
+      directoryRequestControllersRef.current.set(requestSession.id, {
+        controller,
+        connectionGeneration: requestSession.connection_generation ?? 0,
+      })
       updateWorkspaceSession(
         requestSession.id,
         requestSession.current_path || '/',
         () => request.state,
       )
+      const cancelRequestState = () => {
+        updateExistingWorkspaceSession(
+          requestSession.id,
+          (latest) => (
+            latest.activeRequest?.requestSequence === request.requestSequence
+              ? cancelFilesWorkspaceDirectoryRequest(latest)
+              : latest
+          ),
+        )
+      }
       try {
         const listing = await api.listFileSessionFiles(
           requestSession.id,
           normalized,
           { signal: controller.signal },
         )
-        const isCurrentRequest = directoryRequestControllersRef.current.get(requestSession.id) === controller
+        const currentRequest = directoryRequestControllersRef.current.get(requestSession.id)
+        const currentSession = fileSessionsRef.current.find(
+          (session) => session.id === requestSession.id,
+        )
+        const isCurrentRequest = currentRequest?.controller === controller
+        const isCurrentGeneration = (
+          currentSession?.status === 'connected'
+          && (currentSession.connection_generation ?? 0)
+            === (requestSession.connection_generation ?? 0)
+          && !closingFileSessionIdsRef.current.has(requestSession.id)
+        )
+        if (!isCurrentRequest || !isCurrentGeneration) {
+          cancelRequestState()
+          return false
+        }
         updateExistingWorkspaceSession(
           requestSession.id,
           (latest) => completeFilesWorkspaceDirectoryRequest(
@@ -726,21 +1046,38 @@ function FilesPageContent({
             request.requestSequence,
             listing,
             Date.now(),
+            requestSession.connection_generation ?? 0,
           ),
         )
-        if (
-          isCurrentRequest
-          && fileSessionsRef.current.some((session) => (
-            session.id === requestSession.id && session.status === 'connected'
-          ))
-        ) {
+        if (isActiveFilesWorkspaceDirectoryResult(
+          requestSession,
+          activeFileSessionIdRef.current,
+          currentSession,
+        )) {
           clearDirectoryDirty(requestSession.id, normalized)
+          setDropTargetDirectoryPath(null)
+          setRemoteMoveTargetPath(null)
+          return true
         }
-        setDropTargetDirectoryPath(null)
-        setRemoteMoveTargetPath(null)
+        return false
       } catch (loadError) {
         if (controller.signal.aborted) {
-          return
+          cancelRequestState()
+          return false
+        }
+        const currentRequest = directoryRequestControllersRef.current.get(requestSession.id)
+        const currentSession = fileSessionsRef.current.find(
+          (session) => session.id === requestSession.id,
+        )
+        if (
+          currentRequest?.controller !== controller
+          || currentSession?.status !== 'connected'
+          || (currentSession.connection_generation ?? 0)
+            !== (requestSession.connection_generation ?? 0)
+          || closingFileSessionIdsRef.current.has(requestSession.id)
+        ) {
+          cancelRequestState()
+          return false
         }
         const description = loadError instanceof Error ? loadError.message : t('app.error')
         updateExistingWorkspaceSession(
@@ -751,16 +1088,19 @@ function FilesPageContent({
             description,
           ),
         )
-        if (options.quiet) {
-          return
-        }
-        const currentSession = fileSessionsRef.current.find((session) => session.id === requestSession.id)
         if (
-          activeFileSessionIdRef.current !== requestSession.id
-          || currentSession?.status !== 'connected'
+          !isActiveFilesWorkspaceDirectoryResult(
+            requestSession,
+            activeFileSessionIdRef.current,
+            currentSession,
+          )
           || closingFileSessionIdsRef.current.has(requestSession.id)
         ) {
-          return
+          return false
+        }
+        options.onError?.(description)
+        if (options.quiet) {
+          return false
         }
         notification.error({
           message: t('files.directoryReadFailed'),
@@ -769,8 +1109,12 @@ function FilesPageContent({
           role: 'alert',
           className: 'termous-notification',
         })
+        return false
       } finally {
-        if (directoryRequestControllersRef.current.get(requestSession.id) === controller) {
+        if (
+          directoryRequestControllersRef.current.get(requestSession.id)?.controller
+            === controller
+        ) {
           directoryRequestControllersRef.current.delete(requestSession.id)
         }
       }
@@ -779,7 +1123,6 @@ function FilesPageContent({
       activeFileSession,
       api,
       clearDirectoryDirty,
-      fileSessionConnected,
       notification,
       t,
       updateExistingWorkspaceSession,
@@ -800,6 +1143,22 @@ function FilesPageContent({
     void loadDirectory(currentPath, { kind: 'refresh' })
   }, [currentPath, loadDirectory, workspaceViewState.failedRequest])
 
+  const loadBookmarkDirectory = useCallback(
+    (path: string) => loadDirectory(path, {
+      quiet: true,
+      onError: (description) => {
+        notification.error({
+          title: t('files.bookmarkNavigationFailed'),
+          description,
+          duration: 4,
+          role: 'alert',
+          className: 'termous-notification',
+        })
+      },
+    }),
+    [loadDirectory, notification, t],
+  )
+
   const trackUploadRefreshTask = useCallback((task: TransferTask) => {
     if (!isUploadTransfer(task) || !task.file_session_id) {
       return
@@ -810,17 +1169,20 @@ function FilesPageContent({
     })
   }, [trackWorkspaceUploadRefreshTask])
 
-  const trackDownloadRefreshTask = useCallback((task: TransferTask) => {
+  const trackDownloadRefreshTask = useCallback((task: TransferTask, mappingId?: string) => {
     if (!isDownloadTransfer(task) || !task.target_path) {
       return
     }
-    downloadRefreshTasksRef.current.set(task.id, task.target_path)
+    downloadRefreshTasksRef.current.set(task.id, {
+      mappingId,
+      targetPath: task.target_path,
+    })
   }, [])
 
   useEffect(() => {
     if (!activeFileSession) {
       lastSessionLoadKeyRef.current = ''
-      lastActiveFileSessionIdRef.current = ''
+      lastActiveFileSessionRef.current = null
       setPathInput('/')
       setFileContextMenu(null)
       setPermissionTarget(null)
@@ -828,9 +1190,16 @@ function FilesPageContent({
       setImageViewerTarget(null)
       return
     }
-    const sessionChanged = lastActiveFileSessionIdRef.current !== activeFileSession.id
-    lastActiveFileSessionIdRef.current = activeFileSession.id
-    if (sessionChanged) {
+    const previousSession = lastActiveFileSessionRef.current
+    const connectionGeneration = activeFileSession.connection_generation ?? 0
+    const fileSessionChanged = previousSession?.id !== activeFileSession.id
+    const connectionChanged = fileSessionChanged
+      || previousSession?.connectionGeneration !== connectionGeneration
+    lastActiveFileSessionRef.current = {
+      id: activeFileSession.id,
+      connectionGeneration,
+    }
+    if (connectionChanged) {
       const cached = getFilesWorkspaceSessionState(
         workspaceStatesRef.current,
         activeFileSession.id,
@@ -840,8 +1209,10 @@ function FilesPageContent({
       setEditingPath(false)
       setFileContextMenu(null)
       setPermissionTarget(null)
-      setTextEditorTarget(null)
       setImageViewerTarget(null)
+      if (fileSessionChanged) {
+        setTextEditorTarget(null)
+      }
     }
     if (!canStartFilesWorkspaceDirectoryLoad(
       activeFileSession.status,
@@ -850,7 +1221,11 @@ function FilesPageContent({
       lastSessionLoadKeyRef.current = ''
       return
     }
-    const loadKey = `${activeFileSession.id}:${activeFileSession.connected_at ?? ''}`
+    const loadKey = [
+      activeFileSession.id,
+      activeFileSession.connection_generation ?? 0,
+      activeFileSession.connected_at ?? '',
+    ].join(':')
     if (lastSessionLoadKeyRef.current === loadKey) {
       return undefined
     }
@@ -866,6 +1241,7 @@ function FilesPageContent({
       Date.now(),
       filesWorkspaceCacheMaxAgeMs,
       cacheDirty,
+      activeFileSession.connection_generation ?? 0,
     )
     if (!automaticRequest) {
       lastSessionLoadKeyRef.current = loadKey
@@ -887,6 +1263,8 @@ function FilesPageContent({
       if (
         activeFileSessionIdRef.current !== activeFileSession.id
         || currentSession?.status !== 'connected'
+        || (currentSession.connection_generation ?? 0)
+          !== (activeFileSession.connection_generation ?? 0)
         || Boolean(activeFileSessionRecovery)
         || closingFileSessionIdsRef.current.has(activeFileSession.id)
         || directoryRequestControllersRef.current.has(activeFileSession.id)
@@ -912,15 +1290,16 @@ function FilesPageContent({
 
   useEffect(() => {
     const fileSessionsById = new Map(data.fileSessions.map((session) => [session.id, session]))
-    directoryRequestControllersRef.current.forEach((controller, fileSessionId) => {
+    directoryRequestControllersRef.current.forEach((request, fileSessionId) => {
       const fileSession = fileSessionsById.get(fileSessionId)
       if (
         fileSession?.status === 'connected'
+        && (fileSession.connection_generation ?? 0) === request.connectionGeneration
         && !closingFileSessionIdSet.has(fileSessionId)
       ) {
         return
       }
-      controller.abort()
+      request.controller.abort()
       directoryRequestControllersRef.current.delete(fileSessionId)
       updateExistingWorkspaceSession(
         fileSessionId,
@@ -934,56 +1313,43 @@ function FilesPageContent({
   ])
 
   useEffect(() => {
-    if (!locationsOpen || !inspectorOpen) {
+    if (auxiliarySurface === 'none' || sidePanelMode === 'none') {
       return undefined
     }
     const keepNarrowPanelsExclusive = () => {
       if (window.innerWidth < 1280) {
-        const shouldRestoreFocus = document.activeElement instanceof HTMLElement
-          && document.activeElement.closest('#files-locations-drawer') !== null
-        if (shouldRestoreFocus) {
-          closeLocations()
-        } else {
-          setLocationsOpen(false)
+        if (sidePanelRef.current?.contains(document.activeElement)) {
+          if (sidePanelModeRef.current === 'details') {
+            pendingPanelFocusRestoreRef.current = 'inspector'
+          }
         }
+        updateSidePanelMode('none')
       }
     }
     keepNarrowPanelsExclusive()
     window.addEventListener('resize', keepNarrowPanelsExclusive)
     return () => window.removeEventListener('resize', keepNarrowPanelsExclusive)
-  }, [closeLocations, inspectorOpen, locationsOpen])
-
-  useEffect(() => {
-    if (!locationsOpen) {
-      return
-    }
-    window.requestAnimationFrame(() => {
-      const target = locationTab === 'bookmarks'
-        ? bookmarksLocationTabRef.current
-        : localLocationTabRef.current
-      target?.focus()
-    })
-  }, [locationTab, locationsOpen])
+  }, [auxiliarySurface, sidePanelMode, updateSidePanelMode])
 
   useEffect(() => {
     if (!activeFileSessionId) {
       return
     }
     if (activeFileSessionClosing) {
-      directoryRequestControllersRef.current.get(activeFileSessionId)?.abort()
+      directoryRequestControllersRef.current.get(activeFileSessionId)?.controller.abort()
       directoryRequestControllersRef.current.delete(activeFileSessionId)
       updateActiveWorkspaceView((current) => setFilesWorkspaceDirectoryStatus(current, 'closing'))
       return
     }
     const recovering = Boolean(activeFileSessionRecovery)
     if (recovering) {
-      directoryRequestControllersRef.current.get(activeFileSessionId)?.abort()
+      directoryRequestControllersRef.current.get(activeFileSessionId)?.controller.abort()
       directoryRequestControllersRef.current.delete(activeFileSessionId)
       updateActiveWorkspaceView((current) => setFilesWorkspaceDirectoryStatus(current, 'recovering'))
       return
     }
     if (activeFileSession?.status === 'failed' || activeFileSession?.status === 'disconnected') {
-      directoryRequestControllersRef.current.get(activeFileSessionId)?.abort()
+      directoryRequestControllersRef.current.get(activeFileSessionId)?.controller.abort()
       directoryRequestControllersRef.current.delete(activeFileSessionId)
       updateActiveWorkspaceView((current) => setFilesWorkspaceDirectoryStatus(
         current,
@@ -1068,13 +1434,17 @@ function FilesPageContent({
     const transferById = new Map(transfers.map((task) => [task.id, task]))
     transfers.forEach((task) => {
       if (isDownloadTransfer(task) && task.target_path && (isTransferActive(task) || downloadRefreshTasksRef.current.has(task.id))) {
-        downloadRefreshTasksRef.current.set(task.id, task.target_path)
+        const existing = downloadRefreshTasksRef.current.get(task.id)
+        downloadRefreshTasksRef.current.set(task.id, {
+          mappingId: existing?.mappingId,
+          targetPath: task.target_path,
+        })
       }
     })
 
-    const completedRequests: LocalPathRefreshRequest[] = []
+    const completedRequests: LocalDownloadRefreshRequest[] = []
     const taskIdsToDelete: string[] = []
-    downloadRefreshTasksRef.current.forEach((targetPath, taskId) => {
+    downloadRefreshTasksRef.current.forEach((target, taskId) => {
       const task = transferById.get(taskId)
       if (!task) {
         taskIdsToDelete.push(taskId)
@@ -1084,7 +1454,11 @@ function FilesPageContent({
         return
       }
       if (task.status === 'completed') {
-        completedRequests.push({ id: task.id, targetPath })
+        completedRequests.push({
+          id: task.id,
+          mappingId: target.mappingId,
+          targetPath: target.targetPath,
+        })
       }
       if (isTransferTerminal(task)) {
         taskIdsToDelete.push(taskId)
@@ -1287,12 +1661,28 @@ function FilesPageContent({
     }
   }
 
-  const requireConnectedFileSession = (fileSessionId: string) => {
-    const fileSession = fileSessionsRef.current.find((session) => session.id === fileSessionId)
-    if (
+  const isCurrentFileListingAvailable = (
+    fileSessionId: string,
+    connectionGeneration: number,
+  ) => {
+    const fileSession = fileSessionsRef.current.find(
+      (session) => session.id === fileSessionId,
+    )
+    const viewState = workspaceStatesRef.current[fileSessionId]
+    return (
       fileSession?.status === 'connected'
       && !closingFileSessionIdsRef.current.has(fileSessionId)
-    ) {
+      && (fileSession.connection_generation ?? 0) === connectionGeneration
+      && viewState?.listing !== null
+      && viewState?.listingConnectionGeneration === connectionGeneration
+    )
+  }
+
+  const requireCurrentFileListing = (
+    fileSessionId: string,
+    connectionGeneration: number,
+  ) => {
+    if (isCurrentFileListingAvailable(fileSessionId, connectionGeneration)) {
       return
     }
     const connectionError = new Error(t('files.connectionRequired'))
@@ -1428,13 +1818,22 @@ function FilesPageContent({
   ])
 
   const uploadLocalPaths = async (source: LocalGrantSource, paths: string[], targetPath = currentPath) => {
-    if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
+    const fileSessionId = activeFileSessionIdRef.current
+    const fileSession = fileSessionsRef.current.find(
+      (session) => session.id === fileSessionId,
+    )
+    const connectionGeneration = fileSession?.connection_generation ?? 0
+    if (
+      !fileSessionId
+      || paths.length === 0
+      || !isCurrentFileListingAvailable(fileSessionId, connectionGeneration)
+    ) {
       return
     }
     await runFileAction(async () => {
       const pendingId = startPendingTransferOperation({
         hostId: activeFileSession?.host_id ?? '',
-        fileSessionId: activeFileSessionId,
+        fileSessionId,
         title: t('files.fileOperationUploadTitle'),
         description: t('files.fileOperationTransferGrant'),
         progress: 0,
@@ -1448,7 +1847,8 @@ function FilesPageContent({
           progress: 0,
           indeterminate: true,
         })
-        const task = await api.createFileSessionUploadTransfer(activeFileSessionId, grant.id, targetPath, 'rename')
+        requireCurrentFileListing(fileSessionId, connectionGeneration)
+        const task = await api.createFileSessionUploadTransfer(fileSessionId, grant.id, targetPath, 'rename')
         trackUploadRefreshTask(task)
         upsertTransfer(task)
         removePendingTransferOperation(pendingId)
@@ -1459,15 +1859,36 @@ function FilesPageContent({
     }, t('files.transferCreated'))
   }
 
-  const downloadPathsToLocalDir = async (paths: string[], localDir: string) => {
-    if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
+  const downloadPathsToLocalDir = async (
+    paths: string[],
+    localDir: string,
+    source: Pick<DownloadDestinationRequest, 'fileSessionId' | 'hostId' | 'connectionGeneration'> = {
+      fileSessionId: activeFileSession?.id ?? '',
+      hostId: activeFileSession?.host_id ?? '',
+      connectionGeneration: activeFileSession?.connection_generation ?? 0,
+    },
+    mappingId?: string,
+    signal?: AbortSignal,
+  ) => {
+    const currentSession = fileSessionsRef.current.find((session) => session.id === source.fileSessionId)
+    if (
+      signal?.aborted
+      ||
+      paths.length === 0
+      || !currentSession
+      || currentSession.host_id !== source.hostId
+      || !isCurrentFileListingAvailable(
+        currentSession.id,
+        source.connectionGeneration,
+      )
+    ) {
       return false
     }
     let created = false
     await runFileAction(async () => {
       const pendingId = startPendingTransferOperation({
-        hostId: activeFileSession?.host_id ?? '',
-        fileSessionId: activeFileSessionId,
+        hostId: source.hostId,
+        fileSessionId: source.fileSessionId,
         title: t('files.fileOperationDownloadTitle'),
         description: t('files.fileOperationTransferCreate'),
         progress: 0,
@@ -1475,21 +1896,52 @@ function FilesPageContent({
         indeterminate: true,
       })
       try {
-        const task = await api.createFileSessionDownloadTransfer(activeFileSessionId, paths, localDir, 'rename')
-        trackDownloadRefreshTask(task)
+        const latestSession = fileSessionsRef.current.find((session) => session.id === source.fileSessionId)
+        if (
+          signal?.aborted
+          ||
+          !latestSession
+          || latestSession.host_id !== source.hostId
+          || !isCurrentFileListingAvailable(
+            latestSession.id,
+            source.connectionGeneration,
+          )
+        ) {
+          throw new Error(t('files.connectionRequired'))
+        }
+        const task = await api.createFileSessionDownloadTransfer(
+          source.fileSessionId,
+          paths,
+          localDir,
+          'rename',
+          signal,
+        )
+        trackDownloadRefreshTask(task, mappingId)
         upsertTransfer(task)
         removePendingTransferOperation(pendingId)
         created = true
       } catch (actionError) {
+        if (signal?.aborted) {
+          removePendingTransferOperation(pendingId)
+          return
+        }
         failPendingTransferOperation(pendingId, t('files.fileOperationTransferFailed'))
         throw actionError
       }
-    }, t('files.transferCreated'))
+    })
+    if (created) {
+      notification.success({
+        title: t('files.transferCreated'),
+        duration: 3,
+        role: 'status',
+        className: 'termous-notification',
+      })
+    }
     return created
   }
 
   const downloadPaths = async (paths: string[]) => {
-    if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
+    if (!activeFileSessionId || !fileActionsEnabled || paths.length === 0) {
       return
     }
     const localDirs = await window.termous?.files?.pickDirectory()
@@ -1500,55 +1952,149 @@ function FilesPageContent({
     await downloadPathsToLocalDir(paths, localDir)
   }
 
-  const confirmMappedDownload = async (localDir: string) => {
-    const request = downloadDestinationRequest
+  const downloadToLocalTarget = async (
+    request: LocalDownloadRequest,
+    signal?: AbortSignal,
+  ) => {
+    const mapping = localPathMappingsRef.current.find(
+      (item) => item.id === request.target.mappingId,
+    )
     if (
-      !request
-      || !activeFileSession
-      || !fileSessionConnected
-      || request.fileSessionId !== activeFileSession.id
-      || request.hostId !== activeFileSession.host_id
+      !mapping?.available
+      || mapping.path !== request.target.mappingPath
+      || !isLocalPathWithin(request.target.path, mapping.path)
+      || signal?.aborted
     ) {
       return false
     }
-    return downloadPathsToLocalDir(request.paths, localDir)
-  }
-
-  const manageLocalDownloadDestinations = () => {
-    setDownloadDestinationRequest(null)
-    setLocationTab('local')
-    setLocationsOpen(true)
-    if (window.innerWidth < 1280) {
-      setInspectorOpen(false)
+    const source = {
+      fileSessionId: request.selection.fileSessionId,
+      hostId: request.selection.hostId,
+      connectionGeneration: Number(request.selection.connectionGeneration),
+    }
+    const operationKey = JSON.stringify([
+      source.fileSessionId,
+      source.hostId,
+      source.connectionGeneration,
+      request.target.mappingId,
+      request.target.path,
+      [...request.selection.paths].sort(),
+    ])
+    if (localDownloadTaskRef.current) {
+      return false
+    }
+    const operation = downloadPathsToLocalDir(
+      [...request.selection.paths],
+      request.target.path,
+      source,
+      request.target.mappingId,
+      signal,
+    )
+    localDownloadTaskRef.current = { key: operationKey, promise: operation }
+    try {
+      return await operation
+    } finally {
+      if (
+        localDownloadTaskRef.current?.key === operationKey
+        && localDownloadTaskRef.current.promise === operation
+      ) {
+        localDownloadTaskRef.current = null
+      }
     }
   }
 
-  const moveRemotePathsToDirectory = async (paths: string[], targetPath: string) => {
-    if (!activeFileSession || !fileSessionConnected || paths.length === 0) {
+  const moveRemotePathsToDirectory = async (
+    transaction: RemoteFileDragTransaction,
+    targetPath: string,
+  ) => {
+    const clipboardSnapshot = remoteClipboard
+    const currentSession = fileSessionsRef.current.find(
+      (session) => session.id === activeFileSessionIdRef.current,
+    )
+    if (!currentSession) {
+      return
+    }
+    if (!isCurrentFileListingAvailable(
+      currentSession.id,
+      currentSession.connection_generation ?? 0,
+    )) {
+      return
+    }
+    const initialValidation = validateRemoteFileDrag(transaction, {
+      connected:
+        currentSession.status === 'connected'
+        && !closingFileSessionIdsRef.current.has(currentSession.id),
+      fileSessionId: currentSession.id,
+      hostId: currentSession.host_id,
+      connectionGeneration: currentSession.connection_generation ?? 0,
+    })
+    if (!initialValidation.ok) {
       return
     }
     await runFileAction(async () => {
-      await api.moveFileSessionFiles(activeFileSession.id, paths, targetPath, 'rename')
-      await loadDirectory(currentPath, { kind: 'refresh' })
+      const latestSession = fileSessionsRef.current.find(
+        (session) => session.id === transaction.fileSessionId,
+      )
+      const latestValidation = latestSession
+        ? validateRemoteFileDrag(transaction, {
+            connected:
+              latestSession.status === 'connected'
+              && activeFileSessionIdRef.current === latestSession.id
+              && !closingFileSessionIdsRef.current.has(latestSession.id),
+            fileSessionId: latestSession.id,
+            hostId: latestSession.host_id,
+            connectionGeneration: latestSession.connection_generation ?? 0,
+          })
+        : null
+      if (!latestValidation?.ok) {
+        throw new Error(t('files.connectionRequired'))
+      }
+      await api.moveFileSessionFiles(
+        transaction.fileSessionId,
+        [...transaction.paths],
+        targetPath,
+        'rename',
+      )
       setRemoteClipboard((current) => {
-        if (!current || current.hostId !== activeFileSession.host_id || !current.paths.some((path) => paths.includes(path))) {
+        if (
+          !matchesRemoteClipboard(current, clipboardSnapshot)
+          || !current
+          || current.hostId !== transaction.hostId
+          || !current.paths.some((path) => transaction.paths.includes(path))
+        ) {
           return current
         }
         return null
       })
+      await loadDirectory(currentPath, { kind: 'refresh' })
     }, t('files.operationDone'))
   }
 
   const pasteRemoteClipboard = async () => {
-    if (!fileSessionConnected || !remoteClipboard || !activeFileSession || remoteClipboard.hostId !== activeFileSession.host_id) {
+    if (
+      !fileActionsEnabled
+      || !remoteClipboard
+      || !activeFileSession
+      || remoteClipboard.hostId !== activeFileSession.host_id
+      || !isCurrentFileListingAvailable(
+        remoteClipboard.fileSessionId,
+        remoteClipboard.connectionGeneration,
+      )
+    ) {
       return false
     }
+    const clipboardSnapshot = remoteClipboard
+    const targetSessionId = activeFileSession.id
+    const targetGeneration = activeFileSession.connection_generation ?? 0
     await runFileAction(async () => {
-      if (remoteClipboard.mode === 'cut') {
-        await api.moveFileSessionFiles(activeFileSession.id, remoteClipboard.paths, currentPath, 'rename')
-        setRemoteClipboard(null)
+      requireCurrentFileListing(targetSessionId, targetGeneration)
+      if (clipboardSnapshot.mode === 'cut') {
+        await api.moveFileSessionFiles(targetSessionId, clipboardSnapshot.paths, currentPath, 'rename')
+        setRemoteClipboard((current) => (
+          matchesRemoteClipboard(current, clipboardSnapshot) ? null : current
+        ))
       } else {
-        await api.copyFileSessionFiles(activeFileSession.id, remoteClipboard.paths, currentPath, 'rename')
+        await api.copyFileSessionFiles(targetSessionId, clipboardSnapshot.paths, currentPath, 'rename')
       }
       await loadDirectory(currentPath, { kind: 'refresh' })
     }, t('files.operationDone'))
@@ -1566,9 +2112,11 @@ function FilesPageContent({
   }
 
   const openCreateDirectory = () => {
-    if (!fileSessionConnected) {
+    if (!fileActionsEnabled || !activeFileSessionId) {
       return
     }
+    const fileSessionId = activeFileSessionId
+    const connectionGeneration = activeFileSessionConnectionGeneration
     let name = ''
     modal.confirm({
       title: t('files.newFolder'),
@@ -1579,25 +2127,24 @@ function FilesPageContent({
       className: 'confirm-modal',
       rootClassName: 'termous-modal-root',
       onOk: async () => {
-        requireConnectedFileSession(activeFileSessionId)
+        requireCurrentFileListing(fileSessionId, connectionGeneration)
         const cleanName = name.trim()
         if (!cleanName) {
           throw new Error(t('files.nameRequired'))
         }
         const target = joinPath(currentPath, cleanName)
-        if (!activeFileSessionId) {
-          return
-        }
-        await api.mkdirFileSessionFile(activeFileSessionId, target)
+        await api.mkdirFileSessionFile(fileSessionId, target)
         await loadDirectory(currentPath, { kind: 'refresh' })
       },
     })
   }
 
   const openRename = (entry = selectedEntries[0]) => {
-    if (!entry || !fileSessionConnected) {
+    if (!entry || !fileActionsEnabled || !activeFileSessionId) {
       return
     }
+    const fileSessionId = activeFileSessionId
+    const connectionGeneration = activeFileSessionConnectionGeneration
     let name = entry.name
     modal.confirm({
       title: t('files.rename'),
@@ -1608,22 +2155,19 @@ function FilesPageContent({
       className: 'confirm-modal',
       rootClassName: 'termous-modal-root',
       onOk: async () => {
-        requireConnectedFileSession(activeFileSessionId)
+        requireCurrentFileListing(fileSessionId, connectionGeneration)
         const cleanName = name.trim()
         if (!cleanName) {
           throw new Error(t('files.nameRequired'))
         }
-        if (!activeFileSessionId) {
-          return
-        }
-        await api.renameFileSessionFile(activeFileSessionId, entry.path, joinPath(parentPath(entry.path), cleanName))
+        await api.renameFileSessionFile(fileSessionId, entry.path, joinPath(parentPath(entry.path), cleanName))
         await loadDirectory(currentPath, { kind: 'refresh' })
       },
     })
   }
 
   const openPermissions = (entry = selectedEntries[0]) => {
-    if (!entry || !fileSessionConnected || !activeFileSessionId) {
+    if (!entry || !fileActionsEnabled || !activeFileSessionId) {
       return
     }
     setPermissionTarget({ fileSessionId: activeFileSessionId, entry })
@@ -1632,7 +2176,7 @@ function FilesPageContent({
   }
 
   const openFileEntry = (entry = selectedEntries[0]) => {
-    if (!entry || !fileSessionConnected) {
+    if (!entry || !fileActionsEnabled) {
       return
     }
     if (entry.kind !== 'file') {
@@ -1683,15 +2227,36 @@ function FilesPageContent({
     entry: RemoteFileEntry,
     mode: string,
   ) => {
+    const requestSession = fileSessionsRef.current.find(
+      (session) => session.id === fileSessionId,
+    )
     try {
-      requireConnectedFileSession(fileSessionId)
+      requireCurrentFileListing(
+        fileSessionId,
+        requestSession?.connection_generation ?? 0,
+      )
     } catch {
       setPermissionTarget(null)
       return
     }
+    if (!requestSession) {
+      setPermissionTarget(null)
+      return
+    }
+    const requestGeneration = requestSession.connection_generation ?? 0
     setPermissionSaving(true)
     try {
       const updated = await api.chmodFileSessionFile(fileSessionId, entry.path, mode)
+      const currentSession = fileSessionsRef.current.find(
+        (session) => session.id === fileSessionId,
+      )
+      if (
+        currentSession?.status !== 'connected'
+        || (currentSession.connection_generation ?? 0) !== requestGeneration
+        || closingFileSessionIdsRef.current.has(fileSessionId)
+      ) {
+        return
+      }
       updateExistingWorkspaceSession(fileSessionId, (current) => ({
         ...current,
         listing: current.listing
@@ -1723,9 +2288,11 @@ function FilesPageContent({
   }
 
   const confirmDelete = (paths = selectedPaths) => {
-    if (!activeFileSessionId || !fileSessionConnected || paths.length === 0) {
+    if (!activeFileSessionId || !fileActionsEnabled || paths.length === 0) {
       return
     }
+    const fileSessionId = activeFileSessionId
+    const connectionGeneration = activeFileSessionConnectionGeneration
     modal.confirm({
       title: t('files.deleteTitle'),
       content: t('files.deleteDescription', { count: paths.length }),
@@ -1735,8 +2302,8 @@ function FilesPageContent({
       className: 'confirm-modal',
       rootClassName: 'termous-modal-root',
       onOk: async () => {
-        requireConnectedFileSession(activeFileSessionId)
-        await api.deleteFileSessionFiles(activeFileSessionId, paths, true)
+        requireCurrentFileListing(fileSessionId, connectionGeneration)
+        await api.deleteFileSessionFiles(fileSessionId, paths, true)
         await loadDirectory(currentPath, { kind: 'refresh' })
       },
     })
@@ -1753,15 +2320,21 @@ function FilesPageContent({
   }
 
   const copySelected = (mode: 'copy' | 'cut') => {
-    if (selectedPaths.length === 0 || !activeFileSession || !fileSessionConnected) {
+    if (selectedPaths.length === 0 || !activeFileSession || !fileActionsEnabled) {
       return
     }
-    setRemoteClipboard({ mode, hostId: activeFileSession.host_id, paths: selectedPaths })
+    setRemoteClipboard({
+      mode,
+      fileSessionId: activeFileSession.id,
+      hostId: activeFileSession.host_id,
+      connectionGeneration: activeFileSession.connection_generation ?? 0,
+      paths: selectedPaths,
+    })
     notification.success({ title: mode === 'cut' ? t('files.cutReady') : t('files.copyReady'), duration: 2 })
   }
 
   const enterEntry = (entry: RemoteFileEntry) => {
-    if (!fileSessionConnected) {
+    if (!fileActionsEnabled) {
       return
     }
     setActiveEntry(entry)
@@ -1790,7 +2363,40 @@ function FilesPageContent({
 
   const hasDraggedFiles = (event: DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes('Files')
 
-  const hasRemoteDraggedFiles = (event: DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes(remoteFileDragMime)
+  const hasRemoteDraggedFiles = (event: DragEvent<HTMLElement>) => Array.from(event.dataTransfer.types).includes(REMOTE_FILE_DRAG_MIME)
+
+  const notifyRemoteMoveUnavailable = () => {
+    notification.warning({
+      title: t('files.remoteMoveUnavailable'),
+      duration: 3,
+      role: 'status',
+      className: 'termous-notification',
+    })
+  }
+
+  const resolveRemoteMoveDropTransaction = (
+    dataTransfer: DataTransfer,
+  ): RemoteFileDragTransaction | null => {
+    const transaction = resolveRemoteFileDrag(dataTransfer)
+    if (!transaction) {
+      return null
+    }
+    const currentSession = fileSessionsRef.current.find(
+      (session) => session.id === activeFileSessionIdRef.current,
+    )
+    if (!currentSession) {
+      return null
+    }
+    const validation = validateRemoteFileDrag(transaction, {
+      connected:
+        currentSession.status === 'connected'
+        && !closingFileSessionIdsRef.current.has(currentSession.id),
+      fileSessionId: currentSession.id,
+      hostId: currentSession.host_id,
+      connectionGeneration: currentSession.connection_generation ?? 0,
+    })
+    return validation.ok ? validation.transaction : null
+  }
 
   const findDirectoryDropTargetPath = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) {
@@ -1814,11 +2420,11 @@ function FilesPageContent({
     return sourceEntry.kind !== 'directory' || (target !== source && !target.startsWith(`${source}/`))
   }
 
-  const canDropRemoteMoveToPath = (targetPath: string, sourcePaths: string[]) => (
+  const canDropRemoteMoveToPath = (targetPath: string, sourcePaths: readonly string[]) => (
     sourcePaths.length > 0 && sourcePaths.every((sourcePath) => canMovePathToDirectory(sourcePath, targetPath))
   )
 
-  const findRemoteMoveTargetPath = (target: EventTarget | null, sourcePaths: string[]) => {
+  const findRemoteMoveTargetPath = (target: EventTarget | null, sourcePaths: readonly string[]) => {
     const targetPath = findDirectoryDropTargetPath(target)
     if (!targetPath || sourcePaths.length === 0) {
       return null
@@ -1896,6 +2502,9 @@ function FilesPageContent({
     dragDepthRef.current = 0
     setDragActive(false)
     setDropTargetDirectoryPath(null)
+    localDownloadDropSourcesRef.current.clear()
+    setLocalDownloadDropActive(false)
+    releaseRemoteFileDrag(remoteMoveDragRef.current?.transactionId)
     remoteMoveDragRef.current = null
     setRemoteMoveDrag(null)
     setRemoteMoveTargetPath(null)
@@ -1921,9 +2530,9 @@ function FilesPageContent({
     }
     event.preventDefault()
     event.stopPropagation()
-    event.dataTransfer.dropEffect = fileSessionConnected ? 'copy' : 'none'
-    setDragActive(fileSessionConnected)
-    setDropTargetDirectoryPath(fileSessionConnected ? normalizedTargetPath : null)
+    event.dataTransfer.dropEffect = fileActionsEnabled ? 'copy' : 'none'
+    setDragActive(fileActionsEnabled)
+    setDropTargetDirectoryPath(fileActionsEnabled ? normalizedTargetPath : null)
   }
 
   const onBreadcrumbDragLeave = (targetPath: string, event: DragEvent<HTMLButtonElement>) => {
@@ -1945,11 +2554,16 @@ function FilesPageContent({
     if (remoteDrag || hasRemoteDraggedFiles(event)) {
       event.preventDefault()
       event.stopPropagation()
-      const sourcePaths = remoteDrag?.paths ?? []
-      const allowed = canDropRemoteMoveToPath(normalizedTargetPath, sourcePaths)
+      const transaction = resolveRemoteMoveDropTransaction(event.dataTransfer)
+      const allowed = transaction
+        ? canDropRemoteMoveToPath(normalizedTargetPath, transaction.paths)
+        : false
+      releaseRemoteFileDrag(transaction)
       resetDragState()
-      if (allowed) {
-        await moveRemotePathsToDirectory(sourcePaths, normalizedTargetPath)
+      if (allowed && transaction) {
+        await moveRemotePathsToDirectory(transaction, normalizedTargetPath)
+      } else {
+        notifyRemoteMoveUnavailable()
       }
       return
     }
@@ -1964,7 +2578,7 @@ function FilesPageContent({
     const paths = cachedPaths?.length
       ? cachedPaths
       : await window.termous?.files?.pathsFromFileList(event.dataTransfer.files)
-    if (fileSessionConnected && (!paths || paths.length === 0)) {
+    if (fileActionsEnabled && (!paths || paths.length === 0)) {
       notification.warning({
         title: t('files.dropPathUnavailable'),
         duration: 4,
@@ -1987,7 +2601,7 @@ function FilesPageContent({
     }
     event.preventDefault()
     event.stopPropagation()
-    if (!fileSessionConnected) {
+    if (!fileActionsEnabled) {
       event.dataTransfer.dropEffect = 'none'
       resetDragState()
       return
@@ -2013,10 +2627,10 @@ function FilesPageContent({
     }
     event.preventDefault()
     event.stopPropagation()
-    event.dataTransfer.dropEffect = fileSessionConnected ? 'copy' : 'none'
-    setDragActive(fileSessionConnected)
-    setDropTargetDirectoryPath(fileSessionConnected ? findDirectoryDropTargetPath(event.target) : null)
-    if (fileSessionConnected) {
+    event.dataTransfer.dropEffect = fileActionsEnabled ? 'copy' : 'none'
+    setDragActive(fileActionsEnabled)
+    setDropTargetDirectoryPath(fileActionsEnabled ? findDirectoryDropTargetPath(event.target) : null)
+    if (fileActionsEnabled) {
       updateFileDragAutoScroll(event)
     } else {
       stopFileDragAutoScroll()
@@ -2053,29 +2667,36 @@ function FilesPageContent({
   const onDrop = async (event: DragEvent<HTMLElement>) => {
     const remoteDrag = remoteMoveDragRef.current ?? remoteMoveDrag
     if (remoteDrag || hasRemoteDraggedFiles(event)) {
-      const sourcePaths = remoteDrag?.paths ?? []
-      const targetPath = findRemoteMoveTargetPath(event.target, sourcePaths)
       event.preventDefault()
       event.stopPropagation()
+      const transaction = resolveRemoteMoveDropTransaction(event.dataTransfer)
+      const targetPath = transaction
+        ? findRemoteMoveTargetPath(event.target, transaction.paths)
+        : null
+      releaseRemoteFileDrag(transaction)
       resetDragState()
-      if (targetPath) {
-        await moveRemotePathsToDirectory(sourcePaths, targetPath)
+      if (targetPath && transaction) {
+        await moveRemotePathsToDirectory(transaction, targetPath)
+      } else {
+        notifyRemoteMoveUnavailable()
       }
       return
     }
     const shouldUpload = hasDraggedFiles(event)
-    const targetPath = fileSessionConnected ? findDirectoryDropTargetPath(event.target) ?? currentPath : currentPath
+    const targetPath = fileActionsEnabled
+      ? findDirectoryDropTargetPath(event.target) ?? currentPath
+      : currentPath
     event.preventDefault()
     event.stopPropagation()
     resetDragState()
-    if (!shouldUpload || !fileSessionConnected) {
+    if (!shouldUpload || !fileActionsEnabled) {
       return
     }
     const cachedPaths = await window.termous?.files?.consumeDroppedFilePaths?.(event.dataTransfer.files.length)
     const paths = cachedPaths?.length
       ? cachedPaths
       : await window.termous?.files?.pathsFromFileList(event.dataTransfer.files)
-    if (fileSessionConnected && (!paths || paths.length === 0)) {
+    if (fileActionsEnabled && (!paths || paths.length === 0)) {
       notification.warning({
         title: t('files.dropPathUnavailable'),
         duration: 4,
@@ -2088,7 +2709,7 @@ function FilesPageContent({
   }
 
   const shouldIgnoreRemoteDragStart = (target: EventTarget | null) => {
-    if (!(target instanceof HTMLElement)) {
+    if (!(target instanceof Element)) {
       return false
     }
     return Boolean(target.closest('.ant-checkbox, .files-icon-button, .files-table-column-resizer'))
@@ -2102,18 +2723,23 @@ function FilesPageContent({
   }
 
   const startRemoteMoveDrag = (entry: RemoteFileEntry, event: DragEvent<HTMLElement>) => {
-    if (!fileSessionConnected || loading || shouldIgnoreRemoteDragStart(event.target)) {
+    if (!activeFileSession || !fileActionsEnabled || loading || shouldIgnoreRemoteDragStart(event.target)) {
       event.preventDefault()
       return
     }
     const paths = remoteDragPathsForEntry(entry)
     setSelectedPaths(paths)
     setActiveEntry(entry)
-    remoteMoveDragRef.current = { paths }
-    setRemoteMoveDrag({ paths })
+    const transaction = beginRemoteFileDrag(event.dataTransfer, {
+      fileSessionId: activeFileSession.id,
+      hostId: activeFileSession.host_id,
+      connectionGeneration: activeFileSession.connection_generation ?? 0,
+      paths,
+    })
+    const dragState = { paths, transactionId: transaction.id }
+    remoteMoveDragRef.current = dragState
+    setRemoteMoveDrag(dragState)
     setRemoteMoveTargetPath(null)
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData(remoteFileDragMime, JSON.stringify(paths))
     remoteDragPreviewRef.current?.remove()
     const preview = document.createElement('div')
     preview.className = 'files-remote-drag-preview'
@@ -2154,40 +2780,95 @@ function FilesPageContent({
     if (!remoteDrag || entry.kind !== 'directory') {
       return
     }
-    const sourcePaths = remoteDrag.paths
-    const targetPath = findRemoteMoveTargetPath(event.currentTarget, sourcePaths)
     event.preventDefault()
     event.stopPropagation()
+    const transaction = resolveRemoteMoveDropTransaction(event.dataTransfer)
+    const targetPath = transaction
+      ? findRemoteMoveTargetPath(event.currentTarget, transaction.paths)
+      : null
+    releaseRemoteFileDrag(transaction)
     resetDragState()
-    if (targetPath) {
-      await moveRemotePathsToDirectory(sourcePaths, targetPath)
+    if (targetPath && transaction) {
+      await moveRemotePathsToDirectory(transaction, targetPath)
+    } else {
+      notifyRemoteMoveUnavailable()
     }
   }
 
-  const actionDisabled = !fileSessionConnected || loading
+  const actionDisabled = !fileActionsEnabled || loading
   const navigationDisabled = !fileSessionConnected || (
     workspaceViewState.directoryStatus === 'initial_loading'
     && !workspaceViewState.listing
   )
   useEffect(() => {
-    if (!fileSessionConnected) {
+    if (!fileActionsEnabled) {
+      setFileContextMenu(null)
       setPermissionTarget(null)
+      setDownloadDestinationRequest(null)
+      updateActiveWorkspaceView((current) => (
+        current.focusedPath === null
+        && current.selectedPaths.length === 0
+        && current.anchorPath === null
+          ? current
+          : {
+              ...current,
+              focusedPath: null,
+              selectedPaths: [],
+              anchorPath: null,
+            }
+      ))
     }
-  }, [fileSessionConnected])
+  }, [fileActionsEnabled, updateActiveWorkspaceView])
+
+  useEffect(() => {
+    setRemoteClipboard((current) => {
+      if (!current) {
+        return null
+      }
+      const sourceSession = data.fileSessions.find(
+        (session) => session.id === current.fileSessionId,
+      )
+      if (
+        sourceSession?.status !== 'connected'
+        || sourceSession.host_id !== current.hostId
+        || (sourceSession.connection_generation ?? 0)
+          !== current.connectionGeneration
+        || closingFileSessionIdsRef.current.has(current.fileSessionId)
+      ) {
+        return null
+      }
+      return current
+    })
+  }, [data.fileSessions])
 
   useEffect(() => {
     if (
       downloadDestinationRequest
       && (
         !activeFileSession
-        || !fileSessionConnected
+        || !fileActionsEnabled
         || downloadDestinationRequest.fileSessionId !== activeFileSession.id
         || downloadDestinationRequest.hostId !== activeFileSession.host_id
+        || downloadDestinationRequest.connectionGeneration !== (activeFileSession.connection_generation ?? 0)
       )
     ) {
       setDownloadDestinationRequest(null)
     }
-  }, [activeFileSession, downloadDestinationRequest, fileSessionConnected])
+  }, [activeFileSession, downloadDestinationRequest, fileActionsEnabled])
+
+  useEffect(() => {
+    if (auxiliarySurface !== 'local') {
+      setDownloadDestinationRequest(null)
+    }
+  }, [auxiliarySurface])
+
+  useEffect(() => {
+    resetDragStateRef.current()
+  }, [
+    activeFileSession?.connection_generation,
+    activeFileSession?.id,
+    activeFileSession?.status,
+  ])
 
   useEffect(() => {
     if (!activeFileSessionClosing) {
@@ -2245,7 +2926,7 @@ function FilesPageContent({
   }
   const runRowMenuAction = (entry: RemoteFileEntry, key: string) => {
     setFileContextMenu(null)
-    if (!fileSessionConnected) {
+    if (!fileActionsEnabled) {
       return
     }
     const actionPaths = selectedPaths.includes(entry.path)
@@ -2259,8 +2940,10 @@ function FilesPageContent({
         setDownloadDestinationRequest({
           fileSessionId: activeFileSession.id,
           hostId: activeFileSession.host_id,
+          connectionGeneration: activeFileSession.connection_generation ?? 0,
           paths: [...actionPaths],
         })
+        openLocalConsole()
       }
       return
     }
@@ -2269,12 +2952,24 @@ function FilesPageContent({
       download: () => void downloadPaths(actionPaths),
       copy: () => {
         if (activeFileSession) {
-          setRemoteClipboard({ mode: 'copy', hostId: activeFileSession.host_id, paths: actionPaths })
+          setRemoteClipboard({
+            mode: 'copy',
+            fileSessionId: activeFileSession.id,
+            hostId: activeFileSession.host_id,
+            connectionGeneration: activeFileSession.connection_generation ?? 0,
+            paths: actionPaths,
+          })
         }
       },
       cut: () => {
         if (activeFileSession) {
-          setRemoteClipboard({ mode: 'cut', hostId: activeFileSession.host_id, paths: actionPaths })
+          setRemoteClipboard({
+            mode: 'cut',
+            fileSessionId: activeFileSession.id,
+            hostId: activeFileSession.host_id,
+            connectionGeneration: activeFileSession.connection_generation ?? 0,
+            paths: actionPaths,
+          })
         }
       },
       permissions: openPermissions,
@@ -2375,6 +3070,7 @@ function FilesPageContent({
       {
         title: t('files.name'),
         dataIndex: 'name',
+        className: 'files-table-name-cell',
         width: fileColumnWidths.name,
         onHeaderCell: () => resizableHeader('name'),
         sorter: true,
@@ -2443,7 +3139,7 @@ function FilesPageContent({
         className: 'files-table-actions-cell',
         render: (_: unknown, entry: RemoteFileEntry) => (
           <Dropdown
-            disabled={!fileSessionConnected}
+            disabled={!fileActionsEnabled}
             menu={fileRowMenuPropsRef.current(entry)}
             trigger={['click']}
             classNames={{ root: 'files-row-menu' }}
@@ -2460,7 +3156,7 @@ function FilesPageContent({
     ]
   }, [
     fileColumnWidths,
-    fileSessionConnected,
+    fileActionsEnabled,
     t,
     workspaceViewState.sortState.direction,
     workspaceViewState.sortState.key,
@@ -2508,7 +3204,7 @@ function FilesPageContent({
   }, [findFileRow])
 
   const handleFileTableKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!fileSessionConnected || entries.length === 0) {
+    if (!fileActionsEnabled || entries.length === 0) {
       return
     }
     const target = event.target
@@ -2675,7 +3371,7 @@ function FilesPageContent({
     observer.observe(shell)
     syncHeight()
     return () => observer.disconnect()
-  }, [activeFileSessionId, inspectorOpen, transfersOpen])
+  }, [activeFileSessionId, auxiliarySurface, sidePanelMode])
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -2729,78 +3425,6 @@ function FilesPageContent({
       commitScrollTop()
     }
   }, [activeFileSessionId, updateActiveWorkspaceView, workspaceViewState.listing])
-
-  const startPanelResize = (
-    event: PointerEvent<HTMLDivElement>,
-    mode: 'inspector' | 'transfers',
-  ) => {
-    if (event.button !== 0) {
-      return
-    }
-    event.preventDefault()
-    event.stopPropagation()
-    panelResizeCleanupRef.current?.()
-    const startPosition = mode === 'inspector' ? event.clientX : event.clientY
-    const startValue = mode === 'inspector'
-      ? layoutPreferences.inspectorWidth
-      : layoutPreferences.transferDockHeight
-    const handleMove = (moveEvent: globalThis.PointerEvent) => {
-      const delta = mode === 'inspector'
-        ? startPosition - moveEvent.clientX
-        : startPosition - moveEvent.clientY
-      const minimum = mode === 'inspector' ? 280 : 180
-      const maximum = mode === 'inspector' ? 440 : 420
-      const next = Math.max(minimum, Math.min(maximum, Math.round(startValue + delta)))
-      setLayoutPreferences((current) => mode === 'inspector'
-        ? { ...current, inspectorWidth: next }
-        : { ...current, transferDockHeight: next })
-    }
-    const cleanup = () => {
-      document.body.classList.remove('is-panel-resizing')
-      window.removeEventListener('pointermove', handleMove)
-      window.removeEventListener('pointerup', cleanup)
-      window.removeEventListener('pointercancel', cleanup)
-      panelResizeCleanupRef.current = null
-    }
-    document.body.classList.add('is-panel-resizing')
-    window.addEventListener('pointermove', handleMove, { passive: false })
-    window.addEventListener('pointerup', cleanup, { once: true })
-    window.addEventListener('pointercancel', cleanup, { once: true })
-    panelResizeCleanupRef.current = cleanup
-  }
-
-  const resizePanelWithKeyboard = (
-    event: KeyboardEvent<HTMLDivElement>,
-    mode: 'inspector' | 'transfers',
-  ) => {
-    const direction = mode === 'inspector'
-      ? event.key === 'ArrowLeft'
-        ? 1
-        : event.key === 'ArrowRight'
-          ? -1
-          : 0
-      : event.key === 'ArrowUp'
-        ? 1
-        : event.key === 'ArrowDown'
-          ? -1
-          : 0
-    if (direction === 0) {
-      return
-    }
-    event.preventDefault()
-    const step = event.shiftKey ? 24 : 8
-    const minimum = mode === 'inspector' ? 280 : 180
-    const maximum = mode === 'inspector' ? 440 : 420
-    setLayoutPreferences((current) => {
-      const value = mode === 'inspector'
-        ? current.inspectorWidth
-        : current.transferDockHeight
-      const next = Math.max(minimum, Math.min(maximum, value + direction * step))
-      return mode === 'inspector'
-        ? { ...current, inspectorWidth: next }
-        : { ...current, transferDockHeight: next }
-    })
-  }
 
   const navigateHistory = (direction: 'back' | 'forward') => {
     const target = getFilesWorkspaceHistoryTarget(workspaceViewState, direction)
@@ -2921,7 +3545,7 @@ function FilesPageContent({
         key: 'permissions',
         icon: <ShieldCheck size={14} aria-hidden="true" />,
         label: t('files.editPermissions'),
-        disabled: !fileSessionConnected || selectedPaths.length !== 1,
+        disabled: !fileActionsEnabled || selectedPaths.length !== 1,
       },
     ],
     onClick: ({ key }) => {
@@ -2960,11 +3584,11 @@ function FilesPageContent({
         'files-workspace-page',
         inspectorOpen ? 'has-inspector' : '',
         transfersOpen ? 'has-transfer-dock' : '',
-        locationsOpen ? 'has-locations' : '',
+        bookmarksExpanded ? 'has-bookmarks-sidebar' : '',
+        localConsoleOpen ? 'has-local-download-console' : '',
         dragActive ? 'is-dragging' : '',
         remoteMoveDrag ? 'is-moving' : '',
       ].filter(Boolean).join(' ')}
-      style={filesPageStyle}
       onMouseDown={handleFilePageMouseDown}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
@@ -3215,6 +3839,30 @@ function FilesPageContent({
                   </Tooltip>
                 </>
               )}
+              <span className="files-path-action-divider" aria-hidden="true" />
+              <Tooltip title={t(
+                bookmarkRailExpanded
+                  ? 'files.collapseBookmarkRail'
+                  : 'files.expandBookmarkRail',
+              )}>
+                <Button
+                  type="text"
+                  className={[
+                    'files-path-action',
+                    'is-bookmark-rail-toggle',
+                    bookmarkRailExpanded ? 'is-active' : '',
+                  ].filter(Boolean).join(' ')}
+                  aria-label={t(
+                    bookmarkRailExpanded
+                      ? 'files.collapseBookmarkRail'
+                      : 'files.expandBookmarkRail',
+                  )}
+                  aria-controls="files-bookmark-rail"
+                  aria-expanded={bookmarkRailExpanded}
+                  icon={<Bookmark size={14} aria-hidden="true" />}
+                  onClick={toggleBookmarkRail}
+                />
+              </Tooltip>
             </div>
             {directoryNavigationBusy ? <span className="files-path-progress" aria-hidden="true" /> : null}
             {directoryStatusMessage ? (
@@ -3229,6 +3877,36 @@ function FilesPageContent({
           </div>
         </div>
 
+        <div
+          id="files-bookmark-rail"
+          className={`files-bookmark-rail-region ${bookmarkRailExpanded ? 'is-expanded' : 'is-collapsed'}`}
+          aria-hidden={!bookmarkRailExpanded}
+          inert={!bookmarkRailExpanded}
+        >
+          <div className="files-bookmark-rail-region-content">
+            <FileBookmarksRail
+              ref={bookmarkRailToggleRef}
+              bookmarks={data.fileBookmarks}
+              groups={data.fileBookmarkGroups}
+              currentPath={currentPath}
+              connected={fileSessionConnected}
+              expanded={bookmarksExpanded}
+              mutationPending={bookmarkMutationPending}
+              navigationKey={`${activeFileSessionId}:${activeFileSession?.connection_generation ?? 0}`}
+              panelId="files-bookmarks-workbench"
+              onNavigate={loadBookmarkDirectory}
+              onCreateBookmark={createFileBookmark}
+              onExpandedChange={(expanded) => {
+                if (expanded) {
+                  openBookmarksWorkbench()
+                } else {
+                  closeBookmarksWorkbench()
+                }
+              }}
+            />
+          </div>
+        </div>
+
         <div className={`files-command-bar ${selectedPaths.length > 0 ? 'has-selection' : ''}`}>
           <div className="files-command-primary">
             {selectedPaths.length > 0 ? (
@@ -3239,7 +3917,7 @@ function FilesPageContent({
                 <Button
                   type="text"
                   className="files-command-button"
-                  disabled={!fileSessionConnected}
+                  disabled={!fileActionsEnabled}
                   icon={<Copy size={15} aria-hidden="true" />}
                   onClick={() => copySelected('copy')}
                 >
@@ -3248,7 +3926,7 @@ function FilesPageContent({
                 <Button
                   type="text"
                   className="files-command-button"
-                  disabled={!fileSessionConnected}
+                  disabled={!fileActionsEnabled}
                   icon={<Scissors size={15} aria-hidden="true" />}
                   onClick={() => copySelected('cut')}
                 >
@@ -3257,7 +3935,7 @@ function FilesPageContent({
                 <Button
                   type="text"
                   className="files-command-button"
-                  disabled={!fileSessionConnected || selectedPaths.length !== 1}
+                  disabled={!fileActionsEnabled || selectedPaths.length !== 1}
                   icon={<Pencil size={15} aria-hidden="true" />}
                   onClick={() => openRename()}
                 >
@@ -3266,7 +3944,7 @@ function FilesPageContent({
                 <Button
                   type="text"
                   className="files-command-button is-low-priority"
-                  disabled={!fileSessionConnected || selectedPaths.length !== 1}
+                  disabled={!fileActionsEnabled || selectedPaths.length !== 1}
                   icon={<ShieldCheck size={15} aria-hidden="true" />}
                   onClick={() => openPermissions()}
                 >
@@ -3276,6 +3954,7 @@ function FilesPageContent({
                   <Button
                     type="text"
                     className="files-chrome-button files-selection-more"
+                    disabled={!fileActionsEnabled}
                     aria-label={t('files.actions')}
                     icon={<MoreHorizontal size={16} aria-hidden="true" />}
                   />
@@ -3314,6 +3993,7 @@ function FilesPageContent({
                   <Button
                     type="text"
                     className="files-chrome-button"
+                    disabled={actionDisabled}
                     aria-label={t('files.actions')}
                     icon={<MoreHorizontal size={16} aria-hidden="true" />}
                   />
@@ -3328,7 +4008,7 @@ function FilesPageContent({
                   type="text"
                   danger
                   className="files-command-button files-delete-command"
-                  disabled={!fileSessionConnected}
+                  disabled={!fileActionsEnabled}
                   icon={<Trash2 size={15} aria-hidden="true" />}
                   onClick={() => confirmDelete()}
                 >
@@ -3338,29 +4018,6 @@ function FilesPageContent({
               </>
             ) : null}
             <div className="files-view-actions" role="group" aria-label={t('files.workspacePanels')}>
-              <Tooltip title={t('files.locations')}>
-                <Button
-                  ref={locationsToggleRef}
-                  type="text"
-                  className={`files-workspace-toggle ${locationsOpen ? 'is-active' : ''}`}
-                  aria-label={t('files.locations')}
-                  aria-pressed={locationsOpen}
-                  aria-controls={locationsOpen ? 'files-locations-drawer' : undefined}
-                  icon={<ListTree size={15} aria-hidden="true" />}
-                  onClick={() => {
-                    if (locationsOpen) {
-                      closeLocations()
-                      return
-                    }
-                    setLocationsOpen(true)
-                    if (window.innerWidth < 1280) {
-                      setInspectorOpen(false)
-                    }
-                  }}
-                >
-                  <span className="files-workspace-toggle-label">{t('files.locations')}</span>
-                </Button>
-              </Tooltip>
               <Tooltip title={t('files.details')}>
                 <Button
                   ref={inspectorToggleRef}
@@ -3385,16 +4042,28 @@ function FilesPageContent({
                   ref={transferToggleRef}
                   type="text"
                   className={`files-workspace-toggle files-transfer-toggle ${transfersOpen ? 'is-active' : ''}`}
+                  disabled={localDownloadOperationActive}
                   aria-label={t('files.transfers')}
                   aria-pressed={transfersOpen}
+                  aria-controls="files-bottom-drawer"
+                  aria-expanded={transfersOpen}
                   icon={<Activity size={15} aria-hidden="true" />}
                   onClick={() => {
+                    if (localDownloadOperationSourcesRef.current.size > 0) {
+                      return
+                    }
                     lastTransferTriggerRef.current = transferToggleRef.current
                     if (transfersOpen && transferScope === 'session') {
                       closeTransfers()
                     } else {
-                      setTransferScope('session')
-                      setTransfersOpen(true)
+                       setTransferScope('session')
+                       setAuxiliarySurface('transfers')
+                       if (
+                         sidePanelModeRef.current === 'bookmarks'
+                         || window.innerWidth < 1280
+                       ) {
+                         updateSidePanelMode('none')
+                       }
                     }
                   }}
                 >
@@ -3413,6 +4082,11 @@ function FilesPageContent({
             ref={filesTableShellRef}
             className="files-table-shell"
             tabIndex={activeFileSession ? 0 : -1}
+            onPointerDown={() => {
+              if (bookmarksExpanded && window.innerWidth < 1280) {
+                closeBookmarksWorkbench('pointer')
+              }
+            }}
             onKeyDown={handleFileTableKeyDown}
           >
             {!activeFileSession ? (
@@ -3480,9 +4154,9 @@ function FilesPageContent({
                   rowSelection={{
                     columnWidth: 38,
                     selectedRowKeys: selectedPaths,
-                    getCheckboxProps: () => ({ disabled: !fileSessionConnected }),
+                    getCheckboxProps: () => ({ disabled: !fileActionsEnabled }),
                     onChange: (keys) => {
-                      if (!fileSessionConnected) {
+                      if (!fileActionsEnabled) {
                         return
                       }
                       const paths = keys.map(String)
@@ -3504,30 +4178,41 @@ function FilesPageContent({
                   ].filter(Boolean).join(' ')}
                   onRow={(entry) => ({
                     tabIndex: workspaceViewState.focusedPath === entry.path ? 0 : -1,
-                    draggable: fileSessionConnected && !loading,
+                    draggable: fileActionsEnabled && !loading,
                     onFocus: () => focusEntry(entry),
                     onClick: (event) => {
+                      const target = event.target instanceof Element ? event.target : null
                       if (
-                        event.target instanceof Element
-                        && event.target.closest('.ant-checkbox, .ant-checkbox-wrapper')
+                        target?.closest(
+                          '.ant-checkbox, .ant-checkbox-wrapper, button, a, input, '
+                          + '[role="button"], [role="menuitem"], [contenteditable="true"]',
+                        )
                       ) {
                         return
                       }
                       if (
                         entry.kind === 'directory'
-                        && event.target instanceof Element
-                        && event.target.closest('.file-name-copy, .file-kind-icon')
+                        && target?.closest('.file-name-copy, .file-kind-icon')
                       ) {
                         enterEntry(entry)
                         return
                       }
-                      if (fileSessionConnected) {
+                      if (fileActionsEnabled) {
                         selectEntry(entry, {
                           ctrlKey: event.ctrlKey,
                           metaKey: event.metaKey,
                           shiftKey: event.shiftKey,
                         })
-                        if (!event.ctrlKey && !event.metaKey && !event.shiftKey) {
+                        const opensInspector = (
+                          target?.closest('.files-table-name-cell')
+                          && !target.closest('.file-name-copy, .file-kind-icon')
+                        )
+                        if (
+                          opensInspector
+                          && !event.ctrlKey
+                          && !event.metaKey
+                          && !event.shiftKey
+                        ) {
                           openInspector()
                         }
                       }
@@ -3535,7 +4220,7 @@ function FilesPageContent({
                     onDoubleClick: () => enterEntry(entry),
                     onContextMenu: (event) => {
                       event.preventDefault()
-                      if (!fileSessionConnected || loading) {
+                      if (!fileActionsEnabled || loading) {
                         return
                       }
                       selectEntry(entry, { contextMenu: true })
@@ -3580,7 +4265,7 @@ function FilesPageContent({
                 ) : null}
               </>
             )}
-            {fileContextMenu?.fileSessionId === activeFileSessionId && fileSessionConnected ? (
+            {fileContextMenu?.fileSessionId === activeFileSessionId && fileActionsEnabled ? (
               <Dropdown
                 open
                 trigger={[]}
@@ -3601,291 +4286,287 @@ function FilesPageContent({
             ) : null}
           </div>
 
-          {inspectorOpen ? (
-            <aside
-              className="files-inspector"
-              aria-label={t('files.details')}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  event.preventDefault()
-                  closeInspector()
-                }
+          {sidePanelMode !== 'none' ? (
+            <FilesSidePanel
+              ref={sidePanelRef}
+              id={sidePanelMode === 'bookmarks'
+                ? 'files-bookmarks-workbench'
+                : 'files-details-panel'}
+              mode={sidePanelMode}
+              width={layoutPreferences.sidePanelWidth}
+              ariaLabel={sidePanelMode === 'bookmarks'
+                ? t('files.bookmarkPanelLabel')
+                : t('files.details')}
+              resizeLabel={t('files.resizeSidePanel')}
+              closeOnEscape={sidePanelMode === 'details'}
+              onWidthChange={(width) => {
+                setLayoutPreferences((current) => ({
+                  ...current,
+                  sidePanelWidth: width,
+                }))
               }}
+              onRequestClose={sidePanelMode === 'bookmarks'
+                ? () => closeBookmarksWorkbench('dismiss')
+                : closeInspector}
             >
-              <div
-                className="files-inspector-resize-edge"
-                role="separator"
-                tabIndex={0}
-                aria-orientation="vertical"
-                aria-label={t('files.resizeInspector')}
-                aria-valuemin={280}
-                aria-valuemax={440}
-                aria-valuenow={layoutPreferences.inspectorWidth}
-                onPointerDown={(event) => startPanelResize(event, 'inspector')}
-                onKeyDown={(event) => resizePanelWithKeyboard(event, 'inspector')}
-              />
-              <header className="files-panel-heading">
+              {sidePanelMode === 'bookmarks' ? (
+                <FileBookmarksSidebar
+                  bookmarks={data.fileBookmarks}
+                  groups={data.fileBookmarkGroups}
+                  currentPath={currentPath}
+                  connected={fileSessionConnected}
+                  open
+                  mutationPending={bookmarkMutationPending}
+                  navigationKey={`${activeFileSessionId}:${activeFileSession?.connection_generation ?? 0}`}
+                  panelId="files-bookmarks-workbench"
+                  onNavigate={loadBookmarkDirectory}
+                  onCreateBookmark={createFileBookmark}
+                  onUpdateBookmark={updateFileBookmark}
+                  onDeleteBookmark={deleteFileBookmark}
+                  onReorderBookmarks={reorderFileBookmarks}
+                  onCreateGroup={createFileBookmarkGroup}
+                  onUpdateGroup={updateFileBookmarkGroup}
+                  onDeleteGroup={deleteFileBookmarkGroup}
+                  onReorderGroups={reorderFileBookmarkGroups}
+                  onRequestClose={closeBookmarksWorkbench}
+                />
+              ) : (
+                <>
+                  <header className="files-panel-heading">
+                    <span>
+                      <Info size={15} aria-hidden="true" />
+                      {t('files.details')}
+                    </span>
+                    <Button
+                      type="text"
+                      className="files-chrome-button"
+                      aria-label={t('app.close')}
+                      icon={<X size={15} aria-hidden="true" />}
+                      onClick={closeInspector}
+                    />
+                  </header>
+                  <FileDetailPanel
+                    host={activeFileSessionHost}
+                    entry={activeEntry}
+                    connected={fileActionsEnabled}
+                    onEditPermissions={openPermissions}
+                  />
+                </>
+              )}
+            </FilesSidePanel>
+          ) : null}
+        </div>
+
+        <FilesBottomDrawer
+          id="files-bottom-drawer"
+          open={transfersOpen || localConsoleOpen}
+          height={layoutPreferences.bottomDrawerHeight}
+          minimumContentHeight={200}
+          ariaLabel={transfersOpen ? t('files.transfers') : t('files.localMappings')}
+          resizeLabel={t('files.resizeBottomDrawer')}
+          className={transfersOpen ? 'is-transfer-content' : localConsoleOpen ? 'is-local-content' : undefined}
+          autoFocusOnOpen={transfersOpen}
+          onHeightChange={(height) => {
+            setLayoutPreferences((current) => ({ ...current, bottomDrawerHeight: height }))
+          }}
+          onEscape={transfersOpen
+            ? closeTransfers
+            : localConsoleOpen
+              ? () => {
+                  setDownloadDestinationRequest(null)
+                  closeLocalConsole()
+                }
+              : undefined}
+        >
+          {transfersOpen ? (
+            <div className="files-transfer-dock">
+              <header className="files-panel-heading files-transfer-heading">
                 <span>
-                  <Info size={15} aria-hidden="true" />
-                  {t('files.details')}
+                  <Activity size={15} aria-hidden="true" />
+                  {t('files.transfers')}
                 </span>
+                <div className="files-transfer-scope" role="group" aria-label={t('files.transferScope')}>
+                  <button
+                    type="button"
+                    aria-pressed={transferScope === 'session'}
+                    className={transferScope === 'session' ? 'is-active' : ''}
+                    onClick={() => setTransferScope('session')}
+                  >
+                    {t('files.currentSession')}
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={transferScope === 'all'}
+                    className={transferScope === 'all' ? 'is-active' : ''}
+                    onClick={() => setTransferScope('all')}
+                  >
+                    {t('files.allSessions')}
+                  </button>
+                </div>
                 <Button
                   type="text"
                   className="files-chrome-button"
                   aria-label={t('app.close')}
                   icon={<X size={15} aria-hidden="true" />}
-                  onClick={closeInspector}
+                  onClick={closeTransfers}
                 />
               </header>
-              <FileDetailPanel
-                host={activeFileSessionHost}
-                entry={activeEntry}
-                connected={fileSessionConnected}
-                onEditPermissions={openPermissions}
-              />
-            </aside>
-          ) : null}
-        </div>
-
-        {transfersOpen ? (
-          <section
-            className="files-transfer-dock"
-            aria-label={t('files.transfers')}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault()
-                closeTransfers()
-              }
-            }}
-          >
-            <div
-              className="files-transfer-resize-edge"
-              role="separator"
-              tabIndex={0}
-              aria-orientation="horizontal"
-              aria-label={t('files.resizeTransfers')}
-              aria-valuemin={180}
-              aria-valuemax={420}
-              aria-valuenow={layoutPreferences.transferDockHeight}
-              onPointerDown={(event) => startPanelResize(event, 'transfers')}
-              onKeyDown={(event) => resizePanelWithKeyboard(event, 'transfers')}
-            />
-            <header className="files-panel-heading files-transfer-heading">
-              <span>
-                <Activity size={15} aria-hidden="true" />
-                {t('files.transfers')}
-              </span>
-              <div className="files-transfer-scope" role="group" aria-label={t('files.transferScope')}>
-                <button
-                  type="button"
-                  aria-pressed={transferScope === 'session'}
-                  className={transferScope === 'session' ? 'is-active' : ''}
-                  onClick={() => setTransferScope('session')}
-                >
-                  {t('files.currentSession')}
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={transferScope === 'all'}
-                  className={transferScope === 'all' ? 'is-active' : ''}
-                  onClick={() => setTransferScope('all')}
-                >
-                  {t('files.allSessions')}
-                </button>
-              </div>
-              <Button
-                type="text"
-                className="files-chrome-button"
-                aria-label={t('app.close')}
-                icon={<X size={15} aria-hidden="true" />}
-                onClick={closeTransfers}
-              />
-            </header>
-            <TransferQueuePanel
-              transfers={scopedTransfers}
-              pendingOperations={scopedPendingOperations}
-              pendingActionIds={pendingTransferActionIds}
-              hostNames={transferHostNames}
-              showHostContext={transferScope === 'all'}
-              liveConnected={transferEventsConnected}
-              onRefresh={refreshTransfers}
-              onDismissPending={removePendingTransferOperation}
-              onCancel={async (id) => {
-                const succeeded = await runTransferAction(id, () => api.deleteTransfer(id))
-                if (succeeded) {
-                  try {
-                    await refreshTransfers()
-                  } catch (actionError) {
-                    notifyError(actionError)
+              <TransferQueuePanel
+                transfers={scopedTransfers}
+                pendingOperations={scopedPendingOperations}
+                pendingActionIds={pendingTransferActionIds}
+                hostNames={transferHostNames}
+                showHostContext={transferScope === 'all'}
+                liveConnected={transferEventsConnected}
+                onRefresh={refreshTransfers}
+                onDismissPending={removePendingTransferOperation}
+                onCancel={async (id) => {
+                  const succeeded = await runTransferAction(id, () => api.deleteTransfer(id))
+                  if (succeeded) {
+                    try {
+                      await refreshTransfers()
+                    } catch (actionError) {
+                      notifyError(actionError)
+                    }
                   }
-                }
-              }}
-              onDelete={(id, options) => runTransferAction(id, async () => {
-                await api.deleteTransfer(id)
-                removeTransfer(id)
-              }, !options?.silent)}
-              onRetry={async (id) => {
-                await runTransferAction(id, async () => {
-                  const task = await api.retryTransfer(id)
-                  upsertTransfer(task)
-                })
-              }}
-            />
-          </section>
-        ) : null}
+                }}
+                onDelete={(id, options) => runTransferAction(id, async () => {
+                  await api.deleteTransfer(id)
+                  removeTransfer(id)
+                }, !options?.silent)}
+                onRetry={async (id) => {
+                  await runTransferAction(id, async () => {
+                    const task = await api.retryTransfer(id)
+                    upsertTransfer(task)
+                  })
+                }}
+              />
+            </div>
+          ) : null}
+
+          <LocalDownloadConsole
+            api={api}
+            open={localConsoleOpen}
+            mappings={data.localPathMappings}
+            session={localDownloadSession}
+            selection={localDownloadSelection}
+            preferredTarget={effectiveLocalDownloadTarget ? {
+              mappingId: effectiveLocalDownloadTarget.mappingId,
+              path: effectiveLocalDownloadTarget.path,
+            } : null}
+            refreshRequests={localRefreshRequests}
+            operationBlocked={
+              localDownloadOperationActive
+              && !(
+                localDownloadOperationSourcesRef.current.size === 1
+                && localDownloadOperationSourcesRef.current.has('console')
+              )
+            }
+            onClose={() => {
+              setDownloadDestinationRequest(null)
+              closeLocalConsole()
+            }}
+            onDownload={downloadToLocalTarget}
+            onDropActiveChange={handleLocalConsoleDropActiveChange}
+            onOperationActiveChange={handleLocalConsoleOperationActiveChange}
+            onTargetChange={setLocalDownloadTarget}
+            onCreateMapping={onCreateLocalPathMapping}
+            onUpdateMapping={onUpdateLocalPathMapping}
+            onDeleteMapping={onDeleteLocalPathMapping}
+            onReorderMappings={onReorderLocalPathMappings}
+          />
+        </FilesBottomDrawer>
 
         <footer className="files-status-bar">
-          <span>
-            {t('files.itemCount', { count: entries.length })}
-            {selectedPaths.length > 0 ? ` · ${t('files.selectedCount', { count: selectedPaths.length })}` : ''}
-          </span>
-          <span className={`files-status-connection is-${connectionStatusKey}`}>
-            <i aria-hidden="true" />
-            {activeFileSession
-              ? `${activeFileSessionHost?.name ?? shortId(activeFileSession.id)} · ${t(`files.sessionStatus.${connectionStatusKey}`)}`
-              : t('files.noFileSession')}
-          </span>
-          <button
-            type="button"
-            className={`files-transfer-summary ${activeTransferCount > 0 ? 'is-active' : ''}`}
-            onClick={(event) => {
-              lastTransferTriggerRef.current = event.currentTarget
-              if (transfersOpen && transferScope === 'all') {
-                closeTransfers()
-              } else {
-                setTransferScope('all')
-                setTransfersOpen(true)
+          <div className="files-status-overview">
+            <span className="files-status-count">
+              {t('files.itemCount', { count: entries.length })}
+              {selectedPaths.length > 0 ? ` · ${t('files.selectedCount', { count: selectedPaths.length })}` : ''}
+            </span>
+            <span className={`files-status-connection is-${connectionStatusKey}`}>
+              <i aria-hidden="true" />
+              {activeFileSession
+                ? `${activeFileSessionHost?.name ?? shortId(activeFileSession.id)} · ${t(`files.sessionStatus.${connectionStatusKey}`)}`
+                : t('files.noFileSession')}
+            </span>
+          </div>
+          <div className="files-status-actions">
+            <LocalDownloadQuickTarget
+              ref={localConsoleToggleRef}
+              api={api}
+              target={effectiveLocalDownloadTarget}
+              session={localDownloadSession}
+              expanded={localConsoleOpen}
+              disabled={
+                localDownloadOperationActive
+                && !(
+                  localDownloadOperationSourcesRef.current.size === 1
+                  && localDownloadOperationSourcesRef.current.has('quick-target')
+                )
               }
-            }}
-          >
-            <Activity size={13} aria-hidden="true" />
-            {activeTransferCount > 0 ? (
-              <>
-                <span>{t('files.activeTransferCount', { count: activeTransferCount })}</span>
-                {activeTransfers.length > 0 ? (
-                  <>
-                    <span>{Math.round(activeTransferProgress)}%</span>
-                    <span>{t('files.transferSpeed', { value: formatBytes(activeTransferSpeed) })}</span>
-                  </>
-                ) : null}
-              </>
-            ) : (
-              <span>{t('files.noActiveTransfers')}</span>
-            )}
-          </button>
+              onOpen={() => {
+                if (localDownloadOperationSourcesRef.current.size > 0) {
+                  return
+                }
+                if (localConsoleOpen) {
+                  closeLocalConsole()
+                  return
+                }
+                setDownloadDestinationRequest(null)
+                openLocalConsole()
+              }}
+              onDownload={downloadToLocalTarget}
+              onDropActiveChange={handleLocalQuickTargetDropActiveChange}
+              onOperationActiveChange={handleLocalQuickTargetOperationActiveChange}
+            />
+            <button
+              type="button"
+              className={`files-transfer-summary ${activeTransferCount > 0 ? 'is-active' : ''}`}
+              disabled={localDownloadOperationActive}
+              aria-label={activeTransferCount > 0
+                ? t('files.activeTransferCount', { count: activeTransferCount })
+                : t('files.transfers')}
+              aria-controls="files-bottom-drawer"
+              aria-expanded={transfersOpen}
+              onClick={(event) => {
+                if (localDownloadOperationSourcesRef.current.size > 0) {
+                  return
+                }
+                lastTransferTriggerRef.current = event.currentTarget
+                if (transfersOpen && transferScope === 'all') {
+                  closeTransfers()
+                } else {
+                   setTransferScope('all')
+                   setAuxiliarySurface('transfers')
+                   if (
+                     sidePanelModeRef.current === 'bookmarks'
+                     || window.innerWidth < 1280
+                   ) {
+                     updateSidePanelMode('none')
+                   }
+                }
+              }}
+            >
+              <Activity size={13} aria-hidden="true" />
+              {activeTransferCount > 0 ? (
+                <>
+                  <span>{t('files.activeTransferCount', { count: activeTransferCount })}</span>
+                  {activeTransfers.length > 0 ? (
+                    <>
+                      <span>{Math.round(activeTransferProgress)}%</span>
+                      <span>{t('files.transferSpeed', { value: formatBytes(activeTransferSpeed) })}</span>
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                <span>{t('files.noActiveTransfers')}</span>
+              )}
+            </button>
+          </div>
         </footer>
       </main>
 
-      {locationsOpen ? (
-        <aside
-          id="files-locations-drawer"
-          className="files-locations-drawer"
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('files.locations')}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              closeLocations()
-              return
-            }
-            if (event.key === 'Tab') {
-              const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
-                'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-              ))
-              const first = focusable[0]
-              const last = focusable[focusable.length - 1]
-              if (!first || !last) {
-                return
-              }
-              if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault()
-                last.focus()
-              } else if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault()
-                first.focus()
-              }
-            }
-          }}
-        >
-          <header className="files-panel-heading">
-            <span>
-              <ListTree size={15} aria-hidden="true" />
-              {t('files.locations')}
-            </span>
-            <Button
-              type="text"
-              className="files-chrome-button"
-              aria-label={t('app.close')}
-              icon={<X size={15} aria-hidden="true" />}
-              onClick={closeLocations}
-            />
-          </header>
-          <div className="files-locations-tabs" role="group" aria-label={t('files.locations')}>
-            <button
-              ref={bookmarksLocationTabRef}
-              type="button"
-              aria-pressed={locationTab === 'bookmarks'}
-              className={locationTab === 'bookmarks' ? 'is-active' : ''}
-              onClick={() => setLocationTab('bookmarks')}
-            >
-              <Bookmark size={14} aria-hidden="true" />
-              {t('files.bookmarks')}
-            </button>
-            <button
-              ref={localLocationTabRef}
-              type="button"
-              aria-pressed={locationTab === 'local'}
-              className={locationTab === 'local' ? 'is-active' : ''}
-              onClick={() => setLocationTab('local')}
-            >
-              <Folder size={14} aria-hidden="true" />
-              {t('files.localMappingsShort')}
-            </button>
-          </div>
-          <div className="files-locations-content">
-            {locationTab === 'bookmarks' ? (
-              <FileBookmarksPanel
-                bookmarks={data.fileBookmarks}
-                groups={data.fileBookmarkGroups}
-                currentPath={currentPath}
-                connected={fileSessionConnected}
-                onNavigate={loadDirectory}
-                onCreateBookmark={onCreateFileBookmark}
-                onUpdateBookmark={onUpdateFileBookmark}
-                onDeleteBookmark={onDeleteFileBookmark}
-                onReorderBookmarks={onReorderFileBookmarks}
-                onCreateGroup={onCreateFileBookmarkGroup}
-                onUpdateGroup={onUpdateFileBookmarkGroup}
-                onDeleteGroup={onDeleteFileBookmarkGroup}
-                onReorderGroups={onReorderFileBookmarkGroups}
-              />
-            ) : (
-              <LocalPathMappingsPanel
-                api={api}
-                mappings={data.localPathMappings}
-                embedded
-                onCreateMapping={onCreateLocalPathMapping}
-                onUpdateMapping={onUpdateLocalPathMapping}
-                onDeleteMapping={onDeleteLocalPathMapping}
-                onReorderMappings={onReorderLocalPathMappings}
-                refreshRequests={localRefreshRequests}
-              />
-            )}
-          </div>
-        </aside>
-      ) : null}
-
-      {locationsOpen ? (
-        <button
-          type="button"
-          className="files-locations-scrim"
-          aria-label={t('app.close')}
-          onClick={closeLocations}
-        />
-      ) : null}
-
-      {dragActive || remoteMoveDrag ? (
+      {(dragActive || remoteMoveDrag) && !localDownloadDropActive ? (
         <div
           className={`files-drop-mask ${remoteMoveDrag ? 'is-move' : ''}`}
           role="status"
@@ -3910,14 +4591,6 @@ function FilesPageContent({
           </span>
         </div>
       ) : null}
-      <LocalDownloadDestinationModal
-        open={Boolean(downloadDestinationRequest)}
-        api={api}
-        mappings={data.localPathMappings}
-        onCancel={() => setDownloadDestinationRequest(null)}
-        onConfirm={confirmMappedDownload}
-        onManageMappings={manageLocalDownloadDestinations}
-      />
       <RemotePermissionModal
         entry={permissionTarget?.fileSessionId === activeFileSessionId ? permissionTarget.entry : null}
         open={permissionTarget?.fileSessionId === activeFileSessionId}
@@ -3935,7 +4608,9 @@ function FilesPageContent({
             api={api}
             open
             disabled={!fileSessionConnected || activeFileSessionClosing}
+            closing={activeFileSessionClosing}
             fileSessionId={textEditorTarget.fileSessionId}
+            connectionGeneration={activeFileSession?.connection_generation ?? 0}
             path={textEditorTarget.path}
             theme={theme}
             terminalSettings={data.settings.terminal}

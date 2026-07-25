@@ -1,5 +1,8 @@
 import type { RemoteFileEntry, TransferStatus, TransferTask } from '../../types/domain'
-import { requireRemotePosixPath } from '../../shared/remotePosixPath.ts'
+import {
+  normalizeRemotePosixPath,
+  requireRemotePosixPath,
+} from '../../shared/remotePosixPath.ts'
 
 export function parentPath(path: string) {
   const cleaned = normalizeRemotePath(path)
@@ -28,6 +31,55 @@ export function pathBase(path: string) {
   }
   const segments = cleaned.split('/').filter(Boolean)
   return segments[segments.length - 1] ?? cleaned
+}
+
+export function transferDisplayName(task: TransferTask) {
+  const currentFile = safeTransferLabel(task.current_file)
+  if (currentFile) {
+    return currentFile
+  }
+
+  const firstSource = task.source_paths.find((value) => safeTransferLabel(value) !== null)
+  if (task.type.startsWith('upload')) {
+    return safeTransferLabel(firstSource) ?? '-'
+  }
+  return safeRemotePathBase(firstSource) ?? safeRemotePathBase(task.target_path) ?? '-'
+}
+
+function safeTransferLabel(value?: string) {
+  if (
+    !value
+    || value.trim().length === 0
+    || hasControlCharacter(value)
+  ) {
+    return null
+  }
+  return value
+}
+
+function hasControlCharacter(value: string) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) {
+      return true
+    }
+  }
+  return false
+}
+
+function safeRemotePathBase(value?: string) {
+  if (!value) {
+    return null
+  }
+  const normalized = normalizeRemotePosixPath(value)
+  if (normalized === null) {
+    return null
+  }
+  if (normalized === '/') {
+    return '/'
+  }
+  const segments = normalized.split('/').filter(Boolean)
+  return segments[segments.length - 1] ?? null
 }
 
 export function formatBytes(value: number) {

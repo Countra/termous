@@ -447,7 +447,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .files-transfer-resize-edge::after,
   .files-transfer-dock .transfer-filter-tabs button,
   .files-transfer-dock .transfer-filter-tabs button::after,
   .files-transfer-dock .transfer-row,
