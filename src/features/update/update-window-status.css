@@ -1,0 +1,191 @@
+.update-window-status-panel {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 138px;
+  grid-template-rows: auto auto 1fr;
+  align-content: start;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-subtle) 68%, transparent);
+}
+
+.update-window-status-panel.is-install-ready {
+  grid-template-rows: auto 1fr;
+}
+
+.update-window-status-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.update-window-status-heading > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.update-window-status-heading strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.update-window-status-heading small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-window-status-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.update-window-status-icon.is-downloaded,
+.update-window-status-icon.is-up_to_date {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.update-window-status-icon.is-error,
+.update-window-status-icon.is-unsupported {
+  background: color-mix(in srgb, var(--danger) 13%, transparent);
+  color: var(--danger);
+}
+
+.update-window-progress-track {
+  position: relative;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 16%, transparent);
+}
+
+.update-window-progress-track > span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.2s ease-out;
+}
+
+.update-window-progress-metrics {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1.45fr) repeat(2, minmax(0, 0.8fr));
+  gap: 18px;
+}
+
+.update-window-progress-metric {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.update-window-progress-metric small {
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.update-window-progress-metric strong {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-window-impact-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.update-window-impact-item {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+}
+
+.update-window-impact-item small {
+  overflow: hidden;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-window-impact-item strong {
+  color: var(--text-primary);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+}
+
+.update-window-impact-note {
+  grid-column: 1 / -1;
+  margin: 3px 0 0;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.update-window-confirmation-status {
+  position: absolute;
+  right: 15px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.update-window-confirmation-status .ant-btn-link {
+  height: 22px;
+  padding: 0 2px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.update-window-confirmation-status .ant-btn-link:hover {
+  color: color-mix(in srgb, var(--accent) 82%, white);
+}
+
+:root[data-theme="light"] .update-window-status-panel {
+  background: color-mix(in srgb, var(--surface) 55%, var(--app-bg));
+}
+
+@media (max-width: 660px) {
+  .update-window-progress-metrics {
+    gap: 8px;
+  }
+
+  .update-window-impact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-window-progress-track > span {
+    transition: none;
+  }
+}

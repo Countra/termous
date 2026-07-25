@@ -1622,6 +1622,9 @@ export interface TrayMenuLabels {
   recentHosts: string
   emptyRecentHosts: string
   forwards: string
+  updateAvailable: string
+  updateDownloading: string
+  updateDownloaded: string
   quit: string
 }
 

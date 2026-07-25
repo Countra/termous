@@ -11,6 +11,7 @@ import {
   mergeTransferSnapshot,
   mergeTransferUpdate,
   sortTransfers,
+  transferRefreshRetryDelay,
   TransferSnapshotGate,
   type TransferRuntimeValue,
 } from './useTransferRuntime'
@@ -60,7 +61,11 @@ function getSharedTransferRuntime(api: TermousApi) {
 class SharedTransferRuntime {
   private transfers: TransferTask[] = []
   private connected = false
+  private initialized = false
   private consumers = 0
+  private refreshFailureCount = 0
+  private refreshPromise?: Promise<void>
+  private refreshRetryTimer?: number
   private socket?: WebSocket
   private reconnectTimer?: number
   private stopTimer?: number
@@ -107,12 +112,36 @@ class SharedTransferRuntime {
     }, 0)
   }
 
-  refresh = async () => {
+  refresh = () => {
+    if (this.refreshPromise) {
+      return this.refreshPromise
+    }
+    if (this.refreshRetryTimer !== undefined) {
+      window.clearTimeout(this.refreshRetryTimer)
+      this.refreshRetryTimer = undefined
+    }
+    const operation = this.performRefresh()
+      .catch((error) => {
+        this.scheduleRefreshRetry()
+        throw error
+      })
+      .finally(() => {
+        if (this.refreshPromise === operation) {
+          this.refreshPromise = undefined
+        }
+      })
+    this.refreshPromise = operation
+    return operation
+  }
+
+  private async performRefresh() {
     const request = this.snapshotGate.begin(this.eventEpoch)
     const nextTransfers = await this.api.transfers()
     if (!this.snapshotGate.isCurrent(request)) {
       return
     }
+    this.initialized = this.connected
+    this.refreshFailureCount = 0
     const remoteTransfers = nextTransfers ?? []
     const remoteIds = new Set(remoteTransfers.map((task) => task.id))
     for (const [id, removedEpoch] of this.removedTransferEpochs) {
@@ -132,6 +161,18 @@ class SharedTransferRuntime {
     }
     this.transfers = mergeTransferSnapshot(this.transfers, snapshot, preserveCurrentIds)
     this.publish()
+  }
+
+  private scheduleRefreshRetry() {
+    if (this.consumers === 0 || this.refreshRetryTimer !== undefined) {
+      return
+    }
+    this.refreshFailureCount += 1
+    const delay = transferRefreshRetryDelay(this.refreshFailureCount)
+    this.refreshRetryTimer = window.setTimeout(() => {
+      this.refreshRetryTimer = undefined
+      void this.refresh().catch(() => undefined)
+    }, delay)
   }
 
   upsertTransfer = (task: TransferTask) => {
@@ -190,6 +231,7 @@ class SharedTransferRuntime {
       }
       this.socket = undefined
       this.connected = false
+      this.initialized = false
       this.publish()
       if (this.consumers > 0) {
         this.reconnectTimer = window.setTimeout(() => {
@@ -205,9 +247,14 @@ class SharedTransferRuntime {
       window.clearTimeout(this.reconnectTimer)
       this.reconnectTimer = undefined
     }
+    if (this.refreshRetryTimer !== undefined) {
+      window.clearTimeout(this.refreshRetryTimer)
+      this.refreshRetryTimer = undefined
+    }
     const socket = this.socket
     this.socket = undefined
     this.connected = false
+    this.initialized = false
     socket?.close()
     this.publish()
   }
@@ -217,6 +264,7 @@ class SharedTransferRuntime {
       transfers: this.transfers,
       activeTransfers: this.transfers.filter((task) => task.status === 'queued' || task.status === 'running'),
       connected: this.connected,
+      initialized: this.initialized,
       refresh: this.refresh,
       upsertTransfer: this.upsertTransfer,
       removeTransfer: this.removeTransfer,

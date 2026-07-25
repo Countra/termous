@@ -55,6 +55,9 @@ const trayController = new TermousTrayController({
   iconCandidates: [TRAY_ICON, APP_ICON],
   getWindow: () => win,
   showMainWindow,
+  openUpdateWindow: () => {
+    updateRuntime?.openWindow('inspect')
+  },
   quitApp: quitFromTray,
 })
 
@@ -1273,6 +1276,10 @@ app.whenReady().then(async () => {
         info: (event, details = {}) => reportElectronProcessEvent(event, details),
         error: (event, details = {}) => reportElectronProcessEvent(event, details),
       },
+    })
+    trayController.updateUpdateStatus(updateRuntime.getSnapshot())
+    updateRuntime.manager.subscribe((snapshot) => {
+      trayController.updateUpdateStatus(snapshot)
     })
   } catch (error) {
     reportElectronProcessEvent('update-runtime-initialize-failed', {

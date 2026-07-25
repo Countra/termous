@@ -24,6 +24,7 @@ import {
 import {
   UpdateInstallConfirmationAuthority,
   type UpdateInstallConfirmation,
+  type UpdateInstallSummaryState,
   type UpdateRuntimeSummary,
 } from './updateInstallConfirmation'
 import {
@@ -205,7 +206,16 @@ export class ApplicationUpdateRuntime {
     })
     ipcMain.handle('app-update:report-runtime-summary', (event, summary: unknown) => {
       this.assertSender(event, ['main'])
-      return this.installConfirmation.updateSummary(summary)
+      const previous = this.installConfirmation.getSummaryState()
+      const normalized = this.installConfirmation.updateSummary(summary)
+      const next = this.installConfirmation.getSummaryState()
+      if (
+        previous.revision !== next.revision
+        || previous.ready !== next.ready
+      ) {
+        this.notifyInstallSummaryChanged(next)
+      }
+      return normalized
     })
     ipcMain.handle('app-update:subscribe', (event) => {
       this.assertSender(event, ['main', 'update'])
@@ -299,6 +309,16 @@ export class ApplicationUpdateRuntime {
       sender.send('app-update:state-changed', snapshot)
     }
     this.scheduleAutomaticCheck()
+  }
+
+  private notifyInstallSummaryChanged(state: UpdateInstallSummaryState) {
+    for (const [senderId, sender] of this.subscribers) {
+      if (sender.isDestroyed()) {
+        this.subscribers.delete(senderId)
+        continue
+      }
+      sender.send('app-update:install-summary-changed', state)
+    }
   }
 
   private async openReleasePage() {

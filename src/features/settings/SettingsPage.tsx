@@ -1,17 +1,27 @@
-import { DatabaseBackup, Languages, Moon, Settings2, SquareTerminal, Sun } from 'lucide-react'
+import { DatabaseBackup, Info, Languages, Moon, Settings2, SquareTerminal, Sun } from 'lucide-react'
 import { Segmented, Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { AppearanceSettings, Language, TerminalFont, TerminalSettings, WindowSettings } from '../../types/domain'
+import type {
+  AppBuildInfo,
+  AppearanceSettings,
+  Language,
+  TerminalFont,
+  TerminalSettings,
+  WindowSettings,
+} from '../../types/domain'
+import { AboutSettings, type AboutUpdateRuntime } from './AboutSettings'
 import { TerminalStyleSettings } from './TerminalStyleSettings'
 import { DataPortabilitySettings } from './DataPortabilitySettings'
 
-interface SettingsPageProps {
+export interface SettingsPageProps {
   language: Language
   appearanceSettings: AppearanceSettings
   terminalSettings: TerminalSettings
   windowSettings: WindowSettings
   terminalFonts: TerminalFont[]
   appVersion: string
+  buildInfo?: AppBuildInfo | null
+  aboutUpdateRuntime?: AboutUpdateRuntime | null
   actionBusy: boolean
   onLanguageChange: (language: Language) => Promise<void>
   onAppearanceSettingsChange: (settings: AppearanceSettings) => Promise<void>
@@ -28,6 +38,8 @@ export function SettingsPage({
   windowSettings,
   terminalFonts,
   appVersion,
+  buildInfo = null,
+  aboutUpdateRuntime = null,
   actionBusy,
   onLanguageChange,
   onAppearanceSettingsChange,
@@ -62,12 +74,6 @@ export function SettingsPage({
                 <div className="settings-section-header">
                   <Settings2 size={18} aria-hidden="true" />
                   <h2>{t('settings.generalSection')}</h2>
-                </div>
-                <div className="settings-row">
-                  <div>
-                    <strong>{t('settings.appVersion')}</strong>
-                  </div>
-                  <div className="settings-version-value">v{appVersion}</div>
                 </div>
                 <div className="settings-row">
                   <div>
@@ -186,6 +192,22 @@ export function SettingsPage({
               </span>
             ),
             children: <DataPortabilitySettings appVersion={appVersion} />,
+          },
+          {
+            key: 'about',
+            label: (
+              <span className="settings-tab-label">
+                <Info size={15} aria-hidden="true" />
+                {t('settings.tabAbout')}
+              </span>
+            ),
+            children: (
+              <AboutSettings
+                appVersion={appVersion}
+                buildInfo={buildInfo}
+                updateRuntime={aboutUpdateRuntime}
+              />
+            ),
           },
         ]}
       />

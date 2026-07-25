@@ -8,6 +8,7 @@ export interface UpdateRuntimeSummary {
   file_sessions: number
   forwards: number
   transfers: number
+  transfers_complete: boolean
 }
 
 export interface UpdateInstallConfirmation {
@@ -15,7 +16,13 @@ export interface UpdateInstallConfirmation {
   expires_at: string
   state_seq: number
   operation_generation: number
+  summary_revision: number
   summary: UpdateRuntimeSummary
+}
+
+export interface UpdateInstallSummaryState {
+  revision: number
+  ready: boolean
 }
 
 interface PendingInstallConfirmation extends UpdateInstallConfirmation {
@@ -33,6 +40,8 @@ export class UpdateInstallConfirmationAuthority {
   private readonly randomToken: () => string
   private readonly ttlMs: number
   private summary = emptyRuntimeSummary()
+  private summaryReady = false
+  private summaryRevision = 0
   private pending: PendingInstallConfirmation | null = null
 
   constructor(options: UpdateInstallConfirmationAuthorityOptions = {}) {
@@ -42,12 +51,25 @@ export class UpdateInstallConfirmationAuthority {
   }
 
   updateSummary(value: unknown) {
-    this.summary = normalizeRuntimeSummary(value)
+    const next = normalizeRuntimeSummary(value)
+    if (!runtimeSummariesEqual(this.summary, next)) {
+      this.summary = next
+      this.summaryRevision += 1
+      this.pending = null
+    }
+    this.summaryReady = next.transfers_complete
     return { ...this.summary }
   }
 
+  getSummaryState(): UpdateInstallSummaryState {
+    return {
+      revision: this.summaryRevision,
+      ready: this.summaryReady,
+    }
+  }
+
   issue(snapshot: UpdateSnapshot): UpdateInstallConfirmation {
-    if (snapshot.phase !== 'downloaded') {
+    if (!isInstallConfirmationState(snapshot) || !this.summaryReady) {
       throw new Error('update_install_not_ready')
     }
     const now = this.now()
@@ -57,6 +79,7 @@ export class UpdateInstallConfirmationAuthority {
       expires_at_ms: now + this.ttlMs,
       state_seq: snapshot.state_seq,
       operation_generation: snapshot.operation_generation,
+      summary_revision: this.summaryRevision,
       summary: { ...this.summary },
     }
     this.pending = confirmation
@@ -73,7 +96,8 @@ export class UpdateInstallConfirmationAuthority {
       || confirmation.expires_at_ms <= this.now()
       || confirmation.state_seq !== snapshot.state_seq
       || confirmation.operation_generation !== snapshot.operation_generation
-      || snapshot.phase !== 'downloaded'
+      || confirmation.summary_revision !== this.summaryRevision
+      || !isInstallConfirmationState(snapshot)
     ) {
       throw new Error('update_install_confirmation_invalid')
     }
@@ -85,7 +109,7 @@ export class UpdateInstallConfirmationAuthority {
       && (
         this.pending.state_seq !== snapshot.state_seq
         || this.pending.operation_generation !== snapshot.operation_generation
-        || snapshot.phase !== 'downloaded'
+        || !isInstallConfirmationState(snapshot)
       )
     ) {
       this.pending = null
@@ -97,6 +121,20 @@ export class UpdateInstallConfirmationAuthority {
   }
 }
 
+function isInstallConfirmationState(snapshot: UpdateSnapshot) {
+  return (
+    snapshot.phase === 'downloaded'
+    || (
+      snapshot.phase === 'error'
+      && snapshot.retryable
+      && (
+        snapshot.error_code === 'UPDATE_CORE_SHUTDOWN_FAILED'
+        || snapshot.error_code === 'UPDATE_INSTALL_START_FAILED'
+      )
+    )
+  )
+}
+
 export function normalizeRuntimeSummary(value: unknown): UpdateRuntimeSummary {
   const record = value && typeof value === 'object'
     ? value as Record<string, unknown>
@@ -106,6 +144,7 @@ export function normalizeRuntimeSummary(value: unknown): UpdateRuntimeSummary {
     file_sessions: normalizeCount(record.file_sessions),
     forwards: normalizeCount(record.forwards),
     transfers: normalizeCount(record.transfers),
+    transfers_complete: record.transfers_complete === true,
   }
 }
 
@@ -121,6 +160,7 @@ function emptyRuntimeSummary(): UpdateRuntimeSummary {
     file_sessions: 0,
     forwards: 0,
     transfers: 0,
+    transfers_complete: false,
   }
 }
 
@@ -132,8 +172,22 @@ function publicConfirmation(
     expires_at: confirmation.expires_at,
     state_seq: confirmation.state_seq,
     operation_generation: confirmation.operation_generation,
+    summary_revision: confirmation.summary_revision,
     summary: { ...confirmation.summary },
   }
+}
+
+function runtimeSummariesEqual(
+  left: UpdateRuntimeSummary,
+  right: UpdateRuntimeSummary,
+) {
+  return (
+    left.ssh_sessions === right.ssh_sessions
+    && left.file_sessions === right.file_sessions
+    && left.forwards === right.forwards
+    && left.transfers === right.transfers
+    && left.transfers_complete === right.transfers_complete
+  )
 }
 
 function normalizeTtl(value: number | undefined) {

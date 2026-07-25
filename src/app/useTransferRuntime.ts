@@ -7,6 +7,7 @@ export interface TransferRuntimeValue {
   transfers: TransferTask[]
   activeTransfers: TransferTask[]
   connected: boolean
+  initialized: boolean
   refresh: () => Promise<void>
   upsertTransfer: (task: TransferTask) => void
   removeTransfer: (id: string) => void
@@ -33,6 +34,13 @@ export class TransferSnapshotGate {
   isCurrent(token: TransferSnapshotToken) {
     return token.sequence === this.sequence
   }
+}
+
+export function transferRefreshRetryDelay(failureCount: number) {
+  const normalizedAttempt = Number.isSafeInteger(failureCount) && failureCount > 0
+    ? failureCount
+    : 1
+  return Math.min(30_000, 1_000 * (3 ** Math.min(normalizedAttempt - 1, 4)))
 }
 
 export function useTransferRuntime() {

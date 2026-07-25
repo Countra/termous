@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import type { UpdateInstallConfirmation } from './updateRuntime'
+import type { UpdateInstallSummaryState } from './updateInstallConfirmation'
 import type { UpdateWindowBootstrap } from './updateWindow'
 import type { UpdateSnapshot } from './updateTypes'
 
@@ -11,6 +12,7 @@ export interface TermousUpdateWindowBridge {
   getState(): Promise<UpdateSnapshot>
   install(confirmationToken: string): Promise<UpdateSnapshot>
   minimize(): Promise<boolean>
+  onInstallSummaryChanged(callback: (state: UpdateInstallSummaryState) => void): () => void
   onBootstrapChanged(callback: (bootstrap: UpdateWindowBootstrap<UpdateSnapshot>) => void): () => void
   openReleasePage(): Promise<boolean>
   prepareInstall(): Promise<UpdateInstallConfirmation>
@@ -27,6 +29,14 @@ const bridge: TermousUpdateWindowBridge = {
   openReleasePage: () => ipcRenderer.invoke('app-update:open-release-page'),
   minimize: () => ipcRenderer.invoke('app-update:window-minimize'),
   close: () => ipcRenderer.invoke('app-update:window-close'),
+  onInstallSummaryChanged: (callback) => {
+    const listener = (
+      _event: IpcRendererEvent,
+      state: UpdateInstallSummaryState,
+    ) => callback(state)
+    ipcRenderer.on('app-update:install-summary-changed', listener)
+    return () => ipcRenderer.removeListener('app-update:install-summary-changed', listener)
+  },
   onBootstrapChanged: (callback) => {
     const listener = (
       _event: IpcRendererEvent,

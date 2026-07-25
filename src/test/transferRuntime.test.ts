@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   mergeTransferUpdate,
   mergeTransferSnapshot,
+  transferRefreshRetryDelay,
   TransferSnapshotGate,
 } from '../app/useTransferRuntime.ts'
 import type { TransferTask } from '../types/domain.ts'
@@ -129,4 +130,11 @@ test('活动任务不会被同阶段的旧字节进度回退', () => {
 
   assert.equal(mergeTransferUpdate(current, stale), current)
   assert.equal(mergeTransferUpdate(current, next), next)
+})
+
+test('传输快照刷新失败使用有上限的退避时间', () => {
+  assert.deepEqual(
+    [1, 2, 3, 4, 8].map(transferRefreshRetryDelay),
+    [1_000, 3_000, 9_000, 27_000, 30_000],
+  )
 })

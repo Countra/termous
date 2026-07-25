@@ -31,8 +31,11 @@ import { HostKeyCoordinator } from './components/hostkey/HostKeyCoordinator'
 import { TransferRuntimeProvider } from './app/TransferRuntimeProvider'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
+import { UpdateRuntimeProvider } from './features/update/UpdateRuntimeProvider'
+import { UpdateRuntimeSummaryReporter } from './features/update/UpdateRuntimeSummaryReporter'
+import { useUpdateRuntime } from './features/update/useUpdateRuntime'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
-import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, Language, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
+import type { AppBuildInfo, CodeSnippet, CodeSnippetGroup, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, Language, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 import './styles/files-workspace.css'
@@ -58,7 +61,9 @@ function App() {
 
   return (
     <TermousUiProvider language={language} theme={theme}>
-      <AppContent theme={theme} setTheme={setTheme} />
+      <UpdateRuntimeProvider bridge={window.termous?.updates ?? null}>
+        <AppContent theme={theme} setTheme={setTheme} />
+      </UpdateRuntimeProvider>
     </TermousUiProvider>
   )
 }
@@ -67,6 +72,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const { api, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
+  const updateRuntime = useUpdateRuntime()
   const updateForwardRef = useRef(actions.updateForward)
   const reloadForwardStateRef = useRef(actions.reloadForwardsSilent)
   const updateHostReachabilityRef = useRef(actions.updateHostReachability)
@@ -95,7 +101,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
   const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
-  const [appVersion, setAppVersion] = useState(import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev')
+  const [buildInfo, setBuildInfo] = useState<AppBuildInfo | null>(null)
+  const appVersion = buildInfo?.version ?? import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev'
   const [coreFatal, setCoreFatal] = useState<CoreFatalEvent | null>(null)
   const hasActiveRuntime = useMemo(
     () =>
@@ -262,11 +269,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   useEffect(() => {
     let disposed = false
-    void window.termous?.getBuildInfo?.().then((info) => {
-      if (!disposed && info?.version) {
-        setAppVersion(info.version)
-      }
-    })
+    void window.termous?.getBuildInfo?.()
+      .then((info) => {
+        if (!disposed && info?.version) {
+          setBuildInfo(info)
+        }
+      })
+      .catch(() => undefined)
     void window.termous?.core?.getFatal().then((fatal) => {
       if (!disposed && fatal) {
         setCoreFatal(fatal)
@@ -329,6 +338,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       recentHosts: t('tray.recentHosts'),
       emptyRecentHosts: t('tray.emptyRecentHosts'),
       forwards: t('tray.forwards'),
+      updateAvailable: t('tray.updateAvailable'),
+      updateDownloading: t('tray.updateDownloading'),
+      updateDownloaded: t('tray.updateDownloaded'),
       quit: t('tray.quit'),
     }),
     [t],
@@ -354,6 +366,33 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       ?? null,
     [activeFileSessionId, filesPageFileSessions],
   )
+  const aboutUpdateRuntime = useMemo(() => {
+    if (!updateRuntime.bridgeAvailable) {
+      return null
+    }
+    return {
+      snapshot: updateRuntime.snapshot,
+      preferences: updateRuntime.snapshot?.preferences ?? null,
+      check: async () => {
+        const snapshot = await updateRuntime.checkForUpdates()
+        if (!snapshot) {
+          throw new Error('update_bridge_unavailable')
+        }
+        return snapshot
+      },
+      setPreferences: async (
+        patch: Parameters<typeof updateRuntime.setUpdatePreferences>[0],
+      ) => {
+        const preferences = await updateRuntime.setUpdatePreferences(patch)
+        if (!preferences) {
+          throw new Error('update_bridge_unavailable')
+        }
+        return preferences
+      },
+      openWindow: updateRuntime.openUpdateWindow,
+      openReleasePage: updateRuntime.openReleasePage,
+    }
+  }, [updateRuntime])
 
   useEffect(() => {
     if (!error) {
@@ -695,6 +734,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   return (
     <FilesWorkspaceRuntimeProvider>
       <TransferRuntimeProvider api={api}>
+        <UpdateRuntimeSummaryReporter
+          apiReady={apiReady}
+          sessions={data.sessions}
+          fileSessions={data.fileSessions}
+          forwards={data.forwards}
+        />
         <TerminalRuntimeProvider
           api={api}
           sessions={data.sessions}
@@ -919,6 +964,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             windowSettings={data.settings.window}
             terminalFonts={data.terminalFonts}
             appVersion={appVersion}
+            buildInfo={buildInfo}
+            aboutUpdateRuntime={aboutUpdateRuntime}
             actionBusy={actionBusy}
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
             onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
