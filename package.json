@@ -11,7 +11,7 @@
     "dev": "vite",
     "build": "pnpm run typecheck && pnpm run build:renderer && pnpm run build:package",
     "build:package": "node scripts/ci/build-local-package.mjs",
-    "build:package:validation": "node scripts/ci/build-local-package.mjs --version 0.0.0 --output release/validation",
+    "build:package:validation": "node scripts/ci/build-local-package.mjs --version 0.0.0 --output ../build/update-validation",
     "build:renderer": "vite build",
     "build:update-simulation": "node scripts/update-simulation/build-fixtures.mjs",
     "build:validation": "pnpm run typecheck && pnpm run build:renderer && pnpm run build:package:validation",
