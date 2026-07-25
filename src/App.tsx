@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { App as AntdApp, Button, ConfigProvider, Modal } from 'antd'
-import enUS from 'antd/locale/en_US'
-import zhCN from 'antd/locale/zh_CN'
+import { App as AntdApp, Button, Modal } from 'antd'
 import { LogOut, ServerOff } from 'lucide-react'
-import 'antd/dist/reset.css'
 import { useTranslation } from 'react-i18next'
+import { TermousUiProvider } from './app/TermousUiProvider'
 import { AppShell } from './components/layout/AppShell'
 import { ConfirmDialog } from './components/ui/ConfirmDialog'
 import { HostsPage } from './features/hosts/HostsPage'
@@ -34,8 +32,7 @@ import { TransferRuntimeProvider } from './app/TransferRuntimeProvider'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
-import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
+import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, Language, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 import './styles/files-workspace.css'
@@ -48,8 +45,7 @@ const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
 function App() {
   const { i18n } = useTranslation()
   const [theme, setTheme] = useState<ThemeMode>(readInitialTheme)
-  const antdTheme = useMemo(() => createAntdTheme(theme), [theme])
-  const antdLocale = i18n.resolvedLanguage?.startsWith('zh') ? zhCN : enUS
+  const language: Language = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -61,20 +57,9 @@ function App() {
   }, [theme])
 
   return (
-    <ConfigProvider locale={antdLocale} theme={antdTheme} button={{ autoInsertSpace: false }}>
-      <AntdApp
-        className="termous-antd-root"
-        notification={{
-          placement: 'topRight',
-          duration: 3,
-          maxCount: 3,
-          showProgress: true,
-          pauseOnHover: true,
-        }}
-      >
-        <AppContent theme={theme} setTheme={setTheme} />
-      </AntdApp>
-    </ConfigProvider>
+    <TermousUiProvider language={language} theme={theme}>
+      <AppContent theme={theme} setTheme={setTheme} />
+    </TermousUiProvider>
   )
 }
 

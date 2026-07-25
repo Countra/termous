@@ -1,0 +1,30 @@
+.update-window-bootstrap {
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  color: var(--text-primary);
+  background: var(--app-bg);
+}
+
+.update-window-bootstrap-mark {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: update-window-bootstrap-spin 0.8s linear infinite;
+}
+
+@keyframes update-window-bootstrap-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-window-bootstrap-mark {
+    animation: none;
+  }
+}

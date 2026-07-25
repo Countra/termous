@@ -16,8 +16,11 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
+import { AppExitCoordinator } from './appExitCoordinator'
 import { CoreProcessManager } from './coreProcess'
+import { createElectronUpdaterEngine } from './electronUpdaterEngine'
 import { TermousTrayController } from './tray'
+import { ApplicationUpdateRuntime } from './updateRuntime'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -57,17 +60,31 @@ const trayController = new TermousTrayController({
 
 type StartupPhase = 'core' | 'workspace' | 'error'
 type AppTheme = 'dark' | 'light'
+type AppLanguage = 'zh-CN' | 'en-US'
 
 let win: BrowserWindow | null
 let splashWin: BrowserWindow | null = null
+let updateRuntime: ApplicationUpdateRuntime | null = null
 let appTheme: AppTheme = 'dark'
-let closeConfirmed = false
+let appLanguage: AppLanguage = 'zh-CN'
 let mainWindowReady = false
 let startupReadyRequested = false
 let startupCompleted = false
 let splashPhase: StartupPhase = 'core'
 let splashStartedAt = 0
 let startupCompletionTimer: NodeJS.Timeout | null = null
+
+const exitCoordinator = new AppExitCoordinator({
+  shutdownCore: (reason) => coreProcess.shutdownGracefully(reason),
+  prepareForExit: prepareApplicationExit,
+  closeAllWindows: closeAllApplicationWindows,
+  quitApplication: () => app.quit(),
+  reportError: (event, error) => {
+    reportElectronProcessEvent(event, {
+      message: error instanceof Error ? error.name : 'UnknownError',
+    })
+  },
+})
 
 interface PortabilityProgress {
   operation: 'export' | 'import'
@@ -316,17 +333,25 @@ function isTrustedRendererURL(url: string) {
   }
 }
 
-function trustedIPCWindow(event: IpcMainInvokeEvent) {
+function isTrustedMainIPCEvent(event: IpcMainInvokeEvent) {
   const target = win
   const senderWindow = BrowserWindow.fromWebContents(event.sender)
   const senderFrame = event.senderFrame
+  return Boolean(
+    target
+    && !target.isDestroyed()
+    && senderWindow === target
+    && senderFrame
+    && senderFrame === event.sender.mainFrame
+    && isTrustedRendererURL(senderFrame.url)
+  )
+}
+
+function trustedIPCWindow(event: IpcMainInvokeEvent) {
+  const target = win
   if (
     !target ||
-    target.isDestroyed() ||
-    senderWindow !== target ||
-    !senderFrame ||
-    senderFrame !== event.sender.mainFrame ||
-    !isTrustedRendererURL(senderFrame.url)
+    !isTrustedMainIPCEvent(event)
   ) {
     throw sshKeyFileError('ssh_key_ipc_sender_not_allowed')
   }
@@ -456,6 +481,31 @@ function isAppTheme(value: unknown): value is AppTheme {
   return value === 'dark' || value === 'light'
 }
 
+function currentUpdateLanguage(): AppLanguage {
+  const locale = app.getLocale()
+  return locale.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US'
+}
+
+function readTrayLanguage(value: unknown, fallback: AppLanguage): AppLanguage {
+  if (
+    value
+    && typeof value === 'object'
+    && 'language' in value
+    && value.language === 'en-US'
+  ) {
+    return 'en-US'
+  }
+  if (
+    value
+    && typeof value === 'object'
+    && 'language' in value
+    && value.language === 'zh-CN'
+  ) {
+    return 'zh-CN'
+  }
+  return fallback
+}
+
 function appearanceCachePath() {
   return path.join(app.getPath('userData'), APPEARANCE_CACHE_FILE)
 }
@@ -483,6 +533,9 @@ function writeCachedAppTheme(theme: AppTheme) {
 }
 
 function createSplashWindow() {
+  if (exitCoordinator.isApplicationExiting()) {
+    return
+  }
   if (splashWin && !splashWin.isDestroyed()) {
     return
   }
@@ -544,6 +597,29 @@ function closeSplashWindow() {
     splashWin.destroy()
   }
   splashWin = null
+}
+
+function prepareApplicationExit() {
+  if (startupCompletionTimer) {
+    clearTimeout(startupCompletionTimer)
+    startupCompletionTimer = null
+  }
+  closeSplashWindow()
+  trayController.destroy()
+}
+
+function closeAllApplicationWindows() {
+  updateRuntime?.closeWindow()
+  closeSplashWindow()
+  const target = win
+  if (target && !target.isDestroyed()) {
+    target.close()
+  }
+  for (const openWindow of BrowserWindow.getAllWindows()) {
+    if (!openWindow.isDestroyed()) {
+      openWindow.destroy()
+    }
+  }
 }
 
 function revealMainWindow() {
@@ -613,6 +689,9 @@ function registerDevToolsShortcut(target: BrowserWindow) {
 }
 
 function createWindow() {
+  if (exitCoordinator.isApplicationExiting()) {
+    return
+  }
   const isMac = process.platform === 'darwin'
   mainWindowReady = false
   win = new BrowserWindow({
@@ -654,8 +733,7 @@ function createWindow() {
     }
   })
   win.on('close', (event) => {
-    if (closeConfirmed) {
-      closeConfirmed = false
+    if (exitCoordinator.canCloseWindow('main')) {
       return
     }
     event.preventDefault()
@@ -696,6 +774,9 @@ function createWindow() {
 }
 
 function showMainWindow() {
+  if (exitCoordinator.isApplicationExiting()) {
+    return
+  }
   if (!startupCompleted) {
     if (splashWin && !splashWin.isDestroyed()) {
       splashWin.show()
@@ -710,15 +791,7 @@ function showMainWindow() {
 }
 
 async function quitFromTray() {
-  const target = win
-  await coreProcess.shutdownGracefully()
-  closeConfirmed = true
-  closeSplashWindow()
-  if (target && !target.isDestroyed()) {
-    target.close()
-    return
-  }
-  app.quit()
+  await exitCoordinator.requestApplicationExit('tray')
 }
 
 function registerWindowControls() {
@@ -752,12 +825,8 @@ function registerWindowControls() {
     return true
   })
   ipcMain.handle('window:confirm-close', async () => {
-    const focused = currentWindow()
-    if (!focused) return false
-    await coreProcess.shutdownGracefully()
-    closeConfirmed = true
-    closeSplashWindow()
-    focused.close()
+    if (!currentWindow()) return false
+    await exitCoordinator.requestApplicationExit('main_window')
     return true
   })
   ipcMain.handle('window:is-maximized', () => currentWindow()?.isMaximized() ?? false)
@@ -774,6 +843,7 @@ function registerStartupControls() {
   ipcMain.handle('startup:ready', () => {
     startupReadyRequested = true
     tryCompleteStartup()
+    updateRuntime?.notifyStartupReady()
     return true
   })
 }
@@ -791,6 +861,7 @@ function registerAppearanceControls() {
     if (win && !win.isDestroyed()) {
       win.setBackgroundColor(theme === 'dark' ? '#0f1116' : '#f4f5f7')
     }
+    updateRuntime?.updateAppearance(theme, appLanguage)
     applySplashPhase()
     return writeCachedAppTheme(theme)
   })
@@ -799,7 +870,29 @@ function registerAppearanceControls() {
 function registerTrayControls() {
   ipcMain.handle('tray:update-state', (_event, state: unknown) => {
     trayController.updateState(state ?? {})
+    appLanguage = readTrayLanguage(state, appLanguage)
+    updateRuntime?.updateAppearance(appTheme, appLanguage)
     return true
+  })
+}
+
+function registerApplicationBuildControls() {
+  ipcMain.handle('app:get-build-info', async (event) => {
+    if (!isTrustedMainIPCEvent(event)) {
+      throw new Error('app_build_info_sender_not_allowed')
+    }
+    const snapshot = updateRuntime?.getSnapshot()
+    return {
+      product_name: APP_NAME,
+      version: app.getVersion(),
+      core_version: await coreProcess.getRuntimeVersion(),
+      platform: process.platform,
+      arch: process.arch,
+      packaged: app.isPackaged,
+      update_channel: 'stable',
+      update_supported: Boolean(snapshot && snapshot.phase !== 'unsupported'),
+      update_support_reason: snapshot?.support_reason ?? (updateRuntime ? null : 'update_runtime_unavailable'),
+    }
   })
 }
 
@@ -1129,22 +1222,16 @@ function registerDataPortabilityControls() {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit()
-    win = null
+    void exitCoordinator.requestApplicationExit('window_all_closed')
   }
 })
 
-app.on('before-quit', () => {
-  if (startupCompletionTimer) {
-    clearTimeout(startupCompletionTimer)
-    startupCompletionTimer = null
-  }
-  closeSplashWindow()
-  trayController.destroy()
+app.on('before-quit', (event) => {
+  exitCoordinator.handleBeforeQuit(event)
 })
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
+  if ((!win || win.isDestroyed()) && !exitCoordinator.isApplicationExiting()) {
     if (!startupCompleted) {
       createSplashWindow()
     }
@@ -1152,9 +1239,10 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   app.setName(APP_NAME)
   appTheme = readCachedAppTheme()
+  appLanguage = currentUpdateLanguage()
   nativeTheme.themeSource = appTheme
   if (process.platform === 'win32') {
     app.setAppUserModelId(APP_ID)
@@ -1165,9 +1253,32 @@ app.whenReady().then(() => {
   registerAppearanceControls()
   registerWindowControls()
   registerTrayControls()
+  registerApplicationBuildControls()
   registerFilePickers()
   registerSSHKeyFileControls()
   registerDataPortabilityControls()
+  try {
+    updateRuntime = await ApplicationUpdateRuntime.create({
+      engine: createElectronUpdaterEngine(),
+      exitCoordinator,
+      getMainWindow: () => win,
+      isTrustedMainSender: isTrustedMainIPCEvent,
+      rendererFilePath: path.join(RENDERER_DIST, 'index.html'),
+      updatePreloadPath: path.join(__dirname, 'update-preload.cjs'),
+      devServerURL: VITE_DEV_SERVER_URL,
+      iconPath: APP_ICON,
+      initialTheme: appTheme,
+      initialLanguage: appLanguage,
+      logger: {
+        info: (event, details = {}) => reportElectronProcessEvent(event, details),
+        error: (event, details = {}) => reportElectronProcessEvent(event, details),
+      },
+    })
+  } catch (error) {
+    reportElectronProcessEvent('update-runtime-initialize-failed', {
+      message: error instanceof Error ? error.name : 'UnknownError',
+    })
+  }
   createSplashWindow()
   createWindow()
   trayController.initialize()

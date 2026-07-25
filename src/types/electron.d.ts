@@ -11,6 +11,13 @@ import type {
   TrayCommand,
   TrayMenuState,
 } from './domain'
+import type {
+  UpdatePreferences,
+  UpdatePreferencesPatch,
+  UpdateSnapshot,
+} from '../../electron/updateManager'
+import type { UpdateRuntimeSummary } from '../../electron/updateRuntime'
+import type { UpdateWindowIntent } from '../../electron/updateWindow'
 
 interface SSHPrivateKeySelectionResult {
   canceled: boolean
@@ -78,6 +85,16 @@ declare global {
         pathsFromFileList: (files: ArrayLike<File>) => Promise<string[]>
         consumeDroppedFilePaths: (fileCount?: number) => Promise<string[]>
         readClipboardFilePaths: () => Promise<string[]>
+      }
+      updates?: {
+        getState: () => Promise<UpdateSnapshot>
+        getPreferences: () => Promise<UpdatePreferences>
+        setPreferences: (patch: UpdatePreferencesPatch) => Promise<UpdatePreferences>
+        check: () => Promise<UpdateSnapshot>
+        openWindow: (intent?: UpdateWindowIntent) => Promise<boolean>
+        openReleasePage: () => Promise<boolean>
+        reportRuntimeSummary: (summary: UpdateRuntimeSummary) => Promise<UpdateRuntimeSummary>
+        subscribe: (callback: (snapshot: UpdateSnapshot) => void) => () => void
       }
       sshKeys?: {
         selectPrivateKey: () => Promise<SSHPrivateKeySelectionResult>

@@ -4,6 +4,10 @@ import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
+import { AsyncSingleflight } from './asyncSingleflight'
+import { waitForChildProcessExit } from './childProcessLifecycle'
+
+export type CoreShutdownReason = 'frontend_exit' | 'application_update'
 
 export interface CoreRuntimeConfig {
   apiBaseUrl: string
@@ -32,6 +36,7 @@ interface CoreProcessState {
 
 interface CoreRuntimeProbe {
   pid?: number
+  version?: string
 }
 
 const externalCoreDefaultPort = 8122
@@ -56,6 +61,7 @@ export class CoreProcessManager {
   private heartbeatTimer: NodeJS.Timeout | null = null
   private lastHeartbeatAt = Date.now()
   private shuttingDown = false
+  private readonly shutdownSingleflight = new AsyncSingleflight<boolean>()
 
   initialize() {
     if (!this.initializePromise) {
@@ -137,7 +143,31 @@ export class CoreProcessManager {
     return this.fatal
   }
 
-  async shutdownGracefully() {
+  async getRuntimeVersion() {
+    const config = await this.initialize()
+    try {
+      const response = await this.fetchWithTimeout('/api/v1/runtime', {
+        method: 'GET',
+        headers: config.apiToken
+          ? { 'X-Termous-Token': config.apiToken }
+          : undefined,
+      })
+      if (!response.ok) {
+        return null
+      }
+      const runtime = await response.json() as CoreRuntimeProbe
+      const version = runtime.version?.trim()
+      return version && version.length <= 64 ? version : null
+    } catch {
+      return null
+    }
+  }
+
+  shutdownGracefully(reason: CoreShutdownReason = 'frontend_exit') {
+    return this.shutdownSingleflight.run(() => this.shutdownOnce(reason))
+  }
+
+  private async shutdownOnce(reason: CoreShutdownReason) {
     this.shuttingDown = true
     this.stopHeartbeat()
     if (!this.child) {
@@ -156,12 +186,20 @@ export class CoreProcessManager {
           'Content-Type': 'application/json',
           'X-Termous-Token': this.config.apiToken,
         },
-        body: JSON.stringify({ reason: 'frontend_exit' }),
+        body: JSON.stringify({ reason }),
       })
     } catch {
       // 退出阶段后端可能已经停止，后续等待进程退出即可。
     }
-    return this.waitForExit(8_000)
+    const exited = await this.waitForExit(8_000)
+    if (!exited && this.child?.exitCode === null) {
+      // 更新安装会在失败后保留应用，必须恢复 Core 的健康监测并允许再次关闭。
+      this.shuttingDown = false
+      if (this.config.managed) {
+        this.startHeartbeat()
+      }
+    }
+    return exited
   }
 
   async restartAfterRestore(): Promise<CoreRestartResult> {
@@ -384,13 +422,7 @@ export class CoreProcessManager {
       this.child = null
       return true
     }
-    const exited = await new Promise<boolean>((resolve) => {
-      const timeout = setTimeout(() => resolve(false), timeoutMs)
-      child.once('exit', () => {
-        clearTimeout(timeout)
-        resolve(true)
-      })
-    })
+    const exited = await waitForChildProcessExit(child, timeoutMs)
     if (exited) {
       this.child = null
     }

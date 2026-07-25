@@ -12,12 +12,17 @@ export default defineConfig({
         entry: 'electron/main.ts',
       },
       preload: {
-        input: path.join(__dirname, 'electron/preload.ts'),
+        input: {
+          preload: path.join(__dirname, 'electron/preload.ts'),
+          'update-preload': path.join(__dirname, 'electron/update-preload.ts'),
+        },
         vite: {
           build: {
             rolldownOptions: {
               output: {
+                codeSplitting: true,
                 entryFileNames: '[name].cjs',
+                chunkFileNames: '[name].cjs',
               },
             },
           },
