@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -166,7 +174,7 @@ test('产物门禁拒绝缺失 blockmap 和错误 app-update provider', async ()
 })
 
 test('构建完成后才校验产物且子进程看不到发布凭据', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-run-'))
+  const root = await createCanonicalTempDirectory('termous-package-run-')
   const webDirectory = path.join(root, 'web')
   const outputDirectory = path.join(root, 'build', 'output')
   try {
@@ -208,6 +216,71 @@ test('构建完成后才校验产物且子进程看不到发布凭据', async ()
     await rm(root, { recursive: true, force: true })
   }
 })
+
+test('本地打包拒绝通过输出目录祖先联接清理工作区外文件', async (context) => {
+  const root = await createCanonicalTempDirectory(
+    'termous-package-output-root-',
+  )
+  const externalRoot = await createCanonicalTempDirectory(
+    'termous-package-output-external-',
+  )
+  const webDirectory = path.join(root, 'web')
+  const buildDirectory = path.join(root, 'build')
+  const redirectDirectory = path.join(buildDirectory, 'redirect')
+  const outputDirectory = path.join(redirectDirectory, 'output')
+  const sentinelPath = path.join(externalRoot, 'output', 'sentinel.txt')
+  try {
+    await mkdir(webDirectory)
+    await mkdir(buildDirectory)
+    await mkdir(path.dirname(sentinelPath), { recursive: true })
+    await writeFile(
+      path.join(webDirectory, 'package.json'),
+      JSON.stringify({ version: '1.2.3' }),
+    )
+    await writeFile(sentinelPath, 'keep')
+    try {
+      await symlink(
+        externalRoot,
+        redirectDirectory,
+        process.platform === 'win32' ? 'junction' : 'dir',
+      )
+    } catch (error) {
+      if (error?.code === 'EPERM' || error?.code === 'EACCES') {
+        context.skip('当前系统不允许创建测试用目录联接')
+        return
+      }
+      throw error
+    }
+
+    await assert.rejects(
+      runLocalPackage({
+        webDirectory,
+        outputDirectory,
+        platform: 'win32',
+        arch: 'x64',
+        version: '1.2.3',
+      }, {
+        spawnProcess: async () => {
+          throw new Error('不应启动打包进程')
+        },
+      }),
+      (error) => {
+        assert.match(error.message, /打包输出目录祖先/)
+        assert.equal(error.message.includes(redirectDirectory), true)
+        return true
+      },
+    )
+    assert.equal(await readFile(sentinelPath, 'utf8'), 'keep')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+    await rm(externalRoot, { recursive: true, force: true })
+  }
+})
+
+async function createCanonicalTempDirectory(prefix) {
+  const canonicalTempRoot = await realpath(tmpdir())
+  return realpath(await mkdtemp(path.join(canonicalTempRoot, prefix)))
+}
 
 async function writeCompleteFixture({
   outputDirectory,

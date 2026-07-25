@@ -1419,7 +1419,6 @@ export interface AppBuildInfo {
   platform: string
   arch: string
   packaged: boolean
-  update_channel: 'stable'
   update_supported: boolean
   update_support_reason: string | null
 }

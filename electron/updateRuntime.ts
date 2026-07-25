@@ -3,7 +3,6 @@ import {
   app,
   BrowserWindow,
   ipcMain,
-  shell,
   type IpcMainInvokeEvent,
   type WebContents,
 } from 'electron'
@@ -11,6 +10,7 @@ import type { AppExitCoordinator } from './appExitCoordinator'
 import {
   UpdateManager,
   UpdateOperationError,
+  type UpdateApplicationInfo,
   type UpdateEngine,
   type UpdateManagerLogger,
   type UpdatePreferences,
@@ -29,15 +29,12 @@ import {
 } from './updateInstallConfirmation'
 import {
   UpdateWindowController,
-  type UpdateWindowIntent,
   type UpdateWindowLanguage,
   type UpdateWindowTheme,
 } from './updateWindow'
 
 const automaticCheckStartupDelayMs = 5_000
 const automaticCheckMaximumTimerMs = 2_147_000_000
-const releaseRepositoryURL = 'https://github.com/Countra/termous/releases'
-
 export interface ApplicationUpdateRuntimeOptions {
   engine: UpdateEngine
   exitCoordinator: AppExitCoordinator
@@ -49,8 +46,8 @@ export interface ApplicationUpdateRuntimeOptions {
   iconPath?: string
   initialTheme: UpdateWindowTheme
   initialLanguage: UpdateWindowLanguage
+  getApplicationInfo(): Promise<UpdateApplicationInfo>
   logger?: UpdateManagerLogger
-  openReleasePage?(url: string): Promise<boolean>
 }
 
 type SenderRole = 'main' | 'update'
@@ -95,6 +92,10 @@ export class ApplicationUpdateRuntime {
     })
     this.windowController = new UpdateWindowController({
       createWindow: (windowOptions) => new BrowserWindow(windowOptions),
+      canClose: () => {
+        const phase = this.manager.getSnapshot().phase
+        return phase !== 'preparing_install' && phase !== 'installing'
+      },
       devServerURL: options.devServerURL,
       getSnapshot: () => this.manager.getSnapshot(),
       iconPath: options.iconPath,
@@ -106,17 +107,23 @@ export class ApplicationUpdateRuntime {
           message: safeErrorName(error),
         })
       },
-      onStartDownload: () => this.manager.download(),
       platform: process.platform,
       preloadPath: options.updatePreloadPath,
       rendererFilePath: options.rendererFilePath,
-      title: 'Termous Update',
+      title: 'About Termous',
     })
   }
 
   static async create(options: ApplicationUpdateRuntimeOptions) {
     const preferencesStore = new UpdatePreferencesStore(
       path.join(app.getPath('userData'), 'update-preferences.json'),
+      {
+        onReadError: (error) => {
+          options.logger?.error('update_preferences_load_failed', {
+            message: safeErrorName(error),
+          })
+        },
+      },
     )
     const preferences = await preferencesStore.load()
     const runtime = new ApplicationUpdateRuntime(options, preferencesStore, preferences)
@@ -129,8 +136,8 @@ export class ApplicationUpdateRuntime {
     return this.manager.getSnapshot()
   }
 
-  openWindow(intent: UpdateWindowIntent = 'inspect') {
-    return Boolean(this.windowController.open(intent))
+  openWindow() {
+    return Boolean(this.windowController.open())
   }
 
   closeWindow() {
@@ -188,7 +195,7 @@ export class ApplicationUpdateRuntime {
       return snapshot.preferences
     })
     ipcMain.handle('app-update:check', async (event) => {
-      this.assertSender(event, ['main'])
+      this.assertSender(event, ['update'])
       const snapshot = await this.manager.check('manual')
       if (snapshot.phase !== 'error') {
         this.automaticCheckAttempted = true
@@ -197,13 +204,13 @@ export class ApplicationUpdateRuntime {
       }
       return snapshot
     })
-    ipcMain.handle('app-update:open-window', (event, intent: unknown) => {
-      this.assertSender(event, ['main'])
-      return this.openWindow(normalizeWindowIntent(intent))
+    ipcMain.handle('app-update:get-application-info', (event) => {
+      this.assertSender(event, ['update'])
+      return this.options.getApplicationInfo()
     })
-    ipcMain.handle('app-update:open-release-page', async (event) => {
-      this.assertSender(event, ['main', 'update'])
-      return this.openReleasePage()
+    ipcMain.handle('app-update:open-window', (event) => {
+      this.assertSender(event, ['main'])
+      return this.openWindow()
     })
     ipcMain.handle('app-update:report-runtime-summary', (event, summary: unknown) => {
       this.assertSender(event, ['main'])
@@ -322,25 +329,6 @@ export class ApplicationUpdateRuntime {
     }
   }
 
-  private async openReleasePage() {
-    const releaseURL = this.manager.getSnapshot().release_url ?? releaseRepositoryURL
-    if (!isTrustedReleaseURL(releaseURL)) {
-      return false
-    }
-    try {
-      if (this.options.openReleasePage) {
-        return await this.options.openReleasePage(releaseURL)
-      }
-      await shell.openExternal(releaseURL)
-      return true
-    } catch (error) {
-      this.options.logger?.error('update_release_page_open_failed', {
-        message: safeErrorName(error),
-      })
-      return false
-    }
-  }
-
   private createInstallConfirmation(): UpdateInstallConfirmation {
     return this.installConfirmation.issue(this.manager.getSnapshot())
   }
@@ -351,7 +339,10 @@ export class ApplicationUpdateRuntime {
 
   private async prepareApplicationForInstall() {
     const result = await this.options.exitCoordinator.prepareUpdateInstall()
-    if (result.status === 'ready_to_install') {
+    if (
+      result.status === 'ready_to_install'
+      && !this.options.exitCoordinator.isApplicationExiting()
+    ) {
       return
     }
     throw new UpdateOperationError(
@@ -362,7 +353,7 @@ export class ApplicationUpdateRuntime {
   }
 
   private async recoverFromInstallerFailure() {
-    this.options.exitCoordinator.handleUpdateInstallerFailure(
+    return await this.options.exitCoordinator.handleUpdateInstallerFailure(
       new Error('update_installer_launch_failed'),
     )
   }
@@ -430,35 +421,12 @@ export class ApplicationUpdateRuntime {
   }
 }
 
-function normalizeWindowIntent(value: unknown): UpdateWindowIntent {
-  return value === 'start_download' ? 'start_download' : 'inspect'
-}
-
 function isUpdateSurfaceURL(value: string | undefined) {
   if (!value) {
     return false
   }
   try {
     return new URL(value).searchParams.get('surface') === 'update'
-  } catch {
-    return false
-  }
-}
-
-function isTrustedReleaseURL(value: string) {
-  try {
-    const url = new URL(value)
-    return (
-      url.protocol === 'https:'
-      && url.hostname === 'github.com'
-      && url.port === ''
-      && url.username === ''
-      && url.password === ''
-      && (
-        url.pathname === '/Countra/termous/releases'
-        || url.pathname.startsWith('/Countra/termous/releases/')
-      )
-    )
   } catch {
     return false
   }

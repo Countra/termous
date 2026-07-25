@@ -44,12 +44,28 @@ class FakeWindow implements UpdateBrowserWindowLike {
   showCalls = 0
   urlLoads: string[] = []
   webContents = new FakeWebContents()
-  private listeners = new Map<string, Array<() => void>>()
+  private closeListeners: Array<(event: { preventDefault(): void }) => void> = []
+  private closedListeners: Array<() => void> = []
+  private readyListeners: Array<() => void> = []
 
   close() {
     this.closeCalls += 1
+    let prevented = false
+    const event = {
+      preventDefault() {
+        prevented = true
+      },
+    }
+    for (const listener of this.closeListeners) {
+      listener(event)
+    }
+    if (prevented) {
+      return
+    }
     this.destroyed = true
-    this.emit('closed')
+    for (const listener of this.closedListeners.splice(0)) {
+      listener()
+    }
   }
 
   focus() {
@@ -78,12 +94,26 @@ class FakeWindow implements UpdateBrowserWindowLike {
     this.minimized = true
   }
 
-  on(event: 'closed', listener: () => void) {
-    this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener])
+  on(
+    event: 'close',
+    listener: (event: { preventDefault(): void }) => void,
+  ): void
+  on(event: 'closed', listener: () => void): void
+  on(
+    event: 'close' | 'closed',
+    listener: (() => void) | ((event: { preventDefault(): void }) => void),
+  ) {
+    if (event === 'close') {
+      this.closeListeners.push(
+        listener as (event: { preventDefault(): void }) => void,
+      )
+      return
+    }
+    this.closedListeners.push(listener as () => void)
   }
 
-  once(event: 'ready-to-show', listener: () => void) {
-    this.listeners.set(event, [listener])
+  once(_event: 'ready-to-show', listener: () => void) {
+    this.readyListeners = [listener]
   }
 
   restore() {
@@ -94,9 +124,8 @@ class FakeWindow implements UpdateBrowserWindowLike {
     this.showCalls += 1
   }
 
-  emit(event: string) {
-    const listeners = this.listeners.get(event) ?? []
-    this.listeners.delete(event)
+  emitReady() {
+    const listeners = this.readyListeners.splice(0)
     for (const listener of listeners) {
       listener()
     }
@@ -105,7 +134,6 @@ class FakeWindow implements UpdateBrowserWindowLike {
 
 function controller(overrides: Partial<ConstructorParameters<typeof UpdateWindowController>[0]> = {}) {
   const windows: FakeWindow[] = []
-  let downloadCalls = 0
   const instance = new UpdateWindowController({
     createWindow: () => {
       const target = new FakeWindow()
@@ -115,121 +143,57 @@ function controller(overrides: Partial<ConstructorParameters<typeof UpdateWindow
     getSnapshot: () => ({ state_seq: 1 }),
     initialLanguage: 'zh-CN',
     initialTheme: 'dark',
-    onStartDownload: () => {
-      downloadCalls += 1
-    },
     platform: 'win32',
     preloadPath: 'D:\\app\\update-preload.cjs',
     rendererFilePath: 'D:\\app\\dist\\index.html',
     ...overrides,
   })
-  return { instance, windows, downloadCalls: () => downloadCalls }
+  return { instance, windows }
 }
 
-test('重复打开只复用一个窗口并在加载完成后启动一次下载', async () => {
+test('重复打开只复用一个关于窗口并发布最新状态', () => {
   const subject = controller()
-  const first = subject.instance.open('inspect') as FakeWindow
-  const second = subject.instance.open('start_download')
+  const first = subject.instance.open() as FakeWindow
+  first.webContents.emit('did-finish-load')
+  const second = subject.instance.open()
 
   assert.equal(first, second)
   assert.equal(subject.windows.length, 1)
-  assert.equal(subject.downloadCalls(), 0)
-
-  first.webContents.emit('did-finish-load')
-  await Promise.resolve()
-  await Promise.resolve()
-  assert.equal(subject.downloadCalls(), 1)
-})
-
-test('下载派发进行中重复 start_download 只聚焦窗口且不会排队重启', async () => {
-  const pending = deferred<void>()
-  let downloadCalls = 0
-  const subject = controller({
-    onStartDownload: () => {
-      downloadCalls += 1
-      return pending.promise
-    },
-  })
-  const target = subject.instance.open('start_download') as FakeWindow
-  target.webContents.emit('did-finish-load')
-  await Promise.resolve()
-
-  subject.instance.open('start_download')
-  subject.instance.open('start_download')
-  assert.equal(downloadCalls, 1)
-
-  pending.resolve()
-  await pending.promise
-  await Promise.resolve()
-  await Promise.resolve()
-  assert.equal(downloadCalls, 1)
-  assert.equal(subject.windows.length, 1)
-  assert.equal(target.focusCalls >= 2, true)
-})
-
-test('下载派发失败后不会消费重复点击留下的隐式重试', async () => {
-  const pending = deferred<void>()
-  const errors: unknown[] = []
-  let downloadCalls = 0
-  const subject = controller({
-    onError: (error) => {
-      errors.push(error)
-    },
-    onStartDownload: () => {
-      downloadCalls += 1
-      return pending.promise
-    },
-  })
-  const target = subject.instance.open('start_download') as FakeWindow
-  target.webContents.emit('did-finish-load')
-  await Promise.resolve()
-  subject.instance.open('start_download')
-
-  pending.reject(new Error('下载失败'))
-  await pending.promise.catch(() => undefined)
-  await Promise.resolve()
-  await Promise.resolve()
-
-  assert.equal(downloadCalls, 1)
-  assert.equal(errors.length, 1)
-})
-
-test('下载取消完成后不会自动重新派发重复的 start_download', async () => {
-  const pending = deferred<{ canceled: boolean }>()
-  let downloadCalls = 0
-  const subject = controller({
-    onStartDownload: () => {
-      downloadCalls += 1
-      return pending.promise
-    },
-  })
-  const target = subject.instance.open('start_download') as FakeWindow
-  target.webContents.emit('did-finish-load')
-  await Promise.resolve()
-  subject.instance.open('start_download')
-
-  pending.resolve({ canceled: true })
-  await pending.promise
-  await Promise.resolve()
-  await Promise.resolve()
-
-  assert.equal(downloadCalls, 1)
+  assert.equal(first.focusCalls, 1)
+  assert.equal(first.webContents.messages.length >= 2, true)
 })
 
 test('关闭更新窗口不触碰下载事务且下次可重新创建', () => {
   const subject = controller()
-  const first = subject.instance.open('inspect') as FakeWindow
+  const first = subject.instance.open() as FakeWindow
   assert.equal(subject.instance.close(), true)
   assert.equal(first.closeCalls, 1)
 
-  const second = subject.instance.open('inspect')
+  const second = subject.instance.open()
   assert.notEqual(first, second)
   assert.equal(subject.windows.length, 2)
 })
 
+test('关键安装阶段同时拒绝 IPC 和原生窗口关闭', () => {
+  let closeAllowed = false
+  const subject = controller({
+    canClose: () => closeAllowed,
+  })
+  const target = subject.instance.open() as FakeWindow
+
+  assert.equal(subject.instance.close(), false)
+  assert.equal(target.closeCalls, 0)
+  target.close()
+  assert.equal(target.destroyed, false)
+
+  closeAllowed = true
+  assert.equal(subject.instance.close(), true)
+  assert.equal(target.destroyed, true)
+})
+
 test('窗口拒绝外部导航和新窗口，仅允许可信 update surface', () => {
   const subject = controller({ devServerURL: 'http://127.0.0.1:5191/' })
-  const target = subject.instance.open('inspect') as FakeWindow
+  const target = subject.instance.open() as FakeWindow
   const blocked = { prevented: false, preventDefault() { this.prevented = true } }
   const allowed = { prevented: false, preventDefault() { this.prevented = true } }
 
@@ -243,7 +207,7 @@ test('窗口拒绝外部导航和新窗口，仅允许可信 update surface', ()
 
 test('主题和语言通过递增 bootstrap 同步给已加载窗口', () => {
   const subject = controller()
-  const target = subject.instance.open('inspect') as FakeWindow
+  const target = subject.instance.open() as FakeWindow
   target.webContents.emit('did-finish-load')
   subject.instance.updateAppearance('light', 'en-US')
 
@@ -256,13 +220,3 @@ test('主题和语言通过递增 bootstrap 同步给已加载窗口', () => {
     'app-update:window-bootstrap-changed',
   )
 })
-
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise
-    reject = rejectPromise
-  })
-  return { promise, resolve, reject }
-}

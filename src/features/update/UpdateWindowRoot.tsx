@@ -5,19 +5,25 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Button, Tooltip } from 'antd'
+import {
+  Button,
+  Descriptions,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd'
 import {
   ArrowRight,
   CircleAlert,
-  Download,
-  ExternalLink,
   Minus,
-  ShieldCheck,
   X,
 } from 'lucide-react'
 import type { UpdateInstallConfirmation } from '../../../electron/updateRuntime'
 import type { UpdateWindowBootstrap } from '../../../electron/updateWindow'
-import type { UpdateSnapshot } from '../../../electron/updateTypes'
+import type {
+  UpdateApplicationInfo,
+  UpdateSnapshot,
+} from '../../../electron/updateTypes'
 import { TermousUiProvider } from '../../app/TermousUiProvider'
 import type { Language, ThemeMode } from '../../types/domain'
 import { readDevelopmentUpdateSimulation } from './developmentUpdateSimulationSlot'
@@ -46,7 +52,6 @@ import './update-window.css'
 
 const initialBootstrap: UpdateWindowBootstrap<UpdateSnapshot> = {
   bootstrap_seq: 0,
-  intent: 'inspect',
   language: navigator.language.startsWith('zh') ? 'zh-CN' : 'en-US',
   snapshot: {
     state_seq: 0,
@@ -56,7 +61,6 @@ const initialBootstrap: UpdateWindowBootstrap<UpdateSnapshot> = {
     available_version: null,
     release_name: null,
     release_date: null,
-    release_url: null,
     release_notes: null,
     progress: null,
     checked_at: null,
@@ -78,15 +82,23 @@ const initialBootstrap: UpdateWindowBootstrap<UpdateSnapshot> = {
 
 const developmentUpdateSimulation = readDevelopmentUpdateSimulation()
 
+type UpdateWindowLocalErrorKey =
+  | 'actionFailed'
+  | 'bootstrapFailed'
+  | 'bridgeUnavailable'
+  | 'impactChanged'
+  | 'installFailed'
+  | 'prepareFailed'
+
 export default function UpdateWindowRoot() {
   const [bootstrap, setBootstrap] = useState(initialBootstrap)
   const [busyAction, setBusyAction] = useState<UpdateWindowBusyAction>(null)
   const [confirmation, setConfirmation] = useState<UpdateInstallConfirmation | null>(null)
   const [confirmationUnavailable, setConfirmationUnavailable] = useState(false)
-  const [localError, setLocalError] = useState<string | null>(null)
+  const [localError, setLocalError] = useState<UpdateWindowLocalErrorKey | null>(null)
+  const [applicationInfo, setApplicationInfo] = useState<UpdateApplicationInfo | null>(null)
   const snapshotRef = useRef(bootstrap.snapshot)
   const confirmationRef = useRef<UpdateInstallConfirmation | null>(null)
-  const textRef = useRef(windowCopy(bootstrap.language))
   const confirmationRequestRef = useRef<{
     stateSequence: number
     promise: Promise<UpdateInstallConfirmation | null>
@@ -120,25 +132,32 @@ export default function UpdateWindowRoot() {
   }, [snapshot])
 
   useEffect(() => {
-    textRef.current = text
-  }, [text])
-
-  useEffect(() => {
     if (!bridge) {
-      setLocalError(textRef.current.bridgeUnavailable)
+      setLocalError('bridgeUnavailable')
       return
     }
     let active = true
+    let bootstrapReady = false
+    const markBootstrapReady = () => {
+      bootstrapReady = true
+      setLocalError((current) => (
+        current === 'bootstrapFailed' || current === 'bridgeUnavailable'
+          ? null
+          : current
+      ))
+    }
     const mergeBootstrap = (next: UpdateWindowBootstrap<UpdateSnapshot>) => {
       if (!active) {
         return
       }
+      markBootstrapReady()
       setBootstrap((current) => mergeUpdateWindowBootstrap(current, next))
     }
     const mergeSnapshot = (next: UpdateSnapshot) => {
       if (!active) {
         return
       }
+      markBootstrapReady()
       setBootstrap((current) => ({
         ...current,
         snapshot: mergeUpdateWindowSnapshot(current.snapshot, next),
@@ -147,9 +166,16 @@ export default function UpdateWindowRoot() {
     const removeBootstrapListener = bridge.onBootstrapChanged(mergeBootstrap)
     const removeStateListener = bridge.subscribe(mergeSnapshot)
     void bridge.getBootstrap().then(mergeBootstrap).catch(() => {
-      if (active) {
-        setLocalError(textRef.current.bootstrapFailed)
+      if (active && !bootstrapReady) {
+        setLocalError('bootstrapFailed')
       }
+    })
+    void bridge.getApplicationInfo().then((info) => {
+      if (active) {
+        setApplicationInfo(info)
+      }
+    }).catch(() => {
+      // 软件信息加载失败不阻断更新状态与操作。
     })
     return () => {
       active = false
@@ -214,7 +240,7 @@ export default function UpdateWindowRoot() {
         updateConfirmation(null)
         setConfirmationUnavailable(true)
         if (reportError) {
-          setLocalError(text.prepareFailed)
+          setLocalError('prepareFailed')
         }
         return null
       })
@@ -229,7 +255,7 @@ export default function UpdateWindowRoot() {
       promise: workflow,
     }
     return workflow
-  }, [bridge, text.prepareFailed, updateConfirmation])
+  }, [bridge, updateConfirmation])
 
   useEffect(() => {
     if (!bridge) {
@@ -290,14 +316,12 @@ export default function UpdateWindowRoot() {
     setLocalError(null)
     setBusyAction(action)
     try {
-      if (action === 'download' || action === 'retry_download') {
+      if (action === 'check') {
+        mergeReturnedSnapshot(await currentBridge.check())
+      } else if (action === 'download' || action === 'retry_download') {
         mergeReturnedSnapshot(await currentBridge.download())
       } else if (action === 'cancel') {
         mergeReturnedSnapshot(await currentBridge.cancelDownload())
-      } else if (action === 'open_releases') {
-        if (!await currentBridge.openReleasePage()) {
-          setLocalError(text.openReleaseFailed)
-        }
       } else {
         const displayedConfirmation = currentConfirmation
         const prepared = await requestInstallConfirmation(true, true)
@@ -308,7 +332,7 @@ export default function UpdateWindowRoot() {
           !displayedConfirmation
           || displayedConfirmation.summary_revision !== prepared.summary_revision
         ) {
-          setLocalError(text.impactChanged)
+          setLocalError('impactChanged')
           return
         }
         mergeReturnedSnapshot(await currentBridge.install(prepared.confirmation_token))
@@ -318,8 +342,8 @@ export default function UpdateWindowRoot() {
       confirmationRequestRef.current = null
       setLocalError(
         action === 'install' || action === 'retry_install'
-          ? text.installFailed
-          : text.actionFailed,
+          ? 'installFailed'
+          : 'actionFailed',
       )
     } finally {
       setBusyAction((current) => current === action ? null : current)
@@ -330,15 +354,15 @@ export default function UpdateWindowRoot() {
     currentConfirmation,
     mergeReturnedSnapshot,
     requestInstallConfirmation,
-    text.actionFailed,
-    text.installFailed,
-    text.impactChanged,
-    text.openReleaseFailed,
     updateConfirmation,
   ])
 
   const closeWindow = useCallback(async () => {
-    if (!bridge || isInstalling || busyAction === 'close') {
+    if (isInstalling || busyAction === 'close') {
+      return
+    }
+    if (!bridge) {
+      window.close()
       return
     }
     setBusyAction('close')
@@ -365,6 +389,16 @@ export default function UpdateWindowRoot() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [closeWindow, isInstalling])
 
+  const productName = applicationInfo?.product_name || 'Termous'
+  const currentVersion = applicationInfo?.version || snapshot.current_version
+  const hasUpdateDetails = Boolean(
+    snapshot.available_version
+    || snapshot.release_notes,
+  )
+  const systemValue = applicationInfo
+    ? `${formatPlatform(applicationInfo.platform)} (${applicationInfo.arch})`
+    : text.unavailable
+
   return (
     <TermousUiProvider
       language={language as Language}
@@ -378,9 +412,9 @@ export default function UpdateWindowRoot() {
         <header className="update-window-titlebar">
           <div className="update-window-title">
             <span className="update-window-brand-mark" aria-hidden="true">
-              <Download size={16} strokeWidth={2.1} />
+              <img src="./termous-icon.png" alt="" />
             </span>
-            <span>{text.softwareUpdate}</span>
+            <span>{text.aboutTermous}</span>
           </div>
           {!isMac ? (
             <div className="update-window-controls">
@@ -389,6 +423,7 @@ export default function UpdateWindowRoot() {
                   type="text"
                   className="update-window-control"
                   aria-label={text.minimize}
+                  disabled={!bridge}
                   icon={<Minus size={15} />}
                   onClick={minimizeWindow}
                 />
@@ -407,51 +442,71 @@ export default function UpdateWindowRoot() {
           ) : null}
         </header>
 
-        <div className="update-window-content">
-          <section className="update-window-version-section">
-            <div className="update-window-eyebrow">{text.versionAvailable}</div>
-            <div className="update-window-version-route" aria-label={text.versionRoute}>
-              <UpdateWindowVersionBlock label={text.currentVersion} version={snapshot.current_version} />
-              <ArrowRight className="update-window-version-arrow" size={18} aria-hidden="true" />
-              <UpdateWindowVersionBlock
-                label={text.targetVersion}
-                version={snapshot.available_version ?? snapshot.current_version}
-                isTarget
-              />
-            </div>
-            <div className="update-window-release-meta">
-              <span>{snapshot.release_name ?? text.stableRelease}</span>
-              <span aria-hidden="true">·</span>
-              <span>{formatReleaseDate(snapshot.release_date, language, text.dateUnknown)}</span>
+        <div className={`update-window-content${hasUpdateDetails ? ' has-update-details' : ''}`}>
+          <section className="update-window-about-section" aria-labelledby="update-window-product-name">
+            <img className="update-window-product-icon" src="./termous-icon.png" alt="" />
+            <div className="update-window-product-copy">
+              <Typography.Title id="update-window-product-name" level={2}>
+                {productName}
+              </Typography.Title>
             </div>
           </section>
 
-          <section className="update-window-source-row">
-            <span className="update-window-source-copy">
-              <ShieldCheck size={16} aria-hidden="true" />
-              <span>
-                <strong>{text.trustedSource}</strong>
-                <small>GitHub Releases · Countra/termous</small>
-              </span>
-            </span>
-            <Button
-              type="text"
-              className="update-window-link-button"
-              icon={<ExternalLink size={14} />}
-              onClick={() => void runPrimaryAction('open_releases')}
-            >
-              {text.viewRelease}
-            </Button>
-          </section>
+          <Descriptions
+            className="update-window-application-facts"
+            aria-label={text.aboutTermous}
+            size="small"
+            colon={false}
+            column={{ xs: 1, sm: 2 }}
+            items={[
+              {
+                key: 'version',
+                label: text.applicationVersion,
+                children: (
+                  <Tag className="update-window-version-tag" variant="filled">
+                    v{currentVersion || text.unavailable}
+                  </Tag>
+                ),
+              },
+              {
+                key: 'system',
+                label: text.system,
+                children: (
+                  <Typography.Text className="update-window-system-value">
+                    {systemValue}
+                  </Typography.Text>
+                ),
+              },
+            ]}
+          />
 
-          <section className="update-window-notes-section" aria-labelledby="update-release-notes-title">
+          <section className="update-window-version-section" aria-labelledby="update-window-update-title">
             <div className="update-window-section-heading">
-              <h2 id="update-release-notes-title">{text.releaseNotes}</h2>
-              <span>{text.releaseNotesHint}</span>
+              <Typography.Title id="update-window-update-title" level={4}>
+                {text.softwareUpdate}
+              </Typography.Title>
+              {snapshot.release_date ? (
+                <Typography.Text type="secondary">
+                  {formatReleaseDate(snapshot.release_date, language, text.dateUnknown)}
+                </Typography.Text>
+              ) : null}
             </div>
-            <div className="update-window-release-notes" tabIndex={0}>
-              {snapshot.release_notes || text.noReleaseNotes}
-            </div>
+            {snapshot.available_version ? (
+              <div className="update-window-version-route" aria-label={text.versionRoute}>
+                <UpdateWindowVersionBlock label={text.currentVersion} version={snapshot.current_version} />
+                <ArrowRight className="update-window-version-arrow" size={18} aria-hidden="true" />
+                <UpdateWindowVersionBlock
+                  label={text.targetVersion}
+                  version={snapshot.available_version}
+                  isTarget
+                />
+              </div>
+            ) : (
+              <div className="update-window-version-current">
+                <span>{text.currentVersion}</span>
+                <strong>v{snapshot.current_version || currentVersion || text.unavailable}</strong>
+              </div>
+            )}
           </section>
 
           <UpdateWindowStatusPanel
@@ -466,14 +521,32 @@ export default function UpdateWindowRoot() {
             snapshot={snapshot}
             text={text}
           />
+
+          {hasUpdateDetails ? (
+            <section className="update-window-notes-section" aria-labelledby="update-release-notes-title">
+              <div className="update-window-section-heading">
+                <Typography.Title id="update-release-notes-title" level={4}>
+                  {text.releaseNotes}
+                </Typography.Title>
+              </div>
+              <Typography.Paragraph className="update-window-release-notes" tabIndex={0}>
+                {snapshot.release_notes || text.noReleaseNotes}
+              </Typography.Paragraph>
+            </section>
+          ) : null}
         </div>
 
         <footer className="update-window-footer">
-          <div className="update-window-live-message" aria-live="polite" aria-atomic="true">
+          <div className="update-window-live-message">
             {localError ? (
-              <span className="update-window-local-error">
+              <span
+                className="update-window-local-error"
+                role="alert"
+                aria-live="assertive"
+                aria-atomic="true"
+              >
                 <CircleAlert size={14} aria-hidden="true" />
-                {localError}
+                {text[localError]}
               </span>
             ) : (
               <span>{phaseDescription(snapshot, text)}</span>
@@ -499,6 +572,7 @@ export default function UpdateWindowRoot() {
                     busyAction,
                   )
                   || isInstalling
+                  || !bridge
                   || (installActionNeedsConfirmation && !currentConfirmation)
                 )}
                 loading={busyAction === primaryAction || busyAction === 'prepare'}
@@ -515,4 +589,17 @@ export default function UpdateWindowRoot() {
       </main>
     </TermousUiProvider>
   )
+}
+
+function formatPlatform(platform: string) {
+  if (platform === 'win32') {
+    return 'Windows'
+  }
+  if (platform === 'darwin') {
+    return 'macOS'
+  }
+  if (platform === 'linux') {
+    return 'Linux'
+  }
+  return platform
 }

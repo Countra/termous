@@ -7,12 +7,12 @@ import type {
 } from '../../../electron/updateTypes'
 
 export type UpdateWindowPrimaryAction =
+  | 'check'
   | 'download'
   | 'cancel'
   | 'install'
   | 'retry_download'
   | 'retry_install'
-  | 'open_releases'
   | 'none'
 
 export type UpdateWindowBusyAction =
@@ -26,18 +26,29 @@ const installErrorCodes = new Set<UpdateErrorCode>([
   'UPDATE_INSTALL_START_FAILED',
 ])
 
+const retryableDownloadErrorCodes = new Set<UpdateErrorCode>([
+  'UPDATE_DOWNLOAD_FAILED',
+  'UPDATE_DOWNLOAD_CANCELED',
+  'UPDATE_CANCEL_FAILED',
+  'UPDATE_HASH_MISMATCH',
+])
+
 export function mergeUpdateWindowBootstrap(
   current: UpdateWindowBootstrap<UpdateSnapshot>,
   incoming: UpdateWindowBootstrap<UpdateSnapshot>,
 ): UpdateWindowBootstrap<UpdateSnapshot> {
   const useIncomingBootstrap = incoming.bootstrap_seq >= current.bootstrap_seq
+  const incomingBootstrapIsNewer = incoming.bootstrap_seq > current.bootstrap_seq
   return {
     bootstrap_seq: useIncomingBootstrap
       ? incoming.bootstrap_seq
       : current.bootstrap_seq,
-    intent: useIncomingBootstrap ? incoming.intent : current.intent,
     language: useIncomingBootstrap ? incoming.language : current.language,
-    snapshot: mergeUpdateWindowSnapshot(current.snapshot, incoming.snapshot),
+    snapshot: mergeUpdateWindowSnapshot(
+      current.snapshot,
+      incoming.snapshot,
+      incomingBootstrapIsNewer,
+    ),
     theme: useIncomingBootstrap ? incoming.theme : current.theme,
   }
 }
@@ -45,12 +56,14 @@ export function mergeUpdateWindowBootstrap(
 export function mergeUpdateWindowSnapshot(
   current: UpdateSnapshot,
   incoming: UpdateSnapshot,
+  allowEqualSequence = false,
 ): UpdateSnapshot {
   if (incoming.state_seq < current.state_seq) {
     return current
   }
   if (
     incoming.state_seq === current.state_seq
+    && !allowEqualSequence
     && !(current.state_seq === 0 && current.current_version === '')
   ) {
     return current
@@ -74,6 +87,9 @@ export function resolveUpdateWindowPrimaryAction(
   snapshot: UpdateSnapshot,
 ): UpdateWindowPrimaryAction {
   switch (snapshot.phase) {
+    case 'idle':
+    case 'up_to_date':
+      return 'check'
     case 'available':
       return 'download'
     case 'downloading':
@@ -82,11 +98,19 @@ export function resolveUpdateWindowPrimaryAction(
       return 'install'
     case 'error':
       if (snapshot.error_code && installErrorCodes.has(snapshot.error_code)) {
-        return snapshot.retryable ? 'retry_install' : 'open_releases'
+        return snapshot.retryable ? 'retry_install' : 'none'
       }
-      return snapshot.available_version ? 'retry_download' : 'open_releases'
+      if (
+        snapshot.retryable
+        && snapshot.available_version
+        && snapshot.error_code
+        && retryableDownloadErrorCodes.has(snapshot.error_code)
+      ) {
+        return 'retry_download'
+      }
+      return snapshot.retryable ? 'check' : 'none'
     case 'unsupported':
-      return 'open_releases'
+      return 'none'
     default:
       return 'none'
   }
@@ -173,7 +197,7 @@ export function formatUpdateDuration(
   language: UpdateWindowLanguage,
 ) {
   if (secondsInput === null || !Number.isFinite(secondsInput) || secondsInput < 0) {
-    return '—'
+    return '-'
   }
   const seconds = Math.ceil(secondsInput)
   const hours = Math.floor(seconds / 3600)

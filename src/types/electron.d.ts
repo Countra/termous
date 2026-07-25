@@ -17,7 +17,6 @@ import type {
   UpdateSnapshot,
 } from '../../electron/updateManager'
 import type { UpdateRuntimeSummary } from '../../electron/updateRuntime'
-import type { UpdateWindowIntent } from '../../electron/updateWindow'
 
 interface SSHPrivateKeySelectionResult {
   canceled: boolean
@@ -90,9 +89,7 @@ declare global {
         getState: () => Promise<UpdateSnapshot>
         getPreferences: () => Promise<UpdatePreferences>
         setPreferences: (patch: UpdatePreferencesPatch) => Promise<UpdatePreferences>
-        check: () => Promise<UpdateSnapshot>
-        openWindow: (intent?: UpdateWindowIntent) => Promise<boolean>
-        openReleasePage: () => Promise<boolean>
+        openWindow: () => Promise<boolean>
         reportRuntimeSummary: (summary: UpdateRuntimeSummary) => Promise<UpdateRuntimeSummary>
         subscribe: (callback: (snapshot: UpdateSnapshot) => void) => () => void
       }

@@ -17,7 +17,7 @@ const simulatedTotalBytes = 84 * 1024 * 1024
 export interface DevelopmentUpdateSimulationStore {
   getRevisionActor(): string
   getSnapshot(): UpdateSnapshot
-  mergeRemote(snapshot: UpdateSnapshot, actorId: string): void
+  mergeRemote(snapshot: UpdateSnapshot, actorId: string): boolean
   subscribe(callback: (snapshot: UpdateSnapshot) => void): () => void
   check(): Promise<UpdateSnapshot>
   setPreferences(patch: UpdatePreferencesPatch): Promise<UpdatePreferences>
@@ -98,7 +98,7 @@ export function createDevelopmentUpdateSimulationStore(
         incoming.preferences,
       )
       if (mergedPreferences === snapshot.preferences) {
-        return
+        return false
       }
       preferences = { ...mergedPreferences }
       snapshot = {
@@ -106,7 +106,7 @@ export function createDevelopmentUpdateSimulationStore(
         preferences,
       }
       notify(listeners, snapshot)
-      return
+      return false
     }
     if (isInitialAuthoritativeSnapshot) {
       awaitingAuthoritativeSnapshot = false
@@ -118,7 +118,7 @@ export function createDevelopmentUpdateSimulationStore(
       operationGeneration = incoming.operation_generation
       preferences = { ...incoming.preferences }
       notify(listeners, snapshot)
-      return
+      return true
     }
     if (
       downloadPromise
@@ -136,6 +136,7 @@ export function createDevelopmentUpdateSimulationStore(
     operationGeneration = snapshot.operation_generation
     preferences = { ...snapshot.preferences }
     notify(listeners, snapshot)
+    return false
   }
 
   const check = async () => {
@@ -320,7 +321,6 @@ function initialSnapshot(
       available_version: null,
       release_name: null,
       release_date: null,
-      release_url: null,
       release_notes: null,
     }),
     progress,
@@ -339,7 +339,6 @@ function releaseFields() {
     available_version: simulationVersion,
     release_name: `Termous ${simulationVersion}`,
     release_date: '2026-07-25T08:00:00.000Z',
-    release_url: `https://github.com/Countra/termous/releases/tag/v${simulationVersion}`,
     release_notes: '本地模拟版本，用于验证更新提示、下载进度与窗口状态恢复。',
   }
 }

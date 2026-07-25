@@ -43,7 +43,6 @@ function snapshot(overrides: Partial<UpdateSnapshot> = {}): UpdateSnapshot {
     available_version: '1.1.0',
     release_name: 'Termous 1.1.0',
     release_date: '2026-07-25T00:00:00Z',
-    release_url: 'https://github.com/Countra/termous/releases/tag/v1.1.0',
     release_notes: '更新说明',
     progress: {
       percent: 40,
@@ -74,7 +73,6 @@ function bootstrap(
 ): UpdateWindowBootstrap<UpdateSnapshot> {
   return {
     bootstrap_seq: bootstrapSequence,
-    intent: 'inspect',
     language: 'zh-CN',
     snapshot: state,
     theme: 'dark',
@@ -177,7 +175,31 @@ test('相同 state sequence 的矛盾快照不会覆盖已渲染终态', () => {
   assert.equal(mergeUpdateWindowSnapshot(current, duplicate), current)
 })
 
+test('更新的权威 bootstrap 可替换同序号的窗口合成状态', () => {
+  const current = bootstrap(1, snapshot({
+    state_seq: 9,
+    phase: 'error',
+    error_code: 'UPDATE_DOWNLOAD_FAILED',
+    error_message: '窗口合成错误',
+    retryable: true,
+  }))
+  const authoritative = bootstrap(2, snapshot({
+    state_seq: 9,
+    phase: 'error',
+    error_code: 'UPDATE_INSTALL_START_FAILED',
+    error_message: '权威安装错误',
+    retryable: true,
+  }))
+
+  const merged = mergeUpdateWindowBootstrap(current, authoritative)
+
+  assert.equal(merged.snapshot.error_code, 'UPDATE_INSTALL_START_FAILED')
+  assert.equal(resolveUpdateWindowPrimaryAction(merged.snapshot), 'retry_install')
+})
+
 test('操作按更新阶段和错误类型稳定映射', () => {
+  assert.equal(resolveUpdateWindowPrimaryAction(snapshot({ phase: 'idle' })), 'check')
+  assert.equal(resolveUpdateWindowPrimaryAction(snapshot({ phase: 'up_to_date' })), 'check')
   assert.equal(resolveUpdateWindowPrimaryAction(snapshot({ phase: 'available' })), 'download')
   assert.equal(resolveUpdateWindowPrimaryAction(snapshot({ phase: 'downloading' })), 'cancel')
   assert.equal(resolveUpdateWindowPrimaryAction(snapshot({ phase: 'downloaded' })), 'install')
@@ -195,21 +217,39 @@ test('操作按更新阶段和错误类型稳定映射', () => {
       error_code: 'UPDATE_CORE_SHUTDOWN_FAILED',
       retryable: false,
     })),
-    'open_releases',
+    'none',
   )
   assert.equal(
     resolveUpdateWindowPrimaryAction(snapshot({
       phase: 'error',
       error_code: 'UPDATE_DOWNLOAD_FAILED',
+      retryable: true,
     })),
     'retry_download',
+  )
+  assert.equal(
+    resolveUpdateWindowPrimaryAction(snapshot({
+      phase: 'error',
+      error_code: 'UPDATE_SIGNATURE_INVALID',
+      retryable: false,
+    })),
+    'none',
   )
   assert.equal(
     resolveUpdateWindowPrimaryAction(snapshot({
       phase: 'unsupported',
       available_version: null,
     })),
-    'open_releases',
+    'none',
+  )
+  assert.equal(
+    resolveUpdateWindowPrimaryAction(snapshot({
+      phase: 'error',
+      error_code: 'UPDATE_CHECK_FAILED',
+      available_version: null,
+      retryable: true,
+    })),
+    'check',
   )
 })
 
@@ -301,4 +341,20 @@ test('字节、速度 ETA 和长时长使用可读单位', () => {
     total: 1_000,
     bytes_per_second: 100,
   }), null)
+})
+
+test('关于窗口文案不暴露更新渠道或更新源', () => {
+  for (const language of ['zh-CN', 'en-US'] as const) {
+    const copy = windowCopy(language)
+    const visibleCopy = Object.values(copy).join('\n')
+    assert.doesNotMatch(
+      visibleCopy,
+      /GitHub|Countra\/termous|trusted source|release page|releases\b|更新源|更新渠道|发布页/i,
+    )
+    assert.doesNotMatch(
+      visibleCopy,
+      /专注、安全的远程运维工作空间|focused workspace for secure remote operations/i,
+    )
+    assert.equal('coreVersion' in copy, false)
+  }
 })

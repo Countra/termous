@@ -1,5 +1,10 @@
 import type { ReactNode } from 'react'
-import { Button } from 'antd'
+import {
+  Button,
+  Descriptions,
+  Progress,
+  Typography,
+} from 'antd'
 import {
   Check,
   CircleAlert,
@@ -49,92 +54,144 @@ export function UpdateWindowStatusPanel({
   const eta = calculateUpdateEta(progress)
   const installConfirmationNeeded = canPrepareUpdateInstall(snapshot)
   const showInstallImpact = installConfirmationNeeded && confirmation
-  const hasDownloadProgress = snapshot.phase === 'downloading' && Boolean(progress)
+  const showDownloadMetrics = Boolean(
+    progress
+    && (
+      snapshot.phase === 'downloading'
+      || snapshot.phase === 'error'
+    ),
+  )
   const errorMessage = snapshot.phase === 'error'
     ? errorCopy(snapshot.error_code, language)
     : null
+  const progressStatus = snapshot.phase === 'error'
+    ? 'exception'
+    : snapshot.phase === 'downloaded'
+      ? 'success'
+      : snapshot.phase === 'downloading'
+        ? 'active'
+        : 'normal'
 
   return (
     <section
-      className={`update-window-status-panel${showInstallImpact ? ' is-install-ready' : ''}`}
-      aria-live="polite"
+      className={[
+        'update-window-status-panel',
+        showInstallImpact ? 'is-install-ready' : '',
+        !showInstallImpact && !showDownloadMetrics ? 'is-compact' : '',
+      ].filter(Boolean).join(' ')}
     >
       <div className="update-window-status-heading">
         <span className={`update-window-status-icon is-${snapshot.phase}`} aria-hidden="true">
           {phaseIcon(snapshot.phase)}
         </span>
-        <span>
-          <strong>{phaseTitle(snapshot, text)}</strong>
-          <small>{errorMessage ?? phaseDescription(snapshot, text)}</small>
-        </span>
+        <div>
+          <Typography.Text strong>{phaseTitle(snapshot, text)}</Typography.Text>
+          <Typography.Text
+            type="secondary"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {errorMessage ?? phaseDescription(snapshot, text)}
+          </Typography.Text>
+        </div>
       </div>
 
       {showInstallImpact ? (
-        <div className="update-window-impact-grid">
-          <ImpactItem
-            icon={<Terminal size={14} />}
-            label={text.sshSessions}
-            value={confirmation.summary.ssh_sessions}
+        <div className="update-window-impact">
+          <Descriptions
+            className="update-window-impact-grid"
+            size="small"
+            colon={false}
+            column={{ xs: 2, sm: 4 }}
+            items={[
+              {
+                key: 'ssh',
+                label: <ImpactLabel icon={<Terminal size={14} />} text={text.sshSessions} />,
+                children: <Typography.Text strong>{confirmation.summary.ssh_sessions}</Typography.Text>,
+              },
+              {
+                key: 'sftp',
+                label: <ImpactLabel icon={<FolderOpen size={14} />} text={text.fileSessions} />,
+                children: <Typography.Text strong>{confirmation.summary.file_sessions}</Typography.Text>,
+              },
+              {
+                key: 'forwards',
+                label: <ImpactLabel icon={<Network size={14} />} text={text.forwards} />,
+                children: <Typography.Text strong>{confirmation.summary.forwards}</Typography.Text>,
+              },
+              {
+                key: 'transfers',
+                label: <ImpactLabel icon={<Download size={14} />} text={text.transfers} />,
+                children: (
+                  <Typography.Text strong>
+                    {confirmation.summary.transfers_complete
+                      ? confirmation.summary.transfers
+                      : text.unknownCount}
+                  </Typography.Text>
+                ),
+              },
+            ]}
           />
-          <ImpactItem
-            icon={<FolderOpen size={14} />}
-            label={text.fileSessions}
-            value={confirmation.summary.file_sessions}
-          />
-          <ImpactItem
-            icon={<Network size={14} />}
-            label={text.forwards}
-            value={confirmation.summary.forwards}
-          />
-          <ImpactItem
-            icon={<Download size={14} />}
-            label={text.transfers}
-            value={confirmation.summary.transfers_complete
-              ? confirmation.summary.transfers
-              : text.unknownCount}
-          />
-          <p className="update-window-impact-note">
+          <Typography.Paragraph className="update-window-impact-note">
             {!confirmation.summary.transfers_complete
               ? text.transferSummaryIncomplete
               : summarizeRuntimeImpact(confirmation.summary) > 0
                 ? text.activeWorkWillClose
                 : text.noActiveWork}
-          </p>
+          </Typography.Paragraph>
         </div>
-      ) : (
-        <>
-          <div
-            className="update-window-progress-track"
-            {...(hasDownloadProgress ? {
-              role: 'progressbar',
-              'aria-label': text.downloadProgress,
-              'aria-valuemin': 0,
-              'aria-valuemax': 100,
-              'aria-valuenow': Math.round(percent),
-            } : { 'aria-hidden': true })}
-          >
-            <span style={{ width: `${percent}%` }} />
-          </div>
-          <div className="update-window-progress-metrics">
-            <ProgressMetric
-              label={text.downloaded}
-              value={progress
-                ? `${formatUpdateBytes(progress.transferred, language)} / ${formatUpdateBytes(progress.total, language)}`
-                : '—'}
-            />
-            <ProgressMetric
-              label={text.speed}
-              value={progress && progress.bytes_per_second > 0
-                ? `${formatUpdateBytes(progress.bytes_per_second, language)}/s`
-                : '—'}
-            />
-            <ProgressMetric
-              label={text.remaining}
-              value={formatUpdateDuration(eta, language)}
-            />
-          </div>
-        </>
-      )}
+      ) : showDownloadMetrics ? (
+        <div className="update-window-download-progress">
+          <Progress
+            className="update-window-progress"
+            aria-label={text.downloadProgress}
+            percent={percent}
+            showInfo={false}
+            size="small"
+            status={progressStatus}
+            strokeLinecap="round"
+          />
+          <Descriptions
+            className="update-window-progress-metrics"
+            size="small"
+            colon={false}
+            column={{ xs: 1, sm: 3 }}
+            items={[
+              {
+                key: 'downloaded',
+                label: text.downloaded,
+                children: (
+                  <Typography.Text>
+                    {progress
+                      ? `${formatUpdateBytes(progress.transferred, language)} / ${formatUpdateBytes(progress.total, language)}`
+                      : text.unavailable}
+                  </Typography.Text>
+                ),
+              },
+              {
+                key: 'speed',
+                label: text.speed,
+                children: (
+                  <Typography.Text>
+                    {progress && progress.bytes_per_second > 0
+                      ? `${formatUpdateBytes(progress.bytes_per_second, language)}/s`
+                      : text.unavailable}
+                  </Typography.Text>
+                ),
+              },
+              {
+                key: 'remaining',
+                label: text.remaining,
+                children: (
+                  <Typography.Text>
+                    {formatUpdateDuration(eta, language)}
+                  </Typography.Text>
+                ),
+              },
+            ]}
+          />
+        </div>
+      ) : null}
 
       {installConfirmationNeeded && !confirmation ? (
         <span className="update-window-confirmation-status">
@@ -163,29 +220,17 @@ export function UpdateWindowStatusPanel({
   )
 }
 
-function ImpactItem({
+function ImpactLabel({
   icon,
-  label,
-  value,
+  text,
 }: {
   icon: ReactNode
-  label: string
-  value: ReactNode
+  text: string
 }) {
   return (
-    <span className="update-window-impact-item">
+    <span className="update-window-impact-label">
       <span aria-hidden="true">{icon}</span>
-      <small>{label}</small>
-      <strong>{value}</strong>
-    </span>
-  )
-}
-
-function ProgressMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="update-window-progress-metric">
-      <small>{label}</small>
-      <strong>{value}</strong>
+      <span>{text}</span>
     </span>
   )
 }

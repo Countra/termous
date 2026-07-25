@@ -6,14 +6,13 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { App as AntdApp, Button } from 'antd'
+import { App as AntdApp } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type {
   UpdatePreferences,
   UpdatePreferencesPatch,
   UpdateSnapshot,
 } from '../../../electron/updateTypes'
-import type { UpdateWindowIntent } from '../../../electron/updateWindow'
 import {
   mergeUpdatePreferencesByRevision,
   mergeUpdateRuntimeSnapshot,
@@ -55,6 +54,18 @@ export function UpdateRuntimeProvider({
     latestPreferences: null,
     snapshot: null,
   }))
+  const [initializationFailed, setInitializationFailed] = useState(false)
+  const bridgeIdentityRef = useRef({
+    bridge,
+    generation: 0,
+  })
+  const successfulGenerationRef = useRef(-1)
+  if (bridgeIdentityRef.current.bridge !== bridge) {
+    bridgeIdentityRef.current = {
+      bridge,
+      generation: bridgeIdentityRef.current.generation + 1,
+    }
+  }
   const notifiedKeysRef = useRef(new Set<string>())
   const storage = useMemo(
     () => notificationStorage === undefined
@@ -67,29 +78,63 @@ export function UpdateRuntimeProvider({
     : null
 
   const applySnapshot = useCallback((incoming: UpdateSnapshot) => {
+    const identity = bridgeIdentityRef.current
+    if (identity.bridge !== bridge) {
+      return
+    }
+    successfulGenerationRef.current = identity.generation
+    setInitializationFailed(false)
     setRuntimeState((current) => reconcileRuntimeState(current, bridge, incoming))
   }, [bridge])
 
+  const requestRuntimeSnapshot = useCallback(async () => {
+    if (!bridge) {
+      setInitializationFailed(false)
+      return false
+    }
+    const operationIdentity = bridgeIdentityRef.current
+    setInitializationFailed(false)
+    try {
+      const incoming = await bridge.getState()
+      if (
+        bridgeIdentityRef.current.bridge !== operationIdentity.bridge
+        || bridgeIdentityRef.current.generation !== operationIdentity.generation
+      ) {
+        return false
+      }
+      applySnapshot(incoming)
+      return true
+    } catch {
+      if (
+        bridgeIdentityRef.current.bridge === operationIdentity.bridge
+        && bridgeIdentityRef.current.generation === operationIdentity.generation
+        && successfulGenerationRef.current !== operationIdentity.generation
+      ) {
+        setInitializationFailed(true)
+      }
+      return false
+    }
+  }, [applySnapshot, bridge])
+
   useEffect(() => {
     if (!bridge) {
+      setInitializationFailed(false)
       return undefined
     }
+    void requestRuntimeSnapshot()
     try {
       return bridge.subscribe(applySnapshot)
     } catch {
       console.error('[termous:update] 订阅更新状态失败')
+      if (
+        bridgeIdentityRef.current.bridge === bridge
+        && successfulGenerationRef.current !== bridgeIdentityRef.current.generation
+      ) {
+        setInitializationFailed(true)
+      }
       return undefined
     }
-  }, [applySnapshot, bridge])
-
-  const checkForUpdates = useCallback(async () => {
-    if (!bridge) {
-      return null
-    }
-    const incoming = await bridge.check()
-    applySnapshot(incoming)
-    return incoming
-  }, [applySnapshot, bridge])
+  }, [applySnapshot, bridge, requestRuntimeSnapshot])
 
   const setUpdatePreferences = useCallback(async (
     patch: UpdatePreferencesPatch,
@@ -97,7 +142,14 @@ export function UpdateRuntimeProvider({
     if (!bridge) {
       return null
     }
+    const operationIdentity = bridgeIdentityRef.current
     const preferences = await bridge.setPreferences(patch)
+    if (
+      bridgeIdentityRef.current.bridge !== operationIdentity.bridge
+      || bridgeIdentityRef.current.generation !== operationIdentity.generation
+    ) {
+      return null
+    }
     setRuntimeState((current) => reconcilePreferences(
       current,
       bridge,
@@ -106,12 +158,8 @@ export function UpdateRuntimeProvider({
     return preferences
   }, [bridge])
 
-  const openUpdateWindow = useCallback((
-    intent: UpdateWindowIntent = 'inspect',
-  ) => bridge?.openWindow(intent) ?? Promise.resolve(false), [bridge])
-
-  const openReleasePage = useCallback(
-    () => bridge?.openReleasePage() ?? Promise.resolve(false),
+  const openUpdateWindow = useCallback(
+    () => bridge?.openWindow() ?? Promise.resolve(false),
     [bridge],
   )
 
@@ -130,28 +178,6 @@ export function UpdateRuntimeProvider({
     }
 
     const chinese = i18n.resolvedLanguage?.startsWith('zh') ?? false
-    const openAction = (
-      <Button
-        type="link"
-        size="small"
-        onClick={() => {
-          void bridge.openWindow('inspect')
-            .then((opened) => {
-              if (opened) {
-                notification.destroy(key)
-              }
-            })
-            .catch(() => {
-              console.error('[termous:update] 打开更新窗口失败')
-            })
-        }}
-      >
-        {t('update.global.view', {
-          defaultValue: chinese ? '查看更新' : 'View update',
-        })}
-      </Button>
-    )
-
     if (event.type === 'available') {
       notification.info({
         key,
@@ -167,7 +193,6 @@ export function UpdateRuntimeProvider({
             ? '新版本已准备好下载。'
             : 'A new version is ready to download.',
         }),
-        actions: openAction,
         duration: 6,
         role: 'status',
         className: 'termous-notification',
@@ -187,7 +212,6 @@ export function UpdateRuntimeProvider({
           ? `Termous ${event.version} 已准备好安装。`
           : `Termous ${event.version} is ready to install.`,
       }),
-      actions: openAction,
       duration: 0,
       role: 'status',
       className: 'termous-notification',
@@ -197,16 +221,17 @@ export function UpdateRuntimeProvider({
   const value = useMemo<UpdateRuntimeValue>(() => ({
     bridgeAvailable: Boolean(bridge),
     initialized: Boolean(snapshot),
+    initializationFailed,
+    runtimeGeneration: bridgeIdentityRef.current.generation,
     snapshot,
-    checkForUpdates,
     setUpdatePreferences,
     openUpdateWindow,
-    openReleasePage,
+    retryInitialization: requestRuntimeSnapshot,
   }), [
     bridge,
-    checkForUpdates,
-    openReleasePage,
+    initializationFailed,
     openUpdateWindow,
+    requestRuntimeSnapshot,
     setUpdatePreferences,
     snapshot,
   ])

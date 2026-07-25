@@ -1,13 +1,11 @@
 import { pathToFileURL } from 'node:url'
 import type { BrowserWindowConstructorOptions } from 'electron'
 
-export type UpdateWindowIntent = 'inspect' | 'start_download'
 export type UpdateWindowTheme = 'dark' | 'light'
 export type UpdateWindowLanguage = 'zh-CN' | 'en-US'
 
 export interface UpdateWindowBootstrap<TSnapshot = unknown> {
   bootstrap_seq: number
-  intent: UpdateWindowIntent
   language: UpdateWindowLanguage
   snapshot: TSnapshot
   theme: UpdateWindowTheme
@@ -41,6 +39,10 @@ export interface UpdateBrowserWindowLike {
   loadFile(filePath: string, options?: { query?: Record<string, string> }): Promise<void>
   loadURL(url: string): Promise<void>
   minimize(): void
+  on(
+    event: 'close',
+    listener: (event: NavigationEventLike) => void,
+  ): void
   on(event: 'closed', listener: () => void): void
   once(event: 'ready-to-show', listener: () => void): void
   restore(): void
@@ -50,6 +52,7 @@ export interface UpdateBrowserWindowLike {
 
 export interface UpdateWindowControllerOptions<TSnapshot> {
   createWindow(options: BrowserWindowConstructorOptions): UpdateBrowserWindowLike
+  canClose?(): boolean
   devServerURL?: string
   getSnapshot(): TSnapshot
   iconPath?: string
@@ -57,7 +60,6 @@ export interface UpdateWindowControllerOptions<TSnapshot> {
   initialTheme: UpdateWindowTheme
   isQuitting?(): boolean
   onError?(error: unknown): void
-  onStartDownload?(): Promise<unknown> | unknown
   platform: NodeJS.Platform
   preloadPath: string
   rendererFilePath: string
@@ -68,12 +70,9 @@ const bootstrapChangedChannel = 'app-update:window-bootstrap-changed'
 
 export class UpdateWindowController<TSnapshot = unknown> {
   private bootstrapSequence = 0
-  private currentIntent: UpdateWindowIntent = 'inspect'
   private currentWindow: UpdateBrowserWindowLike | null = null
-  private downloadDispatch: Promise<void> | null = null
   private language: UpdateWindowLanguage
   private loaded = false
-  private pendingDownload = false
   private theme: UpdateWindowTheme
   private readonly options: UpdateWindowControllerOptions<TSnapshot>
 
@@ -83,28 +82,19 @@ export class UpdateWindowController<TSnapshot = unknown> {
     this.theme = options.initialTheme
   }
 
-  open(intent: UpdateWindowIntent) {
+  open() {
     if (this.options.isQuitting?.()) {
       return null
     }
-    this.currentIntent = intent
     this.bootstrapSequence += 1
 
     const existing = this.getWindow()
     if (existing) {
       this.reveal(existing)
       this.publishBootstrap(existing)
-      if (intent === 'start_download') {
-        if (this.loaded) {
-          this.dispatchDownloadRequest()
-        } else if (!this.downloadDispatch) {
-          this.pendingDownload = true
-        }
-      }
       return existing
     }
 
-    this.pendingDownload = intent === 'start_download' && !this.downloadDispatch
     const target = this.createWindow()
     this.currentWindow = target
     this.loaded = false
@@ -115,7 +105,7 @@ export class UpdateWindowController<TSnapshot = unknown> {
 
   close() {
     const target = this.getWindow()
-    if (!target) {
+    if (!target || !this.canClose()) {
       return false
     }
     target.close()
@@ -134,7 +124,6 @@ export class UpdateWindowController<TSnapshot = unknown> {
   getBootstrap(): UpdateWindowBootstrap<TSnapshot> {
     return {
       bootstrap_seq: this.bootstrapSequence,
-      intent: this.currentIntent,
       language: this.language,
       snapshot: this.options.getSnapshot(),
       theme: this.theme,
@@ -171,15 +160,15 @@ export class UpdateWindowController<TSnapshot = unknown> {
     const isMac = this.options.platform === 'darwin'
     return this.options.createWindow({
       width: 720,
-      height: 620,
+      height: 700,
       minWidth: 640,
-      minHeight: 540,
+      minHeight: 600,
       useContentSize: true,
       frame: isMac,
       titleBarStyle: isMac ? 'hiddenInset' : 'default',
       autoHideMenuBar: true,
       backgroundColor: windowBackground(this.theme),
-      title: this.options.title ?? 'Termous Update',
+      title: this.options.title ?? 'About Termous',
       icon: this.options.iconPath,
       show: false,
       webPreferences: {
@@ -208,11 +197,15 @@ export class UpdateWindowController<TSnapshot = unknown> {
       }
       this.loaded = true
       this.publishBootstrap(target)
-      this.flushPendingDownloadRequest()
     })
     target.once('ready-to-show', () => {
       if (this.currentWindow === target) {
         this.reveal(target)
+      }
+    })
+    target.on('close', (event) => {
+      if (!this.canClose()) {
+        event.preventDefault()
       }
     })
     target.on('closed', () => {
@@ -268,27 +261,8 @@ export class UpdateWindowController<TSnapshot = unknown> {
     target.focus()
   }
 
-  private flushPendingDownloadRequest() {
-    if (!this.loaded || !this.pendingDownload) {
-      return
-    }
-    this.pendingDownload = false
-    this.dispatchDownloadRequest()
-  }
-
-  private dispatchDownloadRequest() {
-    if (this.downloadDispatch) {
-      return
-    }
-    this.downloadDispatch = Promise.resolve()
-      .then(() => this.options.onStartDownload?.())
-      .then(() => undefined)
-      .catch((error) => {
-        this.options.onError?.(error)
-      })
-      .finally(() => {
-        this.downloadDispatch = null
-      })
+  private canClose() {
+    return this.options.isQuitting?.() || this.options.canClose?.() !== false
   }
 }
 

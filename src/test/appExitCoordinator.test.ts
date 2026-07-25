@@ -180,14 +180,123 @@ test('更新窗口可独立关闭，主窗口只在应用退出提交后放行',
   assert.equal(coordinator.canCloseWindow('splash'), true)
 })
 
-test('安装器启动异常时记录错误并完成安全退出', () => {
+test('安装准备完成后仍保护主窗口，真实退出开始后才放行', async () => {
+  const { coordinator } = coordinatorHarness()
+  await coordinator.prepareUpdateInstall()
+
+  assert.equal(coordinator.canCloseWindow('main'), false)
+  assert.equal(coordinator.isApplicationExiting(), false)
+
+  let prevented = 0
+  assert.equal(coordinator.handleBeforeQuit({
+    preventDefault: () => {
+      prevented += 1
+    },
+  }), true)
+  assert.equal(prevented, 0)
+  assert.equal(coordinator.canCloseWindow('main'), true)
+  assert.equal(coordinator.isApplicationExiting(), true)
+})
+
+test('显式退出与更新准备并发时仍完成窗口和进程收口', async () => {
+  const shutdown = deferred<boolean>()
+  const { coordinator, events } = coordinatorHarness({
+    shutdownCore: (reason) => {
+      events.push(`shutdown:${reason}`)
+      return shutdown.promise
+    },
+  })
+
+  const preparing = coordinator.prepareUpdateInstall()
+  const exiting = coordinator.requestApplicationExit('main_window')
+  shutdown.resolve(true)
+
+  assert.deepEqual(await preparing, { status: 'ready_to_install' })
+  assert.deepEqual(await exiting, {
+    mode: 'application_exit',
+    source: 'main_window',
+    coreStopped: true,
+  })
+  assert.deepEqual(events, [
+    'shutdown:application_update',
+    'prepare',
+    'close-windows',
+    'quit',
+  ])
+})
+
+test('安装器启动异常时记录错误并完成安全退出', async () => {
   const installError = new Error('installer failed')
   const { coordinator, events } = coordinatorHarness()
 
-  coordinator.handleUpdateInstallerFailure(installError)
+  await coordinator.prepareUpdateInstall()
+  await coordinator.handleUpdateInstallerFailure(installError)
 
   assert.deepEqual(events, [
+    'shutdown:application_update',
+    'prepare',
     'error:update-installer-launch-failed',
+    'shutdown:frontend_exit',
+    'close-windows',
+    'quit',
+  ])
+})
+
+test('安装失败恢复期间退出会等待恢复并再次关闭 Core', async () => {
+  const recovery = deferred<boolean>()
+  const finalShutdown = deferred<boolean>()
+  const { coordinator, events } = coordinatorHarness({
+    shutdownCore: (reason) => {
+      events.push(`shutdown:${reason}`)
+      return reason === 'application_update'
+        ? Promise.resolve(true)
+        : finalShutdown.promise
+    },
+    recoverAfterFailedUpdateInstall: () => {
+      events.push('recover')
+      return recovery.promise
+    },
+  })
+
+  await coordinator.prepareUpdateInstall()
+  const recovering = coordinator.handleUpdateInstallerFailure(
+    new Error('installer failed'),
+  )
+  const exiting = coordinator.requestApplicationExit('tray')
+
+  assert.equal(coordinator.isApplicationExiting(), true)
+  assert.deepEqual(events, [
+    'shutdown:application_update',
+    'prepare',
+    'error:update-installer-launch-failed',
+    'recover',
+  ])
+
+  recovery.resolve(true)
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve)
+  })
+  assert.deepEqual(events, [
+    'shutdown:application_update',
+    'prepare',
+    'error:update-installer-launch-failed',
+    'recover',
+    'shutdown:frontend_exit',
+  ])
+
+  finalShutdown.resolve(true)
+  assert.equal(await recovering, false)
+  assert.deepEqual(await exiting, {
+    mode: 'application_exit',
+    source: 'tray',
+    coreStopped: true,
+  })
+  assert.deepEqual(events, [
+    'shutdown:application_update',
+    'prepare',
+    'error:update-installer-launch-failed',
+    'recover',
+    'shutdown:frontend_exit',
     'close-windows',
     'quit',
   ])

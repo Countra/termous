@@ -13,7 +13,7 @@ import type {
 
 const releaseNotesLimit = 4_000
 const versionLimit = 64
-const releasePagePrefix = 'https://github.com/Countra/termous/releases/tag/v'
+const installLaunchTimeoutMs = 120_000
 
 const safeErrorMessages: Record<UpdateErrorCode, string> = {
   UPDATE_UNSUPPORTED: '当前安装环境不支持应用内更新',
@@ -115,14 +115,27 @@ export interface ElectronUpdaterApp {
   getVersion: () => string
 }
 
+export interface ElectronInstallEventSource {
+  once: (
+    event: 'before-quit-for-update',
+    listener: () => void,
+  ) => unknown
+  removeListener: (
+    event: 'before-quit-for-update',
+    listener: () => void,
+  ) => unknown
+}
+
 export interface ElectronUpdaterEngineOptions {
   updater?: ElectronUpdaterAdapter
   app?: ElectronUpdaterApp
+  installEventSource?: ElectronInstallEventSource
   platform?: NodeJS.Platform
   env?: Readonly<Record<string, string | undefined>>
   isMacAppStore?: boolean
   isWindowsStore?: boolean
   isAppImageWritable?: (filePath: string) => boolean
+  installLaunchTimeoutMs?: number
   launchInstall?: (updater: ElectronUpdaterAdapter) => void
   onDownloadedFiles?: (paths: readonly string[]) => void
 }
@@ -156,6 +169,8 @@ export function createElectronUpdaterEngine(
   }))
   const currentVersion = readCurrentVersion(app)
   const launchInstall = options.launchInstall ?? defaultLaunchInstall
+  const installEventSource = options.installEventSource
+    ?? getDefaultInstallEventSource()
   const activeDownloads = new Map<number, ActiveDownload>()
 
   updater.autoDownload = false
@@ -290,28 +305,46 @@ export function createElectronUpdaterEngine(
         throw failure
       }
     },
-    installUpdate: () => {
+    installUpdate: async () => {
       assertSupported(support)
-      let emittedError: Error | null = null
       let failure: UpdateOperationError | null = null
+      let rejectUpdaterError!: (error: Error) => void
+      const updaterError = new Promise<never>((_resolve, reject) => {
+        rejectUpdaterError = reject
+      })
       const errorListener = (error: Error) => {
-        emittedError ??= error
+        rejectUpdaterError(error)
       }
+      let errorListenerAttached = false
+      let launchObservation: ReturnType<typeof observeInstallLaunch> | null = null
 
       try {
+        launchObservation = observeInstallLaunch(
+          installEventSource,
+          options.installLaunchTimeoutMs ?? installLaunchTimeoutMs,
+        )
         updater.on('error', errorListener)
+        errorListenerAttached = true
         launchInstall(updater)
-        if (emittedError) {
-          throw emittedError
-        }
+        await Promise.race([
+          launchObservation.settled,
+          updaterError,
+        ])
       } catch (error) {
         failure = classifyUpdaterError(error, 'install')
       }
 
       try {
-        updater.removeListener('error', errorListener)
+        launchObservation?.dispose()
       } catch (error) {
         failure ??= classifyUpdaterError(error, 'install')
+      }
+      if (errorListenerAttached) {
+        try {
+          updater.removeListener('error', errorListener)
+        } catch (error) {
+          failure ??= classifyUpdaterError(error, 'install')
+        }
       }
 
       if (failure) {
@@ -323,6 +356,87 @@ export function createElectronUpdaterEngine(
 
 function defaultLaunchInstall(updater: ElectronUpdaterAdapter) {
   updater.quitAndInstall(false, true)
+}
+
+function observeInstallLaunch(
+  eventSource: ElectronInstallEventSource | null,
+  timeoutMilliseconds: number,
+) {
+  let settled = false
+  let firstImmediate: NodeJS.Immediate | null = null
+  let secondImmediate: NodeJS.Immediate | null = null
+  let timeout: NodeJS.Timeout | null = null
+  let attachedEventSource: ElectronInstallEventSource | null = null
+  let resolveSettled!: () => void
+  let rejectSettled!: (error: Error) => void
+  const settledPromise = new Promise<void>((resolve, reject) => {
+    resolveSettled = resolve
+    rejectSettled = reject
+  })
+  const finish = (error?: Error) => {
+    if (settled) {
+      return
+    }
+    settled = true
+    if (error) {
+      rejectSettled(error)
+      return
+    }
+    resolveSettled()
+  }
+  const installQuitListener = () => {
+    finish()
+  }
+
+  if (eventSource) {
+    eventSource.once('before-quit-for-update', installQuitListener)
+    attachedEventSource = eventSource
+    timeout = setTimeout(() => {
+      finish(new Error('update_installer_launch_timeout'))
+    }, normalizeInstallLaunchTimeout(timeoutMilliseconds))
+  } else {
+    // 测试适配器没有 Electron app 事件时，至少跨过两个事件循环检查异步启动错误。
+    firstImmediate = setImmediate(() => {
+      firstImmediate = null
+      secondImmediate = setImmediate(() => {
+        secondImmediate = null
+        finish()
+      })
+    })
+  }
+
+  return {
+    settled: settledPromise,
+    dispose: () => {
+      settled = true
+      if (attachedEventSource) {
+        attachedEventSource.removeListener(
+          'before-quit-for-update',
+          installQuitListener,
+        )
+        attachedEventSource = null
+      }
+      if (timeout) {
+        clearTimeout(timeout)
+        timeout = null
+      }
+      if (firstImmediate) {
+        clearImmediate(firstImmediate)
+        firstImmediate = null
+      }
+      if (secondImmediate) {
+        clearImmediate(secondImmediate)
+        secondImmediate = null
+      }
+    },
+  }
+}
+
+function normalizeInstallLaunchTimeout(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return installLaunchTimeoutMs
+  }
+  return Math.max(1, Math.floor(value))
 }
 
 function getDefaultUpdater(): ElectronUpdaterAdapter {
@@ -347,6 +461,14 @@ function getDefaultApp(): ElectronUpdaterApp {
     throw new Error('Electron app 不可用')
   }
   return app
+}
+
+function getDefaultInstallEventSource(): ElectronInstallEventSource | null {
+  return (
+    electronModule as unknown as {
+      autoUpdater?: ElectronInstallEventSource
+    }
+  ).autoUpdater ?? null
 }
 
 function readCurrentVersion(app: ElectronUpdaterApp) {
@@ -464,7 +586,6 @@ function normalizeRelease(
     version,
     release_name: normalizeOptionalText(updateInfo.releaseName),
     release_date: normalizeOptionalText(updateInfo.releaseDate),
-    release_url: `${releasePagePrefix}${version}`,
     release_notes: normalizeReleaseNotes(updateInfo.releaseNotes),
   }
 }

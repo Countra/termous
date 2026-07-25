@@ -21,6 +21,10 @@ import { CoreProcessManager } from './coreProcess'
 import { createElectronUpdaterEngine } from './electronUpdaterEngine'
 import { TermousTrayController } from './tray'
 import { ApplicationUpdateRuntime } from './updateRuntime'
+import {
+  UpdateOperationError,
+  type UpdateEngine,
+} from './updateManager'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -56,7 +60,7 @@ const trayController = new TermousTrayController({
   getWindow: () => win,
   showMainWindow,
   openUpdateWindow: () => {
-    updateRuntime?.openWindow('inspect')
+    updateRuntime?.openWindow()
   },
   quitApp: quitFromTray,
 })
@@ -80,6 +84,7 @@ let startupCompletionTimer: NodeJS.Timeout | null = null
 const exitCoordinator = new AppExitCoordinator({
   shutdownCore: (reason) => coreProcess.shutdownGracefully(reason),
   prepareForExit: prepareApplicationExit,
+  recoverAfterFailedUpdateInstall: recoverApplicationAfterFailedUpdateInstall,
   closeAllWindows: closeAllApplicationWindows,
   quitApplication: () => app.quit(),
   reportError: (event, error) => {
@@ -611,6 +616,15 @@ function prepareApplicationExit() {
   trayController.destroy()
 }
 
+async function recoverApplicationAfterFailedUpdateInstall() {
+  await coreProcess.recoverAfterFailedUpdateInstall()
+  trayController.initialize()
+  if (win && !win.isDestroyed()) {
+    win.webContents.reload()
+  }
+  return true
+}
+
 function closeAllApplicationWindows() {
   updateRuntime?.closeWindow()
   closeSplashWindow()
@@ -884,19 +898,73 @@ function registerApplicationBuildControls() {
     if (!isTrustedMainIPCEvent(event)) {
       throw new Error('app_build_info_sender_not_allowed')
     }
-    const snapshot = updateRuntime?.getSnapshot()
-    return {
-      product_name: APP_NAME,
-      version: app.getVersion(),
-      core_version: await coreProcess.getRuntimeVersion(),
-      platform: process.platform,
-      arch: process.arch,
-      packaged: app.isPackaged,
-      update_channel: 'stable',
-      update_supported: Boolean(snapshot && snapshot.phase !== 'unsupported'),
-      update_support_reason: snapshot?.support_reason ?? (updateRuntime ? null : 'update_runtime_unavailable'),
-    }
+    return readApplicationBuildInfo()
   })
+}
+
+async function readApplicationBuildInfo() {
+  const snapshot = updateRuntime?.getSnapshot()
+  let coreVersion: string | null = null
+  try {
+    coreVersion = await coreProcess.getRuntimeVersion()
+  } catch (error) {
+    reportElectronProcessEvent('app-build-info-core-version-failed', {
+      message: error instanceof Error ? error.name : 'UnknownError',
+    })
+  }
+  return {
+    product_name: APP_NAME,
+    version: app.getVersion(),
+    core_version: coreVersion,
+    platform: process.platform,
+    arch: process.arch,
+    packaged: app.isPackaged,
+    update_supported: Boolean(snapshot && snapshot.phase !== 'unsupported'),
+    update_support_reason: snapshot?.support_reason
+      ?? (updateRuntime ? null : 'update_runtime_unavailable'),
+  }
+}
+
+async function readUpdateWindowApplicationInfo() {
+  return {
+    product_name: APP_NAME,
+    version: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    packaged: app.isPackaged,
+  }
+}
+
+function createApplicationUpdateEngine(): UpdateEngine {
+  try {
+    return createElectronUpdaterEngine()
+  } catch (error) {
+    reportElectronProcessEvent('update-engine-initialize-failed', {
+      message: error instanceof Error ? error.name : 'UnknownError',
+    })
+  }
+  const unavailable = () => Promise.reject(new UpdateOperationError(
+    'UPDATE_UNSUPPORTED',
+    '当前安装环境不支持应用内更新',
+    false,
+  ))
+  let currentVersion = '0.0.0'
+  try {
+    currentVersion = app.getVersion() || currentVersion
+  } catch {
+    // 关于窗口仍需可用，无法读取版本时使用稳定占位版本。
+  }
+  return {
+    currentVersion,
+    support: {
+      supported: false,
+      reason: 'update_engine_unavailable',
+    },
+    checkForUpdates: unavailable,
+    downloadUpdate: unavailable,
+    cancelDownload: unavailable,
+    installUpdate: unavailable,
+  }
 }
 
 function registerFilePickers() {
@@ -1262,7 +1330,7 @@ app.whenReady().then(async () => {
   registerDataPortabilityControls()
   try {
     updateRuntime = await ApplicationUpdateRuntime.create({
-      engine: createElectronUpdaterEngine(),
+      engine: createApplicationUpdateEngine(),
       exitCoordinator,
       getMainWindow: () => win,
       isTrustedMainSender: isTrustedMainIPCEvent,
@@ -1272,6 +1340,7 @@ app.whenReady().then(async () => {
       iconPath: APP_ICON,
       initialTheme: appTheme,
       initialLanguage: appLanguage,
+      getApplicationInfo: readUpdateWindowApplicationInfo,
       logger: {
         info: (event, details = {}) => reportElectronProcessEvent(event, details),
         error: (event, details = {}) => reportElectronProcessEvent(event, details),

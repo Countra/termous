@@ -26,6 +26,10 @@ export interface AutomaticUpdateScheduleInput {
   checked_this_launch: boolean
 }
 
+export interface UpdatePreferencesStoreOptions {
+  onReadError?: (error: unknown) => void
+}
+
 export class UpdatePreferencesValidationError extends Error {
   readonly code = 'UPDATE_PREFERENCES_INVALID'
 
@@ -175,12 +179,17 @@ export function resolveAutomaticUpdateSchedule(
 
 export class UpdatePreferencesStore {
   private readonly filePath: string
+  private readonly options: UpdatePreferencesStoreOptions
   private snapshot: UpdatePreferences | null = null
   private loadPromise: Promise<UpdatePreferences> | null = null
   private writeTail: Promise<void> = Promise.resolve()
 
-  constructor(filePath: string) {
+  constructor(
+    filePath: string,
+    options: UpdatePreferencesStoreOptions = {},
+  ) {
     this.filePath = filePath
+    this.options = options
   }
 
   load(): Promise<UpdatePreferences> {
@@ -246,7 +255,12 @@ export class UpdatePreferencesStore {
       if (error instanceof SyntaxError || isFileNotFoundError(error)) {
         return createDefaultUpdatePreferences()
       }
-      throw error
+      try {
+        this.options.onReadError?.(error)
+      } catch {
+        // 诊断回调不得反向阻断关于窗口和手动更新能力。
+      }
+      return createDefaultUpdatePreferences()
     }
   }
 

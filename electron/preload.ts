@@ -6,7 +6,6 @@ import type {
   UpdateSnapshot,
 } from './updateManager'
 import type { UpdateRuntimeSummary } from './updateRuntime'
-import type { UpdateWindowIntent } from './updateWindow'
 
 const droppedFilePathTTL = 5000
 
@@ -188,11 +187,8 @@ contextBridge.exposeInMainWorld('termous', {
       ipcRenderer.invoke('app-update:get-preferences') as Promise<UpdatePreferences>,
     setPreferences: (patch: UpdatePreferencesPatch) =>
       ipcRenderer.invoke('app-update:set-preferences', patch) as Promise<UpdatePreferences>,
-    check: () => ipcRenderer.invoke('app-update:check') as Promise<UpdateSnapshot>,
-    openWindow: (intent: UpdateWindowIntent = 'inspect') =>
-      ipcRenderer.invoke('app-update:open-window', intent) as Promise<boolean>,
-    openReleasePage: () =>
-      ipcRenderer.invoke('app-update:open-release-page') as Promise<boolean>,
+    openWindow: () =>
+      ipcRenderer.invoke('app-update:open-window') as Promise<boolean>,
     reportRuntimeSummary: (summary: UpdateRuntimeSummary) =>
       ipcRenderer.invoke('app-update:report-runtime-summary', summary) as Promise<UpdateRuntimeSummary>,
     subscribe: (callback: (snapshot: UpdateSnapshot) => void) => {

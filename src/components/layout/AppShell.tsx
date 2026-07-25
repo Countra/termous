@@ -18,7 +18,7 @@ import { Button, Dropdown, Space, Tooltip, type MenuProps } from 'antd'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { LocalShell, PageKey, WindowCloseBehavior } from '../../types/domain'
-import { UpdateStatusButton } from '../../features/update/UpdateStatusButton'
+import { BrandVersionControl } from '../../features/update/BrandVersionControl'
 import { WindowControls } from './WindowControls'
 
 interface AppShellProps {
@@ -105,7 +105,10 @@ export function AppShell({
           <div className="brand-copy">
             <strong>{t('app.name')}</strong>
           </div>
-          <span className="brand-version">v{appVersion}</span>
+          <BrandVersionControl
+            appVersion={appVersion}
+            collapsed={sidebarCollapsed}
+          />
         </div>
         <nav className="primary-nav">
           {navItems.map((item) => {
@@ -179,7 +182,6 @@ export function AppShell({
                 </Dropdown>
               </Space.Compact>
             </div>
-            <UpdateStatusButton />
             <span className="topbar-action-divider" aria-hidden="true" />
             {showWindowControls ? (
               <WindowControls

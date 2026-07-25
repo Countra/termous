@@ -1,15 +1,14 @@
-import { DatabaseBackup, Info, Languages, Moon, Settings2, SquareTerminal, Sun } from 'lucide-react'
+import { DatabaseBackup, Languages, Moon, RefreshCw, Settings2, SquareTerminal, Sun } from 'lucide-react'
 import { Segmented, Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type {
-  AppBuildInfo,
   AppearanceSettings,
   Language,
   TerminalFont,
   TerminalSettings,
   WindowSettings,
 } from '../../types/domain'
-import { AboutSettings, type AboutUpdateRuntime } from './AboutSettings'
+import { UpdateSettings, type UpdatePreferencesRuntime } from './UpdateSettings'
 import { TerminalStyleSettings } from './TerminalStyleSettings'
 import { DataPortabilitySettings } from './DataPortabilitySettings'
 
@@ -20,8 +19,7 @@ export interface SettingsPageProps {
   windowSettings: WindowSettings
   terminalFonts: TerminalFont[]
   appVersion: string
-  buildInfo?: AppBuildInfo | null
-  aboutUpdateRuntime?: AboutUpdateRuntime | null
+  updatePreferencesRuntime?: UpdatePreferencesRuntime | null
   actionBusy: boolean
   onLanguageChange: (language: Language) => Promise<void>
   onAppearanceSettingsChange: (settings: AppearanceSettings) => Promise<void>
@@ -38,8 +36,7 @@ export function SettingsPage({
   windowSettings,
   terminalFonts,
   appVersion,
-  buildInfo = null,
-  aboutUpdateRuntime = null,
+  updatePreferencesRuntime = null,
   actionBusy,
   onLanguageChange,
   onAppearanceSettingsChange,
@@ -194,19 +191,15 @@ export function SettingsPage({
             children: <DataPortabilitySettings appVersion={appVersion} />,
           },
           {
-            key: 'about',
+            key: 'updates',
             label: (
               <span className="settings-tab-label">
-                <Info size={15} aria-hidden="true" />
-                {t('settings.tabAbout')}
+                <RefreshCw size={15} aria-hidden="true" />
+                {t('settings.tabUpdates')}
               </span>
             ),
             children: (
-              <AboutSettings
-                appVersion={appVersion}
-                buildInfo={buildInfo}
-                updateRuntime={aboutUpdateRuntime}
-              />
+              <UpdateSettings updateRuntime={updatePreferencesRuntime} />
             ),
           },
         ]}

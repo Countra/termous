@@ -28,6 +28,7 @@ export interface AppBeforeQuitEvent {
 export interface AppExitCoordinatorDependencies {
   shutdownCore(reason: CoreShutdownReason): Promise<boolean>
   prepareForExit(): void
+  recoverAfterFailedUpdateInstall?(): Promise<boolean>
   closeAllWindows(): void
   quitApplication(): void
   reportError?(event: string, error: unknown): void
@@ -37,8 +38,11 @@ export class AppExitCoordinator {
   private readonly dependencies: AppExitCoordinatorDependencies
   private appExitPromise: Promise<AppExitResult> | null = null
   private updateInstallPromise: Promise<UpdateInstallResult> | null = null
+  private updateRecoveryPromise: Promise<boolean> | null = null
+  private applicationExitCoreStopPromise: Promise<boolean> | null = null
   private exitRequested = false
   private nativeQuitAllowed = false
+  private windowTeardownStarted = false
   private preparedForExit = false
   private windowsClosed = false
   private quitRequested = false
@@ -76,6 +80,7 @@ export class AppExitCoordinator {
 
   handleBeforeQuit(event: AppBeforeQuitEvent) {
     if (this.nativeQuitAllowed) {
+      this.windowTeardownStarted = true
       this.prepareForExitOnce()
       return true
     }
@@ -85,34 +90,99 @@ export class AppExitCoordinator {
   }
 
   canCloseWindow(role: AppWindowRole) {
-    return role === 'update' || this.nativeQuitAllowed
+    return (
+      role === 'update'
+      || this.exitRequested
+      || this.windowTeardownStarted
+    )
   }
 
   isExitCommitted() {
-    return this.nativeQuitAllowed
+    return (
+      this.nativeQuitAllowed
+      && (this.exitRequested || this.windowTeardownStarted)
+    )
   }
 
   isApplicationExiting() {
-    return this.exitRequested || this.nativeQuitAllowed
+    return this.exitRequested || this.windowTeardownStarted
   }
 
-  handleUpdateInstallerFailure(error: unknown) {
+  handleUpdateInstallerFailure(error: unknown): Promise<boolean> {
+    if (this.updateRecoveryPromise) {
+      return this.updateRecoveryPromise
+    }
     this.dependencies.reportError?.('update-installer-launch-failed', error)
-    // Core 已经退出，安装器又未能启动时，继续退出可避免留下无法工作的半关闭应用。
+    // 安装器失败后可能重新启动 Core；恢复完成前必须重新拦截原生退出。
+    this.nativeQuitAllowed = false
+    const pending = this.performFailedUpdateRecovery().finally(() => {
+      if (this.updateRecoveryPromise === pending) {
+        this.updateRecoveryPromise = null
+      }
+    })
+    this.updateRecoveryPromise = pending
+    return pending
+  }
+
+  private async performFailedUpdateRecovery() {
+    if (
+      this.appExitPromise
+      || this.exitRequested
+      || this.windowTeardownStarted
+    ) {
+      await this.finishFailedUpdateRecovery()
+      return false
+    }
+    try {
+      const recovered = await this.dependencies.recoverAfterFailedUpdateInstall?.()
+      if (
+        recovered
+        && !this.appExitPromise
+        && !this.exitRequested
+        && !this.windowTeardownStarted
+      ) {
+        // 恢复成功后必须清除安装准备状态，后续重试才能重新关闭 Core 并执行退出准备。
+        this.nativeQuitAllowed = false
+        this.preparedForExit = false
+        this.updateInstallPromise = null
+        return true
+      }
+    } catch (recoveryError) {
+      this.dependencies.reportError?.(
+        'update-installer-failure-recovery-failed',
+        recoveryError,
+      )
+    }
+    // 恢复失败时继续退出，避免留下 Core 已停止但界面仍可操作的半关闭应用。
+    await this.finishFailedUpdateRecovery()
+    return false
+  }
+
+  private async finishFailedUpdateRecovery() {
+    await this.stopCoreForApplicationExit()
+    this.nativeQuitAllowed = true
+    this.windowTeardownStarted = true
+    this.prepareForExitOnce()
     this.closeAllWindowsOnce()
     this.quitApplicationOnce()
   }
 
   private async performApplicationExit(source: AppExitSource): Promise<AppExitResult> {
-    if (this.updateInstallPromise) {
+    let coreStopped = false
+    const updateRecoveryPromise = this.updateRecoveryPromise
+    if (updateRecoveryPromise) {
+      await updateRecoveryPromise
+      coreStopped = await this.stopCoreForApplicationExit()
+    } else if (this.updateInstallPromise) {
       const updateResult = await this.updateInstallPromise
-      if (updateResult.status === 'ready_to_install') {
-        return { mode: 'application_exit', source, coreStopped: true }
-      }
+      coreStopped = updateResult.status === 'ready_to_install'
     }
 
-    const coreStopped = await this.stopCore('frontend_exit')
+    if (!coreStopped) {
+      coreStopped = await this.stopCoreForApplicationExit()
+    }
     this.nativeQuitAllowed = true
+    this.windowTeardownStarted = true
     this.prepareForExitOnce()
     this.closeAllWindowsOnce()
     this.quitApplicationOnce()
@@ -137,6 +207,13 @@ export class AppExitCoordinator {
       this.dependencies.reportError?.('core-shutdown-failed', error)
       return false
     }
+  }
+
+  private stopCoreForApplicationExit() {
+    if (!this.applicationExitCoreStopPromise) {
+      this.applicationExitCoreStopPromise = this.stopCore('frontend_exit')
+    }
+    return this.applicationExitCoreStopPromise
   }
 
   private prepareForExitOnce() {

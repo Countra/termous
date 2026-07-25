@@ -1,6 +1,5 @@
 import {
   Download,
-  ExternalLink,
   RefreshCw,
   X,
 } from 'lucide-react'
@@ -18,7 +17,7 @@ export function UpdateWindowVersionBlock({
   return (
     <span className={`update-window-version-block${isTarget ? ' is-target' : ''}`}>
       <small>{label}</small>
-      <strong>{version || '—'}</strong>
+      <strong>{version || '-'}</strong>
     </span>
   )
 }
@@ -33,9 +32,6 @@ export function UpdateWindowPrimaryActionIcon({
   }
   if (action === 'install' || action === 'download') {
     return <Download size={15} />
-  }
-  if (action === 'open_releases') {
-    return <ExternalLink size={15} />
   }
   return <RefreshCw size={15} />
 }

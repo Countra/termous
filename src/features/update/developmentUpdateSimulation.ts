@@ -30,7 +30,6 @@ const simulationOwner = 'update-owner'
 const simulationOwnerActor = 'update-owner-actor'
 const simulationStateActor = 'update-state-actor'
 const simulationPhase = 'update-phase'
-const simulationIntent = 'update-intent'
 const simulationStateSequence = 'update-state-seq'
 const simulationGeneration = 'update-generation'
 const supportedPhases = new Set<UpdatePhase>([
@@ -69,7 +68,6 @@ export function createDevelopmentUpdateSimulation(
     ?? actorId
   const simulationId = readSimulationIdentity(params, simulationID)
     ?? createDevelopmentSimulationIdentity()
-  const initialIntent = readSimulationIntent(params)
   const store = createDevelopmentUpdateSimulationStore(
     readSimulationPhase(params),
     readSimulationCounter(params, simulationStateSequence),
@@ -83,13 +81,36 @@ export function createDevelopmentUpdateSimulation(
       }
     },
   )
+  const bootstrapListeners = new Set<(
+    bootstrap: UpdateWindowBootstrap<UpdateSnapshot>,
+  ) => void>()
+  const summaryListeners = new Set<(state: { revision: number; ready: boolean }) => void>()
+  let bootstrapSequence = 1
+  const getBootstrap = (): UpdateWindowBootstrap<UpdateSnapshot> => ({
+    bootstrap_seq: bootstrapSequence,
+    language: readDevelopmentUpdateLanguage(),
+    snapshot: store.getSnapshot(),
+    theme: readDevelopmentUpdateTheme(),
+  })
   channel = connectDevelopmentUpdateSimulationChannel({
     actorId,
     getSnapshot: store.getSnapshot,
     handleAction: isReplica
       ? undefined
       : (action) => handleDevelopmentAction(store, action),
-    onSnapshot: store.mergeRemote,
+    onSnapshot: (snapshot, incomingActorId) => {
+      const acceptedInitialAuthority = store.mergeRemote(
+        snapshot,
+        incomingActorId,
+      )
+      if (acceptedInitialAuthority) {
+        bootstrapSequence += 1
+        const bootstrap = getBootstrap()
+        for (const listener of bootstrapListeners) {
+          listener(bootstrap)
+        }
+      }
+    },
     ownerActorId,
     simulationId,
   })
@@ -112,20 +133,7 @@ export function createDevelopmentUpdateSimulation(
   const installBoundary = isReplica
     ? () => channel!.requestAction({ type: 'install_boundary' })
     : store.simulateInstallBoundary
-  const bootstrapListeners = new Set<(
-    bootstrap: UpdateWindowBootstrap<UpdateSnapshot>,
-  ) => void>()
-  const summaryListeners = new Set<(state: { revision: number; ready: boolean }) => void>()
-  const bootstrapSequence = 1
-  const getBootstrap = (): UpdateWindowBootstrap<UpdateSnapshot> => ({
-    bootstrap_seq: bootstrapSequence,
-    intent: initialIntent,
-    language: readDevelopmentUpdateLanguage(),
-    snapshot: store.getSnapshot(),
-    theme: readDevelopmentUpdateTheme(),
-  })
-
-  const openUpdateWindow = (intent: 'inspect' | 'start_download' = 'inspect') => {
+  const openUpdateWindow = () => {
     const url = new URL(browserWindow.location.href)
     const current = store.getSnapshot()
     url.searchParams.set('surface', 'update')
@@ -134,7 +142,6 @@ export function createDevelopmentUpdateSimulation(
     url.searchParams.set(simulationOwner, '1')
     url.searchParams.set(simulationOwnerActor, actorId)
     url.searchParams.set(simulationPhase, current.phase)
-    url.searchParams.set(simulationIntent, intent)
     url.searchParams.set(simulationStateActor, store.getRevisionActor())
     url.searchParams.set(simulationStateSequence, String(current.state_seq))
     url.searchParams.set(
@@ -144,7 +151,7 @@ export function createDevelopmentUpdateSimulation(
     const opened = browserWindow.open(
       url.href,
       'termous-update-development-simulation',
-      'popup,width=720,height=620',
+      'popup,width=720,height=700',
     )
     return Promise.resolve(Boolean(opened))
   }
@@ -157,26 +164,30 @@ export function createDevelopmentUpdateSimulation(
       platform: readDevelopmentUpdatePlatform(),
       arch: 'x64',
       packaged: false,
-      update_channel: 'stable',
       update_supported: true,
       update_support_reason: null,
     },
     mainBridge: {
+      getState: () => Promise.resolve(store.getSnapshot()),
       subscribe: store.subscribe,
-      check,
       setPreferences,
       openWindow: openUpdateWindow,
-      // 开发模拟绝不打开真实 Release 页面，避免 UI 验收产生外部网络请求。
-      openReleasePage: () => Promise.resolve(false),
     },
     updateWindowBridge: {
       getBootstrap: () => Promise.resolve(getBootstrap()),
       getState: () => Promise.resolve(store.getSnapshot()),
+      getApplicationInfo: () => Promise.resolve({
+        product_name: simulation.buildInfo.product_name,
+        version: simulation.buildInfo.version,
+        platform: simulation.buildInfo.platform,
+        arch: simulation.buildInfo.arch,
+        packaged: simulation.buildInfo.packaged,
+      }),
+      check,
       download,
       cancelDownload,
       prepareInstall: store.prepareInstall,
       install: installBoundary,
-      openReleasePage: () => Promise.resolve(false),
       minimize: () => Promise.resolve(false),
       close: () => {
         browserWindow.close()
@@ -197,12 +208,6 @@ export function createDevelopmentUpdateSimulation(
       },
       subscribe: store.subscribe,
     },
-  }
-  if (initialIntent === 'start_download') {
-    // 先给同源主窗口一个快照对账机会，再执行真实入口对应的自动下载意图。
-    globalThis.setTimeout(() => {
-      void download()
-    }, 50)
   }
   return simulation
 }
@@ -229,12 +234,6 @@ async function handleDevelopmentAction(
 function readSimulationPhase(params: URLSearchParams): UpdatePhase {
   const phase = params.get(simulationPhase) as UpdatePhase | null
   return phase && supportedPhases.has(phase) ? phase : 'available'
-}
-
-function readSimulationIntent(params: URLSearchParams) {
-  return params.get(simulationIntent) === 'start_download'
-    ? 'start_download'
-    : 'inspect'
 }
 
 function readSimulationCounter(params: URLSearchParams, name: string) {

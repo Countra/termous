@@ -17,7 +17,6 @@ function downloadedSnapshot(
     available_version: '1.1.0',
     release_name: null,
     release_date: null,
-    release_url: null,
     release_notes: null,
     progress: null,
     checked_at: null,

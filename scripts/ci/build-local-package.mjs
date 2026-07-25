@@ -1,5 +1,12 @@
 import { spawn } from 'node:child_process'
-import { readdir, readFile, rm, stat } from 'node:fs/promises'
+import {
+  lstat,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+} from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -185,7 +192,7 @@ export async function runLocalPackage(
     options.outputDirectory
       ?? path.join(webDirectory, 'release', version),
   )
-  assertSafeOutputDirectory(outputDirectory, webDirectory)
+  await assertSafeOutputDirectory(outputDirectory, webDirectory)
 
   if (!options.verifyOnly) {
     await rm(outputDirectory, { force: true, recursive: true })
@@ -271,17 +278,23 @@ function normalizeVersion(value) {
   return requireReleaseVersion(version, '应用版本')
 }
 
-function assertSafeOutputDirectory(outputDirectory, webDirectory) {
+async function assertSafeOutputDirectory(outputDirectory, webDirectory) {
   const workspaceDirectory = path.dirname(webDirectory)
   const roots = [
     path.join(webDirectory, 'release'),
     path.join(workspaceDirectory, 'build'),
   ]
-  if (!roots.some((root) => isStrictChildPath(outputDirectory, root))) {
+  const outputRoot = roots.find(
+    (root) => isStrictChildPath(outputDirectory, root),
+  )
+  if (!outputRoot) {
     throw new Error(
       `打包输出目录必须位于 web/release 或 workspace/build 内: ${outputDirectory}`,
     )
   }
+  await requireCanonicalDirectory(workspaceDirectory, '工作区目录')
+  await requireCanonicalDirectory(webDirectory, 'Web 项目目录')
+  await requireCanonicalOutputAncestors(outputRoot, outputDirectory)
 }
 
 function isStrictChildPath(candidate, root) {
@@ -292,6 +305,65 @@ function isStrictChildPath(candidate, root) {
     && !relative.startsWith(`..${path.sep}`)
     && !path.isAbsolute(relative)
   )
+}
+
+async function requireCanonicalOutputAncestors(root, outputDirectory) {
+  const relative = path.relative(path.resolve(root), path.resolve(outputDirectory))
+  const segments = relative.split(path.sep).filter(Boolean)
+  let current = path.resolve(root)
+  if (!await requireCanonicalDirectoryIfPresent(current, '打包输出根目录')) {
+    return
+  }
+  for (const segment of segments) {
+    current = path.join(current, segment)
+    if (!await requireCanonicalDirectoryIfPresent(current, '打包输出目录祖先')) {
+      return
+    }
+  }
+}
+
+async function requireCanonicalDirectoryIfPresent(directory, label) {
+  let info
+  try {
+    info = await lstat(directory)
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return false
+    }
+    throw new Error(`${label}无法检查: ${directory}`, { cause: error })
+  }
+  if (!info.isDirectory() || info.isSymbolicLink()) {
+    throw new Error(`${label}不能是符号链接、联接或普通文件: ${directory}`)
+  }
+  const actual = await realpath(directory)
+  if (!samePath(actual, directory)) {
+    throw new Error(`${label}不能是符号链接、联接或路径别名: ${directory}`)
+  }
+  return true
+}
+
+async function requireCanonicalDirectory(directory, label) {
+  let info
+  try {
+    info = await lstat(directory)
+  } catch (error) {
+    throw new Error(`${label}无法检查: ${directory}`, { cause: error })
+  }
+  if (!info.isDirectory() || info.isSymbolicLink()) {
+    throw new Error(`${label}不是普通目录: ${directory}`)
+  }
+  const actual = await realpath(directory)
+  if (!samePath(actual, directory)) {
+    throw new Error(`${label}不能是符号链接、联接或路径别名: ${directory}`)
+  }
+}
+
+function samePath(left, right) {
+  const normalizedLeft = path.normalize(path.resolve(left))
+  const normalizedRight = path.normalize(path.resolve(right))
+  return process.platform === 'win32'
+    ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+    : normalizedLeft === normalizedRight
 }
 
 function targetArgumentsFor(platform, arch) {

@@ -243,6 +243,36 @@ export class CoreProcessManager {
     return { restarted: true, requires_manual_restart: false, config }
   }
 
+  async recoverAfterFailedUpdateInstall(): Promise<CoreRuntimeConfig> {
+    if (!this.config.managed) {
+      // 外部 Core 不受桌面进程管理，安装失败后只需恢复本地生命周期标记。
+      this.shuttingDown = false
+      return this.config
+    }
+    if (this.child && this.child.exitCode === null) {
+      this.shuttingDown = false
+      this.startHeartbeat()
+      return this.config
+    }
+
+    this.child = null
+    this.initializePromise = null
+    this.fatal = null
+    this.shuttingDown = false
+    const config = await this.initialize()
+    const fatal = this.getFatal() as CoreFatalEvent | null
+    const recoveredChild = this.child as ChildProcessWithoutNullStreams | null
+    if (
+      fatal
+      || !config.managed
+      || !recoveredChild
+      || recoveredChild.exitCode !== null
+    ) {
+      throw new Error(fatal?.message ?? '核心服务恢复失败')
+    }
+    return config
+  }
+
   private shouldUseExternalCore() {
     return Boolean(process.env.VITE_DEV_SERVER_URL || process.env.TERMOUS_API_BASE_URL)
   }

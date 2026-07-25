@@ -4,28 +4,27 @@ import type {
   UpdatePreferencesPatch,
   UpdateSnapshot,
 } from '../../../electron/updateTypes'
-import type { UpdateWindowIntent } from '../../../electron/updateWindow'
 
 export interface UpdateRuntimeBridge {
+  getState: () => Promise<UpdateSnapshot>
   subscribe: (callback: (snapshot: UpdateSnapshot) => void) => () => void
-  check: () => Promise<UpdateSnapshot>
   setPreferences: (
     patch: UpdatePreferencesPatch,
   ) => Promise<UpdatePreferences>
-  openWindow: (intent?: UpdateWindowIntent) => Promise<boolean>
-  openReleasePage: () => Promise<boolean>
+  openWindow: () => Promise<boolean>
 }
 
 export interface UpdateRuntimeValue {
   bridgeAvailable: boolean
   initialized: boolean
+  initializationFailed: boolean
+  runtimeGeneration: number
   snapshot: UpdateSnapshot | null
-  checkForUpdates: () => Promise<UpdateSnapshot | null>
   setUpdatePreferences: (
     patch: UpdatePreferencesPatch,
   ) => Promise<UpdatePreferences | null>
-  openUpdateWindow: (intent?: UpdateWindowIntent) => Promise<boolean>
-  openReleasePage: () => Promise<boolean>
+  openUpdateWindow: () => Promise<boolean>
+  retryInitialization: () => Promise<boolean>
 }
 
 export const UpdateRuntimeContext = createContext<UpdateRuntimeValue | null>(null)

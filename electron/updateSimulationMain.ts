@@ -106,6 +106,7 @@ app.whenReady().then(async () => {
     const exitCoordinator = new AppExitCoordinator({
       shutdownCore: async () => true,
       prepareForExit: () => undefined,
+      recoverAfterFailedUpdateInstall: async () => true,
       closeAllWindows: () => {
         for (const window of BrowserWindow.getAllWindows()) {
           window.destroy()
@@ -137,7 +138,13 @@ app.whenReady().then(async () => {
       iconPath: path.join(process.resourcesPath, 'app.asar', 'dist', 'termous-icon.png'),
       initialTheme: 'dark',
       initialLanguage: 'zh-CN',
-      openReleasePage: async () => false,
+      getApplicationInfo: async () => ({
+        product_name: 'Termous Update Simulation',
+        version: app.getVersion(),
+        platform: process.platform,
+        arch: process.arch,
+        packaged: app.isPackaged,
+      }),
       logger: {
         info: logEvent,
         error: logEvent,

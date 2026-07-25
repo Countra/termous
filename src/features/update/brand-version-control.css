@@ -1,0 +1,164 @@
+.brand-version-control {
+  --brand-update-tone: var(--accent);
+  position: relative;
+  display: inline-flex;
+  min-width: 54px;
+  height: 22px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-elevated) 82%, transparent);
+  color: var(--text-muted);
+  padding: 0 18px 0 8px;
+  font: inherit;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    0 6px 16px rgb(0 0 0 / 12%);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.brand-version-control.is-downloaded {
+  --brand-update-tone: var(--success);
+}
+
+.brand-version-control.is-error {
+  --brand-update-tone: var(--danger);
+}
+
+.brand-version-control:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--brand-update-tone) 38%,
+    var(--border-strong) 62%
+  );
+  background: color-mix(
+    in srgb,
+    var(--brand-update-tone) 8%,
+    var(--surface-elevated) 92%
+  );
+  color: var(--text-primary);
+}
+
+.brand-version-control:active {
+  background: color-mix(
+    in srgb,
+    var(--brand-update-tone) 12%,
+    var(--surface-elevated) 88%
+  );
+}
+
+.brand-version-control:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand-update-tone) 46%, transparent);
+  outline-offset: 2px;
+}
+
+.brand-version-control[aria-busy="true"] {
+  cursor: progress;
+}
+
+.brand-version-control__label {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.brand-version-control__status {
+  position: absolute;
+  right: 6px;
+  display: inline-grid;
+  width: 8px;
+  height: 8px;
+  place-items: center;
+  color: var(--brand-update-tone);
+}
+
+.brand-version-control__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--brand-update-tone);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-update-tone) 16%, transparent);
+}
+
+.brand-version-control__spinner {
+  animation: brand-version-control-spin 0.9s linear infinite;
+}
+
+.brand-version-control.is-idle .brand-version-control__status {
+  opacity: 0;
+}
+
+.brand-version-control.is-opening .brand-version-control__status {
+  opacity: 1;
+}
+
+.app-shell.is-collapsed .brand-version-control {
+  position: relative;
+  width: 46px;
+  min-width: 46px;
+  height: 18px;
+  border-color: color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+  padding: 0 13px 0 5px;
+  box-shadow: none;
+}
+
+.app-shell.is-collapsed .brand-version-control:hover,
+.app-shell.is-collapsed .brand-version-control:active {
+  border-color: color-mix(in srgb, var(--brand-update-tone) 36%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--brand-update-tone) 8%,
+    var(--surface-elevated) 92%
+  );
+}
+
+.app-shell.is-collapsed .brand-version-control__label {
+  position: static;
+  overflow: hidden;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell.is-collapsed .brand-version-control__status {
+  right: 4px;
+  bottom: auto;
+  width: 7px;
+  height: 7px;
+  border: 0;
+  background: transparent;
+}
+
+.app-shell.is-collapsed .brand-version-control.is-idle .brand-version-control__status {
+  opacity: 0;
+}
+
+.app-shell.is-collapsed .brand-version-control.is-opening .brand-version-control__status {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-version-control {
+    transition: none;
+  }
+
+  .brand-version-control__spinner {
+    animation: none;
+  }
+}
+
+@keyframes brand-version-control-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

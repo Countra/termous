@@ -30,7 +30,7 @@ test('配置固定安全默认值且不覆盖生产更新源', () => {
   assert.equal(updater.setFeedURLCalls, 0)
 })
 
-test('开发环境、商店格式、非 AppImage Linux 和未知平台均不受支持', () => {
+test('开发环境、商店格式、非 AppImage Linux 和未知平台均不受支持', async () => {
   const cases: Array<{
     options: Omit<ElectronUpdaterEngineOptions, 'updater'>
     reason: string
@@ -81,8 +81,8 @@ test('开发环境、商店格式、非 AppImage Linux 和未知平台均不受�
       ...options,
     })
     assert.deepEqual(engine.support, { supported: false, reason })
-    assert.throws(
-      () => engine.installUpdate(),
+    await assert.rejects(
+      engine.installUpdate(),
       (error) => isUpdateError(error, 'UPDATE_UNSUPPORTED', false),
     )
   }
@@ -139,7 +139,6 @@ test('检查结果归一发布信息并安全转换数组形式的 release notes
       version: '1.2.3',
       release_name: 'Termous 1.2.3',
       release_date: '2026-07-25T00:00:00Z',
-      release_url: 'https://github.com/Countra/termous/releases/tag/v1.2.3',
       release_notes: '修复\n连接 & 重试\n\n性能提升',
     },
   })
@@ -316,19 +315,19 @@ test('下载错误稳定区分资源、哈希、签名和普通失败', async ()
   }
 })
 
-test('安装使用显式 quitAndInstall 参数并将同步失败转换为稳定错误', () => {
+test('安装使用显式 quitAndInstall 参数并将同步失败转换为稳定错误', async () => {
   const updater = new FakeUpdater()
   const engine = createTestEngine(updater)
 
-  engine.installUpdate()
+  await engine.installUpdate()
   assert.deepEqual(updater.installCalls, [[false, true]])
   assert.equal(updater.listenerCount('error'), 0)
 
   updater.installHandler = () => {
     throw new Error('C:\\secret\\installer')
   }
-  assert.throws(
-    () => engine.installUpdate(),
+  await assert.rejects(
+    engine.installUpdate(),
     (error) => {
       assert.equal(
         isUpdateError(error, 'UPDATE_INSTALL_START_FAILED', true),
@@ -341,7 +340,87 @@ test('安装使用显式 quitAndInstall 参数并将同步失败转换为稳定�
   assert.equal(updater.listenerCount('error'), 0)
 })
 
-test('模拟验收可在引擎最底层阻止真实安装器启动', () => {
+test('安装启动后异步 updater 错误进入可恢复失败并清理监听器', async () => {
+  const updater = new FakeUpdater()
+  updater.installHandler = () => {
+    setImmediate(() => {
+      updater.emit('error', new Error('C:\\secret\\async-installer'))
+    })
+  }
+  const engine = createTestEngine(updater)
+
+  await assert.rejects(
+    engine.installUpdate(),
+    (error) => {
+      assert.equal(
+        isUpdateError(error, 'UPDATE_INSTALL_START_FAILED', true),
+        true,
+      )
+      assert.equal((error as Error).message.includes('secret'), false)
+      return true
+    },
+  )
+  assert.equal(updater.listenerCount('error'), 0)
+})
+
+test('真实 app 未开始退出时安装启动观察会有界失败', async () => {
+  const updater = new FakeUpdater()
+  const installEventSource = new FakeInstallEventSource()
+  const engine = createElectronUpdaterEngine({
+    updater,
+    app: packagedApp,
+    installEventSource,
+    platform: 'win32',
+    isWindowsStore: false,
+    installLaunchTimeoutMs: 5,
+  })
+
+  await assert.rejects(
+    engine.installUpdate(),
+    (error) => isUpdateError(
+      error,
+      'UPDATE_INSTALL_START_FAILED',
+      true,
+    ),
+  )
+  assert.equal(
+    installEventSource.listenerCount('before-quit-for-update'),
+    0,
+  )
+  assert.equal(updater.listenerCount('error'), 0)
+})
+
+test('只有更新专用退出事件才能完成安装事务并清理观察器', async () => {
+  const updater = new FakeUpdater()
+  const app = new FakeApp()
+  const installEventSource = new FakeInstallEventSource()
+  updater.installHandler = () => {
+    app.emit('before-quit')
+    setImmediate(() => {
+      installEventSource.emit('before-quit-for-update')
+    })
+  }
+  const engine = createElectronUpdaterEngine({
+    updater,
+    app,
+    installEventSource,
+    platform: 'win32',
+    isWindowsStore: false,
+    installLaunchTimeoutMs: 50,
+  })
+
+  await engine.installUpdate()
+
+  assert.deepEqual(updater.installCalls, [[false, true]])
+  assert.equal(app.listenerCount('before-quit'), 0)
+  assert.equal(
+    installEventSource.listenerCount('before-quit-for-update'),
+    0,
+  )
+  assert.equal(updater.listenerCount('error'), 0)
+})
+
+test('模拟验收可在引擎最底层阻止真实安装器启动', async () => {
   const updater = new FakeUpdater()
   let blockedLaunches = 0
   const engine = createElectronUpdaterEngine({
@@ -355,8 +434,8 @@ test('模拟验收可在引擎最底层阻止真实安装器启动', () => {
     },
   })
 
-  assert.throws(
-    () => engine.installUpdate(),
+  await assert.rejects(
+    engine.installUpdate(),
     (error) => isUpdateError(
       error,
       'UPDATE_INSTALL_START_FAILED',
@@ -418,6 +497,30 @@ class FakeUpdater extends EventEmitter {
   quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean) {
     this.installCalls.push([isSilent, isForceRunAfter])
     this.installHandler()
+  }
+}
+
+class FakeApp extends EventEmitter {
+  readonly isPackaged = true
+
+  getVersion() {
+    return '1.0.0'
+  }
+}
+
+class FakeInstallEventSource extends EventEmitter {
+  override once(
+    event: 'before-quit-for-update',
+    listener: () => void,
+  ) {
+    return super.once(event, listener)
+  }
+
+  override removeListener(
+    event: 'before-quit-for-update',
+    listener: () => void,
+  ) {
+    return super.removeListener(event, listener)
   }
 }
 

@@ -31,7 +31,6 @@ const availableResult: UpdateCheckResult = {
     version: '1.2.3',
     release_name: 'Termous 1.2.3',
     release_date: '2026-07-25T00:00:00Z',
-    release_url: 'https://github.com/Countra/termous/releases/tag/v1.2.3',
     release_notes: '<b>稳定性</b> 改进',
   },
 }
@@ -56,11 +55,6 @@ test('检查和下载事务使用 singleflight 且发布信息经过净化', asy
   assert.equal(checked.phase, 'available')
   assert.equal(checked.available_version, '1.2.3')
   assert.equal(checked.release_notes, '稳定性 改进')
-  assert.equal(
-    checked.release_url,
-    'https://github.com/Countra/termous/releases/tag/v1.2.3',
-  )
-
   const downloadDeferred = fixture.nextDownload()
   const firstDownload = manager.download()
   const secondDownload = manager.download()
@@ -257,6 +251,40 @@ test('安装准备失败后可以复用已下载文件重试安装', async () =>
   assert.equal(fixture.installCalls, 1)
 })
 
+test('不可重试的安装准备错误不会再次进入安装事务', async () => {
+  const fixture = createEngineFixture()
+  let prepareCalls = 0
+  const manager = new UpdateManager({
+    engine: fixture.engine,
+    installLifecycle: {
+      prepareForInstall: async () => {
+        prepareCalls += 1
+        throw new UpdateOperationError(
+          'UPDATE_CORE_SHUTDOWN_FAILED',
+          '核心服务未能安全退出，更新尚未安装',
+          false,
+        )
+      },
+    },
+  })
+
+  const checkDeferred = fixture.nextCheck()
+  const checked = manager.check()
+  checkDeferred.resolve(availableResult)
+  await checked
+  const downloadDeferred = fixture.nextDownload()
+  const downloaded = manager.download()
+  downloadDeferred.resolve()
+  await downloaded
+
+  const failed = await manager.install()
+  assert.equal(failed.error_code, 'UPDATE_CORE_SHUTDOWN_FAILED')
+  assert.equal(failed.retryable, false)
+  assert.equal((await manager.install()).state_seq, failed.state_seq)
+  assert.equal(prepareCalls, 1)
+  assert.equal(fixture.installCalls, 0)
+})
+
 test('只有安装器启动失败才执行安装失败收口', async () => {
   const fixture = createEngineFixture()
   let recoveryCalls = 0
@@ -271,6 +299,7 @@ test('只有安装器启动失败才执行安装失败收口', async () => {
       prepareForInstall: async () => undefined,
       recoverFromInstallFailure: async () => {
         recoveryCalls += 1
+        return true
       },
     },
   })
@@ -286,7 +315,37 @@ test('只有安装器启动失败才执行安装失败收口', async () => {
 
   const failed = await manager.install()
   assert.equal(failed.error_code, 'UPDATE_INSTALL_START_FAILED')
+  assert.equal(failed.retryable, true)
   assert.equal(recoveryCalls, 1)
+})
+
+test('安装失败且应用无法恢复时不会暴露不可执行的重试', async () => {
+  const fixture = createEngineFixture()
+  const manager = new UpdateManager({
+    engine: {
+      ...fixture.engine,
+      installUpdate: async () => {
+        throw new Error('installer failed')
+      },
+    },
+    installLifecycle: {
+      prepareForInstall: async () => undefined,
+      recoverFromInstallFailure: async () => false,
+    },
+  })
+
+  const checkDeferred = fixture.nextCheck()
+  const checked = manager.check()
+  checkDeferred.resolve(availableResult)
+  await checked
+  const downloadDeferred = fixture.nextDownload()
+  const downloaded = manager.download()
+  downloadDeferred.resolve()
+  await downloaded
+
+  const failed = await manager.install()
+  assert.equal(failed.error_code, 'UPDATE_INSTALL_START_FAILED')
+  assert.equal(failed.retryable, false)
 })
 
 test('引擎稳定错误会保留错误码且不会泄露普通异常内容', async () => {
@@ -312,6 +371,67 @@ test('引擎稳定错误会保留错误码且不会泄露普通异常内容', as
   assert.equal(failed.error_code, 'UPDATE_CHECK_FAILED')
   assert.equal(failed.error_message, '检查更新失败，请稍后重试')
   assert.equal(failed.error_message?.includes('secret'), false)
+})
+
+test('不可重试的签名错误不会重新启动下载事务', async () => {
+  const fixture = createEngineFixture()
+  const manager = new UpdateManager({
+    engine: fixture.engine,
+    installLifecycle: createInstallLifecycle().lifecycle,
+  })
+  const checkDeferred = fixture.nextCheck()
+  const checked = manager.check()
+  checkDeferred.resolve(availableResult)
+  await checked
+
+  const downloadDeferred = fixture.nextDownload()
+  const downloading = manager.download()
+  downloadDeferred.reject(new UpdateOperationError(
+    'UPDATE_SIGNATURE_INVALID',
+    '更新包签名校验失败',
+    false,
+  ))
+  const failed = await downloading
+
+  assert.equal(failed.error_code, 'UPDATE_SIGNATURE_INVALID')
+  assert.equal(failed.retryable, false)
+  assert.equal(fixture.downloadContexts.length, 1)
+  assert.equal((await manager.download()).error_code, 'UPDATE_SIGNATURE_INVALID')
+  assert.equal(fixture.downloadContexts.length, 1)
+})
+
+test('检查时间落盘失败时保留持久偏好序号并允许后续设置覆盖', async () => {
+  const fixture = createEngineFixture()
+  const manager = new UpdateManager({
+    engine: fixture.engine,
+    installLifecycle: createInstallLifecycle().lifecycle,
+    now: () => Date.parse('2026-07-25T01:00:00Z'),
+    preferences: {
+      automatic_check: true,
+      check_interval: 'daily',
+      automatic_download: false,
+      last_checked_at: null,
+      revision: 4,
+    },
+    persistPreferences: async () => {
+      throw new Error('disk unavailable')
+    },
+  })
+  const checkDeferred = fixture.nextCheck()
+  const checked = manager.check()
+  checkDeferred.resolve(availableResult)
+  const result = await checked
+
+  assert.equal(result.preferences.last_checked_at, '2026-07-25T01:00:00.000Z')
+  assert.equal(result.preferences.revision, 4)
+
+  const updated = manager.setPreferences({
+    ...result.preferences,
+    automatic_check: false,
+    revision: 5,
+  })
+  assert.equal(updated.preferences.automatic_check, false)
+  assert.equal(updated.preferences.revision, 5)
 })
 
 test('状态监听器相互隔离且单个监听器异常不会中断状态事务', async () => {

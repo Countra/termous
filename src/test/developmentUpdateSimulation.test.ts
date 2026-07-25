@@ -6,14 +6,21 @@ import {
   connectDevelopmentUpdateSimulationChannel,
   isDevelopmentUpdateSimulationSnapshot,
 } from '../features/update/developmentUpdateSimulationChannel.ts'
+import {
+  mergeUpdateWindowBootstrap,
+  mergeUpdateWindowSnapshot,
+  resolveUpdateWindowPrimaryAction,
+} from '../features/update/updateWindowUiState.ts'
 
 function browserHarness() {
   const opened: string[] = []
+  const features: string[] = []
   let closed = 0
   const browserWindow = {
     location: new URL('http://127.0.0.1:5191/?termous-update-simulation=1'),
-    open: (url?: string | URL) => {
+    open: (url?: string | URL, _target?: string, featureText?: string) => {
       opened.push(String(url))
+      features.push(featureText ?? '')
       return {} as Window
     },
     close: () => {
@@ -22,6 +29,7 @@ function browserHarness() {
   } as unknown as Pick<Window, 'open' | 'close' | 'location'>
   return {
     browserWindow,
+    features,
     opened,
     get closed() {
       return closed
@@ -97,7 +105,7 @@ test('开发模拟保持状态、代际、偏好和下载进度单调', async ()
   remove()
 })
 
-test('开发更新窗口不会打开 Release 或进入真实安装路径', async () => {
+test('开发更新窗口不会访问外部下载页或进入真实安装路径', async () => {
   const browser = browserHarness()
   const simulation = createDevelopmentUpdateSimulation(
     true,
@@ -106,8 +114,13 @@ test('开发更新窗口不会打开 Release 或进入真实安装路径', async
   )
   assert.ok(simulation)
 
-  assert.equal(await simulation.mainBridge.openReleasePage(), false)
-  assert.equal(await simulation.updateWindowBridge.openReleasePage(), false)
+  assert.deepEqual(await simulation.updateWindowBridge.getApplicationInfo(), {
+    product_name: 'Termous',
+    version: '0.0.1',
+    platform: simulation.buildInfo.platform,
+    arch: 'x64',
+    packaged: false,
+  })
   const confirmation = await simulation.updateWindowBridge.prepareInstall()
   const failed = await simulation.updateWindowBridge.install(
     confirmation.confirmation_token,
@@ -135,7 +148,7 @@ test('主界面的更新入口只打开同源开发更新 surface', async () => 
   )
   assert.ok(simulation)
 
-  assert.equal(await simulation.mainBridge.openWindow('start_download'), true)
+  assert.equal(await simulation.mainBridge.openWindow(), true)
   assert.equal(browser.opened.length, 1)
   const target = new URL(browser.opened[0])
   assert.equal(target.origin, 'http://127.0.0.1:5191')
@@ -145,37 +158,10 @@ test('主界面的更新入口只打开同源开发更新 surface', async () => 
   assert.ok(target.searchParams.get('update-state-actor'))
   assert.equal(target.searchParams.get('update-owner'), '1')
   assert.ok(target.searchParams.get('update-owner-actor'))
-  assert.equal(target.searchParams.get('update-intent'), 'start_download')
+  assert.equal(target.searchParams.has('update-intent'), false)
   assert.equal(target.searchParams.get('update-state-seq'), '1')
   assert.equal(target.searchParams.get('update-generation'), '1')
-})
-
-test('开发更新 surface 接收下载意图后自动进入下载并保持 bootstrap 意图', async () => {
-  const browser = browserHarness()
-  const simulation = createDevelopmentUpdateSimulation(
-    true,
-    [
-      '?surface=update',
-      'termous-update-simulation=1',
-      'update-phase=available',
-      'update-intent=start_download',
-      'update-state-seq=12',
-      'update-generation=4',
-    ].join('&'),
-    browser.browserWindow,
-  )
-  assert.ok(simulation)
-
-  const bootstrap = await simulation.updateWindowBridge.getBootstrap()
-  assert.equal(bootstrap.intent, 'start_download')
-  await waitFor(() => (
-    simulation.updateWindowBridge.getState()
-      .then((snapshot) => snapshot.phase === 'downloaded')
-  ))
-  const downloaded = await simulation.updateWindowBridge.getState()
-  assert.equal(downloaded.phase, 'downloaded')
-  assert.ok(downloaded.state_seq > 12)
-  assert.ok(downloaded.operation_generation > 4)
+  assert.match(browser.features[0] ?? '', /width=720,height=700/)
 })
 
 test('开发跨窗口通道拒绝不完整或越界的状态快照', () => {
@@ -197,7 +183,6 @@ test('开发跨窗口通道拒绝不完整或越界的状态快照', () => {
     available_version: '0.0.2',
     release_name: null,
     release_date: null,
-    release_url: null,
     release_notes: null,
     progress: null,
     checked_at: null,
@@ -230,7 +215,7 @@ test('跨窗口下载中修改偏好不会取消下载或回退进度', async ()
       mainBrowser.browserWindow,
     )
     assert.ok(main)
-    await main.mainBridge.openWindow('start_download')
+    await main.mainBridge.openWindow()
     const updateTarget = new URL(mainBrowser.opened[0])
     const updateBrowser = browserHarness()
     const update = createDevelopmentUpdateSimulation(
@@ -239,6 +224,7 @@ test('跨窗口下载中修改偏好不会取消下载或回退进度', async ()
       updateBrowser.browserWindow,
     )
     assert.ok(update)
+    const download = update.updateWindowBridge.download()
 
     const observed: UpdateSnapshot[] = []
     const remove = main.mainBridge.subscribe((snapshot) => {
@@ -252,6 +238,7 @@ test('跨窗口下载中修改偏好不会取消下载或回退进度', async ()
       (await update.updateWindowBridge.getState()).phase === 'downloaded'
       && (await main.updateWindowBridge.getState()).phase === 'downloaded'
     ))
+    await download
 
     const downloaded = await update.updateWindowBridge.getState()
     assert.equal(downloaded.preferences.automatic_download, true)
@@ -329,13 +316,25 @@ test('开发更新副本以 owner 的同序号权威快照覆盖 URL 合成状�
       'UPDATE_INSTALL_START_FAILED',
     )
 
-    await main.mainBridge.openWindow('inspect')
+    await main.mainBridge.openWindow()
     const replica = createDevelopmentUpdateSimulation(
       true,
       new URL(mainBrowser.opened[0]).search,
       browserHarness().browserWindow,
     )
     assert.ok(replica)
+    let rendered = await replica.updateWindowBridge.getBootstrap()
+    const removeBootstrap = replica.updateWindowBridge.onBootstrapChanged(
+      (bootstrap) => {
+        rendered = mergeUpdateWindowBootstrap(rendered, bootstrap)
+      },
+    )
+    const removeState = replica.updateWindowBridge.subscribe((snapshot) => {
+      rendered = {
+        ...rendered,
+        snapshot: mergeUpdateWindowSnapshot(rendered.snapshot, snapshot),
+      }
+    })
     await waitFor(async () => (
       (await replica.updateWindowBridge.getState()).error_code
       === 'UPDATE_INSTALL_START_FAILED'
@@ -344,6 +343,15 @@ test('开发更新副本以 owner 的同序号权威快照覆盖 URL 合成状�
       (await replica.updateWindowBridge.getState()).error_message,
       '开发模拟不会启动真实安装程序',
     )
+    await waitFor(async () => (
+      rendered.snapshot.error_code === 'UPDATE_INSTALL_START_FAILED'
+    ))
+    assert.equal(
+      resolveUpdateWindowPrimaryAction(rendered.snapshot),
+      'retry_install',
+    )
+    removeState()
+    removeBootstrap()
   } finally {
     restoreWindow()
   }
@@ -368,7 +376,7 @@ test('下载中重开开发更新窗口不会保留 URL 合成的固定进度', 
       (await main.updateWindowBridge.getState()).progress?.percent === 8
     ))
 
-    await main.mainBridge.openWindow('inspect')
+    await main.mainBridge.openWindow()
     const replica = createDevelopmentUpdateSimulation(
       true,
       new URL(mainBrowser.opened[0]).search,
@@ -558,7 +566,6 @@ function createSimulationSnapshot(): UpdateSnapshot {
     available_version: '0.0.2',
     release_name: 'Termous 0.0.2',
     release_date: '2026-07-25T08:00:00.000Z',
-    release_url: 'https://github.com/Countra/termous/releases/tag/v0.0.2',
     release_notes: '本地模拟版本',
     progress: null,
     checked_at: null,

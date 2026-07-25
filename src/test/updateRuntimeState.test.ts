@@ -17,7 +17,6 @@ function snapshot(overrides: Partial<UpdateSnapshot> = {}): UpdateSnapshot {
     available_version: '1.1.0',
     release_name: 'Termous 1.1.0',
     release_date: '2026-07-25T00:00:00Z',
-    release_url: 'https://github.com/Countra/termous/releases/tag/v1.1.0',
     release_notes: '更新说明',
     progress: null,
     checked_at: '2026-07-25T00:00:00Z',

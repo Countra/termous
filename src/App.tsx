@@ -372,20 +372,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       ?? null,
     [activeFileSessionId, filesPageFileSessions],
   )
-  const aboutUpdateRuntime = useMemo(() => {
+  const updatePreferencesRuntime = useMemo(() => {
     if (!updateRuntime.bridgeAvailable) {
       return null
     }
     return {
-      snapshot: updateRuntime.snapshot,
+      generation: updateRuntime.runtimeGeneration,
+      loadFailed: updateRuntime.initializationFailed,
       preferences: updateRuntime.snapshot?.preferences ?? null,
-      check: async () => {
-        const snapshot = await updateRuntime.checkForUpdates()
-        if (!snapshot) {
-          throw new Error('update_bridge_unavailable')
-        }
-        return snapshot
-      },
+      retry: updateRuntime.retryInitialization,
       setPreferences: async (
         patch: Parameters<typeof updateRuntime.setUpdatePreferences>[0],
       ) => {
@@ -395,8 +390,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         }
         return preferences
       },
-      openWindow: updateRuntime.openUpdateWindow,
-      openReleasePage: updateRuntime.openReleasePage,
     }
   }, [updateRuntime])
 
@@ -970,8 +963,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             windowSettings={data.settings.window}
             terminalFonts={data.terminalFonts}
             appVersion={appVersion}
-            buildInfo={buildInfo}
-            aboutUpdateRuntime={aboutUpdateRuntime}
+            updatePreferencesRuntime={updatePreferencesRuntime}
             actionBusy={actionBusy}
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
             onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}

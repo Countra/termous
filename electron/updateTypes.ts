@@ -48,8 +48,15 @@ export interface UpdateReleaseInfo {
   version: string
   release_name?: string | null
   release_date?: string | null
-  release_url?: string | null
   release_notes?: string | null
+}
+
+export interface UpdateApplicationInfo {
+  product_name: string
+  version: string
+  platform: string
+  arch: string
+  packaged: boolean
 }
 
 export interface UpdateSnapshot {
@@ -60,7 +67,6 @@ export interface UpdateSnapshot {
   available_version: string | null
   release_name: string | null
   release_date: string | null
-  release_url: string | null
   release_notes: string | null
   progress: UpdateProgress | null
   checked_at: string | null
@@ -101,12 +107,12 @@ export interface UpdateEngine {
   checkForUpdates: () => Promise<UpdateCheckResult>
   downloadUpdate: (context: UpdateDownloadContext) => Promise<void>
   cancelDownload: (generation: number) => Promise<void>
-  installUpdate: () => Promise<void> | void
+  installUpdate: () => Promise<void>
 }
 
 export interface InstallLifecycle {
   prepareForInstall: () => Promise<void>
-  recoverFromInstallFailure?: () => Promise<void>
+  recoverFromInstallFailure?: () => Promise<boolean>
 }
 
 export interface UpdateManagerLogger {

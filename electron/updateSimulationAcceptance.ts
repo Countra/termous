@@ -44,11 +44,9 @@ interface AcceptanceOptions {
 
 interface RendererBridgeState {
   bootstrap: {
-    intent: string
     snapshot: UpdateSnapshot
   }
   href: string
-  release_opened: boolean
   state: UpdateSnapshot
 }
 
@@ -255,7 +253,7 @@ async function openAndReadUpdateWindow(
     ...excludedWindowIDs,
     ...BrowserWindow.getAllWindows().map((window) => window.id),
   ])
-  if (!runtime.openWindow('inspect')) {
+  if (!runtime.openWindow()) {
     throw new Error('无法打开模拟更新窗口')
   }
   const target = await waitForValue(
@@ -274,7 +272,6 @@ async function openAndReadUpdateWindow(
       return {
         bootstrap: await window.termousUpdate.getBootstrap(),
         href: window.location.href,
-        release_opened: await window.termousUpdate.openReleasePage(),
         state: await window.termousUpdate.getState(),
       }
     })()
@@ -320,8 +317,6 @@ function assertRendererState(
   const url = new URL(value.href)
   if (
     url.searchParams.get('surface') !== 'update'
-    || value.bootstrap.intent !== 'inspect'
-    || value.release_opened
     || value.bootstrap.snapshot.phase !== expectedPhase
     || value.state.phase !== expectedPhase
     || value.state.operation_generation

@@ -310,7 +310,6 @@ function isUpdateSnapshot(value: unknown): value is UpdateSnapshot {
     || !isNullableString(value.available_version)
     || !isNullableString(value.release_name)
     || !isNullableString(value.release_date)
-    || !isNullableString(value.release_url)
     || !isNullableString(value.release_notes)
     || !isNullableString(value.checked_at)
     || !isNullableString(value.error_message)

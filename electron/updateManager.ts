@@ -18,8 +18,6 @@ import type {
 const releaseNotesLimit = 4_000
 const releaseNameLimit = 160
 const versionLimit = 64
-const trustedReleaseHost = 'github.com'
-const trustedReleasePathPrefix = '/Countra/termous/releases/'
 
 type UpdateListener = (snapshot: UpdateSnapshot) => void
 
@@ -85,7 +83,6 @@ export class UpdateManager {
       available_version: null,
       release_name: null,
       release_date: null,
-      release_url: null,
       release_notes: null,
       progress: null,
       checked_at: preferences.last_checked_at,
@@ -288,7 +285,6 @@ export class UpdateManager {
           available_version: null,
           release_name: null,
           release_date: null,
-          release_url: null,
           release_notes: null,
           progress: null,
           error_code: null,
@@ -381,6 +377,7 @@ export class UpdateManager {
 
   private async performInstall(generation: number): Promise<UpdateSnapshot> {
     let installStarted = false
+    let installRecovered = false
     try {
       await this.options.installLifecycle.prepareForInstall()
       if (!this.isCurrentOperation(generation, 'preparing_install')) {
@@ -403,7 +400,7 @@ export class UpdateManager {
         return this.getSnapshot()
       }
       if (installStarted) {
-        await this.recoverInstallFailure()
+        installRecovered = await this.recoverInstallFailure()
       }
       const fallback = installStarted
         ? {
@@ -414,8 +411,16 @@ export class UpdateManager {
             code: 'UPDATE_CORE_SHUTDOWN_FAILED' as const,
             message: '核心服务未能安全退出，更新尚未安装',
           }
+      const safeError = toSafeUpdateError(
+        error,
+        fallback.code,
+        fallback.message,
+        !installStarted || installRecovered,
+      )
       this.fail(
-        toSafeUpdateError(error, fallback.code, fallback.message, true),
+        installStarted && !installRecovered
+          ? { ...safeError, retryable: false }
+          : safeError,
         generation,
       )
     }
@@ -455,15 +460,23 @@ export class UpdateManager {
       return await this.options.persistPreferences({ ...preferences }) ?? preferences
     } catch {
       this.options.logger?.error('update_preferences_persist_failed')
-      return preferences
+      return {
+        ...this.snapshot.preferences,
+        last_checked_at: preferences.last_checked_at,
+        revision: this.snapshot.preferences.revision,
+      }
     }
   }
 
   private async recoverInstallFailure() {
+    if (!this.options.installLifecycle.recoverFromInstallFailure) {
+      return false
+    }
     try {
-      await this.options.installLifecycle.recoverFromInstallFailure?.()
+      return await this.options.installLifecycle.recoverFromInstallFailure()
     } catch {
       this.options.logger?.error('update_install_recovery_failed')
+      return false
     }
   }
 
@@ -526,7 +539,6 @@ function normalizeRelease(result: UpdateCheckResult): UpdateReleaseInfo {
     version: release.version.trim(),
     release_name: sanitizeText(release.release_name, releaseNameLimit),
     release_date: normalizeDate(release.release_date),
-    release_url: normalizeReleaseUrl(release.release_url),
     release_notes: sanitizeText(release.release_notes, releaseNotesLimit),
   }
 }
@@ -536,7 +548,6 @@ function releaseSnapshotFields(release: UpdateReleaseInfo) {
     available_version: release.version,
     release_name: release.release_name ?? null,
     release_date: release.release_date ?? null,
-    release_url: release.release_url ?? null,
     release_notes: release.release_notes ?? null,
   }
 }
@@ -593,6 +604,7 @@ function canStartDownload(snapshot: UpdateSnapshot) {
     snapshot.phase === 'available'
     || (
       snapshot.phase === 'error'
+      && snapshot.retryable
       && snapshot.error_code !== 'UPDATE_CORE_SHUTDOWN_FAILED'
       && snapshot.error_code !== 'UPDATE_INSTALL_START_FAILED'
     )
@@ -604,6 +616,7 @@ function canStartInstall(snapshot: UpdateSnapshot) {
     snapshot.phase === 'downloaded'
     || (
       snapshot.phase === 'error'
+      && snapshot.retryable
       && (
         snapshot.error_code === 'UPDATE_CORE_SHUTDOWN_FAILED'
         || snapshot.error_code === 'UPDATE_INSTALL_START_FAILED'
@@ -651,28 +664,6 @@ function normalizeDate(value: unknown) {
   }
   const timestamp = Date.parse(value)
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null
-}
-
-function normalizeReleaseUrl(value: unknown) {
-  if (typeof value !== 'string') {
-    return null
-  }
-  try {
-    const url = new URL(value)
-    if (
-      url.protocol !== 'https:'
-      || url.hostname !== trustedReleaseHost
-      || url.port !== ''
-      || url.username !== ''
-      || url.password !== ''
-      || !url.pathname.startsWith(trustedReleasePathPrefix)
-    ) {
-      return null
-    }
-    return url.toString()
-  } catch {
-    return null
-  }
 }
 
 function sanitizeText(value: unknown, limit: number) {
@@ -726,6 +717,7 @@ function cloneSnapshot(snapshot: UpdateSnapshot): UpdateSnapshot {
 
 export type {
   InstallLifecycle,
+  UpdateApplicationInfo,
   UpdateCheckResult,
   UpdateDownloadContext,
   UpdateDownloadProgress,

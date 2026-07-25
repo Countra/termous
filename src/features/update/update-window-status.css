@@ -1,20 +1,16 @@
 .update-window-status-panel {
-  position: relative;
   display: grid;
   min-width: 0;
-  min-height: 138px;
-  grid-template-rows: auto auto 1fr;
+  min-height: 112px;
   align-content: start;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding: 13px 15px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-subtle) 68%, transparent);
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
 }
 
-.update-window-status-panel.is-install-ready {
-  grid-template-rows: auto 1fr;
+.update-window-status-panel.is-compact {
+  min-height: 74px;
+  align-content: center;
 }
 
 .update-window-status-heading {
@@ -24,19 +20,24 @@
   gap: 10px;
 }
 
-.update-window-status-heading > span:last-child {
+.update-window-status-heading > div {
   display: grid;
   min-width: 0;
-  gap: 1px;
+  gap: 2px;
 }
 
-.update-window-status-heading strong {
+.update-window-status-heading .ant-typography {
+  min-width: 0;
+  margin: 0;
+}
+
+.update-window-status-heading .ant-typography:first-child {
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 720;
 }
 
-.update-window-status-heading small {
+.update-window-status-heading .ant-typography:last-child {
   overflow: hidden;
   color: var(--text-muted);
   font-size: 10px;
@@ -48,6 +49,7 @@
   display: grid;
   width: 28px;
   height: 28px;
+  flex: 0 0 28px;
   place-items: center;
   border-radius: 8px;
   background: var(--accent-soft);
@@ -66,42 +68,58 @@
   color: var(--danger);
 }
 
-.update-window-progress-track {
-  position: relative;
-  height: 5px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text-muted) 16%, transparent);
+.update-window-download-progress {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
 }
 
-.update-window-progress-track > span {
+.update-window-progress.ant-progress {
+  margin: 0;
+  line-height: 1;
+}
+
+.update-window-progress .ant-progress-outer {
   display: block;
-  width: 0;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--accent);
+}
+
+.update-window-progress .ant-progress-inner {
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+}
+
+.update-window-progress .ant-progress-bg,
+.update-window-progress .ant-progress-success-bg {
   transition: width 0.2s ease-out;
 }
 
-.update-window-progress-metrics {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1.45fr) repeat(2, minmax(0, 0.8fr));
-  gap: 18px;
+.update-window-progress-metrics.ant-descriptions,
+.update-window-impact-grid.ant-descriptions {
+  margin: 0;
 }
 
-.update-window-progress-metric {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
+.update-window-progress-metrics .ant-descriptions-view,
+.update-window-impact-grid .ant-descriptions-view {
+  background: transparent;
 }
 
-.update-window-progress-metric small {
+.update-window-progress-metrics .ant-descriptions-row > th,
+.update-window-progress-metrics .ant-descriptions-row > td,
+.update-window-impact-grid .ant-descriptions-row > th,
+.update-window-impact-grid .ant-descriptions-row > td {
+  padding-bottom: 0;
+}
+
+.update-window-progress-metrics .ant-descriptions-item {
+  padding-inline-end: 16px;
+}
+
+.update-window-progress-metrics .ant-descriptions-item-label,
+.update-window-impact-grid .ant-descriptions-item-label {
   color: var(--text-muted);
   font-size: 9px;
 }
 
-.update-window-progress-metric strong {
+.update-window-progress-metrics .ant-descriptions-item-content {
   overflow: hidden;
   color: var(--text-secondary);
   font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
@@ -111,47 +129,60 @@
   white-space: nowrap;
 }
 
-.update-window-impact-grid {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.update-window-impact-item {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-muted);
-}
-
-.update-window-impact-item small {
+.update-window-progress-metrics .ant-descriptions-item-content .ant-typography {
   overflow: hidden;
-  font-size: 9px;
+  color: inherit;
+  font: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.update-window-impact-item strong {
+.update-window-impact {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.update-window-impact-grid .ant-descriptions-item-container {
+  display: grid;
+  gap: 2px;
+}
+
+.update-window-impact-grid .ant-descriptions-item-content {
+  padding-inline-start: 0;
   color: var(--text-primary);
   font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
   font-size: 11px;
 }
 
-.update-window-impact-note {
-  grid-column: 1 / -1;
-  margin: 3px 0 0;
+.update-window-impact-grid .ant-descriptions-item-content .ant-typography {
+  color: inherit;
+  font: inherit;
+}
+
+.update-window-impact-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.update-window-impact-label > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-window-impact-note.ant-typography {
+  margin: 0;
   color: var(--text-secondary);
   font-size: 10px;
+  line-height: 1.45;
 }
 
 .update-window-confirmation-status {
-  position: absolute;
-  right: 15px;
-  bottom: 12px;
   display: flex;
+  justify-self: end;
   align-items: center;
   gap: 6px;
   color: var(--text-muted);
@@ -170,22 +201,16 @@
   color: color-mix(in srgb, var(--accent) 82%, white);
 }
 
-:root[data-theme="light"] .update-window-status-panel {
-  background: color-mix(in srgb, var(--surface) 55%, var(--app-bg));
-}
-
 @media (max-width: 660px) {
-  .update-window-progress-metrics {
-    gap: 8px;
+  .update-window-progress-metrics .ant-descriptions-item {
+    padding-inline-end: 8px;
   }
 
-  .update-window-impact-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .update-window-progress-track > span {
+  .update-window-progress .ant-progress-bg,
+  .update-window-progress .ant-progress-success-bg {
     transition: none;
   }
 }

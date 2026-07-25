@@ -161,3 +161,30 @@ test('并发偏好写入串行合并且不会丢失较早字段', async () => {
     await rm(fixtureRoot, { recursive: true, force: true })
   }
 })
+
+test('偏好读取异常时使用内存默认值且后续仍可恢复写入', async () => {
+  const fixtureRoot = path.join(process.cwd(), '.tmp-update-preferences-recovery')
+  const filePath = path.join(fixtureRoot, 'update-preferences.json')
+  const observedErrors: unknown[] = []
+  await rm(fixtureRoot, { recursive: true, force: true })
+  await mkdir(filePath, { recursive: true })
+
+  try {
+    const store = new UpdatePreferencesStore(filePath, {
+      onReadError: (error) => observedErrors.push(error),
+    })
+    assert.deepEqual(await store.load(), createDefaultUpdatePreferences())
+    assert.equal(observedErrors.length, 1)
+
+    await rm(filePath, { recursive: true, force: true })
+    const saved = await store.update({ automatic_check: false })
+    assert.equal(saved.automatic_check, false)
+    assert.equal(saved.revision, 1)
+    assert.deepEqual(
+      await new UpdatePreferencesStore(filePath).load(),
+      saved,
+    )
+  } finally {
+    await rm(fixtureRoot, { recursive: true, force: true })
+  }
+})
