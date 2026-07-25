@@ -9,6 +9,7 @@ import {
   mergeUpdatePreferencesByRevision,
   mergeUpdateRuntimeSnapshot,
 } from './updateRuntimeState.ts'
+import { canPrepareUpdateInstall } from './updateWindowUiState.ts'
 
 const simulationVersion = '0.0.2'
 const simulatedTotalBytes = 84 * 1024 * 1024
@@ -238,7 +239,7 @@ export function createDevelopmentUpdateSimulationStore(
     download,
     cancelDownload,
     prepareInstall: async () => {
-      if (snapshot.phase !== 'downloaded') {
+      if (!canPrepareUpdateInstall(snapshot)) {
         throw new Error('update_install_not_ready')
       }
       return {

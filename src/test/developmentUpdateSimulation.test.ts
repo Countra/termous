@@ -115,6 +115,15 @@ test('开发更新窗口不会打开 Release 或进入真实安装路径', async
   assert.equal(failed.phase, 'error')
   assert.equal(failed.error_code, 'UPDATE_INSTALL_START_FAILED')
   assert.equal(browser.closed, 0)
+
+  const retryConfirmation = await simulation.updateWindowBridge.prepareInstall()
+  assert.equal(retryConfirmation.state_seq, failed.state_seq)
+  const retryFailed = await simulation.updateWindowBridge.install(
+    retryConfirmation.confirmation_token,
+  )
+  assert.equal(retryFailed.phase, 'error')
+  assert.equal(retryFailed.error_code, 'UPDATE_INSTALL_START_FAILED')
+  assert.ok(retryFailed.state_seq > failed.state_seq)
 })
 
 test('主界面的更新入口只打开同源开发更新 surface', async () => {
