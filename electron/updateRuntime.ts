@@ -50,6 +50,7 @@ export interface ApplicationUpdateRuntimeOptions {
   initialTheme: UpdateWindowTheme
   initialLanguage: UpdateWindowLanguage
   logger?: UpdateManagerLogger
+  openReleasePage?(url: string): Promise<boolean>
 }
 
 type SenderRole = 'main' | 'update'
@@ -327,6 +328,9 @@ export class ApplicationUpdateRuntime {
       return false
     }
     try {
+      if (this.options.openReleasePage) {
+        return await this.options.openReleasePage(releaseURL)
+      }
       await shell.openExternal(releaseURL)
       return true
     } catch (error) {

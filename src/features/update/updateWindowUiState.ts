@@ -15,6 +15,12 @@ export type UpdateWindowPrimaryAction =
   | 'open_releases'
   | 'none'
 
+export type UpdateWindowBusyAction =
+  | UpdateWindowPrimaryAction
+  | 'prepare'
+  | 'close'
+  | null
+
 const installErrorCodes = new Set<UpdateErrorCode>([
   'UPDATE_CORE_SHUTDOWN_FAILED',
   'UPDATE_INSTALL_START_FAILED',
@@ -84,6 +90,16 @@ export function resolveUpdateWindowPrimaryAction(
     default:
       return 'none'
   }
+}
+
+export function isUpdateWindowPrimaryActionBlocked(
+  action: UpdateWindowPrimaryAction,
+  busyAction: UpdateWindowBusyAction,
+) {
+  return Boolean(
+    busyAction
+    && !(action === 'cancel' && busyAction === 'download'),
+  )
 }
 
 export function isInstallConfirmationCurrent(

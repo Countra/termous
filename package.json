@@ -13,11 +13,13 @@
     "build:package": "node scripts/ci/build-local-package.mjs",
     "build:package:validation": "node scripts/ci/build-local-package.mjs --version 0.0.0 --output release/validation",
     "build:renderer": "vite build",
+    "build:update-simulation": "node scripts/update-simulation/build-fixtures.mjs",
     "build:validation": "pnpm run typecheck && pnpm run build:renderer && pnpm run build:package:validation",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "test": "node --test \"src/**/*.test.ts\" \"electron/**/*.test.ts\"",
     "test:release": "node --test \"scripts/ci/**/*.test.mjs\"",
+    "test:update-simulation": "node --test \"scripts/update-simulation/**/*.test.mjs\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

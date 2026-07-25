@@ -341,6 +341,33 @@ test('安装使用显式 quitAndInstall 参数并将同步失败转换为稳定�
   assert.equal(updater.listenerCount('error'), 0)
 })
 
+test('模拟验收可在引擎最底层阻止真实安装器启动', () => {
+  const updater = new FakeUpdater()
+  let blockedLaunches = 0
+  const engine = createElectronUpdaterEngine({
+    updater,
+    app: packagedApp,
+    platform: 'win32',
+    isWindowsStore: false,
+    launchInstall: () => {
+      blockedLaunches += 1
+      throw new Error('simulation_install_blocked')
+    },
+  })
+
+  assert.throws(
+    () => engine.installUpdate(),
+    (error) => isUpdateError(
+      error,
+      'UPDATE_INSTALL_START_FAILED',
+      true,
+    ),
+  )
+  assert.equal(blockedLaunches, 1)
+  assert.deepEqual(updater.installCalls, [])
+  assert.equal(updater.listenerCount('error'), 0)
+})
+
 class FakeUpdater extends EventEmitter {
   logger: {
     info: (message?: unknown) => void

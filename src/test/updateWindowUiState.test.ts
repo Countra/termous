@@ -9,10 +9,30 @@ import {
   formatUpdateBytes,
   formatUpdateDuration,
   isInstallConfirmationCurrent,
+  isUpdateWindowPrimaryActionBlocked,
   mergeUpdateWindowBootstrap,
   mergeUpdateWindowSnapshot,
   resolveUpdateWindowPrimaryAction,
 } from '../features/update/updateWindowUiState.ts'
+
+test('下载请求未完成时仍允许取消并阻止其他并发主操作', () => {
+  assert.equal(
+    isUpdateWindowPrimaryActionBlocked('cancel', 'download'),
+    false,
+  )
+  assert.equal(
+    isUpdateWindowPrimaryActionBlocked('install', 'download'),
+    true,
+  )
+  assert.equal(
+    isUpdateWindowPrimaryActionBlocked('cancel', 'cancel'),
+    true,
+  )
+  assert.equal(
+    isUpdateWindowPrimaryActionBlocked('download', null),
+    false,
+  )
+})
 
 function snapshot(overrides: Partial<UpdateSnapshot> = {}): UpdateSnapshot {
   return {

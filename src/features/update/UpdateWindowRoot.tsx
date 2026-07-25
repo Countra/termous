@@ -20,6 +20,7 @@ import type { UpdateWindowBootstrap } from '../../../electron/updateWindow'
 import type { UpdateSnapshot } from '../../../electron/updateTypes'
 import { TermousUiProvider } from '../../app/TermousUiProvider'
 import type { Language, ThemeMode } from '../../types/domain'
+import { readDevelopmentUpdateSimulation } from './developmentUpdateSimulationSlot'
 import {
   UpdateWindowPrimaryActionIcon,
   UpdateWindowVersionBlock,
@@ -34,10 +35,12 @@ import {
 import {
   canPrepareUpdateInstall,
   isInstallConfirmationCurrent,
+  isUpdateWindowPrimaryActionBlocked,
   mergeUpdateWindowBootstrap,
   mergeUpdateWindowSnapshot,
   resolveUpdateWindowPrimaryAction,
   type UpdateWindowPrimaryAction,
+  type UpdateWindowBusyAction,
 } from './updateWindowUiState'
 import './update-window.css'
 
@@ -73,15 +76,16 @@ const initialBootstrap: UpdateWindowBootstrap<UpdateSnapshot> = {
   theme: window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark',
 }
 
-type BusyAction = UpdateWindowPrimaryAction | 'prepare' | 'close' | null
+const developmentUpdateSimulation = readDevelopmentUpdateSimulation()
 
 export default function UpdateWindowRoot() {
   const [bootstrap, setBootstrap] = useState(initialBootstrap)
-  const [busyAction, setBusyAction] = useState<BusyAction>(null)
+  const [busyAction, setBusyAction] = useState<UpdateWindowBusyAction>(null)
   const [confirmation, setConfirmation] = useState<UpdateInstallConfirmation | null>(null)
   const [confirmationUnavailable, setConfirmationUnavailable] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const snapshotRef = useRef(bootstrap.snapshot)
+  const confirmationRef = useRef<UpdateInstallConfirmation | null>(null)
   const textRef = useRef(windowCopy(bootstrap.language))
   const confirmationRequestRef = useRef<{
     stateSequence: number
@@ -93,6 +97,7 @@ export default function UpdateWindowRoot() {
   const text = useMemo(() => windowCopy(language), [language])
   const snapshot = bootstrap.snapshot
   const bridge = window.termousUpdate
+    ?? developmentUpdateSimulation?.updateWindowBridge
   const primaryAction = resolveUpdateWindowPrimaryAction(snapshot)
   const isInstalling = snapshot.phase === 'preparing_install' || snapshot.phase === 'installing'
   const isMac = navigator.userAgent.includes('Macintosh')
@@ -103,6 +108,12 @@ export default function UpdateWindowRoot() {
     primaryAction === 'install'
     || primaryAction === 'retry_install'
   )
+  const updateConfirmation = useCallback((
+    next: UpdateInstallConfirmation | null,
+  ) => {
+    confirmationRef.current = next
+    setConfirmation(next)
+  }, [])
 
   useEffect(() => {
     snapshotRef.current = snapshot
@@ -151,18 +162,18 @@ export default function UpdateWindowRoot() {
     reportError: boolean,
     forceRefresh = false,
   ): Promise<UpdateInstallConfirmation | null> => {
-    const currentBridge = window.termousUpdate
+    const currentBridge = bridge
     const currentSnapshot = snapshotRef.current
     if (!currentBridge || !canPrepareUpdateInstall(currentSnapshot)) {
       return null
     }
     if (
       !forceRefresh
-      && confirmation
-      && isInstallConfirmationCurrent(confirmation, currentSnapshot)
-      && Date.parse(confirmation.expires_at) > Date.now() + 5_000
+      && confirmationRef.current
+      && isInstallConfirmationCurrent(confirmationRef.current, currentSnapshot)
+      && Date.parse(confirmationRef.current.expires_at) > Date.now() + 5_000
     ) {
-      return confirmation
+      return confirmationRef.current
     }
     const existing = confirmationRequestRef.current
     if (existing?.stateSequence === currentSnapshot.state_seq) {
@@ -193,14 +204,14 @@ export default function UpdateWindowRoot() {
         }
         summaryReadyRef.current = true
         summaryRevisionRef.current = next.summary_revision
-        setConfirmation(next)
+        updateConfirmation(next)
         return next
       })
       .catch(() => {
         if (confirmationRequestRef.current?.promise !== workflow) {
           return null
         }
-        setConfirmation(null)
+        updateConfirmation(null)
         setConfirmationUnavailable(true)
         if (reportError) {
           setLocalError(text.prepareFailed)
@@ -218,7 +229,7 @@ export default function UpdateWindowRoot() {
       promise: workflow,
     }
     return workflow
-  }, [confirmation, text.prepareFailed])
+  }, [bridge, text.prepareFailed, updateConfirmation])
 
   useEffect(() => {
     if (!bridge) {
@@ -228,7 +239,7 @@ export default function UpdateWindowRoot() {
       summaryReadyRef.current = state.ready
       summaryRevisionRef.current = state.revision
       confirmationRequestRef.current = null
-      setConfirmation(null)
+      updateConfirmation(null)
       setConfirmationUnavailable(!state.ready)
       const willRefresh = state.ready && canPrepareUpdateInstall(snapshotRef.current)
       if (willRefresh) {
@@ -237,19 +248,19 @@ export default function UpdateWindowRoot() {
         setBusyAction((current) => current === 'prepare' ? null : current)
       }
     })
-  }, [bridge, requestInstallConfirmation])
+  }, [bridge, requestInstallConfirmation, updateConfirmation])
 
   useEffect(() => {
     if (canPrepareUpdateInstall(snapshot)) {
       if (!isInstallConfirmationCurrent(confirmation, snapshot)) {
-        setConfirmation(null)
+        updateConfirmation(null)
       }
       if (summaryReadyRef.current !== false) {
         void requestInstallConfirmation(false)
       }
       return
     }
-    setConfirmation(null)
+    updateConfirmation(null)
     setConfirmationUnavailable(false)
     confirmationRequestRef.current = null
     setBusyAction((current) => current === 'prepare' ? null : current)
@@ -257,6 +268,7 @@ export default function UpdateWindowRoot() {
     requestInstallConfirmation,
     confirmation,
     snapshot,
+    updateConfirmation,
   ])
 
   const mergeReturnedSnapshot = useCallback((next: UpdateSnapshot) => {
@@ -267,8 +279,12 @@ export default function UpdateWindowRoot() {
   }, [])
 
   const runPrimaryAction = useCallback(async (action: UpdateWindowPrimaryAction) => {
-    const currentBridge = window.termousUpdate
-    if (!currentBridge || action === 'none' || busyAction) {
+    const currentBridge = bridge
+    if (
+      !currentBridge
+      || action === 'none'
+      || isUpdateWindowPrimaryActionBlocked(action, busyAction)
+    ) {
       return
     }
     setLocalError(null)
@@ -298,7 +314,7 @@ export default function UpdateWindowRoot() {
         mergeReturnedSnapshot(await currentBridge.install(prepared.confirmation_token))
       }
     } catch {
-      setConfirmation(null)
+      updateConfirmation(null)
       confirmationRequestRef.current = null
       setLocalError(
         action === 'install' || action === 'retry_install'
@@ -309,6 +325,7 @@ export default function UpdateWindowRoot() {
       setBusyAction((current) => current === action ? null : current)
     }
   }, [
+    bridge,
     busyAction,
     currentConfirmation,
     mergeReturnedSnapshot,
@@ -317,23 +334,24 @@ export default function UpdateWindowRoot() {
     text.installFailed,
     text.impactChanged,
     text.openReleaseFailed,
+    updateConfirmation,
   ])
 
   const closeWindow = useCallback(async () => {
-    if (!window.termousUpdate || isInstalling || busyAction === 'close') {
+    if (!bridge || isInstalling || busyAction === 'close') {
       return
     }
     setBusyAction('close')
     try {
-      await window.termousUpdate.close()
+      await bridge.close()
     } finally {
       setBusyAction((current) => current === 'close' ? null : current)
     }
-  }, [busyAction, isInstalling])
+  }, [bridge, busyAction, isInstalling])
 
   const minimizeWindow = useCallback(() => {
-    void window.termousUpdate?.minimize()
-  }, [])
+    void bridge?.minimize()
+  }, [bridge])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -476,7 +494,10 @@ export default function UpdateWindowRoot() {
                 className="update-window-primary-action"
                 danger={false}
                 disabled={(
-                  busyAction !== null
+                  isUpdateWindowPrimaryActionBlocked(
+                    primaryAction,
+                    busyAction,
+                  )
                   || isInstalling
                   || (installActionNeedsConfirmation && !currentConfirmation)
                 )}

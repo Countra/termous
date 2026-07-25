@@ -33,6 +33,7 @@ import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import { UpdateRuntimeProvider } from './features/update/UpdateRuntimeProvider'
 import { UpdateRuntimeSummaryReporter } from './features/update/UpdateRuntimeSummaryReporter'
+import { readDevelopmentUpdateSimulation } from './features/update/developmentUpdateSimulationSlot'
 import { useUpdateRuntime } from './features/update/useUpdateRuntime'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
 import type { AppBuildInfo, CodeSnippet, CodeSnippetGroup, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, Language, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
@@ -44,6 +45,7 @@ import './styles/files-workspace-transfers.css'
 import './styles/files-workspace-transfer-rows.css'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
+const developmentUpdateSimulation = readDevelopmentUpdateSimulation()
 
 function App() {
   const { i18n } = useTranslation()
@@ -61,7 +63,9 @@ function App() {
 
   return (
     <TermousUiProvider language={language} theme={theme}>
-      <UpdateRuntimeProvider bridge={window.termous?.updates ?? null}>
+      <UpdateRuntimeProvider
+        bridge={window.termous?.updates ?? developmentUpdateSimulation?.mainBridge ?? null}
+      >
         <AppContent theme={theme} setTheme={setTheme} />
       </UpdateRuntimeProvider>
     </TermousUiProvider>
@@ -101,7 +105,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
   const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
-  const [buildInfo, setBuildInfo] = useState<AppBuildInfo | null>(null)
+  const [buildInfo, setBuildInfo] = useState<AppBuildInfo | null>(
+    developmentUpdateSimulation?.buildInfo ?? null,
+  )
   const appVersion = buildInfo?.version ?? import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev'
   const [coreFatal, setCoreFatal] = useState<CoreFatalEvent | null>(null)
   const hasActiveRuntime = useMemo(

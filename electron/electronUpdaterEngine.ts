@@ -123,6 +123,8 @@ export interface ElectronUpdaterEngineOptions {
   isMacAppStore?: boolean
   isWindowsStore?: boolean
   isAppImageWritable?: (filePath: string) => boolean
+  launchInstall?: (updater: ElectronUpdaterAdapter) => void
+  onDownloadedFiles?: (paths: readonly string[]) => void
 }
 
 interface ActiveDownload {
@@ -153,6 +155,7 @@ export function createElectronUpdaterEngine(
     isAppImageWritable: options.isAppImageWritable ?? defaultIsAppImageWritable,
   }))
   const currentVersion = readCurrentVersion(app)
+  const launchInstall = options.launchInstall ?? defaultLaunchInstall
   const activeDownloads = new Map<number, ActiveDownload>()
 
   updater.autoDownload = false
@@ -231,10 +234,11 @@ export function createElectronUpdaterEngine(
           requestCancellation()
           throw new CancellationError()
         }
-        await updater.downloadUpdate(token)
+        const downloadedFiles = await updater.downloadUpdate(token)
         if (cancellationRequested || context.signal.aborted || token.cancelled) {
           throw new CancellationError()
         }
+        options.onDownloadedFiles?.([...downloadedFiles])
       } catch (error) {
         failure = classifyUpdaterError(
           error,
@@ -296,7 +300,7 @@ export function createElectronUpdaterEngine(
 
       try {
         updater.on('error', errorListener)
-        updater.quitAndInstall(false, true)
+        launchInstall(updater)
         if (emittedError) {
           throw emittedError
         }
@@ -315,6 +319,10 @@ export function createElectronUpdaterEngine(
       }
     },
   }
+}
+
+function defaultLaunchInstall(updater: ElectronUpdaterAdapter) {
+  updater.quitAndInstall(false, true)
 }
 
 function getDefaultUpdater(): ElectronUpdaterAdapter {

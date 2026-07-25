@@ -1,0 +1,55 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "dev.termous.update-simulation",
+  "asar": true,
+  "productName": "Termous Update Simulation",
+  "executableName": "TermousUpdateSimulation",
+  "directories": {
+    "buildResources": "build",
+    "output": "release/update-simulation/${version}"
+  },
+  "electronUpdaterCompatibility": ">=2.16",
+  "publish": [
+    {
+      "provider": "generic",
+      "url": "http://127.0.0.1:18991",
+      "channel": "latest",
+      "useMultipleRangeRequest": false,
+      "updaterCacheDirName": "termous-update-simulation-updater"
+    }
+  ],
+  "files": [
+    "dist",
+    "dist-electron"
+  ],
+  "extraResources": [
+    {
+      "from": "scripts/update-simulation/update-simulation-profile.marker",
+      "to": "update-simulation-profile.marker"
+    }
+  ],
+  "extraMetadata": {
+    "main": "dist-electron/updateSimulationMain.js",
+    "name": "termous-update-simulation"
+  },
+  "win": {
+    "icon": "build/icon.ico",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "artifactName": "Termous-Update-Simulation-${version}-windows-${arch}-setup.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": false,
+    "createStartMenuShortcut": false,
+    "deleteAppDataOnUninstall": false
+  }
+}
