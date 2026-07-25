@@ -9,6 +9,16 @@
     "buildResources": "build",
     "output": "release/${version}"
   },
+  "electronUpdaterCompatibility": ">=2.16",
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "Countra",
+      "repo": "termous",
+      "channel": "latest",
+      "publishAutoUpdate": true
+    }
+  ],
   "files": [
     "dist",
     "dist-electron"
@@ -25,10 +35,15 @@
   ],
   "mac": {
     "icon": "build/icon.icns",
+    "notarize": true,
     "target": [
-      "dmg"
+      "dmg",
+      "zip"
     ],
     "artifactName": "${productName}-${version}-macos-${arch}.${ext}"
+  },
+  "dmg": {
+    "sign": false
   },
   "win": {
     "icon": "build/icon.ico",

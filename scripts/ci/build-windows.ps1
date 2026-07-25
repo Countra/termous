@@ -24,6 +24,27 @@ function Reset-Directory {
   New-Item -ItemType Directory -Force -Path $Path | Out-Null
 }
 
+function Assert-ChildDirectory {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Root,
+    [Parameter(Mandatory = $true)][string]$Name
+  )
+
+  $absolutePath = [System.IO.Path]::GetFullPath($Path)
+  $absoluteRoot = [System.IO.Path]::GetFullPath($Root)
+  $relativePath = [System.IO.Path]::GetRelativePath($absoluteRoot, $absolutePath)
+  if (
+    [string]::IsNullOrWhiteSpace($relativePath) -or
+    $relativePath -eq "." -or
+    [System.IO.Path]::IsPathRooted($relativePath) -or
+    $relativePath -eq ".." -or
+    $relativePath.StartsWith("..$([System.IO.Path]::DirectorySeparatorChar)")
+  ) {
+    throw "$Name 必须位于 $absoluteRoot 内: $absolutePath"
+  }
+}
+
 function Invoke-Native {
   param(
     [Parameter(Mandatory = $true)][string]$Name,
@@ -102,6 +123,39 @@ function Use-CodeSigningDefaults {
   }
 }
 
+function Clear-PublishCredentials {
+  $credentialVars = @(
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+    "GITHUB_RELEASE_TOKEN",
+    "GITLAB_TOKEN",
+    "BITBUCKET_TOKEN",
+    "KEYGEN_TOKEN",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AWS_PROFILE",
+    "DO_KEY",
+    "DO_SECRET_KEY",
+    "SNAPCRAFT_STORE_CREDENTIALS"
+  )
+  foreach ($name in $credentialVars) {
+    Remove-Item -Path "Env:$name" -ErrorAction SilentlyContinue
+  }
+}
+
+function Resolve-BuildPhase {
+  $phase = if ([string]::IsNullOrWhiteSpace($env:TERMOUS_BUILD_PHASE)) {
+    "all"
+  } else {
+    $env:TERMOUS_BUILD_PHASE.Trim().ToLowerInvariant()
+  }
+  if ($phase -notin @("all", "prepare", "package")) {
+    throw "TERMOUS_BUILD_PHASE 必须是 all、prepare 或 package: $phase"
+  }
+  return $phase
+}
+
 $defaultWebDir = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).Path
 $webDir = Resolve-ExistingDirectory -Value $env:TERMOUS_WEB_DIR -Fallback $defaultWebDir -Name "TERMOUS_WEB_DIR"
 $workspaceDir = Split-Path -Parent $webDir
@@ -115,6 +169,7 @@ $outputDir = [System.IO.Path]::GetFullPath($outputDir)
 $installerDir = Join-Path $outputDir "installer"
 $coreOutputDir = Join-Path $webDir "build\core"
 $coreExe = Join-Path $coreOutputDir "termous-core.exe"
+$phase = Resolve-BuildPhase
 $version = if ([string]::IsNullOrWhiteSpace($env:TERMOUS_VERSION)) {
   Read-PackageVersion -WebDir $webDir
 } else {
@@ -125,56 +180,70 @@ if ([string]::IsNullOrWhiteSpace($version)) {
   throw "TERMOUS_VERSION 为空，无法构建发布产物。"
 }
 
+Assert-ChildDirectory -Path $outputDir -Root $workspaceDir -Name "TERMOUS_OUTPUT_DIR"
+Assert-ChildDirectory -Path $installerDir -Root $outputDir -Name "安装包输出目录"
+Assert-ChildDirectory -Path $coreOutputDir -Root (Join-Path $webDir "build") -Name "Core 输出目录"
+Clear-PublishCredentials
+
 Write-Host "Termous Windows build"
 Write-Host "webDir=$webDir"
 Write-Host "coreDir=$coreDir"
 Write-Host "outputDir=$outputDir"
 Write-Host "version=$version"
-
-Reset-Directory -Path $installerDir
-Reset-Directory -Path $coreOutputDir
-Enable-MingwIfAvailable
-Use-CodeSigningDefaults
+Write-Host "phase=$phase"
 
 $env:VITE_TERMOUS_APP_VERSION = $version
 
-Invoke-Native -Name "Go tests" -FilePath "go" -Arguments @("test", "./...") -WorkingDirectory $coreDir
-Invoke-Native -Name "Build Termous Core" -FilePath "go" -Arguments @(
-  "build",
-  "-trimpath",
-  "-ldflags",
-  "-s -w -X termous/backend/internal/buildinfo.Version=$version",
-  "-o",
-  $coreExe,
-  "./cmd/termous-core"
-) -WorkingDirectory $coreDir
+if ($phase -in @("all", "prepare")) {
+  Reset-Directory -Path $coreOutputDir
+  Enable-MingwIfAvailable
 
-if (-not (Test-Path -LiteralPath $coreExe -PathType Leaf)) {
-  throw "termous-core.exe 未生成: $coreExe"
+  Invoke-Native -Name "Go tests" -FilePath "go" -Arguments @("test", "./...") -WorkingDirectory $coreDir
+  Invoke-Native -Name "Build Termous Core" -FilePath "go" -Arguments @(
+    "build",
+    "-trimpath",
+    "-ldflags",
+    "-s -w -X termous/backend/internal/buildinfo.Version=$version",
+    "-o",
+    $coreExe,
+    "./cmd/termous-core"
+  ) -WorkingDirectory $coreDir
+
+  if (-not (Test-Path -LiteralPath $coreExe -PathType Leaf)) {
+    throw "termous-core.exe 未生成: $coreExe"
+  }
+
+  Invoke-Native -Name "Install web dependencies" -FilePath "pnpm" -Arguments @("install", "--frozen-lockfile") -WorkingDirectory $webDir
+  Invoke-Native -Name "Typecheck web" -FilePath "pnpm" -Arguments @("run", "typecheck") -WorkingDirectory $webDir
+  Invoke-Native -Name "Build Vite bundles" -FilePath "pnpm" -Arguments @("run", "build:renderer") -WorkingDirectory $webDir
 }
 
-Invoke-Native -Name "Install web dependencies" -FilePath "pnpm" -Arguments @("install", "--frozen-lockfile") -WorkingDirectory $webDir
-Invoke-Native -Name "Typecheck web" -FilePath "pnpm" -Arguments @("run", "typecheck") -WorkingDirectory $webDir
-Invoke-Native -Name "Build Vite bundles" -FilePath "pnpm" -Arguments @("run", "build:renderer") -WorkingDirectory $webDir
-Invoke-Native -Name "Build Windows installer" -FilePath "pnpm" -Arguments @(
-  "run",
-  "build:package",
-  "--",
-  "--win",
-  "nsis",
-  "--x64",
-  "--config",
-  "electron-builder.json5",
-  "--config.directories.output=$installerDir",
-  "--config.extraMetadata.version=$version",
-  "--publish",
-  "never"
-) -WorkingDirectory $webDir
+if ($phase -in @("all", "package")) {
+  if (-not (Test-Path -LiteralPath $coreExe -PathType Leaf)) {
+    throw "打包前缺少 termous-core.exe，请先执行 prepare 阶段: $coreExe"
+  }
+  foreach ($bundleDirectory in @("dist", "dist-electron")) {
+    $bundlePath = Join-Path $webDir $bundleDirectory
+    if (-not (Test-Path -LiteralPath $bundlePath -PathType Container)) {
+      throw "打包前缺少 $bundleDirectory，请先执行 prepare 阶段: $bundlePath"
+    }
+  }
 
-$artifacts = Get-ChildItem -LiteralPath $installerDir -File -ErrorAction SilentlyContinue
-if ($artifacts.Count -eq 0) {
-  throw "Windows 安装包目录为空: $installerDir"
+  Reset-Directory -Path $installerDir
+  Use-CodeSigningDefaults
+  Invoke-Native -Name "Build Windows installer" -FilePath "node" -Arguments @(
+    "scripts/ci/build-local-package.mjs",
+    "--output",
+    $installerDir,
+    "--platform",
+    "win32",
+    "--arch",
+    "x64",
+    "--version",
+    $version
+  ) -WorkingDirectory $webDir
+
+  $artifacts = Get-ChildItem -LiteralPath $installerDir -File -ErrorAction SilentlyContinue
+  Write-Host "Generated artifacts:"
+  $artifacts | ForEach-Object { Write-Host "- $($_.FullName)" }
 }
-
-Write-Host "Generated artifacts:"
-$artifacts | ForEach-Object { Write-Host "- $($_.FullName)" }

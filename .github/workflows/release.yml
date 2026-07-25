@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version, for example 0.1.0-beta"
+        description: "Release version; CLI/API --ref must select the matching protected v* tag"
         required: true
-        default: "0.1.0"
+        default: "0.3.0"
       core_ref:
-        description: "termous-core ref, tag, branch, or commit SHA. Tag releases use the same tag by default."
+        description: "termous-core tag, branch, or commit to resolve once before signing"
         required: false
-        default: "main"
+        default: ""
   push:
     tags:
       - "v*"
@@ -19,383 +19,931 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
   metadata:
-    name: Resolve release metadata
+    name: Resolve immutable release metadata
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
     outputs:
-      version: ${{ steps.meta.outputs.version }}
-      core_ref: ${{ steps.meta.outputs.core_ref }}
+      core_sha: ${{ steps.core.outputs.sha }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
+      release_date: ${{ steps.release.outputs.release_date }}
+      tag: ${{ steps.release.outputs.tag }}
+      termous_sha: ${{ steps.termous.outputs.sha }}
+      version: ${{ steps.release.outputs.version }}
 
     steps:
-      - name: Resolve version and core ref
-        id: meta
+      - name: Resolve release metadata
+        id: release
         shell: bash
         env:
-          MANUAL_VERSION: ${{ github.event.inputs.version }}
-          MANUAL_CORE_REF: ${{ github.event.inputs.core_ref }}
-          DEFAULT_CORE_REF: ${{ vars.TERMOUS_CORE_REF }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          REF_PROTECTED: ${{ github.ref_protected }}
         run: |
-          version="$MANUAL_VERSION"
-          if [[ -z "$version" ]]; then
-            version="${GITHUB_REF_NAME#v}"
-          fi
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid release version: $version" >&2
+          export LC_ALL=C
+          if [[ "$GITHUB_REF_TYPE" != "tag" || "$GITHUB_REF_NAME" != v* ]]; then
+            echo "Release 只能从 v 开头的标签运行，禁止从任意分支读取发布凭据。" >&2
             exit 1
           fi
-
-          core_ref="$MANUAL_CORE_REF"
-          if [[ -z "$core_ref" ]]; then
-            if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-              core_ref="$GITHUB_REF_NAME"
-            else
-              core_ref="$DEFAULT_CORE_REF"
-            fi
+          if [[ "$REF_PROTECTED" != "true" ]]; then
+            echo "Release 标签必须由 GitHub ruleset 或标签保护规则保护。" >&2
+            exit 1
           fi
-          if [[ -z "$core_ref" ]]; then
-            core_ref="main"
+          version="${GITHUB_REF_NAME#v}"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$INPUT_VERSION" != "$version" ]]; then
+            echo "手动输入版本必须与所选标签一致: $INPUT_VERSION != $version" >&2
+            exit 1
           fi
-
+          release_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([0-9A-Za-z-]+)(\.([0-9A-Za-z-]+))*)?$'
+          if (( ${#version} == 0 || ${#version} > 64 )) ||
+             [[ ! "$version" =~ $release_pattern ]] ||
+             [[ "${version,,}" == *arm64* ]]; then
+            echo "Release 版本不符合受支持的 SemVer 子集: $version" >&2
+            exit 1
+          fi
+          prerelease=false
+          if [[ "$version" == *-* ]]; then
+            prerelease=true
+            IFS='.' read -r -a identifiers <<< "${version#*-}"
+            for identifier in "${identifiers[@]}"; do
+              if [[ "$identifier" =~ ^[0-9]+$ &&
+                    ${#identifier} -gt 1 &&
+                    "$identifier" == 0* ]]; then
+                echo "数字 prerelease 标识符不能有前导零: $identifier" >&2
+                exit 1
+              fi
+            done
+          fi
+          tag="v$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "core_ref=$core_ref" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "release_date=$(date -u +'%Y-%m-%dT%H:%M:%S.000Z')" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout Termous
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/checkout@v4
+      - name: Checkout the release tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ steps.release.outputs.tag }}
           path: web
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Verify and pin Termous tag
+        id: termous
+        shell: bash
+        env:
+          EVENT_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          sha="$(git -C web rev-parse HEAD)"
+          tag_sha="$(git -C web rev-parse "$RELEASE_TAG^{commit}")"
+          event_sha="$(git -C web rev-parse "$EVENT_SHA^{commit}")"
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ||
+                "$sha" != "$tag_sha" ||
+                "$sha" != "$event_sha" ]]; then
+            echo "Termous Release 标签不存在或没有解析到当前 commit。" >&2
+            exit 1
+          fi
+          echo "Resolved Termous commit: $sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Termous Core
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: Countra/termous-core
+          ref: ${{ github.event.inputs.core_ref || vars.TERMOUS_CORE_REF || steps.release.outputs.tag }}
+          path: backend
+          token: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+          persist-credentials: false
+
+      - name: Pin resolved Core commit
+        id: core
+        shell: bash
+        run: |
+          sha="$(git -C backend rev-parse HEAD)"
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "无法把 Core ref 固定为 40 位 commit SHA。" >&2
+            exit 1
+          fi
+          echo "Resolved termous-core commit: $sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  prepare-release:
+    name: Prepare Draft Release
+    needs: metadata
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+    outputs:
+      core_sha: ${{ needs.metadata.outputs.core_sha }}
+      prerelease: ${{ needs.metadata.outputs.prerelease }}
+      release_date: ${{ needs.metadata.outputs.release_date }}
+      tag: ${{ needs.metadata.outputs.tag }}
+      termous_sha: ${{ needs.metadata.outputs.termous_sha }}
+      version: ${{ needs.metadata.outputs.version }}
+
+    steps:
+      - name: Checkout pinned Termous
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.metadata.outputs.termous_sha }}
+          path: web
+          persist-credentials: false
 
       - name: Generate release notes
-        if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         env:
           TERMOUS_CHANGELOG_FILE: ${{ github.workspace }}/web/docs/CHANGELOG.md
           TERMOUS_RELEASE_NOTES_FILE: ${{ github.workspace }}/build/release-notes.md
-          TERMOUS_VERSION: ${{ steps.meta.outputs.version }}
+          TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
         run: ./web/scripts/ci/extract-changelog.ps1
 
-      - name: Validate GitHub Release target
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Issue Draft Release token
+        id: release-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Create or update Draft Release
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          RELEASE_NOTES: ${{ github.workspace }}/build/release-notes.md
+          PRERELEASE: ${{ needs.metadata.outputs.prerelease }}
+          TAG: ${{ needs.metadata.outputs.tag }}
+          VERSION: ${{ needs.metadata.outputs.version }}
         run: |
-          if is_draft="$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null)"; then
-            if [[ "$is_draft" != "true" ]]; then
-              echo "标签 $GITHUB_REF_NAME 已存在正式 GitHub Release，拒绝覆盖公开发布资产。" >&2
+          if draft="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            if [[ "$draft" != "true" ]]; then
+              echo "标签已存在正式 Release，拒绝覆盖: $TAG" >&2
               exit 1
             fi
-          fi
-
-      - name: Prepare draft GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Termous ${{ steps.meta.outputs.version }}
-          tag_name: ${{ github.ref_name }}
-          prerelease: ${{ contains(steps.meta.outputs.version, '-') }}
-          draft: true
-          body_path: build/release-notes.md
-
-  build-windows:
-    name: Build Windows x64
-    needs: metadata
-    runs-on: windows-latest
-    environment: release
-    permissions:
-      contents: write
-    defaults:
-      run:
-        shell: pwsh
-
-    steps:
-      - name: Validate core repository token
-        env:
-          CORE_READ_TOKEN: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:CORE_READ_TOKEN)) {
-            throw "TERMOUS_CORE_READ_TOKEN is required to checkout Countra/termous-core."
-          }
-
-      - name: Configure Windows code signing
-        env:
-          WINDOWS_CSC_LINK: ${{ secrets.CSC_LINK }}
-          WINDOWS_CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CSC_LINK)) {
-            "CSC_IDENTITY_AUTO_DISCOVERY=false" >> $env:GITHUB_ENV
-            Write-Host "Windows code signing disabled; unsigned installer will be built."
-          } else {
-            "CSC_LINK=$($env:WINDOWS_CSC_LINK)" >> $env:GITHUB_ENV
-            if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_CSC_KEY_PASSWORD)) {
-              "CSC_KEY_PASSWORD=$($env:WINDOWS_CSC_KEY_PASSWORD)" >> $env:GITHUB_ENV
+            confirmed="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --json isDraft --jq .isDraft)"
+            [[ "$confirmed" == "true" ]] || {
+              echo "Release 已不再是 Draft，拒绝更新。" >&2
+              exit 1
             }
-            Write-Host "Windows code signing enabled."
-          }
-
-      - name: Checkout Termous
-        uses: actions/checkout@v4
-        with:
-          path: web
-
-      - name: Checkout Termous Core
-        uses: actions/checkout@v4
-        with:
-          repository: Countra/termous-core
-          ref: ${{ needs.metadata.outputs.core_ref }}
-          path: backend
-          token: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          package_json_file: web/package.json
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: web/package.json
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ vars.GO_VERSION || '1.25.x' }}
-          cache: true
-          cache-dependency-path: backend/go.sum
-
-      - name: Build Windows installer
-        env:
-          TERMOUS_WEB_DIR: ${{ github.workspace }}\web
-          TERMOUS_CORE_DIR: ${{ github.workspace }}\backend
-          TERMOUS_OUTPUT_DIR: ${{ github.workspace }}\build\windows-x64
-          TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
-        run: .\web\scripts\ci\build-windows.ps1
-
-      - name: Upload Windows installer to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $installerDir = Join-Path $env:GITHUB_WORKSPACE "build\windows-x64\installer"
-          $assetPaths = @(
-            Get-ChildItem -LiteralPath $installerDir -Filter "*.exe" -File |
-              ForEach-Object { $_.FullName }
-          )
-          if ($assetPaths.Count -eq 0) {
-            throw "未找到待发布的 Windows 安装包: $installerDir"
-          }
-          & gh release upload $env:GITHUB_REF_NAME @assetPaths --clobber --repo $env:GITHUB_REPOSITORY
-          if ($LASTEXITCODE -ne 0) {
-            throw "上传 Windows Release Asset 失败，退出码: $LASTEXITCODE"
-          }
-
-  build-linux:
-    name: Build Linux x64
-    needs: metadata
-    runs-on: ubuntu-24.04
-    environment: release
-    permissions:
-      contents: write
-
-    steps:
-      - name: Validate core repository token
-        shell: bash
-        env:
-          CORE_READ_TOKEN: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
-        run: |
-          if [[ -z "$CORE_READ_TOKEN" ]]; then
-            echo "TERMOUS_CORE_READ_TOKEN is required to checkout Countra/termous-core." >&2
-            exit 1
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "Termous $VERSION" --notes-file "$RELEASE_NOTES" \
+              --draft --prerelease="$PRERELEASE"
+          else
+            args=(--repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+              --title "Termous $VERSION" --notes-file "$RELEASE_NOTES")
+            [[ "$PRERELEASE" == "true" ]] && args+=(--prerelease)
+            gh release create "$TAG" "${args[@]}"
           fi
 
-      - name: Checkout Termous
-        uses: actions/checkout@v4
-        with:
-          path: web
+  build:
+    name: Build ${{ matrix.platform }} ${{ matrix.arch }}
+    needs: prepare-release
+    runs-on: ${{ matrix.runner }}
+    environment: release
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            target_os: win32
+            arch: x64
+            runner: windows-latest
+          - platform: linux
+            target_os: linux
+            arch: x64
+            runner: ubuntu-24.04
+          - platform: macos
+            target_os: darwin
+            arch: x64
+            runner: macos-15-intel
+          - platform: macos
+            target_os: darwin
+            arch: arm64
+            runner: macos-15
+    env:
+      TERMOUS_ARCH: ${{ matrix.arch }}
+      TERMOUS_CORE_DIR: ${{ github.workspace }}/backend
+      TERMOUS_OUTPUT_DIR: ${{ github.workspace }}/build/${{ matrix.platform }}-${{ matrix.arch }}
+      TERMOUS_RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+      TERMOUS_TARGET_OS: ${{ matrix.target_os }}
+      TERMOUS_VERSION: ${{ needs.prepare-release.outputs.version }}
+      TERMOUS_WEB_DIR: ${{ github.workspace }}/web
 
-      - name: Checkout Termous Core
-        uses: actions/checkout@v4
+    steps:
+      - name: Checkout Termous
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.prepare-release.outputs.termous_sha }}
+          path: web
+          persist-credentials: false
+
+      - name: Checkout pinned Termous Core
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: Countra/termous-core
-          ref: ${{ needs.metadata.outputs.core_ref }}
+          ref: ${{ needs.prepare-release.outputs.core_sha }}
           path: backend
           token: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+          persist-credentials: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           package_json_file: web/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version-file: web/package.json
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version: ${{ vars.GO_VERSION || '1.25.x' }}
           cache: true
           cache-dependency-path: backend/go.sum
 
       - name: Install Linux packaging dependencies
+        if: matrix.platform == 'linux'
         shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y libopenjp2-tools
 
-      - name: Build Linux package
+      - name: Prepare Windows build
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          TERMOUS_BUILD_PHASE: prepare
+        run: ./web/scripts/ci/build-windows.ps1
+
+      - name: Prepare Unix build
+        if: matrix.platform != 'windows'
         shell: bash
         env:
-          TERMOUS_WEB_DIR: ${{ github.workspace }}/web
-          TERMOUS_CORE_DIR: ${{ github.workspace }}/backend
-          TERMOUS_OUTPUT_DIR: ${{ github.workspace }}/build/linux-x64
-          TERMOUS_TARGET_OS: linux
-          TERMOUS_ARCH: x64
-          TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
+          TERMOUS_BUILD_PHASE: prepare
         run: bash ./web/scripts/ci/build-unix.sh
 
-      - name: Upload Linux package to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Package and verify Windows signatures
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          TERMOUS_BUILD_PHASE: package
+          TERMOUS_REQUIRE_SIGNING: "true"
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CSC_LINK)) {
+            throw "正式 Release 缺少 Windows 代码签名证书。"
+          }
+          ./web/scripts/ci/build-windows.ps1
+          $root = Join-Path $env:TERMOUS_OUTPUT_DIR "installer"
+          $installer = Join-Path $root "Termous-$env:TERMOUS_VERSION-windows-x64-setup.exe"
+          $expectedSubject = $null
+          foreach ($path in @(
+            $installer,
+            (Join-Path $root "win-unpacked\Termous.exe"),
+            (Join-Path $root "win-unpacked\termous-core.exe")
+          )) {
+            $signature = Get-AuthenticodeSignature -FilePath $path
+            if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+              throw "Authenticode 验证失败: $path ($($signature.Status))"
+            }
+            if ($null -eq $signature.TimeStamperCertificate) {
+              throw "签名缺少可信时间戳: $path"
+            }
+            $subject = $signature.SignerCertificate.Subject
+            if ($null -eq $expectedSubject) { $expectedSubject = $subject }
+            if ($subject -ne $expectedSubject) { throw "签名发布者不一致: $path" }
+          }
+
+      - name: Package Linux AppImage
+        if: matrix.platform == 'linux'
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          shopt -s nullglob
-          assets=(build/linux-x64/installer/*.AppImage)
-          if (( ${#assets[@]} == 0 )); then
-            echo "未找到待发布的 Linux 安装包。" >&2
-            exit 1
-          fi
-          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          TERMOUS_BUILD_PHASE: package
+        run: bash ./web/scripts/ci/build-unix.sh
 
-  build-macos:
-    name: Build macOS ${{ matrix.arch }}
-    needs: metadata
-    runs-on: ${{ matrix.runner }}
+      - name: Package and verify macOS signatures
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          TERMOUS_BUILD_PHASE: package
+          TERMOUS_REQUIRE_SIGNING: "true"
+        run: |
+          for name in MAC_CSC_LINK APPLE_API_KEY_BASE64 APPLE_API_KEY_ID APPLE_API_ISSUER; do
+            [[ -n "${!name:-}" ]] || { echo "正式 Release 缺少 $name。" >&2; exit 1; }
+          done
+          key_file="$RUNNER_TEMP/termous-notary-${TERMOUS_ARCH}.p8"
+          verify_root="$RUNNER_TEMP/termous-verify-${TERMOUS_ARCH}"
+          mount_root="$verify_root/dmg"
+          mounted=false
+          cleanup() {
+            [[ "$mounted" == "true" ]] && hdiutil detach "$mount_root" -quiet || true
+            rm -rf "$verify_root" "$key_file"
+          }
+          trap cleanup EXIT
+          mkdir -p "$mount_root" "$verify_root/zip"
+          printf '%s' "$APPLE_API_KEY_BASE64" | base64 -D > "$key_file"
+          chmod 600 "$key_file"
+          export APPLE_API_KEY="$key_file"
+          export CSC_KEY_PASSWORD="$MAC_CSC_KEY_PASSWORD"
+          export CSC_LINK="$MAC_CSC_LINK"
+          bash ./web/scripts/ci/build-unix.sh
+
+          installer="$TERMOUS_OUTPUT_DIR/installer"
+          dmg="$installer/Termous-$TERMOUS_VERSION-macos-$TERMOUS_ARCH.dmg"
+          zip="$installer/Termous-$TERMOUS_VERSION-macos-$TERMOUS_ARCH.zip"
+          source_app="$(find "$installer" -maxdepth 2 -type d -name Termous.app -print -quit)"
+          notary_result="$verify_root/dmg-notary.json"
+          assert_app() {
+            local app_path="$1"
+            local core_path="$app_path/Contents/termous-core"
+            local app_team core_team
+            [[ -d "$app_path" && -f "$core_path" ]] || return 1
+            codesign --verify --deep --strict --verbose=2 "$app_path"
+            codesign --verify --strict --verbose=2 "$core_path"
+            codesign -d --verbose=4 "$app_path" 2>&1 | grep -F "Authority=Developer ID Application"
+            codesign -d --verbose=4 "$core_path" 2>&1 | grep -F "Authority=Developer ID Application"
+            codesign -d --verbose=4 "$app_path" 2>&1 | grep -E "flags=.*runtime"
+            app_team="$(
+              codesign -d --verbose=4 "$app_path" 2>&1 |
+                sed -n 's/^TeamIdentifier=//p' |
+                head -n 1
+            )"
+            core_team="$(
+              codesign -d --verbose=4 "$core_path" 2>&1 |
+                sed -n 's/^TeamIdentifier=//p' |
+                head -n 1
+            )"
+            [[ -n "$app_team" && "$app_team" != "not set" &&
+                  "$core_team" == "$app_team" ]] || {
+              echo "Core 与应用签名 TeamIdentifier 不一致。" >&2
+              return 1
+            }
+            spctl --assess --type execute --verbose=2 "$app_path"
+          }
+          xcrun notarytool submit "$dmg" \
+            --key "$APPLE_API_KEY" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER" \
+            --wait --no-progress --output-format json > "$notary_result"
+          node -e '
+            const fs = require("node:fs")
+            const result = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
+            if (result.status !== "Accepted") {
+              console.error(`DMG notarization 未被接受: ${result.status ?? "unknown"}`)
+              process.exit(1)
+            }
+          ' "$notary_result"
+          stapled=false
+          for attempt in 1 2 3; do
+            if xcrun stapler staple -v "$dmg"; then
+              stapled=true
+              break
+            fi
+            (( attempt < 3 )) && sleep $((attempt * 5))
+          done
+          [[ "$stapled" == "true" ]] || {
+            echo "DMG 公证票据在三次尝试后仍无法装订。" >&2
+            exit 1
+          }
+          assert_app "$source_app"
+          xcrun stapler validate "$source_app"
+          xcrun stapler validate "$dmg"
+          ditto -x -k "$zip" "$verify_root/zip"
+          zip_app="$(find "$verify_root/zip" -type d -name Termous.app -print -quit)"
+          assert_app "$zip_app"
+          xcrun stapler validate "$zip_app"
+          spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount_root" "$dmg"
+          mounted=true
+          dmg_app="$(find "$mount_root" -maxdepth 2 -type d -name Termous.app -print -quit)"
+          assert_app "$dmg_app"
+          xcrun stapler validate "$dmg_app"
+          hdiutil detach "$mount_root" -quiet
+          mounted=false
+          node web/scripts/ci/merge-macos-update-info.mjs refresh \
+            --input "$installer/latest-mac.yml" --asset "$dmg" \
+            --arch "$TERMOUS_ARCH" --version "$TERMOUS_VERSION" \
+            --output "$installer/latest-mac.yml"
+
+      - name: Create Windows asset receipts
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:TERMOUS_OUTPUT_DIR "installer"
+          $exe = "Termous-$env:TERMOUS_VERSION-windows-x64-setup.exe"
+          node web/scripts/ci/verify-release-assets.mjs receipt --version $env:TERMOUS_VERSION `
+            --platform windows --arch x64 --asset (Join-Path $root $exe) `
+            --manifest (Join-Path $root "latest.yml") --output (Join-Path $root "$exe.receipt.json") `
+            --signature verified
+          $blockmap = "$exe.blockmap"
+          node web/scripts/ci/verify-release-assets.mjs receipt --version $env:TERMOUS_VERSION `
+            --platform windows --arch x64 --asset (Join-Path $root $blockmap) `
+            --output (Join-Path $root "$blockmap.receipt.json") --signature not-required
+
+      - name: Create Unix asset receipts
+        if: matrix.platform != 'windows'
+        shell: bash
+        env:
+          RELEASE_DATE: ${{ needs.prepare-release.outputs.release_date }}
+        run: |
+          root="$TERMOUS_OUTPUT_DIR/installer"
+          if [[ "${{ matrix.platform }}" == "linux" ]]; then
+            asset="Termous-$TERMOUS_VERSION-linux-x64.AppImage"
+            node web/scripts/ci/verify-release-assets.mjs receipt --version "$TERMOUS_VERSION" \
+              --platform linux --arch x64 --asset "$root/$asset" \
+              --manifest "$root/latest-linux.yml" --output "$root/$asset.receipt.json" \
+              --signature not-required
+          else
+            base="Termous-$TERMOUS_VERSION-macos-$TERMOUS_ARCH"
+            for extension in dmg zip; do
+              asset="$base.$extension"
+              node web/scripts/ci/verify-release-assets.mjs receipt --version "$TERMOUS_VERSION" \
+                --platform macos --arch "$TERMOUS_ARCH" --asset "$root/$asset" \
+                --manifest "$root/latest-mac.yml" --output "$root/$asset.receipt.json" \
+                --signature verified
+            done
+            sidecar="$base.zip.blockmap"
+            node web/scripts/ci/verify-release-assets.mjs receipt --version "$TERMOUS_VERSION" \
+              --platform macos --arch "$TERMOUS_ARCH" --asset "$root/$sidecar" \
+              --output "$root/$sidecar.receipt.json" --signature not-required
+            node web/scripts/ci/merge-macos-update-info.mjs partial \
+              --input "$root/latest-mac.yml" --arch "$TERMOUS_ARCH" \
+              --version "$TERMOUS_VERSION" \
+              --output "$root/latest-mac.$TERMOUS_ARCH.partial.yml" \
+              --release-date "$RELEASE_DATE"
+          fi
+
+      - name: Issue asset upload token
+        id: release-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Upload Windows Draft assets
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+        run: |
+          $root = Join-Path $env:TERMOUS_OUTPUT_DIR "installer"
+          $exe = "Termous-$env:TERMOUS_VERSION-windows-x64-setup.exe"
+          $assets = @($exe, "$exe.blockmap", "latest.yml", "$exe.receipt.json", "$exe.blockmap.receipt.json") |
+            ForEach-Object { (Resolve-Path -LiteralPath (Join-Path $root $_)).Path }
+          $draft = & gh release view $env:TERMOUS_RELEASE_TAG --repo $env:GITHUB_REPOSITORY `
+            --json isDraft --jq .isDraft
+          if ($LASTEXITCODE -ne 0 -or $draft.Trim() -ne "true") {
+            throw "Release 已不再是 Draft，拒绝上传 Windows 资产。"
+          }
+          & gh release upload $env:TERMOUS_RELEASE_TAG @assets --clobber --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw "上传 Windows Draft Assets 失败。" }
+
+      - name: Upload Unix Draft assets
+        if: matrix.platform != 'windows'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+        run: |
+          assert_draft() {
+            local draft
+            draft="$(gh release view "$TERMOUS_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+              --json isDraft --jq .isDraft)"
+            [[ "$draft" == "true" ]] || {
+              echo "Release 已不再是 Draft，拒绝上传 Unix 资产。" >&2
+              exit 1
+            }
+          }
+          root="$TERMOUS_OUTPUT_DIR/installer"
+          if [[ "${{ matrix.platform }}" == "linux" ]]; then
+            asset="Termous-$TERMOUS_VERSION-linux-x64.AppImage"
+            assets=("$root/$asset" "$root/latest-linux.yml" "$root/$asset.receipt.json")
+          else
+            base="Termous-$TERMOUS_VERSION-macos-$TERMOUS_ARCH"
+            assets=(
+              "$root/$base.dmg" "$root/$base.zip" "$root/$base.zip.blockmap"
+              "$root/latest-mac.$TERMOUS_ARCH.partial.yml"
+              "$root/$base.dmg.receipt.json" "$root/$base.zip.receipt.json"
+              "$root/$base.zip.blockmap.receipt.json"
+            )
+          fi
+          assert_draft
+          gh release upload "$TERMOUS_RELEASE_TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+
+  merge-macos-manifest:
+    name: Merge macOS update manifest
+    needs:
+      - prepare-release
+      - build
+    runs-on: ubuntu-24.04
     environment: release
     permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: x64
-            runner: macos-15-intel
-          - arch: arm64
-            runner: macos-15
+      contents: read
 
     steps:
-      - name: Validate core repository token
-        shell: bash
-        env:
-          CORE_READ_TOKEN: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
-        run: |
-          if [[ -z "$CORE_READ_TOKEN" ]]; then
-            echo "TERMOUS_CORE_READ_TOKEN is required to checkout Countra/termous-core." >&2
-            exit 1
-          fi
-
-      - name: Configure macOS code signing
-        shell: bash
-        env:
-          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-        run: |
-          if [[ -z "$MAC_CSC_LINK" ]]; then
-            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
-            echo "macOS code signing disabled; unsigned DMG will be built."
-          else
-            echo "CSC_LINK=$MAC_CSC_LINK" >> "$GITHUB_ENV"
-            if [[ -n "$MAC_CSC_KEY_PASSWORD" ]]; then
-              echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD" >> "$GITHUB_ENV"
-            fi
-            echo "macOS code signing enabled."
-          fi
-
       - name: Checkout Termous
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ needs.prepare-release.outputs.termous_sha }}
           path: web
-
-      - name: Checkout Termous Core
-        uses: actions/checkout@v4
-        with:
-          repository: Countra/termous-core
-          ref: ${{ needs.metadata.outputs.core_ref }}
-          path: backend
-          token: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+          persist-credentials: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
           package_json_file: web/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version-file: web/package.json
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ vars.GO_VERSION || '1.25.x' }}
-          cache: true
-          cache-dependency-path: backend/go.sum
-
-      - name: Build macOS package
+      - name: Install locked dependencies
         shell: bash
-        env:
-          TERMOUS_WEB_DIR: ${{ github.workspace }}/web
-          TERMOUS_CORE_DIR: ${{ github.workspace }}/backend
-          TERMOUS_OUTPUT_DIR: ${{ github.workspace }}/build/macos-${{ matrix.arch }}
-          TERMOUS_TARGET_OS: darwin
-          TERMOUS_ARCH: ${{ matrix.arch }}
-          TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
-        run: bash ./web/scripts/ci/build-unix.sh
+        run: pnpm --dir web install --frozen-lockfile
 
-      - name: Upload macOS package to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Download partial manifests
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare-release.outputs.tag }}
         run: |
-          shopt -s nullglob
-          assets=(build/macos-${{ matrix.arch }}/installer/*.dmg)
-          if (( ${#assets[@]} == 0 )); then
-            echo "未找到待发布的 macOS 安装包。" >&2
-            exit 1
-          fi
-          gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          mkdir -p build/macos-manifests
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "latest-mac.x64.partial.yml" \
+            --pattern "latest-mac.arm64.partial.yml" \
+            --dir build/macos-manifests
 
-  publish:
-    name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/')
+      - name: Merge canonical macOS manifest
+        shell: bash
+        env:
+          RELEASE_DATE: ${{ needs.prepare-release.outputs.release_date }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          node web/scripts/ci/merge-macos-update-info.mjs merge \
+            --x64 build/macos-manifests/latest-mac.x64.partial.yml \
+            --arm64 build/macos-manifests/latest-mac.arm64.partial.yml \
+            --output build/macos-manifests/latest-mac.yml \
+            --version "$VERSION" --release-date "$RELEASE_DATE"
+
+      - name: Issue manifest merge token
+        id: release-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Replace partial manifests with canonical asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          TAG: ${{ needs.prepare-release.outputs.tag }}
+        run: |
+          assert_draft() {
+            local draft
+            draft="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --json isDraft --jq .isDraft)"
+            [[ "$draft" == "true" ]] || {
+              echo "Release 已不再是 Draft，拒绝修改 macOS manifest。" >&2
+              exit 1
+            }
+          }
+          assert_draft
+          gh release upload "$TAG" build/macos-manifests/latest-mac.yml \
+            --clobber --repo "$GITHUB_REPOSITORY"
+          assert_draft
+          gh release delete-asset "$TAG" latest-mac.x64.partial.yml \
+            --yes --repo "$GITHUB_REPOSITORY"
+          assert_draft
+          gh release delete-asset "$TAG" latest-mac.arm64.partial.yml \
+            --yes --repo "$GITHUB_REPOSITORY"
+
+  verify-release:
+    name: Verify receipts and clean Draft assets
     needs:
-      - metadata
-      - build-windows
-      - build-linux
-      - build-macos
+      - prepare-release
+      - build
+      - merge-macos-manifest
     runs-on: ubuntu-24.04
     environment: release
     permissions:
-      contents: write
+      contents: read
+    outputs:
+      content_fingerprint: ${{ steps.trusted-assets.outputs.content_fingerprint }}
 
     steps:
-      - name: Publish GitHub Release
+      - name: Checkout Termous
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.prepare-release.outputs.termous_sha }}
+          path: web
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          package_json_file: web/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: web/package.json
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install locked dependencies
+        shell: bash
+        run: pnpm --dir web install --frozen-lockfile
+
+      - name: Download Draft evidence
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "$GITHUB_REF_NAME" --draft=false --repo "$GITHUB_REPOSITORY"
+          TAG: ${{ needs.prepare-release.outputs.tag }}
+        run: |
+          mkdir -p build/release-evidence/assets
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+            > build/release-evidence/release.receipts.json
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --dir build/release-evidence/assets
+
+      - name: Verify manifests, receipts, digests and signatures
+        id: trusted-assets
+        shell: bash
+        env:
+          TAG: ${{ needs.prepare-release.outputs.tag }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          result="$(
+            node web/scripts/ci/verify-release-assets.mjs verify \
+              --version "$VERSION" --tag "$TAG" --phase receipts \
+              --release-json build/release-evidence/release.receipts.json \
+              --assets-dir build/release-evidence/assets
+          )"
+          echo "$result"
+          content_fingerprint="$(printf '%s' "$result" | jq -r .contentFingerprint)"
+          [[ "$content_fingerprint" =~ ^[a-f0-9]{64}$ ]] || {
+            echo "可信 Release 内容指纹无效。" >&2
+            exit 1
+          }
+          echo "content_fingerprint=$content_fingerprint" >> "$GITHUB_OUTPUT"
+
+      - name: Issue receipt cleanup token
+        id: release-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Delete temporary receipts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          TAG: ${{ needs.prepare-release.outputs.tag }}
+        run: |
+          mapfile -t receipts < <(
+            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+              --jq '.assets[] | select(.name | endswith(".receipt.json")) | .name'
+          )
+          (( ${#receipts[@]} > 0 )) || { echo "未找到待清理的 receipt。" >&2; exit 1; }
+          for receipt in "${receipts[@]}"; do
+            draft="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --json isDraft --jq .isDraft)"
+            [[ "$draft" == "true" ]] || {
+              echo "Release 已不再是 Draft，拒绝删除 receipt。" >&2
+              exit 1
+            }
+            gh release delete-asset "$TAG" "$receipt" --yes --repo "$GITHUB_REPOSITORY"
+          done
+
+  verify-final-release:
+    name: Verify final read-only Release assets
+    needs:
+      - prepare-release
+      - verify-release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      content_fingerprint: ${{ needs.verify-release.outputs.content_fingerprint }}
+
+    steps:
+      - name: Checkout Termous
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.prepare-release.outputs.termous_sha }}
+          path: web
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          package_json_file: web/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: web/package.json
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install locked dependencies
+        shell: bash
+        run: pnpm --dir web install --frozen-lockfile
+
+      - name: Verify final public asset set
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare-release.outputs.tag }}
+          TRUSTED_CONTENT_FINGERPRINT: ${{ needs.verify-release.outputs.content_fingerprint }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          result="$(
+            node web/scripts/ci/verify-release-assets.mjs verify \
+              --version "$VERSION" --tag "$TAG" --phase final \
+              --github-repository "$GITHUB_REPOSITORY" --token-env GH_TOKEN
+          )"
+          echo "$result"
+          current="$(printf '%s' "$result" | jq -r .contentFingerprint)"
+          [[ "$current" == "$TRUSTED_CONTENT_FINGERPRINT" ]] || {
+            echo "最终 Release 内容已偏离签名与 receipt 门禁。" >&2
+            exit 1
+          }
+
+  publish:
+    name: Publish GitHub Release
+    needs:
+      - prepare-release
+      - verify-final-release
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout pinned Termous
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.prepare-release.outputs.termous_sha }}
+          path: web
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          package_json_file: web/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: web/package.json
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install locked dependencies
+        shell: bash
+        run: pnpm --dir web install --frozen-lockfile
+
+      - name: Re-verify final Draft after environment approval
+        id: final-verification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare-release.outputs.tag }}
+          TRUSTED_CONTENT_FINGERPRINT: ${{ needs.verify-final-release.outputs.content_fingerprint }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          result="$(
+            node web/scripts/ci/verify-release-assets.mjs verify \
+              --version "$VERSION" --tag "$TAG" --phase final \
+              --github-repository "$GITHUB_REPOSITORY" --token-env GH_TOKEN
+          )"
+          echo "$result"
+          content_fingerprint="$(printf '%s' "$result" | jq -r .contentFingerprint)"
+          [[ "$content_fingerprint" == "$TRUSTED_CONTENT_FINGERPRINT" ]] || {
+            echo "环境审批后的 Release 内容已偏离签名与 receipt 门禁。" >&2
+            exit 1
+          }
+          fingerprint="$(printf '%s' "$result" | jq -r .releaseFingerprint)"
+          [[ "$fingerprint" =~ ^[a-f0-9]{64}$ ]] || {
+            echo "最终 Release 快照指纹无效。" >&2
+            exit 1
+          }
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
+      - name: Issue release publish token
+        id: release-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Publish verified Draft Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          EXPECTED_COMMIT: ${{ needs.prepare-release.outputs.termous_sha }}
+          EXPECTED_FINGERPRINT: ${{ steps.final-verification.outputs.fingerprint }}
+          TAG: ${{ needs.prepare-release.outputs.tag }}
+        run: |
+          resolve_tag_commit() {
+            local object_sha object_type response
+            response="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG")"
+            object_type="$(jq -r .object.type <<< "$response")"
+            object_sha="$(jq -r .object.sha <<< "$response")"
+            for _ in 1 2 3 4 5 6 7 8; do
+              if [[ "$object_type" == "commit" ]]; then
+                printf '%s' "$object_sha"
+                return 0
+              fi
+              [[ "$object_type" == "tag" && "$object_sha" =~ ^[a-f0-9]{40}$ ]] || {
+                echo "Release 标签没有解析到可信 commit。" >&2
+                return 1
+              }
+              response="$(
+                gh api "repos/$GITHUB_REPOSITORY/git/tags/$object_sha"
+              )"
+              object_type="$(jq -r .object.type <<< "$response")"
+              object_sha="$(jq -r .object.sha <<< "$response")"
+            done
+            echo "Release 标签嵌套层级超过安全上限。" >&2
+            return 1
+          }
+          tag_commit="$(resolve_tag_commit)"
+          [[ "$tag_commit" == "$EXPECTED_COMMIT" ]] || {
+            echo "Release 标签在构建后发生移动，拒绝公开。" >&2
+            exit 1
+          }
+          release_json="$(mktemp)"
+          trap 'rm -f "$release_json"' EXIT
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > "$release_json"
+          draft="$(jq -r .draft "$release_json")"
+          [[ "$draft" == "true" ]] || { echo "Release 已不是 Draft。" >&2; exit 1; }
+          temporary="$(
+            jq '[.assets[].name | select(endswith(".receipt.json") or contains(".partial."))] | length' \
+              "$release_json"
+          )"
+          [[ "$temporary" == "0" ]] || { echo "Release 仍包含临时资产。" >&2; exit 1; }
+          current_snapshot="$(
+            jq -c '[
+              .id,
+              .tag_name,
+              .draft,
+              .prerelease,
+              .body,
+              (.assets
+                | map([.url, .name, .size, (.digest // null), (.updated_at // null)])
+                | sort_by(.[0]))
+            ]' "$release_json"
+          )"
+          current_fingerprint="$(
+            printf '%s' "$current_snapshot" |
+              sha256sum |
+              awk '{ print $1 }'
+          )"
+          [[ "$current_fingerprint" == "$EXPECTED_FINGERPRINT" ]] || {
+            echo "环境审批后的 Release 资产快照发生变化，拒绝公开。" >&2
+            exit 1
+          }
+          release_id="$(jq -r .id "$release_json")"
+          [[ "$release_id" =~ ^[1-9][0-9]*$ ]] || {
+            echo "最终 Release ID 无效。" >&2
+            exit 1
+          }
+          gh api --method PATCH \
+            "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+            -F draft=false > /dev/null
