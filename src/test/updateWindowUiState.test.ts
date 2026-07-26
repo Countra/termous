@@ -2,12 +2,18 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { UpdateWindowBootstrap } from '../../electron/updateWindow.ts'
 import type { UpdateSnapshot } from '../../electron/updateTypes.ts'
-import { primaryActionLabel, windowCopy } from '../features/update/updateWindowCopy.ts'
+import {
+  phaseDescription,
+  phaseTitle,
+  primaryActionLabel,
+  windowCopy,
+} from '../features/update/updateWindowCopy.ts'
 import {
   calculateUpdateEta,
   canPrepareUpdateInstall,
   formatUpdateBytes,
   formatUpdateDuration,
+  hasUpdateInstallInterruption,
   isInstallConfirmationCurrent,
   isUpdateWindowPrimaryActionBlocked,
   mergeUpdateWindowBootstrap,
@@ -370,7 +376,7 @@ test('安装确认在已下载和可重试安装错误状态保持有效', () =>
   }), false)
 })
 
-test('安装动作会根据活动任务明确提示关闭连接', () => {
+test('安装动作保持简洁，活动连接由状态区单独警告', () => {
   const text = windowCopy('zh-CN')
   const confirmation = {
     confirmation_token: 'token',
@@ -387,8 +393,9 @@ test('安装动作会根据活动任务明确提示关闭连接', () => {
     },
   }
 
-  assert.equal(primaryActionLabel('install', text, confirmation), '关闭连接并安装')
-  assert.equal(primaryActionLabel('retry_install', text, confirmation), '关闭连接并重试')
+  assert.equal(primaryActionLabel('install', text, confirmation), '安装并重新启动')
+  assert.equal(primaryActionLabel('retry_install', text, confirmation), '重试安装')
+  assert.equal(primaryActionLabel('install', text, null), '正在准备安装…')
   assert.equal(primaryActionLabel('install', text, {
     ...confirmation,
     summary: {
@@ -396,6 +403,29 @@ test('安装动作会根据活动任务明确提示关闭连接', () => {
       ssh_sessions: 0,
     },
   }), '安装并重新启动')
+  assert.equal(hasUpdateInstallInterruption(confirmation.summary), true)
+  assert.equal(hasUpdateInstallInterruption({
+    ssh_sessions: 0,
+    file_sessions: 0,
+    forwards: 0,
+    transfers: 0,
+    transfers_complete: true,
+  }), false)
+  assert.equal(hasUpdateInstallInterruption({
+    ssh_sessions: 0,
+    file_sessions: 0,
+    forwards: 0,
+    transfers: 0,
+    transfers_complete: false,
+  }), true)
+})
+
+test('下载完成状态直接展示准备安装且不附加确认说明', () => {
+  const text = windowCopy('zh-CN')
+  const downloaded = snapshot({ phase: 'downloaded' })
+
+  assert.equal(phaseTitle(downloaded, text), '准备安装')
+  assert.equal(phaseDescription(downloaded, text), null)
 })
 
 test('字节、速度 ETA 和长时长使用可读单位', () => {

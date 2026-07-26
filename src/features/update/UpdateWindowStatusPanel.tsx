@@ -1,21 +1,16 @@
-import type { ReactNode } from 'react'
 import {
   Alert,
   Button,
   Descriptions,
   Progress,
   Spin,
-  Statistic,
   Typography,
 } from 'antd'
 import {
   Check,
   CircleAlert,
   Download,
-  FolderOpen,
-  Network,
   RefreshCw,
-  Terminal,
 } from 'lucide-react'
 import type { UpdateInstallConfirmation } from '../../../electron/updateRuntime'
 import type { UpdateWindowLanguage } from '../../../electron/updateWindow'
@@ -25,7 +20,7 @@ import {
   canPrepareUpdateInstall,
   formatUpdateBytes,
   formatUpdateDuration,
-  summarizeRuntimeImpact,
+  hasUpdateInstallInterruption,
 } from './updateWindowUiState'
 import {
   errorCopy,
@@ -55,10 +50,12 @@ export function UpdateWindowStatusPanel({
   const percent = Math.min(100, Math.max(0, progress?.percent ?? 0))
   const eta = calculateUpdateEta(progress)
   const installConfirmationNeeded = canPrepareUpdateInstall(snapshot)
-  const showInstallImpact = installConfirmationNeeded && confirmation
-  const runtimeImpact = confirmation
-    ? summarizeRuntimeImpact(confirmation.summary)
-    : 0
+  const showInstallWarning = Boolean(
+    installConfirmationNeeded
+    && confirmation
+    && hasUpdateInstallInterruption(confirmation.summary),
+  )
+  const showConfirmationState = installConfirmationNeeded && !confirmation
   const isInstallFailure = (
     snapshot.phase === 'error'
     && (
@@ -106,14 +103,14 @@ export function UpdateWindowStatusPanel({
     <section
       className={[
         'update-window-status-panel',
-        showInstallImpact ? 'is-install-ready' : '',
-        !showInstallImpact && !showDownloadMetrics ? 'is-compact' : '',
+        showInstallWarning ? 'has-install-warning' : '',
+        !showInstallWarning && !showDownloadMetrics && !showConfirmationState ? 'is-compact' : '',
         !description ? 'is-title-only' : '',
       ].filter(Boolean).join(' ')}
     >
       <div className="update-window-status-heading">
         <span className={`update-window-status-icon is-${snapshot.phase}`} aria-hidden="true">
-          {phaseIcon(snapshot.phase)}
+          {phaseIcon(snapshot.phase, showInstallWarning)}
         </span>
         <div className="update-window-status-copy">
           <div className="update-window-status-title-row">
@@ -141,43 +138,13 @@ export function UpdateWindowStatusPanel({
         </div>
       </div>
 
-      {showInstallImpact ? (
-        <div className="update-window-impact">
-          <div className="update-window-impact-grid">
-            <Statistic
-              title={<ImpactLabel icon={<Terminal size={14} />} text={text.sshSessions} />}
-              value={confirmation.summary.ssh_sessions}
-            />
-            <Statistic
-              title={<ImpactLabel icon={<FolderOpen size={14} />} text={text.fileSessions} />}
-              value={confirmation.summary.file_sessions}
-            />
-            <Statistic
-              title={<ImpactLabel icon={<Network size={14} />} text={text.forwards} />}
-              value={confirmation.summary.forwards}
-            />
-            <Statistic
-              title={<ImpactLabel icon={<Download size={14} />} text={text.transfers} />}
-              value={confirmation.summary.transfers_complete
-                ? confirmation.summary.transfers
-                : text.unknownCount}
-            />
-          </div>
-          {!confirmation.summary.transfers_complete || runtimeImpact > 0 ? (
-            <Alert
-              className="update-window-impact-alert"
-              type="warning"
-              showIcon
-              title={!confirmation.summary.transfers_complete
-                ? text.transferSummaryIncomplete
-                : text.activeWorkWillClose}
-            />
-          ) : (
-            <Typography.Paragraph className="update-window-impact-note">
-              {text.noActiveWork}
-            </Typography.Paragraph>
-          )}
-        </div>
+      {showInstallWarning ? (
+        <Alert
+          className="update-window-install-warning"
+          type="warning"
+          showIcon
+          title={text.activeWorkWillClose}
+        />
       ) : showDownloadMetrics ? (
         <div className="update-window-download-progress">
           <Progress
@@ -231,7 +198,7 @@ export function UpdateWindowStatusPanel({
         </div>
       ) : null}
 
-      {installConfirmationNeeded && !confirmation ? (
+      {showConfirmationState ? (
         confirmationUnavailable ? (
           <Alert
             className="update-window-confirmation-alert"
@@ -257,7 +224,7 @@ export function UpdateWindowStatusPanel({
             aria-atomic="true"
           >
             <Spin size="small" />
-            {text.readingImpact}
+            {text.preparingInstallStatus}
           </span>
         )
       ) : null}
@@ -265,22 +232,13 @@ export function UpdateWindowStatusPanel({
   )
 }
 
-function ImpactLabel({
-  icon,
-  text,
-}: {
-  icon: ReactNode
-  text: string
-}) {
-  return (
-    <span className="update-window-impact-label">
-      <span aria-hidden="true">{icon}</span>
-      <span>{text}</span>
-    </span>
-  )
-}
-
-function phaseIcon(phase: UpdateSnapshot['phase']) {
+function phaseIcon(
+  phase: UpdateSnapshot['phase'],
+  installWarning = false,
+) {
+  if (installWarning) {
+    return <CircleAlert size={16} />
+  }
   if (phase === 'downloaded' || phase === 'up_to_date') {
     return <Check size={16} />
   }

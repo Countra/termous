@@ -192,6 +192,13 @@ export function summarizeRuntimeImpact(summary: UpdateRuntimeSummary) {
   )
 }
 
+export function hasUpdateInstallInterruption(summary: UpdateRuntimeSummary) {
+  return (
+    !summary.transfers_complete
+    || summarizeRuntimeImpact(summary) > 0
+  )
+}
+
 export function calculateUpdateEta(progress: UpdateProgress | null) {
   if (
     !progress

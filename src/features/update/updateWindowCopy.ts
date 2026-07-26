@@ -10,27 +10,17 @@ export function primaryActionLabel(
   text: UpdateWindowText,
   confirmation: UpdateInstallConfirmation | null,
 ) {
-  const requiresClose = Boolean(
-    confirmation
-    && (
-      !confirmation.summary.transfers_complete
-      || confirmation.summary.ssh_sessions
-        + confirmation.summary.file_sessions
-        + confirmation.summary.forwards
-        + confirmation.summary.transfers > 0
-    ),
-  )
   const labels: Record<UpdateWindowPrimaryAction, string> = {
     check: text.checkNow,
     download: text.startDownload,
     cancel: text.cancelDownload,
     install: confirmation
-      ? requiresClose ? text.closeAndInstall : text.installRestart
-      : text.readingImpact,
+      ? text.installRestart
+      : text.preparingInstallStatus,
     retry_download: text.retryDownload,
     retry_install: confirmation
-      ? requiresClose ? text.closeAndRetryInstall : text.retryInstall
-      : text.readingImpact,
+      ? text.retryInstall
+      : text.preparingInstallStatus,
     none: '',
   }
   return labels[action]
@@ -60,7 +50,7 @@ export function phaseDescription(snapshot: UpdateSnapshot, text: UpdateWindowTex
     up_to_date: text.upToDateDescription,
     available: null,
     downloading: text.downloadingDescription,
-    downloaded: text.downloadedDescription,
+    downloaded: null,
     preparing_install: text.preparingDescription,
     installing: text.installingDescription,
     error: text.errorDescription,
@@ -94,7 +84,7 @@ export function errorCopy(code: UpdateErrorCode | null, language: UpdateWindowLa
     UPDATE_HASH_MISMATCH: '更新包完整性校验失败',
     UPDATE_SIGNATURE_INVALID: '更新包签名校验失败',
     UPDATE_CORE_SHUTDOWN_FAILED: '核心服务未能安全退出，尚未安装更新',
-    UPDATE_INSTALL_SUMMARY_STALE: '运行状态已变化，请重新确认后安装',
+    UPDATE_INSTALL_SUMMARY_STALE: '运行状态已变化，请重新准备安装',
     UPDATE_INSTALL_START_FAILED: '无法启动更新安装程序',
   }
   const en: Record<UpdateErrorCode, string> = {
@@ -108,7 +98,7 @@ export function errorCopy(code: UpdateErrorCode | null, language: UpdateWindowLa
     UPDATE_HASH_MISMATCH: 'The update package failed its integrity check.',
     UPDATE_SIGNATURE_INVALID: 'The update package signature is invalid.',
     UPDATE_CORE_SHUTDOWN_FAILED: 'The core service did not exit safely. Nothing was installed.',
-    UPDATE_INSTALL_SUMMARY_STALE: 'App activity changed. Review it again before installing.',
+    UPDATE_INSTALL_SUMMARY_STALE: 'App activity changed. Prepare the installation again.',
     UPDATE_INSTALL_START_FAILED: 'The update installer could not be started.',
   }
   if (!code) {
@@ -138,16 +128,9 @@ export function windowCopy(language: UpdateWindowLanguage) {
       downloaded: 'Downloaded',
       speed: 'Speed',
       remaining: 'Remaining',
-      sshSessions: 'SSH',
-      fileSessions: 'SFTP',
-      forwards: 'Forwards',
-      transfers: 'Transfers',
-      unknownCount: 'Pending',
-      transferSummaryIncomplete: 'Transfer activity is still being verified. Installation will close all active work safely.',
-      activeWorkWillClose: 'Active connections and transfers will close before installation.',
-      noActiveWork: 'No active workspace tasks will be interrupted.',
-      readingImpact: 'Reading installation impact…',
-      summaryUnavailable: 'Could not read installation impact. Retry to continue.',
+      activeWorkWillClose: 'Installing will disconnect active connections, stop ongoing transfers, and restart Termous.',
+      preparingInstallStatus: 'Preparing installation…',
+      summaryUnavailable: 'Installation could not be prepared. Retry to continue.',
       retrySummary: 'Retry',
       unsupported: 'Update unavailable',
       ready: 'Ready',
@@ -164,7 +147,6 @@ export function windowCopy(language: UpdateWindowLanguage) {
       checkingDescription: 'Checking for available updates.',
       upToDateDescription: 'This is the latest available version.',
       downloadingDescription: 'You may close this window while the download continues.',
-      downloadedDescription: 'Review the impact, then install and restart.',
       preparingDescription: 'Closing active resources safely before installation.',
       installingDescription: 'Termous will close when the installer is ready.',
       errorDescription: 'No changes were made to the current installation.',
@@ -172,14 +154,12 @@ export function windowCopy(language: UpdateWindowLanguage) {
       startDownload: 'Start update',
       cancelDownload: 'Cancel download',
       installRestart: 'Install and restart',
-      closeAndInstall: 'Close connections and install',
       retryDownload: 'Retry download',
       retryInstall: 'Retry install',
-      closeAndRetryInstall: 'Close connections and retry',
       bridgeUnavailable: 'Update controls are unavailable in this environment.',
       bootstrapFailed: 'Could not load the update window state.',
-      prepareFailed: 'Could not prepare installation details. Try again.',
-      impactChanged: 'Active work changed. Review the latest impact before installing.',
+      prepareFailed: 'Could not prepare the installation. Try again.',
+      impactChanged: 'App activity changed. Prepare the installation again.',
       installFailed: 'The installer could not be started. Nothing was changed.',
       actionFailed: 'The update action failed. Try again.',
     }
@@ -203,16 +183,9 @@ export function windowCopy(language: UpdateWindowLanguage) {
     downloaded: '已下载',
     speed: '实时速度',
     remaining: '预计剩余',
-    sshSessions: 'SSH 会话',
-    fileSessions: 'SFTP 会话',
-    forwards: '端口转发',
-    transfers: '传输任务',
-    unknownCount: '待确认',
-    transferSummaryIncomplete: '仍在确认传输任务状态；安装时会继续安全关闭全部活动任务。',
-    activeWorkWillClose: '安装前将安全关闭正在进行的连接与传输。',
-    noActiveWork: '当前没有会被中断的工作区任务。',
-    readingImpact: '正在读取安装影响…',
-    summaryUnavailable: '暂时无法读取安装影响，请重试后继续。',
+    activeWorkWillClose: '安装将强制断开当前连接、停止正在进行的传输，并重新启动 Termous。',
+    preparingInstallStatus: '正在准备安装…',
+    summaryUnavailable: '暂时无法准备安装，请重试后继续。',
     retrySummary: '重试',
     unsupported: '当前环境不支持更新',
     ready: '已就绪',
@@ -220,7 +193,7 @@ export function windowCopy(language: UpdateWindowLanguage) {
     upToDate: '已是最新版本',
     readyToDownload: '有可用更新',
     downloading: '正在下载更新',
-    readyToInstall: '更新可以安装',
+    readyToInstall: '准备安装',
     preparingInstall: '正在准备安装',
     installing: '正在启动安装程序',
     updateFailed: '更新需要处理',
@@ -229,7 +202,6 @@ export function windowCopy(language: UpdateWindowLanguage) {
     checkingDescription: '正在检查可用更新。',
     upToDateDescription: '当前已经是最新可用版本。',
     downloadingDescription: '关闭此窗口不会中断后台下载。',
-    downloadedDescription: '确认安装影响后即可安装并重新启动。',
     preparingDescription: '正在安全关闭活动资源，为安装做准备。',
     installingDescription: '安装程序就绪后 Termous 将自动关闭。',
     errorDescription: '当前安装未发生任何更改。',
@@ -237,14 +209,12 @@ export function windowCopy(language: UpdateWindowLanguage) {
     startDownload: '立即更新',
     cancelDownload: '取消下载',
     installRestart: '安装并重新启动',
-    closeAndInstall: '关闭连接并安装',
     retryDownload: '重新下载',
     retryInstall: '重试安装',
-    closeAndRetryInstall: '关闭连接并重试',
     bridgeUnavailable: '当前环境无法使用更新控制功能。',
     bootstrapFailed: '无法读取更新窗口状态。',
-    prepareFailed: '无法读取安装影响，请重试。',
-    impactChanged: '活动任务已变化，请确认最新影响后再次安装。',
+    prepareFailed: '暂时无法准备安装，请重试。',
+    impactChanged: '活动状态已变化，请重新准备安装。',
     installFailed: '无法启动安装程序，当前安装未发生更改。',
     actionFailed: '更新操作失败，请重试。',
   }
