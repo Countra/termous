@@ -7,7 +7,7 @@ import type {
 } from '../types/domain.ts'
 import { buildUpdateRuntimeSummary } from '../features/update/updateRuntimeSummary.ts'
 
-test('更新安装影响摘要只统计仍在运行的远程资源', () => {
+test('更新安装影响摘要统计仍会被退出流程中断的远程资源', () => {
   const sessions = [
     { kind: 'ssh', status: 'connecting' },
     { kind: 'ssh', status: 'connected' },
@@ -22,6 +22,7 @@ test('更新安装影响摘要只统计仍在运行的远程资源', () => {
   ] as FileSession[]
   const forwards = [
     { status: 'starting' },
+    { status: 'waiting_host_trust' },
     { status: 'running' },
     { status: 'stopping' },
   ] as ForwardInstance[]
@@ -35,7 +36,7 @@ test('更新安装影响摘要只统计仍在运行的远程资源', () => {
   }), {
     ssh_sessions: 2,
     file_sessions: 3,
-    forwards: 1,
+    forwards: 4,
     transfers: 4,
     transfers_complete: true,
   })

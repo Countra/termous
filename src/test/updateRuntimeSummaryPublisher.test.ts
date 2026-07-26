@@ -70,6 +70,240 @@ test('在途发送期间的新摘要最终覆盖旧摘要', async () => {
   publisher.dispose()
 })
 
+test('心跳会重发未变化的摘要且释放后停止发送', async () => {
+  const scheduler = new ManualScheduler()
+  const sent: UpdateRuntimeSummary[] = []
+  const publisher = new UpdateRuntimeSummaryPublisher(async (value) => {
+    sent.push(value)
+  }, scheduler)
+
+  publisher.publish(summary({ ssh_sessions: 1 }))
+  await flushPromises()
+  publisher.refresh()
+  await flushPromises()
+  assert.equal(sent.length, 2)
+
+  publisher.dispose()
+  publisher.refresh()
+  await flushPromises()
+  assert.equal(sent.length, 2)
+})
+
+test('主动刷新会取消旧退避并立即携带请求标识发送', async () => {
+  const scheduler = new ManualScheduler()
+  const sent: Array<{ requestId?: string }> = []
+  let fail = true
+  const publisher = new UpdateRuntimeSummaryPublisher(async (_value, requestId) => {
+    sent.push({ requestId })
+    if (fail) {
+      throw new Error('temporary_failure')
+    }
+  }, scheduler)
+
+  publisher.publish(summary({ ssh_sessions: 1 }))
+  await flushPromises()
+  assert.equal(scheduler.size, 1)
+
+  fail = false
+  publisher.refresh('request-current')
+  await flushPromises()
+  assert.equal(scheduler.size, 0)
+  assert.deepEqual(sent, [
+    { requestId: undefined },
+    { requestId: 'request-current' },
+  ])
+  publisher.dispose()
+})
+
+test('在途发送失败后优先补发主动刷新且不进入旧退避', async () => {
+  const scheduler = new ManualScheduler()
+  const attempts: Array<{
+    reject: (error: Error) => void
+    requestId?: string
+    resolve: () => void
+  }> = []
+  const publisher = new UpdateRuntimeSummaryPublisher((_value, requestId) => (
+    new Promise<void>((resolve, reject) => {
+      attempts.push({ reject, requestId, resolve })
+    })
+  ), scheduler)
+
+  publisher.publish(summary({ ssh_sessions: 1 }))
+  publisher.refresh('request-current')
+  assert.equal(attempts.length, 1)
+  attempts[0]?.reject(new Error('temporary_failure'))
+  await flushPromises()
+
+  assert.equal(scheduler.size, 0)
+  assert.equal(attempts.length, 2)
+  assert.equal(attempts[1]?.requestId, 'request-current')
+  attempts[1]?.resolve()
+  await flushPromises()
+  publisher.dispose()
+})
+
+test('主动刷新在途时普通心跳不会丢失请求标识', async () => {
+  const scheduler = new ManualScheduler()
+  const attempts: Array<{
+    reject: (error: Error) => void
+    requestId?: string
+    resolve: () => void
+  }> = []
+  const publisher = new UpdateRuntimeSummaryPublisher((_value, requestId) => (
+    new Promise<void>((resolve, reject) => {
+      attempts.push({ reject, requestId, resolve })
+    })
+  ), scheduler)
+
+  publisher.publish(summary({ ssh_sessions: 1 }))
+  publisher.refresh('request-current')
+  attempts[0]?.resolve()
+  await flushPromises()
+  assert.equal(attempts[1]?.requestId, 'request-current')
+
+  publisher.refresh()
+  attempts[1]?.reject(new Error('temporary_failure'))
+  await flushPromises()
+  assert.equal(scheduler.size, 0)
+  assert.equal(attempts[2]?.requestId, 'request-current')
+  attempts[2]?.resolve()
+  await flushPromises()
+  publisher.dispose()
+})
+
+test('主动刷新在途时摘要变化会用同一请求标识补发最新内容', async () => {
+  const scheduler = new ManualScheduler()
+  const attempts: Array<{
+    reject: (error: Error) => void
+    requestId?: string
+    resolve: () => void
+    sshSessions: number
+  }> = []
+  const publisher = new UpdateRuntimeSummaryPublisher((value, requestId) => (
+    new Promise<void>((resolve, reject) => {
+      attempts.push({
+        reject,
+        requestId,
+        resolve,
+        sshSessions: value.ssh_sessions,
+      })
+    })
+  ), scheduler)
+
+  publisher.publish(summary({ ssh_sessions: 1 }))
+  publisher.refresh('request-current')
+  attempts[0]?.resolve()
+  await flushPromises()
+  assert.equal(attempts[1]?.requestId, 'request-current')
+
+  publisher.publish(summary({ ssh_sessions: 2 }))
+  attempts[1]?.reject(new Error('temporary_failure'))
+  await flushPromises()
+  assert.equal(scheduler.size, 0)
+  assert.equal(attempts[2]?.requestId, 'request-current')
+  assert.equal(attempts[2]?.sshSessions, 2)
+  attempts[2]?.resolve()
+  await flushPromises()
+  publisher.dispose()
+})
+
+test('主动刷新成功后将排队的新摘要作为普通心跳提交', async () => {
+  const scheduler = new ManualScheduler()
+  const attempts: Array<{
+    requestId?: string
+    resolve: () => void
+    sshSessions: number
+  }> = []
+  const publisher = new UpdateRuntimeSummaryPublisher((value, requestId) => (
+    new Promise<void>((resolve) => {
+      attempts.push({
+        requestId,
+        resolve,
+        sshSessions: value.ssh_sessions,
+      })
+    })
+  ), scheduler)
+
+  publisher.publish(summary({ ssh_sessions: 1 }))
+  publisher.refresh('request-current')
+  attempts[0]?.resolve()
+  await flushPromises()
+  assert.equal(attempts[1]?.requestId, 'request-current')
+
+  publisher.publish(summary({ ssh_sessions: 2 }))
+  attempts[1]?.resolve()
+  await flushPromises()
+  assert.equal(attempts[2]?.requestId, undefined)
+  assert.equal(attempts[2]?.sshSessions, 2)
+  attempts[2]?.resolve()
+  await flushPromises()
+  publisher.dispose()
+})
+
+test('主动刷新失败后按退避重试并保留请求标识', async () => {
+  const scheduler = new ManualScheduler()
+  const sentRequestIds: Array<string | undefined> = []
+  let fail = false
+  const publisher = new UpdateRuntimeSummaryPublisher(async (_value, requestId) => {
+    sentRequestIds.push(requestId)
+    if (fail) {
+      throw new Error('temporary_failure')
+    }
+  }, scheduler)
+
+  publisher.publish(summary({ ssh_sessions: 1 }))
+  await flushPromises()
+  fail = true
+  publisher.refresh('request-current')
+  await flushPromises()
+  assert.equal(scheduler.size, 1)
+
+  fail = false
+  scheduler.runNext()
+  await flushPromises()
+  assert.deepEqual(sentRequestIds, [
+    undefined,
+    'request-current',
+    'request-current',
+  ])
+  publisher.dispose()
+})
+
+test('主动刷新退避期间摘要变化会立即发送最新内容并保留请求标识', async () => {
+  const scheduler = new ManualScheduler()
+  const sent: Array<{
+    requestId?: string
+    sshSessions: number
+  }> = []
+  let fail = false
+  const publisher = new UpdateRuntimeSummaryPublisher(async (value, requestId) => {
+    sent.push({
+      requestId,
+      sshSessions: value.ssh_sessions,
+    })
+    if (fail) {
+      throw new Error('temporary_failure')
+    }
+  }, scheduler)
+
+  publisher.publish(summary({ ssh_sessions: 1 }))
+  await flushPromises()
+  fail = true
+  publisher.refresh('request-current')
+  await flushPromises()
+  assert.equal(scheduler.size, 1)
+
+  fail = false
+  publisher.publish(summary({ ssh_sessions: 2 }))
+  await flushPromises()
+  assert.equal(scheduler.size, 0)
+  assert.deepEqual(sent[sent.length - 1], {
+    requestId: 'request-current',
+    sshSessions: 2,
+  })
+  publisher.dispose()
+})
+
 test('摘要签名包含完整性状态且重试时限存在上限', () => {
   assert.notEqual(
     runtimeSummarySignature(summary({ transfers_complete: true })),

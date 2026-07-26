@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react'
 import {
+  Alert,
   Button,
   Descriptions,
   Progress,
+  Spin,
+  Statistic,
   Typography,
 } from 'antd'
 import {
@@ -10,7 +13,6 @@ import {
   CircleAlert,
   Download,
   FolderOpen,
-  LoaderCircle,
   Network,
   RefreshCw,
   Terminal,
@@ -54,8 +56,20 @@ export function UpdateWindowStatusPanel({
   const eta = calculateUpdateEta(progress)
   const installConfirmationNeeded = canPrepareUpdateInstall(snapshot)
   const showInstallImpact = installConfirmationNeeded && confirmation
+  const runtimeImpact = confirmation
+    ? summarizeRuntimeImpact(confirmation.summary)
+    : 0
+  const isInstallFailure = (
+    snapshot.phase === 'error'
+    && (
+      snapshot.error_code === 'UPDATE_CORE_SHUTDOWN_FAILED'
+      || snapshot.error_code === 'UPDATE_INSTALL_SUMMARY_STALE'
+      || snapshot.error_code === 'UPDATE_INSTALL_START_FAILED'
+    )
+  )
   const showDownloadMetrics = Boolean(
     progress
+    && !isInstallFailure
     && (
       snapshot.phase === 'downloading'
       || snapshot.phase === 'error'
@@ -68,9 +82,24 @@ export function UpdateWindowStatusPanel({
     ? 'exception'
     : snapshot.phase === 'downloaded'
       ? 'success'
-      : snapshot.phase === 'downloading'
-        ? 'active'
-        : 'normal'
+        : snapshot.phase === 'downloading'
+          ? 'active'
+          : 'normal'
+
+  if (snapshot.phase === 'unsupported') {
+    return (
+      <section className="update-window-status-panel is-unsupported">
+        <Alert
+          className="update-window-unsupported-alert"
+          type="warning"
+          variant="filled"
+          showIcon
+          title={phaseTitle(snapshot, text)}
+          description={phaseDescription(snapshot, text)}
+        />
+      </section>
+    )
+  }
 
   return (
     <section
@@ -84,8 +113,15 @@ export function UpdateWindowStatusPanel({
         <span className={`update-window-status-icon is-${snapshot.phase}`} aria-hidden="true">
           {phaseIcon(snapshot.phase)}
         </span>
-        <div>
-          <Typography.Text strong>{phaseTitle(snapshot, text)}</Typography.Text>
+        <div className="update-window-status-copy">
+          <div className="update-window-status-title-row">
+            <Typography.Title level={3}>{phaseTitle(snapshot, text)}</Typography.Title>
+            {showDownloadMetrics ? (
+              <Typography.Text className="update-window-progress-percent">
+                {Math.round(percent)}%
+              </Typography.Text>
+            ) : null}
+          </div>
           <Typography.Text
             type="secondary"
             aria-live="polite"
@@ -98,47 +134,40 @@ export function UpdateWindowStatusPanel({
 
       {showInstallImpact ? (
         <div className="update-window-impact">
-          <Descriptions
-            className="update-window-impact-grid"
-            size="small"
-            colon={false}
-            column={{ xs: 2, sm: 4 }}
-            items={[
-              {
-                key: 'ssh',
-                label: <ImpactLabel icon={<Terminal size={14} />} text={text.sshSessions} />,
-                children: <Typography.Text strong>{confirmation.summary.ssh_sessions}</Typography.Text>,
-              },
-              {
-                key: 'sftp',
-                label: <ImpactLabel icon={<FolderOpen size={14} />} text={text.fileSessions} />,
-                children: <Typography.Text strong>{confirmation.summary.file_sessions}</Typography.Text>,
-              },
-              {
-                key: 'forwards',
-                label: <ImpactLabel icon={<Network size={14} />} text={text.forwards} />,
-                children: <Typography.Text strong>{confirmation.summary.forwards}</Typography.Text>,
-              },
-              {
-                key: 'transfers',
-                label: <ImpactLabel icon={<Download size={14} />} text={text.transfers} />,
-                children: (
-                  <Typography.Text strong>
-                    {confirmation.summary.transfers_complete
-                      ? confirmation.summary.transfers
-                      : text.unknownCount}
-                  </Typography.Text>
-                ),
-              },
-            ]}
-          />
-          <Typography.Paragraph className="update-window-impact-note">
-            {!confirmation.summary.transfers_complete
-              ? text.transferSummaryIncomplete
-              : summarizeRuntimeImpact(confirmation.summary) > 0
-                ? text.activeWorkWillClose
-                : text.noActiveWork}
-          </Typography.Paragraph>
+          <div className="update-window-impact-grid">
+            <Statistic
+              title={<ImpactLabel icon={<Terminal size={14} />} text={text.sshSessions} />}
+              value={confirmation.summary.ssh_sessions}
+            />
+            <Statistic
+              title={<ImpactLabel icon={<FolderOpen size={14} />} text={text.fileSessions} />}
+              value={confirmation.summary.file_sessions}
+            />
+            <Statistic
+              title={<ImpactLabel icon={<Network size={14} />} text={text.forwards} />}
+              value={confirmation.summary.forwards}
+            />
+            <Statistic
+              title={<ImpactLabel icon={<Download size={14} />} text={text.transfers} />}
+              value={confirmation.summary.transfers_complete
+                ? confirmation.summary.transfers
+                : text.unknownCount}
+            />
+          </div>
+          {!confirmation.summary.transfers_complete || runtimeImpact > 0 ? (
+            <Alert
+              className="update-window-impact-alert"
+              type="warning"
+              showIcon
+              title={!confirmation.summary.transfers_complete
+                ? text.transferSummaryIncomplete
+                : text.activeWorkWillClose}
+            />
+          ) : (
+            <Typography.Paragraph className="update-window-impact-note">
+              {text.noActiveWork}
+            </Typography.Paragraph>
+          )}
         </div>
       ) : showDownloadMetrics ? (
         <div className="update-window-download-progress">
@@ -194,11 +223,13 @@ export function UpdateWindowStatusPanel({
       ) : null}
 
       {installConfirmationNeeded && !confirmation ? (
-        <span className="update-window-confirmation-status">
-          {confirmationUnavailable ? (
-            <>
-              <CircleAlert size={13} aria-hidden="true" />
-              <span>{text.summaryUnavailable}</span>
+        confirmationUnavailable ? (
+          <Alert
+            className="update-window-confirmation-alert"
+            type="warning"
+            showIcon
+            title={text.summaryUnavailable}
+            action={(
               <Button
                 type="link"
                 size="small"
@@ -207,14 +238,19 @@ export function UpdateWindowStatusPanel({
               >
                 {text.retrySummary}
               </Button>
-            </>
-          ) : (
-            <>
-              <LoaderCircle className="is-spinning" size={13} aria-hidden="true" />
-              {text.readingImpact}
-            </>
-          )}
-        </span>
+            )}
+          />
+        ) : (
+          <span
+            className="update-window-confirmation-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <Spin size="small" />
+            {text.readingImpact}
+          </span>
+        )
       ) : null}
     </section>
   )
@@ -243,7 +279,7 @@ function phaseIcon(phase: UpdateSnapshot['phase']) {
     return <CircleAlert size={16} />
   }
   if (phase === 'checking' || phase === 'preparing_install' || phase === 'installing') {
-    return <LoaderCircle className="is-spinning" size={16} />
+    return <Spin size="small" />
   }
   if (phase === 'downloading') {
     return <Download size={16} />

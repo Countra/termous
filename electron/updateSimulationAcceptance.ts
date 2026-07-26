@@ -1,8 +1,9 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import {
   realpath,
   rename,
+  rm,
   stat,
   writeFile,
 } from 'node:fs/promises'
@@ -218,9 +219,21 @@ export async function writeUpdateSimulationReport(
   report: UpdateSimulationAcceptanceReport,
 ) {
   const target = path.join(root, reportFileName)
-  const temporary = `${target}.tmp`
-  await writeFile(temporary, `${JSON.stringify(report, null, 2)}\n`, 'utf8')
-  await rename(temporary, target)
+  const temporary = `${target}.tmp-${process.pid}-${randomUUID()}`
+  try {
+    await writeFile(
+      temporary,
+      `${JSON.stringify(report, null, 2)}\n`,
+      {
+        encoding: 'utf8',
+        flag: 'wx',
+      },
+    )
+    await rename(temporary, target)
+  } finally {
+    // 仅清理本次写入生成的唯一临时文件，不触碰模拟目录中的其他内容。
+    await rm(temporary, { force: true })
+  }
 }
 
 async function verifyWindowReopen(

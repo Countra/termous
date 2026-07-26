@@ -3,12 +3,21 @@ import { EventEmitter } from 'node:events'
 import test from 'node:test'
 import { AsyncSingleflight } from '../../electron/asyncSingleflight.ts'
 import {
+  clearObservedChildProcess,
   waitForChildProcessExit,
   type ChildProcessExitObservable,
 } from '../../electron/childProcessLifecycle.ts'
 
 class FakeChildProcess extends EventEmitter implements ChildProcessExitObservable {
   exitCode: number | null = null
+  signalCode: NodeJS.Signals | null = null
+  onExitListenerAttached: (() => void) | null = null
+
+  override once(event: 'exit', listener: () => void) {
+    const result = super.once(event, listener)
+    this.onExitListenerAttached?.()
+    return result
+  }
 
   exit(code = 0) {
     this.exitCode = code
@@ -51,6 +60,34 @@ test('已经退出的进程不注册额外监听器', async () => {
 
   assert.equal(await waitForChildProcessExit(child, 1000), true)
   assert.equal(child.listenerCount('exit'), 0)
+})
+
+test('信号退出以及监听注册竞态都能识别终态', async () => {
+  const alreadyExited = new FakeChildProcess()
+  alreadyExited.signalCode = 'SIGTERM'
+  assert.equal(await waitForChildProcessExit(alreadyExited, 1000), true)
+  assert.equal(alreadyExited.listenerCount('exit'), 0)
+
+  const racedExit = new FakeChildProcess()
+  racedExit.onExitListenerAttached = () => {
+    racedExit.signalCode = 'SIGKILL'
+  }
+  assert.equal(await waitForChildProcessExit(racedExit, 1000), true)
+  assert.equal(racedExit.listenerCount('exit'), 0)
+})
+
+test('旧进程迟到退出时不会清除已经替换的新进程引用', () => {
+  const oldChild = new FakeChildProcess()
+  const replacement = new FakeChildProcess()
+
+  assert.equal(
+    clearObservedChildProcess(replacement, oldChild),
+    replacement,
+  )
+  assert.equal(
+    clearObservedChildProcess(oldChild, oldChild),
+    null,
+  )
 })
 
 test('异步 singleflight 复用进行中 Promise 并在终态后释放', async () => {

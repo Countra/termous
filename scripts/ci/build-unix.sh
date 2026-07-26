@@ -21,16 +21,6 @@ normalize_output_directory() {
   node -e 'process.stdout.write(require("node:path").resolve(process.argv[1]))' "$target"
 }
 
-reset_directory() {
-  local target="$1"
-  if [[ -z "$target" || "$target" == "/" ]]; then
-    echo "拒绝清理不安全的目录: $target" >&2
-    return 1
-  fi
-  rm -rf -- "$target"
-  mkdir -p -- "$target"
-}
-
 assert_child_directory() {
   local target="$1"
   local root="$2"
@@ -42,6 +32,44 @@ assert_child_directory() {
       return 1
       ;;
   esac
+}
+
+require_ordinary_directory() {
+  local target="$1"
+  local name="$2"
+  if [[ ! -d "$target" || -L "$target" ]]; then
+    echo "$name 不存在、不是普通目录或属于符号链接: $target" >&2
+    return 1
+  fi
+  local resolved
+  resolved="$(cd "$target" && pwd -P)"
+  local absolute
+  absolute="$(normalize_output_directory "$target")"
+  if [[ "$resolved" != "$absolute" ]]; then
+    echo "$name 不能包含符号链接或路径别名: $target" >&2
+    return 1
+  fi
+}
+
+prepare_core_output_directory() {
+  local build_root="$1"
+  local output_directory="$2"
+  require_ordinary_directory "$build_root" "Web 构建资源目录"
+  if [[ -e "$output_directory" || -L "$output_directory" ]]; then
+    require_ordinary_directory "$output_directory" "Core 输出目录"
+  else
+    mkdir -- "$output_directory"
+    require_ordinary_directory "$output_directory" "Core 输出目录"
+  fi
+  local binary_name
+  for binary_name in termous-core.exe termous-core; do
+    local binary_path="$output_directory/$binary_name"
+    if [[ -d "$binary_path" ]]; then
+      echo "Core 输出文件不能是目录: $binary_path" >&2
+      return 1
+    fi
+    rm -f -- "$binary_path"
+  done
 }
 
 run_step() {
@@ -173,7 +201,7 @@ export VITE_TERMOUS_APP_VERSION="$version"
 clear_publish_credentials
 
 if [[ "$build_phase" == "all" || "$build_phase" == "prepare" ]]; then
-  reset_directory "$core_output_dir"
+  prepare_core_output_directory "$web_dir/build" "$core_output_dir"
   export CGO_ENABLED=1
   export GOOS="$goos"
   export GOARCH="$goarch"
@@ -208,7 +236,6 @@ if [[ "$build_phase" == "all" || "$build_phase" == "package" ]]; then
     fi
   done
 
-  reset_directory "$installer_dir"
   run_step "Build $target_os package" "$web_dir" node \
     scripts/ci/build-local-package.mjs \
     --output "$installer_dir" \

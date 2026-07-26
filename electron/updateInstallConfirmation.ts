@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { UpdateSnapshot } from './updateTypes'
 
 const defaultConfirmationTtlMs = 2 * 60 * 1000
+const defaultSummaryFreshnessTtlMs = 45 * 1000
 
 export interface UpdateRuntimeSummary {
   ssh_sessions: number
@@ -33,14 +34,17 @@ interface UpdateInstallConfirmationAuthorityOptions {
   now?: () => number
   randomToken?: () => string
   ttlMs?: number
+  summaryTtlMs?: number
 }
 
 export class UpdateInstallConfirmationAuthority {
   private readonly now: () => number
   private readonly randomToken: () => string
   private readonly ttlMs: number
+  private readonly summaryTtlMs: number
   private summary = emptyRuntimeSummary()
   private summaryReady = false
+  private summaryUpdatedAtMs: number | null = null
   private summaryRevision = 0
   private pending: PendingInstallConfirmation | null = null
 
@@ -48,28 +52,51 @@ export class UpdateInstallConfirmationAuthority {
     this.now = options.now ?? Date.now
     this.randomToken = options.randomToken ?? randomUUID
     this.ttlMs = normalizeTtl(options.ttlMs)
+    this.summaryTtlMs = normalizeSummaryTtl(options.summaryTtlMs)
   }
 
   updateSummary(value: unknown) {
     const next = normalizeRuntimeSummary(value)
-    if (!runtimeSummariesEqual(this.summary, next)) {
+    const reportExpired = (
+      this.summaryUpdatedAtMs !== null
+      && !this.isSummaryReportFresh()
+    )
+    if (reportExpired || !runtimeSummariesEqual(this.summary, next)) {
       this.summary = next
       this.summaryRevision += 1
       this.pending = null
     }
     this.summaryReady = next.transfers_complete
+    this.summaryUpdatedAtMs = this.now()
     return { ...this.summary }
   }
 
   getSummaryState(): UpdateInstallSummaryState {
     return {
       revision: this.summaryRevision,
-      ready: this.summaryReady,
+      ready: this.isSummaryFresh(),
     }
   }
 
+  getSummaryExpiresAt() {
+    return this.summaryUpdatedAtMs === null
+      ? null
+      : this.summaryUpdatedAtMs + this.summaryTtlMs
+  }
+
+  invalidateSummary() {
+    const hadSummary = this.summaryUpdatedAtMs !== null
+    this.summaryReady = false
+    this.summaryUpdatedAtMs = null
+    this.pending = null
+    if (hadSummary) {
+      this.summaryRevision += 1
+    }
+    return this.getSummaryState()
+  }
+
   issue(snapshot: UpdateSnapshot): UpdateInstallConfirmation {
-    if (!isInstallConfirmationState(snapshot) || !this.summaryReady) {
+    if (!isInstallConfirmationState(snapshot) || !this.isSummaryFresh()) {
       throw new Error('update_install_not_ready')
     }
     const now = this.now()
@@ -97,9 +124,21 @@ export class UpdateInstallConfirmationAuthority {
       || confirmation.state_seq !== snapshot.state_seq
       || confirmation.operation_generation !== snapshot.operation_generation
       || confirmation.summary_revision !== this.summaryRevision
+      || !this.isSummaryFresh()
       || !isInstallConfirmationState(snapshot)
     ) {
       throw new Error('update_install_confirmation_invalid')
+    }
+    return publicConfirmation(confirmation)
+  }
+
+  assertSummaryRevisionCurrent(revision: number) {
+    if (
+      !Number.isSafeInteger(revision)
+      || revision !== this.summaryRevision
+      || !this.isSummaryFresh()
+    ) {
+      throw new Error('update_install_summary_stale')
     }
   }
 
@@ -119,6 +158,20 @@ export class UpdateInstallConfirmationAuthority {
   clear() {
     this.pending = null
   }
+
+  private isSummaryFresh() {
+    return (
+      this.summaryReady
+      && this.isSummaryReportFresh()
+    )
+  }
+
+  private isSummaryReportFresh() {
+    return (
+      this.summaryUpdatedAtMs !== null
+      && this.summaryUpdatedAtMs + this.summaryTtlMs > this.now()
+    )
+  }
 }
 
 function isInstallConfirmationState(snapshot: UpdateSnapshot) {
@@ -129,6 +182,7 @@ function isInstallConfirmationState(snapshot: UpdateSnapshot) {
       && snapshot.retryable
       && (
         snapshot.error_code === 'UPDATE_CORE_SHUTDOWN_FAILED'
+        || snapshot.error_code === 'UPDATE_INSTALL_SUMMARY_STALE'
         || snapshot.error_code === 'UPDATE_INSTALL_START_FAILED'
       )
     )
@@ -194,4 +248,10 @@ function normalizeTtl(value: number | undefined) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
     ? value
     : defaultConfirmationTtlMs
+}
+
+function normalizeSummaryTtl(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : defaultSummaryFreshnessTtlMs
 }

@@ -121,17 +121,26 @@
   flex: 1;
   min-width: 0;
   align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
 }
 
 .brand-copy strong {
   overflow: hidden;
   font-size: 14px;
   letter-spacing: 0;
+  line-height: 1.05;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .app-shell.is-collapsed .brand-copy {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.app-shell.is-collapsed .brand-copy strong {
   display: none;
 }
 

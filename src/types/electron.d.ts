@@ -17,6 +17,10 @@ import type {
   UpdateSnapshot,
 } from '../../electron/updateManager'
 import type { UpdateRuntimeSummary } from '../../electron/updateRuntime'
+import type {
+  UpdateRuntimeSummaryRefreshRequest,
+  UpdateRuntimeSummaryReportContext,
+} from '../../electron/updateRuntimeSummaryRefresh'
 
 interface SSHPrivateKeySelectionResult {
   canceled: boolean
@@ -90,7 +94,13 @@ declare global {
         getPreferences: () => Promise<UpdatePreferences>
         setPreferences: (patch: UpdatePreferencesPatch) => Promise<UpdatePreferences>
         openWindow: () => Promise<boolean>
-        reportRuntimeSummary: (summary: UpdateRuntimeSummary) => Promise<UpdateRuntimeSummary>
+        reportRuntimeSummary: (
+          summary: UpdateRuntimeSummary,
+          context?: UpdateRuntimeSummaryReportContext,
+        ) => Promise<UpdateRuntimeSummary>
+        onRuntimeSummaryRequested: (
+          callback: (request: UpdateRuntimeSummaryRefreshRequest) => void,
+        ) => () => void
         subscribe: (callback: (snapshot: UpdateSnapshot) => void) => () => void
       }
       sshKeys?: {

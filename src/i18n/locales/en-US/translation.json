@@ -88,6 +88,7 @@
       "UPDATE_HASH_MISMATCH": "The update package failed its integrity check",
       "UPDATE_SIGNATURE_INVALID": "The update package signature is invalid",
       "UPDATE_CORE_SHUTDOWN_FAILED": "The core service could not be stopped safely",
+      "UPDATE_INSTALL_SUMMARY_STALE": "App activity changed; review it again before installing",
       "UPDATE_INSTALL_START_FAILED": "The update installer could not be started",
       "unknown": "The update needs your attention"
     }

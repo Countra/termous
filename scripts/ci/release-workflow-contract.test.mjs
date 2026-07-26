@@ -5,6 +5,8 @@ import test from "node:test";
 import { parseDocument } from "yaml";
 
 const workflowUrl = new URL("../../.github/workflows/release.yml", import.meta.url);
+const windowsBuildScriptUrl = new URL("./build-windows.ps1", import.meta.url);
+const unixBuildScriptUrl = new URL("./build-unix.sh", import.meta.url);
 
 async function loadWorkflow() {
   const source = await readFile(workflowUrl, "utf8");
@@ -51,6 +53,22 @@ test("Release workflow 不使用 Artifact Storage 或持久发布凭据", async 
   ]) {
     assert.equal(source.includes(forbidden), false, `禁止出现 ${forbidden}`);
   }
+});
+
+test("平台构建包装器把安装目录清理交给安全打包入口", async () => {
+  const [windowsSource, unixSource] = await Promise.all([
+    readFile(windowsBuildScriptUrl, "utf8"),
+    readFile(unixBuildScriptUrl, "utf8"),
+  ]);
+
+  assert.doesNotMatch(windowsSource, /Reset-Directory\s+-Path\s+\$installerDir/u);
+  assert.doesNotMatch(unixSource, /reset_directory\s+"\$installer_dir"/u);
+  assert.match(windowsSource, /node[\s\S]*scripts\/ci\/build-local-package\.mjs/u);
+  assert.match(unixSource, /node\s+\\[\s\S]*scripts\/ci\/build-local-package\.mjs/u);
+  assert.match(windowsSource, /Prepare-CoreOutputDirectory/u);
+  assert.match(unixSource, /prepare_core_output_directory/u);
+  assert.match(windowsSource, /@\("termous-core\.exe", "termous-core"\)/u);
+  assert.match(unixSource, /termous-core\.exe termous-core/u);
 });
 
 test("全部 Actions 固定完整 SHA 并标注版本", async () => {

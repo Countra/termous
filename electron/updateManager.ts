@@ -43,6 +43,7 @@ const safeErrorMessages: Record<UpdateErrorCode, string> = {
   UPDATE_HASH_MISMATCH: '更新包完整性校验失败',
   UPDATE_SIGNATURE_INVALID: '更新包签名校验失败',
   UPDATE_CORE_SHUTDOWN_FAILED: '核心服务未能安全退出，更新尚未安装',
+  UPDATE_INSTALL_SUMMARY_STALE: '运行状态已变化，请重新确认后安装',
   UPDATE_INSTALL_START_FAILED: '无法启动更新安装程序',
 }
 
@@ -606,6 +607,7 @@ function canStartDownload(snapshot: UpdateSnapshot) {
       snapshot.phase === 'error'
       && snapshot.retryable
       && snapshot.error_code !== 'UPDATE_CORE_SHUTDOWN_FAILED'
+      && snapshot.error_code !== 'UPDATE_INSTALL_SUMMARY_STALE'
       && snapshot.error_code !== 'UPDATE_INSTALL_START_FAILED'
     )
   )
@@ -619,6 +621,7 @@ function canStartInstall(snapshot: UpdateSnapshot) {
       && snapshot.retryable
       && (
         snapshot.error_code === 'UPDATE_CORE_SHUTDOWN_FAILED'
+        || snapshot.error_code === 'UPDATE_INSTALL_SUMMARY_STALE'
         || snapshot.error_code === 'UPDATE_INSTALL_START_FAILED'
       )
     )

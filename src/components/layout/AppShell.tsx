@@ -104,11 +104,11 @@ export function AppShell({
           </div>
           <div className="brand-copy">
             <strong>{t('app.name')}</strong>
+            <BrandVersionControl
+              appVersion={appVersion}
+              collapsed={sidebarCollapsed}
+            />
           </div>
-          <BrandVersionControl
-            appVersion={appVersion}
-            collapsed={sidebarCollapsed}
-          />
         </div>
         <nav className="primary-nav">
           {navItems.map((item) => {

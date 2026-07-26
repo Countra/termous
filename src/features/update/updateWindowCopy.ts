@@ -94,6 +94,7 @@ export function errorCopy(code: UpdateErrorCode | null, language: UpdateWindowLa
     UPDATE_HASH_MISMATCH: '更新包完整性校验失败',
     UPDATE_SIGNATURE_INVALID: '更新包签名校验失败',
     UPDATE_CORE_SHUTDOWN_FAILED: '核心服务未能安全退出，尚未安装更新',
+    UPDATE_INSTALL_SUMMARY_STALE: '运行状态已变化，请重新确认后安装',
     UPDATE_INSTALL_START_FAILED: '无法启动更新安装程序',
   }
   const en: Record<UpdateErrorCode, string> = {
@@ -107,6 +108,7 @@ export function errorCopy(code: UpdateErrorCode | null, language: UpdateWindowLa
     UPDATE_HASH_MISMATCH: 'The update package failed its integrity check.',
     UPDATE_SIGNATURE_INVALID: 'The update package signature is invalid.',
     UPDATE_CORE_SHUTDOWN_FAILED: 'The core service did not exit safely. Nothing was installed.',
+    UPDATE_INSTALL_SUMMARY_STALE: 'App activity changed. Review it again before installing.',
     UPDATE_INSTALL_START_FAILED: 'The update installer could not be started.',
   }
   if (!code) {
@@ -157,7 +159,7 @@ export function windowCopy(language: UpdateWindowLanguage) {
       preparingInstall: 'Preparing to install',
       installing: 'Starting installer',
       updateFailed: 'Update needs attention',
-      unsupportedDescription: 'This installation does not support in-app updates.',
+      unsupportedDescription: 'In-app updates are unavailable for this installation. Other features remain available.',
       idleDescription: 'Check whether a newer version is available.',
       checkingDescription: 'Checking for available updates.',
       upToDateDescription: 'This is the latest available version.',
@@ -223,7 +225,7 @@ export function windowCopy(language: UpdateWindowLanguage) {
     preparingInstall: '正在准备安装',
     installing: '正在启动安装程序',
     updateFailed: '更新需要处理',
-    unsupportedDescription: '当前安装方式不支持应用内更新。',
+    unsupportedDescription: '当前安装方式无法使用应用内更新，其他功能仍可正常使用。',
     idleDescription: '检查是否有可用的新版本。',
     checkingDescription: '正在检查可用更新。',
     upToDateDescription: '当前已经是最新可用版本。',

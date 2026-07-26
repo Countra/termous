@@ -17,7 +17,7 @@ export function UpdateWindowVersionBlock({
   return (
     <span className={`update-window-version-block${isTarget ? ' is-target' : ''}`}>
       <small>{label}</small>
-      <strong>{version || '-'}</strong>
+      <strong>{version ? `v${version}` : '-'}</strong>
     </span>
   )
 }

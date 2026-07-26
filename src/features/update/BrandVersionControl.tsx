@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
-import { App as AntdApp, Tooltip } from 'antd'
-import { LoaderCircle } from 'lucide-react'
+import { App as AntdApp, Button, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { resolveGlobalUpdateStatus } from './updateRuntimeState'
 import { useUpdateRuntime } from './useUpdateRuntime'
@@ -108,9 +107,14 @@ export function BrandVersionControl({
   }
 
   return (
-    <Tooltip title={tooltip} placement={collapsed ? 'right' : 'bottom'}>
-      <button
-        type="button"
+    <Tooltip
+      title={tooltip}
+      placement={collapsed ? 'right' : 'bottomLeft'}
+      mouseEnterDelay={0.35}
+    >
+      <Button
+        type="text"
+        size="small"
         className={[
           'brand-version-control',
           `is-${kind}`,
@@ -123,23 +127,10 @@ export function BrandVersionControl({
         onClick={() => void handleOpen()}
       >
         <span className="brand-version-control__label">
-          v{appVersion}
+          <span className="brand-version-control__prefix">v</span>
+          <span className="brand-version-control__value">{appVersion}</span>
         </span>
-        <span
-          className="brand-version-control__status"
-          aria-hidden="true"
-        >
-          {opening || kind === 'checking' || kind === 'downloading' ? (
-            <LoaderCircle
-              className="brand-version-control__spinner"
-              size={10}
-              strokeWidth={2.5}
-            />
-          ) : (
-            <span className="brand-version-control__dot" />
-          )}
-        </span>
-      </button>
+      </Button>
     </Tooltip>
   )
 }

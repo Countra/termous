@@ -3,75 +3,141 @@
   min-width: 0;
   min-height: 112px;
   align-content: start;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--border);
+  gap: 14px;
+  padding: 16px 0 14px;
 }
 
 .update-window-status-panel.is-compact {
-  min-height: 74px;
+  min-height: 78px;
   align-content: center;
+  padding-block: 13px 15px;
 }
 
 .update-window-status-heading {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 10px;
-}
-
-.update-window-status-heading > div {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
 }
 
-.update-window-status-heading .ant-typography {
+.update-window-status-copy {
+  display: grid;
   min-width: 0;
-  margin: 0;
+  gap: 4px;
 }
 
-.update-window-status-heading .ant-typography:first-child {
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 720;
+.update-window-status-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
 }
 
-.update-window-status-heading .ant-typography:last-child {
+.update-window-status-title-row h3.ant-typography {
+  min-width: 0;
   overflow: hidden;
-  color: var(--text-muted);
-  font-size: 10px;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.update-window-status-copy > span.ant-typography {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .update-window-status-icon {
   display: grid;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
+  width: 38px;
+  height: 38px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 11px;
   background: var(--accent-soft);
   color: var(--accent);
 }
 
 .update-window-status-icon.is-downloaded,
 .update-window-status-icon.is-up_to_date {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
+  background: color-mix(in srgb, var(--success) 13%, transparent);
   color: var(--success);
 }
 
-.update-window-status-icon.is-error,
-.update-window-status-icon.is-unsupported {
-  background: color-mix(in srgb, var(--danger) 13%, transparent);
+.update-window-status-icon.is-error {
+  background: color-mix(in srgb, var(--danger) 11%, transparent);
   color: var(--danger);
+}
+
+.update-window-status-icon.is-unsupported {
+  background: color-mix(in srgb, var(--warning) 13%, transparent);
+  color: var(--warning);
+}
+
+.update-window-status-panel.is-unsupported {
+  min-height: 0;
+  padding: 18px 0 20px;
+}
+
+.update-window-unsupported-alert.ant-alert {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 7%, transparent);
+  padding: 15px 16px;
+}
+
+.update-window-unsupported-alert .ant-alert-icon {
+  margin-inline-end: 12px;
+  color: var(--warning);
+  font-size: 17px;
+}
+
+.update-window-unsupported-alert .ant-alert-title {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.update-window-unsupported-alert .ant-alert-description {
+  max-width: 520px;
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.update-window-status-icon .ant-spin {
+  color: inherit;
+}
+
+.update-window-status-icon .ant-spin-dot-item {
+  background-color: currentColor;
+}
+
+.update-window-progress-percent.ant-typography {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .update-window-download-progress {
   display: grid;
   min-width: 0;
-  gap: 9px;
+  gap: 10px;
+  padding-left: 50px;
 }
 
 .update-window-progress.ant-progress {
@@ -84,7 +150,7 @@
 }
 
 .update-window-progress .ant-progress-inner {
-  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
 }
 
 .update-window-progress .ant-progress-bg,
@@ -92,20 +158,19 @@
   transition: width 0.2s ease-out;
 }
 
-.update-window-progress-metrics.ant-descriptions,
-.update-window-impact-grid.ant-descriptions {
+.update-window-progress-metrics.ant-descriptions {
   margin: 0;
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  padding: 9px 12px 8px;
 }
 
-.update-window-progress-metrics .ant-descriptions-view,
-.update-window-impact-grid .ant-descriptions-view {
+.update-window-progress-metrics .ant-descriptions-view {
   background: transparent;
 }
 
 .update-window-progress-metrics .ant-descriptions-row > th,
-.update-window-progress-metrics .ant-descriptions-row > td,
-.update-window-impact-grid .ant-descriptions-row > th,
-.update-window-impact-grid .ant-descriptions-row > td {
+.update-window-progress-metrics .ant-descriptions-row > td {
   padding-bottom: 0;
 }
 
@@ -113,18 +178,18 @@
   padding-inline-end: 16px;
 }
 
-.update-window-progress-metrics .ant-descriptions-item-label,
-.update-window-impact-grid .ant-descriptions-item-label {
-  color: var(--text-muted);
-  font-size: 9px;
+.update-window-progress-metrics .ant-descriptions-item-label {
+  color: var(--text-secondary);
+  font-size: 10px;
 }
 
 .update-window-progress-metrics .ant-descriptions-item-content {
   overflow: hidden;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 620;
+  font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -140,31 +205,60 @@
 .update-window-impact {
   display: grid;
   min-width: 0;
-  gap: 8px;
+  gap: 12px;
+  padding-left: 50px;
 }
 
-.update-window-impact-grid .ant-descriptions-item-container {
+.update-window-impact-grid {
   display: grid;
-  gap: 2px;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.update-window-impact-grid .ant-descriptions-item-content {
-  padding-inline-start: 0;
+.update-window-impact-grid .ant-statistic {
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  padding: 0 12px;
+}
+
+.update-window-impact-grid .ant-statistic:first-child {
+  padding-left: 0;
+}
+
+.update-window-impact-grid .ant-statistic:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+
+.update-window-impact-grid .ant-statistic-title {
+  min-width: 0;
+  margin-bottom: 5px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.update-window-impact-grid .ant-statistic-content {
+  overflow: hidden;
   color: var(--text-primary);
   font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
-  font-size: 11px;
-}
-
-.update-window-impact-grid .ant-descriptions-item-content .ant-typography {
-  color: inherit;
-  font: inherit;
+  font-size: 18px;
+  font-weight: 680;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .update-window-impact-label {
-  display: inline-flex;
+  display: flex;
   min-width: 0;
   align-items: center;
   gap: 5px;
+}
+
+.update-window-impact-label > span:first-child {
+  display: inline-flex;
+  color: var(--text-secondary);
 }
 
 .update-window-impact-label > span:last-child {
@@ -176,36 +270,94 @@
 .update-window-impact-note.ant-typography {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.update-window-impact-alert.ant-alert,
+.update-window-confirmation-alert.ant-alert {
+  border-color: color-mix(in srgb, var(--warning) 20%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  padding: 8px 10px;
+}
+
+.update-window-impact-alert .ant-alert-title,
+.update-window-confirmation-alert .ant-alert-title {
+  color: var(--text-secondary);
+  font-size: 11px;
   line-height: 1.45;
 }
 
-.update-window-confirmation-status {
-  display: flex;
-  justify-self: end;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-muted);
-  font-size: 10px;
+.update-window-confirmation-alert.ant-alert {
+  margin-left: 50px;
 }
 
-.update-window-confirmation-status .ant-btn-link {
-  height: 22px;
-  padding: 0 2px;
+.update-window-confirmation-alert .ant-alert-actions {
+  margin-inline-start: 10px;
+}
+
+.update-window-confirmation-alert .ant-btn-link {
+  height: 24px;
+  padding: 0 3px;
   color: var(--accent);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
 }
 
-.update-window-confirmation-status .ant-btn-link:hover {
-  color: color-mix(in srgb, var(--accent) 82%, white);
+.update-window-confirmation-status {
+  display: inline-flex;
+  justify-self: start;
+  align-items: center;
+  gap: 8px;
+  margin-left: 50px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+@media (max-height: 640px) {
+  .update-window-status-panel {
+    min-height: 96px;
+    gap: 11px;
+    padding-block: 12px 10px;
+  }
+
+  .update-window-status-panel.is-compact {
+    min-height: 70px;
+    padding-block: 10px 12px;
+  }
+
+  .update-window-impact {
+    gap: 9px;
+  }
+
+  .update-window-impact-grid .ant-statistic-content {
+    font-size: 16px;
+  }
+
+  .update-window-status-panel.is-unsupported {
+    padding-block: 14px 16px;
+  }
+
+  .update-window-unsupported-alert.ant-alert {
+    padding: 13px 14px;
+  }
 }
 
 @media (max-width: 660px) {
+  .update-window-download-progress,
+  .update-window-impact {
+    padding-left: 0;
+  }
+
+  .update-window-confirmation-alert.ant-alert,
+  .update-window-confirmation-status {
+    margin-left: 0;
+  }
+
   .update-window-progress-metrics .ant-descriptions-item {
     padding-inline-end: 8px;
   }
-
 }
 
 @media (prefers-reduced-motion: reduce) {

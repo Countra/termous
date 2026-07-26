@@ -20,6 +20,7 @@ export function UpdateRuntimeSummaryReporter({
   const { activeTransfers, initialized } = useTransferRuntime()
   const publisherRef = useRef<UpdateRuntimeSummaryPublisher | null>(null)
   const failureReportedRef = useRef(false)
+  const documentEpochRef = useRef<string | null>(null)
   const summary = useMemo(() => buildUpdateRuntimeSummary({
     activeTransferCount: activeTransfers.length,
     fileSessions,
@@ -27,6 +28,8 @@ export function UpdateRuntimeSummaryReporter({
     sessions,
     transferSnapshotComplete: apiReady && initialized,
   }), [activeTransfers.length, apiReady, fileSessions, forwards, initialized, sessions])
+  const summaryRef = useRef(summary)
+  summaryRef.current = summary
   const bridge = window.termous?.updates
 
   useEffect(() => {
@@ -34,7 +37,18 @@ export function UpdateRuntimeSummaryReporter({
       return
     }
     const publisher = new UpdateRuntimeSummaryPublisher(
-      (next) => bridge.reportRuntimeSummary(next),
+      (next, requestId) => {
+        const documentEpoch = documentEpochRef.current
+        return bridge.reportRuntimeSummary(
+          next,
+          documentEpoch
+            ? {
+                document_epoch: documentEpoch,
+                ...(requestId ? { request_id: requestId } : {}),
+              }
+            : undefined,
+        )
+      },
       {
         schedule: (callback, delayMs) => window.setTimeout(callback, delayMs),
         cancel: (handle) => window.clearTimeout(handle as number),
@@ -47,8 +61,19 @@ export function UpdateRuntimeSummaryReporter({
       },
     )
     publisherRef.current = publisher
+    const unsubscribeRefreshRequest = bridge.onRuntimeSummaryRequested((request) => {
+      documentEpochRef.current = request.document_epoch
+      publisher.publish(summaryRef.current)
+      publisher.refresh(request.request_id)
+    })
+    const heartbeat = window.setInterval(() => {
+      publisher.refresh()
+    }, 15_000)
     return () => {
+      window.clearInterval(heartbeat)
+      unsubscribeRefreshRequest()
       publisher.dispose()
+      documentEpochRef.current = null
       if (publisherRef.current === publisher) {
         publisherRef.current = null
       }

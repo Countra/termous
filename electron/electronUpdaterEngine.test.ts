@@ -8,7 +8,10 @@ import {
   type ElectronUpdaterEngineOptions,
   type ElectronUpdaterProgress,
 } from './electronUpdaterEngine.ts'
-import { UpdateOperationError } from './updateManager.ts'
+import {
+  UpdateManager,
+  UpdateOperationError,
+} from './updateManager.ts'
 
 const packagedApp = {
   isPackaged: true,
@@ -28,6 +31,29 @@ test('配置固定安全默认值且不覆盖生产更新源', () => {
   assert.equal(updater.disableWebInstaller, true)
   assert.equal(updater.logger, null)
   assert.equal(updater.setFeedURLCalls, 0)
+})
+
+test('稳定版本不接收预发布更新，预发布版本继续跟随预发布更新', () => {
+  const stableUpdater = new FakeUpdater()
+  createElectronUpdaterEngine({
+    updater: stableUpdater,
+    app: packagedApp,
+    platform: 'win32',
+    isWindowsStore: false,
+  })
+  assert.equal(stableUpdater.allowPrerelease, false)
+
+  const prereleaseUpdater = new FakeUpdater()
+  createElectronUpdaterEngine({
+    updater: prereleaseUpdater,
+    app: {
+      isPackaged: true,
+      getVersion: () => '1.2.0-beta.3+build.8',
+    },
+    platform: 'win32',
+    isWindowsStore: false,
+  })
+  assert.equal(prereleaseUpdater.allowPrerelease, true)
 })
 
 test('开发环境、商店格式、非 AppImage Linux 和未知平台均不受支持', async () => {
@@ -87,23 +113,56 @@ test('开发环境、商店格式、非 AppImage Linux 和未知平台均不受�
     )
   }
 
+  const appImagePath = '/opt/Termous/Termous.AppImage'
+  const appImageParentPath = '/opt/Termous'
+  const createAppImageFileSystem = (input: {
+    regularFile?: boolean
+    writablePaths?: readonly string[]
+  } = {}) => ({
+    isRegularFile: (filePath: string) => (
+      filePath === appImagePath && input.regularFile !== false
+    ),
+    isWritable: (filePath: string) => (
+      input.writablePaths?.includes(filePath) === true
+    ),
+  })
+
   const appImageEngine = createElectronUpdaterEngine({
     updater: new FakeUpdater(),
     app: packagedApp,
     platform: 'linux',
-    env: { APPIMAGE: '/opt/Termous/Termous.AppImage' },
-    isAppImageWritable: () => true,
+    env: { APPIMAGE: appImagePath },
+    appImageFileSystem: createAppImageFileSystem({
+      writablePaths: [appImagePath, appImageParentPath],
+    }),
   })
   assert.deepEqual(appImageEngine.support, { supported: true })
 
-  const readOnlyAppImageEngine = createElectronUpdaterEngine({
+  const parentReadOnlyAppImageEngine = createElectronUpdaterEngine({
     updater: new FakeUpdater(),
     app: packagedApp,
     platform: 'linux',
-    env: { APPIMAGE: '/opt/Termous/Termous.AppImage' },
-    isAppImageWritable: () => false,
+    env: { APPIMAGE: appImagePath },
+    appImageFileSystem: createAppImageFileSystem({
+      writablePaths: [appImagePath],
+    }),
   })
-  assert.deepEqual(readOnlyAppImageEngine.support, {
+  assert.deepEqual(parentReadOnlyAppImageEngine.support, {
+    supported: false,
+    reason: 'appimage_not_writable',
+  })
+
+  const nonRegularAppImageEngine = createElectronUpdaterEngine({
+    updater: new FakeUpdater(),
+    app: packagedApp,
+    platform: 'linux',
+    env: { APPIMAGE: appImagePath },
+    appImageFileSystem: createAppImageFileSystem({
+      regularFile: false,
+      writablePaths: [appImagePath, appImageParentPath],
+    }),
+  })
+  assert.deepEqual(nonRegularAppImageEngine.support, {
     supported: false,
     reason: 'appimage_not_writable',
   })
@@ -383,6 +442,58 @@ test('真实 app 未开始退出时安装启动观察会有界失败', async () 
       true,
     ),
   )
+  assert.equal(
+    installEventSource.listenerCount('before-quit-for-update'),
+    0,
+  )
+  assert.equal(updater.listenerCount('error'), 0)
+})
+
+test('macOS 安装交接超时视为已提交且迟到原生退出事件不会反转结果', async () => {
+  const updater = new FakeUpdater()
+  updater.checkResult = {
+    isUpdateAvailable: true,
+    updateInfo: { version: '1.1.0' },
+  }
+  const installEventSource = new FakeInstallEventSource()
+  const engine = createElectronUpdaterEngine({
+    updater,
+    app: packagedApp,
+    installEventSource,
+    platform: 'darwin',
+    isMacAppStore: false,
+    installLaunchTimeoutMs: 5,
+  })
+  let recoverCalls = 0
+  const manager = new UpdateManager({
+    engine,
+    installLifecycle: {
+      prepareForInstall: async () => undefined,
+      recoverFromInstallFailure: async () => {
+        recoverCalls += 1
+        return true
+      },
+    },
+  })
+
+  assert.equal((await manager.check()).phase, 'available')
+  assert.equal((await manager.download()).phase, 'downloaded')
+  assert.equal((await manager.install()).phase, 'installing')
+  assert.equal(recoverCalls, 0)
+  assert.equal(
+    installEventSource.listenerCount('before-quit-for-update'),
+    0,
+  )
+  assert.equal(updater.listenerCount('error'), 0)
+
+  installEventSource.emit('before-quit-for-update')
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve)
+  })
+
+  assert.deepEqual(updater.installCalls, [[false, true]])
+  assert.equal(manager.getSnapshot().phase, 'installing')
+  assert.equal(recoverCalls, 0)
   assert.equal(
     installEventSource.listenerCount('before-quit-for-update'),
     0,

@@ -23,6 +23,7 @@ export type UpdateWindowBusyAction =
 
 const installErrorCodes = new Set<UpdateErrorCode>([
   'UPDATE_CORE_SHUTDOWN_FAILED',
+  'UPDATE_INSTALL_SUMMARY_STALE',
   'UPDATE_INSTALL_START_FAILED',
 ])
 
@@ -116,13 +117,46 @@ export function resolveUpdateWindowPrimaryAction(
   }
 }
 
+export function resolveUpdateWindowVisiblePrimaryAction(
+  snapshot: UpdateSnapshot,
+  busyAction: UpdateWindowBusyAction,
+): UpdateWindowPrimaryAction {
+  const primaryAction = resolveUpdateWindowPrimaryAction(snapshot)
+  if (
+    busyAction
+    && busyAction !== 'prepare'
+    && busyAction !== 'close'
+  ) {
+    if (
+      primaryAction === 'cancel'
+      && (busyAction === 'download' || busyAction === 'retry_download')
+    ) {
+      return 'cancel'
+    }
+    return busyAction
+  }
+  if (primaryAction !== 'none') {
+    return primaryAction
+  }
+  if (snapshot.phase === 'checking') {
+    return 'check'
+  }
+  if (snapshot.phase === 'preparing_install' || snapshot.phase === 'installing') {
+    return 'install'
+  }
+  return 'none'
+}
+
 export function isUpdateWindowPrimaryActionBlocked(
   action: UpdateWindowPrimaryAction,
   busyAction: UpdateWindowBusyAction,
 ) {
   return Boolean(
     busyAction
-    && !(action === 'cancel' && busyAction === 'download'),
+    && !(
+      action === 'cancel'
+      && (busyAction === 'download' || busyAction === 'retry_download')
+    ),
   )
 }
 

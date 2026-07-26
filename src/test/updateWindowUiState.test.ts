@@ -13,11 +13,16 @@ import {
   mergeUpdateWindowBootstrap,
   mergeUpdateWindowSnapshot,
   resolveUpdateWindowPrimaryAction,
+  resolveUpdateWindowVisiblePrimaryAction,
 } from '../features/update/updateWindowUiState.ts'
 
 test('下载请求未完成时仍允许取消并阻止其他并发主操作', () => {
   assert.equal(
     isUpdateWindowPrimaryActionBlocked('cancel', 'download'),
+    false,
+  )
+  assert.equal(
+    isUpdateWindowPrimaryActionBlocked('cancel', 'retry_download'),
     false,
   )
   assert.equal(
@@ -253,6 +258,70 @@ test('操作按更新阶段和错误类型稳定映射', () => {
   )
 })
 
+test('过渡阶段保留主操作按钮以维持键盘焦点', () => {
+  assert.equal(
+    resolveUpdateWindowVisiblePrimaryAction(
+      snapshot({ phase: 'checking' }),
+      'check',
+    ),
+    'check',
+  )
+  assert.equal(
+    resolveUpdateWindowVisiblePrimaryAction(
+      snapshot({ phase: 'checking' }),
+      null,
+    ),
+    'check',
+  )
+  assert.equal(
+    resolveUpdateWindowVisiblePrimaryAction(
+      snapshot({ phase: 'preparing_install' }),
+      'install',
+    ),
+    'install',
+  )
+  assert.equal(
+    resolveUpdateWindowVisiblePrimaryAction(
+      snapshot({
+        phase: 'available',
+        available_version: '1.1.0',
+      }),
+      'check',
+    ),
+    'check',
+  )
+  assert.equal(
+    resolveUpdateWindowVisiblePrimaryAction(
+      snapshot({
+        phase: 'downloaded',
+        available_version: '1.1.0',
+      }),
+      'download',
+    ),
+    'download',
+  )
+  assert.equal(
+    resolveUpdateWindowVisiblePrimaryAction(
+      snapshot({
+        phase: 'downloading',
+        available_version: '1.1.0',
+      }),
+      'retry_download',
+    ),
+    'cancel',
+  )
+  assert.equal(
+    resolveUpdateWindowVisiblePrimaryAction(
+      snapshot({
+        phase: 'unsupported',
+        available_version: null,
+      }),
+      null,
+    ),
+    'none',
+  )
+})
+
 test('安装确认在已下载和可重试安装错误状态保持有效', () => {
   const confirmation = {
     confirmation_token: 'token',
@@ -289,6 +358,10 @@ test('安装确认在已下载和可重试安装错误状态保持有效', () =>
 
   assert.equal(isInstallConfirmationCurrent(confirmation, downloaded), true)
   assert.equal(isInstallConfirmationCurrent(confirmation, retryableInstallError), true)
+  assert.equal(canPrepareUpdateInstall({
+    ...retryableInstallError,
+    error_code: 'UPDATE_INSTALL_SUMMARY_STALE',
+  }), true)
   assert.equal(isInstallConfirmationCurrent(confirmation, downloadError), false)
   assert.equal(canPrepareUpdateInstall(retryableInstallError), true)
   assert.equal(canPrepareUpdateInstall({

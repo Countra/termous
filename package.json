@@ -20,6 +20,7 @@
     "test": "node --test \"src/**/*.test.ts\" \"electron/**/*.test.ts\" \"scripts/ci/**/*.test.mjs\" \"scripts/update-simulation/**/*.test.mjs\"",
     "test:release": "node --test \"scripts/ci/**/*.test.mjs\"",
     "test:update-simulation": "node --test \"scripts/update-simulation/**/*.test.mjs\"",
+    "test:update-simulation:acceptance": "pnpm run build:update-simulation && node scripts/update-simulation/run-acceptance.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -6,15 +6,18 @@ import {
   useState,
 } from 'react'
 import {
+  Alert,
+  Avatar,
   Button,
-  Descriptions,
+  Card,
+  Divider,
+  Space,
   Tag,
   Tooltip,
   Typography,
 } from 'antd'
 import {
   ArrowRight,
-  CircleAlert,
   Minus,
   X,
 } from 'lucide-react'
@@ -34,7 +37,6 @@ import {
 import { UpdateWindowStatusPanel } from './UpdateWindowStatusPanel'
 import {
   formatReleaseDate,
-  phaseDescription,
   primaryActionLabel,
   windowCopy,
 } from './updateWindowCopy'
@@ -45,6 +47,7 @@ import {
   mergeUpdateWindowBootstrap,
   mergeUpdateWindowSnapshot,
   resolveUpdateWindowPrimaryAction,
+  resolveUpdateWindowVisiblePrimaryAction,
   type UpdateWindowPrimaryAction,
   type UpdateWindowBusyAction,
 } from './updateWindowUiState'
@@ -111,6 +114,10 @@ export default function UpdateWindowRoot() {
   const bridge = window.termousUpdate
     ?? developmentUpdateSimulation?.updateWindowBridge
   const primaryAction = resolveUpdateWindowPrimaryAction(snapshot)
+  const visiblePrimaryAction = resolveUpdateWindowVisiblePrimaryAction(
+    snapshot,
+    busyAction,
+  )
   const isInstalling = snapshot.phase === 'preparing_install' || snapshot.phase === 'installing'
   const isMac = navigator.userAgent.includes('Macintosh')
   const currentConfirmation = isInstallConfirmationCurrent(confirmation, snapshot)
@@ -231,6 +238,7 @@ export default function UpdateWindowRoot() {
         summaryReadyRef.current = true
         summaryRevisionRef.current = next.summary_revision
         updateConfirmation(next)
+        setLocalError((current) => current === 'prepareFailed' ? null : current)
         return next
       })
       .catch(() => {
@@ -411,9 +419,6 @@ export default function UpdateWindowRoot() {
       >
         <header className="update-window-titlebar">
           <div className="update-window-title">
-            <span className="update-window-brand-mark" aria-hidden="true">
-              <img src="./termous-icon.png" alt="" />
-            </span>
             <span>{text.aboutTermous}</span>
           </div>
           {!isMac ? (
@@ -444,115 +449,103 @@ export default function UpdateWindowRoot() {
 
         <div className={`update-window-content${hasUpdateDetails ? ' has-update-details' : ''}`}>
           <section className="update-window-about-section" aria-labelledby="update-window-product-name">
-            <img className="update-window-product-icon" src="./termous-icon.png" alt="" />
+            <Avatar
+              className="update-window-product-icon"
+              shape="square"
+              src="./termous-icon.png"
+              alt=""
+            />
             <div className="update-window-product-copy">
-              <Typography.Title id="update-window-product-name" level={2}>
+              <Typography.Title id="update-window-product-name" level={1}>
                 {productName}
               </Typography.Title>
+              <div className="update-window-product-meta">
+                <Tag className="update-window-version-tag" variant="filled">
+                  {currentVersion ? `v${currentVersion}` : text.unavailable}
+                </Tag>
+                <span className="update-window-meta-divider" aria-hidden="true" />
+                <Typography.Text className="update-window-system-value">
+                  {systemValue}
+                </Typography.Text>
+              </div>
             </div>
           </section>
 
-          <Descriptions
-            className="update-window-application-facts"
-            aria-label={text.aboutTermous}
-            size="small"
-            colon={false}
-            column={{ xs: 1, sm: 2 }}
-            items={[
-              {
-                key: 'version',
-                label: text.applicationVersion,
-                children: (
-                  <Tag className="update-window-version-tag" variant="filled">
-                    v{currentVersion || text.unavailable}
-                  </Tag>
-                ),
-              },
-              {
-                key: 'system',
-                label: text.system,
-                children: (
-                  <Typography.Text className="update-window-system-value">
-                    {systemValue}
-                  </Typography.Text>
-                ),
-              },
-            ]}
-          />
-
-          <section className="update-window-version-section" aria-labelledby="update-window-update-title">
-            <div className="update-window-section-heading">
-              <Typography.Title id="update-window-update-title" level={4}>
+          <Card
+            className={`update-window-update-card${hasUpdateDetails ? ' has-update-details' : ''}`}
+            role="region"
+            aria-labelledby="update-window-update-title"
+            title={(
+              <Typography.Title id="update-window-update-title" level={2}>
                 {text.softwareUpdate}
               </Typography.Title>
-              {snapshot.release_date ? (
-                <Typography.Text type="secondary">
-                  {formatReleaseDate(snapshot.release_date, language, text.dateUnknown)}
-                </Typography.Text>
-              ) : null}
-            </div>
+            )}
+          >
+            <UpdateWindowStatusPanel
+              confirmation={currentConfirmation}
+              confirmationBusy={busyAction === 'prepare'}
+              confirmationUnavailable={confirmationUnavailable}
+              language={language}
+              onRetryConfirmation={() => {
+                setLocalError(null)
+                void requestInstallConfirmation(true, true)
+              }}
+              snapshot={snapshot}
+              text={text}
+            />
+
             {snapshot.available_version ? (
               <div className="update-window-version-route" aria-label={text.versionRoute}>
                 <UpdateWindowVersionBlock label={text.currentVersion} version={snapshot.current_version} />
-                <ArrowRight className="update-window-version-arrow" size={18} aria-hidden="true" />
-                <UpdateWindowVersionBlock
-                  label={text.targetVersion}
-                  version={snapshot.available_version}
-                  isTarget
-                />
+                <span className="update-window-version-connector" aria-hidden="true">
+                  <span />
+                  <ArrowRight className="update-window-version-arrow" size={17} />
+                </span>
+                <div className="update-window-version-target">
+                  <UpdateWindowVersionBlock
+                    label={text.targetVersion}
+                    version={snapshot.available_version}
+                    isTarget
+                  />
+                  {snapshot.release_date ? (
+                    <Typography.Text className="update-window-release-date" type="secondary">
+                      {formatReleaseDate(snapshot.release_date, language, text.dateUnknown)}
+                    </Typography.Text>
+                  ) : null}
+                </div>
               </div>
-            ) : (
-              <div className="update-window-version-current">
-                <span>{text.currentVersion}</span>
-                <strong>v{snapshot.current_version || currentVersion || text.unavailable}</strong>
-              </div>
-            )}
-          </section>
+            ) : null}
 
-          <UpdateWindowStatusPanel
-            confirmation={currentConfirmation}
-            confirmationBusy={busyAction === 'prepare'}
-            confirmationUnavailable={confirmationUnavailable}
-            language={language}
-            onRetryConfirmation={() => {
-              setLocalError(null)
-              void requestInstallConfirmation(true, true)
-            }}
-            snapshot={snapshot}
-            text={text}
-          />
-
-          {hasUpdateDetails ? (
-            <section className="update-window-notes-section" aria-labelledby="update-release-notes-title">
-              <div className="update-window-section-heading">
-                <Typography.Title id="update-release-notes-title" level={4}>
-                  {text.releaseNotes}
-                </Typography.Title>
-              </div>
-              <Typography.Paragraph className="update-window-release-notes" tabIndex={0}>
-                {snapshot.release_notes || text.noReleaseNotes}
-              </Typography.Paragraph>
-            </section>
-          ) : null}
-        </div>
-
-        <footer className="update-window-footer">
-          <div className="update-window-live-message">
             {localError ? (
-              <span
-                className="update-window-local-error"
+              <Alert
+                className="update-window-local-alert"
+                type="error"
+                showIcon
                 role="alert"
                 aria-live="assertive"
                 aria-atomic="true"
-              >
-                <CircleAlert size={14} aria-hidden="true" />
-                {text[localError]}
-              </span>
-            ) : (
-              <span>{phaseDescription(snapshot, text)}</span>
-            )}
-          </div>
-          <div className="update-window-actions">
+                title={text[localError]}
+              />
+            ) : null}
+
+            {hasUpdateDetails ? (
+              <section className="update-window-notes-section" aria-labelledby="update-release-notes-title">
+                <Divider className="update-window-notes-divider" />
+                <div className="update-window-section-heading">
+                  <Typography.Title id="update-release-notes-title" level={3}>
+                    {text.releaseNotes}
+                  </Typography.Title>
+                </div>
+                <Typography.Paragraph className="update-window-release-notes" tabIndex={0}>
+                  {snapshot.release_notes || text.noReleaseNotes}
+                </Typography.Paragraph>
+              </section>
+            ) : null}
+          </Card>
+        </div>
+
+        <footer className="update-window-footer">
+          <Space className="update-window-actions" size={10}>
             <Button
               className="update-window-secondary-action"
               disabled={isInstalling}
@@ -561,12 +554,14 @@ export default function UpdateWindowRoot() {
             >
               {snapshot.phase === 'downloaded' ? text.later : text.close}
             </Button>
-            {primaryAction !== 'none' ? (
+            {visiblePrimaryAction !== 'none' ? (
               <Button
-                type={primaryAction === 'cancel' ? 'default' : 'primary'}
+                type={visiblePrimaryAction === 'cancel' ? 'default' : 'primary'}
                 className="update-window-primary-action"
                 danger={false}
                 disabled={(
+                  primaryAction === 'none'
+                  ||
                   isUpdateWindowPrimaryActionBlocked(
                     primaryAction,
                     busyAction,
@@ -575,16 +570,20 @@ export default function UpdateWindowRoot() {
                   || !bridge
                   || (installActionNeedsConfirmation && !currentConfirmation)
                 )}
-                loading={busyAction === primaryAction || busyAction === 'prepare'}
-                icon={<UpdateWindowPrimaryActionIcon action={primaryAction} />}
+                loading={(
+                  busyAction === visiblePrimaryAction
+                  || busyAction === 'prepare'
+                  || snapshot.phase === 'checking'
+                  || snapshot.phase === 'preparing_install'
+                  || snapshot.phase === 'installing'
+                )}
+                icon={<UpdateWindowPrimaryActionIcon action={visiblePrimaryAction} />}
                 onClick={() => void runPrimaryAction(primaryAction)}
               >
-                {primaryActionLabel(primaryAction, text, currentConfirmation)}
+                {primaryActionLabel(visiblePrimaryAction, text, currentConfirmation)}
               </Button>
-            ) : (
-              <span className="update-window-action-placeholder" aria-hidden="true" />
-            )}
-          </div>
+            ) : null}
+          </Space>
         </footer>
       </main>
     </TermousUiProvider>

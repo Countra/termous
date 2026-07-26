@@ -15,15 +15,6 @@ function Resolve-ExistingDirectory {
   return (Resolve-Path -LiteralPath $candidate).Path
 }
 
-function Reset-Directory {
-  param([Parameter(Mandatory = $true)][string]$Path)
-
-  if (Test-Path -LiteralPath $Path) {
-    Remove-Item -LiteralPath $Path -Recurse -Force
-  }
-  New-Item -ItemType Directory -Force -Path $Path | Out-Null
-}
-
 function Assert-ChildDirectory {
   param(
     [Parameter(Mandatory = $true)][string]$Path,
@@ -42,6 +33,54 @@ function Assert-ChildDirectory {
     $relativePath.StartsWith("..$([System.IO.Path]::DirectorySeparatorChar)")
   ) {
     throw "$Name 必须位于 $absoluteRoot 内: $absolutePath"
+  }
+}
+
+function Assert-OrdinaryDirectory {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Name
+  )
+
+  if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+    throw "$Name 不存在或不是目录: $Path"
+  }
+  $item = Get-Item -LiteralPath $Path -Force
+  if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+    throw "$Name 不能是符号链接或联接: $Path"
+  }
+  $absolutePath = [System.IO.Path]::GetFullPath($Path)
+  $resolvedPath = (Resolve-Path -LiteralPath $Path).Path
+  if (-not [string]::Equals(
+    $absolutePath,
+    $resolvedPath,
+    [System.StringComparison]::OrdinalIgnoreCase
+  )) {
+    throw "$Name 不能包含路径别名: $Path"
+  }
+}
+
+function Prepare-CoreOutputDirectory {
+  param(
+    [Parameter(Mandatory = $true)][string]$BuildRoot,
+    [Parameter(Mandatory = $true)][string]$OutputDirectory
+  )
+
+  Assert-OrdinaryDirectory -Path $BuildRoot -Name "Web 构建资源目录"
+  if (Test-Path -LiteralPath $OutputDirectory) {
+    Assert-OrdinaryDirectory -Path $OutputDirectory -Name "Core 输出目录"
+  } else {
+    New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
+    Assert-OrdinaryDirectory -Path $OutputDirectory -Name "Core 输出目录"
+  }
+  foreach ($binaryName in @("termous-core.exe", "termous-core")) {
+    $binaryPath = Join-Path $OutputDirectory $binaryName
+    if (Test-Path -LiteralPath $binaryPath) {
+      if (Test-Path -LiteralPath $binaryPath -PathType Container) {
+        throw "Core 输出文件不能是目录: $binaryPath"
+      }
+      Remove-Item -LiteralPath $binaryPath -Force
+    }
   }
 }
 
@@ -195,7 +234,9 @@ Write-Host "phase=$phase"
 $env:VITE_TERMOUS_APP_VERSION = $version
 
 if ($phase -in @("all", "prepare")) {
-  Reset-Directory -Path $coreOutputDir
+  Prepare-CoreOutputDirectory `
+    -BuildRoot (Join-Path $webDir "build") `
+    -OutputDirectory $coreOutputDir
   Enable-MingwIfAvailable
 
   Invoke-Native -Name "Go tests" -FilePath "go" -Arguments @("test", "./...") -WorkingDirectory $coreDir
@@ -229,7 +270,6 @@ if ($phase -in @("all", "package")) {
     }
   }
 
-  Reset-Directory -Path $installerDir
   Use-CodeSigningDefaults
   Invoke-Native -Name "Build Windows installer" -FilePath "node" -Arguments @(
     "scripts/ci/build-local-package.mjs",

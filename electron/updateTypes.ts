@@ -23,6 +23,7 @@ export type UpdateErrorCode =
   | 'UPDATE_HASH_MISMATCH'
   | 'UPDATE_SIGNATURE_INVALID'
   | 'UPDATE_CORE_SHUTDOWN_FAILED'
+  | 'UPDATE_INSTALL_SUMMARY_STALE'
   | 'UPDATE_INSTALL_START_FAILED'
 
 export interface UpdatePreferences {

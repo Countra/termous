@@ -16,13 +16,26 @@ const allowedRootEntries = new Set([
   'logs',
   'cache-root',
 ])
+const reportTemporaryNamePattern =
+  /^acceptance-report\.json\.tmp-[1-9]\d{0,15}-[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export function prepareUpdateSimulationDirectories(rootValue: string) {
   const root = path.resolve(rootValue)
   requireCanonicalDirectory(root, '模拟运行根目录')
+  const staleReportTemporaryPaths: string[] = []
   for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (!allowedRootEntries.has(entry.name) || entry.isSymbolicLink()) {
+    const isReportTemporary = reportTemporaryNamePattern.test(entry.name)
+    if (
+      (!allowedRootEntries.has(entry.name) && !isReportTemporary)
+      || entry.isSymbolicLink()
+    ) {
       throw new Error(`模拟运行根目录包含未知条目: ${entry.name}`)
+    }
+    if (isReportTemporary) {
+      if (!entry.isFile()) {
+        throw new Error('模拟验收报告临时条目不是普通文件')
+      }
+      staleReportTemporaryPaths.push(path.join(root, entry.name))
     }
     if (
       entry.name === 'acceptance-report.json'
@@ -44,6 +57,9 @@ export function prepareUpdateSimulationDirectories(rootValue: string) {
     if (name !== 'root') {
       requireCanonicalDirectory(directory, `模拟隔离目录 ${name}`)
     }
+  }
+  for (const temporaryPath of staleReportTemporaryPaths) {
+    rmSync(temporaryPath, { force: true })
   }
   rmSync(path.join(root, 'acceptance-report.json'), { force: true })
   // 下载缓存每轮重新建立，避免上一轮完整载荷绕过断流、哈希和取消场景。

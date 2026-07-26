@@ -70,7 +70,10 @@ test('确认令牌绑定下载状态、代际和活动摘要且只能使用一�
     transfers_complete: true,
   })
   assert.equal(confirmation.summary_revision, 1)
-  authority.consume('confirmation-token', snapshot)
+  assert.deepEqual(
+    authority.consume('confirmation-token', snapshot),
+    confirmation,
+  )
   assert.throws(
     () => authority.consume('confirmation-token', snapshot),
     /update_install_confirmation_invalid/,
@@ -162,6 +165,87 @@ test('状态变化、代际变化和过期令牌均不能启动安装', () => {
   )
 })
 
+test('活动摘要过期后拒绝签发和消费安装确认', () => {
+  let now = 1_000
+  const authority = new UpdateInstallConfirmationAuthority({
+    now: () => now,
+    randomToken: () => 'confirmation-token',
+    summaryTtlMs: 50,
+  })
+  const snapshot = downloadedSnapshot()
+  markSummaryReady(authority)
+  const confirmation = authority.issue(snapshot)
+
+  now += 50
+  assert.deepEqual(authority.getSummaryState(), {
+    revision: confirmation.summary_revision,
+    ready: false,
+  })
+  assert.throws(
+    () => authority.consume(confirmation.confirmation_token, snapshot),
+    /update_install_confirmation_invalid/,
+  )
+  assert.throws(() => authority.issue(snapshot), /update_install_not_ready/)
+})
+
+test('渲染文档失效会提升摘要代际并使相同值重新对账', () => {
+  let now = 1_000
+  const authority = new UpdateInstallConfirmationAuthority({
+    now: () => now,
+    randomToken: () => 'confirmation-token',
+    summaryTtlMs: 50,
+  })
+  const snapshot = downloadedSnapshot()
+  markSummaryReady(authority)
+  const stale = authority.issue(snapshot)
+
+  assert.deepEqual(authority.invalidateSummary(), {
+    revision: stale.summary_revision + 1,
+    ready: false,
+  })
+  assert.throws(
+    () => authority.consume(stale.confirmation_token, snapshot),
+    /update_install_confirmation_invalid/,
+  )
+
+  now += 1
+  markSummaryReady(authority)
+  const current = authority.issue(snapshot)
+  assert.equal(current.summary_revision, stale.summary_revision + 1)
+  assert.doesNotThrow(() => {
+    authority.assertSummaryRevisionCurrent(current.summary_revision)
+  })
+  authority.invalidateSummary()
+  assert.throws(
+    () => authority.assertSummaryRevisionCurrent(current.summary_revision),
+    /update_install_summary_stale/,
+  )
+})
+
+test('迟到心跳不能在摘要过期后恢复旧安装确认', () => {
+  let now = 1_000
+  const authority = new UpdateInstallConfirmationAuthority({
+    now: () => now,
+    randomToken: () => 'confirmation-token',
+    summaryTtlMs: 50,
+  })
+  const snapshot = downloadedSnapshot()
+  markSummaryReady(authority)
+  const stale = authority.issue(snapshot)
+
+  now += 50
+  markSummaryReady(authority)
+  const state = authority.getSummaryState()
+  assert.deepEqual(state, {
+    revision: stale.summary_revision + 1,
+    ready: true,
+  })
+  assert.throws(
+    () => authority.consume(stale.confirmation_token, snapshot),
+    /update_install_confirmation_invalid/,
+  )
+})
+
 test('安装准备或安装器启动失败后可重新签发安装确认', () => {
   const authority = new UpdateInstallConfirmationAuthority({
     now: () => 1_000,
@@ -171,6 +255,7 @@ test('安装准备或安装器启动失败后可重新签发安装确认', () =>
 
   for (const errorCode of [
     'UPDATE_CORE_SHUTDOWN_FAILED',
+    'UPDATE_INSTALL_SUMMARY_STALE',
     'UPDATE_INSTALL_START_FAILED',
   ] as const) {
     const snapshot = downloadedSnapshot({

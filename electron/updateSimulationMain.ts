@@ -29,6 +29,7 @@ const scenarioTimeoutMs = 90_000
 const simulation = initializeSimulationPaths()
 let updateRuntime: ApplicationUpdateRuntime | null = null
 let shuttingDown = false
+let exitRequested = false
 
 function initializeSimulationPaths() {
   const markerPath = path.join(process.resourcesPath, simulationMarkerName)
@@ -75,7 +76,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   shuttingDown = true
-  updateRuntime?.dispose()
+  disposeUpdateRuntime()
 })
 
 app.whenReady().then(async () => {
@@ -169,18 +170,43 @@ app.whenReady().then(async () => {
       result: report.result,
       state_events: report.state_events,
     })
+    finishSimulation(0)
   } catch (error) {
     logEvent('update_acceptance_failed', {
       message: error instanceof Error ? error.message : String(error),
     })
-    app.exit(1)
+    finishSimulation(1)
   }
 }).catch((error) => {
   logEvent('update_acceptance_start_failed', {
     message: error instanceof Error ? error.message : String(error),
   })
-  app.exit(1)
+  finishSimulation(1)
 })
+
+function finishSimulation(exitCode: number) {
+  if (exitRequested) {
+    return
+  }
+  exitRequested = true
+  shuttingDown = true
+  disposeUpdateRuntime()
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.destroy()
+    }
+  }
+  if (exitCode === 0) {
+    app.quit()
+    return
+  }
+  app.exit(exitCode)
+}
+
+function disposeUpdateRuntime() {
+  updateRuntime?.dispose()
+  updateRuntime = null
+}
 
 function safeURLOrigin(value: string) {
   try {

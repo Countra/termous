@@ -1,7 +1,8 @@
 import { CancellationError, CancellationToken } from 'builder-util-runtime'
 import electronModule from 'electron'
 import electronUpdaterModule from 'electron-updater'
-import { accessSync, constants as fsConstants } from 'node:fs'
+import { accessSync, constants as fsConstants, lstatSync } from 'node:fs'
+import { posix as pathPosix } from 'node:path'
 import { UpdateOperationError } from './updateManager.ts'
 import type {
   UpdateCheckResult,
@@ -26,6 +27,7 @@ const safeErrorMessages: Record<UpdateErrorCode, string> = {
   UPDATE_HASH_MISMATCH: '更新包完整性校验失败',
   UPDATE_SIGNATURE_INVALID: '更新包签名校验失败',
   UPDATE_CORE_SHUTDOWN_FAILED: '核心服务未能安全退出，更新尚未安装',
+  UPDATE_INSTALL_SUMMARY_STALE: '运行状态已变化，请重新确认后安装',
   UPDATE_INSTALL_START_FAILED: '无法启动更新安装程序',
 }
 
@@ -126,6 +128,11 @@ export interface ElectronInstallEventSource {
   ) => unknown
 }
 
+export interface AppImageFileSystem {
+  isRegularFile: (filePath: string) => boolean
+  isWritable: (filePath: string) => boolean
+}
+
 export interface ElectronUpdaterEngineOptions {
   updater?: ElectronUpdaterAdapter
   app?: ElectronUpdaterApp
@@ -134,7 +141,7 @@ export interface ElectronUpdaterEngineOptions {
   env?: Readonly<Record<string, string | undefined>>
   isMacAppStore?: boolean
   isWindowsStore?: boolean
-  isAppImageWritable?: (filePath: string) => boolean
+  appImageFileSystem?: AppImageFileSystem
   installLaunchTimeoutMs?: number
   launchInstall?: (updater: ElectronUpdaterAdapter) => void
   onDownloadedFiles?: (paths: readonly string[]) => void
@@ -147,6 +154,7 @@ interface ActiveDownload {
 }
 
 type UpdaterOperation = 'check' | 'download' | 'cancel' | 'install'
+type InstallLaunchTimeoutDisposition = 'recoverable_failure' | 'handoff_committed'
 
 export function createElectronUpdaterEngine(
   options: ElectronUpdaterEngineOptions = {},
@@ -165,7 +173,7 @@ export function createElectronUpdaterEngine(
     env,
     isMacAppStore: options.isMacAppStore ?? processFlags.mas === true,
     isWindowsStore: options.isWindowsStore ?? processFlags.windowsStore === true,
-    isAppImageWritable: options.isAppImageWritable ?? defaultIsAppImageWritable,
+    appImageFileSystem: options.appImageFileSystem ?? defaultAppImageFileSystem,
   }))
   const currentVersion = readCurrentVersion(app)
   const launchInstall = options.launchInstall ?? defaultLaunchInstall
@@ -175,7 +183,7 @@ export function createElectronUpdaterEngine(
 
   updater.autoDownload = false
   updater.autoInstallOnAppQuit = false
-  updater.allowPrerelease = false
+  updater.allowPrerelease = isPrereleaseVersion(currentVersion)
   updater.allowDowngrade = false
   updater.disableWebInstaller = true
   updater.logger = null
@@ -322,6 +330,9 @@ export function createElectronUpdaterEngine(
         launchObservation = observeInstallLaunch(
           installEventSource,
           options.installLaunchTimeoutMs ?? installLaunchTimeoutMs,
+          platform === 'darwin'
+            ? 'handoff_committed'
+            : 'recoverable_failure',
         )
         updater.on('error', errorListener)
         errorListenerAttached = true
@@ -361,6 +372,7 @@ function defaultLaunchInstall(updater: ElectronUpdaterAdapter) {
 function observeInstallLaunch(
   eventSource: ElectronInstallEventSource | null,
   timeoutMilliseconds: number,
+  timeoutDisposition: InstallLaunchTimeoutDisposition,
 ) {
   let settled = false
   let firstImmediate: NodeJS.Immediate | null = null
@@ -392,6 +404,12 @@ function observeInstallLaunch(
     eventSource.once('before-quit-for-update', installQuitListener)
     attachedEventSource = eventSource
     timeout = setTimeout(() => {
+      if (timeoutDisposition === 'handoff_committed') {
+        // macOS 的 Squirrel 可能在 quitAndInstall 返回很久后才收到原生下载完成事件。
+        // 此时交接已经不可撤销，继续按失败恢复会让迟到事件退出已恢复的应用。
+        finish()
+        return
+      }
       finish(new Error('update_installer_launch_timeout'))
     }, normalizeInstallLaunchTimeout(timeoutMilliseconds))
   } else {
@@ -479,13 +497,19 @@ function readCurrentVersion(app: ElectronUpdaterApp) {
   return version.trim()
 }
 
+function isPrereleaseVersion(version: string) {
+  return /^\d+\.\d+\.\d+-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*(?:\+[0-9A-Za-z.-]+)?$/.test(
+    version.trim(),
+  )
+}
+
 function resolveUpdateSupport(input: {
   isPackaged: boolean
   platform: NodeJS.Platform
   env: Readonly<Record<string, string | undefined>>
   isMacAppStore: boolean
   isWindowsStore: boolean
-  isAppImageWritable: (filePath: string) => boolean
+  appImageFileSystem: AppImageFileSystem
 }): UpdateSupport {
   if (!input.isPackaged) {
     return { supported: false, reason: 'not_packaged' }
@@ -505,7 +529,7 @@ function resolveUpdateSupport(input: {
     if (!isValidAppImagePath(appImagePath)) {
       return { supported: false, reason: 'unsupported_linux_package' }
     }
-    return checkAppImageWritable(input.isAppImageWritable, appImagePath)
+    return canReplaceAppImage(input.appImageFileSystem, appImagePath)
       ? { supported: true }
       : { supported: false, reason: 'appimage_not_writable' }
   }
@@ -515,26 +539,27 @@ function resolveUpdateSupport(input: {
 function isValidAppImagePath(value: string | undefined): value is string {
   return Boolean(
     value
-    && value.startsWith('/')
+    && pathPosix.isAbsolute(value)
     && !value.includes('\0'),
   )
 }
 
-function defaultIsAppImageWritable(filePath: string) {
-  try {
+const defaultAppImageFileSystem: AppImageFileSystem = {
+  isRegularFile: (filePath) => lstatSync(filePath).isFile(),
+  isWritable: (filePath) => {
     accessSync(filePath, fsConstants.W_OK)
     return true
-  } catch {
-    return false
-  }
+  },
 }
 
-function checkAppImageWritable(
-  isAppImageWritable: (filePath: string) => boolean,
+function canReplaceAppImage(
+  fileSystem: AppImageFileSystem,
   filePath: string,
 ) {
   try {
-    return isAppImageWritable(filePath) === true
+    return fileSystem.isRegularFile(filePath) === true
+      && fileSystem.isWritable(filePath) === true
+      && fileSystem.isWritable(pathPosix.dirname(filePath)) === true
   } catch {
     return false
   }

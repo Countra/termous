@@ -6,6 +6,11 @@ import type {
   UpdateSnapshot,
 } from './updateManager'
 import type { UpdateRuntimeSummary } from './updateRuntime'
+import {
+  normalizeRuntimeSummaryRefreshRequest,
+  type UpdateRuntimeSummaryRefreshRequest,
+  type UpdateRuntimeSummaryReportContext,
+} from './updateRuntimeSummaryRefresh'
 
 const droppedFilePathTTL = 5000
 
@@ -189,8 +194,30 @@ contextBridge.exposeInMainWorld('termous', {
       ipcRenderer.invoke('app-update:set-preferences', patch) as Promise<UpdatePreferences>,
     openWindow: () =>
       ipcRenderer.invoke('app-update:open-window') as Promise<boolean>,
-    reportRuntimeSummary: (summary: UpdateRuntimeSummary) =>
-      ipcRenderer.invoke('app-update:report-runtime-summary', summary) as Promise<UpdateRuntimeSummary>,
+    reportRuntimeSummary: (
+      summary: UpdateRuntimeSummary,
+      context?: UpdateRuntimeSummaryReportContext,
+    ) =>
+      ipcRenderer.invoke(
+        'app-update:report-runtime-summary',
+        summary,
+        context,
+      ) as Promise<UpdateRuntimeSummary>,
+    onRuntimeSummaryRequested: (
+      callback: (request: UpdateRuntimeSummaryRefreshRequest) => void,
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        value: unknown,
+      ) => {
+        const request = normalizeRuntimeSummaryRefreshRequest(value)
+        if (request) {
+          callback(request)
+        }
+      }
+      ipcRenderer.on('app-update:runtime-summary-requested', listener)
+      return () => ipcRenderer.removeListener('app-update:runtime-summary-requested', listener)
+    },
     subscribe: (callback: (snapshot: UpdateSnapshot) => void) => {
       let active = true
       let stateSequence = -1

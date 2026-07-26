@@ -1,4 +1,4 @@
-import { RefreshCw } from 'lucide-react'
+import { Check, RefreshCw } from 'lucide-react'
 import { Alert, Button, Select, Switch } from 'antd'
 import type { TFunction } from 'i18next'
 import type { ReactNode } from 'react'
@@ -61,7 +61,7 @@ export function UpdateSettingsView({
           className="update-settings-unavailable"
           type="warning"
           showIcon
-          message={t('settings.update.unavailableTitle')}
+          title={t('settings.update.unavailableTitle')}
           description={t('settings.update.unavailableHint')}
           action={runtimeAvailable ? (
             <Button
@@ -101,7 +101,12 @@ export function UpdateSettingsView({
             hintId="update-settings-check-interval-hint"
             control={(
               <Select<UpdateCheckInterval>
-                className="update-preference-select"
+                className="termous-select update-preference-select"
+                classNames={{
+                  popup: {
+                    root: 'termous-select-popup update-check-interval-popup',
+                  },
+                }}
                 value={preferences?.check_interval}
                 loading={(
                   preferencesLoading
@@ -120,6 +125,7 @@ export function UpdateSettingsView({
                   { value: 'daily', label: t('settings.update.intervalDaily') },
                   { value: 'weekly', label: t('settings.update.intervalWeekly') },
                 ]}
+                menuItemSelectedIcon={<Check size={14} strokeWidth={2.2} />}
                 onChange={(value) => onSavePreference('check_interval', value)}
               />
             )}

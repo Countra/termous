@@ -733,6 +733,7 @@ function createWindow() {
   })
   registerDevToolsShortcut(win)
   registerRendererHealth(win)
+  updateRuntime?.bindMainWindow(win)
 
   win.once('ready-to-show', () => {
     mainWindowReady = true

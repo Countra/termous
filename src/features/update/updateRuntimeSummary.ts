@@ -23,7 +23,10 @@ export function buildUpdateRuntimeSummary(input: {
       || session.status === 'waiting_trust'
     )).length),
     forwards: clampRuntimeCount(input.forwards.filter((forward) => (
-      forward.status === 'running'
+      forward.status === 'starting'
+      || forward.status === 'waiting_host_trust'
+      || forward.status === 'running'
+      || forward.status === 'stopping'
     )).length),
     transfers: clampRuntimeCount(input.activeTransferCount),
     transfers_complete: input.transferSnapshotComplete,
