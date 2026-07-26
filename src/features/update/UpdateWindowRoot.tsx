@@ -17,7 +17,6 @@ import {
   Typography,
 } from 'antd'
 import {
-  ArrowRight,
   Minus,
   X,
 } from 'lucide-react'
@@ -34,6 +33,7 @@ import {
   UpdateWindowPrimaryActionIcon,
   UpdateWindowVersionBlock,
 } from './UpdateWindowElements'
+import { UpdateReleaseNotesView } from './UpdateReleaseNotesView'
 import { UpdateWindowStatusPanel } from './UpdateWindowStatusPanel'
 import {
   formatReleaseDate,
@@ -497,10 +497,7 @@ export default function UpdateWindowRoot() {
             {snapshot.available_version ? (
               <div className="update-window-version-route" aria-label={text.versionRoute}>
                 <UpdateWindowVersionBlock label={text.currentVersion} version={snapshot.current_version} />
-                <span className="update-window-version-connector" aria-hidden="true">
-                  <span />
-                  <ArrowRight className="update-window-version-arrow" size={17} />
-                </span>
+                <span className="update-window-version-connector" aria-hidden="true" />
                 <div className="update-window-version-target">
                   <UpdateWindowVersionBlock
                     label={text.targetVersion}
@@ -536,9 +533,11 @@ export default function UpdateWindowRoot() {
                     {text.releaseNotes}
                   </Typography.Title>
                 </div>
-                <Typography.Paragraph className="update-window-release-notes" tabIndex={0}>
-                  {snapshot.release_notes || text.noReleaseNotes}
-                </Typography.Paragraph>
+                <UpdateReleaseNotesView
+                  fallback={text.noReleaseNotes}
+                  label={text.releaseNotes}
+                  notes={snapshot.release_notes}
+                />
               </section>
             ) : null}
           </Card>

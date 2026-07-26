@@ -4,6 +4,12 @@ import electronUpdaterModule from 'electron-updater'
 import { accessSync, constants as fsConstants, lstatSync } from 'node:fs'
 import { posix as pathPosix } from 'node:path'
 import { UpdateOperationError } from './updateManager.ts'
+import {
+  closeUnterminatedUpdateReleaseNotesFence,
+  normalizeUpdateReleaseNotesText,
+  truncateUpdateReleaseNotesRawInput,
+  updateReleaseNotesRawInputLimit,
+} from './updateReleaseNotes.ts'
 import type {
   UpdateCheckResult,
   UpdateEngine,
@@ -13,6 +19,8 @@ import type {
 } from './updateTypes.ts'
 
 const releaseNotesLimit = 4_000
+const releaseNotesEntryLimit = 16
+const releaseNotesEntryRawInputLimit = 8_000
 const versionLimit = 64
 const installLaunchTimeoutMs = 120_000
 
@@ -618,52 +626,59 @@ function normalizeRelease(
 function normalizeReleaseNotes(
   value: ElectronUpdaterUpdateInfo['releaseNotes'],
 ) {
-  const notes = Array.isArray(value)
-    ? value.map((entry) => normalizeReleaseNoteText(entry?.note))
-    : [normalizeReleaseNoteText(value)]
-  const normalized = notes
-    .filter((note): note is string => note !== null)
-    .join('\n\n')
-  return truncateText(normalized, releaseNotesLimit)
-}
-
-function normalizeReleaseNoteText(value: unknown) {
-  if (typeof value !== 'string') {
-    return null
+  if (!Array.isArray(value)) {
+    return normalizeUpdateReleaseNotesText(value, releaseNotesLimit)
   }
-  const withoutMarkup = value
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/<(script|style|iframe|object|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
-    .replace(/<(?:br|\/p|\/li|\/h[1-6])\s*\/?>/gi, '\n')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;|&apos;/gi, "'")
-  const normalized = replaceControlCharacters(withoutMarkup)
-    .replace(/\r\n?/g, '\n')
-    .replace(/[^\S\n]+/g, ' ')
-    .replace(/ *\n */g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-  return normalized || null
+  const notes = collectReleaseNotes(value)
+  return normalizeUpdateReleaseNotesText(notes, releaseNotesLimit)
 }
 
-function replaceControlCharacters(value: string) {
-  return Array.from(value, (character) => {
-    const code = character.charCodeAt(0)
-    return (
-      code <= 8
-      || code === 11
-      || code === 12
-      || (code >= 14 && code <= 31)
-      || code === 127
+function collectReleaseNotes(value: ElectronUpdaterReleaseNote[]) {
+  let notes = ''
+  let rawInputRemaining = updateReleaseNotesRawInputLimit
+  for (const entry of value.slice(0, releaseNotesEntryLimit)) {
+    if (typeof entry?.note !== 'string') {
+      continue
+    }
+    const rawInput = truncateUpdateReleaseNotesRawInput(
+      entry.note,
+      Math.min(releaseNotesEntryRawInputLimit, rawInputRemaining),
     )
-      ? ' '
-      : character
-  }).join('')
+    rawInputRemaining -= rawInput.length
+    const normalized = normalizeUpdateReleaseNotesText(
+      rawInput,
+      releaseNotesLimit,
+    )
+    if (!normalized) {
+      if (rawInputRemaining <= 0) {
+        break
+      }
+      continue
+    }
+    const isolated = closeUnterminatedUpdateReleaseNotesFence(
+      normalized,
+      releaseNotesLimit,
+    )
+    const separator = notes ? '\n\n' : ''
+    const remaining = updateReleaseNotesRawInputLimit
+      - notes.length
+      - separator.length
+    if (remaining <= 0) {
+      break
+    }
+    const note = truncateUpdateReleaseNotesRawInput(isolated, remaining)
+    if (!note) {
+      break
+    }
+    notes += `${separator}${note}`
+    if (Array.from(notes).length >= releaseNotesLimit) {
+      break
+    }
+    if (rawInputRemaining <= 0) {
+      break
+    }
+  }
+  return notes
 }
 
 function normalizeOptionalText(value: unknown) {
@@ -672,13 +687,6 @@ function normalizeOptionalText(value: unknown) {
   }
   const normalized = value.trim()
   return normalized || null
-}
-
-function truncateText(value: string, limit: number) {
-  if (!value) {
-    return null
-  }
-  return value.length <= limit ? value : `${value.slice(0, limit - 1)}…`
 }
 
 function isValidVersion(value: string) {

@@ -13,6 +13,18 @@
   padding-block: 13px 15px;
 }
 
+.update-window-status-panel.is-title-only {
+  padding-block: 13px 15px;
+}
+
+.update-window-status-panel.is-title-only .update-window-status-heading {
+  align-items: center;
+}
+
+.update-window-status-panel.is-title-only .update-window-status-announcement {
+  gap: 0;
+}
+
 .update-window-status-heading {
   display: grid;
   min-width: 0;
@@ -22,9 +34,7 @@
 }
 
 .update-window-status-copy {
-  display: grid;
   min-width: 0;
-  gap: 4px;
 }
 
 .update-window-status-title-row {
@@ -33,6 +43,12 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 14px;
+}
+
+.update-window-status-announcement {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
 }
 
 .update-window-status-title-row h3.ant-typography {
@@ -48,7 +64,7 @@
   white-space: nowrap;
 }
 
-.update-window-status-copy > span.ant-typography {
+.update-window-status-announcement > span.ant-typography {
   margin: 0;
   color: var(--text-secondary);
   font-size: 12px;
@@ -324,6 +340,10 @@
 
   .update-window-status-panel.is-compact {
     min-height: 70px;
+    padding-block: 10px 12px;
+  }
+
+  .update-window-status-panel.is-title-only {
     padding-block: 10px 12px;
   }
 

@@ -31,7 +31,7 @@ const availableResult: UpdateCheckResult = {
     version: '1.2.3',
     release_name: 'Termous 1.2.3',
     release_date: '2026-07-25T00:00:00Z',
-    release_notes: '<b>稳定性</b> 改进',
+    release_notes: '### 稳定性\n\n- <b>连接</b> 改进\n- 重试修复',
   },
 }
 
@@ -54,7 +54,10 @@ test('检查和下载事务使用 singleflight 且发布信息经过净化', asy
   const checked = await firstCheck
   assert.equal(checked.phase, 'available')
   assert.equal(checked.available_version, '1.2.3')
-  assert.equal(checked.release_notes, '稳定性 改进')
+  assert.equal(
+    checked.release_notes,
+    '### 稳定性\n\n- **连接** 改进\n- 重试修复',
+  )
   const downloadDeferred = fixture.nextDownload()
   const firstDownload = manager.download()
   const secondDownload = manager.download()

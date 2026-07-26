@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { App as AntdApp, Button, Tooltip } from 'antd'
+import { ArrowUp, LoaderCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { resolveGlobalUpdateStatus } from './updateRuntimeState'
 import { useUpdateRuntime } from './useUpdateRuntime'
@@ -130,6 +131,13 @@ export function BrandVersionControl({
           <span className="brand-version-control__prefix">v</span>
           <span className="brand-version-control__value">{appVersion}</span>
         </span>
+        {kind === 'available' ? (
+          <span className="brand-version-control__update-mark" aria-hidden="true">
+            {opening
+              ? <LoaderCircle size={9} strokeWidth={2.5} />
+              : <ArrowUp size={9} strokeWidth={2.8} />}
+          </span>
+        ) : null}
       </Button>
     </Tooltip>
   )

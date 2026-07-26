@@ -339,7 +339,18 @@ function releaseFields() {
     available_version: simulationVersion,
     release_name: `Termous ${simulationVersion}`,
     release_date: '2026-07-25T08:00:00.000Z',
-    release_notes: '本地模拟版本，用于验证更新提示、下载进度与窗口状态恢复。',
+    release_notes: [
+      `## [${simulationVersion}] - 2026-07-25`,
+      '',
+      '### Added',
+      '',
+      '- 新增应用内更新状态提示。',
+      '- 支持查看下载进度与安装状态。',
+      '',
+      '### Fixed',
+      '',
+      '- 修复更新窗口恢复时的状态同步。',
+    ].join('\n'),
   }
 }
 

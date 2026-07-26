@@ -242,18 +242,36 @@
 }
 
 .update-window-version-connector {
-  display: flex;
+  position: relative;
   min-width: 0;
-  align-items: center;
-  gap: 5px;
-  color: color-mix(in srgb, var(--accent) 68%, var(--text-muted));
+  height: 20px;
+  align-self: end;
+  margin-bottom: 1px;
+  color: color-mix(in srgb, var(--accent) 74%, var(--text-muted));
 }
 
-.update-window-version-connector > span {
+.update-window-version-connector::before {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
   height: 1px;
-  min-width: 12px;
-  flex: 1 1 auto;
-  background: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: currentColor;
+  content: "";
+  opacity: 0.68;
+  transform: translateY(-0.5px);
+}
+
+.update-window-version-connector::after {
+  position: absolute;
+  top: 50%;
+  right: 1px;
+  width: 7px;
+  height: 7px;
+  border-top: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  content: "";
+  transform: translateY(-50%) rotate(45deg);
 }
 
 .update-window-version-target {
@@ -323,16 +341,14 @@
   font-weight: 700;
 }
 
-.update-window-release-notes.ant-typography {
+.update-window-release-notes {
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  margin: 0;
   padding: 0 10px 4px 0;
   color: var(--text-secondary);
   font-size: 12px;
-  line-height: 1.65;
-  white-space: pre-wrap;
+  line-height: 1.6;
   scrollbar-color: color-mix(in srgb, var(--text-muted) 28%, transparent) transparent;
   scrollbar-width: thin;
 }
@@ -341,6 +357,82 @@
   border-radius: 4px;
   outline: 2px solid color-mix(in srgb, var(--accent) 66%, transparent);
   outline-offset: 3px;
+}
+
+.update-window-release-heading.ant-typography {
+  margin: 0 0 9px;
+  color: var(--text-primary);
+  letter-spacing: -0.005em;
+}
+
+.update-window-release-heading.is-release-heading.ant-typography {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.update-window-release-heading.is-section-heading.ant-typography {
+  margin-top: 16px;
+  color: color-mix(in srgb, var(--text-primary) 90%, var(--accent));
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.45;
+}
+
+.update-window-release-paragraph.ant-typography {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.update-window-release-list {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 14px;
+  padding-inline-start: 19px;
+}
+
+.update-window-release-list li {
+  padding-inline-start: 3px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.update-window-release-list li::marker {
+  color: color-mix(in srgb, var(--accent) 72%, var(--text-muted));
+  font-weight: 650;
+}
+
+.update-window-release-inline.ant-typography {
+  color: inherit;
+  font-size: inherit;
+}
+
+.update-window-release-notes .ant-typography code {
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  font-size: 0.92em;
+  padding: 1px 4px;
+}
+
+.update-window-release-code {
+  overflow: auto;
+  margin: 0 0 14px;
+  border-radius: 7px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+}
+
+.update-window-release-notes > :last-child {
+  margin-bottom: 0;
 }
 
 .update-window-footer {

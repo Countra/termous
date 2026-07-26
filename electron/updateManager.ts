@@ -4,6 +4,7 @@ import {
   recordSuccessfulUpdateCheck,
   resolveAutomaticUpdateSchedule,
 } from './updatePreferences.ts'
+import { normalizeUpdateReleaseNotesText } from './updateReleaseNotes.ts'
 import type {
   UpdateCheckResult,
   UpdateDownloadProgress,
@@ -540,7 +541,10 @@ function normalizeRelease(result: UpdateCheckResult): UpdateReleaseInfo {
     version: release.version.trim(),
     release_name: sanitizeText(release.release_name, releaseNameLimit),
     release_date: normalizeDate(release.release_date),
-    release_notes: sanitizeText(release.release_notes, releaseNotesLimit),
+    release_notes: normalizeUpdateReleaseNotesText(
+      release.release_notes,
+      releaseNotesLimit,
+    ),
   }
 }
 

@@ -53,12 +53,12 @@ export function phaseTitle(snapshot: UpdateSnapshot, text: UpdateWindowText) {
 }
 
 export function phaseDescription(snapshot: UpdateSnapshot, text: UpdateWindowText) {
-  const descriptions: Record<UpdateSnapshot['phase'], string> = {
+  const descriptions: Record<UpdateSnapshot['phase'], string | null> = {
     unsupported: text.unsupportedDescription,
     idle: text.idleDescription,
     checking: text.checkingDescription,
     up_to_date: text.upToDateDescription,
-    available: text.availableDescription,
+    available: null,
     downloading: text.downloadingDescription,
     downloaded: text.downloadedDescription,
     preparing_install: text.preparingDescription,
@@ -153,7 +153,7 @@ export function windowCopy(language: UpdateWindowLanguage) {
       ready: 'Ready',
       checking: 'Checking for updates',
       upToDate: 'You’re up to date',
-      readyToDownload: 'Ready to download',
+      readyToDownload: 'Update available',
       downloading: 'Downloading update',
       readyToInstall: 'Ready to install',
       preparingInstall: 'Preparing to install',
@@ -163,7 +163,6 @@ export function windowCopy(language: UpdateWindowLanguage) {
       idleDescription: 'Check whether a newer version is available.',
       checkingDescription: 'Checking for available updates.',
       upToDateDescription: 'This is the latest available version.',
-      availableDescription: 'Download and verify the update without leaving Termous.',
       downloadingDescription: 'You may close this window while the download continues.',
       downloadedDescription: 'Review the impact, then install and restart.',
       preparingDescription: 'Closing active resources safely before installation.',
@@ -219,7 +218,7 @@ export function windowCopy(language: UpdateWindowLanguage) {
     ready: '已就绪',
     checking: '正在检查更新',
     upToDate: '已是最新版本',
-    readyToDownload: '更新可供下载',
+    readyToDownload: '有可用更新',
     downloading: '正在下载更新',
     readyToInstall: '更新可以安装',
     preparingInstall: '正在准备安装',
@@ -229,7 +228,6 @@ export function windowCopy(language: UpdateWindowLanguage) {
     idleDescription: '检查是否有可用的新版本。',
     checkingDescription: '正在检查可用更新。',
     upToDateDescription: '当前已经是最新可用版本。',
-    availableDescription: '无需离开 Termous，即可下载并校验更新。',
     downloadingDescription: '关闭此窗口不会中断后台下载。',
     downloadedDescription: '确认安装影响后即可安装并重新启动。',
     preparingDescription: '正在安全关闭活动资源，为安装做准备。',

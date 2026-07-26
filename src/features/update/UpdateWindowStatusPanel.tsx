@@ -78,6 +78,7 @@ export function UpdateWindowStatusPanel({
   const errorMessage = snapshot.phase === 'error'
     ? errorCopy(snapshot.error_code, language)
     : null
+  const description = errorMessage ?? phaseDescription(snapshot, text)
   const progressStatus = snapshot.phase === 'error'
     ? 'exception'
     : snapshot.phase === 'downloaded'
@@ -107,6 +108,7 @@ export function UpdateWindowStatusPanel({
         'update-window-status-panel',
         showInstallImpact ? 'is-install-ready' : '',
         !showInstallImpact && !showDownloadMetrics ? 'is-compact' : '',
+        !description ? 'is-title-only' : '',
       ].filter(Boolean).join(' ')}
     >
       <div className="update-window-status-heading">
@@ -115,20 +117,27 @@ export function UpdateWindowStatusPanel({
         </span>
         <div className="update-window-status-copy">
           <div className="update-window-status-title-row">
-            <Typography.Title level={3}>{phaseTitle(snapshot, text)}</Typography.Title>
+            <div
+              className="update-window-status-announcement"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <Typography.Title level={3}>
+                {phaseTitle(snapshot, text)}
+              </Typography.Title>
+              {description ? (
+                <Typography.Text type="secondary">
+                  {description}
+                </Typography.Text>
+              ) : null}
+            </div>
             {showDownloadMetrics ? (
               <Typography.Text className="update-window-progress-percent">
                 {Math.round(percent)}%
               </Typography.Text>
             ) : null}
           </div>
-          <Typography.Text
-            type="secondary"
-            aria-live="polite"
-            aria-atomic="true"
-          >
-            {errorMessage ?? phaseDescription(snapshot, text)}
-          </Typography.Text>
         </div>
       </div>
 

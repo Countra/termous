@@ -183,7 +183,7 @@ test('检查结果归一发布信息并安全转换数组形式的 release notes
         },
         {
           version: '1.2.3',
-          note: '<script>steal()</script><b>性能提升</b>',
+          note: '<script>steal()</script><h3>Changed</h3><ul><li><b>性能提升</b></li></ul>',
         },
       ],
     },
@@ -198,11 +198,47 @@ test('检查结果归一发布信息并安全转换数组形式的 release notes
       version: '1.2.3',
       release_name: 'Termous 1.2.3',
       release_date: '2026-07-25T00:00:00Z',
-      release_notes: '修复\n连接 & 重试\n\n性能提升',
+      release_notes: '## 修复\n\n连接 & 重试\n\n### Changed\n\n- **性能提升**',
     },
   })
   assert.equal(result.release?.release_notes?.includes('<'), false)
   assert.equal(result.release?.release_notes?.includes('steal'), false)
+
+  updater.checkResult = {
+    isUpdateAvailable: true,
+    updateInfo: {
+      version: '1.2.4',
+      releaseNotes: [
+        {
+          version: '1.2.3',
+          note: `${' '.repeat(7_990)}<!-- 未闭合`,
+        },
+        {
+          version: '1.2.3',
+          note: '```text\n<source>',
+        },
+        {
+          version: '1.2.4',
+          note: '<h3>有效说明</h3><ul><li>不会被上一项吞掉</li></ul>',
+        },
+      ],
+    },
+  }
+  const separatedNotes = await engine.checkForUpdates()
+  assert.equal(
+    separatedNotes.release?.release_notes?.includes('### 有效说明'),
+    true,
+  )
+  assert.equal(
+    separatedNotes.release?.release_notes?.includes('- 不会被上一项吞掉'),
+    true,
+  )
+  assert.equal(
+    separatedNotes.release?.release_notes?.includes(
+      '```text\n<source>\n```\n\n### 有效说明',
+    ),
+    true,
+  )
 
   updater.checkResult = {
     isUpdateAvailable: false,
