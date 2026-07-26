@@ -32,6 +32,7 @@ import {
 
 const VERSION = "1.2.3";
 const TAG = `v${VERSION}`;
+const DRAFT_DOWNLOAD_NAMESPACE = "untagged-0123456789abcdef0123";
 
 async function createTemporaryRoot(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), "termous-release-fixture-"));
@@ -149,7 +150,7 @@ async function releaseFromDirectory(
   for (const name of names) {
     const digest = await hashRegularFile(path.join(assetsDirectory, name));
     assets.push({
-      browser_download_url: `https://github.com/Countra/termous/releases/download/${TAG}/${name}`,
+      browser_download_url: `https://github.com/Countra/termous/releases/download/${DRAFT_DOWNLOAD_NAMESPACE}/${name}`,
       digest: missingDigest.has(name) ? null : `sha256:${digest.sha256}`,
       name,
       size: digest.size,
@@ -160,6 +161,7 @@ async function releaseFromDirectory(
     assets,
     body: "Release fixture notes",
     draft: true,
+    html_url: `https://github.com/Countra/termous/releases/tag/${DRAFT_DOWNLOAD_NAMESPACE}`,
     prerelease: false,
     tag_name: TAG,
   };
@@ -335,6 +337,107 @@ test("Release metadata 必须是同版本 Draft 且包含说明", async (t) => {
       version: VERSION,
     }),
     /Release notes 不能为空/u,
+  );
+});
+
+test("Draft Release 资产必须匹配可信页面命名空间", async (t) => {
+  const fixture = await createReleaseFixture(t);
+  const release = await releaseFromDirectory(fixture.assetsDirectory);
+  const differentDraft = structuredClone(release);
+  for (const asset of differentDraft.assets) {
+    asset.browser_download_url = asset.browser_download_url.replace(
+      DRAFT_DOWNLOAD_NAMESPACE,
+      "untagged-abcdef0123456789abcd",
+    );
+  }
+  await assert.rejects(
+    verifyReleaseAssets({
+      assetsDirectory: fixture.assetsDirectory,
+      phase: "receipts",
+      release: differentDraft,
+      tag: TAG,
+      version: VERSION,
+    }),
+    /未指向同一 Termous Draft Release/u,
+  );
+
+  const crossRepository = structuredClone(release);
+  crossRepository.assets[0].browser_download_url =
+    crossRepository.assets[0].browser_download_url.replace(
+      "/Countra/termous/",
+      "/other/repository/",
+    );
+  await assert.rejects(
+    verifyReleaseAssets({
+      assetsDirectory: fixture.assetsDirectory,
+      phase: "receipts",
+      release: crossRepository,
+      tag: TAG,
+      version: VERSION,
+    }),
+    /未指向同一 Termous Draft Release/u,
+  );
+
+  const untrustedReleasePage = structuredClone(release);
+  untrustedReleasePage.html_url = untrustedReleasePage.html_url.replace(
+    "/Countra/termous/",
+    "/other/repository/",
+  );
+  await assert.rejects(
+    verifyReleaseAssets({
+      assetsDirectory: fixture.assetsDirectory,
+      phase: "receipts",
+      release: untrustedReleasePage,
+      tag: TAG,
+      version: VERSION,
+    }),
+    /html_url 未指向可信 Termous Release/u,
+  );
+
+  const assetWithQuery = structuredClone(release);
+  assetWithQuery.assets[0].browser_download_url += "?download=1";
+  await assert.rejects(
+    verifyReleaseAssets({
+      assetsDirectory: fixture.assetsDirectory,
+      phase: "receipts",
+      release: assetWithQuery,
+      tag: TAG,
+      version: VERSION,
+    }),
+    /未指向同一 Termous Draft Release/u,
+  );
+
+  const releasePageWithPort = structuredClone(release);
+  releasePageWithPort.html_url = releasePageWithPort.html_url.replace(
+    "github.com/",
+    "github.com:8443/",
+  );
+  await assert.rejects(
+    verifyReleaseAssets({
+      assetsDirectory: fixture.assetsDirectory,
+      phase: "receipts",
+      release: releasePageWithPort,
+      tag: TAG,
+      version: VERSION,
+    }),
+    /html_url 未指向可信 Termous Release/u,
+  );
+
+  const assetWithPort = structuredClone(release);
+  assetWithPort.assets[0].browser_download_url =
+    assetWithPort.assets[0].browser_download_url.replace(
+      "github.com/",
+      "github.com:8443/",
+    );
+  await assert.rejects(
+    verifyReleaseAssets({
+      assetsDirectory: fixture.assetsDirectory,
+      phase: "receipts",
+      release: assetWithPort,
+      tag: TAG,
+      version: VERSION,
+    }),
+    /未指向同一 Termous Draft Release/u,
   );
 });
 

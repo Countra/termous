@@ -20,6 +20,8 @@ const PHASE_ALIASES = new Map([
   ["final", "final"],
   ["after-cleanup", "final"],
 ]);
+const DRAFT_DOWNLOAD_NAMESPACE_PATTERN =
+  /^untagged-[0-9A-Za-z_-]{1,128}$/u;
 
 function requireRecord(value, label) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
@@ -119,7 +121,47 @@ function parseApiDigest(value, assetName) {
   return requireSha256(value.slice("sha256:".length), `${assetName} digest`);
 }
 
-function requireAssetReleaseUrl(value, { assetName, tag }) {
+function requireReleaseDownloadNamespace(value, tag) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch (error) {
+    throw new Error("Release html_url 无效", { cause: error });
+  }
+  const pathSegments = url.pathname.split("/");
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "github.com" ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.port !== "" ||
+    url.search !== "" ||
+    url.hash !== "" ||
+    pathSegments.length !== 6 ||
+    pathSegments[0] !== "" ||
+    pathSegments[1].toLowerCase() !== "countra" ||
+    pathSegments[2].toLowerCase() !== "termous" ||
+    pathSegments[3] !== "releases" ||
+    pathSegments[4] !== "tag"
+  ) {
+    throw new Error("Release html_url 未指向可信 Termous Release");
+  }
+  let downloadNamespace;
+  try {
+    downloadNamespace = decodeURIComponent(pathSegments[5]);
+  } catch (error) {
+    throw new Error("Release html_url 无效", { cause: error });
+  }
+  if (
+    downloadNamespace !== tag &&
+    !DRAFT_DOWNLOAD_NAMESPACE_PATTERN.test(downloadNamespace)
+  ) {
+    throw new Error("Release html_url 未包含可信 Draft 下载命名空间");
+  }
+  return downloadNamespace;
+}
+
+function requireAssetReleaseUrl(value, { assetName, downloadNamespace }) {
   let url;
   try {
     url = new URL(value);
@@ -128,13 +170,37 @@ function requireAssetReleaseUrl(value, { assetName, tag }) {
       cause: error,
     });
   }
-  const expectedPath = `/Countra/termous/releases/download/${tag}/${assetName}`;
+  const pathSegments = url.pathname.split("/");
   if (
     url.protocol !== "https:" ||
     url.hostname !== "github.com" ||
-    url.pathname !== expectedPath ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.port !== "" ||
     url.search !== "" ||
-    url.hash !== ""
+    url.hash !== "" ||
+    pathSegments.length !== 7 ||
+    pathSegments[0] !== "" ||
+    pathSegments[1].toLowerCase() !== "countra" ||
+    pathSegments[2].toLowerCase() !== "termous" ||
+    pathSegments[3] !== "releases" ||
+    pathSegments[4] !== "download"
+  ) {
+    throw new Error(`${assetName} 未指向同一 Termous Draft Release`);
+  }
+  let decodedDownloadNamespace;
+  let downloadAssetName;
+  try {
+    decodedDownloadNamespace = decodeURIComponent(pathSegments[5]);
+    downloadAssetName = decodeURIComponent(pathSegments[6]);
+  } catch (error) {
+    throw new Error(`${assetName} 的 browser_download_url 无效`, {
+      cause: error,
+    });
+  }
+  if (
+    downloadAssetName !== assetName ||
+    downloadNamespace !== decodedDownloadNamespace
   ) {
     throw new Error(`${assetName} 未指向同一 Termous Draft Release`);
   }
@@ -144,16 +210,23 @@ function requireAssetReleaseUrl(value, { assetName, tag }) {
 function indexReleaseAssets(release, tag) {
   const assets = new Map();
   const downloadUrls = new Set();
+  const downloadNamespace = requireReleaseDownloadNamespace(
+    release.html_url,
+    tag,
+  );
   for (const [index, rawAsset] of release.assets.entries()) {
     const asset = requireRecord(rawAsset, `assets[${index}]`);
     const name = requireSafeAssetName(asset.name, `assets[${index}].name`);
     if (assets.has(name)) {
       throw new Error(`Release 包含重复资产名: ${name}`);
     }
-    const downloadUrl = requireAssetReleaseUrl(asset.browser_download_url, {
-      assetName: name,
-      tag,
-    });
+    const downloadUrl = requireAssetReleaseUrl(
+      asset.browser_download_url,
+      {
+        assetName: name,
+        downloadNamespace,
+      },
+    );
     if (downloadUrls.has(downloadUrl)) {
       throw new Error(`Release 包含重复下载 URL: ${downloadUrl}`);
     }
