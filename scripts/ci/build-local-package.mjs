@@ -36,6 +36,20 @@ export const publishCredentialNames = Object.freeze([
   'DO_KEY',
   'DO_SECRET_KEY',
   'SNAPCRAFT_STORE_CREDENTIALS',
+  'APPLE_API_ISSUER',
+  'APPLE_API_KEY',
+  'APPLE_API_KEY_BASE64',
+  'APPLE_API_KEY_ID',
+  'APPLE_APP_SPECIFIC_PASSWORD',
+  'APPLE_ID',
+  'APPLE_TEAM_ID',
+  'CSC_KEY_PASSWORD',
+  'CSC_LINK',
+  'CSC_NAME',
+  'MAC_CSC_KEY_PASSWORD',
+  'MAC_CSC_LINK',
+  'WIN_CSC_KEY_PASSWORD',
+  'WIN_CSC_LINK',
 ])
 
 export function parseLocalPackageArguments(argv) {
@@ -85,6 +99,7 @@ export function sanitizePublishEnvironment(input) {
   for (const name of publishCredentialNames) {
     delete output[name]
   }
+  output.CSC_IDENTITY_AUTO_DISCOVERY = 'false'
   return output
 }
 
@@ -93,7 +108,6 @@ export function createElectronBuilderArguments({
   arch,
   outputDirectory,
   version,
-  requireSigning = false,
 }) {
   const normalizedPlatform = normalizePlatform(platform)
   const normalizedArch = normalizeArch(arch)
@@ -110,7 +124,11 @@ export function createElectronBuilderArguments({
     'electron-builder.json5',
     `--config.directories.output=${outputDirectory}`,
     `--config.extraMetadata.version=${version}`,
-    ...(requireSigning ? ['--config.forceCodeSigning=true'] : []),
+    ...(
+      normalizedPlatform === 'darwin'
+        ? ['--config.mac.identity=null', '--config.mac.notarize=false']
+        : []
+    ),
     '--publish',
     'never',
   ]
@@ -204,7 +222,6 @@ export async function runLocalPackage(
       arch,
       outputDirectory,
       version,
-      requireSigning: process.env.TERMOUS_REQUIRE_SIGNING === 'true',
     })
     const builderCli = path.join(
       webDirectory,

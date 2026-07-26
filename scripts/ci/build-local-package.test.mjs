@@ -20,7 +20,7 @@ import {
   validatePackageArtifacts,
 } from './build-local-package.mjs'
 
-test('electron-builder 固定 GitHub 更新源并同时生成 macOS DMG 与 ZIP', async () => {
+test('electron-builder 固定更新源、平台资产名称与 macOS 双格式', async () => {
   const configPath = path.resolve('electron-builder.json5')
   const configText = await readFile(configPath, 'utf8')
   const config = JSON.parse(
@@ -36,26 +36,38 @@ test('electron-builder 固定 GitHub 更新源并同时生成 macOS DMG 与 ZIP'
     publishAutoUpdate: true,
   }])
   assert.deepEqual(config.mac.target, ['dmg', 'zip'])
-  assert.equal(config.mac.notarize, true)
+  assert.equal(config.mac.identity, null)
+  assert.equal(config.mac.notarize, false)
   assert.equal(config.dmg.sign, false)
   assert.equal(
     config.mac.artifactName,
     '${productName}-${version}-macos-${arch}.${ext}',
   )
+  assert.equal(
+    config.linux.artifactName,
+    '${productName}-${version}-linux-x64.${ext}',
+  )
 })
 
-test('本地打包入口固定 publish never 且清除发布凭据', () => {
+test('本地打包入口固定禁用发布与代码签名', () => {
   const environment = sanitizePublishEnvironment({
     GH_TOKEN: 'secret',
     GITHUB_TOKEN: 'secret',
     AWS_ACCESS_KEY_ID: 'secret',
     CSC_LINK: 'signing-certificate',
+    CSC_NAME: 'certificate-name',
+    APPLE_API_KEY: 'notary-key',
+    APPLE_ID: 'developer@example.com',
     PATH: 'path',
   })
   assert.equal(environment.GH_TOKEN, undefined)
   assert.equal(environment.GITHUB_TOKEN, undefined)
   assert.equal(environment.AWS_ACCESS_KEY_ID, undefined)
-  assert.equal(environment.CSC_LINK, 'signing-certificate')
+  assert.equal(environment.CSC_LINK, undefined)
+  assert.equal(environment.CSC_NAME, undefined)
+  assert.equal(environment.APPLE_API_KEY, undefined)
+  assert.equal(environment.APPLE_ID, undefined)
+  assert.equal(environment.CSC_IDENTITY_AUTO_DISCOVERY, 'false')
   assert.equal(environment.PATH, 'path')
 
   const args = createElectronBuilderArguments({
@@ -63,7 +75,6 @@ test('本地打包入口固定 publish never 且清除发布凭据', () => {
     arch: 'arm64',
     outputDirectory: '/tmp/termous',
     version: '1.2.3',
-    requireSigning: true,
   })
   assert.deepEqual(args.slice(0, 7), [
     'exec',
@@ -74,7 +85,9 @@ test('本地打包入口固定 publish never 且清除发布凭据', () => {
     '--arm64',
     '--config',
   ])
-  assert.equal(args.includes('--config.forceCodeSigning=true'), true)
+  assert.equal(args.includes('--config.forceCodeSigning=true'), false)
+  assert.equal(args.includes('--config.mac.identity=null'), true)
+  assert.equal(args.includes('--config.mac.notarize=false'), true)
   assert.deepEqual(args.slice(-2), ['--publish', 'never'])
 })
 

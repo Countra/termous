@@ -22,7 +22,6 @@ const RECEIPT_KEYS = new Set([
   "schemaVersion",
   "sha256",
   "sha512",
-  "signature",
   "size",
   "version",
 ]);
@@ -54,16 +53,10 @@ export async function createAssetReceipt({
   assetPath,
   manifestPath,
   platform,
-  signature,
   version,
 }) {
   const assetName = requireSafeAssetName(path.basename(assetPath));
   const target = findReceiptTarget(version, platform, arch, assetName);
-  if (signature !== target.signature) {
-    throw new Error(
-      `${assetName} 签名状态必须是 ${target.signature}，不能是 ${String(signature)}`,
-    );
-  }
   const digest = await hashRegularFile(assetPath, assetName);
   if (target.manifest !== null) {
     if (!manifestPath || path.basename(manifestPath) !== target.manifest) {
@@ -87,7 +80,7 @@ export async function createAssetReceipt({
     throw new Error(`${assetName} 是 sidecar，不接受 --manifest`);
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     version,
     platform,
     arch,
@@ -96,7 +89,6 @@ export async function createAssetReceipt({
     size: digest.size,
     sha256: digest.sha256,
     sha512: digest.sha512,
-    signature,
   };
 }
 
@@ -115,8 +107,8 @@ export function validateAssetReceipt(
       throw new Error(`${source} 缺少字段: ${key}`);
     }
   }
-  if (receipt.schemaVersion !== 1) {
-    throw new Error(`${source} schemaVersion 必须是 1`);
+  if (receipt.schemaVersion !== 2) {
+    throw new Error(`${source} schemaVersion 必须是 2`);
   }
   if (receipt.version !== version) {
     throw new Error(`${source} 版本冲突`);
@@ -134,9 +126,6 @@ export function validateAssetReceipt(
   const expectedKind = target.manifest === null ? "sidecar" : "payload";
   if (receipt.kind !== expectedKind) {
     throw new Error(`${source} kind 必须是 ${expectedKind}`);
-  }
-  if (receipt.signature !== target.signature) {
-    throw new Error(`${source} 签名状态必须是 ${target.signature}`);
   }
   return {
     ...receipt,

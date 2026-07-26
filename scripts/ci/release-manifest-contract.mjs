@@ -158,14 +158,12 @@ export function expectedReleaseContract(version) {
       manifest: "latest.yml",
       name: `${prefix}-windows-x64-setup.exe`,
       platform: "windows",
-      signature: "verified",
     },
     {
       arch: "x64",
       manifest: "latest-linux.yml",
       name: `${prefix}-linux-x64.AppImage`,
       platform: "linux",
-      signature: "not-required",
     },
     ...["x64", "arm64"].flatMap((arch) =>
       ["zip", "dmg"].map((extension) => ({
@@ -173,7 +171,6 @@ export function expectedReleaseContract(version) {
         manifest: "latest-mac.yml",
         name: `${prefix}-macos-${arch}.${extension}`,
         platform: "macos",
-        signature: "verified",
       })),
     ),
   ];
@@ -197,7 +194,6 @@ export function expectedReleaseContract(version) {
         manifest: null,
         name,
         platform,
-        signature: "not-required",
       };
     }),
   ];

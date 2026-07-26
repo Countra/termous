@@ -65,6 +65,10 @@ test("平台构建包装器把安装目录清理交给安全打包入口", async
   assert.match(unixSource, /prepare_core_output_directory/u);
   assert.match(windowsSource, /@\("termous-core\.exe", "termous-core"\)/u);
   assert.match(unixSource, /termous-core\.exe termous-core/u);
+  assert.match(windowsSource, /function Disable-CodeSigning/u);
+  assert.match(unixSource, /disable_code_signing/u);
+  assert.match(windowsSource, /CSC_IDENTITY_AUTO_DISCOVERY = "false"/u);
+  assert.match(unixSource, /CSC_IDENTITY_AUTO_DISCOVERY=false/u);
 });
 
 test("全部 Actions 固定完整 SHA 并标注版本", async () => {
@@ -165,22 +169,22 @@ test("平台构建完成后才使用内置 Token 上传 Draft 资产", async () 
       names.indexOf("Upload Unix Draft assets"),
   );
   assert.ok(
-    names.indexOf("Package and verify macOS signatures") <
+    names.indexOf("Package macOS release") <
       names.indexOf("Upload Unix Draft assets"),
   );
   assertBuiltinTokenStep(workflow, "build", "Upload Windows Draft assets");
   assertBuiltinTokenStep(workflow, "build", "Upload Unix Draft assets");
 });
 
-test("签名与发布 Secrets 仅存在于对应步骤", async () => {
-  const { workflow } = await loadWorkflow();
+test("发布构建固定禁用代码签名且不读取签名 Secrets", async () => {
+  const { source, workflow } = await loadWorkflow();
   const buildSteps = stepsFor(workflow, "build");
   for (const name of [
-    "Package and verify Windows signatures",
-    "Package and verify macOS signatures",
+    "Package Windows release",
+    "Package macOS release",
   ]) {
     const step = buildSteps.find((candidate) => candidate.name === name);
-    assert.equal(step?.env?.TERMOUS_REQUIRE_SIGNING, "true");
+    assert.ok(step);
   }
   for (const [jobName, job] of Object.entries(workflow.jobs)) {
     assert.equal(
@@ -189,41 +193,24 @@ test("签名与发布 Secrets 仅存在于对应步骤", async () => {
       `${jobName} 不得在 Job env 暴露 Secret`,
     );
     for (const step of job.steps ?? []) {
-      const serialized = JSON.stringify(step);
-      if (/CSC_|APPLE_API_/u.test(serialized)) {
-        assert.match(step.name, /^Package and verify /u);
-      }
       if (step.env?.GH_TOKEN !== undefined) {
         assert.equal(step.env.GH_TOKEN, "${{ github.token }}");
       }
     }
   }
-});
-
-test("签名门禁使用 extraFiles 的应用内容根路径", async () => {
-  const { source } = await loadWorkflow();
-  assert.match(source, /win-unpacked\\termous-core\.exe/u);
-  assert.match(source, /\$app_path\/Contents\/termous-core/u);
-  assert.match(source, /xcrun stapler validate "\$zip_app"/u);
-  assert.match(source, /xcrun stapler validate "\$dmg_app"/u);
-  assert.match(source, /TeamIdentifier/u);
-  assert.match(
-    source,
-    /codesign -d --verbose=4 "\$core_path"[\s\S]*Developer ID Application/u,
-  );
-  assert.match(source, /xcrun notarytool submit "\$dmg"/u);
-  assert.match(source, /xcrun stapler staple -v "\$dmg"/u);
-  assert.match(
-    source,
-    /stapler validate "\$dmg_app"[\s\S]*merge-macos-update-info\.mjs refresh/u,
-  );
-  assert.ok(
-    source.indexOf('xcrun notarytool submit "$dmg"') <
-      source.indexOf('xcrun stapler validate "$dmg"'),
-  );
-  assert.match(source, /spctl --assess --type open/u);
-  assert.equal(source.includes("resources\\termous-core.exe"), false);
-  assert.equal(source.includes("Contents/Resources/termous-core"), false);
+  for (const pattern of [
+    /TERMOUS_REQUIRE_SIGNING/u,
+    /--require-signing/u,
+    /CSC_/u,
+    /APPLE_API_/u,
+    /Authenticode/u,
+    /\bcodesign\b/u,
+    /\bnotarytool\b/u,
+    /\bstapler\b/u,
+    /--signature/u,
+  ]) {
+    assert.doesNotMatch(source, pattern);
+  }
 });
 
 test("Draft 必须经过合并、双阶段校验和清理后才能公开", async () => {
@@ -282,9 +269,9 @@ test("Draft 必须经过合并、双阶段校验和清理后才能公开", async
     ({ name }) => name === "Download Draft evidence",
   );
   assert.equal(receiptDownload.env.GH_TOKEN, "${{ github.token }}");
-  assert.ok(verifyNames.includes("Verify manifests, receipts, digests and signatures"));
+  assert.ok(verifyNames.includes("Verify manifests, receipts and digests"));
   assert.ok(
-    verifyNames.indexOf("Verify manifests, receipts, digests and signatures") <
+    verifyNames.indexOf("Verify manifests, receipts and digests") <
       verifyNames.indexOf("Delete temporary receipts"),
   );
   assert.equal(verifyNames.at(-1), "Delete temporary receipts");

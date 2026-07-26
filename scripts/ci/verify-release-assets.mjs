@@ -72,7 +72,6 @@ async function runReceipt(values) {
   const arch = takeRequired(values, "--arch");
   const assetPath = takeRequired(values, "--asset");
   const outputPath = takeRequired(values, "--output");
-  const signature = takeRequired(values, "--signature");
   const manifestPath = takeOptional(values, "--manifest");
   assertNoUnknownArguments(values);
   const expectedOutput = `${path.basename(assetPath)}.receipt.json`;
@@ -84,7 +83,6 @@ async function runReceipt(values) {
     assetPath,
     manifestPath,
     platform,
-    signature,
     version,
   });
   await writeAtomic(outputPath, stringifyAssetReceipt(receipt));

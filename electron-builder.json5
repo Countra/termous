@@ -35,7 +35,8 @@
   ],
   "mac": {
     "icon": "build/icon.icns",
-    "notarize": true,
+    "identity": null,
+    "notarize": false,
     "target": [
       "dmg",
       "zip"
@@ -73,6 +74,6 @@
     "target": [
       "AppImage"
     ],
-    "artifactName": "${productName}-${version}-linux-${arch}.${ext}"
+    "artifactName": "${productName}-${version}-linux-x64.${ext}"
   }
 }

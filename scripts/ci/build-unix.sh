@@ -116,6 +116,28 @@ clear_publish_credentials() {
   done
 }
 
+disable_code_signing() {
+  local names=(
+    APPLE_API_ISSUER
+    APPLE_API_KEY
+    APPLE_API_KEY_BASE64
+    APPLE_API_KEY_ID
+    APPLE_APP_SPECIFIC_PASSWORD
+    APPLE_ID
+    APPLE_TEAM_ID
+    CSC_KEY_PASSWORD
+    CSC_LINK
+    CSC_NAME
+    MAC_CSC_KEY_PASSWORD
+    MAC_CSC_LINK
+  )
+  local name
+  for name in "${names[@]}"; do
+    unset "$name"
+  done
+  export CSC_IDENTITY_AUTO_DISCOVERY=false
+}
+
 resolve_build_phase() {
   local phase="${TERMOUS_BUILD_PHASE:-all}"
   phase="$(printf '%s' "$phase" | tr '[:upper:]' '[:lower:]')"
@@ -199,6 +221,7 @@ echo "phase=$build_phase"
 
 export VITE_TERMOUS_APP_VERSION="$version"
 clear_publish_credentials
+disable_code_signing
 
 if [[ "$build_phase" == "all" || "$build_phase" == "prepare" ]]; then
   prepare_core_output_directory "$web_dir/build" "$core_output_dir"

@@ -135,31 +135,18 @@ function Enable-MingwIfAvailable {
   throw "未找到 gcc。Termous Core 使用 SQLite CGO 驱动，Windows 构建需要可用的 MinGW gcc。"
 }
 
-function Use-CodeSigningDefaults {
-  $certificateVars = @("CSC_LINK", "WIN_CSC_LINK")
-  $passwordVars = @("CSC_KEY_PASSWORD", "WIN_CSC_KEY_PASSWORD")
-  $hasCertificate = $false
-
-  foreach ($name in $certificateVars) {
-    $value = [Environment]::GetEnvironmentVariable($name)
-    if ([string]::IsNullOrWhiteSpace($value)) {
-      Remove-Item -Path "Env:$name" -ErrorAction SilentlyContinue
-    } else {
-      $hasCertificate = $true
-    }
+function Disable-CodeSigning {
+  foreach ($name in @(
+    "CSC_KEY_PASSWORD",
+    "CSC_LINK",
+    "CSC_NAME",
+    "WIN_CSC_KEY_PASSWORD",
+    "WIN_CSC_LINK"
+  )) {
+    Remove-Item -Path "Env:$name" -ErrorAction SilentlyContinue
   }
-
-  foreach ($name in $passwordVars) {
-    $value = [Environment]::GetEnvironmentVariable($name)
-    if ([string]::IsNullOrWhiteSpace($value)) {
-      Remove-Item -Path "Env:$name" -ErrorAction SilentlyContinue
-    }
-  }
-
-  if (-not $hasCertificate) {
-    $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
-    Write-Host "Windows code signing disabled; unsigned installer will be built."
-  }
+  $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
+  Write-Host "Windows 代码签名已禁用，将构建未签名安装包。"
 }
 
 function Clear-PublishCredentials {
@@ -270,7 +257,7 @@ if ($phase -in @("all", "package")) {
     }
   }
 
-  Use-CodeSigningDefaults
+  Disable-CodeSigning
   Invoke-Native -Name "Build Windows installer" -FilePath "node" -Arguments @(
     "scripts/ci/build-local-package.mjs",
     "--output",

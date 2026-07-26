@@ -121,7 +121,6 @@ async function createReleaseFixture(t) {
           ? undefined
           : path.join(assetsDirectory, target.manifest),
       platform: target.platform,
-      signature: target.signature,
       version: VERSION,
     });
     await writeFile(
@@ -189,6 +188,30 @@ test("离线 receipt 阶段验证全部平台载荷、sidecar 和摘要", async 
     result.assetCount,
     fixture.contract.finalAssets.length + fixture.contract.receipts.length,
   );
+});
+
+test("发布契约不包含代码签名状态", async (t) => {
+  const fixture = await createReleaseFixture(t);
+  assert.equal(
+    fixture.contract.receiptTargets.every(
+      (target) => Object.hasOwn(target, "signature") === false,
+    ),
+    true,
+  );
+  const receiptName = fixture.contract.receipts[0];
+  const receipt = JSON.parse(
+    await readFile(path.join(fixture.assetsDirectory, receiptName), "utf8"),
+  );
+  assert.equal(receipt.schemaVersion, 2);
+  assert.equal(Object.hasOwn(receipt, "signature"), false);
+  const result = await verifyReleaseAssets({
+    assetsDirectory: fixture.assetsDirectory,
+    phase: "receipts",
+    release: await releaseFromDirectory(fixture.assetsDirectory),
+    tag: TAG,
+    version: VERSION,
+  });
+  assert.equal(result.phase, "receipts");
 });
 
 test("清理后 final 阶段拒绝 partial 和 receipt", async (t) => {
