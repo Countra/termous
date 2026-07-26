@@ -1,0 +1,621 @@
+.details-tabs .ant-tabs-content-active:has(> .workbench-files-panel) {
+  overflow: hidden;
+  padding-right: 0;
+}
+
+.workbench-files-panel {
+  position: relative;
+  --workbench-file-transfer-clearance: 64px;
+
+  container-type: inline-size;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-auto-rows: auto;
+  gap: 7px;
+  overflow: hidden;
+}
+
+.workbench-files-panel:has(.workbench-file-transfer.is-active) {
+  --workbench-file-transfer-clearance: 96px;
+}
+
+.workbench-files-toolbar {
+  display: grid;
+  gap: 7px;
+}
+
+.workbench-files-summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.workbench-files-summary-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.workbench-files-summary-icon {
+  display: inline-grid;
+  width: 31px;
+  height: 31px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--accent) 84%, var(--text-primary));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.workbench-files-summary-text {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.workbench-files-summary-text strong,
+.workbench-files-summary-text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-files-summary-text strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: -0.01em;
+}
+
+.workbench-files-summary-text small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.workbench-files-ready-dot,
+.workbench-files-follow-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--success) 42%, transparent);
+}
+
+.workbench-files-ready-dot.is-disconnected {
+  background: var(--warning);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--warning) 32%, transparent);
+}
+
+.workbench-file-recovery {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid color-mix(in srgb, var(--warning) 34%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--warning) 72%, var(--text-primary));
+}
+
+.workbench-file-recovery.is-requesting,
+.workbench-file-recovery.is-waiting_ready {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--accent) 72%, var(--text-primary));
+}
+
+.workbench-file-recovery.is-failed {
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--danger) 76%, var(--text-primary));
+}
+
+.workbench-file-recovery-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 7px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.workbench-file-recovery-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.workbench-file-recovery-copy strong,
+.workbench-file-recovery-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-file-recovery-copy strong {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.workbench-file-recovery-copy small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.workbench-file-recovery .ant-btn {
+  min-width: 78px;
+  border-color: color-mix(in srgb, currentColor 24%, var(--border));
+  background: color-mix(in srgb, currentColor 6%, var(--surface));
+  color: inherit;
+}
+
+.workbench-files-summary-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.workbench-files-icon-button.ant-btn,
+.workbench-files-action-button.ant-btn,
+.workbench-files-address-action.ant-btn,
+.workbench-files-back.ant-btn {
+  display: inline-grid;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  box-shadow: none;
+}
+
+.workbench-files-icon-button.ant-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.workbench-files-icon-button.ant-btn:hover,
+.workbench-files-icon-button.ant-btn:focus-visible,
+.workbench-files-action-button.ant-btn:hover,
+.workbench-files-action-button.ant-btn:focus-visible,
+.workbench-files-address-action.ant-btn:hover,
+.workbench-files-address-action.ant-btn:focus-visible,
+.workbench-files-back.ant-btn:hover,
+.workbench-files-back.ant-btn:focus-visible {
+  border-color: color-mix(in srgb, var(--border) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 86%, transparent);
+  color: var(--text-primary);
+}
+
+.workbench-files-location {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.workbench-files-back.ant-btn {
+  width: 31px;
+  min-width: 31px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.workbench-files-address {
+  position: relative;
+  display: flex;
+  height: 34px;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 3px 2px 8px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-subtle) 66%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 4%),
+    inset 0 -1px 0 rgb(0 0 0 / 5%);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.workbench-files-address.is-navigating {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-subtle));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 8%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 4%);
+}
+
+.workbench-files-address.is-loading::after {
+  position: absolute;
+  z-index: 3;
+  bottom: 0;
+  left: -42%;
+  width: 42%;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 84%, white 8%) 34%,
+    var(--accent) 70%,
+    transparent
+  );
+  box-shadow: 0 0 7px color-mix(in srgb, var(--accent) 28%, transparent);
+  content: "";
+  pointer-events: none;
+  animation: workbench-files-loading-track 1.1s ease-in-out infinite;
+}
+
+.workbench-files-address:hover,
+.workbench-files-address:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--surface-subtle) 88%, var(--accent) 3%);
+}
+
+.workbench-files-address:focus-within {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 4%);
+}
+
+.workbench-files-address.is-invalid,
+.workbench-files-address.is-invalid:focus-within {
+  border-color: color-mix(in srgb, var(--danger) 58%, var(--border));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--danger) 10%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 4%);
+}
+
+.workbench-files-breadcrumb-shell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  overflow: hidden;
+}
+
+.workbench-files-breadcrumb-shell::before,
+.workbench-files-breadcrumb-shell::after {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: 34px;
+  opacity: 0;
+  content: "";
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
+.workbench-files-breadcrumb-shell::before {
+  left: 0;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--surface-subtle) 92%, transparent) 38%,
+    transparent
+  );
+}
+
+.workbench-files-breadcrumb-shell::after {
+  right: 0;
+  background: linear-gradient(
+    270deg,
+    color-mix(in srgb, var(--surface-subtle) 92%, transparent) 38%,
+    transparent
+  );
+}
+
+.workbench-files-breadcrumb-shell.has-left-overflow::before,
+.workbench-files-breadcrumb-shell.has-right-overflow::after {
+  opacity: 1;
+}
+
+.workbench-files-breadcrumb-viewport {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.workbench-files-breadcrumb-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.workbench-files-breadcrumb {
+  display: block;
+  width: max-content;
+  min-width: max-content;
+}
+
+.workbench-files-breadcrumb .ant-breadcrumb-ol {
+  align-items: center;
+  width: max-content;
+  flex-wrap: nowrap;
+}
+
+.workbench-files-breadcrumb .ant-breadcrumb-separator {
+  display: inline-grid;
+  margin-inline: 1px;
+  place-items: center;
+  color: color-mix(in srgb, var(--text-muted) 58%, transparent);
+}
+
+.workbench-files-crumb {
+  max-width: 104px;
+  overflow: hidden;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.workbench-files-crumb.is-root {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  place-items: center;
+  color: color-mix(in srgb, var(--accent) 72%, var(--text-secondary));
+}
+
+.workbench-files-crumb:not(:disabled):hover,
+.workbench-files-crumb:not(:disabled):focus-visible {
+  background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.workbench-files-crumb.is-current {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.workbench-files-crumb:disabled {
+  cursor: default;
+}
+
+.workbench-files-crumb:disabled:not(.is-current) {
+  color: var(--text-muted);
+  opacity: 0.58;
+}
+
+.workbench-files-breadcrumb-scroll.ant-btn {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  display: inline-flex;
+  width: 23px;
+  min-width: 23px;
+  height: 25px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-subtle) 94%, transparent);
+  color: var(--text-secondary);
+  box-shadow:
+    0 2px 7px rgb(0 0 0 / 12%),
+    inset 0 1px 0 rgb(255 255 255 / 5%);
+  transform: translateY(-50%);
+  transition:
+    opacity 150ms ease,
+    visibility 150ms ease,
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease;
+}
+
+.workbench-files-breadcrumb-scroll.ant-btn.is-left {
+  left: 0;
+}
+
+.workbench-files-breadcrumb-scroll.ant-btn.is-right {
+  right: 0;
+}
+
+.workbench-files-breadcrumb-scroll.ant-btn:not(:disabled):hover,
+.workbench-files-breadcrumb-scroll.ant-btn:not(:disabled):focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--surface-strong) 88%, var(--accent) 5%);
+  color: var(--text-primary);
+  transform: translateY(-50%) scale(1.03);
+}
+
+.workbench-files-breadcrumb-scroll.ant-btn:not(:disabled):active {
+  transform: translateY(calc(-50% + 1px)) scale(0.98);
+}
+
+.workbench-files-breadcrumb-scroll.ant-btn:disabled {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.workbench-files-address-action.ant-btn {
+  width: 27px;
+  min-width: 27px;
+  height: 27px;
+  border-radius: 7px;
+}
+
+.workbench-files-path-input.ant-input {
+  min-width: 0;
+  height: 28px;
+  padding: 0 5px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 10.5px;
+  box-shadow: none;
+}
+
+.workbench-files-path-input.ant-input:hover,
+.workbench-files-path-input.ant-input:focus {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.workbench-files-panel .workbench-files-follow[data-state="preparing"],
+.workbench-files-panel .workbench-files-follow[data-state="locating"],
+.workbench-files-panel .workbench-files-follow[data-state="syncing"],
+.workbench-files-panel .workbench-files-follow[data-state="waiting"] {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
+  color: var(--text-secondary);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+}
+
+.workbench-files-panel .workbench-files-follow[data-state="preparing"] .workbench-files-follow-dot,
+.workbench-files-panel .workbench-files-follow[data-state="locating"] .workbench-files-follow-dot,
+.workbench-files-panel .workbench-files-follow[data-state="syncing"] .workbench-files-follow-dot,
+.workbench-files-panel .workbench-files-follow[data-state="waiting"] .workbench-files-follow-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.workbench-files-panel .workbench-files-follow[data-state="unsupported"] {
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--border));
+  background: color-mix(in srgb, var(--warning) 9%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--warning) 68%, var(--text-primary));
+}
+
+.workbench-files-panel .workbench-files-follow[data-state="unsupported"] .workbench-files-follow-dot {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.workbench-files-panel .workbench-files-follow[data-state="reconnect-required"] {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--accent) 68%, var(--text-primary));
+}
+
+.workbench-files-panel .workbench-files-follow[data-state="reconnect-required"] .workbench-files-follow-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.workbench-files-panel .workbench-files-follow[data-state="failed"] {
+  border-color: color-mix(in srgb, var(--danger) 44%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--danger) 72%, var(--text-primary));
+}
+
+.workbench-files-panel .workbench-files-follow[data-state="failed"] .workbench-files-follow-dot {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent);
+  animation: none;
+}
+
+.workbench-files-panel .is-spinning {
+  animation: workbench-files-spin 900ms linear infinite;
+}
+
+.workbench-file-transfer-overlay {
+  position: absolute;
+  z-index: 7;
+  right: 7px;
+  bottom: 7px;
+  left: 7px;
+  pointer-events: none;
+}
+
+.workbench-file-transfer-overlay > * {
+  pointer-events: auto;
+}
+
+@keyframes workbench-files-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes workbench-files-loading-track {
+  0% {
+    opacity: 0.35;
+    transform: translateX(0);
+  }
+
+  48% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.35;
+    transform: translateX(338%);
+  }
+}
+
+:root[data-theme="light"] .workbench-files-address {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 72%),
+    0 5px 14px rgb(35 48 68 / 4%);
+}
+
+@container (max-width: 250px) {
+  .workbench-files-crumb {
+    max-width: 74px;
+  }
+}
+
+@container (max-width: 225px) {
+  .workbench-files-summary-text small {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workbench-files-panel *,
+  .workbench-files-panel *::before,
+  .workbench-files-panel *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .workbench-files-address.is-loading::after {
+    left: 0;
+    width: 100%;
+    opacity: 0.72;
+    transform: none;
+    animation: none !important;
+  }
+}

@@ -1,16 +1,25 @@
-import { Languages, Moon, Settings2, SquareTerminal, Sun } from 'lucide-react'
+import { DatabaseBackup, Languages, Moon, RefreshCw, Settings2, SquareTerminal, Sun } from 'lucide-react'
 import { Segmented, Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { AppearanceSettings, Language, TerminalFont, TerminalSettings, WindowSettings } from '../../types/domain'
+import type {
+  AppearanceSettings,
+  Language,
+  TerminalFont,
+  TerminalSettings,
+  WindowSettings,
+} from '../../types/domain'
+import { UpdateSettings, type UpdatePreferencesRuntime } from './UpdateSettings'
 import { TerminalStyleSettings } from './TerminalStyleSettings'
+import { DataPortabilitySettings } from './DataPortabilitySettings'
 
-interface SettingsPageProps {
+export interface SettingsPageProps {
   language: Language
   appearanceSettings: AppearanceSettings
   terminalSettings: TerminalSettings
   windowSettings: WindowSettings
   terminalFonts: TerminalFont[]
   appVersion: string
+  updatePreferencesRuntime?: UpdatePreferencesRuntime | null
   actionBusy: boolean
   onLanguageChange: (language: Language) => Promise<void>
   onAppearanceSettingsChange: (settings: AppearanceSettings) => Promise<void>
@@ -27,6 +36,7 @@ export function SettingsPage({
   windowSettings,
   terminalFonts,
   appVersion,
+  updatePreferencesRuntime = null,
   actionBusy,
   onLanguageChange,
   onAppearanceSettingsChange,
@@ -61,12 +71,6 @@ export function SettingsPage({
                 <div className="settings-section-header">
                   <Settings2 size={18} aria-hidden="true" />
                   <h2>{t('settings.generalSection')}</h2>
-                </div>
-                <div className="settings-row">
-                  <div>
-                    <strong>{t('settings.appVersion')}</strong>
-                  </div>
-                  <div className="settings-version-value">v{appVersion}</div>
                 </div>
                 <div className="settings-row">
                   <div>
@@ -174,6 +178,28 @@ export function SettingsPage({
                 onUploadFont={onUploadTerminalFont}
                 onDeleteFont={onDeleteTerminalFont}
               />
+            ),
+          },
+          {
+            key: 'data',
+            label: (
+              <span className="settings-tab-label">
+                <DatabaseBackup size={15} aria-hidden="true" />
+                {t('settings.tabData')}
+              </span>
+            ),
+            children: <DataPortabilitySettings appVersion={appVersion} />,
+          },
+          {
+            key: 'updates',
+            label: (
+              <span className="settings-tab-label">
+                <RefreshCw size={15} aria-hidden="true" />
+                {t('settings.tabUpdates')}
+              </span>
+            ),
+            children: (
+              <UpdateSettings updateRuntime={updatePreferencesRuntime} />
             ),
           },
         ]}

@@ -1,216 +1,386 @@
-import { KeyRound, Plus, Trash2, Wand2 } from 'lucide-react'
-import { Button, Empty, Input, Popconfirm, Segmented, Tag } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { CustomSelect } from '../../components/ui/CustomSelect'
-import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
-import type { AppData, CredentialInput, CredentialType } from '../../types/domain'
+import { createApiFromRuntime, TermousApiError } from '../../api/client'
+import { ManagementWorkspace, type ManagementWorkspaceView } from '../../components/management/ManagementWorkspace'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import type { AppData, CredentialInput, CredentialType, CredentialView, SSHKeyGenerateRequest, SSHKeyInspectResult, SSHKeyPair } from '../../types/domain'
+import { CredentialCatalog } from './CredentialCatalog'
+import { CredentialEditor } from './CredentialEditor'
+import { PrivateKeyPassphraseModal, type PrivateKeyUnlockInput } from './PrivateKeyPassphraseModal'
+import { SSHKeyGenerationModal } from './SSHKeyGenerationModal'
+import {
+  createBlankCredentialInput,
+  credentialInputsEqual,
+  credentialToInput,
+  normalizeCredentialInput,
+  validateCredentialInput,
+} from './credentialManagementUtils'
+import { privateKeyNameFromFile, sshKeyErrorMessage } from './sshKeyUi'
+import './vault.css'
 
 interface VaultPageProps {
   data: AppData
   actionBusy: boolean
-  onSave: (id: string | null, input: CredentialInput) => Promise<void>
-  onDelete: (id: string) => Promise<void>
-  onGenerateKey: () => Promise<void>
+  onSave: (id: string | null, input: CredentialInput) => Promise<CredentialView | undefined>
+  onDelete: (id: string) => Promise<boolean | undefined>
+  onDirtyChange: (dirty: boolean) => void
 }
 
-const blankCredential: CredentialInput = {
-  name: '',
-  type: 'password',
-  vault_id: 'local',
-  secret: '',
-  metadata: {},
+type CredentialIntent =
+  | { type: 'select'; credentialId: string }
+  | { type: 'create' }
+  | { type: 'back' }
+  | { type: 'generate' }
+  | { type: 'change_type'; credentialType: CredentialType }
+
+interface PendingPrivateKeyImport {
+  fileName: string
+  privateKey: string
 }
 
-export function VaultPage({ data, actionBusy, onSave, onDelete, onGenerateKey }: VaultPageProps) {
+export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }: VaultPageProps) {
   const { t } = useTranslation()
-  const [filter, setFilter] = useState<'all' | CredentialType>('all')
+  const initialInput = createBlankCredentialInput()
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<CredentialInput>(blankCredential)
-  const editing = data.credentials.find((credential) => credential.id === editingId)
-  const passphraseOptions = useMemo(
-    () => [
-      { value: '', label: t('vault.noPassphrase') },
-      ...data.credentials
-        .filter((credential) => credential.type === 'private_key_passphrase')
-        .map((credential) => ({ value: credential.id, label: credential.name })),
-    ],
-    [data.credentials, t],
+  const [draft, setDraft] = useState<CredentialInput>(initialInput)
+  const [baseline, setBaseline] = useState<CredentialInput>(initialInput)
+  const [activeView, setActiveView] = useState<ManagementWorkspaceView>('catalog')
+  const [pendingIntent, setPendingIntent] = useState<CredentialIntent | null>(null)
+  const [generationOpen, setGenerationOpen] = useState(false)
+  const [importBusy, setImportBusy] = useState(false)
+  const [importError, setImportError] = useState('')
+  const [pendingImport, setPendingImport] = useState<PendingPrivateKeyImport | null>(null)
+  const apiRef = useRef<ReturnType<typeof createApiFromRuntime> | null>(null)
+  const importControllerRef = useRef<AbortController | null>(null)
+  const importRevisionRef = useRef(0)
+  const dirty = useMemo(() => !credentialInputsEqual(draft, baseline), [baseline, draft])
+  const editingCredential = useMemo(
+    () => data.credentials.find((credential) => credential.id === editingId),
+    [data.credentials, editingId],
   )
-  const filtered = data.credentials.filter((credential) => filter === 'all' || credential.type === filter)
+  const passphraseCredentials = useMemo(
+    () => data.credentials.filter((credential) => credential.type === 'private_key_passphrase'),
+    [data.credentials],
+  )
+  const requireSecret = !editingCredential || draft.type !== editingCredential.type
+  const errors = useMemo(() => validateCredentialInput(draft, requireSecret, {
+    name: t('vault.validation.nameRequired'),
+    secret: t('vault.validation.secretRequired'),
+  }), [draft, requireSecret, t])
+
+  const loadCredential = useCallback((credential: CredentialView) => {
+    const input = credentialToInput(credential)
+    setEditingId(credential.id)
+    setDraft(input)
+    setBaseline(input)
+    setActiveView('editor')
+  }, [])
+
+  const loadCredentialById = useCallback((credentialId: string) => {
+    const credential = data.credentials.find((item) => item.id === credentialId)
+    if (credential) {
+      loadCredential(credential)
+    }
+  }, [data.credentials, loadCredential])
+
+  const startCreate = useCallback(() => {
+    const input = createBlankCredentialInput()
+    setEditingId(null)
+    setDraft(input)
+    setBaseline(input)
+    setActiveView('editor')
+  }, [])
+
+  const getApi = useCallback(() => {
+    if (!apiRef.current) {
+      apiRef.current = createApiFromRuntime()
+    }
+    return apiRef.current
+  }, [])
+
+  const applyPrivateKeyDraft = useCallback((input: CredentialInput) => {
+    setEditingId(null)
+    setDraft(input)
+    setBaseline(createBlankCredentialInput('private_key'))
+    setImportError('')
+    setActiveView('editor')
+  }, [])
+
+  const clearPendingImport = useCallback(() => {
+    importRevisionRef.current += 1
+    importControllerRef.current?.abort()
+    importControllerRef.current = null
+    setImportBusy(false)
+    setPendingImport(null)
+  }, [])
+
+  const applyImportedKey = useCallback((source: PendingPrivateKeyImport, result: SSHKeyInspectResult, unlock?: PrivateKeyUnlockInput) => {
+    const importedName = privateKeyNameFromFile(source.fileName, t('vault.sshKey.defaultName'))
+    setDraft((current) => {
+      const credentialName = current.name.trim() || importedName
+      const metadata = { ...current.metadata }
+      delete metadata.passphrase_credential_id
+      if (result.encrypted && unlock?.source === 'existing') {
+        metadata.passphrase_credential_id = unlock.credentialId
+      }
+      return {
+        ...current,
+        name: credentialName,
+        type: 'private_key',
+        secret: source.privateKey,
+        metadata,
+        ssh_key_info: result.info,
+        pending_passphrase: result.encrypted && unlock?.source === 'new'
+          ? {
+              name: t('vault.sshKey.generatedPassphraseName', { name: credentialName }),
+              secret: unlock.passphrase,
+            }
+          : undefined,
+      }
+    })
+    setImportError('')
+    setActiveView('editor')
+    clearPendingImport()
+  }, [clearPendingImport, t])
+
+  const inspectImportedKey = useCallback(async (source: PendingPrivateKeyImport, unlock?: PrivateKeyUnlockInput) => {
+    const revision = importRevisionRef.current + 1
+    importRevisionRef.current = revision
+    importControllerRef.current?.abort()
+    const controller = new AbortController()
+    importControllerRef.current = controller
+    setImportBusy(true)
+    setImportError('')
+    try {
+      const api = await getApi()
+      const result = await api.inspectSSHKey({
+        private_key_openssh: source.privateKey,
+        passphrase: unlock?.source === 'new' ? unlock.passphrase : undefined,
+        passphrase_credential_id: unlock?.source === 'existing' ? unlock.credentialId : undefined,
+      }, controller.signal)
+      if (revision === importRevisionRef.current) {
+        applyImportedKey(source, result, unlock)
+      }
+    } catch (error) {
+      if (revision !== importRevisionRef.current || controller.signal.aborted) {
+        return
+      }
+      if (!unlock && error instanceof TermousApiError && error.code === 'passphrase_required') {
+        setPendingImport(source)
+        setImportError('')
+      } else {
+        setImportError(sshKeyErrorMessage(error, t))
+      }
+    } finally {
+      if (revision === importRevisionRef.current) {
+        setImportBusy(false)
+        importControllerRef.current = null
+      }
+    }
+  }, [applyImportedKey, getApi, t])
+
+  const beginImport = useCallback(async () => {
+    setImportError('')
+    const bridge = window.termous?.sshKeys
+    if (!bridge) {
+      setImportError(t('vault.sshKey.errors.file_integration_unavailable'))
+      return
+    }
+    const revision = importRevisionRef.current + 1
+    importRevisionRef.current = revision
+    setImportBusy(true)
+    try {
+      const selected = await bridge.selectPrivateKey()
+      if (revision !== importRevisionRef.current || selected.canceled) {
+        return
+      }
+      if (!selected.file_name || !selected.private_key) {
+        setImportError(t('vault.sshKey.errors.private_key_read_failed'))
+        return
+      }
+      await inspectImportedKey({ fileName: selected.file_name, privateKey: selected.private_key })
+    } catch (error) {
+      if (revision === importRevisionRef.current) {
+        setImportError(sshKeyErrorMessage(error, t))
+      }
+    } finally {
+      if (revision === importRevisionRef.current) {
+        setImportBusy(false)
+      }
+    }
+  }, [inspectImportedKey, t])
+
+  const applyIntent = useCallback(async (intent: CredentialIntent) => {
+    if (intent.type === 'select') {
+      loadCredentialById(intent.credentialId)
+      return
+    }
+    if (intent.type === 'create') {
+      startCreate()
+      return
+    }
+    if (intent.type === 'generate') {
+      setGenerationOpen(true)
+      return
+    }
+    if (intent.type === 'change_type') {
+      setDraft({
+        ...baseline,
+        type: intent.credentialType,
+        secret: '',
+        metadata: {},
+        ssh_key_info: undefined,
+        pending_passphrase: undefined,
+      })
+      return
+    }
+    setDraft(baseline)
+    setActiveView('catalog')
+  }, [baseline, loadCredentialById, startCreate])
+
+  const requestIntent = useCallback((intent: CredentialIntent) => {
+    if (intent.type === 'select' && intent.credentialId === editingId) {
+      setActiveView('editor')
+      return
+    }
+    if (dirty) {
+      setPendingIntent(intent)
+      return
+    }
+    void applyIntent(intent)
+  }, [applyIntent, dirty, editingId])
 
   useEffect(() => {
-    if (!editing) return
-    setForm({
-      name: editing.name,
-      type: editing.type,
-      vault_id: editing.vault_id,
-      secret: '',
-      metadata: editing.metadata ?? {},
-    })
-  }, [editing])
+    if (!editingCredential || dirty) {
+      return
+    }
+    const next = credentialToInput(editingCredential)
+    if (!credentialInputsEqual(next, baseline)) {
+      setDraft(next)
+      setBaseline(next)
+    }
+  }, [baseline, dirty, editingCredential])
+
+  useLayoutEffect(() => {
+    onDirtyChange(dirty)
+  }, [dirty, onDirtyChange])
+
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange])
+
+  useEffect(() => () => {
+    importRevisionRef.current += 1
+    importControllerRef.current?.abort()
+    importControllerRef.current = null
+    apiRef.current = null
+  }, [])
 
   const save = async () => {
-    await onSave(editingId, form)
-    setForm(blankCredential)
-    setEditingId(null)
+    const saved = await onSave(editingId, normalizeCredentialInput(draft))
+    if (saved) {
+      loadCredential(saved)
+    }
+  }
+
+  const removeCurrentCredential = async () => {
+    if (!editingId || editingCredential?.bound_host_count) {
+      return
+    }
+    const currentIndex = data.credentials.findIndex((credential) => credential.id === editingId)
+    const removed = await onDelete(editingId)
+    if (!removed) {
+      return
+    }
+    const remaining = data.credentials.filter((credential) => credential.id !== editingId)
+    const next = remaining[Math.min(currentIndex, remaining.length - 1)]
+    if (next) {
+      loadCredential(next)
+    } else {
+      const empty = createBlankCredentialInput()
+      setEditingId(null)
+      setDraft(empty)
+      setBaseline(empty)
+      setActiveView('catalog')
+    }
   }
 
   return (
-    <section className="page-grid management-grid vault-page">
-      <div className="list-panel">
-        <Segmented
-          block
-          className="segmented-control"
-          value={filter}
-          options={[
-            { value: 'all', label: t('vault.all') },
-            { value: 'password', label: t('vault.passwords') },
-            { value: 'private_key', label: t('vault.keys') },
-            { value: 'private_key_passphrase', label: t('vault.passphrases') },
-          ]}
-          onChange={(value) => setFilter(value as typeof filter)}
-        />
-        <div className="toolbar-row">
-          <Button className="secondary-button" onClick={onGenerateKey} disabled={actionBusy} icon={<Wand2 size={16} />}>
-            {t('vault.generateKey')}
-          </Button>
-          <ConnectionActionButton
-            onClick={() => {
-              setEditingId(null)
-              setForm(blankCredential)
-            }}
-            icon={<Plus size={16} />}
-          >
-            {t('vault.addCredential')}
-          </ConnectionActionButton>
-        </div>
-        {filtered.length === 0 ? (
-          <div className="management-empty-slot vault-empty-slot">
-            <Empty description={t('vault.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          </div>
-        ) : (
-          <div className="data-list credential-list">
-            {filtered.map((credential) => (
-              <button
-                type="button"
-                key={credential.id}
-                className={`data-row ${credential.id === editingId ? 'is-active' : ''}`}
-                onClick={() => setEditingId(credential.id)}
-              >
-                <span className="row-icon">
-                  <KeyRound size={16} aria-hidden="true" />
-                </span>
-                <span className="row-copy">
-                  <strong>{credential.name}</strong>
-                  <small>{t(`vault.typeName.${credential.type}`)}</small>
-                </span>
-                <span className="row-trailing">
-                  <Tag className="soft-tag">{t(`vault.typeName.${credential.type}`)}</Tag>
-                  <small>{credential.bound_host_count} {t('vault.boundHosts')}</small>
-                </span>
-              </button>
-            ))}
-          </div>
+    <>
+      <ManagementWorkspace
+        className="vault-management-workspace"
+        activeView={activeView}
+        catalogLabel={t('vault.list')}
+        editorLabel={t('vault.editor')}
+        catalog={(
+          <CredentialCatalog
+            credentials={data.credentials}
+            selectedCredentialId={editingId}
+            actionBusy={actionBusy}
+            onSelect={(credentialId) => requestIntent({ type: 'select', credentialId })}
+            onCreate={() => requestIntent({ type: 'create' })}
+            onGenerateKey={() => requestIntent({ type: 'generate' })}
+          />
         )}
-      </div>
-
-      <div className="editor-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>{t('vault.editor')}</h2>
-            <span>{editingId ? t('app.update') : t('app.create')}</span>
-          </div>
-        </div>
-        <div className="editor-sections">
-          <section className="form-section">
-            <h3>{t('vault.type')}</h3>
-            <div className="credential-type-grid">
-              {(['password', 'private_key', 'private_key_passphrase'] as CredentialType[]).map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  className={`auth-choice ${form.type === type ? 'is-active' : ''}`}
-                  onClick={() => setForm({ ...form, type })}
-                >
-                  <KeyRound size={15} aria-hidden="true" />
-                  <span>{t(`vault.typeName.${type}`)}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-          <section className="form-section">
-            <h3>{t('vault.editor')}</h3>
-            <div className="form-grid">
-              <Field label={t('vault.name')} value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
-              {form.type === 'private_key' ? (
-                <CustomSelect
-                  label={t('vault.bindPassphrase')}
-                  value={form.metadata.passphrase_credential_id ?? ''}
-                  options={passphraseOptions}
-                  onChange={(value) =>
-                    setForm({
-                      ...form,
-                      metadata: value
-                        ? { ...form.metadata, passphrase_credential_id: value }
-                        : omitKey(form.metadata, 'passphrase_credential_id'),
-                    })
-                  }
-                />
-              ) : null}
-              <label className="field field-wide">
-                <span className="field-label">{t('vault.secret')}</span>
-                {form.type === 'password' ? (
-                  <Input.Password
-                    value={form.secret}
-                    placeholder={editingId ? t('fields.optional') : t('fields.required')}
-                    onChange={(event) => setForm({ ...form, secret: event.target.value })}
-                  />
-                ) : (
-                  <Input.TextArea
-                    value={form.secret}
-                    placeholder={editingId ? t('fields.optional') : t('fields.required')}
-                    onChange={(event) => setForm({ ...form, secret: event.target.value })}
-                  />
-                )}
-              </label>
-            </div>
-          </section>
-        </div>
-        <div className="danger-zone">
-          <span>{t('vault.deleteHint')}</span>
-          <Popconfirm
-            title={t('app.confirmDelete')}
-            description={t('vault.deleteHint')}
-            okText={t('app.delete')}
-            cancelText={t('app.cancel')}
-            disabled={!editingId || actionBusy}
-            onConfirm={() => editingId && void onDelete(editingId)}
-          >
-            <Button danger className="danger-button" disabled={!editingId || actionBusy} icon={<Trash2 size={16} />}>
-              {t('app.delete')}
-            </Button>
-          </Popconfirm>
-        </div>
-        <Button type="primary" className="primary-button full-width" disabled={actionBusy} onClick={() => void save()}>
-          {editingId ? t('app.update') : t('app.create')}
-        </Button>
-      </div>
-    </section>
+        editor={(
+          <CredentialEditor
+            credentials={data.credentials}
+            editingCredential={editingCredential}
+            draft={draft}
+            dirty={dirty}
+            requireSecret={requireSecret}
+            errors={errors}
+            actionBusy={actionBusy}
+            importBusy={importBusy}
+            importError={pendingImport ? '' : importError}
+            onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+            onTypeChange={(credentialType) => requestIntent({ type: 'change_type', credentialType })}
+            onBack={() => requestIntent({ type: 'back' })}
+            onSave={() => void save()}
+            onDelete={() => void removeCurrentCredential()}
+            onDiscard={() => setDraft(baseline)}
+            onImportKey={() => void beginImport()}
+          />
+        )}
+      />
+      <ConfirmDialog
+        open={Boolean(pendingIntent)}
+        title={t('vault.unsavedTitle')}
+        description={t('vault.unsavedDescription')}
+        confirmLabel={t('vault.discardAndContinue')}
+        cancelLabel={t('app.cancel')}
+        danger
+        onCancel={() => setPendingIntent(null)}
+        onConfirm={() => {
+          const intent = pendingIntent
+          setPendingIntent(null)
+          if (intent) {
+            void applyIntent(intent)
+          }
+        }}
+      />
+      <SSHKeyGenerationModal
+        open={generationOpen}
+        onClose={() => setGenerationOpen(false)}
+        onGenerate={async (input: SSHKeyGenerateRequest, signal: AbortSignal): Promise<SSHKeyPair> => {
+          const api = await getApi()
+          return api.generateSSHKey(input, signal)
+        }}
+        onApply={applyPrivateKeyDraft}
+      />
+      <PrivateKeyPassphraseModal
+        open={Boolean(pendingImport)}
+        fileName={pendingImport?.fileName ?? ''}
+        busy={importBusy}
+        error={importError}
+        credentials={passphraseCredentials}
+        defaultCredentialId={draft.metadata.passphrase_credential_id}
+        onCancel={() => { clearPendingImport(); setImportError('') }}
+        onInputChange={() => setImportError('')}
+        onConfirm={(unlock) => {
+          if (pendingImport) {
+            void inspectImportedKey(pendingImport, unlock)
+          }
+        }}
+      />
+    </>
   )
-}
-
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return (
-    <label className="field">
-      <span className="field-label">{label}</span>
-      <Input value={value} onChange={(event) => onChange(event.target.value)} />
-    </label>
-  )
-}
-
-function omitKey(source: Record<string, string>, key: string) {
-  const next = { ...source }
-  delete next[key]
-  return next
 }

@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createApiFromRuntime, TermousApi, TermousApiError } from '../api/client'
 import type {
   AppData,
   AppearanceSettings,
   CodeSnippet,
+  CodeSnippetGroup,
+  CodeSnippetGroupInput,
   CodeSnippetInput,
   CredentialInput,
   FileBookmark,
@@ -18,6 +20,7 @@ import type {
   ForwardProfile,
   ForwardProfileInput,
   ForwardStartRequest,
+  GroupReorderItem,
   HostGroup,
   HostReachability,
   HostReachabilityEvent,
@@ -36,6 +39,26 @@ import type {
 import { changeLanguage } from '../i18n'
 import { defaultAppearanceSettings, defaultTerminalSettings, defaultWindowSettings, normalizeSettings } from '../features/settings/terminalSettings'
 import { hostToInput } from '../features/hosts/hostInput'
+import {
+  adoptSuppressedFileSessionRecoveryResult,
+  cleanupSuppressedFileSessionRecoveryResult,
+  filterSuppressedFileSessions,
+  isFileSessionRecoverySupersededError,
+  runQueuedFileSessionRecoveryOperation,
+  suppressFileSessionRecoveryResult,
+  supersedeQueuedFileSessionRecovery,
+  type FileSessionClosureState,
+} from '../features/files/fileSessionRecovery'
+import {
+  reconcileFileSessionSnapshotList,
+  replaceFileSessionSnapshot,
+  upsertFileSessionSnapshot,
+} from '../shared/fileSessionSnapshot'
+import {
+  mergeSessionReloadSnapshot,
+  sessionChangedSince,
+  shouldApplySessionInventoryResponse,
+} from './sessionInventoryState'
 
 const initialSettings: Settings = {
   language: 'zh-CN',
@@ -49,11 +72,11 @@ const initialData: AppData = {
   hosts: [],
   groups: [],
   credentials: [],
-  knownHosts: [],
   sessions: [],
   fileSessions: [],
   forwardProfiles: [],
   forwards: [],
+  snippetGroups: [],
   snippets: [],
   fileBookmarkGroups: [],
   fileBookmarks: [],
@@ -73,8 +96,99 @@ export function useTermousData() {
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
   const [forwardErrorEvent, setForwardErrorEvent] = useState<ForwardEvent | null>(null)
+  const [fileSessionClosures, setFileSessionClosures] = useState<Record<string, FileSessionClosureState>>({})
+  const fileSessionRecoveryCloseEpochsRef = useRef(new Map<string, number>())
+  const fileSessionRecoveryQueuesRef = useRef(new Map<string, Promise<void>>())
+  const suppressedFileSessionIdsRef = useRef(new Map<string, string>())
+  const scheduledFileSessionCleanupIdsRef = useRef(new Set<string>())
+  const sessionEventRevisionsRef = useRef(new Map<string, number>())
+  const fileSessionEventRevisionsRef = useRef(new Map<string, number>())
+  const inventoryEventRevisionsRef = useRef(new Map<string, number>())
+  const inventoryStateSignaturesRef = useRef(new Map<string, string>())
+  const inventoryRequestRevisionsRef = useRef(new Map<string, number>())
+  const loadRevisionRef = useRef(0)
+  data.sessions.forEach((session) => {
+    if (!inventoryStateSignaturesRef.current.has(session.id)) {
+      inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
+    }
+  })
+
+  const releaseFileSessionRecoveryEpoch = useCallback((fileSessionId: string) => {
+    fileSessionRecoveryCloseEpochsRef.current.delete(fileSessionId)
+  }, [])
+
+  const supersedeFileSessionRecoveryOperation = useCallback((fileSessionId: string) => {
+    supersedeQueuedFileSessionRecovery(
+      fileSessionRecoveryCloseEpochsRef.current,
+      fileSessionRecoveryQueuesRef.current,
+      fileSessionId,
+    )
+  }, [])
+
+  const scheduleSuppressedFileSessionCleanup = useCallback((
+    apiClient: TermousApi,
+    fileSessionId: string,
+    originalSessionId: string,
+  ) => {
+    if (
+      suppressedFileSessionIdsRef.current.get(fileSessionId) !== originalSessionId
+      || scheduledFileSessionCleanupIdsRef.current.has(fileSessionId)
+    ) {
+      return
+    }
+    scheduledFileSessionCleanupIdsRef.current.add(fileSessionId)
+    const cleanup = runQueuedFileSessionRecoveryOperation(
+      fileSessionRecoveryCloseEpochsRef.current,
+      fileSessionRecoveryQueuesRef.current,
+      originalSessionId,
+      () => cleanupSuppressedFileSessionRecoveryResult(
+        suppressedFileSessionIdsRef.current,
+        fileSessionId,
+        originalSessionId,
+        () => apiClient.deleteFileSession(fileSessionId),
+      ).then((cleaned) => {
+        if (cleaned) {
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
+        }
+        return cleaned
+      }),
+      undefined,
+      releaseFileSessionRecoveryEpoch,
+    )
+    void cleanup.catch((error) => {
+      if (!isFileSessionRecoverySupersededError(error)) {
+        console.error('重试清理已抑制的文件会话失败', { fileSessionId, error })
+      }
+    }).finally(() => {
+      scheduledFileSessionCleanupIdsRef.current.delete(fileSessionId)
+    })
+  }, [releaseFileSessionRecoveryEpoch])
+
+  useEffect(() => {
+    const activeSourceSessionIds = new Set(data.sessions.map((session) => session.id))
+    const fileSessionBySource = new Map(
+      data.fileSessions.flatMap((session) => (
+        session.source_session_id ? [[session.source_session_id, session] as const] : []
+      )),
+    )
+    setFileSessionClosures((current) => {
+      const entries = Object.entries(current)
+      const retained = entries.filter(([sourceSessionId, closure]) => {
+        if (!activeSourceSessionIds.has(sourceSessionId)) {
+          return false
+        }
+        const replacement = fileSessionBySource.get(sourceSessionId)
+        return !replacement || replacement.id === closure.session.id
+      })
+      return retained.length === entries.length ? current : Object.fromEntries(retained)
+    })
+  }, [data.fileSessions, data.sessions])
 
   const loadWithApi = useCallback(async (apiClient: TermousApi, mode: LoadMode = 'background') => {
+    const loadRevision = loadRevisionRef.current + 1
+    loadRevisionRef.current = loadRevision
+    const sessionRevisionBaseline = new Map(sessionEventRevisionsRef.current)
+    const fileSessionRevisionBaseline = new Map(fileSessionEventRevisionsRef.current)
     if (mode === 'initial') {
       setInitializing(true)
     } else if (mode === 'background') {
@@ -83,9 +197,13 @@ export function useTermousData() {
     setError(null)
     try {
       await apiClient.health()
+      for (const [fileSessionId, originalSessionId] of suppressedFileSessionIdsRef.current) {
+        scheduleSuppressedFileSessionCleanup(apiClient, fileSessionId, originalSessionId)
+      }
       const [
         settings,
         terminalFonts,
+        snippetGroups,
         snippets,
         fileBookmarkGroups,
         fileBookmarks,
@@ -94,7 +212,6 @@ export function useTermousData() {
         hosts,
         hostReachability,
         credentials,
-        knownHosts,
         sessions,
         fileSessions,
         forwardProfiles,
@@ -102,6 +219,7 @@ export function useTermousData() {
       ] = await Promise.all([
         apiClient.settings(),
         apiClient.terminalFonts(),
+        apiClient.codeSnippetGroups(),
         apiClient.codeSnippets(),
         apiClient.fileBookmarkGroups(),
         apiClient.fileBookmarks(),
@@ -110,46 +228,85 @@ export function useTermousData() {
         apiClient.hosts(),
         apiClient.hostReachability(),
         apiClient.credentials(),
-        apiClient.knownHosts(),
         apiClient.sessions(),
         apiClient.fileSessions(),
         apiClient.forwardProfiles(),
         apiClient.forwards(),
       ])
-      const nextSessions = sessions ?? []
+      if (loadRevision !== loadRevisionRef.current) {
+        return
+      }
+      const reloadedSessions = sessions ?? []
       const nextSettings = normalizeSettings(settings)
-      setData({
+      reloadedSessions.forEach((session) => {
+        if (!sessionChangedSince(
+          session.id,
+          sessionRevisionBaseline,
+          sessionEventRevisionsRef.current,
+        )) {
+          const signature = sessionInventorySignature(session)
+          const previous = inventoryStateSignaturesRef.current.get(session.id)
+          inventoryStateSignaturesRef.current.set(session.id, signature)
+          if (previous !== undefined && previous !== signature) {
+            bumpSessionRevision(inventoryEventRevisionsRef.current, session.id)
+          }
+        }
+      })
+      setData((current) => ({
         settings: nextSettings,
         groups: groups ?? [],
         hosts: hosts ?? [],
         credentials: credentials ?? [],
-        knownHosts: knownHosts ?? [],
-        sessions: nextSessions,
-        fileSessions: fileSessions ?? [],
+        sessions: mergeSessionReloadSnapshot(
+          current.sessions,
+          reloadedSessions,
+          sessionRevisionBaseline,
+          sessionEventRevisionsRef.current,
+        ),
+        fileSessions: reconcileFileSessionSnapshotList(
+          current.fileSessions,
+          filterSuppressedFileSessions(
+            fileSessions ?? [],
+            suppressedFileSessionIdsRef.current,
+          ),
+          fileSessionRevisionBaseline,
+          fileSessionEventRevisionsRef.current,
+        ),
         forwardProfiles: forwardProfiles ?? [],
         forwards: visibleForwards(forwards ?? []),
+        snippetGroups: sortCodeSnippetGroups(snippetGroups ?? []),
         snippets: snippets ?? [],
         fileBookmarkGroups: sortFileBookmarkGroups(fileBookmarkGroups ?? []),
         fileBookmarks: sortFileBookmarks(fileBookmarks ?? []),
         localPathMappings: sortLocalPathMappings(localPathMappings ?? []),
         terminalFonts: terminalFonts ?? [],
         hostReachability: indexHostReachability(hostReachability ?? []),
+      }))
+      setActiveSession((current) => {
+        if (current && sessionChangedSince(
+          current.id,
+          sessionRevisionBaseline,
+          sessionEventRevisionsRef.current,
+        )) {
+          return current
+        }
+        return reconcileActiveSession(current, reloadedSessions, mode)
       })
-      setActiveSession((current) => reconcileActiveSession(current, nextSessions, mode))
       setApiReady(true)
       setLastUpdatedAt(new Date().toISOString())
       await changeLanguage(nextSettings.language)
     } catch (loadError) {
-      setApiReady(false)
-      setError(publicMessage(loadError))
+      if (loadRevision === loadRevisionRef.current) {
+        setApiReady(false)
+        setError(publicMessage(loadError))
+      }
     } finally {
-      if (mode === 'initial') {
+      if (loadRevision === loadRevisionRef.current) {
         setInitializing(false)
-      } else if (mode === 'background') {
         setRefreshing(false)
       }
     }
-  }, [])
+  }, [scheduleSuppressedFileSessionCleanup])
 
   const load = useCallback(
     (mode: LoadMode = 'background') => loadWithApi(api, mode),
@@ -273,6 +430,37 @@ export function useTermousData() {
         setData((current) => ({ ...current, snippets: replaceCodeSnippet(current.snippets, snippet) }))
         return snippet
       },
+      async createCodeSnippetGroup(input: CodeSnippetGroupInput) {
+        const group = await api.createCodeSnippetGroup(input)
+        setData((current) => ({
+          ...current,
+          snippetGroups: upsertCodeSnippetGroup(current.snippetGroups, group),
+        }))
+        return group
+      },
+      async updateCodeSnippetGroup(id: string, input: CodeSnippetGroupInput) {
+        const group = await api.updateCodeSnippetGroup(id, input)
+        setData((current) => ({
+          ...current,
+          snippetGroups: upsertCodeSnippetGroup(current.snippetGroups, group),
+        }))
+        return group
+      },
+      async deleteCodeSnippetGroup(id: string) {
+        await api.deleteCodeSnippetGroup(id)
+        setData((current) => ({
+          ...current,
+          snippetGroups: current.snippetGroups.filter((group) => group.id !== id),
+          snippets: current.snippets.map((snippet) => (
+            snippet.group_id === id ? { ...snippet, group_id: '' } : snippet
+          )),
+        }))
+      },
+      async reorderCodeSnippetGroups(items: GroupReorderItem[]) {
+        const groups = await api.reorderCodeSnippetGroups(items)
+        setData((current) => ({ ...current, snippetGroups: sortCodeSnippetGroups(groups) }))
+        return groups
+      },
       async createFileBookmarkGroup(input: FileBookmarkGroupInput) {
         const group = await api.createFileBookmarkGroup(input)
         setData((current) => ({ ...current, fileBookmarkGroups: upsertFileBookmarkGroup(current.fileBookmarkGroups, group) }))
@@ -382,13 +570,10 @@ export function useTermousData() {
       },
       async stopForward(id: string) {
         await api.stopForward(id)
-        setData((current) => {
-          const existing = current.forwards.find((forward) => forward.id === id)
-          if (existing && isTransientForward(existing)) {
-            return { ...current, forwards: current.forwards.filter((forward) => forward.id !== id) }
-          }
-          return { ...current, forwards: markForwardStopped(current.forwards, id) }
-        })
+        setData((current) => ({
+          ...current,
+          forwards: current.forwards.filter((forward) => forward.id !== id),
+        }))
       },
       updateForward(event: ForwardEvent) {
         if (shouldEmitForwardError(event)) {
@@ -402,17 +587,37 @@ export function useTermousData() {
         })
       },
       async createHost(input: HostInput) {
-        await api.createHost(input)
+        const host = await api.createHost(input)
         await load('silent')
+        return host
       },
       async createHostGroup(name: string) {
         const group = await api.createHostGroup(name)
         setData((current) => ({ ...current, groups: upsertHostGroup(current.groups, group) }))
         return group
       },
+      async updateHostGroup(id: string, name: string) {
+        const group = await api.updateHostGroup(id, name)
+        setData((current) => ({ ...current, groups: upsertHostGroup(current.groups, group) }))
+        return group
+      },
+      async deleteHostGroup(id: string) {
+        await api.deleteHostGroup(id)
+        setData((current) => ({
+          ...current,
+          groups: current.groups.filter((group) => group.id !== id),
+          hosts: current.hosts.map((host) => (host.group_id === id ? { ...host, group_id: '' } : host)),
+        }))
+      },
+      async reorderHostGroups(items: GroupReorderItem[]) {
+        const groups = await api.reorderHostGroups(items)
+        setData((current) => ({ ...current, groups: [...groups].sort(sortHostGroups) }))
+        return groups
+      },
       async updateHost(id: string, input: HostInput) {
-        await api.updateHost(id, input)
+        const host = await api.updateHost(id, input)
         await load('silent')
+        return host
       },
       async toggleHostFavorite(hostId: string) {
         const host = data.hosts.find((item) => item.id === hostId)
@@ -443,23 +648,38 @@ export function useTermousData() {
         }))
       },
       async createCredential(input: CredentialInput) {
-        await api.createCredential(input)
+        const passphraseCredentialId = input.metadata.passphrase_credential_id?.trim()
+        const privateKeyMetadata = { ...input.metadata }
+        delete privateKeyMetadata.passphrase_credential_id
+        const credential = input.type === 'private_key' && input.ssh_key_info
+          ? (await api.createPrivateKeyCredentialBundle({
+              private_key: {
+                name: input.name,
+                vault_id: input.vault_id,
+                secret: input.secret,
+                metadata: privateKeyMetadata,
+              },
+              ssh_key_info: input.ssh_key_info,
+              passphrase: input.pending_passphrase,
+              passphrase_credential_id: input.pending_passphrase ? undefined : passphraseCredentialId,
+            })).private_key
+          : await api.createCredential(input)
         await load('silent')
+        return credential
       },
       async updateCredential(id: string, input: CredentialInput) {
-        await api.updateCredential(id, input)
+        const credential = await api.updateCredential(id, input)
         await load('silent')
+        return credential
       },
       async deleteCredential(id: string) {
         await api.deleteCredential(id)
         await load('silent')
       },
-      async generateKey() {
-        await api.generateKey()
-        await load('silent')
-      },
       async connect(hostId: string, cols = 120, rows = 32) {
         const session = await api.createSession(hostId, cols, rows)
+        bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
+        inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
         setActiveSession(session)
         setData((current) => ({ ...current, sessions: upsertSession(current.sessions, session) }))
         void load('silent')
@@ -467,6 +687,8 @@ export function useTermousData() {
       },
       async openLocalTerminal(shell: LocalShell, cols = 120, rows = 32) {
         const session = await api.createLocalSession(shell, cols, rows)
+        bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
+        inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
         setActiveSession(session)
         setData((current) => ({ ...current, sessions: upsertSession(current.sessions, session) }))
         void load('silent')
@@ -474,15 +696,58 @@ export function useTermousData() {
       },
       async disconnect(sessionId: string) {
         await api.deleteSession(sessionId)
+        inventoryRequestRevisionsRef.current.delete(sessionId)
+        inventoryEventRevisionsRef.current.delete(sessionId)
+        inventoryStateSignaturesRef.current.delete(sessionId)
+        bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
         const fallbackSession = data.sessions.find((session) => session.id !== sessionId) ?? null
         setData((current) => ({ ...current, sessions: current.sessions.filter((session) => session.id !== sessionId) }))
         setActiveSession((current) => (current?.id === sessionId ? fallbackSession : current))
         void load('silent')
       },
+      async refreshSessionInventory(sessionId: string, force = false, signal?: AbortSignal) {
+        const requestRevision = (inventoryRequestRevisionsRef.current.get(sessionId) ?? 0) + 1
+        inventoryRequestRevisionsRef.current.set(sessionId, requestRevision)
+        const baselineEventRevision = inventoryEventRevisionsRef.current.get(sessionId) ?? 0
+        let refreshed: Session
+        try {
+          refreshed = await api.refreshSessionInventory(sessionId, force, { signal })
+        } catch (requestError) {
+          if (baselineEventRevision !== (inventoryEventRevisionsRef.current.get(sessionId) ?? 0)) {
+            throw new TermousApiError('系统信息状态已由实时事件更新', 'REQUEST_SUPERSEDED', 0)
+          }
+          throw requestError
+        }
+        if (!shouldApplySessionInventoryResponse({
+          sessionId,
+          responseSessionId: refreshed.id,
+          requestRevision,
+          latestRequestRevision: inventoryRequestRevisionsRef.current.get(sessionId) ?? 0,
+          baselineEventRevision,
+          latestEventRevision: inventoryEventRevisionsRef.current.get(sessionId) ?? 0,
+          aborted: Boolean(signal?.aborted),
+        })) {
+          return refreshed
+        }
+        bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
+        bumpSessionRevision(inventoryEventRevisionsRef.current, sessionId)
+        inventoryStateSignaturesRef.current.set(sessionId, sessionInventorySignature(refreshed))
+        setData((current) => ({ ...current, sessions: upsertSession(current.sessions, refreshed) }))
+        setActiveSession((current) => (current?.id === refreshed.id ? refreshed : current))
+        return refreshed
+      },
       async disconnectAllConnections() {
         const sessionsToClose = data.sessions
         const fileSessionsToClose = data.fileSessions
-        const forwardsToClose = data.forwards.filter((forward) => forward.status === 'starting' || forward.status === 'running' || forward.status === 'stopping')
+        const forwardsToClose = data.forwards.filter((forward) => (
+          forward.status === 'starting' ||
+          forward.status === 'waiting_host_trust' ||
+          forward.status === 'running' ||
+          forward.status === 'stopping'
+        ))
+        fileSessionsToClose.forEach((fileSession) => {
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
+        })
         const results = await Promise.allSettled([
           ...sessionsToClose.map((session) => api.deleteSession(session.id)),
           ...fileSessionsToClose.map((fileSession) => api.deleteFileSession(fileSession.id)),
@@ -492,7 +757,16 @@ export function useTermousData() {
         if (failed && failed.status === 'rejected') {
           throw failed.reason
         }
-        setData((current) => ({ ...current, sessions: [], fileSessions: [], forwards: markAllForwardsStopped(current.forwards) }))
+        inventoryRequestRevisionsRef.current.clear()
+        sessionsToClose.forEach((session) => {
+          bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
+          inventoryEventRevisionsRef.current.delete(session.id)
+          inventoryStateSignaturesRef.current.delete(session.id)
+        })
+        fileSessionsToClose.forEach((fileSession) => {
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
+        })
+        setData((current) => ({ ...current, sessions: [], fileSessions: [], forwards: [] }))
         setActiveSession(null)
         void load('silent')
       },
@@ -503,6 +777,12 @@ export function useTermousData() {
         }
       },
       updateSession(sessionId: string, patch: Partial<Session>) {
+        bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
+        const nextInventorySignature = sessionInventorySignature(patch)
+        if (inventoryStateSignaturesRef.current.get(sessionId) !== nextInventorySignature) {
+          inventoryStateSignaturesRef.current.set(sessionId, nextInventorySignature)
+          bumpSessionRevision(inventoryEventRevisionsRef.current, sessionId)
+        }
         setActiveSession((current) => (current?.id === sessionId ? { ...current, ...patch } : current))
         setData((current) => ({
           ...current,
@@ -514,36 +794,220 @@ export function useTermousData() {
           ),
         }))
       },
-      async connectFileSession(hostId: string, sourceSessionId = '', initialPath = '') {
-        const fileSession = await api.createFileSession(hostId, sourceSessionId, initialPath)
-        setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
+      async connectFileSession(
+        hostId: string,
+        sourceSessionId = '',
+        initialPath = '',
+        replacedFileSessionId = '',
+      ) {
+        if (replacedFileSessionId) {
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, replacedFileSessionId)
+        }
+        const createFileSession = () => api.createFileSession(hostId, sourceSessionId, initialPath)
+        const fileSession = replacedFileSessionId
+          ? await runQueuedFileSessionRecoveryOperation(
+              fileSessionRecoveryCloseEpochsRef.current,
+              fileSessionRecoveryQueuesRef.current,
+              replacedFileSessionId,
+              createFileSession,
+              async (supersededSession) => {
+                if (supersededSession.id !== replacedFileSessionId) {
+                  suppressFileSessionRecoveryResult(
+                    suppressedFileSessionIdsRef.current,
+                    supersededSession.id,
+                    replacedFileSessionId,
+                  )
+                  bumpSessionRevision(
+                    fileSessionEventRevisionsRef.current,
+                    supersededSession.id,
+                  )
+                  setData((current) => ({
+                    ...current,
+                    fileSessions: current.fileSessions.filter(
+                      (session) => session.id !== supersededSession.id,
+                    ),
+                  }))
+                  try {
+                    const cleaned = await cleanupSuppressedFileSessionRecoveryResult(
+                      suppressedFileSessionIdsRef.current,
+                      supersededSession.id,
+                      replacedFileSessionId,
+                      () => api.deleteFileSession(supersededSession.id),
+                    )
+                    if (cleaned) {
+                      bumpSessionRevision(
+                        fileSessionEventRevisionsRef.current,
+                        supersededSession.id,
+                      )
+                    }
+                  } catch (error) {
+                    console.error('清理已被显式关闭覆盖的文件会话失败', {
+                      fileSessionId: supersededSession.id,
+                      error,
+                    })
+                    scheduleSuppressedFileSessionCleanup(
+                      api,
+                      supersededSession.id,
+                      replacedFileSessionId,
+                    )
+                    throw error
+                  }
+                }
+              },
+              releaseFileSessionRecoveryEpoch,
+            )
+          : await createFileSession()
+        adoptSuppressedFileSessionRecoveryResult(
+          suppressedFileSessionIdsRef.current,
+          fileSession.id,
+        )
+        if (replacedFileSessionId && replacedFileSessionId !== fileSession.id) {
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, replacedFileSessionId)
+        }
+        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
+        setData((current) => ({
+          ...current,
+          fileSessions: replaceFileSessionSnapshot(
+            current.fileSessions,
+            fileSession,
+            replacedFileSessionId,
+          ),
+        }))
+        if (fileSession.source_session_id) {
+          setFileSessionClosures((current) => {
+            if (!current[fileSession.source_session_id as string]) {
+              return current
+            }
+            const next = { ...current }
+            delete next[fileSession.source_session_id as string]
+            return next
+          })
+        }
         return fileSession
       },
       async closeFileSession(fileSessionId: string) {
-        await api.deleteFileSession(fileSessionId)
+        supersedeFileSessionRecoveryOperation(fileSessionId)
+        const closingFileSession = data.fileSessions.find((session) => session.id === fileSessionId)
+        const sourceSessionId = closingFileSession?.source_session_id ?? ''
+        if (closingFileSession && sourceSessionId) {
+          setFileSessionClosures((current) => ({
+            ...current,
+            [sourceSessionId]: {
+              session: closingFileSession,
+              phase: 'closing',
+            },
+          }))
+        }
+        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
+        try {
+          await api.deleteFileSession(fileSessionId)
+        } catch (error) {
+          if (sourceSessionId) {
+            setFileSessionClosures((current) => removeMatchingFileSessionClosure(
+              current,
+              sourceSessionId,
+              fileSessionId,
+            ))
+          }
+          throw error
+        }
+        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
+        if (closingFileSession && sourceSessionId) {
+          setFileSessionClosures((current) => {
+            const closure = current[sourceSessionId]
+            if (!closure || closure.session.id !== fileSessionId) {
+              return current
+            }
+            return {
+              ...current,
+              [sourceSessionId]: {
+                session: closingFileSession,
+                phase: 'closed',
+              },
+            }
+          })
+        }
         setData((current) => ({
           ...current,
           fileSessions: current.fileSessions.filter((session) => session.id !== fileSessionId),
         }))
       },
       async reconnectFileSession(fileSessionId: string) {
-        const fileSession = await api.reconnectFileSession(fileSessionId)
-        setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
+        const fileSession = await runQueuedFileSessionRecoveryOperation(
+          fileSessionRecoveryCloseEpochsRef.current,
+          fileSessionRecoveryQueuesRef.current,
+          fileSessionId,
+          () => api.reconnectFileSession(fileSessionId),
+          undefined,
+          releaseFileSessionRecoveryEpoch,
+        )
+        adoptSuppressedFileSessionRecoveryResult(
+          suppressedFileSessionIdsRef.current,
+          fileSession.id,
+        )
+        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
+        setData((current) => ({
+          ...current,
+          fileSessions: upsertFileSessionSnapshot(current.fileSessions, fileSession),
+        }))
+        if (fileSession.source_session_id) {
+          setFileSessionClosures((current) => removeMatchingFileSessionClosure(
+            current,
+            fileSession.source_session_id as string,
+            fileSession.id,
+          ))
+        }
         return fileSession
       },
-      async trustFileSessionHost(fileSessionId: string, decision: 'trust' | 'replace' | 'reject', fingerprintSHA256: string) {
-        const fileSession = await api.trustFileSessionHost(fileSessionId, decision, fingerprintSHA256)
-        setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
-        return fileSession
+      supersedeFileSessionRecovery(fileSessionId: string) {
+        supersedeFileSessionRecoveryOperation(fileSessionId)
       },
       updateFileSession(fileSession: FileSession) {
-        setData((current) => ({ ...current, fileSessions: upsertFileSession(current.fileSessions, fileSession) }))
+        if (suppressedFileSessionIdsRef.current.has(fileSession.id)) {
+          return
+        }
+        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
+        setData((current) => {
+          if (!current.fileSessions.some((session) => session.id === fileSession.id)) {
+            return current
+          }
+          return {
+            ...current,
+            fileSessions: upsertFileSessionSnapshot(current.fileSessions, fileSession),
+          }
+        })
       },
     }),
-    [api, data.fileSessions, data.forwards, data.hosts, data.settings, data.sessions, load, reloadForwards],
+    [
+      api,
+      data.fileSessions,
+      data.forwards,
+      data.hosts,
+      data.settings,
+      data.sessions,
+      load,
+      releaseFileSessionRecoveryEpoch,
+      reloadForwards,
+      scheduleSuppressedFileSessionCleanup,
+      supersedeFileSessionRecoveryOperation,
+    ],
   )
 
-  return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, actions }
+  return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, fileSessionClosures, actions }
+}
+
+function removeMatchingFileSessionClosure(
+  closures: Record<string, FileSessionClosureState>,
+  sourceSessionId: string,
+  fileSessionId: string,
+) {
+  const closure = closures[sourceSessionId]
+  if (!closure || closure.session.id !== fileSessionId) {
+    return closures
+  }
+  const next = { ...closures }
+  delete next[sourceSessionId]
+  return next
 }
 
 function reconcileActiveSession(current: Session | null, nextSessions: Session[], mode: LoadMode) {
@@ -609,18 +1073,25 @@ function markHostRecentlyConnected(
   }
 }
 
-function upsertFileSession(fileSessions: FileSession[], next: FileSession) {
-  const exists = fileSessions.some((session) => session.id === next.id)
-  if (exists) {
-    return fileSessions.map((session) => (session.id === next.id ? next : session))
-  }
-  return [next, ...fileSessions]
-}
-
 function upsertCodeSnippet(snippets: CodeSnippet[], next: CodeSnippet) {
   const exists = snippets.some((snippet) => snippet.id === next.id)
   const merged = exists ? snippets.map((snippet) => (snippet.id === next.id ? next : snippet)) : [next, ...snippets]
   return [...merged].sort(sortCodeSnippets)
+}
+
+function sortCodeSnippetGroups(groups: CodeSnippetGroup[]) {
+  return [...groups].sort((left, right) => (
+    left.sort_order - right.sort_order
+    || left.name.localeCompare(right.name)
+    || left.id.localeCompare(right.id)
+  ))
+}
+
+function upsertCodeSnippetGroup(groups: CodeSnippetGroup[], next: CodeSnippetGroup) {
+  const exists = groups.some((group) => group.id === next.id)
+  return sortCodeSnippetGroups(
+    exists ? groups.map((group) => (group.id === next.id ? next : group)) : [...groups, next],
+  )
 }
 
 function replaceCodeSnippet(snippets: CodeSnippet[], next: CodeSnippet) {
@@ -709,26 +1180,20 @@ function upsertForward(forwards: ForwardInstance[], next: ForwardInstance) {
   return [...merged].sort(sortForwards)
 }
 
-function markForwardStopped(forwards: ForwardInstance[], id: string) {
-  return forwards.map((forward) => (
-    forward.id === id
-      ? { ...forward, status: 'stopped' as const, phase: 'stopped' as const, progress: 100, status_message: '端口转发已停止' }
-      : forward
-  ))
-}
-
-function markAllForwardsStopped(forwards: ForwardInstance[]) {
-  return forwards
-    .filter((forward) => !isTransientForward(forward))
-    .map((forward) => (
-      forward.status === 'starting' || forward.status === 'running' || forward.status === 'stopping'
-        ? { ...forward, status: 'stopped' as const, phase: 'stopped' as const, progress: 100, status_message: '端口转发已停止' }
-        : forward
-    ))
-}
-
 function visibleForwards(forwards: ForwardInstance[]) {
   return forwards.filter((forward) => !shouldRemoveForward(forward))
+}
+
+function bumpSessionRevision(revisions: Map<string, number>, sessionId: string) {
+  revisions.set(sessionId, (revisions.get(sessionId) ?? 0) + 1)
+}
+
+function sessionInventorySignature(session: Partial<Session>) {
+  return [
+    session.inventory_status ?? 'idle',
+    session.inventory_message ?? '',
+    session.linux_system_info?.collected_at ?? '',
+  ].join('\u0000')
 }
 
 function indexHostReachability(states: HostReachability[]) {
@@ -762,7 +1227,7 @@ function mergeHostReachabilityEvent(
 }
 
 function shouldRemoveForward(forward: ForwardInstance) {
-  return isTransientForward(forward) && (forward.status === 'stopped' || forward.status === 'failed')
+  return forward.status === 'stopped' || forward.status === 'failed'
 }
 
 function shouldEmitForwardError(event: ForwardEvent) {
@@ -773,10 +1238,6 @@ function shouldEmitForwardError(event: ForwardEvent) {
     return true
   }
   return event.type === 'update' && event.forward.status === 'running' && Boolean(event.forward.last_error)
-}
-
-function isTransientForward(forward: ForwardInstance) {
-  return forward.scope === 'session' || forward.scope === 'background_once'
 }
 
 function sortForwards(left: ForwardInstance, right: ForwardInstance) {

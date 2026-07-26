@@ -4,6 +4,7 @@ interface WorkbenchEmptyStateProps {
   icon: ReactNode
   title: ReactNode
   description?: ReactNode
+  action?: ReactNode
   tone?: 'neutral' | 'warning' | 'danger'
   className?: string
 }
@@ -12,6 +13,7 @@ export function WorkbenchEmptyState({
   icon,
   title,
   description,
+  action,
   tone = 'neutral',
   className,
 }: WorkbenchEmptyStateProps) {
@@ -20,6 +22,7 @@ export function WorkbenchEmptyState({
       <span className="workbench-empty-state-icon">{icon}</span>
       <strong>{title}</strong>
       {description ? <span className="workbench-empty-state-description">{description}</span> : null}
+      {action ? <span className="workbench-empty-state-action">{action}</span> : null}
     </div>
   )
 }

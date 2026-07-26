@@ -12,6 +12,7 @@ interface UseFileOperationWatcherOptions {
 export function useFileOperationWatcher({ api, setOperationProgress }: UseFileOperationWatcherOptions) {
   const operationTimersRef = useRef<number[]>([])
   const operationCleanupRef = useRef<(() => void) | null>(null)
+  const operationCancelRef = useRef<(() => void) | null>(null)
   const activeOperationIdRef = useRef<string | null>(null)
   const activeOperationDoneRef = useRef(false)
 
@@ -28,10 +29,16 @@ export function useFileOperationWatcher({ api, setOperationProgress }: UseFileOp
   }, [clearOperationTimers, setOperationProgress])
 
   const cancelActiveOperation = useCallback(() => {
-    operationCleanupRef.current?.()
-    operationCleanupRef.current = null
     const operationId = activeOperationIdRef.current
     const done = activeOperationDoneRef.current
+    const cancelWatcher = operationCancelRef.current
+    operationCancelRef.current = null
+    if (cancelWatcher) {
+      cancelWatcher()
+    } else {
+      operationCleanupRef.current?.()
+    }
+    operationCleanupRef.current = null
     activeOperationIdRef.current = null
     activeOperationDoneRef.current = false
     if (operationId && !done) {
@@ -68,6 +75,7 @@ export function useFileOperationWatcher({ api, setOperationProgress }: UseFileOp
     let pollTimer = 0
     let lastRevision = 0
     let lastProgress = 0
+    let cancelWatcher: (() => void) | null = null
 
     const cleanup = () => {
       disposed = true
@@ -77,6 +85,9 @@ export function useFileOperationWatcher({ api, setOperationProgress }: UseFileOp
       }
       if (operationCleanupRef.current === cleanup) {
         operationCleanupRef.current = null
+      }
+      if (operationCancelRef.current === cancelWatcher) {
+        operationCancelRef.current = null
       }
     }
 
@@ -89,6 +100,14 @@ export function useFileOperationWatcher({ api, setOperationProgress }: UseFileOp
       activeOperationIdRef.current = null
       cleanup()
       callback()
+    }
+
+    cancelWatcher = () => {
+      settle(() => reject(new TermousApiError(
+        failedText,
+        'FILE_OPERATION_CANCELLED',
+        0,
+      )))
     }
 
     function clearPollTimer() {
@@ -153,9 +172,13 @@ export function useFileOperationWatcher({ api, setOperationProgress }: UseFileOp
     }
 
     operationCleanupRef.current = cleanup
+    operationCancelRef.current = cancelWatcher
     activeOperationIdRef.current = initialTask.id
     activeOperationDoneRef.current = false
     handleTask(initialTask)
+    if (settled) {
+      return
+    }
     try {
       socket = new WebSocket(api.fileOperationEventsUrl(initialTask.file_session_id))
       socket.addEventListener('message', (event: MessageEvent<string>) => {

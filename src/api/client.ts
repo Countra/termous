@@ -3,10 +3,19 @@ import type {
   AppearanceSettings,
   AppConfig,
   CodeSnippet,
+  CodeSnippetGroup,
+  CodeSnippetGroupInput,
   CodeSnippetInput,
   CoreRuntimeInfo,
   CredentialInput,
   CredentialView,
+  DataPortabilityApplyResult,
+  DataPortabilityPlanItemPage,
+  DataPortabilityPlanItemQuery,
+  DataPortabilityPlanRequest,
+  DataPortabilityResolutionRequest,
+  DataPortabilityRestorePlan,
+  DataPortabilitySummary,
   DockerActionRequest,
   DockerActionResult,
   DockerCapability,
@@ -39,13 +48,16 @@ import type {
   ForwardProfile,
   ForwardProfileInput,
   ForwardStartRequest,
+  GroupReorderItem,
   Host,
   HostGroup,
   HostIcon,
   HostInput,
+  HostKeyChallengeSnapshot,
+  HostKeyDecisionAction,
+  HostKeyResolution,
+  HostKeyTrustRecord,
   HostReachability,
-  KnownHost,
-  KnownHostInput,
   Language,
   LocalShell,
   LocalFileGrant,
@@ -55,6 +67,8 @@ import type {
   LocalPathMappingReorderItem,
   LocalTreeEntry,
   OverwritePolicy,
+  PrivateKeyCredentialBundleInput,
+  PrivateKeyCredentialBundleResult,
   RemoteDirectoryListing,
   RemoteFileEntry,
   RemoteProcessDetail,
@@ -67,6 +81,10 @@ import type {
   RemoteTextSaveResult,
   Session,
   Settings,
+  SSHKeyGenerateRequest,
+  SSHKeyInspectRequest,
+  SSHKeyInspectResult,
+  SSHKeyPair,
   SystemServiceAction,
   SystemServiceCapability,
   SystemServiceDetail,
@@ -207,7 +225,36 @@ export class TermousApi {
   }
 
   codeSnippets() {
-    return this.request<CodeSnippet[]>('/api/v1/snippets')
+    return this.request<CodeSnippet[]>('/api/v1/snippets').then(normalizeArray)
+  }
+
+  codeSnippetGroups() {
+    return this.request<CodeSnippetGroup[]>('/api/v1/snippet-groups').then(normalizeArray)
+  }
+
+  createCodeSnippetGroup(input: CodeSnippetGroupInput) {
+    return this.request<CodeSnippetGroup>('/api/v1/snippet-groups', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  updateCodeSnippetGroup(id: string, input: CodeSnippetGroupInput) {
+    return this.request<CodeSnippetGroup>(`/api/v1/snippet-groups/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  }
+
+  deleteCodeSnippetGroup(id: string) {
+    return this.request<void>(`/api/v1/snippet-groups/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  reorderCodeSnippetGroups(items: GroupReorderItem[]) {
+    return this.request<CodeSnippetGroup[]>('/api/v1/snippet-groups/reorder', {
+      method: 'POST',
+      body: { items },
+    }).then(normalizeArray)
   }
 
   createCodeSnippet(input: CodeSnippetInput) {
@@ -319,14 +366,20 @@ export class TermousApi {
     }).then(normalizeArray)
   }
 
-  localPathMappingChildren(id: string, path = '') {
+  localPathMappingChildren(id: string, path = '', signal?: AbortSignal) {
     const query = path ? `?${new URLSearchParams({ path }).toString()}` : ''
-    return this.request<LocalTreeEntry[]>(`/api/v1/local-path-mappings/${encodeURIComponent(id)}/children${query}`).then(normalizeArray)
+    return this.request<LocalTreeEntry[]>(
+      `/api/v1/local-path-mappings/${encodeURIComponent(id)}/children${query}`,
+      { signal },
+    ).then(normalizeArray)
   }
 
-  localPathMappingStat(id: string, path = '') {
+  localPathMappingStat(id: string, path = '', signal?: AbortSignal) {
     const query = path ? `?${new URLSearchParams({ path }).toString()}` : ''
-    return this.request<LocalTreeEntry>(`/api/v1/local-path-mappings/${encodeURIComponent(id)}/stat${query}`)
+    return this.request<LocalTreeEntry>(
+      `/api/v1/local-path-mappings/${encodeURIComponent(id)}/stat${query}`,
+      { signal },
+    )
   }
 
   forwardProfiles() {
@@ -411,8 +464,26 @@ export class TermousApi {
   createHostGroup(name: string) {
     return this.request<HostGroup>('/api/v1/host-groups', {
       method: 'POST',
-      body: { name, sort_order: 0 },
+      body: { name },
     })
+  }
+
+  updateHostGroup(id: string, name: string) {
+    return this.request<HostGroup>(`/api/v1/host-groups/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: { name },
+    })
+  }
+
+  deleteHostGroup(id: string) {
+    return this.request<void>(`/api/v1/host-groups/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  reorderHostGroups(items: GroupReorderItem[]) {
+    return this.request<HostGroup[]>('/api/v1/host-groups/reorder', {
+      method: 'POST',
+      body: { items },
+    }).then(normalizeArray)
   }
 
   hosts() {
@@ -458,16 +529,18 @@ export class TermousApi {
   }
 
   createCredential(input: CredentialInput) {
+    const credential = toCredentialRequest(input)
     return this.request<CredentialView>('/api/v1/credentials', {
       method: 'POST',
-      body: input,
+      body: credential,
     })
   }
 
   updateCredential(id: string, input: CredentialInput) {
+    const credential = toCredentialRequest(input)
     return this.request<CredentialView>(`/api/v1/credentials/${id}`, {
       method: 'PATCH',
-      body: input,
+      body: credential,
     })
   }
 
@@ -475,22 +548,51 @@ export class TermousApi {
     return this.request<void>(`/api/v1/credentials/${id}`, { method: 'DELETE' })
   }
 
-  generateKey() {
-    return this.request<CredentialView>('/api/v1/credentials/generate-key', {
+  generateSSHKey(input: SSHKeyGenerateRequest, signal?: AbortSignal) {
+    return this.request<SSHKeyPair>('/api/v1/credentials/ssh-keys/generate', {
       method: 'POST',
-      body: {},
+      body: input,
+      signal,
     })
   }
 
-  knownHosts() {
-    return this.request<KnownHost[]>('/api/v1/known-hosts')
+  inspectSSHKey(input: SSHKeyInspectRequest, signal?: AbortSignal) {
+    return this.request<SSHKeyInspectResult>('/api/v1/credentials/ssh-keys/inspect', {
+      method: 'POST',
+      body: input,
+      signal,
+    })
   }
 
-  confirmKnownHost(input: KnownHostInput) {
-    return this.request<KnownHost>('/api/v1/known-hosts/confirm', {
+  createPrivateKeyCredentialBundle(input: PrivateKeyCredentialBundleInput) {
+    return this.request<PrivateKeyCredentialBundleResult>('/api/v1/credentials/private-key-bundles', {
       method: 'POST',
       body: input,
     })
+  }
+
+  hostKeyChallenges(signal?: AbortSignal) {
+    return this.request<HostKeyChallengeSnapshot>('/api/v1/host-key-challenges?status=pending', { signal })
+      .then(normalizeHostKeyChallengeSnapshot)
+  }
+
+  decideHostKeyChallenge(id: string, action: HostKeyDecisionAction) {
+    return this.request<HostKeyResolution>(`/api/v1/host-key-challenges/${encodeURIComponent(id)}/decision`, {
+      method: 'POST',
+      body: { action },
+    })
+  }
+
+  hostKeyTrust() {
+    return this.request<HostKeyTrustRecord[]>('/api/v1/host-key-trust').then(normalizeArray)
+  }
+
+  deleteHostKeyTrust(id: string) {
+    return this.request<void>(`/api/v1/host-key-trust/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
+  hostKeyEventsUrl() {
+    return this.websocketUrl('/api/v1/host-key-events')
   }
 
   sessions() {
@@ -513,6 +615,14 @@ export class TermousApi {
 
   deleteSession(id: string) {
     return this.request<void>(`/api/v1/sessions/${id}`, { method: 'DELETE' })
+  }
+
+  refreshSessionInventory(id: string, force = false, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<Session>(`/api/v1/sessions/${encodeURIComponent(id)}/inventory/refresh`, {
+      method: 'POST',
+      body: { force },
+      signal: options.signal,
+    })
   }
 
   sessionMonitorUrl(id: string) {
@@ -842,13 +952,6 @@ export class TermousApi {
     return this.request<FileSession>(`/api/v1/file-sessions/${encodeURIComponent(id)}/reconnect`, { method: 'POST' })
   }
 
-  trustFileSessionHost(id: string, decision: 'trust' | 'replace' | 'reject', fingerprintSHA256: string) {
-    return this.request<FileSession>(`/api/v1/file-sessions/${encodeURIComponent(id)}/trust-host`, {
-      method: 'POST',
-      body: { decision, fingerprint_sha256: fingerprintSHA256 },
-    })
-  }
-
   fileSessionEventsUrl(id: string) {
     return this.websocketUrl(`/api/v1/file-sessions/${encodeURIComponent(id)}/events`)
   }
@@ -858,9 +961,15 @@ export class TermousApi {
     return this.request<RemoteDirectoryListing>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files?${query.toString()}`)
   }
 
-  listFileSessionFiles(fileSessionId: string, path: string) {
+  listFileSessionFiles(
+    fileSessionId: string,
+    path: string,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
     const query = new URLSearchParams({ path })
-    return this.request<RemoteDirectoryListing>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files?${query.toString()}`)
+    return this.request<RemoteDirectoryListing>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files?${query.toString()}`, {
+      signal: options.signal,
+    })
   }
 
   statFileSessionFile(fileSessionId: string, path: string) {
@@ -883,17 +992,19 @@ export class TermousApi {
     })
   }
 
-  createFileSessionTextReadOperation(fileSessionId: string, path: string) {
+  createFileSessionTextReadOperation(fileSessionId: string, path: string, signal?: AbortSignal) {
     return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text/read`, {
       method: 'POST',
       body: { path },
+      signal,
     })
   }
 
-  createFileSessionTextSaveOperation(fileSessionId: string, body: RemoteTextSaveRequest) {
+  createFileSessionTextSaveOperation(fileSessionId: string, body: RemoteTextSaveRequest, signal?: AbortSignal) {
     return this.request<FileOperationTask>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/text/save`, {
       method: 'POST',
       body,
+      signal,
       timeoutMs: 90_000,
     })
   }
@@ -1058,7 +1169,13 @@ export class TermousApi {
     })
   }
 
-  createFileSessionDownloadTransfer(fileSessionId: string, remotePaths: string[], localDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+  createFileSessionDownloadTransfer(
+    fileSessionId: string,
+    remotePaths: string[],
+    localDir: string,
+    overwritePolicy: OverwritePolicy = 'rename',
+    signal?: AbortSignal,
+  ) {
     return this.request<TransferTask>('/api/v1/transfers/download', {
       method: 'POST',
       body: {
@@ -1067,6 +1184,7 @@ export class TermousApi {
         local_dir: localDir,
         overwrite_policy: overwritePolicy,
       },
+      signal,
     })
   }
 
@@ -1080,6 +1198,52 @@ export class TermousApi {
 
   transferEventsUrl() {
     return this.websocketUrl('/api/v1/transfers/events')
+  }
+
+  dataPortabilitySummary() {
+    return this.request<DataPortabilitySummary>('/api/v1/data-portability/summary', { timeoutMs: 30_000 })
+      .then(normalizeDataPortabilitySummary)
+  }
+
+  createDataPortabilityPlan(importId: string, body: DataPortabilityPlanRequest) {
+    return this.request<DataPortabilityRestorePlan>(
+      `/api/v1/data-portability/imports/${encodeURIComponent(importId)}/plans`,
+      { method: 'POST', body, timeoutMs: 60_000 },
+    ).then(normalizeDataPortabilityPlan)
+  }
+
+  dataPortabilityPlanItems(importId: string, planId: string, query: DataPortabilityPlanItemQuery = {}) {
+    const params = new URLSearchParams()
+    if (query.dataset) params.set('dataset', query.dataset)
+    if (query.status) params.set('status', query.status)
+    if (query.cursor) params.set('cursor', query.cursor)
+    if (query.limit) params.set('limit', String(query.limit))
+    const suffix = params.size > 0 ? `?${params.toString()}` : ''
+    return this.request<DataPortabilityPlanItemPage>(
+      `/api/v1/data-portability/imports/${encodeURIComponent(importId)}/plans/${encodeURIComponent(planId)}/items${suffix}`,
+      { timeoutMs: 30_000 },
+    ).then(normalizeDataPortabilityPlanItemPage)
+  }
+
+  resolveDataPortabilityPlan(importId: string, planId: string, body: DataPortabilityResolutionRequest) {
+    return this.request<DataPortabilityRestorePlan>(
+      `/api/v1/data-portability/imports/${encodeURIComponent(importId)}/plans/${encodeURIComponent(planId)}/resolutions`,
+      { method: 'PATCH', body, timeoutMs: 30_000 },
+    ).then(normalizeDataPortabilityPlan)
+  }
+
+  applyDataPortabilityPlan(importId: string, planId: string) {
+    return this.request<DataPortabilityApplyResult>(
+      `/api/v1/data-portability/imports/${encodeURIComponent(importId)}/plans/${encodeURIComponent(planId)}/apply`,
+      { method: 'POST', body: {}, timeoutMs: 120_000 },
+    )
+  }
+
+  cancelDataPortabilityImport(importId: string) {
+    return this.request<void>(`/api/v1/data-portability/imports/${encodeURIComponent(importId)}`, {
+      method: 'DELETE',
+      timeoutMs: 30_000,
+    })
   }
 
   private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -1179,7 +1343,7 @@ export class TermousApi {
   }
 
   private async toError(response: Response) {
-    let body: ApiErrorBody = {}
+    let body: ApiErrorBody
     try {
       body = (await response.json()) as ApiErrorBody
     } catch {
@@ -1203,6 +1367,42 @@ function firewallProviderQuery(provider?: FirewallProvider) {
 
 function normalizeArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : []
+}
+
+function normalizeDataPortabilitySummary(summary: DataPortabilitySummary): DataPortabilitySummary {
+  return {
+    ...summary,
+    datasets: normalizeArray(summary.datasets),
+  }
+}
+
+function normalizeDataPortabilityPlan(plan: DataPortabilityRestorePlan): DataPortabilityRestorePlan {
+  return {
+    ...plan,
+    items: normalizeArray(plan.items),
+    summary: {
+      ...plan.summary,
+      by_status: plan.summary?.by_status ?? {},
+      by_dataset: plan.summary?.by_dataset ?? {},
+    },
+  }
+}
+
+function normalizeDataPortabilityPlanItemPage(page: DataPortabilityPlanItemPage): DataPortabilityPlanItemPage {
+  return {
+    ...page,
+    items: normalizeArray(page.items),
+  }
+}
+
+function normalizeHostKeyChallengeSnapshot(snapshot: HostKeyChallengeSnapshot): HostKeyChallengeSnapshot {
+  return {
+    ...snapshot,
+    challenges: normalizeArray(snapshot.challenges).map((challenge) => ({
+      ...challenge,
+      contexts: normalizeArray(challenge.contexts),
+    })),
+  }
 }
 
 function normalizeFirewallProviderList(list: FirewallProviderList): FirewallProviderList {
@@ -1355,4 +1555,10 @@ function normalizeRemoteProcessDetail(detail: RemoteProcessDetail): RemoteProces
 export async function createApiFromRuntime() {
   const runtimeConfig = window.termous ? await window.termous.getConfig() : {}
   return new TermousApi(runtimeConfig)
+}
+
+function toCredentialRequest(input: CredentialInput) {
+  const credential = { ...input }
+  delete credential.pending_passphrase
+  return credential
 }

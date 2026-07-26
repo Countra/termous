@@ -1,5 +1,4 @@
 import {
-  Cable,
   ChevronDown,
   DatabaseZap,
   FileCode2,
@@ -8,6 +7,7 @@ import {
   MonitorCog,
   PanelLeftClose,
   PanelLeftOpen,
+  PlugZap,
   Route,
   Server,
   Settings,
@@ -15,8 +15,10 @@ import {
   TerminalSquare,
 } from 'lucide-react'
 import { Button, Dropdown, Space, Tooltip, type MenuProps } from 'antd'
+import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { LocalShell, PageKey, WindowCloseBehavior } from '../../types/domain'
+import { BrandVersionControl } from '../../features/update/BrandVersionControl'
 import { WindowControls } from './WindowControls'
 
 interface AppShellProps {
@@ -71,7 +73,7 @@ export function AppShell({
   const connectionMenuItems: MenuProps['items'] = [
     {
       key: 'host',
-      label: <TopbarConnectionMenuItem icon={<Cable size={15} />} title={t('workbench.hostLauncher.kicker')} />,
+      label: <TopbarConnectionMenuItem icon={<PlugZap size={15} />} title={t('workbench.hostLauncher.kicker')} />,
     },
     {
       key: 'powershell',
@@ -102,8 +104,11 @@ export function AppShell({
           </div>
           <div className="brand-copy">
             <strong>{t('app.name')}</strong>
+            <BrandVersionControl
+              appVersion={appVersion}
+              collapsed={sidebarCollapsed}
+            />
           </div>
-          <span className="brand-version">v{appVersion}</span>
         </div>
         <nav className="primary-nav">
           {navItems.map((item) => {
@@ -160,8 +165,10 @@ export function AppShell({
               <Space.Compact className="topbar-connect-dropdown-button">
                 <Button type="primary" disabled={actionBusy} onClick={onOpenConnectionLauncher}>
                   <span className="topbar-connect-content">
-                    <Cable size={16} aria-hidden="true" />
-                    <span>{t('app.connect')}</span>
+                    <span className="topbar-connect-mark" aria-hidden="true">
+                      <PlugZap size={18} strokeWidth={2.15} />
+                    </span>
+                    <span className="topbar-connect-label">{t('app.connect')}</span>
                   </span>
                 </Button>
                 <Dropdown
@@ -192,7 +199,7 @@ export function AppShell({
   )
 }
 
-function TopbarConnectionMenuItem({ icon, title }: { icon: JSX.Element; title: string }) {
+function TopbarConnectionMenuItem({ icon, title }: { icon: ReactNode; title: string }) {
   return (
     <span className="topbar-connect-menu-item">
       <span className="topbar-connect-menu-icon">{icon}</span>

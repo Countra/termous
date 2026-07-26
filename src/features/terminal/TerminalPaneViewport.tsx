@@ -1,5 +1,5 @@
 import { Button } from 'antd'
-import { CircleAlert, RotateCcw, WifiOff, X } from 'lucide-react'
+import { CircleAlert, RefreshCw, WifiOff, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Session, ThemeMode } from '../../types/domain'
@@ -130,7 +130,7 @@ export function TerminalPaneViewport({
                   <Button
                     className="terminal-disconnect-button terminal-disconnect-button-primary"
                     disabled={actionBusy}
-                    icon={<RotateCcw size={15} />}
+                    icon={<RefreshCw size={15} />}
                     onClick={onReconnect}
                   >
                     {t('workbench.reconnectSession')}

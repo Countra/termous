@@ -1,5 +1,16 @@
 import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import { fileURLToPath } from 'node:url'
+import type {
+  UpdatePreferences,
+  UpdatePreferencesPatch,
+  UpdateSnapshot,
+} from './updateManager'
+import type { UpdateRuntimeSummary } from './updateRuntime'
+import {
+  normalizeRuntimeSummaryRefreshRequest,
+  type UpdateRuntimeSummaryRefreshRequest,
+  type UpdateRuntimeSummaryReportContext,
+} from './updateRuntimeSummaryRefresh'
 
 const droppedFilePathTTL = 5000
 
@@ -91,10 +102,7 @@ window.addEventListener('drop', cacheDroppedFilePaths, true)
 
 contextBridge.exposeInMainWorld('termous', {
   getConfig: () => ipcRenderer.invoke('core:get-config'),
-  getBuildInfo: async () => {
-    const config = await ipcRenderer.invoke('core:get-config')
-    return { version: config?.version ?? process.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev' }
-  },
+  getBuildInfo: () => ipcRenderer.invoke('app:get-build-info'),
   platform: process.platform,
   core: {
     status: () => ipcRenderer.invoke('core:status'),
@@ -111,6 +119,17 @@ contextBridge.exposeInMainWorld('termous', {
   },
   appearance: {
     setTheme: (theme: 'dark' | 'light') => ipcRenderer.invoke('appearance:set-theme', theme) as Promise<boolean>,
+  },
+  portability: {
+    exportBackup: (password: string) => ipcRenderer.invoke('portability:export', password),
+    selectBackup: () => ipcRenderer.invoke('portability:select-import'),
+    inspectBackup: (selectionId: string, password: string) => ipcRenderer.invoke('portability:inspect', selectionId, password),
+    restartAfterRestore: () => ipcRenderer.invoke('portability:restart-after-restore'),
+    onProgress: (callback: (progress: unknown) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: unknown) => callback(progress)
+      ipcRenderer.on('portability:progress', listener)
+      return () => ipcRenderer.removeListener('portability:progress', listener)
+    },
   },
   clipboard: {
     readText: () => Promise.resolve(clipboard.readText()),
@@ -166,5 +185,72 @@ contextBridge.exposeInMainWorld('termous', {
       return Promise.resolve(uniquePaths(snapshot.paths))
     },
     readClipboardFilePaths: () => Promise.resolve(readClipboardFilePaths()),
+  },
+  updates: {
+    getState: () => ipcRenderer.invoke('app-update:get-state') as Promise<UpdateSnapshot>,
+    getPreferences: () =>
+      ipcRenderer.invoke('app-update:get-preferences') as Promise<UpdatePreferences>,
+    setPreferences: (patch: UpdatePreferencesPatch) =>
+      ipcRenderer.invoke('app-update:set-preferences', patch) as Promise<UpdatePreferences>,
+    openWindow: () =>
+      ipcRenderer.invoke('app-update:open-window') as Promise<boolean>,
+    reportRuntimeSummary: (
+      summary: UpdateRuntimeSummary,
+      context?: UpdateRuntimeSummaryReportContext,
+    ) =>
+      ipcRenderer.invoke(
+        'app-update:report-runtime-summary',
+        summary,
+        context,
+      ) as Promise<UpdateRuntimeSummary>,
+    onRuntimeSummaryRequested: (
+      callback: (request: UpdateRuntimeSummaryRefreshRequest) => void,
+    ) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        value: unknown,
+      ) => {
+        const request = normalizeRuntimeSummaryRefreshRequest(value)
+        if (request) {
+          callback(request)
+        }
+      }
+      ipcRenderer.on('app-update:runtime-summary-requested', listener)
+      return () => ipcRenderer.removeListener('app-update:runtime-summary-requested', listener)
+    },
+    subscribe: (callback: (snapshot: UpdateSnapshot) => void) => {
+      let active = true
+      let stateSequence = -1
+      const merge = (snapshot: UpdateSnapshot) => {
+        if (!active || snapshot.state_seq < stateSequence) {
+          return
+        }
+        stateSequence = snapshot.state_seq
+        callback(snapshot)
+      }
+      const listener = (_event: Electron.IpcRendererEvent, snapshot: UpdateSnapshot) => {
+        merge(snapshot)
+      }
+      ipcRenderer.on('app-update:state-changed', listener)
+      void ipcRenderer.invoke('app-update:subscribe')
+        .then((snapshot: UpdateSnapshot) => merge(snapshot))
+        .catch(() => {
+          console.error('[termous:update] 无法订阅更新状态')
+        })
+      return () => {
+        active = false
+        ipcRenderer.removeListener('app-update:state-changed', listener)
+        void ipcRenderer.invoke('app-update:unsubscribe').catch(() => {
+          console.error('[termous:update] 无法注销更新状态订阅')
+        })
+      }
+    },
+  },
+  sshKeys: {
+    selectPrivateKey: () => ipcRenderer.invoke('ssh-keys:select-private-key'),
+    savePublicKey: (input: { suggestedName: string; content: string }) =>
+      ipcRenderer.invoke('ssh-keys:save-public-key', input),
+    saveKeyPair: (input: { suggestedName: string; privateKey: string; publicKey: string }) =>
+      ipcRenderer.invoke('ssh-keys:save-key-pair', input),
   },
 })

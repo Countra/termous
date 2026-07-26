@@ -1,32 +1,61 @@
-import { Button, Empty, Input, Popconfirm, Segmented, Select, Tag, Tooltip } from 'antd'
+import { Button, Input, Modal, Popconfirm, Select, Tag, Tooltip } from 'antd'
 import {
+  ArrowLeft,
+  Braces,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
   Code2,
   FileCode2,
-  Pencil,
+  Folder,
+  FolderCog,
   Plus,
-  Search,
+  Save,
   Star,
   Tags,
   Trash2,
   TriangleAlert,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
+import { GroupManagerModal } from '../../components/management/GroupManagerModal'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
-import type { AppData, CodeSnippet, CodeSnippetInput, SnippetShell } from '../../types/domain'
-import { analyzeSnippetRisk, extractSnippetVariables, normalizeSnippetInput, normalizeSnippetTags, snippetToInput } from './snippetUtils'
+import type { AppData, CodeSnippetGroup, CodeSnippetInput, GroupReorderItem, SnippetShell } from '../../types/domain'
+import {
+  SnippetFilterBar,
+  SnippetList,
+} from './SnippetCatalog'
+import {
+  buildSnippetTags,
+  filterSnippets,
+  type SnippetCatalogFilter,
+} from './snippetCatalogUtils'
+import {
+  analyzeSnippetRisk,
+  extractSnippetVariables,
+  normalizeSnippetInput,
+  normalizeSnippetTags,
+  snippetToInput,
+} from './snippetUtils'
 
 interface SnippetsPageProps {
   data: AppData
   actionBusy: boolean
   onSave: (id: string | null, input: CodeSnippetInput) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  onCreateGroup: (name: string) => Promise<CodeSnippetGroup | undefined>
+  onRenameGroup: (id: string, name: string) => Promise<CodeSnippetGroup | undefined>
+  onDeleteGroup: (id: string) => Promise<void>
+  onReorderGroups: (items: GroupReorderItem[]) => Promise<CodeSnippetGroup[] | undefined>
 }
 
-type SnippetFilter = 'all' | 'favorites'
+type SnippetView = 'library' | 'editor'
+type SnippetIntent = { type: 'select'; id: string } | { type: 'create' }
 
 const blankSnippet: CodeSnippetInput = {
+  group_id: '',
   name: '',
   description: '',
   command: '',
@@ -37,37 +66,39 @@ const blankSnippet: CodeSnippetInput = {
 
 const snippetShells: SnippetShell[] = ['any', 'sh', 'bash', 'zsh', 'powershell', 'cmd']
 
-export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPageProps) {
+export function SnippetsPage({
+  data,
+  actionBusy,
+  onSave,
+  onDelete,
+  onCreateGroup,
+  onRenameGroup,
+  onDeleteGroup,
+  onReorderGroups,
+}: SnippetsPageProps) {
   const { t } = useTranslation()
-  const [filter, setFilter] = useState<SnippetFilter>('all')
+  const initialSnippet = data.snippets[0]
+  const initialForm = initialSnippet ? snippetToInput(initialSnippet) : blankSnippet
+  const [filter, setFilter] = useState<SnippetCatalogFilter>('all')
   const [query, setQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const [editingId, setEditingId] = useState<string | null>(data.snippets[0]?.id ?? null)
-  const [form, setForm] = useState<CodeSnippetInput>(blankSnippet)
+  const [selectedGroupId, setSelectedGroupId] = useState('')
+  const [groupManagerOpen, setGroupManagerOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(initialSnippet?.id ?? null)
+  const [form, setForm] = useState<CodeSnippetInput>(initialForm)
+  const [baseline, setBaseline] = useState<CodeSnippetInput>(initialForm)
+  const [activeView, setActiveView] = useState<SnippetView>('library')
+  const [pendingIntent, setPendingIntent] = useState<SnippetIntent | null>(null)
   const editing = data.snippets.find((snippet) => snippet.id === editingId)
-
-  useEffect(() => {
-    if (!editing) {
-      if (editingId) {
-        setEditingId(null)
-      }
-      return
-    }
-    setForm(snippetToInput(editing))
-  }, [editing, editingId])
+  const groupItemCounts = useMemo(() => data.snippets.reduce<Record<string, number>>((counts, snippet) => {
+    if (snippet.group_id) counts[snippet.group_id] = (counts[snippet.group_id] ?? 0) + 1
+    return counts
+  }, {}), [data.snippets])
 
   const availableTags = useMemo(() => buildSnippetTags(data.snippets), [data.snippets])
-  const selectedTagKeys = useMemo(() => selectedTags.map(tagKey), [selectedTags])
-  const queryTokens = useMemo(
-    () => query.trim().toLowerCase().split(/\s+/).filter(Boolean),
-    [query],
-  )
   const filteredSnippets = useMemo(
-    () =>
-      data.snippets.filter((snippet) =>
-        snippetMatchesFilters(snippet, filter, queryTokens, selectedTagKeys),
-      ),
-    [data.snippets, filter, queryTokens, selectedTagKeys],
+    () => filterSnippets(data.snippets, { filter, query, selectedTags, groupId: selectedGroupId }),
+    [data.snippets, filter, query, selectedGroupId, selectedTags],
   )
   const shellOptions = useMemo(
     () => snippetShells.map((shell) => ({ value: shell, label: t(`snippets.shell.${shell}`) })),
@@ -78,263 +109,682 @@ export function SnippetsPage({ data, actionBusy, onSave, onDelete }: SnippetsPag
     [availableTags],
   )
   const normalizedForm = useMemo(() => normalizeSnippetInput(form), [form])
+  const normalizedBaseline = useMemo(() => normalizeSnippetInput(baseline), [baseline])
+  const dirty = useMemo(
+    () => JSON.stringify(normalizedForm) !== JSON.stringify(normalizedBaseline),
+    [normalizedBaseline, normalizedForm],
+  )
   const risk = useMemo(() => analyzeSnippetRisk(normalizedForm.command), [normalizedForm.command])
   const variables = useMemo(() => extractSnippetVariables(normalizedForm.command), [normalizedForm.command])
   const canSave = Boolean(normalizedForm.name && normalizedForm.command)
-  const hasFilters = filter !== 'all' || queryTokens.length > 0 || selectedTags.length > 0
 
-  const save = async () => {
-    if (!canSave) {
+  useEffect(() => {
+    if (!selectedGroupId || selectedGroupId === '__ungrouped__') return
+    if (!data.snippetGroups.some((group) => group.id === selectedGroupId)) {
+      setSelectedGroupId('')
+    }
+  }, [data.snippetGroups, selectedGroupId])
+
+  useEffect(() => {
+    if (!editing || dirty) return
+    const next = snippetToInput(editing)
+    setForm(next)
+    setBaseline(next)
+  }, [dirty, editing])
+
+  const applyIntent = (intent: SnippetIntent) => {
+    if (intent.type === 'create') {
+      setEditingId(null)
+      setForm(blankSnippet)
+      setBaseline(blankSnippet)
+      setActiveView('editor')
       return
     }
-    await onSave(editingId, normalizedForm)
+    const snippet = data.snippets.find((item) => item.id === intent.id)
+    if (!snippet) return
+    const next = snippetToInput(snippet)
+    setEditingId(snippet.id)
+    setForm(next)
+    setBaseline(next)
+    setActiveView('editor')
   }
 
-  const createNew = () => {
-    setEditingId(null)
-    setForm(blankSnippet)
+  const requestIntent = (intent: SnippetIntent) => {
+    if (dirty) {
+      setPendingIntent(intent)
+      return
+    }
+    applyIntent(intent)
   }
 
   const clearFilters = () => {
     setFilter('all')
     setQuery('')
     setSelectedTags([])
+    setSelectedGroupId('')
+  }
+
+  const save = async () => {
+    if (!canSave || actionBusy) return
+    const targetId = editingId
+    await onSave(targetId, normalizedForm)
+    if (targetId) {
+      setForm(normalizedForm)
+      setBaseline(normalizedForm)
+      return
+    }
+    setForm(blankSnippet)
+    setBaseline(blankSnippet)
+    setActiveView('library')
+  }
+
+  const remove = async () => {
+    if (!editingId || actionBusy) return
+    const currentIndex = data.snippets.findIndex((snippet) => snippet.id === editingId)
+    const nextSnippet = data.snippets[currentIndex + 1] ?? data.snippets[currentIndex - 1]
+    await onDelete(editingId)
+    if (nextSnippet) applyIntent({ type: 'select', id: nextSnippet.id })
+    else applyIntent({ type: 'create' })
   }
 
   return (
-    <section className="page-grid snippets-grid">
-      <aside className="list-panel snippet-list-panel snippet-library-panel">
-        <div className="page-title-row compact-title">
-          <div>
-            <h1>{t('snippets.title')}</h1>
-            <p>{t('snippets.subtitle')}</p>
-          </div>
-          <ConnectionActionButton onClick={createNew} icon={<Plus size={16} />}>
-            {t('snippets.add')}
-          </ConnectionActionButton>
-        </div>
-        <Segmented
-          block
-          className="segmented-control"
-          value={filter}
-          options={[
-            { value: 'all', label: t('snippets.all') },
-            { value: 'favorites', label: t('snippets.favorites') },
-          ]}
-          onChange={(value) => setFilter(value as SnippetFilter)}
-        />
-        <Input
-          id="snippets-search"
-          name="snippets-search"
-          className="host-search-input snippet-search-input termous-search-input"
-          value={query}
-          allowClear
-          variant="borderless"
-          prefix={<Search size={15} aria-hidden="true" />}
-          placeholder={t('snippets.searchPlaceholder')}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <div className="snippet-filter-meta">
-          <span>{t('snippets.filterResult', { count: filteredSnippets.length, total: data.snippets.length })}</span>
-          {hasFilters ? (
-            <Button type="text" size="small" className="host-filter-clear" onClick={clearFilters}>
-              {t('hosts.clearFilters')}
-            </Button>
-          ) : null}
-        </div>
-        {availableTags.length > 0 ? (
-          <div className="snippet-filter-tags" aria-label={t('snippets.tags')}>
-            {availableTags.map((tag) => (
-              <Tag.CheckableTag
-                key={tag.key}
-                className="host-filter-chip"
-                checked={selectedTagKeys.includes(tag.key)}
-                onChange={(checked) => {
-                  setSelectedTags((current) =>
-                    checked ? normalizeSnippetTags([...current, tag.label]) : current.filter((item) => tagKey(item) !== tag.key),
-                  )
-                }}
-              >
-                <span>{tag.label}</span>
-                <small>{tag.count}</small>
-              </Tag.CheckableTag>
-            ))}
-          </div>
-        ) : null}
-        <div className="snippet-library-section">
-          <div className="panel-heading">
-            <div>
-              <h2>{t('snippets.list')}</h2>
-              <span>{t('snippets.listHint')}</span>
-            </div>
-            <FileCode2 size={18} aria-hidden="true" />
-          </div>
-          {data.snippets.length === 0 ? (
-            <div className="snippet-empty-slot">
-              <Empty description={t('snippets.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            </div>
-          ) : filteredSnippets.length === 0 ? (
-            <div className="snippet-empty-slot">
-              <Empty description={t('snippets.noFilterResults')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            </div>
-          ) : (
-            <div className="data-list snippet-data-list">
-              {filteredSnippets.map((snippet) => (
-                <SnippetRow
-                  key={snippet.id}
-                  snippet={snippet}
-                  active={snippet.id === editingId}
-                  onSelect={() => setEditingId(snippet.id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </aside>
-
-      <section className="editor-panel snippet-editor-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>{t('snippets.editor')}</h2>
-            <span>{editingId ? t('app.update') : t('app.create')}</span>
-          </div>
-          <div className="snippet-editor-heading-actions">
-            <Tooltip title={form.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}>
-              <Button
-                type="text"
-                className={`snippet-favorite-toggle ${form.favorite ? 'is-active' : ''}`}
-                aria-label={form.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}
-                aria-pressed={form.favorite}
-                icon={<Star size={16} fill={form.favorite ? 'currentColor' : 'none'} />}
-                onClick={() => setForm({ ...form, favorite: !form.favorite })}
-              >
-                {form.favorite ? t('snippets.favorited') : t('snippets.favorite')}
-              </Button>
-            </Tooltip>
-            <Pencil size={18} aria-hidden="true" />
-          </div>
-        </div>
-        <div className="editor-sections">
-          <section className="form-section">
-            <h3>{t('snippets.basic')}</h3>
-            <div className="form-grid">
-              <Field id="snippet-name" label={t('snippets.name')} value={form.name} onChange={(value) => setForm({ ...form, name: value })} />
-              <CustomSelect
-                id="snippet-shell"
-                label={t('snippets.shellLabel')}
-                value={form.shell}
-                options={shellOptions}
-                onChange={(value) => setForm({ ...form, shell: value as SnippetShell })}
-              />
-              <label className="field field-wide">
-                <span className="field-label">{t('snippets.description')}</span>
-                <Input.TextArea
-                  id="snippet-description"
-                  name="snippet-description"
-                  value={form.description}
-                  autoSize={{ minRows: 2, maxRows: 4 }}
-                  onChange={(event) => setForm({ ...form, description: event.target.value })}
-                />
-              </label>
-              <label className="field field-wide snippet-tags-field">
-                <span className="field-label">{t('snippets.tags')}</span>
-                <Select
-                  id="snippet-tags"
-                  mode="tags"
-                  value={form.tags}
-                  allowClear
-                  tokenSeparators={[',']}
-                  classNames={{ popup: { root: 'termous-select-popup' } }}
-                  className="termous-select"
-                  optionLabelProp="value"
-                  placeholder={t('snippets.tagsPlaceholder')}
-                  options={tagOptions}
-                  onChange={(tags) => setForm({ ...form, tags: normalizeSnippetTags(tags) })}
-                />
-              </label>
-            </div>
-          </section>
-          <section className="form-section">
-            <h3>{t('snippets.command')}</h3>
-            <label className="field field-wide">
-              <span className="field-label">{t('snippets.command')}</span>
-              <Input.TextArea
-                id="snippet-command"
-                name="snippet-command"
-                className="snippet-command-input"
-                value={form.command}
-                autoSize={{ minRows: 7, maxRows: 12 }}
-                onChange={(event) => setForm({ ...form, command: event.target.value })}
-              />
-            </label>
-          </section>
-          <section className="snippet-preview-panel">
-            <div className="snippet-preview-head">
-              <span>{t('snippets.preview')}</span>
-              {risk.risky ? (
-                <Tag className="snippet-risk-tag" icon={<TriangleAlert size={12} />}>
-                  {t('snippets.riskDetected')}
-                </Tag>
-              ) : null}
-            </div>
-            <pre>{normalizedForm.command || t('snippets.noCommand')}</pre>
-            {variables.length > 0 ? (
-              <div className="snippet-variable-row">
-                <Tags size={14} />
-                <span>{t('snippets.variables')}</span>
-                {variables.map((variable) => (
-                  <code key={variable}>{`{{${variable}}}`}</code>
-                ))}
-              </div>
-            ) : null}
-          </section>
-        </div>
-        <div className="danger-zone">
-          <span>{t('snippets.deleteHint')}</span>
-          <Popconfirm
-            title={t('app.confirmDelete')}
-            description={t('snippets.deleteHint')}
-            okText={t('app.delete')}
-            cancelText={t('app.cancel')}
-            disabled={!editingId || actionBusy}
-            onConfirm={() => editingId && void onDelete(editingId)}
-          >
-            <Button danger className="danger-button" disabled={!editingId || actionBusy} icon={<Trash2 size={16} />}>
-              {t('app.delete')}
-            </Button>
-          </Popconfirm>
-        </div>
-        <Button type="primary" className="primary-button full-width" disabled={actionBusy || !canSave} onClick={() => void save()}>
-          {editingId ? t('app.update') : t('app.create')}
-        </Button>
-      </section>
+    <section className={`snippets-workspace is-${activeView}`}>
+      <SnippetLibrary
+        snippets={data.snippets}
+        groups={data.snippetGroups}
+        filteredSnippets={filteredSnippets}
+        editingId={editingId}
+        filter={filter}
+        query={query}
+        selectedTags={selectedTags}
+        selectedGroupId={selectedGroupId}
+        availableTags={availableTags}
+        onFilterChange={setFilter}
+        onQueryChange={setQuery}
+        onSelectedTagsChange={setSelectedTags}
+        onSelectedGroupChange={setSelectedGroupId}
+        onClearFilters={clearFilters}
+        onCreate={() => requestIntent({ type: 'create' })}
+        onManageGroups={() => setGroupManagerOpen(true)}
+        onSelect={(id) => requestIntent({ type: 'select', id })}
+      />
+      <SnippetEditor
+        key={editingId ?? 'new'}
+        form={form}
+        groups={data.snippetGroups}
+        editingId={editingId}
+        actionBusy={actionBusy}
+        dirty={dirty}
+        canSave={canSave}
+        riskReasons={risk.reasons}
+        variables={variables}
+        shellOptions={shellOptions}
+        tagOptions={tagOptions}
+        onFormChange={setForm}
+        onCreateGroup={onCreateGroup}
+        onBack={() => setActiveView('library')}
+        onSave={() => void save()}
+        onDelete={() => void remove()}
+      />
+      <GroupManagerModal
+        open={groupManagerOpen}
+        groups={data.snippetGroups}
+        actionBusy={actionBusy}
+        title={t('snippets.manageGroups')}
+        addLabel={t('snippets.addGroup')}
+        namePlaceholder={t('snippets.groupNamePlaceholder')}
+        emptyLabel={t('snippets.noGroups')}
+        deleteTitle={t('snippets.deleteGroupTitle')}
+        deleteDescription={t('snippets.deleteGroupHint')}
+        saveLabel={t('app.save')}
+        cancelLabel={t('app.cancel')}
+        editLabel={t('app.edit')}
+        deleteLabel={t('app.delete')}
+        reorderLabel={t('app.reorder')}
+        moveUpLabel={t('app.moveUp')}
+        moveDownLabel={t('app.moveDown')}
+        itemCounts={groupItemCounts}
+        itemCountLabel={(count) => t('snippets.groupItemCount', { count })}
+        onClose={() => setGroupManagerOpen(false)}
+        onCreate={onCreateGroup}
+        onRename={onRenameGroup}
+        onDelete={onDeleteGroup}
+        onReorder={onReorderGroups}
+      />
+      <Modal
+        centered
+        width={420}
+        open={Boolean(pendingIntent)}
+        title={t('snippets.discardTitle')}
+        okText={t('snippets.discard')}
+        cancelText={t('app.cancel')}
+        okButtonProps={{ danger: true }}
+        onCancel={() => setPendingIntent(null)}
+        onOk={() => {
+          const intent = pendingIntent
+          setPendingIntent(null)
+          if (intent) applyIntent(intent)
+        }}
+      >
+        <p className="snippet-discard-copy">{t('snippets.discardDescription')}</p>
+      </Modal>
     </section>
   )
 }
 
-function SnippetRow({ snippet, active, onSelect }: { snippet: CodeSnippet; active: boolean; onSelect: () => void }) {
+function SnippetLibrary({
+  snippets,
+  groups,
+  filteredSnippets,
+  editingId,
+  filter,
+  query,
+  selectedTags,
+  selectedGroupId,
+  availableTags,
+  onFilterChange,
+  onQueryChange,
+  onSelectedTagsChange,
+  onSelectedGroupChange,
+  onClearFilters,
+  onCreate,
+  onManageGroups,
+  onSelect,
+}: {
+  snippets: AppData['snippets']
+  groups: CodeSnippetGroup[]
+  filteredSnippets: AppData['snippets']
+  editingId: string | null
+  filter: SnippetCatalogFilter
+  query: string
+  selectedTags: string[]
+  selectedGroupId: string
+  availableTags: ReturnType<typeof buildSnippetTags>
+  onFilterChange: (value: SnippetCatalogFilter) => void
+  onQueryChange: (value: string) => void
+  onSelectedTagsChange: (value: string[]) => void
+  onSelectedGroupChange: (value: string) => void
+  onClearFilters: () => void
+  onCreate: () => void
+  onManageGroups: () => void
+  onSelect: (id: string) => void
+}) {
   const { t } = useTranslation()
-  const risk = analyzeSnippetRisk(snippet.command)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set())
+  const groupedSnippets = useMemo(() => {
+    const groupMap = new Map(groups.map((group) => [group.id, [] as AppData['snippets']]))
+    const ungrouped: AppData['snippets'] = []
+    filteredSnippets.forEach((snippet) => {
+      const target = groupMap.get(snippet.group_id)
+      if (target) target.push(snippet)
+      else ungrouped.push(snippet)
+    })
+    return [
+      ...groups.map((group) => ({ id: group.id, name: group.name, snippets: groupMap.get(group.id) ?? [] })),
+      { id: '__ungrouped__', name: t('snippets.ungrouped'), snippets: ungrouped },
+    ].filter((section) => section.snippets.length > 0)
+  }, [filteredSnippets, groups, t])
+
+  const toggleGroup = (id: string) => {
+    setCollapsedGroups((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   return (
-    <button type="button" className={`data-row snippet-row ${active ? 'is-active' : ''}`} onClick={onSelect}>
-      <span className="row-icon">
-        <Code2 size={16} aria-hidden="true" />
-      </span>
-      <span className="row-copy">
-        <strong>
-          {snippet.favorite ? <Star size={13} aria-hidden="true" /> : null}
-          {snippet.name}
-        </strong>
-        <small>{snippet.description || snippet.command}</small>
-        <span className="snippet-row-tags">
-          <Tag className="soft-tag">{t(`snippets.shell.${snippet.shell || 'any'}`)}</Tag>
-          {risk.risky ? <Tag className="snippet-risk-tag">{t('snippets.riskDetected')}</Tag> : null}
-        </span>
-      </span>
-      <span className="row-trailing">
-        <small>{t('snippets.useCount', { count: snippet.use_count ?? 0 })}</small>
-      </span>
-    </button>
+    <aside className="snippet-management-library">
+      <header className="snippet-management-library-head">
+        <div className="snippet-management-title">
+          <span className="snippet-management-title-icon"><FileCode2 size={18} aria-hidden="true" /></span>
+          <div>
+            <h1>{t('snippets.title')}</h1>
+            <span>{t('snippets.libraryCount', { count: snippets.length })}</span>
+          </div>
+        </div>
+        <div className="snippet-management-head-actions">
+          <Tooltip title={t('snippets.manageGroups')}>
+            <Button
+              className="snippet-group-manager-trigger"
+              aria-label={t('snippets.manageGroups')}
+              icon={<FolderCog size={16} />}
+              onClick={onManageGroups}
+            />
+          </Tooltip>
+          <ConnectionActionButton className="snippet-create-button" onClick={onCreate} icon={<Plus size={16} />}>
+            {t('snippets.add')}
+          </ConnectionActionButton>
+        </div>
+      </header>
+      <SnippetFilterBar
+        filter={filter}
+        query={query}
+        selectedTags={selectedTags}
+        groups={groups}
+        selectedGroupId={selectedGroupId}
+        availableTags={availableTags}
+        filteredCount={filteredSnippets.length}
+        totalCount={snippets.length}
+        density="management"
+        onFilterChange={onFilterChange}
+        onQueryChange={onQueryChange}
+        onSelectedTagsChange={onSelectedTagsChange}
+        onSelectedGroupChange={onSelectedGroupChange}
+        onClear={onClearFilters}
+      />
+      {filteredSnippets.length === 0 ? (
+        <SnippetList
+          snippets={[]}
+          totalCount={snippets.length}
+          density="management"
+          selectedId={editingId}
+          emptyDescription={t('snippets.empty')}
+          noResultsDescription={t('snippets.noFilterResults')}
+          onSelect={(snippet) => onSelect(snippet.id)}
+        />
+      ) : (
+        <div className="snippet-grouped-list">
+          {groupedSnippets.map((section) => {
+            const collapsed = collapsedGroups.has(section.id)
+            return (
+              <section key={section.id} className="snippet-group-section">
+                <button
+                  type="button"
+                  className="snippet-group-section-head"
+                  aria-expanded={!collapsed}
+                  onClick={() => toggleGroup(section.id)}
+                >
+                  {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                  <Folder size={15} />
+                  <strong>{section.name}</strong>
+                  <span>{section.snippets.length}</span>
+                </button>
+                {!collapsed ? (
+                  <SnippetList
+                    snippets={section.snippets}
+                    totalCount={section.snippets.length}
+                    density="management"
+                    selectedId={editingId}
+                    emptyDescription={t('snippets.empty')}
+                    noResultsDescription={t('snippets.noFilterResults')}
+                    onSelect={(snippet) => onSelect(snippet.id)}
+                  />
+                ) : null}
+              </section>
+            )
+          })}
+        </div>
+      )}
+    </aside>
+  )
+}
+
+function SnippetEditor({
+  form,
+  groups,
+  editingId,
+  actionBusy,
+  dirty,
+  canSave,
+  riskReasons,
+  variables,
+  shellOptions,
+  tagOptions,
+  onFormChange,
+  onCreateGroup,
+  onBack,
+  onSave,
+  onDelete,
+}: {
+  form: CodeSnippetInput
+  groups: CodeSnippetGroup[]
+  editingId: string | null
+  actionBusy: boolean
+  dirty: boolean
+  canSave: boolean
+  riskReasons: string[]
+  variables: string[]
+  shellOptions: Array<{ value: SnippetShell; label: string }>
+  tagOptions: Array<{ value: string; label: string }>
+  onFormChange: (form: CodeSnippetInput) => void
+  onCreateGroup: (name: string) => Promise<CodeSnippetGroup | undefined>
+  onBack: () => void
+  onSave: () => void
+  onDelete: () => void
+}) {
+  const { t } = useTranslation()
+  const risky = riskReasons.length > 0
+  const editorScrollRef = useRef<HTMLDivElement>(null)
+  const commandInputRef = useRef<TextAreaRef>(null)
+  const commandSelectionRef = useRef({ start: form.command.length, end: form.command.length })
+  const [variableHelperOpen, setVariableHelperOpen] = useState(false)
+  const [variableName, setVariableName] = useState('')
+  const [groupCreatorOpen, setGroupCreatorOpen] = useState(false)
+  const [groupName, setGroupName] = useState('')
+  const [creatingGroup, setCreatingGroup] = useState(false)
+  const normalizedVariableName = variableName.trim()
+  const variableNameValid = /^[a-zA-Z_][\w.-]{0,63}$/.test(normalizedVariableName)
+  const normalizedGroupName = groupName.trim().replace(/\s+/g, ' ')
+
+  const createGroup = async () => {
+    if (!normalizedGroupName || creatingGroup) return
+    setCreatingGroup(true)
+    try {
+      const group = await onCreateGroup(normalizedGroupName)
+      if (!group) return
+      onFormChange({ ...form, group_id: group.id })
+      setGroupName('')
+      setGroupCreatorOpen(false)
+    } finally {
+      setCreatingGroup(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!variableHelperOpen) return
+
+    const frame = requestAnimationFrame(() => {
+      const container = editorScrollRef.current
+      if (!container) return
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: reduceMotion ? 'auto' : 'smooth',
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [variableHelperOpen])
+
+  const rememberCommandSelection = (target: HTMLTextAreaElement) => {
+    commandSelectionRef.current = {
+      start: target.selectionStart,
+      end: target.selectionEnd,
+    }
+  }
+
+  const insertVariable = (name: string) => {
+    const normalizedName = name.trim()
+    if (!/^[a-zA-Z_][\w.-]{0,63}$/.test(normalizedName)) return
+
+    const token = `{{${normalizedName}}}`
+    const start = Math.min(commandSelectionRef.current.start, form.command.length)
+    const end = Math.min(commandSelectionRef.current.end, form.command.length)
+    const command = `${form.command.slice(0, start)}${token}${form.command.slice(end)}`
+    const nextCaret = start + token.length
+    onFormChange({ ...form, command })
+    commandSelectionRef.current = { start: nextCaret, end: nextCaret }
+    setVariableName('')
+
+    requestAnimationFrame(() => {
+      commandInputRef.current?.focus()
+      const nativeElement = commandInputRef.current?.nativeElement
+      const textarea = nativeElement instanceof HTMLTextAreaElement
+        ? nativeElement
+        : nativeElement?.querySelector('textarea')
+      textarea?.setSelectionRange(nextCaret, nextCaret)
+    })
+  }
+
+  return (
+    <section className="snippet-management-editor">
+      <header className="snippet-management-editor-head">
+        <div className="snippet-editor-identity">
+          <Button
+            type="text"
+            className="snippet-editor-back"
+            aria-label={t('snippets.backToList')}
+            icon={<ArrowLeft size={16} aria-hidden="true" />}
+            onClick={onBack}
+          >
+            {t('snippets.backToList')}
+          </Button>
+          <span className="snippet-editor-identity-icon"><Code2 size={18} aria-hidden="true" /></span>
+          <div>
+            <span>{editingId ? t('snippets.editor') : t('snippets.newSnippet')}</span>
+            <h2>{form.name || t('snippets.newSnippet')}</h2>
+          </div>
+        </div>
+        <div className="snippet-editor-status">
+          {dirty ? <Tag className="snippet-dirty-tag">{t('snippets.unsaved')}</Tag> : null}
+          <Tooltip title={form.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}>
+            <Button
+              type="text"
+              className={`snippet-favorite-toggle ${form.favorite ? 'is-active' : ''}`}
+              aria-label={form.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}
+              aria-pressed={form.favorite}
+              icon={<Star size={16} fill={form.favorite ? 'currentColor' : 'none'} />}
+              onClick={() => onFormChange({ ...form, favorite: !form.favorite })}
+            />
+          </Tooltip>
+        </div>
+      </header>
+      <div ref={editorScrollRef} className="snippet-management-editor-scroll">
+        <section className="snippet-editor-section snippet-editor-basics">
+          <div className="snippet-editor-section-head">
+            <div>
+              <h3>{t('snippets.basic')}</h3>
+              <span>{t('snippets.basicHint')}</span>
+            </div>
+          </div>
+          <div className="snippet-editor-form-grid">
+            <Field
+              id="snippet-name"
+              label={t('snippets.name')}
+              value={form.name}
+              onChange={(name) => onFormChange({ ...form, name })}
+            />
+            <CustomSelect
+              id="snippet-shell"
+              label={t('snippets.shellLabel')}
+              value={form.shell}
+              options={shellOptions}
+              onChange={(shell) => onFormChange({ ...form, shell: shell as SnippetShell })}
+            />
+            <div className="field snippet-editor-group-field snippet-editor-wide-field">
+              <span className="field-label">{t('snippets.group')}</span>
+              <div className="snippet-editor-group-control">
+                <Select
+                  value={form.group_id}
+                  className="termous-select"
+                  classNames={{ popup: { root: 'termous-select-popup' } }}
+                  options={[
+                    { value: '', label: t('snippets.ungrouped') },
+                    ...groups.map((group) => ({ value: group.id, label: group.name })),
+                  ]}
+                  onChange={(group_id) => onFormChange({ ...form, group_id })}
+                />
+                <Tooltip title={t('snippets.addGroup')}>
+                  <Button
+                    aria-label={t('snippets.addGroup')}
+                    icon={<Plus size={15} />}
+                    onClick={() => setGroupCreatorOpen((open) => !open)}
+                  />
+                </Tooltip>
+              </div>
+            </div>
+            {groupCreatorOpen ? (
+              <div className="snippet-editor-group-create">
+                <Input
+                  autoFocus
+                  value={groupName}
+                  maxLength={64}
+                  placeholder={t('snippets.groupNamePlaceholder')}
+                  disabled={creatingGroup}
+                  onChange={(event) => setGroupName(event.target.value)}
+                  onPressEnter={() => void createGroup()}
+                />
+                <Button
+                  type="primary"
+                  loading={creatingGroup}
+                  disabled={!normalizedGroupName}
+                  onClick={() => void createGroup()}
+                >
+                  {t('app.create')}
+                </Button>
+                <Button
+                  type="text"
+                  disabled={creatingGroup}
+                  onClick={() => {
+                    setGroupCreatorOpen(false)
+                    setGroupName('')
+                  }}
+                >
+                  {t('app.cancel')}
+                </Button>
+              </div>
+            ) : null}
+            <label className="field snippet-editor-wide-field">
+              <span className="field-label">{t('snippets.description')}</span>
+              <Input.TextArea
+                id="snippet-description"
+                value={form.description}
+                autoSize={{ minRows: 2, maxRows: 4 }}
+                placeholder={t('snippets.descriptionPlaceholder')}
+                onChange={(event) => onFormChange({ ...form, description: event.target.value })}
+              />
+            </label>
+            <label className="field snippet-editor-wide-field snippet-tags-field">
+              <span className="field-label">{t('snippets.tags')}</span>
+              <Select
+                id="snippet-tags"
+                mode="tags"
+                value={form.tags}
+                allowClear
+                tokenSeparators={[',']}
+                classNames={{ popup: { root: 'termous-select-popup' } }}
+                className="termous-select"
+                optionLabelProp="value"
+                placeholder={t('snippets.tagsPlaceholder')}
+                options={tagOptions}
+                onChange={(tags) => onFormChange({ ...form, tags: normalizeSnippetTags(tags) })}
+              />
+            </label>
+          </div>
+        </section>
+        <section className="snippet-editor-section snippet-editor-command-section">
+          <div className="snippet-editor-section-head">
+            <div>
+              <h3>{t('snippets.command')}</h3>
+              <span>{t('snippets.commandHint')}</span>
+            </div>
+            <Tag className="snippet-shell-tag">{t(`snippets.shell.${form.shell || 'any'}`)}</Tag>
+          </div>
+          <Input.TextArea
+            ref={commandInputRef}
+            id="snippet-command"
+            className="snippet-command-input"
+            value={form.command}
+            rows={11}
+            spellCheck={false}
+            placeholder={t('snippets.commandPlaceholder')}
+            onChange={(event) => onFormChange({ ...form, command: event.target.value })}
+            onSelect={(event) => rememberCommandSelection(event.currentTarget)}
+          />
+          <div className="snippet-command-insights">
+            <div className="snippet-command-insight is-variables">
+              <Tags size={14} aria-hidden="true" />
+              <span>{t('snippets.variables')}</span>
+              {variables.length > 0 ? (
+                <div className="snippet-command-variable-list">
+                  {variables.map((variable) => (
+                    <Tooltip key={variable} title={t('snippets.insertVariableAgain')}>
+                      <button type="button" onClick={() => insertVariable(variable)}>
+                        <code>{`{{${variable}}}`}</code>
+                      </button>
+                    </Tooltip>
+                  ))}
+                </div>
+              ) : <small>{t('snippets.noVariables')}</small>}
+              <Button
+                type="text"
+                className={`snippet-variable-toggle ${variableHelperOpen ? 'is-active' : ''}`}
+                icon={variableHelperOpen ? <ChevronUp size={13} /> : <Plus size={13} />}
+                aria-expanded={variableHelperOpen}
+                onClick={() => setVariableHelperOpen((open) => !open)}
+              >
+                {t('snippets.addVariable')}
+              </Button>
+            </div>
+            <div className={`snippet-command-insight is-risk ${risky ? 'is-detected' : ''}`}>
+              <TriangleAlert size={14} aria-hidden="true" />
+              <span>{risky ? t('snippets.riskDetected') : t('snippets.noRiskDetected')}</span>
+              {risky ? (
+                <Tooltip title={riskReasons.map((reason) => t(`snippets.riskReasons.${reason}`)).join(' · ')}>
+                  <small>{t('snippets.riskCount', { count: riskReasons.length })}</small>
+                </Tooltip>
+              ) : null}
+            </div>
+          </div>
+          {variableHelperOpen ? (
+            <div className="snippet-variable-helper">
+              <div className="snippet-variable-helper-copy">
+                <span className="snippet-variable-helper-icon"><Braces size={16} aria-hidden="true" /></span>
+                <div>
+                  <strong>{t('snippets.variableHelperTitle')}</strong>
+                  <span>{t('snippets.variableHelperDescription')}</span>
+                </div>
+              </div>
+              <div className="snippet-variable-examples" aria-label={t('snippets.variableSyntax')}>
+                <span>{t('snippets.variableSyntax')}</span>
+                <code>{'{{variable}}'}</code>
+                <span>{t('snippets.variableExample')}</span>
+                <code>{'tail -n {{lines}} "{{file}}"'}</code>
+              </div>
+              <div className="snippet-variable-compose">
+                <Input
+                  value={variableName}
+                  prefix="{{"
+                  suffix="}}"
+                  status={normalizedVariableName && !variableNameValid ? 'error' : undefined}
+                  placeholder={t('snippets.variableNamePlaceholder')}
+                  aria-label={t('snippets.variableName')}
+                  onChange={(event) => setVariableName(event.target.value)}
+                  onPressEnter={() => insertVariable(variableName)}
+                />
+                <Button
+                  className="snippet-variable-insert"
+                  disabled={!variableNameValid}
+                  icon={<Plus size={14} />}
+                  onClick={() => insertVariable(variableName)}
+                >
+                  {t('snippets.insertVariable')}
+                </Button>
+              </div>
+              <small className={normalizedVariableName && !variableNameValid ? 'is-invalid' : ''}>
+                {normalizedVariableName && !variableNameValid
+                  ? t('snippets.invalidVariableName')
+                  : t('snippets.variableNameHint')}
+              </small>
+            </div>
+          ) : null}
+        </section>
+      </div>
+      <footer className="snippet-management-editor-footer">
+        <Popconfirm
+          title={t('app.confirmDelete')}
+          description={t('snippets.deleteHint')}
+          okText={t('app.delete')}
+          cancelText={t('app.cancel')}
+          disabled={!editingId || actionBusy}
+          onConfirm={onDelete}
+        >
+          <Button danger disabled={!editingId || actionBusy} icon={<Trash2 size={15} />}>
+            {t('app.delete')}
+          </Button>
+        </Popconfirm>
+        <ConnectionActionButton
+          className="snippet-save-button"
+          disabled={actionBusy || !canSave || !dirty}
+          loading={actionBusy}
+          icon={<Save size={15} />}
+          onClick={onSave}
+        >
+          {t('app.save')}
+        </ConnectionActionButton>
+      </footer>
+    </section>
   )
 }
 
@@ -352,48 +802,7 @@ function Field({
   return (
     <label className="field">
       <span className="field-label">{label}</span>
-      <Input id={id} name={id} value={value} onChange={(event) => onChange(event.target.value)} />
+      <Input id={id} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   )
-}
-
-function buildSnippetTags(snippets: CodeSnippet[]) {
-  const tagMap = new Map<string, { key: string; label: string; count: number }>()
-  snippets.forEach((snippet) => {
-    const seen = new Set<string>()
-    normalizeSnippetTags(snippet.tags ?? []).forEach((tag) => {
-      const key = tagKey(tag)
-      if (seen.has(key)) {
-        return
-      }
-      seen.add(key)
-      const existing = tagMap.get(key)
-      if (existing) {
-        existing.count += 1
-      } else {
-        tagMap.set(key, { key, label: tag, count: 1 })
-      }
-    })
-  })
-  return Array.from(tagMap.values()).sort((left, right) => left.label.localeCompare(right.label))
-}
-
-function snippetMatchesFilters(snippet: CodeSnippet, filter: SnippetFilter, tokens: string[], selectedTagKeys: string[]) {
-  if (filter === 'favorites' && !snippet.favorite) {
-    return false
-  }
-  const tags = normalizeSnippetTags(snippet.tags ?? [])
-  const tagKeys = new Set(tags.map(tagKey))
-  if (selectedTagKeys.length > 0 && !selectedTagKeys.every((tag) => tagKeys.has(tag))) {
-    return false
-  }
-  if (tokens.length === 0) {
-    return true
-  }
-  const searchable = [snippet.name, snippet.description ?? '', snippet.command, snippet.shell, tags.join(' ')].join(' ').toLowerCase()
-  return tokens.every((token) => searchable.includes(token))
-}
-
-function tagKey(value: string) {
-  return value.trim().toLowerCase()
 }

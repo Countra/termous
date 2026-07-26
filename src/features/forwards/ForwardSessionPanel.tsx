@@ -1,13 +1,16 @@
-import { ArrowDownLeft, ArrowUpRight, Cable, Network, Play, RadioTower, Route, Square } from 'lucide-react'
-import { App as AntdApp, Button, Input, InputNumber, Progress, Segmented } from 'antd'
-import { useMemo, useState } from 'react'
+import { Cable, ChevronDown, ChevronUp, Play, Plus, Square } from 'lucide-react'
+import { App as AntdApp, Button, Tooltip } from 'antd'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import type { ForwardInstance, ForwardMode, ForwardStartRequest, Host, Session } from '../../types/domain'
-import { formatBytes } from '../files/fileUtils'
 import { WorkbenchEmptyState } from '../workbench/WorkbenchEmptyState'
+import { ForwardEditorFields } from './ForwardEditorFields'
+import { ForwardModeBadge, ForwardModeSelector } from './ForwardModeSelector'
 import { ForwardRouteDiagram } from './ForwardRouteDiagram'
+import { ForwardRuntimeMetrics } from './ForwardRuntimeMetrics'
+import { ForwardStateFeedback } from './ForwardStateFeedback'
 
 interface ForwardSessionPanelProps {
   session: Session | null
@@ -34,6 +37,15 @@ const defaultSessionForwardForm: SessionForwardForm = {
   target_port: 80,
 }
 
+const forwardStatusPriority: Record<ForwardInstance['status'], number> = {
+  running: 0,
+  starting: 1,
+  waiting_host_trust: 2,
+  stopping: 3,
+  failed: 4,
+  stopped: 5,
+}
+
 export function ForwardSessionPanel({
   session,
   host,
@@ -44,14 +56,53 @@ export function ForwardSessionPanel({
 }: ForwardSessionPanelProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
-  const [form, setForm] = useState<SessionForwardForm>({ ...defaultSessionForwardForm })
   const sessionForwards = useMemo(
-    () => forwards.filter((forward) => forward.session_id === session?.id),
+    () => forwards
+      .filter((forward) => forward.session_id === session?.id)
+      .sort((left, right) => forwardStatusPriority[left.status] - forwardStatusPriority[right.status]),
     [forwards, session?.id],
   )
+  const [form, setForm] = useState<SessionForwardForm>({ ...defaultSessionForwardForm })
+  const [composerOpen, setComposerOpen] = useState(() => sessionForwards.length === 0)
+  const [revealForwardId, setRevealForwardId] = useState<string | null>(null)
+  const previousSessionIdRef = useRef(session?.id)
+  const composerTouchedRef = useRef(false)
+  const composerToggleRef = useRef<HTMLButtonElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   const connectedSSH = Boolean(session?.kind === 'ssh' && session.status === 'connected')
-  const unsupported = connectedSSH && host?.auth_method === 'system'
-  const canCreate = connectedSSH && !unsupported
+  const canCreate = connectedSSH
+
+  useEffect(() => {
+    if (previousSessionIdRef.current !== session?.id) {
+      previousSessionIdRef.current = session?.id
+      composerTouchedRef.current = false
+      setForm({ ...defaultSessionForwardForm })
+      setComposerOpen(sessionForwards.length === 0)
+      setRevealForwardId(null)
+      return
+    }
+    if (!composerTouchedRef.current) {
+      setComposerOpen(sessionForwards.length === 0)
+    }
+  }, [session?.id, sessionForwards.length])
+
+  useEffect(() => {
+    if (!revealForwardId || !sessionForwards.some((forward) => forward.id === revealForwardId)) {
+      return
+    }
+    const target = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[data-forward-id]') ?? [])
+      .find((element) => element.dataset.forwardId === revealForwardId)
+    target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    setRevealForwardId(null)
+  }, [revealForwardId, sessionForwards])
+
+  const setComposerVisibility = (open: boolean) => {
+    composerTouchedRef.current = true
+    if (!open) {
+      composerToggleRef.current?.focus()
+    }
+    setComposerOpen(open)
+  }
 
   const startForward = async () => {
     const validation = validateForm(form, t)
@@ -60,7 +111,7 @@ export function ForwardSessionPanel({
       return
     }
     try {
-      await onStartForward({
+      const created = await onStartForward({
         scope: 'session',
         session_id: session?.id,
         name: t(`forwards.modeName.${form.mode}`),
@@ -70,6 +121,10 @@ export function ForwardSessionPanel({
         target_host: form.mode === 'dynamic' ? '' : form.target_host,
         target_port: form.mode === 'dynamic' ? 0 : Number(form.target_port),
       })
+      composerTouchedRef.current = false
+      composerToggleRef.current?.focus()
+      setComposerOpen(false)
+      setRevealForwardId(created.id)
     } catch (error) {
       notification.error({
         title: t('forwards.startFailed'),
@@ -92,68 +147,59 @@ export function ForwardSessionPanel({
     )
   }
 
-  if (unsupported) {
-    return (
-      <WorkbenchEmptyState
-        className="forward-session-empty"
-        tone="warning"
-        icon={<Network size={20} />}
-        title={t('workbench.detailsTabs.forwards')}
-        description={t('forwards.systemAuthSessionUnsupported')}
-      />
-    )
-  }
+  const sessionTarget = host ? `${host.username}@${host.address}:${host.port}` : t('fields.none')
 
   return (
     <section className="forward-session-panel">
-      <div className="forward-session-editor">
-        <div className="forward-session-title">
-          <strong>{t('forwards.sessionCreateTitle')}</strong>
-          <span>{host ? `${host.username}@${host.address}:${host.port}` : t('fields.none')}</span>
+      <header className="forward-session-context">
+        <div className="forward-session-context-copy">
+          <span className="forward-session-context-icon"><Cable size={16} aria-hidden="true" /></span>
+          <span>
+            <strong>{sessionTarget}</strong>
+            <small>{t('forwards.sessionCount', { count: sessionForwards.length })}</small>
+          </span>
         </div>
-        <Segmented
-          block
-          value={form.mode}
-          onChange={(value) => setForm((current) => ({ ...current, mode: value as ForwardMode }))}
-          options={[
-            { label: t('forwards.modeName.local'), value: 'local' },
-            { label: t('forwards.modeName.remote'), value: 'remote' },
-            { label: t('forwards.modeName.dynamic'), value: 'dynamic' },
-          ]}
-        />
-        <div className="forward-session-grid">
-          <label className="forward-field">
-            <span className="field-label">{form.mode === 'remote' ? t('forwards.remoteBindHost') : t('forwards.localBindHost')}</span>
-            <Input value={form.bind_host} onChange={(event) => setForm((current) => ({ ...current, bind_host: event.target.value }))} />
-          </label>
-          <label className="forward-field">
-            <span className="field-label">{form.mode === 'remote' ? t('forwards.remoteBindPort') : t('forwards.localBindPort')}</span>
-            <InputNumber min={1} max={65535} value={form.bind_port} onChange={(value) => setForm((current) => ({ ...current, bind_port: value }))} />
-          </label>
+        <Button
+          ref={composerToggleRef}
+          type="text"
+          className="forward-session-composer-toggle"
+          aria-expanded={composerOpen}
+          icon={<Plus size={14} />}
+          onClick={() => setComposerVisibility(!composerOpen)}
+        >
+          <span>{t('forwards.newForward')}</span>
+          {composerOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        </Button>
+      </header>
+
+      <div className={`forward-session-composer-shell${composerOpen ? ' is-open' : ''}`} aria-hidden={!composerOpen}>
+        <div className="forward-session-composer-inner">
+          <div className="forward-session-editor">
+            <ForwardModeSelector
+              compact
+              value={form.mode}
+              disabled={actionBusy}
+              onChange={(mode) => setForm((current) => ({ ...current, mode }))}
+            />
+            <ForwardEditorFields
+              compact
+              idPrefix={`session-forward-${session?.id ?? 'none'}`}
+              mode={form.mode}
+              bind_host={form.bind_host}
+              bind_port={form.bind_port}
+              target_host={form.target_host}
+              target_port={form.target_port}
+              disabled={actionBusy}
+              onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
+            />
+            <ConnectionActionButton disabled={!canCreate || actionBusy} icon={<Play size={15} />} onClick={() => void startForward()}>
+              {t('forwards.startSessionForward')}
+            </ConnectionActionButton>
+          </div>
         </div>
-        {form.mode !== 'dynamic' ? (
-          <div className="forward-session-grid">
-            <label className="forward-field">
-              <span className="field-label">{t('forwards.targetHost')}</span>
-              <Input value={form.target_host} onChange={(event) => setForm((current) => ({ ...current, target_host: event.target.value }))} />
-            </label>
-            <label className="forward-field">
-              <span className="field-label">{t('forwards.targetPort')}</span>
-              <InputNumber min={1} max={65535} value={form.target_port} onChange={(value) => setForm((current) => ({ ...current, target_port: value }))} />
-            </label>
-          </div>
-        ) : (
-          <div className="forwarding-socks-hint">
-            <Network size={15} />
-            <span>{t('forwards.dynamicHint')}</span>
-          </div>
-        )}
-        <ConnectionActionButton disabled={!canCreate || actionBusy} icon={<Play size={15} />} onClick={() => void startForward()}>
-          {t('forwards.startSessionForward')}
-        </ConnectionActionButton>
       </div>
 
-      <div className="forward-session-list">
+      <div ref={listRef} className="forward-session-list">
         {sessionForwards.length === 0 ? (
           <div className="forward-session-empty-inline">{t('forwards.noSessionForwards')}</div>
         ) : (
@@ -181,16 +227,26 @@ function SessionForwardRow({
   onStop: () => void
 }) {
   const { t } = useTranslation()
-  const Icon = forward.mode === 'local' ? Route : forward.mode === 'remote' ? RadioTower : Network
-  const status = forward.status === 'running' ? 'connected' : forward.status === 'failed' ? 'failed' : 'connecting'
+  const status = forward.status === 'running' ? 'connected' : forward.status === 'failed' ? 'failed' : forward.status === 'stopped' ? 'disconnected' : 'connecting'
+
   return (
-    <article className={`forward-session-row is-${forward.status}`}>
+    <article className={`forward-session-row is-${forward.status}`} data-forward-id={forward.id}>
       <div className="forward-session-row-head">
-        <span className="forward-session-row-mode">
-          <Icon size={14} />
-          {t(`forwards.modeName.${forward.mode}`)}
-        </span>
-        <StatusBadge status={status} label={t(`forwards.status.${forward.status}`)} />
+        <ForwardModeBadge compact mode={forward.mode} />
+        <div className="forward-session-row-actions">
+          <StatusBadge status={status} label={t(`forwards.status.${forward.status}`)} />
+          <Tooltip title={t('forwards.stop')}>
+            <Button
+              type="text"
+              danger
+              className="forward-session-stop"
+              aria-label={t('forwards.stop')}
+              disabled={actionBusy || forward.status === 'stopping' || forward.status === 'stopped'}
+              icon={<Square size={13} />}
+              onClick={onStop}
+            />
+          </Tooltip>
+        </div>
       </div>
       <ForwardRouteDiagram
         compact
@@ -201,20 +257,8 @@ function SessionForwardRow({
         targetHost={forward.target_host}
         targetPort={forward.target_port}
       />
-      <Progress
-        percent={Math.max(0, Math.min(100, forward.progress || 0))}
-        showInfo={false}
-        status={forward.status === 'failed' ? 'exception' : 'active'}
-      />
-      <div className="forward-session-row-meta">
-        <span><Cable size={12} />{forward.active_connections}</span>
-        <span><ArrowUpRight size={12} /><small>{t('forwards.sent')}</small>{formatBytes(forward.bytes_out)}</span>
-        <span><ArrowDownLeft size={12} /><small>{t('forwards.received')}</small>{formatBytes(forward.bytes_in)}</span>
-        <Button className="danger-button" size="small" disabled={actionBusy || forward.status === 'stopping'} icon={<Square size={12} />} onClick={onStop}>
-          {t('forwards.stop')}
-        </Button>
-      </div>
-      {forward.last_error ? <p>{forward.last_error}</p> : null}
+      <ForwardStateFeedback compact forward={forward} />
+      <ForwardRuntimeMetrics compact forward={forward} showTiming={false} />
     </article>
   )
 }

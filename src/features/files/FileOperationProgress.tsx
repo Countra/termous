@@ -36,7 +36,14 @@ export function FileOperationProgress({
         </div>
         {showPercent ? <em>{normalizedProgress}%</em> : null}
       </div>
-      <div className="file-operation-progress-bar">
+      <div
+        className="file-operation-progress-bar"
+        role="progressbar"
+        aria-label={description ? `${title}: ${description}` : title}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={indeterminate && status === 'running' ? undefined : normalizedProgress}
+      >
         <span style={indeterminate && status === 'running' ? undefined : { width: `${normalizedProgress}%` }} />
       </div>
     </div>

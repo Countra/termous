@@ -180,20 +180,6 @@ export type FileSessionPhase =
   | 'failed'
   | 'disconnected'
 
-export type FileSessionHostKeyReason = 'unknown' | 'changed'
-
-export interface FileSessionHostKey {
-  reason: FileSessionHostKeyReason
-  host_id?: string
-  address: string
-  port: number
-  host_key_type: string
-  fingerprint_sha256: string
-  expected?: string
-  actual?: string
-  last_seen_at?: string
-}
-
 export interface FileSession {
   id: string
   host_id: string
@@ -207,7 +193,10 @@ export interface FileSession {
   connected_at?: string
   ended_at?: string
   last_error?: string
-  host_key?: FileSessionHostKey
+  connection_generation?: number
+  state_seq?: number
+  error_code?: string
+  retryable?: boolean
 }
 
 export interface TransferTask {
@@ -262,7 +251,7 @@ export type TerminalThemeMode = 'follow_app' | 'dark' | 'light'
 
 export type SnippetShell = 'any' | 'sh' | 'bash' | 'zsh' | 'powershell' | 'cmd'
 
-export type AuthMethod = 'password' | 'private_key' | 'system'
+export type AuthMethod = 'password' | 'private_key'
 
 export type HostPlatform = 'linux'
 
@@ -270,15 +259,86 @@ export type HostReachabilityStatus = 'unknown' | 'checking' | 'online' | 'offlin
 
 export type CredentialType = 'password' | 'private_key' | 'private_key_passphrase'
 
+export type SSHKeyAlgorithm = 'ed25519' | 'rsa' | 'ecdsa'
+
+export type SSHKeyECDSACurve = 'p256' | 'p384' | 'p521'
+
 export type SessionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed'
 
 export type InventoryStatus = 'idle' | 'collecting' | 'ready' | 'failed' | 'unsupported'
+
+export type SessionCwdSource = 'none' | 'terminal' | 'files'
+
+export type SessionCwdCapability = 'probing' | 'supported' | 'unsupported'
+
+export type SessionCwdShellPhase = 'unknown' | 'prompt' | 'running' | 'alternate-screen'
+
+export type SessionCwdObservationStatus = 'probing' | 'ready' | 'unavailable'
+
+export type SessionCwdControlStatus =
+  | 'inactive'
+  | 'preparing'
+  | 'ready'
+  | 'degraded'
+  | 'reconnect_required'
+  | 'unsupported'
+
+export type SessionCwdRefreshStatus = 'pending' | 'succeeded' | 'failed' | 'canceled'
+
+export type SessionCwdOperationStatus =
+  | 'queued'
+  | 'waiting-idle'
+  | 'publishing'
+  | 'applying'
+  | 'failed'
+
+export interface SessionCwdOperation {
+  id: string
+  file_session_id: string
+  path: string
+  revision: number
+  status: SessionCwdOperationStatus
+  error_code?: string
+  error?: string
+}
+
+export interface SessionCwdState {
+  confirmed_path?: string
+  desired_path?: string
+  state_seq: number
+  refresh_seq: number
+  revision: number
+  source: SessionCwdSource
+  capability: SessionCwdCapability
+  capability_cause?: string
+  shell?: string
+  shell_phase: SessionCwdShellPhase
+  prompt_generation: number
+  source_generation: number
+  pending_operation?: SessionCwdOperation
+  observation_status?: SessionCwdObservationStatus
+  control_status?: SessionCwdControlStatus
+  control_code?: string
+  control_retryable?: boolean
+  refresh_request_id?: string
+  refresh_status?: SessionCwdRefreshStatus
+  refresh_error_code?: string
+  refresh_error?: string
+}
+
+export interface SessionCwdChangeRequest {
+  operation_id: string
+  base_revision: number
+  file_session_id: string
+  path: string
+}
 
 export type SessionPhase =
   | 'queued'
   | 'resolving_auth'
   | 'dialing'
   | 'ssh_handshake_auth'
+  | 'waiting_host_trust'
   | 'requesting_pty'
   | 'starting_shell'
   | 'starting_local_shell'
@@ -294,7 +354,7 @@ export type ForwardMode = 'local' | 'remote' | 'dynamic'
 
 export type ForwardScope = 'session' | 'background_once' | 'background_profile'
 
-export type ForwardStatus = 'starting' | 'running' | 'stopping' | 'stopped' | 'failed'
+export type ForwardStatus = 'starting' | 'waiting_host_trust' | 'running' | 'stopping' | 'stopped' | 'failed'
 
 export type FirewallProvider = 'unsupported' | 'iptables' | 'nftables'
 
@@ -315,6 +375,7 @@ export type ForwardPhase =
   | 'resolving_session'
   | 'resolving_auth'
   | 'dialing_ssh'
+  | 'waiting_host_trust'
   | 'starting_listener'
   | 'ready'
   | 'stopping'
@@ -373,6 +434,7 @@ export interface ForwardInstance {
   phase: ForwardPhase
   progress: number
   status_message?: string
+  host_key_challenge_id?: string
   bind_host: string
   bind_port: number
   bound_address?: string
@@ -619,6 +681,7 @@ export interface WindowSettings {
 
 export interface CodeSnippet {
   id: string
+  group_id: string
   name: string
   description?: string
   command: string
@@ -632,12 +695,31 @@ export interface CodeSnippet {
 }
 
 export interface CodeSnippetInput {
+  group_id: string
   name: string
   description: string
   command: string
   tags: string[]
   shell: SnippetShell
   favorite: boolean
+}
+
+export interface CodeSnippetGroup {
+  id: string
+  name: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CodeSnippetGroupInput {
+  name: string
+  sort_order?: number
+}
+
+export interface GroupReorderItem {
+  id: string
+  sort_order: number
 }
 
 export interface FileBookmarkGroup {
@@ -705,10 +787,15 @@ export type LocalTreeEntryKind = 'file' | 'directory' | 'symlink' | 'other'
 export interface LocalTreeEntry {
   name: string
   path: string
+  relative_path?: string
   kind: LocalTreeEntryKind
   size: number
   modified_at?: string
+  is_hidden?: boolean
+  is_accessible?: boolean
+  children_loaded?: boolean
   has_children: boolean
+  error_message?: string
 }
 
 export interface Host {
@@ -766,31 +853,85 @@ export interface CredentialView {
   vault_id: string
   metadata: Record<string, string>
   fingerprint?: string
+  ssh_key_info?: SSHKeyInfo
   bound_host_count: number
   created_at?: string
   updated_at?: string
   last_used_at?: string
 }
 
-export interface KnownHost {
-  id: string
-  host_id: string
-  address: string
+export interface HostKeyEndpoint {
+  canonical_host: string
   port: number
-  host_key_type: string
-  fingerprint_sha256: string
-  trusted_at?: string
-  last_seen_at?: string
-  created_at?: string
-  updated_at?: string
 }
 
-export interface KnownHostInput {
+export type HostKeyConsumerType = 'session' | 'sftp' | 'forward'
+export type HostKeyEndpointRole = 'target' | 'jump'
+export type HostKeyChallengeReason = 'unknown' | 'changed'
+export type HostKeyChallengeState = 'pending' | 'trusted' | 'replaced' | 'rejected' | 'expired' | 'cancelled'
+export type HostKeyDecisionAction = 'trust' | 'replace' | 'reject'
+export type HostKeyEventType = 'challenge_upsert' | 'challenge_resolved' | 'challenge_expired' | 'trust_deleted'
+
+export interface HostKeyObservationContext {
+  consumer_type: HostKeyConsumerType
+  consumer_id: string
   host_id?: string
-  address: string
-  port: number
-  host_key_type: string
+  role: HostKeyEndpointRole
+}
+
+export interface HostKeyMaterial {
+  algorithm: string
   fingerprint_sha256: string
+}
+
+export interface HostKeyChallenge {
+  id: string
+  instance_id: string
+  endpoint: HostKeyEndpoint
+  reason: HostKeyChallengeReason
+  observed_key: HostKeyMaterial
+  existing_trust_id?: string
+  existing_fingerprint_sha256?: string
+  expected_revision?: number
+  contexts: HostKeyObservationContext[]
+  context_count: number
+  state: HostKeyChallengeState
+  created_at: string
+  expires_at: string
+}
+
+export interface HostKeyResolution {
+  challenge_id: string
+  state: HostKeyChallengeState
+  trust_record_id?: string
+  resolved_at: string
+  error_code?: string
+}
+
+export interface HostKeyChallengeSnapshot {
+  instance_id: string
+  snapshot_revision: number
+  challenges: HostKeyChallenge[]
+}
+
+export interface HostKeyEvent {
+  instance_id: string
+  snapshot_revision: number
+  type: HostKeyEventType
+  challenge?: HostKeyChallenge
+  resolution?: HostKeyResolution
+  trust_id?: string
+}
+
+export interface HostKeyTrustRecord {
+  id: string
+  endpoint: HostKeyEndpoint
+  key: HostKeyMaterial
+  revision: number
+  first_seen_at: string
+  last_seen_at: string
+  created_at: string
+  updated_at: string
 }
 
 export interface LinuxSystemInfo {
@@ -1243,6 +1384,7 @@ export interface Session {
   status_message?: string
   phase?: SessionPhase
   progress?: number
+  host_key_challenge_id?: string
   inventory_status?: InventoryStatus
   inventory_message?: string
   linux_system_info?: LinuxSystemInfo
@@ -1271,7 +1413,14 @@ export interface AppConfig {
 }
 
 export interface AppBuildInfo {
+  product_name: string
   version: string
+  core_version: string | null
+  platform: string
+  arch: string
+  packaged: boolean
+  update_supported: boolean
+  update_support_reason: string | null
 }
 
 export interface CoreStatus {
@@ -1300,6 +1449,161 @@ export interface CoreFatalEvent {
   code: string
 }
 
+export type DataPortabilityDatasetKey =
+  | 'host_groups'
+  | 'host_icons'
+  | 'credentials'
+  | 'hosts'
+  | 'host_key_trust_records'
+  | 'terminal_fonts'
+  | 'settings'
+  | 'code_snippet_groups'
+  | 'code_snippets'
+  | 'file_bookmark_groups'
+  | 'file_bookmarks'
+  | 'local_path_mappings'
+  | 'forward_profiles'
+  | 'firewall_disabled_rules'
+
+export type DataPortabilityRestoreMode = 'replace_all' | 'merge_all' | 'selective'
+export type DataPortabilityPlanStatus = 'added' | 'unchanged' | 'conflict' | 'dependency' | 'skipped' | 'removed'
+export type DataPortabilityResolution = 'keep_current' | 'use_backup' | 'keep_both'
+
+export interface DataPortabilityDatasetSummary {
+  key: DataPortabilityDatasetKey
+  count: number
+}
+
+export interface DataPortabilitySummary {
+  datasets: DataPortabilityDatasetSummary[]
+  total_items: number
+  asset_count: number
+  asset_bytes: number
+}
+
+export interface DataPortabilityWarning {
+  code: string
+  dataset?: DataPortabilityDatasetKey
+  item_id?: string
+  label?: string
+}
+
+export interface DataPortabilityImport extends DataPortabilitySummary {
+  import_id: string
+  source_app_version: string
+  created_at: string
+  expires_at: string
+  warnings: DataPortabilityWarning[]
+}
+
+export interface DataPortabilityItemRef {
+  dataset: DataPortabilityDatasetKey
+  id: string
+}
+
+export interface DataPortabilityFieldDifference {
+  field: string
+  current?: unknown
+  backup?: unknown
+  sensitive?: boolean
+}
+
+export interface DataPortabilityPlanItem {
+  key: string
+  reference: DataPortabilityItemRef
+  current_id?: string
+  label: string
+  status: DataPortabilityPlanStatus
+  reason?: string
+  dependency?: boolean
+  required_by?: string[]
+  differences?: DataPortabilityFieldDifference[]
+  allowed_actions?: DataPortabilityResolution[]
+  resolution?: DataPortabilityResolution
+  remapped_id?: string
+  automatic_alias_id?: string
+}
+
+export interface DataPortabilityPlanSummary {
+  total: number
+  unresolved: number
+  by_status: Partial<Record<DataPortabilityPlanStatus, number>>
+  by_dataset: Partial<Record<DataPortabilityDatasetKey, number>>
+}
+
+export interface DataPortabilityRestorePlan {
+  id: string
+  revision: number
+  mode: DataPortabilityRestoreMode
+  target_fingerprint: string
+  backup_fingerprint: string
+  items: DataPortabilityPlanItem[]
+  summary: DataPortabilityPlanSummary
+}
+
+export interface DataPortabilityPlanRequest {
+  mode: DataPortabilityRestoreMode
+  selected_datasets?: DataPortabilityDatasetKey[]
+  selected_items?: DataPortabilityItemRef[]
+}
+
+export interface DataPortabilityPlanItemPage {
+  items: DataPortabilityPlanItem[]
+  next_cursor?: string
+  total: number
+}
+
+export interface DataPortabilityPlanItemQuery {
+  dataset?: DataPortabilityDatasetKey
+  status?: DataPortabilityPlanStatus
+  cursor?: string
+  limit?: number
+}
+
+export interface DataPortabilityResolutionRequest {
+  expected_revision: number
+  action: DataPortabilityResolution
+  item_keys?: string[]
+  dataset?: DataPortabilityDatasetKey
+}
+
+export interface DataPortabilityApplyResult {
+  import_id: string
+  operation_id: string
+  restart_required: boolean
+  state: 'applied'
+}
+
+export interface DataPortabilityExportDialogResult {
+  canceled: boolean
+  file_name?: string
+}
+
+export interface DataPortabilityImportDialogResult {
+  canceled: boolean
+  inspection?: DataPortabilityImport
+}
+
+export interface DataPortabilityImportSelectionResult {
+  canceled: boolean
+  selection_id?: string
+  file_name?: string
+  size_bytes?: number
+}
+
+export interface DataPortabilityRestartResult {
+  restarted: boolean
+  requires_manual_restart: boolean
+  config: AppConfig
+}
+
+export interface DataPortabilityProgress {
+  operation: 'export' | 'import'
+  phase: 'selecting' | 'transferring' | 'finalizing' | 'complete'
+  transferred_bytes?: number
+  total_bytes?: number
+}
+
 export interface TrayRecentHost {
   id: string
   name: string
@@ -1317,6 +1621,9 @@ export interface TrayMenuLabels {
   recentHosts: string
   emptyRecentHosts: string
   forwards: string
+  updateAvailable: string
+  updateDownloading: string
+  updateDownloaded: string
   quit: string
 }
 
@@ -1349,17 +1656,77 @@ export interface CredentialInput {
   vault_id: string
   secret: string
   metadata: Record<string, string>
+  ssh_key_info?: SSHKeyInfo
+  pending_passphrase?: PendingPrivateKeyPassphrase
+}
+
+export interface SSHKeyInfo {
+  public_key: string
+  fingerprint_sha256: string
+  algorithm: SSHKeyAlgorithm
+  bits?: number
+  curve?: SSHKeyECDSACurve
+  comment?: string
+}
+
+export interface SSHKeyGenerateRequest {
+  algorithm: SSHKeyAlgorithm
+  rsa_bits?: 3072 | 4096
+  ecdsa_curve?: SSHKeyECDSACurve
+  comment?: string
+  passphrase?: string
+}
+
+export interface SSHKeyInspectRequest {
+  private_key_openssh: string
+  passphrase?: string
+  passphrase_credential_id?: string
+}
+
+export interface SSHKeyPair {
+  private_key_openssh: string
+  public_key_authorized: string
+  encrypted: boolean
+  info: SSHKeyInfo
+}
+
+export interface SSHKeyInspectResult {
+  public_key_authorized: string
+  encrypted: boolean
+  info: SSHKeyInfo
+}
+
+export interface PendingPrivateKeyPassphrase {
+  name: string
+  secret: string
+}
+
+export interface PrivateKeyCredentialBundleInput {
+  private_key: {
+    name: string
+    vault_id: string
+    secret: string
+    metadata: Record<string, string>
+  }
+  ssh_key_info: SSHKeyInfo
+  passphrase?: PendingPrivateKeyPassphrase
+  passphrase_credential_id?: string
+}
+
+export interface PrivateKeyCredentialBundleResult {
+  private_key: CredentialView
+  passphrase?: CredentialView
 }
 
 export interface AppData {
   hosts: Host[]
   groups: HostGroup[]
   credentials: CredentialView[]
-  knownHosts: KnownHost[]
   sessions: Session[]
   fileSessions: FileSession[]
   forwardProfiles: ForwardProfile[]
   forwards: ForwardInstance[]
+  snippetGroups: CodeSnippetGroup[]
   snippets: CodeSnippet[]
   fileBookmarkGroups: FileBookmarkGroup[]
   fileBookmarks: FileBookmark[]

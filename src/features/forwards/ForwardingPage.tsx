@@ -1,27 +1,26 @@
 import {
   Activity,
-  ArrowDownLeft,
-  ArrowUpRight,
   Cable,
-  CircleDot,
-  Clock3,
   Edit3,
-  Network,
+  Gauge,
   Play,
   Plus,
-  RadioTower,
   Route,
+  Search,
   Square,
-  Timer,
   Trash2,
 } from 'lucide-react'
-import { App as AntdApp, Button, Empty, Input, InputNumber, Modal, Popconfirm, Progress, Segmented, Tooltip } from 'antd'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Tabs, Tooltip } from 'antd'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { CustomSelect } from '../../components/ui/CustomSelect'
 import { StatusBadge } from '../../components/ui/StatusBadge'
+import { ForwardEditorFields } from './ForwardEditorFields'
+import { ForwardModeBadge, ForwardModeSelector } from './ForwardModeSelector'
 import { ForwardRouteDiagram } from './ForwardRouteDiagram'
+import { ForwardRuntimeMetrics } from './ForwardRuntimeMetrics'
+import { ForwardStateFeedback } from './ForwardStateFeedback'
 import type {
   AppData,
   ForwardInstance,
@@ -30,10 +29,10 @@ import type {
   ForwardProfileInput,
   ForwardStartRequest,
 } from '../../types/domain'
-import { formatBytes } from '../files/fileUtils'
-import { formatForwardDuration, useForwardDurationTick } from './forwardTiming'
+import { useForwardDurationTick } from './forwardTiming'
 
 type EditorMode = 'profile' | 'temporary'
+type ForwardModeFilter = 'all' | ForwardMode
 
 interface ForwardingPageProps {
   data: AppData
@@ -68,7 +67,7 @@ const defaultForm: ForwardFormState = {
   target_port: 80,
 }
 
-const activeStatuses = new Set(['starting', 'running', 'stopping'])
+const activeStatuses = new Set(['starting', 'waiting_host_trust', 'running', 'stopping'])
 
 export function ForwardingPage({
   data,
@@ -86,13 +85,36 @@ export function ForwardingPage({
   const [editorMode, setEditorMode] = useState<EditorMode>('profile')
   const [editingProfile, setEditingProfile] = useState<ForwardProfile | null>(null)
   const [form, setForm] = useState<ForwardFormState>(() => ({ ...defaultForm }))
+  const [searchValue, setSearchValue] = useState('')
+  const [modeFilter, setModeFilter] = useState<ForwardModeFilter>('all')
   const consumedTemporaryIntentKeyRef = useRef<number | null>(null)
   const hostOptions = useMemo(
     () => data.hosts.map((host) => ({ value: host.id, label: host.name, description: `${host.username}@${host.address}:${host.port}` })),
     [data.hosts],
   )
-  const runningForwards = data.forwards.filter((forward) => activeStatuses.has(forward.status))
-  const stoppedForwards = data.forwards.filter((forward) => !activeStatuses.has(forward.status)).slice(0, 8)
+  const hostLookup = useMemo(() => new Map(data.hosts.map((host) => [host.id, host])), [data.hosts])
+  const runningForwards = useMemo(
+    () => data.forwards.filter((forward) => activeStatuses.has(forward.status)),
+    [data.forwards],
+  )
+  const normalizedSearch = searchValue.trim().toLocaleLowerCase()
+  const filteredProfiles = useMemo(
+    () => data.forwardProfiles.filter((profile) => (
+      matchesMode(profile.mode, modeFilter)
+      && matchesForwardProfile(profile, profile.host_id ? hostLookup.get(profile.host_id) : undefined, normalizedSearch)
+    )),
+    [data.forwardProfiles, hostLookup, modeFilter, normalizedSearch],
+  )
+  const filteredRunningForwards = useMemo(
+    () => runningForwards.filter((forward) => (
+      matchesMode(forward.mode, modeFilter)
+      && matchesForwardInstance(forward, forward.host_id ? hostLookup.get(forward.host_id) : undefined, normalizedSearch)
+    )),
+    [hostLookup, modeFilter, normalizedSearch, runningForwards],
+  )
+  const activeConnections = runningForwards.reduce((sum, forward) => sum + forward.active_connections, 0)
+  const filteredCount = filteredProfiles.length + filteredRunningForwards.length
+  const searchableCount = data.forwardProfiles.length + runningForwards.length
   const durationNow = useForwardDurationTick(runningForwards.length > 0)
 
   const openCreateProfile = () => {
@@ -183,108 +205,100 @@ export function ForwardingPage({
     }
   }
 
-  const hostById = (hostId?: string) => data.hosts.find((host) => host.id === hostId)
+  const hostById = (hostId?: string) => hostId ? hostLookup.get(hostId) : undefined
 
   return (
     <section className="forwarding-page">
-      <div className="forwarding-page-header">
-        <div>
-          <h1>{t('forwards.title')}</h1>
-          <p>{t('forwards.subtitle')}</p>
+      <div className="forwarding-commandbar">
+        <div className="forwarding-command-primary">
+          <div className="forwarding-overview-strip" aria-label={t('forwards.overview')}>
+            <OverviewMetric icon={<Route size={16} />} label={t('forwards.profiles')} value={String(data.forwardProfiles.length)} />
+            <OverviewMetric icon={<Activity size={16} />} label={t('forwards.active')} value={String(runningForwards.length)} />
+            <OverviewMetric icon={<Cable size={16} />} label={t('forwards.connections')} value={String(activeConnections)} />
+          </div>
+          <div className="page-actions">
+            <Button className="secondary-button" disabled={actionBusy || data.hosts.length === 0} icon={<Plus size={16} />} onClick={openTemporaryForward}>
+              {t('forwards.newTemporary')}
+            </Button>
+            <ConnectionActionButton disabled={actionBusy || data.hosts.length === 0} icon={<Plus size={16} />} onClick={openCreateProfile}>
+              {t('forwards.newProfile')}
+            </ConnectionActionButton>
+          </div>
         </div>
-        <div className="page-actions">
-          <Button className="secondary-button" disabled={actionBusy || data.hosts.length === 0} icon={<Plus size={16} />} onClick={openTemporaryForward}>
-            {t('forwards.newTemporary')}
-          </Button>
-          <ConnectionActionButton disabled={actionBusy || data.hosts.length === 0} icon={<Plus size={16} />} onClick={openCreateProfile}>
-            {t('forwards.newProfile')}
-          </ConnectionActionButton>
+        <div className="forwarding-filterbar">
+          <Input
+            allowClear
+            className="forwarding-search"
+            prefix={<Search size={15} aria-hidden="true" />}
+            value={searchValue}
+            aria-label={t('forwards.searchPlaceholder')}
+            placeholder={t('forwards.searchPlaceholder')}
+            onChange={(event) => setSearchValue(event.target.value)}
+          />
+          <Tabs
+            className="credential-filter-tabs forwarding-mode-tabs"
+            activeKey={modeFilter}
+            animated={{ inkBar: true, tabPane: false }}
+            aria-label={t('forwards.modeFilter')}
+            onChange={(value) => setModeFilter(value as ForwardModeFilter)}
+            items={[
+              { label: t('forwards.allModes'), key: 'all' },
+              { label: t('forwards.modeName.local'), key: 'local' },
+              { label: t('forwards.modeName.remote'), key: 'remote' },
+              { label: t('forwards.modeName.dynamic'), key: 'dynamic' },
+            ]}
+          />
+          <span className="forwarding-filter-count">
+            {t('forwards.filteredCount', { count: filteredCount, total: searchableCount })}
+          </span>
         </div>
       </div>
 
-      <div className="forwarding-grid">
-        <aside className="forwarding-panel forwarding-profiles-panel">
-          <PanelTitle icon={<Route size={18} />} title={t('forwards.profiles')} hint={t('forwards.profilesHint')} />
-          {data.forwardProfiles.length === 0 ? (
-            <div className="forwarding-empty">
-              <Empty description={t('forwards.noProfiles')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            </div>
+      <div className="forwarding-workspace-grid">
+        <ForwardWorkspacePane
+          className="is-profiles"
+          icon={<Route size={17} />}
+          title={t('forwards.profiles')}
+          hint={t('forwards.profilesHint')}
+          count={filteredProfiles.length}
+        >
+          {filteredProfiles.length === 0 ? (
+            <ForwardingEmpty
+              description={data.forwardProfiles.length === 0 ? t('forwards.noProfiles') : t('forwards.noProfileResults')}
+            />
           ) : (
             <div className="forwarding-profile-list">
-              {data.forwardProfiles.map((profile) => {
-                const host = hostById(profile.host_id)
-                const running = runningForwards.find((forward) => forward.profile_id === profile.id)
-                const unsupported = host?.auth_method === 'system'
-                return (
-                  <article key={profile.id} className="forwarding-profile-card">
-                    <div className="forwarding-card-topline">
-                      <ModeBadge mode={profile.mode} />
-                      <span>{host?.name ?? t('fields.none')}</span>
-                    </div>
-                    <div className="forwarding-card-title">
-                      <strong>{profile.name}</strong>
-                    </div>
-                    <ForwardRouteDiagram
-                      mode={profile.mode}
-                      bindHost={profile.bind_host}
-                      bindPort={profile.bind_port}
-                      targetHost={profile.target_host}
-                      targetPort={profile.target_port}
-                    />
-                    {profile.description ? <p>{profile.description}</p> : null}
-                    {unsupported ? <span className="forwarding-card-warning">{t('forwards.systemAuthUnsupported')}</span> : null}
-                    <div className="forwarding-card-actions">
-                      <Button
-                        className="secondary-button"
-                        disabled={actionBusy || Boolean(running) || unsupported}
-                        icon={<Play size={14} />}
-                        onClick={() => void startForwardProfile(profile)}
-                      >
-                        {running ? t('forwards.running') : t('forwards.start')}
-                      </Button>
-                      <Button className="secondary-button" disabled={actionBusy} icon={<Edit3 size={14} />} onClick={() => openEditProfile(profile)}>
-                        {t('app.update')}
-                      </Button>
-                      <Popconfirm
-                        title={t('forwards.deleteProfileTitle')}
-                        description={t('forwards.deleteProfileDescription')}
-                        okText={t('app.delete')}
-                        cancelText={t('app.cancel')}
-                        okButtonProps={{ danger: true }}
-                        onConfirm={() => void onDeleteProfile(profile.id)}
-                      >
-                        <Button className="danger-button" disabled={actionBusy} icon={<Trash2 size={14} />}>
-                          {t('app.delete')}
-                        </Button>
-                      </Popconfirm>
-                    </div>
-                  </article>
-                )
-              })}
+              {filteredProfiles.map((profile) => (
+                <ForwardProfileRow
+                  key={profile.id}
+                  profile={profile}
+                  host={hostById(profile.host_id)}
+                  running={runningForwards.find((forward) => forward.profile_id === profile.id)}
+                  actionBusy={actionBusy}
+                  onStart={() => void startForwardProfile(profile)}
+                  onEdit={() => openEditProfile(profile)}
+                  onDelete={() => void onDeleteProfile(profile.id)}
+                />
+              ))}
             </div>
           )}
-        </aside>
+        </ForwardWorkspacePane>
 
-        <main className="forwarding-panel forwarding-runtime-panel">
-          <PanelTitle
-            icon={<Activity size={18} />}
-            title={t('forwards.runtime')}
-            hint={t('forwards.runtimeHint', { count: runningForwards.length })}
-          />
-          <div className="forwarding-runtime-summary">
-            <SummaryMetric label={t('forwards.active')} value={String(runningForwards.length)} />
-            <SummaryMetric label={t('forwards.connections')} value={String(data.forwards.reduce((sum, item) => sum + item.active_connections, 0))} />
-            <SummaryMetric label={t('forwards.sent')} value={formatBytes(data.forwards.reduce((sum, item) => sum + item.bytes_out, 0))} />
-            <SummaryMetric label={t('forwards.received')} value={formatBytes(data.forwards.reduce((sum, item) => sum + item.bytes_in, 0))} />
-          </div>
-          <div className="forwarding-runtime-list">
-            {runningForwards.length === 0 ? (
-              <div className="forwarding-empty">
-                <Empty description={t('forwards.noRunning')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
-              </div>
-            ) : (
-              runningForwards.map((forward) => (
-                <ForwardRuntimeCard
+        <ForwardWorkspacePane
+          className="is-running"
+          icon={<Gauge size={17} />}
+          title={t('forwards.runtime')}
+          hint={t('forwards.runtimeHint', { count: runningForwards.length })}
+          count={filteredRunningForwards.length}
+        >
+          {filteredRunningForwards.length === 0 ? (
+            <ForwardingEmpty
+              description={runningForwards.length === 0 ? t('forwards.noRunning') : t('forwards.noRunningResults')}
+            />
+          ) : (
+            <div className="forwarding-runtime-list">
+              {filteredRunningForwards.map((forward) => (
+                <ForwardRuntimeRow
                   key={forward.id}
                   forward={forward}
                   hostName={hostById(forward.host_id)?.name ?? t('fields.none')}
@@ -292,30 +306,31 @@ export function ForwardingPage({
                   actionBusy={actionBusy}
                   onStop={() => void onStopForward(forward.id)}
                 />
-              ))
-            )}
-          </div>
-          {stoppedForwards.length > 0 ? (
-            <div className="forwarding-history">
-              <h3>{t('forwards.recent')}</h3>
-              {stoppedForwards.map((forward) => (
-                <div key={forward.id} className="forwarding-history-row">
-                  <ModeBadge mode={forward.mode} />
-                  <span>{forward.name}</span>
-                  <StatusBadge status={forward.status === 'failed' ? 'failed' : 'disconnected'} label={t(`forwards.status.${forward.status}`)} />
-                </div>
               ))}
             </div>
-          ) : null}
-        </main>
+          )}
+        </ForwardWorkspacePane>
       </div>
 
       <Modal
         centered
         open={editorOpen}
-        width={620}
+        width={580}
         className="termous-modal forwarding-modal"
-        title={editorMode === 'temporary' ? t('forwards.temporaryTitle') : editingProfile ? t('forwards.editProfile') : t('forwards.newProfile')}
+        title={
+          <span className="forwarding-modal-title">
+            <span className="forwarding-modal-title-icon" aria-hidden="true">
+              <Cable size={18} strokeWidth={2.15} />
+            </span>
+            <span>
+              {editorMode === 'temporary'
+                ? t('forwards.temporaryTitle')
+                : editingProfile
+                  ? t('forwards.editProfile')
+                  : t('forwards.newProfile')}
+            </span>
+          </span>
+        }
         okText={editorMode === 'temporary' ? t('forwards.start') : t('app.save')}
         cancelText={t('app.cancel')}
         okButtonProps={{ disabled: actionBusy }}
@@ -324,7 +339,6 @@ export function ForwardingPage({
       >
         <ForwardEditorForm
           form={form}
-          hosts={data.hosts}
           hostOptions={hostOptions}
           onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
         />
@@ -335,116 +349,175 @@ export function ForwardingPage({
 
 function ForwardEditorForm({
   form,
-  hosts,
   hostOptions,
   onChange,
 }: {
   form: ForwardFormState
-  hosts: AppData['hosts']
   hostOptions: Array<{ value: string; label: string; description?: string }>
   onChange: (patch: Partial<ForwardFormState>) => void
 }) {
   const { t } = useTranslation()
-  const selectedHost = hosts.find((host) => host.id === form.host_id)
   return (
     <div className="forwarding-editor-form">
-      <label className="forward-field">
-        <span className="field-label">{t('forwards.name')}</span>
-        <Input
-          id="forward-name"
-          name="forward-name"
-          value={form.name}
-          onChange={(event) => onChange({ name: event.target.value })}
-          placeholder={t('forwards.namePlaceholder')}
-        />
-      </label>
-      <label className="forward-field">
-        <span className="field-label">{t('forwards.mode')}</span>
-        <Segmented
-          block
-          value={form.mode}
-          onChange={(value) => onChange({ mode: value as ForwardMode })}
-          options={[
-            { label: t('forwards.modeName.local'), value: 'local' },
-            { label: t('forwards.modeName.remote'), value: 'remote' },
-            { label: t('forwards.modeName.dynamic'), value: 'dynamic' },
-          ]}
-        />
-      </label>
-      <CustomSelect
-        label={t('forwards.host')}
-        value={form.host_id}
-        options={hostOptions}
-        onChange={(value) => onChange({ host_id: value })}
-        disabled={hostOptions.length === 0}
-      />
-      {selectedHost?.auth_method === 'system' ? <p className="forwarding-card-warning">{t('forwards.systemAuthUnsupported')}</p> : null}
-      <div className="forward-form-grid">
-        <label className="forward-field">
-          <span className="field-label">{form.mode === 'remote' ? t('forwards.remoteBindHost') : t('forwards.localBindHost')}</span>
-          <Input
-            id="forward-bind-host"
-            name="forward-bind-host"
-            value={form.bind_host}
-            onChange={(event) => onChange({ bind_host: event.target.value })}
-          />
-        </label>
-        <label className="forward-field">
-          <span className="field-label">{form.mode === 'remote' ? t('forwards.remoteBindPort') : t('forwards.localBindPort')}</span>
-          <InputNumber
-            id="forward-bind-port"
-            name="forward-bind-port"
-            min={1}
-            max={65535}
-            value={form.bind_port}
-            onChange={(value) => onChange({ bind_port: value })}
-          />
-        </label>
-      </div>
-      {form.mode !== 'dynamic' ? (
-        <div className="forward-form-grid">
+      <section className="forwarding-editor-section is-basic">
+        <header className="forwarding-editor-section-header">
+          <span className="forwarding-editor-section-icon" aria-hidden="true">
+            <Activity size={15} />
+          </span>
+          <span className="forwarding-editor-section-title">{t('forwards.basicInfo')}</span>
+        </header>
+        <div className="forwarding-editor-basic-grid">
           <label className="forward-field">
-            <span className="field-label">{t('forwards.targetHost')}</span>
+            <span className="field-label">{t('forwards.name')}</span>
             <Input
-              id="forward-target-host"
-              name="forward-target-host"
-              value={form.target_host}
-              onChange={(event) => onChange({ target_host: event.target.value })}
+              id="forward-name"
+              name="forward-name"
+              value={form.name}
+              onChange={(event) => onChange({ name: event.target.value })}
+              placeholder={t('forwards.namePlaceholder')}
             />
           </label>
-          <label className="forward-field">
-            <span className="field-label">{t('forwards.targetPort')}</span>
-            <InputNumber
-              id="forward-target-port"
-              name="forward-target-port"
-              min={1}
-              max={65535}
-              value={form.target_port}
-              onChange={(value) => onChange({ target_port: value })}
-            />
-          </label>
+          <CustomSelect
+            label={t('forwards.host')}
+            value={form.host_id}
+            options={hostOptions}
+            onChange={(value) => onChange({ host_id: value })}
+            disabled={hostOptions.length === 0}
+          />
         </div>
-      ) : (
-        <div className="forwarding-socks-hint">
-          <Network size={16} />
-          <span>{t('forwards.dynamicHint')}</span>
-        </div>
-      )}
-      <label className="forward-field">
-        <span className="field-label">{t('forwards.description')}</span>
-        <Input.TextArea
-          id="forward-description"
-          name="forward-description"
-          rows={3}
-          value={form.description}
-          onChange={(event) => onChange({ description: event.target.value })}
+        <label className="forward-field">
+          <span className="field-label">{t('forwards.mode')}</span>
+          <ForwardModeSelector value={form.mode} onChange={(mode) => onChange({ mode })} />
+        </label>
+      </section>
+
+      <section className="forwarding-editor-section is-endpoints">
+        <header className="forwarding-editor-section-header">
+          <span className="forwarding-editor-section-icon" aria-hidden="true">
+            <Route size={15} />
+          </span>
+          <span className="forwarding-editor-section-title">{t('forwards.endpointSettings')}</span>
+        </header>
+        <ForwardRouteDiagram
+          mode={form.mode}
+          bindHost={form.bind_host}
+          bindPort={form.bind_port}
+          targetHost={form.target_host}
+          targetPort={form.target_port ?? undefined}
         />
-      </label>
+        <ForwardEditorFields
+          idPrefix="forward-editor"
+          mode={form.mode}
+          bind_host={form.bind_host}
+          bind_port={form.bind_port}
+          target_host={form.target_host}
+          target_port={form.target_port}
+          onChange={onChange}
+        />
+        <label className="forward-field">
+          <span className="field-label">{t('forwards.description')}</span>
+          <Input.TextArea
+            id="forward-description"
+            name="forward-description"
+            autoSize={{ minRows: 3, maxRows: 5 }}
+            value={form.description}
+            onChange={(event) => onChange({ description: event.target.value })}
+          />
+        </label>
+      </section>
     </div>
   )
 }
 
-function ForwardRuntimeCard({
+function ForwardProfileRow({
+  profile,
+  host,
+  running,
+  actionBusy,
+  onStart,
+  onEdit,
+  onDelete,
+}: {
+  profile: ForwardProfile
+  host?: AppData['hosts'][number]
+  running?: ForwardInstance
+  actionBusy: boolean
+  onStart: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const { t } = useTranslation()
+  const startHint = running ? t('forwards.running') : t('forwards.start')
+  const secondary = [host?.name ?? t('fields.none'), profile.description].filter(Boolean).join(' · ')
+
+  return (
+    <article className="forwarding-profile-row">
+      <div className="forwarding-row-heading">
+        <div className="forwarding-row-title">
+          <strong>{profile.name}</strong>
+          <Tooltip title={secondary} mouseEnterDelay={0.35} classNames={{ root: 'forward-route-tooltip' }}>
+            <span>{secondary}</span>
+          </Tooltip>
+        </div>
+        <div className="forwarding-row-actions">
+          {running ? <StatusBadge status="connected" label={t('forwards.running')} /> : null}
+          <Tooltip title={startHint} mouseEnterDelay={0.3} classNames={{ root: 'forward-route-tooltip' }}>
+            <span>
+              <Button
+                type="text"
+                className="forwarding-row-action is-start"
+                aria-label={startHint}
+                disabled={actionBusy || Boolean(running)}
+                icon={<Play size={14} />}
+                onClick={onStart}
+              />
+            </span>
+          </Tooltip>
+          <Tooltip title={t('app.update')} mouseEnterDelay={0.3} classNames={{ root: 'forward-route-tooltip' }}>
+            <Button
+              type="text"
+              className="forwarding-row-action"
+              aria-label={t('app.update')}
+              disabled={actionBusy}
+              icon={<Edit3 size={14} />}
+              onClick={onEdit}
+            />
+          </Tooltip>
+          <Popconfirm
+            title={t('forwards.deleteProfileTitle')}
+            description={t('forwards.deleteProfileDescription')}
+            okText={t('app.delete')}
+            cancelText={t('app.cancel')}
+            okButtonProps={{ danger: true }}
+            onConfirm={onDelete}
+          >
+            <Tooltip title={t('app.delete')} mouseEnterDelay={0.3} classNames={{ root: 'forward-route-tooltip' }}>
+              <Button
+                type="text"
+                danger
+                className="forwarding-row-action"
+                aria-label={t('app.delete')}
+                disabled={actionBusy}
+                icon={<Trash2 size={14} />}
+              />
+            </Tooltip>
+          </Popconfirm>
+        </div>
+      </div>
+      <div className="forwarding-row-mode"><ForwardModeBadge compact mode={profile.mode} /></div>
+      <ForwardRouteDiagram
+        compact
+        mode={profile.mode}
+        bindHost={profile.bind_host}
+        bindPort={profile.bind_port}
+        targetHost={profile.target_host}
+        targetPort={profile.target_port}
+      />
+    </article>
+  )
+}
+
+function ForwardRuntimeRow({
   forward,
   hostName,
   now,
@@ -458,28 +531,34 @@ function ForwardRuntimeCard({
   onStop: () => void
 }) {
   const { t } = useTranslation()
-  const progressStatus = forward.status === 'failed' ? 'exception' : forward.status === 'running' ? 'success' : 'active'
   const modeLabel = t(`forwards.modeName.${forward.mode}`)
   const forwardName = forward.name.trim()
   const showForwardName = forwardName !== '' && forwardName !== modeLabel
   return (
-    <article className={`forwarding-runtime-card is-${forward.status}`}>
-      <div className="forwarding-runtime-top">
-        <ModeBadge mode={forward.mode} />
-        <StatusBadge status={forward.status === 'running' ? 'connected' : forward.status === 'failed' ? 'failed' : 'connecting'} label={t(`forwards.status.${forward.status}`)} />
-      </div>
-      <div className="forwarding-runtime-title">
-        <div>
+    <article className={`forwarding-runtime-row is-${forward.status}`}>
+      <div className="forwarding-row-heading">
+        <div className="forwarding-row-title">
           <strong>{showForwardName ? forwardName : hostName}</strong>
           {showForwardName ? <span>{hostName}</span> : null}
         </div>
-        <Tooltip title={t('forwards.stop')}>
-          <Button className="danger-button" disabled={actionBusy || forward.status === 'stopping'} icon={<Square size={13} />} onClick={onStop}>
-            {t('forwards.stop')}
-          </Button>
-        </Tooltip>
+        <div className="forwarding-row-actions">
+          <ForwardModeBadge compact mode={forward.mode} />
+          <StatusBadge status={forward.status === 'running' ? 'connected' : 'connecting'} label={t(`forwards.status.${forward.status}`)} />
+          <Tooltip title={t('forwards.stop')} mouseEnterDelay={0.3} classNames={{ root: 'forward-route-tooltip' }}>
+            <Button
+              type="text"
+              danger
+              className="forwarding-row-action"
+              aria-label={t('forwards.stop')}
+              disabled={actionBusy || forward.status === 'stopping'}
+              icon={<Square size={13} />}
+              onClick={onStop}
+            />
+          </Tooltip>
+        </div>
       </div>
       <ForwardRouteDiagram
+        compact
         mode={forward.mode}
         bindHost={forward.bind_host}
         bindPort={forward.bind_port}
@@ -487,50 +566,109 @@ function ForwardRuntimeCard({
         targetHost={forward.target_host}
         targetPort={forward.target_port}
       />
-      <Progress percent={Math.max(0, Math.min(100, forward.progress || 0))} showInfo={false} status={progressStatus} />
-      <div className="forwarding-runtime-metrics">
-        <span><CircleDot size={13} />{t('forwards.phaseName.' + forward.phase)}</span>
-        <span><Cable size={13} />{forward.active_connections}</span>
-        <span><ArrowUpRight size={13} /><small>{t('forwards.sent')}</small>{formatBytes(forward.bytes_out)}</span>
-        <span><ArrowDownLeft size={13} /><small>{t('forwards.received')}</small>{formatBytes(forward.bytes_in)}</span>
-        <span><Clock3 size={13} /><small>{t('forwards.startedAt')}</small>{formatTime(forward.started_at)}</span>
-        <span><Timer size={13} /><small>{t('forwards.duration')}</small>{formatForwardDuration(forward.started_at, now)}</span>
-      </div>
-      {forward.last_error ? <p className="forwarding-runtime-error">{forward.last_error}</p> : null}
+      <ForwardStateFeedback forward={forward} />
+      <ForwardRuntimeMetrics forward={forward} now={now} />
     </article>
   )
 }
 
-function PanelTitle({ icon, title, hint }: { icon: JSX.Element; title: string; hint: string }) {
+function ForwardWorkspacePane({
+  className,
+  icon,
+  title,
+  hint,
+  count,
+  children,
+}: {
+  className: string
+  icon: ReactNode
+  title: string
+  hint: string
+  count: number
+  children: ReactNode
+}) {
   return (
-    <div className="forwarding-panel-title">
-      <span>{icon}</span>
-      <div>
-        <h2>{title}</h2>
-        <p>{hint}</p>
-      </div>
+    <section className={`forwarding-workspace-pane ${className}`}>
+      <header className="forwarding-section-header">
+        <span className="forwarding-section-icon" aria-hidden="true">{icon}</span>
+        <div>
+          <h2>{title}</h2>
+          <p>{hint}</p>
+        </div>
+        <strong>{count}</strong>
+      </header>
+      <div className="forwarding-pane-content">{children}</div>
+    </section>
+  )
+}
+
+function OverviewMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <span className="forwarding-overview-metric">
+      <span aria-hidden="true">{icon}</span>
+      <small>{label}</small>
+      <strong>{value}</strong>
+    </span>
+  )
+}
+
+function ForwardingEmpty({ description }: { description: string }) {
+  return (
+    <div className="forwarding-empty">
+      <Empty description={description} image={Empty.PRESENTED_IMAGE_SIMPLE} />
     </div>
   )
 }
 
-function SummaryMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <span>
-      <strong>{value}</strong>
-      <small>{label}</small>
-    </span>
-  )
+function matchesMode(mode: ForwardMode, filter: ForwardModeFilter) {
+  return filter === 'all' || mode === filter
 }
 
-function ModeBadge({ mode }: { mode: ForwardMode }) {
-  const { t } = useTranslation()
-  const Icon = mode === 'local' ? Route : mode === 'remote' ? RadioTower : Network
-  return (
-    <span className={`forward-mode-badge is-${mode}`}>
-      <Icon size={14} />
-      {t(`forwards.modeName.${mode}`)}
-    </span>
-  )
+function matchesForwardProfile(
+  profile: ForwardProfile,
+  host: AppData['hosts'][number] | undefined,
+  search: string,
+) {
+  if (!search) {
+    return true
+  }
+  return includesForwardSearch([
+    profile.name,
+    profile.description,
+    host?.name,
+    host?.username,
+    host?.address,
+    profile.bind_host,
+    profile.bind_port,
+    profile.target_host,
+    profile.target_port,
+  ], search)
+}
+
+function matchesForwardInstance(
+  forward: ForwardInstance,
+  host: AppData['hosts'][number] | undefined,
+  search: string,
+) {
+  if (!search) {
+    return true
+  }
+  return includesForwardSearch([
+    forward.name,
+    host?.name,
+    host?.username,
+    host?.address,
+    forward.bind_host,
+    forward.bind_port,
+    forward.bound_address,
+    forward.target_host,
+    forward.target_port,
+    forward.last_error,
+  ], search)
+}
+
+function includesForwardSearch(values: Array<string | number | undefined>, search: string) {
+  return values.some((value) => String(value ?? '').toLocaleLowerCase().includes(search))
 }
 
 function formToInput(form: ForwardFormState): ForwardProfileInput {
@@ -567,12 +705,4 @@ function validateForwardForm(form: ForwardFormState, t: (key: string) => string)
 
 function validPort(value: number | null) {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 65535
-}
-
-function formatTime(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }

@@ -16,7 +16,7 @@ interface EChartViewProps {
 export function EChartView({ option, className = '', theme = 'dark' }: EChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<EChartsType | null>(null)
-  const resizeFrameRef = useRef<number>()
+  const resizeFrameRef = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     const container = containerRef.current

@@ -129,10 +129,12 @@
       .startup-track > span {
         position: absolute;
         inset-block: 0;
+        inset-inline-start: 0;
         width: 38%;
         border-radius: inherit;
         background: var(--startup-accent);
         animation: startup-track 1.25s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        will-change: transform, opacity;
       }
 
       body[data-phase="error"] {
@@ -143,11 +145,6 @@
         .startup-icon,
         .startup-status::before {
           animation: none;
-        }
-
-        .startup-track > span {
-          inset-inline-start: 31%;
-          animation: startup-pulse 1.4s ease-in-out infinite;
         }
       }
 

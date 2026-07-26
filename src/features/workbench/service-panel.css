@@ -180,7 +180,7 @@
   width: 100%;
   min-width: 0;
   min-height: 58px;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-columns: 30px minmax(0, 1fr) max-content;
   align-items: center;
   gap: 8px;
   padding: 7px 9px;
@@ -233,15 +233,32 @@
 .service-row-copy strong { font-size: 12px; font-weight: 760; }
 .service-row-copy small,
 .service-row-meta > span:last-child { color: var(--text-muted); font-size: 10px; }
-.service-row-meta { justify-items: end; gap: 4px; }
+.service-row-meta {
+  max-width: 76px;
+  align-self: center;
+  justify-self: end;
+  justify-items: end;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.service-row-meta > span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .service-runtime-pill {
+  max-width: 100%;
+  overflow: hidden;
   padding: 2px 7px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--text-muted) 9%, var(--surface-subtle));
   color: var(--text-secondary);
   font-size: 10px;
   font-weight: 720;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -586,12 +603,13 @@
   .service-detail-tags { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-items: stretch; }
   .service-detail-tags .ant-tag { max-width: none; text-align: center; }
   .service-filter-grid { grid-template-columns: 1fr; }
-  .service-row { grid-template-columns: 28px minmax(0, 1fr); }
-  .service-row-meta { grid-column: 2; grid-template-columns: auto auto; justify-content: start; justify-items: start; }
+  .service-row { grid-template-columns: 28px minmax(0, 1fr) max-content; }
   .service-detail-list > div { grid-template-columns: 76px minmax(0, 1fr); }
 }
 
 @container service-panel (width <= 260px) {
+  .service-row { gap: 6px; padding-inline: 7px; }
+  .service-row-meta { max-width: 64px; }
   .service-detail-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .service-detail-kpis .service-kpi:last-child { grid-column: 1 / -1; }
   .service-detail-list > div { grid-template-columns: 1fr; gap: 3px; }

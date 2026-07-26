@@ -33,7 +33,7 @@ Termous brings SSH connections, host management, remote files, port forwarding, 
 ## Quick Start
 
 1. Download the installer for your platform from [Releases](https://github.com/Countra/termous/releases).
-2. Open Termous, add a host, and choose password, private key, private key passphrase, or system SSH authentication.
+2. Open Termous, add a host, and choose password, private key, or private key passphrase authentication.
 3. Click "Connect" in the top bar and choose the target host to enter the SSH workstation.
 4. Use the right-side workspace to inspect overview, system information, monitoring, firewall, and port forwarding.
 5. Use the "Files" page to manage remote directories, bookmarks, local path mappings, and transfers.
@@ -50,7 +50,7 @@ Termous brings SSH connections, host management, remote files, port forwarding, 
 ### Hosts And Credentials
 
 - Host groups, tags, favorites, recent hosts, and latency checks.
-- Password, private key, private key passphrase, and system SSH modes.
+- Password, private key, and private key passphrase modes.
 - Custom host icons, notes, jump hosts, and platform information.
 - Credentials are managed separately from hosts to avoid repeating sensitive data.
 

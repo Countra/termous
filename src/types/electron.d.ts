@@ -1,4 +1,38 @@
-import type { AppBuildInfo, AppConfig, CoreFatalEvent, CoreStatus, TrayCommand, TrayMenuState } from './domain'
+import type {
+  AppBuildInfo,
+  AppConfig,
+  CoreFatalEvent,
+  CoreStatus,
+  DataPortabilityExportDialogResult,
+  DataPortabilityImportDialogResult,
+  DataPortabilityImportSelectionResult,
+  DataPortabilityProgress,
+  DataPortabilityRestartResult,
+  TrayCommand,
+  TrayMenuState,
+} from './domain'
+import type {
+  UpdatePreferences,
+  UpdatePreferencesPatch,
+  UpdateSnapshot,
+} from '../../electron/updateManager'
+import type { UpdateRuntimeSummary } from '../../electron/updateRuntime'
+import type {
+  UpdateRuntimeSummaryRefreshRequest,
+  UpdateRuntimeSummaryReportContext,
+} from '../../electron/updateRuntimeSummaryRefresh'
+
+interface SSHPrivateKeySelectionResult {
+  canceled: boolean
+  file_name?: string
+  private_key?: string
+}
+
+interface SSHKeyFileSaveResult {
+  canceled: boolean
+  file_name?: string
+  public_file_name?: string
+}
 
 declare global {
   interface Window {
@@ -17,6 +51,13 @@ declare global {
       }
       appearance?: {
         setTheme: (theme: 'dark' | 'light') => Promise<boolean>
+      }
+      portability?: {
+        exportBackup: (password: string) => Promise<DataPortabilityExportDialogResult>
+        selectBackup: () => Promise<DataPortabilityImportSelectionResult>
+        inspectBackup: (selectionId: string, password: string) => Promise<DataPortabilityImportDialogResult>
+        restartAfterRestore: () => Promise<DataPortabilityRestartResult>
+        onProgress: (callback: (progress: DataPortabilityProgress) => void) => () => void
       }
       clipboard?: {
         readText: () => Promise<string>
@@ -47,6 +88,29 @@ declare global {
         pathsFromFileList: (files: ArrayLike<File>) => Promise<string[]>
         consumeDroppedFilePaths: (fileCount?: number) => Promise<string[]>
         readClipboardFilePaths: () => Promise<string[]>
+      }
+      updates?: {
+        getState: () => Promise<UpdateSnapshot>
+        getPreferences: () => Promise<UpdatePreferences>
+        setPreferences: (patch: UpdatePreferencesPatch) => Promise<UpdatePreferences>
+        openWindow: () => Promise<boolean>
+        reportRuntimeSummary: (
+          summary: UpdateRuntimeSummary,
+          context?: UpdateRuntimeSummaryReportContext,
+        ) => Promise<UpdateRuntimeSummary>
+        onRuntimeSummaryRequested: (
+          callback: (request: UpdateRuntimeSummaryRefreshRequest) => void,
+        ) => () => void
+        subscribe: (callback: (snapshot: UpdateSnapshot) => void) => () => void
+      }
+      sshKeys?: {
+        selectPrivateKey: () => Promise<SSHPrivateKeySelectionResult>
+        savePublicKey: (input: { suggestedName: string; content: string }) => Promise<SSHKeyFileSaveResult>
+        saveKeyPair: (input: {
+          suggestedName: string
+          privateKey: string
+          publicKey: string
+        }) => Promise<SSHKeyFileSaveResult>
       }
     }
   }

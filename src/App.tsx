@@ -1,31 +1,56 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { App as AntdApp, Button, ConfigProvider, Modal } from 'antd'
-import { AlertTriangle } from 'lucide-react'
-import 'antd/dist/reset.css'
+import { App as AntdApp, Button, Modal } from 'antd'
+import { LogOut, ServerOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { TermousUiProvider } from './app/TermousUiProvider'
 import { AppShell } from './components/layout/AppShell'
+import { ConfirmDialog } from './components/ui/ConfirmDialog'
 import { HostsPage } from './features/hosts/HostsPage'
 import { FilesPage } from './features/files/FilesPage'
+import { FilesWorkspaceRuntimeProvider } from './features/files/FilesWorkspaceRuntimeProvider'
+import {
+  includeActiveFileSessionClosure,
+  pruneRetiredFileSessionIds,
+  selectActiveFileSessionAfterConnect,
+  selectFileSessionCloseFallback,
+  selectFileSessionForNavigation,
+  selectFileSessionNavigationTarget,
+} from './features/files/fileSessionRecovery'
 import { ForwardingPage } from './features/forwards/ForwardingPage'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { SnippetsPage } from './features/snippets/SnippetsPage'
 import { snippetToInput } from './features/snippets/snippetUtils'
 import { VaultPage } from './features/vault/VaultPage'
 import { HostLauncherModal } from './features/workbench/HostLauncherModal'
+import {
+  hostLauncherIntentForPage,
+  type HostLauncherIntent,
+} from './features/workbench/hostLauncherIntent'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
+import { HostKeyCoordinator } from './components/hostkey/HostKeyCoordinator'
+import { TransferRuntimeProvider } from './app/TransferRuntimeProvider'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
+import { UpdateRuntimeProvider } from './features/update/UpdateRuntimeProvider'
+import { UpdateRuntimeSummaryReporter } from './features/update/UpdateRuntimeSummaryReporter'
+import { readDevelopmentUpdateSimulation } from './features/update/developmentUpdateSimulationSlot'
+import { useUpdateRuntime } from './features/update/useUpdateRuntime'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
-import { createAntdTheme } from './theme/antdTheme'
-import type { CodeSnippet, CodeSnippetInput, CoreFatalEvent, CredentialInput, ForwardEvent, HostGroup, HostIcon, HostInput, HostReachabilityEvent, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
+import type { AppBuildInfo, CodeSnippet, CodeSnippetGroup, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, Language, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
+import './styles/files-workspace.css'
+import './styles/files-workspace-panels.css'
+import './styles/files-workspace-transfers.css'
+import './styles/files-workspace-transfer-rows.css'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
+const developmentUpdateSimulation = readDevelopmentUpdateSimulation()
 
 function App() {
+  const { i18n } = useTranslation()
   const [theme, setTheme] = useState<ThemeMode>(readInitialTheme)
-  const antdTheme = useMemo(() => createAntdTheme(theme), [theme])
+  const language: Language = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -37,57 +62,82 @@ function App() {
   }, [theme])
 
   return (
-    <ConfigProvider theme={antdTheme} button={{ autoInsertSpace: false }}>
-      <AntdApp
-        className="termous-antd-root"
-        notification={{
-          placement: 'topRight',
-          duration: 3,
-          maxCount: 3,
-          showProgress: true,
-          pauseOnHover: true,
-        }}
+    <TermousUiProvider language={language} theme={theme}>
+      <UpdateRuntimeProvider
+        bridge={window.termous?.updates ?? developmentUpdateSimulation?.mainBridge ?? null}
       >
         <AppContent theme={theme} setTheme={setTheme} />
-      </AntdApp>
-    </ConfigProvider>
+      </UpdateRuntimeProvider>
+    </TermousUiProvider>
   )
 }
 
 function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<SetStateAction<ThemeMode>> }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
-  const { api, data, initializing, apiReady, error, activeSession, forwardErrorEvent, actions } = useTermousData()
+  const { api, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
+  const updateRuntime = useUpdateRuntime()
   const updateForwardRef = useRef(actions.updateForward)
   const reloadForwardStateRef = useRef(actions.reloadForwardsSilent)
   const updateHostReachabilityRef = useRef(actions.updateHostReachability)
   const notifiedForwardFailuresRef = useRef(new Set<string>())
   const notifiedForwardRuntimeErrorsRef = useRef(new Map<string, string>())
   const [page, setPage] = useState<PageKey>('workbench')
+  const [vaultDirty, setVaultDirty] = useState(false)
+  const [pendingPage, setPendingPage] = useState<PageKey | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const [selectedHostId, setSelectedHostId] = useState('')
   const [activeFileSessionId, setActiveFileSessionId] = useState('')
   const [closingFileSessionIds, setClosingFileSessionIds] = useState<string[]>([])
-  const [hostLauncherOpen, setHostLauncherOpen] = useState(false)
+  const closingFileSessionIdsRef = useRef(new Set<string>())
+  const retiredFileSessionIdsRef = useRef(new Set<string>())
+  const fileSessionsRef = useRef(data.fileSessions)
+  const fileSessionClosuresRef = useRef(fileSessionClosures)
+  fileSessionsRef.current = data.fileSessions
+  fileSessionClosuresRef.current = fileSessionClosures
+  const [hostLauncherState, setHostLauncherState] = useState<{
+    open: boolean
+    intent: HostLauncherIntent
+  }>({
+    open: false,
+    intent: 'terminal',
+  })
   const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
   const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
-  const [appVersion, setAppVersion] = useState(import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev')
+  const [buildInfo, setBuildInfo] = useState<AppBuildInfo | null>(
+    developmentUpdateSimulation?.buildInfo ?? null,
+  )
+  const appVersion = buildInfo?.version ?? import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev'
   const [coreFatal, setCoreFatal] = useState<CoreFatalEvent | null>(null)
   const hasActiveRuntime = useMemo(
     () =>
-      data.sessions.some((session) => session.status === 'connecting' || session.status === 'connected') ||
+      data.sessions.some((session) => isSessionRuntimeActive(session.status)) ||
       data.fileSessions.some(
         (session) =>
           session.status === 'connecting' ||
           session.status === 'connected' ||
           session.status === 'waiting_trust',
       ) ||
-      data.forwards.some((forward) =>
-        forward.status === 'starting' || forward.status === 'running' || forward.status === 'stopping',
-      ),
+      data.forwards.some((forward) => (
+        forward.status === 'starting' ||
+        forward.status === 'waiting_host_trust' ||
+        forward.status === 'running' ||
+        forward.status === 'stopping'
+      )),
     [data.fileSessions, data.forwards, data.sessions],
   )
+
+  const navigateToPage = useCallback((nextPage: PageKey) => {
+    if (nextPage === page) {
+      return
+    }
+    if (page === 'vault' && vaultDirty) {
+      setPendingPage(nextPage)
+      return
+    }
+    setPage(nextPage)
+  }, [page, vaultDirty])
 
   useEffect(() => {
     if (initializing || !apiReady) {
@@ -225,11 +275,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   useEffect(() => {
     let disposed = false
-    void window.termous?.getBuildInfo?.().then((info) => {
-      if (!disposed && info?.version) {
-        setAppVersion(info.version)
-      }
-    })
+    void window.termous?.getBuildInfo?.()
+      .then((info) => {
+        if (!disposed && info?.version) {
+          setBuildInfo(info)
+        }
+      })
+      .catch(() => undefined)
     void window.termous?.core?.getFatal().then((fatal) => {
       if (!disposed && fatal) {
         setCoreFatal(fatal)
@@ -242,21 +294,30 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }, [])
 
-  const visibleFileSessions = useMemo(
-    () => data.fileSessions.filter((session) => !closingFileSessionIds.includes(session.id)),
-    [closingFileSessionIds, data.fileSessions],
-  )
-  const filesPageData = useMemo(() => ({ ...data, fileSessions: visibleFileSessions }), [data, visibleFileSessions])
+  useEffect(() => {
+    pruneRetiredFileSessionIds(
+      retiredFileSessionIdsRef.current,
+      data.fileSessions,
+      fileSessionClosures,
+    )
+  }, [data.fileSessions, fileSessionClosures])
 
   useEffect(() => {
-    if (!activeFileSessionId && visibleFileSessions[0]) {
-      setActiveFileSessionId(visibleFileSessions[0].id)
+    if (!activeFileSessionId && data.fileSessions[0]) {
+      setActiveFileSessionId(data.fileSessions[0].id)
       return
     }
-    if (activeFileSessionId && !visibleFileSessions.some((session) => session.id === activeFileSessionId)) {
-      setActiveFileSessionId(visibleFileSessions[0]?.id ?? '')
+    const activeClosureExists = Object.values(fileSessionClosures).some(
+      (closure) => closure.session.id === activeFileSessionId,
+    )
+    if (
+      activeFileSessionId
+      && !activeClosureExists
+      && !data.fileSessions.some((session) => session.id === activeFileSessionId)
+    ) {
+      setActiveFileSessionId(data.fileSessions[0]?.id ?? '')
     }
-  }, [activeFileSessionId, visibleFileSessions])
+  }, [activeFileSessionId, data.fileSessions, fileSessionClosures])
 
   const selectedHostIdStable = useMemo(() => {
     if (data.hosts.some((host) => host.id === selectedHostId)) {
@@ -283,15 +344,54 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       recentHosts: t('tray.recentHosts'),
       emptyRecentHosts: t('tray.emptyRecentHosts'),
       forwards: t('tray.forwards'),
+      updateAvailable: t('tray.updateAvailable'),
+      updateDownloading: t('tray.updateDownloading'),
+      updateDownloaded: t('tray.updateDownloaded'),
       quit: t('tray.quit'),
     }),
     [t],
   )
 
-  const activeFileSession = useMemo(
-    () => visibleFileSessions.find((session) => session.id === activeFileSessionId) ?? visibleFileSessions[0] ?? null,
-    [activeFileSessionId, visibleFileSessions],
+  const filesPageFileSessions = useMemo(
+    () => includeActiveFileSessionClosure(
+      data.fileSessions,
+      fileSessionClosures,
+      activeFileSessionId,
+    ),
+    [activeFileSessionId, data.fileSessions, fileSessionClosures],
   )
+  const filesPageData = useMemo(
+    () => filesPageFileSessions === data.fileSessions
+      ? data
+      : { ...data, fileSessions: filesPageFileSessions },
+    [data, filesPageFileSessions],
+  )
+  const activeFileSession = useMemo(
+    () => filesPageFileSessions.find((session) => session.id === activeFileSessionId)
+      ?? filesPageFileSessions[0]
+      ?? null,
+    [activeFileSessionId, filesPageFileSessions],
+  )
+  const updatePreferencesRuntime = useMemo(() => {
+    if (!updateRuntime.bridgeAvailable) {
+      return null
+    }
+    return {
+      generation: updateRuntime.runtimeGeneration,
+      loadFailed: updateRuntime.initializationFailed,
+      preferences: updateRuntime.snapshot?.preferences ?? null,
+      retry: updateRuntime.retryInitialization,
+      setPreferences: async (
+        patch: Parameters<typeof updateRuntime.setUpdatePreferences>[0],
+      ) => {
+        const preferences = await updateRuntime.setUpdatePreferences(patch)
+        if (!preferences) {
+          throw new Error('update_bridge_unavailable')
+        }
+        return preferences
+      },
+    }
+  }, [updateRuntime])
 
   useEffect(() => {
     if (!error) {
@@ -313,10 +413,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }).catch(() => undefined)
   }, [data.settings.language, trayLabels, trayRecentHosts])
 
-  const runAction = useCallback(async (task: () => Promise<void>, success?: string) => {
+  const runAction = useCallback(async <T,>(task: () => Promise<T>, success?: string): Promise<T | undefined> => {
     setActionBusy(true)
     try {
-      await task()
+      const result = await task()
       if (success) {
         notification.success({
           title: success,
@@ -325,6 +425,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           className: 'termous-notification',
         })
       }
+      return result
     } catch (actionError) {
       notification.error({
         title: t('app.error'),
@@ -333,18 +434,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         role: 'alert',
         className: 'termous-notification',
       })
+      return undefined
     } finally {
       setActionBusy(false)
     }
   }, [notification, t])
 
-  const saveHost = (id: string | null, input: HostInput) =>
+  const saveHost = (id: string | null, input: HostInput): Promise<Host | undefined> =>
     runAction(async () => {
       if (id) {
-        await actions.updateHost(id, input)
-      } else {
-        await actions.createHost(input)
+        return actions.updateHost(id, input)
       }
+      return actions.createHost(input)
     }, t('app.save'))
 
   const createHostGroup = async (name: string): Promise<HostGroup> => {
@@ -372,13 +473,21 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
-  const saveCredential = (id: string | null, input: CredentialInput) =>
+  const renameHostGroup = (id: string, name: string): Promise<HostGroup | undefined> =>
+    runAction(
+      () => actions.updateHostGroup(id, name),
+      t('hosts.groupUpdated'),
+    )
+
+  const reorderHostGroups = (items: GroupReorderItem[]): Promise<HostGroup[] | undefined> =>
+    runAction(() => actions.reorderHostGroups(items))
+
+  const saveCredential = (id: string | null, input: CredentialInput): Promise<CredentialView | undefined> =>
     runAction(async () => {
       if (id) {
-        await actions.updateCredential(id, input)
-      } else {
-        await actions.createCredential(input)
+        return actions.updateCredential(id, input)
       }
+      return actions.createCredential(input)
     }, t('app.save'))
 
   const saveCodeSnippet = (id: string | null, input: CodeSnippetInput) =>
@@ -389,6 +498,21 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         await actions.createCodeSnippet(input)
       }
     }, t('app.save'))
+
+  const createCodeSnippetGroup = (name: string): Promise<CodeSnippetGroup | undefined> =>
+    runAction(
+      () => actions.createCodeSnippetGroup({ name }),
+      t('snippets.groupCreated'),
+    )
+
+  const renameCodeSnippetGroup = (id: string, name: string): Promise<CodeSnippetGroup | undefined> =>
+    runAction(
+      () => actions.updateCodeSnippetGroup(id, { name }),
+      t('snippets.groupUpdated'),
+    )
+
+  const reorderCodeSnippetGroups = (items: GroupReorderItem[]): Promise<CodeSnippetGroup[] | undefined> =>
+    runAction(() => actions.reorderCodeSnippetGroups(items))
 
   const toggleCodeSnippetFavorite = (snippet: CodeSnippet) =>
     runAction(async () => {
@@ -476,11 +600,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
     setSelectedHostId(session.host_id)
     setPage('files')
-    const existing = data.fileSessions.find(
-      (fileSession) =>
-        fileSession.source_session_id === session.id &&
-        fileSession.status !== 'disconnected' &&
-        fileSession.status !== 'failed',
+    const existing = selectFileSessionNavigationTarget(
+      data.fileSessions,
+      fileSessionClosures,
+      session.host_id,
+      session.id,
     )
     if (existing) {
       setActiveFileSessionId(existing.id)
@@ -507,18 +631,21 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const openFilesForHost = async (hostId: string) => {
     setSelectedHostId(hostId)
     setPage('files')
-    const existing = data.fileSessions.find(
-      (fileSession) =>
-        fileSession.host_id === hostId &&
-        fileSession.status !== 'disconnected' &&
-        fileSession.status !== 'failed',
-    )
+    const existing = selectFileSessionForNavigation(data.fileSessions, hostId)
     if (existing) {
       setActiveFileSessionId(existing.id)
-      return
+      if (
+        existing.status === 'connected'
+        || existing.status === 'connecting'
+        || existing.status === 'waiting_trust'
+      ) {
+        return
+      }
     }
     try {
-      const fileSession = await actions.connectFileSession(hostId)
+      const fileSession = existing
+        ? await actions.reconnectFileSession(existing.id)
+        : await actions.connectFileSession(hostId)
       setActiveFileSessionId(fileSession.id)
     } catch (actionError) {
       showActionError(actionError)
@@ -531,12 +658,26 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     setPage('forwards')
   }
 
-  const openHostLauncher = useCallback(() => {
+  const openHostLauncher = useCallback((intent: HostLauncherIntent) => {
     if (actionBusy) {
       return
     }
-    setHostLauncherOpen(true)
+    setHostLauncherState({ open: true, intent })
   }, [actionBusy])
+
+  const openContextualHostLauncher = useCallback(
+    () => openHostLauncher(hostLauncherIntentForPage(page)),
+    [openHostLauncher, page],
+  )
+
+  const openFileSessionLauncher = useCallback(
+    () => openHostLauncher('files'),
+    [openHostLauncher],
+  )
+
+  const closeHostLauncher = useCallback(() => {
+    setHostLauncherState((current) => ({ ...current, open: false }))
+  }, [])
 
   const connectHostFromLauncher = (hostId: string) =>
     runAction(async () => {
@@ -558,7 +699,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         return
       }
       if (command.type === 'open-host-launcher') {
-        openHostLauncher()
+        openHostLauncher('terminal')
         return
       }
       if (command.type === 'open-forwards') {
@@ -582,51 +723,65 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       }
       event.preventDefault()
       event.stopPropagation()
-      openHostLauncher()
+      openContextualHostLauncher()
     }
 
     window.addEventListener('keydown', handleHostLauncherShortcut, true)
     return () => window.removeEventListener('keydown', handleHostLauncherShortcut, true)
-  }, [openHostLauncher])
+  }, [openContextualHostLauncher])
 
   return (
-    <TerminalRuntimeProvider
-      api={api}
-      sessions={data.sessions}
-      theme={theme}
-      terminalSettings={data.settings.terminal}
-      terminalFonts={data.terminalFonts}
-      onSessionEvent={actions.updateSession}
-    >
-      <AppShell
-        page={page}
-        appVersion={appVersion}
-        windowCloseBehavior={data.settings.window.close_behavior}
-        hasActiveRuntime={hasActiveRuntime}
-        sidebarCollapsed={sidebarCollapsed}
-        actionBusy={actionBusy}
-        onNavigate={setPage}
-        onOpenConnectionLauncher={openHostLauncher}
-        onOpenLocalTerminal={openLocalTerminalFromTopbar}
-        onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
-        onBeforeClose={shutdownBeforeClose}
-        onCloseError={showActionError}
-      >
+    <FilesWorkspaceRuntimeProvider>
+      <TransferRuntimeProvider api={api}>
+        <UpdateRuntimeSummaryReporter
+          apiReady={apiReady}
+          sessions={data.sessions}
+          fileSessions={data.fileSessions}
+          forwards={data.forwards}
+        />
+        <TerminalRuntimeProvider
+          api={api}
+          sessions={data.sessions}
+          theme={theme}
+          terminalSettings={data.settings.terminal}
+          terminalFonts={data.terminalFonts}
+          onSessionEvent={actions.updateSession}
+        >
+          <AppShell
+            page={page}
+            appVersion={appVersion}
+            windowCloseBehavior={data.settings.window.close_behavior}
+            hasActiveRuntime={hasActiveRuntime}
+            sidebarCollapsed={sidebarCollapsed}
+            actionBusy={actionBusy}
+            onNavigate={navigateToPage}
+            onOpenConnectionLauncher={openContextualHostLauncher}
+            onOpenLocalTerminal={openLocalTerminalFromTopbar}
+            onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+            onBeforeClose={shutdownBeforeClose}
+            onCloseError={showActionError}
+          >
         <div
           className={`app-keepalive-page ${page === 'workbench' ? 'is-active' : 'is-hidden'}`}
-          aria-hidden={page !== 'workbench'}
+          inert={page !== 'workbench'}
         >
           <WorkbenchPage
             api={api}
             data={data}
+            fileSessionClosures={fileSessionClosures}
             theme={theme}
+            active={page === 'workbench'}
             selectedHostId={selectedHostIdStable}
             activeSession={activeSession}
             actionBusy={actionBusy}
             onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
             onSelectSession={actions.selectSession}
             onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
+            onRefreshInventory={actions.refreshSessionInventory}
             onOpenFiles={openFilesFromSession}
+            onConnectFileSession={actions.connectFileSession}
+            onReconnectFileSession={actions.reconnectFileSession}
+            onUpdateFileSession={actions.updateFileSession}
             onSnippetUsed={(snippetId) => actions.markCodeSnippetUsed(snippetId).then(() => undefined)}
             onToggleSnippetFavorite={toggleCodeSnippetFavorite}
             onStartForward={(input) => actions.startForward(input)}
@@ -642,8 +797,17 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             actionBusy={actionBusy}
             onSelectHost={setSelectedHostId}
             onSave={saveHost}
-            onDelete={(id) => runAction(() => actions.deleteHost(id))}
+            onDelete={(id) => runAction(async () => {
+              await actions.deleteHost(id)
+              return true
+            })}
             onCreateGroup={createHostGroup}
+            onRenameGroup={renameHostGroup}
+            onDeleteGroup={(id) => runAction(
+              () => actions.deleteHostGroup(id),
+              t('hosts.groupDeleted'),
+            ).then(() => undefined)}
+            onReorderGroups={reorderHostGroups}
             onUploadHostIcon={uploadHostIcon}
             onDeleteHostIcon={deleteHostIcon}
             getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
@@ -655,8 +819,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             data={data}
             actionBusy={actionBusy}
             onSave={saveCredential}
-            onDelete={(id) => runAction(() => actions.deleteCredential(id))}
-            onGenerateKey={() => runAction(actions.generateKey)}
+            onDelete={(id) => runAction(async () => {
+              await actions.deleteCredential(id)
+              return true
+            })}
+            onDirtyChange={setVaultDirty}
           />
         ) : null}
 
@@ -665,29 +832,84 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             api={api}
             data={filesPageData}
             theme={theme}
-            selectedHostId={selectedHostIdStable}
             activeFileSession={activeFileSession}
-            onSelectHost={setSelectedHostId}
-            onConnectFileSession={async (hostId) => {
-              const fileSession = await actions.connectFileSession(hostId)
-              setActiveFileSessionId(fileSession.id)
+            closingFileSessionIds={closingFileSessionIds}
+            onOpenFileSession={openFilesForHost}
+            onOpenFileSessionLauncher={openFileSessionLauncher}
+            onConnectFileSession={async (
+              hostId,
+              sourceSessionId,
+              initialPath,
+              replacedFileSessionId,
+            ) => {
+              const fileSession = await actions.connectFileSession(
+                hostId,
+                sourceSessionId,
+                initialPath,
+                replacedFileSessionId,
+              )
+              retiredFileSessionIdsRef.current.delete(fileSession.id)
+              setActiveFileSessionId((current) => selectActiveFileSessionAfterConnect(
+                current,
+                fileSession.id,
+                replacedFileSessionId,
+              ))
               return fileSession
             }}
             onSelectFileSession={setActiveFileSessionId}
             onCloseFileSession={async (fileSessionId) => {
-              const nextFileSessionId = visibleFileSessions.find((session) => session.id !== fileSessionId)?.id ?? ''
-              setClosingFileSessionIds((current) => current.includes(fileSessionId) ? current : [...current, fileSessionId])
-              if (activeFileSessionId === fileSessionId) {
-                setActiveFileSessionId(nextFileSessionId)
+              const isClosedLocalSnapshot = !data.fileSessions.some(
+                (session) => session.id === fileSessionId,
+              ) && Object.values(fileSessionClosures).some(
+                (closure) => closure.phase === 'closed' && closure.session.id === fileSessionId,
+              )
+              if (isClosedLocalSnapshot) {
+                actions.supersedeFileSessionRecovery(fileSessionId)
+                retiredFileSessionIdsRef.current.add(fileSessionId)
+                setActiveFileSessionId((current) => {
+                  if (current !== fileSessionId) {
+                    return current
+                  }
+                  return selectFileSessionCloseFallback(
+                    fileSessionsRef.current,
+                    fileSessionClosuresRef.current,
+                    new Set([
+                      ...closingFileSessionIdsRef.current,
+                      ...retiredFileSessionIdsRef.current,
+                    ]),
+                  )
+                })
+                return
               }
+              if (closingFileSessionIdsRef.current.has(fileSessionId)) {
+                return
+              }
+              closingFileSessionIdsRef.current.add(fileSessionId)
+              setClosingFileSessionIds([...closingFileSessionIdsRef.current])
               try {
                 await actions.closeFileSession(fileSessionId)
+                retiredFileSessionIdsRef.current.add(fileSessionId)
+                setActiveFileSessionId((current) => {
+                  if (current !== fileSessionId) {
+                    return current
+                  }
+                  return selectFileSessionCloseFallback(
+                    fileSessionsRef.current,
+                    fileSessionClosuresRef.current,
+                    new Set([
+                      ...closingFileSessionIdsRef.current,
+                      ...retiredFileSessionIdsRef.current,
+                    ]),
+                  )
+                })
+              } catch (actionError) {
+                showActionError(actionError)
               } finally {
-                setClosingFileSessionIds((current) => current.filter((id) => id !== fileSessionId))
+                closingFileSessionIdsRef.current.delete(fileSessionId)
+                setClosingFileSessionIds([...closingFileSessionIdsRef.current])
               }
             }}
             onReconnectFileSession={actions.reconnectFileSession}
-            onTrustFileSessionHost={actions.trustFileSessionHost}
             onUpdateFileSession={actions.updateFileSession}
             onCreateFileBookmark={actions.createFileBookmark}
             onUpdateFileBookmark={actions.updateFileBookmark}
@@ -698,6 +920,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onDeleteFileBookmarkGroup={actions.deleteFileBookmarkGroup}
             onReorderFileBookmarkGroups={actions.reorderFileBookmarkGroups}
             onCreateLocalPathMapping={actions.createLocalPathMapping}
+            onUpdateLocalPathMapping={actions.updateLocalPathMapping}
+            onDeleteLocalPathMapping={actions.deleteLocalPathMapping}
             onReorderLocalPathMappings={actions.reorderLocalPathMappings}
           />
         ) : null}
@@ -721,6 +945,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             actionBusy={actionBusy}
             onSave={saveCodeSnippet}
             onDelete={(id) => runAction(() => actions.deleteCodeSnippet(id))}
+            onCreateGroup={createCodeSnippetGroup}
+            onRenameGroup={renameCodeSnippetGroup}
+            onDeleteGroup={(id) => runAction(
+              () => actions.deleteCodeSnippetGroup(id),
+              t('snippets.groupDeleted'),
+            )}
+            onReorderGroups={reorderCodeSnippetGroups}
           />
         ) : null}
 
@@ -732,6 +963,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             windowSettings={data.settings.window}
             terminalFonts={data.terminalFonts}
             appVersion={appVersion}
+            updatePreferencesRuntime={updatePreferencesRuntime}
             actionBusy={actionBusy}
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
             onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
@@ -741,13 +973,31 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onDeleteTerminalFont={deleteTerminalFont}
           />
         ) : null}
-      </AppShell>
+          </AppShell>
+      <ConfirmDialog
+        open={Boolean(pendingPage)}
+        title={t('vault.unsavedTitle')}
+        description={t('vault.unsavedDescription')}
+        confirmLabel={t('vault.discardAndContinue')}
+        cancelLabel={t('app.cancel')}
+        danger
+        onCancel={() => setPendingPage(null)}
+        onConfirm={() => {
+          const nextPage = pendingPage
+          setPendingPage(null)
+          setVaultDirty(false)
+          if (nextPage) {
+            setPage(nextPage)
+          }
+        }}
+      />
       <HostLauncherModal
-        open={hostLauncherOpen}
+        open={hostLauncherState.open}
+        intent={hostLauncherState.intent}
         data={data}
         selectedHostId={selectedHostIdStable}
         actionBusy={actionBusy}
-        onClose={() => setHostLauncherOpen(false)}
+        onClose={closeHostLauncher}
         onSelectHost={setSelectedHostId}
         onConnect={connectHostFromLauncher}
         onCreateHost={openHostCreate}
@@ -758,9 +1008,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         onRefreshReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
         getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
       />
+      <HostKeyCoordinator api={api} enabled={apiReady && !coreFatal} hosts={data.hosts} />
       <Modal
         centered
-        width={430}
+        width={420}
         open={Boolean(coreFatal)}
         title={null}
         footer={null}
@@ -775,24 +1026,27 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       >
         <section className="core-fatal-dialog" aria-labelledby="core-fatal-title">
           <div className="core-fatal-icon">
-            <AlertTriangle size={22} aria-hidden="true" />
+            <ServerOff size={22} aria-hidden="true" />
           </div>
           <div className="core-fatal-copy">
-            <h2 id="core-fatal-title">{coreFatal?.title ?? t('app.coreFatalTitle')}</h2>
-            <p>{coreFatal?.message ?? t('app.coreFatalDescription')}</p>
+            <h2 id="core-fatal-title">{t('app.coreFatalTitle')}</h2>
           </div>
           <div className="core-fatal-actions">
             <Button
               type="primary"
+              danger
               className="core-fatal-exit-button"
+              icon={<LogOut size={16} aria-hidden="true" />}
               onClick={() => void window.termous?.windowControls?.confirmClose()}
             >
               {t('app.exit')}
             </Button>
           </div>
         </section>
-      </Modal>
-    </TerminalRuntimeProvider>
+        </Modal>
+        </TerminalRuntimeProvider>
+      </TransferRuntimeProvider>
+    </FilesWorkspaceRuntimeProvider>
   )
 }
 
@@ -863,6 +1117,10 @@ function isHostLauncherShortcut(event: KeyboardEvent) {
 function readTimestamp(value?: string) {
   const timestamp = new Date(value ?? '').getTime()
   return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+function isSessionRuntimeActive(status: Session['status']) {
+  return status === 'connecting' || status === 'connected' || (status as string) === 'waiting_host_trust'
 }
 
 function isTrayCommand(command: unknown): command is TrayCommand {

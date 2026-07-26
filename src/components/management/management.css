@@ -1,0 +1,88 @@
+.management-workspace {
+  container-name: management-workspace;
+  container-type: inline-size;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.management-workspace-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: clamp(330px, 31cqw, 410px) minmax(0, 1fr);
+  gap: 12px;
+  overflow: hidden;
+}
+
+.management-workspace-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.management-panel {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.management-panel-header,
+.management-panel-footer {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.management-panel-header {
+  min-height: 62px;
+  border-bottom: 1px solid var(--border);
+}
+
+.management-panel-body {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 14px;
+}
+
+.management-panel-footer {
+  min-height: 58px;
+  border-top: 1px solid var(--border);
+}
+
+@container management-workspace (max-width: 879px) {
+  .management-workspace-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .management-workspace[data-active-view="catalog"] .management-workspace-pane.is-editor,
+  .management-workspace[data-active-view="editor"] .management-workspace-pane.is-catalog {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .management-workspace *,
+  .management-workspace *::before,
+  .management-workspace *::after {
+    scroll-behavior: auto !important;
+  }
+}

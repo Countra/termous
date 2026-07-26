@@ -1,0 +1,175 @@
+.brand-version-control.ant-btn {
+  --brand-update-tone: var(--accent);
+  position: relative;
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
+  min-width: 58px;
+  height: 26px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  border: 0 !important;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-subtle) 36%, transparent);
+  color: var(--text-secondary);
+  padding: 0 8px 0 9px !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 32%, transparent);
+  cursor: pointer;
+  transform: none;
+  -webkit-app-region: no-drag;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.brand-version-control.ant-btn::after {
+  position: absolute;
+  inset-block: 7px;
+  inset-inline-start: 0;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--brand-update-tone);
+  content: "";
+  opacity: 0;
+  transform: none;
+  transition: opacity 0.16s ease;
+}
+
+.brand-version-control.is-downloaded {
+  --brand-update-tone: var(--success);
+}
+
+.brand-version-control.is-error {
+  --brand-update-tone: var(--danger);
+}
+
+.brand-version-control:not(.is-idle)::after,
+.brand-version-control.is-opening::after {
+  opacity: 0.82;
+}
+
+.brand-version-control.ant-btn:not(:disabled):hover,
+.brand-version-control.ant-btn:not(:disabled):focus-visible {
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+  color: var(--text-secondary);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--brand-update-tone) 20%, var(--border)),
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 5%, transparent);
+  transform: none;
+}
+
+.brand-version-control:not(.is-idle).ant-btn:not(:disabled):hover::after,
+.brand-version-control:not(.is-idle).ant-btn:not(:disabled):focus-visible::after,
+.brand-version-control.is-opening.ant-btn:not(:disabled):hover::after,
+.brand-version-control.is-opening.ant-btn:not(:disabled):focus-visible::after {
+  opacity: 1;
+}
+
+.brand-version-control.ant-btn:not(:disabled):active {
+  background: color-mix(in srgb, var(--brand-update-tone) 9%, var(--surface-strong));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--brand-update-tone) 26%, var(--border)),
+    inset 0 1px 2px color-mix(in srgb, var(--app-bg) 56%, transparent);
+  transform: none;
+}
+
+.brand-version-control.ant-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand-update-tone) 42%, transparent);
+  outline-offset: 2px;
+}
+
+.brand-version-control.is-checking::after,
+.brand-version-control.is-downloading::after,
+.brand-version-control.is-opening::after {
+  animation: brand-version-control-pulse 1.1s ease-in-out infinite;
+}
+
+.brand-version-control[aria-busy="true"] {
+  cursor: progress;
+}
+
+.brand-version-control__label {
+  position: relative;
+  display: inline-grid;
+  overflow: hidden;
+  min-width: 0;
+  flex: 0 0 auto;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transform: none;
+  white-space: nowrap;
+}
+
+.brand-version-control__prefix {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, currentColor 68%, transparent);
+  font-size: 9px;
+  font-weight: 580;
+}
+
+.brand-version-control__value {
+  overflow: hidden;
+  color: inherit;
+  font-size: 11px;
+  font-weight: 620;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+}
+
+.app-shell.is-collapsed .brand-version-control.ant-btn {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  height: 20px;
+  border-radius: 6px;
+  padding-inline: 5px !important;
+}
+
+.app-shell.is-collapsed .brand-version-control.ant-btn::after {
+  inset-block: 5px;
+}
+
+.app-shell.is-collapsed .brand-version-control__label {
+  max-width: 34px;
+}
+
+.app-shell.is-collapsed .brand-version-control__prefix {
+  font-size: 8px;
+}
+
+.app-shell.is-collapsed .brand-version-control__value {
+  font-size: 9px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-version-control.ant-btn,
+  .brand-version-control.ant-btn::after {
+    transition: none;
+  }
+
+  .brand-version-control.is-checking::after,
+  .brand-version-control.is-downloading::after,
+  .brand-version-control.is-opening::after {
+    animation: none;
+  }
+}
+
+@keyframes brand-version-control-pulse {
+  0%,
+  100% {
+    opacity: 0.38;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

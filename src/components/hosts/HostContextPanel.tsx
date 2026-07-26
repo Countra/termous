@@ -154,7 +154,7 @@ function HostRow({
   onSelect: () => void
 }) {
   const { t } = useTranslation()
-  const authLabel = host.auth_method === 'system' ? t('hosts.systemAuth') : t(`hosts.auth.${host.auth_method}`)
+  const authLabel = t(`hosts.auth.${host.auth_method}`)
   const endpoint = `${host.address}:${host.port}`
   const tooltip = (
     <div className="host-row-tooltip-card">

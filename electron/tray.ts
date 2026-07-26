@@ -1,5 +1,6 @@
 import { Menu, Tray, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 import { existsSync } from 'node:fs'
+import type { UpdateSnapshot } from './updateTypes'
 
 type TrayLanguage = 'zh-CN' | 'en-US'
 
@@ -14,6 +15,9 @@ export interface TrayMenuLabels {
   recentHosts: string
   emptyRecentHosts: string
   forwards: string
+  updateAvailable: string
+  updateDownloading: string
+  updateDownloaded: string
   quit: string
 }
 
@@ -34,6 +38,7 @@ interface TermousTrayControllerOptions {
   iconCandidates: string[]
   getWindow: () => BrowserWindow | null | undefined
   showMainWindow: () => void
+  openUpdateWindow: () => void
   quitApp: () => Promise<void>
 }
 
@@ -44,6 +49,9 @@ const labels: Record<TrayLanguage, Record<string, string>> = {
     recentHosts: '最近主机',
     emptyRecentHosts: '无最近主机',
     forwards: '端口转发',
+    updateAvailable: '发现新版本',
+    updateDownloading: '正在下载更新',
+    updateDownloaded: '更新已可安装',
     quit: '退出',
   },
   'en-US': {
@@ -52,6 +60,9 @@ const labels: Record<TrayLanguage, Record<string, string>> = {
     recentHosts: 'Recent Hosts',
     emptyRecentHosts: 'No Recent Hosts',
     forwards: 'Port Forwarding',
+    updateAvailable: 'Update available',
+    updateDownloading: 'Downloading update',
+    updateDownloaded: 'Update ready to install',
     quit: 'Quit',
   },
 }
@@ -63,6 +74,15 @@ export class TermousTrayController {
     recentHosts: [],
     labels: {},
   }
+  private updateStatus: Pick<
+    UpdateSnapshot,
+    'phase' | 'available_version' | 'progress'
+  > = {
+    phase: 'idle',
+    available_version: null,
+    progress: null,
+  }
+  private updateDisplaySignature = 'idle'
 
   constructor(private readonly options: TermousTrayControllerOptions) {}
 
@@ -93,6 +113,21 @@ export class TermousTrayController {
     this.rebuildMenu()
   }
 
+  updateUpdateStatus(snapshot: UpdateSnapshot) {
+    const nextStatus = {
+      phase: snapshot.phase,
+      available_version: snapshot.available_version,
+      progress: snapshot.progress ? { ...snapshot.progress } : null,
+    }
+    const nextSignature = this.updateStatusSignature(nextStatus)
+    if (nextSignature === this.updateDisplaySignature) {
+      return
+    }
+    this.updateStatus = nextStatus
+    this.updateDisplaySignature = nextSignature
+    this.rebuildMenu()
+  }
+
   destroy() {
     if (!this.tray || this.tray.isDestroyed()) {
       this.tray = null
@@ -113,11 +148,13 @@ export class TermousTrayController {
         click: () => this.dispatch({ type: 'connect-recent-host', hostId: host.id }),
       }))
       : [{ label: text.emptyRecentHosts, enabled: false }]
+    const updateItem = this.buildUpdateMenuItem(text)
 
     const menu = Menu.buildFromTemplate([
       { label: this.options.appName, enabled: false },
       { type: 'separator' },
       { label: text.openApp, click: () => this.dispatch({ type: 'open-app' }) },
+      ...(updateItem ? [updateItem, { type: 'separator' as const }] : []),
       { label: text.connectHost, click: () => this.dispatch({ type: 'open-host-launcher' }) },
       { label: text.recentHosts, submenu: recentHostItems },
       { label: text.forwards, click: () => this.dispatch({ type: 'open-forwards' }) },
@@ -134,6 +171,50 @@ export class TermousTrayController {
       return
     }
     target.webContents.send('tray:command', command)
+  }
+
+  private buildUpdateMenuItem(
+    text: Record<string, string>,
+  ): MenuItemConstructorOptions | null {
+    const { phase, available_version: version, progress } = this.updateStatus
+    if (phase === 'available') {
+      return {
+        label: version
+          ? `${text.updateAvailable} · v${version}`
+          : text.updateAvailable,
+        click: this.options.openUpdateWindow,
+      }
+    }
+    if (phase === 'downloading') {
+      const percent = this.normalizeProgressPercent(progress?.percent)
+      return {
+        label: `${text.updateDownloading} · ${percent}%`,
+        click: this.options.openUpdateWindow,
+      }
+    }
+    if (phase === 'downloaded') {
+      return {
+        label: text.updateDownloaded,
+        click: this.options.openUpdateWindow,
+      }
+    }
+    return null
+  }
+
+  private updateStatusSignature(status: typeof this.updateStatus) {
+    if (status.phase === 'available') {
+      return `${status.phase}:${status.available_version ?? ''}`
+    }
+    if (status.phase === 'downloading') {
+      return `${status.phase}:${this.normalizeProgressPercent(status.progress?.percent)}`
+    }
+    return status.phase
+  }
+
+  private normalizeProgressPercent(value: number | undefined) {
+    return typeof value === 'number' && Number.isFinite(value)
+      ? Math.round(Math.min(100, Math.max(0, value)))
+      : 0
   }
 
   private resolveIconPath() {

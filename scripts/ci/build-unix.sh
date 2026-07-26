@@ -18,23 +18,7 @@ resolve_existing_directory() {
 
 normalize_output_directory() {
   local target="$1"
-  local parent
-  local name
-  parent="$(dirname "$target")"
-  name="$(basename "$target")"
-  mkdir -p "$parent"
-  parent="$(cd "$parent" && pwd -P)"
-  printf '%s/%s\n' "$parent" "$name"
-}
-
-reset_directory() {
-  local target="$1"
-  if [[ -z "$target" || "$target" == "/" ]]; then
-    echo "拒绝清理不安全的目录: $target" >&2
-    return 1
-  fi
-  rm -rf -- "$target"
-  mkdir -p -- "$target"
+  node -e 'process.stdout.write(require("node:path").resolve(process.argv[1]))' "$target"
 }
 
 assert_child_directory() {
@@ -48,6 +32,44 @@ assert_child_directory() {
       return 1
       ;;
   esac
+}
+
+require_ordinary_directory() {
+  local target="$1"
+  local name="$2"
+  if [[ ! -d "$target" || -L "$target" ]]; then
+    echo "$name 不存在、不是普通目录或属于符号链接: $target" >&2
+    return 1
+  fi
+  local resolved
+  resolved="$(cd "$target" && pwd -P)"
+  local absolute
+  absolute="$(normalize_output_directory "$target")"
+  if [[ "$resolved" != "$absolute" ]]; then
+    echo "$name 不能包含符号链接或路径别名: $target" >&2
+    return 1
+  fi
+}
+
+prepare_core_output_directory() {
+  local build_root="$1"
+  local output_directory="$2"
+  require_ordinary_directory "$build_root" "Web 构建资源目录"
+  if [[ -e "$output_directory" || -L "$output_directory" ]]; then
+    require_ordinary_directory "$output_directory" "Core 输出目录"
+  else
+    mkdir -- "$output_directory"
+    require_ordinary_directory "$output_directory" "Core 输出目录"
+  fi
+  local binary_name
+  for binary_name in termous-core.exe termous-core; do
+    local binary_path="$output_directory/$binary_name"
+    if [[ -d "$binary_path" ]]; then
+      echo "Core 输出文件不能是目录: $binary_path" >&2
+      return 1
+    fi
+    rm -f -- "$binary_path"
+  done
 }
 
 run_step() {
@@ -72,6 +94,42 @@ run_step() {
   fi
 }
 
+clear_publish_credentials() {
+  local names=(
+    GH_TOKEN
+    GITHUB_TOKEN
+    GITHUB_RELEASE_TOKEN
+    GITLAB_TOKEN
+    BITBUCKET_TOKEN
+    KEYGEN_TOKEN
+    AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY
+    AWS_SESSION_TOKEN
+    AWS_PROFILE
+    DO_KEY
+    DO_SECRET_KEY
+    SNAPCRAFT_STORE_CREDENTIALS
+  )
+  local name
+  for name in "${names[@]}"; do
+    unset "$name"
+  done
+}
+
+resolve_build_phase() {
+  local phase="${TERMOUS_BUILD_PHASE:-all}"
+  phase="$(printf '%s' "$phase" | tr '[:upper:]' '[:lower:]')"
+  case "$phase" in
+    all|prepare|package)
+      printf '%s\n' "$phase"
+      ;;
+    *)
+      echo "TERMOUS_BUILD_PHASE 必须是 all、prepare 或 package: $phase" >&2
+      return 1
+      ;;
+  esac
+}
+
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 default_web_dir="$(cd "$script_dir/../.." && pwd -P)"
 web_dir="$(resolve_existing_directory "${TERMOUS_WEB_DIR:-}" "$default_web_dir" "TERMOUS_WEB_DIR")"
@@ -79,36 +137,25 @@ workspace_dir="$(dirname "$web_dir")"
 core_dir="$(resolve_existing_directory "${TERMOUS_CORE_DIR:-}" "$workspace_dir/backend" "TERMOUS_CORE_DIR")"
 target_os="${TERMOUS_TARGET_OS:-}"
 target_arch="${TERMOUS_ARCH:-}"
+build_phase="$(resolve_build_phase)"
 
 case "$target_os:$target_arch" in
   linux:x64)
     goos="linux"
     goarch="amd64"
     expected_native_arch="x86_64"
-    package_pattern="*.AppImage"
-    builder_platform="--linux"
-    builder_target="AppImage"
-    builder_arch="--x64"
     compiler="gcc"
     ;;
   darwin:x64)
     goos="darwin"
     goarch="amd64"
     expected_native_arch="x86_64"
-    package_pattern="*.dmg"
-    builder_platform="--mac"
-    builder_target="dmg"
-    builder_arch="--x64"
     compiler="clang"
     ;;
   darwin:arm64)
     goos="darwin"
     goarch="arm64"
     expected_native_arch="arm64"
-    package_pattern="*.dmg"
-    builder_platform="--mac"
-    builder_target="dmg"
-    builder_arch="--arm64"
     compiler="clang"
     ;;
   *)
@@ -122,7 +169,7 @@ if [[ "$native_arch" != "$expected_native_arch" ]]; then
   echo "当前 runner 架构为 $native_arch，目标 $target_os/$target_arch 需要 $expected_native_arch" >&2
   exit 1
 fi
-if ! command -v "$compiler" >/dev/null 2>&1; then
+if [[ "$build_phase" != "package" ]] && ! command -v "$compiler" >/dev/null 2>&1; then
   echo "未找到 $compiler，Termous Core 的 SQLite CGO 构建无法继续。" >&2
   exit 1
 fi
@@ -148,44 +195,54 @@ echo "webDir=$web_dir"
 echo "coreDir=$core_dir"
 echo "outputDir=$output_dir"
 echo "version=$version"
+echo "phase=$build_phase"
 
-reset_directory "$installer_dir"
-reset_directory "$core_output_dir"
-
-export CGO_ENABLED=1
-export GOOS="$goos"
-export GOARCH="$goarch"
-export CC="$compiler"
 export VITE_TERMOUS_APP_VERSION="$version"
+clear_publish_credentials
 
-run_step "Go tests" "$core_dir" go test ./...
-run_step "Build Termous Core" "$core_dir" go build \
-  -trimpath \
-  -ldflags "-s -w -X termous/backend/internal/buildinfo.Version=$version" \
-  -o "$core_binary" \
-  ./cmd/termous-core
+if [[ "$build_phase" == "all" || "$build_phase" == "prepare" ]]; then
+  prepare_core_output_directory "$web_dir/build" "$core_output_dir"
+  export CGO_ENABLED=1
+  export GOOS="$goos"
+  export GOARCH="$goarch"
+  export CC="$compiler"
 
-if [[ ! -x "$core_binary" ]]; then
-  echo "termous-core 未生成或不可执行: $core_binary" >&2
-  exit 1
+  run_step "Go tests" "$core_dir" go test ./...
+  run_step "Build Termous Core" "$core_dir" go build \
+    -trimpath \
+    -ldflags "-s -w -X termous/backend/internal/buildinfo.Version=$version" \
+    -o "$core_binary" \
+    ./cmd/termous-core
+
+  if [[ ! -x "$core_binary" ]]; then
+    echo "termous-core 未生成或不可执行: $core_binary" >&2
+    exit 1
+  fi
+
+  run_step "Install web dependencies" "$web_dir" pnpm install --frozen-lockfile
+  run_step "Typecheck web" "$web_dir" pnpm run typecheck
+  run_step "Build Vite bundles" "$web_dir" pnpm run build:renderer
 fi
 
-run_step "Install web dependencies" "$web_dir" pnpm install --frozen-lockfile
-run_step "Typecheck web" "$web_dir" pnpm exec tsc --noEmit
-run_step "Build Vite bundles" "$web_dir" pnpm exec vite build
-run_step "Build $target_os package" "$web_dir" pnpm exec electron-builder \
-  "$builder_platform" \
-  "$builder_target" \
-  "$builder_arch" \
-  --config electron-builder.json5 \
-  "--config.directories.output=$installer_dir" \
-  "--config.extraMetadata.version=$version" \
-  --publish never
+if [[ "$build_phase" == "all" || "$build_phase" == "package" ]]; then
+  if [[ ! -x "$core_binary" ]]; then
+    echo "打包前缺少 termous-core，请先执行 prepare 阶段: $core_binary" >&2
+    exit 1
+  fi
+  for bundle_directory in dist dist-electron; do
+    if [[ ! -d "$web_dir/$bundle_directory" ]]; then
+      echo "打包前缺少 $bundle_directory，请先执行 prepare 阶段: $web_dir/$bundle_directory" >&2
+      exit 1
+    fi
+  done
 
-if ! find "$installer_dir" -maxdepth 1 -type f -name "$package_pattern" -print -quit | grep -q .; then
-  echo "未生成目标安装包 $package_pattern: $installer_dir" >&2
-  exit 1
+  run_step "Build $target_os package" "$web_dir" node \
+    scripts/ci/build-local-package.mjs \
+    --output "$installer_dir" \
+    --platform "$target_os" \
+    --arch "$target_arch" \
+    --version "$version"
+
+  echo "Generated artifacts:"
+  find "$installer_dir" -maxdepth 1 -type f -print | sort
 fi
-
-echo "Generated artifacts:"
-find "$installer_dir" -maxdepth 1 -type f -print | sort

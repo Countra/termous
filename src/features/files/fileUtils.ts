@@ -1,4 +1,8 @@
 import type { RemoteFileEntry, TransferStatus, TransferTask } from '../../types/domain'
+import {
+  normalizeRemotePosixPath,
+  requireRemotePosixPath,
+} from '../../shared/remotePosixPath.ts'
 
 export function parentPath(path: string) {
   const cleaned = normalizeRemotePath(path)
@@ -12,24 +16,12 @@ export function parentPath(path: string) {
 
 export function joinPath(base: string, name: string) {
   const left = normalizeRemotePath(base)
-  const right = name.replace(/\\/g, '/').replace(/^\/+/, '')
+  const right = name.replace(/^\/+/, '')
   return normalizeRemotePath(`${left === '/' ? '' : left}/${right}`)
 }
 
 export function normalizeRemotePath(value: string) {
-  const segments: string[] = []
-  for (const segment of value.replace(/\\/g, '/').split('/')) {
-    const clean = segment.trim()
-    if (!clean || clean === '.') {
-      continue
-    }
-    if (clean === '..') {
-      segments.pop()
-      continue
-    }
-    segments.push(clean)
-  }
-  return segments.length ? `/${segments.join('/')}` : '/'
+  return requireRemotePosixPath(value)
 }
 
 export function pathBase(path: string) {
@@ -37,7 +29,57 @@ export function pathBase(path: string) {
   if (cleaned === '/') {
     return '/'
   }
-  return cleaned.split('/').filter(Boolean).at(-1) ?? cleaned
+  const segments = cleaned.split('/').filter(Boolean)
+  return segments[segments.length - 1] ?? cleaned
+}
+
+export function transferDisplayName(task: TransferTask) {
+  const currentFile = safeTransferLabel(task.current_file)
+  if (currentFile) {
+    return currentFile
+  }
+
+  const firstSource = task.source_paths.find((value) => safeTransferLabel(value) !== null)
+  if (task.type.startsWith('upload')) {
+    return safeTransferLabel(firstSource) ?? '-'
+  }
+  return safeRemotePathBase(firstSource) ?? safeRemotePathBase(task.target_path) ?? '-'
+}
+
+function safeTransferLabel(value?: string) {
+  if (
+    !value
+    || value.trim().length === 0
+    || hasControlCharacter(value)
+  ) {
+    return null
+  }
+  return value
+}
+
+function hasControlCharacter(value: string) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) {
+      return true
+    }
+  }
+  return false
+}
+
+function safeRemotePathBase(value?: string) {
+  if (!value) {
+    return null
+  }
+  const normalized = normalizeRemotePosixPath(value)
+  if (normalized === null) {
+    return null
+  }
+  if (normalized === '/') {
+    return '/'
+  }
+  const segments = normalized.split('/').filter(Boolean)
+  return segments[segments.length - 1] ?? null
 }
 
 export function formatBytes(value: number) {
@@ -66,15 +108,22 @@ export function formatDate(value?: string) {
 }
 
 export function formatSeconds(value?: number) {
-  if (!value || value <= 0) {
+  if (!Number.isFinite(value) || !value || value <= 0) {
     return '-'
   }
-  if (value < 60) {
-    return `${Math.ceil(value)}s`
+
+  const totalSeconds = Math.ceil(value)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`
   }
-  const minutes = Math.floor(value / 60)
-  const seconds = Math.ceil(value % 60)
-  return `${minutes}m ${seconds}s`
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`
+  }
+  return `${seconds}s`
 }
 
 export function fileSortValue(file: RemoteFileEntry) {
