@@ -93,6 +93,7 @@ test("Workflow、Job 与 checkout 保持最小权限", async () => {
     "build",
     "merge-macos-manifest",
     "verify-release",
+    "verify-final-release",
     "publish",
   ]);
   assert.deepEqual(workflow.permissions, { contents: "read" });
@@ -214,7 +215,8 @@ test("发布构建固定禁用代码签名且不读取签名 Secrets", async () 
 });
 
 test("Draft 必须经过合并、双阶段校验和清理后才能公开", async () => {
-  const { workflow } = await loadWorkflow();
+  const { source, workflow } = await loadWorkflow();
+  assert.equal(source.includes("/releases/tags/"), false);
   assert.deepEqual(workflow.jobs["merge-macos-manifest"].needs, [
     "prepare-release",
     "build",
@@ -269,6 +271,8 @@ test("Draft 必须经过合并、双阶段校验和清理后才能公开", async
     ({ name }) => name === "Download Draft evidence",
   );
   assert.equal(receiptDownload.env.GH_TOKEN, "${{ github.token }}");
+  assert.match(receiptDownload.run, /release-json/u);
+  assert.match(receiptDownload.run, /release\.receipts\.json/u);
   assert.ok(verifyNames.includes("Verify manifests, receipts and digests"));
   assert.ok(
     verifyNames.indexOf("Verify manifests, receipts and digests") <
@@ -328,6 +332,7 @@ test("Draft 必须经过合并、双阶段校验和清理后才能公开", async
   assert.match(publishStep.run, /git\/ref\/tags\/\$TAG/u);
   assert.match(publishStep.run, /EXPECTED_COMMIT/u);
   assert.match(publishStep.run, /EXPECTED_FINGERPRINT/u);
+  assert.match(publishStep.run, /release-json/u);
   assert.match(
     publishStep.run,
     /current_snapshot[\s\S]*printf '%s' "\$current_snapshot"[\s\S]*sha256sum/u,

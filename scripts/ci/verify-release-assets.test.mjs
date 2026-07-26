@@ -11,7 +11,10 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { loadReleaseVerificationSource } from "./release-asset-source.mjs";
+import {
+  fetchGithubReleaseByTag,
+  loadReleaseVerificationSource,
+} from "./release-asset-source.mjs";
 import {
   createReleaseContentFingerprint,
   createReleaseSnapshotFingerprint,
@@ -394,6 +397,104 @@ test("离线 source 不访问网络，并接受 gh api Release JSON", async (t) 
   await source.cleanup();
 });
 
+test("GitHub source 通过 Releases 列表定位 Draft 并支持分页", async (t) => {
+  const tokenName = "TERMOUS_RELEASE_LIST_TEST_TOKEN";
+  const previousToken = process.env[tokenName];
+  process.env[tokenName] = "fixture-token";
+  t.after(() => {
+    if (previousToken === undefined) {
+      delete process.env[tokenName];
+    } else {
+      process.env[tokenName] = previousToken;
+    }
+  });
+
+  const requests = [];
+  const release = {
+    assets: [],
+    draft: true,
+    tag_name: TAG,
+  };
+  const result = await fetchGithubReleaseByTag(
+    {
+      githubRepository: "Countra/termous",
+      githubTag: TAG,
+      tokenEnvironment: tokenName,
+    },
+    {
+      fetchImpl: async (url, init) => {
+        requests.push({ init, url });
+        const page = Number(url.searchParams.get("page"));
+        return {
+          ok: true,
+          status: 200,
+          json: async () =>
+            page === 1
+              ? Array.from({ length: 100 }, (_, index) => ({
+                  assets: [],
+                  draft: false,
+                  tag_name: `v0.0.${index}`,
+                }))
+              : [release],
+        };
+      },
+    },
+  );
+  assert.equal(result, release);
+  assert.equal(requests.length, 2);
+  for (const { init, url } of requests) {
+    assert.equal(url.pathname, "/repos/Countra/termous/releases");
+    assert.equal(url.searchParams.get("per_page"), "100");
+    assert.equal(url.pathname.includes("/releases/tags/"), false);
+    assert.equal(init.headers.Authorization, "Bearer fixture-token");
+    assert.equal(init.redirect, "error");
+  }
+});
+
+test("GitHub source 分页结束后明确拒绝不存在的 Tag", async (t) => {
+  const tokenName = "TERMOUS_RELEASE_NOT_FOUND_TEST_TOKEN";
+  const previousToken = process.env[tokenName];
+  process.env[tokenName] = "fixture-token";
+  t.after(() => {
+    if (previousToken === undefined) {
+      delete process.env[tokenName];
+    } else {
+      process.env[tokenName] = previousToken;
+    }
+  });
+
+  const requestedPages = [];
+  await assert.rejects(
+    fetchGithubReleaseByTag(
+      {
+        githubRepository: "Countra/termous",
+        githubTag: TAG,
+        tokenEnvironment: tokenName,
+      },
+      {
+        fetchImpl: async (url) => {
+          const page = Number(url.searchParams.get("page"));
+          requestedPages.push(page);
+          return {
+            ok: true,
+            status: 200,
+            json: async () =>
+              page === 1
+                ? Array.from({ length: 100 }, (_, index) => ({
+                    assets: [],
+                    draft: false,
+                    tag_name: `v0.0.${index}`,
+                  }))
+                : [],
+          };
+        },
+      },
+    ),
+    /GitHub Releases 中未找到 Tag/u,
+  );
+  assert.deepEqual(requestedPages, [1, 2]);
+});
+
 test("GitHub source 拒绝跨仓库 Release Asset API URL", async (t) => {
   const { assetsDirectory } = await createTemporaryRoot(t);
   const tokenName = "TERMOUS_RELEASE_TEST_TOKEN";
@@ -421,14 +522,18 @@ test("GitHub source 拒绝跨仓库 Release Asset API URL", async (t) => {
           fetchCalls += 1;
           return {
             ok: true,
-            json: async () => ({
-              assets: [
-                {
-                  name: `Termous-${VERSION}-linux-x64.AppImage`,
-                  url: "https://api.github.com/repos/other/repository/releases/assets/1",
-                },
-              ],
-            }),
+            json: async () => [
+              {
+                assets: [
+                  {
+                    name: `Termous-${VERSION}-linux-x64.AppImage`,
+                    url: "https://api.github.com/repos/other/repository/releases/assets/1",
+                  },
+                ],
+                draft: true,
+                tag_name: TAG,
+              },
+            ],
           };
         },
       },

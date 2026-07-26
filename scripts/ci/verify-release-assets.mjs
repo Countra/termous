@@ -3,7 +3,10 @@ import { rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { loadReleaseVerificationSource } from "./release-asset-source.mjs";
+import {
+  fetchGithubReleaseByTag,
+  loadReleaseVerificationSource,
+} from "./release-asset-source.mjs";
 import { verifyReleaseAssets } from "./release-assets-verifier.mjs";
 import {
   createAssetReceipt,
@@ -12,8 +15,12 @@ import {
 
 function parseArguments(argv) {
   const command = argv[0];
-  if (command !== "receipt" && command !== "verify") {
-    throw new Error("第一个参数必须是 receipt 或 verify");
+  if (
+    command !== "receipt" &&
+    command !== "release-json" &&
+    command !== "verify"
+  ) {
+    throw new Error("第一个参数必须是 receipt、release-json 或 verify");
   }
   const values = new Map();
   for (let index = 1; index < argv.length; index += 2) {
@@ -126,10 +133,35 @@ async function runVerify(values) {
   }
 }
 
+async function runReleaseJson(values) {
+  const tag = takeRequired(values, "--tag");
+  const githubRepository = takeRequired(values, "--github-repository");
+  const tokenEnvironment = takeRequired(values, "--token-env");
+  const outputPath = takeRequired(values, "--output");
+  assertNoUnknownArguments(values);
+  const release = await fetchGithubReleaseByTag({
+    githubRepository,
+    githubTag: tag,
+    tokenEnvironment,
+  });
+  await writeAtomic(outputPath, `${JSON.stringify(release, null, 2)}\n`);
+  console.log(
+    JSON.stringify({
+      draft: release.draft,
+      output: path.resolve(outputPath),
+      tag: release.tag_name,
+    }),
+  );
+}
+
 async function main(argv) {
   const { command, values } = parseArguments(argv);
   if (command === "receipt") {
     await runReceipt(values);
+    return;
+  }
+  if (command === "release-json") {
+    await runReleaseJson(values);
     return;
   }
   await runVerify(values);

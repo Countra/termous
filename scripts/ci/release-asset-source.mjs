@@ -72,11 +72,88 @@ function githubHeaders(token, accept = "application/vnd.github+json") {
   };
 }
 
+const RELEASES_PER_PAGE = 100;
+const MAX_RELEASE_PAGES = 10;
+
 async function requireSuccessfulResponse(response, label) {
   if (!response?.ok) {
     throw new Error(`${label}失败，HTTP 状态: ${String(response?.status)}`);
   }
   return response;
+}
+
+async function fetchGithubRelease({
+  fetchImpl,
+  repository,
+  tag,
+  token,
+}) {
+  for (let page = 1; page <= MAX_RELEASE_PAGES; page += 1) {
+    const endpoint = new URL(
+      `https://api.github.com/repos/${repository}/releases`,
+    );
+    endpoint.searchParams.set("per_page", String(RELEASES_PER_PAGE));
+    endpoint.searchParams.set("page", String(page));
+    const response = await requireSuccessfulResponse(
+      await fetchImpl(endpoint, {
+        headers: githubHeaders(token),
+        redirect: "error",
+      }),
+      "读取 GitHub Releases",
+    );
+    const releases = await response.json();
+    if (!Array.isArray(releases)) {
+      throw new Error("GitHub Releases API 响应必须是数组");
+    }
+    const matches = releases.filter(
+      (release) =>
+        release !== null &&
+        typeof release === "object" &&
+        !Array.isArray(release) &&
+        release.tag_name === tag,
+    );
+    if (matches.length > 1) {
+      throw new Error(`GitHub Releases 中存在重复 Tag: ${tag}`);
+    }
+    if (matches.length === 1) {
+      return requireRecord(matches[0], "GitHub Release API 响应");
+    }
+    if (releases.length < RELEASES_PER_PAGE) {
+      break;
+    }
+  }
+  throw new Error(`GitHub Releases 中未找到 Tag: ${tag}`);
+}
+
+function resolveGithubAccess({
+  githubRepository,
+  githubTag,
+  tokenEnvironment,
+}) {
+  const repository = requireGithubRepository(githubRepository);
+  const tag = requireGithubTag(githubTag);
+  if (
+    typeof tokenEnvironment !== "string" ||
+    !/^[A-Z_][A-Z0-9_]*$/.test(tokenEnvironment)
+  ) {
+    throw new Error("GitHub 模式必须通过 --token-env 显式指定 Token 环境变量名");
+  }
+  const token = process.env[tokenEnvironment];
+  if (!token) {
+    throw new Error(`环境变量 ${tokenEnvironment} 未提供 GitHub Token`);
+  }
+  return { repository, tag, token };
+}
+
+export async function fetchGithubReleaseByTag(
+  options,
+  { fetchImpl = globalThis.fetch } = {},
+) {
+  if (typeof fetchImpl !== "function") {
+    throw new Error("当前 Node.js 环境不支持 fetch");
+  }
+  const access = resolveGithubAccess(options);
+  return fetchGithubRelease({ ...access, fetchImpl });
 }
 
 async function downloadGithubAsset({
@@ -154,32 +231,17 @@ async function loadGithubSource(
   },
   fetchImpl,
 ) {
-  const repository = requireGithubRepository(githubRepository);
-  const tag = requireGithubTag(githubTag);
-  if (
-    typeof tokenEnvironment !== "string" ||
-    !/^[A-Z_][A-Z0-9_]*$/.test(tokenEnvironment)
-  ) {
-    throw new Error("GitHub 模式必须通过 --token-env 显式指定 Token 环境变量名");
-  }
-  const token = process.env[tokenEnvironment];
-  if (!token) {
-    throw new Error(`环境变量 ${tokenEnvironment} 未提供 GitHub Token`);
-  }
-  const endpoint = new URL(
-    `https://api.github.com/repos/${repository}/releases/tags/${encodeURIComponent(tag)}`,
-  );
-  const response = await requireSuccessfulResponse(
-    await fetchImpl(endpoint, {
-      headers: githubHeaders(token),
-      redirect: "error",
-    }),
-    "读取 GitHub Release",
-  );
-  const release = requireRecord(
-    await response.json(),
-    "GitHub Release API 响应",
-  );
+  const { repository, tag, token } = resolveGithubAccess({
+    githubRepository,
+    githubTag,
+    tokenEnvironment,
+  });
+  const release = await fetchGithubRelease({
+    fetchImpl,
+    repository,
+    tag,
+    token,
+  });
   if (!Array.isArray(release.assets)) {
     throw new Error("GitHub Release API 响应缺少 assets");
   }
