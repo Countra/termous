@@ -29,6 +29,7 @@ test('配置固定安全默认值且不覆盖生产更新源', () => {
   assert.equal(updater.allowPrerelease, false)
   assert.equal(updater.allowDowngrade, false)
   assert.equal(updater.disableWebInstaller, true)
+  assert.equal(updater.disableDifferentialDownload, true)
   assert.equal(updater.logger, null)
   assert.equal(updater.setFeedURLCalls, 0)
 })
@@ -609,6 +610,7 @@ class FakeUpdater extends EventEmitter {
   allowPrerelease = true
   allowDowngrade = true
   disableWebInstaller = false
+  disableDifferentialDownload = false
   setFeedURLCalls = 0
   checkResult: ElectronUpdaterCheckResult | null = {
     isUpdateAvailable: false,

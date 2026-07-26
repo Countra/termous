@@ -97,7 +97,7 @@ test('较新状态不能用较低 revision 偏好覆盖当前选择', () => {
   assert.equal(merged.preferences.automatic_download, true)
 })
 
-test('同一下载 generation 的进度不回退，新 generation 可重新开始', () => {
+test('更高状态序号使用主进程权威进度，新 generation 可重新开始', () => {
   const current = snapshot({
     state_seq: 3,
     operation_generation: 7,
@@ -121,9 +121,9 @@ test('同一下载 generation 的进度不回退，新 generation 可重新开�
     },
   }))
   assert.deepEqual(regressed.progress, {
-    percent: 60,
-    transferred: 60,
-    total: 100,
+    percent: 20,
+    transferred: 20,
+    total: 80,
     bytes_per_second: 4,
   })
 

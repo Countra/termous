@@ -120,7 +120,7 @@ test('启动快照和状态事件分别按各自序号合并', () => {
   assert.equal(merged.snapshot.progress?.percent, 60)
 })
 
-test('同 generation 下载进度不回退而新 generation 允许重新开始', () => {
+test('同 generation 使用主进程权威进度而新 generation 允许重新开始', () => {
   const current = snapshot({
     state_seq: 3,
     operation_generation: 7,
@@ -142,9 +142,9 @@ test('同 generation 下载进度不回退而新 generation 允许重新开始',
     },
   }))
   assert.deepEqual(regressed.progress, {
-    percent: 60,
-    transferred: 60,
-    total: 100,
+    percent: 20,
+    transferred: 20,
+    total: 80,
     bytes_per_second: 4,
   })
 

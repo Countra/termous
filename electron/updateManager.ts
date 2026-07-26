@@ -567,12 +567,34 @@ function normalizeProgress(
     total: 0,
     bytes_per_second: 0,
   }
-  const transferred = Math.max(prior.transferred, finiteNonNegative(raw.transferred))
-  const total = Math.max(prior.total, finiteNonNegative(raw.total), transferred)
-  const reportedPercent = clampPercent(raw.percent)
-  const calculatedPercent = total > 0 ? (transferred / total) * 100 : 0
+  const incomingTransferred = finiteNonNegative(raw.transferred)
+  const incomingTotal = Math.max(finiteNonNegative(raw.total), incomingTransferred)
+  const incomingPercent = incomingTotal > 0
+    ? clampPercent((incomingTransferred / incomingTotal) * 100)
+    : clampPercent(raw.percent)
+  const streamRestarted = (
+    prior.total > 0
+    && incomingTotal > 0
+    && (
+      incomingTotal > prior.total
+      || (
+        incomingTransferred < prior.transferred
+        && prior.percent >= 99
+        && incomingPercent < prior.percent
+      )
+    )
+  )
+  const transferred = streamRestarted
+    ? incomingTransferred
+    : Math.max(prior.transferred, incomingTransferred)
+  const total = streamRestarted
+    ? incomingTotal
+    : Math.max(prior.total, incomingTotal, transferred)
+  const percent = total > 0
+    ? Math.min(99, clampPercent((transferred / total) * 100))
+    : Math.min(99, Math.max(clampPercent(prior.percent), incomingPercent))
   return {
-    percent: Math.max(prior.percent, reportedPercent, clampPercent(calculatedPercent)),
+    percent,
     transferred,
     total,
     bytes_per_second: finiteNonNegative(raw.bytes_per_second),

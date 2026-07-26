@@ -235,10 +235,6 @@
   padding: 9px 11px;
 }
 
-.update-window-install-warning.ant-alert {
-  margin-left: 50px;
-}
-
 .update-window-install-warning .ant-alert-icon {
   color: var(--warning);
 }

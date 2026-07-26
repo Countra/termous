@@ -95,6 +95,7 @@ export interface ElectronUpdaterAdapter {
   allowPrerelease: boolean
   allowDowngrade: boolean
   disableWebInstaller: boolean
+  disableDifferentialDownload: boolean
   checkForUpdates: () => Promise<ElectronUpdaterCheckResult | null>
   downloadUpdate: (cancellationToken?: CancellationToken) => Promise<readonly string[]>
   quitAndInstall: (isSilent?: boolean, isForceRunAfter?: boolean) => void
@@ -194,6 +195,7 @@ export function createElectronUpdaterEngine(
   updater.allowPrerelease = isPrereleaseVersion(currentVersion)
   updater.allowDowngrade = false
   updater.disableWebInstaller = true
+  updater.disableDifferentialDownload = true
   updater.logger = null
 
   return {

@@ -69,19 +69,7 @@ export function mergeUpdateWindowSnapshot(
   ) {
     return current
   }
-  if (
-    incoming.operation_generation !== current.operation_generation
-    || !incoming.progress
-    || !current.progress
-    || (incoming.phase !== 'downloading' && incoming.phase !== 'downloaded')
-  ) {
-    return cloneSnapshot(incoming)
-  }
-  return {
-    ...incoming,
-    progress: mergeMonotonicProgress(current.progress, incoming.progress),
-    preferences: { ...incoming.preferences },
-  }
+  return cloneSnapshot(incoming)
 }
 
 export function resolveUpdateWindowPrimaryAction(
@@ -256,32 +244,6 @@ export function formatUpdateDuration(
     minutes > 0 ? `${minutes}m` : '',
     hours === 0 && remainder > 0 ? `${remainder}s` : '',
   ].filter(Boolean).join(' ') || '0s'
-}
-
-function mergeMonotonicProgress(
-  current: UpdateProgress,
-  incoming: UpdateProgress,
-): UpdateProgress {
-  const transferred = Math.max(
-    finiteNonNegative(current.transferred),
-    finiteNonNegative(incoming.transferred),
-  )
-  const total = Math.max(
-    finiteNonNegative(current.total),
-    finiteNonNegative(incoming.total),
-    transferred,
-  )
-  const calculatedPercent = total > 0 ? (transferred / total) * 100 : 0
-  return {
-    percent: Math.min(100, Math.max(
-      finiteNonNegative(current.percent),
-      finiteNonNegative(incoming.percent),
-      calculatedPercent,
-    )),
-    transferred,
-    total,
-    bytes_per_second: finiteNonNegative(incoming.bytes_per_second),
-  }
 }
 
 function cloneSnapshot(snapshot: UpdateSnapshot): UpdateSnapshot {

@@ -56,14 +56,10 @@ export function mergeUpdateRuntimeSnapshot(
     }
   }
 
-  const progress = shouldMergeProgress(current, incoming)
-    ? mergeMonotonicProgress(current.progress!, incoming.progress!)
-    : cloneProgress(incoming.progress)
-
   return {
     ...incoming,
     preferences,
-    progress,
+    progress: cloneProgress(incoming.progress),
   }
 }
 
@@ -128,44 +124,6 @@ export function resolveGlobalUpdateStatus(
     }
   }
   return null
-}
-
-function shouldMergeProgress(
-  current: UpdateSnapshot,
-  incoming: UpdateSnapshot,
-) {
-  return (
-    current.operation_generation === incoming.operation_generation
-    && Boolean(current.progress)
-    && Boolean(incoming.progress)
-    && (incoming.phase === 'downloading' || incoming.phase === 'downloaded')
-  )
-}
-
-function mergeMonotonicProgress(
-  current: UpdateProgress,
-  incoming: UpdateProgress,
-): UpdateProgress {
-  const transferred = Math.max(
-    finiteNonNegative(current.transferred),
-    finiteNonNegative(incoming.transferred),
-  )
-  const total = Math.max(
-    finiteNonNegative(current.total),
-    finiteNonNegative(incoming.total),
-    transferred,
-  )
-  const calculatedPercent = total > 0 ? (transferred / total) * 100 : 0
-  return {
-    percent: Math.min(100, Math.max(
-      finiteNonNegative(current.percent),
-      finiteNonNegative(incoming.percent),
-      calculatedPercent,
-    )),
-    transferred,
-    total,
-    bytes_per_second: finiteNonNegative(incoming.bytes_per_second),
-  }
 }
 
 function cloneSnapshot(snapshot: UpdateSnapshot): UpdateSnapshot {

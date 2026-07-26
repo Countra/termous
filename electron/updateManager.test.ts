@@ -121,6 +121,51 @@ test('同一下载 generation 内的进度单调且非法数值被归一化', as
   await downloading
 })
 
+test('差分下载回退完整包后按新字节基线展示真实进度', async () => {
+  const fixture = createEngineFixture()
+  const manager = new UpdateManager({
+    engine: fixture.engine,
+    installLifecycle: createInstallLifecycle().lifecycle,
+  })
+  const checkDeferred = fixture.nextCheck()
+  const checked = manager.check()
+  checkDeferred.resolve(availableResult)
+  await checked
+
+  const downloadDeferred = fixture.nextDownload()
+  const downloading = manager.download()
+  const context = fixture.downloadContexts[0]
+  context.onProgress({
+    percent: 100,
+    transferred: 50,
+    total: 50,
+    bytes_per_second: 8,
+  })
+  assert.equal(manager.getSnapshot().progress?.percent, 99)
+
+  context.onProgress({
+    percent: 42,
+    transferred: 54,
+    total: 130,
+    bytes_per_second: 12,
+  })
+  assert.deepEqual(manager.getSnapshot().progress, {
+    percent: (54 / 130) * 100,
+    transferred: 54,
+    total: 130,
+    bytes_per_second: 12,
+  })
+
+  downloadDeferred.resolve()
+  const downloaded = await downloading
+  assert.deepEqual(downloaded.progress, {
+    percent: 100,
+    transferred: 130,
+    total: 130,
+    bytes_per_second: 0,
+  })
+})
+
 test('取消后旧 generation 的迟到进度和完成不会覆盖新下载', async () => {
   const fixture = createEngineFixture()
   const manager = new UpdateManager({
