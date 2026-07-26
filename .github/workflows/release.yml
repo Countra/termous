@@ -138,7 +138,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment: release
     permissions:
-      contents: read
+      contents: write
     outputs:
       core_sha: ${{ needs.metadata.outputs.core_sha }}
       prerelease: ${{ needs.metadata.outputs.prerelease }}
@@ -163,20 +163,10 @@ jobs:
           TERMOUS_VERSION: ${{ needs.metadata.outputs.version }}
         run: ./web/scripts/ci/extract-changelog.ps1
 
-      - name: Issue Draft Release token
-        id: release-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-
       - name: Create or update Draft Release
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_NOTES: ${{ github.workspace }}/build/release-notes.md
           PRERELEASE: ${{ needs.metadata.outputs.prerelease }}
           TAG: ${{ needs.metadata.outputs.tag }}
@@ -209,7 +199,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     environment: release
     permissions:
-      contents: read
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -493,21 +483,11 @@ jobs:
               --release-date "$RELEASE_DATE"
           fi
 
-      - name: Issue asset upload token
-        id: release-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-
       - name: Upload Windows Draft assets
         if: matrix.platform == 'windows'
         shell: pwsh
         env:
-          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           $root = Join-Path $env:TERMOUS_OUTPUT_DIR "installer"
           $exe = "Termous-$env:TERMOUS_VERSION-windows-x64-setup.exe"
@@ -525,7 +505,7 @@ jobs:
         if: matrix.platform != 'windows'
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           assert_draft() {
             local draft
@@ -560,7 +540,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment: release
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout Termous
@@ -610,20 +590,10 @@ jobs:
             --output build/macos-manifests/latest-mac.yml \
             --version "$VERSION" --release-date "$RELEASE_DATE"
 
-      - name: Issue manifest merge token
-        id: release-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-
       - name: Replace partial manifests with canonical asset
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prepare-release.outputs.tag }}
         run: |
           assert_draft() {
@@ -654,7 +624,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment: release
     permissions:
-      contents: read
+      contents: write
     outputs:
       content_fingerprint: ${{ steps.trusted-assets.outputs.content_fingerprint }}
 
@@ -715,20 +685,10 @@ jobs:
           }
           echo "content_fingerprint=$content_fingerprint" >> "$GITHUB_OUTPUT"
 
-      - name: Issue receipt cleanup token
-        id: release-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-
       - name: Delete temporary receipts
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prepare-release.outputs.tag }}
         run: |
           mapfile -t receipts < <(
@@ -809,7 +769,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment: release
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout pinned Termous
@@ -862,20 +822,10 @@ jobs:
           }
           echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
 
-      - name: Issue release publish token
-        id: release-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-
       - name: Publish verified Draft Release
         shell: bash
         env:
-          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           EXPECTED_COMMIT: ${{ needs.prepare-release.outputs.termous_sha }}
           EXPECTED_FINGERPRINT: ${{ steps.final-verification.outputs.fingerprint }}
           TAG: ${{ needs.prepare-release.outputs.tag }}

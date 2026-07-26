@@ -29,26 +29,22 @@ function stepsFor(workflow, jobName) {
   return steps;
 }
 
-function assertWriteTokenTail(workflow, jobName, tokenName, tailNames) {
-  const steps = stepsFor(workflow, jobName);
-  const tokenIndex = steps.findIndex(({ name }) => name === tokenName);
-  assert.ok(tokenIndex >= 0, `${jobName} 缺少写 Token 步骤`);
-  assert.deepEqual(
-    steps.slice(tokenIndex + 1).map(({ name }) => name),
-    tailNames,
-    `${jobName} 的写 Token 后只能执行固定 GitHub 写步骤`,
-  );
-  for (const step of steps.slice(tokenIndex + 1)) {
-    assert.equal(typeof step.uses, "undefined");
-  }
+function assertBuiltinTokenStep(workflow, jobName, stepName) {
+  const step = stepsFor(workflow, jobName).find(({ name }) => name === stepName);
+  assert.ok(step, `${jobName} 缺少 ${stepName}`);
+  assert.equal(step.env?.GH_TOKEN, "${{ github.token }}");
+  assert.equal(typeof step.uses, "undefined");
 }
 
-test("Release workflow 不使用 Artifact Storage 或持久发布凭据", async () => {
+test("Release workflow 不使用 Artifact Storage 或外部发布凭据", async () => {
   const { source } = await loadWorkflow();
   for (const forbidden of [
     "actions/upload-artifact",
     "actions/download-artifact",
+    "actions/create-github-app-token",
     "softprops/action-gh-release",
+    "RELEASE_APP_ID",
+    "RELEASE_APP_PRIVATE_KEY",
     "GITHUB_ENV",
   ]) {
     assert.equal(source.includes(forbidden), false, `禁止出现 ${forbidden}`);
@@ -88,9 +84,20 @@ test("全部 Actions 固定完整 SHA 并标注版本", async () => {
 
 test("Workflow、Job 与 checkout 保持最小权限", async () => {
   const { workflow } = await loadWorkflow();
+  const writeJobs = new Set([
+    "prepare-release",
+    "build",
+    "merge-macos-manifest",
+    "verify-release",
+    "publish",
+  ]);
   assert.deepEqual(workflow.permissions, { contents: "read" });
   for (const [jobName, job] of Object.entries(workflow.jobs)) {
-    assert.deepEqual(job.permissions, { contents: "read" }, `${jobName} 权限过宽`);
+    assert.deepEqual(
+      job.permissions,
+      { contents: writeJobs.has(jobName) ? "write" : "read" },
+      `${jobName} 权限与 Release 操作不匹配`,
+    );
     for (const step of job.steps ?? []) {
       if (typeof step.uses === "string" && step.uses.startsWith("actions/checkout@")) {
         assert.equal(
@@ -145,16 +152,24 @@ test("Metadata 在环境审批前固定标签与两个仓库提交", async () =>
   });
 });
 
-test("构建完成后才签发短时资产上传 Token", async () => {
+test("平台构建完成后才使用内置 Token 上传 Draft 资产", async () => {
   const { workflow } = await loadWorkflow();
   const steps = stepsFor(workflow, "build");
-  const tokenIndex = steps.findIndex(({ name }) => name === "Issue asset upload token");
-  assert.ok(tokenIndex > steps.findIndex(({ name }) => name === "Create Unix asset receipts"));
-  assert.ok(tokenIndex > steps.findIndex(({ name }) => name === "Package and verify macOS signatures"));
-  assertWriteTokenTail(workflow, "build", "Issue asset upload token", [
+  const names = steps.map(({ name }) => name);
+  assert.deepEqual(names.slice(-2), [
     "Upload Windows Draft assets",
     "Upload Unix Draft assets",
   ]);
+  assert.ok(
+    names.indexOf("Create Unix asset receipts") <
+      names.indexOf("Upload Unix Draft assets"),
+  );
+  assert.ok(
+    names.indexOf("Package and verify macOS signatures") <
+      names.indexOf("Upload Unix Draft assets"),
+  );
+  assertBuiltinTokenStep(workflow, "build", "Upload Windows Draft assets");
+  assertBuiltinTokenStep(workflow, "build", "Upload Unix Draft assets");
 });
 
 test("签名与发布 Secrets 仅存在于对应步骤", async () => {
@@ -178,15 +193,8 @@ test("签名与发布 Secrets 仅存在于对应步骤", async () => {
       if (/CSC_|APPLE_API_/u.test(serialized)) {
         assert.match(step.name, /^Package and verify /u);
       }
-      if (/RELEASE_APP_/u.test(serialized)) {
-        assert.match(step.name, /^Issue /u);
-        assert.match(step.uses, /^actions\/create-github-app-token@[a-f0-9]{40}$/u);
-      }
       if (step.env?.GH_TOKEN !== undefined) {
-        assert.match(
-          String(step.env.GH_TOKEN),
-          /\$\{\{ (?:github\.token|steps\.release-token\.outputs\.token) \}\}/u,
-        );
+        assert.equal(step.env.GH_TOKEN, "${{ github.token }}");
       }
     }
   }
@@ -260,13 +268,13 @@ test("Draft 必须经过合并、双阶段校验和清理后才能公开", async
   );
   assert.ok(
     mergeNames.indexOf("Merge canonical macOS manifest") <
-      mergeNames.indexOf("Issue manifest merge token"),
+      mergeNames.indexOf("Replace partial manifests with canonical asset"),
   );
-  assertWriteTokenTail(
+  assert.equal(mergeNames.at(-1), "Replace partial manifests with canonical asset");
+  assertBuiltinTokenStep(
     workflow,
     "merge-macos-manifest",
-    "Issue manifest merge token",
-    ["Replace partial manifests with canonical asset"],
+    "Replace partial manifests with canonical asset",
   );
 
   const verifyNames = stepsFor(workflow, "verify-release").map(({ name }) => name);
@@ -277,11 +285,10 @@ test("Draft 必须经过合并、双阶段校验和清理后才能公开", async
   assert.ok(verifyNames.includes("Verify manifests, receipts, digests and signatures"));
   assert.ok(
     verifyNames.indexOf("Verify manifests, receipts, digests and signatures") <
-      verifyNames.indexOf("Issue receipt cleanup token"),
+      verifyNames.indexOf("Delete temporary receipts"),
   );
-  assertWriteTokenTail(workflow, "verify-release", "Issue receipt cleanup token", [
-    "Delete temporary receipts",
-  ]);
+  assert.equal(verifyNames.at(-1), "Delete temporary receipts");
+  assertBuiltinTokenStep(workflow, "verify-release", "Delete temporary receipts");
 
   const finalNames = stepsFor(workflow, "verify-final-release").map(
     ({ name }) => name,
@@ -302,9 +309,15 @@ test("Draft 必须经过合并、双阶段校验和清理后才能公开", async
     ),
     false,
   );
-  assertWriteTokenTail(workflow, "prepare-release", "Issue Draft Release token", [
+  assert.equal(
+    stepsFor(workflow, "prepare-release").at(-1)?.name,
     "Create or update Draft Release",
-  ]);
+  );
+  assertBuiltinTokenStep(
+    workflow,
+    "prepare-release",
+    "Create or update Draft Release",
+  );
   const publishSteps = stepsFor(workflow, "publish");
   const approvedVerification = publishSteps.find(
     ({ name }) => name === "Re-verify final Draft after environment approval",
@@ -319,12 +332,11 @@ test("Draft 必须经过合并、双阶段校验和清理后才能公开", async
   assert.match(approvedVerification.run, /releaseFingerprint/u);
   assert.ok(
     publishSteps.indexOf(approvedVerification) <
-      publishSteps.findIndex(({ name }) => name === "Issue release publish token"),
+      publishSteps.findIndex(({ name }) => name === "Publish verified Draft Release"),
   );
-  assertWriteTokenTail(workflow, "publish", "Issue release publish token", [
-    "Publish verified Draft Release",
-  ]);
   const publishStep = publishSteps.at(-1);
+  assert.equal(publishStep.name, "Publish verified Draft Release");
+  assertBuiltinTokenStep(workflow, "publish", "Publish verified Draft Release");
   assert.match(publishStep.run, /resolve_tag_commit/u);
   assert.match(publishStep.run, /git\/ref\/tags\/\$TAG/u);
   assert.match(publishStep.run, /EXPECTED_COMMIT/u);
