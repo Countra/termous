@@ -1011,7 +1011,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       <HostKeyCoordinator api={api} enabled={apiReady && !coreFatal} hosts={data.hosts} />
       <Modal
         centered
-        width={430}
+        width={420}
         open={Boolean(coreFatal)}
         title={null}
         footer={null}
@@ -1024,13 +1024,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         rootClassName="termous-modal-root"
         getContainer={() => document.body}
       >
-        <section className="core-fatal-dialog" aria-labelledby="core-fatal-title" aria-describedby="core-fatal-description">
+        <section className="core-fatal-dialog" aria-labelledby="core-fatal-title">
           <div className="core-fatal-icon">
             <ServerOff size={22} aria-hidden="true" />
           </div>
           <div className="core-fatal-copy">
-            <h2 id="core-fatal-title">{coreFatal?.title ?? t('app.coreFatalTitle')}</h2>
-            <p id="core-fatal-description">{coreFatal?.message ?? t('app.coreFatalDescription')}</p>
+            <h2 id="core-fatal-title">{t('app.coreFatalTitle')}</h2>
           </div>
           <div className="core-fatal-actions">
             <Button

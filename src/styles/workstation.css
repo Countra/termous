@@ -6198,20 +6198,21 @@ body.is-terminal-tab-dragging * {
 
 .core-fatal-dialog {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-columns: 42px minmax(0, 1fr);
   align-items: center;
-  gap: 13px;
-  padding: 17px 18px;
+  column-gap: 14px;
+  row-gap: 18px;
+  padding: 22px;
 }
 
 .core-fatal-icon {
   display: grid;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--danger) 34%, var(--border));
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--danger) 11%, var(--surface-subtle));
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--danger) 9%, var(--surface-subtle));
   color: var(--danger);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
 }
@@ -6221,26 +6222,19 @@ body.is-terminal-tab-dragging * {
 }
 
 .core-fatal-copy h2 {
-  margin: 0 0 6px;
-  color: var(--text-primary);
-  font-size: 17px;
-  font-weight: 770;
-  line-height: 1.25;
-}
-
-.core-fatal-copy p {
   margin: 0;
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  line-height: 1.6;
-  word-break: break-word;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 760;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 
 .core-fatal-actions {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  margin-left: 3px;
 }
 
 :root[data-theme="light"] .core-fatal-modal .ant-modal-content {
