@@ -59,7 +59,7 @@ import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
-import type { AppData, CodeSnippet, FileSession, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
+import type { AppData, CodeSnippet, FileBookmark, FileBookmarkInput, FileSession, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
 import type { FileSessionClosureState } from '../files/fileSessionRecovery'
 import { SnippetFilterBar, SnippetList } from '../snippets/SnippetCatalog'
 import {
@@ -146,6 +146,7 @@ interface WorkbenchPageProps {
   onDisconnect: (sessionId: string) => Promise<boolean>
   onRefreshInventory: (sessionId: string, force: boolean, signal?: AbortSignal) => Promise<Session>
   onOpenFiles: (session: Session) => Promise<void>
+  onManageBookmarks: (session: Session) => Promise<void>
   onConnectFileSession: (
     hostId: string,
     sourceSessionId?: string,
@@ -154,6 +155,11 @@ interface WorkbenchPageProps {
   ) => Promise<FileSession>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
+  onCreateFileBookmark: (input: FileBookmarkInput) => Promise<FileBookmark>
+  onUpdateFileBookmark: (
+    id: string,
+    input: FileBookmarkInput,
+  ) => Promise<FileBookmark>
   onSnippetUsed: (snippetId: string) => Promise<void>
   onToggleSnippetFavorite: (snippet: CodeSnippet) => Promise<void>
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
@@ -175,9 +181,12 @@ export function WorkbenchPage({
   onDisconnect,
   onRefreshInventory,
   onOpenFiles,
+  onManageBookmarks,
   onConnectFileSession,
   onReconnectFileSession,
   onUpdateFileSession,
+  onCreateFileBookmark,
+  onUpdateFileBookmark,
   onSnippetUsed,
   onToggleSnippetFavorite,
   onStartForward,
@@ -1424,10 +1433,13 @@ export function WorkbenchPage({
                 closingSessionIds={closingSessionIds}
                 theme={theme}
                 onOpenFull={onOpenFiles}
+                onManageBookmarks={onManageBookmarks}
                 onConnectFileSession={onConnectFileSession}
                 onReconnectSession={reconnectSession}
                 onReconnectFileSession={onReconnectFileSession}
                 onUpdateFileSession={onUpdateFileSession}
+                onCreateFileBookmark={onCreateFileBookmark}
+                onUpdateFileBookmark={onUpdateFileBookmark}
               />
             ),
           },

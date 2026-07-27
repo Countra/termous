@@ -49,6 +49,8 @@ import {
 import { RemotePermissionModal } from '../../components/files/RemotePermissionModal'
 import type {
   AppData,
+  FileBookmark,
+  FileBookmarkInput,
   FileSession,
   LocalGrantSource,
   RemoteFileEntry,
@@ -58,6 +60,7 @@ import type {
 import { joinPath, normalizeRemotePath, parentPath } from '../files/fileUtils'
 import type { FileSessionClosureState } from '../files/fileSessionRecovery'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
+import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
 import { WorkbenchFileList } from './WorkbenchFileList'
 import { WorkbenchTransferBar } from './WorkbenchTransferBar'
 import { getSessionFilesNavigationState } from './sessionFilesState'
@@ -85,6 +88,12 @@ interface WorkbenchFilesPanelProps {
   closingSessionIds: ReadonlySet<string>
   theme: ThemeMode
   onOpenFull: (session: Session) => Promise<void>
+  onManageBookmarks: (session: Session) => Promise<void>
+  onCreateFileBookmark: (input: FileBookmarkInput) => Promise<FileBookmark>
+  onUpdateFileBookmark: (
+    id: string,
+    input: FileBookmarkInput,
+  ) => Promise<FileBookmark>
   onConnectFileSession: (
     hostId: string,
     sourceSessionId?: string,
@@ -121,6 +130,9 @@ function WorkbenchFilesPanelContent({
   closingSessionIds,
   theme,
   onOpenFull,
+  onManageBookmarks,
+  onCreateFileBookmark,
+  onUpdateFileBookmark,
   onConnectFileSession,
   onReconnectSession,
   onReconnectFileSession,
@@ -848,6 +860,30 @@ function WorkbenchFilesPanelContent({
                     />
                   </Tooltip>
                 </div>
+                <WorkbenchBookmarksPopover
+                  bookmarks={data.fileBookmarks}
+                  groups={data.fileBookmarkGroups}
+                  currentPath={currentPath}
+                  connected={files.connected}
+                  disabled={
+                    !enabled
+                    || closing
+                    || initialDirectoryPlaceholder
+                  }
+                  navigationBusy={actionBusy || directoryChanging}
+                  navigationKey={[
+                    session.id,
+                    fileSessionId ?? '',
+                    files.fileSession?.connection_generation ?? 0,
+                    currentPath,
+                  ].join(':')}
+                  onNavigate={files.navigateDirectory}
+                  onCreateBookmark={onCreateFileBookmark}
+                  onUpdateBookmark={onUpdateFileBookmark}
+                  onManageBookmarks={() => {
+                    void onManageBookmarks(session)
+                  }}
+                />
                 <Tooltip title={t('workbench.files.editPath')}>
                   <Button
                     type="text"

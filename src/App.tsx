@@ -7,6 +7,12 @@ import { AppShell } from './components/layout/AppShell'
 import { ConfirmDialog } from './components/ui/ConfirmDialog'
 import { HostsPage } from './features/hosts/HostsPage'
 import { FilesPage } from './features/files/FilesPage'
+import {
+  canCommitFilesBookmarkManagementRequest,
+  consumeFilesBookmarkManagementIntent,
+  type FilesBookmarkManagementIntent,
+  type FilesBookmarkManagementRequest,
+} from './features/files/filesBookmarkManagementIntent'
 import { FilesWorkspaceRuntimeProvider } from './features/files/FilesWorkspaceRuntimeProvider'
 import {
   includeActiveFileSessionClosure,
@@ -88,6 +94,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const [selectedHostId, setSelectedHostId] = useState('')
   const [activeFileSessionId, setActiveFileSessionId] = useState('')
+  const [filesBookmarkManagementIntent, setFilesBookmarkManagementIntent] =
+    useState<FilesBookmarkManagementIntent | null>(null)
+  const nextFilesBookmarkManagementIntentIdRef = useRef(0)
+  const filesBookmarkManagementRequestRef =
+    useRef<FilesBookmarkManagementRequest | null>(null)
+  const pageRef = useRef(page)
+  const sessionsRef = useRef(data.sessions)
   const [closingFileSessionIds, setClosingFileSessionIds] = useState<string[]>([])
   const closingFileSessionIdsRef = useRef(new Set<string>())
   const retiredFileSessionIdsRef = useRef(new Set<string>())
@@ -95,6 +108,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const fileSessionClosuresRef = useRef(fileSessionClosures)
   fileSessionsRef.current = data.fileSessions
   fileSessionClosuresRef.current = fileSessionClosures
+  pageRef.current = page
+  sessionsRef.current = data.sessions
   const [hostLauncherState, setHostLauncherState] = useState<{
     open: boolean
     intent: HostLauncherIntent
@@ -128,6 +143,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     [data.fileSessions, data.forwards, data.sessions],
   )
 
+  const invalidateFilesBookmarkManagementRequest = useCallback(() => {
+    nextFilesBookmarkManagementIntentIdRef.current += 1
+    filesBookmarkManagementRequestRef.current = null
+    setFilesBookmarkManagementIntent(null)
+  }, [])
+
   const navigateToPage = useCallback((nextPage: PageKey) => {
     if (nextPage === page) {
       return
@@ -136,8 +157,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       setPendingPage(nextPage)
       return
     }
+    invalidateFilesBookmarkManagementRequest()
     setPage(nextPage)
-  }, [page, vaultDirty])
+  }, [invalidateFilesBookmarkManagementRequest, page, vaultDirty])
+
+  useEffect(() => {
+    if (page !== 'files') {
+      invalidateFilesBookmarkManagementRequest()
+    }
+  }, [invalidateFilesBookmarkManagementRequest, page])
 
   useEffect(() => {
     if (initializing || !apiReady) {
@@ -598,6 +626,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     if (session.kind !== 'ssh' || session.status !== 'connected' || !session.host_id) {
       return
     }
+    invalidateFilesBookmarkManagementRequest()
     setSelectedHostId(session.host_id)
     setPage('files')
     const existing = selectFileSessionNavigationTarget(
@@ -618,6 +647,57 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
+  const openFileBookmarksFromSession = async (session: Session) => {
+    if (session.kind !== 'ssh' || session.status !== 'connected' || !session.host_id) {
+      return
+    }
+    nextFilesBookmarkManagementIntentIdRef.current += 1
+    const request: FilesBookmarkManagementRequest = {
+      requestId: nextFilesBookmarkManagementIntentIdRef.current,
+      sourceSessionId: session.id,
+      hostId: session.host_id,
+    }
+    filesBookmarkManagementRequestRef.current = request
+    setFilesBookmarkManagementIntent(null)
+    setSelectedHostId(session.host_id)
+    pageRef.current = 'files'
+    setPage('files')
+    const existing = selectFileSessionNavigationTarget(
+      data.fileSessions,
+      fileSessionClosures,
+      session.host_id,
+      session.id,
+    )
+    try {
+      const fileSession = existing
+        ?? await actions.connectFileSession(session.host_id, session.id)
+      if (!canCommitFilesBookmarkManagementRequest(
+        request,
+        filesBookmarkManagementRequestRef.current,
+        pageRef.current === 'files',
+        sessionsRef.current,
+      )) {
+        return
+      }
+      filesBookmarkManagementRequestRef.current = null
+      setActiveFileSessionId(fileSession.id)
+      setFilesBookmarkManagementIntent({
+        requestId: request.requestId,
+        fileSessionId: fileSession.id,
+      })
+    } catch (actionError) {
+      if (canCommitFilesBookmarkManagementRequest(
+        request,
+        filesBookmarkManagementRequestRef.current,
+        pageRef.current === 'files',
+        sessionsRef.current,
+      )) {
+        filesBookmarkManagementRequestRef.current = null
+        showActionError(actionError)
+      }
+    }
+  }
+
   const openHostCreate = () => {
     setPage('hosts')
     setHostCreateIntentKey((current) => current + 1)
@@ -629,6 +709,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }
 
   const openFilesForHost = async (hostId: string) => {
+    invalidateFilesBookmarkManagementRequest()
     setSelectedHostId(hostId)
     setPage('files')
     const existing = selectFileSessionForNavigation(data.fileSessions, hostId)
@@ -790,9 +871,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             ) === true}
             onRefreshInventory={actions.refreshSessionInventory}
             onOpenFiles={openFilesFromSession}
+            onManageBookmarks={openFileBookmarksFromSession}
             onConnectFileSession={actions.connectFileSession}
             onReconnectFileSession={actions.reconnectFileSession}
             onUpdateFileSession={actions.updateFileSession}
+            onCreateFileBookmark={actions.createFileBookmark}
+            onUpdateFileBookmark={actions.updateFileBookmark}
             onSnippetUsed={(snippetId) => actions.markCodeSnippetUsed(snippetId).then(() => undefined)}
             onToggleSnippetFavorite={toggleCodeSnippetFavorite}
             onStartForward={(input) => actions.startForward(input)}
@@ -845,6 +929,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             theme={theme}
             activeFileSession={activeFileSession}
             closingFileSessionIds={closingFileSessionIds}
+            bookmarkManagementIntent={filesBookmarkManagementIntent}
+            onConsumeBookmarkManagementIntent={(requestId) => {
+              setFilesBookmarkManagementIntent((current) => (
+                consumeFilesBookmarkManagementIntent(current, requestId)
+              ))
+            }}
             onOpenFileSession={openFilesForHost}
             onOpenFileSessionLauncher={openFileSessionLauncher}
             onConnectFileSession={async (
@@ -853,6 +943,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               initialPath,
               replacedFileSessionId,
             ) => {
+              invalidateFilesBookmarkManagementRequest()
               const fileSession = await actions.connectFileSession(
                 hostId,
                 sourceSessionId,
@@ -867,7 +958,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               ))
               return fileSession
             }}
-            onSelectFileSession={setActiveFileSessionId}
+            onSelectFileSession={(fileSessionId) => {
+              invalidateFilesBookmarkManagementRequest()
+              setActiveFileSessionId(fileSessionId)
+            }}
             onCloseFileSession={async (fileSessionId) => {
               const isClosedLocalSnapshot = !data.fileSessions.some(
                 (session) => session.id === fileSessionId,

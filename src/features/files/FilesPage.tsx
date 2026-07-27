@@ -109,6 +109,7 @@ import type {
   LocalDownloadTarget,
 } from './local-download/types'
 import type { LocalDownloadRefreshRequest } from './local-download/useLocalDownloadWorkspace'
+import type { FilesBookmarkManagementIntent } from './filesBookmarkManagementIntent'
 import {
   isLocalPathWithin,
   resolveLocalDownloadQuickTarget,
@@ -161,6 +162,8 @@ interface FilesPageProps {
   theme: ThemeMode
   activeFileSession: FileSession | null
   closingFileSessionIds: readonly string[]
+  bookmarkManagementIntent: FilesBookmarkManagementIntent | null
+  onConsumeBookmarkManagementIntent: (requestId: number) => void
   onOpenFileSession: (hostId: string) => Promise<void>
   onOpenFileSessionLauncher: () => void
   onConnectFileSession: (
@@ -332,6 +335,8 @@ function FilesPageContent({
   theme,
   activeFileSession,
   closingFileSessionIds,
+  bookmarkManagementIntent,
+  onConsumeBookmarkManagementIntent,
   onOpenFileSession,
   onOpenFileSessionLauncher,
   onConnectFileSession,
@@ -386,6 +391,7 @@ function FilesPageContent({
   const breadcrumbPinnedToEndRef = useRef(true)
   const pathInputRef = useRef<InputRef>(null)
   const bookmarkRailToggleRef = useRef<HTMLButtonElement>(null)
+  const consumedBookmarkManagementIntentRef = useRef<number | null>(null)
   const bookmarkMutationPendingRef = useRef(false)
   const localConsoleToggleRef = useRef<HTMLButtonElement>(null)
   const inspectorToggleRef = useRef<HTMLButtonElement>(null)
@@ -630,6 +636,30 @@ function FilesPageContent({
       updateSidePanelMode('none')
     }
   }, [bookmarkRailExpanded, setLayoutPreferences, updateSidePanelMode])
+  useEffect(() => {
+    if (
+      !bookmarkManagementIntent
+      || activeFileSession?.id !== bookmarkManagementIntent.fileSessionId
+      || consumedBookmarkManagementIntentRef.current === bookmarkManagementIntent.requestId
+    ) {
+      return
+    }
+    consumedBookmarkManagementIntentRef.current = bookmarkManagementIntent.requestId
+    setAuxiliarySurface('none')
+    updateSidePanelMode('bookmarks')
+    setLayoutPreferences((current) => (
+      current.bookmarkRailExpanded
+        ? current
+        : { ...current, bookmarkRailExpanded: true }
+    ))
+    onConsumeBookmarkManagementIntent(bookmarkManagementIntent.requestId)
+  }, [
+    activeFileSession?.id,
+    bookmarkManagementIntent,
+    onConsumeBookmarkManagementIntent,
+    setLayoutPreferences,
+    updateSidePanelMode,
+  ])
   const fileColumnWidths = useMemo<FileColumnWidths>(() => ({
     name: layoutPreferences.columnWidths.name,
     size: layoutPreferences.columnWidths.size,
