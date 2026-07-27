@@ -62,7 +62,7 @@ export function WorkbenchFileList({
   const [nameTooltip, setNameTooltip] = useState<FileNameTooltipState | null>(null)
   const rowRefs = useRef(new Map<string, HTMLDivElement>())
   const nameRefs = useRef(new Map<string, HTMLElement>())
-  const pendingKeyboardDirectoryPathRef = useRef<string | null>(null)
+  const pendingDirectoryFocusPathRef = useRef<string | null>(null)
   const focusFrameRef = useRef<number | null>(null)
   const tooltipTimerRef = useRef<number | null>(null)
   const tooltipListingRevision = useMemo(
@@ -109,6 +109,21 @@ export function WorkbenchFileList({
         list.scrollTop -= listRect.top - rowRect.top
       } else if (rowRect.bottom > visibleBottom) {
         list.scrollTop += rowRect.bottom - visibleBottom
+      }
+    })
+  }
+
+  const activateEntry = (entry: RemoteFileEntry) => {
+    if (entry.kind === 'directory') {
+      pendingDirectoryFocusPathRef.current = entry.path
+    }
+    void onOpen(entry).then((opened) => {
+      if (!opened && pendingDirectoryFocusPathRef.current === entry.path) {
+        pendingDirectoryFocusPathRef.current = null
+      }
+    }).catch(() => {
+      if (pendingDirectoryFocusPathRef.current === entry.path) {
+        pendingDirectoryFocusPathRef.current = null
       }
     })
   }
@@ -188,21 +203,20 @@ export function WorkbenchFileList({
   }, [tooltipListingRevision])
 
   useLayoutEffect(() => {
-    const pendingPath = pendingKeyboardDirectoryPathRef.current
+    const pendingPath = pendingDirectoryFocusPathRef.current
     if (!pendingPath || pendingPath !== listingPath) {
       return
     }
-    pendingKeyboardDirectoryPathRef.current = null
+    pendingDirectoryFocusPathRef.current = null
     const firstEntry = entries[0]
     if (firstEntry) {
       rowRefs.current.get(firstEntry.path)?.focus({ preventScroll: true })
       setFocusedPath(firstEntry.path)
-      onSelect(firstEntry)
     } else {
       listRef.current?.focus({ preventScroll: true })
       setFocusedPath(null)
     }
-  }, [entries, listRef, listingPath, onSelect])
+  }, [entries, listRef, listingPath])
 
   return (
     <div className="workbench-file-list-shell">
@@ -321,19 +335,27 @@ export function WorkbenchFileList({
                 aria-describedby={nameTooltip?.path === entry.path ? 'workbench-file-name-tooltip' : undefined}
                 onMouseEnter={() => revealNameTooltip(entry)}
                 onMouseLeave={hideNameTooltip}
-                onClick={() => {
+                onClick={(event) => {
                   if (interactionLocked) {
+                    return
+                  }
+                  if (directory) {
+                    if (event.detail > 1) {
+                      return
+                    }
+                    hideNameTooltip()
+                    activateEntry(entry)
                     return
                   }
                   setFocusedPath(entry.path)
                   onSelect(entry)
                 }}
                 onDoubleClick={() => {
-                  if (interactionLocked) {
+                  if (interactionLocked || directory) {
                     return
                   }
                   hideNameTooltip()
-                  void onOpen(entry)
+                  activateEntry(entry)
                 }}
                 onContextMenu={() => {
                   if (interactionLocked) {
@@ -368,18 +390,7 @@ export function WorkbenchFileList({
                     case 'Enter':
                       event.preventDefault()
                       hideNameTooltip()
-                      if (directory) {
-                        pendingKeyboardDirectoryPathRef.current = entry.path
-                      }
-                      void onOpen(entry).then((opened) => {
-                        if (!opened && pendingKeyboardDirectoryPathRef.current === entry.path) {
-                          pendingKeyboardDirectoryPathRef.current = null
-                        }
-                      }).catch(() => {
-                        if (pendingKeyboardDirectoryPathRef.current === entry.path) {
-                          pendingKeyboardDirectoryPathRef.current = null
-                        }
-                      })
+                      activateEntry(entry)
                       break
                     case ' ':
                       event.preventDefault()

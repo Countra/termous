@@ -50,6 +50,7 @@ import {
   type FileSessionClosureState,
 } from '../features/files/fileSessionRecovery'
 import {
+  filterFileSessionsByActiveSources,
   reconcileFileSessionSnapshotList,
   replaceFileSessionSnapshot,
   upsertFileSessionSnapshot,
@@ -252,36 +253,43 @@ export function useTermousData() {
           }
         }
       })
-      setData((current) => ({
-        settings: nextSettings,
-        groups: groups ?? [],
-        hosts: hosts ?? [],
-        credentials: credentials ?? [],
-        sessions: mergeSessionReloadSnapshot(
+      setData((current) => {
+        const nextSessions = mergeSessionReloadSnapshot(
           current.sessions,
           reloadedSessions,
           sessionRevisionBaseline,
           sessionEventRevisionsRef.current,
-        ),
-        fileSessions: reconcileFileSessionSnapshotList(
-          current.fileSessions,
-          filterSuppressedFileSessions(
-            fileSessions ?? [],
-            suppressedFileSessionIdsRef.current,
+        )
+        const activeSourceSessionIds = new Set(nextSessions.map((session) => session.id))
+        return {
+          settings: nextSettings,
+          groups: groups ?? [],
+          hosts: hosts ?? [],
+          credentials: credentials ?? [],
+          sessions: nextSessions,
+          fileSessions: filterFileSessionsByActiveSources(
+            reconcileFileSessionSnapshotList(
+              current.fileSessions,
+              filterSuppressedFileSessions(
+                fileSessions ?? [],
+                suppressedFileSessionIdsRef.current,
+              ),
+              fileSessionRevisionBaseline,
+              fileSessionEventRevisionsRef.current,
+            ),
+            activeSourceSessionIds,
           ),
-          fileSessionRevisionBaseline,
-          fileSessionEventRevisionsRef.current,
-        ),
-        forwardProfiles: forwardProfiles ?? [],
-        forwards: visibleForwards(forwards ?? []),
-        snippetGroups: sortCodeSnippetGroups(snippetGroups ?? []),
-        snippets: snippets ?? [],
-        fileBookmarkGroups: sortFileBookmarkGroups(fileBookmarkGroups ?? []),
-        fileBookmarks: sortFileBookmarks(fileBookmarks ?? []),
-        localPathMappings: sortLocalPathMappings(localPathMappings ?? []),
-        terminalFonts: terminalFonts ?? [],
-        hostReachability: indexHostReachability(hostReachability ?? []),
-      }))
+          forwardProfiles: forwardProfiles ?? [],
+          forwards: visibleForwards(forwards ?? []),
+          snippetGroups: sortCodeSnippetGroups(snippetGroups ?? []),
+          snippets: snippets ?? [],
+          fileBookmarkGroups: sortFileBookmarkGroups(fileBookmarkGroups ?? []),
+          fileBookmarks: sortFileBookmarks(fileBookmarks ?? []),
+          localPathMappings: sortLocalPathMappings(localPathMappings ?? []),
+          terminalFonts: terminalFonts ?? [],
+          hostReachability: indexHostReachability(hostReachability ?? []),
+        }
+      })
       setActiveSession((current) => {
         if (current && sessionChangedSince(
           current.id,
@@ -695,13 +703,32 @@ export function useTermousData() {
         return session
       },
       async disconnect(sessionId: string) {
+        const linkedFileSessionIds = data.fileSessions
+          .filter((session) => session.source_session_id === sessionId)
+          .map((session) => session.id)
         await api.deleteSession(sessionId)
         inventoryRequestRevisionsRef.current.delete(sessionId)
         inventoryEventRevisionsRef.current.delete(sessionId)
         inventoryStateSignaturesRef.current.delete(sessionId)
         bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
+        linkedFileSessionIds.forEach((fileSessionId) => {
+          supersedeFileSessionRecoveryOperation(fileSessionId)
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
+        })
         const fallbackSession = data.sessions.find((session) => session.id !== sessionId) ?? null
-        setData((current) => ({ ...current, sessions: current.sessions.filter((session) => session.id !== sessionId) }))
+        setData((current) => ({
+          ...current,
+          sessions: current.sessions.filter((session) => session.id !== sessionId),
+          fileSessions: current.fileSessions.filter((session) => session.source_session_id !== sessionId),
+        }))
+        setFileSessionClosures((current) => {
+          if (!current[sessionId]) {
+            return current
+          }
+          const next = { ...current }
+          delete next[sessionId]
+          return next
+        })
         setActiveSession((current) => (current?.id === sessionId ? fallbackSession : current))
         void load('silent')
       },
@@ -902,14 +929,16 @@ export function useTermousData() {
         try {
           await api.deleteFileSession(fileSessionId)
         } catch (error) {
-          if (sourceSessionId) {
-            setFileSessionClosures((current) => removeMatchingFileSessionClosure(
-              current,
-              sourceSessionId,
-              fileSessionId,
-            ))
+          if (!(error instanceof TermousApiError && error.code === 'SFTP_FILE_SESSION_NOT_FOUND')) {
+            if (sourceSessionId) {
+              setFileSessionClosures((current) => removeMatchingFileSessionClosure(
+                current,
+                sourceSessionId,
+                fileSessionId,
+              ))
+            }
+            throw error
           }
-          throw error
         }
         bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
         if (closingFileSession && sourceSessionId) {

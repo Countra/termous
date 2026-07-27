@@ -81,6 +81,7 @@ interface WorkbenchFilesPanelProps {
   fileSessionClosures: Readonly<Record<string, FileSessionClosureState>>
   session: Session | null
   enabled: boolean
+  actionBusy: boolean
   closingSessionIds: ReadonlySet<string>
   theme: ThemeMode
   onOpenFull: (session: Session) => Promise<void>
@@ -90,6 +91,7 @@ interface WorkbenchFilesPanelProps {
     initialPath?: string,
     replacedFileSessionId?: string,
   ) => Promise<FileSession>
+  onReconnectSession: (session: Session) => Promise<void>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
 }
@@ -115,10 +117,12 @@ function WorkbenchFilesPanelContent({
   fileSessionClosures,
   session,
   enabled,
+  actionBusy,
   closingSessionIds,
   theme,
   onOpenFull,
   onConnectFileSession,
+  onReconnectSession,
   onReconnectFileSession,
   onUpdateFileSession,
 }: WorkbenchFilesPanelProps) {
@@ -145,6 +149,7 @@ function WorkbenchFilesPanelContent({
   const [imageViewerPath, setImageViewerPath] = useState<string | null>(null)
   const [editingPath, setEditingPath] = useState(false)
   const [uploadPicking, setUploadPicking] = useState(false)
+  const [sessionReconnectPending, setSessionReconnectPending] = useState(false)
   const [breadcrumbScrollState, setBreadcrumbScrollState] = useState({
     canScrollLeft: false,
     canScrollRight: false,
@@ -250,6 +255,18 @@ function WorkbenchFilesPanelContent({
     t,
     Boolean(!files.fileSession && files.viewState?.error),
   )
+
+  const reconnectSourceSession = async () => {
+    if (!session || actionBusy || sessionReconnectPending) {
+      return
+    }
+    setSessionReconnectPending(true)
+    try {
+      await onReconnectSession(session)
+    } finally {
+      setSessionReconnectPending(false)
+    }
+  }
 
   useEffect(() => {
     if (!shouldNotifyFileSessionRecoveryFailure(
@@ -986,6 +1003,19 @@ function WorkbenchFilesPanelContent({
           >
             <CircleAlert size={12} aria-hidden="true" />
             <span>{syncMessage}</span>
+            {syncStatus === 'reconnect-required' ? (
+              <Button
+                type="link"
+                size="small"
+                className="workbench-file-caption-action"
+                icon={<RefreshCw size={11} />}
+                loading={sessionReconnectPending}
+                disabled={closing || actionBusy || sessionReconnectPending}
+                onClick={() => void reconnectSourceSession()}
+              >
+                {t('workbench.reconnectSession')}
+              </Button>
+            ) : null}
           </span>
         ) : followProgressVisible && followDetailMessage ? (
           <span

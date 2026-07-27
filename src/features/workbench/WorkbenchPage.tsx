@@ -143,7 +143,7 @@ interface WorkbenchPageProps {
   onOpenConnectionLauncher: () => void
   onConnect: (hostId: string) => Promise<void>
   onSelectSession: (sessionId: string) => void
-  onDisconnect: (sessionId: string) => Promise<void>
+  onDisconnect: (sessionId: string) => Promise<boolean>
   onRefreshInventory: (sessionId: string, force: boolean, signal?: AbortSignal) => Promise<Session>
   onOpenFiles: (session: Session) => Promise<void>
   onConnectFileSession: (
@@ -822,7 +822,7 @@ export function WorkbenchPage({
   const closeSessionTab = useCallback(
     async (sessionId: string) => {
       if (actionBusy || closingSessionIdsRef.current.has(sessionId)) {
-        return
+        return false
       }
       closingSessionIdsRef.current.add(sessionId)
       // 文件事件流和目录请求必须先停，再删除后端会话，避免关闭期间重新访问已释放资源。
@@ -836,7 +836,7 @@ export function WorkbenchPage({
         setColorSessionId(null)
       }
       try {
-        await onDisconnect(sessionId)
+        return await onDisconnect(sessionId)
       } finally {
         closingSessionIdsRef.current.delete(sessionId)
         setClosingSessionIds(new Set(closingSessionIdsRef.current))
@@ -967,27 +967,23 @@ export function WorkbenchPage({
     }
     const previousSessionId = activeSession.id
     const hostId = activeSession.host_id
-    try {
-      await onDisconnect(previousSessionId)
-    } catch {
-      // 旧会话已经断开时，删除失败不阻止重新连接同一主机。
+    if (!await closeSessionTab(previousSessionId)) {
+      return
     }
     await onConnect(hostId)
-  }, [actionBusy, activeSession?.host_id, activeSession?.id, onConnect, onDisconnect])
+  }, [actionBusy, activeSession?.host_id, activeSession?.id, closeSessionTab, onConnect])
 
   const reconnectSession = useCallback(
     async (session: Session) => {
       if (!session.host_id || actionBusy) {
         return
       }
-      try {
-        await onDisconnect(session.id)
-      } catch {
-        // 旧会话已经断开时，删除失败不阻止重新连接同一主机。
+      if (!await closeSessionTab(session.id)) {
+        return
       }
       await onConnect(session.host_id)
     },
-    [actionBusy, onConnect, onDisconnect],
+    [actionBusy, closeSessionTab, onConnect],
   )
 
   useEffect(() => {
@@ -1424,10 +1420,12 @@ export function WorkbenchPage({
                 fileSessionClosures={fileSessionClosures}
                 session={activeSession}
                 enabled={active && detailsActiveTab === 'files' && !detailsCollapsed}
+                actionBusy={actionBusy}
                 closingSessionIds={closingSessionIds}
                 theme={theme}
                 onOpenFull={onOpenFiles}
                 onConnectFileSession={onConnectFileSession}
+                onReconnectSession={reconnectSession}
                 onReconnectFileSession={onReconnectFileSession}
                 onUpdateFileSession={onUpdateFileSession}
               />

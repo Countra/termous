@@ -1227,8 +1227,7 @@ body.is-panel-resizing * {
 
 .host-launcher {
   display: grid;
-  min-height: 560px;
-  max-height: min(700px, calc(100vh - 88px));
+  height: min(700px, calc(100vh - 88px));
   grid-template-rows: 42px minmax(0, 1fr);
   overflow: hidden;
   outline: none;
@@ -2086,8 +2085,8 @@ body.is-panel-resizing * {
 
 @media (max-width: 880px) {
   .host-launcher {
+    height: calc(100vh - 88px);
     min-height: 0;
-    max-height: calc(100vh - 88px);
   }
 
   .host-launcher-body {

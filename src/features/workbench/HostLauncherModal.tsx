@@ -98,8 +98,13 @@ export function HostLauncherModal({
     () => filterHosts(data.hosts, groupsById, data.hostReachability, query, filter, platformFilter, groupFilter, authFilter, selectedTags),
     [authFilter, data.hostReachability, data.hosts, filter, groupFilter, groupsById, platformFilter, query, selectedTags],
   )
-  const groupedHosts = useMemo(() => groupHosts(filteredHosts, data.groups, t('hosts.ungrouped')), [data.groups, filteredHosts, t])
-  const selectedHost = hostsById.get(selectedHostId) ?? filteredHosts[0] ?? data.hosts[0]
+  const groupedHosts = useMemo(
+    () => filter === 'recent'
+      ? [{ id: '__recent', name: '', hosts: filteredHosts, order: 0 }]
+      : groupHosts(filteredHosts, data.groups, t('hosts.ungrouped')),
+    [data.groups, filter, filteredHosts, t],
+  )
+  const selectedHost = filteredHosts.find((host) => host.id === selectedHostId) ?? filteredHosts[0]
   const selectedHostCredential = selectedHost?.credential_id ? credentialsById.get(selectedHost.credential_id) : ''
   const selectedJumpHost = selectedHost?.jump_host_id ? hostsById.get(selectedHost.jump_host_id) : undefined
   const selectedReachability = selectedHost ? data.hostReachability[selectedHost.id] : undefined
@@ -121,11 +126,11 @@ export function HostLauncherModal({
       setFilterOpen(false)
       return
     }
-    const nextHost = hostsById.get(selectedHostId) ?? filteredHosts[0] ?? data.hosts[0]
+    const nextHost = filteredHosts.find((host) => host.id === selectedHostId) ?? filteredHosts[0]
     if (nextHost && nextHost.id !== selectedHostId) {
       onSelectHost(nextHost.id)
     }
-  }, [data.hosts, filteredHosts, hostsById, onSelectHost, open, selectedHostId])
+  }, [filteredHosts, onSelectHost, open, selectedHostId])
 
   useEffect(() => {
     if (!open) {
@@ -443,23 +448,26 @@ export function HostLauncherModal({
                 </div>
               ) : (
                 groupedHosts.map((group) => {
-                  const collapsed = collapsedGroupIds.has(group.id)
+                  const flat = filter === 'recent'
+                  const collapsed = !flat && collapsedGroupIds.has(group.id)
                   const GroupIcon = collapsed ? ChevronRight : ChevronDown
                   return (
-                    <section className={`host-launcher-group ${collapsed ? 'is-collapsed' : ''}`} key={group.id}>
-                      <button
-                        type="button"
-                        className="host-launcher-group-title"
-                        aria-expanded={!collapsed}
-                        onClick={() => toggleGroupCollapse(group.id)}
-                      >
-                        <span>
-                          <GroupIcon size={14} aria-hidden="true" />
-                          {group.name}
-                        </span>
-                        <small>{group.hosts.length}</small>
-                      </button>
-                      {!collapsed ? (
+                    <section className={`host-launcher-group ${flat ? 'is-flat' : ''} ${collapsed ? 'is-collapsed' : ''}`} key={group.id}>
+                      {!flat ? (
+                        <button
+                          type="button"
+                          className="host-launcher-group-title"
+                          aria-expanded={!collapsed}
+                          onClick={() => toggleGroupCollapse(group.id)}
+                        >
+                          <span>
+                            <GroupIcon size={14} aria-hidden="true" />
+                            {group.name}
+                          </span>
+                          <small>{group.hosts.length}</small>
+                        </button>
+                      ) : null}
+                      {flat || !collapsed ? (
                         <div className="host-launcher-group-tree">
                           {group.hosts.map((host) => (
                             <button
@@ -590,10 +598,15 @@ export function HostLauncherModal({
               </>
             ) : (
               <div className="host-launcher-detail-empty">
-                <EmptyState title={t('app.empty')} description={t('workbench.hostLauncher.emptyHint')} />
-                <ConnectionActionButton icon={<Plus size={16} />} onClick={() => void runGlobalShortcut(onCreateHost)}>
-                  {t('hosts.addHost')}
-                </ConnectionActionButton>
+                <EmptyState
+                  title={data.hosts.length === 0 ? t('app.empty') : t('hosts.noFilterResults')}
+                  description={data.hosts.length === 0 ? t('workbench.hostLauncher.emptyHint') : t('hosts.noFilterResultsHint')}
+                />
+                {data.hosts.length === 0 ? (
+                  <ConnectionActionButton icon={<Plus size={16} />} onClick={() => void runGlobalShortcut(onCreateHost)}>
+                    {t('hosts.addHost')}
+                  </ConnectionActionButton>
+                ) : null}
               </div>
             )}
           </main>
@@ -714,7 +727,7 @@ function filterHosts(
     if (authFilter !== 'all' && host.auth_method !== authFilter) {
       return false
     }
-    if (filter === 'online' && reachabilityStatus !== 'online') {
+    if (filter === 'online' && reachabilityStatus !== 'online' && reachabilityStatus !== 'checking') {
       return false
     }
     if (filter === 'recent' && timestamp(host.last_connected_at) <= 0) {

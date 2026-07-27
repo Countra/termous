@@ -782,7 +782,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onOpenConnectionLauncher={openTerminalSessionLauncher}
             onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
             onSelectSession={actions.selectSession}
-            onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}
+            onDisconnect={async (sessionId) => (
+              await runAction(async () => {
+                await actions.disconnect(sessionId)
+                return true
+              })
+            ) === true}
             onRefreshInventory={actions.refreshSessionInventory}
             onOpenFiles={openFilesFromSession}
             onConnectFileSession={actions.connectFileSession}
