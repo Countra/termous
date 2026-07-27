@@ -161,12 +161,14 @@ function WorkbenchFilesPanelContent({
   const uploadRefreshTasksRef = useRef(new Map<string, TrackedUploadRefresh>())
   const completedUploadPathsRef = useRef(new Map<string, Set<string>>())
   const followTerminal = Boolean(files.viewState?.followTerminal)
-  const cwdPendingPath = files.viewState?.pendingTerminalPath || (
-    files.cwdState?.pending_operation?.status === 'failed'
-      ? ''
-      : files.cwdState?.pending_operation?.path ?? ''
-  )
-  const confirmedCwdPath = (
+  const cwdPendingPath = files.connected
+    ? files.viewState?.pendingTerminalPath || (
+        files.cwdPendingOperation?.status === 'failed'
+          ? ''
+          : files.cwdPendingOperation?.path ?? ''
+      )
+    : ''
+  const confirmedCwdPath = files.connected && (
     files.cwdState?.observation_status === undefined
     || files.cwdState.observation_status === 'ready'
   )
@@ -181,7 +183,7 @@ function WorkbenchFilesPanelContent({
     : null
   const currentPath = navigationState?.committedPath ?? '/'
   const pendingDirectoryPath = navigationState?.pendingPath ?? ''
-  const directoryChanging = Boolean(pendingDirectoryPath)
+  const directoryChanging = files.connected && Boolean(pendingDirectoryPath)
   const directoryReadFailed = Boolean(
     files.viewState?.error && files.viewState.failedRequestPath,
   )
@@ -191,11 +193,12 @@ function WorkbenchFilesPanelContent({
     || syncStatus === 'reconnect-required'
     || syncStatus === 'invalid_path'
   const initialDirectoryPlaceholder = !files.viewState?.listing
-  const initialDirectoryPending = initialDirectoryPlaceholder
+  const initialDirectoryPending = files.connected
+    && initialDirectoryPlaceholder
     && !files.viewState?.error
     && (!followTerminal || !followDirectoryBlocked)
   const directoryRefreshing = Boolean(
-    navigationState?.refreshing && files.viewState?.listing,
+    files.connected && navigationState?.refreshing && files.viewState?.listing,
   )
   const directoryLoading = initialDirectoryPending || directoryChanging || directoryRefreshing
   const directoryNavigationLocked = closing
@@ -210,16 +213,22 @@ function WorkbenchFilesPanelContent({
   const pathErrorId = `${pathInputId}-error`
   const loadDirectory = files.loadDirectory
   const syncMessage = syncStatusMessage(syncStatus, t)
-  const syncNoticeTone = syncStatus === 'failed' || syncStatus === 'invalid_path'
-    ? 'error'
-    : syncStatus === 'unsupported'
-      ? 'unsupported'
-      : syncStatus === 'reconnect-required'
-        ? 'reconnect-required'
-      : ''
-  const followDirectoryLoading = followTerminal && Boolean(files.viewState?.loading)
+  const syncNoticeTone = !files.connected
+    ? ''
+    : syncStatus === 'failed' || syncStatus === 'invalid_path'
+      ? 'error'
+      : syncStatus === 'unsupported'
+        ? 'unsupported'
+        : syncStatus === 'reconnect-required'
+          ? 'reconnect-required'
+          : ''
+  const followDirectoryLoading = files.connected
+    && followTerminal
+    && Boolean(files.viewState?.loading)
   const followVisualState = !followTerminal
     ? 'off'
+    : !files.connected
+      ? 'active'
     : syncStatus === 'failed' || syncStatus === 'invalid_path'
       ? 'failed'
       : syncStatus === 'unsupported'
@@ -242,10 +251,12 @@ function WorkbenchFilesPanelContent({
   const followTooltip = followHasDetail && followDetailMessage
     ? followDetailMessage
     : t(followTerminal ? 'workbench.files.followEnabled' : 'workbench.files.followDisabled')
-  const followProgressVisible = followVisualState === 'preparing'
+  const followProgressVisible = files.connected && (
+    followVisualState === 'preparing'
     || followVisualState === 'locating'
     || followVisualState === 'waiting'
     || followVisualState === 'syncing'
+  )
   const recoveryVisible = files.recoveryState.phase !== 'idle'
     || files.fileSession?.status === 'disconnected'
     || files.fileSession?.status === 'failed'
@@ -1003,7 +1014,18 @@ function WorkbenchFilesPanelContent({
           >
             <CircleAlert size={12} aria-hidden="true" />
             <span>{syncMessage}</span>
-            {syncStatus === 'reconnect-required' ? (
+            {syncStatus === 'failed' ? (
+              <Button
+                type="link"
+                size="small"
+                className="workbench-file-caption-action"
+                icon={<RefreshCw size={11} />}
+                disabled={closing || actionBusy}
+                onClick={files.retryCwdSync}
+              >
+                {t('app.retry')}
+              </Button>
+            ) : syncStatus === 'reconnect-required' ? (
               <Button
                 type="link"
                 size="small"

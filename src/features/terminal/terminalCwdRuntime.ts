@@ -247,6 +247,11 @@ export class TerminalCwdRuntime {
     const refreshAdvanced = sourceChanged || next.refresh_seq > previousState.refresh_seq
     const confirmedPathChanged = next.confirmed_path !== entry.state.confirmed_path
     const changeBaseRevision = entry.latestChangeBaseRevision
+    const failedChangeCorrelated = Boolean(
+      entry.latestChangeRequest
+      && next.pending_operation?.status === 'failed'
+      && next.pending_operation.id === entry.latestChangeRequest.operation_id
+    )
     entry.state = next
     entry.hasServerState = true
     if (sourceChanged) {
@@ -297,6 +302,12 @@ export class TerminalCwdRuntime {
         }
       }
     }
+    if (failedChangeCorrelated) {
+      entry.requestErrors.cwd_change = null
+      entry.latestRequestIds.cwd_change = undefined
+      entry.latestChangeRequest = undefined
+      entry.latestChangeBaseRevision = undefined
+    }
     this.notify(entry)
     return true
   }
@@ -345,7 +356,10 @@ export class TerminalCwdRuntime {
     if (entry.state.confirmed_path === path && !entry.state.pending_operation) {
       return { status: 'already_current' }
     }
-    if (entry.latestChangeRequest?.path === path) {
+    if (
+      entry.latestChangeRequest?.path === path
+      && entry.latestChangeRequest.file_session_id === fileSessionId
+    ) {
       return { status: 'queued', request: entry.latestChangeRequest }
     }
 

@@ -162,6 +162,57 @@ test('目录请求 latest-wins 且只携带服务端基准 revision', () => {
   assert.equal(runtime.getSnapshot('ses-1').pending_operation, undefined)
 })
 
+test('同路径目录切换失败后重试会创建新的操作标识', () => {
+  const runtime = new TerminalCwdRuntime()
+  runtime.applyServerState('ses-1', cwdState())
+  runtime.registerTransport('ses-1', () => true)
+
+  const first = runtime.requestDirectoryChange('ses-1', 'fil-1', '/tmp')
+  assert.equal(first.status, 'queued')
+  if (first.status !== 'queued') {
+    assert.fail('首次目录切换应进入队列')
+  }
+
+  runtime.applyServerState('ses-1', cwdState({
+    state_seq: 2,
+    desired_path: '/tmp',
+    revision: 2,
+    pending_operation: {
+      id: first.request.operation_id,
+      file_session_id: 'fil-1',
+      path: '/tmp',
+      revision: 2,
+      status: 'failed',
+      error_code: 'CWD_TIMEOUT',
+      error: '目录切换超时',
+    },
+  }))
+
+  const retry = runtime.requestDirectoryChange('ses-1', 'fil-1', '/tmp')
+  assert.equal(retry.status, 'queued')
+  if (retry.status !== 'queued') {
+    assert.fail('失败后的同路径重试应重新进入队列')
+  }
+  assert.notEqual(retry.request.operation_id, first.request.operation_id)
+})
+
+test('同一路径切换到新的文件会话不会复用旧请求', () => {
+  const runtime = new TerminalCwdRuntime()
+  runtime.applyServerState('ses-1', cwdState())
+  runtime.registerTransport('ses-1', () => true)
+
+  const first = runtime.requestDirectoryChange('ses-1', 'fil-1', '/tmp')
+  const replacement = runtime.requestDirectoryChange('ses-1', 'fil-2', '/tmp')
+
+  assert.equal(first.status, 'queued')
+  assert.equal(replacement.status, 'queued')
+  if (first.status !== 'queued' || replacement.status !== 'queued') {
+    assert.fail('新旧文件会话的目录切换都应进入队列')
+  }
+  assert.notEqual(replacement.request.operation_id, first.request.operation_id)
+  assert.equal(replacement.request.file_session_id, 'fil-2')
+})
+
 test('重复目录、unsupported 和未就绪 transport 不发送请求', () => {
   const runtime = new TerminalCwdRuntime()
   runtime.applyServerState('ses-1', cwdState())
