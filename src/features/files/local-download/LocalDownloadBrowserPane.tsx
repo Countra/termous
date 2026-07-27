@@ -259,8 +259,10 @@ function DirectoryRow({
   const target = directoryTarget(mapping, entry.path)
   const targetKey = `directory:${mapping.id}:${entry.path}`
   return (
-    <button
-      type="button"
+    <Button
+      type="text"
+      htmlType="button"
+      block
       className={[
         'local-download-console-directory-row',
         drop.activeDropTarget === targetKey ? 'is-drop-target' : '',
@@ -272,13 +274,17 @@ function DirectoryRow({
       onDragLeave={(event) => drop.onTargetDragLeave(targetKey, event)}
       onDrop={(event) => void drop.onTargetDrop(targetKey, target, event)}
     >
-      <Folder size={16} aria-hidden="true" />
-      <span>
+      <span className="local-download-console-row-icon" aria-hidden="true">
+        <Folder size={16} />
+      </span>
+      <span className="local-download-console-row-copy">
         <strong>{entry.name}</strong>
         <small>{entry.path}</small>
       </span>
-      <ChevronRight size={14} aria-hidden="true" />
-    </button>
+      <span className="local-download-console-row-affordance" aria-hidden="true">
+        <ChevronRight size={14} />
+      </span>
+    </Button>
   )
 }
 

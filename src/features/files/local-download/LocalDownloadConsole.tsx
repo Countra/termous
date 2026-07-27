@@ -389,58 +389,55 @@ export function LocalDownloadConsole({
         }
       }}
     >
-      {open ? (
-        <>
-          <Button
-            ref={closeButtonRef}
-            type="text"
-            size="small"
-            className="local-download-console-close"
-            aria-label={t('app.close')}
-            icon={<X size={15} aria-hidden="true" />}
-            disabled={confirming || Boolean(drop.busyDropTarget) || operationBlocked}
-            onClick={onClose}
-          />
-          <LocalDownloadMappingPane
-            mappings={mappings}
-            selectedMappingId={workspace.selectedMappingId}
-            disabled={confirming || Boolean(drop.busyDropTarget) || operationBlocked}
-            drop={drop}
-            onSelectMapping={workspace.selectMapping}
-            onCreateMapping={onCreateMapping}
-            onUpdateMapping={onUpdateMapping}
-            onDeleteMapping={onDeleteMapping}
-            onReorderMappings={onReorderMappings}
-            onActionError={setActionError}
-          />
-          <LocalDownloadBrowserPane
-            mapping={workspace.selectedMapping}
-            state={workspace.selectedState}
-            disabled={operationBlocked}
-            drop={drop}
-            onNavigate={workspace.navigate}
-            onNavigateParent={workspace.navigateParent}
-            onRefresh={workspace.refresh}
-            onRetry={workspace.retry}
-            onActionError={setActionError}
-          />
-          <LocalDownloadConfirmPane
-            mapping={workspace.selectedMapping}
-            state={workspace.selectedState}
-            selection={selection}
-            confirming={confirming}
-            disabled={operationBlocked}
-            error={actionError}
-            drop={drop}
-            onConfirm={() => void confirmDownload()}
-          />
-          <span className="local-download-console-live-target" aria-live="polite">
-            {currentTarget
-              ? `${currentTarget.mappingName}${selectedRelativePath ? ` / ${selectedRelativePath}` : ''}`
-              : ''}
-          </span>
-        </>
-      ) : null}
+      <Button
+        ref={closeButtonRef}
+        type="text"
+        size="small"
+        className="local-download-console-close"
+        aria-label={t('app.close')}
+        icon={<X size={15} aria-hidden="true" />}
+        disabled={confirming || Boolean(drop.busyDropTarget) || operationBlocked}
+        onClick={onClose}
+      />
+      <LocalDownloadMappingPane
+        open={open}
+        mappings={mappings}
+        selectedMappingId={workspace.selectedMappingId}
+        disabled={confirming || Boolean(drop.busyDropTarget) || operationBlocked}
+        drop={drop}
+        onSelectMapping={workspace.selectMapping}
+        onCreateMapping={onCreateMapping}
+        onUpdateMapping={onUpdateMapping}
+        onDeleteMapping={onDeleteMapping}
+        onReorderMappings={onReorderMappings}
+        onActionError={setActionError}
+      />
+      <LocalDownloadBrowserPane
+        mapping={workspace.selectedMapping}
+        state={workspace.selectedState}
+        disabled={operationBlocked}
+        drop={drop}
+        onNavigate={workspace.navigate}
+        onNavigateParent={workspace.navigateParent}
+        onRefresh={workspace.refresh}
+        onRetry={workspace.retry}
+        onActionError={setActionError}
+      />
+      <LocalDownloadConfirmPane
+        mapping={workspace.selectedMapping}
+        state={workspace.selectedState}
+        selection={selection}
+        confirming={confirming}
+        disabled={operationBlocked}
+        error={actionError}
+        drop={drop}
+        onConfirm={() => void confirmDownload()}
+      />
+      <span className="local-download-console-live-target" aria-live="polite">
+        {currentTarget
+          ? `${currentTarget.mappingName}${selectedRelativePath ? ` / ${selectedRelativePath}` : ''}`
+          : ''}
+      </span>
     </div>
   )
 }

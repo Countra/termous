@@ -46,6 +46,7 @@ import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { SessionQuickConnect } from '../../components/hosts/SessionQuickConnect'
+import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { FeatureSidePanel } from '../../components/ui/FeatureSidePanel'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { SessionTabStrip } from '../../components/ui/SessionTabStrip'
@@ -139,6 +140,7 @@ interface WorkbenchPageProps {
   selectedHostId: string
   activeSession: Session | null
   actionBusy: boolean
+  onOpenConnectionLauncher: () => void
   onConnect: (hostId: string) => Promise<void>
   onSelectSession: (sessionId: string) => void
   onDisconnect: (sessionId: string) => Promise<void>
@@ -167,6 +169,7 @@ export function WorkbenchPage({
   selectedHostId,
   activeSession,
   actionBusy,
+  onOpenConnectionLauncher,
   onConnect,
   onSelectSession,
   onDisconnect,
@@ -1233,6 +1236,24 @@ export function WorkbenchPage({
             activeSession={activeSession}
             themeMode={terminalThemeMode}
             placeholder={selectedHost ? t('workbench.terminalReady') : t('workbench.terminalHint')}
+            emptyState={visibleSessions.length === 0 ? (
+              <WorkbenchEmptyState
+                className="terminal-empty-connect"
+                icon={<SquareTerminal size={20} aria-hidden="true" />}
+                title={t('workbench.emptyTerminalTitle')}
+                description={t('workbench.emptyTerminalHint')}
+                action={(
+                  <ConnectionActionButton
+                    className="terminal-empty-connect-button"
+                    icon={<Cable size={16} aria-hidden="true" />}
+                    disabled={actionBusy}
+                    onClick={onOpenConnectionLauncher}
+                  >
+                    {t('workbench.connectHost')}
+                  </ConnectionActionButton>
+                )}
+              />
+            ) : undefined}
             actionBusy={actionBusy}
             dragSessionId={terminalTabDrag?.dragging ? terminalTabDrag.sessionId : null}
             dragPoint={terminalTabDrag?.dragging ? terminalTabDrag.point : null}

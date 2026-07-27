@@ -675,6 +675,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     [openHostLauncher],
   )
 
+  const openTerminalSessionLauncher = useCallback(
+    () => openHostLauncher('terminal'),
+    [openHostLauncher],
+  )
+
   const closeHostLauncher = useCallback(() => {
     setHostLauncherState((current) => ({ ...current, open: false }))
   }, [])
@@ -774,6 +779,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             selectedHostId={selectedHostIdStable}
             activeSession={activeSession}
             actionBusy={actionBusy}
+            onOpenConnectionLauncher={openTerminalSessionLauncher}
             onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
             onSelectSession={actions.selectSession}
             onDisconnect={(sessionId) => runAction(() => actions.disconnect(sessionId))}

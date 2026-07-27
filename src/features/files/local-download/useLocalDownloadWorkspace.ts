@@ -48,7 +48,15 @@ export function useLocalDownloadWorkspace({
   refreshRequests = [],
   loadErrorMessage,
 }: UseLocalDownloadWorkspaceOptions) {
-  const [selectedMappingId, setSelectedMappingId] = useState('')
+  const preferredMappingId = preferredTarget?.mappingId
+  const preferredPath = preferredTarget?.path
+  const [selectedMappingId, setSelectedMappingId] = useState(
+    () => resolveLocalDownloadSelectedMapping(
+      mappings,
+      '',
+      preferredMappingId,
+    )?.id ?? '',
+  )
   const [states, setStates] = useState<LocalDirectoryStates>({})
   const statesRef = useRef(states)
   const selectedMappingIdRef = useRef(selectedMappingId)
@@ -165,8 +173,13 @@ export function useLocalDownloadWorkspace({
   }, [cancelMappingRequest, loadDirectory, mappings, open])
 
   const selectedMapping = useMemo(
-    () => mappings.find((mapping) => mapping.id === selectedMappingId) ?? null,
-    [mappings, selectedMappingId],
+    () => mappings.find((mapping) => mapping.id === selectedMappingId)
+      ?? resolveLocalDownloadSelectedMapping(
+        mappings,
+        '',
+        preferredMappingId,
+      ),
+    [mappings, preferredMappingId, selectedMappingId],
   )
   const selectedState = selectedMapping
     ? states[selectedMapping.id] ?? createLocalDirectoryViewState(selectedMapping)
@@ -244,15 +257,27 @@ export function useLocalDownloadWorkspace({
       return
     }
 
-    const selected = mappings.find((mapping) => mapping.id === selectedMappingId)
+    const selected = resolveLocalDownloadSelectedMapping(
+      mappings,
+      selectedMappingId,
+      preferredMappingId,
+    )
     if (wasOpenRef.current && selected) {
-      const selectedState = states[selected.id]
+      const selectedState = statesRef.current[selected.id]
+      const targetPath = preferredMappingId === selected.id
+        && preferredPath
+        && isLocalPathWithin(preferredPath, selected.path)
+        ? preferredPath
+        : selectedState?.committedPath || selected.path
       if (
         selected.available
-        && !selectedState?.hasLoaded
-        && (selectedState?.status ?? 'idle') === 'idle'
+        && !isLocalDirectoryBusy(selectedState?.status ?? 'idle')
+        && (
+          !selectedState?.hasLoaded
+          || !localPathEquals(selectedState.committedPath, targetPath)
+        )
       ) {
-        loadDirectory(selected, selected.path, 'load')
+        loadDirectory(selected, targetPath, selectedState?.hasLoaded ? 'navigate' : 'load')
       }
       return
     }
@@ -260,30 +285,39 @@ export function useLocalDownloadWorkspace({
     const nextMapping = resolveLocalDownloadSelectedMapping(
       mappings,
       selectedMappingId,
-      preferredTarget?.mappingId,
+      preferredMappingId,
     )
     if (!nextMapping) {
       selectedMappingIdRef.current = ''
       setSelectedMappingId('')
       return
     }
-    const targetPath = preferredTarget?.mappingId === nextMapping.id
-      && isLocalPathWithin(preferredTarget.path, nextMapping.path)
-      ? preferredTarget.path
+    const targetPath = preferredMappingId === nextMapping.id
+      && preferredPath
+      && isLocalPathWithin(preferredPath, nextMapping.path)
+      ? preferredPath
       : nextMapping.path
     selectedMappingIdRef.current = nextMapping.id
     setSelectedMappingId(nextMapping.id)
-    if (nextMapping.available) {
-      loadDirectory(nextMapping, targetPath, 'load')
+    const nextState = statesRef.current[nextMapping.id]
+    if (
+      nextMapping.available
+      && !isLocalDirectoryBusy(nextState?.status ?? 'idle')
+      && (
+        !nextState?.hasLoaded
+        || !localPathEquals(nextState.committedPath, targetPath)
+      )
+    ) {
+      loadDirectory(nextMapping, targetPath, nextState?.hasLoaded ? 'navigate' : 'load')
     }
   }, [
     commitStates,
     loadDirectory,
     mappings,
     open,
-    preferredTarget,
+    preferredMappingId,
+    preferredPath,
     selectedMappingId,
-    states,
   ])
 
   useEffect(() => () => {
@@ -319,7 +353,7 @@ export function useLocalDownloadWorkspace({
 
   return {
     selectedMapping,
-    selectedMappingId,
+    selectedMappingId: selectedMapping?.id ?? '',
     selectedState,
     states,
     selectMapping,

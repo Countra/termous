@@ -10,7 +10,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
   LocalPathMapping,
@@ -24,6 +24,7 @@ type DropController = ReturnType<typeof useLocalDownloadDrop>
 type MappingDraft = LocalPathMappingInput & { id?: string }
 
 interface LocalDownloadMappingPaneProps {
+  open: boolean
   mappings: readonly LocalPathMapping[]
   selectedMappingId: string
   disabled?: boolean
@@ -37,6 +38,7 @@ interface LocalDownloadMappingPaneProps {
 }
 
 export function LocalDownloadMappingPane({
+  open,
   mappings,
   selectedMappingId,
   disabled = false,
@@ -62,6 +64,12 @@ export function LocalDownloadMappingPane({
   const selectedIndex = selectedMapping
     ? mappings.findIndex((mapping) => mapping.id === selectedMapping.id)
     : -1
+
+  useEffect(() => {
+    if (!open) {
+      setDraft(null)
+    }
+  }, [open])
 
   const chooseDirectory = async () => {
     try {
@@ -346,9 +354,11 @@ export function LocalDownloadMappingPane({
             const target = mappingTarget(mapping)
             const targetKey = `mapping:${mapping.id}`
             return (
-              <button
+              <Button
                 key={mapping.id}
-                type="button"
+                type="text"
+                htmlType="button"
+                block
                 className={[
                   'local-download-console-mapping-row',
                   selectedMappingId === mapping.id ? 'is-active' : '',
@@ -363,17 +373,22 @@ export function LocalDownloadMappingPane({
                 onDragLeave={(event) => drop.onTargetDragLeave(targetKey, event)}
                 onDrop={(event) => void drop.onTargetDrop(targetKey, target, event)}
               >
-                <HardDrive size={15} aria-hidden="true" />
-                <span>
+                <span className="local-download-console-row-icon" aria-hidden="true">
+                  <HardDrive size={15} />
+                </span>
+                <span className="local-download-console-row-copy">
                   <strong>{mapping.name}</strong>
                   <small>{mapping.path}</small>
                 </span>
-                <i
+                <span
+                  className="local-download-console-mapping-status"
                   aria-label={mapping.available
                     ? t('status.available')
                     : t('files.downloadDestinationUnavailable')}
-                />
-              </button>
+                >
+                  <i aria-hidden="true" />
+                </span>
+              </Button>
             )
           }) : (
             <div className="local-download-console-empty-copy">
