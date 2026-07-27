@@ -138,6 +138,7 @@ export function useWorkbenchSessionFiles({
   const cwdRefreshError = useSessionCwdRequestError(sourceSessionId, 'cwd_refresh')
   const cwdTransportState = useSessionCwdTransportState(sourceSessionId)
   const [viewStates, dispatchViewStates] = useReducer(sessionFilesViewStatesReducer, {})
+  const viewStatesRef = useRef(viewStates)
   const [sessionOverrides, setSessionOverrides] = useState<Record<string, FileSession>>({})
   const [recoveryStates, setRecoveryStates] = useState<Record<string, FileSessionRecoveryState>>({})
   const mountedRef = useRef(true)
@@ -157,12 +158,14 @@ export function useWorkbenchSessionFiles({
   const directoryRequestControllersRef = useRef(new Map<string, AbortController>())
   const [cwdRefreshWakeSequence, setCwdRefreshWakeSequence] = useState(0)
   const scrollPositionsRef = useRef(new Map<string, FileListScrollPosition>())
-  const observedFileSessionIdsRef = useRef(new Map<string, string>())
+  const observedFileSessionKeysRef = useRef(new Map<string, string>())
   const suspendedFileSessionKeysRef = useRef(new Map<string, string>())
+  const unavailableSourceSessionIdsRef = useRef(new Set<string>())
   const listRef = useRef<HTMLDivElement>(null)
 
   sourceSessionContextsRef.current = buildSourceSessionContexts(data.sessions)
   fileSessionsRef.current = data.fileSessions
+  viewStatesRef.current = viewStates
   onUpdateFileSessionRef.current = onUpdateFileSession
   sessionOverridesRef.current = sessionOverrides
   recoveryStatesRef.current = recoveryStates
@@ -228,11 +231,14 @@ export function useWorkbenchSessionFiles({
     scrollPositionsRef.current = new Map(
       [...scrollPositionsRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
     )
-    observedFileSessionIdsRef.current = new Map(
-      [...observedFileSessionIdsRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
+    observedFileSessionKeysRef.current = new Map(
+      [...observedFileSessionKeysRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
     )
     suspendedFileSessionKeysRef.current = new Map(
       [...suspendedFileSessionKeysRef.current].filter(([sessionId]) => activeIds.has(sessionId)),
+    )
+    unavailableSourceSessionIdsRef.current = new Set(
+      [...unavailableSourceSessionIdsRef.current].filter((sessionId) => activeIds.has(sessionId)),
     )
   }, [data.sessions])
 
@@ -327,11 +333,25 @@ export function useWorkbenchSessionFiles({
     if (!sourceSessionId || !fileSessionId) {
       return
     }
-    const previousFileSessionId = observedFileSessionIdsRef.current.get(sourceSessionId)
-    observedFileSessionIdsRef.current.set(sourceSessionId, fileSessionId)
-    if (!previousFileSessionId || previousFileSessionId === fileSessionId) {
+    const fileSessionKey = `${fileSessionId}:${fileSession?.connection_generation ?? 0}`
+    const previousFileSessionKey = observedFileSessionKeysRef.current.get(sourceSessionId)
+    observedFileSessionKeysRef.current.set(sourceSessionId, fileSessionKey)
+    if (!previousFileSessionKey || previousFileSessionKey === fileSessionKey) {
       return
     }
+    const controller = directoryRequestControllersRef.current.get(sourceSessionId)
+    if (controller) {
+      directoryRequestControllersRef.current.delete(sourceSessionId)
+      controller.abort()
+    }
+    const requestSequence = (
+      directoryRequestSequencesRef.current.get(sourceSessionId) ?? 0
+    ) + 1
+    directoryRequestSequencesRef.current.set(sourceSessionId, requestSequence)
+    updateView(
+      (state) => suspendSessionFilesDirectory(state, requestSequence),
+      fileSession?.current_path || initialPath,
+    )
     if (cwdRequestError?.request_id) {
       cwdRuntime.clearRequestError(
         sourceSessionId,
@@ -360,6 +380,8 @@ export function useWorkbenchSessionFiles({
     cwdRequestError?.request_id,
     cwdRuntime,
     cwdState,
+    fileSession?.connection_generation,
+    fileSession?.current_path,
     fileSessionId,
     initialPath,
     sourceSessionAvailable,
@@ -367,6 +389,41 @@ export function useWorkbenchSessionFiles({
     updateView,
     viewState?.followTerminal,
   ])
+
+  useLayoutEffect(() => {
+    if (!sourceSessionId) {
+      return
+    }
+    if (sourceSessionAvailable) {
+      unavailableSourceSessionIdsRef.current.delete(sourceSessionId)
+      return
+    }
+    if (unavailableSourceSessionIdsRef.current.has(sourceSessionId)) {
+      return
+    }
+    unavailableSourceSessionIdsRef.current.add(sourceSessionId)
+    const controller = directoryRequestControllersRef.current.get(sourceSessionId)
+    if (controller) {
+      directoryRequestControllersRef.current.delete(sourceSessionId)
+      controller.abort()
+    }
+    if (
+      !controller
+      && !Object.prototype.hasOwnProperty.call(viewStatesRef.current, sourceSessionId)
+    ) {
+      return
+    }
+    const requestSequence = (
+      directoryRequestSequencesRef.current.get(sourceSessionId) ?? 0
+    ) + 1
+    directoryRequestSequencesRef.current.set(sourceSessionId, requestSequence)
+    dispatchViewStates({
+      type: 'update',
+      sessionId: sourceSessionId,
+      initialPath,
+      update: (state) => suspendSessionFilesDirectory(state, requestSequence),
+    })
+  }, [initialPath, sourceSessionAvailable, sourceSessionId])
 
   useLayoutEffect(() => {
     if (!sourceSessionId || !fileSessionId) {
@@ -792,6 +849,23 @@ export function useWorkbenchSessionFiles({
       })
       return false
     }
+    const requestedFileSessionId = fileSessionId
+    const requestedConnectionGeneration = fileSession?.connection_generation ?? 0
+    const sourceStillAvailable = () => canUseSourceFileSession(
+      sourceSessionContextsRef.current,
+      sourceSessionId,
+      sourceHostId,
+      closingSessionIdsRef.current,
+    )
+    const fileSessionStillCurrent = () => {
+      const currentFileSession = currentFileSessionsRef.current.get(sourceSessionId)
+      return Boolean(
+        currentFileSession
+        && currentFileSession.id === requestedFileSessionId
+        && (currentFileSession.connection_generation ?? 0) === requestedConnectionGeneration
+        && currentFileSession.status === 'connected'
+      )
+    }
     const sequence = (directoryRequestSequencesRef.current.get(sourceSessionId) ?? 0) + 1
     directoryRequestSequencesRef.current.set(sourceSessionId, sequence)
     const controller = new AbortController()
@@ -804,19 +878,32 @@ export function useWorkbenchSessionFiles({
       initialPath: normalized,
       update: (currentView) => beginDirectoryRequest(currentView, normalized, sequence).state,
     })
+    const suspendStaleRequest = () => {
+      const invalidatedSequence = Math.max(
+        directoryRequestSequencesRef.current.get(sourceSessionId) ?? 0,
+        sequence,
+      ) + 1
+      directoryRequestSequencesRef.current.set(sourceSessionId, invalidatedSequence)
+      dispatchViewStates({
+        type: 'update',
+        sessionId: sourceSessionId,
+        initialPath: normalized,
+        update: (state) => suspendSessionFilesDirectory(state, invalidatedSequence),
+      })
+    }
     try {
-      const listing = await api.listFileSessionFiles(fileSessionId, normalized, {
+      const listing = await api.listFileSessionFiles(requestedFileSessionId, normalized, {
         signal: controller.signal,
       })
-      if (
-        directoryRequestControllersRef.current.get(sourceSessionId) !== controller
-        || !canUseSourceFileSession(
-          sourceSessionContextsRef.current,
-          sourceSessionId,
-          sourceHostId,
-          closingSessionIdsRef.current,
-        )
-      ) {
+      if (directoryRequestControllersRef.current.get(sourceSessionId) !== controller) {
+        return false
+      }
+      const sourceAvailable = sourceStillAvailable()
+      if (!sourceAvailable || !fileSessionStillCurrent()) {
+        if (!sourceAvailable) {
+          unavailableSourceSessionIdsRef.current.add(sourceSessionId)
+        }
+        suspendStaleRequest()
         return false
       }
       dispatchViewStates({
@@ -828,6 +915,14 @@ export function useWorkbenchSessionFiles({
       return true
     } catch (error) {
       if (directoryRequestControllersRef.current.get(sourceSessionId) !== controller) {
+        return false
+      }
+      const sourceAvailable = sourceStillAvailable()
+      if (!sourceAvailable || !fileSessionStillCurrent()) {
+        if (!sourceAvailable) {
+          unavailableSourceSessionIdsRef.current.add(sourceSessionId)
+        }
+        suspendStaleRequest()
         return false
       }
       const message = error instanceof Error ? error.message : ''
@@ -843,7 +938,15 @@ export function useWorkbenchSessionFiles({
         directoryRequestControllersRef.current.delete(sourceSessionId)
       }
     }
-  }, [api, fileSessionId, fileSessionStatus, sourceHostId, sourceSessionId, updateView])
+  }, [
+    api,
+    fileSession?.connection_generation,
+    fileSessionId,
+    fileSessionStatus,
+    sourceHostId,
+    sourceSessionId,
+    updateView,
+  ])
 
   useEffect(() => {
     if (
@@ -1340,7 +1443,7 @@ export function useWorkbenchSessionFiles({
     }
     const targetPath = viewState.pendingTerminalPath
     const result = cwdRuntime.requestDirectoryChange(sourceSessionId, fileSessionId, targetPath)
-    if (result.status === 'not_ready') {
+    if (result.status === 'not_ready' || result.status === 'busy') {
       return
     }
     if (result.status === 'queued') {
@@ -1453,6 +1556,9 @@ export function useWorkbenchSessionFiles({
         syncError: '',
       }), normalized)
       return loadDirectory(normalized)
+    }
+    if (result.status === 'busy') {
+      return false
     }
     if (result.status !== 'queued') {
       if (result.status === 'not_ready') {

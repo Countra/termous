@@ -75,6 +75,28 @@ test('terminal transport 状态变化可订阅且重复状态不通知', () => {
   assert.equal(notifications, 2)
 })
 
+test('目录请求发送后 transport 断线会释放本地在途门控', () => {
+  const runtime = new TerminalCwdRuntime()
+  const requests: string[] = []
+  runtime.applyServerState('ses-1', cwdState())
+  runtime.registerTransport('ses-1', (request) => {
+    requests.push(request.operation_id)
+    return true
+  })
+  runtime.applyTransportState('ses-1', 'live')
+
+  const first = runtime.requestDirectoryChange('ses-1', 'fil-1', '/tmp/first')
+  assert.equal(first.status, 'queued')
+  runtime.applyTransportState('ses-1', 'retry_wait')
+  assert.equal(runtime.applyServerState('ses-1', cwdState()), false)
+  runtime.applyTransportState('ses-1', 'live')
+
+  const retry = runtime.requestDirectoryChange('ses-1', 'fil-1', '/tmp/first')
+  assert.equal(retry.status, 'queued')
+  assert.equal(requests.length, 2)
+  assert.notEqual(requests[0], requests[1])
+})
+
 test('嵌套 Shell 快照按 state sequence 合并并允许 prompt generation 重置', () => {
   const runtime = new TerminalCwdRuntime()
   assert.equal(runtime.applyServerState('ses-1', cwdState({
@@ -139,7 +161,7 @@ test('source generation 前进会取消旧刷新关联并允许新事务', () =>
   assert.equal(calls, 2)
 })
 
-test('目录请求 latest-wins 且只携带服务端基准 revision', () => {
+test('同一文件会话的目录请求串行发送并使用最新服务端 revision', () => {
   const runtime = new TerminalCwdRuntime()
   const requests: Array<{ path: string; baseRevision: number }> = []
   runtime.applyServerState('ses-1', cwdState())
@@ -152,14 +174,25 @@ test('目录请求 latest-wins 且只携带服务端基准 revision', () => {
   const second = runtime.requestDirectoryChange('ses-1', 'fil-1', '/root/second')
 
   assert.equal(first.status, 'queued')
-  assert.equal(second.status, 'queued')
+  assert.equal(second.status, 'busy')
   assert.deepEqual(requests, [
     { path: '/root/first', baseRevision: 1 },
-    { path: '/root/second', baseRevision: 1 },
   ])
   assert.equal(runtime.getSnapshot('ses-1').desired_path, undefined)
   assert.equal(runtime.getSnapshot('ses-1').revision, 1)
   assert.equal(runtime.getSnapshot('ses-1').pending_operation, undefined)
+
+  runtime.applyServerState('ses-1', cwdState({
+    confirmed_path: '/root/first',
+    state_seq: 2,
+    revision: 2,
+  }))
+  const next = runtime.requestDirectoryChange('ses-1', 'fil-1', '/root/second')
+  assert.equal(next.status, 'queued')
+  assert.deepEqual(requests, [
+    { path: '/root/first', baseRevision: 1 },
+    { path: '/root/second', baseRevision: 2 },
+  ])
 })
 
 test('同路径目录切换失败后重试会创建新的操作标识', () => {
@@ -196,21 +229,47 @@ test('同路径目录切换失败后重试会创建新的操作标识', () => {
   assert.notEqual(retry.request.operation_id, first.request.operation_id)
 })
 
-test('同一路径切换到新的文件会话不会复用旧请求', () => {
+test('新的文件会话不会替换 SSH 会话中尚未结束的目录事务', () => {
   const runtime = new TerminalCwdRuntime()
+  let calls = 0
   runtime.applyServerState('ses-1', cwdState())
-  runtime.registerTransport('ses-1', () => true)
+  runtime.registerTransport('ses-1', () => {
+    calls += 1
+    return true
+  })
 
   const first = runtime.requestDirectoryChange('ses-1', 'fil-1', '/tmp')
   const replacement = runtime.requestDirectoryChange('ses-1', 'fil-2', '/tmp')
 
   assert.equal(first.status, 'queued')
-  assert.equal(replacement.status, 'queued')
-  if (first.status !== 'queued' || replacement.status !== 'queued') {
-    assert.fail('新旧文件会话的目录切换都应进入队列')
-  }
-  assert.notEqual(replacement.request.operation_id, first.request.operation_id)
-  assert.equal(replacement.request.file_session_id, 'fil-2')
+  assert.equal(replacement.status, 'busy')
+  assert.equal(calls, 1)
+})
+
+test('服务端已有 SSH 目录事务时不会因文件会话变化而重复发送', () => {
+  const runtime = new TerminalCwdRuntime()
+  let calls = 0
+  runtime.applyServerState('ses-1', cwdState({
+    desired_path: '/tmp/first',
+    revision: 2,
+    pending_operation: {
+      id: 'op_server_pending',
+      file_session_id: 'fil-1',
+      path: '/tmp/first',
+      revision: 2,
+      status: 'publishing',
+    },
+  }))
+  runtime.registerTransport('ses-1', () => {
+    calls += 1
+    return true
+  })
+
+  assert.deepEqual(
+    runtime.requestDirectoryChange('ses-1', 'fil-2', '/tmp/second'),
+    { status: 'busy' },
+  )
+  assert.equal(calls, 0)
 })
 
 test('重复目录、unsupported 和未就绪 transport 不发送请求', () => {
@@ -270,6 +329,12 @@ test('request_error 与服务端 CWD 状态分离并保留 last-good path', () =
     retryable: true,
     message: '当前 Shell 正忙',
   })
+  const retry = runtime.requestDirectoryChange('ses-1', 'fil-1', '/tmp')
+  assert.equal(retry.status, 'queued')
+  if (retry.status !== 'queued') {
+    assert.fail('可重试错误返回后应立即允许重新发送目录切换')
+  }
+  assert.notEqual(retry.request.operation_id, result.request.operation_id)
 })
 
 test('过期 request_error 不会覆盖较新的目录请求结果', () => {
@@ -277,11 +342,19 @@ test('过期 request_error 不会覆盖较新的目录请求结果', () => {
   runtime.applyServerState('ses-1', cwdState())
   runtime.registerTransport('ses-1', () => true)
   const first = runtime.requestDirectoryChange('ses-1', 'fil-1', '/tmp/first')
+  assert.equal(first.status, 'queued')
+  if (first.status !== 'queued') {
+    assert.fail('首次目录切换请求应进入队列')
+  }
+  runtime.applyServerState('ses-1', cwdState({
+    confirmed_path: '/tmp/first',
+    state_seq: 2,
+    revision: 2,
+  }))
   const second = runtime.requestDirectoryChange('ses-1', 'fil-1', '/tmp/second')
 
-  assert.equal(first.status, 'queued')
   assert.equal(second.status, 'queued')
-  if (first.status !== 'queued' || second.status !== 'queued') {
+  if (second.status !== 'queued') {
     assert.fail('目录切换请求应进入队列')
   }
   assert.equal(

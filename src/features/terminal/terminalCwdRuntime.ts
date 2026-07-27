@@ -9,6 +9,7 @@ import type { TerminalTransportState } from './terminalTransport.ts'
 export type SessionCwdRequestResult =
   | { status: 'queued'; request: SessionCwdChangeRequest }
   | { status: 'already_current' }
+  | { status: 'busy' }
   | { status: 'unsupported'; reason?: string }
   | { status: 'not_ready' }
   | { status: 'invalid_path' }
@@ -111,7 +112,17 @@ export class TerminalCwdRuntime {
 
   applyTransportState(sessionId: string, state: TerminalTransportState) {
     const entry = this.ensureEntry(sessionId)
-    if (entry.transportState === state) {
+    const changeRequestCleared = state !== 'live' && Boolean(
+      entry.latestRequestIds.cwd_change
+      || entry.latestChangeRequest
+      || entry.latestChangeBaseRevision !== undefined
+    )
+    if (state !== 'live') {
+      entry.latestRequestIds.cwd_change = undefined
+      entry.latestChangeRequest = undefined
+      entry.latestChangeBaseRevision = undefined
+    }
+    if (entry.transportState === state && !changeRequestCleared) {
       return false
     }
     entry.transportState = state
@@ -274,8 +285,11 @@ export class TerminalCwdRuntime {
     const refreshTerminal = refreshCorrelated
       && next.refresh_status !== undefined
       && next.refresh_status !== 'pending'
-    const legacyRefreshComplete = !next.refresh_request_id
+    const legacyRefreshComplete = Boolean(
+      refreshRequestId
+      && !next.refresh_request_id
       && (refreshAdvanced || confirmedPathChanged)
+    )
     if (refreshTerminal || legacyRefreshComplete) {
       entry.requestErrors.cwd_refresh = null
       entry.latestRequestIds.cwd_refresh = undefined
@@ -361,6 +375,12 @@ export class TerminalCwdRuntime {
       && entry.latestChangeRequest.file_session_id === fileSessionId
     ) {
       return { status: 'queued', request: entry.latestChangeRequest }
+    }
+    if (entry.latestChangeRequest) {
+      return { status: 'busy' }
+    }
+    if (isCwdOperationInFlight(entry.state.pending_operation)) {
+      return { status: 'busy' }
     }
 
     const request: SessionCwdChangeRequest = {
