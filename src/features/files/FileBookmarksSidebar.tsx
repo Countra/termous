@@ -4,6 +4,7 @@ import {
   Dropdown,
   Empty,
   Input,
+  Popconfirm,
   Select,
   Tooltip,
   type InputRef,
@@ -416,6 +417,7 @@ export function FileBookmarksSidebar({
         window.requestAnimationFrame(() => listRef.current?.focus({ preventScroll: true }))
       } catch (error) {
         notifyError(error)
+        cancelDelete()
       } finally {
         setDeleting(false)
       }
@@ -423,6 +425,7 @@ export function FileBookmarksSidebar({
       deleteTarget,
       deleting,
       mutationPending,
+      cancelDelete,
       notifyError,
       onDeleteBookmark,
       onDeleteGroup,
@@ -777,30 +780,14 @@ export function FileBookmarksSidebar({
       [groups],
     )
 
-    const renderDeleteConfirmation = (target: DeleteTarget) => (
-      <SidebarDeleteConfirmation
-        target={target}
-        deleting={deleting}
-        blocked={reordering || mutationPending}
-        onCancel={cancelDelete}
-        onConfirm={() => void confirmDelete()}
-      />
-    )
-
     const renderBookmarkRow = (
       bookmark: FileBookmark,
       groupName: string,
       groupId: string,
     ) => {
-      if (deleteTarget?.kind === 'bookmark' && deleteTarget.id === bookmark.id) {
-        return (
-          <div key={bookmark.id} data-bookmark-id={bookmark.id}>
-            {renderDeleteConfirmation(deleteTarget)}
-          </div>
-        )
-      }
       const current = currentBookmark?.id === bookmark.id
       const navigating = navigatingBookmarkId === bookmark.id
+      const deleteOpen = deleteTarget?.kind === 'bookmark' && deleteTarget.id === bookmark.id
       const dropPlacement = bookmarkDropTarget?.groupId === groupId
         && bookmarkDropTarget.bookmarkId === bookmark.id
           ? bookmarkDropTarget.placement
@@ -815,16 +802,22 @@ export function FileBookmarksSidebar({
           current={current}
           navigating={navigating}
           reordering={mutationBlocked}
+          deleteOpen={deleteOpen}
+          deleting={deleting}
+          deleteTriggerBlocked={mutationBlocked}
+          deleteConfirmBlocked={reordering || mutationPending}
           sortingDisabled={searchActive}
           dragging={draggingBookmarkId === bookmark.id}
           dropPlacement={dropPlacement}
           onNavigate={() => void navigateToBookmark(bookmark)}
           onEdit={(trigger) => openBookmarkEditor(bookmark, groupId, trigger)}
-          onDelete={(trigger) => openDelete({
+          onOpenDelete={(trigger) => openDelete({
             kind: 'bookmark',
             id: bookmark.id,
             label: bookmark.path,
           }, trigger)}
+          onCancelDelete={cancelDelete}
+          onConfirmDelete={confirmDelete}
           onMoveByStep={(direction) => void moveBookmarkByStep(bookmark.id, direction)}
           onDragStart={(event) => {
             if (searchActive || mutationBlocked || reorderingRef.current) {
@@ -872,14 +865,7 @@ export function FileBookmarksSidebar({
       const collapsed = collapsedGroupIds.includes(group.id)
       const sourceGroup = groupSourceById.get(group.id)
       const reorderLabel = t('files.bookmarkReorderGroupLabel', { name: group.name })
-      const deletingThisGroup = deleteTarget?.kind === 'group' && deleteTarget.id === group.id
-      if (deletingThisGroup) {
-        return (
-          <section key={group.id || 'ungrouped'} className="files-bookmarks-sidebar-group">
-            {renderDeleteConfirmation(deleteTarget)}
-          </section>
-        )
-      }
+      const deleteOpen = deleteTarget?.kind === 'group' && deleteTarget.id === group.id
 
       const groupPlacement = groupDropTarget?.id === group.id
         ? groupDropTarget.placement
@@ -997,13 +983,17 @@ export function FileBookmarksSidebar({
               group={sourceGroup}
               builtIn={Boolean(group.builtIn)}
               disabled={mutationBlocked}
+              deleteOpen={deleteOpen}
+              deleting={deleting}
+              deleteTriggerBlocked={mutationBlocked}
+              deleteConfirmBlocked={reordering || mutationPending}
               onCreateBookmark={(trigger) => openBookmarkEditor(undefined, group.id, trigger)}
               onEdit={(trigger) => {
                 if (sourceGroup) {
                   openGroupEditor(sourceGroup, trigger)
                 }
               }}
-              onDelete={(trigger) => {
+              onOpenDelete={(trigger) => {
                 if (sourceGroup) {
                   openDelete({
                     kind: 'group',
@@ -1012,6 +1002,8 @@ export function FileBookmarksSidebar({
                   }, trigger)
                 }
               }}
+              onCancelDelete={cancelDelete}
+              onConfirmDelete={confirmDelete}
             />
           </div>
           {!collapsed ? (
@@ -1197,12 +1189,18 @@ interface SidebarBookmarkRowProps {
   current: boolean
   navigating: boolean
   reordering: boolean
+  deleteOpen: boolean
+  deleting: boolean
+  deleteTriggerBlocked: boolean
+  deleteConfirmBlocked: boolean
   sortingDisabled: boolean
   dragging: boolean
   dropPlacement: Exclude<BookmarkDropPlacement, 'auto'> | null
   onNavigate: () => void
   onEdit: (trigger: HTMLElement) => void
-  onDelete: (trigger: HTMLElement) => void
+  onOpenDelete: (trigger: HTMLElement) => void
+  onCancelDelete: () => void
+  onConfirmDelete: () => Promise<void>
   onMoveByStep: (direction: -1 | 1) => void
   onDragStart: (event: DragEvent<HTMLElement>) => void
   onDragOver: (event: DragEvent<HTMLElement>) => void
@@ -1218,12 +1216,18 @@ function SidebarBookmarkRow({
   current,
   navigating,
   reordering,
+  deleteOpen,
+  deleting,
+  deleteTriggerBlocked,
+  deleteConfirmBlocked,
   sortingDisabled,
   dragging,
   dropPlacement,
   onNavigate,
   onEdit,
-  onDelete,
+  onOpenDelete,
+  onCancelDelete,
+  onConfirmDelete,
   onMoveByStep,
   onDragStart,
   onDragOver,
@@ -1231,34 +1235,8 @@ function SidebarBookmarkRow({
   onDrop,
 }: SidebarBookmarkRowProps) {
   const { t } = useTranslation()
-  const actionButtonRef = useRef<HTMLButtonElement>(null)
+  const editButtonRef = useRef<HTMLButtonElement>(null)
   const reorderLabel = t('files.bookmarkReorderItemLabel', { name: bookmark.name })
-  const menu = useMemo<MenuProps>(() => ({
-    items: [
-      {
-        key: 'edit',
-        icon: <Pencil size={14} aria-hidden="true" />,
-        label: t('files.editBookmark'),
-      },
-      {
-        key: 'delete',
-        danger: true,
-        icon: <Trash2 size={14} aria-hidden="true" />,
-        label: t('app.delete'),
-      },
-    ],
-    onClick: ({ key }) => {
-      const trigger = actionButtonRef.current
-      if (!trigger) {
-        return
-      }
-      if (key === 'delete') {
-        onDelete(trigger)
-      } else {
-        onEdit(trigger)
-      }
-    },
-  }), [onDelete, onEdit, t])
 
   return (
     <article
@@ -1340,24 +1318,35 @@ function SidebarBookmarkRow({
           </span>
         </button>
       </Tooltip>
-      <Dropdown
-        menu={menu}
-        trigger={['click']}
-        classNames={{ root: 'context-action-menu files-bookmarks-sidebar-menu' }}
-        disabled={navigating || reordering}
-      >
-        <Tooltip title={t('files.actions')} placement="left">
+      <span className="files-bookmarks-sidebar-row-actions">
+        <Tooltip title={t('files.editBookmark')} placement="top">
           <Button
-            ref={actionButtonRef}
-            data-bookmark-focus-key={`bookmark-action:${bookmark.id}`}
+            ref={editButtonRef}
+            data-bookmark-focus-key={`bookmark-edit:${bookmark.id}`}
             type="text"
-            className="files-bookmarks-sidebar-more"
-            aria-label={t('files.actions')}
+            className="files-bookmarks-sidebar-row-action"
+            aria-label={t('files.editBookmark')}
             disabled={navigating || reordering}
-            icon={<MoreHorizontal size={15} aria-hidden="true" />}
+            icon={<Pencil size={14} aria-hidden="true" />}
+            onClick={() => {
+              if (editButtonRef.current) {
+                onEdit(editButtonRef.current)
+              }
+            }}
           />
         </Tooltip>
-      </Dropdown>
+        <SidebarDeletePopconfirm
+          target={{ kind: 'bookmark', id: bookmark.id, label: bookmark.path }}
+          open={deleteOpen}
+          deleting={deleting}
+          triggerBlocked={deleteTriggerBlocked}
+          confirmBlocked={deleteConfirmBlocked}
+          focusKey={`bookmark-delete:${bookmark.id}`}
+          onOpen={onOpenDelete}
+          onCancel={onCancelDelete}
+          onConfirm={onConfirmDelete}
+        />
+      </span>
     </article>
   )
 }
@@ -1366,18 +1355,30 @@ interface SidebarGroupMenuProps {
   group?: FileBookmarkGroup
   builtIn: boolean
   disabled: boolean
+  deleteOpen: boolean
+  deleting: boolean
+  deleteTriggerBlocked: boolean
+  deleteConfirmBlocked: boolean
   onCreateBookmark: (trigger: HTMLElement) => void
   onEdit: (trigger: HTMLElement) => void
-  onDelete: (trigger: HTMLElement) => void
+  onOpenDelete: (trigger: HTMLElement) => void
+  onCancelDelete: () => void
+  onConfirmDelete: () => Promise<void>
 }
 
 function SidebarGroupMenu({
   group,
   builtIn,
   disabled,
+  deleteOpen,
+  deleting,
+  deleteTriggerBlocked,
+  deleteConfirmBlocked,
   onCreateBookmark,
   onEdit,
-  onDelete,
+  onOpenDelete,
+  onCancelDelete,
+  onConfirmDelete,
 }: SidebarGroupMenuProps) {
   const { t } = useTranslation()
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -1394,12 +1395,6 @@ function SidebarGroupMenu({
           icon: <Pencil size={14} aria-hidden="true" />,
           label: t('files.editBookmarkGroup'),
         },
-        {
-          key: 'delete',
-          danger: true,
-          icon: <Trash2 size={14} aria-hidden="true" />,
-          label: t('app.delete'),
-        },
       ] : []),
     ],
     onClick: ({ key }) => {
@@ -1407,92 +1402,115 @@ function SidebarGroupMenu({
       if (!trigger) {
         return
       }
-      if (key === 'delete') {
-        onDelete(trigger)
-      } else if (key === 'edit') {
+      if (key === 'edit') {
         onEdit(trigger)
       } else {
         onCreateBookmark(trigger)
       }
     },
-  }), [builtIn, group, onCreateBookmark, onDelete, onEdit, t])
+  }), [builtIn, group, onCreateBookmark, onEdit, t])
 
   return (
-    <Dropdown
-      menu={menu}
-      trigger={['click']}
-      classNames={{ root: 'context-action-menu files-bookmarks-sidebar-menu' }}
-      disabled={disabled}
-    >
-      <Tooltip title={t('files.actions')} placement="left">
-        <Button
-          ref={buttonRef}
-          data-bookmark-focus-key={`group-action:${group?.id ?? 'ungrouped'}`}
-          type="text"
-          className="files-bookmarks-sidebar-more"
-          aria-label={t('files.actions')}
-          disabled={disabled}
-          icon={<MoreHorizontal size={15} aria-hidden="true" />}
+    <span className="files-bookmarks-sidebar-group-actions">
+      <Dropdown
+        menu={menu}
+        trigger={['click']}
+        classNames={{ root: 'context-action-menu files-bookmarks-sidebar-menu' }}
+        disabled={disabled}
+      >
+        <Tooltip title={t('files.actions')} placement="top">
+          <Button
+            ref={buttonRef}
+            data-bookmark-focus-key={`group-action:${group?.id ?? 'ungrouped'}`}
+            type="text"
+            className="files-bookmarks-sidebar-row-action"
+            aria-label={t('files.actions')}
+            disabled={disabled}
+            icon={<MoreHorizontal size={15} aria-hidden="true" />}
+          />
+        </Tooltip>
+      </Dropdown>
+      {!builtIn && group ? (
+        <SidebarDeletePopconfirm
+          target={{ kind: 'group', id: group.id, label: group.name }}
+          open={deleteOpen}
+          deleting={deleting}
+          triggerBlocked={deleteTriggerBlocked}
+          confirmBlocked={deleteConfirmBlocked}
+          focusKey={`group-delete:${group.id}`}
+          onOpen={onOpenDelete}
+          onCancel={onCancelDelete}
+          onConfirm={onConfirmDelete}
         />
-      </Tooltip>
-    </Dropdown>
+      ) : null}
+    </span>
   )
 }
 
-interface SidebarDeleteConfirmationProps {
+interface SidebarDeletePopconfirmProps {
   target: DeleteTarget
+  open: boolean
   deleting: boolean
-  blocked: boolean
+  triggerBlocked: boolean
+  confirmBlocked: boolean
+  focusKey: string
+  onOpen: (trigger: HTMLElement) => void
   onCancel: () => void
-  onConfirm: () => void
+  onConfirm: () => Promise<void>
 }
 
-function SidebarDeleteConfirmation({
+function SidebarDeletePopconfirm({
   target,
+  open,
   deleting,
-  blocked,
+  triggerBlocked,
+  confirmBlocked,
+  focusKey,
+  onOpen,
   onCancel,
   onConfirm,
-}: SidebarDeleteConfirmationProps) {
+}: SidebarDeletePopconfirmProps) {
   const { t } = useTranslation()
-  const titleId = useId()
-  const descriptionId = useId()
-  const cancelButtonRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      cancelButtonRef.current?.focus({ preventScroll: true })
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [])
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <div
-      className="files-bookmarks-sidebar-delete"
-      role="alertdialog"
-      aria-modal="false"
-      aria-labelledby={titleId}
-      aria-describedby={descriptionId}
+    <Popconfirm
+      open={open}
+      title={t(target.kind === 'group'
+        ? 'files.deleteBookmarkGroupTitle'
+        : 'files.deleteBookmarkTitle')}
+      description={target.kind === 'group'
+        ? t('files.deleteBookmarkGroupHint')
+        : target.label}
+      placement="topRight"
+      okText={t('app.delete')}
+      cancelText={t('app.cancel')}
+      okButtonProps={{ danger: true, disabled: confirmBlocked, loading: deleting }}
+      cancelButtonProps={{ disabled: deleting }}
+      rootClassName="files-bookmarks-delete-popconfirm"
+      classNames={{ container: 'files-bookmarks-delete-popconfirm-surface' }}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) {
+          if (buttonRef.current) {
+            onOpen(buttonRef.current)
+          }
+        } else if (!deleting) {
+          onCancel()
+        }
+      }}
+      onConfirm={onConfirm}
     >
-      <span>
-        <strong id={titleId}>
-          {t(target.kind === 'group'
-            ? 'files.deleteBookmarkGroupTitle'
-            : 'files.deleteBookmarkTitle')}
-        </strong>
-        <small id={descriptionId}>
-          {target.kind === 'group' ? t('files.deleteBookmarkGroupHint') : target.label}
-        </small>
-      </span>
-      <span className="files-bookmarks-sidebar-delete-actions">
-        <Button ref={cancelButtonRef} size="small" disabled={deleting} onClick={onCancel}>
-          {t('app.cancel')}
-        </Button>
-        <Button size="small" danger loading={deleting} disabled={blocked} onClick={onConfirm}>
-          {t('app.delete')}
-        </Button>
-      </span>
-    </div>
+      <Button
+        ref={buttonRef}
+        data-bookmark-focus-key={focusKey}
+        type="text"
+        danger
+        className="files-bookmarks-sidebar-row-action files-bookmarks-sidebar-delete-action"
+        aria-label={t('app.delete')}
+        disabled={(triggerBlocked && !open) || deleting}
+        icon={<Trash2 size={14} aria-hidden="true" />}
+      />
+    </Popconfirm>
   )
 }
 
