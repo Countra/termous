@@ -550,6 +550,7 @@ test('目录刷新复用在途 request id 并忽略其他事务错误', () => {
   }
   assert.equal(second.requestId, first.requestId)
   assert.equal(calls, 1)
+  assert.equal(runtime.getActiveRefreshRequestId('ses-1'), first.requestId)
 
   assert.equal(runtime.applyRequestError('ses-1', {
     scope: 'cwd_refresh',
@@ -577,7 +578,7 @@ test('目录刷新复用在途 request id 并忽略其他事务错误', () => {
     first.requestId,
   )
 
-  const retry = runtime.retryRefreshDirectory('ses-1', first.requestId)
+  const retry = runtime.retryActiveRefreshDirectory('ses-1')
   assert.equal(retry.status, 'queued')
   if (retry.status !== 'queued') {
     assert.fail('可重试错误应沿用原事务重新发送')
@@ -588,6 +589,23 @@ test('目录刷新复用在途 request id 并忽略其他事务错误', () => {
   assert.equal(retry.baseConfirmedPath, first.baseConfirmedPath)
   assert.equal(calls, 2)
   assert.equal(runtime.getRequestErrorSnapshot('ses-1', 'cwd_refresh'), null)
+
+  assert.equal(runtime.applyServerState('ses-1', cwdState({
+    state_seq: 2,
+    refresh_request_id: first.requestId,
+    refresh_status: 'failed',
+    refresh_error_code: 'PROXY_TIMEOUT',
+    refresh_error: '代理连接超时',
+  })), true)
+  assert.equal(runtime.getActiveRefreshRequestId('ses-1'), '')
+
+  const next = runtime.retryActiveRefreshDirectory('ses-1')
+  assert.equal(next.status, 'queued')
+  if (next.status !== 'queued') {
+    assert.fail('已终态的刷新应创建新事务')
+  }
+  assert.notEqual(next.requestId, first.requestId)
+  assert.equal(calls, 3)
 })
 
 test('同路径刷新确认会清理刷新错误和旧目录切换错误', () => {

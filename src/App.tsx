@@ -42,7 +42,7 @@ import { UpdateRuntimeSummaryReporter } from './features/update/UpdateRuntimeSum
 import { readDevelopmentUpdateSimulation } from './features/update/developmentUpdateSimulationSlot'
 import { useUpdateRuntime } from './features/update/useUpdateRuntime'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
-import type { AppBuildInfo, CodeSnippet, CodeSnippetGroup, CodeSnippetInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, Language, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
+import type { AppBuildInfo, CodeSnippet, CodeSnippetGroup, CodeSnippetInput, ConnectionProxy, ConnectionProxyInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, Language, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
 import './styles/files-workspace.css'
@@ -510,6 +510,21 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const reorderHostGroups = (items: GroupReorderItem[]): Promise<HostGroup[] | undefined> =>
     runAction(() => actions.reorderHostGroups(items))
 
+  const createConnectionProxy = (input: ConnectionProxyInput): Promise<ConnectionProxy | undefined> =>
+    runAction(
+      () => actions.createConnectionProxy(input),
+      t('proxies.created'),
+    )
+
+  const updateConnectionProxy = (
+    id: string,
+    input: ConnectionProxyInput,
+  ): Promise<ConnectionProxy | undefined> =>
+    runAction(
+      () => actions.updateConnectionProxy(id, input),
+      t('proxies.updated'),
+    )
+
   const saveCredential = (id: string | null, input: CredentialInput): Promise<CredentialView | undefined> =>
     runAction(async () => {
       if (id) {
@@ -903,6 +918,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               t('hosts.groupDeleted'),
             ).then(() => undefined)}
             onReorderGroups={reorderHostGroups}
+            onCreateProxy={createConnectionProxy}
+            onUpdateProxy={updateConnectionProxy}
+            onDeleteProxy={(id) => runAction(async () => {
+              await actions.deleteConnectionProxy(id)
+              return true
+            }, t('proxies.deleted'))}
             onUploadHostIcon={uploadHostIcon}
             onDeleteHostIcon={deleteHostIcon}
             getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}

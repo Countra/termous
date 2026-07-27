@@ -43,6 +43,7 @@ import {
   reconcileSessionFilesCwdPending,
   resolveRecoveredSessionFilesDirectory,
   resolveSessionFilesCwdRetryTarget,
+  restartSessionFilesCwdRefresh,
   sessionFilesCwdRefreshTransportDisposition,
   sessionFilesCwdRefreshWatchdogRemaining,
   sessionFilesPendingOperationForFileSession,
@@ -1091,6 +1092,7 @@ export function useWorkbenchSessionFiles({
       refreshConfirmed,
       sessionFilesCwdRefreshTransportDisposition(cwdTransportState),
       fileSessionId,
+      viewState.cwdRefresh.requestId,
     )
     const confirmedPath = cwdState.confirmed_path
       ? normalizeRemotePath(cwdState.confirmed_path)
@@ -1527,6 +1529,7 @@ export function useWorkbenchSessionFiles({
         false,
         sessionFilesCwdRefreshTransportDisposition(cwdTransportState),
         fileSessionId,
+        viewState.cwdRefresh.requestId,
       )
       updateView((state) => {
         const pending = {
@@ -1618,7 +1621,12 @@ export function useWorkbenchSessionFiles({
           fileSessionId,
         )
       : followTerminal
-        ? deriveSessionFilesSyncState(cwdState, cwdRequestError, fileSessionId)
+        ? deriveSessionFilesSyncState(
+            cwdState,
+            cwdRequestError,
+            fileSessionId,
+            viewState?.cwdRefresh.requestId ?? '',
+          )
         : { status: '' as const, error: '' }
     if (!followTerminal && sourceSessionId && viewState?.listing) {
       const controller = directoryRequestControllersRef.current.get(sourceSessionId)
@@ -1653,7 +1661,7 @@ export function useWorkbenchSessionFiles({
         syncError: derived.error,
       }
     }, initialPath)
-  }, [cwdRequestError, cwdState, cwdTransportState, fileSessionId, initialPath, sourceSessionId, updateView, viewState?.followTerminal, viewState?.listing, viewState?.requestSequence])
+  }, [cwdRequestError, cwdState, cwdTransportState, fileSessionId, initialPath, sourceSessionId, updateView, viewState?.cwdRefresh.requestId, viewState?.followTerminal, viewState?.listing, viewState?.requestSequence])
 
   const retryCwdSync = useCallback(() => {
     if (
@@ -1678,30 +1686,60 @@ export function useWorkbenchSessionFiles({
         cwdRequestError.request_id,
       )
     }
-    if (cwdRefreshError?.request_id) {
-      cwdRuntime.clearRequestError(
-        sourceSessionId,
-        'cwd_refresh',
-        cwdRefreshError.request_id,
-      )
-    }
     if (retryTargetPath) {
       void navigateDirectory(retryTargetPath)
       return
     }
+    const retryStartedAt = Date.now()
+    const retryResult = cwdRuntime.retryActiveRefreshDirectory(sourceSessionId)
+    const activeRefreshRequestId = cwdRuntime.getActiveRefreshRequestId(sourceSessionId)
     updateView((state) => {
       if (!state.followTerminal) {
         return state
       }
+      const restarted = restartSessionFilesCwdRefresh(
+        state,
+        cwdState,
+        retryStartedAt,
+      )
+      if (retryResult.status === 'queued') {
+        return {
+          ...restarted,
+          cwdRefresh: applySessionFilesCwdRefreshDispatch(
+            restarted.cwdRefresh,
+            retryResult,
+          ),
+        }
+      }
+      if (!activeRefreshRequestId) {
+        return restarted
+      }
+      const preservesExistingBaseline = state.cwdRefresh.requestId
+        === activeRefreshRequestId
+      const activeTransaction = applySessionFilesCwdRefreshDispatch(
+        restarted.cwdRefresh,
+        {
+          requestId: activeRefreshRequestId,
+          baseRefreshSequence: preservesExistingBaseline
+            ? state.cwdRefresh.baseRefreshSequence
+            : cwdState?.refresh_seq ?? 0,
+          baseSourceGeneration: preservesExistingBaseline
+            ? state.cwdRefresh.baseSourceGeneration
+            : cwdState?.source_generation ?? 0,
+          baseConfirmedPath: preservesExistingBaseline
+            ? state.cwdRefresh.baseConfirmedPath
+            : cwdState?.confirmed_path ?? '',
+        },
+      )
       return {
-        ...beginSessionFilesCwdRefresh(state, cwdState, Date.now()),
-        lastTerminalSyncPath: '',
-        syncStatus: 'preparing',
-        syncError: '',
+        ...restarted,
+        cwdRefresh: scheduleSessionFilesCwdLocalRetry(
+          activeTransaction,
+          retryStartedAt,
+        ),
       }
     }, initialPath)
   }, [
-    cwdRefreshError?.request_id,
     cwdRequestError,
     cwdRuntime,
     cwdState,

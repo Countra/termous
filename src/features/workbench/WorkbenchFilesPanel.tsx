@@ -63,7 +63,11 @@ import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
 import { WorkbenchFileList } from './WorkbenchFileList'
 import { WorkbenchTransferBar } from './WorkbenchTransferBar'
-import { getSessionFilesNavigationState } from './sessionFilesState'
+import {
+  getSessionFilesNavigationState,
+  isSessionFilesCwdRefreshPending,
+  shouldShowSessionFilesInitialLoading,
+} from './sessionFilesState'
 import { useWorkbenchSessionFiles } from './useWorkbenchSessionFiles'
 import {
   fileSessionRecoveryPresentationKind,
@@ -153,6 +157,14 @@ function WorkbenchFilesPanelContent({
     onReconnectFileSession,
     onUpdateFileSession,
   })
+  const sessionHost = session?.host_id
+    ? data.hosts.find((host) => host.id === session.host_id)
+    : undefined
+  const proxyRoute = sessionHost?.proxy_id
+    ? sessionHost.jump_host_id
+      ? 'jump'
+      : 'target'
+    : null
   const [pathInput, setPathInput] = useState('/')
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
@@ -200,15 +212,11 @@ function WorkbenchFilesPanelContent({
     files.viewState?.error && files.viewState.failedRequestPath,
   )
   const syncStatus = files.viewState?.syncStatus ?? ''
-  const followDirectoryBlocked = syncStatus === 'failed'
-    || syncStatus === 'unsupported'
-    || syncStatus === 'reconnect-required'
-    || syncStatus === 'invalid_path'
   const initialDirectoryPlaceholder = !files.viewState?.listing
-  const initialDirectoryPending = files.connected
-    && initialDirectoryPlaceholder
-    && !files.viewState?.error
-    && (!followTerminal || !followDirectoryBlocked)
+  const initialDirectoryPending = shouldShowSessionFilesInitialLoading(
+    files.viewState,
+    files.connected,
+  )
   const directoryRefreshing = Boolean(
     files.connected && navigationState?.refreshing && files.viewState?.listing,
   )
@@ -224,7 +232,11 @@ function WorkbenchFilesPanelContent({
   const pathInputId = `workbench-remote-path-${files.sourceSessionId || 'inactive'}`
   const pathErrorId = `${pathInputId}-error`
   const loadDirectory = files.loadDirectory
-  const syncMessage = syncStatusMessage(syncStatus, t)
+  const syncMessage = syncStatusMessage(
+    syncStatus,
+    files.viewState?.syncError ?? '',
+    t,
+  )
   const syncNoticeTone = !files.connected
     ? ''
     : syncStatus === 'failed' || syncStatus === 'invalid_path'
@@ -263,12 +275,25 @@ function WorkbenchFilesPanelContent({
   const followTooltip = followHasDetail && followDetailMessage
     ? followDetailMessage
     : t(followTerminal ? 'workbench.files.followEnabled' : 'workbench.files.followDisabled')
-  const followProgressVisible = files.connected && (
-    followVisualState === 'preparing'
-    || followVisualState === 'locating'
-    || followVisualState === 'waiting'
-    || followVisualState === 'syncing'
+  const cwdRefreshPending = isSessionFilesCwdRefreshPending(
+    files.viewState?.cwdRefresh,
   )
+  const cwdOperationPending = Boolean(
+    files.cwdPendingOperation
+    && files.cwdPendingOperation.status !== 'failed',
+  )
+  const followProgressVisible = files.connected
+    && (
+      cwdRefreshPending
+      || cwdOperationPending
+      || followDirectoryLoading
+    )
+    && (
+      followVisualState === 'preparing'
+      || followVisualState === 'locating'
+      || followVisualState === 'waiting'
+      || followVisualState === 'syncing'
+    )
   const recoveryVisible = files.recoveryState.phase !== 'idle'
     || files.fileSession?.status === 'disconnected'
     || files.fileSession?.status === 'failed'
@@ -277,6 +302,7 @@ function WorkbenchFilesPanelContent({
     files.recoveryState,
     t,
     Boolean(!files.fileSession && files.viewState?.error),
+    proxyRoute,
   )
 
   const reconnectSourceSession = async () => {
@@ -1217,6 +1243,7 @@ function FileStatusSpinner() {
 
 function syncStatusMessage(
   status: string,
+  errorCode: string,
   t: ReturnType<typeof useTranslation>['t'],
 ) {
   switch (status) {
@@ -1231,7 +1258,8 @@ function syncStatusMessage(
     case 'waiting-idle':
       return t('workbench.files.waitingTerminalIdle')
     case 'failed':
-      return t('workbench.files.syncFailed')
+      return proxyConnectionErrorMessage(errorCode, t)
+        || t('workbench.files.syncFailed')
     case 'unsupported':
       return t('workbench.files.followUnsupported')
     case 'reconnect-required':
@@ -1250,6 +1278,7 @@ function fileSessionRecoveryPresentation(
   recovery: FileSessionRecoveryState,
   t: ReturnType<typeof useTranslation>['t'],
   initialError = false,
+  proxyRoute: 'target' | 'jump' | null = null,
 ) {
   switch (fileSessionRecoveryPresentationKind(session, recovery, initialError)) {
     case 'recovering':
@@ -1265,7 +1294,14 @@ function fileSessionRecoveryPresentation(
     case 'waiting_trust':
       return { title: t('workbench.files.waitingTrust'), detail: t('workbench.files.waitingTrustHint') }
     case 'connecting_phase':
-      return { title: t('workbench.files.connecting'), detail: t(`files.sessionPhase.${session!.phase}`) }
+      return {
+        title: t('workbench.files.connecting'),
+        detail: proxyRoute && session!.phase === 'dialing'
+          ? t(proxyRoute === 'jump'
+            ? 'connection.proxyDialingJumpHost'
+            : 'connection.proxyDialingTarget')
+          : t(`files.sessionPhase.${session!.phase}`),
+      }
     default:
       return { title: t('workbench.files.connecting'), detail: t('workbench.files.preparing') }
   }
@@ -1275,7 +1311,11 @@ function fileSessionRecoveryErrorMessage(
   errorCode: string,
   t: ReturnType<typeof useTranslation>['t'],
 ) {
-  switch (errorCode) {
+  const proxyErrorMessage = proxyConnectionErrorMessage(errorCode, t)
+  if (proxyErrorMessage) {
+    return proxyErrorMessage
+  }
+  switch (errorCode.trim().toUpperCase()) {
     case 'SFTP_FILE_SESSION_NOT_FOUND':
       return t('workbench.files.sessionExpiredHint')
     case 'REQUEST_TIMEOUT':
@@ -1290,5 +1330,25 @@ function fileSessionRecoveryErrorMessage(
       return t('workbench.files.recoveryUnavailable')
     default:
       return t('workbench.files.recoveryUnknown')
+  }
+}
+
+function proxyConnectionErrorMessage(
+  errorCode: string,
+  t: ReturnType<typeof useTranslation>['t'],
+) {
+  switch (errorCode.trim().toUpperCase()) {
+    case 'PROXY_CONFIG_INVALID':
+      return t('connection.proxyError.configInvalid')
+    case 'PROXY_AUTH_REQUIRED':
+      return t('connection.proxyError.authRequired')
+    case 'PROXY_TIMEOUT':
+      return t('connection.proxyError.timeout')
+    case 'PROXY_CONNECT_FAILED':
+      return t('connection.proxyError.connectFailed')
+    case 'PROXY_TUNNEL_FAILED':
+      return t('connection.proxyError.tunnelFailed')
+    default:
+      return ''
   }
 }

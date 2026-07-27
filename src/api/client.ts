@@ -6,6 +6,8 @@ import type {
   CodeSnippetGroup,
   CodeSnippetGroupInput,
   CodeSnippetInput,
+  ConnectionProxy,
+  ConnectionProxyInput,
   CoreRuntimeInfo,
   CredentialInput,
   CredentialView,
@@ -484,6 +486,30 @@ export class TermousApi {
       method: 'POST',
       body: { items },
     }).then(normalizeArray)
+  }
+
+  connectionProxies() {
+    return this.request<ConnectionProxy[]>('/api/v1/proxies')
+  }
+
+  createConnectionProxy(input: ConnectionProxyInput) {
+    return this.request<ConnectionProxy>('/api/v1/proxies', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  updateConnectionProxy(id: string, input: ConnectionProxyInput) {
+    return this.request<ConnectionProxy>(`/api/v1/proxies/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  }
+
+  deleteConnectionProxy(id: string) {
+    return this.request<void>(`/api/v1/proxies/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
   }
 
   hosts() {

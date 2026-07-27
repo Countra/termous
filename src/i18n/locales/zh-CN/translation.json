@@ -105,6 +105,15 @@
     "notConfigured": "未配置"
   },
   "connection": {
+    "proxyDialingTarget": "正在通过代理连接目标主机",
+    "proxyDialingJumpHost": "正在通过代理连接跳板机",
+    "proxyError": {
+      "configInvalid": "代理配置不存在或不合法，请检查主机的代理设置",
+      "authRequired": "代理要求身份认证，当前版本暂不支持代理认证",
+      "timeout": "连接代理超时，请检查代理地址和网络状态",
+      "connectFailed": "无法连接代理服务器，请检查代理是否可用",
+      "tunnelFailed": "代理无法建立到目标主机的连接"
+    },
     "phase": {
       "queued": "会话已创建",
       "resolving_auth": "准备认证信息",
@@ -1029,6 +1038,8 @@
     "authMethod": "认证方式",
     "credential": "凭据",
     "jumpHost": "跳板机",
+    "proxy": "连接代理",
+    "noProxy": "不使用代理",
     "tags": "标签",
     "note": "备注",
     "fingerprintPolicy": "指纹策略",
@@ -1090,7 +1101,49 @@
       "portRange": "端口范围必须为 1-65535",
       "usernameRequired": "请输入用户名",
       "credentialRequired": "请选择连接凭据",
-      "credentialMismatch": "当前凭据类型与认证方式不匹配"
+      "credentialMismatch": "当前凭据类型与认证方式不匹配",
+      "proxyMissing": "所选代理已不存在，请重新选择"
+    }
+  },
+  "proxies": {
+    "manage": "管理代理",
+    "shortLabel": "代理",
+    "list": "代理列表",
+    "add": "新增代理",
+    "new": "新增代理",
+    "edit": "编辑代理",
+    "newHint": "配置用于建立 SSH 连接的网络代理",
+    "searchPlaceholder": "搜索名称、类型或地址",
+    "empty": "暂无连接代理",
+    "noSearchResults": "没有匹配的代理",
+    "name": "代理名称",
+    "namePlaceholder": "例如：办公网络代理",
+    "type": "代理类型",
+    "url": "代理 URL",
+    "urlHint": "仅支持无认证的代理地址，并且必须显式填写端口。",
+    "types": {
+      "httpConnect": "HTTP",
+      "socks5": "SOCKS5"
+    },
+    "boundHostCount": "{{count}} 台主机",
+    "delete": "删除代理",
+    "deleteTitle": "删除这个代理？",
+    "deleteDescription": "删除后无法恢复，未建立的连接将不能再使用此代理。",
+    "deleteBlocked": "仍有 {{count}} 台主机使用此代理，请先修改对应主机",
+    "created": "代理已创建",
+    "updated": "代理已更新",
+    "deleted": "代理已删除",
+    "reachabilityDirectHint": "在线检测使用直连 ICMP，不代表代理连接状态",
+    "validation": {
+      "nameRequired": "请输入代理名称",
+      "nameTooLong": "代理名称不能超过 64 个字符",
+      "nameDuplicate": "代理名称不能重复",
+      "urlRequired": "请输入代理 URL",
+      "urlTooLong": "代理 URL 不能超过 2048 个字符",
+      "urlInvalid": "代理 URL 只能包含协议、主机和端口",
+      "schemeMismatch": "URL 协议与代理类型不匹配",
+      "authenticationUnsupported": "当前版本不支持代理用户名或密码",
+      "explicitPortRequired": "代理 URL 必须包含 1-65535 的显式端口"
     }
   },
   "vault": {
@@ -1916,6 +1969,7 @@
         "host_groups": "主机分组",
         "host_icons": "主机图标",
         "credentials": "凭据",
+        "connection_proxies": "连接代理",
         "hosts": "主机",
         "host_key_trust_records": "主机指纹",
         "terminal_fonts": "终端字体",

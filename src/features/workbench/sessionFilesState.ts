@@ -63,6 +63,7 @@ const recoverableCwdRefreshFailureCodes = new Set([
   'CWD_STALE',
   'CWD_TIMEOUT',
 ])
+const proxyConnectionErrorCodePrefix = 'PROXY_'
 
 export type SessionFilesCwdRequestRejection = 'unsupported' | 'not_ready' | 'invalid_path'
 
@@ -134,6 +135,7 @@ export function deriveSessionFilesSyncState(
   cwdState: SessionCwdState | null,
   requestError: SessionFilesCwdRequestError | null,
   currentFileSessionId = '',
+  currentRefreshRequestId = '',
 ): SessionFilesDerivedSyncState {
   if (cwdState?.control_status === 'reconnect_required') {
     return {
@@ -147,6 +149,18 @@ export function deriveSessionFilesSyncState(
     return {
       status: 'unsupported',
       error: cwdState.capability_cause ?? '',
+    }
+  }
+  const proxyErrorCode = sessionFilesCwdProxyErrorCode(
+    cwdState,
+    requestError,
+    currentFileSessionId,
+    currentRefreshRequestId,
+  )
+  if (proxyErrorCode) {
+    return {
+      status: 'failed',
+      error: proxyErrorCode,
     }
   }
   if (!cwdState) {
@@ -163,7 +177,12 @@ export function deriveSessionFilesSyncState(
   ) {
     return {
       status: cwdState.shell_phase === 'running' ? 'waiting-idle' : 'preparing',
-      error: cwdState.refresh_error ?? cwdState.capability_cause ?? '',
+      error: sessionFilesCwdRefreshErrorMatches(
+        cwdState,
+        currentRefreshRequestId,
+      )
+        ? cwdState.refresh_error ?? cwdState.capability_cause ?? ''
+        : cwdState.capability_cause ?? '',
     }
   }
 
@@ -242,10 +261,16 @@ export function deriveSessionFilesFollowSyncState(
   refreshConfirmed: boolean,
   transportDisposition: SessionFilesCwdRefreshTransportDisposition,
   currentFileSessionId = '',
+  currentRefreshRequestId = '',
 ): SessionFilesDerivedSyncState {
   const cwdDerived = refreshConfirmed
     ? deriveSessionFilesCwdRefreshSuccessState(cwdState, currentFileSessionId)
-    : deriveSessionFilesSyncState(cwdState, requestError, currentFileSessionId)
+    : deriveSessionFilesSyncState(
+        cwdState,
+        requestError,
+        currentFileSessionId,
+        currentRefreshRequestId,
+      )
   const pending = sessionFilesPendingOperationForFileSession(
     cwdState,
     currentFileSessionId,
@@ -256,6 +281,10 @@ export function deriveSessionFilesFollowSyncState(
   if (
     cwdDerived.status === 'unsupported'
     || cwdDerived.status === 'reconnect-required'
+    || (
+      cwdDerived.status === 'failed'
+      && isSessionFilesProxyErrorCode(cwdDerived.error)
+    )
     || (pending && pending.status !== 'failed')
   ) {
     return cwdDerived
@@ -269,10 +298,28 @@ export function deriveSessionFilesFollowSyncState(
   if (
     cwdState?.control_status === 'inactive'
     || cwdState?.control_status === 'preparing'
-    || cwdState?.control_status === 'degraded'
     || (cwdState?.control_status === undefined && cwdState?.capability === 'probing')
   ) {
     return cwdDerived
+  }
+  if (cwdState?.control_status === 'degraded') {
+    if (refreshPending) {
+      return cwdDerived
+    }
+    return {
+      status: 'failed',
+      error: cwdState.control_code
+        || (
+          sessionFilesCwdRefreshErrorMatches(
+            cwdState,
+            currentRefreshRequestId,
+          )
+            ? cwdState.refresh_error_code || cwdState.refresh_error
+            : ''
+        )
+        || cwdState.capability_cause
+        || 'CWD_NOT_READY',
+    }
   }
   if (refreshPending) {
     if (
@@ -622,6 +669,22 @@ export function finishSessionFilesCwdRefresh(
   }
 }
 
+export function restartSessionFilesCwdRefresh(
+  state: SessionFilesViewState,
+  cwdState: SessionCwdState | null,
+  startedAt: number,
+) {
+  if (!state.followTerminal) {
+    return state
+  }
+  return {
+    ...beginSessionFilesCwdRefresh(state, cwdState, startedAt),
+    lastTerminalSyncPath: '',
+    syncStatus: 'preparing' as const,
+    syncError: '',
+  }
+}
+
 export function updateMatchingSessionFilesCwdRefresh(
   state: SessionFilesViewState,
   transaction: SessionFilesCwdRefreshTransaction,
@@ -856,6 +919,76 @@ export function shouldRequestInitialSessionFilesDirectory(state: SessionFilesVie
     && !state.listing
     && !state.loading
     && !state.error,
+  )
+}
+
+export function isSessionFilesCwdRefreshPending(
+  refresh: SessionFilesCwdRefreshTransaction | undefined,
+) {
+  return refresh?.phase === 'waiting' || refresh?.phase === 'pending'
+}
+
+export function shouldShowSessionFilesInitialLoading(
+  state: SessionFilesViewState | null | undefined,
+  connected: boolean,
+) {
+  if (!connected || !state || state.listing || state.error) {
+    return false
+  }
+  return state.loading
+    || (
+      state.followTerminal
+      && isSessionFilesCwdRefreshPending(state.cwdRefresh)
+    )
+}
+
+export function isSessionFilesProxyErrorCode(errorCode: string | undefined) {
+  return errorCode?.trim().toUpperCase().startsWith(proxyConnectionErrorCodePrefix)
+    ?? false
+}
+
+export function sessionFilesCwdProxyErrorCode(
+  cwdState: SessionCwdState | null,
+  requestError: SessionFilesCwdRequestError | null = null,
+  currentFileSessionId = '',
+  currentRefreshRequestId = '',
+) {
+  const pending = sessionFilesPendingOperationForFileSession(
+    cwdState,
+    currentFileSessionId,
+  )
+  const correlatedRefreshErrorCode = sessionFilesCwdRefreshErrorMatches(
+    cwdState,
+    currentRefreshRequestId,
+  )
+    ? cwdState?.refresh_error_code
+    : undefined
+  const candidates = [
+    requestError?.code,
+    pending?.error_code,
+    cwdState?.control_code,
+    correlatedRefreshErrorCode,
+  ]
+  for (const candidate of candidates) {
+    const normalized = candidate?.trim().toUpperCase() ?? ''
+    if (isSessionFilesProxyErrorCode(normalized)) {
+      return normalized
+    }
+  }
+  return ''
+}
+
+function sessionFilesCwdRefreshErrorMatches(
+  cwdState: SessionCwdState | null,
+  currentRefreshRequestId: string,
+) {
+  return Boolean(
+    currentRefreshRequestId
+    && cwdState?.refresh_request_id === currentRefreshRequestId
+    && (
+      cwdState.refresh_status === 'failed'
+      || cwdState.refresh_status === 'canceled'
+    ),
   )
 }
 

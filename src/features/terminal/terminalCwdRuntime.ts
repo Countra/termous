@@ -85,6 +85,10 @@ export class TerminalCwdRuntime {
     return this.entries.get(sessionId)?.transportState ?? 'idle'
   }
 
+  getActiveRefreshRequestId = (sessionId: string) => {
+    return this.entries.get(sessionId)?.latestRequestIds.cwd_refresh ?? ''
+  }
+
   subscribe = (sessionId: string, listener: SessionListener) => {
     const entry = this.ensureEntry(sessionId)
     entry.listeners.add(listener)
@@ -228,6 +232,13 @@ export class TerminalCwdRuntime {
       baseConfirmedPath:
         entry.latestRefreshBaseConfirmedPath ?? entry.state.confirmed_path ?? '',
     }
+  }
+
+  retryActiveRefreshDirectory(sessionId: string): SessionCwdRefreshResult {
+    const activeRequestId = this.getActiveRefreshRequestId(sessionId)
+    return activeRequestId
+      ? this.retryRefreshDirectory(sessionId, activeRequestId)
+      : this.refreshDirectory(sessionId)
   }
 
   clearRequestError(

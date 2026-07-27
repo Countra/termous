@@ -72,7 +72,7 @@ export function WorkbenchBookmarkEditorModal({
       centered
       destroyOnHidden
       keyboard={!saving}
-      maskClosable={!saving}
+      mask={{ closable: !saving }}
       closable={!saving}
       zIndex={3700}
       rootClassName="termous-modal-root workbench-bookmark-editor-root"

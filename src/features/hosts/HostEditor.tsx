@@ -6,6 +6,7 @@ import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { ManagementPanel } from '../../components/management/ManagementWorkspace'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import type { AppData, AuthMethod, Host, HostGroup, HostInput } from '../../types/domain'
+import { connectionProxyTypeLabelKey } from './connectionProxy'
 import {
   HOST_ICON_ACCEPT,
   normalizeGroupName,
@@ -28,6 +29,7 @@ interface HostEditorProps {
   onDelete: () => void
   onDiscard: () => void
   onCreateGroup: (name: string) => Promise<HostGroup>
+  onManageProxies: () => void
   onUploadIcon: (file: File) => Promise<void>
   onRemoveIcon: () => void
 }
@@ -47,6 +49,7 @@ export function HostEditor({
   onDelete,
   onDiscard,
   onCreateGroup,
+  onManageProxies,
   onUploadIcon,
   onRemoveIcon,
 }: HostEditorProps) {
@@ -261,6 +264,51 @@ export function HostEditor({
                 options={[{ value: '', label: t('hosts.noJumpHost') }, ...jumpHostOptions]}
                 onChange={(jump_host_id) => onChange({ jump_host_id: jump_host_id as string })}
               />
+              <div className="host-editor-field is-wide host-proxy-select-field">
+                <span className="host-editor-field-label">
+                  <span>{t('hosts.proxy')}</span>
+                  <Button
+                    type="text"
+                    size="small"
+                    className="host-proxy-inline-manage"
+                    aria-haspopup="dialog"
+                    icon={<Network size={12} aria-hidden="true" />}
+                    onClick={onManageProxies}
+                  >
+                    {t('proxies.manage')}
+                  </Button>
+                </span>
+                <Select
+                  id="host-connection-proxy"
+                  value={draft.proxy_id}
+                  className="termous-select"
+                  classNames={{ popup: { root: 'termous-select-popup host-proxy-select-popup' } }}
+                  status={visibleErrors.proxyId ? 'error' : undefined}
+                  options={[
+                    { value: '', label: t('hosts.noProxy') },
+                    ...data.proxies.map((proxy) => ({
+                      value: proxy.id,
+                      label: proxy.name,
+                      title: proxy.url,
+                      proxy,
+                    })),
+                  ]}
+                  optionRender={(option) => {
+                    const proxy = 'proxy' in option.data ? option.data.proxy : undefined
+                    if (!proxy) {
+                      return option.label
+                    }
+                    return (
+                      <span className="host-proxy-option">
+                        <strong>{proxy.name}</strong>
+                        <small>{t(connectionProxyTypeLabelKey(proxy.type))} · {proxy.url}</small>
+                      </span>
+                    )
+                  }}
+                  onChange={(proxy_id) => onChange({ proxy_id })}
+                />
+                {visibleErrors.proxyId ? <small className="host-editor-field-error">{visibleErrors.proxyId}</small> : null}
+              </div>
             </div>
           </section>
           <section className="host-access-pane is-authentication">

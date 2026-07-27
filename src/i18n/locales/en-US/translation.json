@@ -105,6 +105,15 @@
     "notConfigured": "Not configured"
   },
   "connection": {
+    "proxyDialingTarget": "Connecting to the target through the proxy",
+    "proxyDialingJumpHost": "Connecting to the jump host through the proxy",
+    "proxyError": {
+      "configInvalid": "The proxy configuration is missing or invalid. Check this host's proxy settings.",
+      "authRequired": "The proxy requires authentication, which is not supported in this version.",
+      "timeout": "The proxy connection timed out. Check the proxy address and network.",
+      "connectFailed": "Could not connect to the proxy server. Check whether the proxy is available.",
+      "tunnelFailed": "The proxy could not establish a connection to the target host."
+    },
     "phase": {
       "queued": "Session created",
       "resolving_auth": "Preparing authentication",
@@ -1031,6 +1040,8 @@
     "authMethod": "Auth method",
     "credential": "Credential",
     "jumpHost": "Jump host",
+    "proxy": "Connection proxy",
+    "noProxy": "No proxy",
     "tags": "Tags",
     "note": "Note",
     "fingerprintPolicy": "Fingerprint policy",
@@ -1092,7 +1103,51 @@
       "portRange": "Port must be between 1 and 65535",
       "usernameRequired": "Enter a username",
       "credentialRequired": "Select a credential",
-      "credentialMismatch": "The credential type does not match the authentication method"
+      "credentialMismatch": "The credential type does not match the authentication method",
+      "proxyMissing": "The selected proxy no longer exists. Select another proxy."
+    }
+  },
+  "proxies": {
+    "manage": "Manage proxies",
+    "shortLabel": "Proxies",
+    "list": "Proxy list",
+    "add": "Add proxy",
+    "new": "New proxy",
+    "edit": "Edit proxy",
+    "newHint": "Configure the network proxy used to establish SSH connections",
+    "searchPlaceholder": "Search name, type, or address",
+    "empty": "No connection proxies",
+    "noSearchResults": "No matching proxies",
+    "name": "Proxy name",
+    "namePlaceholder": "For example: Office network",
+    "type": "Proxy type",
+    "url": "Proxy URL",
+    "urlHint": "Only unauthenticated proxy addresses with an explicit port are supported.",
+    "types": {
+      "httpConnect": "HTTP",
+      "socks5": "SOCKS5"
+    },
+    "boundHostCount_one": "{{count}} host",
+    "boundHostCount_other": "{{count}} hosts",
+    "delete": "Delete proxy",
+    "deleteTitle": "Delete this proxy?",
+    "deleteDescription": "This cannot be undone. New connections will no longer be able to use this proxy.",
+    "deleteBlocked_one": "{{count}} host still uses this proxy. Update that host first.",
+    "deleteBlocked_other": "{{count}} hosts still use this proxy. Update those hosts first.",
+    "created": "Proxy created",
+    "updated": "Proxy updated",
+    "deleted": "Proxy deleted",
+    "reachabilityDirectHint": "Reachability uses direct ICMP and does not verify the proxy route",
+    "validation": {
+      "nameRequired": "Enter a proxy name",
+      "nameTooLong": "Proxy name cannot exceed 64 characters",
+      "nameDuplicate": "Proxy names must be unique",
+      "urlRequired": "Enter a proxy URL",
+      "urlTooLong": "Proxy URL cannot exceed 2048 characters",
+      "urlInvalid": "Proxy URL may only contain a scheme, host, and port",
+      "schemeMismatch": "The URL scheme does not match the proxy type",
+      "authenticationUnsupported": "Proxy usernames and passwords are not supported",
+      "explicitPortRequired": "Proxy URL must include an explicit port from 1 to 65535"
     }
   },
   "vault": {
@@ -1918,6 +1973,7 @@
         "host_groups": "Host groups",
         "host_icons": "Host icons",
         "credentials": "Credentials",
+        "connection_proxies": "Connection proxies",
         "hosts": "Hosts",
         "host_key_trust_records": "Host fingerprints",
         "terminal_fonts": "Terminal fonts",

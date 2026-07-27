@@ -304,6 +304,9 @@ export function WorkbenchPage({
   const detailCredential = data.credentials.find((item) => item.id === detailHost?.credential_id)
   const detailGroup = data.groups.find((group) => group.id === detailHost?.group_id)
   const detailJumpHost = data.hosts.find((host) => host.id === detailHost?.jump_host_id)
+  const detailProxy = data.proxies.find((proxy) => (
+    proxy.id === activeSession?.proxy_id
+  ))
   const detailTags = detailHost?.tags ?? []
   const detailCredentialLabel = detailCredential
     ? `${detailCredential.name} (${t(`vault.typeName.${detailCredential.type}`)})`
@@ -317,6 +320,10 @@ export function WorkbenchPage({
     activeSessionIndex >= 0 ? `${activeSessionIndex + 1} / ${visibleSessions.length}` : '0'
   const sessionStateLabel = activeSessionClosing
     ? t('workbench.closingSession')
+    : activeSession?.proxy_id && activeSession.phase === 'dialing'
+      ? t(activeSession.jump_host_id
+        ? 'connection.proxyDialingJumpHost'
+        : 'connection.proxyDialingTarget')
     : activeSession?.phase
       ? t(`connection.phase.${activeSession.phase}`)
       : t(`status.${sessionStatus}`)
@@ -1369,6 +1376,12 @@ export function WorkbenchPage({
                   <div>
                     <dt>{t('workbench.jumpHost')}</dt>
                     <dd>{detailJumpHost?.name ?? t('fields.none')}</dd>
+                  </div>
+                  <div>
+                    <dt>{t('hosts.proxy')}</dt>
+                    <dd>{detailProxy
+                      ? `${detailProxy.name} · ${t(`proxies.types.${detailProxy.type === 'http_connect' ? 'httpConnect' : 'socks5'}`)}`
+                      : t('hosts.noProxy')}</dd>
                   </div>
                   <div>
                     <dt>{t('hosts.note')}</dt>

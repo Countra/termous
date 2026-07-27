@@ -4138,6 +4138,11 @@ function FilesPageContent({
             ) : activeFileSession.status !== 'connected' && !activeFileSessionHasCachedDirectory ? (
               <FileSessionProgress
                 fileSession={activeFileSession}
+                proxyRoute={activeFileSessionHost?.proxy_id
+                  ? activeFileSessionHost.jump_host_id
+                    ? 'jump'
+                    : 'target'
+                  : null}
                 closing={activeFileSessionClosing}
                 recovering={Boolean(activeFileSessionRecovery)}
                 onRecover={recoverFileSession}
@@ -4957,11 +4962,13 @@ function FileSessionCachedDirectoryOverlay({
 
 function FileSessionProgress({
   fileSession,
+  proxyRoute,
   closing,
   recovering,
   onRecover,
 }: {
   fileSession: FileSession
+  proxyRoute: 'target' | 'jump' | null
   closing: boolean
   recovering: boolean
   onRecover: (fileSession: FileSession) => Promise<void>
@@ -4974,6 +4981,11 @@ function FileSessionProgress({
     ? waitingTrustFileSessionPhaseOrder
     : fileSessionPhaseOrder
   const currentIndex = phaseOrder.indexOf(phase)
+  const phaseLabel = proxyRoute && phase === 'dialing'
+    ? t(proxyRoute === 'jump'
+      ? 'connection.proxyDialingJumpHost'
+      : 'connection.proxyDialingTarget')
+    : t(`files.sessionPhase.${phase}`)
 
   if (closing || terminal) {
     const copy = fileSessionRecoveryStatusCopy(fileSession, recovering, closing, t)
@@ -5005,13 +5017,13 @@ function FileSessionProgress({
   return (
     <div className="files-session-progress" role="status" aria-live="polite">
       <div className="connection-progress-head">
-        <span>{t(`files.sessionPhase.${phase}`)}</span>
+        <span>{phaseLabel}</span>
         <strong>{progress}%</strong>
       </div>
       <div
         className="connection-progress-bar"
         role="progressbar"
-        aria-label={t(`files.sessionPhase.${phase}`)}
+        aria-label={phaseLabel}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={progress}
@@ -5164,6 +5176,16 @@ function fileSessionRecoveryErrorMessage(
     case 'SFTP_SOURCE_SESSION_NOT_FOUND':
     case 'SFTP_SOURCE_SESSION_DISCONNECTED':
       return t('workbench.files.recoverySourceUnavailable')
+    case 'PROXY_CONFIG_INVALID':
+      return t('connection.proxyError.configInvalid')
+    case 'PROXY_AUTH_REQUIRED':
+      return t('connection.proxyError.authRequired')
+    case 'PROXY_TIMEOUT':
+      return t('connection.proxyError.timeout')
+    case 'PROXY_CONNECT_FAILED':
+      return t('connection.proxyError.connectFailed')
+    case 'PROXY_TUNNEL_FAILED':
+      return t('connection.proxyError.tunnelFailed')
     case 'NETWORK_ERROR':
     case 'SFTP_CONNECT_FAILED':
     case 'SFTP_RECONNECT_FAILED':

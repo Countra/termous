@@ -7,6 +7,7 @@ import type {
   CodeSnippetGroup,
   CodeSnippetGroupInput,
   CodeSnippetInput,
+  ConnectionProxyInput,
   CredentialInput,
   FileBookmark,
   FileBookmarkGroup,
@@ -72,6 +73,7 @@ type LoadMode = 'initial' | 'background' | 'silent'
 const initialData: AppData = {
   hosts: [],
   groups: [],
+  proxies: [],
   credentials: [],
   sessions: [],
   fileSessions: [],
@@ -210,6 +212,7 @@ export function useTermousData() {
         fileBookmarks,
         localPathMappings,
         groups,
+        proxies,
         hosts,
         hostReachability,
         credentials,
@@ -226,6 +229,7 @@ export function useTermousData() {
         apiClient.fileBookmarks(),
         apiClient.localPathMappings(),
         apiClient.hostGroups(),
+        apiClient.connectionProxies(),
         apiClient.hosts(),
         apiClient.hostReachability(),
         apiClient.credentials(),
@@ -264,6 +268,7 @@ export function useTermousData() {
         return {
           settings: nextSettings,
           groups: groups ?? [],
+          proxies: sortConnectionProxies(proxies ?? []),
           hosts: hosts ?? [],
           credentials: credentials ?? [],
           sessions: nextSessions,
@@ -621,6 +626,29 @@ export function useTermousData() {
         const groups = await api.reorderHostGroups(items)
         setData((current) => ({ ...current, groups: [...groups].sort(sortHostGroups) }))
         return groups
+      },
+      async createConnectionProxy(input: ConnectionProxyInput) {
+        const proxy = await api.createConnectionProxy(input)
+        setData((current) => ({
+          ...current,
+          proxies: upsertConnectionProxy(current.proxies, proxy),
+        }))
+        return proxy
+      },
+      async updateConnectionProxy(id: string, input: ConnectionProxyInput) {
+        const proxy = await api.updateConnectionProxy(id, input)
+        setData((current) => ({
+          ...current,
+          proxies: upsertConnectionProxy(current.proxies, proxy),
+        }))
+        return proxy
+      },
+      async deleteConnectionProxy(id: string) {
+        await api.deleteConnectionProxy(id)
+        setData((current) => ({
+          ...current,
+          proxies: current.proxies.filter((proxy) => proxy.id !== id),
+        }))
       },
       async updateHost(id: string, input: HostInput) {
         const host = await api.updateHost(id, input)
@@ -1074,6 +1102,25 @@ function sortHostGroups(left: HostGroup, right: HostGroup) {
     return left.name.localeCompare(right.name)
   }
   return left.id.localeCompare(right.id)
+}
+
+function sortConnectionProxies(proxies: AppData['proxies']) {
+  return [...proxies].sort((left, right) => (
+    left.name.localeCompare(right.name)
+    || left.id.localeCompare(right.id)
+  ))
+}
+
+function upsertConnectionProxy(
+  proxies: AppData['proxies'],
+  next: AppData['proxies'][number],
+) {
+  const exists = proxies.some((proxy) => proxy.id === next.id)
+  return sortConnectionProxies(
+    exists
+      ? proxies.map((proxy) => (proxy.id === next.id ? next : proxy))
+      : [...proxies, next],
+  )
 }
 
 function upsertSession(sessions: Session[], next: Session) {

@@ -30,6 +30,7 @@ import {
   removeInactiveSessionFileStates,
   resolveRecoveredSessionFilesDirectory,
   resolveSessionFilesCwdRetryTarget,
+  restartSessionFilesCwdRefresh,
   scheduleSessionFilesCwdLocalRetry,
   scheduleSessionFilesCwdRefreshRetry,
   sessionFilesCwdRefreshRetryDelay,
@@ -40,6 +41,7 @@ import {
   shouldPrepareSessionFilesCwdControl,
   shouldRequestInitialSessionFilesDirectory,
   shouldRequestFollowedDirectory,
+  shouldShowSessionFilesInitialLoading,
   sessionFilesViewStatesReducer,
   suspendSessionFilesDirectory,
   updateMatchingSessionFilesCwdRefresh,
@@ -106,6 +108,37 @@ test('初始目录自动加载只服务未开启跟随的空闲文件区', () =>
   }), false)
 })
 
+test('空目录占位只在真实读取或目录跟随刷新事务中展示加载', () => {
+  const initial = createSessionFilesViewState('/root')
+
+  assert.equal(shouldShowSessionFilesInitialLoading(initial, true), false)
+  assert.equal(shouldShowSessionFilesInitialLoading({
+    ...initial,
+    loading: true,
+  }, true), true)
+
+  const refreshing = beginSessionFilesCwdRefresh({
+    ...initial,
+    followTerminal: true,
+  }, cwdState({ control_status: 'preparing' }), 1_000)
+  assert.equal(shouldShowSessionFilesInitialLoading(refreshing, true), true)
+  assert.equal(shouldShowSessionFilesInitialLoading({
+    ...refreshing,
+    cwdRefresh: {
+      ...refreshing.cwdRefresh,
+      phase: 'failed',
+      error: 'PROXY_CONNECT_FAILED',
+    },
+    syncStatus: 'failed',
+    syncError: 'PROXY_CONNECT_FAILED',
+  }, true), false)
+  assert.equal(shouldShowSessionFilesInitialLoading({
+    ...refreshing,
+    listing: listing('/root'),
+  }, true), false)
+  assert.equal(shouldShowSessionFilesInitialLoading(refreshing, false), false)
+})
+
 test('目录跟随状态区分能力准备、路径定位和就绪', () => {
   assert.deepEqual(deriveSessionFilesSyncState(
     cwdState({ capability: 'probing', capability_cause: '正在准备' }),
@@ -135,6 +168,112 @@ test('目录跟随状态区分能力准备、路径定位和就绪', () => {
   ), {
     status: '',
     error: '',
+  })
+})
+
+test('代理错误立即结束目录跟随准备态并保留稳定错误码', () => {
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({
+      control_status: 'degraded',
+      capability_cause: '目录控制仍在准备',
+      control_code: 'PROXY_CONNECT_FAILED',
+    }),
+    null,
+  ), {
+    status: 'failed',
+    error: 'PROXY_CONNECT_FAILED',
+  })
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({
+      control_status: 'degraded',
+      capability_cause: '目录控制仍在准备',
+      refresh_request_id: 'refresh-current',
+      refresh_status: 'failed',
+      refresh_error_code: 'PROXY_TIMEOUT',
+    }),
+    null,
+    '',
+    'refresh-current',
+  ), {
+    status: 'failed',
+    error: 'PROXY_TIMEOUT',
+  })
+
+  assert.deepEqual(deriveSessionFilesFollowSyncState(
+    cwdState({
+      control_status: 'preparing',
+      control_code: 'PROXY_TUNNEL_FAILED',
+    }),
+    null,
+    '',
+    true,
+    false,
+    'wait',
+    '',
+    'refresh-current',
+  ), {
+    status: 'failed',
+    error: 'PROXY_TUNNEL_FAILED',
+  })
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({ control_status: 'preparing' }),
+    {
+      code: 'proxy_auth_required',
+      message: '代理要求认证',
+    },
+  ), {
+    status: 'failed',
+    error: 'PROXY_AUTH_REQUIRED',
+  })
+})
+
+test('目录控制终态优先于历史代理错误且刷新错误必须匹配当前事务', () => {
+  const staleProxyFailure = {
+    refresh_request_id: 'refresh-old',
+    refresh_status: 'failed' as const,
+    refresh_error_code: 'PROXY_TIMEOUT',
+    refresh_error: '历史代理连接超时',
+  }
+
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({
+      ...staleProxyFailure,
+      capability: 'unsupported',
+      control_status: 'unsupported',
+      capability_cause: '当前终端不支持目录跟随',
+    }),
+    null,
+    '',
+    'refresh-old',
+  ), {
+    status: 'unsupported',
+    error: '当前终端不支持目录跟随',
+  })
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({
+      ...staleProxyFailure,
+      control_status: 'reconnect_required',
+      capability_cause: '需要重新连接当前会话',
+    }),
+    null,
+    '',
+    'refresh-old',
+  ), {
+    status: 'reconnect-required',
+    error: '需要重新连接当前会话',
+  })
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({
+      ...staleProxyFailure,
+      control_status: 'preparing',
+      capability_cause: '正在准备目录控制',
+    }),
+    null,
+    '',
+    'refresh-new',
+  ), {
+    status: 'preparing',
+    error: '正在准备目录控制',
   })
 })
 
@@ -242,6 +381,43 @@ test('一次刷新超时不会阻止后续建立新的独立同步事务', () =>
   assert.equal(restarted.cwdRefresh.deadlineAt, 135_000)
   assert.equal(restarted.cwdRefresh.recoveryRetryCount, 0)
   assert.equal(restarted.cwdRefresh.transactionSequence, 2)
+})
+
+test('用户重试会在同一会话状态上重新驱动目录跟随事务', () => {
+  const failed = {
+    ...finishSessionFilesCwdRefresh(
+      beginSessionFilesCwdRefresh({
+        ...createSessionFilesViewState('/root'),
+        followTerminal: true,
+      }, cwdState({ source_generation: 4 }), 1_000),
+      'PROXY_CONNECT_FAILED',
+    ),
+    lastTerminalSyncPath: '/srv/pending',
+    syncStatus: 'failed' as const,
+    syncError: 'PROXY_CONNECT_FAILED',
+  }
+  const restarted = restartSessionFilesCwdRefresh(
+    failed,
+    cwdState({ source_generation: 4 }),
+    70_000,
+  )
+
+  assert.equal(restarted.followTerminal, true)
+  assert.equal(restarted.cwdRefresh.phase, 'waiting')
+  assert.equal(restarted.cwdRefresh.transactionSequence, 2)
+  assert.equal(restarted.cwdRefresh.baseSourceGeneration, 4)
+  assert.equal(restarted.lastTerminalSyncPath, '')
+  assert.equal(restarted.syncStatus, 'preparing')
+  assert.equal(restarted.syncError, '')
+
+  const disabled = {
+    ...failed,
+    followTerminal: false,
+  }
+  assert.equal(
+    restartSessionFilesCwdRefresh(disabled, cwdState(), 80_000),
+    disabled,
+  )
 })
 
 test('旧刷新事务的迟到终态不能结束同毫秒创建的新事务', () => {
@@ -579,6 +755,38 @@ test('目录刷新阶段按能力、操作、错误和 transport 状态稳定派
   })
 })
 
+test('降级状态只在真实刷新事务中保持准备，空闲时明确失败并允许重试', () => {
+  const degraded = cwdState({
+    control_status: 'degraded',
+    control_code: 'CWD_NOT_READY',
+    control_retryable: true,
+    capability_cause: '管理连接暂不可用',
+  })
+
+  assert.deepEqual(deriveSessionFilesFollowSyncState(
+    degraded,
+    null,
+    '',
+    true,
+    false,
+    'wait',
+  ), {
+    status: 'preparing',
+    error: '管理连接暂不可用',
+  })
+  assert.deepEqual(deriveSessionFilesFollowSyncState(
+    degraded,
+    null,
+    '',
+    false,
+    false,
+    'ready',
+  ), {
+    status: 'failed',
+    error: 'CWD_NOT_READY',
+  })
+})
+
 test('目录刷新 pending 时不可恢复 transport 结束探测且不覆盖权威不支持状态', () => {
   const probing = cwdState({
     capability: 'probing',
@@ -691,6 +899,22 @@ test('旧文件会话的待处理操作不会污染当前文件会话', () => {
     status: '',
     error: '',
   })
+
+  const failedThroughProxy = cwdState({
+    confirmed_path: '/srv/current',
+    pending_operation: {
+      id: 'operation-old-proxy',
+      file_session_id: 'file-session-old',
+      path: '/srv/old',
+      revision: 2,
+      status: 'failed',
+      error_code: 'PROXY_CONNECT_FAILED',
+    },
+  })
+  assert.deepEqual(
+    deriveSessionFilesSyncState(failedThroughProxy, null, 'file-session-current'),
+    { status: '', error: '' },
+  )
 })
 
 test('传输暂不可用保持可恢复状态，其他请求错误才标记失败', () => {
