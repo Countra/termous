@@ -16,6 +16,7 @@ interface ForwardSessionPanelProps {
   session: Session | null
   host?: Host
   forwards: ForwardInstance[]
+  enabled: boolean
   actionBusy: boolean
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
   onStopForward: (id: string) => Promise<void>
@@ -50,6 +51,7 @@ export function ForwardSessionPanel({
   session,
   host,
   forwards,
+  enabled,
   actionBusy,
   onStartForward,
   onStopForward,
@@ -207,6 +209,7 @@ export function ForwardSessionPanel({
             <SessionForwardRow
               key={forward.id}
               forward={forward}
+              enabled={enabled}
               actionBusy={actionBusy}
               onStop={() => void onStopForward(forward.id)}
             />
@@ -219,10 +222,12 @@ export function ForwardSessionPanel({
 
 function SessionForwardRow({
   forward,
+  enabled,
   actionBusy,
   onStop,
 }: {
   forward: ForwardInstance
+  enabled: boolean
   actionBusy: boolean
   onStop: () => void
 }) {
@@ -258,7 +263,7 @@ function SessionForwardRow({
         targetPort={forward.target_port}
       />
       <ForwardStateFeedback compact forward={forward} />
-      <ForwardRuntimeMetrics compact forward={forward} showTiming={false} />
+      <ForwardRuntimeMetrics compact enabled={enabled} forward={forward} showTiming={false} />
     </article>
   )
 }

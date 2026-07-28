@@ -28,6 +28,17 @@ test('代码中的字面量翻译键均已配置', () => {
   assert.deepEqual([...missing].sort(), [])
 })
 
+test('端口转发实时速度文案和格式保持一致', () => {
+  assert.equal(translationValue(zhCN, 'forwards.sendRate'), '发送速度')
+  assert.equal(translationValue(zhCN, 'forwards.receiveRate'), '接收速度')
+  assert.equal(translationValue(enUS, 'forwards.sendRate'), 'Send rate')
+  assert.equal(translationValue(enUS, 'forwards.receiveRate'), 'Receive rate')
+  assert.equal(translationValue(zhCN, 'forwards.totalTraffic'), '累计流量')
+  assert.equal(translationValue(enUS, 'forwards.totalTraffic'), 'Total traffic')
+  assert.equal(translationValue(zhCN, 'forwards.speedValue'), '{{value}}/s')
+  assert.equal(translationValue(enUS, 'forwards.speedValue'), '{{value}}/s')
+})
+
 function readTranslations(locale: string) {
   const path = join(sourceRoot, 'i18n', 'locales', locale, 'translation.json')
   return JSON.parse(readFileSync(path, 'utf8')) as TranslationTree
@@ -84,4 +95,15 @@ function hasTranslation(tree: TranslationTree, key: string) {
     current = node[segment]
   }
   return typeof current === 'string' || typeof current === 'number'
+}
+
+function translationValue(tree: TranslationTree, key: string) {
+  let current: unknown = tree
+  for (const segment of key.split('.')) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)) {
+      return undefined
+    }
+    current = (current as TranslationTree)[segment]
+  }
+  return current
 }

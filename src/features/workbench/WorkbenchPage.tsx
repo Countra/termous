@@ -1538,6 +1538,7 @@ export function WorkbenchPage({
                 session={activeSession}
                 host={sessionHost}
                 forwards={data.forwards}
+                enabled={active && detailsActiveTab === 'forwards' && !detailsCollapsed}
                 actionBusy={actionBusy}
                 onStartForward={onStartForward}
                 onStopForward={onStopForward}
