@@ -163,6 +163,7 @@ interface WorkbenchPageProps {
   onSnippetUsed: (snippetId: string) => Promise<void>
   onToggleSnippetFavorite: (snippet: CodeSnippet) => Promise<void>
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
+  onRestartForward: (id: string) => Promise<void>
   onStopForward: (id: string) => Promise<void>
 }
 
@@ -190,6 +191,7 @@ export function WorkbenchPage({
   onSnippetUsed,
   onToggleSnippetFavorite,
   onStartForward,
+  onRestartForward,
   onStopForward,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
@@ -1541,6 +1543,7 @@ export function WorkbenchPage({
                 enabled={active && detailsActiveTab === 'forwards' && !detailsCollapsed}
                 actionBusy={actionBusy}
                 onStartForward={onStartForward}
+                onRestartForward={onRestartForward}
                 onStopForward={onStopForward}
               />
             ),

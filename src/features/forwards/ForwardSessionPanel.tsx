@@ -1,5 +1,5 @@
-import { Cable, ChevronDown, ChevronUp, Play, Plus, Square } from 'lucide-react'
-import { App as AntdApp, Button, Tooltip } from 'antd'
+import { Cable, ChevronDown, ChevronUp, Play, Plus } from 'lucide-react'
+import { App as AntdApp, Button } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
@@ -9,6 +9,7 @@ import { WorkbenchEmptyState } from '../workbench/WorkbenchEmptyState'
 import { ForwardEditorFields } from './ForwardEditorFields'
 import { ForwardModeBadge, ForwardModeSelector } from './ForwardModeSelector'
 import { ForwardRouteDiagram } from './ForwardRouteDiagram'
+import { ForwardRuntimeActions } from './ForwardRuntimeActions'
 import { ForwardRuntimeMetrics } from './ForwardRuntimeMetrics'
 import { ForwardStateFeedback } from './ForwardStateFeedback'
 
@@ -19,6 +20,7 @@ interface ForwardSessionPanelProps {
   enabled: boolean
   actionBusy: boolean
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
+  onRestartForward: (id: string) => Promise<void>
   onStopForward: (id: string) => Promise<void>
 }
 
@@ -54,6 +56,7 @@ export function ForwardSessionPanel({
   enabled,
   actionBusy,
   onStartForward,
+  onRestartForward,
   onStopForward,
 }: ForwardSessionPanelProps) {
   const { t } = useTranslation()
@@ -211,7 +214,8 @@ export function ForwardSessionPanel({
               forward={forward}
               enabled={enabled}
               actionBusy={actionBusy}
-              onStop={() => void onStopForward(forward.id)}
+              onRestart={() => onRestartForward(forward.id)}
+              onStop={() => onStopForward(forward.id)}
             />
           ))
         )}
@@ -224,12 +228,14 @@ function SessionForwardRow({
   forward,
   enabled,
   actionBusy,
+  onRestart,
   onStop,
 }: {
   forward: ForwardInstance
   enabled: boolean
   actionBusy: boolean
-  onStop: () => void
+  onRestart: () => Promise<void>
+  onStop: () => Promise<void>
 }) {
   const { t } = useTranslation()
   const status = forward.status === 'running' ? 'connected' : forward.status === 'failed' ? 'failed' : forward.status === 'stopped' ? 'disconnected' : 'connecting'
@@ -240,17 +246,12 @@ function SessionForwardRow({
         <ForwardModeBadge compact mode={forward.mode} />
         <div className="forward-session-row-actions">
           <StatusBadge status={status} label={t(`forwards.status.${forward.status}`)} />
-          <Tooltip title={t('forwards.stop')}>
-            <Button
-              type="text"
-              danger
-              className="forward-session-stop"
-              aria-label={t('forwards.stop')}
-              disabled={actionBusy || forward.status === 'stopping' || forward.status === 'stopped'}
-              icon={<Square size={13} />}
-              onClick={onStop}
-            />
-          </Tooltip>
+          <ForwardRuntimeActions
+            forward={forward}
+            disabled={actionBusy}
+            onRestart={onRestart}
+            onStop={onStop}
+          />
         </div>
       </div>
       <ForwardRouteDiagram

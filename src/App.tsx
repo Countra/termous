@@ -23,6 +23,7 @@ import {
   selectFileSessionNavigationTarget,
 } from './features/files/fileSessionRecovery'
 import { ForwardingPage } from './features/forwards/ForwardingPage'
+import { isForwardRestartCompleted } from './features/forwards/forwardRestart'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { SnippetsPage } from './features/snippets/SnippetsPage'
 import { snippetToInput } from './features/snippets/snippetUtils'
@@ -468,6 +469,26 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }, [notification, t])
 
+  const restartForward = useCallback(async (id: string) => {
+    const restart = await runAction(() => actions.restartForward(id))
+    if (!restart) {
+      return
+    }
+    void restart.completion.then((forward) => {
+      if (!isForwardRestartCompleted(forward)) {
+        return
+      }
+      notification.success({
+        title: t('forwards.restartCompleted'),
+        duration: 3,
+        role: 'status',
+        className: 'termous-notification',
+      })
+    }).catch((error) => {
+      console.error('等待端口转发重启终态失败', error)
+    })
+  }, [actions, notification, runAction, t])
+
   const saveHost = (id: string | null, input: HostInput): Promise<Host | undefined> =>
     runAction(async () => {
       if (id) {
@@ -895,6 +916,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onSnippetUsed={(snippetId) => actions.markCodeSnippetUsed(snippetId).then(() => undefined)}
             onToggleSnippetFavorite={toggleCodeSnippetFavorite}
             onStartForward={(input) => actions.startForward(input)}
+            onRestartForward={restartForward}
             onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
           />
         </div>
@@ -1061,6 +1083,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onUpdateProfile={(id, input) => actions.updateForwardProfile(id, input)}
             onDeleteProfile={(id) => runAction(() => actions.deleteForwardProfile(id))}
             onStartForward={(input) => actions.startForward(input)}
+            onRestartForward={restartForward}
             onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
           />
         ) : null}

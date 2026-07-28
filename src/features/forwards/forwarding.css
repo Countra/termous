@@ -333,6 +333,84 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.forward-runtime-actions {
+  display: inline-grid;
+  height: 30px;
+  flex: 0 0 auto;
+  grid-template-columns: 28px 1px 28px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 76%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-subtle) 88%, var(--surface));
+  padding: 0;
+}
+
+.forward-runtime-action-trigger {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+}
+
+.forward-runtime-action.ant-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0;
+  box-shadow: none;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.forward-runtime-action.ant-btn .ant-btn-icon,
+.forward-runtime-action.ant-btn .ant-btn-loading-icon {
+  display: grid;
+  margin-inline-end: 0;
+  place-items: center;
+}
+
+.forward-runtime-action.ant-btn:not(:disabled):hover,
+.forward-runtime-action.ant-btn:not(:disabled):active {
+  transform: none;
+}
+
+.forward-runtime-action.is-restart.ant-btn:not(:disabled):hover,
+.forward-runtime-action.is-restart.ant-btn:not(:disabled):active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-primary));
+}
+
+.forward-runtime-action.is-stop.ant-btn:not(:disabled):hover,
+.forward-runtime-action.is-stop.ant-btn:not(:disabled):active {
+  background: color-mix(in srgb, #ff656d 11%, transparent);
+  color: #ff7e85;
+}
+
+.forward-runtime-action.ant-btn:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--accent) 76%, transparent);
+  outline-offset: -2px;
+}
+
+.forward-runtime-action.is-stop.ant-btn:focus-visible {
+  outline-color: color-mix(in srgb, #ff737a 76%, transparent);
+}
+
+.forward-runtime-action.ant-btn:disabled {
+  background: transparent;
+  color: color-mix(in srgb, var(--text-muted) 52%, transparent);
+}
+
+.forward-runtime-action-divider {
+  width: 1px;
+  height: 14px;
+  background: color-mix(in srgb, var(--border-strong) 76%, transparent);
+}
+
 .forward-runtime-metric {
   --forward-metric-tone: var(--accent);
   display: grid;
@@ -914,21 +992,6 @@
 
 .forward-session-row-meta .danger-button {
   margin-left: auto;
-}
-
-.forward-session-stop.ant-btn {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  color: var(--text-muted);
-  padding: 0;
-}
-
-.forward-session-stop.ant-btn:not(:disabled):hover {
-  background: color-mix(in srgb, #ff656d 10%, var(--surface));
-  color: #ff7e85;
-  transform: none;
 }
 
 @container forward-session (max-width: 339px) {
@@ -1736,6 +1799,7 @@
   .forward-runtime-metric-icon,
   .forward-runtime-rate,
   .forward-runtime-metric-detail,
+  .forward-runtime-action,
   .forward-route-endpoint,
   .forward-mode-selector .ant-segmented-thumb {
     transition: none !important;
