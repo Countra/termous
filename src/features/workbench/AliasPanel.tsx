@@ -367,6 +367,24 @@ export function AliasPanel({
     }
   }
 
+  const refreshAliasTemplate = async () => {
+    if (panelBusy) {
+      return
+    }
+    const operationSessionId = sessionId
+    try {
+      const result = await aliases.refreshTemplate()
+      if (!isCurrentPanelSession(operationSessionId)) {
+        return
+      }
+      notifyMutation(result, 'workbench.aliases.templateRefreshSuccess')
+    } catch (error) {
+      if (isCurrentPanelSession(operationSessionId)) {
+        showAliasError(error, t, notification)
+      }
+    }
+  }
+
   const reconnectSession = async () => {
     if (
       !session ||
@@ -419,6 +437,29 @@ export function AliasPanel({
       >
         <Skeleton active paragraph={{ rows: 5 }} title={{ width: '54%' }} />
       </section>
+    )
+  }
+
+  if (aliases.templateOutdated || aliases.mutation === 'refresh-template') {
+    return (
+      <WorkbenchEmptyState
+        className="alias-panel-load-error alias-panel-template-outdated"
+        tone="warning"
+        icon={<RefreshCw size={20} />}
+        title={t('workbench.aliases.templateOutdatedTitle')}
+        description={t('workbench.aliases.templateOutdatedHint')}
+        action={
+          <Button
+            type="primary"
+            icon={<RefreshCw size={14} />}
+            loading={aliases.mutation === 'refresh-template'}
+            disabled={Boolean(aliases.mutation)}
+            onClick={() => void refreshAliasTemplate()}
+          >
+            {t('workbench.aliases.templateRefreshAction')}
+          </Button>
+        }
+      />
     )
   }
 

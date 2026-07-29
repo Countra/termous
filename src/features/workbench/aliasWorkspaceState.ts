@@ -6,7 +6,12 @@ import type {
   ShellAliasPatch,
 } from '../../types/domain'
 
-export type AliasMutationKind = 'create' | 'update' | 'delete' | 'repair'
+export type AliasMutationKind =
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'repair'
+  | 'refresh-template'
 
 const aliasReconnectSessionLimit = 512
 const aliasReconnectSessionIDLimit = 256
@@ -54,6 +59,7 @@ export function serializeAliasReconnectSessionIds(sessionIds: Iterable<string>):
 export interface AliasSessionViewState {
   requestSequence: number
   workspace: AliasWorkspace | null
+  templateOutdated: boolean
   loading: boolean
   refreshing: boolean
   mutation: AliasMutationKind | null
@@ -114,6 +120,7 @@ export function createAliasSessionViewState(): AliasSessionViewState {
   return {
     requestSequence: 0,
     workspace: null,
+    templateOutdated: false,
     loading: false,
     refreshing: false,
     mutation: null,
@@ -123,6 +130,19 @@ export function createAliasSessionViewState(): AliasSessionViewState {
     errorMessage: '',
     lastLoadedAt: 0,
   }
+}
+
+function templateOutdatedAfterError(
+  current: boolean,
+  errorCode: string,
+) {
+  if (errorCode === 'SHELL_ALIAS_TEMPLATE_OUTDATED') {
+    return true
+  }
+  if (errorCode === 'SHELL_ALIAS_FILE_CONFLICT') {
+    return false
+  }
+  return current
 }
 
 export function aliasSessionViewReducer(
@@ -157,6 +177,7 @@ export function aliasSessionViewReducer(
       next = {
         ...current,
         workspace: action.workspace,
+        templateOutdated: false,
         loading: false,
         refreshing: false,
         reconnectRequired:
@@ -169,6 +190,10 @@ export function aliasSessionViewReducer(
     case 'load-error':
       next = {
         ...current,
+        templateOutdated: templateOutdatedAfterError(
+          current.templateOutdated,
+          action.errorCode,
+        ),
         loading: false,
         refreshing: false,
         errorCode: action.errorCode,
@@ -191,6 +216,7 @@ export function aliasSessionViewReducer(
       next = {
         ...current,
         workspace: action.workspace,
+        templateOutdated: false,
         mutation: null,
         mutatingAliasId: '',
         reconnectRequired:
@@ -202,6 +228,10 @@ export function aliasSessionViewReducer(
     case 'mutation-error':
       next = {
         ...current,
+        templateOutdated: templateOutdatedAfterError(
+          current.templateOutdated,
+          action.errorCode,
+        ),
         mutation: null,
         mutatingAliasId: '',
         errorCode: action.errorCode,

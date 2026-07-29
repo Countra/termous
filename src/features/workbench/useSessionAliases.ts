@@ -317,6 +317,13 @@ export function useSessionAliases({
     [api, runMutation, sessionId],
   )
 
+  const refreshTemplate = useCallback(
+    () =>
+      runMutation('refresh-template', '', (signal) =>
+        api.refreshSessionAliasTemplate(sessionId, { signal })),
+    [api, runMutation, sessionId],
+  )
+
   const currentState = states[sessionId] ?? {
     ...createAliasSessionViewState(),
     loading: enabled && supported,
@@ -334,6 +341,7 @@ export function useSessionAliases({
     updateAlias,
     deleteAlias,
     repairBridge,
+    refreshTemplate,
   }
 }
 

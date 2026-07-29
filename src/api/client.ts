@@ -739,6 +739,20 @@ export class TermousApi {
     )
   }
 
+  refreshSessionAliasTemplate(
+    id: string,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    return this.request<AliasMutationResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/aliases/template/refresh`,
+      {
+        method: 'POST',
+        signal: options.signal,
+        timeoutMs: SESSION_ALIAS_WRITE_TIMEOUT_MS,
+      },
+    )
+  }
+
   sessionProcesses(id: string, query: RemoteProcessQuery = {}, options: Pick<RequestOptions, 'signal'> = {}) {
     const params = new URLSearchParams()
     if (query.query?.trim()) {

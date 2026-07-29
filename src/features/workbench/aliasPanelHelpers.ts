@@ -11,6 +11,7 @@ const aliasErrorTranslationKeys: Record<string, string> = {
   SHELL_ALIAS_INVALID: 'workbench.aliases.errors.invalid',
   SHELL_ALIAS_NOT_FOUND: 'workbench.aliases.errors.notFound',
   SHELL_ALIAS_NAME_CONFLICT: 'workbench.aliases.errors.nameConflict',
+  SHELL_ALIAS_TEMPLATE_OUTDATED: 'workbench.aliases.errors.templateOutdated',
   SHELL_ALIAS_FILE_CONFLICT: 'workbench.aliases.errors.fileConflict',
   SHELL_ALIAS_PERMISSION_DENIED: 'workbench.aliases.errors.permissionDenied',
   SHELL_ALIAS_UNSUPPORTED: 'workbench.aliases.errors.unsupported',

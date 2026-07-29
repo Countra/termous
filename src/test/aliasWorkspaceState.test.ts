@@ -218,6 +218,117 @@ test('退役请求使迟到结果失效并保留已有缓存', () => {
   assert.equal(states['session-1'].refreshing, false)
 })
 
+test('旧模板错误保留缓存且始终提供更新配置入口', () => {
+  const cached = createWorkspace()
+  let states = aliasSessionViewReducer({}, {
+    type: 'load-start',
+    sessionId: 'session-1',
+    sequence: 1,
+    quiet: false,
+  })
+  states = aliasSessionViewReducer(states, {
+    type: 'load-success',
+    sessionId: 'session-1',
+    sequence: 1,
+    workspace: cached,
+    loadedAt: 1,
+  })
+  states = aliasSessionViewReducer(states, {
+    type: 'load-start',
+    sessionId: 'session-1',
+    sequence: 2,
+    quiet: true,
+  })
+  states = aliasSessionViewReducer(states, {
+    type: 'load-error',
+    sessionId: 'session-1',
+    sequence: 2,
+    errorCode: 'SHELL_ALIAS_TEMPLATE_OUTDATED',
+    errorMessage: '配置需要更新',
+  })
+
+  assert.equal(states['session-1'].workspace, cached)
+  assert.equal(states['session-1'].templateOutdated, true)
+  assert.equal(states['session-1'].errorCode, 'SHELL_ALIAS_TEMPLATE_OUTDATED')
+
+  states = aliasSessionViewReducer(states, {
+    type: 'load-start',
+    sessionId: 'session-1',
+    sequence: 3,
+    quiet: true,
+  })
+  assert.equal(states['session-1'].templateOutdated, true)
+
+  states = aliasSessionViewReducer(states, {
+    type: 'load-error',
+    sessionId: 'session-1',
+    sequence: 3,
+    errorCode: 'SHELL_ALIAS_TIMEOUT',
+    errorMessage: '更新检查超时',
+  })
+  assert.equal(states['session-1'].templateOutdated, true)
+
+  states = aliasSessionViewReducer(states, {
+    type: 'mutation-start',
+    sessionId: 'session-1',
+    sequence: 4,
+    mutation: 'refresh-template',
+    aliasId: '',
+  })
+  states = aliasSessionViewReducer(states, {
+    type: 'mutation-error',
+    sessionId: 'session-1',
+    sequence: 4,
+    errorCode: 'SHELL_ALIAS_TIMEOUT',
+    errorMessage: '更新配置超时',
+  })
+  assert.equal(states['session-1'].templateOutdated, true)
+
+  states = aliasSessionViewReducer(states, {
+    type: 'mutation-start',
+    sessionId: 'session-1',
+    sequence: 5,
+    mutation: 'refresh-template',
+    aliasId: '',
+  })
+  states = aliasSessionViewReducer(states, {
+    type: 'mutation-success',
+    sessionId: 'session-1',
+    sequence: 5,
+    workspace: cached,
+    applyStatus: 'next_prompt',
+  })
+  assert.equal(states['session-1'].templateOutdated, false)
+
+  states = aliasSessionViewReducer(states, {
+    type: 'load-start',
+    sessionId: 'session-1',
+    sequence: 6,
+    quiet: true,
+  })
+  states = aliasSessionViewReducer(states, {
+    type: 'load-error',
+    sessionId: 'session-1',
+    sequence: 6,
+    errorCode: 'SHELL_ALIAS_TEMPLATE_OUTDATED',
+    errorMessage: '配置需要更新',
+  })
+  states = aliasSessionViewReducer(states, {
+    type: 'load-start',
+    sessionId: 'session-1',
+    sequence: 7,
+    quiet: true,
+  })
+  states = aliasSessionViewReducer(states, {
+    type: 'load-error',
+    sessionId: 'session-1',
+    sequence: 7,
+    errorCode: 'SHELL_ALIAS_FILE_CONFLICT',
+    errorMessage: '远端配置已变为不可安全更新的冲突文件',
+  })
+  assert.equal(states['session-1'].templateOutdated, false)
+})
+
 test('会话切换保留各自缓存且互不覆盖', () => {
   let states = aliasSessionViewReducer({}, {
     type: 'load-start',
@@ -315,11 +426,19 @@ test('Alias API 不再发送 ETag、If-Match 或 apply 请求', () => {
     source,
     /repairSessionAliasBridge[\s\S]*aliases\/bridge\/repair[\s\S]*method: 'POST'/,
   )
+  assert.match(
+    source,
+    /refreshSessionAliasTemplate[\s\S]*aliases\/template\/refresh[\s\S]*method: 'POST'/,
+  )
 })
 
 test('Alias 面板不依赖目录跟随运行态或外部冲突流程', () => {
   const panel = readFileSync(
     fileURLToPath(new URL('../features/workbench/AliasPanel.tsx', import.meta.url)),
+    'utf8',
+  )
+  const helpers = readFileSync(
+    fileURLToPath(new URL('../features/workbench/aliasPanelHelpers.ts', import.meta.url)),
     'utf8',
   )
   const hook = readFileSync(
@@ -338,6 +457,17 @@ test('Alias 面板不依赖目录跟随运行态或外部冲突流程', () => {
   assert.doesNotMatch(hook, /mutationRequestRef\.current\?\.controller\.abort/)
   assert.match(hook, /mutationRequestsRef\.current\.has\(sessionId\)/)
   assert.match(panel, /aliases\.repairBridge\(\)/)
+  assert.match(panel, /aliases\.templateOutdated/)
+  assert.match(panel, /aliases\.refreshTemplate\(\)/)
+  assert.match(panel, /workbench\.aliases\.templateRefreshAction/)
+  assert.match(
+    panel,
+    /if \(aliases\.templateOutdated \|\| aliases\.mutation === 'refresh-template'\)/,
+  )
+  assert.match(
+    helpers,
+    /SHELL_ALIAS_FILE_CONFLICT: 'workbench\.aliases\.errors\.fileConflict'/,
+  )
   assert.doesNotMatch(
     panel,
     /repairAliasBridge[\s\S]*updateAlias\([\s\S]*enabled:/,
