@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Code2,
   Clock3,
+  Command,
   CopyPlus,
   Cpu,
   HardDrive,
@@ -69,6 +70,7 @@ import {
 } from '../snippets/snippetCatalogUtils'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
+import { AliasPanel } from './AliasPanel'
 import { FirewallPanel } from './FirewallPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
 import { DockerPanel } from './DockerPanel'
@@ -95,7 +97,18 @@ import {
   type SessionTabPreferenceMap,
 } from './sessionTabPreferences'
 
-type DetailsTabKey = 'overview' | 'files' | 'system' | 'monitor' | 'processes' | 'services' | 'docker' | 'firewall' | 'forwards' | 'snippets'
+type DetailsTabKey =
+  | 'overview'
+  | 'files'
+  | 'system'
+  | 'monitor'
+  | 'processes'
+  | 'services'
+  | 'docker'
+  | 'firewall'
+  | 'forwards'
+  | 'aliases'
+  | 'snippets'
 
 const workbenchDetailsPanelWidth = {
   default: 300,
@@ -316,6 +329,12 @@ export function WorkbenchPage({
   const visibleSessions = useMemo(
     () => sortSessionsForTabs(data.sessions, sessionTabPreferences),
     [data.sessions, sessionTabPreferences],
+  )
+  const aliasSessionIds = useMemo(
+    () => data.sessions
+      .filter((session) => session.kind === 'ssh')
+      .map((session) => session.id),
+    [data.sessions],
   )
   const activeSessionIndex = activeSession ? visibleSessions.findIndex((session) => session.id === activeSession.id) : -1
   const sessionPositionLabel =
@@ -1549,6 +1568,21 @@ export function WorkbenchPage({
             ),
           },
           {
+            key: 'aliases',
+            label: t('workbench.detailsTabs.aliases'),
+            icon: <Command size={17} aria-hidden="true" />,
+            children: (
+              <AliasPanel
+                api={api}
+                session={activeSession}
+                sessionIds={aliasSessionIds}
+                enabled={active && detailsActiveTab === 'aliases' && !detailsCollapsed}
+                reconnectDisabled={actionBusy}
+                onReconnectSession={reconnectSession}
+              />
+            ),
+          },
+          {
             key: 'snippets',
             label: t('workbench.detailsTabs.snippets'),
             icon: <Code2 size={17} aria-hidden="true" />,
@@ -1939,6 +1973,7 @@ function parseDetailsTabKey(value: unknown): DetailsTabKey {
     value === 'docker' ||
     value === 'firewall' ||
     value === 'forwards' ||
+    value === 'aliases' ||
     value === 'snippets' ||
     value === 'overview'
     ? value

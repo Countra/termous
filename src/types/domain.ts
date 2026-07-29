@@ -1388,6 +1388,40 @@ export interface DockerActionResult {
   completed_at: string
 }
 
+export type AliasBridgeStatus = 'missing' | 'installed'
+export type AliasApplyStatus = 'applied' | 'next_prompt' | 'reconnect_required'
+
+export interface ShellAlias {
+  id: string
+  name: string
+  command: string
+  description?: string
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ShellAliasInput {
+  name: string
+  command: string
+  description: string
+  enabled: boolean
+}
+
+export type ShellAliasPatch = Partial<ShellAliasInput>
+
+export interface AliasWorkspace {
+  shell: 'bash' | 'zsh' | 'fish'
+  bridge_status: AliasBridgeStatus
+  items: ShellAlias[]
+}
+
+export interface AliasMutationResult {
+  workspace: AliasWorkspace
+  alias?: ShellAlias
+  apply_status: AliasApplyStatus
+}
+
 export interface Session {
   id: string
   kind: SessionKind
