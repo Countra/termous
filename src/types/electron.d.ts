@@ -21,6 +21,7 @@ import type {
   UpdateRuntimeSummaryRefreshRequest,
   UpdateRuntimeSummaryReportContext,
 } from '../../electron/updateRuntimeSummaryRefresh'
+import type { ExternalUrlOpenResult } from '../../electron/externalUrl'
 
 interface SSHPrivateKeySelectionResult {
   canceled: boolean
@@ -62,6 +63,9 @@ declare global {
       clipboard?: {
         readText: () => Promise<string>
         writeText: (text: string) => Promise<boolean>
+      }
+      external?: {
+        openUrl: (url: string) => Promise<ExternalUrlOpenResult>
       }
       windowControls?: {
         minimize: () => Promise<boolean>

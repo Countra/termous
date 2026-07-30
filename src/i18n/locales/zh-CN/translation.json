@@ -965,6 +965,20 @@
     "regexError": "正则无效",
     "copyFailed": "复制失败",
     "pasteFailed": "粘贴失败",
+    "openLinkFailed": "无法打开链接",
+    "contextMenu": {
+      "label": "终端操作",
+      "copy": "复制",
+      "findSelection": "查找选中内容",
+      "paste": "粘贴",
+      "selectAll": "全选",
+      "find": "查找",
+      "openLink": "打开链接",
+      "copyLink": "复制链接",
+      "openPath": "在文件管理中打开",
+      "copyPath": "复制路径",
+      "reconnect": "重新连接"
+    },
     "tabMenu": {
       "split": "分屏",
       "duplicate": "复制会话",
@@ -1409,6 +1423,7 @@
     "openFileSession": "打开文件会话",
     "connect": "连接",
     "reconnect": "重新连接",
+    "reconnectFailed": "重新连接文件会话失败",
     "sessions": "SFTP 会话",
     "noFileSession": "暂无 SFTP 会话",
     "noFileSessionHint": "点击加号选择主机，创建或复用独立的 SFTP 文件会话。",

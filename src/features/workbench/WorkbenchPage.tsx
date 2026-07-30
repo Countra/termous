@@ -55,6 +55,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
 import { usePersistentJsonState } from '../../hooks/usePersistentJsonState'
 import { useRafResizablePanelWidth } from '../../hooks/useRafResizablePanelWidth'
+import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
 import { ConnectionProgress } from '../terminal/ConnectionProgress'
 import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'
@@ -79,6 +80,7 @@ import { ServicePanel } from './ServicePanel'
 import { SystemMonitorPanel } from './SystemMonitorPanel'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import { WorkbenchFilesPanel } from './WorkbenchFilesPanel'
+import type { WorkbenchFilesPathNavigationIntent } from './workbenchFilesPathNavigation'
 import {
   canRetrySessionInventory,
   getAutomaticSessionInventoryDemand,
@@ -123,6 +125,11 @@ interface TerminalSearchState {
   caseSensitive: boolean
   regex: boolean
   result: TerminalSearchResult
+}
+
+interface PendingTerminalSearchRequest {
+  sessionId: string
+  initialQuery: string
 }
 
 interface TerminalTabDragState {
@@ -248,7 +255,11 @@ export function WorkbenchPage({
   const recentConnectionTimersRef = useRef(new Map<string, number>())
   const [recentlyConnectedSessionIds, setRecentlyConnectedSessionIds] = useState<Set<string>>(() => new Set())
   const [closingSessionIds, setClosingSessionIds] = useState<Set<string>>(() => new Set())
-  const [pendingSearchSessionId, setPendingSearchSessionId] = useState<string | null>(null)
+  const [pendingSearchRequest, setPendingSearchRequest] = useState<PendingTerminalSearchRequest | null>(null)
+  const [filesPathNavigationIntent, setFilesPathNavigationIntent] =
+    useState<WorkbenchFilesPathNavigationIntent | null>(null)
+  const nextFilesPathNavigationRequestIdRef = useRef(0)
+  const activatedFilesPathNavigationRequestIdRef = useRef<number | null>(null)
   const [terminalTabDrag, setTerminalTabDrag] = useState<TerminalTabDragState | null>(null)
   const [snippetFilter, setSnippetFilter] = useState<SnippetCatalogFilter>('all')
   const [snippetQuery, setSnippetQuery] = useState('')
@@ -687,7 +698,7 @@ export function WorkbenchPage({
 
   const closeTerminalSearch = useCallback(() => {
     clearActiveSearch(terminalSearch.sessionId ?? activeSession?.id)
-    setPendingSearchSessionId(null)
+    setPendingSearchRequest(null)
     setTerminalSearch((current) => ({
       ...current,
       open: false,
@@ -697,26 +708,63 @@ export function WorkbenchPage({
     }))
   }, [activeSession?.id, clearActiveSearch, terminalSearch.sessionId])
 
-  const openTerminalSearch = useCallback((sessionId: string) => {
+  const openTerminalSearch = useCallback((sessionId: string, initialQuery = '') => {
+    const result = initialQuery
+      ? searchActive(
+          initialQuery,
+          { caseSensitive: terminalSearch.caseSensitive, regex: terminalSearch.regex },
+          'next',
+          sessionId,
+        )
+      : emptyTerminalSearchResult()
     setTerminalSearch((current) => ({
       ...current,
       open: true,
       sessionId,
-      result: emptyTerminalSearchResult(),
+      query: initialQuery,
+      result,
     }))
-  }, [])
+  }, [searchActive, terminalSearch.caseSensitive, terminalSearch.regex])
 
   const requestSessionSearch = useCallback(
-    (sessionId: string) => {
+    (sessionId: string, initialQuery = '') => {
       if (activeSession?.id !== sessionId) {
-        setPendingSearchSessionId(sessionId)
+        setPendingSearchRequest({ sessionId, initialQuery })
         onSelectSession(sessionId)
         return
       }
-      openTerminalSearch(sessionId)
+      openTerminalSearch(sessionId, initialQuery)
     },
     [activeSession?.id, onSelectSession, openTerminalSearch],
   )
+
+  const openPathInWorkbenchFiles = useCallback((session: Session, path: string) => {
+    const normalizedPath = normalizeRemotePosixPath(path)
+    if (
+      !normalizedPath
+      || session.kind !== 'ssh'
+      || session.status !== 'connected'
+      || !session.host_id
+    ) {
+      return
+    }
+    nextFilesPathNavigationRequestIdRef.current += 1
+    setFilesPathNavigationIntent({
+      requestId: nextFilesPathNavigationRequestIdRef.current,
+      sourceSessionId: session.id,
+      path: normalizedPath,
+    })
+    setDetailsActiveTab('files')
+    setDetailsCollapsed(false)
+    if (activeSession?.id !== session.id) {
+      onSelectSession(session.id)
+    }
+  }, [
+    activeSession?.id,
+    onSelectSession,
+    setDetailsActiveTab,
+    setDetailsCollapsed,
+  ])
 
   const runSearch = useCallback(
     (direction: TerminalSearchDirection) => {
@@ -1100,21 +1148,71 @@ export function WorkbenchPage({
   }, [])
 
   useEffect(() => {
-    if (!pendingSearchSessionId || activeSession?.id !== pendingSearchSessionId) {
+    if (!pendingSearchRequest || activeSession?.id !== pendingSearchRequest.sessionId) {
       return
     }
-    openTerminalSearch(pendingSearchSessionId)
-    setPendingSearchSessionId(null)
-  }, [activeSession?.id, openTerminalSearch, pendingSearchSessionId])
+    openTerminalSearch(pendingSearchRequest.sessionId, pendingSearchRequest.initialQuery)
+    setPendingSearchRequest(null)
+  }, [activeSession?.id, openTerminalSearch, pendingSearchRequest])
 
   useEffect(() => {
-    if (!terminalSearch.open || !terminalSearch.sessionId || pendingSearchSessionId) {
+    if (!filesPathNavigationIntent) {
+      activatedFilesPathNavigationRequestIdRef.current = null
+      return
+    }
+    const sourceSession = data.sessions.find(
+      (session) => session.id === filesPathNavigationIntent.sourceSessionId,
+    )
+    if (
+      !sourceSession
+      || sourceSession.kind !== 'ssh'
+      || sourceSession.status !== 'connected'
+    ) {
+      setFilesPathNavigationIntent(null)
+    }
+  }, [data.sessions, filesPathNavigationIntent])
+
+  useEffect(() => {
+    if (!filesPathNavigationIntent) {
+      activatedFilesPathNavigationRequestIdRef.current = null
+      return
+    }
+    if (
+      activatedFilesPathNavigationRequestIdRef.current !== null
+      && activatedFilesPathNavigationRequestIdRef.current !== filesPathNavigationIntent.requestId
+    ) {
+      activatedFilesPathNavigationRequestIdRef.current = null
+    }
+    const targetContextActive = Boolean(
+      active
+      && activeSession?.id === filesPathNavigationIntent.sourceSessionId
+      && detailsActiveTab === 'files'
+      && !detailsCollapsed
+    )
+    if (targetContextActive) {
+      activatedFilesPathNavigationRequestIdRef.current = filesPathNavigationIntent.requestId
+      return
+    }
+    if (activatedFilesPathNavigationRequestIdRef.current === filesPathNavigationIntent.requestId) {
+      activatedFilesPathNavigationRequestIdRef.current = null
+      setFilesPathNavigationIntent(null)
+    }
+  }, [
+    active,
+    activeSession?.id,
+    detailsActiveTab,
+    detailsCollapsed,
+    filesPathNavigationIntent,
+  ])
+
+  useEffect(() => {
+    if (!terminalSearch.open || !terminalSearch.sessionId || pendingSearchRequest) {
       return
     }
     if (activeSession?.id && terminalSearch.sessionId !== activeSession.id) {
       closeTerminalSearch()
     }
-  }, [activeSession?.id, closeTerminalSearch, pendingSearchSessionId, terminalSearch.open, terminalSearch.sessionId])
+  }, [activeSession?.id, closeTerminalSearch, pendingSearchRequest, terminalSearch.open, terminalSearch.sessionId])
 
   useEffect(() => {
     if (activeSession?.status !== 'connected') {
@@ -1267,6 +1365,7 @@ export function WorkbenchPage({
             ref={terminalSplitRef}
             sessions={visibleSessions}
             activeSession={activeSession}
+            workspaceActive={active}
             themeMode={terminalThemeMode}
             placeholder={selectedHost ? t('workbench.terminalReady') : t('workbench.terminalHint')}
             emptyState={visibleSessions.length === 0 ? (
@@ -1309,6 +1408,8 @@ export function WorkbenchPage({
             onSelectSession={onSelectSession}
             onResize={handleTerminalResize}
             onReconnectSession={(session) => void reconnectSession(session)}
+            onSearchSession={requestSessionSearch}
+            onOpenFilesAtPath={openPathInWorkbenchFiles}
             onCloseSession={(session) => void closeSessionTab(session.id)}
           />
           <div className="terminal-statusbar">
@@ -1474,6 +1575,12 @@ export function WorkbenchPage({
                 onUpdateFileSession={onUpdateFileSession}
                 onCreateFileBookmark={onCreateFileBookmark}
                 onUpdateFileBookmark={onUpdateFileBookmark}
+                pathNavigationIntent={filesPathNavigationIntent}
+                onConsumePathNavigationIntent={(requestId) => {
+                  setFilesPathNavigationIntent((current) => (
+                    current?.requestId === requestId ? null : current
+                  ))
+                }}
               />
             ),
           },

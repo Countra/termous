@@ -965,6 +965,20 @@
     "regexError": "Invalid regex",
     "copyFailed": "Copy failed",
     "pasteFailed": "Paste failed",
+    "openLinkFailed": "Unable to open link",
+    "contextMenu": {
+      "label": "Terminal actions",
+      "copy": "Copy",
+      "findSelection": "Find selection",
+      "paste": "Paste",
+      "selectAll": "Select all",
+      "find": "Find",
+      "openLink": "Open link",
+      "copyLink": "Copy link",
+      "openPath": "Open in file manager",
+      "copyPath": "Copy path",
+      "reconnect": "Reconnect"
+    },
     "tabMenu": {
       "split": "Split",
       "duplicate": "Duplicate session",
@@ -1413,6 +1427,7 @@
     "openFileSession": "Open file session",
     "connect": "Connect",
     "reconnect": "Reconnect",
+    "reconnectFailed": "Failed to reconnect the file session",
     "sessions": "SFTP sessions",
     "noFileSession": "No SFTP session",
     "noFileSessionHint": "Use the plus button to choose a host and create or reuse an independent SFTP file session.",

@@ -1,14 +1,32 @@
-import { Button } from 'antd'
+import { App as AntdApp, Button } from 'antd'
 import { CircleAlert, RefreshCw, WifiOff, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Session, ThemeMode } from '../../types/domain'
+import { TerminalContextMenu } from './TerminalContextMenu'
+import {
+  buildTerminalContextMenu,
+  type TerminalContextMenuActionKey,
+  type TerminalContextMenuItem,
+} from './terminalContextMenuModel'
+import { resolveTerminalContextPath } from './terminalContextPath'
+import { useSessionCwdState } from './terminalCwdContext'
 import { useTerminalRuntime } from './terminalRuntimeContext'
+import type { TerminalContextSnapshot } from './terminalContextTarget'
 
 interface TerminalPaneViewportProps {
   paneId: string
   session: Session | null
   active: boolean
+  workspaceActive: boolean
   dropTargeted?: boolean
   themeMode: ThemeMode
   placeholder: string
@@ -18,13 +36,25 @@ interface TerminalPaneViewportProps {
   onResize?: (cols: number, rows: number) => void
   onActivate: () => void
   onReconnect?: () => void
+  onSearch?: (sessionId: string, initialQuery?: string) => void
+  onOpenPath?: (session: Session, path: string) => void
   onClose?: () => void
+}
+
+interface TerminalContextMenuState {
+  instanceId: number
+  snapshot: TerminalContextSnapshot
+  point: { x: number; y: number }
+  items: TerminalContextMenuItem[]
+  resolvedPath: string | null
+  autoFocus: boolean
 }
 
 export function TerminalPaneViewport({
   paneId,
   session,
   active,
+  workspaceActive,
   dropTargeted = false,
   themeMode,
   placeholder,
@@ -34,14 +64,48 @@ export function TerminalPaneViewport({
   onResize,
   onActivate,
   onReconnect,
+  onSearch,
+  onOpenPath,
   onClose,
 }: TerminalPaneViewportProps) {
   const paneHostRef = useRef<HTMLDivElement>(null)
-  const { registerViewport, focusActive, resizeSession, copyOrPasteActive } = useTerminalRuntime()
+  const frameRef = useRef<HTMLDivElement>(null)
+  const contextMenuSequenceRef = useRef(0)
+  const contextPathSelectionRef = useRef<{
+    sessionId: string
+  } | null>(null)
+  const {
+    registerViewport,
+    focusActive,
+    resizeSession,
+    captureSessionContext,
+    pasteSessionClipboard,
+    copyText,
+    selectSessionContextRange,
+    clearSessionContextSelection,
+    selectAllSession,
+    focusSession,
+  } = useTerminalRuntime()
   const { t } = useTranslation()
+  const { message } = AntdApp.useApp()
+  const [contextMenu, setContextMenu] = useState<TerminalContextMenuState | null>(null)
   const sessionId = session?.id ?? null
+  const cwdState = useSessionCwdState(sessionId)
   const sessionEnded = session?.status === 'disconnected' || session?.status === 'failed'
   const DisconnectIcon = session?.status === 'failed' ? CircleAlert : WifiOff
+
+  const clearContextPathSelection = useCallback(() => {
+    const selection = contextPathSelectionRef.current
+    contextPathSelectionRef.current = null
+    if (selection) {
+      clearSessionContextSelection(selection.sessionId)
+    }
+  }, [clearSessionContextSelection])
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null)
+    clearContextPathSelection()
+  }, [clearContextPathSelection])
 
   const handleMouseDown = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
@@ -56,19 +120,280 @@ export function TerminalPaneViewport({
     [active, focusActive, onActivate, sessionEnded],
   )
 
+  const openContextMenu = useCallback(
+    (
+      point: { x: number; y: number },
+      pointer?: { clientX: number; clientY: number },
+      frozenSnapshot?: TerminalContextSnapshot,
+    ) => {
+      if (!session) {
+        return
+      }
+      const snapshot = frozenSnapshot ?? captureSessionContext(session.id, pointer)
+      if (!snapshot) {
+        return
+      }
+      const resolvedPath = snapshot.target?.kind === 'path'
+        ? resolveTerminalContextPath(snapshot.target, cwdState?.confirmed_path)
+        : null
+      onActivate()
+      clearContextPathSelection()
+      if (
+        snapshot.target?.kind === 'path'
+        && snapshot.target.source === 'pointer'
+        && snapshot.target.selectionRange
+        && selectSessionContextRange(
+          session.id,
+          snapshot.target.selectionRange,
+          snapshot.target.value,
+        )
+      ) {
+        contextPathSelectionRef.current = {
+          sessionId: session.id,
+        }
+      }
+      contextMenuSequenceRef.current += 1
+      setContextMenu({
+        instanceId: contextMenuSequenceRef.current,
+        snapshot,
+        point,
+        resolvedPath,
+        autoFocus: !pointer,
+        items: buildTerminalContextMenu(snapshot, {
+          showOpenPath: session.kind === 'ssh',
+          canOpenPath: Boolean(
+            resolvedPath &&
+            session.kind === 'ssh' &&
+            session.status === 'connected' &&
+            session.host_id &&
+            onOpenPath
+          ),
+          canReconnect: Boolean(session.kind === 'ssh' && session.host_id && onReconnect),
+          reconnectDisabled: actionBusy,
+        }),
+      })
+    },
+    [
+      actionBusy,
+      captureSessionContext,
+      clearContextPathSelection,
+      cwdState?.confirmed_path,
+      onActivate,
+      onOpenPath,
+      onReconnect,
+      selectSessionContextRange,
+      session,
+    ],
+  )
+
   const handleContextMenu = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
       if (!session || (event.target as Element).closest('.terminal-search-panel')) {
         return
       }
       event.preventDefault()
-      onActivate()
-      if (active) {
-        void copyOrPasteActive({ clearSelectionAfterCopy: true })
+      const snapshot = captureSessionContext(session.id, {
+        clientX: event.clientX,
+        clientY: event.clientY,
+      }) ?? (sessionEnded ? {
+        sessionId: session.id,
+        selectionText: '',
+        searchSeed: '',
+        target: null,
+        mouseTrackingMode: 'none' as const,
+        writable: false,
+        disconnected: true,
+      } : null)
+      if (!snapshot) {
+        closeContextMenu()
+        return
       }
+      if (snapshot.mouseTrackingMode !== 'none' && !event.shiftKey) {
+        closeContextMenu()
+        return
+      }
+      event.stopPropagation()
+      openContextMenu(
+        { x: event.clientX, y: event.clientY },
+        { clientX: event.clientX, clientY: event.clientY },
+        snapshot,
+      )
     },
-    [active, copyOrPasteActive, onActivate, session],
+    [captureSessionContext, closeContextMenu, openContextMenu, session, sessionEnded],
   )
+
+  const handleMouseDownCapture = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    if (
+      event.button !== 2
+      || !event.shiftKey
+      || (event.target as Element).closest('.terminal-search-panel')
+    ) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+  }, [])
+
+  const handleKeyDownCapture = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      if (
+        !session ||
+        (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) ||
+        (event.target as Element).closest('.terminal-search-panel')
+      ) {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      const rect = frameRef.current?.getBoundingClientRect()
+      const point = rect
+        ? {
+          x: Math.min(rect.right - 16, rect.left + 48),
+          y: Math.min(rect.bottom - 16, rect.top + 48),
+        }
+        : { x: 24, y: 24 }
+      openContextMenu(point)
+    },
+    [openContextMenu, session],
+  )
+
+  const handleContextAction = useCallback(
+    async (action: TerminalContextMenuActionKey) => {
+      const frozen = contextMenu
+      closeContextMenu()
+      if (!frozen || !session || session.id !== frozen.snapshot.sessionId) {
+        return
+      }
+      const target = frozen.snapshot.target
+      switch (action) {
+        case 'reconnect': {
+          const currentSnapshot = captureSessionContext(session.id)
+          if (
+            !actionBusy
+            && (currentSnapshot?.disconnected || (!currentSnapshot && sessionEnded))
+          ) {
+            onReconnect?.()
+          }
+          return
+        }
+        case 'open_link':
+          if (target?.kind === 'url' && !await openTerminalExternalUrl(target.value)) {
+            void message.error({
+              content: t('terminal.openLinkFailed'),
+              duration: 2,
+              className: 'termous-message',
+            })
+          }
+          break
+        case 'copy_link':
+        case 'copy_path':
+          if (target) {
+            await copyText(target.value)
+          }
+          break
+        case 'open_path': {
+          const currentSnapshot = captureSessionContext(session.id)
+          if (
+            target?.kind === 'path' &&
+            frozen.resolvedPath &&
+            session.kind === 'ssh' &&
+            session.status === 'connected' &&
+            currentSnapshot?.writable &&
+            !currentSnapshot.disconnected
+          ) {
+            onOpenPath?.(session, frozen.resolvedPath)
+            return
+          }
+          break
+        }
+        case 'copy_selection':
+          await copyText(frozen.snapshot.selectionText)
+          break
+        case 'find_selection':
+          onSearch?.(session.id, frozen.snapshot.searchSeed)
+          return
+        case 'paste':
+          await pasteSessionClipboard(session.id)
+          break
+        case 'select_all':
+          // 等菜单完成关闭和焦点归还后再创建选区，避免 Dropdown 的收尾焦点覆盖 xterm 选区。
+          window.requestAnimationFrame(() => {
+            focusSession(session.id)
+            selectAllSession(session.id)
+          })
+          return
+        case 'find':
+          onSearch?.(session.id)
+          return
+      }
+      focusSession(session.id)
+    },
+    [
+      contextMenu,
+      closeContextMenu,
+      copyText,
+      actionBusy,
+      captureSessionContext,
+      focusSession,
+      message,
+      onOpenPath,
+      onReconnect,
+      onSearch,
+      pasteSessionClipboard,
+      selectAllSession,
+      session,
+      sessionEnded,
+      t,
+    ],
+  )
+
+  useEffect(() => {
+    closeContextMenu()
+  }, [closeContextMenu, sessionId])
+
+  useEffect(() => {
+    if (!workspaceActive) {
+      closeContextMenu()
+    }
+  }, [closeContextMenu, workspaceActive])
+
+  useEffect(() => {
+    if (!contextMenu) {
+      return undefined
+    }
+
+    const handleDocumentPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Element && target.closest('.terminal-context-menu')) {
+        return
+      }
+      closeContextMenu()
+    }
+    const handleDocumentKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      closeContextMenu()
+      if (sessionId) {
+        focusSession(sessionId)
+      }
+    }
+
+    document.addEventListener('pointerdown', handleDocumentPointerDown, true)
+    document.addEventListener('keydown', handleDocumentKeyDown, true)
+    return () => {
+      document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
+      document.removeEventListener('keydown', handleDocumentKeyDown, true)
+    }
+  }, [closeContextMenu, contextMenu, focusSession, sessionId])
+
+  useEffect(() => {
+    return () => {
+      clearContextPathSelection()
+    }
+  }, [clearContextPathSelection])
 
   useEffect(() => {
     return registerViewport({
@@ -94,8 +419,11 @@ export function TerminalPaneViewport({
 
   return (
     <div
+      ref={frameRef}
       className={`terminal-pane-frame ${active ? 'is-active' : ''} ${dropTargeted ? 'is-drop-target' : ''}`}
       data-pane-id={paneId}
+      onMouseDownCapture={handleMouseDownCapture}
+      onKeyDownCapture={handleKeyDownCapture}
       onMouseDown={handleMouseDown}
       onContextMenu={handleContextMenu}
     >
@@ -152,6 +480,32 @@ export function TerminalPaneViewport({
         ) : null}
         {active ? searchPanel : null}
       </div>
+      <TerminalContextMenu
+        instanceId={contextMenu?.instanceId ?? 0}
+        open={Boolean(contextMenu)}
+        autoFocus={contextMenu?.autoFocus ?? false}
+        point={contextMenu?.point ?? { x: 0, y: 0 }}
+        items={contextMenu?.items ?? []}
+        onAction={(action) => void handleContextAction(action)}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeContextMenu()
+          }
+        }}
+      />
     </div>
   )
+}
+
+async function openTerminalExternalUrl(url: string) {
+  try {
+    if (window.termous?.external?.openUrl) {
+      const result = await window.termous.external.openUrl(url)
+      return result.ok
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
+    return true
+  } catch {
+    return false
+  }
 }

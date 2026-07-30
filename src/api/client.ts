@@ -1096,9 +1096,12 @@ export class TermousApi {
     })
   }
 
-  statFileSessionFile(fileSessionId: string, path: string) {
+  statFileSessionFile(fileSessionId: string, path: string, signal?: AbortSignal) {
     const query = new URLSearchParams({ path })
-    return this.request<RemoteFileEntry>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/stat?${query.toString()}`)
+    return this.request<RemoteFileEntry>(
+      `/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files/stat?${query.toString()}`,
+      { signal },
+    )
   }
 
   openFileSessionTextFile(fileSessionId: string, path: string) {

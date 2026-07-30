@@ -19,6 +19,7 @@ import path from 'node:path'
 import { AppExitCoordinator } from './appExitCoordinator'
 import { CoreProcessManager } from './coreProcess'
 import { createElectronUpdaterEngine } from './electronUpdaterEngine'
+import { openExternalUrl, type ExternalUrlOpenResult } from './externalUrl'
 import { TermousTrayController } from './tray'
 import { ApplicationUpdateRuntime } from './updateRuntime'
 import {
@@ -768,9 +769,7 @@ function createWindow() {
     win?.webContents.send('window:maximize-state', false)
   })
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://')) {
-      void shell.openExternal(url)
-    }
+    void openExternalUrl(url, (targetUrl) => shell.openExternal(targetUrl))
     return { action: 'deny' }
   })
 
@@ -900,6 +899,15 @@ function registerApplicationBuildControls() {
       throw new Error('app_build_info_sender_not_allowed')
     }
     return readApplicationBuildInfo()
+  })
+}
+
+function registerExternalNavigationControls() {
+  ipcMain.handle('external:open-url', async (event, url: unknown): Promise<ExternalUrlOpenResult> => {
+    if (!isTrustedMainIPCEvent(event)) {
+      return { ok: false, error: 'external_url_sender_not_allowed' }
+    }
+    return openExternalUrl(url, (targetUrl) => shell.openExternal(targetUrl))
   })
 }
 
@@ -1326,6 +1334,7 @@ app.whenReady().then(async () => {
   registerWindowControls()
   registerTrayControls()
   registerApplicationBuildControls()
+  registerExternalNavigationControls()
   registerFilePickers()
   registerSSHKeyFileControls()
   registerDataPortabilityControls()

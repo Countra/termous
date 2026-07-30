@@ -49,6 +49,7 @@ export interface TerminalSplitWorkspaceHandle {
 interface TerminalSplitWorkspaceProps {
   sessions: Session[]
   activeSession: Session | null
+  workspaceActive: boolean
   themeMode: ThemeMode
   placeholder: string
   emptyState?: ReactNode
@@ -59,6 +60,8 @@ interface TerminalSplitWorkspaceProps {
   onSelectSession: (sessionId: string) => void
   onResize?: (cols: number, rows: number) => void
   onReconnectSession?: (session: Session) => void
+  onSearchSession?: (sessionId: string, initialQuery?: string) => void
+  onOpenFilesAtPath?: (session: Session, path: string) => void
   onCloseSession?: (session: Session) => void
 }
 
@@ -74,6 +77,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
     {
       sessions,
       activeSession,
+      workspaceActive,
       themeMode,
       placeholder,
       emptyState,
@@ -84,6 +88,8 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
       onSelectSession,
       onResize,
       onReconnectSession,
+      onSearchSession,
+      onOpenFilesAtPath,
       onCloseSession,
     },
     ref,
@@ -294,6 +300,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
               paneId={node.id}
               session={session}
               active={active}
+              workspaceActive={workspaceActive}
               dropTargeted={dropTargeted}
               themeMode={themeMode}
               placeholder={placeholder}
@@ -303,6 +310,8 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
               onResize={active ? onResize : undefined}
               onActivate={() => activatePane(node)}
               onReconnect={session && session.kind === 'ssh' && session.host_id ? () => onReconnectSession?.(session) : undefined}
+              onSearch={onSearchSession}
+              onOpenPath={onOpenFilesAtPath}
               onClose={session ? () => onCloseSession?.(session) : undefined}
             />
           )
@@ -338,7 +347,9 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
         emptyState,
         layout.activePaneId,
         onCloseSession,
+        onOpenFilesAtPath,
         onReconnectSession,
+        onSearchSession,
         onResize,
         placeholder,
         searchPanel,
@@ -346,6 +357,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
         paneDropTargetId,
         themeMode,
         updateBranchSizes,
+        workspaceActive,
       ],
     )
 
@@ -360,6 +372,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
             paneId="terminal-pane-empty"
             session={null}
             active
+            workspaceActive={workspaceActive}
             themeMode={themeMode}
             placeholder={placeholder}
             emptyState={emptyState}
