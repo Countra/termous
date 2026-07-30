@@ -23,7 +23,11 @@ export function ConnectionProgress({ session, showReady = false }: { session: Se
   const currentPhase = session.phase ?? 'queued'
   const currentIndex = phaseOrder.indexOf(currentPhase)
   const progress = Math.max(0, Math.min(100, session.progress ?? 0))
-  const headline = t(`connection.phase.${currentPhase}`)
+  const headline = session.proxy_id && currentPhase === 'dialing'
+    ? t(session.jump_host_id
+      ? 'connection.proxyDialingJumpHost'
+      : 'connection.proxyDialingTarget')
+    : t(`connection.phase.${currentPhase}`)
 
   return (
     <div className="connection-progress" aria-live="polite">

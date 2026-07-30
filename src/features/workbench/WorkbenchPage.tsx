@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Code2,
   Clock3,
+  Command,
   CopyPlus,
   Cpu,
   HardDrive,
@@ -46,6 +47,7 @@ import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { SessionQuickConnect } from '../../components/hosts/SessionQuickConnect'
+import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
 import { FeatureSidePanel } from '../../components/ui/FeatureSidePanel'
 import { SessionTabButton } from '../../components/ui/SessionTabButton'
 import { SessionTabStrip } from '../../components/ui/SessionTabStrip'
@@ -58,7 +60,7 @@ import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
-import type { AppData, CodeSnippet, FileSession, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
+import type { AppData, CodeSnippet, FileBookmark, FileBookmarkInput, FileSession, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
 import type { FileSessionClosureState } from '../files/fileSessionRecovery'
 import { SnippetFilterBar, SnippetList } from '../snippets/SnippetCatalog'
 import {
@@ -68,6 +70,7 @@ import {
 } from '../snippets/snippetCatalogUtils'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
+import { AliasPanel } from './AliasPanel'
 import { FirewallPanel } from './FirewallPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
 import { DockerPanel } from './DockerPanel'
@@ -94,7 +97,18 @@ import {
   type SessionTabPreferenceMap,
 } from './sessionTabPreferences'
 
-type DetailsTabKey = 'overview' | 'files' | 'system' | 'monitor' | 'processes' | 'services' | 'docker' | 'firewall' | 'forwards' | 'snippets'
+type DetailsTabKey =
+  | 'overview'
+  | 'files'
+  | 'system'
+  | 'monitor'
+  | 'processes'
+  | 'services'
+  | 'docker'
+  | 'firewall'
+  | 'forwards'
+  | 'aliases'
+  | 'snippets'
 
 const workbenchDetailsPanelWidth = {
   default: 300,
@@ -139,11 +153,13 @@ interface WorkbenchPageProps {
   selectedHostId: string
   activeSession: Session | null
   actionBusy: boolean
+  onOpenConnectionLauncher: () => void
   onConnect: (hostId: string) => Promise<void>
   onSelectSession: (sessionId: string) => void
-  onDisconnect: (sessionId: string) => Promise<void>
+  onDisconnect: (sessionId: string) => Promise<boolean>
   onRefreshInventory: (sessionId: string, force: boolean, signal?: AbortSignal) => Promise<Session>
   onOpenFiles: (session: Session) => Promise<void>
+  onManageBookmarks: (session: Session) => Promise<void>
   onConnectFileSession: (
     hostId: string,
     sourceSessionId?: string,
@@ -152,9 +168,15 @@ interface WorkbenchPageProps {
   ) => Promise<FileSession>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
+  onCreateFileBookmark: (input: FileBookmarkInput) => Promise<FileBookmark>
+  onUpdateFileBookmark: (
+    id: string,
+    input: FileBookmarkInput,
+  ) => Promise<FileBookmark>
   onSnippetUsed: (snippetId: string) => Promise<void>
   onToggleSnippetFavorite: (snippet: CodeSnippet) => Promise<void>
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
+  onRestartForward: (id: string) => Promise<void>
   onStopForward: (id: string) => Promise<void>
 }
 
@@ -167,17 +189,22 @@ export function WorkbenchPage({
   selectedHostId,
   activeSession,
   actionBusy,
+  onOpenConnectionLauncher,
   onConnect,
   onSelectSession,
   onDisconnect,
   onRefreshInventory,
   onOpenFiles,
+  onManageBookmarks,
   onConnectFileSession,
   onReconnectFileSession,
   onUpdateFileSession,
+  onCreateFileBookmark,
+  onUpdateFileBookmark,
   onSnippetUsed,
   onToggleSnippetFavorite,
   onStartForward,
+  onRestartForward,
   onStopForward,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
@@ -292,6 +319,9 @@ export function WorkbenchPage({
   const detailCredential = data.credentials.find((item) => item.id === detailHost?.credential_id)
   const detailGroup = data.groups.find((group) => group.id === detailHost?.group_id)
   const detailJumpHost = data.hosts.find((host) => host.id === detailHost?.jump_host_id)
+  const detailProxy = data.proxies.find((proxy) => (
+    proxy.id === activeSession?.proxy_id
+  ))
   const detailTags = detailHost?.tags ?? []
   const detailCredentialLabel = detailCredential
     ? `${detailCredential.name} (${t(`vault.typeName.${detailCredential.type}`)})`
@@ -300,11 +330,21 @@ export function WorkbenchPage({
     () => sortSessionsForTabs(data.sessions, sessionTabPreferences),
     [data.sessions, sessionTabPreferences],
   )
+  const aliasSessionIds = useMemo(
+    () => data.sessions
+      .filter((session) => session.kind === 'ssh')
+      .map((session) => session.id),
+    [data.sessions],
+  )
   const activeSessionIndex = activeSession ? visibleSessions.findIndex((session) => session.id === activeSession.id) : -1
   const sessionPositionLabel =
     activeSessionIndex >= 0 ? `${activeSessionIndex + 1} / ${visibleSessions.length}` : '0'
   const sessionStateLabel = activeSessionClosing
     ? t('workbench.closingSession')
+    : activeSession?.proxy_id && activeSession.phase === 'dialing'
+      ? t(activeSession.jump_host_id
+        ? 'connection.proxyDialingJumpHost'
+        : 'connection.proxyDialingTarget')
     : activeSession?.phase
       ? t(`connection.phase.${activeSession.phase}`)
       : t(`status.${sessionStatus}`)
@@ -819,7 +859,7 @@ export function WorkbenchPage({
   const closeSessionTab = useCallback(
     async (sessionId: string) => {
       if (actionBusy || closingSessionIdsRef.current.has(sessionId)) {
-        return
+        return false
       }
       closingSessionIdsRef.current.add(sessionId)
       // 文件事件流和目录请求必须先停，再删除后端会话，避免关闭期间重新访问已释放资源。
@@ -833,7 +873,7 @@ export function WorkbenchPage({
         setColorSessionId(null)
       }
       try {
-        await onDisconnect(sessionId)
+        return await onDisconnect(sessionId)
       } finally {
         closingSessionIdsRef.current.delete(sessionId)
         setClosingSessionIds(new Set(closingSessionIdsRef.current))
@@ -964,27 +1004,23 @@ export function WorkbenchPage({
     }
     const previousSessionId = activeSession.id
     const hostId = activeSession.host_id
-    try {
-      await onDisconnect(previousSessionId)
-    } catch {
-      // 旧会话已经断开时，删除失败不阻止重新连接同一主机。
+    if (!await closeSessionTab(previousSessionId)) {
+      return
     }
     await onConnect(hostId)
-  }, [actionBusy, activeSession?.host_id, activeSession?.id, onConnect, onDisconnect])
+  }, [actionBusy, activeSession?.host_id, activeSession?.id, closeSessionTab, onConnect])
 
   const reconnectSession = useCallback(
     async (session: Session) => {
       if (!session.host_id || actionBusy) {
         return
       }
-      try {
-        await onDisconnect(session.id)
-      } catch {
-        // 旧会话已经断开时，删除失败不阻止重新连接同一主机。
+      if (!await closeSessionTab(session.id)) {
+        return
       }
       await onConnect(session.host_id)
     },
-    [actionBusy, onConnect, onDisconnect],
+    [actionBusy, closeSessionTab, onConnect],
   )
 
   useEffect(() => {
@@ -1233,6 +1269,24 @@ export function WorkbenchPage({
             activeSession={activeSession}
             themeMode={terminalThemeMode}
             placeholder={selectedHost ? t('workbench.terminalReady') : t('workbench.terminalHint')}
+            emptyState={visibleSessions.length === 0 ? (
+              <WorkbenchEmptyState
+                className="terminal-empty-connect"
+                icon={<SquareTerminal size={20} aria-hidden="true" />}
+                title={t('workbench.emptyTerminalTitle')}
+                description={t('workbench.emptyTerminalHint')}
+                action={(
+                  <ConnectionActionButton
+                    className="terminal-empty-connect-button"
+                    icon={<Cable size={16} aria-hidden="true" />}
+                    disabled={actionBusy}
+                    onClick={onOpenConnectionLauncher}
+                  >
+                    {t('workbench.connectHost')}
+                  </ConnectionActionButton>
+                )}
+              />
+            ) : undefined}
             actionBusy={actionBusy}
             dragSessionId={terminalTabDrag?.dragging ? terminalTabDrag.sessionId : null}
             dragPoint={terminalTabDrag?.dragging ? terminalTabDrag.point : null}
@@ -1345,6 +1399,12 @@ export function WorkbenchPage({
                     <dd>{detailJumpHost?.name ?? t('fields.none')}</dd>
                   </div>
                   <div>
+                    <dt>{t('hosts.proxy')}</dt>
+                    <dd>{detailProxy
+                      ? `${detailProxy.name} · ${t(`proxies.types.${detailProxy.type === 'http_connect' ? 'httpConnect' : 'socks5'}`)}`
+                      : t('hosts.noProxy')}</dd>
+                  </div>
+                  <div>
                     <dt>{t('hosts.note')}</dt>
                     <dd>{detailHost.note || t('fields.none')}</dd>
                   </div>
@@ -1403,12 +1463,17 @@ export function WorkbenchPage({
                 fileSessionClosures={fileSessionClosures}
                 session={activeSession}
                 enabled={active && detailsActiveTab === 'files' && !detailsCollapsed}
+                actionBusy={actionBusy}
                 closingSessionIds={closingSessionIds}
                 theme={theme}
                 onOpenFull={onOpenFiles}
+                onManageBookmarks={onManageBookmarks}
                 onConnectFileSession={onConnectFileSession}
+                onReconnectSession={reconnectSession}
                 onReconnectFileSession={onReconnectFileSession}
                 onUpdateFileSession={onUpdateFileSession}
+                onCreateFileBookmark={onCreateFileBookmark}
+                onUpdateFileBookmark={onUpdateFileBookmark}
               />
             ),
           },
@@ -1494,9 +1559,26 @@ export function WorkbenchPage({
                 session={activeSession}
                 host={sessionHost}
                 forwards={data.forwards}
+                enabled={active && detailsActiveTab === 'forwards' && !detailsCollapsed}
                 actionBusy={actionBusy}
                 onStartForward={onStartForward}
+                onRestartForward={onRestartForward}
                 onStopForward={onStopForward}
+              />
+            ),
+          },
+          {
+            key: 'aliases',
+            label: t('workbench.detailsTabs.aliases'),
+            icon: <Command size={17} aria-hidden="true" />,
+            children: (
+              <AliasPanel
+                api={api}
+                session={activeSession}
+                sessionIds={aliasSessionIds}
+                enabled={active && detailsActiveTab === 'aliases' && !detailsCollapsed}
+                reconnectDisabled={actionBusy}
+                onReconnectSession={reconnectSession}
               />
             ),
           },
@@ -1891,6 +1973,7 @@ function parseDetailsTabKey(value: unknown): DetailsTabKey {
     value === 'docker' ||
     value === 'firewall' ||
     value === 'forwards' ||
+    value === 'aliases' ||
     value === 'snippets' ||
     value === 'overview'
     ? value

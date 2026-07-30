@@ -9,6 +9,7 @@ import type { TerminalTransportState } from './terminalTransport.ts'
 export type SessionCwdRequestResult =
   | { status: 'queued'; request: SessionCwdChangeRequest }
   | { status: 'already_current' }
+  | { status: 'busy' }
   | { status: 'unsupported'; reason?: string }
   | { status: 'not_ready' }
   | { status: 'invalid_path' }
@@ -84,6 +85,10 @@ export class TerminalCwdRuntime {
     return this.entries.get(sessionId)?.transportState ?? 'idle'
   }
 
+  getActiveRefreshRequestId = (sessionId: string) => {
+    return this.entries.get(sessionId)?.latestRequestIds.cwd_refresh ?? ''
+  }
+
   subscribe = (sessionId: string, listener: SessionListener) => {
     const entry = this.ensureEntry(sessionId)
     entry.listeners.add(listener)
@@ -111,7 +116,17 @@ export class TerminalCwdRuntime {
 
   applyTransportState(sessionId: string, state: TerminalTransportState) {
     const entry = this.ensureEntry(sessionId)
-    if (entry.transportState === state) {
+    const changeRequestCleared = state !== 'live' && Boolean(
+      entry.latestRequestIds.cwd_change
+      || entry.latestChangeRequest
+      || entry.latestChangeBaseRevision !== undefined
+    )
+    if (state !== 'live') {
+      entry.latestRequestIds.cwd_change = undefined
+      entry.latestChangeRequest = undefined
+      entry.latestChangeBaseRevision = undefined
+    }
+    if (entry.transportState === state && !changeRequestCleared) {
       return false
     }
     entry.transportState = state
@@ -219,6 +234,13 @@ export class TerminalCwdRuntime {
     }
   }
 
+  retryActiveRefreshDirectory(sessionId: string): SessionCwdRefreshResult {
+    const activeRequestId = this.getActiveRefreshRequestId(sessionId)
+    return activeRequestId
+      ? this.retryRefreshDirectory(sessionId, activeRequestId)
+      : this.refreshDirectory(sessionId)
+  }
+
   clearRequestError(
     sessionId: string,
     scope: SessionCwdRequestScope,
@@ -247,6 +269,11 @@ export class TerminalCwdRuntime {
     const refreshAdvanced = sourceChanged || next.refresh_seq > previousState.refresh_seq
     const confirmedPathChanged = next.confirmed_path !== entry.state.confirmed_path
     const changeBaseRevision = entry.latestChangeBaseRevision
+    const failedChangeCorrelated = Boolean(
+      entry.latestChangeRequest
+      && next.pending_operation?.status === 'failed'
+      && next.pending_operation.id === entry.latestChangeRequest.operation_id
+    )
     entry.state = next
     entry.hasServerState = true
     if (sourceChanged) {
@@ -269,8 +296,11 @@ export class TerminalCwdRuntime {
     const refreshTerminal = refreshCorrelated
       && next.refresh_status !== undefined
       && next.refresh_status !== 'pending'
-    const legacyRefreshComplete = !next.refresh_request_id
+    const legacyRefreshComplete = Boolean(
+      refreshRequestId
+      && !next.refresh_request_id
       && (refreshAdvanced || confirmedPathChanged)
+    )
     if (refreshTerminal || legacyRefreshComplete) {
       entry.requestErrors.cwd_refresh = null
       entry.latestRequestIds.cwd_refresh = undefined
@@ -296,6 +326,12 @@ export class TerminalCwdRuntime {
           entry.latestChangeBaseRevision = undefined
         }
       }
+    }
+    if (failedChangeCorrelated) {
+      entry.requestErrors.cwd_change = null
+      entry.latestRequestIds.cwd_change = undefined
+      entry.latestChangeRequest = undefined
+      entry.latestChangeBaseRevision = undefined
     }
     this.notify(entry)
     return true
@@ -345,8 +381,17 @@ export class TerminalCwdRuntime {
     if (entry.state.confirmed_path === path && !entry.state.pending_operation) {
       return { status: 'already_current' }
     }
-    if (entry.latestChangeRequest?.path === path) {
+    if (
+      entry.latestChangeRequest?.path === path
+      && entry.latestChangeRequest.file_session_id === fileSessionId
+    ) {
       return { status: 'queued', request: entry.latestChangeRequest }
+    }
+    if (entry.latestChangeRequest) {
+      return { status: 'busy' }
+    }
+    if (isCwdOperationInFlight(entry.state.pending_operation)) {
+      return { status: 'busy' }
     }
 
     const request: SessionCwdChangeRequest = {

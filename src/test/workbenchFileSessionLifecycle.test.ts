@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { FileSession, FileSessionStatus, Session, SessionStatus } from '../types/domain.ts'
 import {
+  filterFileSessionsByActiveSources,
   mergeFileSessionSnapshot,
   reconcileFileSessionSnapshotList,
   replaceFileSessionSnapshot,
@@ -450,6 +451,29 @@ test('全部断开成功后的 revision 会为每个已删除文件会话保留 
   assert.deepEqual(
     reconcileFileSessionSnapshotList([], stale, baseline, latest),
     [],
+  )
+})
+
+test('文件会话快照只保留仍存在的来源 SSH 会话和独立连接', () => {
+  const active = fileSession({
+    id: 'fs-active',
+    source_session_id: 'ssh-active',
+  })
+  const retired = fileSession({
+    id: 'fs-retired',
+    source_session_id: 'ssh-retired',
+  })
+  const independent = fileSession({
+    id: 'fs-independent',
+    source_session_id: '',
+  })
+
+  assert.deepEqual(
+    filterFileSessionsByActiveSources(
+      [active, retired, independent],
+      new Set(['ssh-active']),
+    ),
+    [active, independent],
   )
 })
 

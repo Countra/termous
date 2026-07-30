@@ -1,5 +1,5 @@
 import { Button, Input, Popover, Select, Tag, Tooltip } from 'antd'
-import { ChevronDown, ChevronRight, Filter, FolderCog, Plus, Search, Server, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Filter, FolderCog, Network, Plus, Search, Server, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
@@ -25,6 +25,7 @@ interface HostCatalogProps {
   onSelect: (hostId: string) => void
   onCreate: () => void
   onManageGroups: () => void
+  onManageProxies: () => void
 }
 
 const defaultFilters: HostCatalogFilters = { groupId: '', tags: [], authMethods: [] }
@@ -38,6 +39,7 @@ export function HostCatalog({
   onSelect,
   onCreate,
   onManageGroups,
+  onManageProxies,
 }: HostCatalogProps) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
@@ -137,15 +139,28 @@ export function HostCatalog({
       header={(
         <div className="host-panel-heading">
           <span className="host-panel-heading-icon"><Server size={18} aria-hidden="true" /></span>
-          <div><h2>{t('hosts.list')}</h2><span>{t('hosts.hostCount', { count: hosts.length })}</span></div>
-          <Tooltip title={t('hosts.manageGroups')}>
-            <Button
-              className="host-group-manager-trigger"
-              aria-label={t('hosts.manageGroups')}
-              icon={<FolderCog size={16} />}
-              onClick={onManageGroups}
-            />
-          </Tooltip>
+          <div><h2>{t('hosts.list')}</h2><span className="host-panel-heading-meta">{t('hosts.hostCount', { count: hosts.length })}</span></div>
+          <div className="host-panel-heading-actions">
+            <Tooltip title={t('proxies.manage')}>
+              <Button
+                className="host-proxy-manager-trigger"
+                aria-label={t('proxies.manage')}
+                aria-haspopup="dialog"
+                icon={<Network size={15} aria-hidden="true" />}
+                onClick={onManageProxies}
+              >
+                {t('proxies.shortLabel')}
+              </Button>
+            </Tooltip>
+            <Tooltip title={t('hosts.manageGroups')}>
+              <Button
+                className="host-group-manager-trigger"
+                aria-label={t('hosts.manageGroups')}
+                icon={<FolderCog size={16} />}
+                onClick={onManageGroups}
+              />
+            </Tooltip>
+          </div>
         </div>
       )}
       footer={<span className="host-catalog-result">{t('hosts.filterResult', { count: filteredHosts.length, total: hosts.length })}</span>}

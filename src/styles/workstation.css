@@ -1227,8 +1227,7 @@ body.is-panel-resizing * {
 
 .host-launcher {
   display: grid;
-  min-height: 560px;
-  max-height: min(700px, calc(100vh - 88px));
+  height: min(700px, calc(100vh - 88px));
   grid-template-rows: 42px minmax(0, 1fr);
   overflow: hidden;
   outline: none;
@@ -2086,8 +2085,8 @@ body.is-panel-resizing * {
 
 @media (max-width: 880px) {
   .host-launcher {
+    height: calc(100vh - 88px);
     min-height: 0;
-    max-height: calc(100vh - 88px);
   }
 
   .host-launcher-body {
@@ -3501,6 +3500,38 @@ body.is-terminal-tab-dragging * {
   pointer-events: none;
 }
 
+.terminal-empty-state.has-action {
+  pointer-events: auto;
+}
+
+.terminal-empty-connect.workbench-empty-state {
+  min-height: 0;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 18px;
+}
+
+.terminal-empty-connect .workbench-empty-state-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 1px;
+}
+
+.terminal-empty-connect .workbench-empty-state-description {
+  max-width: 320px;
+  color: var(--text-muted);
+}
+
+.terminal-empty-connect-button.connection-action-button.ant-btn {
+  min-width: 126px;
+  height: 36px;
+  min-height: 36px;
+  margin-top: 2px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
 .terminal-canvas.has-session .terminal-empty-state {
   display: none;
 }
@@ -4797,12 +4828,17 @@ body.is-terminal-tab-dragging * {
   display: flex;
   width: 100%;
   min-width: 0;
+  min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
   align-items: center;
   gap: 8px;
   margin-top: 12px;
   padding: 8px 0 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .details-rail-tab.ant-btn {
@@ -9303,6 +9339,8 @@ body.is-files-column-resizing * {
     justify-content: center;
     margin-top: 0;
     padding: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 }
 

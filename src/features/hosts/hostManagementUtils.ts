@@ -17,6 +17,7 @@ export interface HostValidationErrors {
   port?: string
   username?: string
   credentialId?: string
+  proxyId?: string
 }
 
 export interface HostGroupSection {
@@ -40,6 +41,7 @@ export function createBlankHostInput(): HostInput {
     auth_method: 'password',
     credential_id: '',
     jump_host_id: '',
+    proxy_id: '',
     tags: [],
     favorite: false,
     fingerprint_policy: 'confirm_on_change',
@@ -56,6 +58,7 @@ export function normalizeHostInput(input: HostInput): HostInput {
     group_id: input.group_id.trim(),
     credential_id: input.credential_id.trim(),
     jump_host_id: input.jump_host_id.trim(),
+    proxy_id: input.proxy_id.trim(),
     tags: normalizeHostTags(input.tags),
     note: input.note.trim(),
   }

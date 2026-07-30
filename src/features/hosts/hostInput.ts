@@ -12,6 +12,7 @@ export function hostToInput(host: Host): HostInput {
     auth_method: host.auth_method,
     credential_id: host.credential_id,
     jump_host_id: host.jump_host_id ?? '',
+    proxy_id: host.proxy_id ?? '',
     tags: [...(host.tags ?? [])],
     favorite: Boolean(host.favorite),
     fingerprint_policy: host.fingerprint_policy,

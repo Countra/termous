@@ -12,6 +12,7 @@ interface TerminalPaneViewportProps {
   dropTargeted?: boolean
   themeMode: ThemeMode
   placeholder: string
+  emptyState?: ReactNode
   searchPanel?: ReactNode
   actionBusy?: boolean
   onResize?: (cols: number, rows: number) => void
@@ -27,6 +28,7 @@ export function TerminalPaneViewport({
   dropTargeted = false,
   themeMode,
   placeholder,
+  emptyState,
   searchPanel,
   actionBusy = false,
   onResize,
@@ -104,8 +106,11 @@ export function TerminalPaneViewport({
         aria-label={session ? t('workbench.terminal') : placeholder}
       >
         <div className="terminal-session-stack" ref={paneHostRef} />
-        <div className="terminal-empty-state" aria-hidden={session ? 'true' : 'false'}>
-          {placeholder}
+        <div
+          className={`terminal-empty-state ${emptyState ? 'has-action' : ''}`}
+          aria-hidden={session ? true : undefined}
+        >
+          {emptyState ?? placeholder}
         </div>
         {session && sessionEnded ? (
           <div className="terminal-disconnect-overlay" aria-live="polite">

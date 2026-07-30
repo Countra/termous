@@ -7,7 +7,6 @@ import {
   Plus,
   Route,
   Search,
-  Square,
   Trash2,
 } from 'lucide-react'
 import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Tabs, Tooltip } from 'antd'
@@ -19,6 +18,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import { ForwardEditorFields } from './ForwardEditorFields'
 import { ForwardModeBadge, ForwardModeSelector } from './ForwardModeSelector'
 import { ForwardRouteDiagram } from './ForwardRouteDiagram'
+import { ForwardRuntimeActions } from './ForwardRuntimeActions'
 import { ForwardRuntimeMetrics } from './ForwardRuntimeMetrics'
 import { ForwardStateFeedback } from './ForwardStateFeedback'
 import type {
@@ -42,6 +42,7 @@ interface ForwardingPageProps {
   onUpdateProfile: (id: string, input: ForwardProfileInput) => Promise<ForwardProfile>
   onDeleteProfile: (id: string) => Promise<void>
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
+  onRestartForward: (id: string) => Promise<void>
   onStopForward: (id: string) => Promise<void>
 }
 
@@ -77,6 +78,7 @@ export function ForwardingPage({
   onUpdateProfile,
   onDeleteProfile,
   onStartForward,
+  onRestartForward,
   onStopForward,
 }: ForwardingPageProps) {
   const { t } = useTranslation()
@@ -304,7 +306,8 @@ export function ForwardingPage({
                   hostName={hostById(forward.host_id)?.name ?? t('fields.none')}
                   now={durationNow}
                   actionBusy={actionBusy}
-                  onStop={() => void onStopForward(forward.id)}
+                  onRestart={() => onRestartForward(forward.id)}
+                  onStop={() => onStopForward(forward.id)}
                 />
               ))}
             </div>
@@ -522,13 +525,15 @@ function ForwardRuntimeRow({
   hostName,
   now,
   actionBusy,
+  onRestart,
   onStop,
 }: {
   forward: ForwardInstance
   hostName: string
   now: number
   actionBusy: boolean
-  onStop: () => void
+  onRestart: () => Promise<void>
+  onStop: () => Promise<void>
 }) {
   const { t } = useTranslation()
   const modeLabel = t(`forwards.modeName.${forward.mode}`)
@@ -544,17 +549,12 @@ function ForwardRuntimeRow({
         <div className="forwarding-row-actions">
           <ForwardModeBadge compact mode={forward.mode} />
           <StatusBadge status={forward.status === 'running' ? 'connected' : 'connecting'} label={t(`forwards.status.${forward.status}`)} />
-          <Tooltip title={t('forwards.stop')} mouseEnterDelay={0.3} classNames={{ root: 'forward-route-tooltip' }}>
-            <Button
-              type="text"
-              danger
-              className="forwarding-row-action"
-              aria-label={t('forwards.stop')}
-              disabled={actionBusy || forward.status === 'stopping'}
-              icon={<Square size={13} />}
-              onClick={onStop}
-            />
-          </Tooltip>
+          <ForwardRuntimeActions
+            forward={forward}
+            disabled={actionBusy}
+            onRestart={onRestart}
+            onStop={onStop}
+          />
         </div>
       </div>
       <ForwardRouteDiagram

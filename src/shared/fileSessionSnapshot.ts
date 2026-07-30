@@ -85,6 +85,15 @@ export function reconcileFileSessionSnapshotList(
   return merged
 }
 
+export function filterFileSessionsByActiveSources(
+  fileSessions: FileSession[],
+  activeSourceSessionIds: ReadonlySet<string>,
+) {
+  return fileSessions.filter((session) => (
+    !session.source_session_id || activeSourceSessionIds.has(session.source_session_id)
+  ))
+}
+
 function fileSessionChangedSince(
   sessionId: string,
   baseline: ReadonlyMap<string, number>,

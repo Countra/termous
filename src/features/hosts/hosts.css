@@ -58,7 +58,6 @@
   display: inline-grid;
   width: 34px;
   height: 34px;
-  margin-left: auto;
   flex: 0 0 auto;
   place-items: center;
   border-color: var(--border);
@@ -68,13 +67,72 @@
   padding: 0;
 }
 
+.host-proxy-manager-trigger.ant-btn {
+  display: inline-flex;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent-soft) 34%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--accent) 86%, var(--text-primary));
+  padding-inline: 10px;
+  font-size: 11px;
+  font-weight: 720;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 10%, transparent);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.host-proxy-manager-trigger.ant-btn .ant-btn-icon {
+  display: inline-grid;
+  place-items: center;
+  margin: 0;
+  color: inherit;
+}
+
+.host-panel-heading-actions {
+  display: inline-flex;
+  margin-left: auto;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+}
+
 .host-group-manager-trigger.ant-btn:not(:disabled):hover {
   border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
   background: color-mix(in srgb, var(--accent-soft) 26%, var(--surface-subtle));
   color: var(--accent);
 }
 
-.host-panel-heading span,
+.host-proxy-manager-trigger.ant-btn:not(:disabled):hover,
+.host-proxy-manager-trigger.ant-btn:not(:disabled):focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 56%, var(--surface-subtle));
+  color: var(--accent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.host-proxy-manager-trigger.ant-btn:not(:disabled):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  outline-offset: 1px;
+}
+
+.host-proxy-manager-trigger.ant-btn:not(:disabled):active {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 68%, var(--surface-subtle));
+  color: var(--accent);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.host-panel-heading-meta,
 .host-editor-title span,
 .host-catalog-result {
   color: var(--text-muted);
@@ -124,6 +182,87 @@
   padding-inline: 5px;
   color: var(--text-muted);
   font-size: 11px;
+}
+
+.host-proxy-select-field .host-editor-field-label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.host-proxy-select-field .host-editor-field-label .ant-btn {
+  height: 22px;
+  padding-inline: 3px;
+  font-size: 10px;
+}
+
+.host-proxy-inline-manage.ant-btn {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  padding-inline: 6px;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.host-proxy-inline-manage.ant-btn .ant-btn-icon {
+  display: inline-grid;
+  place-items: center;
+  margin: 0;
+}
+
+.host-proxy-inline-manage.ant-btn:not(:disabled):hover,
+.host-proxy-inline-manage.ant-btn:not(:disabled):focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 38%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.host-proxy-inline-manage.ant-btn:not(:disabled):active {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 56%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.host-proxy-option {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding-block: 2px;
+}
+
+.host-proxy-option strong,
+.host-proxy-option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-proxy-option strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.host-proxy-option small {
+  color: var(--text-muted);
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.host-proxy-select-popup .ant-select-item {
+  min-height: 44px;
+  align-items: center;
 }
 
 .host-catalog-list {

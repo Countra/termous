@@ -333,50 +333,367 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.forward-runtime-metric {
-  display: flex;
-  min-width: 0;
+.forward-runtime-actions {
+  display: inline-grid;
+  height: 30px;
+  flex: 0 0 auto;
+  grid-template-columns: 28px 1px 28px;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 76%, transparent);
   border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-subtle) 88%, var(--surface));
+  padding: 0;
+}
+
+.forward-runtime-action-trigger {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+}
+
+.forward-runtime-action.ant-btn {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0;
+  box-shadow: none;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.forward-runtime-action.ant-btn .ant-btn-icon,
+.forward-runtime-action.ant-btn .ant-btn-loading-icon {
+  display: grid;
+  margin-inline-end: 0;
+  place-items: center;
+}
+
+.forward-runtime-action.ant-btn:not(:disabled):hover,
+.forward-runtime-action.ant-btn:not(:disabled):active {
+  transform: none;
+}
+
+.forward-runtime-action.is-restart.ant-btn:not(:disabled):hover,
+.forward-runtime-action.is-restart.ant-btn:not(:disabled):active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-primary));
+}
+
+.forward-runtime-action.is-stop.ant-btn:not(:disabled):hover,
+.forward-runtime-action.is-stop.ant-btn:not(:disabled):active {
+  background: color-mix(in srgb, #ff656d 11%, transparent);
+  color: #ff7e85;
+}
+
+.forward-runtime-action.ant-btn:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--accent) 76%, transparent);
+  outline-offset: -2px;
+}
+
+.forward-runtime-action.is-stop.ant-btn:focus-visible {
+  outline-color: color-mix(in srgb, #ff737a 76%, transparent);
+}
+
+.forward-runtime-action.ant-btn:disabled {
+  background: transparent;
+  color: color-mix(in srgb, var(--text-muted) 52%, transparent);
+}
+
+.forward-runtime-action-divider {
+  width: 1px;
+  height: 14px;
+  background: color-mix(in srgb, var(--border-strong) 76%, transparent);
+}
+
+.forward-runtime-metric {
+  --forward-metric-tone: var(--accent);
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
   color: var(--text-secondary);
-  padding: 5px 4px;
+  padding: 5px 6px;
+  cursor: default;
+}
+
+.forward-runtime-metric.is-sent {
+  --forward-metric-tone: var(--accent);
+}
+
+.forward-runtime-metric.is-received {
+  --forward-metric-tone: var(--success);
 }
 
 .forward-runtime-metric-icon {
   display: grid;
   place-items: center;
   color: var(--text-muted);
+  transition: color 0.16s ease;
+}
+
+.forward-runtime-metric.is-rate-active .forward-runtime-metric-icon {
+  color: color-mix(in srgb, var(--forward-metric-tone) 72%, var(--text-primary));
 }
 
 .forward-runtime-metric-copy {
   display: grid;
+  width: 100%;
+  min-height: 29px;
   min-width: 0;
-  max-width: calc(100% - 23px);
-  flex: 0 1 auto;
+  grid-template-areas:
+    "label"
+    "value";
+  align-content: center;
   gap: 1px;
   text-align: left;
 }
 
-.forward-runtime-metric-copy small,
-.forward-runtime-metric-copy strong {
+.forward-runtime-metric.has-rate .forward-runtime-metric-copy {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "summary"
+    "rate";
+  row-gap: 2px;
+}
+
+.forward-runtime-summary {
+  display: grid;
+  min-width: 0;
+  grid-area: summary;
+  grid-template-columns: max-content minmax(0, 64px);
+  grid-template-areas: "label total";
+  justify-content: start;
+  column-gap: 8px;
+}
+
+.forward-runtime-metric.has-rate {
+  position: relative;
+}
+
+.forward-runtime-metric.has-rate:is(:hover, :focus) {
+  z-index: 4;
+}
+
+.forward-runtime-metric.has-rate:focus-visible {
+  border-radius: 7px;
+  outline: 1px solid color-mix(in srgb, var(--forward-metric-tone) 72%, transparent);
+  outline-offset: 1px;
+}
+
+.forward-runtime-metric-label,
+.forward-runtime-value,
+.forward-runtime-total,
+.forward-runtime-rate {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.forward-runtime-metric-copy small {
+.forward-runtime-metric-label {
+  grid-area: label;
   color: var(--text-muted);
   font-size: 9px;
   font-weight: 620;
 }
 
-.forward-runtime-metric-copy strong {
+.forward-runtime-value {
+  grid-area: value;
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.forward-runtime-total {
+  grid-area: total;
+  max-width: 64px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+}
+
+.forward-runtime-rate {
+  display: inline-flex;
+  min-height: 13px;
+  grid-area: rate;
+  align-items: center;
+  justify-self: start;
+  gap: 5px;
+  color: var(--text-muted);
+  line-height: 13px;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.16s ease;
+}
+
+.forward-runtime-rate i {
+  width: 4px;
+  height: 4px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.48;
+}
+
+.forward-runtime-rate strong {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-size: 11px;
+  font-weight: 740;
+  line-height: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forward-runtime-metric.is-rate-active .forward-runtime-rate {
+  color: color-mix(in srgb, var(--forward-metric-tone) 72%, var(--text-primary));
+}
+
+.forward-runtime-metric.is-rate-active .forward-runtime-rate i {
+  opacity: 1;
+}
+
+.forward-runtime-metric-detail {
+  position: fixed;
+  inset: auto;
+  top: var(--forward-detail-top, 8px);
+  left: var(--forward-detail-left, 8px);
+  z-index: 80;
+  display: grid;
+  width: max-content;
+  min-width: 162px;
+  max-width: min(210px, calc(100vw - 24px));
+  gap: 0;
+  margin: 0;
+  overflow: visible;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--app-bg-elevated);
+  box-shadow:
+    0 14px 30px rgb(0 0 0 / 34%),
+    inset 0 1px 0 rgb(255 255 255 / 5%);
+  color: var(--text-secondary);
+  opacity: 0;
+  padding: 8px 10px 9px;
+  pointer-events: none;
+  transform: translateY(4px);
+  visibility: hidden;
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease,
+    visibility 0.12s ease;
+}
+
+.forward-runtime-metric-detail::after {
+  position: absolute;
+  bottom: -5px;
+  left: var(--forward-detail-arrow-left, 18px);
+  width: 9px;
+  height: 9px;
+  border-right: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--app-bg-elevated);
+  content: "";
+  transform: rotate(45deg);
+}
+
+.forward-runtime-metric-detail[data-placement="below"]::after {
+  top: -5px;
+  bottom: auto;
+  border: 0;
+  border-top: 1px solid var(--border-strong);
+  border-left: 1px solid var(--border-strong);
+}
+
+.forward-runtime-metric-detail[data-placement="below"] {
+  transform: translateY(-4px);
+}
+
+.forward-runtime-metric-detail-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 5px;
+  padding: 0 1px 7px;
+}
+
+.forward-runtime-metric-detail-heading > i {
+  width: 3px;
+  height: 12px;
+  flex: 0 0 auto;
+  border-radius: 2px;
+  background: var(--forward-metric-tone);
+}
+
+.forward-runtime-metric-detail-heading > strong {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 720;
+  letter-spacing: 0.01em;
+}
+
+.forward-runtime-metric-detail-row {
+  display: grid;
+  min-width: 0;
+  min-height: 22px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 1px;
+}
+
+.forward-runtime-metric-detail-row small {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 560;
+}
+
+.forward-runtime-metric-detail-row b {
+  color: var(--text-primary);
+  font-family: var(--font-mono, "Cascadia Code", "JetBrains Mono", Consolas, monospace);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-align: right;
+}
+
+.forward-runtime-metric-detail-row.is-rate b {
+  color: var(--text-secondary);
+}
+
+.forward-runtime-metric.is-rate-active .forward-runtime-metric-detail-row.is-rate b {
+  color: color-mix(in srgb, var(--forward-metric-tone) 78%, var(--text-primary));
+}
+
+.forward-runtime-metric.has-rate:is(:hover, :focus) .forward-runtime-metric-detail {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
+:root[data-theme="light"] .forward-runtime-metric-detail {
+  box-shadow:
+    0 14px 30px rgb(30 44 64 / 16%),
+    inset 0 1px 0 rgb(255 255 255 / 80%);
+}
+
+:root[data-theme="light"] .forward-runtime-metric-label,
+:root[data-theme="light"] .forward-runtime-total,
+:root[data-theme="light"] .forward-runtime-rate,
+:root[data-theme="light"] .forward-runtime-metric-detail-row small {
+  color: var(--text-secondary);
 }
 
 .forward-state-feedback {
@@ -677,21 +994,6 @@
   margin-left: auto;
 }
 
-.forward-session-stop.ant-btn {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  color: var(--text-muted);
-  padding: 0;
-}
-
-.forward-session-stop.ant-btn:not(:disabled):hover {
-  background: color-mix(in srgb, #ff656d 10%, var(--surface));
-  color: #ff7e85;
-  transform: none;
-}
-
 @container forward-session (max-width: 339px) {
   .forward-editor-fields.is-compact .forward-editor-field-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -718,7 +1020,47 @@
   }
 
   .forward-runtime-metrics.is-compact {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .forward-runtime-metrics.is-compact .forward-runtime-metric {
+    min-height: 29px;
+    grid-template-columns: 13px minmax(0, 1fr);
+    padding: 5px 2px;
+  }
+
+  .forward-runtime-metrics.is-compact .forward-runtime-metric + .forward-runtime-metric {
+    border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  }
+
+  .forward-runtime-metrics.is-compact .forward-runtime-metric-copy {
+    min-height: 18px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "label value";
+    align-items: center;
+    gap: 6px;
+  }
+
+  .forward-runtime-metrics.is-compact .forward-runtime-metric.has-rate .forward-runtime-metric-copy {
+    grid-template-columns: minmax(0, 1fr) 68px;
+    grid-template-areas: "summary rate";
+    justify-content: stretch;
+  }
+
+  .forward-runtime-metrics.is-compact .forward-runtime-summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    justify-content: stretch;
+  }
+
+  .forward-runtime-metrics.is-compact .forward-runtime-total {
+    max-width: 52px;
+    text-align: right;
+  }
+
+  .forward-runtime-metrics.is-compact .forward-runtime-rate {
+    width: 68px;
+    justify-self: end;
   }
 }
 
@@ -1454,6 +1796,10 @@
   .forward-session-composer-shell,
   .forwarding-profile-row,
   .forwarding-runtime-row,
+  .forward-runtime-metric-icon,
+  .forward-runtime-rate,
+  .forward-runtime-metric-detail,
+  .forward-runtime-action,
   .forward-route-endpoint,
   .forward-mode-selector .ant-segmented-thumb {
     transition: none !important;

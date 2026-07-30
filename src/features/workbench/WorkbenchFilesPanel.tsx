@@ -49,6 +49,8 @@ import {
 import { RemotePermissionModal } from '../../components/files/RemotePermissionModal'
 import type {
   AppData,
+  FileBookmark,
+  FileBookmarkInput,
   FileSession,
   LocalGrantSource,
   RemoteFileEntry,
@@ -58,9 +60,14 @@ import type {
 import { joinPath, normalizeRemotePath, parentPath } from '../files/fileUtils'
 import type { FileSessionClosureState } from '../files/fileSessionRecovery'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
+import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
 import { WorkbenchFileList } from './WorkbenchFileList'
 import { WorkbenchTransferBar } from './WorkbenchTransferBar'
-import { getSessionFilesNavigationState } from './sessionFilesState'
+import {
+  getSessionFilesNavigationState,
+  isSessionFilesCwdRefreshPending,
+  shouldShowSessionFilesInitialLoading,
+} from './sessionFilesState'
 import { useWorkbenchSessionFiles } from './useWorkbenchSessionFiles'
 import {
   fileSessionRecoveryPresentationKind,
@@ -81,15 +88,23 @@ interface WorkbenchFilesPanelProps {
   fileSessionClosures: Readonly<Record<string, FileSessionClosureState>>
   session: Session | null
   enabled: boolean
+  actionBusy: boolean
   closingSessionIds: ReadonlySet<string>
   theme: ThemeMode
   onOpenFull: (session: Session) => Promise<void>
+  onManageBookmarks: (session: Session) => Promise<void>
+  onCreateFileBookmark: (input: FileBookmarkInput) => Promise<FileBookmark>
+  onUpdateFileBookmark: (
+    id: string,
+    input: FileBookmarkInput,
+  ) => Promise<FileBookmark>
   onConnectFileSession: (
     hostId: string,
     sourceSessionId?: string,
     initialPath?: string,
     replacedFileSessionId?: string,
   ) => Promise<FileSession>
+  onReconnectSession: (session: Session) => Promise<void>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
 }
@@ -115,10 +130,15 @@ function WorkbenchFilesPanelContent({
   fileSessionClosures,
   session,
   enabled,
+  actionBusy,
   closingSessionIds,
   theme,
   onOpenFull,
+  onManageBookmarks,
+  onCreateFileBookmark,
+  onUpdateFileBookmark,
   onConnectFileSession,
+  onReconnectSession,
   onReconnectFileSession,
   onUpdateFileSession,
 }: WorkbenchFilesPanelProps) {
@@ -137,6 +157,14 @@ function WorkbenchFilesPanelContent({
     onReconnectFileSession,
     onUpdateFileSession,
   })
+  const sessionHost = session?.host_id
+    ? data.hosts.find((host) => host.id === session.host_id)
+    : undefined
+  const proxyRoute = sessionHost?.proxy_id
+    ? sessionHost.jump_host_id
+      ? 'jump'
+      : 'target'
+    : null
   const [pathInput, setPathInput] = useState('/')
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
@@ -145,6 +173,7 @@ function WorkbenchFilesPanelContent({
   const [imageViewerPath, setImageViewerPath] = useState<string | null>(null)
   const [editingPath, setEditingPath] = useState(false)
   const [uploadPicking, setUploadPicking] = useState(false)
+  const [sessionReconnectPending, setSessionReconnectPending] = useState(false)
   const [breadcrumbScrollState, setBreadcrumbScrollState] = useState({
     canScrollLeft: false,
     canScrollRight: false,
@@ -156,12 +185,14 @@ function WorkbenchFilesPanelContent({
   const uploadRefreshTasksRef = useRef(new Map<string, TrackedUploadRefresh>())
   const completedUploadPathsRef = useRef(new Map<string, Set<string>>())
   const followTerminal = Boolean(files.viewState?.followTerminal)
-  const cwdPendingPath = files.viewState?.pendingTerminalPath || (
-    files.cwdState?.pending_operation?.status === 'failed'
-      ? ''
-      : files.cwdState?.pending_operation?.path ?? ''
-  )
-  const confirmedCwdPath = (
+  const cwdPendingPath = files.connected
+    ? files.viewState?.pendingTerminalPath || (
+        files.cwdPendingOperation?.status === 'failed'
+          ? ''
+          : files.cwdPendingOperation?.path ?? ''
+      )
+    : ''
+  const confirmedCwdPath = files.connected && (
     files.cwdState?.observation_status === undefined
     || files.cwdState.observation_status === 'ready'
   )
@@ -176,21 +207,18 @@ function WorkbenchFilesPanelContent({
     : null
   const currentPath = navigationState?.committedPath ?? '/'
   const pendingDirectoryPath = navigationState?.pendingPath ?? ''
-  const directoryChanging = Boolean(pendingDirectoryPath)
+  const directoryChanging = files.connected && Boolean(pendingDirectoryPath)
   const directoryReadFailed = Boolean(
     files.viewState?.error && files.viewState.failedRequestPath,
   )
   const syncStatus = files.viewState?.syncStatus ?? ''
-  const followDirectoryBlocked = syncStatus === 'failed'
-    || syncStatus === 'unsupported'
-    || syncStatus === 'reconnect-required'
-    || syncStatus === 'invalid_path'
   const initialDirectoryPlaceholder = !files.viewState?.listing
-  const initialDirectoryPending = initialDirectoryPlaceholder
-    && !files.viewState?.error
-    && (!followTerminal || !followDirectoryBlocked)
+  const initialDirectoryPending = shouldShowSessionFilesInitialLoading(
+    files.viewState,
+    files.connected,
+  )
   const directoryRefreshing = Boolean(
-    navigationState?.refreshing && files.viewState?.listing,
+    files.connected && navigationState?.refreshing && files.viewState?.listing,
   )
   const directoryLoading = initialDirectoryPending || directoryChanging || directoryRefreshing
   const directoryNavigationLocked = closing
@@ -204,17 +232,27 @@ function WorkbenchFilesPanelContent({
   const pathInputId = `workbench-remote-path-${files.sourceSessionId || 'inactive'}`
   const pathErrorId = `${pathInputId}-error`
   const loadDirectory = files.loadDirectory
-  const syncMessage = syncStatusMessage(syncStatus, t)
-  const syncNoticeTone = syncStatus === 'failed' || syncStatus === 'invalid_path'
-    ? 'error'
-    : syncStatus === 'unsupported'
-      ? 'unsupported'
-      : syncStatus === 'reconnect-required'
-        ? 'reconnect-required'
-      : ''
-  const followDirectoryLoading = followTerminal && Boolean(files.viewState?.loading)
+  const syncMessage = syncStatusMessage(
+    syncStatus,
+    files.viewState?.syncError ?? '',
+    t,
+  )
+  const syncNoticeTone = !files.connected
+    ? ''
+    : syncStatus === 'failed' || syncStatus === 'invalid_path'
+      ? 'error'
+      : syncStatus === 'unsupported'
+        ? 'unsupported'
+        : syncStatus === 'reconnect-required'
+          ? 'reconnect-required'
+          : ''
+  const followDirectoryLoading = files.connected
+    && followTerminal
+    && Boolean(files.viewState?.loading)
   const followVisualState = !followTerminal
     ? 'off'
+    : !files.connected
+      ? 'active'
     : syncStatus === 'failed' || syncStatus === 'invalid_path'
       ? 'failed'
       : syncStatus === 'unsupported'
@@ -237,10 +275,25 @@ function WorkbenchFilesPanelContent({
   const followTooltip = followHasDetail && followDetailMessage
     ? followDetailMessage
     : t(followTerminal ? 'workbench.files.followEnabled' : 'workbench.files.followDisabled')
-  const followProgressVisible = followVisualState === 'preparing'
-    || followVisualState === 'locating'
-    || followVisualState === 'waiting'
-    || followVisualState === 'syncing'
+  const cwdRefreshPending = isSessionFilesCwdRefreshPending(
+    files.viewState?.cwdRefresh,
+  )
+  const cwdOperationPending = Boolean(
+    files.cwdPendingOperation
+    && files.cwdPendingOperation.status !== 'failed',
+  )
+  const followProgressVisible = files.connected
+    && (
+      cwdRefreshPending
+      || cwdOperationPending
+      || followDirectoryLoading
+    )
+    && (
+      followVisualState === 'preparing'
+      || followVisualState === 'locating'
+      || followVisualState === 'waiting'
+      || followVisualState === 'syncing'
+    )
   const recoveryVisible = files.recoveryState.phase !== 'idle'
     || files.fileSession?.status === 'disconnected'
     || files.fileSession?.status === 'failed'
@@ -249,7 +302,20 @@ function WorkbenchFilesPanelContent({
     files.recoveryState,
     t,
     Boolean(!files.fileSession && files.viewState?.error),
+    proxyRoute,
   )
+
+  const reconnectSourceSession = async () => {
+    if (!session || actionBusy || sessionReconnectPending) {
+      return
+    }
+    setSessionReconnectPending(true)
+    try {
+      await onReconnectSession(session)
+    } finally {
+      setSessionReconnectPending(false)
+    }
+  }
 
   useEffect(() => {
     if (!shouldNotifyFileSessionRecoveryFailure(
@@ -820,6 +886,30 @@ function WorkbenchFilesPanelContent({
                     />
                   </Tooltip>
                 </div>
+                <WorkbenchBookmarksPopover
+                  bookmarks={data.fileBookmarks}
+                  groups={data.fileBookmarkGroups}
+                  currentPath={currentPath}
+                  connected={files.connected}
+                  disabled={
+                    !enabled
+                    || closing
+                    || initialDirectoryPlaceholder
+                  }
+                  navigationBusy={actionBusy || directoryChanging}
+                  navigationKey={[
+                    session.id,
+                    fileSessionId ?? '',
+                    files.fileSession?.connection_generation ?? 0,
+                    currentPath,
+                  ].join(':')}
+                  onNavigate={files.navigateDirectory}
+                  onCreateBookmark={onCreateFileBookmark}
+                  onUpdateBookmark={onUpdateFileBookmark}
+                  onManageBookmarks={() => {
+                    void onManageBookmarks(session)
+                  }}
+                />
                 <Tooltip title={t('workbench.files.editPath')}>
                   <Button
                     type="text"
@@ -986,6 +1076,30 @@ function WorkbenchFilesPanelContent({
           >
             <CircleAlert size={12} aria-hidden="true" />
             <span>{syncMessage}</span>
+            {syncStatus === 'failed' ? (
+              <Button
+                type="link"
+                size="small"
+                className="workbench-file-caption-action"
+                icon={<RefreshCw size={11} />}
+                disabled={closing || actionBusy}
+                onClick={files.retryCwdSync}
+              >
+                {t('app.retry')}
+              </Button>
+            ) : syncStatus === 'reconnect-required' ? (
+              <Button
+                type="link"
+                size="small"
+                className="workbench-file-caption-action"
+                icon={<RefreshCw size={11} />}
+                loading={sessionReconnectPending}
+                disabled={closing || actionBusy || sessionReconnectPending}
+                onClick={() => void reconnectSourceSession()}
+              >
+                {t('workbench.reconnectSession')}
+              </Button>
+            ) : null}
           </span>
         ) : followProgressVisible && followDetailMessage ? (
           <span
@@ -1129,6 +1243,7 @@ function FileStatusSpinner() {
 
 function syncStatusMessage(
   status: string,
+  errorCode: string,
   t: ReturnType<typeof useTranslation>['t'],
 ) {
   switch (status) {
@@ -1143,7 +1258,8 @@ function syncStatusMessage(
     case 'waiting-idle':
       return t('workbench.files.waitingTerminalIdle')
     case 'failed':
-      return t('workbench.files.syncFailed')
+      return proxyConnectionErrorMessage(errorCode, t)
+        || t('workbench.files.syncFailed')
     case 'unsupported':
       return t('workbench.files.followUnsupported')
     case 'reconnect-required':
@@ -1162,6 +1278,7 @@ function fileSessionRecoveryPresentation(
   recovery: FileSessionRecoveryState,
   t: ReturnType<typeof useTranslation>['t'],
   initialError = false,
+  proxyRoute: 'target' | 'jump' | null = null,
 ) {
   switch (fileSessionRecoveryPresentationKind(session, recovery, initialError)) {
     case 'recovering':
@@ -1177,7 +1294,14 @@ function fileSessionRecoveryPresentation(
     case 'waiting_trust':
       return { title: t('workbench.files.waitingTrust'), detail: t('workbench.files.waitingTrustHint') }
     case 'connecting_phase':
-      return { title: t('workbench.files.connecting'), detail: t(`files.sessionPhase.${session!.phase}`) }
+      return {
+        title: t('workbench.files.connecting'),
+        detail: proxyRoute && session!.phase === 'dialing'
+          ? t(proxyRoute === 'jump'
+            ? 'connection.proxyDialingJumpHost'
+            : 'connection.proxyDialingTarget')
+          : t(`files.sessionPhase.${session!.phase}`),
+      }
     default:
       return { title: t('workbench.files.connecting'), detail: t('workbench.files.preparing') }
   }
@@ -1187,7 +1311,11 @@ function fileSessionRecoveryErrorMessage(
   errorCode: string,
   t: ReturnType<typeof useTranslation>['t'],
 ) {
-  switch (errorCode) {
+  const proxyErrorMessage = proxyConnectionErrorMessage(errorCode, t)
+  if (proxyErrorMessage) {
+    return proxyErrorMessage
+  }
+  switch (errorCode.trim().toUpperCase()) {
     case 'SFTP_FILE_SESSION_NOT_FOUND':
       return t('workbench.files.sessionExpiredHint')
     case 'REQUEST_TIMEOUT':
@@ -1202,5 +1330,25 @@ function fileSessionRecoveryErrorMessage(
       return t('workbench.files.recoveryUnavailable')
     default:
       return t('workbench.files.recoveryUnknown')
+  }
+}
+
+function proxyConnectionErrorMessage(
+  errorCode: string,
+  t: ReturnType<typeof useTranslation>['t'],
+) {
+  switch (errorCode.trim().toUpperCase()) {
+    case 'PROXY_CONFIG_INVALID':
+      return t('connection.proxyError.configInvalid')
+    case 'PROXY_AUTH_REQUIRED':
+      return t('connection.proxyError.authRequired')
+    case 'PROXY_TIMEOUT':
+      return t('connection.proxyError.timeout')
+    case 'PROXY_CONNECT_FAILED':
+      return t('connection.proxyError.connectFailed')
+    case 'PROXY_TUNNEL_FAILED':
+      return t('connection.proxyError.tunnelFailed')
+    default:
+      return ''
   }
 }

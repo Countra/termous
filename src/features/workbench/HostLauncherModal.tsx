@@ -91,6 +91,7 @@ export function HostLauncherModal({
   const groupsById = useMemo(() => new Map(data.groups.map((group) => [group.id, group.name])), [data.groups])
   const credentialsById = useMemo(() => new Map(data.credentials.map((credential) => [credential.id, credential.name])), [data.credentials])
   const hostsById = useMemo(() => new Map(data.hosts.map((host) => [host.id, host])), [data.hosts])
+  const proxiesById = useMemo(() => new Map(data.proxies.map((proxy) => [proxy.id, proxy])), [data.proxies])
   const hostIds = useMemo(() => data.hosts.map((host) => host.id), [data.hosts])
   const availableTags = useMemo(() => buildTagOptions(data.hosts), [data.hosts])
   const groupOptions = useMemo(() => buildGroupFilterOptions(data.hosts, data.groups, t('hosts.ungrouped'), t('workbench.hostLauncher.filters.allGroups')), [data.groups, data.hosts, t])
@@ -98,10 +99,16 @@ export function HostLauncherModal({
     () => filterHosts(data.hosts, groupsById, data.hostReachability, query, filter, platformFilter, groupFilter, authFilter, selectedTags),
     [authFilter, data.hostReachability, data.hosts, filter, groupFilter, groupsById, platformFilter, query, selectedTags],
   )
-  const groupedHosts = useMemo(() => groupHosts(filteredHosts, data.groups, t('hosts.ungrouped')), [data.groups, filteredHosts, t])
-  const selectedHost = hostsById.get(selectedHostId) ?? filteredHosts[0] ?? data.hosts[0]
+  const groupedHosts = useMemo(
+    () => filter === 'recent'
+      ? [{ id: '__recent', name: '', hosts: filteredHosts, order: 0 }]
+      : groupHosts(filteredHosts, data.groups, t('hosts.ungrouped')),
+    [data.groups, filter, filteredHosts, t],
+  )
+  const selectedHost = filteredHosts.find((host) => host.id === selectedHostId) ?? filteredHosts[0]
   const selectedHostCredential = selectedHost?.credential_id ? credentialsById.get(selectedHost.credential_id) : ''
   const selectedJumpHost = selectedHost?.jump_host_id ? hostsById.get(selectedHost.jump_host_id) : undefined
+  const selectedProxy = selectedHost?.proxy_id ? proxiesById.get(selectedHost.proxy_id) : undefined
   const selectedReachability = selectedHost ? data.hostReachability[selectedHost.id] : undefined
   const activeAdvancedFilterCount = [
     platformFilter !== 'all',
@@ -121,11 +128,11 @@ export function HostLauncherModal({
       setFilterOpen(false)
       return
     }
-    const nextHost = hostsById.get(selectedHostId) ?? filteredHosts[0] ?? data.hosts[0]
+    const nextHost = filteredHosts.find((host) => host.id === selectedHostId) ?? filteredHosts[0]
     if (nextHost && nextHost.id !== selectedHostId) {
       onSelectHost(nextHost.id)
     }
-  }, [data.hosts, filteredHosts, hostsById, onSelectHost, open, selectedHostId])
+  }, [filteredHosts, onSelectHost, open, selectedHostId])
 
   useEffect(() => {
     if (!open) {
@@ -443,23 +450,26 @@ export function HostLauncherModal({
                 </div>
               ) : (
                 groupedHosts.map((group) => {
-                  const collapsed = collapsedGroupIds.has(group.id)
+                  const flat = filter === 'recent'
+                  const collapsed = !flat && collapsedGroupIds.has(group.id)
                   const GroupIcon = collapsed ? ChevronRight : ChevronDown
                   return (
-                    <section className={`host-launcher-group ${collapsed ? 'is-collapsed' : ''}`} key={group.id}>
-                      <button
-                        type="button"
-                        className="host-launcher-group-title"
-                        aria-expanded={!collapsed}
-                        onClick={() => toggleGroupCollapse(group.id)}
-                      >
-                        <span>
-                          <GroupIcon size={14} aria-hidden="true" />
-                          {group.name}
-                        </span>
-                        <small>{group.hosts.length}</small>
-                      </button>
-                      {!collapsed ? (
+                    <section className={`host-launcher-group ${flat ? 'is-flat' : ''} ${collapsed ? 'is-collapsed' : ''}`} key={group.id}>
+                      {!flat ? (
+                        <button
+                          type="button"
+                          className="host-launcher-group-title"
+                          aria-expanded={!collapsed}
+                          onClick={() => toggleGroupCollapse(group.id)}
+                        >
+                          <span>
+                            <GroupIcon size={14} aria-hidden="true" />
+                            {group.name}
+                          </span>
+                          <small>{group.hosts.length}</small>
+                        </button>
+                      ) : null}
+                      {flat || !collapsed ? (
                         <div className="host-launcher-group-tree">
                           {group.hosts.map((host) => (
                             <button
@@ -473,7 +483,7 @@ export function HostLauncherModal({
                             >
                               <span className="host-launcher-row-avatar-wrap">
                                 <HostAvatar host={host} getIconUrl={getHostIconUrl} className="host-launcher-row-avatar" size={30} iconSize={15} />
-                                <HostReachabilityDot state={data.hostReachability[host.id]} />
+                                <HostReachabilityDot state={data.hostReachability[host.id]} usesProxy={Boolean(host.proxy_id)} />
                               </span>
                               <span className="host-launcher-row-copy">
                                 <strong>
@@ -515,7 +525,7 @@ export function HostLauncherModal({
                   <div className="host-launcher-hero-copy">
                     <div className="host-launcher-hero-title">
                       <h4>{selectedHost.name}</h4>
-                      <HostReachabilityPill state={selectedReachability} />
+                      <HostReachabilityPill state={selectedReachability} usesProxy={Boolean(selectedHost.proxy_id)} />
                       <Tooltip title={selectedHost.favorite ? t('workbench.hostLauncher.unfavorite') : t('workbench.hostLauncher.favorite')}>
                         <Button
                           type="text"
@@ -559,6 +569,13 @@ export function HostLauncherModal({
                   <DetailItem icon={<UserRound size={14} />} label={t('hosts.note')} value={selectedHost.note || t('fields.none')} />
                   <DetailItem icon={<Clock3 size={14} />} label={t('workbench.hostLauncher.lastChecked')} value={formatDateTime(selectedReachability?.checked_at, t('fields.none'))} />
                   <DetailItem icon={<Network size={14} />} label={t('workbench.jumpHost')} value={selectedJumpHost?.name ?? t('fields.none')} />
+                  <DetailItem
+                    icon={<Cable size={14} />}
+                    label={t('hosts.proxy')}
+                    value={selectedProxy
+                      ? `${selectedProxy.name} · ${t(`proxies.types.${selectedProxy.type === 'http_connect' ? 'httpConnect' : 'socks5'}`)}`
+                      : t('hosts.noProxy')}
+                  />
                 </dl>
                 <div className="host-launcher-shortcut-section">
                   <span>{t('workbench.hostLauncher.quickActions')}</span>
@@ -590,10 +607,15 @@ export function HostLauncherModal({
               </>
             ) : (
               <div className="host-launcher-detail-empty">
-                <EmptyState title={t('app.empty')} description={t('workbench.hostLauncher.emptyHint')} />
-                <ConnectionActionButton icon={<Plus size={16} />} onClick={() => void runGlobalShortcut(onCreateHost)}>
-                  {t('hosts.addHost')}
-                </ConnectionActionButton>
+                <EmptyState
+                  title={data.hosts.length === 0 ? t('app.empty') : t('hosts.noFilterResults')}
+                  description={data.hosts.length === 0 ? t('workbench.hostLauncher.emptyHint') : t('hosts.noFilterResultsHint')}
+                />
+                {data.hosts.length === 0 ? (
+                  <ConnectionActionButton icon={<Plus size={16} />} onClick={() => void runGlobalShortcut(onCreateHost)}>
+                    {t('hosts.addHost')}
+                  </ConnectionActionButton>
+                ) : null}
               </div>
             )}
           </main>
@@ -646,22 +668,22 @@ function DetailItem({ icon, label, value }: { icon: ReactNode; label: string; va
   )
 }
 
-function HostReachabilityDot({ state }: { state?: HostReachability }) {
+function HostReachabilityDot({ state, usesProxy = false }: { state?: HostReachability; usesProxy?: boolean }) {
   const { t } = useTranslation()
   const status = state?.status ?? 'unknown'
   return (
-    <Tooltip title={reachabilityTooltip(state, t)}>
-      <span className={`host-reachability-dot is-${status}`} aria-label={reachabilityTooltip(state, t)} />
+    <Tooltip title={reachabilityTooltip(state, t, usesProxy)}>
+      <span className={`host-reachability-dot is-${status}`} aria-label={reachabilityTooltip(state, t, usesProxy)} />
     </Tooltip>
   )
 }
 
-function HostReachabilityPill({ state }: { state?: HostReachability }) {
+function HostReachabilityPill({ state, usesProxy = false }: { state?: HostReachability; usesProxy?: boolean }) {
   const { t } = useTranslation()
   const status = state?.status ?? 'unknown'
   const Icon = status === 'online' ? Activity : status === 'checking' ? RefreshCcw : status === 'offline' ? WifiOff : Globe2
   return (
-    <Tooltip title={reachabilityTooltip(state, t)}>
+    <Tooltip title={reachabilityTooltip(state, t, usesProxy)}>
       <span className={`host-reachability-pill is-${status}`}>
         <Icon size={13} aria-hidden="true" />
         <span>{t(`workbench.hostLauncher.reachability.${status}`)}</span>
@@ -714,7 +736,7 @@ function filterHosts(
     if (authFilter !== 'all' && host.auth_method !== authFilter) {
       return false
     }
-    if (filter === 'online' && reachabilityStatus !== 'online') {
+    if (filter === 'online' && reachabilityStatus !== 'online' && reachabilityStatus !== 'checking') {
       return false
     }
     if (filter === 'recent' && timestamp(host.last_connected_at) <= 0) {
@@ -840,15 +862,20 @@ function formatDateTime(value: string | undefined, fallback: string) {
 function reachabilityTooltip(
   state: HostReachability | undefined,
   t: (key: string, options?: Record<string, string | number>) => string,
+  usesProxy = false,
 ) {
   const status = state?.status ?? 'unknown'
+  let label: string
   if (status === 'online' && state?.latency_ms !== undefined) {
-    return t('workbench.hostLauncher.reachabilityTooltip.online', { latency: state.latency_ms })
+    label = t('workbench.hostLauncher.reachabilityTooltip.online', { latency: state.latency_ms })
+  } else if ((status === 'offline' || status === 'unavailable') && state?.error_message) {
+    label = state.error_message
+  } else {
+    label = t(`workbench.hostLauncher.reachabilityTooltip.${status}`)
   }
-  if ((status === 'offline' || status === 'unavailable') && state?.error_message) {
-    return state.error_message
-  }
-  return t(`workbench.hostLauncher.reachabilityTooltip.${status}`)
+  return usesProxy
+    ? `${label} · ${t('proxies.reachabilityDirectHint')}`
+    : label
 }
 
 function formatReachabilityLatency(

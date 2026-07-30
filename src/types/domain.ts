@@ -257,6 +257,18 @@ export type HostPlatform = 'linux'
 
 export type HostReachabilityStatus = 'unknown' | 'checking' | 'online' | 'offline' | 'unavailable'
 
+export type ConnectionProxyType = 'http_connect' | 'socks5'
+
+export interface ConnectionProxy {
+  id: string
+  name: string
+  type: ConnectionProxyType
+  url: string
+  bound_host_count: number
+  created_at?: string
+  updated_at?: string
+}
+
 export type CredentialType = 'password' | 'private_key' | 'private_key_passphrase'
 
 export type SSHKeyAlgorithm = 'ed25519' | 'rsa' | 'ecdsa'
@@ -810,6 +822,7 @@ export interface Host {
   auth_method: AuthMethod
   credential_id: string
   jump_host_id?: string
+  proxy_id?: string
   fingerprint?: string
   tags: string[]
   favorite: boolean
@@ -1375,11 +1388,46 @@ export interface DockerActionResult {
   completed_at: string
 }
 
+export type AliasBridgeStatus = 'missing' | 'installed'
+export type AliasApplyStatus = 'applied' | 'next_prompt' | 'reconnect_required'
+
+export interface ShellAlias {
+  id: string
+  name: string
+  command: string
+  description?: string
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ShellAliasInput {
+  name: string
+  command: string
+  description: string
+  enabled: boolean
+}
+
+export type ShellAliasPatch = Partial<ShellAliasInput>
+
+export interface AliasWorkspace {
+  shell: 'bash' | 'zsh' | 'fish'
+  bridge_status: AliasBridgeStatus
+  items: ShellAlias[]
+}
+
+export interface AliasMutationResult {
+  workspace: AliasWorkspace
+  alias?: ShellAlias
+  apply_status: AliasApplyStatus
+}
+
 export interface Session {
   id: string
   kind: SessionKind
   host_id?: string
   jump_host_id?: string
+  proxy_id?: string
   status: SessionStatus
   status_message?: string
   phase?: SessionPhase
@@ -1453,6 +1501,7 @@ export type DataPortabilityDatasetKey =
   | 'host_groups'
   | 'host_icons'
   | 'credentials'
+  | 'connection_proxies'
   | 'hosts'
   | 'host_key_trust_records'
   | 'terminal_fonts'
@@ -1644,10 +1693,17 @@ export interface HostInput {
   auth_method: AuthMethod
   credential_id: string
   jump_host_id: string
+  proxy_id: string
   tags: string[]
   favorite: boolean
   fingerprint_policy: string
   note: string
+}
+
+export interface ConnectionProxyInput {
+  name: string
+  type: ConnectionProxyType
+  url: string
 }
 
 export interface CredentialInput {
@@ -1721,6 +1777,7 @@ export interface PrivateKeyCredentialBundleResult {
 export interface AppData {
   hosts: Host[]
   groups: HostGroup[]
+  proxies: ConnectionProxy[]
   credentials: CredentialView[]
   sessions: Session[]
   fileSessions: FileSession[]

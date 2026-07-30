@@ -117,74 +117,136 @@
 }
 
 .local-download-console-mapping-list {
-  padding: 4px 0;
+  padding: 5px 6px;
 }
 
-.local-download-console-mapping-row,
-.local-download-console-directory-row {
+.local-download-console .local-download-console-mapping-row.ant-btn,
+.local-download-console .local-download-console-directory-row.ant-btn {
   position: relative;
   display: grid;
   width: 100%;
   min-width: 0;
+  height: auto;
   align-items: center;
-  border: 0;
-  border-radius: 0;
+  justify-content: stretch;
+  border: 1px solid transparent;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
   font: inherit;
   text-align: left;
+  box-shadow: none;
   transition:
-    background-color 120ms ease,
-    color 120ms ease,
-    transform 120ms ease;
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 120ms ease,
+    color 120ms ease;
 }
 
-.local-download-console-mapping-row {
-  grid-template-columns: 22px minmax(0, 1fr) 12px;
-  gap: 7px;
-  min-height: 45px;
-  padding: 5px 11px;
+.local-download-console .local-download-console-mapping-row.ant-btn {
+  grid-template-columns: 27px minmax(0, 1fr) 14px;
+  gap: 8px;
+  min-height: 47px;
+  padding: 5px 9px;
 }
 
-.local-download-console-mapping-row:hover,
-.local-download-console-directory-row:hover {
-  background: var(--surface-hover);
+.local-download-console .local-download-console-mapping-row.ant-btn:not(:disabled):not(.is-drop-target):hover {
+  border-color: color-mix(in srgb, var(--accent) 16%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-hover));
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 5%, transparent);
 }
 
-.local-download-console-mapping-row:active,
-.local-download-console-directory-row:active,
+.local-download-console .local-download-console-mapping-row.ant-btn.is-active:not(:disabled):not(.is-drop-target):hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
+}
+
+.local-download-console .local-download-console-directory-row.ant-btn:not(:disabled):not(.is-drop-target):hover {
+  border-color: color-mix(in srgb, var(--accent) 14%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-hover));
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 4%, transparent);
+}
+
+.local-download-console .local-download-console-mapping-row.ant-btn:not(:disabled):active,
+.local-download-console .local-download-console-directory-row.ant-btn:not(:disabled):active {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--app-bg) 42%, transparent);
+}
+
 .local-download-quick-target:active {
   transform: translateY(1px);
 }
 
-.local-download-console-mapping-row.is-active {
+.local-download-console .local-download-console-mapping-row.ant-btn.is-active {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   color: var(--accent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 4%, transparent);
 }
 
-.local-download-console-mapping-row.is-unavailable {
+.local-download-console .local-download-console-mapping-row.ant-btn.is-unavailable {
   opacity: 0.52;
 }
 
-.local-download-console-mapping-row > svg,
-.local-download-console-directory-row > svg {
+.local-download-console-row-icon,
+.local-download-console-row-affordance {
+  display: inline-grid;
+  place-items: center;
   color: var(--text-muted);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease;
 }
 
-.local-download-console-mapping-row.is-active > svg {
+.local-download-console-row-icon {
+  width: 27px;
+  height: 27px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+}
+
+.local-download-console-row-affordance {
+  width: 22px;
+  height: 22px;
+  justify-self: end;
+  border-radius: 6px;
+  opacity: 0.54;
+}
+
+.local-download-console-mapping-row.is-active .local-download-console-row-icon {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
 }
 
-.local-download-console-mapping-row > span,
-.local-download-console-directory-row > span {
+.local-download-console .local-download-console-mapping-row.ant-btn:not(:disabled):not(.is-drop-target):hover .local-download-console-row-icon,
+.local-download-console .local-download-console-directory-row.ant-btn:not(:disabled):not(.is-drop-target):hover .local-download-console-row-icon {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-primary));
+}
+
+.local-download-console .local-download-console-directory-row.ant-btn:not(:disabled):not(.is-drop-target):hover .local-download-console-row-affordance {
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  color: var(--accent);
+  opacity: 1;
+}
+
+.local-download-console .local-download-console-mapping-row.ant-btn:disabled,
+.local-download-console .local-download-console-directory-row.ant-btn:disabled {
+  cursor: default;
+}
+
+.local-download-console-row-copy {
   display: grid;
   min-width: 0;
   gap: 2px;
 }
 
-.local-download-console-mapping-row strong,
-.local-download-console-directory-row strong,
+.local-download-console-row-copy strong,
 .local-download-console-target-copy strong {
   overflow: hidden;
   font-size: 12px;
@@ -193,25 +255,45 @@
   white-space: nowrap;
 }
 
-.local-download-console-mapping-row small,
-.local-download-console-directory-row small,
+.local-download-console-row-copy small,
 .local-download-console-target-copy small {
   overflow: hidden;
   color: var(--text-muted);
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 140ms ease;
 }
 
-.local-download-console-mapping-row > i {
+.local-download-console .local-download-console-mapping-row.ant-btn:not(:disabled):not(.is-drop-target):hover .local-download-console-row-copy small,
+.local-download-console .local-download-console-directory-row.ant-btn:not(:disabled):not(.is-drop-target):hover .local-download-console-row-copy small {
+  color: var(--text-secondary);
+}
+
+.local-download-console-mapping-status {
+  display: inline-grid;
+  width: 14px;
+  height: 22px;
+  place-items: center;
+}
+
+.local-download-console-mapping-status > i {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--text-muted);
+  box-shadow: 0 0 0 3px transparent;
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
-.local-download-console-mapping-row:not(.is-unavailable) > i {
+.local-download-console-mapping-row:not(.is-unavailable) .local-download-console-mapping-status > i {
   background: var(--success);
+}
+
+.local-download-console-mapping-row:not(.is-unavailable):hover .local-download-console-mapping-status > i {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 12%, transparent);
 }
 
 .local-download-console-mapping-form {
@@ -344,7 +426,8 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: 3px 0 6px;
+  gap: 2px;
+  padding: 5px 6px 7px;
   transition:
     background-color 120ms ease,
     box-shadow 120ms ease;
@@ -356,16 +439,16 @@
   cursor: copy;
 }
 
-.local-download-console-directory-list.is-navigating > *:not(.local-download-console-alert) {
-  opacity: 0.56;
+.local-download-console-directory-list.is-navigating {
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 58%, transparent);
 }
 
-.local-download-console-directory-row {
+.local-download-console .local-download-console-directory-row.ant-btn {
   flex: 0 0 auto;
-  grid-template-columns: 26px minmax(0, 1fr) 18px;
-  gap: 5px;
-  min-height: 38px;
-  padding: 4px 12px;
+  grid-template-columns: 27px minmax(0, 1fr) 22px;
+  gap: 8px;
+  min-height: 43px;
+  padding: 4px 8px;
 }
 
 .local-download-console-alert {

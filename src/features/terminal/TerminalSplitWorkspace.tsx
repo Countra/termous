@@ -51,6 +51,7 @@ interface TerminalSplitWorkspaceProps {
   activeSession: Session | null
   themeMode: ThemeMode
   placeholder: string
+  emptyState?: ReactNode
   actionBusy?: boolean
   searchPanel?: ReactNode
   dragSessionId?: string | null
@@ -75,6 +76,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
       activeSession,
       themeMode,
       placeholder,
+      emptyState,
       actionBusy = false,
       searchPanel,
       dragSessionId,
@@ -295,6 +297,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
               dropTargeted={dropTargeted}
               themeMode={themeMode}
               placeholder={placeholder}
+              emptyState={emptyState}
               actionBusy={actionBusy}
               searchPanel={searchPanel}
               onResize={active ? onResize : undefined}
@@ -332,6 +335,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
       [
         actionBusy,
         activatePane,
+        emptyState,
         layout.activePaneId,
         onCloseSession,
         onReconnectSession,
@@ -358,6 +362,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
             active
             themeMode={themeMode}
             placeholder={placeholder}
+            emptyState={emptyState}
             onActivate={() => undefined}
           />
         )}

@@ -7,6 +7,7 @@ import type {
   CodeSnippetGroup,
   CodeSnippetGroupInput,
   CodeSnippetInput,
+  ConnectionProxyInput,
   CredentialInput,
   FileBookmark,
   FileBookmarkGroup,
@@ -50,6 +51,7 @@ import {
   type FileSessionClosureState,
 } from '../features/files/fileSessionRecovery'
 import {
+  filterFileSessionsByActiveSources,
   reconcileFileSessionSnapshotList,
   replaceFileSessionSnapshot,
   upsertFileSessionSnapshot,
@@ -59,6 +61,13 @@ import {
   sessionChangedSince,
   shouldApplySessionInventoryResponse,
 } from './sessionInventoryState'
+import {
+  isForwardStartSettledStatus,
+  reconcileForwardsAfterRestartFailure,
+  restartForwardInstance,
+  selectForwardStartSnapshot,
+  shouldApplyForwardPollResponse,
+} from '../features/forwards/forwardRestart'
 
 const initialSettings: Settings = {
   language: 'zh-CN',
@@ -68,9 +77,19 @@ const initialSettings: Settings = {
 }
 type LoadMode = 'initial' | 'background' | 'silent'
 
+const FORWARD_START_MISSING_GRACE_MS = 2_000
+const FORWARD_START_COMPLETION_TIMEOUT_MS = 30 * 60 * 1_000
+
+interface ForwardStartCompletionWaiter {
+  resolve: (forward: ForwardInstance | null) => void
+  registeredAt: number
+  cleanupTimer: number
+}
+
 const initialData: AppData = {
   hosts: [],
   groups: [],
+  proxies: [],
   credentials: [],
   sessions: [],
   fileSessions: [],
@@ -106,6 +125,11 @@ export function useTermousData() {
   const inventoryEventRevisionsRef = useRef(new Map<string, number>())
   const inventoryStateSignaturesRef = useRef(new Map<string, string>())
   const inventoryRequestRevisionsRef = useRef(new Map<string, number>())
+  const forwardEventRevisionsRef = useRef(new Map<string, number>())
+  const forwardEventSnapshotsRef = useRef(new Map<string, ForwardInstance>())
+  const forwardStartCompletionWaitersRef = useRef(
+    new Map<string, ForwardStartCompletionWaiter>(),
+  )
   const loadRevisionRef = useRef(0)
   data.sessions.forEach((session) => {
     if (!inventoryStateSignaturesRef.current.has(session.id)) {
@@ -209,6 +233,7 @@ export function useTermousData() {
         fileBookmarks,
         localPathMappings,
         groups,
+        proxies,
         hosts,
         hostReachability,
         credentials,
@@ -225,6 +250,7 @@ export function useTermousData() {
         apiClient.fileBookmarks(),
         apiClient.localPathMappings(),
         apiClient.hostGroups(),
+        apiClient.connectionProxies(),
         apiClient.hosts(),
         apiClient.hostReachability(),
         apiClient.credentials(),
@@ -236,6 +262,12 @@ export function useTermousData() {
       if (loadRevision !== loadRevisionRef.current) {
         return
       }
+      reconcileForwardStartCompletions(
+        forwardStartCompletionWaitersRef.current,
+        forwardEventSnapshotsRef.current,
+        forwardEventRevisionsRef.current,
+        forwards ?? [],
+      )
       const reloadedSessions = sessions ?? []
       const nextSettings = normalizeSettings(settings)
       reloadedSessions.forEach((session) => {
@@ -252,36 +284,44 @@ export function useTermousData() {
           }
         }
       })
-      setData((current) => ({
-        settings: nextSettings,
-        groups: groups ?? [],
-        hosts: hosts ?? [],
-        credentials: credentials ?? [],
-        sessions: mergeSessionReloadSnapshot(
+      setData((current) => {
+        const nextSessions = mergeSessionReloadSnapshot(
           current.sessions,
           reloadedSessions,
           sessionRevisionBaseline,
           sessionEventRevisionsRef.current,
-        ),
-        fileSessions: reconcileFileSessionSnapshotList(
-          current.fileSessions,
-          filterSuppressedFileSessions(
-            fileSessions ?? [],
-            suppressedFileSessionIdsRef.current,
+        )
+        const activeSourceSessionIds = new Set(nextSessions.map((session) => session.id))
+        return {
+          settings: nextSettings,
+          groups: groups ?? [],
+          proxies: sortConnectionProxies(proxies ?? []),
+          hosts: hosts ?? [],
+          credentials: credentials ?? [],
+          sessions: nextSessions,
+          fileSessions: filterFileSessionsByActiveSources(
+            reconcileFileSessionSnapshotList(
+              current.fileSessions,
+              filterSuppressedFileSessions(
+                fileSessions ?? [],
+                suppressedFileSessionIdsRef.current,
+              ),
+              fileSessionRevisionBaseline,
+              fileSessionEventRevisionsRef.current,
+            ),
+            activeSourceSessionIds,
           ),
-          fileSessionRevisionBaseline,
-          fileSessionEventRevisionsRef.current,
-        ),
-        forwardProfiles: forwardProfiles ?? [],
-        forwards: visibleForwards(forwards ?? []),
-        snippetGroups: sortCodeSnippetGroups(snippetGroups ?? []),
-        snippets: snippets ?? [],
-        fileBookmarkGroups: sortFileBookmarkGroups(fileBookmarkGroups ?? []),
-        fileBookmarks: sortFileBookmarks(fileBookmarks ?? []),
-        localPathMappings: sortLocalPathMappings(localPathMappings ?? []),
-        terminalFonts: terminalFonts ?? [],
-        hostReachability: indexHostReachability(hostReachability ?? []),
-      }))
+          forwardProfiles: forwardProfiles ?? [],
+          forwards: visibleForwards(forwards ?? []),
+          snippetGroups: sortCodeSnippetGroups(snippetGroups ?? []),
+          snippets: snippets ?? [],
+          fileBookmarkGroups: sortFileBookmarkGroups(fileBookmarkGroups ?? []),
+          fileBookmarks: sortFileBookmarks(fileBookmarks ?? []),
+          localPathMappings: sortLocalPathMappings(localPathMappings ?? []),
+          terminalFonts: terminalFonts ?? [],
+          hostReachability: indexHostReachability(hostReachability ?? []),
+        }
+      })
       setActiveSession((current) => {
         if (current && sessionChangedSince(
           current.id,
@@ -315,6 +355,12 @@ export function useTermousData() {
 
   const reloadForwardsWithApi = useCallback(async (apiClient: TermousApi) => {
     const forwards = await apiClient.forwards()
+    reconcileForwardStartCompletions(
+      forwardStartCompletionWaitersRef.current,
+      forwardEventSnapshotsRef.current,
+      forwardEventRevisionsRef.current,
+      forwards ?? [],
+    )
     setData((current) => ({ ...current, forwards: visibleForwards(forwards ?? []) }))
     setLastUpdatedAt(new Date().toISOString())
   }, [])
@@ -323,6 +369,136 @@ export function useTermousData() {
     () => reloadForwardsWithApi(api),
     [api, reloadForwardsWithApi],
   )
+
+  const resolveForwardStartCompletion = useCallback((
+    forwardId: string,
+    forward: ForwardInstance | null,
+  ) => {
+    settleForwardStartCompletion(
+      forwardStartCompletionWaitersRef.current,
+      forwardEventSnapshotsRef.current,
+      forwardEventRevisionsRef.current,
+      forwardId,
+      forward,
+    )
+  }, [])
+
+  useEffect(() => () => {
+    const waiters = [...forwardStartCompletionWaitersRef.current.values()]
+    forwardStartCompletionWaitersRef.current.clear()
+    forwardEventSnapshotsRef.current.clear()
+    forwardEventRevisionsRef.current.clear()
+    waiters.forEach((waiter) => {
+      window.clearTimeout(waiter.cleanupTimer)
+      waiter.resolve(null)
+    })
+  }, [])
+
+  const registerStartedForward = useCallback((
+    forward: ForwardInstance,
+    replacedForwardId = '',
+  ) => {
+    const latestForward = selectForwardStartSnapshot(
+      forward,
+      forwardEventSnapshotsRef.current.get(forward.id) ?? null,
+    )
+    setData((current) => ({
+      ...current,
+      forwards: shouldRemoveForward(latestForward)
+        ? current.forwards.filter((item) => (
+            item.id !== replacedForwardId && item.id !== latestForward.id
+          ))
+        : upsertForward(
+            current.forwards.filter((item) => item.id !== replacedForwardId),
+            latestForward,
+          ),
+    }))
+    const previousWaiter = forwardStartCompletionWaitersRef.current.get(forward.id)
+    forwardStartCompletionWaitersRef.current.delete(forward.id)
+    if (previousWaiter) {
+      window.clearTimeout(previousWaiter.cleanupTimer)
+      previousWaiter.resolve(null)
+    }
+    let waiter!: ForwardStartCompletionWaiter
+    const completion = new Promise<ForwardInstance | null>((resolve) => {
+      waiter = {
+        resolve,
+        registeredAt: performance.now(),
+        cleanupTimer: 0,
+      }
+    })
+    waiter.cleanupTimer = window.setTimeout(() => {
+      if (forwardStartCompletionWaitersRef.current.get(forward.id) === waiter) {
+        resolveForwardStartCompletion(forward.id, null)
+      }
+    }, FORWARD_START_COMPLETION_TIMEOUT_MS)
+    forwardStartCompletionWaitersRef.current.set(forward.id, waiter)
+    if (isForwardStartSettledStatus(latestForward.status)) {
+      resolveForwardStartCompletion(forward.id, latestForward)
+      return completion
+    }
+    void syncForwardAfterStart(
+      api,
+      forward.id,
+      (nextForward) => {
+        const shouldRemove = shouldRemoveForward(nextForward)
+        if (shouldRemove) {
+          setForwardErrorEvent({
+            type: 'error',
+            forward: nextForward,
+            message: nextForward.last_error || nextForward.status_message,
+          })
+        }
+        setData((current) => {
+          if (shouldRemove) {
+            return {
+              ...current,
+              forwards: current.forwards.filter((item) => item.id !== nextForward.id),
+            }
+          }
+          return { ...current, forwards: upsertForward(current.forwards, nextForward) }
+        })
+      },
+      () => forwardEventRevisionsRef.current.get(forward.id) ?? 0,
+      () => forwardStartCompletionWaitersRef.current.has(forward.id),
+    ).then((settledForward) => {
+      if (settledForward !== undefined) {
+        resolveForwardStartCompletion(forward.id, settledForward)
+      }
+    }).catch((error) => {
+      console.error('同步端口转发启动终态失败', error)
+    })
+    return completion
+  }, [api, resolveForwardStartCompletion])
+
+  const reconcileRestartFailure = useCallback(async (
+    replacedForwardId: string,
+    stopConfirmed: boolean,
+  ) => {
+    try {
+      const forwards = await api.forwards()
+      setData((current) => ({
+        ...current,
+        forwards: reconcileForwardsAfterRestartFailure(
+          current.forwards,
+          visibleForwards(forwards ?? []),
+          replacedForwardId,
+          stopConfirmed,
+        ),
+      }))
+    } catch (error) {
+      console.error('端口转发重启失败后的状态对账失败', error)
+      setData((current) => ({
+        ...current,
+        forwards: reconcileForwardsAfterRestartFailure(
+          current.forwards,
+          null,
+          replacedForwardId,
+          stopConfirmed,
+        ),
+      }))
+    }
+  }, [api])
 
   useEffect(() => {
     let disposed = false
@@ -548,34 +724,45 @@ export function useTermousData() {
       },
       async startForward(input: ForwardStartRequest) {
         const forward = await api.startForward(input)
-        setData((current) => ({ ...current, forwards: upsertForward(current.forwards, forward) }))
-        void syncForwardAfterStart(
-          api,
-          forward.id,
-          (nextForward) => {
-            const shouldRemove = shouldRemoveForward(nextForward)
-            if (shouldRemove) {
-              setForwardErrorEvent({ type: 'error', forward: nextForward, message: nextForward.last_error || nextForward.status_message })
-            }
-            setData((current) => {
-              if (shouldRemove) {
-                return { ...current, forwards: current.forwards.filter((item) => item.id !== nextForward.id) }
-              }
-              return { ...current, forwards: upsertForward(current.forwards, nextForward) }
-            })
-          },
-          () => reloadForwards(),
-        )
+        void registerStartedForward(forward)
         return forward
+      },
+      async restartForward(id: string) {
+        const currentForward = data.forwards.find((forward) => forward.id === id)
+        if (!currentForward) {
+          throw new Error('端口转发任务不存在')
+        }
+        let stopConfirmed = false
+        try {
+          const replacement = await restartForwardInstance(
+            currentForward,
+            async (forwardId) => {
+              await api.stopForward(forwardId)
+              stopConfirmed = true
+            },
+            (input) => api.startForward(input),
+          )
+          const completion = registerStartedForward(replacement, currentForward.id)
+          return { forward: replacement, completion }
+        } catch (error) {
+          await reconcileRestartFailure(id, stopConfirmed)
+          throw error
+        }
       },
       async stopForward(id: string) {
         await api.stopForward(id)
+        resolveForwardStartCompletion(id, null)
         setData((current) => ({
           ...current,
           forwards: current.forwards.filter((forward) => forward.id !== id),
         }))
       },
       updateForward(event: ForwardEvent) {
+        if (forwardStartCompletionWaitersRef.current.has(event.forward.id)) {
+          bumpSessionRevision(forwardEventRevisionsRef.current, event.forward.id)
+        }
+        rememberForwardEventSnapshot(forwardEventSnapshotsRef.current, event.forward)
+        resolveForwardStartCompletion(event.forward.id, event.forward)
         if (shouldEmitForwardError(event)) {
           setForwardErrorEvent(event)
         }
@@ -613,6 +800,29 @@ export function useTermousData() {
         const groups = await api.reorderHostGroups(items)
         setData((current) => ({ ...current, groups: [...groups].sort(sortHostGroups) }))
         return groups
+      },
+      async createConnectionProxy(input: ConnectionProxyInput) {
+        const proxy = await api.createConnectionProxy(input)
+        setData((current) => ({
+          ...current,
+          proxies: upsertConnectionProxy(current.proxies, proxy),
+        }))
+        return proxy
+      },
+      async updateConnectionProxy(id: string, input: ConnectionProxyInput) {
+        const proxy = await api.updateConnectionProxy(id, input)
+        setData((current) => ({
+          ...current,
+          proxies: upsertConnectionProxy(current.proxies, proxy),
+        }))
+        return proxy
+      },
+      async deleteConnectionProxy(id: string) {
+        await api.deleteConnectionProxy(id)
+        setData((current) => ({
+          ...current,
+          proxies: current.proxies.filter((proxy) => proxy.id !== id),
+        }))
       },
       async updateHost(id: string, input: HostInput) {
         const host = await api.updateHost(id, input)
@@ -695,13 +905,32 @@ export function useTermousData() {
         return session
       },
       async disconnect(sessionId: string) {
+        const linkedFileSessionIds = data.fileSessions
+          .filter((session) => session.source_session_id === sessionId)
+          .map((session) => session.id)
         await api.deleteSession(sessionId)
         inventoryRequestRevisionsRef.current.delete(sessionId)
         inventoryEventRevisionsRef.current.delete(sessionId)
         inventoryStateSignaturesRef.current.delete(sessionId)
         bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
+        linkedFileSessionIds.forEach((fileSessionId) => {
+          supersedeFileSessionRecoveryOperation(fileSessionId)
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
+        })
         const fallbackSession = data.sessions.find((session) => session.id !== sessionId) ?? null
-        setData((current) => ({ ...current, sessions: current.sessions.filter((session) => session.id !== sessionId) }))
+        setData((current) => ({
+          ...current,
+          sessions: current.sessions.filter((session) => session.id !== sessionId),
+          fileSessions: current.fileSessions.filter((session) => session.source_session_id !== sessionId),
+        }))
+        setFileSessionClosures((current) => {
+          if (!current[sessionId]) {
+            return current
+          }
+          const next = { ...current }
+          delete next[sessionId]
+          return next
+        })
         setActiveSession((current) => (current?.id === sessionId ? fallbackSession : current))
         void load('silent')
       },
@@ -902,14 +1131,16 @@ export function useTermousData() {
         try {
           await api.deleteFileSession(fileSessionId)
         } catch (error) {
-          if (sourceSessionId) {
-            setFileSessionClosures((current) => removeMatchingFileSessionClosure(
-              current,
-              sourceSessionId,
-              fileSessionId,
-            ))
+          if (!(error instanceof TermousApiError && error.code === 'SFTP_FILE_SESSION_NOT_FOUND')) {
+            if (sourceSessionId) {
+              setFileSessionClosures((current) => removeMatchingFileSessionClosure(
+                current,
+                sourceSessionId,
+                fileSessionId,
+              ))
+            }
+            throw error
           }
-          throw error
         }
         bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
         if (closingFileSession && sourceSessionId) {
@@ -988,6 +1219,9 @@ export function useTermousData() {
       load,
       releaseFileSessionRecoveryEpoch,
       reloadForwards,
+      reconcileRestartFailure,
+      registerStartedForward,
+      resolveForwardStartCompletion,
       scheduleSuppressedFileSessionCleanup,
       supersedeFileSessionRecoveryOperation,
     ],
@@ -1045,6 +1279,25 @@ function sortHostGroups(left: HostGroup, right: HostGroup) {
     return left.name.localeCompare(right.name)
   }
   return left.id.localeCompare(right.id)
+}
+
+function sortConnectionProxies(proxies: AppData['proxies']) {
+  return [...proxies].sort((left, right) => (
+    left.name.localeCompare(right.name)
+    || left.id.localeCompare(right.id)
+  ))
+}
+
+function upsertConnectionProxy(
+  proxies: AppData['proxies'],
+  next: AppData['proxies'][number],
+) {
+  const exists = proxies.some((proxy) => proxy.id === next.id)
+  return sortConnectionProxies(
+    exists
+      ? proxies.map((proxy) => (proxy.id === next.id ? next : proxy))
+      : [...proxies, next],
+  )
 }
 
 function upsertSession(sessions: Session[], next: Session) {
@@ -1188,6 +1441,75 @@ function bumpSessionRevision(revisions: Map<string, number>, sessionId: string) 
   revisions.set(sessionId, (revisions.get(sessionId) ?? 0) + 1)
 }
 
+function settleForwardStartCompletion(
+  waiters: Map<string, ForwardStartCompletionWaiter>,
+  snapshots: Map<string, ForwardInstance>,
+  revisions: Map<string, number>,
+  forwardId: string,
+  forward: ForwardInstance | null,
+) {
+  if (forward && !isForwardStartSettledStatus(forward.status)) {
+    return false
+  }
+  const waiter = waiters.get(forwardId)
+  if (!waiter) {
+    return false
+  }
+  waiters.delete(forwardId)
+  snapshots.delete(forwardId)
+  revisions.delete(forwardId)
+  window.clearTimeout(waiter.cleanupTimer)
+  waiter.resolve(forward)
+  return true
+}
+
+function reconcileForwardStartCompletions(
+  waiters: Map<string, ForwardStartCompletionWaiter>,
+  snapshots: Map<string, ForwardInstance>,
+  revisions: Map<string, number>,
+  authoritativeForwards: ForwardInstance[],
+) {
+  const byId = new Map(authoritativeForwards.map((forward) => [forward.id, forward]))
+  const now = performance.now()
+  for (const [forwardId, waiter] of waiters) {
+    const forward = byId.get(forwardId)
+    if (forward) {
+      settleForwardStartCompletion(
+        waiters,
+        snapshots,
+        revisions,
+        forwardId,
+        forward,
+      )
+      continue
+    }
+    if (now - waiter.registeredAt >= FORWARD_START_MISSING_GRACE_MS) {
+      settleForwardStartCompletion(
+        waiters,
+        snapshots,
+        revisions,
+        forwardId,
+        null,
+      )
+    }
+  }
+}
+
+function rememberForwardEventSnapshot(
+  snapshots: Map<string, ForwardInstance>,
+  forward: ForwardInstance,
+) {
+  snapshots.delete(forward.id)
+  snapshots.set(forward.id, forward)
+  if (snapshots.size <= 256) {
+    return
+  }
+  const oldestForwardId = snapshots.keys().next().value
+  if (oldestForwardId) {
+    snapshots.delete(oldestForwardId)
+  }
+}
+
 function sessionInventorySignature(session: Partial<Session>) {
   return [
     session.inventory_status ?? 'idle',
@@ -1253,32 +1575,79 @@ async function syncForwardAfterStart(
   api: TermousApi,
   id: string,
   onForward: (forward: ForwardInstance) => void,
-  onFallback: () => Promise<void>,
-) {
+  currentEventRevision: () => number,
+  isCompletionPending: () => boolean,
+): Promise<ForwardInstance | null | undefined> {
   const intervals = [240, 420, 700, 1100, 1700, 2600, 4000]
   for (const interval of intervals) {
     await delay(interval)
+    if (!isCompletionPending()) {
+      return undefined
+    }
+    const eventRevision = currentEventRevision()
     try {
       const forward = await api.getForward(id)
+      if (!isCompletionPending()) {
+        return undefined
+      }
+      if (!shouldApplyForwardPollResponse(eventRevision, currentEventRevision())) {
+        continue
+      }
       onForward(forward)
-      if (forward.status !== 'starting' && forward.status !== 'stopping') {
-        return
+      if (isForwardStartSettledStatus(forward.status)) {
+        return forward
       }
     } catch (syncError) {
+      if (!isCompletionPending()) {
+        return undefined
+      }
+      if (!shouldApplyForwardPollResponse(eventRevision, currentEventRevision())) {
+        continue
+      }
       if (syncError instanceof TermousApiError && syncError.status === 404) {
-        await runForwardSyncFallback(onFallback)
-        return
+        return syncForwardFromList(
+          api,
+          id,
+          onForward,
+          currentEventRevision,
+          isCompletionPending,
+        )
       }
     }
   }
-  await runForwardSyncFallback(onFallback)
+  return syncForwardFromList(
+    api,
+    id,
+    onForward,
+    currentEventRevision,
+    isCompletionPending,
+  )
 }
 
-async function runForwardSyncFallback(onFallback: () => Promise<void>) {
+async function syncForwardFromList(
+  api: TermousApi,
+  id: string,
+  onForward: (forward: ForwardInstance) => void,
+  currentEventRevision: () => number,
+  isCompletionPending: () => boolean,
+): Promise<ForwardInstance | null | undefined> {
+  const eventRevision = currentEventRevision()
   try {
-    await onFallback()
+    const forwards = await api.forwards()
+    if (
+      !isCompletionPending()
+      || !shouldApplyForwardPollResponse(eventRevision, currentEventRevision())
+    ) {
+      return undefined
+    }
+    const forward = (forwards ?? []).find((item) => item.id === id)
+    if (!forward) {
+      return null
+    }
+    onForward(forward)
+    return isForwardStartSettledStatus(forward.status) ? forward : undefined
   } catch {
-    // 转发启动后的补偿刷新不能反向扰动主界面状态。
+    return undefined
   }
 }
 

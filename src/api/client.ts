@@ -1,11 +1,15 @@
 import type {
   ApiErrorBody,
+  AliasMutationResult,
+  AliasWorkspace,
   AppearanceSettings,
   AppConfig,
   CodeSnippet,
   CodeSnippetGroup,
   CodeSnippetGroupInput,
   CodeSnippetInput,
+  ConnectionProxy,
+  ConnectionProxyInput,
   CoreRuntimeInfo,
   CredentialInput,
   CredentialView,
@@ -80,6 +84,9 @@ import type {
   RemoteTextSaveRequest,
   RemoteTextSaveResult,
   Session,
+  ShellAlias,
+  ShellAliasInput,
+  ShellAliasPatch,
   Settings,
   SSHKeyGenerateRequest,
   SSHKeyInspectRequest,
@@ -105,6 +112,9 @@ const DEFAULT_CONFIG: AppConfig = {
   apiToken: import.meta.env.VITE_TERMOUS_API_TOKEN ?? (import.meta.env.DEV ? 'dev-token' : ''),
   version: import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev',
 }
+
+const SESSION_ALIAS_READ_TIMEOUT_MS = 45_000
+const SESSION_ALIAS_WRITE_TIMEOUT_MS = 90_000
 
 export class TermousApiError extends Error {
   code: string
@@ -486,6 +496,30 @@ export class TermousApi {
     }).then(normalizeArray)
   }
 
+  connectionProxies() {
+    return this.request<ConnectionProxy[]>('/api/v1/proxies')
+  }
+
+  createConnectionProxy(input: ConnectionProxyInput) {
+    return this.request<ConnectionProxy>('/api/v1/proxies', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  updateConnectionProxy(id: string, input: ConnectionProxyInput) {
+    return this.request<ConnectionProxy>(`/api/v1/proxies/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+    })
+  }
+
+  deleteConnectionProxy(id: string) {
+    return this.request<void>(`/api/v1/proxies/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+  }
+
   hosts() {
     return this.request<Host[]>('/api/v1/hosts')
   }
@@ -627,6 +661,96 @@ export class TermousApi {
 
   sessionMonitorUrl(id: string) {
     return this.websocketUrl(`/api/v1/sessions/${encodeURIComponent(id)}/monitor`)
+  }
+
+  sessionAliases(id: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<AliasWorkspace>(`/api/v1/sessions/${encodeURIComponent(id)}/aliases`, {
+      signal: options.signal,
+      timeoutMs: SESSION_ALIAS_READ_TIMEOUT_MS,
+    })
+  }
+
+  sessionAlias(id: string, aliasId: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<ShellAlias>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/aliases/${encodeURIComponent(aliasId)}`,
+      {
+        signal: options.signal,
+        timeoutMs: SESSION_ALIAS_READ_TIMEOUT_MS,
+      },
+    )
+  }
+
+  createSessionAlias(
+    id: string,
+    input: ShellAliasInput,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    return this.request<AliasMutationResult>(`/api/v1/sessions/${encodeURIComponent(id)}/aliases`, {
+      method: 'POST',
+      body: input,
+      signal: options.signal,
+      timeoutMs: SESSION_ALIAS_WRITE_TIMEOUT_MS,
+    })
+  }
+
+  updateSessionAlias(
+    id: string,
+    aliasId: string,
+    input: ShellAliasPatch,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    return this.request<AliasMutationResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/aliases/${encodeURIComponent(aliasId)}`,
+      {
+        method: 'PATCH',
+        body: input,
+        signal: options.signal,
+        timeoutMs: SESSION_ALIAS_WRITE_TIMEOUT_MS,
+      },
+    )
+  }
+
+  deleteSessionAlias(
+    id: string,
+    aliasId: string,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    return this.request<AliasMutationResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/aliases/${encodeURIComponent(aliasId)}`,
+      {
+        method: 'DELETE',
+        signal: options.signal,
+        timeoutMs: SESSION_ALIAS_WRITE_TIMEOUT_MS,
+      },
+    )
+  }
+
+  repairSessionAliasBridge(
+    id: string,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    return this.request<AliasMutationResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/aliases/bridge/repair`,
+      {
+        method: 'POST',
+        signal: options.signal,
+        timeoutMs: SESSION_ALIAS_WRITE_TIMEOUT_MS,
+      },
+    )
+  }
+
+  refreshSessionAliasTemplate(
+    id: string,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    return this.request<AliasMutationResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/aliases/template/refresh`,
+      {
+        method: 'POST',
+        signal: options.signal,
+        timeoutMs: SESSION_ALIAS_WRITE_TIMEOUT_MS,
+      },
+    )
   }
 
   sessionProcesses(id: string, query: RemoteProcessQuery = {}, options: Pick<RequestOptions, 'signal'> = {}) {

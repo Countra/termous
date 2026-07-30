@@ -1,4 +1,4 @@
-import { DatabaseBackup, Languages, Moon, RefreshCw, Settings2, SquareTerminal, Sun } from 'lucide-react'
+import { DatabaseBackup, Moon, RefreshCw, Settings2, SquareTerminal, Sun } from 'lucide-react'
 import { Segmented, Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type {
@@ -108,6 +108,22 @@ export function SettingsPage({
                 </div>
                 <div className="settings-row">
                   <div>
+                    <strong>{t('settings.interfaceLanguage')}</strong>
+                  </div>
+                  <Segmented
+                    block
+                    className="settings-language-switch"
+                    value={language}
+                    disabled={actionBusy}
+                    options={[
+                      { value: 'zh-CN', label: t('settings.chinese') },
+                      { value: 'en-US', label: t('settings.english') },
+                    ]}
+                    onChange={(value) => void onLanguageChange(value as Language)}
+                  />
+                </div>
+                <div className="settings-row">
+                  <div>
                     <strong>{t('settings.closeBehavior')}</strong>
                     <p className="settings-row-hint">{t('settings.closeBehaviorHint')}</p>
                   </div>
@@ -123,39 +139,6 @@ export function SettingsPage({
                     onChange={(value) =>
                       void onWindowSettingsChange({ close_behavior: value as WindowSettings['close_behavior'] })
                     }
-                  />
-                </div>
-              </div>
-            ),
-          },
-          {
-            key: 'language',
-            label: (
-              <span className="settings-tab-label">
-                <Languages size={15} aria-hidden="true" />
-                {t('settings.tabLanguage')}
-              </span>
-            ),
-            children: (
-              <div className="settings-section">
-                <div className="settings-section-header">
-                  <Languages size={18} aria-hidden="true" />
-                  <h2>{t('settings.languageSection')}</h2>
-                </div>
-                <div className="settings-row">
-                  <div>
-                    <strong>{t('settings.interfaceLanguage')}</strong>
-                  </div>
-                  <Segmented
-                    block
-                    className="settings-language-switch"
-                    value={language}
-                    disabled={actionBusy}
-                    options={[
-                      { value: 'zh-CN', label: t('settings.chinese') },
-                      { value: 'en-US', label: t('settings.english') },
-                    ]}
-                    onChange={(value) => void onLanguageChange(value as Language)}
                   />
                 </div>
               </div>

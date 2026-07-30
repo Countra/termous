@@ -4,9 +4,19 @@ import { useTranslation } from 'react-i18next'
 import { GroupManagerModal } from '../../components/management/GroupManagerModal'
 import { ManagementWorkspace, type ManagementWorkspaceView } from '../../components/management/ManagementWorkspace'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import type { AppData, GroupReorderItem, Host, HostGroup, HostIcon, HostInput } from '../../types/domain'
+import type {
+  AppData,
+  ConnectionProxy,
+  ConnectionProxyInput,
+  GroupReorderItem,
+  Host,
+  HostGroup,
+  HostIcon,
+  HostInput,
+} from '../../types/domain'
 import { HostCatalog } from './HostCatalog'
 import { HostEditor } from './HostEditor'
+import { ProxyManagerModal } from './ProxyManagerModal'
 import { hostToInput } from './hostInput'
 import {
   MAX_HOST_ICON_BYTES,
@@ -29,6 +39,12 @@ interface HostsPageProps {
   onRenameGroup: (id: string, name: string) => Promise<HostGroup | undefined>
   onDeleteGroup: (id: string) => Promise<void>
   onReorderGroups: (items: GroupReorderItem[]) => Promise<HostGroup[] | undefined>
+  onCreateProxy: (input: ConnectionProxyInput) => Promise<ConnectionProxy | undefined>
+  onUpdateProxy: (
+    id: string,
+    input: ConnectionProxyInput,
+  ) => Promise<ConnectionProxy | undefined>
+  onDeleteProxy: (id: string) => Promise<boolean | undefined>
   onUploadHostIcon: (file: File) => Promise<HostIcon>
   onDeleteHostIcon: (id: string) => Promise<void>
   getHostIconUrl: (iconId: string) => string
@@ -51,6 +67,9 @@ export function HostsPage({
   onRenameGroup,
   onDeleteGroup,
   onReorderGroups,
+  onCreateProxy,
+  onUpdateProxy,
+  onDeleteProxy,
   onUploadHostIcon,
   onDeleteHostIcon,
   getHostIconUrl,
@@ -64,6 +83,7 @@ export function HostsPage({
   const [baseline, setBaseline] = useState<HostInput>(initialInput)
   const [activeView, setActiveView] = useState<ManagementWorkspaceView>(initialHost ? 'editor' : 'catalog')
   const [groupManagerOpen, setGroupManagerOpen] = useState(false)
+  const [proxyManagerOpen, setProxyManagerOpen] = useState(false)
   const [pendingIntent, setPendingIntent] = useState<HostIntent | null>(null)
   const [uploadingIcon, setUploadingIcon] = useState(false)
   const pendingIconIdRef = useRef('')
@@ -91,8 +111,11 @@ export function HostsPage({
     if (draft.credential_id && !validCredentialIds.has(draft.credential_id)) {
       next.credentialId = t('hosts.validation.credentialMismatch')
     }
+    if (draft.proxy_id && !data.proxies.some((proxy) => proxy.id === draft.proxy_id)) {
+      next.proxyId = t('hosts.validation.proxyMissing')
+    }
     return next
-  }, [draft, t, validCredentialIds])
+  }, [data.proxies, draft, t, validCredentialIds])
 
   useEffect(() => {
     deleteHostIconRef.current = onDeleteHostIcon
@@ -301,8 +324,8 @@ export function HostsPage({
         activeView={activeView}
         catalogLabel={t('hosts.list')}
         editorLabel={t('hosts.editor')}
-        catalog={<HostCatalog hosts={data.hosts} groups={data.groups} selectedHostId={editingId} actionBusy={actionBusy} getHostIconUrl={getHostIconUrl} onSelect={(hostId) => requestIntent({ type: 'select', hostId })} onCreate={() => requestIntent({ type: 'create' })} onManageGroups={() => setGroupManagerOpen(true)} />}
-        editor={<HostEditor key={editingId ?? 'new'} data={data} editingHost={editingHost} draft={draft} dirty={dirty} errors={errors} actionBusy={actionBusy} uploadingIcon={uploadingIcon} getHostIconUrl={getHostIconUrl} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} onBack={() => requestIntent({ type: 'back' })} onSave={() => void save()} onDelete={() => void removeCurrentHost()} onDiscard={() => { releasePendingIcon(); setDraft(baseline) }} onCreateGroup={onCreateGroup} onUploadIcon={uploadIcon} onRemoveIcon={removeIcon} />}
+        catalog={<HostCatalog hosts={data.hosts} groups={data.groups} selectedHostId={editingId} actionBusy={actionBusy} getHostIconUrl={getHostIconUrl} onSelect={(hostId) => requestIntent({ type: 'select', hostId })} onCreate={() => requestIntent({ type: 'create' })} onManageGroups={() => setGroupManagerOpen(true)} onManageProxies={() => setProxyManagerOpen(true)} />}
+        editor={<HostEditor key={editingId ?? 'new'} data={data} editingHost={editingHost} draft={draft} dirty={dirty} errors={errors} actionBusy={actionBusy} uploadingIcon={uploadingIcon} getHostIconUrl={getHostIconUrl} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} onBack={() => requestIntent({ type: 'back' })} onSave={() => void save()} onDelete={() => void removeCurrentHost()} onDiscard={() => { releasePendingIcon(); setDraft(baseline) }} onCreateGroup={onCreateGroup} onManageProxies={() => setProxyManagerOpen(true)} onUploadIcon={uploadIcon} onRemoveIcon={removeIcon} />}
       />
       <GroupManagerModal
         open={groupManagerOpen}
@@ -328,6 +351,21 @@ export function HostsPage({
         onRename={onRenameGroup}
         onDelete={onDeleteGroup}
         onReorder={onReorderGroups}
+      />
+      <ProxyManagerModal
+        open={proxyManagerOpen}
+        proxies={data.proxies}
+        actionBusy={actionBusy}
+        onClose={() => setProxyManagerOpen(false)}
+        onCreate={onCreateProxy}
+        onUpdate={onUpdateProxy}
+        onDelete={async (id) => {
+          const deleted = await onDeleteProxy(id)
+          if (deleted && draft.proxy_id === id) {
+            setDraft((current) => ({ ...current, proxy_id: '' }))
+          }
+          return deleted
+        }}
       />
       <ConfirmDialog
         open={Boolean(pendingIntent)}

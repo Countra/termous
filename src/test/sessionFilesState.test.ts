@@ -23,19 +23,28 @@ import {
   failDirectoryRequest,
   getSessionFilesNavigationState,
   getSessionFilesViewState,
+  hasSessionFilesCwdRefreshRecovered,
   isSessionFilesCwdRefreshComplete,
+  rebaseSessionFilesCwdRefreshAfterRecoverableFailure,
   reconcileSessionFilesCwdPending,
   removeInactiveSessionFileStates,
+  resolveRecoveredSessionFilesDirectory,
+  resolveSessionFilesCwdRetryTarget,
+  restartSessionFilesCwdRefresh,
   scheduleSessionFilesCwdLocalRetry,
   scheduleSessionFilesCwdRefreshRetry,
   sessionFilesCwdRefreshRetryDelay,
+  sessionFilesCwdRefreshRecoveryRetryLimit,
   sessionFilesCwdRefreshTransportDisposition,
   sessionFilesCwdRefreshWatchdogRemaining,
   shouldRefreshFollowedDirectory,
   shouldPrepareSessionFilesCwdControl,
   shouldRequestInitialSessionFilesDirectory,
   shouldRequestFollowedDirectory,
+  shouldShowSessionFilesInitialLoading,
   sessionFilesViewStatesReducer,
+  suspendSessionFilesDirectory,
+  updateMatchingSessionFilesCwdRefresh,
   updateSessionFilesViewState,
   type SessionFilesViewStateMap,
 } from '../features/workbench/sessionFilesState.ts'
@@ -99,6 +108,37 @@ test('初始目录自动加载只服务未开启跟随的空闲文件区', () =>
   }), false)
 })
 
+test('空目录占位只在真实读取或目录跟随刷新事务中展示加载', () => {
+  const initial = createSessionFilesViewState('/root')
+
+  assert.equal(shouldShowSessionFilesInitialLoading(initial, true), false)
+  assert.equal(shouldShowSessionFilesInitialLoading({
+    ...initial,
+    loading: true,
+  }, true), true)
+
+  const refreshing = beginSessionFilesCwdRefresh({
+    ...initial,
+    followTerminal: true,
+  }, cwdState({ control_status: 'preparing' }), 1_000)
+  assert.equal(shouldShowSessionFilesInitialLoading(refreshing, true), true)
+  assert.equal(shouldShowSessionFilesInitialLoading({
+    ...refreshing,
+    cwdRefresh: {
+      ...refreshing.cwdRefresh,
+      phase: 'failed',
+      error: 'PROXY_CONNECT_FAILED',
+    },
+    syncStatus: 'failed',
+    syncError: 'PROXY_CONNECT_FAILED',
+  }, true), false)
+  assert.equal(shouldShowSessionFilesInitialLoading({
+    ...refreshing,
+    listing: listing('/root'),
+  }, true), false)
+  assert.equal(shouldShowSessionFilesInitialLoading(refreshing, false), false)
+})
+
 test('目录跟随状态区分能力准备、路径定位和就绪', () => {
   assert.deepEqual(deriveSessionFilesSyncState(
     cwdState({ capability: 'probing', capability_cause: '正在准备' }),
@@ -128,6 +168,112 @@ test('目录跟随状态区分能力准备、路径定位和就绪', () => {
   ), {
     status: '',
     error: '',
+  })
+})
+
+test('代理错误立即结束目录跟随准备态并保留稳定错误码', () => {
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({
+      control_status: 'degraded',
+      capability_cause: '目录控制仍在准备',
+      control_code: 'PROXY_CONNECT_FAILED',
+    }),
+    null,
+  ), {
+    status: 'failed',
+    error: 'PROXY_CONNECT_FAILED',
+  })
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({
+      control_status: 'degraded',
+      capability_cause: '目录控制仍在准备',
+      refresh_request_id: 'refresh-current',
+      refresh_status: 'failed',
+      refresh_error_code: 'PROXY_TIMEOUT',
+    }),
+    null,
+    '',
+    'refresh-current',
+  ), {
+    status: 'failed',
+    error: 'PROXY_TIMEOUT',
+  })
+
+  assert.deepEqual(deriveSessionFilesFollowSyncState(
+    cwdState({
+      control_status: 'preparing',
+      control_code: 'PROXY_TUNNEL_FAILED',
+    }),
+    null,
+    '',
+    true,
+    false,
+    'wait',
+    '',
+    'refresh-current',
+  ), {
+    status: 'failed',
+    error: 'PROXY_TUNNEL_FAILED',
+  })
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({ control_status: 'preparing' }),
+    {
+      code: 'proxy_auth_required',
+      message: '代理要求认证',
+    },
+  ), {
+    status: 'failed',
+    error: 'PROXY_AUTH_REQUIRED',
+  })
+})
+
+test('目录控制终态优先于历史代理错误且刷新错误必须匹配当前事务', () => {
+  const staleProxyFailure = {
+    refresh_request_id: 'refresh-old',
+    refresh_status: 'failed' as const,
+    refresh_error_code: 'PROXY_TIMEOUT',
+    refresh_error: '历史代理连接超时',
+  }
+
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({
+      ...staleProxyFailure,
+      capability: 'unsupported',
+      control_status: 'unsupported',
+      capability_cause: '当前终端不支持目录跟随',
+    }),
+    null,
+    '',
+    'refresh-old',
+  ), {
+    status: 'unsupported',
+    error: '当前终端不支持目录跟随',
+  })
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({
+      ...staleProxyFailure,
+      control_status: 'reconnect_required',
+      capability_cause: '需要重新连接当前会话',
+    }),
+    null,
+    '',
+    'refresh-old',
+  ), {
+    status: 'reconnect-required',
+    error: '需要重新连接当前会话',
+  })
+  assert.deepEqual(deriveSessionFilesSyncState(
+    cwdState({
+      ...staleProxyFailure,
+      control_status: 'preparing',
+      capability_cause: '正在准备目录控制',
+    }),
+    null,
+    '',
+    'refresh-new',
+  ), {
+    status: 'preparing',
+    error: '正在准备目录控制',
   })
 })
 
@@ -187,6 +333,7 @@ test('开启跟随在单一会话 reducer 中保留最后列表并建立固定�
   assert.equal(started.followGeneration, 1)
   assert.deepEqual(started.cwdRefresh, {
     phase: 'waiting',
+    transactionSequence: 1,
     requestId: '',
     baseRefreshSequence: 7,
     baseConfirmedPath: '/srv/terminal',
@@ -194,6 +341,7 @@ test('开启跟随在单一会话 reducer 中保留最后列表并建立固定�
     startedAt: 1_000,
     deadlineAt: 66_000,
     retryCount: 0,
+    recoveryRetryCount: 0,
     retryAt: 0,
     error: '',
   })
@@ -210,6 +358,127 @@ test('开启跟随在单一会话 reducer 中保留最后列表并建立固定�
   })
   assert.equal(finished['session-1']?.cwdRefresh.phase, 'idle')
   assert.equal(finished['session-1']?.listing, current.listing)
+})
+
+test('一次刷新超时不会阻止后续建立新的独立同步事务', () => {
+  const started = beginSessionFilesCwdRefresh(
+    createSessionFilesViewState('/root'),
+    cwdState({ confirmed_path: '/root', refresh_seq: 3 }),
+    1_000,
+  )
+  const failed = finishSessionFilesCwdRefresh(started, 'CWD_TIMEOUT')
+  const restarted = beginSessionFilesCwdRefresh(
+    failed,
+    cwdState({ confirmed_path: '/root', refresh_seq: 3 }),
+    70_000,
+  )
+
+  assert.equal(failed.cwdRefresh.phase, 'failed')
+  assert.equal(restarted.cwdRefresh.phase, 'waiting')
+  assert.equal(restarted.cwdRefresh.requestId, '')
+  assert.equal(restarted.cwdRefresh.error, '')
+  assert.equal(restarted.cwdRefresh.startedAt, 70_000)
+  assert.equal(restarted.cwdRefresh.deadlineAt, 135_000)
+  assert.equal(restarted.cwdRefresh.recoveryRetryCount, 0)
+  assert.equal(restarted.cwdRefresh.transactionSequence, 2)
+})
+
+test('用户重试会在同一会话状态上重新驱动目录跟随事务', () => {
+  const failed = {
+    ...finishSessionFilesCwdRefresh(
+      beginSessionFilesCwdRefresh({
+        ...createSessionFilesViewState('/root'),
+        followTerminal: true,
+      }, cwdState({ source_generation: 4 }), 1_000),
+      'PROXY_CONNECT_FAILED',
+    ),
+    lastTerminalSyncPath: '/srv/pending',
+    syncStatus: 'failed' as const,
+    syncError: 'PROXY_CONNECT_FAILED',
+  }
+  const restarted = restartSessionFilesCwdRefresh(
+    failed,
+    cwdState({ source_generation: 4 }),
+    70_000,
+  )
+
+  assert.equal(restarted.followTerminal, true)
+  assert.equal(restarted.cwdRefresh.phase, 'waiting')
+  assert.equal(restarted.cwdRefresh.transactionSequence, 2)
+  assert.equal(restarted.cwdRefresh.baseSourceGeneration, 4)
+  assert.equal(restarted.lastTerminalSyncPath, '')
+  assert.equal(restarted.syncStatus, 'preparing')
+  assert.equal(restarted.syncError, '')
+
+  const disabled = {
+    ...failed,
+    followTerminal: false,
+  }
+  assert.equal(
+    restartSessionFilesCwdRefresh(disabled, cwdState(), 80_000),
+    disabled,
+  )
+})
+
+test('旧刷新事务的迟到终态不能结束同毫秒创建的新事务', () => {
+  const first = beginSessionFilesCwdRefresh(
+    createSessionFilesViewState('/root'),
+    cwdState({ confirmed_path: '/root' }),
+    1_000,
+  )
+  const second = beginSessionFilesCwdRefresh(
+    first,
+    cwdState({ confirmed_path: '/srv/current' }),
+    1_000,
+  )
+  const staleFinish = updateMatchingSessionFilesCwdRefresh(
+    second,
+    first.cwdRefresh,
+    (state) => finishSessionFilesCwdRefresh(state, 'CWD_TIMEOUT'),
+  )
+
+  assert.equal(staleFinish, second)
+  assert.equal(staleFinish.cwdRefresh.phase, 'waiting')
+  assert.equal(staleFinish.cwdRefresh.transactionSequence, 2)
+
+  const finished = finishSessionFilesCwdRefresh(second)
+  const lateFailure = updateMatchingSessionFilesCwdRefresh(
+    finished,
+    second.cwdRefresh,
+    (state) => finishSessionFilesCwdRefresh(state, 'CWD_TIMEOUT'),
+  )
+  assert.equal(lateFailure, finished)
+  assert.equal(lateFailure.cwdRefresh.phase, 'idle')
+})
+
+test('目录同步重试保持原来的文件到终端方向并隔离旧文件会话', () => {
+  const failed = cwdState({
+    pending_operation: {
+      id: 'operation-failed',
+      file_session_id: 'file-session-current',
+      path: '/srv/target',
+      revision: 4,
+      status: 'failed',
+    },
+  })
+  assert.equal(resolveSessionFilesCwdRetryTarget(
+    failed,
+    'file-session-current',
+    null,
+    '',
+  ), '/srv/target')
+  assert.equal(resolveSessionFilesCwdRetryTarget(
+    failed,
+    'file-session-new',
+    null,
+    '',
+  ), '')
+  assert.equal(resolveSessionFilesCwdRetryTarget(
+    cwdState(),
+    'file-session-current',
+    { code: 'CWD_TIMEOUT', message: '同步超时' },
+    '/opt/retry',
+  ), '/opt/retry')
 })
 
 test('目录刷新只接受 refresh sequence 前进的服务端确认', () => {
@@ -266,6 +535,58 @@ test('新服务端目录刷新只接受完全匹配的 request id 成功终态',
     refresh_status: 'succeeded',
     refresh_seq: 5,
   }), baseline), true)
+})
+
+test('失败刷新只在收到迟到成功或新的权威目录状态后解除', () => {
+  const failed = {
+    ...beginSessionFilesCwdRefresh(
+      createSessionFilesViewState('/root'),
+      cwdState({
+        confirmed_path: '/root',
+        refresh_seq: 4,
+        source_generation: 7,
+      }),
+      1_000,
+    ).cwdRefresh,
+    phase: 'failed' as const,
+    requestId: 'refresh-timeout',
+    error: 'CWD_TIMEOUT',
+  }
+
+  assert.equal(hasSessionFilesCwdRefreshRecovered(failed, cwdState({
+    confirmed_path: '/root',
+    refresh_seq: 4,
+    source_generation: 7,
+    refresh_request_id: 'refresh-timeout',
+    refresh_status: 'failed',
+  })), false)
+  assert.equal(hasSessionFilesCwdRefreshRecovered(failed, cwdState({
+    confirmed_path: '/root',
+    refresh_seq: 4,
+    source_generation: 7,
+    refresh_request_id: 'refresh-timeout',
+    refresh_status: 'succeeded',
+  })), true)
+  assert.equal(hasSessionFilesCwdRefreshRecovered(failed, cwdState({
+    confirmed_path: '/srv/new',
+    refresh_seq: 4,
+    source_generation: 7,
+  })), true)
+  assert.equal(hasSessionFilesCwdRefreshRecovered(failed, cwdState({
+    confirmed_path: '/root',
+    refresh_seq: 5,
+    source_generation: 7,
+  })), true)
+  assert.equal(hasSessionFilesCwdRefreshRecovered(failed, cwdState({
+    confirmed_path: '/root',
+    refresh_seq: 4,
+    source_generation: 8,
+  })), true)
+  assert.equal(hasSessionFilesCwdRefreshRecovered(failed, cwdState({
+    confirmed_path: undefined,
+    refresh_seq: 4,
+    source_generation: 8,
+  })), false)
 })
 
 test('目录刷新确认清理历史失败且保留新的在途操作', () => {
@@ -434,6 +755,38 @@ test('目录刷新阶段按能力、操作、错误和 transport 状态稳定派
   })
 })
 
+test('降级状态只在真实刷新事务中保持准备，空闲时明确失败并允许重试', () => {
+  const degraded = cwdState({
+    control_status: 'degraded',
+    control_code: 'CWD_NOT_READY',
+    control_retryable: true,
+    capability_cause: '管理连接暂不可用',
+  })
+
+  assert.deepEqual(deriveSessionFilesFollowSyncState(
+    degraded,
+    null,
+    '',
+    true,
+    false,
+    'wait',
+  ), {
+    status: 'preparing',
+    error: '管理连接暂不可用',
+  })
+  assert.deepEqual(deriveSessionFilesFollowSyncState(
+    degraded,
+    null,
+    '',
+    false,
+    false,
+    'ready',
+  ), {
+    status: 'failed',
+    error: 'CWD_NOT_READY',
+  })
+})
+
 test('目录刷新 pending 时不可恢复 transport 结束探测且不覆盖权威不支持状态', () => {
   const probing = cwdState({
     capability: 'probing',
@@ -520,6 +873,48 @@ test('服务端待处理操作优先于请求错误并保留阶段', () => {
     status: 'waiting-idle',
     error: '',
   })
+})
+
+test('旧文件会话的待处理操作不会污染当前文件会话', () => {
+  const state = cwdState({
+    confirmed_path: '/srv/current',
+    pending_operation: {
+      id: 'operation-old',
+      file_session_id: 'file-session-old',
+      path: '/srv/old',
+      revision: 1,
+      status: 'applying',
+    },
+  })
+
+  assert.deepEqual(deriveSessionFilesSyncState(state, null), {
+    status: 'applying',
+    error: '',
+  })
+  assert.deepEqual(deriveSessionFilesSyncState(state, null, 'file-session-old'), {
+    status: 'applying',
+    error: '',
+  })
+  assert.deepEqual(deriveSessionFilesSyncState(state, null, 'file-session-current'), {
+    status: '',
+    error: '',
+  })
+
+  const failedThroughProxy = cwdState({
+    confirmed_path: '/srv/current',
+    pending_operation: {
+      id: 'operation-old-proxy',
+      file_session_id: 'file-session-old',
+      path: '/srv/old',
+      revision: 2,
+      status: 'failed',
+      error_code: 'PROXY_CONNECT_FAILED',
+    },
+  })
+  assert.deepEqual(
+    deriveSessionFilesSyncState(failedThroughProxy, null, 'file-session-current'),
+    { status: '', error: '' },
+  )
 })
 
 test('传输暂不可用保持可恢复状态，其他请求错误才标记失败', () => {
@@ -667,6 +1062,108 @@ test('目录刷新实际发送时使用当前服务端代际并保留原事务�
   assert.equal(dispatched.baseConfirmedPath, '/srv/ready')
   assert.equal(dispatched.startedAt, 1_000)
   assert.equal(dispatched.deadlineAt, 66_000)
+})
+
+test('过期刷新在原事务期限内按最新代际重新基线', () => {
+  const started = beginSessionFilesCwdRefresh(
+    createSessionFilesViewState('/root'),
+    cwdState({
+      confirmed_path: '/srv/old',
+      refresh_seq: 4,
+      source_generation: 7,
+    }),
+    1_000,
+  )
+  const dispatched = applySessionFilesCwdRefreshDispatch(started.cwdRefresh, {
+    requestId: 'refresh-stale',
+    baseRefreshSequence: 4,
+    baseSourceGeneration: 7,
+    baseConfirmedPath: '/srv/old',
+  })
+  const rebased = rebaseSessionFilesCwdRefreshAfterRecoverableFailure(
+    { ...dispatched, error: '旧事务已失效', retryCount: 2, retryAt: 2_400 },
+    cwdState({
+      confirmed_path: '/srv/current',
+      refresh_seq: 8,
+      source_generation: 9,
+    }),
+    3_000,
+  )
+
+  assert.ok(rebased)
+  assert.equal(rebased.phase, 'waiting')
+  assert.equal(rebased.requestId, '')
+  assert.equal(rebased.baseRefreshSequence, 8)
+  assert.equal(rebased.baseSourceGeneration, 9)
+  assert.equal(rebased.baseConfirmedPath, '/srv/current')
+  assert.equal(rebased.retryCount, 0)
+  assert.equal(rebased.recoveryRetryCount, 1)
+  assert.equal(rebased.retryAt, 3_250)
+  assert.equal(rebased.error, '')
+  assert.equal(rebased.startedAt, 1_000)
+  assert.equal(rebased.deadlineAt, 66_000)
+})
+
+test('可恢复刷新重基线受次数和原 deadline 双重约束且不吞真实失败', () => {
+  let transaction = applySessionFilesCwdRefreshDispatch(
+    beginSessionFilesCwdRefresh(
+      createSessionFilesViewState('/root'),
+      cwdState({ source_generation: 7 }),
+      1_000,
+    ).cwdRefresh,
+    {
+      requestId: 'refresh-stale-0',
+      baseRefreshSequence: 0,
+      baseSourceGeneration: 7,
+      baseConfirmedPath: '/root',
+    },
+  )
+
+  for (let index = 0; index < sessionFilesCwdRefreshRecoveryRetryLimit; index += 1) {
+    const rebased = rebaseSessionFilesCwdRefreshAfterRecoverableFailure(
+      transaction,
+      cwdState({
+        refresh_seq: index + 1,
+        source_generation: 8 + index,
+      }),
+      2_000 + index,
+    )
+    assert.ok(rebased)
+    assert.equal(rebased.recoveryRetryCount, index + 1)
+    assert.equal(rebased.startedAt, 1_000)
+    assert.equal(rebased.deadlineAt, 66_000)
+    transaction = {
+      ...rebased,
+      phase: 'pending',
+      requestId: `refresh-stale-${index + 1}`,
+    }
+  }
+
+  assert.equal(rebaseSessionFilesCwdRefreshAfterRecoverableFailure(
+    transaction,
+    cwdState({ source_generation: 20 }),
+    3_000,
+  ), null)
+  assert.equal(rebaseSessionFilesCwdRefreshAfterRecoverableFailure(
+    { ...transaction, recoveryRetryCount: 0 },
+    cwdState({ source_generation: 20 }),
+    66_000,
+  ), null)
+  const timeoutRecovery = rebaseSessionFilesCwdRefreshAfterRecoverableFailure(
+    { ...transaction, recoveryRetryCount: 0 },
+    cwdState({ source_generation: 20 }),
+    3_000,
+    'CWD_TIMEOUT',
+  )
+  assert.ok(timeoutRecovery)
+  assert.equal(timeoutRecovery.recoveryRetryCount, 1)
+  assert.equal(timeoutRecovery.retryAt, 3_250)
+  assert.equal(rebaseSessionFilesCwdRefreshAfterRecoverableFailure(
+    { ...transaction, recoveryRetryCount: 0 },
+    cwdState({ source_generation: 20 }),
+    3_000,
+    'CWD_REMOTE_FAILED',
+  ), null)
 })
 
 test('目录刷新可从服务端 pending 快照接管同一事务基线', () => {
@@ -1233,4 +1730,74 @@ test('目录同步失败回退到已确认路径并保留最后成功列表', ()
   assert.equal(failed.listing?.path, '/srv/current')
   assert.equal(failed.syncStatus, 'failed')
   assert.equal(failed.syncError, 'shell_busy')
+})
+
+test('文件连接断开后保留缓存并终止目录跟随动画', () => {
+  const cached = beginSessionFilesCwdRefresh({
+    ...createSessionFilesViewState('/root'),
+    followTerminal: true,
+    listing: listing('/root'),
+    selectedPaths: ['/root/.bashrc'],
+    pendingTerminalPath: '/root/.termous/runtime',
+    lastTerminalSyncPath: '/root/.termous/runtime',
+    syncStatus: 'applying',
+  }, cwdState({ confirmed_path: '/root' }), 1_000)
+  const request = beginDirectoryRequest(cached, '/root/.termous/runtime', 7)
+
+  const suspended = suspendSessionFilesDirectory(request.state, 8)
+
+  assert.equal(suspended.path, '/root')
+  assert.equal(suspended.listing?.path, '/root')
+  assert.deepEqual(suspended.selectedPaths, ['/root/.bashrc'])
+  assert.equal(suspended.followTerminal, true)
+  assert.equal(suspended.loading, false)
+  assert.equal(suspended.error, '')
+  assert.equal(suspended.failedRequestPath, '')
+  assert.equal(suspended.pendingTerminalPath, '')
+  assert.equal(suspended.lastTerminalSyncPath, '')
+  assert.equal(suspended.syncStatus, '')
+  assert.equal(suspended.syncError, '')
+  assert.equal(suspended.cwdRefresh.phase, 'idle')
+  assert.equal(suspended.requestSequence, 8)
+  assert.equal(
+    completeDirectoryRequest(
+      suspended,
+      request.requestSequence,
+      listing('/root/.termous/runtime'),
+    ),
+    suspended,
+  )
+  assert.deepEqual(getSessionFilesNavigationState(suspended, '', ''), {
+    committedPath: '/root',
+    pendingPath: '',
+    refreshing: false,
+  })
+})
+
+test('文件连接恢复后目录跟随只读取终端最新确认路径', () => {
+  const following = {
+    ...createSessionFilesViewState('/root'),
+    followTerminal: true,
+    listing: listing('/root'),
+  }
+
+  assert.equal(
+    resolveRecoveredSessionFilesDirectory(following, '/srv', '/tmp/latest'),
+    '/tmp/latest',
+  )
+  assert.equal(
+    resolveRecoveredSessionFilesDirectory(following, '/srv', '/opt/final'),
+    '/opt/final',
+  )
+  assert.equal(
+    resolveRecoveredSessionFilesDirectory(following, '/srv', ''),
+    '/root',
+  )
+  assert.equal(
+    resolveRecoveredSessionFilesDirectory({
+      ...following,
+      followTerminal: false,
+    }, '/srv', '/tmp/latest'),
+    '/root',
+  )
 })
