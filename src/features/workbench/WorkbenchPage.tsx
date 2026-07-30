@@ -129,6 +129,7 @@ interface TerminalSearchState {
 
 interface PendingTerminalSearchRequest {
   sessionId: string
+  sourceSessionId: string | null
   initialQuery: string
 }
 
@@ -216,7 +217,7 @@ export function WorkbenchPage({
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
-  const { searchActive, clearActiveSearch, sendTextToSession } = useTerminalRuntime()
+  const { searchActive, clearActiveSearch, focusSession, sendTextToSession } = useTerminalRuntime()
   const [detailsCollapsed, setDetailsCollapsed] = usePersistentBooleanState(
     'termous.ui.workbench.detailsCollapsed.v1',
     false,
@@ -266,7 +267,7 @@ export function WorkbenchPage({
   const [snippetSelectedTags, setSnippetSelectedTags] = useState<string[]>([])
   const [snippetSelectedGroupId, setSnippetSelectedGroupId] = useState('')
   const [collapsedSnippetGroups, setCollapsedSnippetGroups] = useState<Set<string>>(() => new Set())
-  const [terminalSearch, setTerminalSearch] = useState<TerminalSearchState>({
+  const [terminalSearch, setTerminalSearchState] = useState<TerminalSearchState>({
     open: false,
     sessionId: null,
     query: '',
@@ -274,6 +275,11 @@ export function WorkbenchPage({
     regex: false,
     result: emptyTerminalSearchResult(),
   })
+  const terminalSearchRef = useRef(terminalSearch)
+  const commitTerminalSearch = useCallback((next: TerminalSearchState) => {
+    terminalSearchRef.current = next
+    setTerminalSearchState(next)
+  }, [])
   const [sessionTabPreferences, setSessionTabPreferences] = usePersistentJsonState<SessionTabPreferenceMap>(
     'termous.ui.workbench.sessionTabPreferences.v1',
     {},
@@ -697,39 +703,59 @@ export function WorkbenchPage({
   }, [colorSessionId, data.sessions, renamingSessionId, setSessionTabPreferences])
 
   const closeTerminalSearch = useCallback(() => {
-    clearActiveSearch(terminalSearch.sessionId ?? activeSession?.id)
+    const current = terminalSearchRef.current
+    const sessionId = current.sessionId ?? activeSession?.id
+    clearActiveSearch(sessionId)
     setPendingSearchRequest(null)
-    setTerminalSearch((current) => ({
+    commitTerminalSearch({
       ...current,
       open: false,
       sessionId: null,
       query: '',
       result: emptyTerminalSearchResult(),
-    }))
-  }, [activeSession?.id, clearActiveSearch, terminalSearch.sessionId])
+    })
+    if (sessionId) {
+      window.setTimeout(() => {
+        if (!terminalSearchRef.current.open) {
+          focusSession(sessionId)
+        }
+      }, 0)
+    }
+  }, [activeSession?.id, clearActiveSearch, commitTerminalSearch, focusSession])
 
   const openTerminalSearch = useCallback((sessionId: string, initialQuery = '') => {
+    const current = terminalSearchRef.current
+    if (current.sessionId && current.sessionId !== sessionId) {
+      clearActiveSearch(current.sessionId)
+    }
+    if (!initialQuery) {
+      clearActiveSearch(sessionId)
+    }
     const result = initialQuery
       ? searchActive(
           initialQuery,
-          { caseSensitive: terminalSearch.caseSensitive, regex: terminalSearch.regex },
+          { caseSensitive: current.caseSensitive, regex: current.regex },
           'next',
           sessionId,
         )
       : emptyTerminalSearchResult()
-    setTerminalSearch((current) => ({
+    commitTerminalSearch({
       ...current,
       open: true,
       sessionId,
       query: initialQuery,
       result,
-    }))
-  }, [searchActive, terminalSearch.caseSensitive, terminalSearch.regex])
+    })
+  }, [clearActiveSearch, commitTerminalSearch, searchActive])
 
   const requestSessionSearch = useCallback(
     (sessionId: string, initialQuery = '') => {
       if (activeSession?.id !== sessionId) {
-        setPendingSearchRequest({ sessionId, initialQuery })
+        setPendingSearchRequest({
+          sessionId,
+          sourceSessionId: activeSession?.id ?? null,
+          initialQuery,
+        })
         onSelectSession(sessionId)
         return
       }
@@ -768,79 +794,79 @@ export function WorkbenchPage({
 
   const runSearch = useCallback(
     (direction: TerminalSearchDirection) => {
-      setTerminalSearch((current) => {
-        if (!current.open || !current.query || current.sessionId !== activeSession?.id) {
-          return current
-        }
-        const result = searchActive(
-          current.query,
-          { caseSensitive: current.caseSensitive, regex: current.regex },
-          direction,
-          current.sessionId ?? activeSession.id,
-        )
-        return { ...current, result }
-      })
+      const current = terminalSearchRef.current
+      if (!current.open || !current.query || current.sessionId !== activeSession?.id) {
+        return
+      }
+      const result = searchActive(
+        current.query,
+        { caseSensitive: current.caseSensitive, regex: current.regex },
+        direction,
+        current.sessionId ?? activeSession.id,
+      )
+      commitTerminalSearch({ ...current, result })
     },
-    [activeSession?.id, searchActive],
+    [activeSession?.id, commitTerminalSearch, searchActive],
   )
 
   const updateSearchQuery = useCallback(
     (query: string) => {
-      setTerminalSearch((current) => {
-        if (query === current.query) {
-          return current
-        }
-        const next = { ...current, query }
-        if (!current.open || current.sessionId !== activeSession?.id) {
-          return next
-        }
-        if (!query) {
-          clearActiveSearch(current.sessionId ?? undefined)
-          return { ...next, result: emptyTerminalSearchResult() }
-        }
-        const result = searchActive(
-          query,
-          { caseSensitive: current.caseSensitive, regex: current.regex },
-          'next',
-          current.sessionId ?? undefined,
-        )
-        return { ...next, result }
-      })
+      const current = terminalSearchRef.current
+      if (query === current.query) {
+        return
+      }
+      const next = { ...current, query }
+      if (!current.open || current.sessionId !== activeSession?.id) {
+        commitTerminalSearch(next)
+        return
+      }
+      if (!query) {
+        clearActiveSearch(current.sessionId ?? undefined)
+        commitTerminalSearch({ ...next, result: emptyTerminalSearchResult() })
+        return
+      }
+      const result = searchActive(
+        query,
+        { caseSensitive: current.caseSensitive, regex: current.regex },
+        'next',
+        current.sessionId ?? undefined,
+      )
+      commitTerminalSearch({ ...next, result })
     },
-    [activeSession?.id, clearActiveSearch, searchActive],
+    [activeSession?.id, clearActiveSearch, commitTerminalSearch, searchActive],
   )
 
   const toggleSearchCase = useCallback(() => {
-    setTerminalSearch((current) => {
-      const next = { ...current, caseSensitive: !current.caseSensitive }
-      if (!next.open || !next.query || next.sessionId !== activeSession?.id) {
-        return next
-      }
-      const result = searchActive(
-        next.query,
-        { caseSensitive: next.caseSensitive, regex: next.regex },
-        'next',
-        next.sessionId ?? undefined,
-      )
-      return { ...next, result }
-    })
-  }, [activeSession?.id, searchActive])
+    const current = terminalSearchRef.current
+    const next = { ...current, caseSensitive: !current.caseSensitive }
+    if (!next.open || !next.query || next.sessionId !== activeSession?.id) {
+      commitTerminalSearch(next)
+      return
+    }
+    const result = searchActive(
+      next.query,
+      { caseSensitive: next.caseSensitive, regex: next.regex },
+      'next',
+      next.sessionId ?? undefined,
+    )
+    commitTerminalSearch({ ...next, result })
+  }, [activeSession?.id, commitTerminalSearch, searchActive])
 
   const toggleSearchRegex = useCallback(() => {
-    setTerminalSearch((current) => {
-      const next = { ...current, regex: !current.regex }
-      if (!next.open || !next.query || next.sessionId !== activeSession?.id) {
-        return next
-      }
-      const result = searchActive(
-        next.query,
-        { caseSensitive: next.caseSensitive, regex: next.regex },
-        'next',
-        next.sessionId ?? undefined,
-      )
-      return { ...next, result }
-    })
-  }, [activeSession?.id, searchActive])
+    const current = terminalSearchRef.current
+    const next = { ...current, regex: !current.regex }
+    if (!next.open || !next.query || next.sessionId !== activeSession?.id) {
+      commitTerminalSearch(next)
+      return
+    }
+    const result = searchActive(
+      next.query,
+      { caseSensitive: next.caseSensitive, regex: next.regex },
+      'next',
+      next.sessionId ?? undefined,
+    )
+    commitTerminalSearch({ ...next, result })
+  }, [activeSession?.id, commitTerminalSearch, searchActive])
 
   const updateTerminalTabDrag = useCallback((next: TerminalTabDragState | null) => {
     terminalTabDragRef.current = next
@@ -1148,12 +1174,23 @@ export function WorkbenchPage({
   }, [])
 
   useEffect(() => {
-    if (!pendingSearchRequest || activeSession?.id !== pendingSearchRequest.sessionId) {
+    if (!pendingSearchRequest) {
       return
     }
-    openTerminalSearch(pendingSearchRequest.sessionId, pendingSearchRequest.initialQuery)
-    setPendingSearchRequest(null)
-  }, [activeSession?.id, openTerminalSearch, pendingSearchRequest])
+    if (!data.sessions.some((session) => session.id === pendingSearchRequest.sessionId)) {
+      setPendingSearchRequest(null)
+      return
+    }
+    const activeSessionId = activeSession?.id ?? null
+    if (activeSessionId === pendingSearchRequest.sessionId) {
+      openTerminalSearch(pendingSearchRequest.sessionId, pendingSearchRequest.initialQuery)
+      setPendingSearchRequest(null)
+      return
+    }
+    if (activeSessionId !== pendingSearchRequest.sourceSessionId) {
+      setPendingSearchRequest(null)
+    }
+  }, [activeSession?.id, data.sessions, openTerminalSearch, pendingSearchRequest])
 
   useEffect(() => {
     if (!filesPathNavigationIntent) {
