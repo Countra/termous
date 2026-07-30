@@ -18,25 +18,25 @@
   </p>
 </div>
 
-Termous brings SSH connections, host management, remote files, port forwarding, system monitoring, firewall tools, and reusable commands into one desktop workspace. It is built for developers, operators, and technical teams who move between many servers every day, with a focus on less context switching, fewer mistakes, and clearer connection state.
+Termous brings SSH connections, hosts and credentials, remote files, server operations, network forwarding, and reusable commands into one desktop workspace. It is built for developers, operators, and technical teams who move between many servers every day, with a focus on less context switching, fewer mistakes, and clear context across terminals, files, and host state.
 
 ## Why Termous
 
 | Problem | How Termous Helps |
 | --- | --- |
-| Hosts, credentials, terminals, and file tools are scattered | Manage connections, files, and operations from one workstation |
+| Hosts, credentials, terminals, and file tools are scattered | Manage connections, files, and remote operations from one workstation |
+| Complex networks require several connection tools | Configure a jump host or HTTP / SOCKS5 proxy per host and share the route across SSH, SFTP, and forwarding |
 | Multiple SSH sessions are hard to track | Keep context clear with tabs, colors, pinning, duplication, and split panes |
-| Remote file work is slower than it should be | Use SFTP, drag-and-drop transfers, bookmarks, local path mappings, and online viewing or editing |
-| Common commands are typed repeatedly | Save commands as snippets and insert or send them to the active session |
-| Troubleshooting lacks a single view | Inspect host details, system information, monitoring, firewall rules, and port forwarding together |
+| Terminals and remote files require constant switching | Use SFTP, directory following, bookmarks, and the workstation file panel in the same session |
+| Common commands and server actions are repeated | Use snippets, Shell aliases, and integrated process, service, and Docker management |
 
 ## Quick Start
 
 1. Download the installer for your platform from [Releases](https://github.com/Countra/termous/releases).
-2. Open Termous, add a host, and choose password, private key, or private key passphrase authentication.
+2. Open Termous, add a credential and host, then configure a jump host or connection proxy when needed.
 3. Click "Connect" in the top bar and choose the target host to enter the SSH workstation.
-4. Use the right-side workspace to inspect overview, system information, monitoring, firewall, and port forwarding.
-5. Use the "Files" page to manage remote directories, bookmarks, local path mappings, and transfers.
+4. Use the right-side workspace for files, system information, monitoring, processes, services, Docker, firewall, port forwarding, aliases, and snippets.
+5. When you need more space, use the standalone "Files" page for remote directories, bookmarks, local download locations, and transfers.
 
 ## Highlights
 
@@ -44,36 +44,51 @@ Termous brings SSH connections, host management, remote files, port forwarding, 
 
 - Multiple SSH session tabs with duplication, renaming, pinning, and color labels.
 - Terminal split panes for logs, commands, and environment comparisons.
-- Local PowerShell / CMD sessions.
+- Terminal search and a context-aware menu for copy, find, paste, opening supported HTTP/HTTPS links, and locating remote paths in the workstation file panel.
+- Bidirectional directory following between the terminal and workstation file panel, with compact remote bookmarks.
+- Local PowerShell / CMD sessions on Windows.
 - Terminal font, size, line height, letter spacing, cursor, and theme settings.
 
-### Hosts And Credentials
+### Hosts, Credentials, And Connection Proxies
 
 - Host groups, tags, favorites, recent hosts, and latency checks.
-- Password, private key, and private key passphrase modes.
+- Password and private-key authentication, including encrypted private keys associated with passphrase credentials.
 - Custom host icons, notes, jump hosts, and platform information.
+- Per-host unauthenticated HTTP or SOCKS5 proxies, with no automatic direct fallback after a proxy failure.
+- One host-key trust flow shared by SSH, jump hosts, SFTP, and port forwarding.
 - Credentials are managed separately from hosts to avoid repeating sensitive data.
 
-### Remote Files
+### Remote Files And Directory Following
 
 - Multi-session SFTP file management.
 - Upload, download, move, delete, rename, and permission management.
 - Drag uploads into the current directory or a specific folder.
-- Remote bookmarks, local path shortcuts, and transfer history.
+- Remote bookmarks, local download locations, and a transfer list with live progress.
 - Online text file editing and image preview.
+- Bidirectional directory sync between the terminal and workstation file panel, with the last successful directory preserved and manual recovery available after a disconnect.
 
-### Operations
+### Server Operations
 
-- Reusable command snippets.
-- Local forwarding, remote forwarding, and dynamic proxy.
 - Linux system information.
 - CPU, memory, network, and disk monitoring.
+- Linux process browsing, search, and termination.
+- systemd service state, controls, and logs.
+- Docker container state, controls, details, and logs.
 - iptables / nftables firewall rule management and persistence assistance.
 
-### Desktop Experience
+### Commands And Networking
+
+- Reusable snippets with groups, variables, and send-to-session actions.
+- Termous-managed command aliases for Bash, Zsh, and Fish.
+- Local forwarding, remote forwarding, and dynamic proxy.
+- Running forwards expose connection counts, cumulative traffic, live send/receive rates, restart, and stop actions.
+
+### Data, Security, And Desktop Experience
 
 - Custom desktop window, tray menu, and minimize to tray.
 - Dark and light themes.
+- In-app update checks, downloads, and installation.
+- Encrypted `.tobp` backups with full, merge, and selective restore modes.
 - Connection cleanup reminder before closing.
 - Simplified Chinese and English UI.
 
@@ -81,13 +96,13 @@ Termous brings SSH connections, host management, remote files, port forwarding, 
 
 - Log in to multiple Linux servers during daily work.
 - Switch frequently between SSH sessions and remote files.
-- Monitor resources while reading configuration files and running diagnostics.
+- Monitor resources, manage processes and services, read configuration files, and run diagnostics.
 - Create temporary port forwards or proxy channels.
-- Save common server commands as reusable snippets.
+- Save common server commands as reusable snippets or remote Shell aliases.
 
 ## Security And Privacy
 
-Termous is designed as a local desktop workstation. It keeps connection data and credentials on the user's own device whenever possible, and it is built around local control, visible state, and reducing accidental operations.
+Termous is designed as a local desktop workstation. Credentials are managed by a local Vault, and SSH host identity is verified through a unified fingerprint trust flow. Encrypted backups do not export the current device's Vault master key, and downloaded updates are verified before installation. Connection proxies currently accept only unauthenticated HTTP and SOCKS5 endpoints so proxy credentials do not enter host configuration, logs, or backups.
 
 ## Platform Support
 

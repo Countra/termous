@@ -6,6 +6,7 @@ import type {
   UpdateSnapshot,
 } from './updateManager'
 import type { UpdateRuntimeSummary } from './updateRuntime'
+import type { ExternalUrlOpenResult } from './externalUrl'
 import {
   normalizeRuntimeSummaryRefreshRequest,
   type UpdateRuntimeSummaryRefreshRequest,
@@ -137,6 +138,10 @@ contextBridge.exposeInMainWorld('termous', {
       clipboard.writeText(text)
       return Promise.resolve(true)
     },
+  },
+  external: {
+    openUrl: (url: string) =>
+      ipcRenderer.invoke('external:open-url', url) as Promise<ExternalUrlOpenResult>,
   },
   windowControls: {
     minimize: () => ipcRenderer.invoke('window:minimize'),

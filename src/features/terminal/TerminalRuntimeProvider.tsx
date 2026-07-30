@@ -27,13 +27,20 @@ import {
   TerminalRuntimeContext,
   type TerminalRuntimeContextValue,
   type TerminalClipboardAction,
-  type TerminalClipboardOptions,
   type TerminalSearchDirection,
   type TerminalSearchOptions,
   type TerminalSearchResult,
   type TerminalSendResult,
   type TerminalViewportOptions,
 } from './terminalRuntimeContext'
+import {
+  captureTerminalPointerTarget,
+  classifyTerminalContextValue,
+  normalizeTerminalSearchSeed,
+  type TerminalContextPointer,
+  type TerminalContextSelectionRange,
+  type TerminalContextSnapshot,
+} from './terminalContextTarget'
 import {
   TerminalCwdRuntime,
   type SessionCwdRequestError,
@@ -278,7 +285,7 @@ export function TerminalRuntimeProvider({
   )
 
   const copyEntrySelection = useCallback(
-    async (entry: TerminalEntry, options?: TerminalClipboardOptions): Promise<TerminalClipboardAction> => {
+    async (entry: TerminalEntry): Promise<TerminalClipboardAction> => {
       if (!entry.terminal.hasSelection()) {
         return 'none'
       }
@@ -288,9 +295,6 @@ export function TerminalRuntimeProvider({
       }
       try {
         await writeClipboardText(selectedText)
-        if (options?.clearSelectionAfterCopy) {
-          entry.terminal.clearSelection()
-        }
         return 'copied'
       } catch {
         notifyClipboardError('terminal.copyFailed')
@@ -310,6 +314,18 @@ export function TerminalRuntimeProvider({
         if (!text) {
           return 'empty'
         }
+        const viewport = getViewportForSession(entry.sessionId)
+        if (
+          entry.disposed
+          || entriesRef.current.get(entry.sessionId) !== entry
+          || !isEntryWritable(entry)
+          || !entry.transport.isLive()
+          || activeSessionIdRef.current !== entry.sessionId
+          || !viewport?.active
+          || !viewport.host?.isConnected
+        ) {
+          return 'none'
+        }
         entry.terminal.paste(text)
         entry.terminal.focus()
         return 'pasted'
@@ -318,32 +334,74 @@ export function TerminalRuntimeProvider({
         return 'failed'
       }
     },
-    [isEntryWritable, notifyClipboardError],
+    [getViewportForSession, isEntryWritable, notifyClipboardError],
   )
 
-  const copyActiveSelection = useCallback(async () => {
-    const entry = getEntry()
-    return entry ? copyEntrySelection(entry) : 'none'
-  }, [copyEntrySelection, getEntry])
+  const pasteSessionClipboard = useCallback(
+    async (sessionId: string) => {
+      const entry = getEntry(sessionId)
+      return entry ? pasteEntryClipboard(entry) : 'none'
+    },
+    [getEntry, pasteEntryClipboard],
+  )
 
-  const pasteActiveClipboard = useCallback(async () => {
-    const entry = getEntry()
-    return entry ? pasteEntryClipboard(entry) : 'none'
-  }, [getEntry, pasteEntryClipboard])
+  const copyText = useCallback(
+    async (text: string): Promise<TerminalClipboardAction> => {
+      if (!text) {
+        return 'empty'
+      }
+      try {
+        await writeClipboardText(text)
+        return 'copied'
+      } catch {
+        notifyClipboardError('terminal.copyFailed')
+        return 'failed'
+      }
+    },
+    [notifyClipboardError],
+  )
 
-  const copyOrPasteActive = useCallback(async (options?: TerminalClipboardOptions) => {
-    const entry = getEntry()
-    if (!entry) {
-      return 'none'
-    }
-    if (entry.terminal.hasSelection()) {
-      return copyEntrySelection(entry, options)
-    }
-    if (isEntryEnded(entry)) {
-      return 'none'
-    }
-    return pasteEntryClipboard(entry)
-  }, [copyEntrySelection, getEntry, isEntryEnded, pasteEntryClipboard])
+  const captureSessionContext = useCallback(
+    (
+      sessionId: string,
+      pointer?: TerminalContextPointer,
+    ): TerminalContextSnapshot | null => {
+      const entry = getEntry(sessionId)
+      if (!entry || entry.disposed) {
+        return null
+      }
+      const session = sessionsRef.current.get(sessionId)
+      const selectionText = entry.terminal.hasSelection()
+        ? entry.terminal.getSelection()
+        : ''
+      const selectionTarget = selectionText
+        ? classifyTerminalContextValue(selectionText, 'selection')
+        : null
+      const target = selectionTarget ?? (
+        selectionText || !pointer
+          ? null
+          : captureTerminalPointerTarget(entry.terminal, pointer)
+      )
+      const writable = Boolean(
+        session?.status === 'connected' && entry.transport.isLive(),
+      )
+      const disconnected = Boolean(
+        isEndedSessionStatus(session?.status)
+        || entry.transportState === 'attach_failed'
+        || entry.transportState === 'ended',
+      )
+      return {
+        sessionId,
+        selectionText,
+        searchSeed: normalizeTerminalSearchSeed(selectionText),
+        target,
+        mouseTrackingMode: entry.terminal.modes.mouseTrackingMode,
+        writable,
+        disconnected,
+      }
+    },
+    [getEntry],
+  )
 
   const searchActive = useCallback(
     (
@@ -674,6 +732,77 @@ export function TerminalRuntimeProvider({
     entry.terminal.focus()
   }, [isEntryEnded])
 
+  const focusSession = useCallback((sessionId: string) => {
+    const entry = entriesRef.current.get(sessionId)
+    const viewport = getViewportForSession(sessionId)
+    if (
+      !entry
+      || entry.disposed
+      || !viewport?.active
+      || !viewport.host?.isConnected
+    ) {
+      return false
+    }
+    entry.terminal.focus()
+    return true
+  }, [getViewportForSession])
+
+  const selectSessionContextRange = useCallback((
+    sessionId: string,
+    range: TerminalContextSelectionRange,
+    expectedText: string,
+  ) => {
+    const entry = entriesRef.current.get(sessionId)
+    if (
+      !entry
+      || entry.disposed
+      || range.column < 0
+      || range.row < 0
+      || range.length <= 0
+    ) {
+      return false
+    }
+    try {
+      entry.terminal.select(range.column, range.row, range.length)
+      if (entry.terminal.getSelection() !== expectedText) {
+        entry.terminal.clearSelection()
+        return false
+      }
+      return true
+    } catch {
+      entry.terminal.clearSelection()
+      return false
+    }
+  }, [])
+
+  const clearSessionContextSelection = useCallback((sessionId: string) => {
+    const entry = entriesRef.current.get(sessionId)
+    if (
+      !entry
+      || entry.disposed
+      || !entry.terminal.hasSelection()
+    ) {
+      return false
+    }
+    entry.terminal.clearSelection()
+    return true
+  }, [])
+
+  const selectAllSession = useCallback((sessionId: string) => {
+    const entry = entriesRef.current.get(sessionId)
+    const viewport = getViewportForSession(sessionId)
+    if (
+      !entry
+      || entry.disposed
+      || !viewport?.active
+      || !viewport.host?.isConnected
+    ) {
+      return false
+    }
+    entry.terminal.selectAll()
+    return true
+  }, [getViewportForSession])
+
   const scheduleSessionResize = useCallback((sessionId: string) => {
     const viewport = getViewportForSession(sessionId)
     if (!viewport?.host) {
@@ -730,24 +859,32 @@ export function TerminalRuntimeProvider({
       disposeAll,
       searchActive,
       clearActiveSearch,
-      copyActiveSelection,
-      pasteActiveClipboard,
-      copyOrPasteActive,
+      captureSessionContext,
+      pasteSessionClipboard,
+      copyText,
+      selectSessionContextRange,
+      clearSessionContextSelection,
+      selectAllSession,
+      focusSession,
       sendTextToSession,
       sendTextToActive,
     }),
     [
       clearActiveSearch,
-      copyActiveSelection,
-      copyOrPasteActive,
+      clearSessionContextSelection,
+      captureSessionContext,
+      copyText,
       disposeAll,
       disposeSession,
       focusActive,
-      pasteActiveClipboard,
+      focusSession,
+      pasteSessionClipboard,
       registerViewport,
       scheduleActiveResize,
       scheduleSessionResize,
       searchActive,
+      selectSessionContextRange,
+      selectAllSession,
       sendTextToActive,
       sendTextToSession,
     ],

@@ -908,7 +908,17 @@ export function useTermousData() {
         const linkedFileSessionIds = data.fileSessions
           .filter((session) => session.source_session_id === sessionId)
           .map((session) => session.id)
-        await api.deleteSession(sessionId)
+        try {
+          await api.deleteSession(sessionId)
+        } catch (error) {
+          if (
+            !(error instanceof TermousApiError)
+            || error.status !== 404
+            || error.code !== 'SESSION_NOT_FOUND'
+          ) {
+            throw error
+          }
+        }
         inventoryRequestRevisionsRef.current.delete(sessionId)
         inventoryEventRevisionsRef.current.delete(sessionId)
         inventoryStateSignaturesRef.current.delete(sessionId)

@@ -1,4 +1,17 @@
 import { createContext, useContext } from 'react'
+import type {
+  TerminalContextPointer,
+  TerminalContextSelectionRange,
+  TerminalContextSnapshot,
+} from './terminalContextTarget'
+
+export type {
+  TerminalContextPointer,
+  TerminalContextSelectionRange,
+  TerminalContextSnapshot,
+  TerminalContextTarget,
+  TerminalMouseTrackingMode,
+} from './terminalContextTarget'
 
 export interface TerminalSearchOptions {
   caseSensitive: boolean
@@ -17,10 +30,6 @@ export type TerminalSearchDirection = 'next' | 'previous'
 export type TerminalClipboardAction = 'copied' | 'pasted' | 'empty' | 'none' | 'failed'
 
 export type TerminalSendResult = 'sent' | 'missing_session' | 'not_ready' | 'failed'
-
-export interface TerminalClipboardOptions {
-  clearSelectionAfterCopy?: boolean
-}
 
 export interface TerminalViewportOptions {
   viewportId?: string
@@ -44,9 +53,20 @@ export interface TerminalRuntimeContextValue {
     sessionId?: string,
   ) => TerminalSearchResult
   clearActiveSearch: (sessionId?: string) => void
-  copyActiveSelection: () => Promise<TerminalClipboardAction>
-  pasteActiveClipboard: () => Promise<TerminalClipboardAction>
-  copyOrPasteActive: (options?: TerminalClipboardOptions) => Promise<TerminalClipboardAction>
+  captureSessionContext: (
+    sessionId: string,
+    pointer?: TerminalContextPointer,
+  ) => TerminalContextSnapshot | null
+  pasteSessionClipboard: (sessionId: string) => Promise<TerminalClipboardAction>
+  copyText: (text: string) => Promise<TerminalClipboardAction>
+  selectSessionContextRange: (
+    sessionId: string,
+    range: TerminalContextSelectionRange,
+    expectedText: string,
+  ) => boolean
+  clearSessionContextSelection: (sessionId: string) => boolean
+  selectAllSession: (sessionId: string) => boolean
+  focusSession: (sessionId: string) => boolean
   sendTextToSession: (sessionId: string, text: string, options?: { execute?: boolean }) => TerminalSendResult
   sendTextToActive: (text: string, options?: { execute?: boolean }) => TerminalSendResult
 }

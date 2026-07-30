@@ -64,6 +64,11 @@ import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
 import { WorkbenchFileList } from './WorkbenchFileList'
 import { WorkbenchTransferBar } from './WorkbenchTransferBar'
 import {
+  resolveWorkbenchFilesPathNavigationAction,
+  resolveWorkbenchFilesPathNavigationTarget,
+  type WorkbenchFilesPathNavigationIntent,
+} from './workbenchFilesPathNavigation'
+import {
   getSessionFilesNavigationState,
   isSessionFilesCwdRefreshPending,
   shouldShowSessionFilesInitialLoading,
@@ -98,6 +103,8 @@ interface WorkbenchFilesPanelProps {
     id: string,
     input: FileBookmarkInput,
   ) => Promise<FileBookmark>
+  pathNavigationIntent: WorkbenchFilesPathNavigationIntent | null
+  onConsumePathNavigationIntent: (requestId: number) => void
   onConnectFileSession: (
     hostId: string,
     sourceSessionId?: string,
@@ -137,6 +144,8 @@ function WorkbenchFilesPanelContent({
   onManageBookmarks,
   onCreateFileBookmark,
   onUpdateFileBookmark,
+  pathNavigationIntent,
+  onConsumePathNavigationIntent,
   onConnectFileSession,
   onReconnectSession,
   onReconnectFileSession,
@@ -184,6 +193,25 @@ function WorkbenchFilesPanelContent({
   const breadcrumbPinnedToEndRef = useRef(true)
   const uploadRefreshTasksRef = useRef(new Map<string, TrackedUploadRefresh>())
   const completedUploadPathsRef = useRef(new Map<string, Set<string>>())
+  const pathNavigationRequestRef = useRef<{
+    requestId: number
+    fileSessionId: string
+    connectionGeneration: number
+    controller: AbortController
+  } | null>(null)
+  const pathNavigationRecoveryAttemptRef = useRef<number | null>(null)
+  const pathNavigationIntentRef = useRef(pathNavigationIntent)
+  const fileSessionRef = useRef(files.fileSession)
+  const sourceSessionIdRef = useRef(files.sourceSessionId)
+  const navigateDirectoryRef = useRef(files.navigateDirectory)
+  const reconnectFileSessionRef = useRef(files.reconnect)
+  const consumePathNavigationIntentRef = useRef(onConsumePathNavigationIntent)
+  pathNavigationIntentRef.current = pathNavigationIntent
+  fileSessionRef.current = files.fileSession
+  sourceSessionIdRef.current = files.sourceSessionId
+  navigateDirectoryRef.current = files.navigateDirectory
+  reconnectFileSessionRef.current = files.reconnect
+  consumePathNavigationIntentRef.current = onConsumePathNavigationIntent
   const followTerminal = Boolean(files.viewState?.followTerminal)
   const cwdPendingPath = files.connected
     ? files.viewState?.pendingTerminalPath || (
@@ -229,6 +257,8 @@ function WorkbenchFilesPanelContent({
     && Boolean(files.cwdState?.confirmed_path)
     && normalizeRemotePath(files.cwdState?.confirmed_path || '/') === pendingDirectoryPath
   const fileSessionId = files.fileSession?.id
+  const fileSessionStatus = files.fileSession?.status
+  const fileSessionConnectionGeneration = files.fileSession?.connection_generation ?? 0
   const pathInputId = `workbench-remote-path-${files.sourceSessionId || 'inactive'}`
   const pathErrorId = `${pathInputId}-error`
   const loadDirectory = files.loadDirectory
@@ -345,6 +375,184 @@ function WorkbenchFilesPanelContent({
     setTextEditorPath(null)
     setImageViewerPath(null)
   }, [fileSessionId, files.sourceSessionId])
+
+  useEffect(() => {
+    if (pathNavigationRecoveryAttemptRef.current !== pathNavigationIntent?.requestId) {
+      pathNavigationRecoveryAttemptRef.current = null
+    }
+    const currentRequest = pathNavigationRequestRef.current
+    if (
+      currentRequest
+      && currentRequest.requestId !== pathNavigationIntent?.requestId
+    ) {
+      currentRequest.controller.abort()
+      pathNavigationRequestRef.current = null
+    }
+    const intentMatchesActiveSession = Boolean(
+      !enabled
+      ? false
+      : pathNavigationIntent
+        && session?.id === pathNavigationIntent.sourceSessionId
+        && files.sourceSessionId === pathNavigationIntent.sourceSessionId
+    )
+    if (!pathNavigationIntent || !intentMatchesActiveSession) {
+      return
+    }
+
+    const requestId = pathNavigationIntent.requestId
+    const consumeIntent = () => {
+      if (pathNavigationIntentRef.current?.requestId !== requestId) {
+        return
+      }
+      const request = pathNavigationRequestRef.current
+      if (request?.requestId === requestId) {
+        request.controller.abort()
+        pathNavigationRequestRef.current = null
+      }
+      if (pathNavigationRecoveryAttemptRef.current === requestId) {
+        pathNavigationRecoveryAttemptRef.current = null
+      }
+      consumePathNavigationIntentRef.current(requestId)
+    }
+    const navigationAction = resolveWorkbenchFilesPathNavigationAction({
+      fileSessionStatus,
+      recoveryCanRetry: files.recoveryCanRetry,
+      recoveryBusy: files.recoveryBusy,
+      recoveryAttempted: pathNavigationRecoveryAttemptRef.current === requestId,
+    })
+    if (navigationAction === 'recover') {
+      pathNavigationRecoveryAttemptRef.current = requestId
+      void reconnectFileSessionRef.current().catch(() => {
+        if (pathNavigationIntentRef.current?.requestId !== requestId) {
+          return
+        }
+        notification.error({
+          title: t('files.reconnectFailed'),
+          duration: 4,
+          role: 'alert',
+          className: 'termous-notification',
+        })
+        consumeIntent()
+      })
+      return
+    }
+    if (navigationAction === 'fail') {
+      if (files.recoveryState.phase !== 'failed') {
+        notification.error({
+          title: t('files.reconnectFailed'),
+          duration: 4,
+          role: 'alert',
+          className: 'termous-notification',
+        })
+      }
+      consumeIntent()
+      return
+    }
+    if (
+      navigationAction !== 'navigate'
+      || !fileSessionId
+      || pathNavigationRequestRef.current?.requestId === requestId
+    ) {
+      return
+    }
+
+    const requestedFileSessionId = fileSessionId
+    const connectionGeneration = fileSessionConnectionGeneration
+    const controller = new AbortController()
+    pathNavigationRequestRef.current = {
+      requestId,
+      fileSessionId: requestedFileSessionId,
+      connectionGeneration,
+      controller,
+    }
+    const isCurrentRequest = () => {
+      const currentFileSession = fileSessionRef.current
+      return Boolean(
+        !controller.signal.aborted
+        && pathNavigationRequestRef.current?.requestId === requestId
+        && pathNavigationRequestRef.current.controller === controller
+        && pathNavigationIntentRef.current?.requestId === requestId
+        && sourceSessionIdRef.current === pathNavigationIntent.sourceSessionId
+        && currentFileSession?.id === requestedFileSessionId
+        && currentFileSession.status === 'connected'
+        && (currentFileSession.connection_generation ?? 0) === connectionGeneration
+      )
+    }
+    const consumeRequest = () => {
+      if (!isCurrentRequest()) {
+        return
+      }
+      pathNavigationRequestRef.current = null
+      consumePathNavigationIntentRef.current(requestId)
+    }
+    const notifyNavigationFailure = (description?: string) => {
+      notification.error({
+        title: t('files.directoryReadFailed'),
+        description,
+        duration: 4,
+        role: 'alert',
+        className: 'termous-notification',
+      })
+    }
+
+    void (async () => {
+      try {
+        const entry = await api.statFileSessionFile(
+          requestedFileSessionId,
+          pathNavigationIntent.path,
+          controller.signal,
+        )
+        if (!isCurrentRequest()) {
+          return
+        }
+        const target = resolveWorkbenchFilesPathNavigationTarget(entry)
+        if (!target) {
+          notifyNavigationFailure(t('workbench.files.invalidPath'))
+          consumeRequest()
+          return
+        }
+        const accepted = await navigateDirectoryRef.current(target.directoryPath)
+        if (!isCurrentRequest()) {
+          return
+        }
+        if (!accepted) {
+          notifyNavigationFailure()
+        }
+        consumeRequest()
+      } catch {
+        if (!isCurrentRequest()) {
+          return
+        }
+        notifyNavigationFailure()
+        consumeRequest()
+      }
+    })()
+
+    return () => {
+      if (pathNavigationRequestRef.current?.controller === controller) {
+        controller.abort()
+        pathNavigationRequestRef.current = null
+        if (pathNavigationIntentRef.current?.requestId === requestId) {
+          pathNavigationRecoveryAttemptRef.current = null
+          consumePathNavigationIntentRef.current(requestId)
+        }
+      }
+    }
+  }, [
+    api,
+    enabled,
+    fileSessionConnectionGeneration,
+    fileSessionId,
+    fileSessionStatus,
+    files.recoveryBusy,
+    files.recoveryCanRetry,
+    files.recoveryState.phase,
+    files.sourceSessionId,
+    notification,
+    pathNavigationIntent,
+    session?.id,
+    t,
+  ])
 
   useEffect(() => {
     if (!editingPath) {

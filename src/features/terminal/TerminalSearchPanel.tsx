@@ -35,27 +35,12 @@ export function TerminalSearchPanel({
   const countLabel = hasError ? t('terminal.regexError') : formatSearchCount(result)
 
   useEffect(() => {
-    window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
       inputRef.current?.focus()
       inputRef.current?.select()
     }, 0)
+    return () => window.clearTimeout(timer)
   }, [])
-
-  useEffect(() => {
-    const input = inputRef.current
-    if (!input) {
-      return undefined
-    }
-    const syncValue = () => {
-      onChange(input.value)
-    }
-    input.addEventListener('input', syncValue)
-    input.addEventListener('keyup', syncValue)
-    return () => {
-      input.removeEventListener('input', syncValue)
-      input.removeEventListener('keyup', syncValue)
-    }
-  }, [onChange])
 
   return (
     <div
@@ -76,9 +61,10 @@ export function TerminalSearchPanel({
         aria-label={t('terminal.searchPlaceholder')}
         aria-invalid={hasError}
         onChange={(event) => onChange(event.target.value)}
-        onInput={(event) => onChange(event.currentTarget.value)}
-        onKeyUp={(event) => onChange(event.currentTarget.value)}
         onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing) {
+            return
+          }
           if (event.key === 'Escape') {
             event.preventDefault()
             onClose()
@@ -103,6 +89,7 @@ export function TerminalSearchPanel({
           className="terminal-search-button"
           aria-label={t('terminal.previousMatch')}
           icon={<ChevronUp size={15} />}
+          onMouseDown={(event) => event.preventDefault()}
           onClick={onPrevious}
         />
       </Tooltip>
@@ -112,6 +99,7 @@ export function TerminalSearchPanel({
           className="terminal-search-button"
           aria-label={t('terminal.nextMatch')}
           icon={<ChevronDown size={15} />}
+          onMouseDown={(event) => event.preventDefault()}
           onClick={onNext}
         />
       </Tooltip>
@@ -121,6 +109,7 @@ export function TerminalSearchPanel({
           className={`terminal-search-button terminal-search-toggle ${caseSensitive ? 'is-active' : ''}`}
           aria-label={t('terminal.matchCase')}
           aria-pressed={caseSensitive}
+          onMouseDown={(event) => event.preventDefault()}
           onClick={onToggleCase}
         >
           Aa
@@ -132,6 +121,7 @@ export function TerminalSearchPanel({
           className={`terminal-search-button terminal-search-toggle ${regex ? 'is-active' : ''}`}
           aria-label={t('terminal.useRegex')}
           aria-pressed={regex}
+          onMouseDown={(event) => event.preventDefault()}
           onClick={onToggleRegex}
         >
           .*
@@ -143,6 +133,7 @@ export function TerminalSearchPanel({
           className="terminal-search-button terminal-search-close"
           aria-label={t('app.close')}
           icon={<X size={15} />}
+          onMouseDown={(event) => event.preventDefault()}
           onClick={onClose}
         />
       </Tooltip>
