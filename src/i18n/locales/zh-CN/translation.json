@@ -749,7 +749,7 @@
       "refresh": "刷新 Docker",
       "detecting": "正在检测 Docker",
       "available": "Docker 可用",
-      "missingCli": "未安装 Docker CLI",
+      "missingCli": "未安装 Docker",
       "daemonUnavailable": "Docker daemon 不可用",
       "permissionDenied": "权限不足",
       "unknownStatus": "Docker 状态未知",

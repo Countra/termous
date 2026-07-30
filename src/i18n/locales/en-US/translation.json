@@ -749,7 +749,7 @@
       "refresh": "Refresh Docker",
       "detecting": "Detecting Docker",
       "available": "Docker available",
-      "missingCli": "Docker CLI not installed",
+      "missingCli": "Docker is not installed",
       "daemonUnavailable": "Docker daemon unavailable",
       "permissionDenied": "Permission denied",
       "unknownStatus": "Docker status unknown",

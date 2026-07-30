@@ -15,7 +15,6 @@
 }
 
 .alias-panel-header,
-.alias-panel-search-row,
 .alias-bridge-repair,
 .alias-reconnect-bar {
   min-width: 0;
@@ -120,8 +119,7 @@
 }
 
 .alias-panel-search-row {
-  padding: 4px;
-  border-radius: 11px;
+  min-width: 0;
 }
 
 .alias-panel-controls {
