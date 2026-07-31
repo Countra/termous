@@ -3,8 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - main
-      - "harness/**"
+      - "**"
   pull_request:
     branches:
       - main
@@ -49,3 +48,206 @@ jobs:
 
       - name: Build renderer
         run: pnpm run build:renderer
+
+  resolve-core:
+    name: Resolve matching Termous Core commit
+    if: >-
+      github.repository == 'Countra/termous' &&
+      github.ref_type == 'branch' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    outputs:
+      sha: ${{ steps.core.outputs.sha }}
+
+    steps:
+      - name: Resolve matching branch or main
+        id: core
+        shell: bash
+        env:
+          DEFAULT_CORE_BRANCH: main
+          FRONTEND_BRANCH: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+
+          if [[ -z "$GH_TOKEN" ]]; then
+            echo "缺少读取 Termous Core 的 TERMOUS_CORE_READ_TOKEN。" >&2
+            exit 1
+          fi
+
+          response="$(
+            gh api graphql \
+              -f query='
+                query(
+                  $owner: String!
+                  $repository: String!
+                  $matchingRef: String!
+                  $fallbackRef: String!
+                ) {
+                  repository(owner: $owner, name: $repository) {
+                    matching: ref(qualifiedName: $matchingRef) {
+                      target {
+                        oid
+                      }
+                    }
+                    fallback: ref(qualifiedName: $fallbackRef) {
+                      target {
+                        oid
+                      }
+                    }
+                  }
+                }
+              ' \
+              -f owner='Countra' \
+              -f repository='termous-core' \
+              -f matchingRef="refs/heads/$FRONTEND_BRANCH" \
+              -f fallbackRef="refs/heads/$DEFAULT_CORE_BRANCH"
+          )"
+
+          graphql_errors="$(
+            jq -r '(.errors // []) | map(.message) | join("; ")' <<<"$response"
+          )"
+          if [[ -n "$graphql_errors" ]]; then
+            echo "查询 Termous Core 分支失败: $graphql_errors" >&2
+            exit 1
+          fi
+          if ! jq -e '.data.repository | type == "object"' \
+            >/dev/null <<<"$response"; then
+            echo "Termous Core 仓库响应缺少有效数据。" >&2
+            exit 1
+          fi
+
+          matching_sha="$(
+            jq -r '.data.repository.matching.target.oid // empty' <<<"$response"
+          )"
+          fallback_sha="$(
+            jq -r '.data.repository.fallback.target.oid // empty' <<<"$response"
+          )"
+
+          if [[ -n "$matching_sha" ]]; then
+            selected_branch="$FRONTEND_BRANCH"
+            selected_sha="$matching_sha"
+          else
+            selected_branch="$DEFAULT_CORE_BRANCH"
+            selected_sha="$fallback_sha"
+            echo "Core 不存在同名分支 $FRONTEND_BRANCH，回退到 $DEFAULT_CORE_BRANCH。"
+          fi
+
+          if [[ ! "$selected_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "无法把 Core 分支 $selected_branch 解析为 40 位 commit SHA。" >&2
+            exit 1
+          fi
+
+          echo "前端分支: $FRONTEND_BRANCH"
+          echo "Core 分支: $selected_branch"
+          echo "Core commit: $selected_sha"
+          echo "sha=$selected_sha" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.platform }} ${{ matrix.arch }}
+    needs: resolve-core
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows
+            target_os: win32
+            arch: x64
+            runner: windows-latest
+          - platform: linux
+            target_os: linux
+            arch: x64
+            runner: ubuntu-24.04
+          - platform: macos
+            target_os: darwin
+            arch: x64
+            runner: macos-15-intel
+          - platform: macos
+            target_os: darwin
+            arch: arm64
+            runner: macos-15
+    env:
+      TERMOUS_ARCH: ${{ matrix.arch }}
+      TERMOUS_CORE_DIR: ${{ github.workspace }}/backend
+      TERMOUS_OUTPUT_DIR: ${{ github.workspace }}/build/${{ matrix.platform }}-${{ matrix.arch }}
+      TERMOUS_TARGET_OS: ${{ matrix.target_os }}
+      TERMOUS_VERSION: 0.0.0-ci
+      TERMOUS_WEB_DIR: ${{ github.workspace }}/web
+
+    steps:
+      - name: Checkout Termous
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 固定版本 v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          path: web
+          persist-credentials: false
+
+      - name: Checkout pinned Termous Core
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 固定版本 v6.0.2
+        with:
+          repository: Countra/termous-core
+          ref: ${{ needs.resolve-core.outputs.sha }}
+          path: backend
+          token: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # 固定版本 v4.4.0
+        with:
+          cache: false
+          package_json_file: web/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # 固定版本 v6.4.0
+        with:
+          node-version-file: web/package.json
+          package-manager-cache: false
+
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # 固定版本 v6.4.0
+        with:
+          go-version: ${{ vars.GO_VERSION || '1.25.x' }}
+          cache: false
+
+      - name: Install Linux packaging dependencies
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libopenjp2-tools
+
+      - name: Prepare Windows build
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          TERMOUS_BUILD_PHASE: prepare
+        run: ./web/scripts/ci/build-windows.ps1
+
+      - name: Prepare Unix build
+        if: matrix.platform != 'windows'
+        shell: bash
+        env:
+          TERMOUS_BUILD_PHASE: prepare
+        run: bash ./web/scripts/ci/build-unix.sh
+
+      - name: Package Windows release
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          TERMOUS_BUILD_PHASE: package
+        run: ./web/scripts/ci/build-windows.ps1
+
+      - name: Package Linux AppImage
+        if: matrix.platform == 'linux'
+        shell: bash
+        env:
+          TERMOUS_BUILD_PHASE: package
+        run: bash ./web/scripts/ci/build-unix.sh
+
+      - name: Package macOS release
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          TERMOUS_BUILD_PHASE: package
+        run: bash ./web/scripts/ci/build-unix.sh
