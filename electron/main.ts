@@ -54,6 +54,15 @@ const BACKUP_SELECTION_TTL_MS = 10 * 60 * 1000
 const SSH_KEY_FILE_MAX_BYTES = 1 << 20
 const SSH_KEY_FILE_NAME_MAX_BYTES = 255
 const SSH_PUBLIC_KEY_SUFFIX = '.pub'
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+if (!hasSingleInstanceLock) {
+  app.exit(0)
+}
+if (hasSingleInstanceLock) {
+  app.on('second-instance', () => {
+    showMainWindow()
+  })
+}
 const coreProcess = new CoreProcessManager()
 const trayController = new TermousTrayController({
   appName: APP_NAME,
@@ -1319,7 +1328,7 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(async () => {
+async function initializeApplication() {
   app.setName(APP_NAME)
   appTheme = readCachedAppTheme()
   appLanguage = currentUpdateLanguage()
@@ -1371,4 +1380,8 @@ app.whenReady().then(async () => {
   void coreProcess.initialize().then(() => {
     updateSplashPhase(coreProcess.getFatal() ? 'error' : 'workspace')
   })
-})
+}
+
+if (hasSingleInstanceLock) {
+  void app.whenReady().then(initializeApplication)
+}
