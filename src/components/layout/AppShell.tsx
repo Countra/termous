@@ -25,7 +25,6 @@ interface AppShellProps {
   page: PageKey
   appVersion: string
   windowCloseBehavior: WindowCloseBehavior
-  hasActiveRuntime: boolean
   sidebarCollapsed: boolean
   actionBusy: boolean
   onNavigate: (page: PageKey) => void
@@ -54,7 +53,6 @@ export function AppShell({
   page,
   appVersion,
   windowCloseBehavior,
-  hasActiveRuntime,
   sidebarCollapsed,
   actionBusy,
   onNavigate,
@@ -186,7 +184,6 @@ export function AppShell({
             {showWindowControls ? (
               <WindowControls
                 closeBehavior={windowCloseBehavior}
-                hasActiveRuntime={hasActiveRuntime}
                 onBeforeClose={onBeforeClose}
                 onCloseError={onCloseError}
               />

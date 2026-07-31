@@ -8,12 +8,11 @@ import type { WindowCloseBehavior } from '../../types/domain'
 
 interface WindowControlsProps {
   closeBehavior: WindowCloseBehavior
-  hasActiveRuntime: boolean
   onBeforeClose?: () => Promise<void>
   onCloseError?: (error: unknown) => void
 }
 
-export function WindowControls({ closeBehavior, hasActiveRuntime, onBeforeClose, onCloseError }: WindowControlsProps) {
+export function WindowControls({ closeBehavior, onBeforeClose, onCloseError }: WindowControlsProps) {
   const { t } = useTranslation()
   const [isMaximized, setIsMaximized] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
@@ -38,12 +37,12 @@ export function WindowControls({ closeBehavior, hasActiveRuntime, onBeforeClose,
   }, [onCloseError])
 
   const requestClose = useCallback(async () => {
-    if (closeBehavior === 'minimize_to_tray' && !hasActiveRuntime) {
+    if (closeBehavior === 'minimize_to_tray') {
       await minimizeToTray()
       return
     }
     setConfirmClose(true)
-  }, [closeBehavior, hasActiveRuntime, minimizeToTray])
+  }, [closeBehavior, minimizeToTray])
 
   const confirmAndClose = useCallback(async () => {
     setClosing(true)

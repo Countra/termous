@@ -126,23 +126,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   )
   const appVersion = buildInfo?.version ?? import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev'
   const [coreFatal, setCoreFatal] = useState<CoreFatalEvent | null>(null)
-  const hasActiveRuntime = useMemo(
-    () =>
-      data.sessions.some((session) => isSessionRuntimeActive(session.status)) ||
-      data.fileSessions.some(
-        (session) =>
-          session.status === 'connecting' ||
-          session.status === 'connected' ||
-          session.status === 'waiting_trust',
-      ) ||
-      data.forwards.some((forward) => (
-        forward.status === 'starting' ||
-        forward.status === 'waiting_host_trust' ||
-        forward.status === 'running' ||
-        forward.status === 'stopping'
-      )),
-    [data.fileSessions, data.forwards, data.sessions],
-  )
 
   const invalidateFilesBookmarkManagementRequest = useCallback(() => {
     nextFilesBookmarkManagementIntentIdRef.current += 1
@@ -873,7 +856,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             page={page}
             appVersion={appVersion}
             windowCloseBehavior={data.settings.window.close_behavior}
-            hasActiveRuntime={hasActiveRuntime}
             sidebarCollapsed={sidebarCollapsed}
             actionBusy={actionBusy}
             onNavigate={navigateToPage}
@@ -1266,10 +1248,6 @@ function isHostLauncherShortcut(event: KeyboardEvent) {
 function readTimestamp(value?: string) {
   const timestamp = new Date(value ?? '').getTime()
   return Number.isFinite(timestamp) ? timestamp : 0
-}
-
-function isSessionRuntimeActive(status: Session['status']) {
-  return status === 'connecting' || status === 'connected' || (status as string) === 'waiting_host_trust'
 }
 
 function isTrayCommand(command: unknown): command is TrayCommand {
