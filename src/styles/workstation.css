@@ -11794,7 +11794,8 @@ body.is-files-column-resizing * {
   gap: 9px;
 }
 
-.monitor-card-head > span {
+.monitor-card-head > span,
+.monitor-cpu-identity > span {
   display: inline-flex;
   width: 30px;
   height: 30px;
@@ -11811,6 +11812,182 @@ body.is-files-column-resizing * {
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.monitor-cpu-panel .monitor-card-head strong,
+.monitor-cpu-core-row strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.monitor-cpu-panel {
+  --monitor-cpu-view-height: 168px;
+  container: monitor-cpu-panel / inline-size;
+}
+
+.monitor-cpu-card-head {
+  min-width: 0;
+  grid-template-columns: max-content minmax(56px, 1fr) minmax(0, 104px);
+  gap: 9px;
+}
+
+.monitor-cpu-card-head > em {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.monitor-cpu-identity {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 30px max-content;
+  align-items: center;
+  gap: 9px;
+}
+
+.monitor-cpu-identity > div {
+  min-width: 0;
+}
+
+.monitor-cpu-view-switch.ant-segmented {
+  min-width: 0;
+  justify-self: center;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 80%, transparent);
+}
+
+.monitor-cpu-view-switch .ant-segmented-item {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.monitor-cpu-view-switch .ant-segmented-item-label {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding-inline: 4px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.monitor-cpu-view-switch .ant-segmented-item-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.monitor-cpu-view-switch .ant-segmented-item-icon + * {
+  margin-inline-start: 0;
+}
+
+@container monitor-cpu-panel (max-width: 250px) {
+  .monitor-cpu-view-switch .ant-segmented-item-icon {
+    display: none;
+  }
+}
+
+.monitor-cpu-view-switch .ant-segmented-item-selected,
+.monitor-cpu-view-switch .ant-segmented-thumb {
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-subtle));
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.monitor-cpu-core-list {
+  display: grid;
+  height: var(--monitor-cpu-view-height);
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-block: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  padding: 2px 3px 2px 0;
+  overscroll-behavior-y: contain;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 28%, transparent) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.monitor-cpu-core-list:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: -2px;
+}
+
+.monitor-cpu-core-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.monitor-cpu-core-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.monitor-cpu-core-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+}
+
+.monitor-cpu-core-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 46%, transparent);
+  padding: 6px 2px;
+}
+
+.monitor-cpu-core-row span,
+.monitor-cpu-core-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor-cpu-core-row span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.monitor-cpu-core-row strong {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 740;
+  text-align: right;
+}
+
+.monitor-cpu-core-meter {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-strong) 72%, transparent);
+}
+
+.monitor-cpu-core-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.24s ease;
+}
+
+.monitor-cpu-core-empty {
+  display: flex;
+  height: var(--monitor-cpu-view-height);
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-block: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  text-align: center;
+}
+
+.monitor-cpu-core-empty svg {
+  flex: 0 0 auto;
+  color: var(--accent);
 }
 
 .monitor-load-strip {
@@ -11858,10 +12035,21 @@ body.is-files-column-resizing * {
   overflow: hidden;
 }
 
+.monitor-time-chart.echart-view {
+  min-height: 112px;
+  border-block: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: 0;
+}
+
+.monitor-cpu-panel .monitor-time-chart.echart-view {
+  height: var(--monitor-cpu-view-height);
+  min-height: var(--monitor-cpu-view-height);
+}
+
 .monitor-chart-tooltip {
   z-index: 3600 !important;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent) !important;
-  border-radius: 10px !important;
+  border-radius: 8px !important;
   color: var(--text-primary) !important;
   font-family: var(--app-font-family, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   font-size: 12px !important;
@@ -12011,7 +12199,7 @@ body.is-files-column-resizing * {
 }
 
 .monitor-disk-io-chart.echart-view {
-  min-height: 84px;
+  min-height: 112px;
 }
 
 .monitor-disk-io-facts {

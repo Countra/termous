@@ -139,7 +139,7 @@ export function useSessionMonitor({ api, session, enabled, intervalSeconds }: Us
           sample,
           status: sample.status ?? current.status,
           message: '',
-          history: [...current.history, sample].slice(-120),
+          history: [...current.history, createMonitorHistorySample(sample)].slice(-120),
         }))
         return
       }
@@ -212,11 +212,28 @@ function normalizeMonitorSnapshot(sample: LinuxMonitorSnapshot): LinuxMonitorSna
   const diskIO = sample.disk_io
   return {
     ...sample,
+    cpu: {
+      ...sample.cpu,
+      cores: Array.isArray(sample.cpu?.cores) ? sample.cpu.cores : [],
+    },
     networks: Array.isArray(sample.networks) ? sample.networks : [],
     disks: Array.isArray(sample.disks) ? sample.disks : [],
     disk_io: {
       status: diskIO?.status ?? 'unsupported',
       devices: Array.isArray(diskIO?.devices) ? diskIO.devices : [],
+    },
+  }
+}
+
+function createMonitorHistorySample(sample: LinuxMonitorSnapshot): LinuxMonitorSnapshot {
+  if (sample.cpu.cores.length === 0) {
+    return sample
+  }
+  return {
+    ...sample,
+    cpu: {
+      ...sample.cpu,
+      cores: [],
     },
   }
 }

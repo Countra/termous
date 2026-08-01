@@ -996,6 +996,12 @@ export interface LinuxMonitorCPU {
   total_delta: number
   idle_delta: number
   load_average?: LinuxMonitorLoadAverage
+  cores: LinuxMonitorCPUCore[]
+}
+
+export interface LinuxMonitorCPUCore {
+  name: string
+  usage_percent: number
 }
 
 export interface LinuxMonitorLoadAverage {

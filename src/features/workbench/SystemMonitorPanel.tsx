@@ -1,11 +1,12 @@
 import { Alert, Button, Progress, Segmented, Select, Tooltip } from 'antd'
 import type { EChartsCoreOption } from 'echarts/core'
-import { Activity, ArrowDownToLine, ArrowUpFromLine, Cpu, Gauge, HardDrive, MemoryStick, Pause, Play, RadioTower, RotateCcw } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Activity, ArrowDownToLine, ArrowUpFromLine, ChartNoAxesCombined, Cpu, Gauge, HardDrive, MemoryStick, Pause, Play, RadioTower, RotateCcw, Rows3 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { EChartView } from '../../components/charts/EChartView'
 import type {
+  LinuxMonitorCPUCore,
   LinuxMonitorDiskIODevice,
   LinuxMonitorLoadAverage,
   LinuxMonitorNetwork,
@@ -27,6 +28,7 @@ interface SystemMonitorPanelProps {
 }
 
 const intervalOptions = [2, 5, 10, 30]
+type CPUViewMode = 'overall' | 'cores'
 
 interface NetworkCounter {
   rxBytes: number
@@ -76,6 +78,7 @@ export function SystemMonitorPanel({
 }: SystemMonitorPanelProps) {
   const { t } = useTranslation()
   const [intervalSeconds, setIntervalSeconds] = useState(5)
+  const [cpuViewMode, setCPUViewMode] = useState<CPUViewMode>('overall')
   const [networkStates, setNetworkStates] = useState<Record<string, NetworkSessionState>>({})
   const [diskIOStates, setDiskIOStates] = useState<Record<string, DiskIOSessionState>>({})
   const sessionId = session?.id ?? ''
@@ -262,15 +265,14 @@ export function SystemMonitorPanel({
         />
       ) : (
         <div className="system-monitor-content">
-          <MetricPanel
-            icon={<Cpu size={17} />}
-            label={t('workbench.systemMonitor.cpu')}
-            value={`${formatPercent(latest.cpu.usage_percent)}%`}
-            subValue={formatCPUStatic(session)}
-            chart={<EChartView theme={theme} option={cpuOption(monitor.history, theme)} />}
-          >
-            <LoadAverageStrip load={latest.cpu.load_average} />
-          </MetricPanel>
+          <CPUPanel
+            snapshot={latest}
+            history={monitor.history}
+            session={session}
+            theme={theme}
+            mode={cpuViewMode}
+            onModeChange={setCPUViewMode}
+          />
           <MemoryPanel snapshot={latest} theme={theme} />
           <NetworkPanel
             snapshot={latest}
@@ -298,34 +300,106 @@ export function SystemMonitorPanel({
   )
 }
 
-function MetricPanel({
-  icon,
-  label,
-  value,
-  subValue,
-  chart,
-  children,
+function CPUPanel({
+  snapshot,
+  history,
+  session,
+  theme,
+  mode,
+  onModeChange,
 }: {
-  icon: ReactNode
-  label: string
-  value: string
-  subValue: string
-  chart: ReactNode
-  children?: ReactNode
+  snapshot: LinuxMonitorSnapshot
+  history: LinuxMonitorSnapshot[]
+  session: Session
+  theme: ThemeMode
+  mode: CPUViewMode
+  onModeChange: (mode: CPUViewMode) => void
 }) {
+  const { t } = useTranslation()
+  const cores = snapshot.cpu.cores
   return (
-    <article className="monitor-metric-panel">
-      <div className="monitor-card-head">
-        <span>{icon}</span>
-        <div>
-          <small>{label}</small>
-          <strong>{value}</strong>
+    <article className="monitor-metric-panel monitor-cpu-panel">
+      <div className="monitor-card-head monitor-cpu-card-head">
+        <div className="monitor-cpu-identity">
+          <span>
+            <Cpu size={17} />
+          </span>
+          <div>
+            <small>CPU</small>
+            <strong>{formatPercent(snapshot.cpu.usage_percent)}%</strong>
+          </div>
         </div>
-        <em>{subValue}</em>
+        <Segmented<CPUViewMode>
+          className="monitor-cpu-view-switch"
+          size="small"
+          value={mode}
+          aria-label={t('workbench.systemMonitor.cpuViewMode')}
+          options={[
+            {
+              icon: <ChartNoAxesCombined size={12} aria-hidden="true" />,
+              label: t('workbench.systemMonitor.cpuOverall'),
+              value: 'overall',
+            },
+            {
+              icon: <Rows3 size={12} aria-hidden="true" />,
+              label: t('workbench.systemMonitor.cpuCores'),
+              value: 'cores',
+            },
+          ]}
+          onChange={onModeChange}
+        />
+        <em>{formatCPUStatic(session)}</em>
       </div>
-      {children}
-      {chart}
+      {mode === 'cores' ? (
+        <CPUCoreList cores={cores} warming={snapshot.status === 'warming'} />
+      ) : (
+        <EChartView
+          className="monitor-time-chart"
+          theme={theme}
+          option={cpuOption(history, theme, t('workbench.systemMonitor.cpu'))}
+        />
+      )}
+      <LoadAverageStrip load={snapshot.cpu.load_average} />
     </article>
+  )
+}
+
+function CPUCoreList({ cores, warming }: { cores: LinuxMonitorCPUCore[]; warming: boolean }) {
+  const { t } = useTranslation()
+  if (cores.length === 0) {
+    return (
+      <div className="monitor-cpu-core-empty">
+        <RotateCcw size={15} />
+        <span>
+          {t(
+            warming
+              ? 'workbench.systemMonitor.cpuCoresWarming'
+              : 'workbench.systemMonitor.cpuCoresUnavailable',
+          )}
+        </span>
+      </div>
+    )
+  }
+  return (
+    <div
+      className="monitor-cpu-core-list"
+      role="list"
+      aria-label={t('workbench.systemMonitor.cpuCores')}
+      tabIndex={0}
+    >
+      {cores.map((core) => {
+        const percent = clampPercent(core.usage_percent)
+        return (
+          <div className="monitor-cpu-core-row" key={core.name} role="listitem">
+            <span>{formatCPUCoreLabel(core.name)}</span>
+            <div className="monitor-cpu-core-meter" aria-hidden="true">
+              <i style={{ width: `${percent}%` }} />
+            </div>
+            <strong>{formatPercent(percent)}%</strong>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -437,7 +511,11 @@ function NetworkPanel({
           <em>{t('workbench.systemMonitor.networkTotal', { value: formatBytes(networkTotals.txBytes) })}</em>
         </span>
       </div>
-      <EChartView theme={theme} option={networkOption(history, selectedNetwork, theme, downloadLabel, uploadLabel)} />
+      <EChartView
+        className="monitor-time-chart"
+        theme={theme}
+        option={networkOption(history, selectedNetwork, theme, downloadLabel, uploadLabel)}
+      />
     </article>
   )
 }
@@ -509,7 +587,7 @@ function DiskIOPanel({
             </span>
           </div>
           <EChartView
-            className="monitor-disk-io-chart"
+            className="monitor-time-chart monitor-disk-io-chart"
             theme={theme}
             option={diskIOOption(
               history,
@@ -622,20 +700,39 @@ function DiskPanel({ snapshot }: { snapshot: LinuxMonitorSnapshot }) {
   )
 }
 
-function cpuOption(history: LinuxMonitorSnapshot[], theme: ThemeMode): EChartsCoreOption {
+function cpuOption(history: LinuxMonitorSnapshot[], theme: ThemeMode, label: string): EChartsCoreOption {
   const textColor = theme === 'dark' ? '#b8c1d6' : '#4b5565'
+  const gridColor = theme === 'dark' ? 'rgba(184,193,214,0.12)' : 'rgba(75,85,101,0.12)'
   return {
     backgroundColor: 'transparent',
-    grid: { left: 0, right: 0, top: 12, bottom: 0, containLabel: false },
-    xAxis: { type: 'category', show: false, data: history.map((item) => formatTime(item.collected_at)) },
-    yAxis: { type: 'value', min: 0, max: 100, show: false },
+    animationDurationUpdate: 240,
+    grid: { left: 34, right: 8, top: 8, bottom: 22, containLabel: false },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: history.map((item) => formatTime(item.collected_at)),
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: textColor, fontSize: 9, hideOverlap: true, showMinLabel: true, showMaxLabel: true },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      interval: 50,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: textColor, fontSize: 9, formatter: (value: string | number) => `${value}%` },
+      splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
+    },
     tooltip: {
       trigger: 'axis',
+      axisPointer: { type: 'line', lineStyle: { color: gridColor } },
       renderMode: 'html',
       appendToBody: true,
       confine: true,
       className: 'monitor-chart-tooltip',
-      extraCssText: 'z-index:3600;border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.24);',
+      extraCssText: 'z-index:3600;border-radius:8px;box-shadow:0 14px 34px rgba(0,0,0,.24);',
       backgroundColor: theme === 'dark' ? '#20242f' : '#ffffff',
       borderWidth: 0,
       textStyle: { color: textColor },
@@ -643,12 +740,14 @@ function cpuOption(history: LinuxMonitorSnapshot[], theme: ThemeMode): EChartsCo
     },
     series: [
       {
+        name: label,
         type: 'line',
         data: history.map((item) => item.cpu.usage_percent),
         showSymbol: false,
-        smooth: true,
+        smooth: 0.28,
         lineStyle: { width: 2, color: theme === 'dark' ? '#70a7ff' : '#2f70d8' },
         areaStyle: { color: theme === 'dark' ? 'rgba(112,167,255,0.16)' : 'rgba(47,112,216,0.12)' },
+        emphasis: { focus: 'series' },
       },
     ],
   }
@@ -662,22 +761,40 @@ function networkOption(
   uploadLabel: string,
 ): EChartsCoreOption {
   const textColor = theme === 'dark' ? '#b8c1d6' : '#4b5565'
+  const gridColor = theme === 'dark' ? 'rgba(184,193,214,0.12)' : 'rgba(75,85,101,0.12)'
   const selectedName = selectedNetwork?.name
   const points = selectedName
     ? history.map((snapshot) => snapshot.networks.find((item) => item.name === selectedName) ?? null)
     : []
   return {
     backgroundColor: 'transparent',
-    grid: { left: 0, right: 0, top: 12, bottom: 0, containLabel: false },
-    xAxis: { type: 'category', show: false, data: history.map((snapshot) => formatTime(snapshot.collected_at)) },
-    yAxis: { type: 'value', show: false },
+    animationDurationUpdate: 240,
+    grid: { left: 8, right: 8, top: 8, bottom: 22, containLabel: false },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: history.map((snapshot) => formatTime(snapshot.collected_at)),
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: textColor, fontSize: 9, hideOverlap: true, showMinLabel: true, showMaxLabel: true },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { show: false },
+      splitNumber: 2,
+      splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
+    },
     tooltip: {
       trigger: 'axis',
+      axisPointer: { type: 'line', lineStyle: { color: gridColor } },
       renderMode: 'html',
       appendToBody: true,
       confine: true,
       className: 'monitor-chart-tooltip',
-      extraCssText: 'z-index:3600;border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.24);',
+      extraCssText: 'z-index:3600;border-radius:8px;box-shadow:0 14px 34px rgba(0,0,0,.24);',
       backgroundColor: theme === 'dark' ? '#20242f' : '#ffffff',
       borderWidth: 0,
       textStyle: { color: textColor },
@@ -689,14 +806,20 @@ function networkOption(
         type: 'line',
         data: points.map((item) => item?.rx_bytes_per_sec ?? 0),
         showSymbol: false,
+        smooth: 0.24,
         lineStyle: { color: '#48d597', width: 2 },
+        areaStyle: { color: 'rgba(72,213,151,0.08)' },
+        emphasis: { focus: 'series' },
       },
       {
         name: uploadLabel,
         type: 'line',
         data: points.map((item) => item?.tx_bytes_per_sec ?? 0),
         showSymbol: false,
+        smooth: 0.24,
         lineStyle: { color: '#70a7ff', width: 2 },
+        areaStyle: { color: 'rgba(112,167,255,0.07)' },
+        emphasis: { focus: 'series' },
       },
     ],
   }
@@ -710,21 +833,39 @@ function diskIOOption(
   writeLabel: string,
 ): EChartsCoreOption {
   const textColor = theme === 'dark' ? '#b8c1d6' : '#4b5565'
+  const gridColor = theme === 'dark' ? 'rgba(184,193,214,0.12)' : 'rgba(75,85,101,0.12)'
   const points = history.map(
     (snapshot) => snapshot.disk_io.devices.find((item) => item.name === deviceName) ?? null,
   )
   return {
     backgroundColor: 'transparent',
-    grid: { left: 0, right: 0, top: 12, bottom: 0, containLabel: false },
-    xAxis: { type: 'category', show: false, data: history.map((snapshot) => formatTime(snapshot.collected_at)) },
-    yAxis: { type: 'value', min: 0, show: false },
+    animationDurationUpdate: 240,
+    grid: { left: 8, right: 8, top: 8, bottom: 22, containLabel: false },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: history.map((snapshot) => formatTime(snapshot.collected_at)),
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: textColor, fontSize: 9, hideOverlap: true, showMinLabel: true, showMaxLabel: true },
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { show: false },
+      splitNumber: 2,
+      splitLine: { lineStyle: { color: gridColor, type: 'dashed' } },
+    },
     tooltip: {
       trigger: 'axis',
+      axisPointer: { type: 'line', lineStyle: { color: gridColor } },
       renderMode: 'html',
       appendToBody: true,
       confine: false,
       className: 'monitor-chart-tooltip',
-      extraCssText: 'z-index:3600;border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.24);',
+      extraCssText: 'z-index:3600;border-radius:8px;box-shadow:0 14px 34px rgba(0,0,0,.24);',
       backgroundColor: theme === 'dark' ? '#20242f' : '#ffffff',
       borderWidth: 0,
       textStyle: { color: textColor },
@@ -739,6 +880,8 @@ function diskIOOption(
         connectNulls: false,
         smooth: 0.28,
         lineStyle: { color: '#70a7ff', width: 2 },
+        areaStyle: { color: 'rgba(112,167,255,0.07)' },
+        emphasis: { focus: 'series' },
       },
       {
         name: writeLabel,
@@ -748,6 +891,8 @@ function diskIOOption(
         connectNulls: false,
         smooth: 0.28,
         lineStyle: { color: '#48d597', width: 2 },
+        areaStyle: { color: 'rgba(72,213,151,0.07)' },
+        emphasis: { focus: 'series' },
       },
     ],
   }
@@ -813,6 +958,11 @@ function formatCPUStatic(session: Session | null) {
     parts.push(`${Math.round(info.cpu_frequency_mhz)} MHz`)
   }
   return parts.join(' · ')
+}
+
+function formatCPUCoreLabel(name: string) {
+  const match = /^cpu(\d+)$/i.exec(name)
+  return match ? `CPU ${match[1]}` : name
 }
 
 function formatBytes(value: number) {
