@@ -39,6 +39,23 @@ test('端口转发实时速度文案和格式保持一致', () => {
   assert.equal(translationValue(enUS, 'forwards.speedValue'), '{{value}}/s')
 })
 
+test('智能补全动态来源和设置文案在中英文资源中完整对应', () => {
+  for (const source of ['alias', 'snippet', 'history', 'directory', 'other']) {
+    const key = `terminal.completion.sources.${source}`
+    assert.equal(typeof translationValue(zhCN, key), 'string', key)
+    assert.equal(typeof translationValue(enUS, key), 'string', key)
+  }
+  for (const key of [
+    'terminal.completion.label',
+    'settings.completionTitle',
+    'settings.completionEnabled',
+    'settings.completionHint',
+  ]) {
+    assert.equal(typeof translationValue(zhCN, key), 'string', key)
+    assert.equal(typeof translationValue(enUS, key), 'string', key)
+  }
+})
+
 function readTranslations(locale: string) {
   const path = join(sourceRoot, 'i18n', 'locales', locale, 'translation.json')
   return JSON.parse(readFileSync(path, 'utf8')) as TranslationTree

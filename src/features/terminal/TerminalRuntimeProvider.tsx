@@ -52,6 +52,7 @@ import {
   isPredictableTerminalCompletionText,
   predictTerminalCompletionCursor,
 } from './terminalCompletionPosition'
+import { transitionTerminalCompletionActivity } from './terminalCompletionViewport'
 import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from './terminalFonts'
 import type { TerminalPromptBoundary } from './terminalProtocol'
 import {
@@ -236,16 +237,21 @@ export function TerminalRuntimeProvider({
     active: boolean,
   ) => {
     const viewport = viewportsRef.current.get(viewportId)
-    if (
-      !viewport
-      || viewport.sessionId !== sessionId
-      || viewport.completionActive === active
-    ) {
+    if (!viewport) {
       return
     }
-    viewport.completionActive = active
-    if (!active && sessionId) {
-      completionRuntime.closeSuggestions(sessionId)
+    const transition = transitionTerminalCompletionActivity(
+      viewport.sessionId,
+      viewport.completionActive,
+      sessionId,
+      active,
+    )
+    if (!transition.changed) {
+      return
+    }
+    viewport.completionActive = transition.active
+    if (transition.closeSessionId) {
+      completionRuntime.closeSuggestions(transition.closeSessionId)
     }
   }, [completionRuntime])
 

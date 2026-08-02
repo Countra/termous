@@ -32,6 +32,7 @@ import {
   TERMINAL_COMPLETION_POPUP_WIDTH,
   type TerminalCompletionPopupPosition,
 } from './terminalCompletionPosition'
+import { shouldActivateTerminalCompletionViewport } from './terminalCompletionViewport'
 
 interface TerminalPaneViewportProps {
   paneId: string
@@ -443,15 +444,15 @@ export function TerminalPaneViewport({
   }, [active, onResize, paneId, registerViewport, sessionId])
 
   useEffect(() => {
-    const interactionActive = Boolean(
-      sessionId
-      && session?.kind === 'ssh'
-      && session.status === 'connected'
-      && active
-      && workspaceActive
-      && !searchPanel
-      && !contextMenu,
-    )
+    const interactionActive = shouldActivateTerminalCompletionViewport({
+      sessionId,
+      sessionKind: session?.kind,
+      sessionStatus: session?.status,
+      paneActive: active,
+      workspaceActive,
+      searchOpen: Boolean(searchPanel),
+      contextMenuOpen: Boolean(contextMenu),
+    })
     setViewportCompletionActive(paneId, sessionId, interactionActive)
     return () => {
       setViewportCompletionActive(paneId, sessionId, false)

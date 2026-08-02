@@ -202,7 +202,7 @@ test('会话结束后的快照读取不会重新创建可用状态', () => {
   unsubscribe()
 })
 
-test('100ms 去抖只查询最后一次可信输入', async () => {
+test('100ms 去抖在连续 100 次输入后只查询最终内容', async () => {
   const scheduler = new ManualScheduler()
   const queries: CompletionQuery[] = []
   const runtime = new TerminalCompletionRuntime(true, {
@@ -214,15 +214,15 @@ test('100ms 去抖只查询最后一次可信输入', async () => {
     requestId: () => `request-${queries.length + 1}`,
   })
   runtime.applyPromptBoundary('session-1', boundary)
-  runtime.applyUserData('session-1', 'g')
-  runtime.applyUserData('session-1', 'i')
-  runtime.applyUserData('session-1', 't')
+  for (let index = 0; index < 100; index += 1) {
+    runtime.applyUserData('session-1', String(index % 10))
+  }
   assert.equal(scheduler.pending(), 1)
 
   scheduler.runNext()
   await flushPromises()
   assert.equal(queries.length, 1)
-  assert.equal(queries[0]?.line, 'git')
+  assert.equal(queries[0]?.line, '0123456789'.repeat(10))
   assert.equal(runtime.getSnapshot('session-1').queryState, 'ready')
 })
 
@@ -268,6 +268,74 @@ test('关闭设置会取消请求并清空候选，重新开启后按当前可�
   scheduler.runNext()
   await flushPromises()
   assert.equal(queryCount, 1)
+})
+
+test('关闭设置会中止所有会话的在途请求并拒绝迟到结果', async () => {
+  const scheduler = new ManualScheduler()
+  const pending: Array<{
+    query: CompletionQuery
+    signal: AbortSignal
+    resolve: (result: CompletionResult) => void
+  }> = []
+  const runtime = new TerminalCompletionRuntime(true, {
+    schedule: scheduler.schedule,
+    query: (_sessionId, query, signal) => new Promise((resolve) => {
+      pending.push({ query, signal, resolve })
+    }),
+  })
+
+  for (const sessionId of ['session-1', 'session-2']) {
+    runtime.applyPromptBoundary(sessionId, boundary)
+    runtime.applyUserData(sessionId, 'g')
+    assert.equal(scheduler.runNext(), true)
+  }
+  assert.equal(pending.length, 2)
+
+  runtime.setEnabled(false)
+  assert.equal(pending.every(({ signal }) => signal.aborted), true)
+  for (const sessionId of ['session-1', 'session-2']) {
+    const snapshot = runtime.getSnapshot(sessionId)
+    assert.equal(snapshot.readiness, 'disabled')
+    assert.equal(snapshot.items.length, 0)
+  }
+
+  for (const request of pending) {
+    request.resolve(completionResult(request.query, [commandCandidate(request.query)]))
+  }
+  await flushPromises()
+  assert.equal(runtime.getSnapshot('session-1').items.length, 0)
+  assert.equal(runtime.getSnapshot('session-2').items.length, 0)
+})
+
+test('传输断开会中止在途请求且迟到结果不能恢复候选', async () => {
+  const scheduler = new ManualScheduler()
+  const pending: Array<{
+    query: CompletionQuery
+    signal: AbortSignal
+    resolve: (result: CompletionResult) => void
+  }> = []
+  const runtime = new TerminalCompletionRuntime(true, {
+    schedule: scheduler.schedule,
+    query: (_sessionId, query, signal) => new Promise((resolve) => {
+      pending.push({ query, signal, resolve })
+    }),
+  })
+  runtime.applyPromptBoundary('session-1', boundary)
+  runtime.applyUserData('session-1', 'g')
+  assert.equal(scheduler.runNext(), true)
+  assert.equal(pending.length, 1)
+
+  runtime.applyTransportState('session-1', 'retry_wait')
+  const request = pending[0]
+  assert.ok(request)
+  assert.equal(request.signal.aborted, true)
+  assert.equal(runtime.getSnapshot('session-1').readiness, 'unavailable')
+  assert.equal(runtime.getSnapshot('session-1').boundary, null)
+
+  request.resolve(completionResult(request.query, [commandCandidate(request.query)]))
+  await flushPromises()
+  assert.equal(runtime.getSnapshot('session-1').items.length, 0)
+  assert.equal(runtime.getSnapshot('session-1').readiness, 'unavailable')
 })
 
 test('新输入会取消旧请求且迟到结果不能覆盖新候选', async () => {

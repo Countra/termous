@@ -55,10 +55,7 @@ test('所有终端输入入口统一更新补全可信状态', () => {
 })
 
 test('候选只在活动工作区显示并与搜索及右键菜单互斥', () => {
-  assert.match(
-    viewportSource,
-    /session\.status === 'connected'[\s\S]*?&& active[\s\S]*?&& workspaceActive[\s\S]*?&& !searchPanel[\s\S]*?&& !contextMenu/,
-  )
+  assert.match(viewportSource, /shouldActivateTerminalCompletionViewport/)
   assert.match(viewportSource, /closeSessionCompletion\(session\.id\)[\s\S]*?captureSessionContext/)
   assert.match(viewportSource, /setViewportCompletionActive\(paneId, sessionId, interactionActive\)/)
   assert.match(
@@ -66,4 +63,9 @@ test('候选只在活动工作区显示并与搜索及右键菜单互斥', () =>
     /setViewportCompletionVisible\(paneId, sessionId, visible\)/,
   )
   assert.match(viewportSource, /<TerminalCompletionPopup[\s\S]*?position=\{completionPosition\}/)
+  assert.match(providerSource, /transitionTerminalCompletionActivity/)
+  assert.match(
+    viewportSource,
+    /return \(\) => \{\s*setViewportCompletionActive\(paneId, sessionId, false\)\s*\}/,
+  )
 })

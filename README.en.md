@@ -44,6 +44,8 @@ Termous brings SSH connections, hosts and credentials, remote files, server oper
 
 - Multiple SSH session tabs with duplication, renaming, pinning, and color labels.
 - Terminal split panes for logs, commands, and environment comparisons.
+- Context-aware smart completion from enabled aliases, safe single-line snippets, persisted remote history, and directory candidates for `cd` / `pushd`.
+- Completion inserts a candidate without executing it; Tab always remains available for the remote Shell's native completion.
 - Terminal search and a context-aware menu for copy, find, paste, opening supported HTTP/HTTPS links, and locating remote paths in the workstation file panel.
 - Bidirectional directory following between the terminal and workstation file panel, with compact remote bookmarks.
 - Local PowerShell / CMD sessions on Windows.
@@ -80,6 +82,7 @@ Termous brings SSH connections, hosts and credentials, remote files, server oper
 
 - Reusable snippets with groups, variables, and send-to-session actions.
 - Termous-managed command aliases for Bash, Zsh, and Fish.
+- Completion indexes are warmed asynchronously after SSH is ready, never scan remote `$PATH`, and cannot block terminal, SFTP, or directory-following workflows when a provider fails.
 - Local forwarding, remote forwarding, and dynamic proxy.
 - Running forwards expose connection counts, cumulative traffic, live send/receive rates, restart, and stop actions.
 
@@ -102,7 +105,7 @@ Termous brings SSH connections, hosts and credentials, remote files, server oper
 
 ## Security And Privacy
 
-Termous is designed as a local desktop workstation. Credentials are managed by a local Vault, and SSH host identity is verified through a unified fingerprint trust flow. Encrypted backups do not export the current device's Vault master key, and downloaded updates are verified before installation. Connection proxies currently accept only unauthenticated HTTP and SOCKS5 endpoints so proxy credentials do not enter host configuration, logs, or backups.
+Termous is designed as a local desktop workstation. Credentials are managed by a local Vault, and SSH host identity is verified through a unified fingerprint trust flow. Encrypted backups do not export the current device's Vault master key, and downloaded updates are verified before installation. Connection proxies currently accept only unauthenticated HTTP and SOCKS5 endpoints so proxy credentials do not enter host configuration, logs, or backups. Smart completion keeps bounded remote history and directory indexes only in memory for the current SSH session; they are never written to the local database, backups, LocalStorage, or logs, and are released when the session closes.
 
 ## Platform Support
 
