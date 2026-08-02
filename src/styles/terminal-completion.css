@@ -1,0 +1,131 @@
+.terminal-completion-popup {
+  position: absolute;
+  z-index: 16;
+  display: grid;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid color-mix(in srgb, var(--terminal-border) 82%, #596579 18%);
+  border-radius: 10px;
+  background: #171b23;
+  box-shadow: 0 14px 32px rgb(0 0 0 / 32%);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.terminal-completion-option {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  padding: 5px 8px;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 100ms ease,
+    color 100ms ease;
+}
+
+.terminal-completion-option:hover,
+.terminal-completion-option.is-selected {
+  background: color-mix(in srgb, var(--accent) 17%, #171b23 83%);
+}
+
+.terminal-completion-option.is-selected {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.terminal-completion-option-icon {
+  color: var(--text-muted);
+  transition: color 100ms ease;
+}
+
+.terminal-completion-option:hover .terminal-completion-option-icon,
+.terminal-completion-option.is-selected .terminal-completion-option-icon {
+  color: var(--accent);
+}
+
+.terminal-completion-option-content {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.terminal-completion-option-label,
+.terminal-completion-option-detail,
+.terminal-completion-option-source {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-completion-option-label {
+  color: var(--text-primary);
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 18px;
+}
+
+.terminal-completion-option-detail {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.terminal-completion-option-source {
+  max-width: 68px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.terminal-completion-option.is-selected .terminal-completion-option-source {
+  color: color-mix(in srgb, var(--accent) 76%, var(--text-secondary));
+}
+
+.terminal-completion-tooltip-content {
+  display: grid;
+  max-width: 320px;
+  gap: 4px;
+}
+
+.terminal-completion-tooltip-content strong {
+  overflow-wrap: anywhere;
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 12px;
+}
+
+.terminal-completion-tooltip-content span,
+.terminal-completion-tooltip-content small {
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+:root[data-theme="light"] .terminal-completion-popup {
+  border-color: rgb(30 42 58 / 15%);
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgb(30 44 64 / 16%);
+}
+
+:root[data-theme="light"] .terminal-completion-option:hover,
+:root[data-theme="light"] .terminal-completion-option.is-selected {
+  background: color-mix(in srgb, var(--accent) 11%, #ffffff 89%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-completion-option,
+  .terminal-completion-option-icon {
+    transition: none;
+  }
+}

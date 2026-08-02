@@ -727,7 +727,7 @@ export interface CompletionQuery {
   max_items: number
 }
 
-export type CompletionSource = 'alias' | 'snippet' | 'history' | 'directory'
+export type CompletionSource = string
 
 export interface CompletionItem {
   id: string

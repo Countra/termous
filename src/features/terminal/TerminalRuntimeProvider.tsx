@@ -28,6 +28,7 @@ import {
   TerminalRuntimeContext,
   type TerminalRuntimeContextValue,
   type TerminalClipboardAction,
+  type TerminalCompletionCursorGeometry,
   type TerminalSearchDirection,
   type TerminalSearchOptions,
   type TerminalSearchResult,
@@ -47,7 +48,12 @@ import {
   type SessionCwdRequestError,
 } from './terminalCwdRuntime'
 import { TerminalCompletionRuntime } from './terminalCompletionRuntime'
+import {
+  isPredictableTerminalCompletionText,
+  predictTerminalCompletionCursor,
+} from './terminalCompletionPosition'
 import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from './terminalFonts'
+import type { TerminalPromptBoundary } from './terminalProtocol'
 import {
   TerminalTransport,
   type TerminalTransportEvent,
@@ -80,7 +86,18 @@ interface TerminalEntry {
   disposables: Array<{ dispose: () => void }>
   lastSize: { cols: number; rows: number }
   resizeTimer: number | null
+  suppressCompletionInput: boolean
+  completionPromptAnchor: CompletionPromptAnchor | null
   disposed: boolean
+}
+
+interface CompletionPromptAnchor {
+  sourceGeneration: number
+  shellId: string
+  promptGeneration: number
+  inputEpoch: number
+  cursorX: number
+  cursorY: number
 }
 
 interface ViewportState {
@@ -88,6 +105,8 @@ interface ViewportState {
   sessionId: string | null
   host: HTMLDivElement | null
   active: boolean
+  completionActive: boolean
+  completionVisible: boolean
   onResize?: (cols: number, rows: number) => void
 }
 
@@ -119,12 +138,19 @@ export function TerminalRuntimeProvider({
   const cwdRuntime = cwdRuntimeRef.current
   const completionRuntimeRef = useRef<TerminalCompletionRuntime | null>(null)
   if (!completionRuntimeRef.current) {
-    completionRuntimeRef.current = new TerminalCompletionRuntime(completionSettings.enabled)
+    completionRuntimeRef.current = new TerminalCompletionRuntime(completionSettings.enabled, {
+      maximumItems: 8,
+      query: (sessionId, query, signal) => apiRef.current.querySessionCompletions(
+        sessionId,
+        query,
+        { signal },
+      ),
+    })
   }
   const completionRuntime = completionRuntimeRef.current
-  completionRuntime.setEnabled(completionSettings.enabled)
   const { t } = useTranslation()
   const { message } = AntdApp.useApp()
+  const completionLayoutListenersRef = useRef(new Map<string, Set<() => void>>())
   const sessionSnapshot = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
   sessionsRef.current = sessionSnapshot
 
@@ -132,6 +158,10 @@ export function TerminalRuntimeProvider({
     apiRef.current = api
     syncImportedFontFaces(api, terminalFontsRef.current)
   }, [api])
+
+  useEffect(() => {
+    completionRuntime.setEnabled(completionSettings.enabled)
+  }, [completionRuntime, completionSettings.enabled])
 
   useEffect(() => {
     themeRef.current = theme
@@ -163,6 +193,7 @@ export function TerminalRuntimeProvider({
       entry.terminal.dispose()
       entry.container.remove()
       entriesRef.current.delete(entry.sessionId)
+      completionLayoutListenersRef.current.delete(entry.sessionId)
     },
     [completionRuntime, cwdRuntime],
   )
@@ -187,6 +218,143 @@ export function TerminalRuntimeProvider({
     ))
     return viewports.find((viewport) => viewport.active) ?? viewports[0] ?? null
   }, [])
+
+  const isCompletionInteractionActive = useCallback((sessionId: string) => {
+    const viewport = getViewportForSession(sessionId)
+    return Boolean(
+      viewport?.active
+      && viewport.completionActive
+      && viewport.completionVisible
+      && viewport.host?.isConnected
+      && activeSessionIdRef.current === sessionId,
+    )
+  }, [getViewportForSession])
+
+  const setViewportCompletionActive = useCallback((
+    viewportId: string,
+    sessionId: string | null,
+    active: boolean,
+  ) => {
+    const viewport = viewportsRef.current.get(viewportId)
+    if (
+      !viewport
+      || viewport.sessionId !== sessionId
+      || viewport.completionActive === active
+    ) {
+      return
+    }
+    viewport.completionActive = active
+    if (!active && sessionId) {
+      completionRuntime.closeSuggestions(sessionId)
+    }
+  }, [completionRuntime])
+
+  const setViewportCompletionVisible = useCallback((
+    viewportId: string,
+    sessionId: string | null,
+    visible: boolean,
+  ) => {
+    const viewport = viewportsRef.current.get(viewportId)
+    if (!viewport || viewport.sessionId !== sessionId) {
+      return
+    }
+    viewport.completionVisible = visible
+  }, [])
+
+  const emitCompletionLayout = useCallback((sessionId: string) => {
+    completionLayoutListenersRef.current.get(sessionId)?.forEach((listener) => listener())
+  }, [])
+
+  const subscribeSessionCompletionLayout = useCallback((
+    sessionId: string,
+    listener: () => void,
+  ) => {
+    const listeners = completionLayoutListenersRef.current.get(sessionId) ?? new Set<() => void>()
+    listeners.add(listener)
+    completionLayoutListenersRef.current.set(sessionId, listeners)
+    return () => {
+      const current = completionLayoutListenersRef.current.get(sessionId)
+      current?.delete(listener)
+      if (current?.size === 0) {
+        completionLayoutListenersRef.current.delete(sessionId)
+      }
+    }
+  }, [])
+
+  const captureSessionCompletionCursor = useCallback((
+    sessionId: string,
+  ): TerminalCompletionCursorGeometry | null => {
+    const entry = entriesRef.current.get(sessionId)
+    const viewport = getViewportForSession(sessionId)
+    if (
+      !entry
+      || entry.disposed
+      || !viewport?.active
+      || !viewport.host?.isConnected
+      || entry.terminal.buffer.active.type !== 'normal'
+    ) {
+      return null
+    }
+    const buffer = entry.terminal.buffer.active
+    if (buffer.viewportY !== buffer.baseY) {
+      return null
+    }
+    const screen = entry.container.querySelector('.xterm-screen')
+    if (!(screen instanceof HTMLElement)) {
+      return null
+    }
+    const rect = screen.getBoundingClientRect()
+    if (
+      rect.width <= 0
+      || rect.height <= 0
+      || entry.terminal.cols <= 0
+      || entry.terminal.rows <= 0
+    ) {
+      return null
+    }
+    const completion = completionRuntime.getSnapshot(sessionId)
+    const anchor = entry.completionPromptAnchor
+    const anchorMatchesBoundary = Boolean(
+      anchor
+      && completion.boundary
+      && completion.input.trust === 'trusted'
+      && !completion.input.composing
+      && matchesCompletionPromptAnchor(anchor, completion.boundary),
+    )
+    const prediction = anchorMatchesBoundary && anchor
+      ? predictTerminalCompletionCursor({
+        anchorX: anchor.cursorX,
+        anchorY: anchor.cursorY,
+        columns: entry.terminal.cols,
+        rows: entry.terminal.rows,
+        line: completion.input.line,
+        cursorUtf16: completion.input.cursorUtf16,
+      })
+      : null
+    const inputBeforeCursor = completion.input.line.slice(0, completion.input.cursorUtf16)
+    if (
+      anchorMatchesBoundary
+      && anchor
+      && inputBeforeCursor.length > 0
+      && !isPredictableTerminalCompletionText(inputBeforeCursor)
+      && buffer.cursorX === anchor.cursorX
+      && buffer.cursorY === anchor.cursorY
+    ) {
+      return null
+    }
+    return {
+      screenRect: {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      },
+      cursorX: prediction?.cursorX ?? buffer.cursorX,
+      cursorY: prediction?.cursorY ?? buffer.cursorY,
+      columns: entry.terminal.cols,
+      rows: entry.terminal.rows,
+    }
+  }, [completionRuntime, getViewportForSession])
 
   const sendResize = useCallback((entry: TerminalEntry) => {
     const { terminal, lastSize } = entry
@@ -267,14 +435,16 @@ export function TerminalRuntimeProvider({
     try {
       const payload = options?.execute ? ensureTerminalEnter(text) : text
       if (!entry.transport.sendInput(terminalTextEncoder.encode(payload))) {
+        completionRuntime.markUncertain(sessionId)
         return 'not_ready'
       }
+      completionRuntime.applyProgrammaticInput(sessionId, text, options)
       entry.terminal.focus()
       return 'sent'
     } catch {
       return 'failed'
     }
-  }, [isEntryWritable])
+  }, [completionRuntime, isEntryWritable])
 
   const sendTextToActive = useCallback(
     (text: string, options?: { execute?: boolean }) => {
@@ -315,6 +485,21 @@ export function TerminalRuntimeProvider({
     [notifyClipboardError],
   )
 
+  const pasteEntryText = useCallback((entry: TerminalEntry, text: string) => {
+    completionRuntime.applyPaste(entry.sessionId, text)
+    entry.suppressCompletionInput = true
+    try {
+      entry.terminal.paste(text)
+    } catch {
+      completionRuntime.markUncertain(entry.sessionId)
+      throw new Error('terminal paste failed')
+    } finally {
+      queueMicrotask(() => {
+        entry.suppressCompletionInput = false
+      })
+    }
+  }, [completionRuntime])
+
   const pasteEntryClipboard = useCallback(
     async (entry: TerminalEntry): Promise<TerminalClipboardAction> => {
       if (!isEntryWritable(entry) || !entry.transport.isLive()) {
@@ -337,7 +522,7 @@ export function TerminalRuntimeProvider({
         ) {
           return 'none'
         }
-        entry.terminal.paste(text)
+        pasteEntryText(entry, text)
         entry.terminal.focus()
         return 'pasted'
       } catch {
@@ -345,7 +530,7 @@ export function TerminalRuntimeProvider({
         return 'failed'
       }
     },
-    [getViewportForSession, isEntryWritable, notifyClipboardError],
+    [getViewportForSession, isEntryWritable, notifyClipboardError, pasteEntryText],
   )
 
   const pasteSessionClipboard = useCallback(
@@ -513,9 +698,23 @@ export function TerminalRuntimeProvider({
           }
           if (event.type === 'transport_state') {
             completionRuntime.applyTransportState(sessionId, event.state)
+            if (event.state !== 'live') {
+              currentEntry.completionPromptAnchor = null
+            }
           } else if (event.type === 'prompt_boundary') {
-            completionRuntime.applyPromptBoundary(sessionId, event.message)
+            if (completionRuntime.applyPromptBoundary(sessionId, event.message)) {
+              const buffer = currentEntry.terminal.buffer.active
+              currentEntry.completionPromptAnchor = {
+                sourceGeneration: event.message.source_generation,
+                shellId: event.message.shell_id,
+                promptGeneration: event.message.prompt_generation,
+                inputEpoch: event.message.input_epoch,
+                cursorX: buffer.cursorX,
+                cursorY: buffer.cursorY,
+              }
+            }
           } else if (event.type === 'output_gap') {
+            currentEntry.completionPromptAnchor = null
             completionRuntime.invalidateSession(sessionId)
           }
           handleTerminalTransportEvent(
@@ -551,10 +750,15 @@ export function TerminalRuntimeProvider({
         disposables: [],
         lastSize: { cols: 0, rows: 0 },
         resizeTimer: null,
+        suppressCompletionInput: false,
+        completionPromptAnchor: null,
         disposed: false,
       }
       entriesRef.current.set(sessionId, entry)
-      const sendTerminalInput = (data: string | Uint8Array) => {
+      const sendTerminalInput = (
+        data: string | Uint8Array,
+        trackCompletion: 'user' | 'binary' | 'none' = 'user',
+      ) => {
         const viewport = getViewportForSession(sessionId)
         if (
           entry.disposed ||
@@ -562,11 +766,22 @@ export function TerminalRuntimeProvider({
           !entry.transport.isLive() ||
           !viewport?.host
         ) {
-          return
+          completionRuntime.markUncertain(sessionId)
+          return false
         }
-        entry.transport.sendInput(
+        const sent = entry.transport.sendInput(
           typeof data === 'string' ? terminalTextEncoder.encode(data) : data,
         )
+        if (!sent) {
+          completionRuntime.markUncertain(sessionId)
+          return false
+        }
+        if (trackCompletion === 'binary') {
+          completionRuntime.applyBinaryInput(sessionId)
+        } else if (trackCompletion === 'user' && typeof data === 'string') {
+          completionRuntime.applyUserData(sessionId, data)
+        }
+        return true
       }
       const handleClipboardKey = (event: KeyboardEvent) => {
         const key = event.key.toLowerCase()
@@ -622,7 +837,7 @@ export function TerminalRuntimeProvider({
         }
         const text = event.clipboardData?.getData('text/plain')
         if (text) {
-          terminal.paste(text)
+          pasteEntryText(entry, text)
           terminal.focus()
           return
         }
@@ -631,20 +846,115 @@ export function TerminalRuntimeProvider({
       pane.addEventListener('keydown', handleClipboardKey, true)
       pane.addEventListener('copy', handleCopyEvent, true)
       pane.addEventListener('paste', handlePasteEvent, true)
+      const handleCompositionStart = () => {
+        completionRuntime.startComposition(sessionId)
+      }
+      const handleCompositionEnd = () => {
+        completionRuntime.endComposition(sessionId)
+      }
+      helperInput?.addEventListener('compositionstart', handleCompositionStart)
+      helperInput?.addEventListener('compositionend', handleCompositionEnd)
       entry.disposables.push({
         dispose: () => {
           pane.removeEventListener('keydown', handleClipboardKey, true)
           pane.removeEventListener('copy', handleCopyEvent, true)
           pane.removeEventListener('paste', handlePasteEvent, true)
+          helperInput?.removeEventListener('compositionstart', handleCompositionStart)
+          helperInput?.removeEventListener('compositionend', handleCompositionEnd)
         },
+      })
+
+      terminal.attachCustomKeyEventHandler((event) => {
+        if (
+          event.type !== 'keydown'
+          || !isCompletionInteractionActive(sessionId)
+        ) {
+          return true
+        }
+        const snapshot = completionRuntime.getSnapshot(sessionId)
+        if (snapshot.items.length === 0) {
+          return true
+        }
+        if (
+          event.key !== 'Tab'
+          && (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey)
+        ) {
+          return true
+        }
+        switch (event.key) {
+          case 'ArrowUp':
+            event.preventDefault()
+            event.stopPropagation()
+            completionRuntime.moveSelection(sessionId, -1)
+            return false
+          case 'ArrowDown':
+            event.preventDefault()
+            event.stopPropagation()
+            completionRuntime.moveSelection(sessionId, 1)
+            return false
+          case 'Enter':
+            event.preventDefault()
+            event.stopPropagation()
+            {
+              const acceptance = completionRuntime.acceptSelection(sessionId)
+              if (!acceptance) {
+                completionRuntime.closeSuggestions(sessionId)
+              } else {
+                sendTerminalInput(acceptance.text, 'none')
+              }
+            }
+            return false
+          case 'Escape':
+            event.preventDefault()
+            event.stopPropagation()
+            completionRuntime.closeSuggestions(sessionId)
+            return false
+          case 'Tab':
+            completionRuntime.closeSuggestions(sessionId)
+            return true
+          default:
+            return true
+        }
       })
 
       entry.disposables.push(
         terminal.onData((data) => {
-          sendTerminalInput(data)
+          const trackCompletion = entry.suppressCompletionInput ? 'none' : 'user'
+          sendTerminalInput(data, trackCompletion)
         }),
         terminal.onBinary((data) => {
-          sendTerminalInput(binaryStringToBytes(data))
+          sendTerminalInput(binaryStringToBytes(data), 'binary')
+        }),
+        terminal.buffer.onBufferChange((buffer) => {
+          if (buffer.type === 'alternate') {
+            entry.completionPromptAnchor = null
+          }
+          completionRuntime.setAlternateScreen(sessionId, buffer.type === 'alternate')
+          emitCompletionLayout(sessionId)
+        }),
+        terminal.onWriteParsed(() => {
+          const completion = completionRuntime.getSnapshot(sessionId)
+          const anchor = entry.completionPromptAnchor
+          const buffer = terminal.buffer.active
+          if (
+            anchor
+            && completion.boundary
+            && completion.input.trust === 'trusted'
+            && completion.input.line.length === 0
+            && buffer.type === 'normal'
+            && matchesCompletionPromptAnchor(anchor, completion.boundary)
+          ) {
+            anchor.cursorX = buffer.cursorX
+            anchor.cursorY = buffer.cursorY
+          }
+          emitCompletionLayout(sessionId)
+        }),
+        terminal.onResize(() => {
+          entry.completionPromptAnchor = null
+          emitCompletionLayout(sessionId)
+        }),
+        terminal.onScroll(() => {
+          emitCompletionLayout(sessionId)
         }),
       )
       const unregisterCwdTransport = cwdRuntime.registerTransport(
@@ -680,10 +990,13 @@ export function TerminalRuntimeProvider({
       copyEntrySelection,
       completionRuntime,
       cwdRuntime,
+      emitCompletionLayout,
       fitAndResize,
       getViewportForSession,
+      isCompletionInteractionActive,
       isEntryWritable,
       pasteEntryClipboard,
+      pasteEntryText,
     ],
   )
 
@@ -726,17 +1039,33 @@ export function TerminalRuntimeProvider({
 
   const registerViewport = useCallback(
     ({ viewportId = 'default', sessionId, host, active = true, onResize }: TerminalViewportOptions) => {
-      viewportsRef.current.set(viewportId, { viewportId, sessionId, host, active, onResize })
+      const previous = viewportsRef.current.get(viewportId)
+      viewportsRef.current.set(viewportId, {
+        viewportId,
+        sessionId,
+        host,
+        active,
+        completionActive: previous?.sessionId === sessionId
+          ? previous.completionActive
+          : false,
+        completionVisible: previous?.sessionId === sessionId
+          ? previous.completionVisible
+          : false,
+        onResize,
+      })
       syncViewports()
       return () => {
         const current = viewportsRef.current.get(viewportId)
         if (current?.host === host) {
           viewportsRef.current.delete(viewportId)
+          if (current.sessionId) {
+            completionRuntime.closeSuggestions(current.sessionId)
+          }
           syncViewports()
         }
       }
     },
-    [syncViewports],
+    [completionRuntime, syncViewports],
   )
 
   const focusActive = useCallback(() => {
@@ -765,6 +1094,58 @@ export function TerminalRuntimeProvider({
     entry.terminal.focus()
     return true
   }, [getViewportForSession])
+
+  const subscribeSessionCompletion = useCallback((sessionId: string, listener: () => void) => (
+    completionRuntime.subscribe(sessionId, listener)
+  ), [completionRuntime])
+
+  const getSessionCompletionSnapshot = useCallback((sessionId: string) => (
+    completionRuntime.getSnapshot(sessionId)
+  ), [completionRuntime])
+
+  const moveSessionCompletionSelection = useCallback((sessionId: string, delta: number) => {
+    if (!isCompletionInteractionActive(sessionId)) {
+      return false
+    }
+    return completionRuntime.moveSelection(sessionId, delta)
+  }, [completionRuntime, isCompletionInteractionActive])
+
+  const selectSessionCompletion = useCallback((sessionId: string, index: number) => {
+    if (!isCompletionInteractionActive(sessionId)) {
+      return false
+    }
+    return completionRuntime.selectIndex(sessionId, index)
+  }, [completionRuntime, isCompletionInteractionActive])
+
+  const acceptSessionCompletion = useCallback((sessionId: string, index?: number) => {
+    const entry = entriesRef.current.get(sessionId)
+    if (
+      !entry
+      || entry.disposed
+      || !isEntryWritable(entry)
+      || !entry.transport.isLive()
+      || !isCompletionInteractionActive(sessionId)
+    ) {
+      return false
+    }
+    if (index !== undefined) {
+      completionRuntime.selectIndex(sessionId, index)
+    }
+    const acceptance = completionRuntime.acceptSelection(sessionId)
+    if (!acceptance) {
+      return false
+    }
+    if (!entry.transport.sendInput(terminalTextEncoder.encode(acceptance.text))) {
+      completionRuntime.markUncertain(sessionId)
+      return false
+    }
+    entry.terminal.focus()
+    return true
+  }, [completionRuntime, isCompletionInteractionActive, isEntryWritable])
+
+  const closeSessionCompletion = useCallback((sessionId: string) => {
+    completionRuntime.closeSuggestions(sessionId)
+  }, [completionRuntime])
 
   const selectSessionContextRange = useCallback((
     sessionId: string,
@@ -862,11 +1243,14 @@ export function TerminalRuntimeProvider({
   }, [applyEntrySessionState, cwdRuntime, disposeEntry, sessions, syncViewports])
 
   useEffect(() => {
+    const completionLayoutListeners = completionLayoutListenersRef.current
     return () => {
       disposeAll()
       cwdRuntime.dispose()
+      completionRuntime.clear()
+      completionLayoutListeners.clear()
     }
-  }, [api, cwdRuntime, disposeAll])
+  }, [api, completionRuntime, cwdRuntime, disposeAll])
 
   const value = useMemo<TerminalRuntimeContextValue>(
     () => ({
@@ -887,25 +1271,45 @@ export function TerminalRuntimeProvider({
       focusSession,
       sendTextToSession,
       sendTextToActive,
+      subscribeSessionCompletion,
+      getSessionCompletionSnapshot,
+      subscribeSessionCompletionLayout,
+      captureSessionCompletionCursor,
+      setViewportCompletionActive,
+      setViewportCompletionVisible,
+      moveSessionCompletionSelection,
+      selectSessionCompletion,
+      acceptSessionCompletion,
+      closeSessionCompletion,
     }),
     [
+      acceptSessionCompletion,
       clearActiveSearch,
       clearSessionContextSelection,
+      closeSessionCompletion,
       captureSessionContext,
+      captureSessionCompletionCursor,
       copyText,
       disposeAll,
       disposeSession,
       focusActive,
       focusSession,
+      getSessionCompletionSnapshot,
+      moveSessionCompletionSelection,
       pasteSessionClipboard,
       registerViewport,
       scheduleActiveResize,
       scheduleSessionResize,
       searchActive,
+      selectSessionCompletion,
       selectSessionContextRange,
       selectAllSession,
       sendTextToActive,
       sendTextToSession,
+      setViewportCompletionActive,
+      setViewportCompletionVisible,
+      subscribeSessionCompletion,
+      subscribeSessionCompletionLayout,
     ],
   )
 
@@ -916,6 +1320,18 @@ export function TerminalRuntimeProvider({
         <div className="terminal-runtime-parking" ref={parkingHostRef} aria-hidden="true" />
       </TerminalRuntimeContext.Provider>
     </TerminalCwdRuntimeProvider>
+  )
+}
+
+function matchesCompletionPromptAnchor(
+  anchor: CompletionPromptAnchor,
+  boundary: TerminalPromptBoundary,
+) {
+  return (
+    anchor.sourceGeneration === boundary.source_generation
+    && anchor.shellId === boundary.shell_id
+    && anchor.promptGeneration === boundary.prompt_generation
+    && anchor.inputEpoch === boundary.input_epoch
   )
 }
 

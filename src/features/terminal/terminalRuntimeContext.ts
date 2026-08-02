@@ -1,4 +1,11 @@
-import { createContext, useContext } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useSyncExternalStore,
+} from 'react'
+import type { TerminalCompletionSessionSnapshot } from './terminalCompletionRuntime'
 import type {
   TerminalContextPointer,
   TerminalContextSelectionRange,
@@ -39,6 +46,19 @@ export interface TerminalViewportOptions {
   onResize?: (cols: number, rows: number) => void
 }
 
+export interface TerminalCompletionCursorGeometry {
+  screenRect: {
+    left: number
+    top: number
+    width: number
+    height: number
+  }
+  cursorX: number
+  cursorY: number
+  columns: number
+  rows: number
+}
+
 export interface TerminalRuntimeContextValue {
   registerViewport: (options: TerminalViewportOptions) => () => void
   focusActive: () => void
@@ -69,6 +89,16 @@ export interface TerminalRuntimeContextValue {
   focusSession: (sessionId: string) => boolean
   sendTextToSession: (sessionId: string, text: string, options?: { execute?: boolean }) => TerminalSendResult
   sendTextToActive: (text: string, options?: { execute?: boolean }) => TerminalSendResult
+  subscribeSessionCompletion: (sessionId: string, listener: () => void) => () => void
+  getSessionCompletionSnapshot: (sessionId: string) => TerminalCompletionSessionSnapshot
+  subscribeSessionCompletionLayout: (sessionId: string, listener: () => void) => () => void
+  captureSessionCompletionCursor: (sessionId: string) => TerminalCompletionCursorGeometry | null
+  setViewportCompletionActive: (viewportId: string, sessionId: string | null, active: boolean) => void
+  setViewportCompletionVisible: (viewportId: string, sessionId: string | null, visible: boolean) => void
+  moveSessionCompletionSelection: (sessionId: string, delta: number) => boolean
+  selectSessionCompletion: (sessionId: string, index: number) => boolean
+  acceptSessionCompletion: (sessionId: string, index?: number) => boolean
+  closeSessionCompletion: (sessionId: string) => void
 }
 
 export const TerminalRuntimeContext = createContext<TerminalRuntimeContextValue | null>(null)
@@ -79,4 +109,38 @@ export function useTerminalRuntime() {
     throw new Error('useTerminalRuntime must be used within TerminalRuntimeProvider')
   }
   return context
+}
+
+export function useSessionCompletionSnapshot(sessionId: string | null) {
+  const runtime = useTerminalRuntime()
+  const fallback = useMemo<TerminalCompletionSessionSnapshot>(() => ({
+    sessionId: sessionId ?? '',
+    readiness: 'waiting_prompt',
+    boundary: null,
+    input: {
+      trust: 'uncertain',
+      line: '',
+      cursorUtf16: 0,
+      revision: 0,
+      composing: false,
+    },
+    queryState: 'idle',
+    items: [],
+    selectedIndex: 0,
+    isIncomplete: false,
+    indexGeneration: 0,
+    providerStates: [],
+  }), [sessionId])
+  const subscribe = useCallback(
+    (listener: () => void) => sessionId
+      ? runtime.subscribeSessionCompletion(sessionId, listener)
+      : () => undefined,
+    [runtime, sessionId],
+  )
+  const getSnapshot = useCallback(
+    () => sessionId ? runtime.getSessionCompletionSnapshot(sessionId) : fallback,
+    [fallback, runtime, sessionId],
+  )
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }

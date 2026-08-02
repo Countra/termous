@@ -984,6 +984,16 @@
       "copyPath": "复制路径",
       "reconnect": "重新连接"
     },
+    "completion": {
+      "label": "命令建议",
+      "sources": {
+        "alias": "别名",
+        "snippet": "代码片段",
+        "history": "历史",
+        "directory": "目录",
+        "other": "其他"
+      }
+    },
     "tabMenu": {
       "split": "分屏",
       "duplicate": "复制会话",

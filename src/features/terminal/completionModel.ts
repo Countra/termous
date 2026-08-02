@@ -4,12 +4,7 @@ import type {
   CompletionSource,
 } from '../../types/domain'
 
-const completionSources = new Set<CompletionSource>([
-  'alias',
-  'snippet',
-  'history',
-  'directory',
-])
+const completionSourcePattern = /^[a-z][a-z0-9_-]{0,63}$/
 
 export function normalizeCompletionResult(result: CompletionResult): CompletionResult {
   return {
@@ -21,7 +16,7 @@ export function normalizeCompletionResult(result: CompletionResult): CompletionR
 export function normalizeCompletionItem(
   item: CompletionItem & { sources?: unknown },
 ): CompletionItem {
-  if (!completionSources.has(item.source)) {
+  if (!isCompletionSource(item.source)) {
     throw new Error('Invalid completion source')
   }
   const sources = Array.isArray(item.sources)
@@ -34,5 +29,5 @@ export function normalizeCompletionItem(
 }
 
 function isCompletionSource(value: unknown): value is CompletionSource {
-  return typeof value === 'string' && completionSources.has(value as CompletionSource)
+  return typeof value === 'string' && completionSourcePattern.test(value)
 }

@@ -984,6 +984,16 @@
       "copyPath": "Copy path",
       "reconnect": "Reconnect"
     },
+    "completion": {
+      "label": "Command suggestions",
+      "sources": {
+        "alias": "Alias",
+        "snippet": "Snippet",
+        "history": "History",
+        "directory": "Directory",
+        "other": "Other"
+      }
+    },
     "tabMenu": {
       "split": "Split",
       "duplicate": "Duplicate session",

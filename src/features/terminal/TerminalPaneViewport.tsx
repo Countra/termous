@@ -3,6 +3,7 @@ import { CircleAlert, RefreshCw, WifiOff, X } from 'lucide-react'
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -11,6 +12,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Session, ThemeMode } from '../../types/domain'
+import { TerminalCompletionPopup } from './TerminalCompletionPopup'
 import { TerminalContextMenu } from './TerminalContextMenu'
 import {
   buildTerminalContextMenu,
@@ -19,8 +21,17 @@ import {
 } from './terminalContextMenuModel'
 import { resolveTerminalContextPath } from './terminalContextPath'
 import { useSessionCwdState } from './terminalCwdContext'
-import { useTerminalRuntime } from './terminalRuntimeContext'
+import {
+  useSessionCompletionSnapshot,
+  useTerminalRuntime,
+} from './terminalRuntimeContext'
 import type { TerminalContextSnapshot } from './terminalContextTarget'
+import {
+  computeTerminalCompletionPosition,
+  estimateTerminalCompletionPopupHeight,
+  TERMINAL_COMPLETION_POPUP_WIDTH,
+  type TerminalCompletionPopupPosition,
+} from './terminalCompletionPosition'
 
 interface TerminalPaneViewportProps {
   paneId: string
@@ -71,6 +82,7 @@ export function TerminalPaneViewport({
   const paneHostRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
   const contextMenuSequenceRef = useRef(0)
+  const completionPositionFrameRef = useRef<number | null>(null)
   const contextPathSelectionRef = useRef<{
     sessionId: string
   } | null>(null)
@@ -85,14 +97,37 @@ export function TerminalPaneViewport({
     clearSessionContextSelection,
     selectAllSession,
     focusSession,
+    subscribeSessionCompletionLayout,
+    captureSessionCompletionCursor,
+    setViewportCompletionActive,
+    setViewportCompletionVisible,
+    selectSessionCompletion,
+    acceptSessionCompletion,
+    closeSessionCompletion,
   } = useTerminalRuntime()
   const { t } = useTranslation()
   const { message } = AntdApp.useApp()
   const [contextMenu, setContextMenu] = useState<TerminalContextMenuState | null>(null)
+  const [completionPosition, setCompletionPosition] = useState<TerminalCompletionPopupPosition | null>(null)
   const sessionId = session?.id ?? null
+  const completionPopupId = `terminal-completion-${paneId}`
+  const completion = useSessionCompletionSnapshot(sessionId)
   const cwdState = useSessionCwdState(sessionId)
   const sessionEnded = session?.status === 'disconnected' || session?.status === 'failed'
   const DisconnectIcon = session?.status === 'failed' ? CircleAlert : WifiOff
+  const completionOpen = Boolean(
+    sessionId
+    && session?.kind === 'ssh'
+    && session.status === 'connected'
+    && active
+    && workspaceActive
+    && !searchPanel
+    && !contextMenu
+    && completion.readiness === 'ready'
+    && completion.input.trust === 'trusted'
+    && !completion.input.composing
+    && completion.items.length > 0,
+  )
 
   const clearContextPathSelection = useCallback(() => {
     const selection = contextPathSelectionRef.current
@@ -129,6 +164,7 @@ export function TerminalPaneViewport({
       if (!session) {
         return
       }
+      closeSessionCompletion(session.id)
       const snapshot = frozenSnapshot ?? captureSessionContext(session.id, pointer)
       if (!snapshot) {
         return
@@ -176,6 +212,7 @@ export function TerminalPaneViewport({
     [
       actionBusy,
       captureSessionContext,
+      closeSessionCompletion,
       clearContextPathSelection,
       cwdState?.confirmed_path,
       onActivate,
@@ -406,6 +443,155 @@ export function TerminalPaneViewport({
   }, [active, onResize, paneId, registerViewport, sessionId])
 
   useEffect(() => {
+    const interactionActive = Boolean(
+      sessionId
+      && session?.kind === 'ssh'
+      && session.status === 'connected'
+      && active
+      && workspaceActive
+      && !searchPanel
+      && !contextMenu,
+    )
+    setViewportCompletionActive(paneId, sessionId, interactionActive)
+    return () => {
+      setViewportCompletionActive(paneId, sessionId, false)
+    }
+  }, [
+    active,
+    contextMenu,
+    paneId,
+    searchPanel,
+    session?.kind,
+    session?.status,
+    sessionId,
+    setViewportCompletionActive,
+    workspaceActive,
+  ])
+
+  useLayoutEffect(() => {
+    const visible = Boolean(completionOpen && completionPosition)
+    setViewportCompletionVisible(paneId, sessionId, visible)
+    return () => {
+      setViewportCompletionVisible(paneId, sessionId, false)
+    }
+  }, [
+    completionOpen,
+    completionPosition,
+    paneId,
+    sessionId,
+    setViewportCompletionVisible,
+  ])
+
+  useLayoutEffect(() => {
+    const helperInput = paneHostRef.current?.querySelector('.xterm-helper-textarea')
+    if (!(helperInput instanceof HTMLTextAreaElement)) {
+      return undefined
+    }
+    const visible = Boolean(completionOpen && completionPosition)
+    if (!visible) {
+      helperInput.removeAttribute('aria-autocomplete')
+      helperInput.removeAttribute('aria-controls')
+      helperInput.removeAttribute('aria-activedescendant')
+      helperInput.removeAttribute('aria-expanded')
+      return undefined
+    }
+
+    helperInput.setAttribute('aria-autocomplete', 'list')
+    helperInput.setAttribute('aria-controls', completionPopupId)
+    helperInput.setAttribute('aria-expanded', 'true')
+    if (completion.selectedIndex >= 0 && completion.selectedIndex < completion.items.length) {
+      helperInput.setAttribute(
+        'aria-activedescendant',
+        `${completionPopupId}-option-${completion.selectedIndex}`,
+      )
+    } else {
+      helperInput.removeAttribute('aria-activedescendant')
+    }
+    return () => {
+      if (helperInput.getAttribute('aria-controls') !== completionPopupId) {
+        return
+      }
+      helperInput.removeAttribute('aria-autocomplete')
+      helperInput.removeAttribute('aria-controls')
+      helperInput.removeAttribute('aria-activedescendant')
+      helperInput.removeAttribute('aria-expanded')
+    }
+  }, [
+    completion.items.length,
+    completion.selectedIndex,
+    completionOpen,
+    completionPopupId,
+    completionPosition,
+  ])
+
+  const updateCompletionPosition = useCallback(() => {
+    if (completionPositionFrameRef.current !== null) {
+      window.cancelAnimationFrame(completionPositionFrameRef.current)
+      completionPositionFrameRef.current = null
+    }
+    if (!completionOpen || !sessionId) {
+      setCompletionPosition(null)
+      return
+    }
+    completionPositionFrameRef.current = window.requestAnimationFrame(() => {
+      completionPositionFrameRef.current = null
+      const frame = frameRef.current
+      const geometry = captureSessionCompletionCursor(sessionId)
+      if (!frame || !geometry) {
+        setCompletionPosition(null)
+        return
+      }
+      const paneRect = frame.getBoundingClientRect()
+      const nextPosition = computeTerminalCompletionPosition({
+        paneRect: {
+          left: paneRect.left,
+          top: paneRect.top,
+          width: paneRect.width,
+          height: paneRect.height,
+        },
+        screenRect: geometry.screenRect,
+        cursorX: geometry.cursorX,
+        cursorY: geometry.cursorY,
+        cellWidth: geometry.screenRect.width / geometry.columns,
+        cellHeight: geometry.screenRect.height / geometry.rows,
+        popupWidth: TERMINAL_COMPLETION_POPUP_WIDTH,
+        popupHeight: estimateTerminalCompletionPopupHeight(completion.items.length),
+      })
+      setCompletionPosition((current) => sameCompletionPosition(current, nextPosition)
+        ? current
+        : nextPosition)
+    })
+  }, [
+    captureSessionCompletionCursor,
+    completion.items.length,
+    completionOpen,
+    sessionId,
+  ])
+
+  useLayoutEffect(() => {
+    updateCompletionPosition()
+  }, [
+    completion.input.revision,
+    updateCompletionPosition,
+  ])
+
+  useEffect(() => {
+    if (!sessionId) {
+      return undefined
+    }
+    return subscribeSessionCompletionLayout(sessionId, updateCompletionPosition)
+  }, [sessionId, subscribeSessionCompletionLayout, updateCompletionPosition])
+
+  useEffect(() => {
+    return () => {
+      if (completionPositionFrameRef.current !== null) {
+        window.cancelAnimationFrame(completionPositionFrameRef.current)
+        completionPositionFrameRef.current = null
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     const host = paneHostRef.current
     if (!host || !sessionId) {
       return undefined
@@ -480,6 +666,23 @@ export function TerminalPaneViewport({
         ) : null}
         {active ? searchPanel : null}
       </div>
+      <TerminalCompletionPopup
+        id={completionPopupId}
+        open={completionOpen}
+        items={completion.items}
+        selectedIndex={completion.selectedIndex}
+        position={completionPosition}
+        onSelectedIndexChange={(index) => {
+          if (sessionId) {
+            selectSessionCompletion(sessionId, index)
+          }
+        }}
+        onAccept={(_item, index) => {
+          if (sessionId) {
+            acceptSessionCompletion(sessionId, index)
+          }
+        }}
+      />
       <TerminalContextMenu
         instanceId={contextMenu?.instanceId ?? 0}
         open={Boolean(contextMenu)}
@@ -494,6 +697,22 @@ export function TerminalPaneViewport({
         }}
       />
     </div>
+  )
+}
+
+function sameCompletionPosition(
+  left: TerminalCompletionPopupPosition | null,
+  right: TerminalCompletionPopupPosition | null,
+) {
+  if (!left || !right) {
+    return left === right
+  }
+  return (
+    left.left === right.left
+    && left.top === right.top
+    && left.maxWidth === right.maxWidth
+    && left.maxHeight === right.maxHeight
+    && left.placement === right.placement
   )
 }
 
