@@ -82,6 +82,66 @@ test('服务端心跳由客户端使用 heartbeat ack 原样确认', () => {
   )
 })
 
+test('可信提示符边界保留补全所需的全部代际信息', () => {
+  const message = decodeTerminalControlMessage(JSON.stringify({
+    type: 'prompt_boundary',
+    source_generation: 3,
+    shell_id: 'shell-zsh-1',
+    prompt_generation: 12,
+    shell: 'zsh',
+    cwd: '/srv/应用',
+    input_epoch: 21,
+  }))
+
+  assert.deepEqual(message, {
+    type: 'prompt_boundary',
+    source_generation: 3,
+    shell_id: 'shell-zsh-1',
+    prompt_generation: 12,
+    shell: 'zsh',
+    cwd: '/srv/应用',
+    input_epoch: 21,
+  })
+})
+
+test('可信提示符边界接受首个输入代际零值', () => {
+  const message = decodeTerminalControlMessage(JSON.stringify({
+    type: 'prompt_boundary',
+    source_generation: 1,
+    shell_id: 'shell-bash-1',
+    prompt_generation: 1,
+    shell: 'bash',
+    cwd: '/root',
+    input_epoch: 0,
+  }))
+
+  assert.equal(message.type, 'prompt_boundary')
+  if (message.type !== 'prompt_boundary') {
+    assert.fail('首个提示符边界应保持可信消息类型')
+  }
+  assert.equal(message.input_epoch, 0)
+})
+
+test('提示符边界拒绝缺失字段和负代际', () => {
+  assert.throws(() => decodeTerminalControlMessage(JSON.stringify({
+    type: 'prompt_boundary',
+    source_generation: -1,
+    shell_id: 'shell-bash-1',
+    prompt_generation: 1,
+    shell: 'bash',
+    cwd: '/root',
+    input_epoch: 0,
+  })), TerminalProtocolError)
+  assert.throws(() => decodeTerminalControlMessage(JSON.stringify({
+    type: 'prompt_boundary',
+    source_generation: 1,
+    prompt_generation: 1,
+    shell: 'bash',
+    cwd: '/root',
+    input_epoch: 0,
+  })), TerminalProtocolError)
+})
+
 test('attached 统一解码会话、CWD 与流快照', () => {
   const message = decodeTerminalControlMessage(JSON.stringify({
     type: 'attached',

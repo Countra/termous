@@ -667,6 +667,7 @@ export interface Settings {
   language: Language
   appearance: AppearanceSettings
   terminal: TerminalSettings
+  completion: CompletionSettings
   window: WindowSettings
 }
 
@@ -683,6 +684,67 @@ export interface TerminalSettings {
   cursor_blink: boolean
   theme_mode: TerminalThemeMode
   scrollback: 1000 | 5000 | 10000 | 50000
+}
+
+export interface CompletionSettings {
+  enabled: boolean
+}
+
+export type CompletionProviderStatus =
+  | 'idle'
+  | 'building'
+  | 'ready'
+  | 'degraded'
+  | 'failed'
+  | 'disabled'
+
+export interface CompletionProviderState {
+  id: string
+  status: CompletionProviderStatus
+  error_code?: string
+  retryable?: boolean
+}
+
+export type CompletionIndexStatus = 'building' | 'ready' | 'degraded'
+
+export interface CompletionStatus {
+  status: CompletionIndexStatus
+  index_generation: number
+  source_generation: number
+  provider_states: CompletionProviderState[]
+}
+
+export type CompletionTrigger = 'typing' | 'manual'
+
+export interface CompletionQuery {
+  request_id: string
+  source_generation: number
+  shell_id: string
+  prompt_generation: number
+  line: string
+  cursor_utf16: number
+  trigger: CompletionTrigger
+  max_items: number
+}
+
+export type CompletionSource = 'alias' | 'snippet' | 'history' | 'directory'
+
+export interface CompletionItem {
+  id: string
+  kind: 'command' | 'directory'
+  source: CompletionSource
+  label: string
+  detail?: string
+  insert_text: string
+  replace_start_utf16: number
+  replace_end_utf16: number
+  sources: CompletionSource[]
+}
+
+export interface CompletionResult extends CompletionStatus {
+  request_id: string
+  is_incomplete: boolean
+  items: CompletionItem[]
 }
 
 export type WindowCloseBehavior = 'exit' | 'minimize_to_tray'

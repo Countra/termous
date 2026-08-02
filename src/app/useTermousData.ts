@@ -7,6 +7,7 @@ import type {
   CodeSnippetGroup,
   CodeSnippetGroupInput,
   CodeSnippetInput,
+  CompletionSettings,
   ConnectionProxyInput,
   CredentialInput,
   FileBookmark,
@@ -38,7 +39,13 @@ import type {
   WindowSettings,
 } from '../types/domain'
 import { changeLanguage } from '../i18n'
-import { defaultAppearanceSettings, defaultTerminalSettings, defaultWindowSettings, normalizeSettings } from '../features/settings/terminalSettings'
+import {
+  defaultAppearanceSettings,
+  defaultCompletionSettings,
+  defaultTerminalSettings,
+  defaultWindowSettings,
+  normalizeSettings,
+} from '../features/settings/terminalSettings'
 import { hostToInput } from '../features/hosts/hostInput'
 import {
   adoptSuppressedFileSessionRecoveryResult,
@@ -73,6 +80,7 @@ const initialSettings: Settings = {
   language: 'zh-CN',
   appearance: defaultAppearanceSettings,
   terminal: defaultTerminalSettings,
+  completion: defaultCompletionSettings,
   window: defaultWindowSettings,
 }
 type LoadMode = 'initial' | 'background' | 'silent'
@@ -552,6 +560,37 @@ export function useTermousData() {
           setData((current) => ({ ...current, settings }))
         } catch (updateError) {
           setData((current) => ({ ...current, settings: previousSettings }))
+          throw updateError
+        }
+      },
+      async setCompletionSettings(completion: CompletionSettings) {
+        const previousCompletion = data.settings.completion
+        setData((current) => ({ ...current, settings: { ...current.settings, completion } }))
+        try {
+          const settings = normalizeSettings(await api.updateCompletionSettings(completion))
+          setData((current) => (
+            current.settings.completion.enabled === completion.enabled
+              ? {
+                  ...current,
+                  settings: {
+                    ...current.settings,
+                    completion: settings.completion,
+                  },
+                }
+              : current
+          ))
+        } catch (updateError) {
+          setData((current) => (
+            current.settings.completion.enabled === completion.enabled
+              ? {
+                  ...current,
+                  settings: {
+                    ...current.settings,
+                    completion: previousCompletion,
+                  },
+                }
+              : current
+          ))
           throw updateError
         }
       },

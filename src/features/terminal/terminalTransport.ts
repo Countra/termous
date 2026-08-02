@@ -55,6 +55,10 @@ export type TerminalTransportEvent =
     message: Extract<TerminalServerControlMessage, { type: 'cwd_state' }>
   }
   | {
+    type: 'prompt_boundary'
+    message: Extract<TerminalServerControlMessage, { type: 'prompt_boundary' }>
+  }
+  | {
     type: 'request_error'
     scope: TerminalRequestScope
     code: string
@@ -346,6 +350,9 @@ export class TerminalTransport {
         return
       case 'cwd_state':
         this.onEvent({ type: 'cwd_state', message })
+        return
+      case 'prompt_boundary':
+        this.onEvent({ type: 'prompt_boundary', message })
         return
       case 'request_error':
         this.onEvent({

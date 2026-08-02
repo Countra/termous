@@ -849,6 +849,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           sessions={data.sessions}
           theme={theme}
           terminalSettings={data.settings.terminal}
+          completionSettings={data.settings.completion}
           terminalFonts={data.terminalFonts}
           onSessionEvent={actions.updateSession}
         >
@@ -1091,6 +1092,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             language={data.settings.language}
             appearanceSettings={data.settings.appearance}
             terminalSettings={data.settings.terminal}
+            completionSettings={data.settings.completion}
             windowSettings={data.settings.window}
             terminalFonts={data.terminalFonts}
             appVersion={appVersion}
@@ -1099,6 +1101,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
             onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
             onTerminalSettingsChange={saveTerminalSettings}
+            onCompletionSettingsChange={(completion) => runAction(() => actions.setCompletionSettings(completion))}
             onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
             onUploadTerminalFont={uploadTerminalFont}
             onDeleteTerminalFont={deleteTerminalFont}

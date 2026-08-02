@@ -1,4 +1,10 @@
-import type { AppearanceSettings, Settings, TerminalSettings, WindowSettings } from '../../types/domain'
+import type {
+  AppearanceSettings,
+  CompletionSettings,
+  Settings,
+  TerminalSettings,
+  WindowSettings,
+} from '../../types/domain'
 
 export const defaultAppearanceSettings: AppearanceSettings = {
   theme: 'dark',
@@ -13,6 +19,10 @@ export const defaultTerminalSettings: TerminalSettings = {
   cursor_blink: true,
   theme_mode: 'follow_app',
   scrollback: 5000,
+}
+
+export const defaultCompletionSettings: CompletionSettings = {
+  enabled: true,
 }
 
 export const defaultWindowSettings: WindowSettings = {
@@ -30,7 +40,18 @@ export function normalizeSettings(settings: Partial<Settings> | null | undefined
     language: settings?.language === 'en-US' ? 'en-US' : 'zh-CN',
     appearance: normalizeAppearanceSettings(settings?.appearance),
     terminal: normalizeTerminalSettings(settings?.terminal),
+    completion: normalizeCompletionSettings(settings?.completion),
     window: normalizeWindowSettings(settings?.window),
+  }
+}
+
+export function normalizeCompletionSettings(
+  settings: Partial<CompletionSettings> | null | undefined,
+): CompletionSettings {
+  return {
+    enabled: typeof settings?.enabled === 'boolean'
+      ? settings.enabled
+      : defaultCompletionSettings.enabled,
   }
 }
 

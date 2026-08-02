@@ -3,6 +3,7 @@ import { Segmented, Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type {
   AppearanceSettings,
+  CompletionSettings,
   Language,
   TerminalFont,
   TerminalSettings,
@@ -10,12 +11,14 @@ import type {
 } from '../../types/domain'
 import { UpdateSettings, type UpdatePreferencesRuntime } from './UpdateSettings'
 import { TerminalStyleSettings } from './TerminalStyleSettings'
+import { TerminalCompletionSettings } from './TerminalCompletionSettings'
 import { DataPortabilitySettings } from './DataPortabilitySettings'
 
 export interface SettingsPageProps {
   language: Language
   appearanceSettings: AppearanceSettings
   terminalSettings: TerminalSettings
+  completionSettings: CompletionSettings
   windowSettings: WindowSettings
   terminalFonts: TerminalFont[]
   appVersion: string
@@ -24,6 +27,7 @@ export interface SettingsPageProps {
   onLanguageChange: (language: Language) => Promise<void>
   onAppearanceSettingsChange: (settings: AppearanceSettings) => Promise<void>
   onTerminalSettingsChange: (settings: TerminalSettings) => Promise<void>
+  onCompletionSettingsChange: (settings: CompletionSettings) => Promise<void>
   onWindowSettingsChange: (settings: WindowSettings) => Promise<void>
   onUploadTerminalFont: (file: File) => Promise<TerminalFont>
   onDeleteTerminalFont: (id: string) => Promise<void>
@@ -33,6 +37,7 @@ export function SettingsPage({
   language,
   appearanceSettings,
   terminalSettings,
+  completionSettings,
   windowSettings,
   terminalFonts,
   appVersion,
@@ -41,6 +46,7 @@ export function SettingsPage({
   onLanguageChange,
   onAppearanceSettingsChange,
   onTerminalSettingsChange,
+  onCompletionSettingsChange,
   onWindowSettingsChange,
   onUploadTerminalFont,
   onDeleteTerminalFont,
@@ -153,14 +159,21 @@ export function SettingsPage({
               </span>
             ),
             children: (
-              <TerminalStyleSettings
-                value={terminalSettings}
-                fonts={terminalFonts}
-                disabled={actionBusy}
-                onChange={onTerminalSettingsChange}
-                onUploadFont={onUploadTerminalFont}
-                onDeleteFont={onDeleteTerminalFont}
-              />
+              <div className="terminal-settings-stack">
+                <TerminalCompletionSettings
+                  value={completionSettings}
+                  disabled={actionBusy}
+                  onChange={onCompletionSettingsChange}
+                />
+                <TerminalStyleSettings
+                  value={terminalSettings}
+                  fonts={terminalFonts}
+                  disabled={actionBusy}
+                  onChange={onTerminalSettingsChange}
+                  onUploadFont={onUploadTerminalFont}
+                  onDeleteFont={onDeleteTerminalFont}
+                />
+              </div>
             ),
           },
           {

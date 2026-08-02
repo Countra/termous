@@ -8,6 +8,10 @@ import type {
   CodeSnippetGroup,
   CodeSnippetGroupInput,
   CodeSnippetInput,
+  CompletionQuery,
+  CompletionResult,
+  CompletionSettings,
+  CompletionStatus,
   ConnectionProxy,
   ConnectionProxyInput,
   CoreRuntimeInfo,
@@ -106,6 +110,7 @@ import type {
   TransferTask,
   WindowSettings,
 } from '../types/domain'
+import { normalizeCompletionResult } from '../features/terminal/completionModel'
 
 const DEFAULT_CONFIG: AppConfig = {
   apiBaseUrl: import.meta.env.VITE_TERMOUS_API_BASE_URL ?? 'http://127.0.0.1:8122',
@@ -224,6 +229,13 @@ export class TermousApi {
     return this.request<Settings>('/api/v1/settings/terminal', {
       method: 'PATCH',
       body: terminal,
+    })
+  }
+
+  updateCompletionSettings(completion: CompletionSettings) {
+    return this.request<Settings>('/api/v1/settings/completion', {
+      method: 'PATCH',
+      body: completion,
     })
   }
 
@@ -657,6 +669,40 @@ export class TermousApi {
       body: { force },
       signal: options.signal,
     })
+  }
+
+  sessionCompletionStatus(id: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<CompletionStatus>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/completions/status`,
+      { signal: options.signal, timeoutMs: 10_000 },
+    )
+  }
+
+  querySessionCompletions(
+    id: string,
+    query: CompletionQuery,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    return this.request<CompletionResult>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/completions/query`,
+      {
+        method: 'POST',
+        body: query,
+        signal: options.signal,
+        timeoutMs: 10_000,
+      },
+    ).then(normalizeCompletionResult)
+  }
+
+  refreshSessionCompletions(id: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<CompletionStatus>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/completions/refresh`,
+      {
+        method: 'POST',
+        signal: options.signal,
+        timeoutMs: 15_000,
+      },
+    )
   }
 
   sessionMonitorUrl(id: string) {

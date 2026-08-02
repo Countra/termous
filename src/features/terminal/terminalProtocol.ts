@@ -33,6 +33,15 @@ export interface TerminalStreamCursor {
   nextOffset: bigint
 }
 
+export interface TerminalPromptBoundary {
+  source_generation: number
+  shell_id: string
+  prompt_generation: number
+  shell: string
+  cwd: string
+  input_epoch: number
+}
+
 export type TerminalServerControlMessage =
   | {
     type: 'attached'
@@ -53,6 +62,7 @@ export type TerminalServerControlMessage =
     type: 'cwd_state'
     cwd_state: SessionCwdState
   }
+  | ({ type: 'prompt_boundary' } & TerminalPromptBoundary)
   | {
     type: 'request_error'
     scope: TerminalRequestScope
@@ -149,6 +159,11 @@ export function decodeTerminalControlMessage(payload: string): TerminalServerCon
       return {
         type,
         cwd_state: decodeCwdState(message.cwd_state),
+      }
+    case 'prompt_boundary':
+      return {
+        type,
+        ...decodePromptBoundary(message),
       }
     case 'request_error':
       return {
@@ -269,6 +284,26 @@ function decodeCwdState(value: unknown): SessionCwdState {
   } as unknown as SessionCwdState
 }
 
+function decodePromptBoundary(message: Record<string, unknown>): TerminalPromptBoundary {
+  return {
+    source_generation: requireNonNegativeSafeInteger(
+      message.source_generation,
+      'Terminal prompt source generation is invalid',
+    ),
+    shell_id: requireString(message.shell_id, 'Terminal prompt shell id is missing'),
+    prompt_generation: requireNonNegativeSafeInteger(
+      message.prompt_generation,
+      'Terminal prompt generation is invalid',
+    ),
+    shell: requireString(message.shell, 'Terminal prompt shell is missing'),
+    cwd: requireString(message.cwd, 'Terminal prompt directory is missing'),
+    input_epoch: requireNonNegativeSafeInteger(
+      message.input_epoch,
+      'Terminal prompt input epoch is invalid',
+    ),
+  }
+}
+
 function decodeGapReason(value: unknown): TerminalOutputGapReason {
   if (
     value === 'epoch_mismatch' ||
@@ -320,6 +355,13 @@ function requireBoolean(value: unknown, message: string) {
     throw new TerminalProtocolError(message)
   }
   return value
+}
+
+function requireNonNegativeSafeInteger(value: unknown, message: string) {
+  if (!Number.isSafeInteger(value) || Number(value) < 0) {
+    throw new TerminalProtocolError(message)
+  }
+  return Number(value)
 }
 
 function optionalSafeInteger(value: unknown) {

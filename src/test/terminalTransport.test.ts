@@ -90,6 +90,21 @@ test('transport 保留流游标、去重输出、确认心跳并独立重连', (
     }))
     assert.equal(transport.isLive(), true)
 
+    socket.receive(JSON.stringify({
+      type: 'prompt_boundary',
+      source_generation: 2,
+      shell_id: 'shell-bash-1',
+      prompt_generation: 4,
+      shell: 'bash',
+      cwd: '/root',
+      input_epoch: 7,
+    }))
+    assert.equal(events.some((event) => (
+      event.type === 'prompt_boundary'
+      && event.message.prompt_generation === 4
+      && event.message.cwd === '/root'
+    )), true)
+
     assert.equal(transport.sendCwdRefresh('refresh-1'), true)
     assert.deepEqual(JSON.parse(String(socket.sent[socket.sent.length - 1])), {
       type: 'cwd_refresh',

@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { TermousApi } from '../../api/client'
 import { TerminalCwdRuntimeProvider } from '../../app/TerminalCwdRuntimeProvider'
 import type {
+  CompletionSettings,
   Session,
   SessionCwdState,
   SessionStatus,
@@ -45,6 +46,7 @@ import {
   TerminalCwdRuntime,
   type SessionCwdRequestError,
 } from './terminalCwdRuntime'
+import { TerminalCompletionRuntime } from './terminalCompletionRuntime'
 import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from './terminalFonts'
 import {
   TerminalTransport,
@@ -59,6 +61,7 @@ interface TerminalRuntimeProviderProps {
   sessions: Session[]
   theme: ThemeMode
   terminalSettings: TerminalSettings
+  completionSettings: CompletionSettings
   terminalFonts: TerminalFont[]
   children: ReactNode
   onSessionEvent?: (sessionId: string, patch: Partial<Session>) => void
@@ -93,6 +96,7 @@ export function TerminalRuntimeProvider({
   sessions,
   theme,
   terminalSettings,
+  completionSettings,
   terminalFonts,
   children,
   onSessionEvent,
@@ -113,6 +117,12 @@ export function TerminalRuntimeProvider({
     cwdRuntimeRef.current = new TerminalCwdRuntime()
   }
   const cwdRuntime = cwdRuntimeRef.current
+  const completionRuntimeRef = useRef<TerminalCompletionRuntime | null>(null)
+  if (!completionRuntimeRef.current) {
+    completionRuntimeRef.current = new TerminalCompletionRuntime(completionSettings.enabled)
+  }
+  const completionRuntime = completionRuntimeRef.current
+  completionRuntime.setEnabled(completionSettings.enabled)
   const { t } = useTranslation()
   const { message } = AntdApp.useApp()
   const sessionSnapshot = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
@@ -142,6 +152,7 @@ export function TerminalRuntimeProvider({
         return
       }
       cwdRuntime.applyTransportState(entry.sessionId, 'disposed')
+      completionRuntime.disposeSession(entry.sessionId)
       entry.disposed = true
       if (entry.resizeTimer) {
         window.clearTimeout(entry.resizeTimer)
@@ -153,7 +164,7 @@ export function TerminalRuntimeProvider({
       entry.container.remove()
       entriesRef.current.delete(entry.sessionId)
     },
-    [cwdRuntime],
+    [completionRuntime, cwdRuntime],
   )
 
   const disposeSession = useCallback(
@@ -500,6 +511,13 @@ export function TerminalRuntimeProvider({
           if (!currentEntry || currentEntry.disposed) {
             return
           }
+          if (event.type === 'transport_state') {
+            completionRuntime.applyTransportState(sessionId, event.state)
+          } else if (event.type === 'prompt_boundary') {
+            completionRuntime.applyPromptBoundary(sessionId, event.message)
+          } else if (event.type === 'output_gap') {
+            completionRuntime.invalidateSession(sessionId)
+          }
           handleTerminalTransportEvent(
             currentEntry,
             event,
@@ -660,6 +678,7 @@ export function TerminalRuntimeProvider({
     [
       applyEntrySessionState,
       copyEntrySelection,
+      completionRuntime,
       cwdRuntime,
       fitAndResize,
       getViewportForSession,
@@ -988,6 +1007,8 @@ function handleTerminalTransportEvent(
       return
     case 'cwd_state':
       onCwdState(event.message.cwd_state)
+      return
+    case 'prompt_boundary':
       return
     case 'request_error':
       entry.container.dataset.transportError = event.code
