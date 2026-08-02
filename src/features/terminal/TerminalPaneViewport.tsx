@@ -673,6 +673,7 @@ export function TerminalPaneViewport({
         items={completion.items}
         selectedIndex={completion.selectedIndex}
         position={completionPosition}
+        themeMode={themeMode}
         onSelectedIndexChange={(index) => {
           if (sessionId) {
             selectSessionCompletion(sessionId, index)

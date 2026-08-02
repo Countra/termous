@@ -47,6 +47,7 @@ test('智能补全动态来源和设置文案在中英文资源中完整对应',
   }
   for (const key of [
     'terminal.completion.label',
+    'terminal.completion.exact',
     'settings.completionTitle',
     'settings.completionEnabled',
     'settings.completionHint',

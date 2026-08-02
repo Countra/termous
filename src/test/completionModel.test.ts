@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { normalizeCompletionItem } from '../features/terminal/completionModel.ts'
+import {
+  isExactCompletionItem,
+  normalizeCompletionItem,
+  splitCompletionLabel,
+} from '../features/terminal/completionModel.ts'
 
 test('候选来源缺失时使用主来源安全补齐', () => {
   const candidate = normalizeCompletionItem({
@@ -42,4 +46,34 @@ test('候选来源拒绝不安全或超长的协议标识', () => {
     replace_end_utf16: 0,
     sources: [],
   }), /Invalid completion source/)
+})
+
+test('候选标签区分已输入前缀、建议后缀和完整匹配', () => {
+  const suggestion = normalizeCompletionItem({
+    id: 'alias:lls',
+    kind: 'command',
+    source: 'alias',
+    label: 'lls',
+    insert_text: 's',
+    replace_start_utf16: 2,
+    replace_end_utf16: 2,
+    sources: ['alias'],
+  })
+  assert.deepEqual(splitCompletionLabel(suggestion), {
+    entered: 'll',
+    suggestion: 's',
+  })
+  assert.equal(isExactCompletionItem(suggestion), false)
+
+  const exact = {
+    ...suggestion,
+    id: 'alias:ll',
+    label: 'll',
+    insert_text: '',
+  }
+  assert.deepEqual(splitCompletionLabel(exact), {
+    entered: 'll',
+    suggestion: '',
+  })
+  assert.equal(isExactCompletionItem(exact), true)
 })

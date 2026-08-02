@@ -31,7 +31,7 @@ test('候选按键仅拦截活动补全并保持原生 Tab 透传', () => {
   assert.match(providerSource, /viewport\.completionVisible/)
   assert.match(
     providerSource,
-    /case 'Enter':[\s\S]*?acceptSelection\(sessionId\)[\s\S]*?sendTerminalInput\(acceptance\.text, 'none'\)[\s\S]*?return false/,
+    /case 'Enter':[\s\S]*?acceptSelection\(sessionId\)[\s\S]*?acceptance\.exact[\s\S]*?return true[\s\S]*?sendTerminalInput\(acceptance\.text, 'none'\)[\s\S]*?return false/,
   )
   assert.doesNotMatch(providerSource, /acceptance\.text[\s\S]{0,80}ensureTerminalEnter/)
   assert.match(
@@ -63,6 +63,7 @@ test('候选只在活动工作区显示并与搜索及右键菜单互斥', () =>
     /setViewportCompletionVisible\(paneId, sessionId, visible\)/,
   )
   assert.match(viewportSource, /<TerminalCompletionPopup[\s\S]*?position=\{completionPosition\}/)
+  assert.match(viewportSource, /<TerminalCompletionPopup[\s\S]*?themeMode=\{themeMode\}/)
   assert.match(providerSource, /transitionTerminalCompletionActivity/)
   assert.match(
     viewportSource,

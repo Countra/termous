@@ -899,13 +899,20 @@ export function TerminalRuntimeProvider({
             completionRuntime.moveSelection(sessionId, 1)
             return false
           case 'Enter':
-            event.preventDefault()
-            event.stopPropagation()
             {
               const acceptance = completionRuntime.acceptSelection(sessionId)
               if (!acceptance) {
+                event.preventDefault()
+                event.stopPropagation()
                 completionRuntime.closeSuggestions(sessionId)
-              } else {
+                return false
+              }
+              if (acceptance.exact) {
+                return true
+              }
+              event.preventDefault()
+              event.stopPropagation()
+              if (acceptance.text.length > 0) {
                 sendTerminalInput(acceptance.text, 'none')
               }
             }
@@ -1141,7 +1148,10 @@ export function TerminalRuntimeProvider({
     if (!acceptance) {
       return false
     }
-    if (!entry.transport.sendInput(terminalTextEncoder.encode(acceptance.text))) {
+    if (
+      acceptance.text.length > 0
+      && !entry.transport.sendInput(terminalTextEncoder.encode(acceptance.text))
+    ) {
       completionRuntime.markUncertain(sessionId)
       return false
     }

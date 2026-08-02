@@ -1,5 +1,5 @@
 import { Tooltip } from 'antd'
-import { Code2, Command, Folder, History, Sparkles } from 'lucide-react'
+import { Check, Code2, Command, Folder, History, Sparkles } from 'lucide-react'
 import {
   useEffect,
   useRef,
@@ -8,7 +8,8 @@ import {
   type SVGProps,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { CompletionItem } from '../../types/domain'
+import type { CompletionItem, ThemeMode } from '../../types/domain'
+import { isExactCompletionItem, splitCompletionLabel } from './completionModel'
 import {
   TERMINAL_COMPLETION_MAX_ITEMS,
   TERMINAL_COMPLETION_POPUP_WIDTH,
@@ -31,6 +32,7 @@ export interface TerminalCompletionPopupProps {
   items: readonly CompletionItem[]
   selectedIndex: number
   position: TerminalCompletionPopupPosition | null
+  themeMode: ThemeMode
   onSelectedIndexChange: (index: number) => void
   onAccept: (item: CompletionItem, index: number) => void
 }
@@ -41,6 +43,7 @@ export function TerminalCompletionPopup({
   items,
   selectedIndex,
   position,
+  themeMode,
   onSelectedIndexChange,
   onAccept,
 }: TerminalCompletionPopupProps) {
@@ -77,7 +80,7 @@ export function TerminalCompletionPopup({
     <div
       ref={popupRef}
       id={id}
-      className="terminal-completion-popup"
+      className={`terminal-completion-popup terminal-completion-theme-${themeMode}`}
       data-placement={position.placement}
       role="listbox"
       aria-label={t('terminal.completion.label')}
@@ -93,6 +96,8 @@ export function TerminalCompletionPopup({
       {visibleItems.map((item, index) => {
         const Icon = sourceIcons[item.source] ?? Sparkles
         const selected = index === selectedIndex
+        const exact = isExactCompletionItem(item)
+        const label = splitCompletionLabel(item)
         const sources = item.sources.length > 0 ? item.sources : [item.source]
         const sourceSummary = sources
           .map((source) => {
@@ -110,7 +115,7 @@ export function TerminalCompletionPopup({
             }}
             id={`${id}-option-${index}`}
             key={item.id}
-            className={`terminal-completion-option ${selected ? 'is-selected' : ''}`}
+            className={`terminal-completion-option ${selected ? 'is-selected' : ''} ${exact ? 'is-exact' : ''}`}
             type="button"
             role="option"
             aria-selected={selected}
@@ -134,12 +139,27 @@ export function TerminalCompletionPopup({
           >
             <Icon className="terminal-completion-option-icon" size={16} aria-hidden="true" />
             <span className="terminal-completion-option-content">
-              <span className="terminal-completion-option-label">{item.label}</span>
+              <span className="terminal-completion-option-label">
+                {label.entered ? (
+                  <span className="terminal-completion-option-entered">{label.entered}</span>
+                ) : null}
+                {label.suggestion ? (
+                  <span className="terminal-completion-option-suggestion">{label.suggestion}</span>
+                ) : null}
+              </span>
               {item.detail ? (
                 <span className="terminal-completion-option-detail">{item.detail}</span>
               ) : null}
             </span>
-            <span className="terminal-completion-option-source">{sourceSummary}</span>
+            <span className="terminal-completion-option-meta">
+              <span className="terminal-completion-option-source">{sourceSummary}</span>
+              {exact ? (
+                <span className="terminal-completion-option-exact">
+                  <Check size={10} strokeWidth={2.5} aria-hidden="true" />
+                  {t('terminal.completion.exact')}
+                </span>
+              ) : null}
+            </span>
           </button>
         )
 
@@ -159,7 +179,9 @@ export function TerminalCompletionPopup({
             placement="right"
             mouseEnterDelay={0.4}
             destroyOnHidden
-            classNames={{ root: 'termous-tooltip terminal-completion-tooltip' }}
+            classNames={{
+              root: `termous-tooltip terminal-completion-tooltip terminal-completion-theme-${themeMode}`,
+            }}
           >
             {option}
           </Tooltip>

@@ -986,6 +986,7 @@
     },
     "completion": {
       "label": "命令建议",
+      "exact": "已输入",
       "sources": {
         "alias": "别名",
         "snippet": "代码片段",

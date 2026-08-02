@@ -109,8 +109,8 @@ test('过窄或非法几何信息不创建不可用浮层', () => {
 test('高度估算最多计算八条候选且拒绝负数量', () => {
   assert.equal(estimateTerminalCompletionPopupHeight(-2), 0)
   assert.equal(estimateTerminalCompletionPopupHeight(Number.NaN), 0)
-  assert.equal(estimateTerminalCompletionPopupHeight(3), 154)
-  assert.equal(estimateTerminalCompletionPopupHeight(20), 394)
+  assert.equal(estimateTerminalCompletionPopupHeight(3), 142)
+  assert.equal(estimateTerminalCompletionPopupHeight(20), 362)
   assert.equal(TERMINAL_COMPLETION_MAX_ITEMS, 8)
 })
 

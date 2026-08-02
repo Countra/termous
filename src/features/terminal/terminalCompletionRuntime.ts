@@ -50,6 +50,7 @@ export interface TerminalCompletionSessionSnapshot {
 export interface TerminalCompletionAcceptance {
   item: CompletionItem
   text: string
+  exact: boolean
   inputRevision: number
 }
 
@@ -372,12 +373,14 @@ export class TerminalCompletionRuntime {
     }
     const item = state.items[state.selectedIndex]
     const appendText = item ? appendTextForCandidate(state.input, item) : null
-    if (!item || appendText === null || appendText.length === 0) {
+    if (!item || appendText === null) {
       return null
     }
 
     this.cancelQuery(state)
-    state.input = insertTerminalCompletionText(state.input, appendText)
+    if (appendText.length > 0) {
+      state.input = insertTerminalCompletionText(state.input, appendText)
+    }
     this.clearQueryResult(state)
     state.suppressedInputRevision = state.input.revision
     this.publish(state)
@@ -388,6 +391,7 @@ export class TerminalCompletionRuntime {
     return {
       item,
       text: appendText,
+      exact: appendText.length === 0,
       inputRevision: state.input.revision,
     }
   }
@@ -770,7 +774,7 @@ function appendTextForCandidate(
     return null
   }
   const appendText = item.insert_text.slice(current.length)
-  return appendText.length > 0 && isSafeCandidateAppend(appendText)
+  return appendText.length === 0 || isSafeCandidateAppend(appendText)
     ? appendText
     : null
 }

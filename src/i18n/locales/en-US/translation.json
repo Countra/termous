@@ -986,6 +986,7 @@
     },
     "completion": {
       "label": "Command suggestions",
+      "exact": "Entered",
       "sources": {
         "alias": "Alias",
         "snippet": "Snippet",

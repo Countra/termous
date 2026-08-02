@@ -397,6 +397,31 @@ test('候选选择循环且 Enter 只生成追加文本并更新模型', async (
   assert.equal(runtime.acceptSelection('session-1'), null)
 })
 
+test('完整命令与更长候选同时保留并以精确接受标记交给终端执行', async () => {
+  const scheduler = new ManualScheduler()
+  const runtime = new TerminalCompletionRuntime(true, {
+    schedule: scheduler.schedule,
+    query: async (_sessionId, query) => completionResult(query, [
+      commandCandidate(query, 'll'),
+      { ...commandCandidate(query, 'lls'), id: 'alias:lls', source: 'alias', sources: ['alias'] },
+    ]),
+  })
+  runtime.applyPromptBoundary('session-1', boundary)
+  runtime.applyUserData('session-1', 'll')
+  scheduler.runNext()
+  await flushPromises()
+
+  const snapshot = runtime.getSnapshot('session-1')
+  assert.deepEqual(snapshot.items.map((item) => item.label), ['ll', 'lls'])
+  const acceptance = runtime.acceptSelection('session-1')
+  assert.equal(acceptance?.text, '')
+  assert.equal(acceptance?.exact, true)
+  assert.equal(acceptance?.inputRevision, snapshot.input.revision)
+  assert.equal(runtime.getSnapshot('session-1').input.line, 'll')
+  assert.equal(runtime.getSnapshot('session-1').items.length, 0)
+  assert.equal(runtime.acceptSelection('session-1'), null)
+})
+
 test('Enter 与原生 Tab 失信后只接受更高 input epoch 的提示符', () => {
   const runtime = new TerminalCompletionRuntime()
   runtime.applyPromptBoundary('session-1', boundary)
