@@ -5,7 +5,8 @@ export const TERMINAL_COMPLETION_MAX_VISIBLE_ITEMS = 8
 const defaultGap = 6
 const defaultPadding = 8
 const popupVerticalPadding = 10
-const minimumVisibleHeight = 40
+const popupShortcutHeight = 29
+const minimumVisibleHeight = popupShortcutHeight + 40
 
 export interface TerminalCompletionRect {
   left: number
@@ -105,7 +106,7 @@ export function estimateTerminalCompletionPopupHeight(itemCount: number) {
   )
   return visibleCount === 0
     ? 0
-    : visibleCount * TERMINAL_COMPLETION_ROW_HEIGHT + popupVerticalPadding
+    : visibleCount * TERMINAL_COMPLETION_ROW_HEIGHT + popupVerticalPadding + popupShortcutHeight
 }
 
 export function computeTerminalCompletionPosition(

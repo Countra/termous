@@ -990,6 +990,10 @@
       "reconnect": "重新连接",
       "retry": "重试",
       "retryFailed": "智能补全重试失败",
+      "shortcuts": {
+        "navigate": "切换",
+        "select": "选择"
+      },
       "status": {
         "reconnect_required": "智能补全组件已更新，重新连接后生效",
         "degraded": "智能补全暂不可用",
@@ -1936,15 +1940,15 @@
     "terminalSection": "终端样式",
     "completionTitle": "智能补全",
     "completionEnabled": "启用智能补全",
-    "completionHint": "使用 Bash 命令、命令别名、代码片段、远端历史和当前目录提供建议。",
+    "completionHint": "使用 Bash 补全、命令别名、代码片段、远端历史和当前目录提供建议。",
     "completionProviders": "补全来源",
     "completionProvidersHint": "按需选择参与候选生成的数据来源。",
     "completionProvidersEnabled": "已启用 {{count}}/{{total}}",
     "completionProvidersPaused": "已暂停 · {{count}}/{{total}} 已选",
     "completionProvider": {
       "native": {
-        "name": "Bash 命令",
-        "description": "实时使用远端 Bash 的 compgen 获取可用命令；不支持时自动跳过。"
+        "name": "Bash 补全",
+        "description": "通过远端 Bash 的 compgen 实时获取可用命令。"
       },
       "alias": {
         "name": "命令别名",

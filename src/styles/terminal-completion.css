@@ -12,15 +12,64 @@
   position: absolute;
   z-index: 16;
   display: grid;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 4px;
+  overflow: hidden;
+  grid-template-rows: minmax(0, 1fr) 29px;
   border: 1px solid var(--completion-border);
   border-radius: 8px;
   background: var(--completion-bg);
   color: var(--completion-text);
   box-shadow: 0 12px 28px rgb(0 0 0 / 30%);
+}
+
+.terminal-completion-options {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 4px;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.terminal-completion-shortcuts {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid var(--completion-border);
+  padding: 0 8px;
+  color: var(--completion-text-muted);
+  font-size: 10px;
+  line-height: 1;
+  user-select: none;
+}
+
+.terminal-completion-shortcut {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.terminal-completion-shortcut kbd {
+  display: inline-flex;
+  box-sizing: border-box;
+  min-width: 19px;
+  height: 17px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--completion-border) 82%, transparent);
+  border-radius: 4px;
+  background: var(--completion-row-hover);
+  padding: 0 4px;
+  color: var(--completion-text-secondary);
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .terminal-completion-popup.terminal-completion-theme-light {

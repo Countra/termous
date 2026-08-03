@@ -990,6 +990,10 @@
       "reconnect": "Reconnect",
       "retry": "Retry",
       "retryFailed": "Unable to retry smart completion",
+      "shortcuts": {
+        "navigate": "Navigate",
+        "select": "Select"
+      },
       "status": {
         "reconnect_required": "Smart completion was updated and requires a reconnect",
         "degraded": "Smart completion is temporarily unavailable",
@@ -1940,15 +1944,15 @@
     "terminalSection": "Terminal style",
     "completionTitle": "Smart completion",
     "completionEnabled": "Enable smart completion",
-    "completionHint": "Suggest Bash commands, aliases, snippets, remote history, and the current directory.",
+    "completionHint": "Suggest commands using Bash completion, aliases, snippets, remote history, and the current directory.",
     "completionProviders": "Completion sources",
     "completionProvidersHint": "Choose which data sources can generate suggestions.",
     "completionProvidersEnabled": "{{count}}/{{total}} enabled",
     "completionProvidersPaused": "Paused · {{count}}/{{total}} selected",
     "completionProvider": {
       "native": {
-        "name": "Bash commands",
-        "description": "Query available commands from the remote Bash compgen in real time and skip it when unsupported."
+        "name": "Bash completion",
+        "description": "Use compgen in the remote Bash environment to retrieve available commands in real time."
       },
       "alias": {
         "name": "Command aliases",
