@@ -688,6 +688,16 @@ export interface TerminalSettings {
 
 export interface CompletionSettings {
   enabled: boolean
+  providers: CompletionProviderSettings
+}
+
+export type CompletionProviderId = 'alias' | 'snippet' | 'history' | 'directory'
+
+export interface CompletionProviderSettings {
+  alias: boolean
+  snippet: boolean
+  history: boolean
+  directory: boolean
 }
 
 export type CompletionProviderStatus =

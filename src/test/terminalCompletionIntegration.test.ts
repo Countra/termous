@@ -23,6 +23,7 @@ test('终端补全通过稳定外部存储订阅且不在渲染期发布设置�
     providerSource,
     /const completionRuntime = completionRuntimeRef\.current\s*\n\s*completionRuntime\.setEnabled/,
   )
+  assert.match(providerSource, /completionRuntime\.invalidateProviderConfiguration\(\)/)
 })
 
 test('候选按键仅拦截活动补全并保持原生 Tab 透传', () => {

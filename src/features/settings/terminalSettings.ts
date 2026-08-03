@@ -1,5 +1,7 @@
 import type {
   AppearanceSettings,
+  CompletionProviderId,
+  CompletionProviderSettings,
   CompletionSettings,
   Settings,
   TerminalSettings,
@@ -21,8 +23,23 @@ export const defaultTerminalSettings: TerminalSettings = {
   scrollback: 5000,
 }
 
+export const completionProviderIds = [
+  'alias',
+  'snippet',
+  'history',
+  'directory',
+] as const satisfies readonly CompletionProviderId[]
+
+export const defaultCompletionProviderSettings: CompletionProviderSettings = {
+  alias: true,
+  snippet: true,
+  history: true,
+  directory: true,
+}
+
 export const defaultCompletionSettings: CompletionSettings = {
   enabled: true,
+  providers: defaultCompletionProviderSettings,
 }
 
 export const defaultWindowSettings: WindowSettings = {
@@ -46,13 +63,54 @@ export function normalizeSettings(settings: Partial<Settings> | null | undefined
 }
 
 export function normalizeCompletionSettings(
-  settings: Partial<CompletionSettings> | null | undefined,
+  settings: (Partial<Omit<CompletionSettings, 'providers'>> & {
+    providers?: Partial<CompletionProviderSettings> | null
+  }) | null | undefined,
 ): CompletionSettings {
   return {
     enabled: typeof settings?.enabled === 'boolean'
       ? settings.enabled
       : defaultCompletionSettings.enabled,
+    providers: normalizeCompletionProviderSettings(settings?.providers),
   }
+}
+
+export function normalizeCompletionProviderSettings(
+  providers: Partial<CompletionProviderSettings> | null | undefined,
+): CompletionProviderSettings {
+  return {
+    alias: normalizeCompletionProviderEnabled(providers, 'alias'),
+    snippet: normalizeCompletionProviderEnabled(providers, 'snippet'),
+    history: normalizeCompletionProviderEnabled(providers, 'history'),
+    directory: normalizeCompletionProviderEnabled(providers, 'directory'),
+  }
+}
+
+export function completionSettingsEqual(
+  left: CompletionSettings,
+  right: CompletionSettings,
+) {
+  return (
+    left.enabled === right.enabled
+    && completionProviderIds.every(
+      (providerId) => left.providers[providerId] === right.providers[providerId],
+    )
+  )
+}
+
+export function completionProviderSettingsSignature(providers: CompletionProviderSettings) {
+  return completionProviderIds.map((providerId) => (
+    providers[providerId] ? '1' : '0'
+  )).join('')
+}
+
+function normalizeCompletionProviderEnabled(
+  providers: Partial<CompletionProviderSettings> | null | undefined,
+  providerId: CompletionProviderId,
+) {
+  return typeof providers?.[providerId] === 'boolean'
+    ? providers[providerId]
+    : defaultCompletionProviderSettings[providerId]
 }
 
 export function normalizeAppearanceSettings(settings: Partial<AppearanceSettings> | null | undefined): AppearanceSettings {

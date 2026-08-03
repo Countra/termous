@@ -373,6 +373,39 @@ test('关闭设置会中止所有会话的在途请求并拒绝迟到结果', as
   assert.equal(runtime.getSnapshot('session-2').items.length, 0)
 })
 
+test('来源配置变化会取消旧查询并清空候选但保留可信输入', async () => {
+  const scheduler = new ManualScheduler()
+  let pending: {
+    query: CompletionQuery
+    signal: AbortSignal
+    resolve: (result: CompletionResult) => void
+  } | undefined
+  const runtime = new TerminalCompletionRuntime(true, {
+    schedule: scheduler.schedule,
+    query: (_sessionId, query, signal) => new Promise((resolve) => {
+      pending = { query, signal, resolve }
+    }),
+  })
+
+  runtime.applyPromptBoundary('session-1', boundary)
+  runtime.applyUserData('session-1', 'g')
+  assert.equal(scheduler.runNext(), true)
+  assert.ok(pending)
+
+  runtime.invalidateProviderConfiguration()
+  const snapshot = runtime.getSnapshot('session-1')
+  assert.equal(pending.signal.aborted, true)
+  assert.deepEqual(snapshot.boundary, boundary)
+  assert.equal(snapshot.input.trust, 'trusted')
+  assert.equal(snapshot.input.line, 'g')
+  assert.equal(snapshot.queryState, 'idle')
+  assert.equal(snapshot.items.length, 0)
+
+  pending.resolve(completionResult(pending.query, [commandCandidate(pending.query)]))
+  await flushPromises()
+  assert.equal(runtime.getSnapshot('session-1').items.length, 0)
+})
+
 test('传输断开会中止在途请求且迟到结果不能恢复候选', async () => {
   const scheduler = new ManualScheduler()
   const pending: Array<{

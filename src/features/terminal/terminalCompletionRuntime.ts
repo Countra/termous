@@ -178,6 +178,15 @@ export class TerminalCompletionRuntime {
     }
   }
 
+  invalidateProviderConfiguration() {
+    for (const state of this.sessions.values()) {
+      this.cancelQuery(state)
+      state.incompleteRetries = 0
+      this.clearQueryResult(state)
+      this.publish(state)
+    }
+  }
+
   setQueryExecutor(query?: TerminalCompletionQueryExecutor | null) {
     const nextQuery = query ?? undefined
     if (this.queryExecutor === nextQuery) {

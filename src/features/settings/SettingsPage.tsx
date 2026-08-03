@@ -73,79 +73,81 @@ export function SettingsPage({
               </span>
             ),
             children: (
-              <div className="settings-section">
-                <div className="settings-section-header">
-                  <Settings2 size={18} aria-hidden="true" />
-                  <h2>{t('settings.generalSection')}</h2>
-                </div>
-                <div className="settings-row">
-                  <div>
-                    <strong>{t('settings.appearanceTheme')}</strong>
+              <div className="settings-tab-scroll">
+                <div className="settings-section">
+                  <div className="settings-section-header">
+                    <Settings2 size={18} aria-hidden="true" />
+                    <h2>{t('settings.generalSection')}</h2>
                   </div>
-                  <Segmented
-                    block
-                    className="settings-control-segmented"
-                    value={appearanceSettings.theme}
-                    disabled={actionBusy}
-                    options={[
-                      {
-                        value: 'dark',
-                        label: (
-                          <span className="settings-segment-label">
-                            <Moon size={14} aria-hidden="true" />
-                            {t('settings.themeDark')}
-                          </span>
-                        ),
-                      },
-                      {
-                        value: 'light',
-                        label: (
-                          <span className="settings-segment-label">
-                            <Sun size={14} aria-hidden="true" />
-                            {t('settings.themeLight')}
-                          </span>
-                        ),
-                      },
-                    ]}
-                    onChange={(value) =>
-                      void onAppearanceSettingsChange({ theme: value as AppearanceSettings['theme'] })
-                    }
-                  />
-                </div>
-                <div className="settings-row">
-                  <div>
-                    <strong>{t('settings.interfaceLanguage')}</strong>
+                  <div className="settings-row">
+                    <div>
+                      <strong>{t('settings.appearanceTheme')}</strong>
+                    </div>
+                    <Segmented
+                      block
+                      className="settings-control-segmented"
+                      value={appearanceSettings.theme}
+                      disabled={actionBusy}
+                      options={[
+                        {
+                          value: 'dark',
+                          label: (
+                            <span className="settings-segment-label">
+                              <Moon size={14} aria-hidden="true" />
+                              {t('settings.themeDark')}
+                            </span>
+                          ),
+                        },
+                        {
+                          value: 'light',
+                          label: (
+                            <span className="settings-segment-label">
+                              <Sun size={14} aria-hidden="true" />
+                              {t('settings.themeLight')}
+                            </span>
+                          ),
+                        },
+                      ]}
+                      onChange={(value) =>
+                        void onAppearanceSettingsChange({ theme: value as AppearanceSettings['theme'] })
+                      }
+                    />
                   </div>
-                  <Segmented
-                    block
-                    className="settings-language-switch"
-                    value={language}
-                    disabled={actionBusy}
-                    options={[
-                      { value: 'zh-CN', label: t('settings.chinese') },
-                      { value: 'en-US', label: t('settings.english') },
-                    ]}
-                    onChange={(value) => void onLanguageChange(value as Language)}
-                  />
-                </div>
-                <div className="settings-row">
-                  <div>
-                    <strong>{t('settings.closeBehavior')}</strong>
-                    <p className="settings-row-hint">{t('settings.closeBehaviorHint')}</p>
+                  <div className="settings-row">
+                    <div>
+                      <strong>{t('settings.interfaceLanguage')}</strong>
+                    </div>
+                    <Segmented
+                      block
+                      className="settings-language-switch"
+                      value={language}
+                      disabled={actionBusy}
+                      options={[
+                        { value: 'zh-CN', label: t('settings.chinese') },
+                        { value: 'en-US', label: t('settings.english') },
+                      ]}
+                      onChange={(value) => void onLanguageChange(value as Language)}
+                    />
                   </div>
-                  <Segmented
-                    block
-                    className="settings-control-segmented"
-                    value={windowSettings.close_behavior}
-                    disabled={actionBusy}
-                    options={[
-                      { value: 'exit', label: t('settings.closeBehaviorExit') },
-                      { value: 'minimize_to_tray', label: t('settings.closeBehaviorMinimizeToTray') },
-                    ]}
-                    onChange={(value) =>
-                      void onWindowSettingsChange({ close_behavior: value as WindowSettings['close_behavior'] })
-                    }
-                  />
+                  <div className="settings-row">
+                    <div>
+                      <strong>{t('settings.closeBehavior')}</strong>
+                      <p className="settings-row-hint">{t('settings.closeBehaviorHint')}</p>
+                    </div>
+                    <Segmented
+                      block
+                      className="settings-control-segmented"
+                      value={windowSettings.close_behavior}
+                      disabled={actionBusy}
+                      options={[
+                        { value: 'exit', label: t('settings.closeBehaviorExit') },
+                        { value: 'minimize_to_tray', label: t('settings.closeBehaviorMinimizeToTray') },
+                      ]}
+                      onChange={(value) =>
+                        void onWindowSettingsChange({ close_behavior: value as WindowSettings['close_behavior'] })
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             ),
@@ -159,20 +161,22 @@ export function SettingsPage({
               </span>
             ),
             children: (
-              <div className="terminal-settings-stack">
-                <TerminalCompletionSettings
-                  value={completionSettings}
-                  disabled={actionBusy}
-                  onChange={onCompletionSettingsChange}
-                />
-                <TerminalStyleSettings
-                  value={terminalSettings}
-                  fonts={terminalFonts}
-                  disabled={actionBusy}
-                  onChange={onTerminalSettingsChange}
-                  onUploadFont={onUploadTerminalFont}
-                  onDeleteFont={onDeleteTerminalFont}
-                />
+              <div className="settings-tab-scroll">
+                <div className="terminal-settings-stack">
+                  <TerminalStyleSettings
+                    value={terminalSettings}
+                    fonts={terminalFonts}
+                    disabled={actionBusy}
+                    onChange={onTerminalSettingsChange}
+                    onUploadFont={onUploadTerminalFont}
+                    onDeleteFont={onDeleteTerminalFont}
+                  />
+                  <TerminalCompletionSettings
+                    value={completionSettings}
+                    disabled={actionBusy}
+                    onChange={onCompletionSettingsChange}
+                  />
+                </div>
               </div>
             ),
           },
@@ -184,7 +188,11 @@ export function SettingsPage({
                 {t('settings.tabData')}
               </span>
             ),
-            children: <DataPortabilitySettings appVersion={appVersion} />,
+            children: (
+              <div className="settings-tab-scroll">
+                <DataPortabilitySettings appVersion={appVersion} />
+              </div>
+            ),
           },
           {
             key: 'updates',
@@ -195,7 +203,9 @@ export function SettingsPage({
               </span>
             ),
             children: (
-              <UpdateSettings updateRuntime={updatePreferencesRuntime} />
+              <div className="settings-tab-scroll">
+                <UpdateSettings updateRuntime={updatePreferencesRuntime} />
+              </div>
             ),
           },
         ]}

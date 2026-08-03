@@ -666,6 +666,16 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
+  const saveCompletionSettings = async (
+    completionSettings: Parameters<typeof actions.setCompletionSettings>[0],
+  ) => {
+    try {
+      await actions.setCompletionSettings(completionSettings)
+    } catch (actionError) {
+      showActionError(actionError)
+    }
+  }
+
   const openFileBookmarksFromSession = async (session: Session) => {
     if (session.kind !== 'ssh' || session.status !== 'connected' || !session.host_id) {
       return
@@ -1101,7 +1111,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
             onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
             onTerminalSettingsChange={saveTerminalSettings}
-            onCompletionSettingsChange={(completion) => runAction(() => actions.setCompletionSettings(completion))}
+            onCompletionSettingsChange={saveCompletionSettings}
             onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
             onUploadTerminalFont={uploadTerminalFont}
             onDeleteTerminalFont={deleteTerminalFont}

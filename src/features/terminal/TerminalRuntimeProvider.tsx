@@ -23,7 +23,11 @@ import type {
   TerminalSettings,
   ThemeMode,
 } from '../../types/domain'
-import { defaultTerminalSettings, normalizeTerminalSettings } from '../settings/terminalSettings'
+import {
+  completionProviderSettingsSignature,
+  defaultTerminalSettings,
+  normalizeTerminalSettings,
+} from '../settings/terminalSettings'
 import {
   TerminalRuntimeContext,
   type TerminalRuntimeContextValue,
@@ -150,6 +154,10 @@ export function TerminalRuntimeProvider({
     cwdRuntimeRef.current = new TerminalCwdRuntime()
   }
   const cwdRuntime = cwdRuntimeRef.current
+  const completionProvidersSignature = completionProviderSettingsSignature(
+    completionSettings.providers,
+  )
+  const completionProvidersSignatureRef = useRef(completionProvidersSignature)
   const completionRuntimeRef = useRef<TerminalCompletionRuntime | null>(null)
   if (!completionRuntimeRef.current) {
     completionRuntimeRef.current = new TerminalCompletionRuntime(completionSettings.enabled, {
@@ -369,6 +377,14 @@ export function TerminalRuntimeProvider({
     apiRef.current = api
     syncImportedFontFaces(api, terminalFontsRef.current)
   }, [api])
+
+  useEffect(() => {
+    if (completionProvidersSignatureRef.current === completionProvidersSignature) {
+      return
+    }
+    completionProvidersSignatureRef.current = completionProvidersSignature
+    completionRuntime.invalidateProviderConfiguration()
+  }, [completionProvidersSignature, completionRuntime])
 
   useEffect(() => {
     completionRuntime.setEnabled(completionSettings.enabled)

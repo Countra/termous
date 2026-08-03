@@ -1936,6 +1936,28 @@
     "completionTitle": "智能补全",
     "completionEnabled": "启用智能补全",
     "completionHint": "使用命令别名、代码片段、远端历史和当前目录提供建议。",
+    "completionProviders": "补全来源",
+    "completionProvidersHint": "按需选择参与候选生成的数据来源。",
+    "completionProvidersEnabled": "已启用 {{count}}/{{total}}",
+    "completionProvidersPaused": "已暂停 · {{count}}/{{total}} 已选",
+    "completionProvider": {
+      "alias": {
+        "name": "命令别名",
+        "description": "使用当前 Shell 中已启用的 Termous 别名。"
+      },
+      "snippet": {
+        "name": "代码片段",
+        "description": "使用可安全单行插入的代码片段。"
+      },
+      "history": {
+        "name": "远端历史",
+        "description": "读取已落盘的远端命令历史，仅保存在当前会话内存中。"
+      },
+      "directory": {
+        "name": "当前目录",
+        "description": "为 cd、pushd 等命令提供一层远端目录候选。"
+      }
+    },
     "terminalFont": "字体",
     "terminalFontSize": "字号",
     "terminalLineHeight": "行高",

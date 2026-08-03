@@ -40,6 +40,7 @@ import type {
 } from '../types/domain'
 import { changeLanguage } from '../i18n'
 import {
+  completionSettingsEqual,
   defaultAppearanceSettings,
   defaultCompletionSettings,
   defaultTerminalSettings,
@@ -75,6 +76,7 @@ import {
   selectForwardStartSnapshot,
   shouldApplyForwardPollResponse,
 } from '../features/forwards/forwardRestart'
+import { canApplyReloadedValue, SerialMutationQueue } from './serialMutationQueue'
 
 const initialSettings: Settings = {
   language: 'zh-CN',
@@ -135,6 +137,16 @@ export function useTermousData() {
   const inventoryRequestRevisionsRef = useRef(new Map<string, number>())
   const forwardEventRevisionsRef = useRef(new Map<string, number>())
   const forwardEventSnapshotsRef = useRef(new Map<string, ForwardInstance>())
+  const completionSettingsMutationRef = useRef(0)
+  const completionSettingsPendingWritesRef = useRef(0)
+  const completionSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
+  if (!completionSettingsWriteQueueRef.current) {
+    completionSettingsWriteQueueRef.current = new SerialMutationQueue()
+  }
+  const completionSettingsWriteQueue = completionSettingsWriteQueueRef.current
+  const completionSettingsRef = useRef(data.settings.completion)
+  const completionSettingsConfirmedRef = useRef(data.settings.completion)
+  completionSettingsRef.current = data.settings.completion
   const forwardStartCompletionWaitersRef = useRef(
     new Map<string, ForwardStartCompletionWaiter>(),
   )
@@ -219,6 +231,10 @@ export function useTermousData() {
   const loadWithApi = useCallback(async (apiClient: TermousApi, mode: LoadMode = 'background') => {
     const loadRevision = loadRevisionRef.current + 1
     loadRevisionRef.current = loadRevision
+    const completionSettingsReloadCheckpoint = {
+      generation: completionSettingsMutationRef.current,
+      hadPendingWrites: completionSettingsPendingWritesRef.current > 0,
+    }
     const sessionRevisionBaseline = new Map(sessionEventRevisionsRef.current)
     const fileSessionRevisionBaseline = new Map(fileSessionEventRevisionsRef.current)
     if (mode === 'initial') {
@@ -278,6 +294,15 @@ export function useTermousData() {
       )
       const reloadedSessions = sessions ?? []
       const nextSettings = normalizeSettings(settings)
+      const canApplyReloadedCompletion = canApplyReloadedValue(
+        completionSettingsReloadCheckpoint,
+        completionSettingsMutationRef.current,
+        completionSettingsPendingWritesRef.current,
+      )
+      if (canApplyReloadedCompletion) {
+        completionSettingsConfirmedRef.current = nextSettings.completion
+        completionSettingsRef.current = nextSettings.completion
+      }
       reloadedSessions.forEach((session) => {
         if (!sessionChangedSince(
           session.id,
@@ -300,8 +325,11 @@ export function useTermousData() {
           sessionEventRevisionsRef.current,
         )
         const activeSourceSessionIds = new Set(nextSessions.map((session) => session.id))
+        const mergedSettings = canApplyReloadedCompletion
+          ? nextSettings
+          : { ...nextSettings, completion: current.settings.completion }
         return {
-          settings: nextSettings,
+          settings: mergedSettings,
           groups: groups ?? [],
           proxies: sortConnectionProxies(proxies ?? []),
           hosts: hosts ?? [],
@@ -564,12 +592,25 @@ export function useTermousData() {
         }
       },
       async setCompletionSettings(completion: CompletionSettings) {
-        const previousCompletion = data.settings.completion
+        const mutation = completionSettingsMutationRef.current + 1
+        completionSettingsMutationRef.current = mutation
+        completionSettingsPendingWritesRef.current += 1
+        completionSettingsRef.current = completion
         setData((current) => ({ ...current, settings: { ...current.settings, completion } }))
         try {
-          const settings = normalizeSettings(await api.updateCompletionSettings(completion))
+          const settings = normalizeSettings(await completionSettingsWriteQueue.enqueue(
+            () => api.updateCompletionSettings(completion),
+          ))
+          completionSettingsConfirmedRef.current = settings.completion
+          if (completionSettingsMutationRef.current !== mutation) {
+            return
+          }
+          if (!completionSettingsEqual(completionSettingsRef.current, completion)) {
+            return
+          }
+          completionSettingsRef.current = settings.completion
           setData((current) => (
-            current.settings.completion.enabled === completion.enabled
+            completionSettingsEqual(current.settings.completion, completion)
               ? {
                   ...current,
                   settings: {
@@ -580,18 +621,31 @@ export function useTermousData() {
               : current
           ))
         } catch (updateError) {
+          if (completionSettingsMutationRef.current !== mutation) {
+            return
+          }
+          if (!completionSettingsEqual(completionSettingsRef.current, completion)) {
+            throw updateError
+          }
+          const confirmedCompletion = completionSettingsConfirmedRef.current
+          completionSettingsRef.current = confirmedCompletion
           setData((current) => (
-            current.settings.completion.enabled === completion.enabled
+            completionSettingsEqual(current.settings.completion, completion)
               ? {
                   ...current,
                   settings: {
                     ...current.settings,
-                    completion: previousCompletion,
+                    completion: confirmedCompletion,
                   },
                 }
               : current
           ))
           throw updateError
+        } finally {
+          completionSettingsPendingWritesRef.current = Math.max(
+            0,
+            completionSettingsPendingWritesRef.current - 1,
+          )
         }
       },
       async setWindowSettings(windowSettings: WindowSettings) {
@@ -1260,6 +1314,7 @@ export function useTermousData() {
     }),
     [
       api,
+      completionSettingsWriteQueue,
       data.fileSessions,
       data.forwards,
       data.hosts,

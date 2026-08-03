@@ -1940,6 +1940,28 @@
     "completionTitle": "Smart completion",
     "completionEnabled": "Enable smart completion",
     "completionHint": "Suggest commands from aliases, snippets, remote history, and the current directory.",
+    "completionProviders": "Completion sources",
+    "completionProvidersHint": "Choose which data sources can generate suggestions.",
+    "completionProvidersEnabled": "{{count}}/{{total}} enabled",
+    "completionProvidersPaused": "Paused · {{count}}/{{total}} selected",
+    "completionProvider": {
+      "alias": {
+        "name": "Command aliases",
+        "description": "Use enabled Termous aliases for the current shell."
+      },
+      "snippet": {
+        "name": "Code snippets",
+        "description": "Use snippets that can be inserted safely on one line."
+      },
+      "history": {
+        "name": "Remote history",
+        "description": "Read saved remote command history and keep it only in session memory."
+      },
+      "directory": {
+        "name": "Current directory",
+        "description": "Suggest one level of remote directories for commands such as cd and pushd."
+      }
+    },
     "terminalFont": "Font",
     "terminalFontSize": "Font size",
     "terminalLineHeight": "Line height",

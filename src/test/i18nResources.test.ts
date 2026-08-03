@@ -51,9 +51,20 @@ test('智能补全动态来源和设置文案在中英文资源中完整对应',
     'settings.completionTitle',
     'settings.completionEnabled',
     'settings.completionHint',
+    'settings.completionProviders',
+    'settings.completionProvidersHint',
+    'settings.completionProvidersEnabled',
+    'settings.completionProvidersPaused',
   ]) {
     assert.equal(typeof translationValue(zhCN, key), 'string', key)
     assert.equal(typeof translationValue(enUS, key), 'string', key)
+  }
+  for (const source of ['alias', 'snippet', 'history', 'directory']) {
+    for (const field of ['name', 'description']) {
+      const key = `settings.completionProvider.${source}.${field}`
+      assert.equal(typeof translationValue(zhCN, key), 'string', key)
+      assert.equal(typeof translationValue(enUS, key), 'string', key)
+    }
   }
 })
 
