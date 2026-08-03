@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { TerminalCompletionRuntime } from '../features/terminal/terminalCompletionRuntime.ts'
-import type { CompletionItem, CompletionQuery, CompletionResult } from '../types/domain.ts'
+import type {
+  CompletionItem,
+  CompletionQuery,
+  CompletionResult,
+  CompletionStatus,
+} from '../types/domain.ts'
 
 const boundary = {
   source_generation: 2,
@@ -10,6 +15,24 @@ const boundary = {
   shell: 'bash',
   cwd: '/srv/app',
   input_epoch: 8,
+}
+
+function completionStatus(
+  promptStatus: CompletionStatus['prompt_observation']['status'],
+  sourceGeneration = boundary.source_generation,
+): CompletionStatus {
+  return {
+    status: 'building',
+    index_generation: 1,
+    source_generation: sourceGeneration,
+    prompt_observation: {
+      status: promptStatus,
+      error_code: promptStatus === 'reconnect_required'
+        ? 'COMPLETION_PROMPT_RECONNECT_REQUIRED'
+        : undefined,
+    },
+    provider_states: [],
+  }
 }
 
 test('提示符边界按会话与代际建立补全基础状态', () => {
@@ -30,6 +53,48 @@ test('提示符边界按会话与代际建立补全基础状态', () => {
     prompt_generation: 99,
   }), false)
   assert.equal(runtime.getSnapshot('session-1').boundary?.source_generation, 2)
+})
+
+test('提示符观察终态可见且迟到状态不能回退可信边界', () => {
+  const runtime = new TerminalCompletionRuntime()
+  assert.equal(runtime.applyStatus('session-1', completionStatus('waiting')), true)
+  assert.equal(runtime.getSnapshot('session-1').readiness, 'waiting_prompt')
+  assert.equal(runtime.applyStatus('session-1', completionStatus('preparing')), true)
+
+  assert.equal(runtime.applyStatus('session-1', completionStatus('reconnect_required')), true)
+  let snapshot = runtime.getSnapshot('session-1')
+  assert.equal(snapshot.readiness, 'unavailable')
+  assert.equal(snapshot.promptObservation.status, 'reconnect_required')
+  assert.equal(snapshot.errorCode, 'COMPLETION_PROMPT_RECONNECT_REQUIRED')
+
+  assert.equal(runtime.applyPromptBoundary('session-1', boundary), true)
+  assert.equal(runtime.applyStatus('session-1', completionStatus('degraded')), true)
+  snapshot = runtime.getSnapshot('session-1')
+  assert.equal(snapshot.readiness, 'ready')
+  assert.equal(snapshot.promptObservation.status, 'ready')
+
+  assert.equal(runtime.applyStatus('session-1', completionStatus('unsupported', 1)), false)
+  assert.equal(runtime.getSnapshot('session-1').promptObservation.status, 'ready')
+})
+
+test('状态对账耗尽会形成可重试终态且不覆盖可信提示符', () => {
+  const runtime = new TerminalCompletionRuntime()
+  runtime.applyTransportState('session-1', 'live')
+
+  assert.equal(runtime.markPromptObservationUnavailable('session-1'), true)
+  let snapshot = runtime.getSnapshot('session-1')
+  assert.equal(snapshot.readiness, 'unavailable')
+  assert.deepEqual(snapshot.promptObservation, {
+    status: 'degraded',
+    error_code: 'COMPLETION_UNAVAILABLE',
+    retryable: true,
+  })
+
+  runtime.applyPromptBoundary('session-1', boundary)
+  assert.equal(runtime.markPromptObservationUnavailable('session-1'), false)
+  snapshot = runtime.getSnapshot('session-1')
+  assert.equal(snapshot.readiness, 'ready')
+  assert.equal(snapshot.promptObservation.status, 'ready')
 })
 
 test('嵌套 Shell 按 input epoch 支持父子恢复并拒绝迟到边界', () => {
@@ -155,6 +220,7 @@ function completionResult(
     index_generation: 3,
     source_generation: query.source_generation,
     is_incomplete: isIncomplete,
+    prompt_observation: { status: 'ready' },
     provider_states: [{ id: 'history', status: 'ready' }],
     items,
   }
@@ -402,7 +468,12 @@ test('完整命令与更长候选同时保留并以精确接受标记交给终�
   const runtime = new TerminalCompletionRuntime(true, {
     schedule: scheduler.schedule,
     query: async (_sessionId, query) => completionResult(query, [
-      commandCandidate(query, 'll'),
+      {
+        ...commandCandidate(query, 'll'),
+        insert_text: '',
+        replace_start_utf16: query.cursor_utf16,
+        replace_end_utf16: query.cursor_utf16,
+      },
       { ...commandCandidate(query, 'lls'), id: 'alias:lls', source: 'alias', sources: ['alias'] },
     ]),
   })
@@ -420,6 +491,36 @@ test('完整命令与更长候选同时保留并以精确接受标记交给终�
   assert.equal(runtime.getSnapshot('session-1').input.line, 'll')
   assert.equal(runtime.getSnapshot('session-1').items.length, 0)
   assert.equal(runtime.acceptSelection('session-1'), null)
+})
+
+test('鼠标接受会校验候选身份并拒绝异步重排后的旧条目', async () => {
+  const scheduler = new ManualScheduler()
+  const runtime = new TerminalCompletionRuntime(true, {
+    schedule: scheduler.schedule,
+    query: async (_sessionId, query) => completionResult(query, [
+      commandCandidate(query, 'git status'),
+    ]),
+  })
+  runtime.applyPromptBoundary('session-1', boundary)
+  runtime.applyUserData('session-1', 'g')
+  scheduler.runNext()
+  await flushPromises()
+
+  assert.equal(runtime.acceptSelection('session-1', {
+    index: 0,
+    id: 'stale-candidate',
+    insertText: 'it checkout',
+  }), null)
+  assert.equal(runtime.getSnapshot('session-1').input.line, 'g')
+
+  const item = runtime.getSnapshot('session-1').items[0]
+  assert.ok(item)
+  const accepted = runtime.acceptSelection('session-1', {
+    index: 0,
+    id: item.id,
+    insertText: item.insert_text,
+  })
+  assert.equal(accepted?.text, 'it status')
 })
 
 test('Enter 与原生 Tab 失信后只接受更高 input epoch 的提示符', () => {

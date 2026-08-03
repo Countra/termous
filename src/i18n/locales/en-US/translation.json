@@ -987,6 +987,14 @@
     "completion": {
       "label": "Command suggestions",
       "exact": "Entered",
+      "reconnect": "Reconnect",
+      "retry": "Retry",
+      "retryFailed": "Unable to retry smart completion",
+      "status": {
+        "reconnect_required": "Smart completion was updated and requires a reconnect",
+        "degraded": "Smart completion is temporarily unavailable",
+        "unsupported": "Smart completion is unavailable for this shell"
+      },
       "sources": {
         "alias": "Alias",
         "snippet": "Snippet",

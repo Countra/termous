@@ -5,7 +5,10 @@ import {
   useMemo,
   useSyncExternalStore,
 } from 'react'
-import type { TerminalCompletionSessionSnapshot } from './terminalCompletionRuntime'
+import type {
+  TerminalCompletionExpectedSelection,
+  TerminalCompletionSessionSnapshot,
+} from './terminalCompletionRuntime'
 import type {
   TerminalContextPointer,
   TerminalContextSelectionRange,
@@ -19,6 +22,8 @@ export type {
   TerminalContextTarget,
   TerminalMouseTrackingMode,
 } from './terminalContextTarget'
+
+export type TerminalCompletionRetryResult = 'succeeded' | 'failed' | 'cancelled'
 
 export interface TerminalSearchOptions {
   caseSensitive: boolean
@@ -97,7 +102,11 @@ export interface TerminalRuntimeContextValue {
   setViewportCompletionVisible: (viewportId: string, sessionId: string | null, visible: boolean) => void
   moveSessionCompletionSelection: (sessionId: string, delta: number) => boolean
   selectSessionCompletion: (sessionId: string, index: number) => boolean
-  acceptSessionCompletion: (sessionId: string, index?: number) => boolean
+  acceptSessionCompletion: (
+    sessionId: string,
+    expected?: TerminalCompletionExpectedSelection,
+  ) => boolean
+  retrySessionCompletion: (sessionId: string) => Promise<TerminalCompletionRetryResult>
   closeSessionCompletion: (sessionId: string) => void
 }
 
@@ -116,6 +125,9 @@ export function useSessionCompletionSnapshot(sessionId: string | null) {
   const fallback = useMemo<TerminalCompletionSessionSnapshot>(() => ({
     sessionId: sessionId ?? '',
     readiness: 'waiting_prompt',
+    promptObservation: {
+      status: 'waiting',
+    },
     boundary: null,
     input: {
       trust: 'uncertain',

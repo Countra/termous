@@ -54,6 +54,25 @@ test('所有终端输入入口统一更新补全可信状态', () => {
   assert.match(providerSource, /completionRuntime\.setAlternateScreen\(sessionId, buffer\.type === 'alternate'\)/)
 })
 
+test('缺少提示符时有界对账补全状态并在生命周期变化时停止', () => {
+  assert.match(providerSource, /sessionCompletionStatus\(sessionId/)
+  assert.match(providerSource, /completionStatusRetryDelays/)
+  assert.match(
+    providerSource,
+    /event\.type === 'prompt_boundary'[\s\S]*?stopCompletionStatusReconciliation\(sessionId\)/,
+  )
+  assert.match(
+    providerSource,
+    /event\.state !== 'live'[\s\S]*?stopCompletionStatusReconciliation\(sessionId\)/,
+  )
+  assert.match(viewportSource, /terminal-completion-notice/)
+  assert.match(viewportSource, /completionNotice === 'reconnect_required'/)
+  assert.match(providerSource, /refreshSessionCompletions\(sessionId/)
+  assert.match(viewportSource, /completion\.promptObservation\.retryable/)
+  assert.match(providerSource, /markPromptObservationUnavailable\(sessionId\)/)
+  assert.match(viewportSource, /result === 'failed'/)
+})
+
 test('候选只在活动工作区显示并与搜索及右键菜单互斥', () => {
   assert.match(viewportSource, /shouldActivateTerminalCompletionViewport/)
   assert.match(viewportSource, /closeSessionCompletion\(session\.id\)[\s\S]*?captureSessionContext/)

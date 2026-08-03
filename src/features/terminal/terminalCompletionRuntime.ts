@@ -1,8 +1,10 @@
 import type {
   CompletionItem,
+  CompletionPromptObservationState,
   CompletionProviderState,
   CompletionQuery,
   CompletionResult,
+  CompletionStatus,
 } from '../../types/domain'
 import {
   applyTerminalCompletionData,
@@ -43,6 +45,7 @@ export interface TerminalCompletionSessionSnapshot {
   selectedIndex: number
   isIncomplete: boolean
   indexGeneration: number
+  promptObservation: CompletionPromptObservationState
   providerStates: readonly CompletionProviderState[]
   errorCode?: string
 }
@@ -52,6 +55,12 @@ export interface TerminalCompletionAcceptance {
   text: string
   exact: boolean
   inputRevision: number
+}
+
+export interface TerminalCompletionExpectedSelection {
+  index: number
+  id: string
+  insertText: string
 }
 
 export type TerminalCompletionQueryExecutor = (
@@ -85,6 +94,8 @@ interface TerminalCompletionSessionState {
   selectedIndex: number
   isIncomplete: boolean
   indexGeneration: number
+  promptObservation: CompletionPromptObservationState
+  statusSourceGeneration: number
   providerStates: CompletionProviderState[]
   errorCode?: string
   alternateScreen: boolean
@@ -215,6 +226,72 @@ export class TerminalCompletionRuntime {
     this.resetSessionTrust(state, readiness)
   }
 
+  applyStatus(sessionId: string, status: CompletionStatus) {
+    const state = this.ensureSession(sessionId)
+    if (
+      status.source_generation < state.statusSourceGeneration
+      || (
+        state.boundary !== null
+        && status.source_generation < state.boundary.source_generation
+      )
+    ) {
+      return false
+    }
+
+    state.statusSourceGeneration = status.source_generation
+    if (state.boundary?.source_generation === status.source_generation) {
+      state.promptObservation = { status: 'ready' }
+      state.readiness = 'ready'
+      state.indexGeneration = status.index_generation
+      state.providerStates = status.provider_states.map((provider) => ({ ...provider }))
+      this.publish(state)
+      return true
+    }
+
+    state.promptObservation = { ...status.prompt_observation }
+    switch (status.prompt_observation.status) {
+      case 'waiting':
+      case 'preparing':
+      case 'ready':
+        if (state.readiness === 'unavailable') {
+          state.readiness = 'waiting_prompt'
+        }
+        state.errorCode = undefined
+        break
+      case 'reconnect_required':
+      case 'degraded':
+      case 'unsupported':
+      case 'disabled':
+        this.cancelQuery(state)
+        this.clearQueryResult(state)
+        state.readiness = 'unavailable'
+        state.errorCode = status.prompt_observation.error_code
+        break
+    }
+    state.indexGeneration = status.index_generation
+    state.providerStates = status.provider_states.map((provider) => ({ ...provider }))
+    this.publish(state)
+    return true
+  }
+
+  markPromptObservationUnavailable(sessionId: string) {
+    const state = this.ensureSession(sessionId)
+    if (!this.enabled || state.boundary !== null) {
+      return false
+    }
+    this.cancelQuery(state)
+    this.clearQueryResult(state)
+    state.promptObservation = {
+      status: 'degraded',
+      error_code: 'COMPLETION_UNAVAILABLE',
+      retryable: true,
+    }
+    state.readiness = 'unavailable'
+    state.errorCode = 'COMPLETION_UNAVAILABLE'
+    this.publish(state)
+    return true
+  }
+
   applyPromptBoundary(sessionId: string, boundary: TerminalPromptBoundary) {
     const state = this.ensureSession(sessionId)
     if (state.boundary && !canAdvanceBoundary(state.boundary, boundary)) {
@@ -234,6 +311,8 @@ export class TerminalCompletionRuntime {
     if (state.boundary && sameBoundary(state.boundary, boundary)) {
       if (state.readiness !== 'ready') {
         state.readiness = 'ready'
+        state.promptObservation = { status: 'ready' }
+        state.statusSourceGeneration = boundary.source_generation
         this.publish(state)
         return true
       }
@@ -242,6 +321,8 @@ export class TerminalCompletionRuntime {
 
     this.cancelQuery(state)
     state.readiness = 'ready'
+    state.promptObservation = { status: 'ready' }
+    state.statusSourceGeneration = boundary.source_generation
     state.boundary = { ...boundary }
     state.input = resetTerminalCompletionInput(state.input, 'trusted')
     state.alternateScreen = false
@@ -366,12 +447,26 @@ export class TerminalCompletionRuntime {
     return true
   }
 
-  acceptSelection(sessionId: string): TerminalCompletionAcceptance | null {
+  acceptSelection(
+    sessionId: string,
+    expected?: TerminalCompletionExpectedSelection,
+  ): TerminalCompletionAcceptance | null {
     const state = this.sessions.get(sessionId)
     if (!state || state.input.trust !== 'trusted' || state.input.composing) {
       return null
     }
-    const item = state.items[state.selectedIndex]
+    const selectedIndex = expected?.index ?? state.selectedIndex
+    const item = state.items[selectedIndex]
+    if (
+      expected
+      && (
+        !item
+        || item.id !== expected.id
+        || item.insert_text !== expected.insertText
+      )
+    ) {
+      return null
+    }
     const appendText = item ? appendTextForCandidate(state.input, item) : null
     if (!item || appendText === null) {
       return null
@@ -481,6 +576,7 @@ export class TerminalCompletionRuntime {
   ) {
     this.cancelQuery(state)
     state.readiness = readiness
+    state.promptObservation = { status: 'waiting' }
     state.boundary = null
     state.input = resetTerminalCompletionInput(state.input, 'waiting_prompt')
     state.alternateScreen = false
@@ -611,6 +707,8 @@ export class TerminalCompletionRuntime {
         : nextItems.length > 0 ? 0 : -1
       state.isIncomplete = result.is_incomplete
       state.indexGeneration = result.index_generation
+      state.promptObservation = { ...result.prompt_observation }
+      state.statusSourceGeneration = result.source_generation
       state.providerStates = result.provider_states.map((provider) => ({ ...provider }))
       state.errorCode = undefined
       this.publish(state)
@@ -697,6 +795,8 @@ export class TerminalCompletionRuntime {
       selectedIndex: -1,
       isIncomplete: false,
       indexGeneration: 0,
+      promptObservation: { status: 'waiting' },
+      statusSourceGeneration: 0,
       providerStates: [],
       alternateScreen: false,
       querySequence: 0,
@@ -739,6 +839,7 @@ export class TerminalCompletionRuntime {
       selectedIndex: state.selectedIndex,
       isIncomplete: state.isIncomplete,
       indexGeneration: state.indexGeneration,
+      promptObservation: { ...state.promptObservation },
       providerStates: state.providerStates.map((provider) => ({ ...provider })),
       errorCode: state.errorCode,
     }
@@ -908,6 +1009,7 @@ function createFallbackSnapshot(
     selectedIndex: -1,
     isIncomplete: false,
     indexGeneration: 0,
+    promptObservation: { status: enabled ? 'waiting' : 'disabled' },
     providerStates: [],
   }
 }

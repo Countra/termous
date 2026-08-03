@@ -104,13 +104,16 @@ export function TerminalPaneViewport({
     setViewportCompletionVisible,
     selectSessionCompletion,
     acceptSessionCompletion,
+    retrySessionCompletion,
     closeSessionCompletion,
   } = useTerminalRuntime()
   const { t } = useTranslation()
   const { message } = AntdApp.useApp()
   const [contextMenu, setContextMenu] = useState<TerminalContextMenuState | null>(null)
   const [completionPosition, setCompletionPosition] = useState<TerminalCompletionPopupPosition | null>(null)
+  const [completionRetrySessionId, setCompletionRetrySessionId] = useState<string | null>(null)
   const sessionId = session?.id ?? null
+  const completionRetrying = completionRetrySessionId === sessionId
   const completionPopupId = `terminal-completion-${paneId}`
   const completion = useSessionCompletionSnapshot(sessionId)
   const cwdState = useSessionCwdState(sessionId)
@@ -129,6 +132,19 @@ export function TerminalPaneViewport({
     && !completion.input.composing
     && completion.items.length > 0,
   )
+  const completionNotice = Boolean(
+    session?.kind === 'ssh'
+    && session.status === 'connected'
+    && active
+    && workspaceActive
+    && completion.readiness !== 'disabled'
+  ) && (
+    completion.promptObservation.status === 'reconnect_required'
+    || completion.promptObservation.status === 'degraded'
+    || completion.promptObservation.status === 'unsupported'
+  )
+    ? completion.promptObservation.status
+    : null
 
   const clearContextPathSelection = useCallback(() => {
     const selection = contextPathSelectionRef.current
@@ -665,6 +681,57 @@ export function TerminalPaneViewport({
             </div>
           </div>
         ) : null}
+        {completionNotice ? (
+          <div
+            className={`terminal-completion-notice is-${completionNotice}`}
+            role="status"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <CircleAlert size={14} aria-hidden="true" />
+            <span>{t(`terminal.completion.status.${completionNotice}`)}</span>
+            {completionNotice === 'reconnect_required' && onReconnect ? (
+              <Button
+                type="text"
+                size="small"
+                disabled={actionBusy}
+                icon={<RefreshCw size={13} />}
+                onClick={onReconnect}
+              >
+                {t('terminal.completion.reconnect')}
+              </Button>
+            ) : completionNotice === 'degraded' && completion.promptObservation.retryable ? (
+              <Button
+                type="text"
+                size="small"
+                loading={completionRetrying}
+                disabled={completionRetrying}
+                icon={<RefreshCw size={13} />}
+                onClick={() => {
+                  if (!sessionId || completionRetrying) {
+                    return
+                  }
+                  const retryingSessionId = sessionId
+                  setCompletionRetrySessionId(retryingSessionId)
+                  void retrySessionCompletion(sessionId).then((result) => {
+                    if (result === 'failed') {
+                      void message.error({
+                        content: t('terminal.completion.retryFailed'),
+                        duration: 2,
+                        className: 'termous-message',
+                      })
+                    }
+                  }).finally(() => {
+                    setCompletionRetrySessionId((current) => (
+                      current === retryingSessionId ? null : current
+                    ))
+                  })
+                }}
+              >
+                {t('terminal.completion.retry')}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
         {active ? searchPanel : null}
       </div>
       <TerminalCompletionPopup
@@ -679,9 +746,13 @@ export function TerminalPaneViewport({
             selectSessionCompletion(sessionId, index)
           }
         }}
-        onAccept={(_item, index) => {
+        onAccept={(item, index) => {
           if (sessionId) {
-            acceptSessionCompletion(sessionId, index)
+            acceptSessionCompletion(sessionId, {
+              index,
+              id: item.id,
+              insertText: item.insert_text,
+            })
           }
         }}
       />

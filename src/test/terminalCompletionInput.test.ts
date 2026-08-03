@@ -99,3 +99,21 @@ test('程序化单行插入可追踪，带执行语义时直接失信', () => {
   assert.equal(executed.disposition, 'invalidated')
   assert.equal(executed.state.trust, 'uncertain')
 })
+
+test('输入模型超过有界长度后清空并等待下一提示符恢复', () => {
+  const atLimit = applyTerminalCompletionData(trustedInput(), 'a'.repeat(4 * 1024))
+  assert.equal(atLimit.disposition, 'tracked')
+  assert.equal(atLimit.state.line.length, 4 * 1024)
+
+  const overflow = applyTerminalCompletionData(atLimit.state, 'b')
+  assert.equal(overflow.disposition, 'invalidated')
+  assert.equal(overflow.state.trust, 'uncertain')
+  assert.equal(overflow.state.line, '')
+
+  const oversizedPaste = applyTerminalCompletionPaste(
+    trustedInput(),
+    'a'.repeat(4 * 1024 + 1),
+  )
+  assert.equal(oversizedPaste.disposition, 'invalidated')
+  assert.equal(oversizedPaste.state.line, '')
+})

@@ -707,10 +707,26 @@ export interface CompletionProviderState {
 
 export type CompletionIndexStatus = 'building' | 'ready' | 'degraded'
 
+export type CompletionPromptObservationStatus =
+  | 'waiting'
+  | 'preparing'
+  | 'ready'
+  | 'reconnect_required'
+  | 'degraded'
+  | 'unsupported'
+  | 'disabled'
+
+export interface CompletionPromptObservationState {
+  status: CompletionPromptObservationStatus
+  error_code?: string
+  retryable?: boolean
+}
+
 export interface CompletionStatus {
   status: CompletionIndexStatus
   index_generation: number
   source_generation: number
+  prompt_observation: CompletionPromptObservationState
   provider_states: CompletionProviderState[]
 }
 

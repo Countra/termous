@@ -23,6 +23,7 @@ export interface TerminalCompletionInputUpdate {
 
 const bracketedPastePrefix = '\x1b[200~'
 const bracketedPasteSuffix = '\x1b[201~'
+const maximumTrackedInputUtf16Length = 4 * 1024
 
 export function createTerminalCompletionInputState(
   trust: TerminalCompletionInputTrust = 'waiting_prompt',
@@ -108,6 +109,12 @@ export function applyTerminalCompletionData(
     return applyTerminalCompletionPaste(state, bracketedPaste)
   }
   if (isSafeSingleLineText(data)) {
+    if (!canTrackInsertion(state, data)) {
+      return {
+        state: invalidateTerminalCompletionInput(state),
+        disposition: 'invalidated',
+      }
+    }
     return {
       state: insertTerminalCompletionText(state, data),
       disposition: 'tracked',
@@ -177,6 +184,12 @@ export function applyTerminalCompletionPaste(
   if (text.length === 0) {
     return { state, disposition: 'ignored' }
   }
+  if (!canTrackInsertion(state, text)) {
+    return {
+      state: invalidateTerminalCompletionInput(state),
+      disposition: 'invalidated',
+    }
+  }
   return {
     state: insertTerminalCompletionText(state, text),
     disposition: 'tracked',
@@ -204,6 +217,9 @@ export function insertTerminalCompletionText(
   if (text.length === 0) {
     return state
   }
+  if (!canTrackInsertion(state, text)) {
+    return invalidateTerminalCompletionInput(state)
+  }
   const cursor = clampCursor(state.line, state.cursorUtf16)
   return {
     ...state,
@@ -211,6 +227,13 @@ export function insertTerminalCompletionText(
     cursorUtf16: cursor + text.length,
     revision: state.revision + 1,
   }
+}
+
+function canTrackInsertion(
+  state: TerminalCompletionInputState,
+  text: string,
+) {
+  return state.line.length + text.length <= maximumTrackedInputUtf16Length
 }
 
 export function isSafeSingleLineText(value: string) {
