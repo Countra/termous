@@ -1,6 +1,6 @@
 export const TERMINAL_COMPLETION_POPUP_WIDTH = 288
 export const TERMINAL_COMPLETION_ROW_HEIGHT = 44
-export const TERMINAL_COMPLETION_MAX_ITEMS = 8
+export const TERMINAL_COMPLETION_MAX_VISIBLE_ITEMS = 8
 
 const defaultGap = 6
 const defaultPadding = 8
@@ -100,7 +100,7 @@ export function isPredictableTerminalCompletionText(value: string) {
 
 export function estimateTerminalCompletionPopupHeight(itemCount: number) {
   const visibleCount = Math.min(
-    TERMINAL_COMPLETION_MAX_ITEMS,
+    TERMINAL_COMPLETION_MAX_VISIBLE_ITEMS,
     Number.isFinite(itemCount) ? Math.max(0, Math.floor(itemCount)) : 0,
   )
   return visibleCount === 0

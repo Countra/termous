@@ -1,5 +1,5 @@
 import { Tooltip } from 'antd'
-import { Check, Code2, Command, Folder, History, Sparkles } from 'lucide-react'
+import { Check, Code2, Command, Folder, History, Sparkles, SquareTerminal } from 'lucide-react'
 import {
   useEffect,
   useRef,
@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next'
 import type { CompletionItem, ThemeMode } from '../../types/domain'
 import { isExactCompletionItem, splitCompletionLabel } from './completionModel'
 import {
-  TERMINAL_COMPLETION_MAX_ITEMS,
   TERMINAL_COMPLETION_POPUP_WIDTH,
   type TerminalCompletionPopupPosition,
 } from './terminalCompletionPosition'
@@ -20,6 +19,7 @@ import '../../styles/terminal-completion.css'
 type CompletionIcon = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>
 
 const sourceIcons: Partial<Record<string, CompletionIcon>> = {
+  native: SquareTerminal,
   alias: Command,
   snippet: Code2,
   history: History,
@@ -50,10 +50,9 @@ export function TerminalCompletionPopup({
   const { t, i18n } = useTranslation()
   const popupRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const visibleItems = items.slice(0, TERMINAL_COMPLETION_MAX_ITEMS)
 
   useEffect(() => {
-    if (!open || selectedIndex < 0 || selectedIndex >= visibleItems.length) {
+    if (!open || selectedIndex < 0 || selectedIndex >= items.length) {
       return
     }
     const popup = popupRef.current
@@ -66,13 +65,13 @@ export function TerminalCompletionPopup({
     } else if (item.offsetTop + item.offsetHeight > popup.scrollTop + popup.clientHeight) {
       popup.scrollTop = item.offsetTop + item.offsetHeight - popup.clientHeight
     }
-  }, [open, selectedIndex, visibleItems.length])
+  }, [open, selectedIndex, items.length])
 
-  if (!open || !position || visibleItems.length === 0) {
+  if (!open || !position || items.length === 0) {
     return null
   }
 
-  const activeDescendant = selectedIndex >= 0 && selectedIndex < visibleItems.length
+  const activeDescendant = selectedIndex >= 0 && selectedIndex < items.length
     ? `${id}-option-${selectedIndex}`
     : undefined
 
@@ -93,7 +92,7 @@ export function TerminalCompletionPopup({
       }}
       onMouseDown={(event) => event.preventDefault()}
     >
-      {visibleItems.map((item, index) => {
+      {items.map((item, index) => {
         const Icon = sourceIcons[item.source] ?? Sparkles
         const selected = index === selectedIndex
         const exact = isExactCompletionItem(item)
@@ -120,7 +119,7 @@ export function TerminalCompletionPopup({
             role="option"
             aria-selected={selected}
             aria-posinset={index + 1}
-            aria-setsize={visibleItems.length}
+            aria-setsize={items.length}
             tabIndex={-1}
             onMouseEnter={() => {
               if (!selected) {

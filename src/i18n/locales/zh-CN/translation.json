@@ -996,6 +996,7 @@
         "unsupported": "当前 Shell 不支持智能补全"
       },
       "sources": {
+        "native": "Bash",
         "alias": "别名",
         "snippet": "代码片段",
         "history": "历史",
@@ -1935,12 +1936,16 @@
     "terminalSection": "终端样式",
     "completionTitle": "智能补全",
     "completionEnabled": "启用智能补全",
-    "completionHint": "使用命令别名、代码片段、远端历史和当前目录提供建议。",
+    "completionHint": "使用 Bash 命令、命令别名、代码片段、远端历史和当前目录提供建议。",
     "completionProviders": "补全来源",
     "completionProvidersHint": "按需选择参与候选生成的数据来源。",
     "completionProvidersEnabled": "已启用 {{count}}/{{total}}",
     "completionProvidersPaused": "已暂停 · {{count}}/{{total}} 已选",
     "completionProvider": {
+      "native": {
+        "name": "Bash 命令",
+        "description": "实时使用远端 Bash 的 compgen 获取可用命令；不支持时自动跳过。"
+      },
       "alias": {
         "name": "命令别名",
         "description": "使用当前 Shell 中已启用的 Termous 别名。"

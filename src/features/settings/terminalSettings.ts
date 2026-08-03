@@ -24,6 +24,7 @@ export const defaultTerminalSettings: TerminalSettings = {
 }
 
 export const completionProviderIds = [
+  'native',
   'alias',
   'snippet',
   'history',
@@ -31,6 +32,7 @@ export const completionProviderIds = [
 ] as const satisfies readonly CompletionProviderId[]
 
 export const defaultCompletionProviderSettings: CompletionProviderSettings = {
+  native: true,
   alias: true,
   snippet: true,
   history: true,
@@ -79,6 +81,7 @@ export function normalizeCompletionProviderSettings(
   providers: Partial<CompletionProviderSettings> | null | undefined,
 ): CompletionProviderSettings {
   return {
+    native: normalizeCompletionProviderEnabled(providers, 'native'),
     alias: normalizeCompletionProviderEnabled(providers, 'alias'),
     snippet: normalizeCompletionProviderEnabled(providers, 'snippet'),
     history: normalizeCompletionProviderEnabled(providers, 'history'),
@@ -102,6 +105,10 @@ export function completionProviderSettingsSignature(providers: CompletionProvide
   return completionProviderIds.map((providerId) => (
     providers[providerId] ? '1' : '0'
   )).join('')
+}
+
+export function hasEnabledCompletionProvider(providers: CompletionProviderSettings) {
+  return completionProviderIds.some((providerId) => providers[providerId])
 }
 
 function normalizeCompletionProviderEnabled(

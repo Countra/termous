@@ -73,7 +73,6 @@ export interface TerminalCompletionRuntimeOptions {
   debounceMs?: number
   incompleteRetryMs?: number
   maximumIncompleteRetries?: number
-  maximumItems?: number
   query?: TerminalCompletionQueryExecutor
   requestId?: () => string
   schedule?: (callback: () => void, delayMs: number) => () => void
@@ -112,7 +111,7 @@ interface TerminalCompletionSessionState {
 const defaultDebounceMs = 100
 const defaultIncompleteRetryMs = 500
 const defaultMaximumIncompleteRetries = 3
-const defaultMaximumItems = 20
+const maximumCompletionItems = 200
 const maximumQueryBytes = 4 * 1024
 const terminalCompletionTextEncoder = new TextEncoder()
 
@@ -122,7 +121,6 @@ export class TerminalCompletionRuntime {
   private readonly debounceMs: number
   private readonly incompleteRetryMs: number
   private readonly maximumIncompleteRetries: number
-  private readonly maximumItems: number
   private readonly requestId: () => string
   private readonly schedule: (callback: () => void, delayMs: number) => () => void
   private readonly sessions = new Map<string, TerminalCompletionSessionState>()
@@ -144,10 +142,6 @@ export class TerminalCompletionRuntime {
     this.maximumIncompleteRetries = normalizeCount(
       options.maximumIncompleteRetries,
       defaultMaximumIncompleteRetries,
-    )
-    this.maximumItems = Math.min(
-      defaultMaximumItems,
-      normalizePositiveCount(options.maximumItems, defaultMaximumItems),
     )
     this.requestId = options.requestId ?? createRequestId
     this.schedule = options.schedule ?? scheduleWithTimeout
@@ -673,7 +667,7 @@ export class TerminalCompletionRuntime {
         line: state.input.line,
         cursor_utf16: state.input.cursorUtf16,
         trigger: 'typing',
-        max_items: this.maximumItems,
+        max_items: maximumCompletionItems,
       }, controller.signal)
       if (!this.isCurrentQuery(
         state,
@@ -703,7 +697,7 @@ export class TerminalCompletionRuntime {
       const previousSelection = state.items[state.selectedIndex]
       const nextItems = result.items
         .filter((item) => appendTextForCandidate(state.input, item) !== null)
-        .slice(0, this.maximumItems)
+        .slice(0, maximumCompletionItems)
       state.items = nextItems
       const preservedIndex = previousSelection
         ? nextItems.findIndex((item) => (
@@ -1021,10 +1015,6 @@ function createFallbackSnapshot(
     promptObservation: { status: enabled ? 'waiting' : 'disabled' },
     providerStates: [],
   }
-}
-
-function normalizePositiveCount(value: number | undefined, fallback: number) {
-  return Number.isSafeInteger(value) && Number(value) > 0 ? Number(value) : fallback
 }
 
 function isSafeCandidateAppend(value: string) {

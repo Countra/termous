@@ -40,7 +40,7 @@ test('端口转发实时速度文案和格式保持一致', () => {
 })
 
 test('智能补全动态来源和设置文案在中英文资源中完整对应', () => {
-  for (const source of ['alias', 'snippet', 'history', 'directory', 'other']) {
+  for (const source of ['native', 'alias', 'snippet', 'history', 'directory', 'other']) {
     const key = `terminal.completion.sources.${source}`
     assert.equal(typeof translationValue(zhCN, key), 'string', key)
     assert.equal(typeof translationValue(enUS, key), 'string', key)
@@ -59,7 +59,7 @@ test('智能补全动态来源和设置文案在中英文资源中完整对应',
     assert.equal(typeof translationValue(zhCN, key), 'string', key)
     assert.equal(typeof translationValue(enUS, key), 'string', key)
   }
-  for (const source of ['alias', 'snippet', 'history', 'directory']) {
+  for (const source of ['native', 'alias', 'snippet', 'history', 'directory']) {
     for (const field of ['name', 'description']) {
       const key = `settings.completionProvider.${source}.${field}`
       assert.equal(typeof translationValue(zhCN, key), 'string', key)

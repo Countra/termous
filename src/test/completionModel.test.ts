@@ -35,6 +35,22 @@ test('候选来源集合去重并保留未来来源标识', () => {
   assert.deepEqual(candidate.sources, ['alias', 'snippet', 'unknown'])
 })
 
+test('Bash 原生命令来源与别名来源可合并展示', () => {
+  const candidate = normalizeCompletionItem({
+    id: 'alias:ll',
+    kind: 'command',
+    source: 'alias',
+    label: 'll',
+    insert_text: '',
+    replace_start_utf16: 2,
+    replace_end_utf16: 2,
+    sources: ['alias', 'native'],
+  })
+
+  assert.deepEqual(candidate.sources, ['alias', 'native'])
+  assert.equal(isExactCompletionItem(candidate), true)
+})
+
 test('候选来源拒绝不安全或超长的协议标识', () => {
   assert.throws(() => normalizeCompletionItem({
     id: 'invalid:1',

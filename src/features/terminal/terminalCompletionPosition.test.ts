@@ -5,7 +5,7 @@ import {
   estimateTerminalCompletionPopupHeight,
   isPredictableTerminalCompletionText,
   predictTerminalCompletionCursor,
-  TERMINAL_COMPLETION_MAX_ITEMS,
+  TERMINAL_COMPLETION_MAX_VISIBLE_ITEMS,
 } from './terminalCompletionPosition.ts'
 
 const paneRect = { left: 100, top: 50, width: 800, height: 600 }
@@ -111,7 +111,7 @@ test('高度估算最多计算八条候选且拒绝负数量', () => {
   assert.equal(estimateTerminalCompletionPopupHeight(Number.NaN), 0)
   assert.equal(estimateTerminalCompletionPopupHeight(3), 142)
   assert.equal(estimateTerminalCompletionPopupHeight(20), 362)
-  assert.equal(TERMINAL_COMPLETION_MAX_ITEMS, 8)
+  assert.equal(TERMINAL_COMPLETION_MAX_VISIBLE_ITEMS, 8)
 })
 
 test('高延迟下按提示符锚点预测 ASCII 输入光标', () => {

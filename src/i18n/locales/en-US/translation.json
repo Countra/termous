@@ -996,6 +996,7 @@
         "unsupported": "Smart completion is unavailable for this shell"
       },
       "sources": {
+        "native": "Bash",
         "alias": "Alias",
         "snippet": "Snippet",
         "history": "History",
@@ -1939,12 +1940,16 @@
     "terminalSection": "Terminal style",
     "completionTitle": "Smart completion",
     "completionEnabled": "Enable smart completion",
-    "completionHint": "Suggest commands from aliases, snippets, remote history, and the current directory.",
+    "completionHint": "Suggest Bash commands, aliases, snippets, remote history, and the current directory.",
     "completionProviders": "Completion sources",
     "completionProvidersHint": "Choose which data sources can generate suggestions.",
     "completionProvidersEnabled": "{{count}}/{{total}} enabled",
     "completionProvidersPaused": "Paused · {{count}}/{{total}} selected",
     "completionProvider": {
+      "native": {
+        "name": "Bash commands",
+        "description": "Query available commands from the remote Bash compgen in real time and skip it when unsupported."
+      },
       "alias": {
         "name": "Command aliases",
         "description": "Use enabled Termous aliases for the current shell."

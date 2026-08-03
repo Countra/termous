@@ -163,6 +163,31 @@ test('关闭期间继续跟踪最新提示符，重新开启后无需等待下�
   assert.deepEqual(runtime.getSnapshot('session-1').boundary, boundary)
 })
 
+test('移除查询执行器后保留可信输入但不再产生补全请求', async () => {
+  const scheduler = new ManualScheduler()
+  let queryCount = 0
+  const query = async (_sessionId: string, request: CompletionQuery) => {
+    queryCount += 1
+    return completionResult(request, [])
+  }
+  const runtime = new TerminalCompletionRuntime(true, {
+    schedule: scheduler.schedule,
+    query,
+  })
+  runtime.applyPromptBoundary('session-1', boundary)
+  runtime.setQueryExecutor(undefined)
+  runtime.applyUserData('session-1', 'l')
+
+  assert.equal(scheduler.pending(), 0)
+  assert.equal(queryCount, 0)
+  assert.equal(runtime.getSnapshot('session-1').input.line, 'l')
+
+  runtime.setQueryExecutor(query)
+  assert.equal(scheduler.runNext(), true)
+  await flushPromises()
+  assert.equal(queryCount, 1)
+})
+
 class ManualScheduler {
   private readonly tasks: Array<{ cancelled: boolean; callback: () => void; delayMs: number }> = []
   readonly executedDelays: number[] = []
@@ -290,6 +315,39 @@ test('100ms 去抖在连续 100 次输入后只查询最终内容', async () => 
   assert.equal(queries.length, 1)
   assert.equal(queries[0]?.line, '0123456789'.repeat(10))
   assert.equal(runtime.getSnapshot('session-1').queryState, 'ready')
+})
+
+test('候选查询统一限制为两百条并可遍历超过八条的结果', async () => {
+  const scheduler = new ManualScheduler()
+  const queries: CompletionQuery[] = []
+  const runtime = new TerminalCompletionRuntime(true, {
+    schedule: scheduler.schedule,
+    query: async (_sessionId, query) => {
+      queries.push(query)
+      const items = Array.from({ length: 230 }, (_, index): CompletionItem => ({
+        id: `native:command-${index}`,
+        kind: 'command',
+        source: 'native',
+        label: `command-${index}`,
+        insert_text: `command-${index}`,
+        replace_start_utf16: 0,
+        replace_end_utf16: query.cursor_utf16,
+        sources: ['native'],
+      }))
+      return completionResult(query, items)
+    },
+  })
+  runtime.applyPromptBoundary('session-1', boundary)
+  runtime.applyUserData('session-1', 'c')
+  assert.equal(scheduler.runNext(), true)
+  await flushPromises()
+
+  assert.equal(queries[0]?.max_items, 200)
+  assert.equal(runtime.getSnapshot('session-1').items.length, 200)
+  for (let index = 0; index < 199; index += 1) {
+    assert.equal(runtime.moveSelection('session-1', 1), true)
+  }
+  assert.equal(runtime.getSnapshot('session-1').selectedIndex, 199)
 })
 
 test('首版只在可信逻辑行末查询，回到行尾后恢复补全', async () => {
@@ -503,6 +561,9 @@ test('完整命令与更长候选同时保留并以精确接受标记交给终�
     query: async (_sessionId, query) => completionResult(query, [
       {
         ...commandCandidate(query, 'll'),
+        id: 'native:ll',
+        source: 'native',
+        sources: ['native'],
         insert_text: '',
         replace_start_utf16: query.cursor_utf16,
         replace_end_utf16: query.cursor_utf16,

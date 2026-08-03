@@ -691,9 +691,10 @@ export interface CompletionSettings {
   providers: CompletionProviderSettings
 }
 
-export type CompletionProviderId = 'alias' | 'snippet' | 'history' | 'directory'
+export type CompletionProviderId = 'native' | 'alias' | 'snippet' | 'history' | 'directory'
 
 export interface CompletionProviderSettings {
+  native: boolean
   alias: boolean
   snippet: boolean
   history: boolean

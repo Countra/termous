@@ -26,6 +26,7 @@ import type {
 import {
   completionProviderSettingsSignature,
   defaultTerminalSettings,
+  hasEnabledCompletionProvider,
   normalizeTerminalSettings,
 } from '../settings/terminalSettings'
 import {
@@ -55,6 +56,7 @@ import {
 import {
   TerminalCompletionRuntime,
   type TerminalCompletionExpectedSelection,
+  type TerminalCompletionQueryExecutor,
 } from './terminalCompletionRuntime'
 import {
   isPredictableTerminalCompletionText,
@@ -157,16 +159,18 @@ export function TerminalRuntimeProvider({
   const completionProvidersSignature = completionProviderSettingsSignature(
     completionSettings.providers,
   )
+  const completionProvidersEnabled = hasEnabledCompletionProvider(completionSettings.providers)
   const completionProvidersSignatureRef = useRef(completionProvidersSignature)
+  const completionQueryExecutor = useCallback<TerminalCompletionQueryExecutor>(
+    (sessionId, query, signal) => (
+      apiRef.current.querySessionCompletions(sessionId, query, { signal })
+    ),
+    [],
+  )
   const completionRuntimeRef = useRef<TerminalCompletionRuntime | null>(null)
   if (!completionRuntimeRef.current) {
     completionRuntimeRef.current = new TerminalCompletionRuntime(completionSettings.enabled, {
-      maximumItems: 8,
-      query: (sessionId, query, signal) => apiRef.current.querySessionCompletions(
-        sessionId,
-        query,
-        { signal },
-      ),
+      query: completionProvidersEnabled ? completionQueryExecutor : undefined,
     })
   }
   const completionRuntime = completionRuntimeRef.current
@@ -385,6 +389,12 @@ export function TerminalRuntimeProvider({
     completionProvidersSignatureRef.current = completionProvidersSignature
     completionRuntime.invalidateProviderConfiguration()
   }, [completionProvidersSignature, completionRuntime])
+
+  useEffect(() => {
+    completionRuntime.setQueryExecutor(
+      completionProvidersEnabled ? completionQueryExecutor : undefined,
+    )
+  }, [completionProvidersEnabled, completionQueryExecutor, completionRuntime])
 
   useEffect(() => {
     completionRuntime.setEnabled(completionSettings.enabled)

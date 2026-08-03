@@ -1,5 +1,12 @@
 import { Collapse, Switch } from 'antd'
-import { Command, FileCode2, FolderTree, History, TextCursorInput } from 'lucide-react'
+import {
+  Command,
+  FileCode2,
+  FolderTree,
+  History,
+  SquareTerminal,
+  TextCursorInput,
+} from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CompletionProviderId, CompletionSettings } from '../../types/domain'
@@ -14,6 +21,7 @@ interface TerminalCompletionSettingsProps {
 type CompletionSettingKey = 'enabled' | CompletionProviderId
 
 const providerIcons: Record<CompletionProviderId, ReactNode> = {
+  native: <SquareTerminal size={16} aria-hidden="true" />,
   alias: <Command size={16} aria-hidden="true" />,
   snippet: <FileCode2 size={16} aria-hidden="true" />,
   history: <History size={16} aria-hidden="true" />,
