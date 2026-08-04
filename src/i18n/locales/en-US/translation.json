@@ -345,7 +345,12 @@
         "timeout": "The alias operation timed out. Check the connection and try again.",
       "network": "The local core service is unavailable.",
       "sessionUnavailable": "The current SSH session is unavailable.",
-      "requestInProgress": "Another alias operation is already in progress."
+      "requestInProgress": "Another alias operation is already in progress.",
+      "syncInProgress": "Another alias sync task is already in progress.",
+      "syncNotFound": "This alias sync task is no longer available.",
+      "syncInvalidSelection": "Choose at least one alias and one valid target host.",
+      "syncSourceChanged": "The source aliases changed before the task could start.",
+      "syncTargetChanged": "The target host configuration changed before it was processed."
       },
       "savedAppliedHint": "Saved and applied to the current terminal.",
       "savedNextPromptHint": "Saved. It will take effect at the next terminal prompt.",
@@ -360,7 +365,81 @@
       "savedReconnectTitle": "Configuration saved",
       "savedReconnectHint": "Reconnect the current session once to load alias support.",
       "reconnect": "Reconnect",
-      "reconnectFailed": "Could not reconnect the session"
+      "reconnectFailed": "Could not reconnect the session",
+      "sync": {
+        "open": "Sync to other hosts",
+        "reattach": "View active sync",
+        "title": "Sync command aliases",
+        "source": "Source host",
+        "unknownSource": "Unknown source host",
+        "shellMetric": "Current shell",
+        "aliasTotalMetric": "Total aliases",
+        "aliasesTitle": "Choose aliases",
+        "hostsTitle": "Choose target hosts",
+        "aliasSearchPlaceholder": "Search aliases or commands",
+        "hostSearchPlaceholder": "Search hosts or addresses",
+        "selectAll": "Select all",
+        "selectedSummary": "{{aliases}} aliases · {{hosts}} hosts selected",
+        "missingCredential": "This host has no available credential and cannot be selected",
+        "offlineHint": "ICMP reports this host as offline, but sync can still be attempted",
+        "noAliases": "The source session has no aliases to sync",
+        "noAliasResults": "No matching aliases",
+        "noHosts": "No other target hosts are available",
+        "noHostResults": "No matching target hosts",
+        "ungroupedHosts": "Ungrouped",
+        "start": "Start sync",
+        "cancelSync": "Cancel sync",
+        "syncAgain": "Sync again",
+        "recovering": "Recovering the alias sync task",
+        "errorTitle": "Alias sync encountered a problem",
+        "cancelTitle": "Cancel the active sync?",
+        "cancelDescription": "The backend will be asked to cancel the task. This window closes only after the task reaches a final state. Aliases already written to target hosts are not rolled back.",
+        "cancelAndClose": "Cancel task and close",
+        "progressTitle": "Sync progress",
+        "progressSummary": "Processed {{completed}} of {{total}} hosts",
+        "succeeded": "Succeeded",
+        "skipped": "Skipped",
+        "failed": "Failed",
+        "uncertain": "Uncertain",
+        "cancelled": "Cancelled",
+        "remaining": "Remaining",
+        "targetList": "Target host sync status",
+        "addedAliases": "Added {{count}}: {{names}}",
+        "addedCount": "Added {{count}} aliases",
+        "skippedAliases": "Skipped {{count}}: {{names}}",
+        "skippedCount": "Skipped {{count}} aliases",
+        "taskStatus": {
+          "queued": "Queued",
+          "loading_source": "Loading source aliases",
+          "running": "Syncing",
+          "cancelling": "Cancelling",
+          "completed": "Sync complete",
+          "partial_failed": "Partially failed",
+          "failed": "Sync failed",
+          "cancelled": "Cancelled"
+        },
+        "targetStatus": {
+          "pending": "Pending",
+          "running": "Running",
+          "succeeded": "Succeeded",
+          "skipped": "Skipped",
+          "failed": "Failed",
+          "cancelled": "Cancelled",
+          "uncertain": "Uncertain"
+        },
+        "targetPhase": {
+          "resolving": "Resolving host configuration",
+          "connecting": "Connecting to host",
+          "waiting_host_trust": "Waiting for host fingerprint approval",
+          "reading": "Reading target aliases",
+          "merging": "Merging aliases",
+          "committing": "Writing to target host"
+        },
+        "skipReason": {
+          "no_changes": "The target already contains these aliases",
+          "shell_mismatch": "The target shell differs from the source shell"
+        }
+      }
     },
     "files": {
       "emptyDirectory": "This directory is empty",
@@ -1444,7 +1523,8 @@
     "consumer": {
       "session": "Terminal",
       "sftp": "File manager",
-      "forward": "Port forwarding"
+      "forward": "Port forwarding",
+      "alias_sync": "Alias sync"
     },
     "role": {
       "target": "Target host",

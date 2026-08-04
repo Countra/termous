@@ -14,6 +14,7 @@ interface ConfirmDialogProps {
   secondaryLoading?: boolean
   showCancelButton?: boolean
   showCloseButton?: boolean
+  zIndex?: number
   onConfirm: () => void
   onSecondary?: () => void
   onCancel: () => void
@@ -31,6 +32,7 @@ export function ConfirmDialog({
   secondaryLoading = false,
   showCancelButton = true,
   showCloseButton = false,
+  zIndex = 3600,
   onConfirm,
   onSecondary,
   onCancel,
@@ -43,19 +45,23 @@ export function ConfirmDialog({
       open={open}
       centered
       width={420}
-      zIndex={3600}
+      zIndex={zIndex}
       title={null}
       footer={null}
       closable={showCloseButton && !busy}
       closeIcon={<X size={16} aria-hidden="true" />}
       destroyOnHidden
-      mask={{ closable: true }}
-      keyboard
+      mask={{ closable: !busy }}
+      keyboard={!busy}
       className="confirm-modal"
       wrapClassName="confirm-modal-wrap"
       rootClassName="termous-modal-root"
       getContainer={() => document.body}
-      onCancel={onCancel}
+      onCancel={() => {
+        if (!busy) {
+          onCancel()
+        }
+      }}
     >
       <section className="confirm-dialog" aria-labelledby="confirm-dialog-title">
         <div className={`dialog-icon ${danger ? 'is-danger' : ''}`}>

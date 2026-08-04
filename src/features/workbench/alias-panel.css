@@ -107,6 +107,41 @@
   color: var(--accent);
 }
 
+.alias-sync-entry-button.ant-btn {
+  position: relative;
+}
+
+.alias-panel-state-frame {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+}
+
+.alias-panel-state-actions {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  right: 10px;
+}
+
+.alias-sync-entry-button.is-active.ant-btn {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--accent);
+}
+
+.alias-sync-entry-button.is-active.ant-btn::after {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 5px;
+  height: 5px;
+  border: 1px solid var(--surface);
+  border-radius: 50%;
+  background: var(--accent);
+  content: '';
+}
+
 .alias-row-action.ant-btn-dangerous:not(:disabled):hover {
   border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
   background: color-mix(in srgb, var(--danger) 9%, var(--surface));

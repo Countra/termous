@@ -165,6 +165,7 @@ export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorPr
       open={Boolean(challenge)}
       centered
       width={600}
+      zIndex={4000}
       title={null}
       footer={null}
       closable={false}

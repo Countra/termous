@@ -345,7 +345,12 @@
         "timeout": "别名操作超时，请检查连接后重试。",
       "network": "无法连接本地核心服务。",
       "sessionUnavailable": "当前 SSH 会话不可用。",
-      "requestInProgress": "已有别名操作正在进行，请稍候。"
+      "requestInProgress": "已有别名操作正在进行，请稍候。",
+      "syncInProgress": "已有别名同步任务正在进行。",
+      "syncNotFound": "该别名同步任务已不可用。",
+      "syncInvalidSelection": "请至少选择一个别名和一台有效的目标主机。",
+      "syncSourceChanged": "任务开始前来源别名已发生变化。",
+      "syncTargetChanged": "处理前目标主机配置已发生变化。"
       },
       "savedAppliedHint": "已保存，并已应用到当前终端。",
       "savedNextPromptHint": "已保存，将在下一次终端提示符生效。",
@@ -360,7 +365,81 @@
       "savedReconnectTitle": "配置已保存",
       "savedReconnectHint": "需要重新连接一次当前会话，以加载别名支持。",
       "reconnect": "重新连接",
-      "reconnectFailed": "重新连接会话失败"
+      "reconnectFailed": "重新连接会话失败",
+      "sync": {
+        "open": "同步到其他主机",
+        "reattach": "查看正在进行的同步",
+        "title": "同步命令别名",
+        "source": "来源主机",
+        "unknownSource": "未知来源主机",
+        "shellMetric": "当前 Shell",
+        "aliasTotalMetric": "别名总数",
+        "aliasesTitle": "选择别名",
+        "hostsTitle": "选择目标主机",
+        "aliasSearchPlaceholder": "搜索别名或命令",
+        "hostSearchPlaceholder": "搜索主机或地址",
+        "selectAll": "全选",
+        "selectedSummary": "已选 {{aliases}} 个别名 · {{hosts}} 台主机",
+        "missingCredential": "该主机缺少可用凭据，无法作为同步目标",
+        "offlineHint": "ICMP 检测显示主机离线，仍可尝试同步",
+        "noAliases": "来源会话没有可同步的别名",
+        "noAliasResults": "没有匹配的别名",
+        "noHosts": "没有其他可用目标主机",
+        "noHostResults": "没有匹配的目标主机",
+        "ungroupedHosts": "未分组",
+        "start": "开始同步",
+        "cancelSync": "取消同步",
+        "syncAgain": "再次同步",
+        "recovering": "正在恢复别名同步任务",
+        "errorTitle": "别名同步出现问题",
+        "cancelTitle": "取消正在进行的同步？",
+        "cancelDescription": "将请求后端取消任务，并等待任务进入最终状态后关闭窗口。已写入目标主机的别名不会回滚。",
+        "cancelAndClose": "取消任务并关闭",
+        "progressTitle": "同步进度",
+        "progressSummary": "已处理 {{completed}} / {{total}} 台主机",
+        "succeeded": "成功",
+        "skipped": "跳过",
+        "failed": "失败",
+        "uncertain": "状态未知",
+        "cancelled": "已取消",
+        "remaining": "待处理",
+        "targetList": "目标主机同步状态",
+        "addedAliases": "已新增 {{count}} 个：{{names}}",
+        "addedCount": "已新增 {{count}} 个别名",
+        "skippedAliases": "已跳过 {{count}} 个：{{names}}",
+        "skippedCount": "已跳过 {{count}} 个别名",
+        "taskStatus": {
+          "queued": "排队中",
+          "loading_source": "读取来源别名",
+          "running": "同步中",
+          "cancelling": "正在取消",
+          "completed": "同步完成",
+          "partial_failed": "部分失败",
+          "failed": "同步失败",
+          "cancelled": "已取消"
+        },
+        "targetStatus": {
+          "pending": "等待中",
+          "running": "处理中",
+          "succeeded": "成功",
+          "skipped": "已跳过",
+          "failed": "失败",
+          "cancelled": "已取消",
+          "uncertain": "状态未知"
+        },
+        "targetPhase": {
+          "resolving": "正在解析主机配置",
+          "connecting": "正在连接主机",
+          "waiting_host_trust": "等待主机指纹确认",
+          "reading": "正在读取目标别名",
+          "merging": "正在合并别名",
+          "committing": "正在写入目标主机"
+        },
+        "skipReason": {
+          "no_changes": "目标主机已包含这些别名，无需修改",
+          "shell_mismatch": "目标 Shell 与来源 Shell 不一致"
+        }
+      }
     },
     "files": {
       "emptyDirectory": "目录为空",
@@ -1440,7 +1519,8 @@
     "consumer": {
       "session": "终端",
       "sftp": "文件管理",
-      "forward": "端口转发"
+      "forward": "端口转发",
+      "alias_sync": "别名同步"
     },
     "role": {
       "target": "目标主机",

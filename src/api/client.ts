@@ -1,6 +1,8 @@
 import type {
   ApiErrorBody,
   AliasMutationResult,
+  AliasSyncTask,
+  AliasSyncTaskInput,
   AliasWorkspace,
   AppearanceSettings,
   AppConfig,
@@ -805,6 +807,54 @@ export class TermousApi {
         timeoutMs: SESSION_ALIAS_WRITE_TIMEOUT_MS,
       },
     )
+  }
+
+  createSessionAliasSyncTask(
+    id: string,
+    input: AliasSyncTaskInput,
+    options: Pick<RequestOptions, 'signal'> = {},
+  ) {
+    return this.request<AliasSyncTask>(
+      `/api/v1/sessions/${encodeURIComponent(id)}/aliases/sync-tasks`,
+      {
+        method: 'POST',
+        body: input,
+        signal: options.signal,
+        timeoutMs: SESSION_ALIAS_WRITE_TIMEOUT_MS,
+      },
+    )
+  }
+
+  activeAliasSyncTask(options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<AliasSyncTask | null | undefined>('/api/v1/alias-sync-tasks/active', {
+      signal: options.signal,
+      timeoutMs: SESSION_ALIAS_READ_TIMEOUT_MS,
+    }).then((task) => task ?? null)
+  }
+
+  aliasSyncTask(id: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<AliasSyncTask>(
+      `/api/v1/alias-sync-tasks/${encodeURIComponent(id)}`,
+      {
+        signal: options.signal,
+        timeoutMs: SESSION_ALIAS_READ_TIMEOUT_MS,
+      },
+    )
+  }
+
+  cancelAliasSyncTask(id: string, options: Pick<RequestOptions, 'signal'> = {}) {
+    return this.request<AliasSyncTask>(
+      `/api/v1/alias-sync-tasks/${encodeURIComponent(id)}`,
+      {
+        method: 'DELETE',
+        signal: options.signal,
+        timeoutMs: SESSION_ALIAS_WRITE_TIMEOUT_MS,
+      },
+    )
+  }
+
+  aliasSyncTaskEventsUrl(id: string) {
+    return this.websocketUrl(`/api/v1/alias-sync-tasks/${encodeURIComponent(id)}/events`)
   }
 
   sessionProcesses(id: string, query: RemoteProcessQuery = {}, options: Pick<RequestOptions, 'signal'> = {}) {

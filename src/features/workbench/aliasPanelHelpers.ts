@@ -23,6 +23,11 @@ const aliasErrorTranslationKeys: Record<string, string> = {
   SESSION_NOT_FOUND: 'workbench.aliases.errors.sessionUnavailable',
   SESSION_CLOSED: 'workbench.aliases.errors.sessionUnavailable',
   REQUEST_IN_PROGRESS: 'workbench.aliases.errors.requestInProgress',
+  SHELL_ALIAS_SYNC_IN_PROGRESS: 'workbench.aliases.errors.syncInProgress',
+  SHELL_ALIAS_SYNC_NOT_FOUND: 'workbench.aliases.errors.syncNotFound',
+  SHELL_ALIAS_SYNC_INVALID_SELECTION: 'workbench.aliases.errors.syncInvalidSelection',
+  SHELL_ALIAS_SYNC_SOURCE_CHANGED: 'workbench.aliases.errors.syncSourceChanged',
+  SHELL_ALIAS_SYNC_TARGET_CHANGED: 'workbench.aliases.errors.syncTargetChanged',
 }
 
 export function aliasErrorDescription(code: string, message: string, t: TFunction) {

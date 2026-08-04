@@ -1720,6 +1720,10 @@ export function WorkbenchPage({
                 api={api}
                 session={activeSession}
                 sessionIds={aliasSessionIds}
+                hosts={data.hosts}
+                groups={data.groups}
+                credentials={data.credentials}
+                reachability={data.hostReachability}
                 enabled={active && detailsActiveTab === 'aliases' && !detailsCollapsed}
                 reconnectDisabled={actionBusy}
                 onReconnectSession={reconnectSession}

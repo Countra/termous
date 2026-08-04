@@ -1,16 +1,21 @@
 import {
   AlertTriangle,
+  ArrowRightLeft,
   Command,
   Plus,
   RefreshCw,
   Search,
 } from 'lucide-react'
 import { App, Button, Form, Input, Skeleton, Tooltip } from 'antd'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import type {
   AliasMutationResult,
+  CredentialView,
+  Host,
+  HostGroup,
+  HostReachability,
   Session,
   ShellAlias,
   ShellAliasInput,
@@ -31,6 +36,8 @@ import {
   AliasRow,
 } from './AliasPanelParts'
 import { AliasEditorView, type AliasEditorValues } from './AliasEditorView'
+import { AliasSyncModal } from './AliasSyncModal'
+import { useAliasSyncActiveIndicator } from './useAliasSyncActiveIndicator'
 import { useSessionAliases } from './useSessionAliases'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import './alias-panel.css'
@@ -39,6 +46,10 @@ interface AliasPanelProps {
   api: TermousApi
   session: Session | null
   sessionIds: readonly string[]
+  hosts: readonly Host[]
+  groups: readonly HostGroup[]
+  credentials: readonly CredentialView[]
+  reachability: Readonly<Record<string, HostReachability>>
   enabled: boolean
   reconnectDisabled: boolean
   onReconnectSession: (session: Session) => Promise<void>
@@ -55,6 +66,10 @@ export function AliasPanel({
   api,
   session,
   sessionIds,
+  hosts,
+  groups,
+  credentials,
+  reachability,
   enabled,
   reconnectDisabled,
   onReconnectSession,
@@ -70,6 +85,11 @@ export function AliasPanel({
   const [saving, setSaving] = useState(false)
   const [reconnecting, setReconnecting] = useState(false)
   const [deleteConfirmAliasId, setDeleteConfirmAliasId] = useState('')
+  const [syncSource, setSyncSource] = useState<{
+    session: Session
+    aliases: ShellAlias[]
+    shell: 'bash' | 'zsh' | 'fish'
+  } | null>(null)
   const [form] = Form.useForm<AliasEditorValues>()
   const controlScope = aliasPanelControlScope(session?.id)
   const shellRef = useRef<string | undefined>(undefined)
@@ -77,7 +97,12 @@ export function AliasPanel({
   const savingRef = useRef<{ sessionId: string } | null>(null)
   const reconnectingRef = useRef<{ sessionId: string } | null>(null)
   const editorReturnFocusIDRef = useRef('')
+  const syncReturnFocusIDRef = useRef('')
   const panelBusy = reconnecting || Boolean(aliases.mutation)
+  const activeSyncTask = useAliasSyncActiveIndicator({
+    api,
+    enabled: enabled && !syncSource,
+  })
 
   sessionIdRef.current = sessionId
 
@@ -417,18 +442,97 @@ export function AliasPanel({
     }
   }
 
+  const syncEntryID = `${controlScope}-sync`
+  const openAliasSync = () => {
+    const sourceShell = workspace?.shell ?? activeSyncTask?.source.shell
+    if (!session || !sourceShell || (!activeSyncTask && (!workspace || panelBusy))) {
+      return
+    }
+    syncReturnFocusIDRef.current = syncEntryID
+    setSyncSource({
+      session,
+      aliases: workspace ? [...workspace.items] : [],
+      shell: sourceShell,
+    })
+  }
+  const closeAliasSync = () => {
+    setSyncSource(null)
+    const returnFocusID = syncReturnFocusIDRef.current
+    syncReturnFocusIDRef.current = ''
+    window.requestAnimationFrame(() => {
+      (
+        document.getElementById(returnFocusID) ??
+        document.getElementById(`${controlScope}-search`) ??
+        document.getElementById(`${controlScope}-create-header`) ??
+        document.getElementById(`${controlScope}-surface`)
+      )?.focus()
+    })
+  }
+  const syncEntryButton = session && (activeSyncTask || workspace) ? (
+    <Tooltip
+      title={t(activeSyncTask
+        ? 'workbench.aliases.sync.reattach'
+        : 'workbench.aliases.sync.open')}
+      classNames={{ root: 'termous-tooltip' }}
+    >
+      <Button
+        id={syncEntryID}
+        type="text"
+        className={`alias-icon-button alias-sync-entry-button${activeSyncTask ? ' is-active' : ''}`}
+        aria-label={t(activeSyncTask
+          ? 'workbench.aliases.sync.reattach'
+          : 'workbench.aliases.sync.open')}
+        disabled={!activeSyncTask && panelBusy}
+        icon={<ArrowRightLeft size={15} />}
+        onClick={openAliasSync}
+      />
+    </Tooltip>
+  ) : null
+  const syncModal = syncSource ? (
+    <AliasSyncModal
+      api={api}
+      open
+      sourceSession={syncSource.session}
+      sourceAliases={session?.id === syncSource.session.id && workspace
+        ? workspace.items
+        : syncSource.aliases}
+      sourceShell={session?.id === syncSource.session.id && workspace
+        ? workspace.shell
+        : syncSource.shell}
+      hosts={hosts}
+      groups={groups}
+      credentials={credentials}
+      reachability={reachability}
+      onClose={closeAliasSync}
+    />
+  ) : null
+  const renderWithSync = (content: ReactNode, stateSurface = false) => (
+    <>
+      {stateSurface ? (
+        <div id={`${controlScope}-surface`} className="alias-panel-state-frame" tabIndex={-1}>
+          {activeSyncTask && syncEntryButton ? (
+            <div className="alias-panel-state-actions">{syncEntryButton}</div>
+          ) : null}
+          {content}
+        </div>
+      ) : content}
+      {syncModal}
+    </>
+  )
+
   if (!aliases.supported) {
-    return (
+    return renderWithSync(
       <WorkbenchEmptyState
         icon={<Command size={20} />}
         title={t('workbench.aliases.emptyTitle')}
         description={t('workbench.aliases.emptyHint')}
-      />
+      />,
+      true,
     )
   }
 
   if (aliases.loading && !workspace) {
-    return (
+    return renderWithSync(
       <section
         className="alias-panel alias-panel-loading"
         role="status"
@@ -436,12 +540,13 @@ export function AliasPanel({
         aria-label={t('workbench.aliases.loading')}
       >
         <Skeleton active paragraph={{ rows: 5 }} title={{ width: '54%' }} />
-      </section>
+      </section>,
+      true,
     )
   }
 
   if (aliases.templateOutdated || aliases.mutation === 'refresh-template') {
-    return (
+    return renderWithSync(
       <WorkbenchEmptyState
         className="alias-panel-load-error alias-panel-template-outdated"
         tone="warning"
@@ -459,12 +564,13 @@ export function AliasPanel({
             {t('workbench.aliases.templateRefreshAction')}
           </Button>
         }
-      />
+      />,
+      true,
     )
   }
 
   if (hasAliasError && !workspace) {
-    return (
+    return renderWithSync(
       <WorkbenchEmptyState
         className="alias-panel-load-error"
         tone="danger"
@@ -479,12 +585,13 @@ export function AliasPanel({
             {t('app.retry')}
           </Button>
         }
-      />
+      />,
+      true,
     )
   }
 
   if (editorOpen) {
-    return (
+    return renderWithSync(
       <AliasEditorView
         form={form}
         controlScope={controlScope}
@@ -492,12 +599,13 @@ export function AliasPanel({
         saving={saving}
         onSave={(values) => void saveEditor(values)}
         onCancel={closeEditor}
-      />
+      />,
+      true,
     )
   }
 
-  return (
-    <section className="alias-panel">
+  return renderWithSync(
+    <section id={`${controlScope}-surface`} className="alias-panel" tabIndex={-1}>
       <header className="alias-panel-header">
         <div className="alias-panel-heading">
           <span className="alias-panel-heading-icon">
@@ -509,6 +617,7 @@ export function AliasPanel({
           </div>
         </div>
         <div className="alias-panel-header-actions">
+          {syncEntryButton}
           <Tooltip
             title={t('workbench.aliases.refresh')}
             classNames={{ root: 'termous-tooltip' }}
@@ -620,6 +729,6 @@ export function AliasPanel({
         reconnectDisabled={reconnectDisabled || Boolean(aliases.mutation)}
         onReconnect={() => void reconnectSession()}
       />
-    </section>
+    </section>,
   )
 }

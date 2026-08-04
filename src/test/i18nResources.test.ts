@@ -41,6 +41,56 @@ test('端口转发实时速度文案和格式保持一致', () => {
   assert.equal(translationValue(enUS, 'forwards.speedValue'), '{{value}}/s')
 })
 
+test('主机指纹消费者类型均渲染为双语业务文案', () => {
+  for (const consumer of ['session', 'sftp', 'forward', 'alias_sync']) {
+    const key = `hostKey.consumer.${consumer}`
+    assertBilingualString(key)
+    assert.notEqual(translationValue(zhCN, key), key)
+    assert.notEqual(translationValue(enUS, key), key)
+  }
+  assert.equal(translationValue(zhCN, 'hostKey.consumer.alias_sync'), '别名同步')
+  assert.equal(translationValue(enUS, 'hostKey.consumer.alias_sync'), 'Alias sync')
+})
+
+test('别名同步任务、目标与阶段状态拥有完整双语文案', () => {
+  for (const status of [
+    'queued',
+    'loading_source',
+    'running',
+    'cancelling',
+    'completed',
+    'partial_failed',
+    'failed',
+    'cancelled',
+  ]) {
+    assertBilingualString(`workbench.aliases.sync.taskStatus.${status}`)
+  }
+  for (const status of [
+    'pending',
+    'running',
+    'succeeded',
+    'skipped',
+    'failed',
+    'cancelled',
+    'uncertain',
+  ]) {
+    assertBilingualString(`workbench.aliases.sync.targetStatus.${status}`)
+  }
+  for (const phase of [
+    'resolving',
+    'connecting',
+    'waiting_host_trust',
+    'reading',
+    'merging',
+    'committing',
+  ]) {
+    assertBilingualString(`workbench.aliases.sync.targetPhase.${phase}`)
+  }
+  for (const reason of ['no_changes', 'shell_mismatch']) {
+    assertBilingualString(`workbench.aliases.sync.skipReason.${reason}`)
+  }
+})
+
 test('智能补全动态来源和设置文案在中英文资源中完整对应', () => {
   for (const source of ['native', 'alias', 'snippet', 'history', 'directory', 'other']) {
     const key = `terminal.completion.sources.${source}`
