@@ -26,23 +26,40 @@ test('终端补全通过稳定外部存储订阅且不在渲染期发布设置�
   assert.match(providerSource, /completionRuntime\.invalidateProviderConfiguration\(\)/)
 })
 
-test('候选按键仅拦截活动补全并保持原生 Tab 透传', () => {
+test('候选按键通过统一运行时解析并保持原生 Tab 与 Escape 语义', () => {
   assert.match(providerSource, /terminal\.attachCustomKeyEventHandler/)
-  assert.match(providerSource, /!isCompletionInteractionActive\(sessionId\)/)
+  assert.match(providerSource, /shortcutRuntime\.dispatch\(event/)
+  assert.match(providerSource, /'terminal\.completion\.previous'/)
+  assert.match(providerSource, /'terminal\.completion\.next'/)
+  assert.match(providerSource, /'terminal\.completion\.accept'/)
   assert.match(providerSource, /viewport\.completionVisible/)
   assert.match(
     providerSource,
-    /case 'Enter':[\s\S]*?acceptSelection\(sessionId\)[\s\S]*?acceptance\.exact[\s\S]*?return true[\s\S]*?sendTerminalInput\(acceptance\.text, 'none'\)[\s\S]*?return false/,
+    /acceptSelection\(sessionId\)[\s\S]*?acceptance\.exact[\s\S]*?isPlainTerminalEnter\(event\) \? 'fallthrough' : 'handled'[\s\S]*?sendTerminalInput\(acceptance\.text, 'none'\)/,
   )
   assert.doesNotMatch(providerSource, /acceptance\.text[\s\S]{0,80}ensureTerminalEnter/)
   assert.match(
     providerSource,
-    /case 'Tab':\s*completionRuntime\.closeSuggestions\(sessionId\)\s*return true/,
+    /event\.key === 'Tab'[\s\S]*?completionRuntime\.closeSuggestions\(sessionId\)[\s\S]*?return true/,
   )
   assert.match(
     providerSource,
-    /event\.key !== 'Tab'[\s\S]*?event\.ctrlKey \|\| event\.altKey \|\| event\.metaKey \|\| event\.shiftKey[\s\S]*?return true/,
+    /event\.key === 'Escape'[\s\S]*?completionRuntime\.closeSuggestions\(sessionId\)[\s\S]*?return false/,
   )
+})
+
+test('终端复制粘贴只有一个键盘所有者且无选区 Ctrl-C 透传', () => {
+  assert.doesNotMatch(providerSource, /handleClipboardKey/)
+  assert.doesNotMatch(providerSource, /sendTerminalInput\('\\x03'\)/)
+  assert.match(
+    providerSource,
+    /'terminal\.copy_selection'[\s\S]*?!terminal\.hasSelection\(\)[\s\S]*?return 'fallthrough'/,
+  )
+  assert.match(
+    providerSource,
+    /'terminal\.paste'[\s\S]*?pasteEntryClipboard\(entry\)[\s\S]*?return 'handled'/,
+  )
+  assert.match(providerSource, /if \(!terminal\.hasSelection\(\)\) \{\s*return\s*\}/)
 })
 
 test('所有终端输入入口统一更新补全可信状态', () => {

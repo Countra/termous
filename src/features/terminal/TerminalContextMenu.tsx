@@ -13,10 +13,12 @@ import {
 import { useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
 import type {
   TerminalContextMenuActionKey,
   TerminalContextMenuItem,
 } from './terminalContextMenuModel.ts'
+import { terminalContextMenuShortcutAction } from './terminalContextMenuShortcuts'
 
 interface TerminalContextMenuProps {
   instanceId: number
@@ -64,12 +66,15 @@ export function TerminalContextMenu({
   onOpenChange,
 }: TerminalContextMenuProps) {
   const { t } = useTranslation()
+  const { labels: shortcutLabels } = useShortcutRuntime()
   const menuItems = useMemo<NonNullable<MenuProps['items']>>(
     () => items.map((item) => {
       if (item.type === 'separator') {
         return { type: 'divider', key: item.key }
       }
       const Icon = actionIcons[item.key]
+      const shortcutAction = terminalContextMenuShortcutAction(item.key)
+      const shortcut = shortcutAction ? shortcutLabels.get(shortcutAction)?.[0] : undefined
       return {
         key: item.key,
         disabled: item.disabled,
@@ -77,14 +82,14 @@ export function TerminalContextMenu({
         label: (
           <span className="terminal-context-menu-label">
             <span>{t(actionTranslationKeys[item.key])}</span>
-            {shortcutForAction(item.key) ? (
-              <kbd>{shortcutForAction(item.key)}</kbd>
+            {shortcut ? (
+              <kbd>{shortcut}</kbd>
             ) : null}
           </span>
         ),
       }
     }),
-    [items, t],
+    [items, shortcutLabels, t],
   )
 
   if (typeof document === 'undefined') {
@@ -120,12 +125,4 @@ export function TerminalContextMenu({
     </Dropdown>,
     document.body,
   )
-}
-
-function shortcutForAction(action: TerminalContextMenuActionKey) {
-  if (action !== 'copy_selection' && action !== 'paste') {
-    return ''
-  }
-  const modifier = window.termous?.platform === 'darwin' ? '⌘' : 'Ctrl+'
-  return action === 'copy_selection' ? `${modifier}C` : `${modifier}V`
 }

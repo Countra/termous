@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CompletionItem, ThemeMode } from '../../types/domain'
+import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
 import { isExactCompletionItem, splitCompletionLabel } from './completionModel'
 import {
   TERMINAL_COMPLETION_POPUP_WIDTH,
@@ -48,6 +49,13 @@ export function TerminalCompletionPopup({
   onAccept,
 }: TerminalCompletionPopupProps) {
   const { t, i18n } = useTranslation()
+  const { labels: shortcutLabels } = useShortcutRuntime()
+  const navigationShortcuts = [
+    shortcutLabels.get('terminal.completion.previous')?.[0],
+    shortcutLabels.get('terminal.completion.next')?.[0],
+  ].filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
+  const acceptShortcut = shortcutLabels.get('terminal.completion.accept')?.[0]
+  const showShortcutFooter = navigationShortcuts.length > 0 || Boolean(acceptShortcut)
   const popupRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
 
@@ -77,7 +85,9 @@ export function TerminalCompletionPopup({
 
   return (
     <div
-      className={`terminal-completion-popup terminal-completion-theme-${themeMode}`}
+      className={`terminal-completion-popup terminal-completion-theme-${themeMode} ${
+        showShortcutFooter ? 'has-shortcut-footer' : ''
+      }`}
       data-placement={position.placement}
       style={{
         left: position.left,
@@ -94,7 +104,7 @@ export function TerminalCompletionPopup({
         role="listbox"
         aria-label={t('terminal.completion.label')}
         aria-activedescendant={activeDescendant}
-        aria-describedby={`${id}-shortcuts`}
+        aria-describedby={showShortcutFooter ? `${id}-shortcuts` : undefined}
       >
         {items.map((item, index) => {
           const Icon = sourceIcons[item.source] ?? Sparkles
@@ -191,16 +201,22 @@ export function TerminalCompletionPopup({
           )
         })}
       </div>
-      <div id={`${id}-shortcuts`} className="terminal-completion-shortcuts">
-        <span className="terminal-completion-shortcut">
-          <kbd>↑↓</kbd>
-          <span>{t('terminal.completion.shortcuts.navigate')}</span>
-        </span>
-        <span className="terminal-completion-shortcut">
-          <kbd>Enter</kbd>
-          <span>{t('terminal.completion.shortcuts.select')}</span>
-        </span>
-      </div>
+      {showShortcutFooter ? (
+        <div id={`${id}-shortcuts`} className="terminal-completion-shortcuts">
+          {navigationShortcuts.length > 0 ? (
+            <span className="terminal-completion-shortcut">
+              <kbd>{navigationShortcuts.join(' / ')}</kbd>
+              <span>{t('terminal.completion.shortcuts.navigate')}</span>
+            </span>
+          ) : null}
+          {acceptShortcut ? (
+            <span className="terminal-completion-shortcut">
+              <kbd>{acceptShortcut}</kbd>
+              <span>{t('terminal.completion.shortcuts.select')}</span>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

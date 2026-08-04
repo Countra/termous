@@ -146,6 +146,14 @@ test('保留键覆盖固定入口与各上下文原生交互，同时放行批�
   )
   assert.equal(
     getShortcutReservation(
+      'app.host_launcher.open',
+      createShortcutChord('KeyC', 'c', ['control']),
+      'win32',
+    )?.id,
+    'terminal_interrupt',
+  )
+  assert.equal(
+    getShortcutReservation(
       'files.select_all',
       createShortcutChord('Space', ' '),
       'win32',
@@ -184,6 +192,19 @@ test('保留键覆盖固定入口与各上下文原生交互，同时放行批�
       'win32',
     ),
     null,
+  )
+})
+
+test('运行索引忽略外部写入的保留键覆盖', () => {
+  const overrides = setShortcutBindingOverride(
+    {},
+    'terminal.search.open',
+    [createShortcutChord('KeyC', 'c', ['primary'])],
+  )
+  const index = compileShortcutIndex(overrides, 'win32')
+  assert.deepEqual(
+    index.byChord.get('control|KeyC')?.map((entry) => entry.actionId),
+    ['terminal.copy_selection'],
   )
 })
 

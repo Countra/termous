@@ -197,6 +197,7 @@ export function compileShortcutIndex(
     for (const value of effective.bindings) {
       const chord = normalizeShortcutChord(value)
       if (!chord) continue
+      if (getShortcutReservation(effective.actionId, chord, platform)) continue
       const signature = shortcutChordSignature(chord, platform)
       const entries = byChord.get(signature) ?? []
       if (entries.some((entry) => entry.actionId === effective.actionId)) continue

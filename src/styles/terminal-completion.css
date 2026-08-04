@@ -13,12 +13,16 @@
   z-index: 16;
   display: grid;
   overflow: hidden;
-  grid-template-rows: minmax(0, 1fr) 29px;
+  grid-template-rows: minmax(0, 1fr);
   border: 1px solid var(--completion-border);
   border-radius: 8px;
   background: var(--completion-bg);
   color: var(--completion-text);
   box-shadow: 0 12px 28px rgb(0 0 0 / 30%);
+}
+
+.terminal-completion-popup.has-shortcut-footer {
+  grid-template-rows: minmax(0, 1fr) 29px;
 }
 
 .terminal-completion-options {

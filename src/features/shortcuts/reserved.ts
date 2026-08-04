@@ -63,7 +63,7 @@ export function getShortcutReservation(
     return null
   }
 
-  if (isTerminalScope(action.scope)) {
+  if (isTerminalScope(action.scope) || action.scope === 'app.global') {
     if (
       matches(resolved, 'Enter', [])
       || matches(resolved, 'Enter', ['shift'])

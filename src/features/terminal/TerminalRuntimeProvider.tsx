@@ -30,6 +30,10 @@ import {
   normalizeTerminalSettings,
 } from '../settings/terminalSettings'
 import {
+  useShortcutRuntime,
+} from '../shortcuts/shortcutRuntimeContext'
+import type { ShortcutKeyboardEventLike, ShortcutScope } from '../shortcuts'
+import {
   TerminalRuntimeContext,
   type TerminalRuntimeContextValue,
   type TerminalClipboardAction,
@@ -72,6 +76,11 @@ import {
 } from './terminalTransport'
 
 const terminalTextEncoder = new TextEncoder()
+const completionShortcutActionIds = [
+  'terminal.completion.previous',
+  'terminal.completion.next',
+  'terminal.completion.accept',
+] as const
 
 interface TerminalRuntimeProviderProps {
   api: TermousApi
@@ -174,6 +183,14 @@ export function TerminalRuntimeProvider({
     })
   }
   const completionRuntime = completionRuntimeRef.current
+  const {
+    runtime: shortcutRuntime,
+    bindingSignatures: shortcutBindingSignatures,
+  } = useShortcutRuntime()
+  const completionShortcutSignature = completionShortcutActionIds
+    .map((actionId) => shortcutBindingSignatures.get(actionId) ?? '')
+    .join('|')
+  const completionShortcutSignatureRef = useRef(completionShortcutSignature)
   const { t } = useTranslation()
   const { message } = AntdApp.useApp()
   const completionLayoutListenersRef = useRef(new Map<string, Set<() => void>>())
@@ -182,6 +199,16 @@ export function TerminalRuntimeProvider({
   )
   const sessionSnapshot = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
   sessionsRef.current = sessionSnapshot
+
+  useEffect(() => {
+    if (completionShortcutSignatureRef.current === completionShortcutSignature) {
+      return
+    }
+    completionShortcutSignatureRef.current = completionShortcutSignature
+    entriesRef.current.forEach((entry) => {
+      completionRuntime.closeSuggestions(entry.sessionId)
+    })
+  }, [completionRuntime, completionShortcutSignature])
 
   const stopCompletionStatusReconciliation = useCallback((sessionId: string) => {
     const reconciliation = completionStatusReconciliationsRef.current.get(sessionId)
@@ -1047,51 +1074,18 @@ export function TerminalRuntimeProvider({
         }
         return true
       }
-      const handleClipboardKey = (event: KeyboardEvent) => {
-        const key = event.key.toLowerCase()
-        const hasClipboardModifier = event.ctrlKey || event.metaKey
-        if (!hasClipboardModifier || event.altKey) {
-          return
-        }
-        if (key === 'c' && terminal.hasSelection()) {
-          event.preventDefault()
-          event.stopPropagation()
-          void copyEntrySelection(entry)
-          return
-        }
-        if (!isEntryWritable(entry)) {
-          event.preventDefault()
-          event.stopPropagation()
-          return
-        }
-        if (key === 'c') {
-          event.preventDefault()
-          event.stopPropagation()
-          sendTerminalInput('\x03')
-          return
-        }
-        if (key === 'v') {
-          event.preventDefault()
-          event.stopPropagation()
-          void pasteEntryClipboard(entry)
-        }
-      }
       const handleCopyEvent = (event: ClipboardEvent) => {
+        if (!terminal.hasSelection()) {
+          return
+        }
         event.preventDefault()
         event.stopPropagation()
-        if (terminal.hasSelection()) {
-          const selectedText = terminal.getSelection()
-          if (selectedText && event.clipboardData) {
-            event.clipboardData.setData('text/plain', selectedText)
-          } else {
-            void copyEntrySelection(entry)
-          }
-          return
+        const selectedText = terminal.getSelection()
+        if (selectedText && event.clipboardData) {
+          event.clipboardData.setData('text/plain', selectedText)
+        } else {
+          void copyEntrySelection(entry)
         }
-        if (!isEntryWritable(entry)) {
-          return
-        }
-        sendTerminalInput('\x03')
       }
       const handlePasteEvent = (event: ClipboardEvent) => {
         event.preventDefault()
@@ -1107,7 +1101,6 @@ export function TerminalRuntimeProvider({
         }
         void pasteEntryClipboard(entry)
       }
-      pane.addEventListener('keydown', handleClipboardKey, true)
       pane.addEventListener('copy', handleCopyEvent, true)
       pane.addEventListener('paste', handlePasteEvent, true)
       const handleCompositionStart = () => {
@@ -1120,7 +1113,6 @@ export function TerminalRuntimeProvider({
       helperInput?.addEventListener('compositionend', handleCompositionEnd)
       entry.disposables.push({
         dispose: () => {
-          pane.removeEventListener('keydown', handleClipboardKey, true)
           pane.removeEventListener('copy', handleCopyEvent, true)
           pane.removeEventListener('paste', handlePasteEvent, true)
           helperInput?.removeEventListener('compositionstart', handleCompositionStart)
@@ -1128,64 +1120,112 @@ export function TerminalRuntimeProvider({
         },
       })
 
-      terminal.attachCustomKeyEventHandler((event) => {
-        if (
-          event.type !== 'keydown'
-          || !isCompletionInteractionActive(sessionId)
-        ) {
-          return true
-        }
-        const snapshot = completionRuntime.getSnapshot(sessionId)
-        if (snapshot.items.length === 0) {
-          return true
-        }
-        if (
-          event.key !== 'Tab'
-          && (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey)
-        ) {
-          return true
-        }
-        switch (event.key) {
-          case 'ArrowUp':
-            event.preventDefault()
-            event.stopPropagation()
-            completionRuntime.moveSelection(sessionId, -1)
-            return false
-          case 'ArrowDown':
-            event.preventDefault()
-            event.stopPropagation()
-            completionRuntime.moveSelection(sessionId, 1)
-            return false
-          case 'Enter':
-            {
-              const acceptance = completionRuntime.acceptSelection(sessionId)
-              if (!acceptance) {
-                event.preventDefault()
-                event.stopPropagation()
-                completionRuntime.closeSuggestions(sessionId)
-                return false
-              }
-              if (acceptance.exact) {
-                return true
-              }
-              event.preventDefault()
-              event.stopPropagation()
-              if (acceptance.text.length > 0) {
-                sendTerminalInput(acceptance.text, 'none')
-              }
+      const shortcutContextId = `terminal.session:${sessionId}`
+      const disposeShortcutContext = shortcutRuntime.pushContext({
+        id: shortcutContextId,
+        layer: 'focus',
+        scopes: () => {
+          const viewport = getViewportForSession(sessionId)
+          if (
+            !viewport?.active
+            || activeSessionIdRef.current !== sessionId
+          ) {
+            return []
+          }
+          const scopes: ShortcutScope[] = []
+          if (terminal.hasSelection()) {
+            scopes.push('terminal.selection')
+          }
+          if (isEntryWritable(entry) && entry.transport.isLive()) {
+            scopes.push('terminal.writable')
+          }
+          if (
+            isCompletionInteractionActive(sessionId)
+            && completionRuntime.getSnapshot(sessionId).items.length > 0
+          ) {
+            scopes.push('terminal.completion.visible')
+          }
+          return scopes
+        },
+      })
+      const disposeShortcutHandlers = [
+        shortcutRuntime.registerHandler(
+          shortcutContextId,
+          'terminal.copy_selection',
+          () => {
+            if (!terminal.hasSelection()) return 'fallthrough'
+            void copyEntrySelection(entry)
+            return 'handled'
+          },
+        ),
+        shortcutRuntime.registerHandler(
+          shortcutContextId,
+          'terminal.paste',
+          () => {
+            if (!isEntryWritable(entry) || !entry.transport.isLive()) return 'fallthrough'
+            void pasteEntryClipboard(entry)
+            return 'handled'
+          },
+        ),
+        shortcutRuntime.registerHandler(
+          shortcutContextId,
+          'terminal.completion.previous',
+          () => completionRuntime.moveSelection(sessionId, -1) ? 'handled' : 'fallthrough',
+        ),
+        shortcutRuntime.registerHandler(
+          shortcutContextId,
+          'terminal.completion.next',
+          () => completionRuntime.moveSelection(sessionId, 1) ? 'handled' : 'fallthrough',
+        ),
+        shortcutRuntime.registerHandler(
+          shortcutContextId,
+          'terminal.completion.accept',
+          (event) => {
+            const acceptance = completionRuntime.acceptSelection(sessionId)
+            if (!acceptance) {
+              completionRuntime.closeSuggestions(sessionId)
+              return 'handled'
             }
-            return false
-          case 'Escape':
+            if (acceptance.exact) {
+              return isPlainTerminalEnter(event) ? 'fallthrough' : 'handled'
+            }
+            if (acceptance.text.length > 0) {
+              sendTerminalInput(acceptance.text, 'none')
+            }
+            return 'handled'
+          },
+        ),
+      ]
+      entry.disposables.push({
+        dispose: () => {
+          disposeShortcutHandlers.reverse().forEach((dispose) => dispose())
+          disposeShortcutContext()
+        },
+      })
+
+      terminal.attachCustomKeyEventHandler((event) => {
+        if (event.type === 'keydown' && isCompletionInteractionActive(sessionId)) {
+          if (event.key === 'Escape') {
             event.preventDefault()
             event.stopPropagation()
             completionRuntime.closeSuggestions(sessionId)
             return false
-          case 'Tab':
+          }
+          if (event.key === 'Tab') {
             completionRuntime.closeSuggestions(sessionId)
             return true
-          default:
-            return true
+          }
         }
+        const result = shortcutRuntime.dispatch(event, {
+          adapterId: `xterm:${sessionId}`,
+          editable: false,
+        })
+        if (result.result === 'handled' || result.result === 'blocked') {
+          event.preventDefault()
+          event.stopPropagation()
+          return false
+        }
+        return true
       })
 
       entry.disposables.push(
@@ -1268,6 +1308,7 @@ export function TerminalRuntimeProvider({
       isEntryWritable,
       pasteEntryClipboard,
       pasteEntryText,
+      shortcutRuntime,
       startCompletionStatusReconciliation,
       stopCompletionStatusReconciliation,
     ],
@@ -1615,6 +1656,14 @@ function matchesCompletionPromptAnchor(
     && anchor.promptGeneration === boundary.prompt_generation
     && anchor.inputEpoch === boundary.input_epoch
   )
+}
+
+function isPlainTerminalEnter(event: ShortcutKeyboardEventLike) {
+  return event.code === 'Enter'
+    && !event.ctrlKey
+    && !event.altKey
+    && !event.shiftKey
+    && !event.metaKey
 }
 
 function createTerminal(theme: ThemeMode, settings: TerminalSettings = defaultTerminalSettings, fonts: TerminalFont[] = []) {

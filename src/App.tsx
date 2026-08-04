@@ -38,6 +38,10 @@ import { HostKeyCoordinator } from './components/hostkey/HostKeyCoordinator'
 import { TransferRuntimeProvider } from './app/TransferRuntimeProvider'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
+import {
+  ShortcutRuntimeProvider,
+  ShortcutWindowAdapter,
+} from './features/shortcuts/ShortcutRuntimeProvider'
 import { UpdateRuntimeProvider } from './features/update/UpdateRuntimeProvider'
 import { UpdateRuntimeSummaryReporter } from './features/update/UpdateRuntimeSummaryReporter'
 import { readDevelopmentUpdateSimulation } from './features/update/developmentUpdateSimulationSlot'
@@ -831,38 +835,34 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     return () => cleanup?.()
   }, [actions, openHostLauncher, runAction])
 
-  useEffect(() => {
-    const handleHostLauncherShortcut = (event: KeyboardEvent) => {
-      if (!isHostLauncherShortcut(event)) {
-        return
-      }
-      event.preventDefault()
-      event.stopPropagation()
-      openContextualHostLauncher()
-    }
-
-    window.addEventListener('keydown', handleHostLauncherShortcut, true)
-    return () => window.removeEventListener('keydown', handleHostLauncherShortcut, true)
-  }, [openContextualHostLauncher])
-
   return (
-    <FilesWorkspaceRuntimeProvider>
-      <TransferRuntimeProvider api={api}>
-        <UpdateRuntimeSummaryReporter
-          apiReady={apiReady}
-          sessions={data.sessions}
-          fileSessions={data.fileSessions}
-          forwards={data.forwards}
-        />
-        <TerminalRuntimeProvider
-          api={api}
-          sessions={data.sessions}
-          theme={theme}
-          terminalSettings={data.settings.terminal}
-          completionSettings={data.settings.completion}
-          terminalFonts={data.terminalFonts}
-          onSessionEvent={actions.updateSession}
-        >
+    <ShortcutRuntimeProvider settings={data.settings.shortcuts}>
+      <ShortcutWindowAdapter handlers={{
+        'app.host_launcher.open': () => {
+          if (actionBusy) {
+            return 'blocked'
+          }
+          openContextualHostLauncher()
+          return 'handled'
+        },
+      }} />
+      <FilesWorkspaceRuntimeProvider>
+        <TransferRuntimeProvider api={api}>
+          <UpdateRuntimeSummaryReporter
+            apiReady={apiReady}
+            sessions={data.sessions}
+            fileSessions={data.fileSessions}
+            forwards={data.forwards}
+          />
+          <TerminalRuntimeProvider
+            api={api}
+            sessions={data.sessions}
+            theme={theme}
+            terminalSettings={data.settings.terminal}
+            completionSettings={data.settings.completion}
+            terminalFonts={data.terminalFonts}
+            onSessionEvent={actions.updateSession}
+          >
           <AppShell
             page={page}
             appVersion={appVersion}
@@ -1188,9 +1188,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           </div>
         </section>
         </Modal>
-        </TerminalRuntimeProvider>
-      </TransferRuntimeProvider>
-    </FilesWorkspaceRuntimeProvider>
+          </TerminalRuntimeProvider>
+        </TransferRuntimeProvider>
+      </FilesWorkspaceRuntimeProvider>
+    </ShortcutRuntimeProvider>
   )
 }
 
@@ -1252,10 +1253,6 @@ function notifyForwardError(
       className: 'termous-notification',
     })
   }
-}
-
-function isHostLauncherShortcut(event: KeyboardEvent) {
-  return event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 'h'
 }
 
 function readTimestamp(value?: string) {

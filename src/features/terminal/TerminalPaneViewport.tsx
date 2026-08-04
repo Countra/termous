@@ -33,6 +33,8 @@ import {
   type TerminalCompletionPopupPosition,
 } from './terminalCompletionPosition'
 import { shouldActivateTerminalCompletionViewport } from './terminalCompletionViewport'
+import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
+import type { ShortcutScope } from '../shortcuts'
 
 interface TerminalPaneViewportProps {
   paneId: string
@@ -108,12 +110,19 @@ export function TerminalPaneViewport({
     closeSessionCompletion,
   } = useTerminalRuntime()
   const { t } = useTranslation()
+  const { runtime: shortcutRuntime, labels: shortcutLabels } = useShortcutRuntime()
   const { message } = AntdApp.useApp()
   const [contextMenu, setContextMenu] = useState<TerminalContextMenuState | null>(null)
   const [completionPosition, setCompletionPosition] = useState<TerminalCompletionPopupPosition | null>(null)
   const [completionRetrySessionId, setCompletionRetrySessionId] = useState<string | null>(null)
   const sessionId = session?.id ?? null
+  const shortcutContextId = sessionId ? `terminal.viewport:${paneId}` : null
   const completionRetrying = completionRetrySessionId === sessionId
+  const completionShortcutFooterVisible = Boolean(
+    shortcutLabels.get('terminal.completion.previous')?.length
+    || shortcutLabels.get('terminal.completion.next')?.length
+    || shortcutLabels.get('terminal.completion.accept')?.length,
+  )
   const completionPopupId = `terminal-completion-${paneId}`
   const completion = useSessionCompletionSnapshot(sessionId)
   const cwdState = useSessionCwdState(sessionId)
@@ -145,6 +154,91 @@ export function TerminalPaneViewport({
   )
     ? completion.promptObservation.status
     : null
+  const shortcutStateRef = useRef({
+    session,
+    active,
+    workspaceActive,
+    actionBusy,
+    onActivate,
+    onReconnect,
+    onSearch,
+  })
+  shortcutStateRef.current = {
+    session,
+    active,
+    workspaceActive,
+    actionBusy,
+    onActivate,
+    onReconnect,
+    onSearch,
+  }
+
+  useEffect(() => {
+    if (!sessionId || !shortcutContextId) return
+    const disposeContext = shortcutRuntime.pushContext({
+      id: shortcutContextId,
+      layer: 'focus',
+      priority: 10,
+      isActive: () => {
+        const current = shortcutStateRef.current
+        return Boolean(
+          current.session?.id === sessionId
+          && current.active
+          && current.workspaceActive,
+        )
+      },
+      scopes: () => {
+        const current = shortcutStateRef.current
+        if (
+          current.session?.id !== sessionId
+          || !current.active
+          || !current.workspaceActive
+        ) {
+          return []
+        }
+        const scopes: ShortcutScope[] = ['terminal.active']
+        if (
+          current.session.kind === 'ssh'
+          && (current.session.status === 'disconnected' || current.session.status === 'failed')
+        ) {
+          scopes.push('terminal.disconnected')
+        }
+        return scopes
+      },
+    })
+    const disposeHandlers = [
+      shortcutRuntime.registerHandler(shortcutContextId, 'terminal.search.open', () => {
+        const current = shortcutStateRef.current
+        if (current.session?.id !== sessionId || !current.onSearch) return 'fallthrough'
+        current.onActivate()
+        current.onSearch(sessionId)
+        return 'handled'
+      }),
+      shortcutRuntime.registerHandler(shortcutContextId, 'terminal.select_all', () => {
+        if (!selectAllSession(sessionId)) return 'fallthrough'
+        focusSession(sessionId)
+        return 'handled'
+      }),
+      shortcutRuntime.registerHandler(shortcutContextId, 'terminal.session.reconnect', () => {
+        const current = shortcutStateRef.current
+        if (
+          current.session?.id !== sessionId
+          || current.session.kind !== 'ssh'
+          || (current.session.status !== 'disconnected' && current.session.status !== 'failed')
+          || !current.onReconnect
+        ) {
+          return 'fallthrough'
+        }
+        if (current.actionBusy) return 'blocked'
+        current.onReconnect()
+        return 'handled'
+      }),
+    ]
+    return () => {
+      disposeHandlers.reverse().forEach((dispose) => dispose())
+      disposeContext()
+    }
+  }, [focusSession, selectAllSession, sessionId, shortcutContextId, shortcutRuntime])
 
   const clearContextPathSelection = useCallback(() => {
     const selection = contextPathSelectionRef.current
@@ -290,25 +384,41 @@ export function TerminalPaneViewport({
 
   const handleKeyDownCapture = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
+      const target = event.target as Element
+      const inSearchPanel = Boolean(target.closest('.terminal-search-panel'))
+      const opensContextMenu = event.key === 'ContextMenu'
+        || (event.shiftKey && event.key === 'F10')
+      if (session && opensContextMenu && !inSearchPanel) {
+        event.preventDefault()
+        event.stopPropagation()
+        const rect = frameRef.current?.getBoundingClientRect()
+        const point = rect
+          ? {
+            x: Math.min(rect.right - 16, rect.left + 48),
+            y: Math.min(rect.bottom - 16, rect.top + 48),
+          }
+          : { x: 24, y: 24 }
+        openContextMenu(point)
+        return
+      }
       if (
-        !session ||
-        (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) ||
-        (event.target as Element).closest('.terminal-search-panel')
+        !shortcutContextId
+        || inSearchPanel
+        || target.closest('[data-shortcut-adapter]')
       ) {
         return
       }
-      event.preventDefault()
-      event.stopPropagation()
-      const rect = frameRef.current?.getBoundingClientRect()
-      const point = rect
-        ? {
-          x: Math.min(rect.right - 16, rect.left + 48),
-          y: Math.min(rect.bottom - 16, rect.top + 48),
-        }
-        : { x: 24, y: 24 }
-      openContextMenu(point)
+      const result = shortcutRuntime.dispatch(event.nativeEvent, {
+        adapterId: `terminal-viewport:${paneId}`,
+        contextIds: [shortcutContextId],
+        editable: Boolean(target.closest('input, textarea, select, [contenteditable="true"]')),
+      })
+      if (result.result === 'handled' || result.result === 'blocked') {
+        event.preventDefault()
+        event.stopPropagation()
+      }
     },
-    [openContextMenu, session],
+    [openContextMenu, paneId, session, shortcutContextId, shortcutRuntime],
   )
 
   const handleContextAction = useCallback(
@@ -572,7 +682,10 @@ export function TerminalPaneViewport({
         cellWidth: geometry.screenRect.width / geometry.columns,
         cellHeight: geometry.screenRect.height / geometry.rows,
         popupWidth: TERMINAL_COMPLETION_POPUP_WIDTH,
-        popupHeight: estimateTerminalCompletionPopupHeight(completion.items.length),
+        popupHeight: estimateTerminalCompletionPopupHeight(
+          completion.items.length,
+          completionShortcutFooterVisible,
+        ),
       })
       setCompletionPosition((current) => sameCompletionPosition(current, nextPosition)
         ? current
@@ -582,6 +695,7 @@ export function TerminalPaneViewport({
     captureSessionCompletionCursor,
     completion.items.length,
     completionOpen,
+    completionShortcutFooterVisible,
     sessionId,
   ])
 
@@ -636,7 +750,11 @@ export function TerminalPaneViewport({
         }`}
         aria-label={session ? t('workbench.terminal') : placeholder}
       >
-        <div className="terminal-session-stack" ref={paneHostRef} />
+        <div
+          className="terminal-session-stack"
+          data-shortcut-adapter="xterm"
+          ref={paneHostRef}
+        />
         <div
           className={`terminal-empty-state ${emptyState ? 'has-action' : ''}`}
           aria-hidden={session ? true : undefined}

@@ -99,14 +99,19 @@ export function isPredictableTerminalCompletionText(value: string) {
   return /^[\x20-\x7e]*$/.test(value)
 }
 
-export function estimateTerminalCompletionPopupHeight(itemCount: number) {
+export function estimateTerminalCompletionPopupHeight(
+  itemCount: number,
+  showShortcutFooter = true,
+) {
   const visibleCount = Math.min(
     TERMINAL_COMPLETION_MAX_VISIBLE_ITEMS,
     Number.isFinite(itemCount) ? Math.max(0, Math.floor(itemCount)) : 0,
   )
   return visibleCount === 0
     ? 0
-    : visibleCount * TERMINAL_COMPLETION_ROW_HEIGHT + popupVerticalPadding + popupShortcutHeight
+    : visibleCount * TERMINAL_COMPLETION_ROW_HEIGHT
+      + popupVerticalPadding
+      + (showShortcutFooter ? popupShortcutHeight : 0)
 }
 
 export function computeTerminalCompletionPosition(
@@ -140,7 +145,7 @@ export function computeTerminalCompletionPosition(
     : 'above'
   const availableHeight = placement === 'below' ? availableBelow : availableAbove
   const maxHeight = Math.min(input.popupHeight, availableHeight)
-  if (maxHeight < minimumVisibleHeight) {
+  if (maxHeight < Math.min(minimumVisibleHeight, input.popupHeight)) {
     return null
   }
 
