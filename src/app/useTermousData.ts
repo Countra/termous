@@ -34,6 +34,7 @@ import type {
   LocalShell,
   Session,
   Settings,
+  ShortcutSettingsPatch,
   TerminalFont,
   TerminalSettings,
   WindowSettings,
@@ -47,6 +48,11 @@ import {
   defaultWindowSettings,
   normalizeSettings,
 } from '../features/settings/terminalSettings'
+import {
+  applyShortcutSettingsPatch,
+  defaultShortcutSettings,
+  shortcutSettingsEqual,
+} from '../features/settings/shortcutSettings'
 import { hostToInput } from '../features/hosts/hostInput'
 import {
   adoptSuppressedFileSessionRecoveryResult,
@@ -83,6 +89,7 @@ const initialSettings: Settings = {
   appearance: defaultAppearanceSettings,
   terminal: defaultTerminalSettings,
   completion: defaultCompletionSettings,
+  shortcuts: defaultShortcutSettings,
   window: defaultWindowSettings,
 }
 type LoadMode = 'initial' | 'background' | 'silent'
@@ -147,6 +154,16 @@ export function useTermousData() {
   const completionSettingsRef = useRef(data.settings.completion)
   const completionSettingsConfirmedRef = useRef(data.settings.completion)
   completionSettingsRef.current = data.settings.completion
+  const shortcutSettingsMutationRef = useRef(0)
+  const shortcutSettingsPendingWritesRef = useRef(0)
+  const shortcutSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
+  if (!shortcutSettingsWriteQueueRef.current) {
+    shortcutSettingsWriteQueueRef.current = new SerialMutationQueue()
+  }
+  const shortcutSettingsWriteQueue = shortcutSettingsWriteQueueRef.current
+  const shortcutSettingsRef = useRef(data.settings.shortcuts)
+  const shortcutSettingsConfirmedRef = useRef(data.settings.shortcuts)
+  shortcutSettingsRef.current = data.settings.shortcuts
   const forwardStartCompletionWaitersRef = useRef(
     new Map<string, ForwardStartCompletionWaiter>(),
   )
@@ -235,6 +252,10 @@ export function useTermousData() {
       generation: completionSettingsMutationRef.current,
       hadPendingWrites: completionSettingsPendingWritesRef.current > 0,
     }
+    const shortcutSettingsReloadCheckpoint = {
+      generation: shortcutSettingsMutationRef.current,
+      hadPendingWrites: shortcutSettingsPendingWritesRef.current > 0,
+    }
     const sessionRevisionBaseline = new Map(sessionEventRevisionsRef.current)
     const fileSessionRevisionBaseline = new Map(fileSessionEventRevisionsRef.current)
     if (mode === 'initial') {
@@ -303,6 +324,15 @@ export function useTermousData() {
         completionSettingsConfirmedRef.current = nextSettings.completion
         completionSettingsRef.current = nextSettings.completion
       }
+      const canApplyReloadedShortcuts = canApplyReloadedValue(
+        shortcutSettingsReloadCheckpoint,
+        shortcutSettingsMutationRef.current,
+        shortcutSettingsPendingWritesRef.current,
+      )
+      if (canApplyReloadedShortcuts) {
+        shortcutSettingsConfirmedRef.current = nextSettings.shortcuts
+        shortcutSettingsRef.current = nextSettings.shortcuts
+      }
       reloadedSessions.forEach((session) => {
         if (!sessionChangedSince(
           session.id,
@@ -325,9 +355,15 @@ export function useTermousData() {
           sessionEventRevisionsRef.current,
         )
         const activeSourceSessionIds = new Set(nextSessions.map((session) => session.id))
-        const mergedSettings = canApplyReloadedCompletion
-          ? nextSettings
-          : { ...nextSettings, completion: current.settings.completion }
+        const mergedSettings = {
+          ...nextSettings,
+          completion: canApplyReloadedCompletion
+            ? nextSettings.completion
+            : current.settings.completion,
+          shortcuts: canApplyReloadedShortcuts
+            ? nextSettings.shortcuts
+            : current.settings.shortcuts,
+        }
         return {
           settings: mergedSettings,
           groups: groups ?? [],
@@ -645,6 +681,67 @@ export function useTermousData() {
           completionSettingsPendingWritesRef.current = Math.max(
             0,
             completionSettingsPendingWritesRef.current - 1,
+          )
+        }
+      },
+      async updateShortcutSettings(patch: ShortcutSettingsPatch) {
+        const mutation = shortcutSettingsMutationRef.current + 1
+        shortcutSettingsMutationRef.current = mutation
+        shortcutSettingsPendingWritesRef.current += 1
+        const optimistic = applyShortcutSettingsPatch(shortcutSettingsRef.current, patch)
+        shortcutSettingsRef.current = optimistic
+        setData((current) => ({
+          ...current,
+          settings: { ...current.settings, shortcuts: optimistic },
+        }))
+        try {
+          const settings = normalizeSettings(await shortcutSettingsWriteQueue.enqueue(
+            () => api.updateShortcutSettings(patch),
+          ))
+          shortcutSettingsConfirmedRef.current = settings.shortcuts
+          if (shortcutSettingsMutationRef.current !== mutation) {
+            return
+          }
+          if (!shortcutSettingsEqual(shortcutSettingsRef.current, optimistic)) {
+            return
+          }
+          shortcutSettingsRef.current = settings.shortcuts
+          setData((current) => (
+            shortcutSettingsEqual(current.settings.shortcuts, optimistic)
+              ? {
+                  ...current,
+                  settings: {
+                    ...current.settings,
+                    shortcuts: settings.shortcuts,
+                  },
+                }
+              : current
+          ))
+        } catch (updateError) {
+          if (shortcutSettingsMutationRef.current !== mutation) {
+            return
+          }
+          if (!shortcutSettingsEqual(shortcutSettingsRef.current, optimistic)) {
+            throw updateError
+          }
+          const confirmedShortcuts = shortcutSettingsConfirmedRef.current
+          shortcutSettingsRef.current = confirmedShortcuts
+          setData((current) => (
+            shortcutSettingsEqual(current.settings.shortcuts, optimistic)
+              ? {
+                  ...current,
+                  settings: {
+                    ...current.settings,
+                    shortcuts: confirmedShortcuts,
+                  },
+                }
+              : current
+          ))
+          throw updateError
+        } finally {
+          shortcutSettingsPendingWritesRef.current = Math.max(
+            0,
+            shortcutSettingsPendingWritesRef.current - 1,
           )
         }
       },
@@ -1315,6 +1412,7 @@ export function useTermousData() {
     [
       api,
       completionSettingsWriteQueue,
+      shortcutSettingsWriteQueue,
       data.fileSessions,
       data.forwards,
       data.hosts,

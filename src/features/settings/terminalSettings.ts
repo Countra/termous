@@ -7,6 +7,7 @@ import type {
   TerminalSettings,
   WindowSettings,
 } from '../../types/domain'
+import { normalizeShortcutSettings } from './shortcutSettings.ts'
 
 export const defaultAppearanceSettings: AppearanceSettings = {
   theme: 'dark',
@@ -60,6 +61,7 @@ export function normalizeSettings(settings: Partial<Settings> | null | undefined
     appearance: normalizeAppearanceSettings(settings?.appearance),
     terminal: normalizeTerminalSettings(settings?.terminal),
     completion: normalizeCompletionSettings(settings?.completion),
+    shortcuts: normalizeShortcutSettings(settings?.shortcuts),
     window: normalizeWindowSettings(settings?.window),
   }
 }

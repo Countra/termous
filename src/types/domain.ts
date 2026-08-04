@@ -668,6 +668,7 @@ export interface Settings {
   appearance: AppearanceSettings
   terminal: TerminalSettings
   completion: CompletionSettings
+  shortcuts: ShortcutSettings
   window: WindowSettings
 }
 
@@ -699,6 +700,28 @@ export interface CompletionProviderSettings {
   snippet: boolean
   history: boolean
   directory: boolean
+}
+
+export type ShortcutModifier = 'primary' | 'control' | 'alt' | 'shift' | 'meta'
+
+export interface ShortcutChord {
+  modifiers: ShortcutModifier[]
+  code: string
+  key: string
+}
+
+export interface ShortcutActionOverride {
+  bindings: ShortcutChord[]
+}
+
+export interface ShortcutSettings {
+  schema_version: 1
+  overrides: Record<string, ShortcutActionOverride>
+}
+
+export interface ShortcutSettingsPatch {
+  changes?: Record<string, ShortcutActionOverride | null>
+  reset_all?: boolean
 }
 
 export type CompletionProviderStatus =

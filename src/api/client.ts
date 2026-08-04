@@ -92,6 +92,7 @@ import type {
   ShellAliasInput,
   ShellAliasPatch,
   Settings,
+  ShortcutSettingsPatch,
   SSHKeyGenerateRequest,
   SSHKeyInspectRequest,
   SSHKeyInspectResult,
@@ -236,6 +237,13 @@ export class TermousApi {
     return this.request<Settings>('/api/v1/settings/completion', {
       method: 'PATCH',
       body: completion,
+    })
+  }
+
+  updateShortcutSettings(patch: ShortcutSettingsPatch) {
+    return this.request<Settings>('/api/v1/settings/shortcuts', {
+      method: 'PATCH',
+      body: patch,
     })
   }
 
