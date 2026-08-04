@@ -186,54 +186,59 @@ export function ShortcutSettingsPanel({
 
   return (
     <section className="settings-section shortcut-settings-panel">
-      <header className="shortcut-settings-heading">
-        <div className="settings-section-header shortcut-settings-title">
-          <Keyboard size={18} aria-hidden="true" />
-          <div>
-            <h2>{t('settings.shortcuts.title')}</h2>
-            <p>{t('settings.shortcuts.description')}</p>
+      <div className="shortcut-settings-header">
+        <header className="shortcut-settings-heading">
+          <div className="shortcut-settings-title">
+            <Keyboard size={18} aria-hidden="true" />
+            <div>
+              <h2>{t('settings.shortcuts.title')}</h2>
+              <p>{t('settings.shortcuts.description')}</p>
+            </div>
+          </div>
+        </header>
+
+        <div className="shortcut-settings-toolbar">
+          <Input
+            id="settings-shortcuts-search"
+            name="shortcut-search"
+            allowClear
+            value={query}
+            prefix={<Search size={15} aria-hidden="true" />}
+            placeholder={t('settings.shortcuts.searchPlaceholder')}
+            className="shortcut-settings-search"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <div className="shortcut-settings-summary">
+            <span>{t('settings.shortcuts.customizedCount', { count: customizedCount })}</span>
+            <Popconfirm
+              title={t('settings.shortcuts.resetAllTitle')}
+              description={t('settings.shortcuts.resetAllDescription')}
+              okText={t('settings.shortcuts.resetAllConfirm')}
+              cancelText={t('settings.shortcuts.recorder.cancel')}
+              placement="bottomRight"
+              rootClassName="termous-popconfirm"
+              classNames={{ container: 'termous-popconfirm-surface' }}
+              onConfirm={() => resetAll()}
+            >
+              <Button
+                size="small"
+                className="shortcut-settings-reset"
+                icon={<RotateCcw size={14} aria-hidden="true" />}
+                loading={resetBusy}
+                disabled={disabled || resetBusy || busyActionIds.size > 0 || customizedCount === 0}
+              >
+                {t('settings.shortcuts.resetAll')}
+              </Button>
+            </Popconfirm>
           </div>
         </div>
-        <div className="shortcut-settings-summary">
-          <span>{t('settings.shortcuts.customizedCount', { count: customizedCount })}</span>
-          <Popconfirm
-            title={t('settings.shortcuts.resetAllTitle')}
-            description={t('settings.shortcuts.resetAllDescription')}
-            okText={t('settings.shortcuts.resetAllConfirm')}
-            cancelText={t('settings.shortcuts.recorder.cancel')}
-            placement="bottomRight"
-            overlayClassName="shortcut-settings-popconfirm"
-            onConfirm={() => resetAll()}
-          >
-            <Button
-              icon={<RotateCcw size={15} aria-hidden="true" />}
-              loading={resetBusy}
-              disabled={disabled || resetBusy || busyActionIds.size > 0 || customizedCount === 0}
-            >
-              {t('settings.shortcuts.resetAll')}
-            </Button>
-          </Popconfirm>
-        </div>
-      </header>
 
-      {resetFailed && (
-        <div className="shortcut-settings-inline-error" role="status">
-          <CircleAlert size={14} aria-hidden="true" />
-          {t('settings.shortcuts.resetAllFailed')}
-        </div>
-      )}
-
-      <div className="shortcut-settings-toolbar">
-        <Input
-          id="settings-shortcuts-search"
-          name="shortcut-search"
-          allowClear
-          value={query}
-          prefix={<Search size={15} aria-hidden="true" />}
-          placeholder={t('settings.shortcuts.searchPlaceholder')}
-          className="shortcut-settings-search"
-          onChange={(event) => setQuery(event.target.value)}
-        />
+        {resetFailed && (
+          <div className="shortcut-settings-inline-error" role="status">
+            <CircleAlert size={14} aria-hidden="true" />
+            {t('settings.shortcuts.resetAllFailed')}
+          </div>
+        )}
       </div>
 
       {groups.length === 0 ? (
@@ -357,7 +362,8 @@ function ShortcutSettingsRowView({
             description={t('settings.shortcuts.binding.restoreDescription')}
             okText={t('settings.shortcuts.binding.restoreConfirm')}
             cancelText={t('settings.shortcuts.recorder.cancel')}
-            overlayClassName="shortcut-settings-popconfirm"
+            rootClassName="termous-popconfirm"
+            classNames={{ container: 'termous-popconfirm-surface' }}
             onConfirm={() => onRestore()}
           >
             <Tooltip title={t('settings.shortcuts.binding.restore')}>

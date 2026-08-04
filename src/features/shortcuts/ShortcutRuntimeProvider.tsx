@@ -101,6 +101,7 @@ export function ShortcutWindowAdapter({ handlers }: ShortcutWindowAdapterProps) 
       const result = runtime.dispatch(event, {
         adapterId: 'window',
         handlerContextIds: [windowContextId],
+        requiredBindingScope: 'app.global',
         editable: isEditableTarget(event.target),
       })
       if (result.result === 'handled' || result.result === 'blocked') {

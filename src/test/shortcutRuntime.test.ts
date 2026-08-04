@@ -371,7 +371,8 @@ test('适配器可限制处理器上下文，窗口监听不会抢占终端动�
   const localEvent = keyboardEvent('F6', 'F6')
   assert.equal(runtime.dispatch(localEvent, {
     handlerContextIds: ['window'],
-  }).reason, 'no_handler')
+    requiredBindingScope: 'app.global',
+  }).reason, 'no_match')
   assert.deepEqual(calls, [])
   assert.equal(runtime.dispatch(localEvent, {
     contextIds: ['terminal'],
@@ -380,6 +381,7 @@ test('适配器可限制处理器上下文，窗口监听不会抢占终端动�
   const globalEvent = keyboardEvent('KeyH', 'H', { ctrlKey: true, shiftKey: true })
   assert.equal(runtime.dispatch(globalEvent, {
     handlerContextIds: ['window'],
+    requiredBindingScope: 'app.global',
   }).actionId, 'app.host_launcher.open')
   assert.deepEqual(calls, ['terminal', 'window'])
 })
@@ -422,10 +424,68 @@ test('窗口处理器执行前会用全部活动上下文阻止外部歧义绑�
 
   const result = runtime.dispatch(keyboardEvent('F6', 'F6'), {
     handlerContextIds: ['window'],
+    requiredBindingScope: 'app.global',
   })
   assert.equal(result.result, 'blocked')
   assert.equal(result.reason, 'ambiguous')
   assert.deepEqual(calls, [])
+})
+
+test('窗口捕获器放行技术性同时活跃的局部快捷键上下文', () => {
+  const overrides = setShortcutBindingOverride(
+    setShortcutBindingOverride(
+      {},
+      'terminal.search.open',
+      [createShortcutChord('F6', 'F6')],
+    ),
+    'files.rename_focused',
+    [createShortcutChord('F6', 'F6')],
+  )
+  const runtime = new ShortcutRuntime({
+    index: compileShortcutIndex(overrides, 'win32'),
+  })
+  const calls: string[] = []
+  installContext(runtime, {
+    id: 'window',
+    layer: 'global',
+    scopes: ['app.global'],
+    handlers: {
+      'app.host_launcher.open': () => {
+        calls.push('window')
+        return 'handled'
+      },
+    },
+  })
+  installContext(runtime, {
+    id: 'terminal',
+    scopes: ['terminal.active'],
+    handlers: {
+      'terminal.search.open': () => {
+        calls.push('terminal')
+        return 'handled'
+      },
+    },
+  })
+  installContext(runtime, {
+    id: 'files',
+    scopes: ['files.standalone'],
+    handlers: {
+      'files.rename_focused': () => {
+        calls.push('files')
+        return 'handled'
+      },
+    },
+  })
+
+  const event = keyboardEvent('F6', 'F6')
+  assert.equal(runtime.dispatch(event, {
+    handlerContextIds: ['window'],
+    requiredBindingScope: 'app.global',
+  }).reason, 'no_match')
+  assert.equal(runtime.dispatch(event, {
+    contextIds: ['files'],
+  }).actionId, 'files.rename_focused')
+  assert.deepEqual(calls, ['files'])
 })
 
 test('非重复动作在 keyup 前阻止长按穿透，允许补全上下键连续切换', () => {

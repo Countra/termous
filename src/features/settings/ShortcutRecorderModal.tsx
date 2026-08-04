@@ -202,7 +202,8 @@ function ShortcutRecorderBody({
               okText={t('settings.shortcuts.binding.removeConfirm')}
               cancelText={t('settings.shortcuts.recorder.cancel')}
               placement="topRight"
-              overlayClassName="shortcut-settings-popconfirm"
+              rootClassName="termous-popconfirm"
+              classNames={{ container: 'termous-popconfirm-surface' }}
               onConfirm={() => onRemove(index)}
             >
               <Button

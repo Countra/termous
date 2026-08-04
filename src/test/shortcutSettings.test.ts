@@ -53,7 +53,7 @@ test('增量变更区分主动解绑与恢复默认', () => {
   assert.equal(next.overrides['terminal.select_all'], undefined)
 })
 
-test('快捷键设置比较不受对象和绑定插入顺序影响', () => {
+test('快捷键设置比较忽略对象顺序但保留首选绑定顺序', () => {
   const left = normalizeShortcutSettings({
     overrides: {
       'terminal.paste': {
@@ -70,14 +70,28 @@ test('快捷键设置比较不受对象和绑定插入顺序影响', () => {
       'terminal.search.open': { bindings: [] },
       'terminal.paste': {
         bindings: [
-          { modifiers: ['primary'], code: 'KeyV', key: 'v' },
           { modifiers: ['shift', 'primary'], code: 'KeyV', key: 'v' },
+          { modifiers: ['primary'], code: 'KeyV', key: 'v' },
         ],
       },
     },
   })
 
   assert.equal(shortcutSettingsEqual(left, right), true)
+  assert.deepEqual(left.overrides['terminal.paste']?.bindings, [
+    { modifiers: ['primary', 'shift'], code: 'KeyV', key: 'v' },
+    { modifiers: ['primary'], code: 'KeyV', key: 'v' },
+  ])
+
+  const reversed = normalizeShortcutSettings({
+    overrides: {
+      'terminal.paste': {
+        bindings: [...right.overrides['terminal.paste']!.bindings].reverse(),
+      },
+      'terminal.search.open': { bindings: [] },
+    },
+  })
+  assert.equal(shortcutSettingsEqual(left, reversed), false)
 })
 
 test('同一物理按键不会因 key 大小写差异保存为两组绑定', () => {

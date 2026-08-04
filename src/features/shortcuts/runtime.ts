@@ -41,6 +41,7 @@ export interface ShortcutDispatchOptions {
   readonly adapterId?: string
   readonly contextIds?: Iterable<string>
   readonly handlerContextIds?: Iterable<string>
+  readonly requiredBindingScope?: ShortcutScope
 }
 
 export interface ShortcutHandlerContext {
@@ -230,6 +231,12 @@ export class ShortcutRuntime {
       shortcutChordSignature(chord, this.index.platform),
     )
     if (!entries?.length) return fallthroughResult
+    if (
+      options.requiredBindingScope
+      && !entries.some((entry) => entry.scope === options.requiredBindingScope)
+    ) {
+      return fallthroughResult
+    }
 
     const contexts = this.getActiveContexts(options.contextIds)
     const contextEligible = entries.filter((entry) => {

@@ -3045,6 +3045,106 @@ body.is-panel-resizing * {
   color: var(--accent);
 }
 
+.termous-popconfirm.ant-popover {
+  --termous-popconfirm-bg: #1d2028;
+  --termous-popconfirm-border: #353b47;
+  --termous-popconfirm-control: #272c36;
+  --ant-popover-bg: var(--termous-popconfirm-bg);
+  --antd-arrow-background-color: var(--termous-popconfirm-bg);
+  max-width: min(320px, calc(100vw - 24px));
+}
+
+.termous-popconfirm-surface.ant-popover-container,
+.termous-popconfirm-surface.ant-popover-unique-container,
+.termous-popconfirm .ant-popover-inner,
+.termous-popconfirm .ant-popover-inner-content {
+  background: var(--termous-popconfirm-bg) !important;
+  background-color: var(--termous-popconfirm-bg) !important;
+  backdrop-filter: none;
+}
+
+.termous-popconfirm-surface.ant-popover-container,
+.termous-popconfirm-surface.ant-popover-unique-container {
+  overflow: hidden;
+  border: 1px solid var(--termous-popconfirm-border);
+  border-radius: 12px;
+  color: var(--text-primary);
+  box-shadow: 0 16px 42px rgb(0 0 0 / 32%);
+}
+
+.termous-popconfirm .ant-popover-inner {
+  padding: 13px 14px 12px;
+}
+
+.termous-popconfirm .ant-popover-arrow::before {
+  background: var(--termous-popconfirm-bg) !important;
+}
+
+.termous-popconfirm .ant-popconfirm-message {
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.termous-popconfirm .ant-popconfirm-message-icon {
+  margin-top: 1px;
+  color: var(--warning);
+}
+
+.termous-popconfirm .ant-popconfirm-title {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.45;
+}
+
+.termous-popconfirm .ant-popconfirm-description {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.termous-popconfirm .ant-popconfirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.termous-popconfirm .ant-popconfirm-buttons .ant-btn {
+  min-width: 64px;
+  height: 30px;
+  margin: 0;
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.termous-popconfirm .ant-popconfirm-buttons .ant-btn-default {
+  border-color: var(--termous-popconfirm-border);
+  background: var(--termous-popconfirm-control);
+  color: var(--text-secondary);
+}
+
+.termous-popconfirm .ant-popconfirm-buttons .ant-btn-default:hover,
+.termous-popconfirm .ant-popconfirm-buttons .ant-btn-default:focus-visible {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--termous-popconfirm-control) 88%, #ffffff 12%);
+  color: var(--text-primary);
+}
+
+:root[data-theme="light"] .termous-popconfirm.ant-popover {
+  --termous-popconfirm-bg: #ffffff;
+  --termous-popconfirm-border: #d9dee7;
+  --termous-popconfirm-control: #f2f4f7;
+}
+
+:root[data-theme="light"] .termous-popconfirm-surface.ant-popover-container,
+:root[data-theme="light"] .termous-popconfirm-surface.ant-popover-unique-container {
+  box-shadow: 0 16px 38px rgb(42 55 72 / 16%);
+}
+
 .terminal-context-menu .ant-dropdown-menu {
   width: 188px;
   min-width: 188px;

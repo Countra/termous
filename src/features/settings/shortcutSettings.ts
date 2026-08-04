@@ -93,11 +93,6 @@ function normalizeShortcutActionOverride(value: unknown): ShortcutActionOverride
     bindings.push(chord)
   }
 
-  bindings.sort((left, right) => (
-    left.code.localeCompare(right.code)
-    || left.key.localeCompare(right.key)
-    || left.modifiers.join('+').localeCompare(right.modifiers.join('+'))
-  ))
   return { bindings }
 }
 

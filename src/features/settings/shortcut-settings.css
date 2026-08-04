@@ -1,4 +1,4 @@
-.shortcut-settings-panel {
+.settings-section.shortcut-settings-panel {
   display: grid;
   min-width: 0;
   gap: 0;
@@ -6,19 +6,22 @@
   overflow: hidden;
 }
 
+.shortcut-settings-header {
+  min-width: 0;
+}
+
 .shortcut-settings-heading {
   display: flex;
   min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  border-bottom: 1px solid var(--border);
-  padding: 16px 18px;
+  align-items: flex-start;
+  padding: 18px 18px 12px;
 }
 
 .shortcut-settings-title {
+  display: flex;
   min-width: 0;
   align-items: flex-start;
+  gap: 10px;
 }
 
 .shortcut-settings-title > svg {
@@ -29,6 +32,13 @@
 
 .shortcut-settings-title > div {
   min-width: 0;
+}
+
+.shortcut-settings-title h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 720;
+  line-height: 1.35;
 }
 
 .shortcut-settings-title p {
@@ -42,13 +52,30 @@
   display: flex;
   flex: none;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  min-height: 32px;
 }
 
 .shortcut-settings-summary > span {
   color: var(--text-muted);
   font-size: 12px;
   white-space: nowrap;
+}
+
+.shortcut-settings-reset.ant-btn {
+  min-height: 32px;
+  border-color: color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  box-shadow: none;
+}
+
+.shortcut-settings-reset.ant-btn:not(:disabled):hover,
+.shortcut-settings-reset.ant-btn:not(:disabled):focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: var(--surface-strong);
+  color: var(--text-primary);
 }
 
 .shortcut-settings-inline-error {
@@ -63,16 +90,26 @@
 }
 
 .shortcut-settings-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
   border-bottom: 1px solid var(--border);
-  padding: 12px 18px;
+  padding: 0 18px 16px;
 }
 
 .shortcut-settings-search.ant-input-affix-wrapper {
-  max-width: 420px;
+  width: min(440px, 100%);
+  min-height: 36px;
   border-color: color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--surface-subtle);
   box-shadow: none;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .shortcut-settings-search.ant-input-affix-wrapper:hover {
@@ -291,40 +328,87 @@
   padding: 56px 18px 64px;
 }
 
-.shortcut-settings-popconfirm .ant-popover-inner {
-  border: 1px solid var(--border);
-  background: var(--surface-strong);
-  box-shadow: var(--shadow-soft);
-  opacity: 1;
-  backdrop-filter: none;
-}
-
-.shortcut-settings-popconfirm .ant-popover-title,
-.shortcut-settings-popconfirm .ant-popover-description {
-  color: var(--text-primary);
+.shortcut-recorder-modal-root {
+  --shortcut-recorder-bg: #1d2028;
+  --shortcut-recorder-control: #252a34;
+  --shortcut-recorder-border: #353b47;
 }
 
 .shortcut-recorder-modal-root .ant-modal-mask {
   background: rgb(0 0 0 / 54%);
 }
 
-.shortcut-recorder-modal .ant-modal-content {
-  border: 1px solid var(--border);
-  background: var(--surface-strong);
+.shortcut-recorder-modal .ant-modal-content,
+.shortcut-recorder-modal .ant-modal-container {
+  overflow: hidden;
+  border: 1px solid var(--shortcut-recorder-border);
+  border-radius: 14px;
+  background: var(--shortcut-recorder-bg) !important;
   box-shadow: 0 22px 62px rgb(0 0 0 / 36%);
+  padding: 0;
   opacity: 1;
   backdrop-filter: none;
 }
 
-.shortcut-recorder-modal .ant-modal-header,
-.shortcut-recorder-modal .ant-modal-footer {
-  background: var(--surface-strong);
+.shortcut-recorder-modal .ant-modal-header {
+  margin: 0;
+  border-bottom: 1px solid var(--shortcut-recorder-border);
+  background: var(--shortcut-recorder-bg);
+  padding: 15px 18px 14px;
 }
 
 .shortcut-recorder-modal .ant-modal-title {
   color: var(--text-primary);
   font-size: 15px;
   font-weight: 760;
+  line-height: 1.4;
+  padding-right: 34px;
+}
+
+.shortcut-recorder-modal .ant-modal-close {
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.shortcut-recorder-modal .ant-modal-close:hover,
+.shortcut-recorder-modal .ant-modal-close:focus-visible {
+  background: var(--shortcut-recorder-control);
+  color: var(--text-primary);
+}
+
+.shortcut-recorder-modal .ant-modal-body {
+  background: var(--shortcut-recorder-bg);
+  padding: 16px 18px 14px;
+}
+
+.shortcut-recorder-modal .ant-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+  border-top: 1px solid var(--shortcut-recorder-border);
+  background: var(--shortcut-recorder-bg);
+  padding: 12px 18px 14px;
+}
+
+.shortcut-recorder-modal .ant-modal-footer .ant-btn {
+  min-width: 74px;
+  height: 34px;
+  margin: 0;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.shortcut-recorder-modal .ant-modal-footer .ant-btn-primary:disabled {
+  border-color: var(--shortcut-recorder-border);
+  background: var(--shortcut-recorder-control);
+  color: var(--text-muted);
 }
 
 .shortcut-recorder-body {
@@ -341,8 +425,8 @@
 
 .shortcut-recorder-bindings {
   display: grid;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--shortcut-recorder-border);
+  border-bottom: 1px solid var(--shortcut-recorder-border);
 }
 
 .shortcut-recorder-section-label,
@@ -366,7 +450,7 @@
 .shortcut-recorder-binding {
   grid-template-columns: minmax(104px, auto) minmax(0, 1fr) 30px 30px;
   min-height: 48px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--shortcut-recorder-border) 78%, transparent);
 }
 
 .shortcut-recorder-binding > span {
@@ -380,8 +464,13 @@
   color: var(--text-muted);
 }
 
+.shortcut-recorder-binding kbd {
+  border-color: var(--shortcut-recorder-border);
+  background: var(--shortcut-recorder-control);
+}
+
 .shortcut-recorder-empty {
-  border-top: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--shortcut-recorder-border) 78%, transparent);
   color: var(--text-muted);
   padding: 14px 0;
   font-size: 12px;
@@ -394,9 +483,9 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--shortcut-recorder-border));
   border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  background: color-mix(in srgb, var(--accent) 8%, var(--shortcut-recorder-bg));
   color: var(--text-primary);
   padding: 13px 14px;
   text-align: left;
@@ -415,7 +504,7 @@
   height: 38px;
   place-items: center;
   border-radius: 9px;
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface-strong));
+  background: color-mix(in srgb, var(--accent) 14%, var(--shortcut-recorder-control));
   color: var(--accent);
 }
 
@@ -445,14 +534,14 @@
 
 .shortcut-recorder-add.ant-btn {
   min-height: 38px;
-  border-color: var(--border);
-  background: var(--surface-subtle);
+  border-color: var(--shortcut-recorder-border);
+  background: var(--shortcut-recorder-control);
 }
 
 .shortcut-recorder-limit {
-  border: 1px solid var(--border);
+  border: 1px solid var(--shortcut-recorder-border);
   border-radius: 9px;
-  background: var(--surface-subtle);
+  background: var(--shortcut-recorder-control);
   padding: 10px 12px;
   text-align: center;
 }
@@ -462,7 +551,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 9px;
   border-left: 2px solid var(--danger);
-  background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+  background: color-mix(in srgb, var(--danger) 7%, var(--shortcut-recorder-bg));
   color: var(--danger);
   padding: 10px 12px;
 }
@@ -481,6 +570,12 @@
   margin-top: 4px;
 }
 
+:root[data-theme="light"] .shortcut-recorder-modal-root {
+  --shortcut-recorder-bg: #ffffff;
+  --shortcut-recorder-control: #f2f4f7;
+  --shortcut-recorder-border: #d9dee7;
+}
+
 @media (max-width: 860px) {
   .shortcut-settings-row {
     grid-template-columns: minmax(190px, 1fr) minmax(130px, auto) auto auto;
@@ -492,9 +587,14 @@
 }
 
 @media (max-width: 680px) {
-  .shortcut-settings-heading {
-    align-items: flex-start;
+  .shortcut-settings-toolbar {
+    align-items: stretch;
     flex-direction: column;
+    gap: 10px;
+  }
+
+  .shortcut-settings-search.ant-input-affix-wrapper {
+    width: 100%;
   }
 
   .shortcut-settings-summary {
