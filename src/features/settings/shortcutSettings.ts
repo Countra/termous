@@ -5,9 +5,9 @@ import type {
   ShortcutSettings,
   ShortcutSettingsPatch,
 } from '../../types/domain'
+import { isSupportedShortcutCode } from '../shortcuts/chords.ts'
 
 const shortcutActionIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/
-const shortcutCodePattern = /^[A-Za-z][A-Za-z0-9]{0,63}$/
 const shortcutModifiers = ['primary', 'control', 'alt', 'shift', 'meta'] as const
 const shortcutModifierOrder = new Map<ShortcutModifier, number>(
   shortcutModifiers.map((modifier, index) => [modifier, index]),
@@ -108,7 +108,7 @@ function normalizeShortcutChord(value: unknown): ShortcutChord | null {
     || !Array.isArray(chord.modifiers)
     || typeof chord.code !== 'string'
     || typeof chord.key !== 'string'
-    || !shortcutCodePattern.test(chord.code)
+    || !isSupportedShortcutCode(chord.code)
     || chord.key.length === 0
     || Array.from(chord.key).length > 64
     || containsControlCharacter(chord.key)

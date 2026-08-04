@@ -94,3 +94,19 @@ test('同一物理按键不会因 key 大小写差异保存为两组绑定', () 
 
   assert.equal(settings.overrides['terminal.copy_selection'], undefined)
 })
+
+test('设置归一化拒绝运行时无法触发的修饰键和未知按键 code', () => {
+  const settings = normalizeShortcutSettings({
+    overrides: {
+      'terminal.search.open': {
+        bindings: [{ modifiers: [], code: 'ControlLeft', key: 'Control' }],
+      },
+      'terminal.select_all': {
+        bindings: [{ modifiers: [], code: 'Unidentified', key: 'x' }],
+      },
+    },
+  })
+
+  assert.equal(settings.overrides['terminal.search.open'], undefined)
+  assert.equal(settings.overrides['terminal.select_all'], undefined)
+})

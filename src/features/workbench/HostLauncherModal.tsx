@@ -214,7 +214,7 @@ export function HostLauncherModal({
     return runHostAction(actionPlan.primary, selectedHost.id)
   }
 
-  const runGlobalShortcut = async (action: () => void | Promise<void>) => {
+  const runLauncherAction = async (action: () => void | Promise<void>) => {
     await action()
     onClose()
   }
@@ -505,7 +505,7 @@ export function HostLauncherModal({
                 })
               )}
             </div>
-            <Button className="secondary-button host-launcher-create-button" icon={<Plus size={15} />} onClick={() => void runGlobalShortcut(onCreateHost)}>
+            <Button className="secondary-button host-launcher-create-button" icon={<Plus size={15} />} onClick={() => void runLauncherAction(onCreateHost)}>
               {t('hosts.addHost')}
             </Button>
           </aside>
@@ -612,7 +612,7 @@ export function HostLauncherModal({
                   description={data.hosts.length === 0 ? t('workbench.hostLauncher.emptyHint') : t('hosts.noFilterResultsHint')}
                 />
                 {data.hosts.length === 0 ? (
-                  <ConnectionActionButton icon={<Plus size={16} />} onClick={() => void runGlobalShortcut(onCreateHost)}>
+                  <ConnectionActionButton icon={<Plus size={16} />} onClick={() => void runLauncherAction(onCreateHost)}>
                     {t('hosts.addHost')}
                   </ConnectionActionButton>
                 ) : null}
