@@ -34,6 +34,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useId,
   lazy,
   Suspense,
   useMemo,
@@ -124,6 +125,7 @@ import {
 } from './local-download/remoteFileDragRegistry'
 import { TransferQueuePanel } from './TransferQueuePanel'
 import { useFilesWorkspaceRuntime } from './useFilesWorkspaceRuntime'
+import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
 import {
   applyFilesWorkspaceSelection,
   beginFilesWorkspaceHistoryNavigation,
@@ -358,6 +360,9 @@ function FilesPageContent({
   onReorderLocalPathMappings,
 }: FilesPageProps) {
   const { t } = useTranslation()
+  const { runtime: shortcutRuntime } = useShortcutRuntime()
+  const filesShortcutInstanceId = useId()
+  const filesShortcutContextId = `files.page:${filesShortcutInstanceId}`
   const { modal, notification } = AntdApp.useApp()
   const screens = Grid.useBreakpoint()
   const filesPageRef = useRef<HTMLElement>(null)
@@ -3233,6 +3238,99 @@ function FilesPageContent({
     window.requestAnimationFrame(focusRenderedRow)
   }, [findFileRow])
 
+  const filesShortcutStateRef = useRef({
+    fileActionsEnabled,
+    entries,
+    focusedPath: workspaceViewState.focusedPath,
+    selectedPaths,
+    orderedEntryPaths,
+    updateActiveWorkspaceView,
+    enterEntry,
+    openRename,
+    confirmDelete,
+  })
+  filesShortcutStateRef.current = {
+    fileActionsEnabled,
+    entries,
+    focusedPath: workspaceViewState.focusedPath,
+    selectedPaths,
+    orderedEntryPaths,
+    updateActiveWorkspaceView,
+    enterEntry,
+    openRename,
+    confirmDelete,
+  }
+
+  useEffect(() => {
+    const disposeContext = shortcutRuntime.pushContext({
+      id: filesShortcutContextId,
+      layer: 'focus',
+      priority: 10,
+      scopes: ['files.standalone', 'files.list'],
+      isActive: () => {
+        const shell = filesTableShellRef.current
+        const activeElement = document.activeElement
+        return Boolean(
+          filesShortcutStateRef.current.fileActionsEnabled
+          && shell
+          && activeElement
+          && shell.contains(activeElement),
+        )
+      },
+    })
+    const focusedEntry = () => {
+      const current = filesShortcutStateRef.current
+      return current.entries.find((entry) => entry.path === current.focusedPath)
+        ?? current.entries[0]
+        ?? null
+    }
+    const disposeHandlers = [
+      shortcutRuntime.registerHandler(filesShortcutContextId, 'files.select_all', () => {
+        const current = filesShortcutStateRef.current
+        const entry = focusedEntry()
+        if (!current.fileActionsEnabled || !entry || current.orderedEntryPaths.length === 0) {
+          return 'fallthrough'
+        }
+        current.updateActiveWorkspaceView((view) => ({
+          ...view,
+          focusedPath: entry.path,
+          selectedPaths: current.orderedEntryPaths,
+          anchorPath: current.orderedEntryPaths[0] ?? null,
+        }))
+        return 'handled'
+      }),
+      shortcutRuntime.registerHandler(filesShortcutContextId, 'files.open_focused', () => {
+        const current = filesShortcutStateRef.current
+        const entry = focusedEntry()
+        if (!current.fileActionsEnabled || !entry) return 'fallthrough'
+        current.enterEntry(entry)
+        return 'handled'
+      }),
+      shortcutRuntime.registerHandler(filesShortcutContextId, 'files.rename_focused', () => {
+        const current = filesShortcutStateRef.current
+        const entry = focusedEntry()
+        if (!current.fileActionsEnabled || !entry) return 'fallthrough'
+        current.openRename(entry)
+        return 'handled'
+      }),
+      shortcutRuntime.registerHandler(filesShortcutContextId, 'files.delete_selection', () => {
+        const current = filesShortcutStateRef.current
+        const entry = focusedEntry()
+        if (!current.fileActionsEnabled || !entry) return 'fallthrough'
+        current.confirmDelete(
+          current.selectedPaths.includes(entry.path)
+            ? current.selectedPaths
+            : [entry.path],
+        )
+        return 'handled'
+      }),
+    ]
+    return () => {
+      disposeHandlers.reverse().forEach((dispose) => dispose())
+      disposeContext()
+    }
+  }, [filesShortcutContextId, shortcutRuntime])
+
   const handleFileTableKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!fileActionsEnabled || entries.length === 0) {
       return
@@ -3244,6 +3342,32 @@ function FilesPageContent({
         'button, input, textarea, select, a, .ant-table-thead, [contenteditable="true"], [role="checkbox"], [role="columnheader"], [role="menuitem"], [role="separator"]',
       )
     ) {
+      return
+    }
+    const dispatchFileShortcut = () => {
+      const result = shortcutRuntime.dispatch(event.nativeEvent, {
+        adapterId: 'files-page',
+        contextIds: [filesShortcutContextId],
+        editable: false,
+      })
+      if (result.result === 'handled' || result.result === 'blocked') {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }
+    const navigationKey = [
+      'ArrowUp',
+      'ArrowDown',
+      'Home',
+      'End',
+      'PageUp',
+      'PageDown',
+    ].includes(event.key)
+    if (
+      (navigationKey && (event.ctrlKey || event.metaKey || event.altKey))
+      || (event.key === ' ' && (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey))
+    ) {
+      dispatchFileShortcut()
       return
     }
     const focusedIndex = entries.findIndex((entry) => entry.path === workspaceViewState.focusedPath)
@@ -3281,26 +3405,9 @@ function FilesPageContent({
     if (!entry) {
       return
     }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
-      event.preventDefault()
-      updateActiveWorkspaceView((current) => ({
-        ...current,
-        focusedPath: entry.path,
-        selectedPaths: orderedEntryPaths,
-        anchorPath: orderedEntryPaths[0] ?? null,
-      }))
-    } else if (event.key === ' ') {
+    if (event.key === ' ') {
       event.preventDefault()
       selectEntry(entry, { ctrlKey: true })
-    } else if (event.key === 'Enter') {
-      event.preventDefault()
-      enterEntry(entry)
-    } else if (event.key === 'F2') {
-      event.preventDefault()
-      openRename(entry)
-    } else if (event.key === 'Delete') {
-      event.preventDefault()
-      confirmDelete(selectedPaths.includes(entry.path) ? selectedPaths : [entry.path])
     } else if (event.key === 'Escape') {
       event.preventDefault()
       updateActiveWorkspaceView(clearFilesWorkspaceSelection)
@@ -3316,6 +3423,8 @@ function FilesPageContent({
         x: rect?.left ?? event.currentTarget.getBoundingClientRect().left,
         y: rect?.bottom ?? event.currentTarget.getBoundingClientRect().top,
       })
+    } else {
+      dispatchFileShortcut()
     }
   }
 
@@ -4111,6 +4220,7 @@ function FilesPageContent({
           <div
             ref={filesTableShellRef}
             className="files-table-shell"
+            data-shortcut-adapter="files-page"
             tabIndex={activeFileSession ? 0 : -1}
             onPointerDown={() => {
               if (bookmarksExpanded && window.innerWidth < 1280) {

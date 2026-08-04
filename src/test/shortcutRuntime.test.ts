@@ -336,11 +336,11 @@ test('处理器异常转为 blocked 并上报，索引与注册均可安全更�
   )
 })
 
-test('适配器可限制解析上下文，窗口监听不会抢占终端动作', () => {
+test('适配器可限制处理器上下文，窗口监听不会抢占终端动作', () => {
   const overrides = setShortcutBindingOverride(
     {},
     'terminal.search.open',
-    [createShortcutChord('KeyH', 'H', ['control', 'shift'])],
+    [createShortcutChord('F6', 'F6')],
   )
   const runtime = new ShortcutRuntime({
     index: compileShortcutIndex(overrides, 'win32'),
@@ -368,12 +368,64 @@ test('适配器可限制解析上下文，窗口监听不会抢占终端动作',
     },
   })
 
-  const event = keyboardEvent('KeyH', 'H', { ctrlKey: true, shiftKey: true })
-  assert.equal(
-    runtime.dispatch(event, { contextIds: ['window'] }).actionId,
-    'app.host_launcher.open',
+  const localEvent = keyboardEvent('F6', 'F6')
+  assert.equal(runtime.dispatch(localEvent, {
+    handlerContextIds: ['window'],
+  }).reason, 'no_handler')
+  assert.deepEqual(calls, [])
+  assert.equal(runtime.dispatch(localEvent, {
+    contextIds: ['terminal'],
+  }).actionId, 'terminal.search.open')
+
+  const globalEvent = keyboardEvent('KeyH', 'H', { ctrlKey: true, shiftKey: true })
+  assert.equal(runtime.dispatch(globalEvent, {
+    handlerContextIds: ['window'],
+  }).actionId, 'app.host_launcher.open')
+  assert.deepEqual(calls, ['terminal', 'window'])
+})
+
+test('窗口处理器执行前会用全部活动上下文阻止外部歧义绑定', () => {
+  const overrides = setShortcutBindingOverride(
+    setShortcutBindingOverride(
+      {},
+      'app.host_launcher.open',
+      [createShortcutChord('F6', 'F6')],
+    ),
+    'terminal.search.open',
+    [createShortcutChord('F6', 'F6')],
   )
-  assert.deepEqual(calls, ['window'])
+  const runtime = new ShortcutRuntime({
+    index: compileShortcutIndex(overrides, 'win32'),
+  })
+  const calls: string[] = []
+  installContext(runtime, {
+    id: 'window',
+    layer: 'global',
+    scopes: ['app.global'],
+    handlers: {
+      'app.host_launcher.open': () => {
+        calls.push('window')
+        return 'handled'
+      },
+    },
+  })
+  installContext(runtime, {
+    id: 'terminal',
+    scopes: ['terminal.active'],
+    handlers: {
+      'terminal.search.open': () => {
+        calls.push('terminal')
+        return 'handled'
+      },
+    },
+  })
+
+  const result = runtime.dispatch(keyboardEvent('F6', 'F6'), {
+    handlerContextIds: ['window'],
+  })
+  assert.equal(result.result, 'blocked')
+  assert.equal(result.reason, 'ambiguous')
+  assert.deepEqual(calls, [])
 })
 
 test('非重复动作在 keyup 前阻止长按穿透，允许补全上下键连续切换', () => {

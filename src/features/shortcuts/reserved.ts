@@ -91,7 +91,10 @@ export function getShortcutReservation(
     return reserve('aria_navigation')
   }
 
-  if (action.scope === 'files.editor' && isCodeEditorBinding(resolved, platform)) {
+  if (
+    (action.scope === 'files.editor' || action.scope === 'app.global')
+    && isCodeEditorBinding(resolved, platform)
+  ) {
     return reserve('code_editor')
   }
   return null

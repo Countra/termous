@@ -168,6 +168,14 @@ test('保留键覆盖固定入口与各上下文原生交互，同时放行批�
     )?.id,
     'code_editor',
   )
+  assert.equal(
+    getShortcutReservation(
+      'app.host_launcher.open',
+      createShortcutChord('KeyF', 'f', ['primary']),
+      'win32',
+    )?.id,
+    'code_editor',
+  )
 
   assert.equal(
     getShortcutReservation(

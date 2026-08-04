@@ -40,6 +40,7 @@ export interface ShortcutDispatchOptions {
   readonly editable?: boolean
   readonly adapterId?: string
   readonly contextIds?: Iterable<string>
+  readonly handlerContextIds?: Iterable<string>
 }
 
 export interface ShortcutHandlerContext {
@@ -258,8 +259,12 @@ export class ShortcutRuntime {
 
     const actionId = actionIds[0]
     if (!actionId) return fallthroughResult
+    const handlerContextIds = options.handlerContextIds
+      ? new Set(options.handlerContextIds)
+      : null
     let handlerInvoked = false
     for (const context of contexts) {
+      if (handlerContextIds && !handlerContextIds.has(context.id)) continue
       if (!eligible.some((entry) => context.scopes.has(entry.scope))) continue
       const handler = context.handlers.get(actionId)
       if (!handler) continue

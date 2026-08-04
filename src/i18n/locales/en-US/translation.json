@@ -1929,6 +1929,7 @@
     "tabGeneral": "General",
     "tabLanguage": "Language",
     "tabTerminal": "Terminal",
+    "tabShortcuts": "Shortcuts",
     "tabUpdates": "Updates",
     "generalSection": "General",
     "languageSection": "Language",
@@ -1969,6 +1970,151 @@
       "directory": {
         "name": "Current directory",
         "description": "Suggest one level of remote directories for commands such as cd and pushd."
+      }
+    },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "description": "Customize keys for common Termous actions. Unmatched keys remain available to the active terminal or component.",
+      "searchPlaceholder": "Search actions, descriptions, or scopes",
+      "customizedCount": "{{count}} customized",
+      "resetAll": "Restore all defaults",
+      "resetAllTitle": "Restore all default shortcuts?",
+      "resetAllDescription": "All custom bindings and explicitly unbound actions will return to the defaults for this version.",
+      "resetAllConfirm": "Restore all",
+      "resetAllSuccess": "All default shortcuts restored",
+      "resetAllFailed": "Failed to restore all shortcuts",
+      "emptySearch": "No shortcut actions match your search",
+      "groups": {
+        "global": "Global",
+        "terminal": "Terminal",
+        "completion": "Completion",
+        "files": "Files",
+        "editor": "Editor"
+      },
+      "actions": {
+        "app_host_launcher_open": {
+          "name": "Open host launcher",
+          "description": "Opens the host connection panel in the current app window."
+        },
+        "terminal_copy_selection": {
+          "name": "Copy selected text",
+          "description": "Copies the terminal selection. Without a selection, remote Ctrl+C remains unchanged."
+        },
+        "terminal_paste": {
+          "name": "Paste",
+          "description": "Pastes clipboard content into the active writable terminal."
+        },
+        "terminal_completion_previous": {
+          "name": "Select previous suggestion",
+          "description": "Moves to the previous suggestion while completion is open."
+        },
+        "terminal_completion_next": {
+          "name": "Select next suggestion",
+          "description": "Moves to the next suggestion while completion is open."
+        },
+        "terminal_completion_accept": {
+          "name": "Accept completion suggestion",
+          "description": "Accepts the current suggestion. A non-exact match is inserted without running the command."
+        },
+        "terminal_search_open": {
+          "name": "Open terminal search",
+          "description": "Searches output in the active terminal."
+        },
+        "terminal_select_all": {
+          "name": "Select all terminal content",
+          "description": "Selects all content in the active terminal buffer."
+        },
+        "terminal_session_reconnect": {
+          "name": "Reconnect session",
+          "description": "Reconnects the current disconnected SSH session."
+        },
+        "files_select_all": {
+          "name": "Select all files",
+          "description": "Selects every item in the standalone file list."
+        },
+        "files_open_focused": {
+          "name": "Open focused item",
+          "description": "Opens the focused file or enters the focused folder."
+        },
+        "files_rename_focused": {
+          "name": "Rename focused item",
+          "description": "Renames the focused item in the standalone file list."
+        },
+        "files_delete_selection": {
+          "name": "Delete selected items",
+          "description": "Deletes the current selection from the standalone file list."
+        },
+        "files_editor_save": {
+          "name": "Save remote file",
+          "description": "Saves the current file in the remote text editor."
+        }
+      },
+      "scopes": {
+        "app_global": "App-wide",
+        "terminal_selection": "Terminal selection",
+        "terminal_writable": "Writable terminal",
+        "terminal_completion_visible": "Completion suggestions visible",
+        "terminal_active": "Active terminal",
+        "terminal_disconnected": "Disconnected SSH session",
+        "files_standalone": "Standalone file list",
+        "files_list": "File list",
+        "files_editor": "Remote text editor"
+      },
+      "status": {
+        "default": "Default",
+        "custom": "Custom",
+        "unbound": "Unbound"
+      },
+      "binding": {
+        "edit": "Edit shortcut",
+        "add": "Add binding",
+        "remove": "Remove binding",
+        "removeTitle": "Remove this binding?",
+        "removeDescription": "After saving, this action will no longer respond to this binding.",
+        "removeConfirm": "Remove",
+        "restore": "Restore default",
+        "restoreTitle": "Restore this action's default shortcuts?",
+        "restoreDescription": "The current custom bindings will be removed and replaced with the defaults for this version.",
+        "restoreConfirm": "Restore default",
+        "restoreSuccess": "Default shortcut restored",
+        "restoreFailed": "Failed to restore default shortcut",
+        "saveSuccess": "Shortcut saved",
+        "saveFailed": "Failed to save shortcut",
+        "slot": "Binding {{index}}",
+        "none": "Not set"
+      },
+      "recorder": {
+        "title": "Set keyboard shortcut",
+        "description": "Press a new key combination. Each action supports up to two shortcuts.",
+        "listening": "Waiting for input",
+        "listeningHint": "Press a function key or a combination with modifiers",
+        "captured": "Recorded",
+        "replaceHint": "Press another shortcut to replace this combination",
+        "save": "Save",
+        "cancel": "Cancel",
+        "clearAll": "Unbind action",
+        "modifierOnly": "A modifier key cannot be used on its own",
+        "invalidKey": "This key could not be recognized. Try another combination.",
+        "duplicate": "This shortcut is already assigned to the current action",
+        "tooMany": "Each action supports up to two shortcuts"
+      },
+      "conflict": {
+        "title": "Shortcut conflict",
+        "description": "This shortcut is also assigned to “{{action}}” in an overlapping context.",
+        "ambiguous": "This shortcut has a context conflict and is paused until you change it."
+      },
+      "reserved": {
+        "title": "This key is reserved",
+        "description": "Choose a shortcut that does not interfere with terminal input, component navigation, or accessibility.",
+        "focus_traversal": "Tab is reserved for focus navigation and native remote Shell completion.",
+        "dismiss": "Escape closes suggestions, dialogs, and temporary interactions.",
+        "context_menu": "This shortcut is the accessible keyboard entry point for context menus.",
+        "diagnostics": "This shortcut is reserved for Electron diagnostics.",
+        "aria_navigation": "This key is reserved for standard keyboard navigation in the active component.",
+        "file_selection": "Space toggles the selection state of file items.",
+        "terminal_search": "Enter and Shift+Enter are reserved by terminal search and input flows.",
+        "terminal_interrupt": "Without a terminal selection, Ctrl+C must continue to send a remote interrupt.",
+        "code_editor": "This shortcut is reserved by the remote text editor."
       }
     },
     "terminalFont": "Font",

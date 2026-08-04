@@ -1,10 +1,11 @@
 import { Button, Dropdown, type MenuProps } from 'antd'
 import { ChevronRight, File, FileQuestion, Folder, Link2, LoaderCircle, UploadCloud } from 'lucide-react'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { RemoteFileEntry } from '../../types/domain'
 import { formatBytes, formatDate } from '../files/fileUtils'
+import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
 import { isLocalFileDrag } from './workbenchFileDrag'
 import './workbench-file-browser.css'
 
@@ -57,6 +58,9 @@ export function WorkbenchFileList({
   onUploadFiles,
 }: WorkbenchFileListProps) {
   const { t } = useTranslation()
+  const { runtime: shortcutRuntime } = useShortcutRuntime()
+  const shortcutInstanceId = useId()
+  const shortcutContextId = `workbench.files:${shortcutInstanceId}`
   const [uploadTargetPath, setUploadTargetPath] = useState<string | null>(null)
   const [focusedPath, setFocusedPath] = useState<string | null>(null)
   const [nameTooltip, setNameTooltip] = useState<FileNameTooltipState | null>(null)
@@ -156,6 +160,62 @@ export function WorkbenchFileList({
     setNameTooltip(null)
   }
 
+  const shortcutStateRef = useRef({
+    interactionLocked,
+    entries,
+    focusedPath,
+    selectedPaths,
+    activateEntry,
+    hideNameTooltip,
+  })
+  shortcutStateRef.current = {
+    interactionLocked,
+    entries,
+    focusedPath,
+    selectedPaths,
+    activateEntry,
+    hideNameTooltip,
+  }
+
+  useEffect(() => {
+    const disposeContext = shortcutRuntime.pushContext({
+      id: shortcutContextId,
+      layer: 'focus',
+      priority: 10,
+      scopes: ['files.list'],
+      isActive: () => {
+        const list = listRef.current
+        const activeElement = document.activeElement
+        return Boolean(
+          !shortcutStateRef.current.interactionLocked
+          && list
+          && activeElement
+          && list.contains(activeElement),
+        )
+      },
+    })
+    const disposeHandler = shortcutRuntime.registerHandler(
+      shortcutContextId,
+      'files.open_focused',
+      () => {
+        const current = shortcutStateRef.current
+        if (current.interactionLocked) return 'fallthrough'
+        const entry = current.entries.find((candidate) => candidate.path === current.focusedPath)
+          ?? current.entries.find((candidate) => current.selectedPaths.includes(candidate.path))
+          ?? current.entries[0]
+          ?? null
+        if (!entry) return 'fallthrough'
+        current.hideNameTooltip()
+        current.activateEntry(entry)
+        return 'handled'
+      },
+    )
+    return () => {
+      disposeHandler()
+      disposeContext()
+    }
+  }, [listRef, shortcutContextId, shortcutRuntime])
+
   const revealNameTooltip = (entry: RemoteFileEntry) => {
     hideNameTooltip()
     const node = nameRefs.current.get(entry.path)
@@ -229,6 +289,7 @@ export function WorkbenchFileList({
           entries.length === 0 ? 'is-empty' : '',
           uploadTargetPath !== null ? 'is-upload-active' : '',
         ].filter(Boolean).join(' ')}
+        data-shortcut-adapter="workbench-files"
         role="listbox"
         tabIndex={interactionLocked || entries.length === 0 ? 0 : -1}
         aria-label={t('workbench.files.remoteFiles')}
@@ -370,6 +431,25 @@ export function WorkbenchFileList({
                   if (interactionLocked || event.target !== event.currentTarget) {
                     return
                   }
+                  const shortcutFirst = (
+                    ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)
+                    && (event.ctrlKey || event.metaKey || event.altKey)
+                  ) || (
+                    event.key === ' '
+                    && (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey)
+                  )
+                  if (shortcutFirst) {
+                    const result = shortcutRuntime.dispatch(event.nativeEvent, {
+                      adapterId: `workbench-files:${shortcutInstanceId}`,
+                      contextIds: [shortcutContextId],
+                      editable: false,
+                    })
+                    if (result.result === 'handled' || result.result === 'blocked') {
+                      event.preventDefault()
+                      event.stopPropagation()
+                    }
+                    return
+                  }
                   switch (event.key) {
                     case 'ArrowDown':
                       event.preventDefault()
@@ -387,15 +467,21 @@ export function WorkbenchFileList({
                       event.preventDefault()
                       focusEntry(entries.length - 1)
                       break
-                    case 'Enter':
-                      event.preventDefault()
-                      hideNameTooltip()
-                      activateEntry(entry)
-                      break
                     case ' ':
                       event.preventDefault()
                       onSelect(entry)
                       break
+                    default: {
+                      const result = shortcutRuntime.dispatch(event.nativeEvent, {
+                        adapterId: `workbench-files:${shortcutInstanceId}`,
+                        contextIds: [shortcutContextId],
+                        editable: false,
+                      })
+                      if (result.result === 'handled' || result.result === 'blocked') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                      }
+                    }
                   }
                 }}
                 onDragEnter={(event) => {

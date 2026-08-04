@@ -6,10 +6,11 @@ import { indentWithTab } from '@codemirror/commands'
 import { languages } from '@codemirror/language-data'
 import { vscodeDarkInit, vscodeLightInit } from '@uiw/codemirror-theme-vscode'
 import { AlertTriangle, Code2, FileText, RefreshCw, Save } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError, type TermousApi } from '../../api/client'
 import type { RemoteFileEntry, RemoteTextFile, RemoteTextLineEnding, RemoteTextSaveResult, TerminalSettings, ThemeMode } from '../../types/domain'
+import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
 import { FileOperationProgress, type FileOperationProgressState } from './FileOperationProgress'
 import { formatBytes } from './fileUtils'
 import { useFileOperationWatcher } from './useFileOperationWatcher'
@@ -34,7 +35,11 @@ const editorEditable = new Compartment()
 
 export function RemoteTextEditorModal({ api, open, disabled = false, closing = false, fileSessionId, connectionGeneration, path, theme, terminalSettings, onClose, onSaved }: RemoteTextEditorModalProps) {
   const { t } = useTranslation()
+  const { runtime: shortcutRuntime } = useShortcutRuntime()
+  const shortcutInstanceId = useId()
+  const shortcutContextId = `files.editor:${shortcutInstanceId}`
   const { message, modal } = AntdApp.useApp()
+  const editorShellRef = useRef<HTMLElement>(null)
   const editorHostRef = useRef<HTMLDivElement>(null)
   const editorViewRef = useRef<EditorView | null>(null)
   const editorThemeMode = terminalSettings.theme_mode === 'follow_app' ? theme : terminalSettings.theme_mode
@@ -309,6 +314,43 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
   }, [saveFile])
 
   useEffect(() => {
+    const disposeContext = shortcutRuntime.pushContext({
+      id: shortcutContextId,
+      layer: 'focus',
+      priority: 20,
+      scopes: ['files.editor'],
+      isActive: () => {
+        const shell = editorShellRef.current
+        const activeElement = document.activeElement
+        return Boolean(openRef.current && shell && activeElement && shell.contains(activeElement))
+      },
+    })
+    const disposeHandler = shortcutRuntime.registerHandler(
+      shortcutContextId,
+      'files.editor.save',
+      () => {
+        if (
+          !openRef.current
+          || disabledRef.current
+          || generationStaleRef.current
+          || loadingRef.current
+          || reloadConfirmationOpenRef.current
+          || !fileRef.current
+          || savingRef.current
+        ) {
+          return 'blocked'
+        }
+        saveFileRef.current(false)
+        return 'handled'
+      },
+    )
+    return () => {
+      disposeHandler()
+      disposeContext()
+    }
+  }, [shortcutContextId, shortcutRuntime])
+
+  useEffect(() => {
     editorThemeModeRef.current = editorThemeMode
     if (!editorViewRef.current) {
       return
@@ -522,19 +564,17 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
     }
   }, [file, open])
 
-  useEffect(() => {
-    if (!open) {
-      return
+  const handleShortcutKeyDownCapture = useCallback((event: KeyboardEvent<HTMLElement>) => {
+    const result = shortcutRuntime.dispatch(event.nativeEvent, {
+      adapterId: `files-editor:${shortcutInstanceId}`,
+      contextIds: [shortcutContextId],
+      editable: true,
+    })
+    if (result.result === 'handled' || result.result === 'blocked') {
+      event.preventDefault()
+      event.stopPropagation()
     }
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-        event.preventDefault()
-        void saveFile(false)
-      }
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, saveFile])
+  }, [shortcutContextId, shortcutInstanceId, shortcutRuntime])
 
   return (
     <Modal
@@ -548,7 +588,13 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
       rootClassName="termous-modal-root remote-text-editor-root"
       onCancel={requestClose}
     >
-      <section className={`remote-text-editor is-editor-${editorThemeMode}`} aria-busy={loading || saving || undefined}>
+      <section
+        ref={editorShellRef}
+        className={`remote-text-editor is-editor-${editorThemeMode}`}
+        data-shortcut-adapter="files-editor"
+        aria-busy={loading || saving || undefined}
+        onKeyDownCapture={handleShortcutKeyDownCapture}
+      >
         <header className="remote-text-editor-header">
           <div className="remote-text-editor-title">
             <span className="remote-text-editor-icon">

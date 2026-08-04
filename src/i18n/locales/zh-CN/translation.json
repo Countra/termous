@@ -1925,6 +1925,7 @@
     "tabGeneral": "通用",
     "tabLanguage": "语言",
     "tabTerminal": "终端",
+    "tabShortcuts": "快捷键",
     "tabUpdates": "软件更新",
     "generalSection": "通用",
     "languageSection": "语言",
@@ -1965,6 +1966,151 @@
       "directory": {
         "name": "当前目录",
         "description": "为 cd、pushd 等命令提供一层远端目录候选。"
+      }
+    },
+    "shortcuts": {
+      "title": "快捷键",
+      "description": "自定义 Termous 中常用操作的按键组合。未匹配的按键仍由当前终端或组件处理。",
+      "searchPlaceholder": "搜索操作、说明或作用范围",
+      "customizedCount": "已自定义 {{count}} 项",
+      "resetAll": "恢复全部默认",
+      "resetAllTitle": "恢复全部默认快捷键？",
+      "resetAllDescription": "所有自定义绑定和主动取消的绑定都将恢复为当前版本默认值。",
+      "resetAllConfirm": "全部恢复",
+      "resetAllSuccess": "已恢复全部默认快捷键",
+      "resetAllFailed": "恢复全部快捷键失败",
+      "emptySearch": "没有匹配的快捷键操作",
+      "groups": {
+        "global": "全局",
+        "terminal": "终端",
+        "completion": "智能补全",
+        "files": "文件",
+        "editor": "编辑器"
+      },
+      "actions": {
+        "app_host_launcher_open": {
+          "name": "打开主机连接",
+          "description": "在当前应用窗口中打开主机连接面板。"
+        },
+        "terminal_copy_selection": {
+          "name": "复制选中文本",
+          "description": "复制终端选区；没有选区时不会拦截远端 Ctrl+C。"
+        },
+        "terminal_paste": {
+          "name": "粘贴",
+          "description": "将剪贴板内容粘贴到当前可写终端。"
+        },
+        "terminal_completion_previous": {
+          "name": "选择上一个候选",
+          "description": "智能补全打开时切换到上一个候选。"
+        },
+        "terminal_completion_next": {
+          "name": "选择下一个候选",
+          "description": "智能补全打开时切换到下一个候选。"
+        },
+        "terminal_completion_accept": {
+          "name": "接受补全候选",
+          "description": "确认当前候选；非完整匹配只插入内容，不直接执行命令。"
+        },
+        "terminal_search_open": {
+          "name": "打开终端查找",
+          "description": "在当前终端中查找输出内容。"
+        },
+        "terminal_select_all": {
+          "name": "全选终端内容",
+          "description": "选择当前终端缓冲区中的全部内容。"
+        },
+        "terminal_session_reconnect": {
+          "name": "重新连接会话",
+          "description": "重新连接当前已断开的 SSH 会话。"
+        },
+        "files_select_all": {
+          "name": "全选文件",
+          "description": "选择独立文件列表中的全部条目。"
+        },
+        "files_open_focused": {
+          "name": "打开聚焦条目",
+          "description": "打开当前聚焦的文件或进入文件夹。"
+        },
+        "files_rename_focused": {
+          "name": "重命名聚焦条目",
+          "description": "重命名独立文件列表中当前聚焦的条目。"
+        },
+        "files_delete_selection": {
+          "name": "删除所选条目",
+          "description": "删除独立文件列表中的当前选择。"
+        },
+        "files_editor_save": {
+          "name": "保存远程文件",
+          "description": "保存远程文本编辑器中的当前文件。"
+        }
+      },
+      "scopes": {
+        "app_global": "应用全局",
+        "terminal_selection": "终端有选区",
+        "terminal_writable": "终端可写",
+        "terminal_completion_visible": "补全候选可见",
+        "terminal_active": "活动终端",
+        "terminal_disconnected": "SSH 会话已断开",
+        "files_standalone": "独立文件列表",
+        "files_list": "文件列表",
+        "files_editor": "远程文本编辑器"
+      },
+      "status": {
+        "default": "默认",
+        "custom": "自定义",
+        "unbound": "未绑定"
+      },
+      "binding": {
+        "edit": "编辑快捷键",
+        "add": "添加按键",
+        "remove": "移除按键",
+        "removeTitle": "移除这组按键？",
+        "removeDescription": "保存后，此操作将不再响应这组按键。",
+        "removeConfirm": "移除",
+        "restore": "恢复默认",
+        "restoreTitle": "恢复此操作的默认快捷键？",
+        "restoreDescription": "当前自定义绑定将被移除，并使用当前版本默认值。",
+        "restoreConfirm": "恢复默认",
+        "restoreSuccess": "已恢复默认快捷键",
+        "restoreFailed": "恢复默认快捷键失败",
+        "saveSuccess": "快捷键已保存",
+        "saveFailed": "快捷键保存失败",
+        "slot": "按键 {{index}}",
+        "none": "未设置"
+      },
+      "recorder": {
+        "title": "设置快捷键",
+        "description": "按下新的按键组合。每个操作最多可设置两组快捷键。",
+        "listening": "等待按键",
+        "listeningHint": "请按下包含功能键或修饰键的组合",
+        "captured": "已记录",
+        "replaceHint": "再次按键可替换当前组合",
+        "save": "保存",
+        "cancel": "取消",
+        "clearAll": "取消绑定",
+        "modifierOnly": "不能只使用修饰键",
+        "invalidKey": "无法识别这个按键，请尝试其他组合",
+        "duplicate": "该按键组合已在当前操作中使用",
+        "tooMany": "每个操作最多设置两组快捷键"
+      },
+      "conflict": {
+        "title": "快捷键冲突",
+        "description": "此组合也用于“{{action}}”，两个操作会在相同上下文中生效。",
+        "ambiguous": "该组合存在上下文冲突，已暂停生效，请重新设置。"
+      },
+      "reserved": {
+        "title": "此按键由系统保留",
+        "description": "请选择不会影响终端、组件导航或无障碍操作的按键组合。",
+        "focus_traversal": "Tab 用于组件焦点移动和远端 Shell 原生补全。",
+        "dismiss": "Escape 用于关闭候选、弹窗和临时交互。",
+        "context_menu": "该组合是键盘上下文菜单的无障碍入口。",
+        "diagnostics": "该组合用于 Electron 内部诊断入口。",
+        "aria_navigation": "该按键用于当前组件的标准键盘导航。",
+        "file_selection": "Space 用于切换文件条目的选择状态。",
+        "terminal_search": "Enter 与 Shift+Enter 由终端查找和输入流程保留。",
+        "terminal_interrupt": "终端没有选区时，Ctrl+C 必须继续发送远端中断。",
+        "code_editor": "该组合由远程文本编辑器保留。"
       }
     },
     "terminalFont": "字体",

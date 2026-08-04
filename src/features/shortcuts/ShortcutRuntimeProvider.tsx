@@ -98,12 +98,9 @@ export function ShortcutWindowAdapter({ handlers }: ShortcutWindowAdapterProps) 
       (event, context) => handlersRef.current[actionId]?.(event, context) ?? 'fallthrough',
     ))
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isOwnedByShortcutAdapter(event.target)) {
-        return
-      }
       const result = runtime.dispatch(event, {
         adapterId: 'window',
-        contextIds: [windowContextId],
+        handlerContextIds: [windowContextId],
         editable: isEditableTarget(event.target),
       })
       if (result.result === 'handled' || result.result === 'blocked') {
@@ -135,8 +132,4 @@ export function ShortcutWindowAdapter({ handlers }: ShortcutWindowAdapterProps) 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) return false
   return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'))
-}
-
-function isOwnedByShortcutAdapter(target: EventTarget | null) {
-  return target instanceof Element && Boolean(target.closest('[data-shortcut-adapter]'))
 }

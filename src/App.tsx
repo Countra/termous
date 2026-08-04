@@ -680,6 +680,17 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
+  const saveShortcutSettings = async (
+    patch: Parameters<typeof actions.updateShortcutSettings>[0],
+  ) => {
+    try {
+      await actions.updateShortcutSettings(patch)
+    } catch (actionError) {
+      showActionError(actionError)
+      throw actionError
+    }
+  }
+
   const openFileBookmarksFromSession = async (session: Session) => {
     if (session.kind !== 'ssh' || session.status !== 'connected' || !session.host_id) {
       return
@@ -1103,6 +1114,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             appearanceSettings={data.settings.appearance}
             terminalSettings={data.settings.terminal}
             completionSettings={data.settings.completion}
+            shortcutSettings={data.settings.shortcuts}
             windowSettings={data.settings.window}
             terminalFonts={data.terminalFonts}
             appVersion={appVersion}
@@ -1112,6 +1124,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
             onTerminalSettingsChange={saveTerminalSettings}
             onCompletionSettingsChange={saveCompletionSettings}
+            onShortcutSettingsChange={saveShortcutSettings}
             onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
             onUploadTerminalFont={uploadTerminalFont}
             onDeleteTerminalFont={deleteTerminalFont}

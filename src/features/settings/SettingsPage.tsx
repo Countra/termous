@@ -1,24 +1,29 @@
-import { DatabaseBackup, Moon, RefreshCw, Settings2, SquareTerminal, Sun } from 'lucide-react'
+import { DatabaseBackup, Keyboard, Moon, RefreshCw, Settings2, SquareTerminal, Sun } from 'lucide-react'
 import { Segmented, Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type {
   AppearanceSettings,
   CompletionSettings,
   Language,
+  ShortcutSettings,
+  ShortcutSettingsPatch,
   TerminalFont,
   TerminalSettings,
   WindowSettings,
 } from '../../types/domain'
+import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
 import { UpdateSettings, type UpdatePreferencesRuntime } from './UpdateSettings'
 import { TerminalStyleSettings } from './TerminalStyleSettings'
 import { TerminalCompletionSettings } from './TerminalCompletionSettings'
 import { DataPortabilitySettings } from './DataPortabilitySettings'
+import { ShortcutSettingsPanel } from './ShortcutSettingsPanel'
 
 export interface SettingsPageProps {
   language: Language
   appearanceSettings: AppearanceSettings
   terminalSettings: TerminalSettings
   completionSettings: CompletionSettings
+  shortcutSettings: ShortcutSettings
   windowSettings: WindowSettings
   terminalFonts: TerminalFont[]
   appVersion: string
@@ -28,6 +33,7 @@ export interface SettingsPageProps {
   onAppearanceSettingsChange: (settings: AppearanceSettings) => Promise<void>
   onTerminalSettingsChange: (settings: TerminalSettings) => Promise<void>
   onCompletionSettingsChange: (settings: CompletionSettings) => Promise<void>
+  onShortcutSettingsChange: (patch: ShortcutSettingsPatch) => Promise<void>
   onWindowSettingsChange: (settings: WindowSettings) => Promise<void>
   onUploadTerminalFont: (file: File) => Promise<TerminalFont>
   onDeleteTerminalFont: (id: string) => Promise<void>
@@ -38,6 +44,7 @@ export function SettingsPage({
   appearanceSettings,
   terminalSettings,
   completionSettings,
+  shortcutSettings,
   windowSettings,
   terminalFonts,
   appVersion,
@@ -47,11 +54,13 @@ export function SettingsPage({
   onAppearanceSettingsChange,
   onTerminalSettingsChange,
   onCompletionSettingsChange,
+  onShortcutSettingsChange,
   onWindowSettingsChange,
   onUploadTerminalFont,
   onDeleteTerminalFont,
 }: SettingsPageProps) {
   const { t } = useTranslation()
+  const { platform } = useShortcutRuntime()
 
   return (
     <section className="settings-page">
@@ -177,6 +186,25 @@ export function SettingsPage({
                     onChange={onCompletionSettingsChange}
                   />
                 </div>
+              </div>
+            ),
+          },
+          {
+            key: 'shortcuts',
+            label: (
+              <span className="settings-tab-label">
+                <Keyboard size={15} aria-hidden="true" />
+                {t('settings.tabShortcuts')}
+              </span>
+            ),
+            children: (
+              <div className="settings-tab-scroll">
+                <ShortcutSettingsPanel
+                  value={shortcutSettings}
+                  platform={platform}
+                  onPatchChanges={(changes) => onShortcutSettingsChange({ changes })}
+                  onResetAll={() => onShortcutSettingsChange({ reset_all: true })}
+                />
               </div>
             ),
           },

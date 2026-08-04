@@ -719,7 +719,7 @@ export function useTermousData() {
           ))
         } catch (updateError) {
           if (shortcutSettingsMutationRef.current !== mutation) {
-            return
+            throw updateError
           }
           if (!shortcutSettingsEqual(shortcutSettingsRef.current, optimistic)) {
             throw updateError
