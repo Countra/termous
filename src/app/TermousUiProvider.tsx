@@ -3,9 +3,8 @@ import { App as AntdApp, ConfigProvider } from 'antd'
 import enUS from 'antd/locale/en_US'
 import zhCN from 'antd/locale/zh_CN'
 import 'antd/dist/reset.css'
-import { i18n } from '../i18n'
-import { createAntdTheme } from '../theme/antdTheme'
-import type { Language, ThemeMode } from '../types/domain'
+import { i18n, type Language } from '#shared/i18n'
+import { createAntdTheme, type ThemeMode } from '#shared/theme'
 
 interface TermousUiProviderProps {
   children: ReactNode

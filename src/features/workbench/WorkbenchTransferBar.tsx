@@ -3,7 +3,7 @@ import { Copy, DownloadCloud, RotateCcw, UploadCloud, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { useTransferRuntime } from '../../app/useTransferRuntime'
-import { formatBytes } from '../files/fileUtils'
+import { formatBytes } from '#shared/format'
 import { summarizeWorkbenchTransfers } from './workbenchTransferState'
 import './workbench-file-status.css'
 

@@ -17,7 +17,7 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
+import { normalizeRemotePosixPath } from '#shared/path'
 import type {
   FileBookmark,
   FileBookmarkGroup,

@@ -3,7 +3,7 @@ import test from 'node:test'
 import {
   canApplyReloadedValue,
   SerialMutationQueue,
-} from '../app/serialMutationQueue.ts'
+} from '#shared/async'
 
 interface Deferred<T> {
   promise: Promise<T>

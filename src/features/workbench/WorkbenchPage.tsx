@@ -47,15 +47,19 @@ import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { SessionQuickConnect } from '../../components/hosts/SessionQuickConnect'
-import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
-import { FeatureSidePanel } from '../../components/ui/FeatureSidePanel'
-import { SessionTabButton } from '../../components/ui/SessionTabButton'
-import { SessionTabStrip } from '../../components/ui/SessionTabStrip'
+import {
+  ConnectionActionButton,
+  FeatureSidePanel,
+  SessionTabButton,
+  SessionTabStrip,
+} from '#shared/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
-import { usePersistentBooleanState } from '../../hooks/usePersistentBooleanState'
-import { usePersistentJsonState } from '../../hooks/usePersistentJsonState'
-import { useRafResizablePanelWidth } from '../../hooks/useRafResizablePanelWidth'
-import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
+import {
+  usePersistentBooleanState,
+  usePersistentJsonState,
+  useRafResizablePanelWidth,
+} from '#shared/hooks'
+import { normalizeRemotePosixPath } from '#shared/path'
 import { ConnectionProgress } from '../terminal/ConnectionProgress'
 import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'

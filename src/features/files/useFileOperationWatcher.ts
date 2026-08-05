@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import { TermousApiError, type TermousApi } from '../../api/client'
 import type { FileOperationTask } from '../../types/domain'
 import type { FileOperationProgressState } from './FileOperationProgress'
-import { formatBytes } from './fileUtils'
+import { formatBytes } from '#shared/format'
 
 interface UseFileOperationWatcherOptions {
   api: TermousApi

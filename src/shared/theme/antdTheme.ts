@@ -1,6 +1,8 @@
 import type { ThemeConfig } from 'antd'
 import { theme as antdTheme } from 'antd'
-import type { ThemeMode } from '../types/domain'
+import type { AppTheme } from '#common/contracts'
+
+export type ThemeMode = AppTheme
 
 const fontFamily =
   '"Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif'

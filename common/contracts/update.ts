@@ -1,3 +1,5 @@
+import type { AppLanguage, AppTheme } from './application'
+
 export type UpdatePhase =
   | 'unsupported'
   | 'idle'
@@ -164,8 +166,8 @@ export interface UpdateRuntimeSummaryReportContext {
   document_epoch: string
 }
 
-export type UpdateWindowTheme = 'dark' | 'light'
-export type UpdateWindowLanguage = 'zh-CN' | 'en-US'
+export type UpdateWindowTheme = AppTheme
+export type UpdateWindowLanguage = AppLanguage
 
 export interface UpdateWindowBootstrap<TSnapshot = unknown> {
   bootstrap_seq: number

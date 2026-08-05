@@ -39,7 +39,7 @@ import type {
   TerminalSettings,
   WindowSettings,
 } from '../types/domain'
-import { changeLanguage } from '../i18n'
+import { changeLanguage } from '#shared/i18n'
 import {
   completionSettingsEqual,
   defaultAppearanceSettings,
@@ -82,7 +82,7 @@ import {
   selectForwardStartSnapshot,
   shouldApplyForwardPollResponse,
 } from '../features/forwards/forwardRestart'
-import { canApplyReloadedValue, SerialMutationQueue } from './serialMutationQueue'
+import { canApplyReloadedValue, SerialMutationQueue } from '#shared/async'
 
 const initialSettings: Settings = {
   language: 'zh-CN',

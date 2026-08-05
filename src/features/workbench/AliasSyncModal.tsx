@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next'
 import { TermousApiError, type TermousApi } from '../../api/client'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { ConfirmDialog } from '#shared/ui'
 import type {
   AliasSyncTask,
   AliasSyncTaskSource,

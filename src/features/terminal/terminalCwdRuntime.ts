@@ -3,7 +3,7 @@ import type {
   SessionCwdOperation,
   SessionCwdState,
 } from '../../types/domain'
-import { normalizeRemotePosixPath } from '../../shared/remotePosixPath.ts'
+import { normalizeRemotePosixPath } from '#shared/path'
 import type { TerminalTransportState } from './terminalTransport.ts'
 
 export type SessionCwdRequestResult =

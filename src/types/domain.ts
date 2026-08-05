@@ -1,4 +1,8 @@
-import type { DataPortabilityDatasetKey } from '#common/contracts'
+import type {
+  AppLanguage,
+  AppTheme,
+  DataPortabilityDatasetKey,
+} from '#common/contracts'
 
 export type {
   AppBuildInfo,
@@ -21,9 +25,9 @@ export type {
   TrayRecentHost,
 } from '#common/contracts'
 
-export type Language = 'zh-CN' | 'en-US'
+export type Language = AppLanguage
 
-export type ThemeMode = 'dark' | 'light'
+export type ThemeMode = AppTheme
 
 export type PageKey = 'workbench' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets' | 'settings'
 

@@ -216,7 +216,7 @@ test('快捷键动作目录、作用域和管理交互拥有完整双语文案',
 })
 
 function readTranslations(locale: string) {
-  const path = join(sourceRoot, 'i18n', 'locales', locale, 'translation.json')
+  const path = join(sourceRoot, 'shared', 'i18n', 'locales', locale, 'translation.json')
   return JSON.parse(readFileSync(path, 'utf8')) as TranslationTree
 }
 

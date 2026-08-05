@@ -22,7 +22,8 @@ import {
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import { ContextActionMenu } from '../../components/ui/ContextActionMenu'
+import { formatBytes } from '#shared/format'
+import { ContextActionMenu } from '#shared/ui'
 import type { TransferTask } from '../../types/domain'
 import {
   buildTransferQueueItems,
@@ -34,7 +35,6 @@ import {
   type TransferQueueFilter,
 } from './transferQueueState'
 import {
-  formatBytes,
   formatSeconds,
   transferDisplayName,
   transferProgress,

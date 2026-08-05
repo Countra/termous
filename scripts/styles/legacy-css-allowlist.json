@@ -25,7 +25,6 @@
     "src/features/workbench/workbench-file-controls.css",
     "src/features/workbench/workbench-file-status.css",
     "src/features/workbench/workbench-files-panel.css",
-    "src/index.css",
     "src/styles/data-portability.css",
     "src/styles/files-bottom-drawer.css",
     "src/styles/files-workspace-panels.css",

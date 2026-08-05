@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { GroupManagerModal } from '../../components/management/GroupManagerModal'
 import { ManagementWorkspace, type ManagementWorkspaceView } from '../../components/management/ManagementWorkspace'
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { ConfirmDialog } from '#shared/ui'
 import type {
   AppData,
   ConnectionProxy,

@@ -12,7 +12,7 @@ import { TermousApiError, type TermousApi } from '../../api/client'
 import type { RemoteFileEntry, RemoteTextFile, RemoteTextLineEnding, RemoteTextSaveResult, TerminalSettings, ThemeMode } from '../../types/domain'
 import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
 import { FileOperationProgress, type FileOperationProgressState } from './FileOperationProgress'
-import { formatBytes } from './fileUtils'
+import { formatBytes } from '#shared/format'
 import { useFileOperationWatcher } from './useFileOperationWatcher'
 
 interface RemoteTextEditorModalProps {

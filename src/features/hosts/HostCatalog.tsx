@@ -5,8 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { ManagementPanel } from '../../components/management/ManagementWorkspace'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
-import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
-import { EmptyState } from '../../components/ui/EmptyState'
+import { ConnectionActionButton, EmptyState } from '#shared/ui'
 import type { AuthMethod, Host, HostGroup } from '../../types/domain'
 import {
   buildHostTagOptions,

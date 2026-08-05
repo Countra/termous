@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 import { TermousApiError, type TermousApi } from '../../api/client'
 import type { AliasSyncTask, AliasSyncTaskInput } from '../../types/domain'
-import { retireWebSocket } from '../../shared/webSocketLifecycle'
+import { retireWebSocket } from '#shared/websocket'
 import {
   aliasSyncTaskReducer,
   aliasSyncTaskMatchesRequest,

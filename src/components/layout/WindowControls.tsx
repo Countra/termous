@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { ConfirmDialog } from '#shared/ui'
 import type { WindowCloseBehavior } from '../../types/domain'
 
 interface WindowControlsProps {

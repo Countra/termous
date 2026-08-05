@@ -1,7 +1,9 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
+import type { AppLanguage } from '#common/contracts'
 import { resources } from './resources'
-import type { Language } from '../types/domain'
+
+export type Language = AppLanguage
 
 const browserLanguage = navigator.language === 'zh-CN' || navigator.language.startsWith('zh') ? 'zh-CN' : 'en-US'
 
@@ -19,4 +21,3 @@ export function changeLanguage(language: Language) {
 }
 
 export { i18n }
-

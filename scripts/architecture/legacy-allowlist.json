@@ -63,14 +63,6 @@
       "source": "src/shared/fileSessionSnapshot.ts"
     },
     {
-      "rule": "layer-root-file",
-      "source": "src/shared/remotePosixPath.ts"
-    },
-    {
-      "rule": "layer-root-file",
-      "source": "src/shared/webSocketLifecycle.ts"
-    },
-    {
       "rule": "legacy-boundary",
       "source": "src/api/client.ts",
       "target": "src/features/terminal/completionModel.ts",
@@ -111,12 +103,6 @@
       "source": "src/App.tsx",
       "target": "src/components/layout/AppShell.tsx",
       "specifier": "./components/layout/AppShell"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
-      "target": "src/components/ui/ConfirmDialog.tsx",
-      "specifier": "./components/ui/ConfirmDialog"
     },
     {
       "rule": "legacy-boundary",
@@ -241,12 +227,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/hooks/usePersistentBooleanState.ts",
-      "specifier": "./hooks/usePersistentBooleanState"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
       "target": "src/types/domain.ts",
       "specifier": "./types/domain"
     },
@@ -258,24 +238,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/app/TermousUiProvider.tsx",
-      "target": "src/i18n/index.ts",
-      "specifier": "../i18n"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/app/TermousUiProvider.tsx",
-      "target": "src/theme/antdTheme.ts",
-      "specifier": "../theme/antdTheme"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/app/TermousUiProvider.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/app/TransferRuntimeProvider.tsx",
       "target": "src/api/client.ts",
       "specifier": "../api/client"
@@ -291,12 +253,6 @@
       "source": "src/app/useTermousData.ts",
       "target": "src/api/client.ts",
       "specifier": "../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/app/useTermousData.ts",
-      "target": "src/i18n/index.ts",
-      "specifier": "../i18n"
     },
     {
       "rule": "legacy-boundary",
@@ -385,12 +341,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/components/hosts/HostContextPanel.tsx",
-      "target": "src/components/ui/EmptyState.tsx",
-      "specifier": "../ui/EmptyState"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/hosts/HostContextPanel.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -405,12 +355,6 @@
       "source": "src/components/hosts/SessionQuickConnect.tsx",
       "target": "src/components/ui/AuthMethodBadge.tsx",
       "specifier": "../ui/AuthMethodBadge"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/hosts/SessionQuickConnect.tsx",
-      "target": "src/components/ui/SessionNewTabButton.tsx",
-      "specifier": "../ui/SessionNewTabButton"
     },
     {
       "rule": "legacy-boundary",
@@ -439,12 +383,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/components/layout/WindowControls.tsx",
-      "target": "src/components/ui/ConfirmDialog.tsx",
-      "specifier": "../ui/ConfirmDialog"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/layout/WindowControls.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -469,32 +407,14 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/files/fileBookmarksModel.ts",
-      "target": "src/shared/remotePosixPath.ts",
-      "specifier": "../../shared/remotePosixPath.ts"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/fileBookmarksModel.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
     {
       "rule": "legacy-boundary",
       "source": "src/features/files/FileBookmarksRail.tsx",
-      "target": "src/shared/remotePosixPath.ts",
-      "specifier": "../../shared/remotePosixPath"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FileBookmarksRail.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FileBookmarksSidebar.tsx",
-      "target": "src/shared/remotePosixPath.ts",
-      "specifier": "../../shared/remotePosixPath"
     },
     {
       "rule": "legacy-boundary",
@@ -507,12 +427,6 @@
       "source": "src/features/files/filesBookmarkManagementIntent.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/fileSessionEventSubscription.ts",
-      "target": "src/shared/webSocketLifecycle.ts",
-      "specifier": "../../shared/webSocketLifecycle.ts"
     },
     {
       "rule": "legacy-boundary",
@@ -553,36 +467,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/files/FilesPage.tsx",
-      "target": "src/components/ui/EmptyState.tsx",
-      "specifier": "../../components/ui/EmptyState"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FilesPage.tsx",
-      "target": "src/components/ui/SessionTabButton.tsx",
-      "specifier": "../../components/ui/SessionTabButton"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FilesPage.tsx",
-      "target": "src/components/ui/SessionTabStrip.tsx",
-      "specifier": "../../components/ui/SessionTabStrip"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FilesPage.tsx",
-      "target": "src/hooks/usePersistentJsonState.ts",
-      "specifier": "../../hooks/usePersistentJsonState"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FilesPage.tsx",
-      "target": "src/shared/remotePosixPath.ts",
-      "specifier": "../../shared/remotePosixPath"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FilesPage.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -591,12 +475,6 @@
       "source": "src/features/files/filesWorkspaceState.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain.ts"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/fileUtils.ts",
-      "target": "src/shared/remotePosixPath.ts",
-      "specifier": "../../shared/remotePosixPath.ts"
     },
     {
       "rule": "legacy-boundary",
@@ -685,12 +563,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/files/TransferQueuePanel.tsx",
-      "target": "src/components/ui/ContextActionMenu.tsx",
-      "specifier": "../../components/ui/ContextActionMenu"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/TransferQueuePanel.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -717,18 +589,6 @@
       "source": "src/features/forwards/ForwardEditorFields.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardingPage.tsx",
-      "target": "src/components/ui/ConnectionActionButton.tsx",
-      "specifier": "../../components/ui/ConnectionActionButton"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardingPage.tsx",
-      "target": "src/components/ui/CustomSelect.tsx",
-      "specifier": "../../components/ui/CustomSelect"
     },
     {
       "rule": "legacy-boundary",
@@ -771,12 +631,6 @@
       "source": "src/features/forwards/ForwardRuntimeMetrics.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardSessionPanel.tsx",
-      "target": "src/components/ui/ConnectionActionButton.tsx",
-      "specifier": "../../components/ui/ConnectionActionButton"
     },
     {
       "rule": "legacy-boundary",
@@ -829,18 +683,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/hosts/HostCatalog.tsx",
-      "target": "src/components/ui/ConnectionActionButton.tsx",
-      "specifier": "../../components/ui/ConnectionActionButton"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostCatalog.tsx",
-      "target": "src/components/ui/EmptyState.tsx",
-      "specifier": "../../components/ui/EmptyState"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostCatalog.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -855,12 +697,6 @@
       "source": "src/features/hosts/HostEditor.tsx",
       "target": "src/components/management/ManagementWorkspace.tsx",
       "specifier": "../../components/management/ManagementWorkspace"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostEditor.tsx",
-      "target": "src/components/ui/ConnectionActionButton.tsx",
-      "specifier": "../../components/ui/ConnectionActionButton"
     },
     {
       "rule": "legacy-boundary",
@@ -891,12 +727,6 @@
       "source": "src/features/hosts/HostsPage.tsx",
       "target": "src/components/management/ManagementWorkspace.tsx",
       "specifier": "../../components/management/ManagementWorkspace"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostsPage.tsx",
-      "target": "src/components/ui/ConfirmDialog.tsx",
-      "specifier": "../../components/ui/ConfirmDialog"
     },
     {
       "rule": "legacy-boundary",
@@ -1015,18 +845,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/snippets/SnippetsPage.tsx",
-      "target": "src/components/ui/ConnectionActionButton.tsx",
-      "specifier": "../../components/ui/ConnectionActionButton"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/snippets/SnippetsPage.tsx",
-      "target": "src/components/ui/CustomSelect.tsx",
-      "specifier": "../../components/ui/CustomSelect"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/snippets/SnippetsPage.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -1068,21 +886,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/terminalContextPath.ts",
-      "target": "src/shared/remotePosixPath.ts",
-      "specifier": "../../shared/remotePosixPath.ts"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/terminal/terminalCwdContext.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/terminal/terminalCwdRuntime.ts",
-      "target": "src/shared/remotePosixPath.ts",
-      "specifier": "../../shared/remotePosixPath.ts"
     },
     {
       "rule": "legacy-boundary",
@@ -1171,18 +977,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/vault/CredentialCatalog.tsx",
-      "target": "src/components/ui/ConnectionActionButton.tsx",
-      "specifier": "../../components/ui/ConnectionActionButton"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/CredentialCatalog.tsx",
-      "target": "src/components/ui/EmptyState.tsx",
-      "specifier": "../../components/ui/EmptyState"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/CredentialCatalog.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -1191,12 +985,6 @@
       "source": "src/features/vault/CredentialEditor.tsx",
       "target": "src/components/management/ManagementWorkspace.tsx",
       "specifier": "../../components/management/ManagementWorkspace"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/CredentialEditor.tsx",
-      "target": "src/components/ui/ConnectionActionButton.tsx",
-      "specifier": "../../components/ui/ConnectionActionButton"
     },
     {
       "rule": "legacy-boundary",
@@ -1255,12 +1043,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/vault/VaultPage.tsx",
-      "target": "src/components/ui/ConfirmDialog.tsx",
-      "specifier": "../../components/ui/ConfirmDialog"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/VaultPage.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -1305,12 +1087,6 @@
       "source": "src/features/workbench/AliasSyncModal.tsx",
       "target": "src/components/ui/AuthMethodBadge.tsx",
       "specifier": "../../components/ui/AuthMethodBadge"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/AliasSyncModal.tsx",
-      "target": "src/components/ui/ConfirmDialog.tsx",
-      "specifier": "../../components/ui/ConfirmDialog"
     },
     {
       "rule": "legacy-boundary",
@@ -1411,18 +1187,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/workbench/HostLauncherModal.tsx",
-      "target": "src/components/ui/ConnectionActionButton.tsx",
-      "specifier": "../../components/ui/ConnectionActionButton"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/HostLauncherModal.tsx",
-      "target": "src/components/ui/EmptyState.tsx",
-      "specifier": "../../components/ui/EmptyState"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/HostLauncherModal.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -1455,12 +1219,6 @@
       "source": "src/features/workbench/ServicePanel.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/sessionFilesState.ts",
-      "target": "src/shared/remotePosixPath.ts",
-      "specifier": "../../shared/remotePosixPath.ts"
     },
     {
       "rule": "legacy-boundary",
@@ -1519,12 +1277,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/workbench/useAliasSyncTask.ts",
-      "target": "src/shared/webSocketLifecycle.ts",
-      "specifier": "../../shared/webSocketLifecycle"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useAliasSyncTask.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -1593,18 +1345,6 @@
       "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
       "target": "src/api/client.ts",
       "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
-      "target": "src/shared/remotePosixPath.ts",
-      "specifier": "../../shared/remotePosixPath"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
-      "target": "src/shared/webSocketLifecycle.ts",
-      "specifier": "../../shared/webSocketLifecycle"
     },
     {
       "rule": "legacy-boundary",
@@ -1617,12 +1357,6 @@
       "source": "src/features/workbench/WorkbenchBookmarkEditorModal.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchBookmarksPopover.tsx",
-      "target": "src/shared/remotePosixPath.ts",
-      "specifier": "../../shared/remotePosixPath"
     },
     {
       "rule": "legacy-boundary",
@@ -1681,12 +1415,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/workbench/workbenchFilesPathNavigation.ts",
-      "target": "src/shared/remotePosixPath.ts",
-      "specifier": "../../shared/remotePosixPath.ts"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/workbenchFilesPathNavigation.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -1711,56 +1439,8 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/components/ui/ConnectionActionButton.tsx",
-      "specifier": "../../components/ui/ConnectionActionButton"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/components/ui/FeatureSidePanel.tsx",
-      "specifier": "../../components/ui/FeatureSidePanel"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/components/ui/SessionTabButton.tsx",
-      "specifier": "../../components/ui/SessionTabButton"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/components/ui/SessionTabStrip.tsx",
-      "specifier": "../../components/ui/SessionTabStrip"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/components/ui/StatusBadge.tsx",
       "specifier": "../../components/ui/StatusBadge"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/hooks/usePersistentBooleanState.ts",
-      "specifier": "../../hooks/usePersistentBooleanState"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/hooks/usePersistentJsonState.ts",
-      "specifier": "../../hooks/usePersistentJsonState"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/hooks/useRafResizablePanelWidth.ts",
-      "specifier": "../../hooks/useRafResizablePanelWidth"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/shared/remotePosixPath.ts",
-      "specifier": "../../shared/remotePosixPath"
     },
     {
       "rule": "legacy-boundary",
@@ -1779,36 +1459,6 @@
       "source": "src/features/workbench/workbenchTransferState.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/hooks/useRafResizablePanelWidth.ts",
-      "target": "src/hooks/usePersistentJsonState.ts",
-      "specifier": "./usePersistentJsonState"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/hooks/useResizablePanelWidth.ts",
-      "target": "src/hooks/usePersistentJsonState.ts",
-      "specifier": "./usePersistentJsonState"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/i18n/index.ts",
-      "target": "src/i18n/resources.ts",
-      "specifier": "./resources"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/i18n/index.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/i18n/resources.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -1842,19 +1492,7 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/main.tsx",
-      "target": "src/i18n/index.ts",
-      "specifier": "./i18n"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/shared/fileSessionSnapshot.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/theme/antdTheme.ts",
       "target": "src/types/domain.ts",
       "specifier": "../types/domain"
     },
@@ -1924,75 +1562,11 @@
     },
     {
       "rule": "legacy-file",
-      "source": "src/components/ui/ConfirmDialog.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/ui/ConnectionActionButton.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/ui/ContextActionMenu.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/ui/CustomSelect.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/ui/EmptyState.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/ui/FeatureSidePanel.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/ui/SessionNewTabButton.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/ui/SessionTabButton.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/ui/SessionTabStrip.tsx"
-    },
-    {
-      "rule": "legacy-file",
       "source": "src/components/ui/StatusBadge.tsx"
     },
     {
       "rule": "legacy-file",
-      "source": "src/hooks/usePersistentBooleanState.ts"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/hooks/usePersistentJsonState.ts"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/hooks/useRafResizablePanelWidth.ts"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/hooks/useResizablePanelWidth.ts"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/i18n/index.ts"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/i18n/resources.ts"
-    },
-    {
-      "rule": "legacy-file",
       "source": "src/main.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/theme/antdTheme.ts"
     },
     {
       "rule": "legacy-file",
@@ -2190,12 +1764,6 @@
     },
     {
       "rule": "public-entry",
-      "source": "src/features/forwards/ForwardRuntimeMetrics.tsx",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils"
-    },
-    {
-      "rule": "public-entry",
       "source": "src/features/forwards/ForwardSessionPanel.tsx",
       "target": "src/features/workbench/WorkbenchEmptyState.tsx",
       "specifier": "../workbench/WorkbenchEmptyState"
@@ -2292,18 +1860,6 @@
     },
     {
       "rule": "public-entry",
-      "source": "src/features/workbench/FirewallPanel.tsx",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/sessionFilesState.ts",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils.ts"
-    },
-    {
-      "rule": "public-entry",
       "source": "src/features/workbench/sessionFilesState.ts",
       "target": "src/features/terminal/terminalTransport.ts",
       "specifier": "../terminal/terminalTransport.ts"
@@ -2341,12 +1897,6 @@
     {
       "rule": "public-entry",
       "source": "src/features/workbench/WorkbenchFileList.tsx",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchFileList.tsx",
       "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
       "specifier": "../shortcuts/shortcutRuntimeContext"
     },
@@ -2361,12 +1911,6 @@
       "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
       "target": "src/features/files/fileSessionRecovery.ts",
       "specifier": "../files/fileSessionRecovery"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils"
     },
     {
       "rule": "public-entry",
@@ -2436,12 +1980,6 @@
     },
     {
       "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchTransferBar.tsx",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils"
-    },
-    {
-      "rule": "public-entry",
       "source": "src/main.tsx",
       "target": "src/features/update/developmentUpdateSimulation.ts",
       "specifier": "./features/update/developmentUpdateSimulation"
@@ -2469,12 +2007,6 @@
       "source": "src/features/files/RemoteTextEditorModal.tsx",
       "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
       "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/forwards/ForwardRuntimeMetrics.tsx",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils"
     },
     {
       "rule": "same-layer-deep-import",
@@ -2538,18 +2070,6 @@
     },
     {
       "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/FirewallPanel.tsx",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/sessionFilesState.ts",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils.ts"
-    },
-    {
-      "rule": "same-layer-deep-import",
       "source": "src/features/workbench/sessionFilesState.ts",
       "target": "src/features/terminal/terminalTransport.ts",
       "specifier": "../terminal/terminalTransport.ts"
@@ -2587,12 +2107,6 @@
     {
       "rule": "same-layer-deep-import",
       "source": "src/features/workbench/WorkbenchFileList.tsx",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchFileList.tsx",
       "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
       "specifier": "../shortcuts/shortcutRuntimeContext"
     },
@@ -2607,12 +2121,6 @@
       "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
       "target": "src/features/files/fileSessionRecovery.ts",
       "specifier": "../files/fileSessionRecovery"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils"
     },
     {
       "rule": "same-layer-deep-import",
@@ -2679,12 +2187,6 @@
       "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/features/terminal/TerminalSplitWorkspace.tsx",
       "specifier": "../terminal/TerminalSplitWorkspace"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchTransferBar.tsx",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils"
     },
     {
       "rule": "slice-internal-public-entry",

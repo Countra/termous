@@ -1,4 +1,4 @@
-import type { Language } from '../types/domain'
+import type { AppLanguage } from '#common/contracts'
 import enUSTranslation from './locales/en-US/translation.json'
 import zhCNTranslation from './locales/zh-CN/translation.json'
 
@@ -11,6 +11,6 @@ export const resources = {
   'en-US': {
     [defaultNamespace]: enUSTranslation,
   },
-} as const satisfies Record<Language, Record<typeof defaultNamespace, object>>
+} as const satisfies Record<AppLanguage, Record<typeof defaultNamespace, object>>
 
-export const supportedLanguages = Object.keys(resources) as Language[]
+export const supportedLanguages = Object.keys(resources) as AppLanguage[]

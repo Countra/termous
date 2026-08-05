@@ -2,8 +2,7 @@ import type {
   RemoteDirectoryListing,
   SessionCwdState,
 } from '../../types/domain.ts'
-import { normalizeRemotePosixPath } from '../../shared/remotePosixPath.ts'
-import { normalizeRemotePath } from '../files/fileUtils.ts'
+import { normalizeRemotePath, normalizeRemotePosixPath } from '#shared/path'
 import type { TerminalTransportState } from '../terminal/terminalTransport.ts'
 
 export type SessionFilesSyncStatus =

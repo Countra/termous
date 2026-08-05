@@ -24,7 +24,7 @@ import type {
   FileBookmarkGroup,
   FileBookmarkInput,
 } from '../../types/domain'
-import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
+import { normalizeRemotePosixPath } from '#shared/path'
 import {
   buildBookmarkGroups,
   findBookmarkForPath,

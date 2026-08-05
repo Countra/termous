@@ -4,7 +4,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Drag
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { RemoteFileEntry } from '../../types/domain'
-import { formatBytes, formatDate } from '../files/fileUtils'
+import { formatBytes, formatDate } from '#shared/format'
 import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
 import { isLocalFileDrag } from './workbenchFileDrag'
 import './workbench-file-browser.css'

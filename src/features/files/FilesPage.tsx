@@ -52,10 +52,8 @@ import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { TermousApiError, type TermousApi } from '../../api/client'
 import { SessionQuickConnect } from '../../components/hosts/SessionQuickConnect'
-import { EmptyState } from '../../components/ui/EmptyState'
-import { SessionTabButton } from '../../components/ui/SessionTabButton'
-import { SessionTabStrip } from '../../components/ui/SessionTabStrip'
-import { usePersistentJsonState } from '../../hooks/usePersistentJsonState'
+import { EmptyState, SessionTabButton, SessionTabStrip } from '#shared/ui'
+import { usePersistentJsonState } from '#shared/hooks'
 import type {
   AppData,
   FileBookmark,
@@ -82,8 +80,13 @@ import {
   runRemoteFileAction,
   type RemoteFileActionHandlers,
 } from '../../components/files/remoteFileActions'
-import { formatBytes, formatDate, joinPath, normalizeRemotePath, parentPath } from './fileUtils'
-import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
+import { formatBytes, formatDate } from '#shared/format'
+import {
+  joinPath,
+  normalizeRemotePath,
+  normalizeRemotePosixPath,
+  parentPath,
+} from '#shared/path'
 import { FileBookmarksRail } from './FileBookmarksRail'
 import { FileBookmarksSidebar } from './FileBookmarksSidebar'
 import { FilesBottomDrawer } from './FilesBottomDrawer'

@@ -159,7 +159,7 @@ vi.mock('../features/snippets/SnippetsPage', () => ({ SnippetsPage: () => null }
 vi.mock('../features/vault/VaultPage', () => ({ VaultPage: () => null }))
 vi.mock('../features/workbench/HostLauncherModal', () => ({ HostLauncherModal: () => null }))
 vi.mock('../components/hostkey/HostKeyCoordinator', () => ({ HostKeyCoordinator: () => null }))
-vi.mock('../components/ui/ConfirmDialog', () => ({ ConfirmDialog: () => null }))
+vi.mock('#shared/ui', () => ({ ConfirmDialog: () => null }))
 vi.mock('../features/update/UpdateRuntimeSummaryReporter', () => ({
   UpdateRuntimeSummaryReporter: () => null,
 }))
@@ -179,7 +179,7 @@ vi.mock('../features/update/useUpdateRuntime', () => ({
   }),
 }))
 
-vi.mock('../hooks/usePersistentBooleanState', () => ({
+vi.mock('#shared/hooks', () => ({
   usePersistentBooleanState: () => [false, testState.persistentStateSetter],
 }))
 

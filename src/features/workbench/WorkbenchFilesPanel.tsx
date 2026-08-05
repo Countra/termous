@@ -58,7 +58,7 @@ import type {
   Session,
   ThemeMode,
 } from '../../types/domain'
-import { joinPath, normalizeRemotePath, parentPath } from '../files/fileUtils'
+import { joinPath, normalizeRemotePath, parentPath } from '#shared/path'
 import type { FileSessionClosureState } from '../files/fileSessionRecovery'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'

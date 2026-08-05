@@ -3,7 +3,7 @@ import type {
   RemoteDirectoryListing,
   RemoteFileEntry,
 } from '../../types/domain.ts'
-import { normalizeRemotePath } from './fileUtils.ts'
+import { normalizeRemotePath } from '#shared/path'
 
 export const filesWorkspaceLayoutStorageKey = 'termous.ui.files.workspace'
 

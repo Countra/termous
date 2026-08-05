@@ -1,6 +1,7 @@
 import type {
   AppBuildInfo,
   AppConfig,
+  AppTheme,
   CoreFatalEvent,
   CoreStatus,
   SSHKeyFileSaveResult,
@@ -55,7 +56,7 @@ export interface TermousBridge {
     ready: () => Promise<boolean>
   }
   appearance?: {
-    setTheme: (theme: 'dark' | 'light') => Promise<boolean>
+    setTheme: (theme: AppTheme) => Promise<boolean>
   }
   portability?: {
     exportBackup: (password: string) => Promise<DataPortabilityExportDialogResult>

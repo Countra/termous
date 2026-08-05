@@ -1,4 +1,4 @@
-import { normalizeRemotePosixPath } from '../../shared/remotePosixPath.ts'
+import { normalizeRemotePosixPath } from '#shared/path'
 import type { TerminalPathContextTarget } from './terminalContextTarget.ts'
 
 export function resolveTerminalContextPath(

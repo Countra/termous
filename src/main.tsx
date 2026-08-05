@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import './i18n'
-import './index.css'
+import '#shared/i18n'
+import '#shared/styles'
 import { loadRendererSurface } from './app/rendererSurface'
 import { installDevelopmentUpdateSimulation } from './features/update/developmentUpdateSimulationSlot'
 

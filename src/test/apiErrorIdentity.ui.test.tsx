@@ -3,6 +3,7 @@ import {
   TermousApi,
   TermousApiError,
 } from '../api/client'
+import { TermousApiError as SharedTermousApiError } from '#shared/api'
 
 describe('TermousApiError 运行时身份合同', () => {
   afterEach(() => {
@@ -33,6 +34,8 @@ describe('TermousApiError 运行时身份合同', () => {
     }
 
     expect(caught).toBeInstanceOf(TermousApiError)
+    expect(TermousApiError).toBe(SharedTermousApiError)
+    expect(caught).toBeInstanceOf(SharedTermousApiError)
     expect((caught as Error).constructor).toBe(TermousApiError)
     expect(caught).toMatchObject({
       code: 'RESOURCE_CONFLICT',

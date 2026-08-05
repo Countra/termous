@@ -1,6 +1,8 @@
 export type {
   AppBuildInfo,
   AppConfig,
+  AppLanguage,
+  AppTheme,
   CoreFatalEvent,
   CoreStatus,
   SSHKeyFileSaveResult,

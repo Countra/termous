@@ -1,3 +1,7 @@
+export type AppLanguage = 'zh-CN' | 'en-US'
+
+export type AppTheme = 'dark' | 'light'
+
 export interface AppConfig {
   apiBaseUrl: string
   apiToken: string
@@ -46,7 +50,7 @@ export interface TrayMenuLabels {
 }
 
 export interface TrayMenuState {
-  language: 'zh-CN' | 'en-US'
+  language: AppLanguage
   recentHosts: TrayRecentHost[]
   labels: TrayMenuLabels
 }

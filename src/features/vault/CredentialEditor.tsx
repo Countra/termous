@@ -3,7 +3,7 @@ import { ArrowLeft, DatabaseZap, FileKey2, FileUp, Fingerprint, KeyRound, Shield
 import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ManagementPanel } from '../../components/management/ManagementWorkspace'
-import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
+import { ConnectionActionButton } from '#shared/ui'
 import type { CredentialInput, CredentialType, CredentialView } from '../../types/domain'
 import { credentialTypeIcon } from './credentialIcons'
 import type { CredentialValidationErrors } from './credentialManagementUtils'

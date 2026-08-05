@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type PointerEvent, type ReactNode } from 
 import { useTranslation } from 'react-i18next'
 import type { Host, HostGroup } from '../../types/domain'
 import { AuthMethodBadge } from '../ui/AuthMethodBadge'
-import { EmptyState } from '../ui/EmptyState'
+import { EmptyState } from '#shared/ui'
 import { HostAvatar } from './HostAvatar'
 
 interface HostContextPanelProps {

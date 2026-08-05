@@ -24,8 +24,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import { useTranslation } from 'react-i18next'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
-import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
-import { EmptyState } from '../../components/ui/EmptyState'
+import { ConnectionActionButton, EmptyState } from '#shared/ui'
 import type { AppData, Host, HostReachability } from '../../types/domain'
 import {
   hostLauncherActionPlan,

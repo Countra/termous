@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { ManagementPanel } from '../../components/management/ManagementWorkspace'
-import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
+import { ConnectionActionButton } from '#shared/ui'
 import type { AppData, AuthMethod, Host, HostGroup, HostInput } from '../../types/domain'
 import { connectionProxyTypeLabelKey } from './connectionProxy'
 import {

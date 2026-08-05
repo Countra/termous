@@ -20,8 +20,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
 import { GroupManagerModal } from '../../components/management/GroupManagerModal'
-import { ConnectionActionButton } from '../../components/ui/ConnectionActionButton'
-import { CustomSelect } from '../../components/ui/CustomSelect'
+import { ConnectionActionButton, CustomSelect } from '#shared/ui'
 import type { AppData, CodeSnippetGroup, CodeSnippetInput, GroupReorderItem, SnippetShell } from '../../types/domain'
 import {
   SnippetFilterBar,

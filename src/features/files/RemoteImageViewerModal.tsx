@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { TermousApiError, type TermousApi } from '../../api/client'
 import type { RemoteImageFile, ThemeMode } from '../../types/domain'
 import { FileOperationProgress, type FileOperationProgressState } from './FileOperationProgress'
-import { formatBytes } from './fileUtils'
+import { formatBytes } from '#shared/format'
 import { useFileOperationWatcher } from './useFileOperationWatcher'
 
 interface RemoteImageViewerModalProps {

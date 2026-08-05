@@ -45,7 +45,7 @@ import type {
   FileBookmarkInput,
   FileBookmarkReorderItem,
 } from '../../types/domain'
-import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
+import { normalizeRemotePosixPath } from '#shared/path'
 import {
   buildBookmarkGroups,
   buildBookmarkReorderItems,

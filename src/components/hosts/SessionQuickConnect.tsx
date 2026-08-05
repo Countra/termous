@@ -4,7 +4,7 @@ import { useCallback, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Host } from '../../types/domain'
 import { AuthMethodBadge } from '../ui/AuthMethodBadge'
-import { SessionNewTabButton } from '../ui/SessionNewTabButton'
+import { SessionNewTabButton } from '#shared/ui'
 import { HostAvatar } from './HostAvatar'
 
 export interface SessionQuickConnectProps {

@@ -1,4 +1,4 @@
-import { retireWebSocket } from '../../shared/webSocketLifecycle.ts'
+import { retireWebSocket } from '#shared/websocket'
 
 interface FileSessionEventSubscriptionOptions<TSnapshot> {
   createSocket: () => WebSocket

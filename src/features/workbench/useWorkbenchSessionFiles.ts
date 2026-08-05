@@ -7,9 +7,9 @@ import type {
   Session,
   SessionCwdState,
 } from '../../types/domain'
-import { normalizeRemotePosixPath } from '../../shared/remotePosixPath'
-import { retireWebSocket } from '../../shared/webSocketLifecycle'
-import { fileSortValue, normalizeRemotePath } from '../files/fileUtils'
+import { normalizeRemotePath, normalizeRemotePosixPath } from '#shared/path'
+import { retireWebSocket } from '#shared/websocket'
+import { fileSortValue } from '../files/fileUtils'
 import {
   resolveFileSessionClosure,
   terminatedFileSessionSnapshot,
