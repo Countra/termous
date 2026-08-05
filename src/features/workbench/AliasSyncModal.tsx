@@ -16,7 +16,7 @@ import {
 import { Alert, Button, Checkbox, Input, Modal, Progress, Skeleton, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TermousApi } from '../../api/client'
+import { TermousApiError, type TermousApi } from '../../api/client'
 import { HostAvatar } from '../../components/hosts/HostAvatar'
 import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
@@ -35,6 +35,7 @@ import {
   aliasSyncCloseNeedsCancellation,
   aliasSyncProgress,
   aliasSyncTaskMatchesRequest,
+  isAliasSyncStartOutcomeUnknown,
   isAliasSyncTaskTerminal,
 } from './aliasSyncTaskState'
 import {
@@ -44,7 +45,7 @@ import {
   orderAliasSyncSelectionIds,
 } from './aliasSyncSelection'
 import { useAliasSyncTask } from './useAliasSyncTask'
-import { aliasErrorDescription } from './aliasPanelHelpers'
+import { aliasSyncErrorDescription } from './aliasPanelHelpers'
 import './alias-sync-modal.css'
 
 interface AliasSyncModalProps {
@@ -52,7 +53,7 @@ interface AliasSyncModalProps {
   open: boolean
   sourceSession: Session
   sourceAliases: readonly ShellAlias[]
-  sourceShell: 'bash' | 'zsh' | 'fish'
+  sourceShell?: 'bash' | 'zsh' | 'fish'
   hosts: readonly Host[]
   groups: readonly HostGroup[]
   credentials: readonly CredentialView[]
@@ -150,9 +151,15 @@ export function AliasSyncModal({
   const canStart = Boolean(
     sourceSession.id &&
     sourceSession.host_id &&
+    sourceShell &&
     orderedSelectedAliasIds.length > 0 &&
     orderedSelectedHostIds.length > 0 &&
     !selectionLocked,
+  )
+  const canSyncAgain = Boolean(
+    sourceShell &&
+    sourceAliases.length > 0 &&
+    task?.source.session_id === sourceSession.id,
   )
 
   useEffect(() => {
@@ -232,8 +239,10 @@ export function AliasSyncModal({
         await sync.cancelAndWait()
         finishClose()
       }
-    } catch {
-      if (pendingCloseRef.current && !taskCreated) {
+    } catch (error) {
+      const startOutcomeUnknown = error instanceof TermousApiError &&
+        isAliasSyncStartOutcomeUnknown(error.code, error.status)
+      if (pendingCloseRef.current && !taskCreated && startOutcomeUnknown) {
         try {
           const activeTask = await sync.recoverActive()
           if (activeTask && aliasSyncTaskMatchesRequest(
@@ -271,7 +280,7 @@ export function AliasSyncModal({
         hosts: task.target_host_ids.length,
       })}</span>
       <span className="alias-sync-modal-action-buttons">
-        {isAliasSyncTaskTerminal(task.status) ? (
+        {isAliasSyncTaskTerminal(task.status) && canSyncAgain ? (
           <Button icon={<RotateCcw size={14} />} onClick={resetTask}>
             {t('workbench.aliases.sync.syncAgain')}
           </Button>
@@ -335,7 +344,7 @@ export function AliasSyncModal({
               ? task.source.host_id ? hostById.get(task.source.host_id) : undefined
               : sourceHost}
             snapshot={task?.source}
-            shell={task?.source.shell ?? sourceShell}
+            shell={task ? task.source.shell : sourceShell}
             totalAliases={task ? task.alias_ids.length : sourceAliases.length}
           />
 
@@ -344,7 +353,7 @@ export function AliasSyncModal({
               type="error"
               showIcon
               message={t('workbench.aliases.sync.errorTitle')}
-              description={aliasErrorDescription(sync.errorCode, sync.errorMessage, t)}
+              description={aliasSyncErrorDescription(sync.errorCode, sync.errorMessage, t)}
               className="alias-sync-alert"
             />
           ) : null}
@@ -660,7 +669,7 @@ function AliasSyncProgressView({ task, hosts, api }: AliasSyncProgressViewProps)
     ? undefined
     : task.targets[task.current_target_index]
   const summary = task.error_code
-    ? aliasErrorDescription(task.error_code, task.error_message ?? '', t)
+    ? aliasSyncErrorDescription(task.error_code, task.error_message ?? '', t)
     : task.error_message
       ? task.error_message
     : currentTarget?.phase
@@ -719,29 +728,40 @@ function ResultMetric({ value, label, tone }: { value: number; label: string; to
 function TargetResultRow({ target, host, api }: { target: AliasSyncTarget; host?: Host; api: TermousApi }) {
   const { t } = useTranslation()
   const tone = targetStatusTone(target.status)
-  const detail = target.error_code
-    ? aliasErrorDescription(target.error_code, target.error_message ?? '', t)
-    : target.error_message
-      ? target.error_message
-    : (target.added_count > 0
-      ? t(target.added_names.length > 0
+  const resultDetails: string[] = []
+  if (target.error_code) {
+    resultDetails.push(aliasSyncErrorDescription(target.error_code, target.error_message ?? '', t))
+  } else if (target.error_message) {
+    resultDetails.push(target.error_message)
+  } else if (target.skip_reason) {
+    resultDetails.push(t(`workbench.aliases.sync.skipReason.${target.skip_reason}`))
+  } else {
+    if (target.added_count > 0) {
+      resultDetails.push(t(target.added_names.length > 0
         ? 'workbench.aliases.sync.addedAliases'
         : 'workbench.aliases.sync.addedCount', {
         count: target.added_count,
         names: target.added_names.join(', '),
-      })
-      : target.skip_reason
-        ? t(`workbench.aliases.sync.skipReason.${target.skip_reason}`)
-        : target.skipped_count > 0
-          ? t(target.skipped_names.length > 0
-            ? 'workbench.aliases.sync.skippedAliases'
-            : 'workbench.aliases.sync.skippedCount', {
-            count: target.skipped_count,
-            names: target.skipped_names.join(', '),
-          })
-          : target.phase
-            ? t(`workbench.aliases.sync.targetPhase.${target.phase}`)
-            : t(`workbench.aliases.sync.targetStatus.${target.status}`))
+      }))
+    }
+    if (target.skipped_count > 0) {
+      resultDetails.push(t(target.skipped_names.length > 0
+        ? 'workbench.aliases.sync.skippedAliases'
+        : 'workbench.aliases.sync.skippedCount', {
+        count: target.skipped_count,
+        names: target.skipped_names.join(', '),
+      }))
+    }
+    if (resultDetails.length === 0) {
+      resultDetails.push(target.phase
+        ? t(`workbench.aliases.sync.targetPhase.${target.phase}`)
+        : t(`workbench.aliases.sync.targetStatus.${target.status}`))
+    }
+  }
+  const applyStatusDetail = target.status === 'succeeded' && target.apply_status
+    ? t(`workbench.aliases.sync.applyStatus.${target.apply_status}`)
+    : ''
+  const detail = [...resultDetails, applyStatusDetail].filter(Boolean).join(' · ')
   return (
     <article className={`alias-sync-target-row is-${tone}`} role="listitem">
       <span className="alias-sync-target-state" aria-hidden="true">{targetStatusIcon(target.status)}</span>

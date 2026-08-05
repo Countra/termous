@@ -23,6 +23,7 @@ export type AliasSyncTaskViewAction =
   | { type: 'snapshot'; task: AliasSyncTask }
   | { type: 'cancel-start' }
   | { type: 'cancel-error'; errorCode: string; errorMessage: string }
+  | { type: 'task-lost'; errorCode: string; errorMessage: string }
   | { type: 'reset' }
 
 export function createAliasSyncTaskViewState(): AliasSyncTaskViewState {
@@ -150,6 +151,16 @@ export function aliasSyncTaskReducer(
         errorCode: action.errorCode,
         errorMessage: action.errorMessage,
       }
+    case 'task-lost':
+      return {
+        ...state,
+        task: null,
+        recovering: false,
+        starting: false,
+        cancelling: false,
+        errorCode: action.errorCode,
+        errorMessage: action.errorMessage,
+      }
     case 'reset':
       return createAliasSyncTaskViewState()
   }
@@ -188,6 +199,14 @@ export function aliasSyncTaskMatchesRequest(
   return task.source.session_id === sourceSessionId
     && equalStringSequence(task.alias_ids, aliasIds)
     && equalStringSequence(task.target_host_ids, targetHostIds)
+}
+
+export function isAliasSyncStartOutcomeUnknown(code: string, status: number) {
+  return status === 0 && (code === 'NETWORK_ERROR' || code === 'REQUEST_TIMEOUT')
+}
+
+export function isAliasSyncTaskNotFound(code: string, status: number) {
+  return code === 'SHELL_ALIAS_SYNC_NOT_FOUND' || status === 404
 }
 
 export function parseAliasSyncTaskEvent(value: unknown): AliasSyncTask | null {

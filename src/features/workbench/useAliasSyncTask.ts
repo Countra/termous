@@ -4,21 +4,26 @@ import type { AliasSyncTask, AliasSyncTaskInput } from '../../types/domain'
 import { retireWebSocket } from '../../shared/webSocketLifecycle'
 import {
   aliasSyncTaskReducer,
+  aliasSyncTaskMatchesRequest,
   createAliasSyncTaskViewState,
+  isAliasSyncStartOutcomeUnknown,
   isAliasSyncTaskTerminal,
+  isAliasSyncTaskNotFound,
   parseAliasSyncTaskEvent,
   reconcileAliasSyncTask,
   type AliasSyncTaskViewAction,
 } from './aliasSyncTaskState'
+import {
+  rejectAliasSyncTerminalWaiters,
+  rejectAllAliasSyncTerminalWaiters,
+  resolveAliasSyncTerminalWaiters,
+  waitForAliasSyncTerminal,
+  type AliasSyncTerminalWaiterMap,
+} from './aliasSyncTerminalWaiters'
 
 interface UseAliasSyncTaskOptions {
   api: TermousApi
   enabled: boolean
-}
-
-interface AliasSyncTerminalWaiter {
-  resolve: (task: AliasSyncTask) => void
-  reject: (error: Error) => void
 }
 
 const ALIAS_SYNC_RECONNECT_INITIAL_DELAY = 500
@@ -27,10 +32,16 @@ const ALIAS_SYNC_RECONNECT_MAXIMUM_DELAY = 5_000
 export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
   const [state, dispatch] = useReducer(aliasSyncTaskReducer, undefined, createAliasSyncTaskViewState)
   const taskRef = useRef<AliasSyncTask | null>(null)
-  const terminalWaitersRef = useRef(new Map<string, Set<AliasSyncTerminalWaiter>>())
+  const lostTaskIdsRef = useRef(new Set<string>())
+  const terminalWaitersRef = useRef<AliasSyncTerminalWaiterMap>(new Map())
 
   const dispatchState = useCallback((action: AliasSyncTaskViewAction) => {
-    if (action.type === 'reset' || (action.type === 'recover-success' && !action.task)) {
+    if (
+      action.type === 'reset' ||
+      action.type === 'start-start' ||
+      action.type === 'task-lost' ||
+      (action.type === 'recover-success' && !action.task)
+    ) {
       taskRef.current = null
     }
     dispatch(action)
@@ -40,18 +51,29 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
     if (!isAliasSyncTaskTerminal(task.status)) {
       return
     }
-    const waiters = terminalWaitersRef.current.get(task.id)
-    if (!waiters) {
-      return
+    resolveAliasSyncTerminalWaiters(terminalWaitersRef.current, task)
+  }, [])
+
+  const loseTask = useCallback((taskIdToLose: string, error: TermousApiError) => {
+    lostTaskIdsRef.current.add(taskIdToLose)
+    if (taskRef.current?.id === taskIdToLose) {
+      taskRef.current = null
+      dispatch({
+        type: 'task-lost',
+        errorCode: error.code,
+        errorMessage: error.message,
+      })
     }
-    terminalWaitersRef.current.delete(task.id)
-    waiters.forEach((waiter) => waiter.resolve(task))
+    rejectAliasSyncTerminalWaiters(terminalWaitersRef.current, taskIdToLose, error)
   }, [])
 
   const acceptTask = useCallback((incoming: AliasSyncTask) => {
     const current = taskRef.current
+    if (lostTaskIdsRef.current.has(incoming.id)) {
+      return null
+    }
     if (current && current.id !== incoming.id && !isAliasSyncTaskTerminal(current.status)) {
-      return current
+      return null
     }
     const task = reconcileAliasSyncTask(current, incoming)
     if (task === current) {
@@ -65,10 +87,7 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
 
   useEffect(() => () => {
     const error = new TermousApiError('别名同步监听已结束', 'REQUEST_ABORTED', 0)
-    terminalWaitersRef.current.forEach((waiters) => {
-      waiters.forEach((waiter) => waiter.reject(error))
-    })
-    terminalWaitersRef.current.clear()
+    rejectAllAliasSyncTerminalWaiters(terminalWaitersRef.current, error)
   }, [])
 
   useEffect(() => {
@@ -117,6 +136,11 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
     let socket: WebSocket | null = null
     let pollController: AbortController | null = null
 
+    const isTrackingTask = () => {
+      const current = taskRef.current
+      return !disposed && current?.id === taskId && !isAliasSyncTaskTerminal(current.status)
+    }
+
     const clearPoll = () => {
       if (pollTimer) {
         window.clearTimeout(pollTimer)
@@ -132,7 +156,7 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
     }
 
     const schedulePoll = (delay: number) => {
-      if (disposed || isAliasSyncTaskTerminal(taskRef.current?.status ?? 'cancelled')) {
+      if (!isTrackingTask()) {
         return
       }
       clearPoll()
@@ -140,7 +164,7 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
     }
 
     const handleSnapshot = (task: AliasSyncTask) => {
-      if (disposed || task.id !== taskId) {
+      if (!isTrackingTask() || task.id !== taskId) {
         return
       }
       const accepted = acceptTask(task)
@@ -150,7 +174,7 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
     }
 
     function poll() {
-      if (disposed) {
+      if (!isTrackingTask() || pollController) {
         return
       }
       pollTimer = 0
@@ -162,13 +186,18 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
           if (isRequestAborted(error)) {
             return
           }
+          const requestError = aliasSyncRequestError(error)
+          if (isAliasSyncTaskNotFound(requestError.code, requestError.status)) {
+            loseTask(taskId, requestError)
+            return
+          }
           // WebSocket 断开或单次 GET 失败时继续轮询，避免丢失最终任务状态。
         })
         .finally(() => {
           if (pollController === controller) {
             pollController = null
           }
-          if (!disposed && !isAliasSyncTaskTerminal(taskRef.current?.status ?? 'cancelled')) {
+          if (isTrackingTask()) {
             schedulePoll(1_500)
           }
         })
@@ -176,9 +205,9 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
 
     const scheduleReconnect = () => {
       if (
-        disposed ||
+        !isTrackingTask() ||
         reconnectTimer ||
-        isAliasSyncTaskTerminal(taskRef.current?.status ?? 'cancelled')
+        socket
       ) {
         return
       }
@@ -190,7 +219,7 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
     }
 
     function connect() {
-      if (disposed || socket || isAliasSyncTaskTerminal(taskRef.current?.status ?? 'cancelled')) {
+      if (!isTrackingTask() || socket) {
         return
       }
       let nextSocket: WebSocket
@@ -244,7 +273,7 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
         retireWebSocket(currentSocket)
       }
     }
-  }, [acceptTask, api, enabled, taskId, taskTerminal])
+  }, [acceptTask, api, enabled, loseTask, taskId, taskTerminal])
 
   const recoverActive = useCallback(async () => {
     const task = await api.activeAliasSyncTask()
@@ -263,6 +292,21 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
       return task
     } catch (error) {
       const requestError = aliasSyncRequestError(error)
+      if (isAliasSyncStartOutcomeUnknown(requestError.code, requestError.status)) {
+        try {
+          const activeTask = await api.activeAliasSyncTask()
+          if (activeTask && aliasSyncTaskMatchesRequest(
+            activeTask,
+            sourceSessionId,
+            input.alias_ids,
+            input.target_host_ids,
+          )) {
+            return acceptTask(activeTask)
+          }
+        } catch {
+          // 恢复查询失败时保留原始创建错误，避免掩盖结果不确定的请求。
+        }
+      }
       dispatchState({
         type: 'start-error',
         errorCode: requestError.code,
@@ -277,11 +321,11 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
     if (task?.id === taskIdToWait && isAliasSyncTaskTerminal(task.status)) {
       return Promise.resolve(task)
     }
-    return new Promise<AliasSyncTask>((resolve, reject) => {
-      const waiters = terminalWaitersRef.current.get(taskIdToWait) ?? new Set()
-      waiters.add({ resolve, reject })
-      terminalWaitersRef.current.set(taskIdToWait, waiters)
-    })
+    return waitForAliasSyncTerminal(
+      terminalWaitersRef.current,
+      taskIdToWait,
+      new TermousApiError('等待别名同步任务结束超时', 'REQUEST_TIMEOUT', 0),
+    )
   }, [])
 
   const cancelAndWait = useCallback(async () => {
@@ -293,7 +337,7 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
     try {
       const task = await api.cancelAliasSyncTask(current.id)
       const accepted = acceptTask(task)
-      if (accepted && isAliasSyncTaskTerminal(accepted.status)) {
+      if (!accepted || isAliasSyncTaskTerminal(accepted.status)) {
         return accepted
       }
       return await waitForTerminal(current.id)
@@ -303,6 +347,10 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
         return latest
       }
       const requestError = aliasSyncRequestError(error)
+      if (isAliasSyncTaskNotFound(requestError.code, requestError.status)) {
+        loseTask(current.id, requestError)
+        return null
+      }
       dispatchState({
         type: 'cancel-error',
         errorCode: requestError.code,
@@ -310,7 +358,7 @@ export function useAliasSyncTask({ api, enabled }: UseAliasSyncTaskOptions) {
       })
       throw error
     }
-  }, [acceptTask, api, dispatchState, waitForTerminal])
+  }, [acceptTask, api, dispatchState, loseTask, waitForTerminal])
 
   const reset = useCallback(() => dispatchState({ type: 'reset' }), [dispatchState])
 

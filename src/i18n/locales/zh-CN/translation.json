@@ -408,6 +408,22 @@
         "addedCount": "已新增 {{count}} 个别名",
         "skippedAliases": "已跳过 {{count}} 个：{{names}}",
         "skippedCount": "已跳过 {{count}} 个别名",
+        "applyStatus": {
+          "applied": "别名变更已在目标主机生效",
+          "next_prompt": "将在目标主机的下一次终端提示符生效",
+          "reconnect_required": "目标主机上的现有会话需要重新连接后加载别名支持"
+        },
+        "errors": {
+          "connectionInvalid": "主机连接或认证配置已失效。",
+          "connectionNotFound": "所需主机或凭据已不存在。",
+          "credentialLocked": "凭据库已锁定，无法建立新的目标连接。",
+          "sshAuthFailed": "目标主机 SSH 认证失败。",
+          "sshConnectFailed": "SSH 连接不可用。",
+          "jumpHostFailed": "无法通过跳板机连接目标主机。",
+          "hostKeyRejected": "SSH 主机密钥已被拒绝信任。",
+          "hostKeyExpired": "SSH 主机密钥确认已失效或过期。",
+          "hostKeyUnavailable": "当前连接无法完成 SSH 主机密钥校验。"
+        },
         "taskStatus": {
           "queued": "排队中",
           "loading_source": "读取来源别名",

@@ -89,6 +89,22 @@ test('别名同步任务、目标与阶段状态拥有完整双语文案', () =>
   for (const reason of ['no_changes', 'shell_mismatch']) {
     assertBilingualString(`workbench.aliases.sync.skipReason.${reason}`)
   }
+  for (const status of ['applied', 'next_prompt', 'reconnect_required']) {
+    assertBilingualString(`workbench.aliases.sync.applyStatus.${status}`)
+  }
+  for (const error of [
+    'connectionInvalid',
+    'connectionNotFound',
+    'credentialLocked',
+    'sshAuthFailed',
+    'sshConnectFailed',
+    'jumpHostFailed',
+    'hostKeyRejected',
+    'hostKeyExpired',
+    'hostKeyUnavailable',
+  ]) {
+    assertBilingualString(`workbench.aliases.sync.errors.${error}`)
+  }
 })
 
 test('智能补全动态来源和设置文案在中英文资源中完整对应', () => {

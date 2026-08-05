@@ -30,12 +30,40 @@ const aliasErrorTranslationKeys: Record<string, string> = {
   SHELL_ALIAS_SYNC_TARGET_CHANGED: 'workbench.aliases.errors.syncTargetChanged',
 }
 
+const aliasSyncErrorTranslationKeys: Record<string, string> = {
+  VALIDATION_ERROR: 'workbench.aliases.sync.errors.connectionInvalid',
+  NOT_FOUND: 'workbench.aliases.sync.errors.connectionNotFound',
+  CREDENTIAL_LOCKED: 'workbench.aliases.sync.errors.credentialLocked',
+  SSH_AUTH_FAILED: 'workbench.aliases.sync.errors.sshAuthFailed',
+  SSH_CONNECT_FAILED: 'workbench.aliases.sync.errors.sshConnectFailed',
+  JUMP_HOST_FAILED: 'workbench.aliases.sync.errors.jumpHostFailed',
+  PROXY_CONFIG_INVALID: 'connection.proxyError.configInvalid',
+  PROXY_AUTH_REQUIRED: 'connection.proxyError.authRequired',
+  PROXY_TIMEOUT: 'connection.proxyError.timeout',
+  PROXY_CONNECT_FAILED: 'connection.proxyError.connectFailed',
+  PROXY_TUNNEL_FAILED: 'connection.proxyError.tunnelFailed',
+  HOST_KEY_TRUST_REJECTED: 'workbench.aliases.sync.errors.hostKeyRejected',
+  HOST_KEY_CHALLENGE_STALE: 'workbench.aliases.sync.errors.hostKeyExpired',
+  HOST_KEY_CHALLENGE_EXPIRED: 'workbench.aliases.sync.errors.hostKeyExpired',
+  HOST_KEY_TRUST_REQUIRED: 'workbench.aliases.sync.errors.hostKeyUnavailable',
+  HOST_KEY_CHANGED: 'workbench.aliases.sync.errors.hostKeyUnavailable',
+  HOST_KEY_QUEUE_FULL: 'workbench.aliases.sync.errors.hostKeyUnavailable',
+  HOST_KEY_STORE_CORRUPT: 'workbench.aliases.sync.errors.hostKeyUnavailable',
+  HOST_KEY_SERVICE_CLOSED: 'workbench.aliases.sync.errors.hostKeyUnavailable',
+  HOST_KEY_INVALID_INPUT: 'workbench.aliases.sync.errors.hostKeyUnavailable',
+}
+
 export function aliasErrorDescription(code: string, message: string, t: TFunction) {
   const translationKey = aliasErrorTranslationKeys[code]
   if (translationKey) {
     return t(translationKey)
   }
   return message || t('workbench.aliases.operationFailed')
+}
+
+export function aliasSyncErrorDescription(code: string, message: string, t: TFunction) {
+  const translationKey = aliasSyncErrorTranslationKeys[code]
+  return translationKey ? t(translationKey) : aliasErrorDescription(code, message, t)
 }
 
 export function showAliasError(

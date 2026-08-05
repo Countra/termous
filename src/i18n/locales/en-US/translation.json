@@ -408,6 +408,22 @@
         "addedCount": "Added {{count}} aliases",
         "skippedAliases": "Skipped {{count}}: {{names}}",
         "skippedCount": "Skipped {{count}} aliases",
+        "applyStatus": {
+          "applied": "The alias changes are active on the target host",
+          "next_prompt": "The changes take effect at the target host's next terminal prompt",
+          "reconnect_required": "Existing sessions on the target host must reconnect to load alias support"
+        },
+        "errors": {
+          "connectionInvalid": "A host connection or authentication setting is no longer valid.",
+          "connectionNotFound": "A required host or credential no longer exists.",
+          "credentialLocked": "The credential vault is locked, so a new target connection cannot be opened.",
+          "sshAuthFailed": "SSH authentication failed for the target host.",
+          "sshConnectFailed": "The SSH connection is unavailable.",
+          "jumpHostFailed": "Could not reach the target host through its jump host.",
+          "hostKeyRejected": "The SSH host key was rejected.",
+          "hostKeyExpired": "The SSH host-key confirmation expired or is no longer valid.",
+          "hostKeyUnavailable": "SSH host-key verification is unavailable for this connection."
+        },
         "taskStatus": {
           "queued": "Queued",
           "loading_source": "Loading source aliases",

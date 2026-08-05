@@ -88,7 +88,7 @@ export function AliasPanel({
   const [syncSource, setSyncSource] = useState<{
     session: Session
     aliases: ShellAlias[]
-    shell: 'bash' | 'zsh' | 'fish'
+    shell?: 'bash' | 'zsh' | 'fish'
   } | null>(null)
   const [form] = Form.useForm<AliasEditorValues>()
   const controlScope = aliasPanelControlScope(session?.id)
@@ -444,15 +444,14 @@ export function AliasPanel({
 
   const syncEntryID = `${controlScope}-sync`
   const openAliasSync = () => {
-    const sourceShell = workspace?.shell ?? activeSyncTask?.source.shell
-    if (!session || !sourceShell || (!activeSyncTask && (!workspace || panelBusy))) {
+    if (!session || (!activeSyncTask && (!workspace || panelBusy))) {
       return
     }
     syncReturnFocusIDRef.current = syncEntryID
     setSyncSource({
       session,
       aliases: workspace ? [...workspace.items] : [],
-      shell: sourceShell,
+      shell: workspace?.shell ?? activeSyncTask?.source.shell,
     })
   }
   const closeAliasSync = () => {

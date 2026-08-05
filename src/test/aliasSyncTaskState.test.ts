@@ -9,6 +9,8 @@ import {
   aliasSyncTaskMatchesRequest,
   aliasSyncTaskReducer,
   createAliasSyncTaskViewState,
+  isAliasSyncStartOutcomeUnknown,
+  isAliasSyncTaskNotFound,
   isAliasSyncTaskTerminal,
   parseAliasSyncTaskEvent,
   reconcileAliasSyncTask,
@@ -23,6 +25,18 @@ import type { Host, HostGroup } from '../types/domain.ts'
 
 const aliasSyncStyles = readFileSync(
   new URL('../features/workbench/alias-sync-modal.css', import.meta.url),
+  'utf8',
+)
+const aliasPanelSource = readFileSync(
+  new URL('../features/workbench/AliasPanel.tsx', import.meta.url),
+  'utf8',
+)
+const aliasSyncModalSource = readFileSync(
+  new URL('../features/workbench/AliasSyncModal.tsx', import.meta.url),
+  'utf8',
+)
+const aliasPanelHelpersSource = readFileSync(
+  new URL('../features/workbench/aliasPanelHelpers.ts', import.meta.url),
   'utf8',
 )
 
@@ -45,6 +59,32 @@ test('reducer 在任务终态清除取消等待并保留最终快照', () => {
   assert.equal(state.task, cancelled)
   assert.equal(state.cancelling, false)
   assert.equal(isAliasSyncTaskTerminal(state.task.status), true)
+})
+
+test('任务明确不存在时清除失联快照并保留可操作错误', () => {
+  let state = aliasSyncTaskReducer(createAliasSyncTaskViewState(), {
+    type: 'snapshot',
+    task: createTask(),
+  })
+  state = aliasSyncTaskReducer(state, {
+    type: 'task-lost',
+    errorCode: 'SHELL_ALIAS_SYNC_NOT_FOUND',
+    errorMessage: '任务不存在',
+  })
+  assert.equal(state.task, null)
+  assert.equal(state.cancelling, false)
+  assert.equal(state.errorCode, 'SHELL_ALIAS_SYNC_NOT_FOUND')
+})
+
+test('只把创建结果不确定和任务明确不存在的响应交给恢复分支', () => {
+  assert.equal(isAliasSyncStartOutcomeUnknown('NETWORK_ERROR', 0), true)
+  assert.equal(isAliasSyncStartOutcomeUnknown('REQUEST_TIMEOUT', 0), true)
+  assert.equal(isAliasSyncStartOutcomeUnknown('REQUEST_ABORTED', 0), false)
+  assert.equal(isAliasSyncStartOutcomeUnknown('NETWORK_ERROR', 500), false)
+  assert.equal(isAliasSyncStartOutcomeUnknown('SHELL_ALIAS_SYNC_IN_PROGRESS', 409), false)
+  assert.equal(isAliasSyncTaskNotFound('SHELL_ALIAS_SYNC_NOT_FOUND', 404), true)
+  assert.equal(isAliasSyncTaskNotFound('HTTP_ERROR', 404), true)
+  assert.equal(isAliasSyncTaskNotFound('NETWORK_ERROR', 0), false)
 })
 
 test('目标主机选择默认可为空并稳定排除来源主机与重复项', () => {
@@ -127,6 +167,37 @@ test('WebSocket 事件只接受指定 envelope 和最小任务身份字段', () 
   assert.equal(parseAliasSyncTaskEvent({ type: 'other', task }), null)
   assert.equal(parseAliasSyncTaskEvent({ type: 'alias_sync_task_update', task: { id: 'task' } }), null)
   assert.equal(parseAliasSyncTaskEvent('invalid'), null)
+})
+
+test('同步连接错误优先使用本地化文案而不是后端消息', () => {
+  assert.match(aliasPanelHelpersSource, /PROXY_TIMEOUT: 'connection\.proxyError\.timeout'/)
+  assert.match(
+    aliasPanelHelpersSource,
+    /HOST_KEY_TRUST_REJECTED: 'workbench\.aliases\.sync\.errors\.hostKeyRejected'/,
+  )
+  assert.match(
+    aliasPanelHelpersSource,
+    /CREDENTIAL_LOCKED: 'workbench\.aliases\.sync\.errors\.credentialLocked'/,
+  )
+  assert.match(aliasPanelHelpersSource, /translationKey \? t\(translationKey\) : aliasErrorDescription/)
+})
+
+test('活动任务可在 Shell 尚未解析时重挂且成功目标展示生效状态', () => {
+  assert.match(
+    aliasPanelSource,
+    /if \(!session \|\| \(!activeSyncTask && \(!workspace \|\| panelBusy\)\)\)/,
+  )
+  assert.match(aliasPanelSource, /shell: workspace\?\.shell \?\? activeSyncTask\?\.source\.shell/)
+  assert.match(aliasSyncModalSource, /target\.apply_status/)
+  assert.match(aliasSyncModalSource, /workbench\.aliases\.sync\.applyStatus/)
+  assert.match(aliasSyncModalSource, /task\?\.source\.session_id === sourceSession\.id/)
+  assert.match(aliasSyncModalSource, /isAliasSyncStartOutcomeUnknown\(error\.code, error\.status\)/)
+  assert.match(aliasSyncModalSource, /if \(target\.added_count > 0\)/)
+  assert.match(aliasSyncModalSource, /if \(target\.skipped_count > 0\)/)
+  assert.match(
+    aliasSyncModalSource,
+    /isAliasSyncTaskTerminal\(task\.status\) && canSyncAgain/,
+  )
 })
 
 test('同步弹窗使用 AntD 6 单一外壳且列表行从顶部紧凑排列', () => {
