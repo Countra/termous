@@ -366,7 +366,7 @@ export function HostLauncherModal({
     <Modal
       centered
       open={open}
-      width={920}
+      width={960}
       footer={null}
       title={null}
       onCancel={onClose}
