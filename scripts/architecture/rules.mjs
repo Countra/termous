@@ -94,6 +94,16 @@ function isPureCompatibilityReExport(sourceInfo, targetInfo, edge) {
     && edge.specifier === canonicalPublicSpecifier(targetInfo)
 }
 
+function isLegacySharedPublicDependency(sourceInfo, targetInfo, edge) {
+  return sourceInfo.realm === 'renderer'
+    && sourceInfo.legacyBoundary
+    && targetInfo.realm === 'renderer'
+    && targetInfo.layer === 'shared'
+    && !targetInfo.legacyBoundary
+    && isPublicEntry(targetInfo)
+    && edge.specifier === canonicalPublicSpecifier(targetInfo)
+}
+
 function collectFileViolations(projectRoot, sourceFiles, violations) {
   for (const sourceFile of sourceFiles) {
     const info = classify(projectRoot, sourceFile)
@@ -141,6 +151,7 @@ function collectEdgeViolations(projectRoot, edges, violations) {
       && targetInfo.realm === 'renderer'
       && (sourceInfo.legacyBoundary || targetInfo.legacyBoundary)
       && !isPureCompatibilityReExport(sourceInfo, targetInfo, edge)
+      && !isLegacySharedPublicDependency(sourceInfo, targetInfo, edge)
     ) {
       addViolation(violations, { rule: 'legacy-boundary', ...base })
     }

@@ -2,6 +2,7 @@ import { Alert, Button, Input, Modal, Segmented, Switch } from 'antd'
 import { Check, Copy, Download, FileKey2, KeyRound, RotateCcw, ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { getTermousBridge } from '#shared/bridge'
 import type { CredentialInput, SSHKeyAlgorithm, SSHKeyECDSACurve, SSHKeyGenerateRequest, SSHKeyPair } from '../../types/domain'
 import { buildPrivateKeyDraft, sshKeyAlgorithmSummary, sshKeyErrorMessage } from './sshKeyUi'
 
@@ -129,8 +130,9 @@ export function SSHKeyGenerationModal({ open, onClose, onGenerate, onApply }: SS
       return
     }
     try {
-      if (window.termous?.clipboard) {
-        await window.termous.clipboard.writeText(pair.public_key_authorized)
+      const clipboardBridge = getTermousBridge()?.clipboard
+      if (clipboardBridge) {
+        await clipboardBridge.writeText(pair.public_key_authorized)
       } else {
         await navigator.clipboard.writeText(pair.public_key_authorized)
       }
@@ -141,12 +143,13 @@ export function SSHKeyGenerationModal({ open, onClose, onGenerate, onApply }: SS
   }
 
   const savePublicKey = async () => {
-    if (!pair || !window.termous?.sshKeys) {
+    const sshKeysBridge = getTermousBridge()?.sshKeys
+    if (!pair || !sshKeysBridge) {
       setError(t('vault.sshKey.errors.file_integration_unavailable'))
       return
     }
     try {
-      const saved = await window.termous.sshKeys.savePublicKey({
+      const saved = await sshKeysBridge.savePublicKey({
         suggestedName: name,
         content: pair.public_key_authorized,
       })
@@ -159,12 +162,13 @@ export function SSHKeyGenerationModal({ open, onClose, onGenerate, onApply }: SS
   }
 
   const saveKeyPair = async () => {
-    if (!pair || !window.termous?.sshKeys) {
+    const sshKeysBridge = getTermousBridge()?.sshKeys
+    if (!pair || !sshKeysBridge) {
       setError(t('vault.sshKey.errors.file_integration_unavailable'))
       return
     }
     try {
-      const saved = await window.termous.sshKeys.saveKeyPair({
+      const saved = await sshKeysBridge.saveKeyPair({
         suggestedName: name,
         privateKey: pair.private_key_openssh,
         publicKey: pair.public_key_authorized,

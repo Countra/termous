@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { getTermousBridge } from '#shared/bridge'
 import type {
   LocalPathMapping,
   LocalPathMappingInput,
@@ -73,7 +74,8 @@ export function LocalDownloadMappingPane({
 
   const chooseDirectory = async () => {
     try {
-      const paths = await window.termous?.files?.pickDirectory()
+      const filesBridge = getTermousBridge()?.files
+      const paths = await filesBridge?.pickDirectory()
       const path = paths?.[0]
       if (!path) {
         return

@@ -3,7 +3,7 @@ import type {
   UpdatePreferences,
   UpdateProgress,
   UpdateSnapshot,
-} from '../../../electron/updateTypes'
+} from '#common/contracts'
 
 export type UpdateNotificationType = 'available' | 'downloaded'
 

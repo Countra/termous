@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { getTermousBridge } from '#shared/bridge'
 import type { Session, ThemeMode } from '../../types/domain'
 import { TerminalCompletionPopup } from './TerminalCompletionPopup'
 import { TerminalContextMenu } from './TerminalContextMenu'
@@ -909,8 +910,9 @@ function sameCompletionPosition(
 
 async function openTerminalExternalUrl(url: string) {
   try {
-    if (window.termous?.external?.openUrl) {
-      const result = await window.termous.external.openUrl(url)
+    const externalBridge = getTermousBridge()?.external
+    if (externalBridge?.openUrl) {
+      const result = await externalBridge.openUrl(url)
       return result.ok
     }
     window.open(url, '_blank', 'noopener,noreferrer')

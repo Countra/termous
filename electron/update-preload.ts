@@ -1,29 +1,14 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { UpdateInstallConfirmation } from './updateRuntime'
-import type { UpdateInstallSummaryState } from './updateInstallConfirmation'
-import type { UpdateWindowBootstrap } from './updateWindow'
 import type {
-  UpdateApplicationInfo,
+  TermousUpdateWindowBridge,
+  UpdateInstallSummaryState,
   UpdateSnapshot,
-} from './updateTypes'
+  UpdateWindowBootstrap,
+} from '#common/contracts'
 
-export interface TermousUpdateWindowBridge {
-  cancelDownload(): Promise<UpdateSnapshot>
-  check(): Promise<UpdateSnapshot>
-  close(): Promise<boolean>
-  download(): Promise<UpdateSnapshot>
-  getApplicationInfo(): Promise<UpdateApplicationInfo>
-  getBootstrap(): Promise<UpdateWindowBootstrap<UpdateSnapshot>>
-  getState(): Promise<UpdateSnapshot>
-  install(confirmationToken: string): Promise<UpdateSnapshot>
-  minimize(): Promise<boolean>
-  onInstallSummaryChanged(callback: (state: UpdateInstallSummaryState) => void): () => void
-  onBootstrapChanged(callback: (bootstrap: UpdateWindowBootstrap<UpdateSnapshot>) => void): () => void
-  prepareInstall(): Promise<UpdateInstallConfirmation>
-  subscribe(callback: (snapshot: UpdateSnapshot) => void): () => void
-}
+export type { TermousUpdateWindowBridge } from '#common/contracts'
 
-const bridge: TermousUpdateWindowBridge = {
+const bridge = {
   getBootstrap: () => ipcRenderer.invoke('app-update:window-bootstrap'),
   getState: () => ipcRenderer.invoke('app-update:get-state'),
   getApplicationInfo: () => ipcRenderer.invoke('app-update:get-application-info'),
@@ -77,12 +62,6 @@ const bridge: TermousUpdateWindowBridge = {
       })
     }
   },
-}
+} satisfies TermousUpdateWindowBridge
 
 contextBridge.exposeInMainWorld('termousUpdate', bridge)
-
-declare global {
-  interface Window {
-    termousUpdate?: TermousUpdateWindowBridge
-  }
-}

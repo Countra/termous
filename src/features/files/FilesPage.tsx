@@ -49,6 +49,7 @@ import {
   type WheelEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { getTermousBridge } from '#shared/bridge'
 import { TermousApiError, type TermousApi } from '../../api/client'
 import { SessionQuickConnect } from '../../components/hosts/SessionQuickConnect'
 import { EmptyState } from '../../components/ui/EmptyState'
@@ -1979,7 +1980,8 @@ function FilesPageContent({
     if (!activeFileSessionId || !fileActionsEnabled || paths.length === 0) {
       return
     }
-    const localDirs = await window.termous?.files?.pickDirectory()
+    const filesBridge = getTermousBridge()?.files
+    const localDirs = await filesBridge?.pickDirectory()
     const localDir = localDirs?.[0]
     if (!localDir) {
       return
@@ -2140,7 +2142,8 @@ function FilesPageContent({
     if (await pasteRemoteClipboard()) {
       return
     }
-    const paths = await window.termous?.files?.readClipboardFilePaths()
+    const filesBridge = getTermousBridge()?.files
+    const paths = await filesBridge?.readClipboardFilePaths()
     if (paths?.length) {
       await uploadLocalPaths('clipboard', paths)
     }
@@ -2345,12 +2348,14 @@ function FilesPageContent({
   }
 
   const pickFiles = async () => {
-    const paths = await window.termous?.files?.pickFiles()
+    const filesBridge = getTermousBridge()?.files
+    const paths = await filesBridge?.pickFiles()
     await uploadLocalPaths('picker', paths ?? [])
   }
 
   const pickFolder = async () => {
-    const paths = await window.termous?.files?.pickDirectory()
+    const filesBridge = getTermousBridge()?.files
+    const paths = await filesBridge?.pickDirectory()
     await uploadLocalPaths('picker', paths ?? [])
   }
 
@@ -2609,10 +2614,11 @@ function FilesPageContent({
     event.preventDefault()
     event.stopPropagation()
     resetDragState()
-    const cachedPaths = await window.termous?.files?.consumeDroppedFilePaths?.(event.dataTransfer.files.length)
+    const filesBridge = getTermousBridge()?.files
+    const cachedPaths = await filesBridge?.consumeDroppedFilePaths?.(event.dataTransfer.files.length)
     const paths = cachedPaths?.length
       ? cachedPaths
-      : await window.termous?.files?.pathsFromFileList(event.dataTransfer.files)
+      : await filesBridge?.pathsFromFileList(event.dataTransfer.files)
     if (fileActionsEnabled && (!paths || paths.length === 0)) {
       notification.warning({
         title: t('files.dropPathUnavailable'),
@@ -2727,10 +2733,11 @@ function FilesPageContent({
     if (!shouldUpload || !fileActionsEnabled) {
       return
     }
-    const cachedPaths = await window.termous?.files?.consumeDroppedFilePaths?.(event.dataTransfer.files.length)
+    const filesBridge = getTermousBridge()?.files
+    const cachedPaths = await filesBridge?.consumeDroppedFilePaths?.(event.dataTransfer.files.length)
     const paths = cachedPaths?.length
       ? cachedPaths
-      : await window.termous?.files?.pathsFromFileList(event.dataTransfer.files)
+      : await filesBridge?.pathsFromFileList(event.dataTransfer.files)
     if (fileActionsEnabled && (!paths || paths.length === 0)) {
       notification.warning({
         title: t('files.dropPathUnavailable'),

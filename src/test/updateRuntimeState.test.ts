@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { UpdateSnapshot } from '../../electron/updateTypes.ts'
+import type { UpdateSnapshot } from '#common/contracts'
 import {
   mergeUpdateRuntimeSnapshot,
   resolveGlobalUpdateStatus,

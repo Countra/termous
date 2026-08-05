@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { getTermousBridge } from '#shared/bridge'
 import type { LocalPathMapping, LocalTreeEntry } from '../../../types/domain'
 import {
   isLocalDirectoryBusy,
@@ -70,17 +71,18 @@ export function LocalDownloadBrowserPane({
   )
 
   const openLocalDirectory = async () => {
+    const filesBridge = getTermousBridge()?.files
     if (
       disabled
       || !mapping?.available
       || !state?.committedPath
-      || !window.termous?.files?.openDirectory
+      || !filesBridge?.openDirectory
     ) {
       onActionError(t('files.openLocalDirectoryFailed'))
       return
     }
     try {
-      const result = await window.termous.files.openDirectory(state.committedPath)
+      const result = await filesBridge.openDirectory(state.committedPath)
       if (!result.ok) {
         onActionError(result.error || t('files.openLocalDirectoryFailed'))
       }

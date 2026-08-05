@@ -39,6 +39,7 @@ import {
   type WheelEvent,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { getTermousBridge } from '#shared/bridge'
 import type { TermousApi } from '../../api/client'
 import { useTransferRuntime } from '../../app/useTransferRuntime'
 import { buildRemoteFileActionMenu } from '../../components/files/RemoteFileActionMenu'
@@ -639,7 +640,8 @@ function WorkbenchFilesPanelContent({
     if (!files.fileSession?.id || paths.length === 0) {
       return
     }
-    const directories = await window.termous?.files?.pickDirectory()
+    const filesBridge = getTermousBridge()?.files
+    const directories = await filesBridge?.pickDirectory()
     if (!directories?.[0]) {
       return
     }
@@ -655,10 +657,11 @@ function WorkbenchFilesPanelContent({
     }
     event.preventDefault()
     event.stopPropagation()
-    const cached = await window.termous?.files?.consumeDroppedFilePaths?.(event.dataTransfer.files.length)
+    const filesBridge = getTermousBridge()?.files
+    const cached = await filesBridge?.consumeDroppedFilePaths?.(event.dataTransfer.files.length)
     const paths = cached?.length
       ? cached
-      : await window.termous?.files?.pathsFromFileList(event.dataTransfer.files)
+      : await filesBridge?.pathsFromFileList(event.dataTransfer.files)
     if (!paths?.length) {
       notification.warning({ title: t('files.dropPathUnavailable'), duration: 3 })
       return
@@ -783,7 +786,8 @@ function WorkbenchFilesPanelContent({
       }, t('files.operationDone'))
       return
     }
-    const localPaths = await window.termous?.files?.readClipboardFilePaths()
+    const filesBridge = getTermousBridge()?.files
+    const localPaths = await filesBridge?.readClipboardFilePaths()
     await uploadPaths('clipboard', localPaths ?? [])
   }
 
@@ -793,7 +797,8 @@ function WorkbenchFilesPanelContent({
     }
     setUploadPicking(true)
     try {
-      await uploadPaths('picker', await window.termous?.files?.pickFiles() ?? [])
+      const filesBridge = getTermousBridge()?.files
+      await uploadPaths('picker', await filesBridge?.pickFiles() ?? [])
     } finally {
       setUploadPicking(false)
     }
@@ -1196,7 +1201,8 @@ function WorkbenchFilesPanelContent({
               ],
               onClick: async ({ key }) => {
                 if (key === 'upload-folder') {
-                  await uploadPaths('picker', await window.termous?.files?.pickDirectory() ?? [])
+                  const filesBridge = getTermousBridge()?.files
+                  await uploadPaths('picker', await filesBridge?.pickDirectory() ?? [])
                 }
               },
             }}

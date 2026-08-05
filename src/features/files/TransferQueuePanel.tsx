@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { getTermousBridge } from '#shared/bridge'
 import { ContextActionMenu } from '../../components/ui/ContextActionMenu'
 import type { TransferTask } from '../../types/domain'
 import {
@@ -420,7 +421,8 @@ function TransferRow({
   const isActive = isActiveTransferTask(task)
 
   const openLocalDirectory = async () => {
-    if (!localDirectoryPath || !window.termous?.files?.openDirectory) {
+    const filesBridge = getTermousBridge()?.files
+    if (!localDirectoryPath || !filesBridge?.openDirectory) {
       notification.error({
         message: t('files.openLocalDirectoryFailed'),
         placement: 'topRight',
@@ -430,7 +432,7 @@ function TransferRow({
       return
     }
     try {
-      const result = await window.termous.files.openDirectory(localDirectoryPath)
+      const result = await filesBridge.openDirectory(localDirectoryPath)
       if (!result.ok) {
         throw new Error(result.error)
       }

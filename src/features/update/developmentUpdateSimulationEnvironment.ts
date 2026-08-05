@@ -1,7 +1,7 @@
 import type {
   UpdateWindowLanguage,
   UpdateWindowTheme,
-} from '../../../electron/updateWindow'
+} from '#common/contracts'
 
 export function readDevelopmentUpdateLanguage(): UpdateWindowLanguage {
   return typeof navigator !== 'undefined' && navigator.language.startsWith('zh')

@@ -1,3 +1,26 @@
+import type { DataPortabilityDatasetKey } from '#common/contracts'
+
+export type {
+  AppBuildInfo,
+  AppConfig,
+  CoreFatalEvent,
+  CoreStatus,
+  DataPortabilityDatasetKey,
+  DataPortabilityDatasetSummary,
+  DataPortabilityExportDialogResult,
+  DataPortabilityImport,
+  DataPortabilityImportDialogResult,
+  DataPortabilityImportSelectionResult,
+  DataPortabilityProgress,
+  DataPortabilityRestartResult,
+  DataPortabilitySummary,
+  DataPortabilityWarning,
+  TrayCommand,
+  TrayMenuLabels,
+  TrayMenuState,
+  TrayRecentHost,
+} from '#common/contracts'
+
 export type Language = 'zh-CN' | 'en-US'
 
 export type ThemeMode = 'dark' | 'light'
@@ -1667,30 +1690,6 @@ export interface ApiErrorBody {
   }
 }
 
-export interface AppConfig {
-  apiBaseUrl: string
-  apiToken: string
-  version?: string
-  managed?: boolean
-}
-
-export interface AppBuildInfo {
-  product_name: string
-  version: string
-  core_version: string | null
-  platform: string
-  arch: string
-  packaged: boolean
-  update_supported: boolean
-  update_support_reason: string | null
-}
-
-export interface CoreStatus {
-  config: AppConfig
-  fatal: CoreFatalEvent | null
-  pid?: number
-}
-
 export interface CoreRuntimeInfo {
   name: string
   version: string
@@ -1705,59 +1704,9 @@ export interface CoreRuntimeInfo {
   shutdown_started_at?: string
 }
 
-export interface CoreFatalEvent {
-  title: string
-  message: string
-  code: string
-}
-
-export type DataPortabilityDatasetKey =
-  | 'host_groups'
-  | 'host_icons'
-  | 'credentials'
-  | 'connection_proxies'
-  | 'hosts'
-  | 'host_key_trust_records'
-  | 'terminal_fonts'
-  | 'settings'
-  | 'code_snippet_groups'
-  | 'code_snippets'
-  | 'file_bookmark_groups'
-  | 'file_bookmarks'
-  | 'local_path_mappings'
-  | 'forward_profiles'
-  | 'firewall_disabled_rules'
-
 export type DataPortabilityRestoreMode = 'replace_all' | 'merge_all' | 'selective'
 export type DataPortabilityPlanStatus = 'added' | 'unchanged' | 'conflict' | 'dependency' | 'skipped' | 'removed'
 export type DataPortabilityResolution = 'keep_current' | 'use_backup' | 'keep_both'
-
-export interface DataPortabilityDatasetSummary {
-  key: DataPortabilityDatasetKey
-  count: number
-}
-
-export interface DataPortabilitySummary {
-  datasets: DataPortabilityDatasetSummary[]
-  total_items: number
-  asset_count: number
-  asset_bytes: number
-}
-
-export interface DataPortabilityWarning {
-  code: string
-  dataset?: DataPortabilityDatasetKey
-  item_id?: string
-  label?: string
-}
-
-export interface DataPortabilityImport extends DataPortabilitySummary {
-  import_id: string
-  source_app_version: string
-  created_at: string
-  expires_at: string
-  warnings: DataPortabilityWarning[]
-}
 
 export interface DataPortabilityItemRef {
   dataset: DataPortabilityDatasetKey
@@ -1836,65 +1785,6 @@ export interface DataPortabilityApplyResult {
   restart_required: boolean
   state: 'applied'
 }
-
-export interface DataPortabilityExportDialogResult {
-  canceled: boolean
-  file_name?: string
-}
-
-export interface DataPortabilityImportDialogResult {
-  canceled: boolean
-  inspection?: DataPortabilityImport
-}
-
-export interface DataPortabilityImportSelectionResult {
-  canceled: boolean
-  selection_id?: string
-  file_name?: string
-  size_bytes?: number
-}
-
-export interface DataPortabilityRestartResult {
-  restarted: boolean
-  requires_manual_restart: boolean
-  config: AppConfig
-}
-
-export interface DataPortabilityProgress {
-  operation: 'export' | 'import'
-  phase: 'selecting' | 'transferring' | 'finalizing' | 'complete'
-  transferred_bytes?: number
-  total_bytes?: number
-}
-
-export interface TrayRecentHost {
-  id: string
-  name: string
-}
-
-export interface TrayMenuState {
-  language: Language
-  recentHosts: TrayRecentHost[]
-  labels: TrayMenuLabels
-}
-
-export interface TrayMenuLabels {
-  openApp: string
-  connectHost: string
-  recentHosts: string
-  emptyRecentHosts: string
-  forwards: string
-  updateAvailable: string
-  updateDownloading: string
-  updateDownloaded: string
-  quit: string
-}
-
-export type TrayCommand =
-  | { type: 'open-app' }
-  | { type: 'open-host-launcher' }
-  | { type: 'connect-recent-host'; hostId: string }
-  | { type: 'open-forwards' }
 
 export interface HostInput {
   name: string

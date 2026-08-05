@@ -1,4 +1,4 @@
-import type { UpdatePreferences } from '../../../electron/updateTypes'
+import type { UpdatePreferences } from '#common/contracts'
 
 export type UpdatePreferenceKey = 'automatic_check' | 'check_interval' | 'automatic_download'
 export type PendingPreferenceValues = Partial<Pick<UpdatePreferences, UpdatePreferenceKey>>

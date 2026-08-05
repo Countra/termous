@@ -5,6 +5,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react'
+import { getTermousBridge } from '#shared/bridge'
 import type { ShortcutSettings } from '../../types/domain'
 import {
   compileShortcutIndex,
@@ -31,7 +32,7 @@ export function ShortcutRuntimeProvider({
   settings,
   children,
 }: ShortcutRuntimeProviderProps) {
-  const platform = useMemo(() => normalizeShortcutPlatform(window.termous?.platform), [])
+  const platform = useMemo(() => normalizeShortcutPlatform(getTermousBridge()?.platform), [])
   const effectiveBindings = useMemo(
     () => resolveEffectiveShortcutBindings(settings),
     [settings],

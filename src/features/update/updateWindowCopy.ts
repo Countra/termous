@@ -1,6 +1,9 @@
-import type { UpdateInstallConfirmation } from '../../../electron/updateRuntime'
-import type { UpdateWindowLanguage } from '../../../electron/updateWindow'
-import type { UpdateErrorCode, UpdateSnapshot } from '../../../electron/updateTypes'
+import type {
+  UpdateErrorCode,
+  UpdateInstallConfirmation,
+  UpdateSnapshot,
+  UpdateWindowLanguage,
+} from '#common/contracts'
 import type { UpdateWindowPrimaryAction } from './updateWindowUiState'
 
 export type UpdateWindowText = ReturnType<typeof windowCopy>

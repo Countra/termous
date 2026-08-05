@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { getTermousBridge } from '#shared/bridge'
 import { TermousApi } from '../../api/client'
 import { TerminalCwdRuntimeProvider } from '../../app/TerminalCwdRuntimeProvider'
 import type {
@@ -1905,8 +1906,9 @@ function isEndedSessionStatus(status?: SessionStatus) {
 }
 
 async function readClipboardText() {
-  if (window.termous?.clipboard?.readText) {
-    return window.termous.clipboard.readText()
+  const clipboardBridge = getTermousBridge()?.clipboard
+  if (clipboardBridge?.readText) {
+    return clipboardBridge.readText()
   }
   if (navigator.clipboard?.readText) {
     return navigator.clipboard.readText()
@@ -1915,8 +1917,9 @@ async function readClipboardText() {
 }
 
 async function writeClipboardText(text: string) {
-  if (window.termous?.clipboard?.writeText) {
-    await window.termous.clipboard.writeText(text)
+  const clipboardBridge = getTermousBridge()?.clipboard
+  if (clipboardBridge?.writeText) {
+    await clipboardBridge.writeText(text)
     return
   }
   if (navigator.clipboard?.writeText) {

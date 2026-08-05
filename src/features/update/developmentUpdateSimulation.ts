@@ -1,11 +1,9 @@
-import type { TermousUpdateWindowBridge } from '../../../electron/update-preload'
 import type {
+  TermousUpdateWindowBridge,
   UpdatePhase,
   UpdateSnapshot,
-} from '../../../electron/updateTypes'
-import type {
   UpdateWindowBootstrap,
-} from '../../../electron/updateWindow'
+} from '#common/contracts'
 import type { AppBuildInfo } from '../../types/domain'
 import type { UpdateRuntimeBridge } from './useUpdateRuntime'
 import {

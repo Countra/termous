@@ -3,7 +3,7 @@ import type {
   UpdatePreferences,
   UpdatePreferencesPatch,
   UpdateSnapshot,
-} from '../../../electron/updateTypes'
+} from '#common/contracts'
 
 export interface UpdateRuntimeBridge {
   getState: () => Promise<UpdateSnapshot>

@@ -12,9 +12,11 @@ import {
   Download,
   RefreshCw,
 } from 'lucide-react'
-import type { UpdateInstallConfirmation } from '../../../electron/updateRuntime'
-import type { UpdateWindowLanguage } from '../../../electron/updateWindow'
-import type { UpdateSnapshot } from '../../../electron/updateTypes'
+import type {
+  UpdateInstallConfirmation,
+  UpdateSnapshot,
+  UpdateWindowLanguage,
+} from '#common/contracts'
 import {
   calculateUpdateEta,
   canPrepareUpdateInstall,

@@ -12,7 +12,7 @@ import type {
   UpdatePreferences,
   UpdatePreferencesPatch,
   UpdateSnapshot,
-} from '../../../electron/updateTypes'
+} from '#common/contracts'
 import {
   mergeUpdatePreferencesByRevision,
   mergeUpdateRuntimeSnapshot,

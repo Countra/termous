@@ -12,6 +12,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { getTermousBridge } from '#shared/bridge'
 import { createApiFromRuntime, TermousApiError, type TermousApi } from '../../api/client'
 import type {
   DataPortabilityDatasetKey,
@@ -96,7 +97,8 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
   }, [loadSummary])
 
   useEffect(() => {
-    const removeListener = window.termous?.portability?.onProgress((value) => setProgress(value))
+    const portabilityBridge = getTermousBridge()?.portability
+    const removeListener = portabilityBridge?.onProgress((value) => setProgress(value))
     return () => removeListener?.()
   }, [])
 
@@ -146,7 +148,7 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
       notification.warning({ title: t('settings.data.passwordMismatch') })
       return
     }
-    const bridge = window.termous?.portability
+    const bridge = getTermousBridge()?.portability
     if (!bridge) {
       notification.error({ title: t('settings.data.nativeUnavailable') })
       return
@@ -167,7 +169,7 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
   }
 
   const handleSelectBackup = async () => {
-    const bridge = window.termous?.portability
+    const bridge = getTermousBridge()?.portability
     if (!bridge) {
       notification.error({ title: t('settings.data.nativeUnavailable') })
       return
@@ -205,7 +207,7 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
       notification.warning({ title: t('settings.data.selectFailed'), description: t('settings.data.selectExpiredHint') })
       return
     }
-    const bridge = window.termous?.portability
+    const bridge = getTermousBridge()?.portability
     if (!bridge) {
       notification.error({ title: t('settings.data.nativeUnavailable') })
       return
@@ -309,7 +311,7 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
   }
 
   const restartAfterRestore = async () => {
-    const bridge = window.termous?.portability
+    const bridge = getTermousBridge()?.portability
     if (!bridge) {
       notification.warning({ title: t('settings.data.manualRestartTitle'), description: t('settings.data.manualRestartHint') })
       return

@@ -1,10 +1,12 @@
-import type { UpdateInstallConfirmation, UpdateRuntimeSummary } from '../../../electron/updateRuntime'
-import type { UpdateWindowBootstrap, UpdateWindowLanguage } from '../../../electron/updateWindow'
 import type {
   UpdateErrorCode,
+  UpdateInstallConfirmation,
   UpdateProgress,
+  UpdateRuntimeSummary,
   UpdateSnapshot,
-} from '../../../electron/updateTypes'
+  UpdateWindowBootstrap,
+  UpdateWindowLanguage,
+} from '#common/contracts'
 
 export type UpdateWindowPrimaryAction =
   | 'check'

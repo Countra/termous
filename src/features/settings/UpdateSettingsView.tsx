@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 import type {
   UpdateCheckInterval,
   UpdatePreferences,
-} from '../../../electron/updateTypes'
+} from '#common/contracts'
 import {
   isPreferencePending,
   type PendingPreferenceValues,

@@ -1,15 +1,16 @@
 import { pathToFileURL } from 'node:url'
 import type { BrowserWindowConstructorOptions } from 'electron'
+import type {
+  UpdateWindowBootstrap,
+  UpdateWindowLanguage,
+  UpdateWindowTheme,
+} from '#common/contracts'
 
-export type UpdateWindowTheme = 'dark' | 'light'
-export type UpdateWindowLanguage = 'zh-CN' | 'en-US'
-
-export interface UpdateWindowBootstrap<TSnapshot = unknown> {
-  bootstrap_seq: number
-  language: UpdateWindowLanguage
-  snapshot: TSnapshot
-  theme: UpdateWindowTheme
-}
+export type {
+  UpdateWindowBootstrap,
+  UpdateWindowLanguage,
+  UpdateWindowTheme,
+} from '#common/contracts'
 
 interface NavigationEventLike {
   preventDefault(): void

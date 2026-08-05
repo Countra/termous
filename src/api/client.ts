@@ -113,6 +113,7 @@ import type {
   TransferTask,
   WindowSettings,
 } from '../types/domain'
+import { getTermousBridge } from '#shared/bridge'
 import { normalizeCompletionResult } from '../features/terminal/completionModel'
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -1784,7 +1785,8 @@ function normalizeRemoteProcessDetail(detail: RemoteProcessDetail): RemoteProces
 }
 
 export async function createApiFromRuntime() {
-  const runtimeConfig = window.termous ? await window.termous.getConfig() : {}
+  const bridge = getTermousBridge()
+  const runtimeConfig = bridge ? await bridge.getConfig() : {}
   return new TermousApi(runtimeConfig)
 }
 

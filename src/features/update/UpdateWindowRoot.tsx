@@ -20,12 +20,13 @@ import {
   Minus,
   X,
 } from 'lucide-react'
-import type { UpdateInstallConfirmation } from '../../../electron/updateRuntime'
-import type { UpdateWindowBootstrap } from '../../../electron/updateWindow'
+import { getTermousUpdateBridge } from '#shared/bridge'
 import type {
   UpdateApplicationInfo,
+  UpdateInstallConfirmation,
   UpdateSnapshot,
-} from '../../../electron/updateTypes'
+  UpdateWindowBootstrap,
+} from '#common/contracts'
 import { TermousUiProvider } from '../../app/TermousUiProvider'
 import type { Language, ThemeMode } from '../../types/domain'
 import { readDevelopmentUpdateSimulation } from './developmentUpdateSimulationSlot'
@@ -111,7 +112,7 @@ export default function UpdateWindowRoot() {
   const language = bootstrap.language
   const text = useMemo(() => windowCopy(language), [language])
   const snapshot = bootstrap.snapshot
-  const bridge = window.termousUpdate
+  const bridge = getTermousUpdateBridge()
     ?? developmentUpdateSimulation?.updateWindowBridge
   const primaryAction = resolveUpdateWindowPrimaryAction(snapshot)
   const visiblePrimaryAction = resolveUpdateWindowVisiblePrimaryAction(

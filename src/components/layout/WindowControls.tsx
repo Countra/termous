@@ -3,6 +3,7 @@ import { Button, Tooltip } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import { getTermousBridge } from '#shared/bridge'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import type { WindowCloseBehavior } from '../../types/domain'
 
@@ -25,7 +26,8 @@ export function WindowControls({ closeBehavior, onBeforeClose, onCloseError }: W
       setHidingToTray(true)
     })
     try {
-      const hidden = await window.termous?.windowControls?.minimizeToTray?.()
+      const controls = getTermousBridge()?.windowControls
+      const hidden = await controls?.minimizeToTray?.()
       if (!hidden) {
         setConfirmClose(true)
       }
@@ -49,7 +51,8 @@ export function WindowControls({ closeBehavior, onBeforeClose, onCloseError }: W
     try {
       await onBeforeClose?.()
       setConfirmClose(false)
-      await window.termous?.windowControls?.confirmClose()
+      const controls = getTermousBridge()?.windowControls
+      await controls?.confirmClose()
     } catch (closeError) {
       onCloseError?.(closeError)
     } finally {
@@ -58,7 +61,7 @@ export function WindowControls({ closeBehavior, onBeforeClose, onCloseError }: W
   }, [onBeforeClose, onCloseError])
 
   useEffect(() => {
-    const controls = window.termous?.windowControls
+    const controls = getTermousBridge()?.windowControls
     void controls?.isMaximized().then(setIsMaximized).catch(() => setIsMaximized(false))
     const cleanupMaximize = controls?.onMaximizeState(setIsMaximized)
     const cleanupClose = controls?.onCloseRequest(() => {
@@ -76,7 +79,7 @@ export function WindowControls({ closeBehavior, onBeforeClose, onCloseError }: W
         <Tooltip title={t('app.minimize')}>
           <Button
             className="window-control"
-            onClick={() => void window.termous?.windowControls?.minimize().catch(() => undefined)}
+            onClick={() => void getTermousBridge()?.windowControls?.minimize().catch(() => undefined)}
             aria-label={t('app.minimize')}
             icon={<Minus size={15} />}
           />
@@ -85,7 +88,7 @@ export function WindowControls({ closeBehavior, onBeforeClose, onCloseError }: W
           <Button
             className="window-control"
             onClick={() =>
-              void window.termous?.windowControls
+              void getTermousBridge()?.windowControls
                 ?.toggleMaximize()
                 .then(setIsMaximized)
                 .catch(() => setIsMaximized(false))

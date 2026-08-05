@@ -32,6 +32,7 @@ electron -> common
 - 上层可以跳过中间层依赖更低层；下层不得反向依赖上层。
 - `common` 只能依赖自身或外部包，不能依赖 `src`、`electron`；`common` 的一级子目录同样视为 Slice。
 - `electron` 不能依赖 Renderer 实现；Renderer 不能导入 `electron` 实现或其中的类型。
+- 迁移期旧结构生产源码除严格的纯 re-export 兼容出口外，只能通过 `#shared/<slice>` 公共入口依赖 `shared` 基础设施；相对路径、深层路径及指向其他目标层的普通依赖仍被冻结。
 - `pages`、`widgets`、`features`、`entities`、`shared` 的一级子目录视为 Slice。
 - Slice 内部只能使用相对路径，内部文件也不能相对回导自身的 `index.ts`；跨 Slice 必须通过目标 Slice 根目录的 `index.ts`，并使用 `#<layer>/<slice>` 导入。
 - 同层 Slice 不得深层导入另一 Slice。需要组合两个同层 Slice 时，将组合职责上移。
@@ -99,7 +100,7 @@ pnpm run check:architecture
 - 层级方向；
 - 同层跨 Slice 深层导入；
 - Renderer 到 Electron 实现依赖；
-- 旧结构源码文件、旧结构依赖及严格的纯 re-export 兼容出口；
+- 旧结构源码文件、旧结构依赖、经公共入口使用 shared 的迁移通道及严格的纯 re-export 兼容出口；
 - Slice 内部别名、自身公共入口、Layer 根文件和生产源码导入测试；
 - 静态、类型、动态 import 与 CommonJS require 循环；
 - 跨 Slice 公共入口、统一别名、项目范围外源码与路径大小写。

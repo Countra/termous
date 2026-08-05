@@ -3,7 +3,7 @@ import type {
   ForwardInstance,
   Session,
 } from '../../types/domain'
-import type { UpdateRuntimeSummary } from '../../../electron/updateRuntime'
+import type { UpdateRuntimeSummary } from '#common/contracts'
 
 export function buildUpdateRuntimeSummary(input: {
   activeTransferCount: number

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { getTermousBridge } from '#shared/bridge'
 import { createApiFromRuntime, TermousApiError } from '../../api/client'
 import { ManagementWorkspace, type ManagementWorkspaceView } from '../../components/management/ManagementWorkspace'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
@@ -181,7 +182,7 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }:
 
   const beginImport = useCallback(async () => {
     setImportError('')
-    const bridge = window.termous?.sshKeys
+    const bridge = getTermousBridge()?.sshKeys
     if (!bridge) {
       setImportError(t('vault.sshKey.errors.file_integration_unavailable'))
       return

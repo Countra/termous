@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import type {
   UpdatePreferences,
   UpdatePreferencesPatch,
-} from '../../../electron/updateTypes'
+} from '#common/contracts'
 import {
   type PendingPreferenceValues,
   type UpdatePreferenceKey,

@@ -1,30 +1,19 @@
 import { randomUUID } from 'node:crypto'
-import type { UpdateSnapshot } from './updateTypes'
+import type {
+  UpdateInstallConfirmation,
+  UpdateInstallSummaryState,
+  UpdateRuntimeSummary,
+  UpdateSnapshot,
+} from '#common/contracts'
+
+export type {
+  UpdateInstallConfirmation,
+  UpdateInstallSummaryState,
+  UpdateRuntimeSummary,
+} from '#common/contracts'
 
 const defaultConfirmationTtlMs = 2 * 60 * 1000
 const defaultSummaryFreshnessTtlMs = 45 * 1000
-
-export interface UpdateRuntimeSummary {
-  ssh_sessions: number
-  file_sessions: number
-  forwards: number
-  transfers: number
-  transfers_complete: boolean
-}
-
-export interface UpdateInstallConfirmation {
-  confirmation_token: string
-  expires_at: string
-  state_seq: number
-  operation_generation: number
-  summary_revision: number
-  summary: UpdateRuntimeSummary
-}
-
-export interface UpdateInstallSummaryState {
-  revision: number
-  ready: boolean
-}
 
 interface PendingInstallConfirmation extends UpdateInstallConfirmation {
   expires_at_ms: number

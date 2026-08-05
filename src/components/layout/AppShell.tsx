@@ -17,6 +17,7 @@ import {
 import { Button, Dropdown, Space, Tooltip, type MenuProps } from 'antd'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { getTermousBridge } from '#shared/bridge'
 import type { LocalShell, PageKey, WindowCloseBehavior } from '../../types/domain'
 import { BrandVersionControl } from '../../features/update/BrandVersionControl'
 import { WindowControls } from './WindowControls'
@@ -64,8 +65,9 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const { t } = useTranslation()
-  const platform = window.termous?.platform ?? 'web'
-  const showWindowControls = Boolean(window.termous?.windowControls) && platform !== 'darwin'
+  const bridge = getTermousBridge()
+  const platform = bridge?.platform ?? 'web'
+  const showWindowControls = Boolean(bridge?.windowControls) && platform !== 'darwin'
   const pageTitle = t(`nav.${page}`)
   const PageIcon = topbarPageIcons[page] ?? navItems.find((item) => item.key === page)?.icon ?? TerminalSquare
   const connectionMenuItems: MenuProps['items'] = [

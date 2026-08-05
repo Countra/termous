@@ -102,6 +102,37 @@ test('旧结构内部及其与目标层之间的依赖全部冻结', (t) => {
   assert.equal(violations.filter((item) => item.rule === 'legacy-file').length, 4)
 })
 
+test('旧结构只能通过公共入口依赖 shared 基础设施', (t) => {
+  const violations = violationsFor(t, {
+    'src/components/AllowedSharedConsumer.ts': "import { bridge } from '#shared/bridge'\nexport const allowed = bridge\n",
+    'src/components/RelativeSharedConsumer.ts': "import { bridge } from '../shared/bridge'\nexport const relative = bridge\n",
+    'src/components/DeepSharedConsumer.ts': "import { internal } from '../shared/bridge/internal'\nexport const deep = internal\n",
+    'src/components/FeatureConsumer.ts': "import { hosts } from '#features/hosts'\nexport const feature = hosts\n",
+    'src/shared/bridge/index.ts': "export { internal as bridge } from './internal'\n",
+    'src/shared/bridge/internal.ts': 'export const internal = true\n',
+    'src/features/hosts/index.ts': 'export const hosts = true\n',
+  })
+
+  const legacyBoundarySources = violations
+    .filter((item) => item.rule === 'legacy-boundary')
+    .map((item) => item.source)
+    .sort()
+  assert.deepEqual(legacyBoundarySources, [
+    'src/components/DeepSharedConsumer.ts',
+    'src/components/FeatureConsumer.ts',
+    'src/components/RelativeSharedConsumer.ts',
+  ])
+  assert.equal(
+    violations.some((item) => (
+      item.rule === 'legacy-boundary'
+      && item.source === 'src/components/AllowedSharedConsumer.ts'
+    )),
+    false,
+  )
+  assert.equal(violations.filter((item) => item.rule === 'legacy-file').length, 4)
+  assert.equal(violations.filter((item) => item.rule === 'public-entry').length, 2)
+})
+
 test('同一 Slice 内使用别名或相对回导自身入口都会被拒绝', (t) => {
   const violations = violationsFor(t, {
     'src/features/hosts/index.ts': 'export const hosts = true\n',

@@ -3,7 +3,7 @@ import type {
   UpdatePhase,
   UpdatePreferencesPatch,
   UpdateSnapshot,
-} from '../../../electron/updateTypes'
+} from '#common/contracts'
 
 const channelNamePrefix = 'termous-development-update-simulation'
 const snapshotMessageKind = 'snapshot'

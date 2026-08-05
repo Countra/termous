@@ -1,10 +1,10 @@
-import type { UpdateInstallConfirmation } from '../../../electron/updateRuntime'
 import type {
+  UpdateInstallConfirmation,
   UpdatePhase,
   UpdatePreferences,
   UpdatePreferencesPatch,
   UpdateSnapshot,
-} from '../../../electron/updateTypes'
+} from '#common/contracts'
 import {
   mergeUpdatePreferencesByRevision,
   mergeUpdateRuntimeSnapshot,

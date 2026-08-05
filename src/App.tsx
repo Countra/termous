@@ -47,6 +47,7 @@ import { UpdateRuntimeSummaryReporter } from './features/update/UpdateRuntimeSum
 import { readDevelopmentUpdateSimulation } from './features/update/developmentUpdateSimulationSlot'
 import { useUpdateRuntime } from './features/update/useUpdateRuntime'
 import { usePersistentBooleanState } from './hooks/usePersistentBooleanState'
+import { getTermousBridge } from '#shared/bridge'
 import type { AppBuildInfo, CodeSnippet, CodeSnippetGroup, CodeSnippetInput, ConnectionProxy, ConnectionProxyInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, Language, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
@@ -75,7 +76,7 @@ function App() {
   return (
     <TermousUiProvider language={language} theme={theme}>
       <UpdateRuntimeProvider
-        bridge={window.termous?.updates ?? developmentUpdateSimulation?.mainBridge ?? null}
+        bridge={getTermousBridge()?.updates ?? developmentUpdateSimulation?.mainBridge ?? null}
       >
         <AppContent theme={theme} setTheme={setTheme} />
       </UpdateRuntimeProvider>
@@ -161,7 +162,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
     const appearanceTheme = data.settings.appearance.theme
     setTheme(appearanceTheme)
-    void window.termous?.appearance?.setTheme(appearanceTheme).catch(() => undefined)
+    const appearanceBridge = getTermousBridge()?.appearance
+    void appearanceBridge?.setTheme(appearanceTheme).catch(() => undefined)
   }, [apiReady, data.settings.appearance.theme, initializing, setTheme])
 
   useEffect(() => {
@@ -174,7 +176,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     if (initializing && !coreFatal) {
       return
     }
-    void window.termous?.startup?.ready()
+    const startupBridge = getTermousBridge()?.startup
+    void startupBridge?.ready()
   }, [coreFatal, initializing])
 
   useEffect(() => {
@@ -291,19 +294,21 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   useEffect(() => {
     let disposed = false
-    void window.termous?.getBuildInfo?.()
+    const bridge = getTermousBridge()
+    void bridge?.getBuildInfo?.()
       .then((info) => {
         if (!disposed && info?.version) {
           setBuildInfo(info)
         }
       })
       .catch(() => undefined)
-    void window.termous?.core?.getFatal().then((fatal) => {
+    const coreBridge = bridge?.core
+    void coreBridge?.getFatal().then((fatal) => {
       if (!disposed && fatal) {
         setCoreFatal(fatal)
       }
     })
-    const cleanup = window.termous?.core?.onFatal((fatal) => setCoreFatal(fatal))
+    const cleanup = coreBridge?.onFatal((fatal) => setCoreFatal(fatal))
     return () => {
       disposed = true
       cleanup?.()
@@ -422,7 +427,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [error, t])
 
   useEffect(() => {
-    void window.termous?.tray?.updateState({
+    const trayBridge = getTermousBridge()?.tray
+    void trayBridge?.updateState({
       language: data.settings.language,
       recentHosts: trayRecentHosts,
       labels: trayLabels,
@@ -638,8 +644,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }
 
   const shutdownBeforeClose = async () => {
-    if (window.termous?.core) {
-      await window.termous.core.shutdown()
+    const coreBridge = getTermousBridge()?.core
+    if (coreBridge) {
+      await coreBridge.shutdown()
       return
     }
     await actions.disconnectAllConnections()
@@ -824,7 +831,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }
 
   useEffect(() => {
-    const cleanup = window.termous?.tray?.onCommand((command) => {
+    const trayBridge = getTermousBridge()?.tray
+    const cleanup = trayBridge?.onCommand((command) => {
       if (!isTrayCommand(command)) {
         return
       }
@@ -1194,7 +1202,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               danger
               className="core-fatal-exit-button"
               icon={<LogOut size={16} aria-hidden="true" />}
-              onClick={() => void window.termous?.windowControls?.confirmClose()}
+              onClick={() => void getTermousBridge()?.windowControls?.confirmClose()}
             >
               {t('app.exit')}
             </Button>

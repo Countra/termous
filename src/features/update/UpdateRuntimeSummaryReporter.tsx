@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { getTermousBridge } from '#shared/bridge'
 import { useTransferRuntime } from '../../app/useTransferRuntime'
 import type { FileSession, ForwardInstance, Session } from '../../types/domain'
 import { buildUpdateRuntimeSummary } from './updateRuntimeSummary'
@@ -30,7 +31,7 @@ export function UpdateRuntimeSummaryReporter({
   }), [activeTransfers.length, apiReady, fileSessions, forwards, initialized, sessions])
   const summaryRef = useRef(summary)
   summaryRef.current = summary
-  const bridge = window.termous?.updates
+  const bridge = getTermousBridge()?.updates
 
   useEffect(() => {
     if (!bridge) {

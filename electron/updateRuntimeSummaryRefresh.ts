@@ -1,12 +1,12 @@
-export interface UpdateRuntimeSummaryRefreshRequest {
-  request_id: string
-  document_epoch: string
-}
+import type {
+  UpdateRuntimeSummaryRefreshRequest,
+  UpdateRuntimeSummaryReportContext,
+} from '#common/contracts'
 
-export interface UpdateRuntimeSummaryReportContext {
-  request_id?: string
-  document_epoch: string
-}
+export type {
+  UpdateRuntimeSummaryRefreshRequest,
+  UpdateRuntimeSummaryReportContext,
+} from '#common/contracts'
 
 export interface UpdateRuntimeSummaryRefreshIdentity {
   senderId: number
