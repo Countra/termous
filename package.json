@@ -7,6 +7,15 @@
   "engines": {
     "node": "24.x"
   },
+  "imports": {
+    "#app/*": "./src/app/*/index.ts",
+    "#pages/*": "./src/pages/*/index.ts",
+    "#widgets/*": "./src/widgets/*/index.ts",
+    "#features/*": "./src/features/*/index.ts",
+    "#entities/*": "./src/entities/*/index.ts",
+    "#shared/*": "./src/shared/*/index.ts",
+    "#common/*": "./common/*/index.ts"
+  },
   "scripts": {
     "dev": "vite",
     "build": "pnpm run typecheck && pnpm run build:renderer && pnpm run build:package",
@@ -15,13 +24,18 @@
     "build:renderer": "vite build",
     "build:update-simulation": "node scripts/update-simulation/build-fixtures.mjs",
     "build:validation": "pnpm run typecheck && pnpm run build:renderer && pnpm run build:package:validation",
-    "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
+    "check:architecture": "node scripts/architecture/check.mjs",
+    "lint": "pnpm run lint:code && pnpm run lint:styles && pnpm run check:architecture",
+    "lint:code": "eslint . --report-unused-disable-directives --max-warnings 0",
+    "lint:styles": "node scripts/styles/check.mjs && stylelint \"src/**/*.scss\" --allow-empty-input",
     "preview": "vite preview",
-    "test": "node --test \"src/**/*.test.ts\" \"electron/**/*.test.ts\" \"scripts/ci/**/*.test.mjs\" \"scripts/update-simulation/**/*.test.mjs\"",
+    "test": "pnpm run test:node && pnpm run test:ui",
+    "test:node": "node --test \"src/**/*.test.ts\" \"electron/**/*.test.ts\" \"common/**/*.test.ts\" \"scripts/architecture/**/*.test.mjs\" \"scripts/ci/**/*.test.mjs\" \"scripts/styles/**/*.test.mjs\" \"scripts/update-simulation/**/*.test.mjs\"",
+    "test:ui": "vitest run",
     "test:release": "node --test \"scripts/ci/**/*.test.mjs\"",
     "test:update-simulation": "node --test \"scripts/update-simulation/**/*.test.mjs\"",
     "test:update-simulation:acceptance": "pnpm run build:update-simulation && node scripts/update-simulation/run-acceptance.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.4",
@@ -48,6 +62,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.3",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
@@ -58,11 +75,17 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
+    "jsdom": "^29.0.1",
+    "postcss-selector-parser": "^7.1.4",
+    "sass": "^1.102.0",
+    "stylelint": "^17.14.1",
+    "stylelint-config-standard-scss": "^17.0.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.64.0",
     "vite": "^8.1.4",
     "vite-plugin-electron": "^1.1.0",
     "vite-plugin-electron-renderer": "^1.0.0",
+    "vitest": "^4.1.10",
     "yaml": "2.9.0"
   },
   "main": "dist-electron/main.js"

@@ -1,0 +1,9 @@
+# 历史 CSS 将按模块逐步迁移，阶段 1 不纳入自动检查或修复。
+src/**/*.css
+
+# 依赖与构建产物不属于源码检查范围。
+node_modules/
+dist/
+dist-electron/
+release/
+build/
