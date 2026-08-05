@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
-import type { ShortcutActionId, ShortcutPlatform } from './index.ts'
-import { ShortcutRuntime } from './index.ts'
+import { ShortcutRuntime } from './runtime.ts'
+import type { ShortcutActionId, ShortcutPlatform } from './types.ts'
 
 export interface ShortcutRuntimeContextValue {
   runtime: ShortcutRuntime

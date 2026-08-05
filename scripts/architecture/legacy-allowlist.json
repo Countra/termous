@@ -24,39 +24,15 @@
     },
     {
       "rule": "layer-direction",
-      "source": "src/features/files/FilesPage.tsx",
-      "target": "src/app/useTransferRuntime.ts",
-      "specifier": "../../app/useTransferRuntime"
-    },
-    {
-      "rule": "layer-direction",
       "source": "src/features/terminal/TerminalRuntimeProvider.tsx",
       "target": "src/app/TerminalCwdRuntimeProvider.tsx",
       "specifier": "../../app/TerminalCwdRuntimeProvider"
     },
     {
       "rule": "layer-direction",
-      "source": "src/features/update/UpdateRuntimeSummaryReporter.tsx",
-      "target": "src/app/useTransferRuntime.ts",
-      "specifier": "../../app/useTransferRuntime"
-    },
-    {
-      "rule": "layer-direction",
       "source": "src/features/update/UpdateWindowRoot.tsx",
       "target": "src/app/TermousUiProvider.tsx",
       "specifier": "../../app/TermousUiProvider"
-    },
-    {
-      "rule": "layer-direction",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
-      "target": "src/app/useTransferRuntime.ts",
-      "specifier": "../../app/useTransferRuntime"
-    },
-    {
-      "rule": "layer-direction",
-      "source": "src/features/workbench/WorkbenchTransferBar.tsx",
-      "target": "src/app/useTransferRuntime.ts",
-      "specifier": "../../app/useTransferRuntime"
     },
     {
       "rule": "layer-root-file",
@@ -77,14 +53,20 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
+      "target": "src/app/shortcut-runtime/index.ts",
+      "specifier": "#app/shortcut-runtime"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/App.tsx",
       "target": "src/app/TermousUiProvider.tsx",
       "specifier": "./app/TermousUiProvider"
     },
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/app/TransferRuntimeProvider.tsx",
-      "specifier": "./app/TransferRuntimeProvider"
+      "target": "src/app/transfer-runtime/index.ts",
+      "specifier": "#app/transfer-runtime"
     },
     {
       "rule": "legacy-boundary",
@@ -151,12 +133,6 @@
       "source": "src/App.tsx",
       "target": "src/features/settings/SettingsPage.tsx",
       "specifier": "./features/settings/SettingsPage"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
-      "target": "src/features/shortcuts/ShortcutRuntimeProvider.tsx",
-      "specifier": "./features/shortcuts/ShortcutRuntimeProvider"
     },
     {
       "rule": "legacy-boundary",
@@ -238,18 +214,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/app/TransferRuntimeProvider.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/app/TransferRuntimeProvider.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/app/useTermousData.ts",
       "target": "src/api/client.ts",
       "specifier": "../api/client"
@@ -263,12 +227,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/app/useTermousData.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/app/useTransferRuntime.ts",
       "target": "src/types/domain.ts",
       "specifier": "../types/domain"
     },
@@ -814,12 +772,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/shortcuts/ShortcutRuntimeProvider.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/shortcuts/types.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
@@ -934,6 +886,12 @@
     },
     {
       "rule": "legacy-boundary",
+      "source": "src/features/terminal/terminalSettings.ts",
+      "target": "src/types/domain.ts",
+      "specifier": "../../types/domain"
+    },
+    {
+      "rule": "legacy-boundary",
       "source": "src/features/terminal/TerminalSplitWorkspace.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
@@ -943,6 +901,12 @@
       "source": "src/features/terminal/terminalTransport.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/features/transfers/model/transferRuntime.ts",
+      "target": "src/types/domain.ts",
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -1633,12 +1597,6 @@
     {
       "rule": "public-entry",
       "source": "src/App.tsx",
-      "target": "src/features/shortcuts/ShortcutRuntimeProvider.tsx",
-      "specifier": "./features/shortcuts/ShortcutRuntimeProvider"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
       "target": "src/features/snippets/SnippetsPage.tsx",
       "specifier": "./features/snippets/SnippetsPage"
     },
@@ -1734,129 +1692,15 @@
     },
     {
       "rule": "public-entry",
-      "source": "src/app/useTermousData.ts",
-      "target": "src/features/settings/shortcutSettings.ts",
-      "specifier": "../features/settings/shortcutSettings"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/app/useTermousData.ts",
-      "target": "src/features/settings/terminalSettings.ts",
-      "specifier": "../features/settings/terminalSettings"
-    },
-    {
-      "rule": "public-entry",
       "source": "src/components/layout/AppShell.tsx",
       "target": "src/features/update/BrandVersionControl.tsx",
       "specifier": "../../features/update/BrandVersionControl"
     },
     {
       "rule": "public-entry",
-      "source": "src/features/files/FilesPage.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/files/RemoteTextEditorModal.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "public-entry",
       "source": "src/features/forwards/ForwardSessionPanel.tsx",
       "target": "src/features/workbench/WorkbenchEmptyState.tsx",
       "specifier": "../workbench/WorkbenchEmptyState"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/settings/SettingsPage.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/settings/ShortcutRecorderModal.tsx",
-      "target": "src/features/shortcuts/index.ts",
-      "specifier": "../shortcuts/index.ts"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/settings/ShortcutRecorderModal.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext.ts"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/settings/shortcutSettings.ts",
-      "target": "src/features/shortcuts/chords.ts",
-      "specifier": "../shortcuts/chords.ts"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/settings/ShortcutSettingsPanel.tsx",
-      "target": "src/features/shortcuts/index.ts",
-      "specifier": "../shortcuts/index.ts"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/settings/shortcutSettingsPanelModel.ts",
-      "target": "src/features/shortcuts/index.ts",
-      "specifier": "../shortcuts/index.ts"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/settings/TerminalStyleSettings.tsx",
-      "target": "src/features/terminal/terminalFonts.ts",
-      "specifier": "../terminal/terminalFonts"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/terminal/TerminalCompletionPopup.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/terminal/TerminalContextMenu.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/terminal/terminalContextMenuShortcuts.ts",
-      "target": "src/features/shortcuts/index.ts",
-      "specifier": "../shortcuts"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/terminal/TerminalPaneViewport.tsx",
-      "target": "src/features/shortcuts/index.ts",
-      "specifier": "../shortcuts"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/terminal/TerminalPaneViewport.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/terminal/TerminalRuntimeProvider.tsx",
-      "target": "src/features/settings/terminalSettings.ts",
-      "specifier": "../settings/terminalSettings"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/terminal/TerminalRuntimeProvider.tsx",
-      "target": "src/features/shortcuts/index.ts",
-      "specifier": "../shortcuts"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/terminal/TerminalRuntimeProvider.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
     },
     {
       "rule": "public-entry",
@@ -1893,12 +1737,6 @@
       "source": "src/features/workbench/WorkbenchBookmarksPopover.tsx",
       "target": "src/features/files/fileBookmarksModel.ts",
       "specifier": "../files/fileBookmarksModel"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchFileList.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
     },
     {
       "rule": "public-entry",
@@ -1998,75 +1836,9 @@
     },
     {
       "rule": "same-layer-deep-import",
-      "source": "src/features/files/FilesPage.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/files/RemoteTextEditorModal.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "same-layer-deep-import",
       "source": "src/features/forwards/ForwardSessionPanel.tsx",
       "target": "src/features/workbench/WorkbenchEmptyState.tsx",
       "specifier": "../workbench/WorkbenchEmptyState"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/settings/SettingsPage.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/settings/ShortcutRecorderModal.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext.ts"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/settings/shortcutSettings.ts",
-      "target": "src/features/shortcuts/chords.ts",
-      "specifier": "../shortcuts/chords.ts"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/settings/TerminalStyleSettings.tsx",
-      "target": "src/features/terminal/terminalFonts.ts",
-      "specifier": "../terminal/terminalFonts"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/terminal/TerminalCompletionPopup.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/terminal/TerminalContextMenu.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/terminal/TerminalPaneViewport.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/terminal/TerminalRuntimeProvider.tsx",
-      "target": "src/features/settings/terminalSettings.ts",
-      "specifier": "../settings/terminalSettings"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/terminal/TerminalRuntimeProvider.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
     },
     {
       "rule": "same-layer-deep-import",
@@ -2103,12 +1875,6 @@
       "source": "src/features/workbench/WorkbenchBookmarksPopover.tsx",
       "target": "src/features/files/fileBookmarksModel.ts",
       "specifier": "../files/fileBookmarksModel"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchFileList.tsx",
-      "target": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "specifier": "../shortcuts/shortcutRuntimeContext"
     },
     {
       "rule": "same-layer-deep-import",
@@ -2187,18 +1953,6 @@
       "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/features/terminal/TerminalSplitWorkspace.tsx",
       "specifier": "../terminal/TerminalSplitWorkspace"
-    },
-    {
-      "rule": "slice-internal-public-entry",
-      "source": "src/features/shortcuts/shortcutRuntimeContext.ts",
-      "target": "src/features/shortcuts/index.ts",
-      "specifier": "./index.ts"
-    },
-    {
-      "rule": "slice-internal-public-entry",
-      "source": "src/features/shortcuts/ShortcutRuntimeProvider.tsx",
-      "target": "src/features/shortcuts/index.ts",
-      "specifier": "./index.ts"
     }
   ]
 }

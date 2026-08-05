@@ -35,13 +35,13 @@ import {
 } from './features/workbench/hostLauncherIntent'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
 import { HostKeyCoordinator } from './components/hostkey/HostKeyCoordinator'
-import { TransferRuntimeProvider } from './app/TransferRuntimeProvider'
+import { TransferRuntimeProvider } from '#app/transfer-runtime'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'
 import {
   ShortcutRuntimeProvider,
   ShortcutWindowAdapter,
-} from './features/shortcuts/ShortcutRuntimeProvider'
+} from '#app/shortcut-runtime'
 import { UpdateRuntimeProvider } from './features/update/UpdateRuntimeProvider'
 import { UpdateRuntimeSummaryReporter } from './features/update/UpdateRuntimeSummaryReporter'
 import { readDevelopmentUpdateSimulation } from './features/update/developmentUpdateSimulationSlot'

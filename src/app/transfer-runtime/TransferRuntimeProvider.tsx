@@ -4,8 +4,6 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react'
-import type { TermousApi } from '../api/client'
-import type { TransferTask } from '../types/domain'
 import {
   TransferRuntimeContext,
   mergeTransferSnapshot,
@@ -13,8 +11,11 @@ import {
   sortTransfers,
   transferRefreshRetryDelay,
   TransferSnapshotGate,
+  type TransferRuntimeApi,
   type TransferRuntimeValue,
-} from './useTransferRuntime'
+} from '#features/transfers'
+
+type TransferTask = TransferRuntimeValue['transfers'][number]
 
 interface TransferEventMessage {
   type: 'transfer_update'
@@ -22,11 +23,11 @@ interface TransferEventMessage {
 }
 
 interface TransferRuntimeProviderProps {
-  api: TermousApi
+  api: TransferRuntimeApi
   children: ReactNode
 }
 
-const sharedRuntimes = new WeakMap<TermousApi, SharedTransferRuntime>()
+const sharedRuntimes = new WeakMap<TransferRuntimeApi, SharedTransferRuntime>()
 
 export function TransferRuntimeProvider({ api, children }: TransferRuntimeProviderProps) {
   const runtime = useMemo(() => getSharedTransferRuntime(api), [api])
@@ -48,7 +49,7 @@ export function TransferRuntimeProvider({ api, children }: TransferRuntimeProvid
   )
 }
 
-function getSharedTransferRuntime(api: TermousApi) {
+function getSharedTransferRuntime(api: TransferRuntimeApi) {
   const existing = sharedRuntimes.get(api)
   if (existing) {
     return existing
@@ -76,7 +77,7 @@ class SharedTransferRuntime {
   private readonly snapshotGate = new TransferSnapshotGate()
   private snapshot: TransferRuntimeValue
 
-  constructor(private readonly api: TermousApi) {
+  constructor(private readonly api: TransferRuntimeApi) {
     this.snapshot = this.buildSnapshot()
   }
 

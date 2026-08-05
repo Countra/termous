@@ -73,7 +73,7 @@ import type {
   ThemeMode,
   TransferTask,
 } from '../../types/domain'
-import { useTransferRuntime } from '../../app/useTransferRuntime'
+import { useTransferRuntime } from '#features/transfers'
 import { buildRemoteFileActionMenu } from '../../components/files/RemoteFileActionMenu'
 import { RemotePermissionModal } from '../../components/files/RemotePermissionModal'
 import {
@@ -129,7 +129,7 @@ import {
 } from './local-download/remoteFileDragRegistry'
 import { TransferQueuePanel } from './TransferQueuePanel'
 import { useFilesWorkspaceRuntime } from './useFilesWorkspaceRuntime'
-import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
+import { useShortcutRuntime } from '#features/shortcuts'
 import {
   applyFilesWorkspaceSelection,
   beginFilesWorkspaceHistoryNavigation,

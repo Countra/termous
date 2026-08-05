@@ -34,8 +34,10 @@ import {
   type TerminalCompletionPopupPosition,
 } from './terminalCompletionPosition'
 import { shouldActivateTerminalCompletionViewport } from './terminalCompletionViewport'
-import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
-import type { ShortcutScope } from '../shortcuts'
+import {
+  useShortcutRuntime,
+  type ShortcutScope,
+} from '#features/shortcuts'
 
 interface TerminalPaneViewportProps {
   paneId: string

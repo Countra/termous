@@ -28,7 +28,7 @@ import {
   shortcutBindingListsEqual,
   type ShortcutActionId,
   type ShortcutPlatform,
-} from '../shortcuts/index.ts'
+} from '#features/shortcuts'
 import { ShortcutRecorderModal } from './ShortcutRecorderModal.tsx'
 import {
   buildShortcutSettingsRows,

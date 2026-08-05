@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { getTermousBridge } from '#shared/bridge'
-import { useTransferRuntime } from '../../app/useTransferRuntime'
+import { useTransferRuntime } from '#features/transfers'
 import type { FileSession, ForwardInstance, Session } from '../../types/domain'
 import { buildUpdateRuntimeSummary } from './updateRuntimeSummary'
 import { UpdateRuntimeSummaryPublisher } from './updateRuntimeSummaryPublisher'

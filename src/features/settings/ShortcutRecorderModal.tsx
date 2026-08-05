@@ -20,8 +20,8 @@ import {
   formatShortcutChord,
   normalizeKeyboardEventToChord,
   type ShortcutPlatform,
-} from '../shortcuts/index.ts'
-import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext.ts'
+  useShortcutRuntime,
+} from '#features/shortcuts'
 import {
   shortcutActionTranslationSegment,
   type ShortcutDraftValidation,

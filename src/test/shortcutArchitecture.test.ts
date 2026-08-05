@@ -14,7 +14,7 @@ import {
 
 const sources = {
   app: readSource('../App.tsx'),
-  runtimeProvider: readSource('../features/shortcuts/ShortcutRuntimeProvider.tsx'),
+  runtimeProvider: readSource('../app/shortcut-runtime/ShortcutRuntimeProvider.tsx'),
   terminalRuntime: readSource('../features/terminal/TerminalRuntimeProvider.tsx'),
   terminalViewport: readSource('../features/terminal/TerminalPaneViewport.tsx'),
   filesPage: readSource('../features/files/FilesPage.tsx'),

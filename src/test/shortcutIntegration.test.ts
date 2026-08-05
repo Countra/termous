@@ -8,7 +8,7 @@ const appSource = readFileSync(
   'utf8',
 )
 const shortcutProviderSource = readFileSync(
-  fileURLToPath(new URL('../features/shortcuts/ShortcutRuntimeProvider.tsx', import.meta.url)),
+  fileURLToPath(new URL('../app/shortcut-runtime/ShortcutRuntimeProvider.tsx', import.meta.url)),
   'utf8',
 )
 const terminalRuntimeSource = readFileSync(

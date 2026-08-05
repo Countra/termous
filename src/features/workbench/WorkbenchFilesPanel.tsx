@@ -41,7 +41,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import type { TermousApi } from '../../api/client'
-import { useTransferRuntime } from '../../app/useTransferRuntime'
+import { useTransferRuntime } from '#features/transfers'
 import { buildRemoteFileActionMenu } from '../../components/files/RemoteFileActionMenu'
 import {
   runRemoteFileAction,

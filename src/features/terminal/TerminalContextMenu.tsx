@@ -13,7 +13,7 @@ import {
 import { useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
+import { useShortcutRuntime } from '#features/shortcuts'
 import type {
   TerminalContextMenuActionKey,
   TerminalContextMenuItem,

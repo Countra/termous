@@ -47,12 +47,10 @@ import {
   defaultTerminalSettings,
   defaultWindowSettings,
   normalizeSettings,
-} from '../features/settings/terminalSettings'
-import {
   applyShortcutSettingsPatch,
   defaultShortcutSettings,
   shortcutSettingsEqual,
-} from '../features/settings/shortcutSettings'
+} from '#features/settings'
 import { hostToInput } from '../features/hosts/hostInput'
 import {
   adoptSuppressedFileSessionRecoveryResult,

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { RemoteFileEntry } from '../../types/domain'
 import { formatBytes, formatDate } from '#shared/format'
-import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
+import { useShortcutRuntime } from '#features/shortcuts'
 import { isLocalFileDrag } from './workbenchFileDrag'
 import './workbench-file-browser.css'
 

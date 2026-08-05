@@ -95,7 +95,7 @@ vi.mock('../features/update/UpdateRuntimeProvider', () => ({
   ),
 }))
 
-vi.mock('../features/shortcuts/ShortcutRuntimeProvider', () => ({
+vi.mock('#app/shortcut-runtime', () => ({
   ShortcutRuntimeProvider: ({ children }: { children: ReactNode }) => (
     <div data-provider="shortcut">{children}</div>
   ),
@@ -108,7 +108,7 @@ vi.mock('../features/files/FilesWorkspaceRuntimeProvider', () => ({
   ),
 }))
 
-vi.mock('../app/TransferRuntimeProvider', () => ({
+vi.mock('#app/transfer-runtime', () => ({
   TransferRuntimeProvider: ({ children }: { children: ReactNode }) => (
     <div data-provider="transfer">{children}</div>
   ),

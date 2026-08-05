@@ -1,4 +1,4 @@
-import type { ShortcutActionId } from '../shortcuts'
+import type { ShortcutActionId } from '#features/shortcuts'
 import type { TerminalContextMenuActionKey } from './terminalContextMenuModel.ts'
 
 export function terminalContextMenuShortcutAction(

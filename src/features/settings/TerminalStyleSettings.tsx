@@ -3,8 +3,12 @@ import { FileText, RotateCcw, SquareTerminal, Trash2, UploadCloud } from 'lucide
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TerminalFont, TerminalSettings } from '../../types/domain'
-import { fontFamilyFromSetting, loadTerminalFont } from '../terminal/terminalFonts'
-import { defaultTerminalSettings, normalizeTerminalSettings } from './terminalSettings'
+import {
+  defaultTerminalSettings,
+  fontFamilyFromSetting,
+  loadTerminalFont,
+  normalizeTerminalSettings,
+} from '#features/terminal'
 
 interface TerminalStyleSettingsProps {
   value: TerminalSettings

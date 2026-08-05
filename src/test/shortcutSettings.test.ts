@@ -6,7 +6,7 @@ import {
   normalizeShortcutSettings,
   shortcutSettingsEqual,
 } from '../features/settings/shortcutSettings.ts'
-import { normalizeSettings } from '../features/settings/terminalSettings.ts'
+import { normalizeSettings } from '../features/settings/index.ts'
 
 test('旧设置缺少快捷键字段时使用空覆盖', () => {
   const settings = normalizeSettings({ language: 'zh-CN' })

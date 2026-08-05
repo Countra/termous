@@ -6,7 +6,6 @@ import {
   type ReactNode,
 } from 'react'
 import { getTermousBridge } from '#shared/bridge'
-import type { ShortcutSettings } from '../../types/domain'
 import {
   compileShortcutIndex,
   formatShortcutChord,
@@ -14,14 +13,13 @@ import {
   resolveEffectiveShortcutBindings,
   shortcutChordSignature,
   ShortcutRuntime,
+  ShortcutRuntimeContext,
   type ShortcutActionId,
   type ShortcutHandler,
-} from './index.ts'
-import {
-  ShortcutRuntimeContext,
+  type ShortcutSettings,
   type ShortcutRuntimeContextValue,
   useShortcutRuntime,
-} from './shortcutRuntimeContext'
+} from '#features/shortcuts'
 
 interface ShortcutRuntimeProviderProps {
   settings: ShortcutSettings

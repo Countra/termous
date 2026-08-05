@@ -10,7 +10,7 @@ import {
   hasEnabledCompletionProvider,
   normalizeCompletionSettings,
   normalizeSettings,
-} from '../features/settings/terminalSettings.ts'
+} from '../features/settings/index.ts'
 
 const settingsViewSource = readFileSync(
   fileURLToPath(new URL('../features/settings/TerminalCompletionSettings.tsx', import.meta.url)),

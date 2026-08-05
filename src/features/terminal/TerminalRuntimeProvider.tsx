@@ -29,11 +29,12 @@ import {
   defaultTerminalSettings,
   hasEnabledCompletionProvider,
   normalizeTerminalSettings,
-} from '../settings/terminalSettings'
+} from './terminalSettings'
 import {
   useShortcutRuntime,
-} from '../shortcuts/shortcutRuntimeContext'
-import type { ShortcutKeyboardEventLike, ShortcutScope } from '../shortcuts'
+  type ShortcutKeyboardEventLike,
+  type ShortcutScope,
+} from '#features/shortcuts'
 import {
   TerminalRuntimeContext,
   type TerminalRuntimeContextValue,

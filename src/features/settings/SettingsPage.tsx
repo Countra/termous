@@ -11,7 +11,7 @@ import type {
   TerminalSettings,
   WindowSettings,
 } from '../../types/domain'
-import { useShortcutRuntime } from '../shortcuts/shortcutRuntimeContext'
+import { useShortcutRuntime } from '#features/shortcuts'
 import { UpdateSettings, type UpdatePreferencesRuntime } from './UpdateSettings'
 import { TerminalStyleSettings } from './TerminalStyleSettings'
 import { TerminalCompletionSettings } from './TerminalCompletionSettings'

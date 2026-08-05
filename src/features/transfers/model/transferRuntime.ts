@@ -1,7 +1,12 @@
 import { createContext, useContext } from 'react'
-import type { TransferTask } from '../types/domain'
+import type { TransferTask } from '../../../types/domain'
 
 const transferHistoryLimit = 200
+
+export interface TransferRuntimeApi {
+  transfers: () => Promise<TransferTask[]>
+  transferEventsUrl: () => string
+}
 
 export interface TransferRuntimeValue {
   transfers: TransferTask[]

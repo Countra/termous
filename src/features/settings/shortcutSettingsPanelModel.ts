@@ -13,7 +13,7 @@ import {
   type ShortcutChord,
   type ShortcutConflict,
   type ShortcutPlatform,
-} from '../shortcuts/index.ts'
+} from '#features/shortcuts'
 import type {
   ShortcutActionOverride,
   ShortcutSettings,
