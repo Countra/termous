@@ -35,6 +35,12 @@
     {
       "rule": "legacy-boundary",
       "source": "src/api/client.ts",
+      "target": "src/entities/snippet/index.ts",
+      "specifier": "#entities/snippet"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/api/client.ts",
       "target": "src/features/terminal/completionModel.ts",
       "specifier": "../features/terminal/completionModel"
     },
@@ -125,14 +131,14 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/snippets/SnippetsPage.tsx",
-      "specifier": "./features/snippets/SnippetsPage"
+      "target": "src/entities/snippet/index.ts",
+      "specifier": "#entities/snippet"
     },
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/snippets/snippetUtils.ts",
-      "specifier": "./features/snippets/snippetUtils"
+      "target": "src/pages/snippets/index.ts",
+      "specifier": "#pages/snippets"
     },
     {
       "rule": "legacy-boundary",
@@ -526,30 +532,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/snippets/SnippetCatalog.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/snippets/snippetCatalogUtils.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/snippets/SnippetsPage.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/snippets/snippetUtils.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/terminal/completionModel.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
@@ -661,6 +643,12 @@
       "source": "src/types/domain.ts",
       "target": "src/entities/host/index.ts",
       "specifier": "#entities/host"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/types/domain.ts",
+      "target": "src/entities/snippet/index.ts",
+      "specifier": "#entities/snippet"
     },
     {
       "rule": "legacy-boundary",
@@ -1157,18 +1145,6 @@
     {
       "rule": "public-entry",
       "source": "src/App.tsx",
-      "target": "src/features/snippets/SnippetsPage.tsx",
-      "specifier": "./features/snippets/SnippetsPage"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/snippets/snippetUtils.ts",
-      "specifier": "./features/snippets/snippetUtils"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
       "target": "src/features/terminal/TerminalRuntimeProvider.tsx",
       "specifier": "./features/terminal/TerminalRuntimeProvider"
     },
@@ -1283,24 +1259,6 @@
     {
       "rule": "public-entry",
       "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/snippets/SnippetCatalog.tsx",
-      "specifier": "../snippets/SnippetCatalog"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/snippets/snippetCatalogUtils.ts",
-      "specifier": "../snippets/snippetCatalogUtils"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/snippets/snippetUtils.ts",
-      "specifier": "../snippets/snippetUtils"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/features/terminal/ConnectionProgress.tsx",
       "specifier": "../terminal/ConnectionProgress"
     },
@@ -1399,24 +1357,6 @@
       "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/features/forwards/ForwardSessionPanel.tsx",
       "specifier": "../forwards/ForwardSessionPanel"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/snippets/SnippetCatalog.tsx",
-      "specifier": "../snippets/SnippetCatalog"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/snippets/snippetCatalogUtils.ts",
-      "specifier": "../snippets/snippetCatalogUtils"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/snippets/snippetUtils.ts",
-      "specifier": "../snippets/snippetUtils"
     },
     {
       "rule": "same-layer-deep-import",

@@ -9509,31 +9509,6 @@ body.is-files-column-resizing * {
     }
   }
 
-.snippet-variable-prompt,
-.snippet-risk-dialog {
-  display: grid;
-  gap: 10px;
-}
-
-.snippet-variable-prompt p,
-.snippet-risk-dialog p {
-  margin: 0;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
-
-.snippet-risk-dialog strong {
-  color: var(--text-primary);
-}
-
-.snippet-risk-dialog ul {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding-left: 18px;
-  color: var(--text-secondary);
-}
-
 .system-monitor-panel {
   display: grid;
   min-height: 0;

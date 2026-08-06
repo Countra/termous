@@ -5,7 +5,6 @@
     "src/features/files/file-bookmarks-rail.css",
     "src/features/files/file-bookmarks-sidebar.css",
     "src/features/forwards/forwarding.css",
-    "src/features/snippets/snippets.css",
     "src/features/workbench/alias-panel.css",
     "src/features/workbench/alias-sync-modal.css",
     "src/features/workbench/service-logs-modal.css",

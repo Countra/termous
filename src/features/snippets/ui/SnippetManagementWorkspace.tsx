@@ -19,9 +19,20 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
-import { GroupManagerModal } from '#shared/ui'
 import { ConnectionActionButton, CustomSelect } from '#shared/ui'
-import type { AppData, CodeSnippetGroup, CodeSnippetInput, GroupReorderItem, SnippetShell } from '../../types/domain'
+import { GroupManagerModal } from '#shared/ui'
+import type { GroupReorderItem } from '#shared/model'
+import {
+  analyzeSnippetRisk,
+  extractSnippetVariables,
+  normalizeSnippetInput,
+  normalizeSnippetTags,
+  snippetToInput,
+  type CodeSnippet,
+  type CodeSnippetGroup,
+  type CodeSnippetInput,
+  type SnippetShell,
+} from '#entities/snippet'
 import {
   SnippetFilterBar,
   SnippetList,
@@ -30,20 +41,15 @@ import {
   buildSnippetTags,
   filterSnippets,
   type SnippetCatalogFilter,
-} from './snippetCatalogUtils'
-import {
-  analyzeSnippetRisk,
-  extractSnippetVariables,
-  normalizeSnippetInput,
-  normalizeSnippetTags,
-  snippetToInput,
-} from './snippetUtils'
+} from '../model/snippetCatalogUtils.ts'
+import type { SnippetManagementData } from '../model/types.ts'
+import styles from './SnippetManagementWorkspace.module.scss'
 
-interface SnippetsPageProps {
-  data: AppData
+export interface SnippetManagementWorkspaceProps {
+  data: SnippetManagementData
   actionBusy: boolean
-  onSave: (id: string | null, input: CodeSnippetInput) => Promise<void>
-  onDelete: (id: string) => Promise<void>
+  onSave: (id: string | null, input: CodeSnippetInput) => Promise<CodeSnippet | undefined>
+  onDelete: (id: string) => Promise<boolean | undefined>
   onCreateGroup: (name: string) => Promise<CodeSnippetGroup | undefined>
   onRenameGroup: (id: string, name: string) => Promise<CodeSnippetGroup | undefined>
   onDeleteGroup: (id: string) => Promise<void>
@@ -65,7 +71,7 @@ const blankSnippet: CodeSnippetInput = {
 
 const snippetShells: SnippetShell[] = ['any', 'sh', 'bash', 'zsh', 'powershell', 'cmd']
 
-export function SnippetsPage({
+export function SnippetManagementWorkspace({
   data,
   actionBusy,
   onSave,
@@ -74,7 +80,7 @@ export function SnippetsPage({
   onRenameGroup,
   onDeleteGroup,
   onReorderGroups,
-}: SnippetsPageProps) {
+}: SnippetManagementWorkspaceProps) {
   const { t } = useTranslation()
   const initialSnippet = data.snippets[0]
   const initialForm = initialSnippet ? snippetToInput(initialSnippet) : blankSnippet
@@ -166,10 +172,12 @@ export function SnippetsPage({
   const save = async () => {
     if (!canSave || actionBusy) return
     const targetId = editingId
-    await onSave(targetId, normalizedForm)
+    const saved = await onSave(targetId, normalizedForm)
+    if (!saved) return
     if (targetId) {
-      setForm(normalizedForm)
-      setBaseline(normalizedForm)
+      const savedForm = snippetToInput(saved)
+      setForm(savedForm)
+      setBaseline(savedForm)
       return
     }
     setForm(blankSnippet)
@@ -181,13 +189,14 @@ export function SnippetsPage({
     if (!editingId || actionBusy) return
     const currentIndex = data.snippets.findIndex((snippet) => snippet.id === editingId)
     const nextSnippet = data.snippets[currentIndex + 1] ?? data.snippets[currentIndex - 1]
-    await onDelete(editingId)
+    const deleted = await onDelete(editingId)
+    if (!deleted) return
     if (nextSnippet) applyIntent({ type: 'select', id: nextSnippet.id })
     else applyIntent({ type: 'create' })
   }
 
   return (
-    <section className={`snippets-workspace is-${activeView}`}>
+    <section className={`snippets-workspace is-${activeView} ${styles['workspace-root']}`}>
       <SnippetLibrary
         snippets={data.snippets}
         groups={data.snippetGroups}
@@ -254,6 +263,7 @@ export function SnippetsPage({
         centered
         width={420}
         open={Boolean(pendingIntent)}
+        rootClassName={styles['workspace-root']}
         title={t('snippets.discardTitle')}
         okText={t('snippets.discard')}
         cancelText={t('app.cancel')}
@@ -290,9 +300,9 @@ function SnippetLibrary({
   onManageGroups,
   onSelect,
 }: {
-  snippets: AppData['snippets']
+  snippets: CodeSnippet[]
   groups: CodeSnippetGroup[]
-  filteredSnippets: AppData['snippets']
+  filteredSnippets: CodeSnippet[]
   editingId: string | null
   filter: SnippetCatalogFilter
   query: string
@@ -311,8 +321,8 @@ function SnippetLibrary({
   const { t } = useTranslation()
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set())
   const groupedSnippets = useMemo(() => {
-    const groupMap = new Map(groups.map((group) => [group.id, [] as AppData['snippets']]))
-    const ungrouped: AppData['snippets'] = []
+    const groupMap = new Map(groups.map((group) => [group.id, [] as CodeSnippet[]]))
+    const ungrouped: CodeSnippet[] = []
     filteredSnippets.forEach((snippet) => {
       const target = groupMap.get(snippet.group_id)
       if (target) target.push(snippet)

@@ -67,13 +67,14 @@ import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
 import type { AppData, CodeSnippet, FileBookmark, FileBookmarkInput, FileSession, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
 import type { FileSessionClosureState } from '../files/fileSessionRecovery'
-import { SnippetFilterBar, SnippetList } from '../snippets/SnippetCatalog'
 import {
+  SnippetFilterBar,
+  SnippetList,
   buildSnippetTags,
   filterSnippets,
   type SnippetCatalogFilter,
-} from '../snippets/snippetCatalogUtils'
-import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '../snippets/snippetUtils'
+} from '#features/snippets'
+import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '#entities/snippet'
 import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
 import { AliasPanel } from './AliasPanel'
 import { FirewallPanel } from './FirewallPanel'
@@ -102,6 +103,7 @@ import {
   type SessionTabPreference,
   type SessionTabPreferenceMap,
 } from './sessionTabPreferences'
+import snippetStyles from './SnippetWorkbench.module.scss'
 
 type DetailsTabKey =
   | 'overview'
@@ -986,6 +988,7 @@ export function WorkbenchPage({
           cancelText: t('app.cancel'),
           centered: true,
           className: 'termous-modal',
+          rootClassName: snippetStyles['snippet-dialog-root'],
           content: (
             <SnippetVariablePrompt
               variables={variables}
@@ -1018,6 +1021,7 @@ export function WorkbenchPage({
           okButtonProps: { danger: true },
           centered: true,
           className: 'termous-modal',
+          rootClassName: snippetStyles['snippet-dialog-root'],
           content: <SnippetRiskDialog snippet={snippet} reasons={risk.reasons} />,
           onOk: () => resolve(true),
           onCancel: () => resolve(false),
@@ -1467,6 +1471,7 @@ export function WorkbenchPage({
       <FeatureSidePanel<DetailsTabKey>
         activeKey={detailsActiveTab}
         ariaLabel={t('workbench.currentConnection')}
+        className={snippetStyles['workbench-panel-root']}
         collapsed={detailsCollapsed}
         collapseLabel={t('app.collapse')}
         expandLabel={t('app.expand')}
@@ -1739,7 +1744,7 @@ export function WorkbenchPage({
             label: t('workbench.detailsTabs.snippets'),
             icon: <Code2 size={17} aria-hidden="true" />,
             children: (
-              <section className="snippet-send-panel">
+              <section className={`snippet-send-panel ${snippetStyles['workbench-root']}`}>
                 <div className="snippet-send-head">
                   <div className="snippet-send-head-main">
                     <span className="snippet-send-head-icon">
@@ -2287,7 +2292,7 @@ function SnippetVariablePrompt({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="snippet-variable-prompt">
+    <div className={`snippet-variable-prompt ${snippetStyles['snippet-dialog-content']}`}>
       <p>{t('snippets.variablesHint')}</p>
       {variables.map((variable) => (
         <label className="field" key={variable}>
@@ -2302,7 +2307,7 @@ function SnippetVariablePrompt({
 function SnippetRiskDialog({ snippet, reasons }: { snippet: CodeSnippet; reasons: string[] }) {
   const { t } = useTranslation()
   return (
-    <div className="snippet-risk-dialog">
+    <div className={`snippet-risk-dialog ${snippetStyles['snippet-dialog-content']}`}>
       <p>{t('snippets.riskConfirmDescription')}</p>
       <strong>{snippet.name}</strong>
       <ul>

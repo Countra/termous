@@ -2,16 +2,20 @@ import { Button, Empty, Input, Popover, Segmented, Select, Tag, Tooltip } from '
 import { Code2, Filter, Search, Star, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { CodeSnippet, CodeSnippetGroup } from '../../types/domain'
-import { analyzeSnippetRisk, normalizeSnippetTags } from './snippetUtils'
+import {
+  analyzeSnippetRisk,
+  normalizeSnippetTags,
+  type CodeSnippet,
+  type CodeSnippetGroup,
+} from '#entities/snippet'
 import {
   snippetTagKey,
   type SnippetCatalogDensity,
   type SnippetCatalogFilter,
   type SnippetFilterState,
   type SnippetTagSummary,
-} from './snippetCatalogUtils'
-import './snippets.css'
+} from '../model/snippetCatalogUtils.ts'
+import styles from './SnippetCatalog.module.scss'
 
 interface SnippetFilterBarProps extends SnippetFilterState {
   availableTags: SnippetTagSummary[]
@@ -90,7 +94,11 @@ export function SnippetFilterBar({
           <Select
             value={selectedGroupId}
             className="termous-select"
-            classNames={{ popup: { root: 'termous-select-popup snippet-filter-select-popup' } }}
+            classNames={{
+              popup: {
+                root: `termous-select-popup snippet-filter-select-popup ${styles['catalog-root']}`,
+              },
+            }}
             options={[
               { value: '', label: t('snippets.allGroups') },
               { value: '__ungrouped__', label: t('snippets.ungrouped') },
@@ -130,7 +138,7 @@ export function SnippetFilterBar({
   )
 
   return (
-    <div className={`snippet-catalog-filters is-${density}`}>
+    <div className={`snippet-catalog-filters is-${density} ${styles['catalog-root']}`}>
       <div className="snippet-catalog-search-row">
         <Input
           className="termous-search-input snippet-catalog-search"
@@ -147,7 +155,7 @@ export function SnippetFilterBar({
             placement="bottomRight"
             arrow={false}
             content={filterContent}
-            rootClassName="termous-snippet-filter-popover"
+            rootClassName={`termous-snippet-filter-popover ${styles['catalog-root']}`}
           >
             <Button
               className={`snippet-filter-button ${activeFilterCount > 0 ? 'is-active' : ''}`}
@@ -215,7 +223,7 @@ export function SnippetList({
 }: SnippetListProps) {
   if (snippets.length === 0) {
     return (
-      <div className={`snippet-catalog-empty is-${density}`}>
+      <div className={`snippet-catalog-empty is-${density} ${styles['catalog-root']}`}>
         <Empty
           description={totalCount === 0 ? emptyDescription : noResultsDescription}
           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -225,7 +233,7 @@ export function SnippetList({
   }
 
   return (
-    <div className={`snippet-catalog-list is-${density}`} role="list">
+    <div className={`snippet-catalog-list is-${density} ${styles['catalog-root']}`} role="list">
       {snippets.map((snippet) => (
         <SnippetListItem
           key={snippet.id}

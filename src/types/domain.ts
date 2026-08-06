@@ -13,6 +13,10 @@ import type {
   HostGroup,
   HostReachability,
 } from '#entities/host'
+import type {
+  CodeSnippet,
+  CodeSnippetGroup,
+} from '#entities/snippet'
 
 export type {
   AppBuildInfo,
@@ -116,6 +120,14 @@ export type {
   HostKeyResolution,
   HostKeyTrustRecord,
 } from '#entities/host-key'
+
+export type {
+  CodeSnippet,
+  CodeSnippetGroup,
+  CodeSnippetGroupInput,
+  CodeSnippetInput,
+  SnippetShell,
+} from '#entities/snippet'
 
 export type {
   GroupReorderItem,
@@ -342,8 +354,6 @@ export interface LocalFileGrant {
   created_at: string
   expires_at: string
 }
-
-export type SnippetShell = 'any' | 'sh' | 'bash' | 'zsh' | 'powershell' | 'cmd'
 
 export type SessionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed'
 
@@ -804,44 +814,6 @@ export interface CompletionResult extends CompletionStatus {
   request_id: string
   is_incomplete: boolean
   items: CompletionItem[]
-}
-
-export interface CodeSnippet {
-  id: string
-  group_id: string
-  name: string
-  description?: string
-  command: string
-  tags: string[]
-  shell: SnippetShell
-  favorite: boolean
-  use_count: number
-  last_used_at?: string
-  created_at: string
-  updated_at: string
-}
-
-export interface CodeSnippetInput {
-  group_id: string
-  name: string
-  description: string
-  command: string
-  tags: string[]
-  shell: SnippetShell
-  favorite: boolean
-}
-
-export interface CodeSnippetGroup {
-  id: string
-  name: string
-  sort_order: number
-  created_at: string
-  updated_at: string
-}
-
-export interface CodeSnippetGroupInput {
-  name: string
-  sort_order?: number
 }
 
 export interface FileBookmarkGroup {

@@ -25,8 +25,8 @@ import {
 import { ForwardingPage } from './features/forwards/ForwardingPage'
 import { isForwardRestartCompleted } from './features/forwards/forwardRestart'
 import { SettingsPage } from '#pages/settings'
-import { SnippetsPage } from './features/snippets/SnippetsPage'
-import { snippetToInput } from './features/snippets/snippetUtils'
+import { snippetToInput } from '#entities/snippet'
+import { SnippetsPage } from '#pages/snippets'
 import { VaultPage } from '#pages/vault'
 import {
   HostKeyCoordinator,
@@ -549,13 +549,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       return actions.createCredential(input)
     }, t('app.save'))
 
-  const saveCodeSnippet = (id: string | null, input: CodeSnippetInput) =>
+  const saveCodeSnippet = (id: string | null, input: CodeSnippetInput): Promise<CodeSnippet | undefined> =>
     runAction(async () => {
       if (id) {
-        await actions.updateCodeSnippet(id, input)
-      } else {
-        await actions.createCodeSnippet(input)
+        return actions.updateCodeSnippet(id, input)
       }
+      return actions.createCodeSnippet(input)
     }, t('app.save'))
 
   const createCodeSnippetGroup = (name: string): Promise<CodeSnippetGroup | undefined> =>
@@ -927,7 +926,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onUpdateFileSession={actions.updateFileSession}
             onCreateFileBookmark={actions.createFileBookmark}
             onUpdateFileBookmark={actions.updateFileBookmark}
-            onSnippetUsed={(snippetId) => actions.markCodeSnippetUsed(snippetId).then(() => undefined)}
+            onSnippetUsed={(snippetId) => runAction(
+              () => actions.markCodeSnippetUsed(snippetId).then(() => undefined),
+            ).then(() => undefined)}
             onToggleSnippetFavorite={toggleCodeSnippetFavorite}
             onStartForward={(input) => actions.startForward(input)}
             onRestartForward={restartForward}
@@ -1107,7 +1108,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             data={data}
             actionBusy={actionBusy}
             onSave={saveCodeSnippet}
-            onDelete={(id) => runAction(() => actions.deleteCodeSnippet(id))}
+            onDelete={(id) => runAction(async () => {
+              await actions.deleteCodeSnippet(id)
+              return true
+            })}
             onCreateGroup={createCodeSnippetGroup}
             onRenameGroup={renameCodeSnippetGroup}
             onDeleteGroup={(id) => runAction(

@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ReactNode } from 'react'
-import { useEffect } from 'react'
-import { render, screen } from '@testing-library/react'
+import { useEffect, useState } from 'react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,6 +10,10 @@ const testState = vi.hoisted(() => {
   const action = vi.fn(async () => undefined)
   return {
     action,
+    notifications: {
+      error: vi.fn(),
+      success: vi.fn(),
+    },
     persistentStateSetter: vi.fn(),
     workbenchMounts: 0,
     workbenchUnmounts: 0,
@@ -62,10 +66,7 @@ const testState = vi.hoisted(() => {
 vi.mock('antd', () => ({
   App: {
     useApp: () => ({
-      notification: {
-        error: vi.fn(),
-        success: vi.fn(),
-      },
+      notification: testState.notifications,
     }),
   },
   Button: ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => (
@@ -138,14 +139,41 @@ vi.mock('../components/layout/AppShell', () => ({
 }))
 
 vi.mock('../features/workbench/WorkbenchPage', () => ({
-  WorkbenchPage: ({ active }: { active: boolean }) => {
+  WorkbenchPage: ({
+    active,
+    onSnippetUsed,
+  }: {
+    active: boolean
+    onSnippetUsed?: (snippetId: string) => Promise<void>
+  }) => {
+    const [snippetUsageState, setSnippetUsageState] = useState('idle')
     useEffect(() => {
       testState.workbenchMounts += 1
       return () => {
         testState.workbenchUnmounts += 1
       }
     }, [])
-    return <div data-testid="workbench" data-active={String(active)}>Workbench</div>
+    return (
+      <>
+        <div data-testid="workbench" data-active={String(active)}>Workbench</div>
+        {active ? (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                void onSnippetUsed?.('snippet-a').then(
+                  () => setSnippetUsageState('fulfilled'),
+                  () => setSnippetUsageState('rejected'),
+                )
+              }}
+            >
+              snippet-used
+            </button>
+            <output data-testid="snippet-usage-state">{snippetUsageState}</output>
+          </>
+        ) : null}
+      </>
+    )
   },
 }))
 
@@ -156,7 +184,7 @@ vi.mock('#pages/hosts', () => ({
 vi.mock('../features/files/FilesPage', () => ({ FilesPage: () => null }))
 vi.mock('../features/forwards/ForwardingPage', () => ({ ForwardingPage: () => null }))
 vi.mock('#pages/settings', () => ({ SettingsPage: () => null }))
-vi.mock('../features/snippets/SnippetsPage', () => ({ SnippetsPage: () => null }))
+vi.mock('#pages/snippets', () => ({ SnippetsPage: () => null }))
 vi.mock('#pages/vault', () => ({ VaultPage: () => null }))
 vi.mock('#features/hosts', () => ({
   HostLauncherModal: () => null,
@@ -222,6 +250,10 @@ describe('应用运行时组合合同', () => {
   beforeEach(() => {
     testState.workbenchMounts = 0
     testState.workbenchUnmounts = 0
+    testState.action.mockReset()
+    testState.action.mockResolvedValue(undefined)
+    testState.notifications.error.mockReset()
+    testState.notifications.success.mockReset()
     window.localStorage.clear()
   })
 
@@ -278,5 +310,20 @@ describe('应用运行时组合合同', () => {
     expect(workbench).toHaveAttribute('data-active', 'true')
     expect(keepAlivePage).not.toHaveAttribute('inert')
     expect(keepAlivePage).toBeVisible()
+  })
+
+  it('片段使用次数上报失败不会阻断已完成的工作台回调', async () => {
+    const user = userEvent.setup()
+    testState.action.mockRejectedValueOnce(new Error('usage failed'))
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'snippet-used' }))
+
+    await waitFor(() => {
+      expect(testState.action).toHaveBeenCalledWith('snippet-a')
+      expect(testState.notifications.error).toHaveBeenCalledTimes(1)
+      expect(screen.getByTestId('snippet-usage-state')).toHaveTextContent('fulfilled')
+    })
+    expect(testState.notifications.success).not.toHaveBeenCalled()
   })
 })

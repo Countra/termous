@@ -1,5 +1,4 @@
-import type { CodeSnippet } from '../../types/domain'
-import { normalizeSnippetTags } from './snippetUtils'
+import { normalizeSnippetTags, type CodeSnippet } from '#entities/snippet'
 
 export type SnippetCatalogFilter = 'all' | 'favorites'
 export type SnippetCatalogDensity = 'management' | 'compact'

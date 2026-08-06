@@ -5,10 +5,6 @@ import type {
   AliasWorkspace,
   AppearanceSettings,
   AppConfig,
-  CodeSnippet,
-  CodeSnippetGroup,
-  CodeSnippetGroupInput,
-  CodeSnippetInput,
   CompletionQuery,
   CompletionResult,
   CompletionSettings,
@@ -112,6 +108,12 @@ import type {
   TransferTask,
   WindowSettings,
 } from '../types/domain'
+import type {
+  CodeSnippet,
+  CodeSnippetGroup,
+  CodeSnippetGroupInput,
+  CodeSnippetInput,
+} from '#entities/snippet'
 import { getTermousBridge } from '#shared/bridge'
 import { TermousApiTransport } from '#shared/api'
 import { normalizeCompletionResult } from '../features/terminal/completionModel'

@@ -1,4 +1,4 @@
-import type { CodeSnippet, CodeSnippetInput } from '../../types/domain'
+import type { CodeSnippet, CodeSnippetInput } from './types.ts'
 
 export interface SnippetRiskAnalysis {
   risky: boolean
