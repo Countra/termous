@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { credentialTypeIcon, type CredentialType, type CredentialView } from '#entities/credential'
 import { ConnectionActionButton, EmptyState, ManagementFilterTabs } from '#shared/ui'
-import { ManagementPanel } from '../../../components/management/ManagementWorkspace'
+import { ManagementPanel } from '#shared/ui'
 import { filterCredentials, type CredentialCatalogFilter } from '../model/credentialCatalog.ts'
 import styles from './CredentialManagement.module.scss'
 

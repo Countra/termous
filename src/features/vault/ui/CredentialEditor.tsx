@@ -9,7 +9,7 @@ import {
   type CredentialView,
 } from '#entities/credential'
 import { ConnectionActionButton } from '#shared/ui'
-import { ManagementPanel } from '../../../components/management/ManagementWorkspace'
+import { ManagementPanel } from '#shared/ui'
 import type { CredentialValidationErrors } from '../model/credentialCatalog.ts'
 import { sshKeyAlgorithmSummary } from '../model/sshKeyUi.ts'
 import styles from './CredentialManagement.module.scss'

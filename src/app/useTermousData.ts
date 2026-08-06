@@ -51,7 +51,7 @@ import {
   defaultShortcutSettings,
   shortcutSettingsEqual,
 } from '#features/settings'
-import { hostToInput } from '../features/hosts/hostInput'
+import { hostToInput } from '#entities/host'
 import {
   adoptSuppressedFileSessionRecoveryResult,
   cleanupSuppressedFileSessionRecoveryResult,

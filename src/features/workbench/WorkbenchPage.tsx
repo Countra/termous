@@ -45,8 +45,8 @@ import {
 import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { TermousApi } from '../../api/client'
-import { HostAvatar } from '../../components/hosts/HostAvatar'
-import { SessionQuickConnect } from '../../components/hosts/SessionQuickConnect'
+import { HostAvatar } from '#entities/host'
+import { SessionQuickConnect } from '#features/hosts'
 import {
   ConnectionActionButton,
   FeatureSidePanel,

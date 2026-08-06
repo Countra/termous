@@ -51,7 +51,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { TermousApiError, type TermousApi } from '../../api/client'
-import { SessionQuickConnect } from '../../components/hosts/SessionQuickConnect'
+import { SessionQuickConnect } from '#features/hosts'
 import { EmptyState, SessionTabButton, SessionTabStrip } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
 import type {

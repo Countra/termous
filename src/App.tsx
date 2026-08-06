@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { AppShell } from './components/layout/AppShell'
 import { ConfirmDialog } from '#shared/ui'
-import { HostsPage } from './features/hosts/HostsPage'
+import { HostsPage } from '#pages/hosts'
 import { FilesPage } from './features/files/FilesPage'
 import {
   canCommitFilesBookmarkManagementRequest,
@@ -28,13 +28,13 @@ import { SettingsPage } from '#pages/settings'
 import { SnippetsPage } from './features/snippets/SnippetsPage'
 import { snippetToInput } from './features/snippets/snippetUtils'
 import { VaultPage } from '#pages/vault'
-import { HostLauncherModal } from './features/workbench/HostLauncherModal'
 import {
+  HostKeyCoordinator,
+  HostLauncherModal,
   hostLauncherIntentForPage,
   type HostLauncherIntent,
-} from './features/workbench/hostLauncherIntent'
+} from '#features/hosts'
 import { WorkbenchPage } from './features/workbench/WorkbenchPage'
-import { HostKeyCoordinator } from './components/hostkey/HostKeyCoordinator'
 import { TransferRuntimeProvider } from '#app/transfer-runtime'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from './features/terminal/TerminalRuntimeProvider'

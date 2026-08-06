@@ -2,13 +2,9 @@
   "schemaVersion": 1,
   "legacyCssFiles": [
     "src/App.css",
-    "src/components/management/group-manager.css",
-    "src/components/management/management.css",
     "src/features/files/file-bookmarks-rail.css",
     "src/features/files/file-bookmarks-sidebar.css",
     "src/features/forwards/forwarding.css",
-    "src/features/hosts/hosts.css",
-    "src/features/hosts/proxy-manager.css",
     "src/features/snippets/snippets.css",
     "src/features/workbench/alias-panel.css",
     "src/features/workbench/alias-sync-modal.css",
@@ -24,7 +20,6 @@
     "src/styles/files-workspace-transfer-rows.css",
     "src/styles/files-workspace-transfers.css",
     "src/styles/files-workspace.css",
-    "src/styles/host-key.css",
     "src/styles/local-download-console.css",
     "src/styles/terminal-completion.css",
     "src/styles/workstation.css"

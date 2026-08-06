@@ -83,12 +83,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/components/hostkey/HostKeyCoordinator.tsx",
-      "specifier": "./components/hostkey/HostKeyCoordinator"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
       "target": "src/components/layout/AppShell.tsx",
       "specifier": "./components/layout/AppShell"
     },
@@ -131,12 +125,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/hosts/HostsPage.tsx",
-      "specifier": "./features/hosts/HostsPage"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
       "target": "src/features/snippets/SnippetsPage.tsx",
       "specifier": "./features/snippets/SnippetsPage"
     },
@@ -167,18 +155,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/workbench/hostLauncherIntent.ts",
-      "specifier": "./features/workbench/hostLauncherIntent"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
-      "target": "src/features/workbench/HostLauncherModal.tsx",
-      "specifier": "./features/workbench/HostLauncherModal"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
       "target": "src/features/workbench/WorkbenchPage.tsx",
       "specifier": "./features/workbench/WorkbenchPage"
     },
@@ -193,6 +169,18 @@
       "source": "src/App.tsx",
       "target": "src/types/domain.ts",
       "specifier": "./types/domain"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/App.tsx",
+      "target": "src/features/hosts/index.ts",
+      "specifier": "#features/hosts"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/App.tsx",
+      "target": "src/pages/hosts/index.ts",
+      "specifier": "#pages/hosts"
     },
     {
       "rule": "legacy-boundary",
@@ -256,72 +244,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/components/hostkey/HostKeyCoordinator.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/hostkey/HostKeyCoordinator.tsx",
-      "target": "src/components/hostkey/hostKeyState.ts",
-      "specifier": "./hostKeyState"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/hostkey/HostKeyCoordinator.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/hostkey/hostKeyState.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/hosts/HostAvatar.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/hosts/HostContextPanel.tsx",
-      "target": "src/components/hosts/HostAvatar.tsx",
-      "specifier": "./HostAvatar"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/hosts/HostContextPanel.tsx",
-      "target": "src/components/ui/AuthMethodBadge.tsx",
-      "specifier": "../ui/AuthMethodBadge"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/hosts/HostContextPanel.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/hosts/SessionQuickConnect.tsx",
-      "target": "src/components/hosts/HostAvatar.tsx",
-      "specifier": "./HostAvatar"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/hosts/SessionQuickConnect.tsx",
-      "target": "src/components/ui/AuthMethodBadge.tsx",
-      "specifier": "../ui/AuthMethodBadge"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/hosts/SessionQuickConnect.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/components/layout/AppShell.tsx",
       "target": "src/components/layout/WindowControls.tsx",
       "specifier": "./WindowControls"
@@ -341,18 +263,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/components/layout/WindowControls.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/management/GroupManagerModal.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/ui/AuthMethodBadge.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -415,12 +325,6 @@
       "source": "src/features/files/FilesPage.tsx",
       "target": "src/components/files/RemotePermissionModal.tsx",
       "specifier": "../../components/files/RemotePermissionModal"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FilesPage.tsx",
-      "target": "src/components/hosts/SessionQuickConnect.tsx",
-      "specifier": "../../components/hosts/SessionQuickConnect"
     },
     {
       "rule": "legacy-boundary",
@@ -616,90 +520,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/hosts/connectionProxy.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostCatalog.tsx",
-      "target": "src/components/hosts/HostAvatar.tsx",
-      "specifier": "../../components/hosts/HostAvatar"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostCatalog.tsx",
-      "target": "src/components/management/ManagementWorkspace.tsx",
-      "specifier": "../../components/management/ManagementWorkspace"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostCatalog.tsx",
-      "target": "src/components/ui/AuthMethodBadge.tsx",
-      "specifier": "../../components/ui/AuthMethodBadge"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostCatalog.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostEditor.tsx",
-      "target": "src/components/hosts/HostAvatar.tsx",
-      "specifier": "../../components/hosts/HostAvatar"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostEditor.tsx",
-      "target": "src/components/management/ManagementWorkspace.tsx",
-      "specifier": "../../components/management/ManagementWorkspace"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostEditor.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/hostInput.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/hostManagementUtils.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostsPage.tsx",
-      "target": "src/components/management/GroupManagerModal.tsx",
-      "specifier": "../../components/management/GroupManagerModal"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostsPage.tsx",
-      "target": "src/components/management/ManagementWorkspace.tsx",
-      "specifier": "../../components/management/ManagementWorkspace"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/HostsPage.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/hosts/ProxyManagerModal.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/settings/ui/data-portability/DataPortabilitySettings.tsx",
       "target": "src/api/client.ts",
       "specifier": "../../../../api/client"
@@ -715,12 +535,6 @@
       "source": "src/features/snippets/snippetCatalogUtils.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/snippets/SnippetsPage.tsx",
-      "target": "src/components/management/GroupManagerModal.tsx",
-      "specifier": "../../components/management/GroupManagerModal"
     },
     {
       "rule": "legacy-boundary",
@@ -820,33 +634,33 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/vault/ui/CredentialCatalog.tsx",
-      "target": "src/components/management/ManagementWorkspace.tsx",
-      "specifier": "../../../components/management/ManagementWorkspace"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/ui/CredentialEditor.tsx",
-      "target": "src/components/management/ManagementWorkspace.tsx",
-      "specifier": "../../../components/management/ManagementWorkspace"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/vault/api/credentialGateway.ts",
       "target": "src/api/client.ts",
       "specifier": "../../../api/client"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/vault/ui/VaultWorkspace.tsx",
-      "target": "src/components/management/ManagementWorkspace.tsx",
-      "specifier": "../../../components/management/ManagementWorkspace"
+      "source": "src/types/domain.ts",
+      "target": "src/entities/credential/index.ts",
+      "specifier": "#entities/credential"
     },
     {
       "rule": "legacy-boundary",
       "source": "src/types/domain.ts",
-      "target": "src/entities/credential/index.ts",
-      "specifier": "#entities/credential"
+      "target": "src/entities/connection-proxy/index.ts",
+      "specifier": "#entities/connection-proxy"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/types/domain.ts",
+      "target": "src/entities/host-key/index.ts",
+      "specifier": "#entities/host-key"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/types/domain.ts",
+      "target": "src/entities/host/index.ts",
+      "specifier": "#entities/host"
     },
     {
       "rule": "legacy-boundary",
@@ -877,18 +691,6 @@
       "source": "src/features/workbench/AliasSyncModal.tsx",
       "target": "src/api/client.ts",
       "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/AliasSyncModal.tsx",
-      "target": "src/components/hosts/HostAvatar.tsx",
-      "specifier": "../../components/hosts/HostAvatar"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/AliasSyncModal.tsx",
-      "target": "src/components/ui/AuthMethodBadge.tsx",
-      "specifier": "../../components/ui/AuthMethodBadge"
     },
     {
       "rule": "legacy-boundary",
@@ -965,30 +767,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/workbench/firewallUtils.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/hostLauncherIntent.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/HostLauncherModal.tsx",
-      "target": "src/components/hosts/HostAvatar.tsx",
-      "specifier": "../../components/hosts/HostAvatar"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/HostLauncherModal.tsx",
-      "target": "src/components/ui/AuthMethodBadge.tsx",
-      "specifier": "../../components/ui/AuthMethodBadge"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/HostLauncherModal.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -1229,18 +1007,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/components/hosts/HostAvatar.tsx",
-      "specifier": "../../components/hosts/HostAvatar"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/components/hosts/SessionQuickConnect.tsx",
-      "specifier": "../../components/hosts/SessionQuickConnect"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/components/ui/StatusBadge.tsx",
       "specifier": "../../components/ui/StatusBadge"
     },
@@ -1324,43 +1090,11 @@
     },
     {
       "rule": "legacy-file",
-      "source": "src/components/hostkey/HostKeyCoordinator.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/hostkey/hostKeyState.ts"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/hosts/HostAvatar.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/hosts/HostContextPanel.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/hosts/SessionQuickConnect.tsx"
-    },
-    {
-      "rule": "legacy-file",
       "source": "src/components/layout/AppShell.tsx"
     },
     {
       "rule": "legacy-file",
       "source": "src/components/layout/WindowControls.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/management/GroupManagerModal.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/management/ManagementWorkspace.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/ui/AuthMethodBadge.tsx"
     },
     {
       "rule": "legacy-file",
@@ -1423,12 +1157,6 @@
     {
       "rule": "public-entry",
       "source": "src/App.tsx",
-      "target": "src/features/hosts/HostsPage.tsx",
-      "specifier": "./features/hosts/HostsPage"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
       "target": "src/features/snippets/SnippetsPage.tsx",
       "specifier": "./features/snippets/SnippetsPage"
     },
@@ -1443,18 +1171,6 @@
       "source": "src/App.tsx",
       "target": "src/features/terminal/TerminalRuntimeProvider.tsx",
       "specifier": "./features/terminal/TerminalRuntimeProvider"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/workbench/hostLauncherIntent.ts",
-      "specifier": "./features/workbench/hostLauncherIntent"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/workbench/HostLauncherModal.tsx",
-      "specifier": "./features/workbench/HostLauncherModal"
     },
     {
       "rule": "public-entry",
@@ -1485,12 +1201,6 @@
       "source": "src/app/useTermousData.ts",
       "target": "src/features/forwards/forwardRestart.ts",
       "specifier": "../features/forwards/forwardRestart"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/app/useTermousData.ts",
-      "target": "src/features/hosts/hostInput.ts",
-      "specifier": "../features/hosts/hostInput"
     },
     {
       "rule": "public-entry",

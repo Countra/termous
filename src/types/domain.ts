@@ -5,6 +5,14 @@ import type {
   TerminalFont,
 } from '#common/contracts'
 import type { CredentialView } from '#entities/credential'
+import type {
+  ConnectionProxy,
+} from '#entities/connection-proxy'
+import type {
+  Host,
+  HostGroup,
+  HostReachability,
+} from '#entities/host'
 
 export type {
   AppBuildInfo,
@@ -74,11 +82,49 @@ export type {
   SSHKeyPair,
 } from '#entities/credential'
 
+export type {
+  ConnectionProxy,
+  ConnectionProxyInput,
+  ConnectionProxyType,
+} from '#entities/connection-proxy'
+
+export type {
+  AuthMethod,
+  Host,
+  HostGroup,
+  HostIcon,
+  HostInput,
+  HostPlatform,
+  HostReachability,
+  HostReachabilityEvent,
+  HostReachabilityStatus,
+} from '#entities/host'
+
+export type {
+  HostKeyChallenge,
+  HostKeyChallengeReason,
+  HostKeyChallengeSnapshot,
+  HostKeyChallengeState,
+  HostKeyConsumerType,
+  HostKeyDecisionAction,
+  HostKeyEndpoint,
+  HostKeyEndpointRole,
+  HostKeyEvent,
+  HostKeyEventType,
+  HostKeyMaterial,
+  HostKeyObservationContext,
+  HostKeyResolution,
+  HostKeyTrustRecord,
+} from '#entities/host-key'
+
+export type {
+  GroupReorderItem,
+  PageKey,
+} from '#shared/model'
+
 export type Language = AppLanguage
 
 export type ThemeMode = AppTheme
-
-export type PageKey = 'workbench' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets' | 'settings'
 
 export type RemoteFileKind = 'file' | 'directory' | 'symlink' | 'other'
 
@@ -95,15 +141,6 @@ export type TransferType =
 export type TransferStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export type LocalGrantSource = 'picker' | 'drop' | 'clipboard'
-
-export interface HostIcon {
-  id: string
-  file_name: string
-  mime_type: string
-  size_bytes: number
-  sha256: string
-  created_at: string
-}
 
 export interface RemoteFileEntry {
   name: string
@@ -307,24 +344,6 @@ export interface LocalFileGrant {
 }
 
 export type SnippetShell = 'any' | 'sh' | 'bash' | 'zsh' | 'powershell' | 'cmd'
-
-export type AuthMethod = 'password' | 'private_key'
-
-export type HostPlatform = 'linux'
-
-export type HostReachabilityStatus = 'unknown' | 'checking' | 'online' | 'offline' | 'unavailable'
-
-export type ConnectionProxyType = 'http_connect' | 'socks5'
-
-export interface ConnectionProxy {
-  id: string
-  name: string
-  type: ConnectionProxyType
-  url: string
-  bound_host_count: number
-  created_at?: string
-  updated_at?: string
-}
 
 export type SessionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed'
 
@@ -825,11 +844,6 @@ export interface CodeSnippetGroupInput {
   sort_order?: number
 }
 
-export interface GroupReorderItem {
-  id: string
-  sort_order: number
-}
-
 export interface FileBookmarkGroup {
   id: string
   name: string
@@ -904,129 +918,6 @@ export interface LocalTreeEntry {
   children_loaded?: boolean
   has_children: boolean
   error_message?: string
-}
-
-export interface Host {
-  id: string
-  name: string
-  platform: HostPlatform
-  icon_id?: string
-  group_id: string
-  address: string
-  port: number
-  username: string
-  auth_method: AuthMethod
-  credential_id: string
-  jump_host_id?: string
-  proxy_id?: string
-  fingerprint?: string
-  tags: string[]
-  favorite: boolean
-  fingerprint_policy: string
-  note?: string
-  last_file_directory?: string
-  created_at?: string
-  updated_at?: string
-  last_connected_at?: string
-}
-
-export interface HostGroup {
-  id: string
-  name: string
-  sort_order: number
-  created_at?: string
-  updated_at?: string
-}
-
-export interface HostReachability {
-  host_id: string
-  address: string
-  status: HostReachabilityStatus
-  latency_ms?: number
-  packet_loss: number
-  checked_at?: string
-  error_code?: string
-  error_message?: string
-}
-
-export interface HostReachabilityEvent {
-  type: 'snapshot' | 'checking' | 'updated' | string
-  state?: HostReachability
-  items?: HostReachability[]
-}
-
-export interface HostKeyEndpoint {
-  canonical_host: string
-  port: number
-}
-
-export type HostKeyConsumerType = 'session' | 'sftp' | 'forward' | 'alias_sync'
-export type HostKeyEndpointRole = 'target' | 'jump'
-export type HostKeyChallengeReason = 'unknown' | 'changed'
-export type HostKeyChallengeState = 'pending' | 'trusted' | 'replaced' | 'rejected' | 'expired' | 'cancelled'
-export type HostKeyDecisionAction = 'trust' | 'replace' | 'reject'
-export type HostKeyEventType = 'challenge_upsert' | 'challenge_resolved' | 'challenge_expired' | 'trust_deleted'
-
-export interface HostKeyObservationContext {
-  consumer_type: HostKeyConsumerType
-  consumer_id: string
-  host_id?: string
-  role: HostKeyEndpointRole
-}
-
-export interface HostKeyMaterial {
-  algorithm: string
-  fingerprint_sha256: string
-}
-
-export interface HostKeyChallenge {
-  id: string
-  instance_id: string
-  endpoint: HostKeyEndpoint
-  reason: HostKeyChallengeReason
-  observed_key: HostKeyMaterial
-  existing_trust_id?: string
-  existing_fingerprint_sha256?: string
-  expected_revision?: number
-  contexts: HostKeyObservationContext[]
-  context_count: number
-  state: HostKeyChallengeState
-  created_at: string
-  expires_at: string
-}
-
-export interface HostKeyResolution {
-  challenge_id: string
-  state: HostKeyChallengeState
-  trust_record_id?: string
-  resolved_at: string
-  error_code?: string
-}
-
-export interface HostKeyChallengeSnapshot {
-  instance_id: string
-  snapshot_revision: number
-  challenges: HostKeyChallenge[]
-}
-
-export interface HostKeyEvent {
-  instance_id: string
-  snapshot_revision: number
-  type: HostKeyEventType
-  challenge?: HostKeyChallenge
-  resolution?: HostKeyResolution
-  trust_id?: string
-}
-
-export interface HostKeyTrustRecord {
-  id: string
-  endpoint: HostKeyEndpoint
-  key: HostKeyMaterial
-  revision: number
-  first_seen_at: string
-  last_seen_at: string
-  created_at: string
-  updated_at: string
 }
 
 export interface LinuxSystemInfo {
@@ -1649,30 +1540,6 @@ export interface CoreRuntimeInfo {
   shutdown_in_progress: boolean
   shutdown_reason?: string
   shutdown_started_at?: string
-}
-
-export interface HostInput {
-  name: string
-  platform: HostPlatform
-  icon_id: string
-  group_id: string
-  address: string
-  port: number
-  username: string
-  auth_method: AuthMethod
-  credential_id: string
-  jump_host_id: string
-  proxy_id: string
-  tags: string[]
-  favorite: boolean
-  fingerprint_policy: string
-  note: string
-}
-
-export interface ConnectionProxyInput {
-  name: string
-  type: ConnectionProxyType
-  url: string
 }
 
 export interface AppData {

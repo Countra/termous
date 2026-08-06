@@ -17,8 +17,7 @@ import { Alert, Button, Checkbox, Input, Modal, Progress, Skeleton, Tooltip } fr
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError, type TermousApi } from '../../api/client'
-import { HostAvatar } from '../../components/hosts/HostAvatar'
-import { AuthMethodBadge } from '../../components/ui/AuthMethodBadge'
+import { AuthMethodBadge, HostAvatar } from '#entities/host'
 import { ConfirmDialog } from '#shared/ui'
 import type {
   AliasSyncTask,

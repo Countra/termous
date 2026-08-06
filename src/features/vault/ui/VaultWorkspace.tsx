@@ -15,7 +15,7 @@ import {
 import { getTermousBridge } from '#shared/bridge'
 import { TermousApiError } from '#shared/api'
 import { ConfirmDialog } from '#shared/ui'
-import { ManagementWorkspace, type ManagementWorkspaceView } from '../../../components/management/ManagementWorkspace'
+import { ManagementWorkspace, type ManagementWorkspaceView } from '#shared/ui'
 import {
   createRuntimeCredentialGateway,
   type CredentialGatewayFactory,

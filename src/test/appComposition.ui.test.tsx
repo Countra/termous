@@ -149,7 +149,7 @@ vi.mock('../features/workbench/WorkbenchPage', () => ({
   },
 }))
 
-vi.mock('../features/hosts/HostsPage', () => ({
+vi.mock('#pages/hosts', () => ({
   HostsPage: () => <div data-testid="hosts-page">Hosts</div>,
 }))
 
@@ -158,8 +158,11 @@ vi.mock('../features/forwards/ForwardingPage', () => ({ ForwardingPage: () => nu
 vi.mock('#pages/settings', () => ({ SettingsPage: () => null }))
 vi.mock('../features/snippets/SnippetsPage', () => ({ SnippetsPage: () => null }))
 vi.mock('#pages/vault', () => ({ VaultPage: () => null }))
-vi.mock('../features/workbench/HostLauncherModal', () => ({ HostLauncherModal: () => null }))
-vi.mock('../components/hostkey/HostKeyCoordinator', () => ({ HostKeyCoordinator: () => null }))
+vi.mock('#features/hosts', () => ({
+  HostLauncherModal: () => null,
+  HostKeyCoordinator: () => null,
+  hostLauncherIntentForPage: (page: string) => page === 'files' ? 'files' : 'terminal',
+}))
 vi.mock('#shared/ui', () => ({ ConfirmDialog: () => null }))
 vi.mock('#app/update-simulation-slot', () => ({
   readDevelopmentUpdateSimulation: () => null,
