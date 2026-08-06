@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { RemoteDirectoryViewState } from './filesWorkspaceState'
-import type { PendingFileOperation } from './transferQueueState'
+import type { PendingFileOperation } from '#features/transfers'
 
 export type FilesWorkspaceSessionStateUpdater = (
   current: RemoteDirectoryViewState,

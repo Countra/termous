@@ -36,7 +36,7 @@ const workbenchFileListSource = readFileSync(
   'utf8',
 )
 const remoteTextEditorSource = readFileSync(
-  fileURLToPath(new URL('../features/files/RemoteTextEditorModal.tsx', import.meta.url)),
+  fileURLToPath(new URL('../features/remote-file/ui/RemoteTextEditorModal.tsx', import.meta.url)),
   'utf8',
 )
 const termousDataSource = readFileSync(

@@ -21,7 +21,7 @@ import {
 import {
   limitPendingFileOperations,
   type PendingFileOperation,
-} from './transferQueueState'
+} from '#features/transfers'
 
 export function FilesWorkspaceRuntimeProvider({
   children,

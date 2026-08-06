@@ -1,0 +1,963 @@
+.root {
+  display: contents;
+
+  :global {
+    .local-download-console {
+      position: relative;
+      display: grid;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      flex: 1 1 auto;
+      grid-template-columns:
+        minmax(220px, 0.82fr)
+        minmax(420px, 1.5fr)
+        minmax(250px, 0.78fr);
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    .local-download-console:not(.is-open) {
+      display: none;
+    }
+
+    .local-download-console-mappings,
+    .local-download-console-browser,
+    .local-download-console-confirm {
+      min-width: 0;
+      min-height: 0;
+      background: var(--surface);
+    }
+
+    .local-download-console-mappings,
+    .local-download-console-browser {
+      display: grid;
+      grid-template-rows: 39px minmax(0, 1fr);
+      border-right: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    }
+
+    .local-download-console-browser {
+      grid-template-rows: 39px 35px minmax(0, 1fr);
+    }
+
+    .local-download-console-pane-head {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+      padding: 0 10px 0 12px;
+    }
+
+    .local-download-console-pane-head.is-editing .local-download-console-pane-title,
+    .local-download-console-pane-head.is-editing .local-download-console-pane-title svg {
+      color: var(--accent);
+    }
+
+    .local-download-console-pane-title {
+      display: inline-flex;
+      min-width: 0;
+      align-items: center;
+      gap: 7px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .local-download-console-pane-title svg {
+      flex: 0 0 auto;
+      color: var(--text-muted);
+    }
+
+    .local-download-console-pane-title small {
+      min-width: 18px;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+
+    .local-download-console-pane-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 1px;
+      margin-left: auto;
+    }
+
+    .local-download-console-pane-actions .ant-btn {
+      width: 27px;
+      height: 27px;
+      padding: 0;
+      border-radius: 6px;
+      color: var(--text-muted);
+    }
+
+    .local-download-console-pane-actions .ant-btn:not(:disabled):hover {
+      background: var(--surface-hover);
+      color: var(--text-primary);
+    }
+
+    .local-download-console-close {
+      position: absolute;
+      top: 6px;
+      right: 7px;
+      z-index: 2;
+      width: 27px;
+      height: 27px;
+      border-radius: 6px;
+      color: var(--text-muted);
+    }
+
+    .local-download-console-confirm-title {
+      padding-right: 28px;
+    }
+
+    .local-download-console-mapping-list,
+    .local-download-console-directory-list {
+      min-width: 0;
+      min-height: 0;
+      overflow: auto;
+      scrollbar-width: thin;
+    }
+
+    .local-download-console-mapping-list {
+      padding: 5px 6px;
+    }
+
+    .local-download-console .local-download-console-mapping-row.ant-btn,
+    .local-download-console .local-download-console-directory-row.ant-btn {
+      position: relative;
+      display: grid;
+      width: 100%;
+      min-width: 0;
+      height: auto;
+      align-items: center;
+      justify-content: stretch;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-primary);
+      cursor: pointer;
+      font: inherit;
+      text-align: left;
+      box-shadow: none;
+      transition:
+        background-color 140ms ease,
+        border-color 140ms ease,
+        box-shadow 120ms ease,
+        color 120ms ease;
+    }
+
+    .local-download-console .local-download-console-mapping-row.ant-btn {
+      grid-template-columns: 27px minmax(0, 1fr) 14px;
+      gap: 8px;
+      min-height: 47px;
+      padding: 5px 9px;
+    }
+
+    .local-download-console .local-download-console-mapping-row.ant-btn:not(:disabled, .is-drop-target):hover {
+      border-color: color-mix(in srgb, var(--accent) 16%, var(--border));
+      background: color-mix(in srgb, var(--accent) 5%, var(--surface-hover));
+      color: var(--text-primary);
+      box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 5%, transparent);
+    }
+
+    .local-download-console .local-download-console-mapping-row.ant-btn.is-active:not(:disabled, .is-drop-target):hover {
+      border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+      background: color-mix(in srgb, var(--accent) 13%, var(--surface));
+    }
+
+    .local-download-console .local-download-console-directory-row.ant-btn:not(:disabled, .is-drop-target):hover {
+      border-color: color-mix(in srgb, var(--accent) 14%, var(--border));
+      background: color-mix(in srgb, var(--accent) 5%, var(--surface-hover));
+      color: var(--text-primary);
+      box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+    }
+
+    .local-download-console .local-download-console-mapping-row.ant-btn:not(:disabled):active,
+    .local-download-console .local-download-console-directory-row.ant-btn:not(:disabled):active {
+      border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+      background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+      box-shadow: inset 0 1px 2px color-mix(in srgb, var(--app-bg) 42%, transparent);
+    }
+
+    .local-download-quick-target:active {
+      transform: translateY(1px);
+    }
+
+    .local-download-console .local-download-console-mapping-row.ant-btn.is-active {
+      border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+      background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+      color: var(--accent);
+      box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent);
+    }
+
+    .local-download-console .local-download-console-mapping-row.ant-btn.is-unavailable {
+      opacity: 0.52;
+    }
+
+    .local-download-console-row-icon,
+    .local-download-console-row-affordance {
+      display: inline-grid;
+      place-items: center;
+      color: var(--text-muted);
+      transition:
+        background-color 140ms ease,
+        color 140ms ease,
+        opacity 140ms ease;
+    }
+
+    .local-download-console-row-icon {
+      width: 27px;
+      height: 27px;
+      border-radius: 7px;
+      background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+    }
+
+    .local-download-console-row-affordance {
+      width: 22px;
+      height: 22px;
+      justify-self: end;
+      border-radius: 6px;
+      opacity: 0.54;
+    }
+
+    .local-download-console-mapping-row.is-active .local-download-console-row-icon {
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      color: var(--accent);
+    }
+
+    .local-download-console .local-download-console-mapping-row.ant-btn:not(:disabled, .is-drop-target):hover .local-download-console-row-icon,
+    .local-download-console .local-download-console-directory-row.ant-btn:not(:disabled, .is-drop-target):hover .local-download-console-row-icon {
+      background: color-mix(in srgb, var(--accent) 10%, var(--surface-subtle));
+      color: color-mix(in srgb, var(--accent) 82%, var(--text-primary));
+    }
+
+    .local-download-console .local-download-console-directory-row.ant-btn:not(:disabled, .is-drop-target):hover .local-download-console-row-affordance {
+      background: color-mix(in srgb, var(--accent) 11%, transparent);
+      color: var(--accent);
+      opacity: 1;
+    }
+
+    .local-download-console .local-download-console-mapping-row.ant-btn:disabled,
+    .local-download-console .local-download-console-directory-row.ant-btn:disabled {
+      cursor: default;
+    }
+
+    .local-download-console-row-copy {
+      display: grid;
+      min-width: 0;
+      gap: 2px;
+    }
+
+    .local-download-console-row-copy strong,
+    .local-download-console-target-copy strong {
+      overflow: hidden;
+      font-size: 12px;
+      font-weight: 680;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .local-download-console-row-copy small,
+    .local-download-console-target-copy small {
+      overflow: hidden;
+      color: var(--text-muted);
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      transition: color 140ms ease;
+    }
+
+    .local-download-console .local-download-console-mapping-row.ant-btn:not(:disabled, .is-drop-target):hover .local-download-console-row-copy small,
+    .local-download-console .local-download-console-directory-row.ant-btn:not(:disabled, .is-drop-target):hover .local-download-console-row-copy small {
+      color: var(--text-secondary);
+    }
+
+    .local-download-console-mapping-status {
+      display: inline-grid;
+      width: 14px;
+      height: 22px;
+      place-items: center;
+    }
+
+    .local-download-console-mapping-status > i {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      box-shadow: 0 0 0 3px transparent;
+      transition:
+        background-color 140ms ease,
+        box-shadow 140ms ease;
+    }
+
+    .local-download-console-mapping-row:not(.is-unavailable) .local-download-console-mapping-status > i {
+      background: var(--success);
+    }
+
+    .local-download-console-mapping-row:not(.is-unavailable):hover .local-download-console-mapping-status > i {
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 12%, transparent);
+    }
+
+    .local-download-console-mapping-form {
+      display: grid;
+      min-width: 0;
+      min-height: 0;
+      grid-template-rows: minmax(0, 1fr) auto;
+      overflow: hidden;
+    }
+
+    .local-download-console-mapping-form-fields {
+      display: grid;
+      min-width: 0;
+      min-height: 0;
+      align-content: start;
+      gap: 8px;
+      overflow: auto;
+      padding: 9px 10px;
+    }
+
+    .local-download-console-mapping-form-fields label {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .local-download-console-mapping-form-fields label > span {
+      color: var(--text-secondary);
+      font-size: 10px;
+      font-weight: 680;
+    }
+
+    .local-download-console-mapping-form .ant-input {
+      border-color: var(--border);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--surface-subtle) 72%, transparent);
+      color: var(--text-primary);
+    }
+
+    .local-download-console-mapping-form .ant-input:focus,
+    .local-download-console-mapping-form .ant-input-focused {
+      border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 10%, transparent);
+    }
+
+    .local-download-console-mapping-path-field {
+      display: grid;
+      min-width: 0;
+      grid-template-columns: minmax(0, 1fr) 28px;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .local-download-console-mapping-picker.ant-btn {
+      width: 28px;
+      height: 24px;
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--accent) 7%, transparent);
+      color: var(--accent);
+    }
+
+    .local-download-console-mapping-picker.ant-btn:not(:disabled):hover {
+      background: color-mix(in srgb, var(--accent) 13%, transparent);
+      color: var(--accent);
+    }
+
+    .local-download-console-mapping-form-actions {
+      display: flex;
+      min-height: 41px;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      border-top: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+      padding: 5px 9px;
+      background: color-mix(in srgb, var(--surface-subtle) 44%, transparent);
+    }
+
+    .local-download-console-mapping-form-actions .ant-btn {
+      min-width: 64px;
+      border-radius: 6px;
+    }
+
+    .local-download-console-breadcrumbs {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 1px;
+      overflow-x: auto;
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+      padding: 0 10px;
+      scrollbar-width: none;
+    }
+
+    .local-download-console-breadcrumbs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .local-download-console-breadcrumbs > span {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 1px;
+    }
+
+    .local-download-console-breadcrumbs > span > svg {
+      color: var(--text-muted);
+    }
+
+    .local-download-console-breadcrumbs button {
+      display: inline-flex;
+      height: 25px;
+      align-items: center;
+      gap: 5px;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .local-download-console-breadcrumbs button:hover,
+    .local-download-console-breadcrumbs button[aria-current='location'] {
+      background: var(--surface-hover);
+      color: var(--text-primary);
+    }
+
+    .local-download-console-directory-list {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 5px 6px 7px;
+      transition:
+        background-color 120ms ease,
+        box-shadow 120ms ease;
+    }
+
+    .local-download-console-directory-list.is-current-drop-target {
+      background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 52%, transparent);
+      cursor: copy;
+    }
+
+    .local-download-console-directory-list.is-navigating {
+      box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 58%, transparent);
+    }
+
+    .local-download-console .local-download-console-directory-row.ant-btn {
+      flex: 0 0 auto;
+      grid-template-columns: 27px minmax(0, 1fr) 22px;
+      gap: 8px;
+      min-height: 43px;
+      padding: 4px 8px;
+    }
+
+    .local-download-console-alert {
+      margin: 5px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+    }
+
+    .local-download-console-empty-copy {
+      display: grid;
+      min-height: 100%;
+      place-content: center;
+      justify-items: center;
+      gap: 5px;
+      padding: 16px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .local-download-console-empty {
+      display: grid;
+      min-width: 0;
+      min-height: 0;
+      flex: 1 1 auto;
+      place-content: center;
+      justify-items: center;
+      gap: 6px;
+      margin: 0;
+      padding: 18px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .local-download-console-empty-icon {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      margin-bottom: 2px;
+      border-radius: 9px;
+      background: color-mix(in srgb, var(--accent) 8%, transparent);
+      color: var(--accent);
+    }
+
+    .local-download-console-empty strong,
+    .local-download-console-empty-copy strong {
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    .local-download-console-empty small,
+    .local-download-console-empty-copy span {
+      max-width: 30ch;
+      color: var(--text-muted);
+      font-size: 10px;
+    }
+
+    .local-download-console-skeleton {
+      display: grid;
+    }
+
+    .local-download-console-skeleton > div {
+      display: grid;
+      grid-template-columns: 24px minmax(100px, 45%);
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      padding: 5px 12px;
+    }
+
+    .local-download-console-skeleton .ant-skeleton-input {
+      width: 100% !important;
+      min-width: 100px;
+    }
+
+    .local-download-console-confirm {
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      padding: 12px 14px;
+    }
+
+    .local-download-console-confirm-title {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .local-download-console-confirm-title svg {
+      color: var(--accent);
+    }
+
+    .local-download-console-target-copy {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+      border-left: 2px solid var(--accent);
+      padding: 3px 0 3px 9px;
+    }
+
+    .local-download-console-selection {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-secondary);
+      font-size: 11px;
+    }
+
+    .local-download-console-confirm > p {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 10px;
+    }
+
+    .local-download-console-inline-alert {
+      padding: 5px 7px;
+      border-radius: 6px;
+      font-size: 10px;
+    }
+
+    .local-download-console-confirm-button {
+      width: 100%;
+      min-height: 34px;
+      margin-top: auto;
+      border-radius: 6px;
+      font-weight: 680;
+      white-space: nowrap;
+    }
+
+    .local-download-console .is-drop-target,
+    .local-download-quick-target.is-drop-target {
+      background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+      color: var(--accent);
+      outline: 1px solid color-mix(in srgb, var(--accent) 64%, transparent);
+      outline-offset: -1px;
+    }
+
+    .local-download-console .is-drop-busy {
+      cursor: progress;
+      opacity: 0.7;
+    }
+
+    .local-download-console.is-native-drag {
+      outline: 1px solid color-mix(in srgb, var(--warning) 72%, transparent);
+      outline-offset: -1px;
+    }
+
+    .local-download-console button:focus-visible,
+    .local-download-quick-target:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+      outline-offset: -2px;
+    }
+
+    .local-download-console-live-target {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      /* stylelint-disable-next-line property-no-deprecated -- 保持原有无障碍隐藏策略，避免迁移阶段改变辅助技术读取行为。 */
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    .local-download-quick-target {
+      position: relative;
+      display: inline-flex;
+      width: clamp(220px, 28vw, 360px);
+      max-width: min(38vw, 380px);
+      min-width: 220px;
+      height: 100%;
+      flex: 0 1 auto;
+      align-items: center;
+      gap: 8px;
+      overflow: hidden;
+      border: 0;
+      border-right: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+      border-left: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+      border-radius: 0;
+      background: color-mix(in srgb, var(--accent) 6%, transparent);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font: inherit;
+      font-size: 11px;
+      padding: 0 11px;
+      transition:
+        background-color 140ms ease,
+        color 140ms ease;
+      white-space: nowrap;
+    }
+
+    .local-download-quick-target::after {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      height: 2px;
+      background: var(--accent);
+      content: "";
+      opacity: 0;
+      transform: scaleX(0.65);
+      transition:
+        opacity 140ms ease,
+        transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .local-download-quick-target:hover {
+      background: color-mix(in srgb, var(--accent) 10%, transparent);
+      color: var(--text-primary);
+    }
+
+    .local-download-quick-target.is-expanded,
+    .local-download-quick-target.is-drop-target {
+      background: color-mix(in srgb, var(--accent) 13%, transparent);
+      color: var(--text-primary);
+    }
+
+    .local-download-quick-target.is-expanded::after,
+    .local-download-quick-target.is-drop-target::after {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+
+    .local-download-quick-target-icon {
+      flex: 0 0 auto;
+      color: var(--accent);
+    }
+
+    .local-download-quick-target-copy {
+      display: flex;
+      min-width: 0;
+      align-items: baseline;
+      gap: 7px;
+      overflow: hidden;
+    }
+
+    .local-download-quick-target-label {
+      flex: 0 0 auto;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 620;
+    }
+
+    .local-download-quick-target-copy strong,
+    .local-download-quick-target-copy small {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .local-download-quick-target-copy strong {
+      min-width: 0;
+      color: var(--text-primary);
+      font-weight: 650;
+    }
+
+    .local-download-quick-target-copy small {
+      min-width: 0;
+      color: var(--text-muted);
+      font-size: 10px;
+    }
+
+    .local-download-quick-target-copy small::before {
+      margin-right: 7px;
+      color: color-mix(in srgb, var(--text-muted) 68%, transparent);
+      content: "/";
+    }
+
+    .local-download-quick-target-chevron {
+      flex: 0 0 auto;
+      margin-left: auto;
+      color: var(--text-muted);
+      transition:
+        color 140ms ease,
+        transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .local-download-quick-target:hover .local-download-quick-target-chevron {
+      color: var(--text-secondary);
+    }
+
+    .local-download-quick-target.is-expanded .local-download-quick-target-chevron {
+      color: var(--accent);
+      transform: rotate(180deg);
+    }
+
+    .local-download-quick-target.is-unavailable .local-download-quick-target-icon {
+      color: var(--warning);
+    }
+
+    .local-download-quick-target.is-empty .local-download-quick-target-copy strong {
+      color: var(--accent);
+    }
+
+    @media (width <= 1100px) {
+      .local-download-quick-target {
+        width: min(31vw, 300px);
+        min-width: 200px;
+      }
+    }
+
+    @media (width <= 820px) {
+      .local-download-quick-target {
+        width: auto;
+        max-width: none;
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+
+      .local-download-quick-target-path {
+        display: none;
+      }
+    }
+
+    @media (width >= 1000px) and (width <= 1279px) {
+      .local-download-console {
+        grid-template-columns: minmax(220px, 0.72fr) minmax(480px, 1.7fr);
+        grid-template-rows: minmax(0, 1fr) 62px;
+      }
+
+      .local-download-console-confirm {
+        grid-column: 1 / -1;
+        grid-template-columns: auto minmax(180px, 1fr) auto auto;
+        align-items: center;
+        align-content: center;
+        gap: 12px;
+        border-top: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+        padding: 7px 44px 7px 12px;
+      }
+
+      .local-download-console-confirm-title {
+        padding-right: 0;
+      }
+
+      .local-download-console-confirm > p {
+        display: none;
+      }
+
+      .local-download-console-confirm-button {
+        width: auto;
+        min-width: 164px;
+        margin-top: 0;
+      }
+
+      .local-download-console-inline-alert {
+        position: absolute;
+        right: 12px;
+        bottom: 66px;
+        max-width: 360px;
+      }
+    }
+
+    @media (width <= 999px) {
+      .local-download-console {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 76px minmax(0, 1fr) 62px;
+      }
+
+      .local-download-console:has(.local-download-console-mapping-form) {
+        grid-template-rows: 136px minmax(0, 1fr) 62px;
+      }
+
+      .local-download-console-mappings,
+      .local-download-console-browser {
+        border-right: 0;
+      }
+
+      .local-download-console-mappings {
+        grid-template-rows: 34px minmax(0, 1fr);
+        border-bottom: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+      }
+
+      .local-download-console-pane-head {
+        min-height: 34px;
+      }
+
+      .local-download-console-mapping-list {
+        display: flex;
+        gap: 1px;
+        overflow: auto hidden;
+        padding: 3px 7px 4px;
+      }
+
+      .local-download-console-mapping-row {
+        min-height: 35px;
+        flex: 0 0 190px;
+        border-radius: 6px;
+        padding-block: 3px;
+      }
+
+      .local-download-console-mapping-row small {
+        display: none;
+      }
+
+      .local-download-console-mapping-form {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-rows: minmax(0, 1fr);
+      }
+
+      .local-download-console-mapping-form-fields {
+        grid-template-columns: minmax(120px, 0.7fr) minmax(180px, 1.3fr);
+        align-items: end;
+        gap: 8px;
+        overflow: hidden;
+        padding: 7px 10px;
+      }
+
+      .local-download-console-mapping-form-actions {
+        min-height: 0;
+        border-top: 0;
+        border-left: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+        padding: 7px 10px;
+      }
+
+      .local-download-console-confirm {
+        grid-template-columns: minmax(120px, 1fr) auto minmax(155px, auto);
+        align-items: center;
+        align-content: center;
+        gap: 10px;
+        border-top: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+        padding: 8px 43px 8px 11px;
+      }
+
+      .local-download-console-confirm-title,
+      .local-download-console-confirm > p {
+        display: none;
+      }
+
+      .local-download-console-selection {
+        justify-self: end;
+      }
+
+      .local-download-console-confirm-button {
+        width: auto;
+        min-width: 155px;
+        margin-top: 0;
+      }
+
+      .local-download-console-inline-alert {
+        position: absolute;
+        right: 10px;
+        bottom: 77px;
+        max-width: min(420px, calc(100vw - 20px));
+      }
+    }
+
+    @media (width <= 680px) {
+      .local-download-console {
+        grid-template-rows: 76px minmax(0, 1fr) 70px;
+      }
+
+      .local-download-console:has(.local-download-console-mapping-form) {
+        grid-template-rows: 176px minmax(0, 1fr) 70px;
+      }
+
+      .local-download-console-mapping-form {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-rows: minmax(0, 1fr);
+      }
+
+      .local-download-console-mapping-form-fields {
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+        gap: 6px;
+        overflow: auto;
+        padding: 7px 8px;
+      }
+
+      .local-download-console-mapping-form-actions {
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: center;
+        padding-inline: 7px;
+      }
+
+      .local-download-console-confirm {
+        grid-template-columns: minmax(0, 1fr) minmax(145px, auto);
+        grid-template-rows: auto auto;
+      }
+
+      .local-download-console-selection {
+        grid-column: 1;
+        grid-row: 2;
+        justify-self: start;
+      }
+
+      .local-download-console-confirm-button {
+        grid-column: 2;
+        grid-row: 1 / 3;
+      }
+
+      .local-download-quick-target-label,
+      .local-download-quick-target-path {
+        display: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .local-download-console,
+      .local-download-console-mapping-row,
+      .local-download-console-directory-row,
+      .local-download-quick-target {
+        transition: none;
+      }
+    }
+  }
+}

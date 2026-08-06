@@ -105,6 +105,12 @@ body {
   overflow: hidden;
 }
 
+body[data-termous-bottom-drawer-resizing],
+body[data-termous-bottom-drawer-resizing] * {
+  cursor: ns-resize !important;
+  user-select: none !important;
+}
+
 button,
 input,
 textarea {
@@ -141,4 +147,35 @@ textarea {
 
 svg {
   flex: 0 0 auto;
+}
+
+@keyframes transfer-queue-slide {
+  0% {
+    transform: translateX(-115%);
+  }
+
+  100% {
+    transform: translateX(330%);
+  }
+}
+
+@keyframes transfer-queue-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes file-operation-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  100% {
+    transform: translateX(280%);
+  }
 }

@@ -42,12 +42,14 @@ import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import type { TermousApi } from '../../api/client'
 import { useTransferRuntime } from '#features/transfers'
-import { buildRemoteFileActionMenu } from '../../components/files/RemoteFileActionMenu'
 import {
+  buildRemoteFileActionMenu,
+  loadRemoteImageViewerModal,
+  loadRemoteTextEditorModal,
   runRemoteFileAction,
   type RemoteFileActionHandlers,
-} from '../../components/files/remoteFileActions'
-import { RemotePermissionModal } from '../../components/files/RemotePermissionModal'
+  RemotePermissionModal,
+} from '#features/remote-file'
 import type {
   AppData,
   Session,
@@ -86,8 +88,8 @@ import { isLocalFileDrag } from './workbenchFileDrag'
 import './workbench-files-panel.css'
 import './workbench-file-controls.css'
 
-const RemoteTextEditorModal = lazy(() => import('../files/RemoteTextEditorModal').then((module) => ({ default: module.RemoteTextEditorModal })))
-const RemoteImageViewerModal = lazy(() => import('../files/RemoteImageViewerModal').then((module) => ({ default: module.RemoteImageViewerModal })))
+const RemoteTextEditorModal = lazy(loadRemoteTextEditorModal)
+const RemoteImageViewerModal = lazy(loadRemoteImageViewerModal)
 const imagePattern = /\.(?:png|jpe?g|gif|webp|bmp|svg)$/i
 
 interface WorkbenchFilesPanelProps {

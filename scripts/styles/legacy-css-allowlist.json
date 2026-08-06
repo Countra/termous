@@ -2,8 +2,6 @@
   "schemaVersion": 1,
   "legacyCssFiles": [
     "src/App.css",
-    "src/features/files/file-bookmarks-rail.css",
-    "src/features/files/file-bookmarks-sidebar.css",
     "src/features/forwards/forwarding.css",
     "src/features/workbench/alias-panel.css",
     "src/features/workbench/alias-sync-modal.css",
@@ -14,12 +12,8 @@
     "src/features/workbench/workbench-file-controls.css",
     "src/features/workbench/workbench-file-status.css",
     "src/features/workbench/workbench-files-panel.css",
-    "src/styles/files-bottom-drawer.css",
     "src/styles/files-workspace-panels.css",
-    "src/styles/files-workspace-transfer-rows.css",
-    "src/styles/files-workspace-transfers.css",
     "src/styles/files-workspace.css",
-    "src/styles/local-download-console.css",
     "src/styles/terminal-completion.css",
     "src/styles/workstation.css"
   ]

@@ -76,12 +76,14 @@ import type {
   TransferTask,
 } from '#entities/file'
 import { useTransferRuntime } from '#features/transfers'
-import { buildRemoteFileActionMenu } from '../../components/files/RemoteFileActionMenu'
-import { RemotePermissionModal } from '../../components/files/RemotePermissionModal'
 import {
+  buildRemoteFileActionMenu,
+  loadRemoteImageViewerModal,
+  loadRemoteTextEditorModal,
+  RemotePermissionModal,
   runRemoteFileAction,
   type RemoteFileActionHandlers,
-} from '../../components/files/remoteFileActions'
+} from '#features/remote-file'
 import { formatBytes, formatDate } from '#shared/format'
 import {
   joinPath,
@@ -89,9 +91,8 @@ import {
   normalizeRemotePosixPath,
   parentPath,
 } from '#shared/path'
-import { FileBookmarksRail } from './FileBookmarksRail'
-import { FileBookmarksSidebar } from './FileBookmarksSidebar'
-import { FilesBottomDrawer } from './FilesBottomDrawer'
+import { FileBookmarksRail, FileBookmarksSidebar } from '#features/file-bookmarks'
+import { FilesBottomDrawer, TransferQueueDock, TransferQueuePanel } from '#features/transfers'
 import { FilesSidePanel, type FilesSidePanelMode } from './FilesSidePanel'
 import {
   subscribeFileSessionEvents,
@@ -109,27 +110,24 @@ import {
   terminatedFileSessionSnapshot,
   type FileSessionRecoveryAttempt,
 } from '#entities/file'
-import { LocalDownloadConsole } from './local-download/LocalDownloadConsole'
-import { LocalDownloadQuickTarget } from './local-download/LocalDownloadQuickTarget'
 import type {
   LocalDownloadRequest,
   LocalDownloadTarget,
-} from './local-download/types'
-import type { LocalDownloadRefreshRequest } from './local-download/useLocalDownloadWorkspace'
-import type { FilesBookmarkManagementIntent } from './filesBookmarkManagementIntent'
+  LocalDownloadRefreshRequest,
+} from '#features/local-download'
 import {
-  isLocalPathWithin,
-  resolveLocalDownloadQuickTarget,
-} from './local-download/localDownloadWorkspaceState'
-import {
+  LocalDownloadConsole,
+  LocalDownloadQuickTarget,
   beginRemoteFileDrag,
+  isLocalPathWithin,
   releaseRemoteFileDrag,
-  resolveRemoteFileDrag,
   REMOTE_FILE_DRAG_MIME,
+  resolveLocalDownloadQuickTarget,
+  resolveRemoteFileDrag,
   validateRemoteFileDrag,
   type RemoteFileDragTransaction,
-} from './local-download/remoteFileDragRegistry'
-import { TransferQueuePanel } from './TransferQueuePanel'
+} from '#features/local-download'
+import type { FilesBookmarkManagementIntent } from './filesBookmarkManagementIntent'
 import { useFilesWorkspaceRuntime } from './useFilesWorkspaceRuntime'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import {
@@ -161,8 +159,8 @@ import {
   type RemoteDirectoryViewState,
 } from './filesWorkspaceState'
 
-const RemoteTextEditorModal = lazy(() => import('./RemoteTextEditorModal').then((module) => ({ default: module.RemoteTextEditorModal })))
-const RemoteImageViewerModal = lazy(() => import('./RemoteImageViewerModal').then((module) => ({ default: module.RemoteImageViewerModal })))
+const RemoteTextEditorModal = lazy(loadRemoteTextEditorModal)
+const RemoteImageViewerModal = lazy(loadRemoteImageViewerModal)
 
 interface FilesPageProps {
   api: TermousApi
@@ -4536,7 +4534,7 @@ function FilesPageContent({
               : undefined}
         >
           {transfersOpen ? (
-            <div className="files-transfer-dock">
+            <TransferQueueDock className="files-transfer-dock">
               <header className="files-panel-heading files-transfer-heading">
                 <span>
                   <Activity size={15} aria-hidden="true" />
@@ -4598,7 +4596,7 @@ function FilesPageContent({
                   })
                 }}
               />
-            </div>
+            </TransferQueueDock>
           ) : null}
 
           <LocalDownloadConsole

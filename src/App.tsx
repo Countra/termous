@@ -55,8 +55,6 @@ import './App.css'
 import './styles/workstation.css'
 import './styles/files-workspace.css'
 import './styles/files-workspace-panels.css'
-import './styles/files-workspace-transfers.css'
-import './styles/files-workspace-transfer-rows.css'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
 const developmentUpdateSimulation = readDevelopmentUpdateSimulation()

@@ -161,6 +161,11 @@ body.is-panel-resizing .files-side-panel-resize-edge::after {
   transform: scaleY(1);
 }
 
+.files-bookmarks-sidebar [role="separator"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 64%, transparent);
+  outline-offset: -2px;
+}
+
 .files-transfer-scope {
   display: flex;
   align-items: center;
@@ -457,18 +462,16 @@ body.is-panel-resizing .files-side-panel-resize-edge::after {
     animation: none !important;
   }
 
+  .files-bookmarks-sidebar {
+    transition: none;
+  }
+
   .files-side-panel-resize-edge::after,
   .files-path-progress::after,
   .files-directory-skeleton-row span,
   .files-workspace-page .is-spinning,
   .files-session-terminal-icon.is-recovering svg,
   .files-session-cache-overlay.is-recovering .files-session-cache-overlay-icon svg,
-  .files-workspace-page .file-operation-progress.is-running .file-operation-progress-icon svg,
-  .file-operation-progress.is-indeterminate .file-operation-progress-bar span {
-    animation: none !important;
-  }
-
-  .file-operation-progress-bar span,
   .transfer-progress-line span {
     transition: none !important;
   }

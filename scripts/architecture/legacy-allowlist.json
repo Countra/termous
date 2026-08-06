@@ -2,27 +2,6 @@
   "schemaVersion": 1,
   "violations": [
     {
-      "rule": "import-cycle",
-      "source": "src/features/files/local-download/localDownloadWorkspaceState.ts",
-      "target": "src/features/files/local-download/types.ts",
-      "specifier": "./types",
-      "kind": "type"
-    },
-    {
-      "rule": "import-cycle",
-      "source": "src/features/files/local-download/types.ts",
-      "target": "src/features/files/local-download/useLocalDownloadWorkspace.ts",
-      "specifier": "./useLocalDownloadWorkspace",
-      "kind": "type"
-    },
-    {
-      "rule": "import-cycle",
-      "source": "src/features/files/local-download/useLocalDownloadWorkspace.ts",
-      "target": "src/features/files/local-download/localDownloadWorkspaceState.ts",
-      "specifier": "./localDownloadWorkspaceState",
-      "kind": "static"
-    },
-    {
       "rule": "layer-direction",
       "source": "src/features/terminal/TerminalRuntimeProvider.tsx",
       "target": "src/app/TerminalCwdRuntimeProvider.tsx",
@@ -222,30 +201,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/components/files/RemoteFileActionMenu.tsx",
-      "target": "src/components/files/remoteFileActions.ts",
-      "specifier": "./remoteFileActions"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/files/RemoteFileActionMenu.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/files/remoteFileActions.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/files/RemotePermissionModal.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/components/layout/AppShell.tsx",
       "target": "src/components/layout/WindowControls.tsx",
       "specifier": "./WindowControls"
@@ -289,56 +244,8 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/files/FilesPage.tsx",
-      "target": "src/components/files/RemoteFileActionMenu.tsx",
-      "specifier": "../../components/files/RemoteFileActionMenu"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FilesPage.tsx",
-      "target": "src/components/files/remoteFileActions.ts",
-      "specifier": "../../components/files/remoteFileActions"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FilesPage.tsx",
-      "target": "src/components/files/RemotePermissionModal.tsx",
-      "specifier": "../../components/files/RemotePermissionModal"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FilesPage.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/RemoteImageViewerModal.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/RemoteImageViewerModal.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/RemoteTextEditorModal.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/RemoteTextEditorModal.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/useFileOperationWatcher.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
     },
     {
       "rule": "legacy-boundary",
@@ -823,24 +730,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
-      "target": "src/components/files/RemoteFileActionMenu.tsx",
-      "specifier": "../../components/files/RemoteFileActionMenu"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
-      "target": "src/components/files/remoteFileActions.ts",
-      "specifier": "../../components/files/remoteFileActions"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
-      "target": "src/components/files/RemotePermissionModal.tsx",
-      "specifier": "../../components/files/RemotePermissionModal"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -909,18 +798,6 @@
     {
       "rule": "legacy-file",
       "source": "src/components/charts/EChartView.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/files/RemoteFileActionMenu.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/files/remoteFileActions.ts"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/files/RemotePermissionModal.tsx"
     },
     {
       "rule": "legacy-file",
@@ -1032,18 +909,6 @@
     },
     {
       "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
-      "target": "src/features/files/RemoteImageViewerModal.tsx",
-      "specifier": "../files/RemoteImageViewerModal"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
-      "target": "src/features/files/RemoteTextEditorModal.tsx",
-      "specifier": "../files/RemoteTextEditorModal"
-    },
-    {
-      "rule": "public-entry",
       "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/features/forwards/ForwardSessionPanel.tsx",
       "specifier": "../forwards/ForwardSessionPanel"
@@ -1089,18 +954,6 @@
       "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
       "target": "src/features/terminal/terminalCwdContext.ts",
       "specifier": "../terminal/terminalCwdContext"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
-      "target": "src/features/files/RemoteImageViewerModal.tsx",
-      "specifier": "../files/RemoteImageViewerModal"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
-      "target": "src/features/files/RemoteTextEditorModal.tsx",
-      "specifier": "../files/RemoteTextEditorModal"
     },
     {
       "rule": "same-layer-deep-import",
