@@ -6,10 +6,10 @@ import type {
   UpdateSnapshot,
 } from '#common/contracts'
 import {
+  canPrepareUpdateInstall,
   mergeUpdatePreferencesByRevision,
   mergeUpdateRuntimeSnapshot,
-} from './updateRuntimeState.ts'
-import { canPrepareUpdateInstall } from './updateWindowUiState.ts'
+} from '#entities/update'
 
 const simulationVersion = '0.0.2'
 const simulatedTotalBytes = 84 * 1024 * 1024

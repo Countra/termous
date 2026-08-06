@@ -5,7 +5,7 @@ import type {
   ForwardInstance,
   Session,
 } from '../types/domain.ts'
-import { buildUpdateRuntimeSummary } from '../features/update/updateRuntimeSummary.ts'
+import { buildUpdateRuntimeSummary } from '../app/update-runtime/updateRuntimeSummary.ts'
 
 test('更新安装影响摘要统计仍会被退出流程中断的远程资源', () => {
   const sessions = [

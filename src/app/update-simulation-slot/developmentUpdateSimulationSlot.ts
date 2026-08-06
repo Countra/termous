@@ -1,4 +1,4 @@
-import type { DevelopmentUpdateSimulation } from './developmentUpdateSimulation'
+import type { DevelopmentUpdateSimulation } from '#app/update-simulation'
 
 let simulation: DevelopmentUpdateSimulation | null = null
 

@@ -29,12 +29,6 @@
       "specifier": "../../app/TerminalCwdRuntimeProvider"
     },
     {
-      "rule": "layer-direction",
-      "source": "src/features/update/UpdateWindowRoot.tsx",
-      "target": "src/app/TermousUiProvider.tsx",
-      "specifier": "../../app/TermousUiProvider"
-    },
-    {
       "rule": "layer-root-file",
       "source": "src/shared/fileSessionSnapshot.ts"
     },
@@ -59,8 +53,20 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/app/TermousUiProvider.tsx",
-      "specifier": "./app/TermousUiProvider"
+      "target": "src/app/ui-runtime/index.ts",
+      "specifier": "#app/ui-runtime"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/App.tsx",
+      "target": "src/app/update-runtime/index.ts",
+      "specifier": "#app/update-runtime"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/App.tsx",
+      "target": "src/app/update-simulation-slot/index.ts",
+      "specifier": "#app/update-simulation-slot"
     },
     {
       "rule": "legacy-boundary",
@@ -155,26 +161,8 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/update/developmentUpdateSimulationSlot.ts",
-      "specifier": "./features/update/developmentUpdateSimulationSlot"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
-      "target": "src/features/update/UpdateRuntimeProvider.tsx",
-      "specifier": "./features/update/UpdateRuntimeProvider"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
-      "target": "src/features/update/UpdateRuntimeSummaryReporter.tsx",
-      "specifier": "./features/update/UpdateRuntimeSummaryReporter"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
-      "target": "src/features/update/useUpdateRuntime.ts",
-      "specifier": "./features/update/useUpdateRuntime"
+      "target": "src/features/update/index.ts",
+      "specifier": "#features/update"
     },
     {
       "rule": "legacy-boundary",
@@ -211,6 +199,18 @@
       "source": "src/app/sessionInventoryState.ts",
       "target": "src/types/domain.ts",
       "specifier": "../types/domain"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/app/update-runtime/updateRuntimeSummary.ts",
+      "target": "src/types/domain.ts",
+      "specifier": "../../types/domain"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/app/update-runtime/UpdateRuntimeSummaryReporter.tsx",
+      "target": "src/types/domain.ts",
+      "specifier": "../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -329,8 +329,8 @@
     {
       "rule": "legacy-boundary",
       "source": "src/components/layout/AppShell.tsx",
-      "target": "src/features/update/BrandVersionControl.tsx",
-      "specifier": "../../features/update/BrandVersionControl"
+      "target": "src/features/update/index.ts",
+      "specifier": "#features/update"
     },
     {
       "rule": "legacy-boundary",
@@ -910,30 +910,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/update/developmentUpdateSimulation.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/update/updateRuntimeSummary.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/update/UpdateRuntimeSummaryReporter.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/update/UpdateWindowRoot.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/vault/CredentialCatalog.tsx",
       "target": "src/components/management/ManagementWorkspace.tsx",
       "specifier": "../../components/management/ManagementWorkspace"
@@ -1433,26 +1409,26 @@
     {
       "rule": "legacy-boundary",
       "source": "src/main.tsx",
-      "target": "src/app/rendererSurface.ts",
-      "specifier": "./app/rendererSurface"
+      "target": "src/app/renderer-entry/index.ts",
+      "specifier": "#app/renderer-entry"
     },
     {
       "rule": "legacy-boundary",
       "source": "src/main.tsx",
-      "target": "src/features/update/developmentUpdateSimulation.ts",
-      "specifier": "./features/update/developmentUpdateSimulation"
+      "target": "src/app/update-simulation-slot/index.ts",
+      "specifier": "#app/update-simulation-slot"
     },
     {
       "rule": "legacy-boundary",
       "source": "src/main.tsx",
-      "target": "src/features/update/developmentUpdateSimulationSlot.ts",
-      "specifier": "./features/update/developmentUpdateSimulationSlot"
+      "target": "src/app/update-simulation/index.ts",
+      "specifier": "#app/update-simulation"
     },
     {
       "rule": "legacy-boundary",
       "source": "src/main.tsx",
-      "target": "src/features/update/UpdateWindowRoot.tsx",
-      "specifier": "./features/update/UpdateWindowRoot.tsx"
+      "target": "src/app/update-surface/index.ts",
+      "specifier": "#app/update-surface"
     },
     {
       "rule": "legacy-boundary",
@@ -1615,30 +1591,6 @@
     {
       "rule": "public-entry",
       "source": "src/App.tsx",
-      "target": "src/features/update/developmentUpdateSimulationSlot.ts",
-      "specifier": "./features/update/developmentUpdateSimulationSlot"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/update/UpdateRuntimeProvider.tsx",
-      "specifier": "./features/update/UpdateRuntimeProvider"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/update/UpdateRuntimeSummaryReporter.tsx",
-      "specifier": "./features/update/UpdateRuntimeSummaryReporter"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/update/useUpdateRuntime.ts",
-      "specifier": "./features/update/useUpdateRuntime"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
       "target": "src/features/vault/VaultPage.tsx",
       "specifier": "./features/vault/VaultPage"
     },
@@ -1689,12 +1641,6 @@
       "source": "src/app/useTermousData.ts",
       "target": "src/features/hosts/hostInput.ts",
       "specifier": "../features/hosts/hostInput"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/components/layout/AppShell.tsx",
-      "target": "src/features/update/BrandVersionControl.tsx",
-      "specifier": "../../features/update/BrandVersionControl"
     },
     {
       "rule": "public-entry",
@@ -1815,24 +1761,6 @@
       "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/features/terminal/TerminalSplitWorkspace.tsx",
       "specifier": "../terminal/TerminalSplitWorkspace"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/main.tsx",
-      "target": "src/features/update/developmentUpdateSimulation.ts",
-      "specifier": "./features/update/developmentUpdateSimulation"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/main.tsx",
-      "target": "src/features/update/developmentUpdateSimulationSlot.ts",
-      "specifier": "./features/update/developmentUpdateSimulationSlot"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/main.tsx",
-      "target": "src/features/update/UpdateWindowRoot.tsx",
-      "specifier": "./features/update/UpdateWindowRoot.tsx"
     },
     {
       "rule": "same-layer-deep-import",

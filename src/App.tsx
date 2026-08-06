@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { App as AntdApp, Button, Modal } from 'antd'
 import { LogOut, ServerOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { TermousUiProvider } from './app/TermousUiProvider'
+import { TermousUiProvider } from '#app/ui-runtime'
 import { AppShell } from './components/layout/AppShell'
 import { ConfirmDialog } from '#shared/ui'
 import { HostsPage } from './features/hosts/HostsPage'
@@ -42,10 +42,12 @@ import {
   ShortcutRuntimeProvider,
   ShortcutWindowAdapter,
 } from '#app/shortcut-runtime'
-import { UpdateRuntimeProvider } from './features/update/UpdateRuntimeProvider'
-import { UpdateRuntimeSummaryReporter } from './features/update/UpdateRuntimeSummaryReporter'
-import { readDevelopmentUpdateSimulation } from './features/update/developmentUpdateSimulationSlot'
-import { useUpdateRuntime } from './features/update/useUpdateRuntime'
+import {
+  UpdateRuntimeProvider,
+  UpdateRuntimeSummaryReporter,
+} from '#app/update-runtime'
+import { readDevelopmentUpdateSimulation } from '#app/update-simulation-slot'
+import { useUpdateRuntime } from '#features/update'
 import { usePersistentBooleanState } from '#shared/hooks'
 import { getTermousBridge } from '#shared/bridge'
 import type { AppBuildInfo, CodeSnippet, CodeSnippetGroup, CodeSnippetInput, ConnectionProxy, ConnectionProxyInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, Language, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'

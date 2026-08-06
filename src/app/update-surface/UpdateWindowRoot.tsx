@@ -27,9 +27,8 @@ import type {
   UpdateSnapshot,
   UpdateWindowBootstrap,
 } from '#common/contracts'
-import { TermousUiProvider } from '../../app/TermousUiProvider'
-import type { Language, ThemeMode } from '../../types/domain'
-import { readDevelopmentUpdateSimulation } from './developmentUpdateSimulationSlot'
+import { TermousUiProvider } from '#app/ui-runtime'
+import { readDevelopmentUpdateSimulation } from '#app/update-simulation-slot'
 import {
   UpdateWindowPrimaryActionIcon,
   UpdateWindowVersionBlock,
@@ -51,8 +50,8 @@ import {
   resolveUpdateWindowVisiblePrimaryAction,
   type UpdateWindowPrimaryAction,
   type UpdateWindowBusyAction,
-} from './updateWindowUiState'
-import './update-window.css'
+} from '#entities/update'
+import styles from './UpdateWindowRoot.module.scss'
 
 const initialBootstrap: UpdateWindowBootstrap<UpdateSnapshot> = {
   bootstrap_seq: 0,
@@ -410,24 +409,27 @@ export default function UpdateWindowRoot() {
 
   return (
     <TermousUiProvider
-      language={language as Language}
-      theme={bootstrap.theme as ThemeMode}
+      language={language}
+      theme={bootstrap.theme}
     >
       <main
-        className={`update-window-root${isMac ? ' is-macos' : ''}`}
+        className={[
+          styles['update-window-root'],
+          isMac ? styles['is-macos'] : '',
+        ].filter(Boolean).join(' ')}
         data-update-phase={snapshot.phase}
         aria-busy={busyAction !== null}
       >
-        <header className="update-window-titlebar">
-          <div className="update-window-title">
+        <header className={styles['update-window-titlebar']}>
+          <div className={styles['update-window-title']}>
             <span>{text.aboutTermous}</span>
           </div>
           {!isMac ? (
-            <div className="update-window-controls">
+            <div className={styles['update-window-controls']}>
               <Tooltip title={text.minimize}>
                 <Button
                   type="text"
-                  className="update-window-control"
+                  className={styles['update-window-control']}
                   aria-label={text.minimize}
                   disabled={!bridge}
                   icon={<Minus size={15} />}
@@ -437,7 +439,10 @@ export default function UpdateWindowRoot() {
               <Tooltip title={text.close}>
                 <Button
                   type="text"
-                  className="update-window-control is-close"
+                  className={[
+                    styles['update-window-control'],
+                    styles['is-close'],
+                  ].join(' ')}
                   aria-label={text.close}
                   disabled={isInstalling}
                   icon={<X size={15} />}
@@ -448,24 +453,29 @@ export default function UpdateWindowRoot() {
           ) : null}
         </header>
 
-        <div className={`update-window-content${hasUpdateDetails ? ' has-update-details' : ''}`}>
-          <section className="update-window-about-section" aria-labelledby="update-window-product-name">
+        <div
+          className={[
+            styles['update-window-content'],
+            hasUpdateDetails ? styles['has-update-details'] : '',
+          ].filter(Boolean).join(' ')}
+        >
+          <section className={styles['update-window-about-section']} aria-labelledby="update-window-product-name">
             <Avatar
-              className="update-window-product-icon"
+              className={styles['update-window-product-icon']}
               shape="square"
               src="./termous-icon.png"
               alt=""
             />
-            <div className="update-window-product-copy">
+            <div className={styles['update-window-product-copy']}>
               <Typography.Title id="update-window-product-name" level={1}>
                 {productName}
               </Typography.Title>
-              <div className="update-window-product-meta">
-                <Tag className="update-window-version-tag" variant="filled">
+              <div className={styles['update-window-product-meta']}>
+                <Tag className={styles['update-window-version-tag']} variant="filled">
                   {currentVersion ? `v${currentVersion}` : text.unavailable}
                 </Tag>
-                <span className="update-window-meta-divider" aria-hidden="true" />
-                <Typography.Text className="update-window-system-value">
+                <span className={styles['update-window-meta-divider']} aria-hidden="true" />
+                <Typography.Text className={styles['update-window-system-value']}>
                   {systemValue}
                 </Typography.Text>
               </div>
@@ -473,7 +483,10 @@ export default function UpdateWindowRoot() {
           </section>
 
           <Card
-            className={`update-window-update-card${hasUpdateDetails ? ' has-update-details' : ''}`}
+            className={[
+              styles['update-window-update-card'],
+              hasUpdateDetails ? styles['has-update-details'] : '',
+            ].filter(Boolean).join(' ')}
             role="region"
             aria-labelledby="update-window-update-title"
             title={(
@@ -496,17 +509,17 @@ export default function UpdateWindowRoot() {
             />
 
             {snapshot.available_version ? (
-              <div className="update-window-version-route" aria-label={text.versionRoute}>
+              <div className={styles['update-window-version-route']} aria-label={text.versionRoute}>
                 <UpdateWindowVersionBlock label={text.currentVersion} version={snapshot.current_version} />
-                <span className="update-window-version-connector" aria-hidden="true" />
-                <div className="update-window-version-target">
+                <span className={styles['update-window-version-connector']} aria-hidden="true" />
+                <div className={styles['update-window-version-target']}>
                   <UpdateWindowVersionBlock
                     label={text.targetVersion}
                     version={snapshot.available_version}
                     isTarget
                   />
                   {snapshot.release_date ? (
-                    <Typography.Text className="update-window-release-date" type="secondary">
+                    <Typography.Text className={styles['update-window-release-date']} type="secondary">
                       {formatReleaseDate(snapshot.release_date, language, text.dateUnknown)}
                     </Typography.Text>
                   ) : null}
@@ -516,7 +529,7 @@ export default function UpdateWindowRoot() {
 
             {localError ? (
               <Alert
-                className="update-window-local-alert"
+                className={styles['update-window-local-alert']}
                 type="error"
                 showIcon
                 role="alert"
@@ -527,9 +540,9 @@ export default function UpdateWindowRoot() {
             ) : null}
 
             {hasUpdateDetails ? (
-              <section className="update-window-notes-section" aria-labelledby="update-release-notes-title">
-                <Divider className="update-window-notes-divider" />
-                <div className="update-window-section-heading">
+              <section className={styles['update-window-notes-section']} aria-labelledby="update-release-notes-title">
+                <Divider className={styles['update-window-notes-divider']} />
+                <div className={styles['update-window-section-heading']}>
                   <Typography.Title id="update-release-notes-title" level={3}>
                     {text.releaseNotes}
                   </Typography.Title>
@@ -544,10 +557,10 @@ export default function UpdateWindowRoot() {
           </Card>
         </div>
 
-        <footer className="update-window-footer">
-          <Space className="update-window-actions" size={10}>
+        <footer className={styles['update-window-footer']}>
+          <Space className={styles['update-window-actions']} size={10}>
             <Button
-              className="update-window-secondary-action"
+              className={styles['update-window-secondary-action']}
               disabled={isInstalling}
               loading={busyAction === 'close'}
               onClick={() => void closeWindow()}
@@ -557,7 +570,7 @@ export default function UpdateWindowRoot() {
             {visiblePrimaryAction !== 'none' ? (
               <Button
                 type={visiblePrimaryAction === 'cancel' ? 'default' : 'primary'}
-                className="update-window-primary-action"
+                className={styles['update-window-primary-action']}
                 danger={false}
                 disabled={(
                   primaryAction === 'none'

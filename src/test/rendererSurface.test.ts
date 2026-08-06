@@ -6,7 +6,7 @@ import ts from 'typescript'
 import {
   loadRendererSurface,
   resolveRendererSurface,
-} from '../app/rendererSurface.ts'
+} from '../app/renderer-entry/rendererSurface.ts'
 
 test('仅显式 update surface 加载独立更新界面', () => {
   assert.equal(resolveRendererSurface('?surface=update'), 'update')
@@ -72,6 +72,6 @@ test('Renderer 启动入口保持 main 与 update 模块映射', () => {
 
   assert.deepEqual(loaders, {
     main: './App.tsx',
-    update: './features/update/UpdateWindowRoot.tsx',
+    update: '#app/update-surface',
   })
 })

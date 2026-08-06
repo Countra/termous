@@ -3,7 +3,8 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react'
-import type { UpdateWindowPrimaryAction } from './updateWindowUiState'
+import type { UpdateWindowPrimaryAction } from '#entities/update'
+import styles from './UpdateWindowRoot.module.scss'
 
 export function UpdateWindowVersionBlock({
   isTarget = false,
@@ -15,7 +16,12 @@ export function UpdateWindowVersionBlock({
   version: string
 }) {
   return (
-    <span className={`update-window-version-block${isTarget ? ' is-target' : ''}`}>
+    <span
+      className={[
+        styles['update-window-version-block'],
+        isTarget ? styles['is-target'] : '',
+      ].filter(Boolean).join(' ')}
+    >
       <small>{label}</small>
       <strong>{version ? `v${version}` : '-'}</strong>
     </span>

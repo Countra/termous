@@ -6,7 +6,7 @@ import {
   resolveGlobalUpdateStatus,
   selectUpdateNotification,
   updateNotificationStorageKey,
-} from '../features/update/updateRuntimeState.ts'
+} from '../entities/update/model/updateRuntimeState.ts'
 
 function snapshot(overrides: Partial<UpdateSnapshot> = {}): UpdateSnapshot {
   return {

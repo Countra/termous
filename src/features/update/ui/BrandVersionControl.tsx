@@ -2,9 +2,9 @@ import { useRef, useState } from 'react'
 import { App as AntdApp, Button, Tooltip } from 'antd'
 import { ArrowUp, LoaderCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { resolveGlobalUpdateStatus } from './updateRuntimeState'
-import { useUpdateRuntime } from './useUpdateRuntime'
-import './brand-version-control.css'
+import { resolveGlobalUpdateStatus } from '#entities/update'
+import { useUpdateRuntime } from '../model/updateRuntime'
+import styles from './BrandVersionControl.module.scss'
 
 interface BrandVersionControlProps {
   appVersion: string
@@ -19,6 +19,15 @@ type BrandUpdateStatus =
   | 'downloading'
   | 'downloaded'
   | 'error'
+
+const statusClassNames: Record<BrandUpdateStatus, string> = {
+  idle: styles.idle,
+  checking: styles.checking,
+  available: styles.available,
+  downloading: styles.downloading,
+  downloaded: styles.downloaded,
+  error: styles.error,
+}
 
 export function BrandVersionControl({
   appVersion,
@@ -117,9 +126,10 @@ export function BrandVersionControl({
         type="text"
         size="small"
         className={[
-          'brand-version-control',
-          `is-${kind}`,
-          opening ? 'is-opening' : '',
+          styles.root,
+          statusClassNames[kind],
+          collapsed ? styles.collapsed : '',
+          opening ? styles.opening : '',
           className,
         ].filter(Boolean).join(' ')}
         aria-busy={opening}
@@ -127,12 +137,12 @@ export function BrandVersionControl({
         data-update-status={kind}
         onClick={() => void handleOpen()}
       >
-        <span className="brand-version-control__label">
-          <span className="brand-version-control__prefix">v</span>
-          <span className="brand-version-control__value">{appVersion}</span>
+        <span className={styles.label}>
+          <span className={styles.prefix}>v</span>
+          <span className={styles.value}>{appVersion}</span>
         </span>
         {kind === 'available' ? (
-          <span className="brand-version-control__update-mark" aria-hidden="true">
+          <span className={styles['update-mark']} aria-hidden="true">
             {opening
               ? <LoaderCircle size={9} strokeWidth={2.5} />
               : <ArrowUp size={9} strokeWidth={2.8} />}

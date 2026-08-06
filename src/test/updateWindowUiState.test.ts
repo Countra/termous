@@ -6,7 +6,7 @@ import {
   phaseTitle,
   primaryActionLabel,
   windowCopy,
-} from '../features/update/updateWindowCopy.ts'
+} from '../app/update-surface/updateWindowCopy.ts'
 import {
   calculateUpdateEta,
   canPrepareUpdateInstall,
@@ -19,7 +19,7 @@ import {
   mergeUpdateWindowSnapshot,
   resolveUpdateWindowPrimaryAction,
   resolveUpdateWindowVisiblePrimaryAction,
-} from '../features/update/updateWindowUiState.ts'
+} from '../entities/update/model/updateWindowUiState.ts'
 
 test('下载请求未完成时仍允许取消并阻止其他并发主操作', () => {
   assert.equal(

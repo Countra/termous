@@ -1,11 +1,11 @@
 import type {
+  AppBuildInfo,
   TermousUpdateWindowBridge,
   UpdatePhase,
   UpdateSnapshot,
   UpdateWindowBootstrap,
 } from '#common/contracts'
-import type { AppBuildInfo } from '../../types/domain'
-import type { UpdateRuntimeBridge } from './useUpdateRuntime'
+import type { UpdateRuntimeBridge } from '#features/update'
 import {
   connectDevelopmentUpdateSimulationChannel,
   type DevelopmentUpdateSimulationAction,

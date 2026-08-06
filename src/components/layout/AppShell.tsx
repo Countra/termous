@@ -19,7 +19,7 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import type { LocalShell, PageKey, WindowCloseBehavior } from '../../types/domain'
-import { BrandVersionControl } from '../../features/update/BrandVersionControl'
+import { BrandVersionControl } from '#features/update'
 import { WindowControls } from './WindowControls'
 
 interface AppShellProps {

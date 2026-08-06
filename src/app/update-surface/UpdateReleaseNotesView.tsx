@@ -5,6 +5,7 @@ import {
   resolveUpdateReleaseNotesContent,
   tokenizeUpdateReleaseNoteInline,
 } from './updateReleaseNotes'
+import styles from './UpdateWindowRoot.module.scss'
 
 export function UpdateReleaseNotesView({
   fallback,
@@ -24,7 +25,7 @@ export function UpdateReleaseNotesView({
 
   return (
     <div
-      className="update-window-release-notes"
+      className={styles['update-window-release-notes']}
       role="document"
       aria-label={label}
       tabIndex={0}
@@ -34,8 +35,10 @@ export function UpdateReleaseNotesView({
           return (
             <Typography.Title
               className={[
-                'update-window-release-heading',
-                block.level <= 2 ? 'is-release-heading' : 'is-section-heading',
+                styles['update-window-release-heading'],
+                block.level <= 2
+                  ? styles['is-release-heading']
+                  : styles['is-section-heading'],
               ].join(' ')}
               key={`heading-${index}`}
               level={block.level <= 2 ? 4 : 5}
@@ -48,7 +51,7 @@ export function UpdateReleaseNotesView({
         if (block.type === 'paragraph') {
           return (
             <Typography.Paragraph
-              className="update-window-release-paragraph"
+              className={styles['update-window-release-paragraph']}
               key={`paragraph-${index}`}
             >
               <ReleaseNoteInline text={block.text} />
@@ -59,7 +62,7 @@ export function UpdateReleaseNotesView({
         if (block.type === 'code') {
           return (
             <pre
-              className="update-window-release-code"
+              className={styles['update-window-release-code']}
               key={`code-${index}`}
             >
               <code>{block.text}</code>
@@ -70,7 +73,7 @@ export function UpdateReleaseNotesView({
         const List = block.type === 'ordered-list' ? 'ol' : 'ul'
         return (
           <List
-            className="update-window-release-list"
+            className={styles['update-window-release-list']}
             key={`${block.type}-${index}`}
           >
             {block.items.map((item, itemIndex) => (
@@ -90,7 +93,7 @@ function ReleaseNoteInline({ text }: { text: string }) {
     if (token.type === 'strong') {
       return (
         <Typography.Text
-          className="update-window-release-inline"
+          className={styles['update-window-release-inline']}
           key={`${token.type}-${index}`}
           strong
         >
@@ -101,7 +104,7 @@ function ReleaseNoteInline({ text }: { text: string }) {
     if (token.type === 'code') {
       return (
         <Typography.Text
-          className="update-window-release-inline"
+          className={styles['update-window-release-inline']}
           key={`${token.type}-${index}`}
           code
         >

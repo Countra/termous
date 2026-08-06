@@ -2,8 +2,8 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import '#shared/i18n'
 import '#shared/styles'
-import { loadRendererSurface } from './app/rendererSurface'
-import { installDevelopmentUpdateSimulation } from './features/update/developmentUpdateSimulationSlot'
+import { loadRendererSurface } from '#app/renderer-entry'
+import { installDevelopmentUpdateSimulation } from '#app/update-simulation-slot'
 
 const rootElement = document.getElementById('root')
 
@@ -14,7 +14,7 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement)
 
 const prepareDevelopmentUpdateSimulation = import.meta.env.DEV
-  ? import('./features/update/developmentUpdateSimulation')
+  ? import('#app/update-simulation')
       .then(({ createDevelopmentUpdateSimulation }) => {
         const simulation = createDevelopmentUpdateSimulation(
           true,
@@ -28,7 +28,7 @@ const prepareDevelopmentUpdateSimulation = import.meta.env.DEV
 
 void prepareDevelopmentUpdateSimulation.then(() => loadRendererSurface(window.location.search, {
   main: () => import('./App.tsx'),
-  update: () => import('./features/update/UpdateWindowRoot.tsx'),
+  update: () => import('#app/update-surface'),
 })).then(({ default: SurfaceRoot }) => {
   root.render(
     <React.StrictMode>

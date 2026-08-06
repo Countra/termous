@@ -52,7 +52,7 @@
   gap: 4px;
 }
 
-.update-window-status-title-row h3.ant-typography {
+.update-window-status-title-row h3:global(.ant-typography) {
   min-width: 0;
   overflow: hidden;
   margin: 0;
@@ -65,7 +65,7 @@
   white-space: nowrap;
 }
 
-.update-window-status-announcement > span.ant-typography {
+.update-window-status-announcement > span:global(.ant-typography) {
   margin: 0;
   color: var(--text-secondary);
   font-size: 12px;
@@ -83,7 +83,7 @@
 }
 
 .update-window-status-icon.is-downloaded,
-.update-window-status-icon.is-up_to_date {
+.update-window-status-icon.is-up-to-date {
   background: color-mix(in srgb, var(--success) 13%, transparent);
   color: var(--success);
 }
@@ -108,7 +108,7 @@
   padding: 18px 0 20px;
 }
 
-.update-window-unsupported-alert.ant-alert {
+.update-window-unsupported-alert:global(.ant-alert) {
   width: 100%;
   border: 0;
   border-radius: 10px;
@@ -116,20 +116,20 @@
   padding: 15px 16px;
 }
 
-.update-window-unsupported-alert .ant-alert-icon {
+.update-window-unsupported-alert :global(.ant-alert-icon) {
   margin-inline-end: 12px;
   color: var(--warning);
   font-size: 17px;
 }
 
-.update-window-unsupported-alert .ant-alert-title {
+.update-window-unsupported-alert :global(.ant-alert-title) {
   color: var(--text-primary);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.45;
 }
 
-.update-window-unsupported-alert .ant-alert-description {
+.update-window-unsupported-alert :global(.ant-alert-description) {
   max-width: 520px;
   margin-top: 3px;
   color: var(--text-secondary);
@@ -137,15 +137,15 @@
   line-height: 1.55;
 }
 
-.update-window-status-icon .ant-spin {
+.update-window-status-icon :global(.ant-spin) {
   color: inherit;
 }
 
-.update-window-status-icon .ant-spin-dot-item {
-  background-color: currentColor;
+.update-window-status-icon :global(.ant-spin-dot-item) {
+  background-color: currentcolor;
 }
 
-.update-window-progress-percent.ant-typography {
+.update-window-progress-percent:global(.ant-typography) {
   flex: 0 0 auto;
   color: var(--accent);
   font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
@@ -162,53 +162,53 @@
   padding-left: 50px;
 }
 
-.update-window-progress.ant-progress {
+.update-window-progress:global(.ant-progress) {
   margin: 0;
   line-height: 1;
 }
 
-.update-window-progress .ant-progress-outer {
+.update-window-progress :global(.ant-progress-outer) {
   display: block;
 }
 
-.update-window-progress .ant-progress-inner {
+.update-window-progress :global(.ant-progress-inner) {
   background: color-mix(in srgb, var(--text-muted) 14%, transparent);
 }
 
-.update-window-progress .ant-progress-bg,
-.update-window-progress .ant-progress-success-bg {
+.update-window-progress :global(.ant-progress-bg),
+.update-window-progress :global(.ant-progress-success-bg) {
   transition: width 0.2s ease-out;
 }
 
-.update-window-progress-metrics.ant-descriptions {
+.update-window-progress-metrics:global(.ant-descriptions) {
   margin: 0;
   background: transparent;
   padding: 2px 0 0;
 }
 
-.update-window-progress-metrics .ant-descriptions-view {
+.update-window-progress-metrics :global(.ant-descriptions-view) {
   background: transparent;
 }
 
-.update-window-progress-metrics .ant-descriptions-row > th,
-.update-window-progress-metrics .ant-descriptions-row > td {
+.update-window-progress-metrics :global(.ant-descriptions-row) > th,
+.update-window-progress-metrics :global(.ant-descriptions-row) > td {
   padding-bottom: 0;
 }
 
-.update-window-progress-metrics .ant-descriptions-item {
+.update-window-progress-metrics :global(.ant-descriptions-item) {
   padding-inline-end: 18px;
 }
 
-.update-window-progress-metrics .ant-descriptions-row > td + td {
+.update-window-progress-metrics :global(.ant-descriptions-row) > td + td {
   padding-inline-start: 18px;
 }
 
-.update-window-progress-metrics .ant-descriptions-item-label {
+.update-window-progress-metrics :global(.ant-descriptions-item-label) {
   color: var(--text-secondary);
   font-size: 10px;
 }
 
-.update-window-progress-metrics .ant-descriptions-item-content {
+.update-window-progress-metrics :global(.ant-descriptions-item-content) {
   overflow: hidden;
   color: var(--text-primary);
   font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
@@ -219,7 +219,7 @@
   white-space: nowrap;
 }
 
-.update-window-progress-metrics .ant-descriptions-item-content .ant-typography {
+.update-window-progress-metrics :global(.ant-descriptions-item-content) :global(.ant-typography) {
   overflow: hidden;
   color: inherit;
   font: inherit;
@@ -227,34 +227,34 @@
   white-space: nowrap;
 }
 
-.update-window-install-warning.ant-alert,
-.update-window-confirmation-alert.ant-alert {
+.update-window-install-warning:global(.ant-alert),
+.update-window-confirmation-alert:global(.ant-alert) {
   border: 0;
   border-radius: 8px;
   background: color-mix(in srgb, var(--warning) 8%, transparent);
   padding: 9px 11px;
 }
 
-.update-window-install-warning .ant-alert-icon {
+.update-window-install-warning :global(.ant-alert-icon) {
   color: var(--warning);
 }
 
-.update-window-install-warning .ant-alert-title,
-.update-window-confirmation-alert .ant-alert-title {
+.update-window-install-warning :global(.ant-alert-title),
+.update-window-confirmation-alert :global(.ant-alert-title) {
   color: var(--text-secondary);
   font-size: 11.5px;
   line-height: 1.45;
 }
 
-.update-window-confirmation-alert.ant-alert {
+.update-window-confirmation-alert:global(.ant-alert) {
   margin-left: 50px;
 }
 
-.update-window-confirmation-alert .ant-alert-actions {
+.update-window-confirmation-alert :global(.ant-alert-actions) {
   margin-inline-start: 10px;
 }
 
-.update-window-confirmation-alert .ant-btn-link {
+.update-window-confirmation-alert :global(.ant-btn-link) {
   height: 24px;
   padding: 0 3px;
   color: var(--accent);
@@ -272,7 +272,7 @@
   font-size: 11px;
 }
 
-@media (max-height: 640px) {
+@media (height <= 640px) {
   .update-window-status-panel {
     min-height: 96px;
     gap: 11px;
@@ -292,34 +292,34 @@
     padding-block: 14px 16px;
   }
 
-  .update-window-unsupported-alert.ant-alert {
+  .update-window-unsupported-alert:global(.ant-alert) {
     padding: 13px 14px;
   }
 }
 
-@media (max-width: 660px) {
+@media (width <= 660px) {
   .update-window-download-progress {
     padding-left: 0;
   }
 
-  .update-window-install-warning.ant-alert,
-  .update-window-confirmation-alert.ant-alert,
+  .update-window-install-warning:global(.ant-alert),
+  .update-window-confirmation-alert:global(.ant-alert),
   .update-window-confirmation-status {
     margin-left: 0;
   }
 
-  .update-window-progress-metrics .ant-descriptions-row > td + td {
+  .update-window-progress-metrics :global(.ant-descriptions-row) > td + td {
     padding-inline-start: 0;
   }
 
-  .update-window-progress-metrics .ant-descriptions-item {
+  .update-window-progress-metrics :global(.ant-descriptions-item) {
     padding-inline-end: 8px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .update-window-progress .ant-progress-bg,
-  .update-window-progress .ant-progress-success-bg {
+  .update-window-progress :global(.ant-progress-bg),
+  .update-window-progress :global(.ant-progress-success-bg) {
     transition: none;
   }
 }

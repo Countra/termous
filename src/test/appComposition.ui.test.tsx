@@ -83,16 +83,17 @@ vi.mock('react-i18next', () => ({
   }),
 }))
 
-vi.mock('../app/TermousUiProvider', () => ({
+vi.mock('#app/ui-runtime', () => ({
   TermousUiProvider: ({ children }: { children: ReactNode }) => (
     <div data-provider="termous-ui">{children}</div>
   ),
 }))
 
-vi.mock('../features/update/UpdateRuntimeProvider', () => ({
+vi.mock('#app/update-runtime', () => ({
   UpdateRuntimeProvider: ({ children }: { children: ReactNode }) => (
     <div data-provider="update">{children}</div>
   ),
+  UpdateRuntimeSummaryReporter: () => null,
 }))
 
 vi.mock('#app/shortcut-runtime', () => ({
@@ -160,15 +161,11 @@ vi.mock('../features/vault/VaultPage', () => ({ VaultPage: () => null }))
 vi.mock('../features/workbench/HostLauncherModal', () => ({ HostLauncherModal: () => null }))
 vi.mock('../components/hostkey/HostKeyCoordinator', () => ({ HostKeyCoordinator: () => null }))
 vi.mock('#shared/ui', () => ({ ConfirmDialog: () => null }))
-vi.mock('../features/update/UpdateRuntimeSummaryReporter', () => ({
-  UpdateRuntimeSummaryReporter: () => null,
-}))
-
-vi.mock('../features/update/developmentUpdateSimulationSlot', () => ({
+vi.mock('#app/update-simulation-slot', () => ({
   readDevelopmentUpdateSimulation: () => null,
 }))
 
-vi.mock('../features/update/useUpdateRuntime', () => ({
+vi.mock('#features/update', () => ({
   useUpdateRuntime: () => ({
     bridgeAvailable: false,
     initializationFailed: false,

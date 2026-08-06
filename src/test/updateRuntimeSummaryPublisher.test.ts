@@ -6,7 +6,7 @@ import {
   runtimeSummarySignature,
   updateRuntimeSummaryRetryDelay,
   type UpdateRuntimeSummaryScheduler,
-} from '../features/update/updateRuntimeSummaryPublisher.ts'
+} from '../app/update-runtime/updateRuntimeSummaryPublisher.ts'
 
 function summary(
   patch: Partial<UpdateRuntimeSummary> = {},

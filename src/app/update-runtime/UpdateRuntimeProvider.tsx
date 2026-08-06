@@ -18,12 +18,12 @@ import {
   mergeUpdateRuntimeSnapshot,
   selectUpdateNotification,
   updateNotificationStorageKey,
-} from './updateRuntimeState'
+} from '#entities/update'
 import {
   UpdateRuntimeContext,
   type UpdateRuntimeBridge,
   type UpdateRuntimeValue,
-} from './useUpdateRuntime'
+} from '#features/update'
 
 export interface UpdateNotificationStorage {
   getItem: (key: string) => string | null

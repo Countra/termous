@@ -23,13 +23,21 @@ import {
   formatUpdateBytes,
   formatUpdateDuration,
   hasUpdateInstallInterruption,
-} from './updateWindowUiState'
+} from '#entities/update'
 import {
   errorCopy,
   phaseDescription,
   phaseTitle,
   type UpdateWindowText,
 } from './updateWindowCopy'
+import styles from './UpdateWindowStatusPanel.module.scss'
+
+const statusPhaseClassNames: Partial<Record<UpdateSnapshot['phase'], string>> = {
+  downloaded: styles['is-downloaded'],
+  error: styles['is-error'],
+  unsupported: styles['is-unsupported'],
+  up_to_date: styles['is-up-to-date'],
+}
 
 export function UpdateWindowStatusPanel({
   confirmation,
@@ -88,9 +96,14 @@ export function UpdateWindowStatusPanel({
 
   if (snapshot.phase === 'unsupported') {
     return (
-      <section className="update-window-status-panel is-unsupported">
+      <section
+        className={[
+          styles['update-window-status-panel'],
+          styles['is-unsupported'],
+        ].join(' ')}
+      >
         <Alert
-          className="update-window-unsupported-alert"
+          className={styles['update-window-unsupported-alert']}
           type="warning"
           variant="filled"
           showIcon
@@ -104,20 +117,28 @@ export function UpdateWindowStatusPanel({
   return (
     <section
       className={[
-        'update-window-status-panel',
-        showInstallWarning ? 'has-install-warning' : '',
-        !showInstallWarning && !showDownloadMetrics && !showConfirmationState ? 'is-compact' : '',
-        !description ? 'is-title-only' : '',
+        styles['update-window-status-panel'],
+        showInstallWarning ? styles['has-install-warning'] : '',
+        !showInstallWarning && !showDownloadMetrics && !showConfirmationState
+          ? styles['is-compact']
+          : '',
+        !description ? styles['is-title-only'] : '',
       ].filter(Boolean).join(' ')}
     >
-      <div className="update-window-status-heading">
-        <span className={`update-window-status-icon is-${snapshot.phase}`} aria-hidden="true">
+      <div className={styles['update-window-status-heading']}>
+        <span
+          className={[
+            styles['update-window-status-icon'],
+            statusPhaseClassNames[snapshot.phase] ?? '',
+          ].filter(Boolean).join(' ')}
+          aria-hidden="true"
+        >
           {phaseIcon(snapshot.phase, showInstallWarning)}
         </span>
-        <div className="update-window-status-copy">
-          <div className="update-window-status-title-row">
+        <div className={styles['update-window-status-copy']}>
+          <div className={styles['update-window-status-title-row']}>
             <div
-              className="update-window-status-announcement"
+              className={styles['update-window-status-announcement']}
               role="status"
               aria-live="polite"
               aria-atomic="true"
@@ -132,7 +153,7 @@ export function UpdateWindowStatusPanel({
               ) : null}
             </div>
             {showDownloadMetrics ? (
-              <Typography.Text className="update-window-progress-percent">
+              <Typography.Text className={styles['update-window-progress-percent']}>
                 {Math.round(percent)}%
               </Typography.Text>
             ) : null}
@@ -142,15 +163,15 @@ export function UpdateWindowStatusPanel({
 
       {showInstallWarning ? (
         <Alert
-          className="update-window-install-warning"
+          className={styles['update-window-install-warning']}
           type="warning"
           showIcon
           title={text.activeWorkWillClose}
         />
       ) : showDownloadMetrics ? (
-        <div className="update-window-download-progress">
+        <div className={styles['update-window-download-progress']}>
           <Progress
-            className="update-window-progress"
+            className={styles['update-window-progress']}
             aria-label={text.downloadProgress}
             percent={percent}
             showInfo={false}
@@ -159,7 +180,7 @@ export function UpdateWindowStatusPanel({
             strokeLinecap="round"
           />
           <Descriptions
-            className="update-window-progress-metrics"
+            className={styles['update-window-progress-metrics']}
             size="small"
             colon={false}
             column={{ xs: 1, sm: 3 }}
@@ -203,7 +224,7 @@ export function UpdateWindowStatusPanel({
       {showConfirmationState ? (
         confirmationUnavailable ? (
           <Alert
-            className="update-window-confirmation-alert"
+            className={styles['update-window-confirmation-alert']}
             type="warning"
             showIcon
             title={text.summaryUnavailable}
@@ -220,7 +241,7 @@ export function UpdateWindowStatusPanel({
           />
         ) : (
           <span
-            className="update-window-confirmation-status"
+            className={styles['update-window-confirmation-status']}
             role="status"
             aria-live="polite"
             aria-atomic="true"

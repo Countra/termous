@@ -4,7 +4,7 @@ import type {
   UpdateSnapshot,
   UpdateWindowLanguage,
 } from '#common/contracts'
-import type { UpdateWindowPrimaryAction } from './updateWindowUiState'
+import type { UpdateWindowPrimaryAction } from '#entities/update'
 
 export type UpdateWindowText = ReturnType<typeof windowCopy>
 

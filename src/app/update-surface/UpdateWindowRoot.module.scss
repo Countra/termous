@@ -1,5 +1,3 @@
-@import "./update-window-status.css";
-
 .update-window-root {
   width: 100%;
   height: 100dvh;
@@ -43,7 +41,7 @@
   align-items: stretch;
 }
 
-.update-window-control.ant-btn {
+.update-window-control:global(.ant-btn) {
   width: 46px;
   min-width: 46px;
   height: 100%;
@@ -52,14 +50,14 @@
   color: var(--text-muted);
 }
 
-.update-window-control.ant-btn:not(:disabled):hover,
-.update-window-control.ant-btn:not(:disabled):focus-visible {
+.update-window-control:global(.ant-btn):not(:disabled):hover,
+.update-window-control:global(.ant-btn):not(:disabled):focus-visible {
   background: var(--surface-subtle);
   color: var(--text-primary);
 }
 
-.update-window-control.is-close.ant-btn:not(:disabled):hover,
-.update-window-control.is-close.ant-btn:not(:disabled):focus-visible {
+.update-window-control.is-close:global(.ant-btn):not(:disabled):hover,
+.update-window-control.is-close:global(.ant-btn):not(:disabled):focus-visible {
   background: var(--danger);
   color: #fff;
 }
@@ -83,14 +81,14 @@
   flex: 0 0 auto;
 }
 
-.update-window-product-icon.ant-avatar {
+.update-window-product-icon:global(.ant-avatar) {
   width: 58px;
   height: 58px;
   border-radius: 14px;
   background: transparent;
 }
 
-.update-window-product-icon.ant-avatar > img {
+.update-window-product-icon:global(.ant-avatar) > img {
   object-fit: contain;
 }
 
@@ -100,7 +98,7 @@
   gap: 7px;
 }
 
-.update-window-product-copy h1.ant-typography {
+.update-window-product-copy h1:global(.ant-typography) {
   overflow: hidden;
   margin: 0;
   color: var(--text-primary);
@@ -128,7 +126,7 @@
   opacity: 0.55;
 }
 
-.update-window-version-tag.ant-tag {
+.update-window-version-tag:global(.ant-tag) {
   margin: 0;
   border-radius: 7px;
   background: var(--accent-soft);
@@ -141,7 +139,7 @@
   padding-inline: 8px;
 }
 
-.update-window-system-value.ant-typography {
+.update-window-system-value:global(.ant-typography) {
   overflow: hidden;
   color: var(--text-secondary);
   font-size: 11.5px;
@@ -150,7 +148,7 @@
   white-space: nowrap;
 }
 
-.update-window-update-card.ant-card {
+.update-window-update-card:global(.ant-card) {
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -163,18 +161,18 @@
   box-shadow: var(--inner-highlight);
 }
 
-.update-window-update-card > .ant-card-head {
+.update-window-update-card > :global(.ant-card-head) {
   min-height: 52px;
   flex: 0 0 auto;
   border-bottom-color: var(--border);
   padding-inline: 18px;
 }
 
-.update-window-update-card > .ant-card-head .ant-card-head-title {
+.update-window-update-card > :global(.ant-card-head) :global(.ant-card-head-title) {
   padding-block: 14px;
 }
 
-.update-window-update-card > .ant-card-body {
+.update-window-update-card > :global(.ant-card-body) {
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -188,12 +186,12 @@
   flex: 0 0 auto;
 }
 
-.update-window-update-card:not(.has-update-details) > .ant-card-body {
+.update-window-update-card:not(.has-update-details) > :global(.ant-card-body) {
   flex: 0 0 auto;
   justify-content: flex-start;
 }
 
-.update-window-update-card h2.ant-typography {
+.update-window-update-card h2:global(.ant-typography) {
   margin: 0;
   color: var(--text-primary);
   font-size: 13.5px;
@@ -256,7 +254,7 @@
   right: 0;
   left: 0;
   height: 1px;
-  background: currentColor;
+  background: currentcolor;
   content: "";
   opacity: 0.68;
   transform: translateY(-0.5px);
@@ -268,8 +266,8 @@
   right: 1px;
   width: 7px;
   height: 7px;
-  border-top: 1.5px solid currentColor;
-  border-right: 1.5px solid currentColor;
+  border-top: 1.5px solid currentcolor;
+  border-right: 1.5px solid currentcolor;
   content: "";
   transform: translateY(-50%) rotate(45deg);
 }
@@ -286,7 +284,7 @@
   flex: 1 1 auto;
 }
 
-.update-window-release-date.ant-typography {
+.update-window-release-date:global(.ant-typography) {
   flex: 0 0 auto;
   color: var(--text-secondary);
   font-size: 10px;
@@ -294,7 +292,7 @@
   white-space: nowrap;
 }
 
-.update-window-local-alert.ant-alert {
+.update-window-local-alert:global(.ant-alert) {
   margin-top: 13px;
   border-color: color-mix(in srgb, var(--danger) 24%, var(--border));
   border-radius: 10px;
@@ -302,7 +300,7 @@
   padding: 9px 11px;
 }
 
-.update-window-local-alert .ant-alert-title {
+.update-window-local-alert :global(.ant-alert-title) {
   color: var(--text-secondary);
   font-size: 11.5px;
   line-height: 1.45;
@@ -317,7 +315,7 @@
   align-content: start;
 }
 
-.update-window-notes-divider.ant-divider {
+.update-window-notes-divider:global(.ant-divider) {
   margin: 14px 0 12px;
   border-color: var(--border);
 }
@@ -331,11 +329,11 @@
   margin-bottom: 8px;
 }
 
-.update-window-section-heading .ant-typography {
+.update-window-section-heading :global(.ant-typography) {
   margin: 0;
 }
 
-.update-window-section-heading h3.ant-typography {
+.update-window-section-heading h3:global(.ant-typography) {
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 700;
@@ -359,19 +357,19 @@
   outline-offset: 3px;
 }
 
-.update-window-release-heading.ant-typography {
+.update-window-release-heading:global(.ant-typography) {
   margin: 0 0 9px;
   color: var(--text-primary);
   letter-spacing: -0.005em;
 }
 
-.update-window-release-heading.is-release-heading.ant-typography {
+.update-window-release-heading.is-release-heading:global(.ant-typography) {
   font-size: 13px;
   font-weight: 700;
   line-height: 1.45;
 }
 
-.update-window-release-heading.is-section-heading.ant-typography {
+.update-window-release-heading.is-section-heading:global(.ant-typography) {
   margin-top: 16px;
   color: color-mix(in srgb, var(--text-primary) 90%, var(--accent));
   font-size: 12px;
@@ -379,7 +377,7 @@
   line-height: 1.45;
 }
 
-.update-window-release-paragraph.ant-typography {
+.update-window-release-paragraph:global(.ant-typography) {
   margin: 0 0 12px;
   color: var(--text-secondary);
   font-size: inherit;
@@ -404,12 +402,12 @@
   font-weight: 650;
 }
 
-.update-window-release-inline.ant-typography {
+.update-window-release-inline:global(.ant-typography) {
   color: inherit;
   font-size: inherit;
 }
 
-.update-window-release-notes .ant-typography code {
+.update-window-release-notes :global(.ant-typography) code {
   border: 0;
   border-radius: 4px;
   background: var(--surface-subtle);
@@ -445,11 +443,11 @@
   padding: 0 24px;
 }
 
-.update-window-actions.ant-space {
+.update-window-actions:global(.ant-space) {
   display: inline-flex;
 }
 
-.update-window-actions .ant-btn {
+.update-window-actions :global(.ant-btn) {
   height: 38px;
   border-radius: 9px;
   font-size: 12px;
@@ -461,36 +459,36 @@
     color 0.16s ease;
 }
 
-.update-window-actions .ant-btn:active:not(:disabled) {
+.update-window-actions :global(.ant-btn):active:not(:disabled) {
   transform: translateY(1px);
 }
 
-.update-window-secondary-action.ant-btn {
+.update-window-secondary-action:global(.ant-btn) {
   min-width: 88px;
   border-color: var(--border);
   background: transparent;
   color: var(--text-secondary);
 }
 
-.update-window-secondary-action.ant-btn:not(:disabled):hover,
-.update-window-secondary-action.ant-btn:not(:disabled):focus-visible {
+.update-window-secondary-action:global(.ant-btn):not(:disabled):hover,
+.update-window-secondary-action:global(.ant-btn):not(:disabled):focus-visible {
   border-color: var(--border-strong);
   background: var(--surface-subtle);
   color: var(--text-primary);
 }
 
-.update-window-primary-action.ant-btn {
+.update-window-primary-action:global(.ant-btn) {
   min-width: 164px;
 }
 
-.update-window-primary-action.ant-btn-primary {
+.update-window-primary-action:global(.ant-btn-primary) {
   border-color: var(--accent-strong);
   background: var(--accent-strong);
   box-shadow: none;
 }
 
-.update-window-primary-action.ant-btn-primary:not(:disabled):hover,
-.update-window-primary-action.ant-btn-primary:not(:disabled):focus-visible {
+.update-window-primary-action:global(.ant-btn-primary):not(:disabled):hover,
+.update-window-primary-action:global(.ant-btn-primary):not(:disabled):focus-visible {
   border-color: var(--accent);
   background: var(--accent);
 }
@@ -500,11 +498,11 @@
   background: color-mix(in srgb, var(--chrome-bg) 96%, #fff);
 }
 
-:root[data-theme="light"] .update-window-update-card.ant-card {
+:root[data-theme="light"] .update-window-update-card:global(.ant-card) {
   background: color-mix(in srgb, var(--surface) 94%, #fff);
 }
 
-@media (max-height: 640px) {
+@media (height <= 640px) {
   .update-window-root {
     grid-template-rows: 44px minmax(0, 1fr) 64px;
   }
@@ -519,7 +517,7 @@
     gap: 13px;
   }
 
-  .update-window-product-icon.ant-avatar {
+  .update-window-product-icon:global(.ant-avatar) {
     width: 48px;
     height: 48px;
     border-radius: 12px;
@@ -529,19 +527,19 @@
     gap: 5px;
   }
 
-  .update-window-product-copy h1.ant-typography {
+  .update-window-product-copy h1:global(.ant-typography) {
     font-size: 20px;
   }
 
-  .update-window-update-card > .ant-card-head {
+  .update-window-update-card > :global(.ant-card-head) {
     min-height: 48px;
   }
 
-  .update-window-update-card > .ant-card-head .ant-card-head-title {
+  .update-window-update-card > :global(.ant-card-head) :global(.ant-card-head-title) {
     padding-block: 12px;
   }
 
-  .update-window-update-card > .ant-card-body {
+  .update-window-update-card > :global(.ant-card-body) {
     padding-bottom: 12px;
   }
 
@@ -549,12 +547,12 @@
     padding-block: 10px;
   }
 
-  .update-window-notes-divider.ant-divider {
+  .update-window-notes-divider:global(.ant-divider) {
     margin-block: 11px 9px;
   }
 }
 
-@media (max-width: 660px) {
+@media (width <= 660px) {
   .update-window-content,
   .update-window-footer {
     padding-inline: 16px;
@@ -570,27 +568,27 @@
     gap: 2px;
   }
 
-  .update-window-primary-action.ant-btn {
+  .update-window-primary-action:global(.ant-btn) {
     min-width: 150px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .update-window-actions .ant-btn {
+  .update-window-actions :global(.ant-btn) {
     transition: none;
   }
 
-  .update-window-root .ant-spin-dot-spin {
+  .update-window-root :global(.ant-spin-dot-spin) {
     animation: none;
     transform: rotate(45deg);
   }
 
-  .update-window-root .ant-spin-dot-item,
-  .update-window-root .anticon-spin {
+  .update-window-root :global(.ant-spin-dot-item),
+  .update-window-root :global(.anticon-spin) {
     animation: none;
   }
 
-  .update-window-root .ant-progress-status-active .ant-progress-bg::before {
+  .update-window-root :global(.ant-progress-status-active) :global(.ant-progress-bg)::before {
     display: none;
   }
 }
