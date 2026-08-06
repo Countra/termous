@@ -8,15 +8,22 @@ import { vscodeDarkInit, vscodeLightInit } from '@uiw/codemirror-theme-vscode'
 import { AlertTriangle, Code2, FileText, RefreshCw, Save } from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { TermousApiError, type TermousApi } from '../../api/client'
-import type { RemoteFileEntry, RemoteTextFile, RemoteTextLineEnding, RemoteTextSaveResult, TerminalSettings, ThemeMode } from '../../types/domain'
+import { TermousApiError } from '../../api/client'
+import type {
+  RemoteFileEntry,
+  RemoteTextFile,
+  RemoteTextLineEnding,
+  RemoteTextSaveResult,
+} from '#entities/file'
+import type { TerminalSettings, ThemeMode } from '../../types/domain'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import { FileOperationProgress, type FileOperationProgressState } from './FileOperationProgress'
+import type { FileOperationGateway } from './api/fileGateway'
 import { formatBytes } from '#shared/format'
 import { useFileOperationWatcher } from './useFileOperationWatcher'
 
 interface RemoteTextEditorModalProps {
-  api: TermousApi
+  api: FileOperationGateway
   open: boolean
   disabled?: boolean
   closing?: boolean

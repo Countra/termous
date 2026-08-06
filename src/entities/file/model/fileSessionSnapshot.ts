@@ -1,4 +1,4 @@
-import type { FileSession } from '../types/domain'
+import type { FileSession } from './types.ts'
 
 export function mergeFileSessionSnapshot(
   current: FileSession | null | undefined,

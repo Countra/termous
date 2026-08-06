@@ -6,7 +6,7 @@ import {
   transferRefreshRetryDelay,
   TransferSnapshotGate,
 } from '../features/transfers/index.ts'
-import type { TransferTask } from '../types/domain.ts'
+import type { TransferTask } from '#entities/file'
 
 function transfer(overrides: Partial<TransferTask> = {}): TransferTask {
   return {

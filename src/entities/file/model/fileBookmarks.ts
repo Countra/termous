@@ -3,7 +3,7 @@ import type {
   FileBookmarkGroup,
   FileBookmarkGroupReorderItem,
   FileBookmarkReorderItem,
-} from '../../types/domain'
+} from './types.ts'
 import { normalizeRemotePosixPath } from '#shared/path'
 
 export interface BookmarkGroupView {

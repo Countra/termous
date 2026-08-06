@@ -50,16 +50,18 @@ import {
 import { RemotePermissionModal } from '../../components/files/RemotePermissionModal'
 import type {
   AppData,
+  Session,
+  ThemeMode,
+} from '../../types/domain'
+import type {
   FileBookmark,
   FileBookmarkInput,
   FileSession,
   LocalGrantSource,
   RemoteFileEntry,
-  Session,
-  ThemeMode,
-} from '../../types/domain'
+} from '#entities/file'
 import { joinPath, normalizeRemotePath, parentPath } from '#shared/path'
-import type { FileSessionClosureState } from '../files/fileSessionRecovery'
+import type { FileSessionClosureState } from '#entities/file'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
 import { WorkbenchFileList } from './WorkbenchFileList'

@@ -1,4 +1,4 @@
-import type { RemoteFileEntry, TransferStatus, TransferTask } from '../../types/domain'
+import type { RemoteFileEntry, TransferStatus, TransferTask } from './types.ts'
 import { normalizeRemotePosixPath } from '#shared/path'
 
 export function transferDisplayName(task: TransferTask) {

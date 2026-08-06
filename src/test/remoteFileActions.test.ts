@@ -5,7 +5,7 @@ import {
   runRemoteFileAction,
   type RemoteFileActionHandlers,
 } from '../components/files/remoteFileActions.ts'
-import type { RemoteFileEntry } from '../types/domain.ts'
+import type { RemoteFileEntry } from '#entities/file'
 
 const directoryEntry: RemoteFileEntry = {
   name: 'config',

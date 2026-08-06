@@ -4,7 +4,7 @@ import {
   resolveWorkbenchFilesPathNavigationAction,
   resolveWorkbenchFilesPathNavigationTarget,
 } from '../features/workbench/workbenchFilesPathNavigation.ts'
-import type { RemoteFileEntry } from '../types/domain.ts'
+import type { RemoteFileEntry } from '#entities/file'
 
 test('目录路径直接进入，文件路径进入父目录', () => {
   assert.deepEqual(

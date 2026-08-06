@@ -10,7 +10,7 @@ import {
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import type { LocalPathMapping, LocalTreeEntry } from '../../../types/domain'
+import type { LocalPathMapping, LocalTreeEntry } from '#entities/file'
 import {
   isLocalDirectoryBusy,
   localPathBreadcrumbs,

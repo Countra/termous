@@ -10,8 +10,8 @@ import {
   findBookmarkForPath,
   flattenBookmarksForRail,
   suggestBookmarkName,
-} from '../features/files/fileBookmarksModel.ts'
-import type { FileBookmark, FileBookmarkGroup } from '../types/domain.ts'
+} from '#entities/file'
+import type { FileBookmark, FileBookmarkGroup } from '#entities/file'
 
 const groups: FileBookmarkGroup[] = [
   group('group-b', '测试环境', 1),

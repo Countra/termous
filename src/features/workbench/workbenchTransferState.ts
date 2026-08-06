@@ -1,4 +1,4 @@
-import type { TransferTask } from '../../types/domain'
+import type { TransferTask } from '#entities/file'
 
 export interface WorkbenchTransferSummary {
   tasks: TransferTask[]

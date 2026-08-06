@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { formatBytes } from '#shared/format'
 import { ContextActionMenu } from '#shared/ui'
-import type { TransferTask } from '../../types/domain'
+import type { TransferTask } from '#entities/file'
 import {
   buildTransferQueueItems,
   isActiveTransferTask,
@@ -39,7 +39,7 @@ import {
   transferDisplayName,
   transferProgress,
   transferStatusClass,
-} from './fileUtils'
+} from '#entities/file'
 
 interface TransferQueuePanelProps {
   transfers: TransferTask[]

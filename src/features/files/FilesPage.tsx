@@ -56,6 +56,10 @@ import { EmptyState, SessionTabButton, SessionTabStrip } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
 import type {
   AppData,
+  Host,
+  ThemeMode,
+} from '../../types/domain'
+import type {
   FileBookmark,
   FileBookmarkGroup,
   FileBookmarkGroupInput,
@@ -64,15 +68,13 @@ import type {
   FileBookmarkReorderItem,
   FileSession,
   FileSessionPhase,
-  Host,
   LocalGrantSource,
   LocalPathMapping,
   LocalPathMappingInput,
   LocalPathMappingReorderItem,
   RemoteFileEntry,
-  ThemeMode,
   TransferTask,
-} from '../../types/domain'
+} from '#entities/file'
 import { useTransferRuntime } from '#features/transfers'
 import { buildRemoteFileActionMenu } from '../../components/files/RemoteFileActionMenu'
 import { RemotePermissionModal } from '../../components/files/RemotePermissionModal'
@@ -106,7 +108,7 @@ import {
   shouldCreateFileSessionAfterReconnect,
   terminatedFileSessionSnapshot,
   type FileSessionRecoveryAttempt,
-} from './fileSessionRecovery'
+} from '#entities/file'
 import { LocalDownloadConsole } from './local-download/LocalDownloadConsole'
 import { LocalDownloadQuickTarget } from './local-download/LocalDownloadQuickTarget'
 import type {

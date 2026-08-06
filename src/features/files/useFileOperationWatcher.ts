@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { TermousApiError, type TermousApi } from '../../api/client'
-import type { FileOperationTask } from '../../types/domain'
+import { TermousApiError } from '../../api/client'
+import type { FileOperationTask } from '#entities/file'
 import type { FileOperationProgressState } from './FileOperationProgress'
+import type { FileOperationGateway } from './api/fileGateway'
 import { formatBytes } from '#shared/format'
 
 interface UseFileOperationWatcherOptions {
-  api: TermousApi
+  api: FileOperationGateway
   setOperationProgress: (progress: FileOperationProgressState | null) => void
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
-import type { TermousApi } from '../../../api/client'
+import type { LocalDownloadGateway } from '../api/fileGateway'
 import { isSafeLocalDownloadTarget } from './localDownloadWorkspaceState'
 import {
   hasNativeFiles,
@@ -22,7 +22,7 @@ interface LocalDownloadDropMessages {
 }
 
 interface UseLocalDownloadDropOptions {
-  api: TermousApi
+  api: LocalDownloadGateway
   session: LocalDownloadSessionContext | null
   enabled?: boolean
   operationEnabled?: boolean

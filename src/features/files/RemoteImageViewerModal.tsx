@@ -2,14 +2,16 @@ import { Button, Modal, Tag, Tooltip } from 'antd'
 import { AlertTriangle, Expand, Image as ImageIcon, Maximize2, RefreshCw, RotateCcw, RotateCw, ZoomIn, ZoomOut } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { TermousApiError, type TermousApi } from '../../api/client'
-import type { RemoteImageFile, ThemeMode } from '../../types/domain'
+import { TermousApiError } from '../../api/client'
+import type { RemoteImageFile } from '#entities/file'
+import type { ThemeMode } from '../../types/domain'
 import { FileOperationProgress, type FileOperationProgressState } from './FileOperationProgress'
+import type { FileOperationGateway } from './api/fileGateway'
 import { formatBytes } from '#shared/format'
 import { useFileOperationWatcher } from './useFileOperationWatcher'
 
 interface RemoteImageViewerModalProps {
-  api: TermousApi
+  api: FileOperationGateway
   open: boolean
   fileSessionId: string
   path: string

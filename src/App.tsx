@@ -21,7 +21,7 @@ import {
   selectFileSessionCloseFallback,
   selectFileSessionForNavigation,
   selectFileSessionNavigationTarget,
-} from './features/files/fileSessionRecovery'
+} from '#entities/file'
 import { ForwardingPage } from './features/forwards/ForwardingPage'
 import { isForwardRestartCompleted } from './features/forwards/forwardRestart'
 import { SettingsPage } from '#pages/settings'

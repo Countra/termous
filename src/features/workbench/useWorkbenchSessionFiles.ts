@@ -2,19 +2,18 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import type { TermousApi } from '../../api/client'
 import type {
   AppData,
-  FileSession,
-  RemoteFileEntry,
   Session,
   SessionCwdState,
 } from '../../types/domain'
+import type { FileSession, RemoteFileEntry } from '#entities/file'
 import { normalizeRemotePath, normalizeRemotePosixPath } from '#shared/path'
 import { retireWebSocket } from '#shared/websocket'
-import { fileSortValue } from '../files/fileUtils'
+import { fileSortValue } from '#entities/file'
 import {
   resolveFileSessionClosure,
   terminatedFileSessionSnapshot,
   type FileSessionClosureState,
-} from '../files/fileSessionRecovery'
+} from '#entities/file'
 import {
   useSessionCwdRequestError,
   useSessionCwdState,

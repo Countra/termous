@@ -2,7 +2,7 @@ import type {
   FileSession,
   RemoteDirectoryListing,
   RemoteFileEntry,
-} from '../../types/domain.ts'
+} from '#entities/file'
 import { normalizeRemotePath } from '#shared/path'
 
 export const filesWorkspaceLayoutStorageKey = 'termous.ui.files.workspace'

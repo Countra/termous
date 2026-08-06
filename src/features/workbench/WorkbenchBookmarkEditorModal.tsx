@@ -6,8 +6,8 @@ import type {
   FileBookmark,
   FileBookmarkGroup,
   FileBookmarkInput,
-} from '../../types/domain'
-import { sortBookmarkGroups, suggestBookmarkName } from '../files/fileBookmarksModel'
+} from '#entities/file'
+import { sortBookmarkGroups, suggestBookmarkName } from '#entities/file'
 
 interface WorkbenchBookmarkEditorModalProps {
   open: boolean

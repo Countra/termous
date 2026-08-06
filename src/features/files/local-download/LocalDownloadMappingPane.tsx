@@ -17,7 +17,7 @@ import type {
   LocalPathMapping,
   LocalPathMappingInput,
   LocalPathMappingReorderItem,
-} from '../../../types/domain'
+} from '#entities/file'
 import type { useLocalDownloadDrop } from './useLocalDownloadDrop'
 import type { LocalDownloadTarget } from './types'
 

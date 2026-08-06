@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { TermousApi } from '../../../api/client'
-import type { LocalPathMapping } from '../../../types/domain'
+import type { LocalPathMapping } from '#entities/file'
+import type { LocalPathMappingGateway } from '../api/fileGateway'
 import {
   beginLocalDirectoryRequest,
   cancelLocalDirectoryRequest,
@@ -30,7 +30,7 @@ export interface LocalDownloadRefreshRequest {
 }
 
 interface UseLocalDownloadWorkspaceOptions {
-  api: TermousApi
+  api: LocalPathMappingGateway
   mappings: readonly LocalPathMapping[]
   open: boolean
   preferredTarget?: LocalDownloadTargetPreference | null

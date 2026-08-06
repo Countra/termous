@@ -6,13 +6,6 @@ import type {
   CompletionSettings,
   ConnectionProxyInput,
   CredentialInput,
-  FileBookmark,
-  FileBookmarkGroup,
-  FileBookmarkGroupInput,
-  FileBookmarkGroupReorderItem,
-  FileBookmarkInput,
-  FileBookmarkReorderItem,
-  FileSession,
   ForwardEvent,
   ForwardInstance,
   ForwardProfile,
@@ -24,9 +17,6 @@ import type {
   HostReachabilityEvent,
   HostInput,
   Language,
-  LocalPathMapping,
-  LocalPathMappingInput,
-  LocalPathMappingReorderItem,
   LocalShell,
   Session,
   Settings,
@@ -35,6 +25,18 @@ import type {
   TerminalSettings,
   WindowSettings,
 } from '../types/domain'
+import type {
+  FileBookmark,
+  FileBookmarkGroup,
+  FileBookmarkGroupInput,
+  FileBookmarkGroupReorderItem,
+  FileBookmarkInput,
+  FileBookmarkReorderItem,
+  FileSession,
+  LocalPathMapping,
+  LocalPathMappingInput,
+  LocalPathMappingReorderItem,
+} from '#entities/file'
 import { changeLanguage } from '#shared/i18n'
 import {
   completionSettingsEqual,
@@ -65,13 +67,11 @@ import {
   suppressFileSessionRecoveryResult,
   supersedeQueuedFileSessionRecovery,
   type FileSessionClosureState,
-} from '../features/files/fileSessionRecovery'
-import {
   filterFileSessionsByActiveSources,
   reconcileFileSessionSnapshotList,
   replaceFileSessionSnapshot,
   upsertFileSessionSnapshot,
-} from '../shared/fileSessionSnapshot'
+} from '#entities/file'
 import {
   mergeSessionReloadSnapshot,
   sessionChangedSince,

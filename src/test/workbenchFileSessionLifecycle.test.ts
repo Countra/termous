@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { FileSession, FileSessionStatus, Session, SessionStatus } from '../types/domain.ts'
+import type { Session, SessionStatus } from '../types/domain.ts'
+import type { FileSession, FileSessionStatus } from '#entities/file'
 import {
   filterFileSessionsByActiveSources,
   mergeFileSessionSnapshot,
   reconcileFileSessionSnapshotList,
   replaceFileSessionSnapshot,
   upsertFileSessionSnapshot,
-} from '../shared/fileSessionSnapshot.ts'
+} from '#entities/file'
 import {
   beginFileSessionRecovery,
   buildSourceSessionContexts,
@@ -35,7 +36,7 @@ import {
   shouldSilentlyCancelFileSessionRecovery,
   waitForFileSessionRecovery,
 } from '../features/workbench/workbenchFileSessionLifecycle.ts'
-import { FileSessionRecoverySupersededError } from '../features/files/fileSessionRecovery.ts'
+import { FileSessionRecoverySupersededError } from '#entities/file'
 
 function fileSession(overrides: Partial<FileSession> = {}): FileSession {
   return {

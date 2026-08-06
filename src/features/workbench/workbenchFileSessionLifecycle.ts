@@ -1,10 +1,11 @@
-import type { FileSession, Session } from '../../types/domain'
-import { isOlderFileSessionSnapshot } from '../../shared/fileSessionSnapshot.ts'
+import type { FileSession } from '#entities/file'
+import type { Session } from '../../types/domain'
+import { isOlderFileSessionSnapshot } from '#entities/file'
 import {
   isFileSessionRecoverySupersededError,
   resolveFileSessionClosure,
   type FileSessionClosureState,
-} from '../files/fileSessionRecovery.ts'
+} from '#entities/file'
 
 export type FileSessionRecoveryPhase = 'idle' | 'required' | 'requesting' | 'waiting_ready' | 'failed'
 

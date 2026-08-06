@@ -1,9 +1,11 @@
-import type { TermousApi } from '../../../api/client'
 import type {
   LocalPathMapping,
   LocalPathMappingInput,
   LocalPathMappingReorderItem,
-} from '../../../types/domain'
+} from '#entities/file'
+import type {
+  LocalDownloadGateway,
+} from '../api/fileGateway'
 import type {
   RemoteFileConnectionGeneration,
   RemoteFileDragSelection,
@@ -35,7 +37,7 @@ export interface LocalDownloadRequest {
 }
 
 export interface LocalDownloadConsoleProps {
-  api: TermousApi
+  api: LocalDownloadGateway
   open: boolean
   mappings: readonly LocalPathMapping[]
   session: LocalDownloadSessionContext | null
@@ -56,7 +58,7 @@ export interface LocalDownloadConsoleProps {
 }
 
 export interface LocalDownloadQuickTargetProps {
-  api: TermousApi
+  api: LocalDownloadGateway
   target: LocalDownloadTarget | null
   session: LocalDownloadSessionContext | null
   expanded: boolean

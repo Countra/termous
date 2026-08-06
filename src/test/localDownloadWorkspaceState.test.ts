@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { LocalPathMapping, LocalTreeEntry } from '../types/domain.ts'
+import type { LocalPathMapping, LocalTreeEntry } from '#entities/file'
 import {
   beginLocalDirectoryRequest,
   cancelLocalDirectoryRequest,

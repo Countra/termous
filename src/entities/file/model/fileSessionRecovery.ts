@@ -1,4 +1,4 @@
-import type { FileSession } from '../../types/domain'
+import type { FileSession } from './types.ts'
 
 export type FileSessionRecoveryAttemptPhase = 'requesting' | 'waiting_ready'
 

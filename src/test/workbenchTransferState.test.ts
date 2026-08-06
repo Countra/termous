@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { TransferTask } from '../types/domain.ts'
+import type { TransferTask } from '#entities/file'
 import { summarizeWorkbenchTransfers } from '../features/workbench/workbenchTransferState.ts'
 
 function task(overrides: Partial<TransferTask>): TransferTask {

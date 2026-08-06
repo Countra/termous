@@ -1,4 +1,4 @@
-import type { FileSessionStatus, RemoteFileEntry } from '../../types/domain'
+import type { FileSessionStatus, RemoteFileEntry } from '#entities/file'
 import { normalizeRemotePosixPath } from '#shared/path'
 
 export interface WorkbenchFilesPathNavigationIntent {

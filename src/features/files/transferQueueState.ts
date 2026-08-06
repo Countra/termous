@@ -1,4 +1,4 @@
-import type { TransferTask } from '../../types/domain'
+import type { TransferTask } from '#entities/file'
 
 export type TransferQueueFilter = 'all' | 'active' | 'completed' | 'failed'
 export const pendingTransferHistoryLimit = 200

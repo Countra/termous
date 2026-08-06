@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { TransferTask } from '../../../types/domain'
+import type { TransferTask } from '#entities/file'
 
 const transferHistoryLimit = 200
 

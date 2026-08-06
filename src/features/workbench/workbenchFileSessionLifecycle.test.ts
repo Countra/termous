@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { FileSession, Session } from '../../types/domain.ts'
+import type { Session } from '../../types/domain.ts'
+import type { FileSession } from '#entities/file'
 import {
   buildSourceSessionContexts,
   canApplyCreatedFileSession,

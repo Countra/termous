@@ -29,8 +29,10 @@
       "specifier": "../../app/TerminalCwdRuntimeProvider"
     },
     {
-      "rule": "layer-root-file",
-      "source": "src/shared/fileSessionSnapshot.ts"
+      "rule": "legacy-boundary",
+      "source": "src/api/client.ts",
+      "target": "src/entities/file/index.ts",
+      "specifier": "#entities/file"
     },
     {
       "rule": "legacy-boundary",
@@ -101,12 +103,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/files/fileSessionRecovery.ts",
-      "specifier": "./features/files/fileSessionRecovery"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
       "target": "src/features/files/FilesPage.tsx",
       "specifier": "./features/files/FilesPage"
     },
@@ -127,6 +123,12 @@
       "source": "src/App.tsx",
       "target": "src/features/forwards/forwardRestart.ts",
       "specifier": "./features/forwards/forwardRestart"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/App.tsx",
+      "target": "src/entities/file/index.ts",
+      "specifier": "#entities/file"
     },
     {
       "rule": "legacy-boundary",
@@ -215,12 +217,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/app/useTermousData.ts",
-      "target": "src/shared/fileSessionSnapshot.ts",
-      "specifier": "../shared/fileSessionSnapshot"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/app/useTermousData.ts",
       "target": "src/types/domain.ts",
       "specifier": "../types/domain"
     },
@@ -280,31 +276,7 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/files/fileBookmarksModel.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FileBookmarksRail.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FileBookmarksSidebar.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/files/filesBookmarkManagementIntent.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/fileSessionRecovery.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -340,72 +312,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/files/filesWorkspaceState.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain.ts"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/fileUtils.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/local-download/LocalDownloadBrowserPane.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/local-download/LocalDownloadConfirmPane.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/local-download/LocalDownloadMappingPane.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/local-download/localDownloadWorkspaceState.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/local-download/types.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/local-download/types.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/local-download/useLocalDownloadDrop.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/local-download/useLocalDownloadWorkspace.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/local-download/useLocalDownloadWorkspace.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/files/RemoteImageViewerModal.tsx",
       "target": "src/api/client.ts",
       "specifier": "../../api/client"
@@ -430,27 +336,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/files/TransferQueuePanel.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/transferQueueState.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/files/useFileOperationWatcher.ts",
       "target": "src/api/client.ts",
       "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/useFileOperationWatcher.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -610,12 +498,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/transfers/model/transferRuntime.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/vault/api/credentialGateway.ts",
       "target": "src/api/client.ts",
       "specifier": "../../../api/client"
@@ -631,6 +513,12 @@
       "source": "src/types/domain.ts",
       "target": "src/entities/connection-proxy/index.ts",
       "specifier": "#entities/connection-proxy"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/types/domain.ts",
+      "target": "src/entities/file/index.ts",
+      "specifier": "#entities/file"
     },
     {
       "rule": "legacy-boundary",
@@ -922,30 +810,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchBookmarkEditorModal.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchBookmarksPopover.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchFileList.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/workbenchFileSessionLifecycle.ts",
-      "target": "src/shared/fileSessionSnapshot.ts",
-      "specifier": "../../shared/fileSessionSnapshot.ts"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/workbench/workbenchFileSessionLifecycle.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
@@ -982,12 +846,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/workbenchFilesPathNavigation.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/api/client.ts",
       "specifier": "../../api/client"
@@ -1009,12 +867,6 @@
       "source": "src/features/workbench/WorkbenchTransferBar.tsx",
       "target": "src/api/client.ts",
       "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/workbenchTransferState.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -1045,12 +897,6 @@
       "source": "src/main.tsx",
       "target": "src/app/update-surface/index.ts",
       "specifier": "#app/update-surface"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/shared/fileSessionSnapshot.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../types/domain"
     },
     {
       "rule": "legacy-file",
@@ -1115,12 +961,6 @@
     {
       "rule": "public-entry",
       "source": "src/App.tsx",
-      "target": "src/features/files/fileSessionRecovery.ts",
-      "specifier": "./features/files/fileSessionRecovery"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
       "target": "src/features/files/FilesPage.tsx",
       "specifier": "./features/files/FilesPage"
     },
@@ -1169,12 +1009,6 @@
     {
       "rule": "public-entry",
       "source": "src/app/useTermousData.ts",
-      "target": "src/features/files/fileSessionRecovery.ts",
-      "specifier": "../features/files/fileSessionRecovery"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/app/useTermousData.ts",
       "target": "src/features/forwards/forwardRestart.ts",
       "specifier": "../features/forwards/forwardRestart"
     },
@@ -1193,44 +1027,8 @@
     {
       "rule": "public-entry",
       "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
-      "target": "src/features/files/fileSessionRecovery.ts",
-      "specifier": "../files/fileSessionRecovery"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
       "target": "src/features/terminal/terminalCwdContext.ts",
       "specifier": "../terminal/terminalCwdContext"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchBookmarkEditorModal.tsx",
-      "target": "src/features/files/fileBookmarksModel.ts",
-      "specifier": "../files/fileBookmarksModel"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchBookmarksPopover.tsx",
-      "target": "src/features/files/fileBookmarksModel.ts",
-      "specifier": "../files/fileBookmarksModel"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/workbenchFileSessionLifecycle.ts",
-      "target": "src/features/files/fileSessionRecovery.ts",
-      "specifier": "../files/fileSessionRecovery.ts"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
-      "target": "src/features/files/fileSessionRecovery.ts",
-      "specifier": "../files/fileSessionRecovery"
     },
     {
       "rule": "public-entry",
@@ -1243,12 +1041,6 @@
       "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
       "target": "src/features/files/RemoteTextEditorModal.tsx",
       "specifier": "../files/RemoteTextEditorModal"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/files/fileSessionRecovery.ts",
-      "specifier": "../files/fileSessionRecovery"
     },
     {
       "rule": "public-entry",
@@ -1295,44 +1087,8 @@
     {
       "rule": "same-layer-deep-import",
       "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
-      "target": "src/features/files/fileSessionRecovery.ts",
-      "specifier": "../files/fileSessionRecovery"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
-      "target": "src/features/files/fileUtils.ts",
-      "specifier": "../files/fileUtils"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
       "target": "src/features/terminal/terminalCwdContext.ts",
       "specifier": "../terminal/terminalCwdContext"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchBookmarkEditorModal.tsx",
-      "target": "src/features/files/fileBookmarksModel.ts",
-      "specifier": "../files/fileBookmarksModel"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchBookmarksPopover.tsx",
-      "target": "src/features/files/fileBookmarksModel.ts",
-      "specifier": "../files/fileBookmarksModel"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/workbenchFileSessionLifecycle.ts",
-      "target": "src/features/files/fileSessionRecovery.ts",
-      "specifier": "../files/fileSessionRecovery.ts"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
-      "target": "src/features/files/fileSessionRecovery.ts",
-      "specifier": "../files/fileSessionRecovery"
     },
     {
       "rule": "same-layer-deep-import",
@@ -1345,12 +1101,6 @@
       "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
       "target": "src/features/files/RemoteTextEditorModal.tsx",
       "specifier": "../files/RemoteTextEditorModal"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/files/fileSessionRecovery.ts",
-      "specifier": "../files/fileSessionRecovery"
     },
     {
       "rule": "same-layer-deep-import",

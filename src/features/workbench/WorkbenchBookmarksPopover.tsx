@@ -22,12 +22,12 @@ import type {
   FileBookmark,
   FileBookmarkGroup,
   FileBookmarkInput,
-} from '../../types/domain'
+} from '#entities/file'
 import {
   buildBookmarkGroups,
   filterBookmarkGroups,
   findBookmarkForPath,
-} from '../files/fileBookmarksModel'
+} from '#entities/file'
 import { WorkbenchBookmarkEditorModal } from './WorkbenchBookmarkEditorModal'
 import './workbench-bookmarks-popover.css'
 

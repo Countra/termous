@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { formatBytes, formatDate } from '#shared/format'
-import type { TransferTask } from '../types/domain.ts'
+import type { TransferTask } from '#entities/file'
 import {
   formatSeconds,
   transferDisplayName,
-} from '../features/files/fileUtils.ts'
+} from '#entities/file'
 
 function transfer(overrides: Partial<TransferTask> = {}): TransferTask {
   return {

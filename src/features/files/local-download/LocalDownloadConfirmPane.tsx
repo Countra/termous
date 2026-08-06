@@ -5,7 +5,7 @@ import {
   MousePointer2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { LocalPathMapping } from '../../../types/domain'
+import type { LocalPathMapping } from '#entities/file'
 import type { LocalDirectoryViewState } from './localDownloadWorkspaceState'
 import type { RemoteFileDragSelection } from './remoteFileDragRegistry'
 import type { useLocalDownloadDrop } from './useLocalDownloadDrop'

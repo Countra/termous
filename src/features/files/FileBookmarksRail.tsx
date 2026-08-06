@@ -23,13 +23,13 @@ import type {
   FileBookmark,
   FileBookmarkGroup,
   FileBookmarkInput,
-} from '../../types/domain'
+} from '#entities/file'
 import { normalizeRemotePosixPath } from '#shared/path'
 import {
   buildBookmarkGroups,
   findBookmarkForPath,
   suggestBookmarkName,
-} from './fileBookmarksModel'
+} from '#entities/file'
 import './file-bookmarks-rail.css'
 
 export interface FileBookmarksRailProps {

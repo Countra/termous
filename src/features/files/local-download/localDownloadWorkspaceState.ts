@@ -1,4 +1,4 @@
-import type { LocalPathMapping, LocalTreeEntry } from '../../../types/domain'
+import type { LocalPathMapping, LocalTreeEntry } from '#entities/file'
 import type { LocalDownloadTarget } from './types'
 
 export type LocalDirectoryStatus =

@@ -3,7 +3,7 @@ import { ChevronRight, File, FileQuestion, Folder, Link2, LoaderCircle, UploadCl
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import type { RemoteFileEntry } from '../../types/domain'
+import type { RemoteFileEntry } from '#entities/file'
 import { formatBytes, formatDate } from '#shared/format'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import { isLocalFileDrag } from './workbenchFileDrag'

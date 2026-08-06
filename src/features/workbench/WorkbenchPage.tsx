@@ -65,8 +65,13 @@ import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
-import type { AppData, CodeSnippet, FileBookmark, FileBookmarkInput, FileSession, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
-import type { FileSessionClosureState } from '../files/fileSessionRecovery'
+import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
+import type {
+  FileBookmark,
+  FileBookmarkInput,
+  FileSession,
+  FileSessionClosureState,
+} from '#entities/file'
 import {
   SnippetFilterBar,
   SnippetList,

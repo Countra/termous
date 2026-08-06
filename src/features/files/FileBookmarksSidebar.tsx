@@ -44,7 +44,7 @@ import type {
   FileBookmarkGroupReorderItem,
   FileBookmarkInput,
   FileBookmarkReorderItem,
-} from '../../types/domain'
+} from '#entities/file'
 import { normalizeRemotePosixPath } from '#shared/path'
 import {
   buildBookmarkGroups,
@@ -58,7 +58,7 @@ import {
   suggestBookmarkName,
   type BookmarkDropPlacement,
   type BookmarkGroupView,
-} from './fileBookmarksModel'
+} from '#entities/file'
 import './file-bookmarks-sidebar.css'
 
 export type FileBookmarksSidebarCloseReason = 'dismiss' | 'navigation'
