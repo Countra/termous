@@ -1,10 +1,13 @@
-import type { TermousApi } from '../../api/client'
-import type { TerminalFont, TerminalSettings } from '../../types/domain'
+import type { TerminalFont, TerminalSettings } from '#common/contracts'
+
+interface TerminalFontFileUrlProvider {
+  terminalFontFileUrl: (id: string, sha256?: string) => string
+}
 
 const importedFontStyleId = 'termous-imported-terminal-fonts'
 const fallbackFontFamily = '"JetBrains Mono", Consolas, monospace'
 
-export function syncImportedFontFaces(api: TermousApi, fonts: TerminalFont[]) {
+export function syncImportedFontFaces(api: TerminalFontFileUrlProvider, fonts: TerminalFont[]) {
   const css = fonts
     .filter((font) => font.kind === 'imported')
     .map((font) => {

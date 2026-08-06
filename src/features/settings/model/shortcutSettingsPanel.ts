@@ -13,11 +13,11 @@ import {
   type ShortcutChord,
   type ShortcutConflict,
   type ShortcutPlatform,
-} from '#features/shortcuts'
+} from '#entities/shortcuts'
 import type {
   ShortcutActionOverride,
   ShortcutSettings,
-} from '../../types/domain'
+} from '#common/contracts'
 
 export const shortcutGroupOrder = [
   'global',

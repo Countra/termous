@@ -1,7 +1,8 @@
 import type {
   AppLanguage,
   AppTheme,
-  DataPortabilityDatasetKey,
+  Settings,
+  TerminalFont,
 } from '#common/contracts'
 
 export type {
@@ -11,18 +12,49 @@ export type {
   CoreStatus,
   DataPortabilityDatasetKey,
   DataPortabilityDatasetSummary,
+  DataPortabilityApplyResult,
   DataPortabilityExportDialogResult,
+  DataPortabilityFieldDifference,
   DataPortabilityImport,
   DataPortabilityImportDialogResult,
   DataPortabilityImportSelectionResult,
+  DataPortabilityItemRef,
+  DataPortabilityPlanItem,
+  DataPortabilityPlanItemPage,
+  DataPortabilityPlanItemQuery,
+  DataPortabilityPlanRequest,
+  DataPortabilityPlanStatus,
+  DataPortabilityPlanSummary,
   DataPortabilityProgress,
+  DataPortabilityResolution,
+  DataPortabilityResolutionRequest,
   DataPortabilityRestartResult,
+  DataPortabilityRestoreMode,
+  DataPortabilityRestorePlan,
   DataPortabilitySummary,
   DataPortabilityWarning,
+  AppearanceSettings,
+  CompletionProviderId,
+  CompletionProviderSettings,
+  CompletionSettings,
+  Settings,
+  ShortcutActionOverride,
+  ShortcutChord,
+  ShortcutModifier,
+  ShortcutSettings,
+  ShortcutSettingsPatch,
+  TerminalCursorStyle,
+  TerminalFont,
+  TerminalFontFamily,
+  TerminalFontKind,
+  TerminalSettings,
+  TerminalThemeMode,
   TrayCommand,
   TrayMenuLabels,
   TrayMenuState,
   TrayRecentHost,
+  WindowCloseBehavior,
+  WindowSettings,
 } from '#common/contracts'
 
 export type Language = AppLanguage
@@ -46,21 +78,6 @@ export type TransferType =
 export type TransferStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export type LocalGrantSource = 'picker' | 'drop' | 'clipboard'
-
-export type TerminalFontFamily = string
-
-export type TerminalFontKind = 'builtin' | 'imported'
-
-export interface TerminalFont {
-  id: TerminalFontFamily
-  kind: TerminalFontKind
-  display_name: string
-  family_name: string
-  file_name?: string
-  size_bytes?: number
-  sha256?: string
-  created_at?: string
-}
 
 export interface HostIcon {
   id: string
@@ -271,10 +288,6 @@ export interface LocalFileGrant {
   created_at: string
   expires_at: string
 }
-
-export type TerminalCursorStyle = 'block' | 'bar' | 'underline'
-
-export type TerminalThemeMode = 'follow_app' | 'dark' | 'light'
 
 export type SnippetShell = 'any' | 'sh' | 'bash' | 'zsh' | 'powershell' | 'cmd'
 
@@ -690,67 +703,6 @@ export interface FirewallPersistenceInstallResult {
   message: string
 }
 
-export interface Settings {
-  language: Language
-  appearance: AppearanceSettings
-  terminal: TerminalSettings
-  completion: CompletionSettings
-  shortcuts: ShortcutSettings
-  window: WindowSettings
-}
-
-export interface AppearanceSettings {
-  theme: ThemeMode
-}
-
-export interface TerminalSettings {
-  font_family: TerminalFontFamily
-  font_size: number
-  line_height: number
-  letter_spacing: number
-  cursor_style: TerminalCursorStyle
-  cursor_blink: boolean
-  theme_mode: TerminalThemeMode
-  scrollback: 1000 | 5000 | 10000 | 50000
-}
-
-export interface CompletionSettings {
-  enabled: boolean
-  providers: CompletionProviderSettings
-}
-
-export type CompletionProviderId = 'native' | 'alias' | 'snippet' | 'history' | 'directory'
-
-export interface CompletionProviderSettings {
-  native: boolean
-  alias: boolean
-  snippet: boolean
-  history: boolean
-  directory: boolean
-}
-
-export type ShortcutModifier = 'primary' | 'control' | 'alt' | 'shift' | 'meta'
-
-export interface ShortcutChord {
-  modifiers: ShortcutModifier[]
-  code: string
-  key: string
-}
-
-export interface ShortcutActionOverride {
-  bindings: ShortcutChord[]
-}
-
-export interface ShortcutSettings {
-  schema_version: 1
-  overrides: Record<string, ShortcutActionOverride>
-}
-
-export interface ShortcutSettingsPatch {
-  changes?: Record<string, ShortcutActionOverride | null>
-  reset_all?: boolean
-}
-
 export type CompletionProviderStatus =
   | 'idle'
   | 'building'
@@ -822,12 +774,6 @@ export interface CompletionResult extends CompletionStatus {
   request_id: string
   is_incomplete: boolean
   items: CompletionItem[]
-}
-
-export type WindowCloseBehavior = 'exit' | 'minimize_to_tray'
-
-export interface WindowSettings {
-  close_behavior: WindowCloseBehavior
 }
 
 export interface CodeSnippet {
@@ -1706,88 +1652,6 @@ export interface CoreRuntimeInfo {
   shutdown_in_progress: boolean
   shutdown_reason?: string
   shutdown_started_at?: string
-}
-
-export type DataPortabilityRestoreMode = 'replace_all' | 'merge_all' | 'selective'
-export type DataPortabilityPlanStatus = 'added' | 'unchanged' | 'conflict' | 'dependency' | 'skipped' | 'removed'
-export type DataPortabilityResolution = 'keep_current' | 'use_backup' | 'keep_both'
-
-export interface DataPortabilityItemRef {
-  dataset: DataPortabilityDatasetKey
-  id: string
-}
-
-export interface DataPortabilityFieldDifference {
-  field: string
-  current?: unknown
-  backup?: unknown
-  sensitive?: boolean
-}
-
-export interface DataPortabilityPlanItem {
-  key: string
-  reference: DataPortabilityItemRef
-  current_id?: string
-  label: string
-  status: DataPortabilityPlanStatus
-  reason?: string
-  dependency?: boolean
-  required_by?: string[]
-  differences?: DataPortabilityFieldDifference[]
-  allowed_actions?: DataPortabilityResolution[]
-  resolution?: DataPortabilityResolution
-  remapped_id?: string
-  automatic_alias_id?: string
-}
-
-export interface DataPortabilityPlanSummary {
-  total: number
-  unresolved: number
-  by_status: Partial<Record<DataPortabilityPlanStatus, number>>
-  by_dataset: Partial<Record<DataPortabilityDatasetKey, number>>
-}
-
-export interface DataPortabilityRestorePlan {
-  id: string
-  revision: number
-  mode: DataPortabilityRestoreMode
-  target_fingerprint: string
-  backup_fingerprint: string
-  items: DataPortabilityPlanItem[]
-  summary: DataPortabilityPlanSummary
-}
-
-export interface DataPortabilityPlanRequest {
-  mode: DataPortabilityRestoreMode
-  selected_datasets?: DataPortabilityDatasetKey[]
-  selected_items?: DataPortabilityItemRef[]
-}
-
-export interface DataPortabilityPlanItemPage {
-  items: DataPortabilityPlanItem[]
-  next_cursor?: string
-  total: number
-}
-
-export interface DataPortabilityPlanItemQuery {
-  dataset?: DataPortabilityDatasetKey
-  status?: DataPortabilityPlanStatus
-  cursor?: string
-  limit?: number
-}
-
-export interface DataPortabilityResolutionRequest {
-  expected_revision: number
-  action: DataPortabilityResolution
-  item_keys?: string[]
-  dataset?: DataPortabilityDatasetKey
-}
-
-export interface DataPortabilityApplyResult {
-  import_id: string
-  operation_id: string
-  restart_required: boolean
-  state: 'applied'
 }
 
 export interface HostInput {

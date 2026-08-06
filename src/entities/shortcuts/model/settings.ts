@@ -4,8 +4,8 @@ import type {
   ShortcutModifier,
   ShortcutSettings,
   ShortcutSettingsPatch,
-} from '../../types/domain'
-import { isSupportedShortcutCode } from '#features/shortcuts'
+} from '#common/contracts'
+import { isSupportedShortcutCode } from './chords.ts'
 
 const shortcutActionIdPattern = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/
 const shortcutModifiers = ['primary', 'control', 'alt', 'shift', 'meta'] as const

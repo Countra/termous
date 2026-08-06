@@ -5,17 +5,17 @@ import {
   ShortcutRuntime,
   shouldPreventShortcutDefault,
   type ShortcutHandlerResult,
-} from '../features/shortcuts/runtime.ts'
+} from '../entities/shortcuts/model/runtime.ts'
 import {
   compileShortcutIndex,
   createShortcutChord,
   setShortcutBindingOverride,
-} from '../features/shortcuts/index.ts'
+} from '#entities/shortcuts'
 import type {
   ShortcutActionId,
   ShortcutKeyboardEventLike,
   ShortcutScope,
-} from '../features/shortcuts/index.ts'
+} from '#entities/shortcuts'
 
 function keyboardEvent(
   code: string,

@@ -9,11 +9,11 @@ import {
   defaultCompletionSettings,
   hasEnabledCompletionProvider,
   normalizeCompletionSettings,
-  normalizeSettings,
-} from '../features/settings/index.ts'
+} from '#entities/settings'
+import { normalizeSettings } from '../features/settings/model/settings.ts'
 
 const settingsViewSource = readFileSync(
-  fileURLToPath(new URL('../features/settings/TerminalCompletionSettings.tsx', import.meta.url)),
+  fileURLToPath(new URL('../features/settings/ui/terminal/TerminalCompletionSettings.tsx', import.meta.url)),
   'utf8',
 )
 const dataSource = readFileSync(

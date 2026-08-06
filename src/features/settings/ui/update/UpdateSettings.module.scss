@@ -1,6 +1,6 @@
 .update-settings-surface {
   overflow: hidden;
-  padding: 0;
+  padding: 16px;
 }
 
 .update-settings-heading {
@@ -79,11 +79,11 @@
   width: min(100%, 180px);
 }
 
-.update-preference-select.ant-select {
+.update-preference-select:global(.ant-select) {
   min-height: 38px;
 }
 
-.update-preference-select.ant-select .ant-select-selector {
+.update-preference-select:global(.ant-select) :global(.ant-select-selector) {
   border-color: color-mix(in srgb, var(--border) 88%, transparent) !important;
   border-radius: 9px;
   background: color-mix(in srgb, var(--surface-subtle) 78%, transparent) !important;
@@ -95,37 +95,37 @@
     box-shadow 0.16s ease;
 }
 
-.update-preference-select.ant-select:not(.ant-select-disabled):hover .ant-select-selector {
+.update-preference-select:global(.ant-select:not(.ant-select-disabled)):hover :global(.ant-select-selector) {
   border-color: color-mix(in srgb, var(--accent) 36%, var(--border-strong)) !important;
   background: color-mix(in srgb, var(--surface-strong) 88%, var(--accent-soft)) !important;
 }
 
-.update-preference-select.ant-select-focused:not(.ant-select-disabled) .ant-select-selector,
-.update-preference-select.ant-select-open:not(.ant-select-disabled) .ant-select-selector {
+.update-preference-select:global(.ant-select-focused:not(.ant-select-disabled)) :global(.ant-select-selector),
+.update-preference-select:global(.ant-select-open:not(.ant-select-disabled)) :global(.ant-select-selector) {
   border-color: color-mix(in srgb, var(--accent) 58%, var(--border-strong)) !important;
   background: var(--surface-strong) !important;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 14%, transparent) !important;
 }
 
-.update-preference-select .ant-select-selection-item {
+.update-preference-select :global(.ant-select-selection-item) {
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 640;
 }
 
-.update-preference-select .ant-select-arrow {
+.update-preference-select :global(.ant-select-arrow) {
   color: var(--text-muted);
   transition:
     color 0.16s ease,
     transform 0.16s ease;
 }
 
-.update-preference-select.ant-select-open .ant-select-arrow {
+.update-preference-select:global(.ant-select-open) :global(.ant-select-arrow) {
   color: var(--accent);
   transform: rotate(180deg);
 }
 
-.update-check-interval-popup.ant-select-dropdown {
+.update-check-interval-popup:global(.ant-select-dropdown) {
   min-width: 180px !important;
   border-color: color-mix(in srgb, var(--border) 84%, transparent);
   box-shadow:
@@ -134,7 +134,7 @@
   padding: 6px;
 }
 
-.update-check-interval-popup .ant-select-item {
+.update-check-interval-popup :global(.ant-select-item) {
   position: relative;
   min-height: 38px;
   align-items: center;
@@ -147,7 +147,7 @@
     background 0.14s ease;
 }
 
-.update-check-interval-popup .ant-select-item-option-active:not(.ant-select-item-option-disabled) {
+.update-check-interval-popup :global(.ant-select-item-option-active:not(.ant-select-item-option-disabled)) {
   background: color-mix(
     in srgb,
     var(--accent) 8%,
@@ -155,7 +155,7 @@
   ) !important;
 }
 
-.update-check-interval-popup .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+.update-check-interval-popup :global(.ant-select-item-option-selected:not(.ant-select-item-option-disabled)) {
   background: color-mix(
     in srgb,
     var(--accent) 15%,
@@ -165,19 +165,19 @@
   font-weight: 700;
 }
 
-.update-check-interval-popup .ant-select-item-option-state {
+.update-check-interval-popup :global(.ant-select-item-option-state) {
   color: var(--accent);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .update-preference-select.ant-select .ant-select-selector,
-  .update-preference-select .ant-select-arrow,
-  .update-check-interval-popup .ant-select-item {
+  .update-preference-select:global(.ant-select) :global(.ant-select-selector),
+  .update-preference-select :global(.ant-select-arrow),
+  .update-check-interval-popup :global(.ant-select-item) {
     transition: none;
   }
 }
 
-@media (max-width: 720px) {
+@media (width <= 720px) {
   .update-preference-row {
     grid-template-columns: minmax(0, 1fr);
     align-items: start;

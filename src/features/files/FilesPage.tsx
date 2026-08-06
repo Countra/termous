@@ -129,7 +129,7 @@ import {
 } from './local-download/remoteFileDragRegistry'
 import { TransferQueuePanel } from './TransferQueuePanel'
 import { useFilesWorkspaceRuntime } from './useFilesWorkspaceRuntime'
-import { useShortcutRuntime } from '#features/shortcuts'
+import { useShortcutRuntime } from '#entities/shortcuts'
 import {
   applyFilesWorkspaceSelection,
   beginFilesWorkspaceHistoryNavigation,

@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CompletionItem, ThemeMode } from '../../types/domain'
-import { useShortcutRuntime } from '#features/shortcuts'
+import { useShortcutRuntime } from '#entities/shortcuts'
 import { isExactCompletionItem, splitCompletionLabel } from './completionModel'
 import {
   TERMINAL_COMPLETION_POPUP_WIDTH,

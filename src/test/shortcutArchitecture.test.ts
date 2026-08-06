@@ -10,7 +10,7 @@ import {
   createShortcutChord,
   getShortcutReservation,
   SHORTCUT_ACTIONS,
-} from '../features/shortcuts/index.ts'
+} from '#entities/shortcuts'
 
 const sources = {
   app: readSource('../App.tsx'),
@@ -20,7 +20,7 @@ const sources = {
   filesPage: readSource('../features/files/FilesPage.tsx'),
   workbenchFiles: readSource('../features/workbench/WorkbenchFileList.tsx'),
   editor: readSource('../features/files/RemoteTextEditorModal.tsx'),
-  recorder: readSource('../features/settings/ShortcutRecorderModal.tsx'),
+  recorder: readSource('../features/settings/ui/shortcuts/ShortcutRecorderModal.tsx'),
 }
 
 test('所有首版动作均由统一动作目录和上下文适配器承接', () => {

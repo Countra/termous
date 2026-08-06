@@ -6,8 +6,8 @@ import {
   matchShortcutAction,
   normalizeKeyboardEventToChord,
   setShortcutBindingOverride,
-} from '../features/shortcuts/index.ts'
-import type { ShortcutKeyboardEventLike } from '../features/shortcuts/index.ts'
+} from '#entities/shortcuts'
+import type { ShortcutKeyboardEventLike } from '#entities/shortcuts'
 
 function keyboardEvent(
   code: string,

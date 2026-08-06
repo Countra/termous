@@ -14,7 +14,7 @@ import {
   shortcutChordSignature,
   shortcutScopesOverlap,
   validateShortcutBindings,
-} from '../features/shortcuts/index.ts'
+} from '#entities/shortcuts'
 
 test('动作注册表稳定包含已批准的动作、作用域和默认键位', () => {
   assert.deepEqual(

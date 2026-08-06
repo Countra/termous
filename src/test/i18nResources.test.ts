@@ -3,8 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
-import { SHORTCUT_ACTIONS } from '../features/shortcuts/registry.ts'
-import { SHORTCUT_SCOPES } from '../features/shortcuts/types.ts'
+import { SHORTCUT_ACTIONS, SHORTCUT_SCOPES } from '#entities/shortcuts'
 
 type TranslationTree = Record<string, unknown>
 

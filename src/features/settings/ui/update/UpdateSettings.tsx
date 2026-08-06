@@ -8,9 +8,8 @@ import type {
 import {
   type PendingPreferenceValues,
   type UpdatePreferenceKey,
-} from './updateSettingsHelpers'
+} from '../../model/updateSettings'
 import { UpdateSettingsView } from './UpdateSettingsView'
-import './update-settings.css'
 
 export interface UpdatePreferencesRuntime {
   generation: number

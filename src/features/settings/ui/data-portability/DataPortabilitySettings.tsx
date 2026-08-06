@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import { createApiFromRuntime, TermousApiError, type TermousApi } from '../../api/client'
+import { createApiFromRuntime, TermousApiError, type TermousApi } from '../../../../api/client'
 import type {
   DataPortabilityDatasetKey,
   DataPortabilityImport,
@@ -26,8 +26,9 @@ import type {
   DataPortabilityRestoreMode,
   DataPortabilityRestorePlan,
   DataPortabilitySummary,
-} from '../../types/domain'
+} from '#common/contracts'
 import { DataPortabilityPlanView } from './DataPortabilityPlanView'
+import styles from './DataPortability.module.scss'
 import {
   formatPortabilityBytes,
   itemSelectionKey,
@@ -36,8 +37,7 @@ import {
   normalizePortabilitySummary,
   portabilityDatasets,
   portabilityProgressPercent,
-} from './dataPortability'
-import '../../styles/data-portability.css'
+} from '../../model/dataPortability'
 
 type PlanStatusFilter = 'all' | DataPortabilityPlanStatus
 
@@ -419,11 +419,11 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
   const currentStep = restorePrepared ? 3 : plan ? 2 : inspection ? 1 : 0
 
   return (
-    <div className="data-portability-section">
-      <section className="data-portability-band">
+    <div className={styles['data-portability-section']}>
+      <section className={styles['data-portability-band']}>
         <BandHeader icon={<Upload size={18} />} title={t('settings.data.exportTitle')} hint={t('settings.data.exportHint')} />
         <SummaryStrip summary={summary} busy={summaryBusy} onReload={loadSummary} />
-        <div className="data-portability-password-grid">
+        <div className={styles['data-portability-password-grid']}>
           <Input.Password id="data-portability-export-password" autoComplete="off" value={exportPassword} maxLength={1024} prefix={<KeyRound size={15} />} placeholder={t('settings.data.password')} onChange={(event) => setExportPassword(event.target.value)} />
           <Input.Password id="data-portability-export-confirm" autoComplete="off" value={exportConfirm} maxLength={1024} prefix={<ShieldCheck size={15} />} placeholder={t('settings.data.confirmPassword')} onChange={(event) => setExportConfirm(event.target.value)} />
           <Button type="primary" icon={<Upload size={16} />} loading={exportBusy} onClick={() => void handleExport()}>
@@ -433,7 +433,7 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
         {progress?.operation === 'export' ? <OperationProgress progress={progress} /> : null}
       </section>
 
-      <section className="data-portability-band">
+      <section className={styles['data-portability-band']}>
         <BandHeader
           icon={<Download size={18} />}
           title={t('settings.data.importTitle')}
@@ -445,7 +445,7 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
               : undefined}
         />
         <Steps
-          className="data-portability-steps"
+          className={styles['data-portability-steps']}
           current={currentStep}
           size="small"
           items={['select', 'review', 'resolve', 'apply'].map((key) => ({ title: t(`settings.data.steps.${key}`) }))}
@@ -459,7 +459,7 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
               <Alert type="warning" showIcon message={t('settings.data.pathWarnings', { count: inspection.warnings.length })} description={inspection.warnings.map((warning) => warning.label).filter(Boolean).join(' · ')} />
             ) : null}
             {!plan && !restorePrepared ? (
-              <div className="data-portability-mode-panel">
+              <div className={styles['data-portability-mode-panel']}>
                 <Segmented<DataPortabilityRestoreMode>
                   block
                   value={mode}
@@ -500,12 +500,12 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
       </section>
 
       <Modal
-        rootClassName="data-portability-password-modal"
+        rootClassName={styles['data-portability-password-modal']}
         open={passwordModalOpen}
         centered
         width={460}
         title={(
-          <div className="data-portability-password-title">
+          <div className={styles['data-portability-password-title']}>
             <span><KeyRound size={18} /></span>
             <div><strong>{t('settings.data.passwordDialogTitle')}</strong><small>{t('settings.data.passwordDialogHint')}</small></div>
           </div>
@@ -525,8 +525,8 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
           setPasswordModalError('')
         }}
       >
-        <div className="data-portability-password-content">
-          <div className="data-portability-selected-file">
+        <div className={styles['data-portability-password-content']}>
+          <div className={styles['data-portability-selected-file']}>
             <span><FileArchive size={18} /></span>
             <div><strong title={selectedBackup?.file_name}>{selectedBackup?.file_name}</strong><small>{formatPortabilityBytes(selectedBackup?.size_bytes)}</small></div>
           </div>
@@ -553,9 +553,9 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
       </Modal>
 
       <Modal open={selectionOpen} centered width={700} title={t('settings.data.itemSelectionTitle')} onCancel={() => setSelectionOpen(false)} onOk={() => void applyItemSelection()} okText={t('settings.data.reanalyze')} cancelText={t('app.cancel')}>
-        <p className="data-portability-modal-hint">{t('settings.data.itemSelectionHint')}</p>
+        <p className={styles['data-portability-modal-hint']}>{t('settings.data.itemSelectionHint')}</p>
         <Tree
-          className="data-portability-selection-tree"
+          className={styles['data-portability-selection-tree']}
           checkable
           virtual
           height={340}
@@ -573,23 +573,23 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
 }
 
 function BandHeader({ icon, title, hint, action }: { icon: ReactNode; title: string; hint: string; action?: ReactNode }) {
-  return <div className="data-portability-band-header"><div className="data-portability-band-icon">{icon}</div><div><h2>{title}</h2><p>{hint}</p></div>{action ? <div className="data-portability-band-action">{action}</div> : null}</div>
+  return <div className={styles['data-portability-band-header']}><div className={styles['data-portability-band-icon']}>{icon}</div><div><h2>{title}</h2><p>{hint}</p></div>{action ? <div className={styles['data-portability-band-action']}>{action}</div> : null}</div>
 }
 
 function SummaryStrip({ summary, busy, onReload }: { summary: DataPortabilitySummary | null; busy: boolean; onReload: () => void }) {
   const { t } = useTranslation()
-  return <div className="data-portability-summary"><div><span>{t('settings.data.totalItems')}</span><strong>{summary?.total_items ?? '—'}</strong></div><div><span>{t('settings.data.datasetsCount')}</span><strong>{summary?.datasets.filter((item) => item.count > 0).length ?? '—'}</strong></div><div><span>{t('settings.data.assets')}</span><strong>{summary ? `${summary.asset_count} · ${formatPortabilityBytes(summary.asset_bytes)}` : '—'}</strong></div><Button aria-label={t('app.reload')} icon={<RefreshCw size={15} />} loading={busy} onClick={onReload} /></div>
+  return <div className={styles['data-portability-summary']}><div><span>{t('settings.data.totalItems')}</span><strong>{summary?.total_items ?? '—'}</strong></div><div><span>{t('settings.data.datasetsCount')}</span><strong>{summary?.datasets.filter((item) => item.count > 0).length ?? '—'}</strong></div><div><span>{t('settings.data.assets')}</span><strong>{summary ? `${summary.asset_count} · ${formatPortabilityBytes(summary.asset_bytes)}` : '—'}</strong></div><Button aria-label={t('app.reload')} icon={<RefreshCw size={15} />} loading={busy} onClick={onReload} /></div>
 }
 
 function ImportOverview({ inspection, locale }: { inspection: DataPortabilityImport; locale: string }) {
   const { t } = useTranslation()
-  return <div className="data-portability-import-overview"><div className="data-portability-file-mark"><FileArchive size={20} /></div><div><span>{t('settings.data.sourceVersion')}</span><strong>{inspection.source_app_version}</strong></div><div><span>{t('settings.data.createdAt')}</span><strong>{new Date(inspection.created_at).toLocaleString(locale)}</strong></div><div><span>{t('settings.data.totalItems')}</span><strong>{inspection.total_items}</strong></div><div><span>{t('settings.data.assets')}</span><strong>{inspection.asset_count} · {formatPortabilityBytes(inspection.asset_bytes)}</strong></div></div>
+  return <div className={styles['data-portability-import-overview']}><div className={styles['data-portability-file-mark']}><FileArchive size={20} /></div><div><span>{t('settings.data.sourceVersion')}</span><strong>{inspection.source_app_version}</strong></div><div><span>{t('settings.data.createdAt')}</span><strong>{new Date(inspection.created_at).toLocaleString(locale)}</strong></div><div><span>{t('settings.data.totalItems')}</span><strong>{inspection.total_items}</strong></div><div><span>{t('settings.data.assets')}</span><strong>{inspection.asset_count} · {formatPortabilityBytes(inspection.asset_bytes)}</strong></div></div>
 }
 
 function DatasetSelection({ inspection, value, onChange }: { inspection: DataPortabilityImport; value: DataPortabilityDatasetKey[]; onChange: (value: DataPortabilityDatasetKey[]) => void }) {
   const { t } = useTranslation()
   const counts = new Map(inspection.datasets.map((dataset) => [dataset.key, dataset.count]))
-  return <div className="data-portability-dataset-grid">{portabilityDatasets.map((dataset) => <Checkbox key={dataset} checked={value.includes(dataset)} disabled={(counts.get(dataset) ?? 0) === 0} onChange={(event) => onChange(event.target.checked ? [...value, dataset] : value.filter((item) => item !== dataset))}><span>{t(`settings.data.datasets.${dataset}`)}</span><small>{counts.get(dataset) ?? 0}</small></Checkbox>)}</div>
+  return <div className={styles['data-portability-dataset-grid']}>{portabilityDatasets.map((dataset) => <Checkbox key={dataset} checked={value.includes(dataset)} disabled={(counts.get(dataset) ?? 0) === 0} onChange={(event) => onChange(event.target.checked ? [...value, dataset] : value.filter((item) => item !== dataset))}><span>{t(`settings.data.datasets.${dataset}`)}</span><small>{counts.get(dataset) ?? 0}</small></Checkbox>)}</div>
 }
 
 function OperationProgress({ progress }: { progress: DataPortabilityProgress }) {
@@ -598,7 +598,7 @@ function OperationProgress({ progress }: { progress: DataPortabilityProgress }) 
   const progressLabel = progress.operation === 'import' && progress.phase === 'transferring'
     ? t('settings.data.progress.importTransferring')
     : t(`settings.data.progress.${progress.phase}`)
-  return <div className="data-portability-progress"><div>{progress.phase === 'complete' ? <CheckCircle2 size={16} /> : <RefreshCw className="is-spinning" size={16} />}<span>{progressLabel}</span><strong>{percent}%</strong></div><Progress percent={percent} showInfo={false} size="small" /></div>
+  return <div className={styles['data-portability-progress']}><div>{progress.phase === 'complete' ? <CheckCircle2 size={16} /> : <RefreshCw className="is-spinning" size={16} />}<span>{progressLabel}</span><strong>{percent}%</strong></div><Progress percent={percent} showInfo={false} size="small" /></div>
 }
 
 function isBackupVersionError(error: unknown) {

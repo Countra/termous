@@ -3,7 +3,7 @@ import type {
   CompletionProviderSettings,
   CompletionSettings,
   TerminalSettings,
-} from '../../types/domain'
+} from '#common/contracts'
 
 export const defaultTerminalSettings: TerminalSettings = {
   font_family: 'jetbrains_mono',

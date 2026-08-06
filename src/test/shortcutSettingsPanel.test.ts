@@ -4,7 +4,7 @@ import test from 'node:test'
 import {
   createShortcutChord,
   getShortcutAction,
-} from '../features/shortcuts/index.ts'
+} from '#entities/shortcuts'
 import {
   buildShortcutSettingsRows,
   createShortcutBindingChange,
@@ -13,7 +13,7 @@ import {
   shortcutActionTranslationSegment,
   shortcutScopeTranslationSegment,
   validateShortcutDraft,
-} from '../features/settings/shortcutSettingsPanelModel.ts'
+} from '../features/settings/model/shortcutSettingsPanel.ts'
 import type { ShortcutSettings } from '../types/domain.ts'
 
 const defaultSettings: ShortcutSettings = {
@@ -131,11 +131,11 @@ test('外部写入的歧义绑定会标记全部受影响动作', () => {
 
 test('快捷键录制器通过 Runtime 抢占按键并由组件适配器隔离业务动作', () => {
   const panelSource = readFileSync(
-    new URL('../features/settings/ShortcutSettingsPanel.tsx', import.meta.url),
+    new URL('../features/settings/ui/shortcuts/ShortcutSettingsPanel.tsx', import.meta.url),
     'utf8',
   )
   const recorderSource = readFileSync(
-    new URL('../features/settings/ShortcutRecorderModal.tsx', import.meta.url),
+    new URL('../features/settings/ui/shortcuts/ShortcutRecorderModal.tsx', import.meta.url),
     'utf8',
   )
   assert.match(recorderSource, /runtime\.pushRecorder\(/)

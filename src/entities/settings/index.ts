@@ -3,7 +3,7 @@ export {
   fontFamilyFromSetting,
   loadTerminalFont,
   syncImportedFontFaces,
-} from './terminalFonts.ts'
+} from './model/terminalFonts.ts'
 export {
   completionProviderIds,
   completionProviderSettingsSignature,
@@ -15,4 +15,4 @@ export {
   normalizeCompletionProviderSettings,
   normalizeCompletionSettings,
   normalizeTerminalSettings,
-} from './terminalSettings.ts'
+} from './model/terminalSettings.ts'

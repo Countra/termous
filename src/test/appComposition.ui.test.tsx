@@ -155,7 +155,7 @@ vi.mock('../features/hosts/HostsPage', () => ({
 
 vi.mock('../features/files/FilesPage', () => ({ FilesPage: () => null }))
 vi.mock('../features/forwards/ForwardingPage', () => ({ ForwardingPage: () => null }))
-vi.mock('../features/settings/SettingsPage', () => ({ SettingsPage: () => null }))
+vi.mock('#pages/settings', () => ({ SettingsPage: () => null }))
 vi.mock('../features/snippets/SnippetsPage', () => ({ SnippetsPage: () => null }))
 vi.mock('../features/vault/VaultPage', () => ({ VaultPage: () => null }))
 vi.mock('../features/workbench/HostLauncherModal', () => ({ HostLauncherModal: () => null }))

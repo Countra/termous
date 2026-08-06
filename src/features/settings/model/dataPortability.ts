@@ -5,7 +5,7 @@ import type {
   DataPortabilityProgress,
   DataPortabilityRestorePlan,
   DataPortabilitySummary,
-} from '../../types/domain'
+} from '#common/contracts'
 
 export const portabilityDatasets: DataPortabilityDatasetKey[] = [
   'settings',

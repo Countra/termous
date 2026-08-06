@@ -10,7 +10,9 @@ import {
   isPreferencePending,
   type PendingPreferenceValues,
   type UpdatePreferenceKey,
-} from './updateSettingsHelpers'
+} from '../../model/updateSettings'
+import surfaceStyles from '../SettingsSurface.module.scss'
+import styles from './UpdateSettings.module.scss'
 
 type SavePreference = <Key extends UpdatePreferenceKey>(
   key: Key,
@@ -46,9 +48,9 @@ export function UpdateSettingsView({
   )
 
   return (
-    <div className="settings-section update-settings-surface">
-      <header className="update-settings-heading">
-        <span className="update-settings-heading-icon" aria-hidden="true">
+    <div className={`${surfaceStyles.surface} ${styles['update-settings-surface']}`}>
+      <header className={styles['update-settings-heading']}>
+        <span className={styles['update-settings-heading-icon']} aria-hidden="true">
           <RefreshCw size={18} />
         </span>
         <div>
@@ -76,7 +78,7 @@ export function UpdateSettingsView({
         />
       ) : null}
       <section aria-label={t('settings.update.title')}>
-        <div className="update-preference-list">
+        <div className={styles['update-preference-list']}>
           <PreferenceRow
             label={t('settings.update.automaticCheck')}
             hint={t('settings.update.automaticCheckHint')}
@@ -101,10 +103,10 @@ export function UpdateSettingsView({
             hintId="update-settings-check-interval-hint"
             control={(
               <Select<UpdateCheckInterval>
-                className="termous-select update-preference-select"
+                className={`termous-select ${styles['update-preference-select']}`}
                 classNames={{
                   popup: {
-                    root: 'termous-select-popup update-check-interval-popup',
+                    root: `termous-select-popup ${styles['update-check-interval-popup']}`,
                   },
                 }}
                 value={preferences?.check_interval}
@@ -166,12 +168,12 @@ function PreferenceRow({
   control: ReactNode
 }) {
   return (
-    <div className="update-preference-row">
+    <div className={styles['update-preference-row']}>
       <div>
         <strong>{label}</strong>
         <p id={hintId}>{hint}</p>
       </div>
-      <div className="update-preference-control">{control}</div>
+      <div className={styles['update-preference-control']}>{control}</div>
     </div>
   )
 }

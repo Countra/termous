@@ -29,12 +29,12 @@ import {
   defaultTerminalSettings,
   hasEnabledCompletionProvider,
   normalizeTerminalSettings,
-} from './terminalSettings'
+} from '#entities/settings'
 import {
   useShortcutRuntime,
   type ShortcutKeyboardEventLike,
   type ShortcutScope,
-} from '#features/shortcuts'
+} from '#entities/shortcuts'
 import {
   TerminalRuntimeContext,
   type TerminalRuntimeContextValue,
@@ -69,7 +69,7 @@ import {
   predictTerminalCompletionCursor,
 } from './terminalCompletionPosition'
 import { transitionTerminalCompletionActivity } from './terminalCompletionViewport'
-import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from './terminalFonts'
+import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from '#entities/settings'
 import type { TerminalPromptBoundary } from './terminalProtocol'
 import {
   TerminalTransport,

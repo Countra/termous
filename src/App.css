@@ -329,8 +329,7 @@
 .details-panel,
 .terminal-card,
 .list-panel,
-.editor-panel,
-.settings-section {
+.editor-panel {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -395,8 +394,7 @@
 }
 
 .page-title-row h1,
-.panel-heading h2,
-.settings-section-header h2 {
+.panel-heading h2 {
   margin: 0;
   letter-spacing: 0;
 }
@@ -1017,31 +1015,6 @@
   color: var(--success);
 }
 
-.settings-page {
-  max-width: 920px;
-}
-
-.settings-section {
-  margin-top: 16px;
-  padding: 16px;
-}
-
-.settings-section-header {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
-}
-
-.settings-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
-  gap: 18px;
-  align-items: center;
-  padding-top: 14px;
-}
-
 .empty-state {
   display: grid;
   place-items: center;
@@ -1095,7 +1068,6 @@
   }
 
   .form-grid,
-  .settings-row,
   .metric-strip {
     grid-template-columns: 1fr;
   }

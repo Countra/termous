@@ -22,13 +22,13 @@ import type {
   ShortcutActionOverride,
   ShortcutChord,
   ShortcutSettings,
-} from '../../types/domain'
+} from '#common/contracts'
 import {
   formatShortcutChord,
   shortcutBindingListsEqual,
   type ShortcutActionId,
   type ShortcutPlatform,
-} from '#features/shortcuts'
+} from '#entities/shortcuts'
 import { ShortcutRecorderModal } from './ShortcutRecorderModal.tsx'
 import {
   buildShortcutSettingsRows,
@@ -39,9 +39,23 @@ import {
   shortcutScopeTranslationSegment,
   validateShortcutDraft,
   type ShortcutEditorState,
+  type ShortcutRowStatus,
   type ShortcutSettingsRow,
-} from './shortcutSettingsPanelModel.ts'
-import './shortcut-settings.css'
+} from '../../model/shortcutSettingsPanel.ts'
+import surfaceStyles from '../SettingsSurface.module.scss'
+import styles from './ShortcutSettings.module.scss'
+
+const shortcutRowStatusClassNames = {
+  default: styles['shortcut-settings-row-default'],
+  custom: styles['shortcut-settings-row-custom'],
+  unbound: styles['shortcut-settings-row-unbound'],
+} satisfies Record<ShortcutRowStatus, string>
+
+const shortcutStatusClassNames = {
+  default: styles['shortcut-settings-status-default'],
+  custom: styles['shortcut-settings-status-custom'],
+  unbound: styles['shortcut-settings-status-unbound'],
+} satisfies Record<ShortcutRowStatus, string>
 
 export interface ShortcutSettingsPanelProps {
   value: ShortcutSettings
@@ -185,10 +199,10 @@ export function ShortcutSettingsPanel({
   }
 
   return (
-    <section className="settings-section shortcut-settings-panel">
-      <div className="shortcut-settings-header">
-        <header className="shortcut-settings-heading">
-          <div className="shortcut-settings-title">
+    <section className={`${surfaceStyles.surface} ${styles['shortcut-settings-panel']}`}>
+      <div className={styles['shortcut-settings-header']}>
+        <header className={styles['shortcut-settings-heading']}>
+          <div className={styles['shortcut-settings-title']}>
             <Keyboard size={18} aria-hidden="true" />
             <div>
               <h2>{t('settings.shortcuts.title')}</h2>
@@ -197,7 +211,7 @@ export function ShortcutSettingsPanel({
           </div>
         </header>
 
-        <div className="shortcut-settings-toolbar">
+        <div className={styles['shortcut-settings-toolbar']}>
           <Input
             id="settings-shortcuts-search"
             name="shortcut-search"
@@ -205,10 +219,10 @@ export function ShortcutSettingsPanel({
             value={query}
             prefix={<Search size={15} aria-hidden="true" />}
             placeholder={t('settings.shortcuts.searchPlaceholder')}
-            className="shortcut-settings-search"
+            className={styles['shortcut-settings-search']}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <div className="shortcut-settings-summary">
+          <div className={styles['shortcut-settings-summary']}>
             <span>{t('settings.shortcuts.customizedCount', { count: customizedCount })}</span>
             <Popconfirm
               title={t('settings.shortcuts.resetAllTitle')}
@@ -222,7 +236,7 @@ export function ShortcutSettingsPanel({
             >
               <Button
                 size="small"
-                className="shortcut-settings-reset"
+                className={styles['shortcut-settings-reset']}
                 icon={<RotateCcw size={14} aria-hidden="true" />}
                 loading={resetBusy}
                 disabled={disabled || resetBusy || busyActionIds.size > 0 || customizedCount === 0}
@@ -234,7 +248,7 @@ export function ShortcutSettingsPanel({
         </div>
 
         {resetFailed && (
-          <div className="shortcut-settings-inline-error" role="status">
+          <div className={styles['shortcut-settings-inline-error']} role="status">
             <CircleAlert size={14} aria-hidden="true" />
             {t('settings.shortcuts.resetAllFailed')}
           </div>
@@ -243,19 +257,19 @@ export function ShortcutSettingsPanel({
 
       {groups.length === 0 ? (
         <Empty
-          className="shortcut-settings-empty"
+          className={styles['shortcut-settings-empty']}
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           description={t('settings.shortcuts.emptySearch')}
         />
       ) : (
-        <div className="shortcut-settings-groups">
+        <div className={styles['shortcut-settings-groups']}>
           {groups.map(({ group, rows: groupRows }) => (
-            <section className="shortcut-settings-group" key={group}>
-              <div className="shortcut-settings-group-heading">
+            <section className={styles['shortcut-settings-group']} key={group}>
+              <div className={styles['shortcut-settings-group-heading']}>
                 <strong>{t(`settings.shortcuts.groups.${group}`)}</strong>
                 <span>{groupRows.length}</span>
               </div>
-              <div className="shortcut-settings-list">
+              <div className={styles['shortcut-settings-list']}>
                 {groupRows.map((row) => (
                   <ShortcutSettingsRowView
                     key={row.definition.id}
@@ -324,38 +338,47 @@ function ShortcutSettingsRowView({
   const { t } = useTranslation()
   const actionLabel = actionName(row, t)
   return (
-    <article className={`shortcut-settings-row status-${row.status}`}>
-      <div className="shortcut-settings-action-copy">
+    <article
+      className={`${styles['shortcut-settings-row']} ${shortcutRowStatusClassNames[row.status]}`}
+    >
+      <div className={styles['shortcut-settings-action-copy']}>
         <strong>{actionLabel}</strong>
         <small>{actionDescription(row, t)}</small>
         {failed && (
-          <span className="shortcut-settings-row-error" role="status">
+          <span className={styles['shortcut-settings-row-error']} role="status">
             {t('settings.shortcuts.binding.saveFailed')}
           </span>
         )}
         {row.conflicts.length > 0 && (
-          <span className="shortcut-settings-row-warning" role="status">
+          <span className={styles['shortcut-settings-row-warning']} role="status">
             <CircleAlert size={13} aria-hidden="true" />
             {t('settings.shortcuts.conflict.ambiguous')}
           </span>
         )}
       </div>
-      <div className="shortcut-settings-scope">
+      <div className={styles['shortcut-settings-scope']}>
         {t(`settings.shortcuts.scopes.${shortcutScopeTranslationSegment(row.definition.scope)}`)}
       </div>
-      <div className="shortcut-settings-bindings" aria-label={t('settings.shortcuts.recorder.captured')}>
+      <div
+        className={styles['shortcut-settings-bindings']}
+        aria-label={t('settings.shortcuts.recorder.captured')}
+      >
         {row.bindings.length > 0 ? row.bindings.map((binding) => (
           <kbd key={`${binding.modifiers.join('+')}|${binding.code}`}>
             {formatShortcutChord(binding, platform)}
           </kbd>
         )) : (
-          <span className="shortcut-settings-unbound">{t('settings.shortcuts.status.unbound')}</span>
+          <span className={styles['shortcut-settings-unbound']}>
+            {t('settings.shortcuts.status.unbound')}
+          </span>
         )}
       </div>
-      <span className={`shortcut-settings-status is-${row.status}`}>
+      <span
+        className={`${styles['shortcut-settings-status']} ${shortcutStatusClassNames[row.status]}`}
+      >
         {t(`settings.shortcuts.status.${row.status}`)}
       </span>
-      <div className="shortcut-settings-row-actions">
+      <div className={styles['shortcut-settings-row-actions']}>
         {row.customized && (
           <Popconfirm
             title={t('settings.shortcuts.binding.restoreTitle')}

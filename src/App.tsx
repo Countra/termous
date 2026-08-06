@@ -24,7 +24,7 @@ import {
 } from './features/files/fileSessionRecovery'
 import { ForwardingPage } from './features/forwards/ForwardingPage'
 import { isForwardRestartCompleted } from './features/forwards/forwardRestart'
-import { SettingsPage } from './features/settings/SettingsPage'
+import { SettingsPage } from '#pages/settings'
 import { SnippetsPage } from './features/snippets/SnippetsPage'
 import { snippetToInput } from './features/snippets/snippetUtils'
 import { VaultPage } from './features/vault/VaultPage'

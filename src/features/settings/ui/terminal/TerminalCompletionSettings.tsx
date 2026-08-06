@@ -9,8 +9,10 @@ import {
 } from 'lucide-react'
 import { useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { CompletionProviderId, CompletionSettings } from '../../types/domain'
-import { completionProviderIds } from '#features/terminal'
+import type { CompletionProviderId, CompletionSettings } from '#common/contracts'
+import { completionProviderIds } from '#entities/settings'
+import surfaceStyles from '../SettingsSurface.module.scss'
+import styles from './TerminalCompletionSettings.module.scss'
 
 interface TerminalCompletionSettingsProps {
   value: CompletionSettings
@@ -27,6 +29,11 @@ const providerIcons: Record<CompletionProviderId, ReactNode> = {
   history: <History size={16} aria-hidden="true" />,
   directory: <FolderTree size={16} aria-hidden="true" />,
 }
+
+const providerStatusClassNames = {
+  active: styles['provider-status'],
+  paused: `${styles['provider-status']} ${styles.paused}`,
+} as const
 
 export function TerminalCompletionSettings({
   value,
@@ -59,15 +66,15 @@ export function TerminalCompletionSettings({
   }
 
   return (
-    <div className="settings-section terminal-completion-section">
-      <div className="settings-section-header">
+    <div className={surfaceStyles.surface}>
+      <div className={surfaceStyles.header}>
         <TextCursorInput size={18} aria-hidden="true" />
         <h2>{t('settings.completionTitle')}</h2>
       </div>
-      <div className="settings-row terminal-completion-row">
-        <div className="terminal-completion-setting-copy">
+      <div className={`${surfaceStyles.row} ${styles.row}`}>
+        <div className={styles['setting-copy']}>
           <strong>{t('settings.completionEnabled')}</strong>
-          <p className="settings-row-hint">{t('settings.completionHint')}</p>
+          <p className={`${surfaceStyles.hint} ${styles.hint}`}>{t('settings.completionHint')}</p>
         </div>
         <Switch
           checked={value.enabled}
@@ -80,7 +87,7 @@ export function TerminalCompletionSettings({
       <Collapse
         ghost
         activeKey={detailsOpen ? ['providers'] : []}
-        className="terminal-completion-providers"
+        className={styles.providers}
         expandIconPlacement="end"
         onChange={(key) => setDetailsOpen(
           Array.isArray(key) ? key.includes('providers') : key === 'providers',
@@ -89,12 +96,14 @@ export function TerminalCompletionSettings({
           {
             key: 'providers',
             label: (
-              <span className="terminal-completion-providers-heading">
-                <span className="terminal-completion-setting-copy">
+              <span className={styles['providers-heading']}>
+                <span className={styles['setting-copy']}>
                   <strong>{t('settings.completionProviders')}</strong>
-                  <span className="settings-row-hint">{t('settings.completionProvidersHint')}</span>
+                  <span className={`${surfaceStyles.hint} ${styles.hint}`}>
+                    {t('settings.completionProvidersHint')}
+                  </span>
                 </span>
-                <span className={value.enabled ? '' : 'is-paused'}>
+                <span className={providerStatusClassNames[value.enabled ? 'active' : 'paused']}>
                   {value.enabled
                     ? t('settings.completionProvidersEnabled', {
                         count: enabledProviderCount,
@@ -108,13 +117,13 @@ export function TerminalCompletionSettings({
               </span>
             ),
             children: (
-              <div className="terminal-completion-provider-list">
+              <div className={styles['provider-list']}>
                 {completionProviderIds.map((providerId) => (
-                  <div className="terminal-completion-provider-row" key={providerId}>
-                    <span className="terminal-completion-provider-icon">
+                  <div className={styles['provider-row']} key={providerId}>
+                    <span className={styles['provider-icon']}>
                       {providerIcons[providerId]}
                     </span>
-                    <span className="terminal-completion-provider-copy">
+                    <span className={styles['provider-copy']}>
                       <strong>{t(`settings.completionProvider.${providerId}.name`)}</strong>
                       <small>{t(`settings.completionProvider.${providerId}.description`)}</small>
                     </span>

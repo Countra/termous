@@ -137,12 +137,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/settings/SettingsPage.tsx",
-      "specifier": "./features/settings/SettingsPage"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
       "target": "src/features/snippets/SnippetsPage.tsx",
       "specifier": "./features/snippets/SnippetsPage"
     },
@@ -187,6 +181,12 @@
       "source": "src/App.tsx",
       "target": "src/features/workbench/WorkbenchPage.tsx",
       "specifier": "./features/workbench/WorkbenchPage"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/App.tsx",
+      "target": "src/pages/settings/index.ts",
+      "specifier": "#pages/settings"
     },
     {
       "rule": "legacy-boundary",
@@ -700,81 +700,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/settings/dataPortability.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/settings/DataPortabilityPlanView.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/settings/DataPortabilitySettings.tsx",
+      "source": "src/features/settings/ui/data-portability/DataPortabilitySettings.tsx",
       "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/settings/DataPortabilitySettings.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/settings/SettingsPage.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/settings/ShortcutRecorderModal.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/settings/shortcutSettings.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/settings/ShortcutSettingsPanel.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/settings/shortcutSettingsPanelModel.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/settings/TerminalCompletionSettings.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/settings/terminalSettings.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/settings/TerminalStyleSettings.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/shortcuts/types.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../../api/client"
     },
     {
       "rule": "legacy-boundary",
@@ -850,18 +778,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/terminalFonts.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/terminal/terminalFonts.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/terminal/TerminalPaneViewport.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
@@ -881,12 +797,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/terminal/TerminalRuntimeProvider.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/terminal/terminalSettings.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -1563,12 +1473,6 @@
       "source": "src/App.tsx",
       "target": "src/features/hosts/HostsPage.tsx",
       "specifier": "./features/hosts/HostsPage"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/settings/SettingsPage.tsx",
-      "specifier": "./features/settings/SettingsPage"
     },
     {
       "rule": "public-entry",

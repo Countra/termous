@@ -37,7 +37,7 @@ import { shouldActivateTerminalCompletionViewport } from './terminalCompletionVi
 import {
   useShortcutRuntime,
   type ShortcutScope,
-} from '#features/shortcuts'
+} from '#entities/shortcuts'
 
 interface TerminalPaneViewportProps {
   paneId: string

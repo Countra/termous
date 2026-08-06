@@ -3,7 +3,7 @@ import type {
   ShortcutChord,
   ShortcutModifier,
   ShortcutSettings,
-} from '../../types/domain'
+} from '#common/contracts'
 
 export const SHORTCUT_ACTION_IDS = [
   'app.host_launcher.open',

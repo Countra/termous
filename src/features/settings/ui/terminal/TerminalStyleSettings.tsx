@@ -2,13 +2,15 @@ import { Button, Collapse, InputNumber, Select, Segmented, Slider, Switch, Toolt
 import { FileText, RotateCcw, SquareTerminal, Trash2, UploadCloud } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TerminalFont, TerminalSettings } from '../../types/domain'
+import type { TerminalFont, TerminalSettings } from '#common/contracts'
 import {
   defaultTerminalSettings,
   fontFamilyFromSetting,
   loadTerminalFont,
   normalizeTerminalSettings,
-} from '#features/terminal'
+} from '#entities/settings'
+import surfaceStyles from '../SettingsSurface.module.scss'
+import styles from './TerminalStyleSettings.module.scss'
 
 interface TerminalStyleSettingsProps {
   value: TerminalSettings
@@ -20,6 +22,23 @@ interface TerminalStyleSettingsProps {
 }
 
 type NumericKey = 'font_size' | 'line_height' | 'letter_spacing'
+
+const previewThemeClassNames: Record<TerminalSettings['theme_mode'], string> = {
+  dark: styles.preview,
+  light: `${styles.preview} ${styles['theme-light']}`,
+  follow_app: `${styles.preview} ${styles['theme-follow-app']}`,
+}
+
+const cursorClassNames: Record<TerminalSettings['cursor_style'], string> = {
+  block: styles['cursor-block'],
+  bar: styles['cursor-bar'],
+  underline: styles['cursor-underline'],
+}
+
+const cursorBlinkClassNames = {
+  blinking: styles.blinking,
+  steady: '',
+} as const
 
 export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUploadFont, onDeleteFont }: TerminalStyleSettingsProps) {
   const { t } = useTranslation()
@@ -89,19 +108,19 @@ export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUplo
   }
 
   return (
-    <div className="settings-section terminal-style-section">
-      <div className="settings-section-header">
+    <div className={`${surfaceStyles.surface} ${styles.section}`}>
+      <div className={surfaceStyles.header}>
         <SquareTerminal size={18} aria-hidden="true" />
         <h2>{t('settings.terminalSection')}</h2>
       </div>
 
-      <div className="terminal-style-grid">
-        <div className="terminal-style-controls">
+      <div className={styles.grid}>
+        <div className={styles.controls}>
           <SettingLine label={t('settings.terminalFont')}>
             <Select
               value={draft.font_family}
               disabled={disabled}
-              className="termous-select terminal-style-select"
+              className={`termous-select ${styles.select}`}
               classNames={{ popup: { root: 'termous-select-popup' } }}
               options={fontOptions}
               onChange={(fontFamily) => updateDraft({ font_family: fontFamily as TerminalSettings['font_family'] })}
@@ -111,20 +130,20 @@ export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUplo
           <Collapse
             ghost
             activeKey={fontManagerOpen ? ['fonts'] : []}
-            className="terminal-font-collapse"
+            className={styles['font-collapse']}
             onChange={(key) => setFontManagerOpen(Array.isArray(key) ? key.includes('fonts') : key === 'fonts')}
             items={[
               {
                 key: 'fonts',
                 label: (
-                  <span className="terminal-font-collapse-label">
+                  <span className={styles['font-collapse-label']}>
                     <strong>{t('settings.importedFonts')}</strong>
                     <small>{t('settings.importedFontCount', { count: importedFonts.length })}</small>
                   </span>
                 ),
                 children: (
-                  <div className="terminal-font-manager">
-                    <div className="terminal-font-manager-topline">
+                  <div className={styles['font-manager']}>
+                    <div className={styles['font-manager-topline']}>
                       <div>
                         <strong>{t('settings.importedFonts')}</strong>
                         <small>{t('settings.importFontHint')}</small>
@@ -148,17 +167,17 @@ export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUplo
                       </Upload>
                     </div>
                     {importedFonts.length === 0 ? (
-                      <div className="terminal-font-empty">{t('settings.noImportedFonts')}</div>
+                      <div className={styles['font-empty']}>{t('settings.noImportedFonts')}</div>
                     ) : (
-                      <div className="terminal-font-list">
+                      <div className={styles['font-list']}>
                         {importedFonts.map((font) => {
                           const inUse = draft.font_family === font.id
                           return (
-                            <div className="terminal-font-row" key={font.id}>
-                              <span className="terminal-font-icon">
+                            <div className={styles['font-row']} key={font.id}>
+                              <span className={styles['font-icon']}>
                                 <FileText size={15} aria-hidden="true" />
                               </span>
-                              <span className="terminal-font-copy">
+                              <span className={styles['font-copy']}>
                                 <strong>{font.display_name}</strong>
                                 <small>{fontMetaText(font)}</small>
                               </span>
@@ -219,7 +238,7 @@ export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUplo
               block
               value={draft.cursor_style}
               disabled={disabled}
-              className="settings-control-segmented"
+              className={surfaceStyles.segmented}
               options={[
                 { value: 'block', label: t('settings.cursorBlock') },
                 { value: 'bar', label: t('settings.cursorBar') },
@@ -242,7 +261,7 @@ export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUplo
               block
               value={draft.theme_mode}
               disabled={disabled}
-              className="settings-control-segmented"
+              className={surfaceStyles.segmented}
               options={[
                 { value: 'follow_app', label: t('settings.themeFollowApp') },
                 { value: 'dark', label: t('settings.themeDark') },
@@ -257,7 +276,7 @@ export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUplo
               block
               value={draft.scrollback}
               disabled={disabled}
-              className="settings-control-segmented scrollback-segmented"
+              className={`${surfaceStyles.segmented} ${styles['scrollback-segmented']}`}
               options={[1000, 5000, 10000, 50000].map((scrollback) => ({
                 value: scrollback,
                 label: String(scrollback),
@@ -266,7 +285,7 @@ export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUplo
             />
           </SettingLine>
 
-          <div className="settings-reset-row">
+          <div className={styles['reset-row']}>
             <Button
               icon={<RotateCcw size={15} aria-hidden="true" />}
               disabled={disabled}
@@ -311,7 +330,7 @@ function groupedFontOptions(fonts: TerminalFont[], t: (key: string) => string) {
 
 function SettingLine({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="terminal-setting-line">
+    <label className={styles['setting-line']}>
       <span>{label}</span>
       <div>{children}</div>
     </label>
@@ -339,7 +358,7 @@ function NumberSetting({
 }) {
   return (
     <SettingLine label={label}>
-      <div className="terminal-number-control">
+      <div className={styles['number-control']}>
         <Slider min={min} max={max} step={step} value={value} disabled={disabled} onChange={onChange} />
         <InputNumber
           min={min}
@@ -388,7 +407,7 @@ function TerminalPreview({ settings, fonts }: { settings: TerminalSettings; font
 
   return (
     <div
-      className={`terminal-style-preview theme-${settings.theme_mode}`}
+      className={previewThemeClassNames[settings.theme_mode]}
       data-font-ready={fontReadyTick}
       style={{
         fontFamily: previewFontFamily,
@@ -398,16 +417,20 @@ function TerminalPreview({ settings, fonts }: { settings: TerminalSettings; font
       }}
       aria-label={t('settings.terminalPreview')}
     >
-      <div className="terminal-preview-bar">
+      <div className={styles['preview-bar']}>
         <span>{t('settings.terminalPreview')}</span>
-        <i className={`cursor-${settings.cursor_style} ${settings.cursor_blink ? 'is-blinking' : ''}`} />
+        <i
+          className={`${cursorClassNames[settings.cursor_style]} ${
+            cursorBlinkClassNames[settings.cursor_blink ? 'blinking' : 'steady']
+          }`}
+        />
       </div>
       <pre style={{ fontFamily: previewFontFamily }}>
-        <span className="terminal-preview-muted">$</span> ssh prod-web-01
+        <span className={styles['preview-muted']}>$</span> ssh prod-web-01
         {'\n'}
-        <span className="terminal-preview-green">ready</span> ~/workspace
+        <span className={styles['preview-green']}>ready</span> ~/workspace
         {'\n'}
-        <span className="terminal-preview-blue">termous</span> status --latency=18ms
+        <span className={styles['preview-blue']}>termous</span> status --latency=18ms
       </pre>
     </div>
   )

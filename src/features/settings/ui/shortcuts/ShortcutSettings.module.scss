@@ -1,4 +1,4 @@
-.settings-section.shortcut-settings-panel {
+.shortcut-settings-panel {
   display: grid;
   min-width: 0;
   gap: 0;
@@ -62,7 +62,7 @@
   white-space: nowrap;
 }
 
-.shortcut-settings-reset.ant-btn {
+.shortcut-settings-reset:global(.ant-btn) {
   min-height: 32px;
   border-color: color-mix(in srgb, var(--border) 88%, transparent);
   border-radius: 8px;
@@ -71,8 +71,8 @@
   box-shadow: none;
 }
 
-.shortcut-settings-reset.ant-btn:not(:disabled):hover,
-.shortcut-settings-reset.ant-btn:not(:disabled):focus-visible {
+.shortcut-settings-reset:global(.ant-btn):not(:disabled):hover,
+.shortcut-settings-reset:global(.ant-btn):not(:disabled):focus-visible {
   border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
   background: var(--surface-strong);
   color: var(--text-primary);
@@ -99,7 +99,7 @@
   padding: 0 18px 16px;
 }
 
-.shortcut-settings-search.ant-input-affix-wrapper {
+.shortcut-settings-search:global(.ant-input-affix-wrapper) {
   width: min(440px, 100%);
   min-height: 36px;
   border-color: color-mix(in srgb, var(--border) 82%, transparent);
@@ -112,17 +112,17 @@
     box-shadow 140ms ease;
 }
 
-.shortcut-settings-search.ant-input-affix-wrapper:hover {
+.shortcut-settings-search:global(.ant-input-affix-wrapper):hover {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
   background: var(--surface-strong);
 }
 
-.shortcut-settings-search.ant-input-affix-wrapper-focused {
+.shortcut-settings-search:global(.ant-input-affix-wrapper-focused) {
   border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
-.shortcut-settings-search .ant-input-prefix {
+.shortcut-settings-search :global(.ant-input-prefix) {
   color: var(--text-muted);
 }
 
@@ -189,12 +189,17 @@
   bottom: 15px;
   left: 0;
   width: 2px;
-  background: transparent;
+  background: var(--shortcut-settings-row-accent);
   content: '';
 }
 
-.shortcut-settings-row.status-custom::before {
-  background: var(--accent);
+.shortcut-settings-row-default,
+.shortcut-settings-row-unbound {
+  --shortcut-settings-row-accent: transparent;
+}
+
+.shortcut-settings-row-custom {
+  --shortcut-settings-row-accent: var(--accent);
 }
 
 .shortcut-settings-action-copy {
@@ -301,7 +306,13 @@
   white-space: nowrap;
 }
 
-.shortcut-settings-status.is-custom {
+.shortcut-settings-status-default,
+.shortcut-settings-status-unbound {
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.shortcut-settings-status-custom {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   color: var(--accent);
@@ -314,11 +325,11 @@
   gap: 2px;
 }
 
-.shortcut-settings-row-actions .ant-btn {
+.shortcut-settings-row-actions :global(.ant-btn) {
   color: var(--text-muted);
 }
 
-.shortcut-settings-row-actions .ant-btn:hover {
+.shortcut-settings-row-actions :global(.ant-btn):hover {
   background: var(--surface-strong);
   color: var(--text-primary);
 }
@@ -332,14 +343,20 @@
   --shortcut-recorder-bg: #1d2028;
   --shortcut-recorder-control: #252a34;
   --shortcut-recorder-border: #353b47;
+
+  :global(:root[data-theme='light']) & {
+    --shortcut-recorder-bg: #fff;
+    --shortcut-recorder-control: #f2f4f7;
+    --shortcut-recorder-border: #d9dee7;
+  }
 }
 
-.shortcut-recorder-modal-root .ant-modal-mask {
+.shortcut-recorder-modal-root :global(.ant-modal-mask) {
   background: rgb(0 0 0 / 54%);
 }
 
-.shortcut-recorder-modal .ant-modal-content,
-.shortcut-recorder-modal .ant-modal-container {
+.shortcut-recorder-modal :global(.ant-modal-content),
+.shortcut-recorder-modal :global(.ant-modal-container) {
   overflow: hidden;
   border: 1px solid var(--shortcut-recorder-border);
   border-radius: 14px;
@@ -350,14 +367,14 @@
   backdrop-filter: none;
 }
 
-.shortcut-recorder-modal .ant-modal-header {
+.shortcut-recorder-modal :global(.ant-modal-header) {
   margin: 0;
   border-bottom: 1px solid var(--shortcut-recorder-border);
   background: var(--shortcut-recorder-bg);
   padding: 15px 18px 14px;
 }
 
-.shortcut-recorder-modal .ant-modal-title {
+.shortcut-recorder-modal :global(.ant-modal-title) {
   color: var(--text-primary);
   font-size: 15px;
   font-weight: 760;
@@ -365,7 +382,7 @@
   padding-right: 34px;
 }
 
-.shortcut-recorder-modal .ant-modal-close {
+.shortcut-recorder-modal :global(.ant-modal-close) {
   top: 10px;
   right: 10px;
   display: grid;
@@ -376,18 +393,18 @@
   color: var(--text-muted);
 }
 
-.shortcut-recorder-modal .ant-modal-close:hover,
-.shortcut-recorder-modal .ant-modal-close:focus-visible {
+.shortcut-recorder-modal :global(.ant-modal-close):hover,
+.shortcut-recorder-modal :global(.ant-modal-close):focus-visible {
   background: var(--shortcut-recorder-control);
   color: var(--text-primary);
 }
 
-.shortcut-recorder-modal .ant-modal-body {
+.shortcut-recorder-modal :global(.ant-modal-body) {
   background: var(--shortcut-recorder-bg);
   padding: 16px 18px 14px;
 }
 
-.shortcut-recorder-modal .ant-modal-footer {
+.shortcut-recorder-modal :global(.ant-modal-footer) {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
@@ -397,7 +414,7 @@
   padding: 12px 18px 14px;
 }
 
-.shortcut-recorder-modal .ant-modal-footer .ant-btn {
+.shortcut-recorder-modal :global(.ant-modal-footer) :global(.ant-btn) {
   min-width: 74px;
   height: 34px;
   margin: 0;
@@ -405,7 +422,7 @@
   box-shadow: none;
 }
 
-.shortcut-recorder-modal .ant-modal-footer .ant-btn-primary:disabled {
+.shortcut-recorder-modal :global(.ant-modal-footer) :global(.ant-btn-primary):disabled {
   border-color: var(--shortcut-recorder-border);
   background: var(--shortcut-recorder-control);
   color: var(--text-muted);
@@ -458,7 +475,7 @@
   font-size: 11px;
 }
 
-.shortcut-recorder-binding .ant-btn {
+.shortcut-recorder-binding :global(.ant-btn) {
   width: 28px;
   height: 28px;
   color: var(--text-muted);
@@ -532,7 +549,7 @@
   white-space: nowrap;
 }
 
-.shortcut-recorder-add.ant-btn {
+.shortcut-recorder-add:global(.ant-btn) {
   min-height: 38px;
   border-color: var(--shortcut-recorder-border);
   background: var(--shortcut-recorder-control);
@@ -570,13 +587,7 @@
   margin-top: 4px;
 }
 
-:root[data-theme="light"] .shortcut-recorder-modal-root {
-  --shortcut-recorder-bg: #ffffff;
-  --shortcut-recorder-control: #f2f4f7;
-  --shortcut-recorder-border: #d9dee7;
-}
-
-@media (max-width: 860px) {
+@media (width <= 860px) {
   .shortcut-settings-row {
     grid-template-columns: minmax(190px, 1fr) minmax(130px, auto) auto auto;
   }
@@ -586,14 +597,14 @@
   }
 }
 
-@media (max-width: 680px) {
+@media (width <= 680px) {
   .shortcut-settings-toolbar {
     align-items: stretch;
     flex-direction: column;
     gap: 10px;
   }
 
-  .shortcut-settings-search.ant-input-affix-wrapper {
+  .shortcut-settings-search:global(.ant-input-affix-wrapper) {
     width: 100%;
   }
 

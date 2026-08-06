@@ -6,7 +6,7 @@ import {
   loadTerminalFont,
   normalizeTerminalSettings,
   syncImportedFontFaces,
-} from '#features/terminal'
+} from '#entities/settings'
 import type { TerminalFont } from '../types/domain'
 
 const importedFontStyleId = 'termous-imported-terminal-fonts'

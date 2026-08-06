@@ -2,12 +2,12 @@ import type {
   AppearanceSettings,
   Settings,
   WindowSettings,
-} from '../../types/domain'
+} from '#common/contracts'
 import {
   normalizeCompletionSettings,
   normalizeTerminalSettings,
-} from '#features/terminal'
-import { normalizeShortcutSettings } from './shortcutSettings.ts'
+} from '#entities/settings'
+import { normalizeShortcutSettings } from '#entities/shortcuts'
 
 export {
   completionProviderIds,
@@ -20,7 +20,7 @@ export {
   normalizeCompletionProviderSettings,
   normalizeCompletionSettings,
   normalizeTerminalSettings,
-} from '#features/terminal'
+} from '#entities/settings'
 
 export const defaultAppearanceSettings: AppearanceSettings = {
   theme: 'dark',

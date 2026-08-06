@@ -8,8 +8,9 @@ import type {
   DataPortabilityPlanStatus,
   DataPortabilityResolution,
   DataPortabilityRestorePlan,
-} from '../../types/domain'
-import { formatDifferenceValue } from './dataPortability'
+} from '#common/contracts'
+import { formatDifferenceValue } from '../../model/dataPortability'
+import styles from './DataPortability.module.scss'
 
 type PlanStatusFilter = 'all' | DataPortabilityPlanStatus
 
@@ -30,6 +31,11 @@ interface DataPortabilityPlanViewProps {
 }
 
 const statusOrder: DataPortabilityPlanStatus[] = ['added', 'unchanged', 'conflict', 'dependency', 'skipped', 'removed']
+const statusToneClassNames: Partial<Record<DataPortabilityPlanStatus, string>> = {
+  added: styles['is-added'],
+  conflict: styles['is-conflict'],
+  removed: styles['is-removed'],
+}
 
 export function DataPortabilityPlanView({
   plan,
@@ -51,13 +57,13 @@ export function DataPortabilityPlanView({
   const items = page?.items ?? []
 
   return (
-    <div className="data-portability-plan">
-      <div className="data-portability-plan-heading">
+    <div className={styles['data-portability-plan']}>
+      <div className={styles['data-portability-plan-heading']}>
         <div>
-          <span className="data-portability-eyebrow">{t('settings.data.planTitle')}</span>
+          <span className={styles['data-portability-eyebrow']}>{t('settings.data.planTitle')}</span>
           <strong>{t(`settings.data.modes.${plan.mode}.title`)}</strong>
         </div>
-        <div className="data-portability-plan-actions">
+        <div className={styles['data-portability-plan-actions']}>
           {onEditSelection ? (
             <Button icon={<SlidersHorizontal size={15} />} disabled={busy} onClick={onEditSelection}>
               {t('settings.data.editSelection')}
@@ -69,7 +75,7 @@ export function DataPortabilityPlanView({
         </div>
       </div>
 
-      <div className="data-portability-impact-grid">
+      <div className={styles['data-portability-impact-grid']}>
         <ImpactMetric icon={<Layers3 size={15} />} label={t('settings.data.impactTotal')} value={plan.summary.total ?? 0} />
         {statusOrder.map((status) => (
           <ImpactMetric
@@ -81,14 +87,14 @@ export function DataPortabilityPlanView({
         ))}
       </div>
 
-      <div className="data-portability-plan-toolbar">
-        <div className="data-portability-filter-label">
+      <div className={styles['data-portability-plan-toolbar']}>
+        <div className={styles['data-portability-filter-label']}>
           <ListFilter size={15} aria-hidden="true" />
           <span>{t('settings.data.itemFilter')}</span>
         </div>
         <Select<PlanStatusFilter>
           value={statusFilter}
-          classNames={{ popup: { root: 'termous-select-popup data-portability-select-popup' } }}
+          classNames={{ popup: { root: `termous-select-popup ${styles['data-portability-select-popup']}` } }}
           options={[
             { value: 'all', label: t('settings.data.status.all') },
             ...statusOrder.map((status) => ({ value: status, label: t(`settings.data.status.${status}`) })),
@@ -96,7 +102,7 @@ export function DataPortabilityPlanView({
           onChange={onStatusFilterChange}
         />
         {unresolved > 0 ? (
-          <div className="data-portability-batch-actions">
+          <div className={styles['data-portability-batch-actions']}>
             <span>{t('settings.data.unresolvedCount', { count: unresolved })}</span>
             <Button size="small" disabled={busy} onClick={() => onResolve('keep_current')}>
               {t('settings.data.actions.keep_current')}
@@ -106,11 +112,11 @@ export function DataPortabilityPlanView({
             </Button>
           </div>
         ) : (
-          <span className="data-portability-plan-ready">{t('settings.data.planReady')}</span>
+          <span className={styles['data-portability-plan-ready']}>{t('settings.data.planReady')}</span>
         )}
       </div>
 
-      <div className="data-portability-item-list" aria-busy={busy}>
+      <div className={styles['data-portability-item-list']} aria-busy={busy}>
         {items.length === 0 ? (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('settings.data.noPlanItems')} />
         ) : (
@@ -120,7 +126,7 @@ export function DataPortabilityPlanView({
         )}
       </div>
 
-      <div className="data-portability-pagination">
+      <div className={styles['data-portability-pagination']}>
         <span>{t('settings.data.pageSummary', { page: pageNumber, total: page?.total ?? 0 })}</span>
         <div>
           <Tooltip title={t('settings.data.previousPage')}>
@@ -145,9 +151,10 @@ export function DataPortabilityPlanView({
   )
 }
 
-function ImpactMetric({ icon, label, value, tone }: { icon?: ReactNode; label: string; value: number; tone?: string }) {
+function ImpactMetric({ icon, label, value, tone }: { icon?: ReactNode; label: string; value: number; tone?: DataPortabilityPlanStatus }) {
+  const toneClassName = tone ? statusToneClassNames[tone] : undefined
   return (
-    <div className={`data-portability-impact${tone ? ` is-${tone}` : ''}`}>
+    <div className={`${styles['data-portability-impact']}${toneClassName ? ` ${toneClassName}` : ''}`}>
       <span>{icon}{label}</span>
       <strong>{value}</strong>
     </div>
@@ -167,20 +174,20 @@ function PlanItem({
   const actions = item.allowed_actions ?? []
   const differences = item.differences ?? []
   return (
-    <article className={`data-portability-item is-${item.status}`}>
-      <div className="data-portability-item-main">
-        <div className="data-portability-item-icon"><GitCompareArrows size={16} /></div>
-        <div className="data-portability-item-copy">
+    <article className={`${styles['data-portability-item']}${statusToneClassNames[item.status] ? ` ${statusToneClassNames[item.status]}` : ''}`}>
+      <div className={styles['data-portability-item-main']}>
+        <div className={styles['data-portability-item-icon']}><GitCompareArrows size={16} /></div>
+        <div className={styles['data-portability-item-copy']}>
           <strong title={item.label}>{item.label}</strong>
           <span>{t(`settings.data.datasets.${item.reference.dataset}`)}</span>
         </div>
-        <Tag className={`data-portability-status-tag is-${item.status}`}>
+        <Tag className={`${styles['data-portability-status-tag']}${statusToneClassNames[item.status] ? ` ${statusToneClassNames[item.status]}` : ''}`}>
           {t(`settings.data.status.${item.status}`)}
         </Tag>
       </div>
-      {item.reason ? <p className="data-portability-item-reason">{item.reason}</p> : null}
+      {item.reason ? <p className={styles['data-portability-item-reason']}>{item.reason}</p> : null}
       {differences.length > 0 ? (
-        <div className="data-portability-differences">
+        <div className={styles['data-portability-differences']}>
           {differences.slice(0, 4).map((difference) => (
             <div key={difference.field}>
               <span>{difference.field}</span>
@@ -196,7 +203,7 @@ function PlanItem({
         </div>
       ) : null}
       {actions.length > 0 ? (
-        <div className="data-portability-item-actions">
+        <div className={styles['data-portability-item-actions']}>
           {actions.map((action) => (
             <Button
               key={action}

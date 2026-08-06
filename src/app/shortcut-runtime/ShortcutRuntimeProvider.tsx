@@ -19,7 +19,7 @@ import {
   type ShortcutSettings,
   type ShortcutRuntimeContextValue,
   useShortcutRuntime,
-} from '#features/shortcuts'
+} from '#entities/shortcuts'
 
 interface ShortcutRuntimeProviderProps {
   settings: ShortcutSettings

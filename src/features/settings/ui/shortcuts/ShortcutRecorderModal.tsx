@@ -14,20 +14,21 @@ import {
   type RefObject,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { ShortcutChord } from '../../types/domain'
+import type { ShortcutChord } from '#common/contracts'
 import {
   applyShortcutDispatchResult,
   formatShortcutChord,
   normalizeKeyboardEventToChord,
   type ShortcutPlatform,
   useShortcutRuntime,
-} from '#features/shortcuts'
+} from '#entities/shortcuts'
 import {
   shortcutActionTranslationSegment,
   type ShortcutDraftValidation,
   type ShortcutEditorState,
   type ShortcutSettingsRow,
-} from './shortcutSettingsPanelModel.ts'
+} from '../../model/shortcutSettingsPanel.ts'
+import styles from './ShortcutSettings.module.scss'
 
 interface ShortcutRecorderModalProps {
   row: ShortcutSettingsRow | null
@@ -105,8 +106,8 @@ export function ShortcutRecorderModal({
       width={548}
       centered
       destroyOnHidden
-      className="shortcut-recorder-modal"
-      rootClassName="shortcut-recorder-modal-root"
+      className={styles['shortcut-recorder-modal']}
+      rootClassName={styles['shortcut-recorder-modal-root']}
       mask={{ closable: !busy && editor?.recordingIndex === null }}
       keyboard={editor?.recordingIndex === null}
       okText={t('settings.shortcuts.recorder.save')}
@@ -175,18 +176,25 @@ function ShortcutRecorderBody({
   }))]
 
   return (
-    <div className="shortcut-recorder-body">
-      <p className="shortcut-recorder-intro">{t('settings.shortcuts.recorder.description')}</p>
+    <div className={styles['shortcut-recorder-body']}>
+      <p className={styles['shortcut-recorder-intro']}>
+        {t('settings.shortcuts.recorder.description')}
+      </p>
 
-      <div className="shortcut-recorder-bindings">
-        <div className="shortcut-recorder-section-label">
+      <div className={styles['shortcut-recorder-bindings']}>
+        <div className={styles['shortcut-recorder-section-label']}>
           <span>{t('settings.shortcuts.recorder.captured')}</span>
           <small>{editor.bindings.length}/2</small>
         </div>
         {editor.bindings.length === 0 ? (
-          <div className="shortcut-recorder-empty">{t('settings.shortcuts.binding.none')}</div>
+          <div className={styles['shortcut-recorder-empty']}>
+            {t('settings.shortcuts.binding.none')}
+          </div>
         ) : editor.bindings.map((binding, index) => (
-          <div className="shortcut-recorder-binding" key={`${index}-${binding.code}`}>
+          <div
+            className={styles['shortcut-recorder-binding']}
+            key={`${index}-${binding.code}`}
+          >
             <kbd>{formatShortcutChord(binding, platform)}</kbd>
             <span>{t('settings.shortcuts.binding.slot', { index: index + 1 })}</span>
             <Button
@@ -223,33 +231,37 @@ function ShortcutRecorderBody({
         <button
           ref={recorderTargetRef}
           type="button"
-          className="shortcut-recorder-target is-recording"
+          className={styles['shortcut-recorder-target']}
           onClick={onStopRecording}
         >
-          <span className="shortcut-recorder-target-icon">
+          <span className={styles['shortcut-recorder-target-icon']}>
             <Keyboard size={20} aria-hidden="true" />
           </span>
           <span>
             <strong>{t('settings.shortcuts.recorder.listening')}</strong>
             <small>{t('settings.shortcuts.recorder.listeningHint')}</small>
           </span>
-          <span className="shortcut-recorder-stop">{t('settings.shortcuts.recorder.cancel')}</span>
+          <span className={styles['shortcut-recorder-stop']}>
+            {t('settings.shortcuts.recorder.cancel')}
+          </span>
         </button>
       ) : editor.bindings.length < 2 ? (
         <Button
           block
-          className="shortcut-recorder-add"
+          className={styles['shortcut-recorder-add']}
           icon={<Plus size={15} aria-hidden="true" />}
           onClick={() => onRecord(editor.bindings.length)}
         >
           {t('settings.shortcuts.binding.add')}
         </Button>
       ) : (
-        <div className="shortcut-recorder-limit">{t('settings.shortcuts.recorder.tooMany')}</div>
+        <div className={styles['shortcut-recorder-limit']}>
+          {t('settings.shortcuts.recorder.tooMany')}
+        </div>
       )}
 
       {(validation.issues.length > 0 || conflicts.length > 0 || failed) && (
-        <div className="shortcut-recorder-problems" role="status">
+        <div className={styles['shortcut-recorder-problems']} role="status">
           <CircleAlert size={16} aria-hidden="true" />
           <div>
             {validation.issues.map((issue, index) => (
@@ -267,7 +279,7 @@ function ShortcutRecorderBody({
         </div>
       )}
 
-      <span className="shortcut-recorder-action-context">
+      <span className={styles['shortcut-recorder-action-context']}>
         {shortcutActionDescription(row, t)}
       </span>
     </div>

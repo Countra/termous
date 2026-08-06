@@ -10,7 +10,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { useTranslation } from 'react-i18next'
 import { TermousApiError, type TermousApi } from '../../api/client'
 import type { RemoteFileEntry, RemoteTextFile, RemoteTextLineEnding, RemoteTextSaveResult, TerminalSettings, ThemeMode } from '../../types/domain'
-import { useShortcutRuntime } from '#features/shortcuts'
+import { useShortcutRuntime } from '#entities/shortcuts'
 import { FileOperationProgress, type FileOperationProgressState } from './FileOperationProgress'
 import { formatBytes } from '#shared/format'
 import { useFileOperationWatcher } from './useFileOperationWatcher'

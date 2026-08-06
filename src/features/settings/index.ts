@@ -3,21 +3,32 @@ export {
   defaultShortcutSettings,
   normalizeShortcutSettings,
   shortcutSettingsEqual,
-} from './shortcutSettings.ts'
+} from '#entities/shortcuts'
 export {
   completionProviderIds,
   completionProviderSettingsSignature,
   completionSettingsEqual,
-  defaultAppearanceSettings,
   defaultCompletionProviderSettings,
   defaultCompletionSettings,
   defaultTerminalSettings,
-  defaultWindowSettings,
   hasEnabledCompletionProvider,
-  normalizeAppearanceSettings,
   normalizeCompletionProviderSettings,
   normalizeCompletionSettings,
-  normalizeSettings,
   normalizeTerminalSettings,
+} from '#entities/settings'
+export {
+  defaultAppearanceSettings,
+  defaultWindowSettings,
+  normalizeAppearanceSettings,
+  normalizeSettings,
   normalizeWindowSettings,
-} from './terminalSettings.ts'
+} from './model/settings.ts'
+export { DataPortabilitySettings } from './ui/data-portability/DataPortabilitySettings.tsx'
+export { GeneralSettings } from './ui/general/GeneralSettings.tsx'
+export { ShortcutSettingsPanel } from './ui/shortcuts/ShortcutSettingsPanel.tsx'
+export { TerminalCompletionSettings } from './ui/terminal/TerminalCompletionSettings.tsx'
+export { TerminalStyleSettings } from './ui/terminal/TerminalStyleSettings.tsx'
+export {
+  UpdateSettings,
+  type UpdatePreferencesRuntime,
+} from './ui/update/UpdateSettings.tsx'

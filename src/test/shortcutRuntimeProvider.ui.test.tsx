@@ -6,7 +6,7 @@ import {
   useShortcutRuntime,
   type ShortcutSettings,
   type ShortcutRuntimeContextValue,
-} from '#features/shortcuts'
+} from '#entities/shortcuts'
 
 const defaultSettings: ShortcutSettings = {
   schema_version: 1,

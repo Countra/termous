@@ -18,11 +18,11 @@ ShortcutSettings
                            └─ 当前上下文 Handler
 ```
 
-- `src/features/shortcuts/registry.ts` 是动作、默认绑定和作用域的唯一目录。
-- `src/features/shortcuts/scopes.ts` 定义作用域是否可能同时生效，以及运行时优先级。
-- `src/features/shortcuts/reserved.ts` 保护固定的终端、无障碍和编辑器键位。
-- `src/features/shortcuts/runtime.ts` 负责录制器、上下文栈、动作解析和 Handler 调度。
-- `src/features/shortcuts/ShortcutRuntimeProvider.tsx` 负责设置合并、索引更新、动态显示标签和 Window Adapter。
+- `src/entities/shortcuts/model/registry.ts` 是动作、默认绑定和作用域的唯一目录。
+- `src/entities/shortcuts/model/scopes.ts` 定义作用域是否可能同时生效，以及运行时优先级。
+- `src/entities/shortcuts/model/reserved.ts` 保护固定的终端、无障碍和编辑器键位。
+- `src/entities/shortcuts/model/runtime.ts` 负责录制器、上下文栈、动作解析和 Handler 调度。
+- `src/app/shortcut-runtime/ShortcutRuntimeProvider.tsx` 负责设置合并、索引更新、动态显示标签和 Window Adapter。
 - 后端只持久化结构化的用户覆盖，不维护前端动作目录。
 
 按键处理必须保持同步。运行时解析过程中不得请求后端，也不应触发与当前动作无关的全局 React 状态更新。

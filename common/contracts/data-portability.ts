@@ -73,3 +73,93 @@ export interface DataPortabilityProgress {
   transferred_bytes?: number
   total_bytes?: number
 }
+
+export type DataPortabilityRestoreMode = 'replace_all' | 'merge_all' | 'selective'
+
+export type DataPortabilityPlanStatus =
+  | 'added'
+  | 'unchanged'
+  | 'conflict'
+  | 'dependency'
+  | 'skipped'
+  | 'removed'
+
+export type DataPortabilityResolution = 'keep_current' | 'use_backup' | 'keep_both'
+
+export interface DataPortabilityItemRef {
+  dataset: DataPortabilityDatasetKey
+  id: string
+}
+
+export interface DataPortabilityFieldDifference {
+  field: string
+  current?: unknown
+  backup?: unknown
+  sensitive?: boolean
+}
+
+export interface DataPortabilityPlanItem {
+  key: string
+  reference: DataPortabilityItemRef
+  current_id?: string
+  label: string
+  status: DataPortabilityPlanStatus
+  reason?: string
+  dependency?: boolean
+  required_by?: string[]
+  differences?: DataPortabilityFieldDifference[]
+  allowed_actions?: DataPortabilityResolution[]
+  resolution?: DataPortabilityResolution
+  remapped_id?: string
+  automatic_alias_id?: string
+}
+
+export interface DataPortabilityPlanSummary {
+  total: number
+  unresolved: number
+  by_status: Partial<Record<DataPortabilityPlanStatus, number>>
+  by_dataset: Partial<Record<DataPortabilityDatasetKey, number>>
+}
+
+export interface DataPortabilityRestorePlan {
+  id: string
+  revision: number
+  mode: DataPortabilityRestoreMode
+  target_fingerprint: string
+  backup_fingerprint: string
+  items: DataPortabilityPlanItem[]
+  summary: DataPortabilityPlanSummary
+}
+
+export interface DataPortabilityPlanRequest {
+  mode: DataPortabilityRestoreMode
+  selected_datasets?: DataPortabilityDatasetKey[]
+  selected_items?: DataPortabilityItemRef[]
+}
+
+export interface DataPortabilityPlanItemPage {
+  items: DataPortabilityPlanItem[]
+  next_cursor?: string
+  total: number
+}
+
+export interface DataPortabilityPlanItemQuery {
+  dataset?: DataPortabilityDatasetKey
+  status?: DataPortabilityPlanStatus
+  cursor?: string
+  limit?: number
+}
+
+export interface DataPortabilityResolutionRequest {
+  expected_revision: number
+  action: DataPortabilityResolution
+  item_keys?: string[]
+  dataset?: DataPortabilityDatasetKey
+}
+
+export interface DataPortabilityApplyResult {
+  import_id: string
+  operation_id: string
+  restart_required: boolean
+  state: 'applied'
+}
