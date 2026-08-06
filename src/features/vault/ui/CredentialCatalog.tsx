@@ -1,12 +1,12 @@
-import { Button, Input, Tabs, Tooltip } from 'antd'
+import { Button, Input, Tooltip } from 'antd'
 import { Link2, Plus, Search, ShieldCheck, Wand2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ManagementPanel } from '../../components/management/ManagementWorkspace'
-import { ConnectionActionButton, EmptyState } from '#shared/ui'
-import type { CredentialType, CredentialView } from '../../types/domain'
-import { credentialTypeIcon } from './credentialIcons'
-import { filterCredentials, type CredentialCatalogFilter } from './credentialManagementUtils'
+import { credentialTypeIcon, type CredentialType, type CredentialView } from '#entities/credential'
+import { ConnectionActionButton, EmptyState, ManagementFilterTabs } from '#shared/ui'
+import { ManagementPanel } from '../../../components/management/ManagementWorkspace'
+import { filterCredentials, type CredentialCatalogFilter } from '../model/credentialCatalog.ts'
+import styles from './CredentialManagement.module.scss'
 
 interface CredentialCatalogProps {
   credentials: CredentialView[]
@@ -41,17 +41,16 @@ export function CredentialCatalog({
 
   return (
     <ManagementPanel
-      className="credential-catalog"
-      bodyClassName="credential-catalog-body"
+      bodyClassName={styles['credential-catalog-body']}
       header={(
-        <div className="credential-panel-heading">
-          <span className="credential-panel-heading-icon"><ShieldCheck size={18} aria-hidden="true" /></span>
+        <div className={styles['credential-panel-heading']}>
+          <span className={styles['credential-panel-heading-icon']}><ShieldCheck size={18} aria-hidden="true" /></span>
           <div><h2>{t('vault.list')}</h2><span>{t('vault.credentialCount', { count: credentials.length })}</span></div>
         </div>
       )}
-      footer={<span className="credential-catalog-result">{t('vault.filterResult', { count: filtered.length, total: credentials.length })}</span>}
+      footer={<span className={styles['credential-catalog-result']}>{t('vault.filterResult', { count: filtered.length, total: credentials.length })}</span>}
     >
-      <div className="credential-catalog-toolbar">
+      <div className={styles['credential-catalog-toolbar']}>
         <Input
           className="termous-search-input"
           value={query}
@@ -61,8 +60,7 @@ export function CredentialCatalog({
           placeholder={t('vault.searchPlaceholder')}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <Tabs
-          className="credential-filter-tabs"
+        <ManagementFilterTabs
           activeKey={filter}
           animated={{ inkBar: true, tabPane: false }}
           items={[
@@ -73,17 +71,17 @@ export function CredentialCatalog({
           ]}
           onChange={(value) => setFilter(value as CredentialCatalogFilter)}
         />
-        <div className="credential-catalog-actions">
+        <div className={styles['credential-catalog-actions']}>
           <Button icon={<Wand2 size={15} />} disabled={actionBusy} onClick={onGenerateKey}>{t('vault.generateKey')}</Button>
           <ConnectionActionButton icon={<Plus size={16} />} disabled={actionBusy} onClick={onCreate}>{t('vault.addCredential')}</ConnectionActionButton>
         </div>
         {hasFilters ? (
-          <Button type="text" size="small" className="credential-clear-filter" icon={<X size={13} />} onClick={() => { setQuery(''); setFilter('all') }}>
+          <Button type="text" size="small" className={styles['credential-clear-filter']} icon={<X size={13} />} onClick={() => { setQuery(''); setFilter('all') }}>
             {t('vault.clearFilters')}
           </Button>
         ) : null}
       </div>
-      <div className="credential-catalog-list">
+      <div className={styles['credential-catalog-list']}>
         {credentials.length === 0 ? <EmptyState title={t('vault.empty')} description={t('vault.emptyHint')} /> : null}
         {credentials.length > 0 && filtered.length === 0 ? <EmptyState title={t('vault.noFilterResults')} description={t('vault.noFilterResultsHint')} /> : null}
         {filtered.map((credential) => (
@@ -114,17 +112,20 @@ function CredentialCatalogRow({ credential, active, typeLabel, onSelect }: {
   return (
     <button
       type="button"
-      className={`credential-catalog-row ${active ? 'is-active' : ''}`}
+      className={[styles['credential-catalog-row'], active ? styles['is-active'] : ''].filter(Boolean).join(' ')}
       aria-pressed={active}
       onClick={() => onSelect(credential.id)}
     >
-      <span className={`credential-type-icon is-${credential.type}`}><Icon size={17} aria-hidden="true" /></span>
-      <span className="credential-catalog-row-copy">
+      <span className={[
+        styles['credential-type-icon'],
+        credential.type === 'private_key_passphrase' ? styles['is-private-key-passphrase'] : '',
+      ].filter(Boolean).join(' ')}><Icon size={17} aria-hidden="true" /></span>
+      <span className={styles['credential-catalog-row-copy']}>
         <Tooltip title={credential.name}><strong>{credential.name}</strong></Tooltip>
         <small>{typeLabel}</small>
       </span>
       <Tooltip title={bindingLabel}>
-        <span className={`credential-binding ${credential.bound_host_count > 0 ? 'is-bound' : ''}`}>
+        <span className={[styles['credential-binding'], credential.bound_host_count > 0 ? styles['is-bound'] : ''].filter(Boolean).join(' ')}>
           <Link2 size={12} aria-hidden="true" /><span>{credential.bound_host_count}</span>
         </span>
       </Tooltip>

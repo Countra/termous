@@ -9,10 +9,10 @@ import {
   Search,
   Trash2,
 } from 'lucide-react'
-import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Tabs, Tooltip } from 'antd'
+import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ConnectionActionButton, CustomSelect } from '#shared/ui'
+import { ConnectionActionButton, CustomSelect, ManagementFilterTabs } from '#shared/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { ForwardEditorFields } from './ForwardEditorFields'
 import { ForwardModeBadge, ForwardModeSelector } from './ForwardModeSelector'
@@ -236,8 +236,8 @@ export function ForwardingPage({
             placeholder={t('forwards.searchPlaceholder')}
             onChange={(event) => setSearchValue(event.target.value)}
           />
-          <Tabs
-            className="credential-filter-tabs forwarding-mode-tabs"
+          <ManagementFilterTabs
+            className="forwarding-mode-tabs"
             activeKey={modeFilter}
             animated={{ inkBar: true, tabPane: false }}
             aria-label={t('forwards.modeFilter')}

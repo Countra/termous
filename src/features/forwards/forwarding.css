@@ -1208,7 +1208,7 @@
 
 .forwarding-mode-tabs.ant-tabs {
   width: min(420px, 38vw);
-  min-width: 330px;
+  min-width: 0;
 }
 
 .forwarding-mode-tabs .ant-tabs-nav {

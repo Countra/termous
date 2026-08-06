@@ -1,27 +1,6 @@
 import type { TFunction } from 'i18next'
-import { TermousApiError } from '../../api/client'
-import type { CredentialInput, SSHKeyInfo } from '../../types/domain'
-
-export function buildPrivateKeyDraft(
-  name: string,
-  privateKey: string,
-  info: SSHKeyInfo,
-  passphrase?: string,
-  passphraseName?: string,
-): CredentialInput {
-  const normalizedName = name.trim()
-  return {
-    name: normalizedName,
-    type: 'private_key',
-    vault_id: 'local',
-    secret: privateKey,
-    metadata: {},
-    ssh_key_info: info,
-    pending_passphrase: passphrase
-      ? { name: passphraseName?.trim() || normalizedName, secret: passphrase }
-      : undefined,
-  }
-}
+import type { SSHKeyInfo } from '#entities/credential'
+import { TermousApiError } from '#shared/api'
 
 export function privateKeyNameFromFile(fileName: string | undefined, fallbackName: string) {
   const name = fileName?.trim().replace(/\.(key|pem|openssh)$/i, '')

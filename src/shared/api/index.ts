@@ -1,9 +1,11 @@
 import type { AppConfig } from '#common/contracts'
 
+const BUILD_ENV: Partial<ImportMetaEnv> = import.meta.env ?? {}
+
 const DEFAULT_CONFIG: AppConfig = {
-  apiBaseUrl: import.meta.env.VITE_TERMOUS_API_BASE_URL ?? 'http://127.0.0.1:8122',
-  apiToken: import.meta.env.VITE_TERMOUS_API_TOKEN ?? (import.meta.env.DEV ? 'dev-token' : ''),
-  version: import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev',
+  apiBaseUrl: BUILD_ENV.VITE_TERMOUS_API_BASE_URL ?? 'http://127.0.0.1:8122',
+  apiToken: BUILD_ENV.VITE_TERMOUS_API_TOKEN ?? (BUILD_ENV.DEV ? 'dev-token' : ''),
+  version: BUILD_ENV.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev',
 }
 
 interface ApiErrorBody {

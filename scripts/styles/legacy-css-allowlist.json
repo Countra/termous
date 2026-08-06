@@ -10,7 +10,6 @@
     "src/features/hosts/hosts.css",
     "src/features/hosts/proxy-manager.css",
     "src/features/snippets/snippets.css",
-    "src/features/vault/vault.css",
     "src/features/workbench/alias-panel.css",
     "src/features/workbench/alias-sync-modal.css",
     "src/features/workbench/service-logs-modal.css",

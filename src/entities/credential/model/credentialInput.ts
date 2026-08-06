@@ -1,11 +1,4 @@
-import type { CredentialInput, CredentialType, CredentialView } from '../../types/domain'
-
-export type CredentialCatalogFilter = 'all' | CredentialType
-
-export interface CredentialValidationErrors {
-  name?: string
-  secret?: string
-}
+import type { CredentialInput, CredentialType, CredentialView, SSHKeyInfo } from './types.ts'
 
 export function createBlankCredentialInput(type: CredentialType = 'password'): CredentialInput {
   return {
@@ -58,38 +51,23 @@ export function credentialInputsEqual(left: CredentialInput, right: CredentialIn
   return JSON.stringify(normalizeCredentialInput(left)) === JSON.stringify(normalizeCredentialInput(right))
 }
 
-export function validateCredentialInput(
-  input: CredentialInput,
-  requireSecret: boolean,
-  messages: CredentialValidationErrors,
-): CredentialValidationErrors {
-  const errors: CredentialValidationErrors = {}
-  if (!input.name.trim()) {
-    errors.name = messages.name
+export function buildPrivateKeyDraft(
+  name: string,
+  privateKey: string,
+  info: SSHKeyInfo,
+  passphrase?: string,
+  passphraseName?: string,
+): CredentialInput {
+  const normalizedName = name.trim()
+  return {
+    name: normalizedName,
+    type: 'private_key',
+    vault_id: 'local',
+    secret: privateKey,
+    metadata: {},
+    ssh_key_info: info,
+    pending_passphrase: passphrase
+      ? { name: passphraseName?.trim() || normalizedName, secret: passphrase }
+      : undefined,
   }
-  if (requireSecret && input.secret.length === 0) {
-    errors.secret = messages.secret
-  }
-  return errors
-}
-
-export function filterCredentials(
-  credentials: CredentialView[],
-  query: string,
-  filter: CredentialCatalogFilter,
-  typeLabels: Record<CredentialType, string>,
-) {
-  const tokens = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
-  return credentials.filter((credential) => {
-    if (filter !== 'all' && credential.type !== filter) {
-      return false
-    }
-    if (tokens.length === 0) {
-      return true
-    }
-    const searchable = [credential.name, typeLabels[credential.type], credential.ssh_key_info?.algorithm ?? '']
-      .join(' ')
-      .toLocaleLowerCase()
-    return tokens.every((token) => searchable.includes(token))
-  })
 }

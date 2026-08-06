@@ -1,0 +1,9 @@
+.root :global(.management-panel) {
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.root :global(.management-panel-header) > *,
+.root :global(.management-panel-footer) > * {
+  width: 100%;
+}

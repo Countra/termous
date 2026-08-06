@@ -1,30 +1,40 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getTermousBridge } from '#shared/bridge'
-import { createApiFromRuntime, TermousApiError } from '../../api/client'
-import { ManagementWorkspace, type ManagementWorkspaceView } from '../../components/management/ManagementWorkspace'
-import { ConfirmDialog } from '#shared/ui'
-import type { AppData, CredentialInput, CredentialType, CredentialView, SSHKeyGenerateRequest, SSHKeyInspectResult, SSHKeyPair } from '../../types/domain'
-import { CredentialCatalog } from './CredentialCatalog'
-import { CredentialEditor } from './CredentialEditor'
-import { PrivateKeyPassphraseModal, type PrivateKeyUnlockInput } from './PrivateKeyPassphraseModal'
-import { SSHKeyGenerationModal } from './SSHKeyGenerationModal'
 import {
   createBlankCredentialInput,
   credentialInputsEqual,
   credentialToInput,
   normalizeCredentialInput,
-  validateCredentialInput,
-} from './credentialManagementUtils'
-import { privateKeyNameFromFile, sshKeyErrorMessage } from './sshKeyUi'
-import './vault.css'
+  type CredentialInput,
+  type CredentialType,
+  type CredentialView,
+  type SSHKeyGenerateRequest,
+  type SSHKeyInspectResult,
+  type SSHKeyPair,
+} from '#entities/credential'
+import { getTermousBridge } from '#shared/bridge'
+import { TermousApiError } from '#shared/api'
+import { ConfirmDialog } from '#shared/ui'
+import { ManagementWorkspace, type ManagementWorkspaceView } from '../../../components/management/ManagementWorkspace'
+import {
+  createRuntimeCredentialGateway,
+  type CredentialGatewayFactory,
+} from '../api/credentialGateway.ts'
+import { validateCredentialInput } from '../model/credentialCatalog.ts'
+import { privateKeyNameFromFile, sshKeyErrorMessage } from '../model/sshKeyUi.ts'
+import { CredentialCatalog } from './CredentialCatalog'
+import { CredentialEditor } from './CredentialEditor'
+import { PrivateKeyPassphraseModal, type PrivateKeyUnlockInput } from './PrivateKeyPassphraseModal'
+import { SSHKeyGenerationModal } from './SSHKeyGenerationModal'
 
-interface VaultPageProps {
-  data: AppData
+export interface VaultWorkspaceProps {
+  className?: string
+  credentials: CredentialView[]
   actionBusy: boolean
   onSave: (id: string | null, input: CredentialInput) => Promise<CredentialView | undefined>
   onDelete: (id: string) => Promise<boolean | undefined>
   onDirtyChange: (dirty: boolean) => void
+  createGateway?: CredentialGatewayFactory
 }
 
 type CredentialIntent =
@@ -39,7 +49,15 @@ interface PendingPrivateKeyImport {
   privateKey: string
 }
 
-export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }: VaultPageProps) {
+export function VaultWorkspace({
+  className,
+  credentials,
+  actionBusy,
+  onSave,
+  onDelete,
+  onDirtyChange,
+  createGateway = createRuntimeCredentialGateway,
+}: VaultWorkspaceProps) {
   const { t } = useTranslation()
   const initialInput = createBlankCredentialInput()
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -51,17 +69,17 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }:
   const [importBusy, setImportBusy] = useState(false)
   const [importError, setImportError] = useState('')
   const [pendingImport, setPendingImport] = useState<PendingPrivateKeyImport | null>(null)
-  const apiRef = useRef<ReturnType<typeof createApiFromRuntime> | null>(null)
+  const gatewayRef = useRef<ReturnType<CredentialGatewayFactory> | null>(null)
   const importControllerRef = useRef<AbortController | null>(null)
   const importRevisionRef = useRef(0)
   const dirty = useMemo(() => !credentialInputsEqual(draft, baseline), [baseline, draft])
   const editingCredential = useMemo(
-    () => data.credentials.find((credential) => credential.id === editingId),
-    [data.credentials, editingId],
+    () => credentials.find((credential) => credential.id === editingId),
+    [credentials, editingId],
   )
   const passphraseCredentials = useMemo(
-    () => data.credentials.filter((credential) => credential.type === 'private_key_passphrase'),
-    [data.credentials],
+    () => credentials.filter((credential) => credential.type === 'private_key_passphrase'),
+    [credentials],
   )
   const requireSecret = !editingCredential || draft.type !== editingCredential.type
   const errors = useMemo(() => validateCredentialInput(draft, requireSecret, {
@@ -78,11 +96,11 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }:
   }, [])
 
   const loadCredentialById = useCallback((credentialId: string) => {
-    const credential = data.credentials.find((item) => item.id === credentialId)
+    const credential = credentials.find((item) => item.id === credentialId)
     if (credential) {
       loadCredential(credential)
     }
-  }, [data.credentials, loadCredential])
+  }, [credentials, loadCredential])
 
   const startCreate = useCallback(() => {
     const input = createBlankCredentialInput()
@@ -92,12 +110,12 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }:
     setActiveView('editor')
   }, [])
 
-  const getApi = useCallback(() => {
-    if (!apiRef.current) {
-      apiRef.current = createApiFromRuntime()
+  const getGateway = useCallback(() => {
+    if (!gatewayRef.current) {
+      gatewayRef.current = createGateway()
     }
-    return apiRef.current
-  }, [])
+    return gatewayRef.current
+  }, [createGateway])
 
   const applyPrivateKeyDraft = useCallback((input: CredentialInput) => {
     setEditingId(null)
@@ -153,8 +171,8 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }:
     setImportBusy(true)
     setImportError('')
     try {
-      const api = await getApi()
-      const result = await api.inspectSSHKey({
+      const gateway = await getGateway()
+      const result = await gateway.inspectSSHKey({
         private_key_openssh: source.privateKey,
         passphrase: unlock?.source === 'new' ? unlock.passphrase : undefined,
         passphrase_credential_id: unlock?.source === 'existing' ? unlock.credentialId : undefined,
@@ -178,7 +196,7 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }:
         importControllerRef.current = null
       }
     }
-  }, [applyImportedKey, getApi, t])
+  }, [applyImportedKey, getGateway, t])
 
   const beginImport = useCallback(async () => {
     setImportError('')
@@ -272,7 +290,7 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }:
     importRevisionRef.current += 1
     importControllerRef.current?.abort()
     importControllerRef.current = null
-    apiRef.current = null
+    gatewayRef.current = null
   }, [])
 
   const save = async () => {
@@ -286,12 +304,12 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }:
     if (!editingId || editingCredential?.bound_host_count) {
       return
     }
-    const currentIndex = data.credentials.findIndex((credential) => credential.id === editingId)
+    const currentIndex = credentials.findIndex((credential) => credential.id === editingId)
     const removed = await onDelete(editingId)
     if (!removed) {
       return
     }
-    const remaining = data.credentials.filter((credential) => credential.id !== editingId)
+    const remaining = credentials.filter((credential) => credential.id !== editingId)
     const next = remaining[Math.min(currentIndex, remaining.length - 1)]
     if (next) {
       loadCredential(next)
@@ -307,13 +325,13 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }:
   return (
     <>
       <ManagementWorkspace
-        className="vault-management-workspace"
+        className={className}
         activeView={activeView}
         catalogLabel={t('vault.list')}
         editorLabel={t('vault.editor')}
         catalog={(
           <CredentialCatalog
-            credentials={data.credentials}
+            credentials={credentials}
             selectedCredentialId={editingId}
             actionBusy={actionBusy}
             onSelect={(credentialId) => requestIntent({ type: 'select', credentialId })}
@@ -323,7 +341,7 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }:
         )}
         editor={(
           <CredentialEditor
-            credentials={data.credentials}
+            credentials={credentials}
             editingCredential={editingCredential}
             draft={draft}
             dirty={dirty}
@@ -362,8 +380,8 @@ export function VaultPage({ data, actionBusy, onSave, onDelete, onDirtyChange }:
         open={generationOpen}
         onClose={() => setGenerationOpen(false)}
         onGenerate={async (input: SSHKeyGenerateRequest, signal: AbortSignal): Promise<SSHKeyPair> => {
-          const api = await getApi()
-          return api.generateSSHKey(input, signal)
+          const gateway = await getGateway()
+          return gateway.generateSSHKey(input, signal)
         }}
         onApply={applyPrivateKeyDraft}
       />

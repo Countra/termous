@@ -161,8 +161,8 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/vault/VaultPage.tsx",
-      "specifier": "./features/vault/VaultPage"
+      "target": "src/pages/vault/index.ts",
+      "specifier": "#pages/vault"
     },
     {
       "rule": "legacy-boundary",
@@ -820,81 +820,33 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/vault/CredentialCatalog.tsx",
+      "source": "src/features/vault/ui/CredentialCatalog.tsx",
       "target": "src/components/management/ManagementWorkspace.tsx",
-      "specifier": "../../components/management/ManagementWorkspace"
+      "specifier": "../../../components/management/ManagementWorkspace"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/vault/CredentialCatalog.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/CredentialEditor.tsx",
+      "source": "src/features/vault/ui/CredentialEditor.tsx",
       "target": "src/components/management/ManagementWorkspace.tsx",
-      "specifier": "../../components/management/ManagementWorkspace"
+      "specifier": "../../../components/management/ManagementWorkspace"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/vault/CredentialEditor.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/credentialIcons.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/credentialManagementUtils.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/PrivateKeyPassphraseModal.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/SSHKeyGenerationModal.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/sshKeyUi.ts",
+      "source": "src/features/vault/api/credentialGateway.ts",
       "target": "src/api/client.ts",
-      "specifier": "../../api/client"
+      "specifier": "../../../api/client"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/vault/sshKeyUi.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/VaultPage.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/vault/VaultPage.tsx",
+      "source": "src/features/vault/ui/VaultWorkspace.tsx",
       "target": "src/components/management/ManagementWorkspace.tsx",
-      "specifier": "../../components/management/ManagementWorkspace"
+      "specifier": "../../../components/management/ManagementWorkspace"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/vault/VaultPage.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "source": "src/types/domain.ts",
+      "target": "src/entities/credential/index.ts",
+      "specifier": "#entities/credential"
     },
     {
       "rule": "legacy-boundary",
@@ -1491,12 +1443,6 @@
       "source": "src/App.tsx",
       "target": "src/features/terminal/TerminalRuntimeProvider.tsx",
       "specifier": "./features/terminal/TerminalRuntimeProvider"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/vault/VaultPage.tsx",
-      "specifier": "./features/vault/VaultPage"
     },
     {
       "rule": "public-entry",

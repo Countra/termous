@@ -2,9 +2,17 @@ import { Alert, Button, Input, Modal, Segmented, Switch } from 'antd'
 import { Check, Copy, Download, FileKey2, KeyRound, RotateCcw, ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import {
+  buildPrivateKeyDraft,
+  type CredentialInput,
+  type SSHKeyAlgorithm,
+  type SSHKeyECDSACurve,
+  type SSHKeyGenerateRequest,
+  type SSHKeyPair,
+} from '#entities/credential'
 import { getTermousBridge } from '#shared/bridge'
-import type { CredentialInput, SSHKeyAlgorithm, SSHKeyECDSACurve, SSHKeyGenerateRequest, SSHKeyPair } from '../../types/domain'
-import { buildPrivateKeyDraft, sshKeyAlgorithmSummary, sshKeyErrorMessage } from './sshKeyUi'
+import { sshKeyAlgorithmSummary, sshKeyErrorMessage } from '../model/sshKeyUi.ts'
+import styles from './SSHKeyDialogs.module.scss'
 
 interface SSHKeyGenerationModalProps {
   open: boolean
@@ -201,7 +209,7 @@ export function SSHKeyGenerationModal({ open, onClose, onGenerate, onApply }: SS
   const footer = stage === 'configure'
     ? [
         <Button key="cancel" onClick={close}>{t('app.cancel')}</Button>,
-        <Button key="generate" type="primary" className="ssh-key-primary-action" loading={busy} icon={<KeyRound size={16} />} onClick={() => void generate()}>
+        <Button key="generate" type="primary" className={styles['ssh-key-primary-action']} loading={busy} icon={<KeyRound size={16} />} onClick={() => void generate()}>
           {t('vault.sshKey.generate')}
         </Button>,
       ]
@@ -209,7 +217,7 @@ export function SSHKeyGenerationModal({ open, onClose, onGenerate, onApply }: SS
         <Button key="regenerate" icon={<RotateCcw size={15} />} onClick={() => { setStage('configure'); setPair(null); setError(''); setResultMessage('') }}>
           {t('vault.sshKey.backToConfigure')}
         </Button>,
-        <Button key="apply" type="primary" className="ssh-key-primary-action" icon={<Check size={16} />} onClick={apply}>
+        <Button key="apply" type="primary" className={styles['ssh-key-primary-action']} icon={<Check size={16} />} onClick={apply}>
           {t('vault.sshKey.applyToCredential')}
         </Button>,
       ]
@@ -220,12 +228,12 @@ export function SSHKeyGenerationModal({ open, onClose, onGenerate, onApply }: SS
       width={720}
       title={t('vault.sshKey.generatorTitle')}
       footer={footer}
-      rootClassName="ssh-key-generation-modal"
+      rootClassName={styles['ssh-key-generation-modal']}
       destroyOnHidden
       mask={{ closable: !busy }}
       onCancel={close}
     >
-      <div className="ssh-key-modal-intro">
+      <div className={styles['ssh-key-modal-intro']}>
         <span><ShieldCheck size={19} aria-hidden="true" /></span>
         <div>
           <strong>{stage === 'configure' ? t('vault.sshKey.configureTitle') : t('vault.sshKey.resultTitle')}</strong>
@@ -233,14 +241,14 @@ export function SSHKeyGenerationModal({ open, onClose, onGenerate, onApply }: SS
         </div>
       </div>
 
-      {error ? <Alert className="ssh-key-modal-alert" type="error" showIcon message={error} /> : null}
+      {error ? <Alert className={styles['ssh-key-modal-alert']} type="error" showIcon message={error} /> : null}
       {stage === 'configure' ? (
-        <div className="ssh-key-config-form">
-          <label className="ssh-key-form-field">
+        <div className={styles['ssh-key-config-form']}>
+          <label className={styles['ssh-key-form-field']}>
             <span>{t('vault.sshKey.credentialName')}</span>
             <Input name="ssh-key-credential-name" value={name} maxLength={120} placeholder={t('vault.sshKey.namePlaceholder')} onChange={(event) => setName(event.target.value)} />
           </label>
-          <label className="ssh-key-form-field">
+          <label className={styles['ssh-key-form-field']}>
             <span>{t('vault.sshKey.algorithmLabel')}</span>
             <Segmented
               block
@@ -254,32 +262,32 @@ export function SSHKeyGenerationModal({ open, onClose, onGenerate, onApply }: SS
             />
           </label>
           {algorithm === 'rsa' ? (
-            <label className="ssh-key-form-field">
+            <label className={styles['ssh-key-form-field']}>
               <span>{t('vault.sshKey.rsaBits')}</span>
               <Segmented block value={rsaBits} options={[3072, 4096]} onChange={(value) => setRsaBits(value as 3072 | 4096)} />
             </label>
           ) : null}
           {algorithm === 'ecdsa' ? (
-            <label className="ssh-key-form-field">
+            <label className={styles['ssh-key-form-field']}>
               <span>{t('vault.sshKey.ecdsaCurve')}</span>
               <Segmented block value={ecdsaCurve} options={['p256', 'p384', 'p521']} onChange={(value) => setEcdsaCurve(value as SSHKeyECDSACurve)} />
             </label>
           ) : null}
-          <label className="ssh-key-form-field">
+          <label className={styles['ssh-key-form-field']}>
             <span>{t('vault.sshKey.comment')}</span>
             <Input name="ssh-key-comment" value={comment} maxLength={255} placeholder={t('vault.sshKey.commentPlaceholder')} onChange={(event) => setComment(event.target.value)} />
           </label>
-          <div className="ssh-key-passphrase-setting">
+          <div className={styles['ssh-key-passphrase-setting']}>
             <strong>{t('vault.sshKey.protectWithPassphrase')}</strong>
             <Switch checked={protectWithPassphrase} onChange={(checked) => { setProtectWithPassphrase(checked); if (!checked) { setPassphrase(''); setPassphraseConfirm('') } }} />
           </div>
           {protectWithPassphrase ? (
-            <div className="ssh-key-passphrase-fields">
-              <label className="ssh-key-form-field">
+            <div className={styles['ssh-key-passphrase-fields']}>
+              <label className={styles['ssh-key-form-field']}>
                 <span>{t('vault.sshKey.passphrase')}</span>
                 <Input.Password name="ssh-key-passphrase" value={passphrase} autoComplete="new-password" onChange={(event) => setPassphrase(event.target.value)} />
               </label>
-              <label className="ssh-key-form-field">
+              <label className={styles['ssh-key-form-field']}>
                 <span>{t('vault.sshKey.confirmPassphrase')}</span>
                 <Input.Password name="ssh-key-passphrase-confirmation" value={passphraseConfirm} autoComplete="new-password" onChange={(event) => setPassphraseConfirm(event.target.value)} />
               </label>
@@ -287,26 +295,26 @@ export function SSHKeyGenerationModal({ open, onClose, onGenerate, onApply }: SS
           ) : null}
         </div>
       ) : pair ? (
-        <div className="ssh-key-result">
-          <div className="ssh-key-result-summary">
-            <span className="ssh-key-result-icon"><FileKey2 size={24} aria-hidden="true" /></span>
+        <div className={styles['ssh-key-result']}>
+          <div className={styles['ssh-key-result-summary']}>
+            <span className={styles['ssh-key-result-icon']}><FileKey2 size={24} aria-hidden="true" /></span>
             <div><strong>{name}</strong><small>{sshKeyAlgorithmSummary(pair.info, t)}</small></div>
-            <span className="ssh-key-result-state"><Check size={13} />{t('vault.sshKey.generated')}</span>
+            <span className={styles['ssh-key-result-state']}><Check size={13} />{t('vault.sshKey.generated')}</span>
           </div>
-          <dl className="ssh-key-result-details">
+          <dl className={styles['ssh-key-result-details']}>
             <div><dt>{t('vault.sshKey.fingerprint')}</dt><dd>{pair.info.fingerprint_sha256}</dd></div>
             <div><dt>{t('vault.sshKey.protection')}</dt><dd>{pair.encrypted ? t('vault.sshKey.passphraseProtected') : t('vault.sshKey.unencrypted')}</dd></div>
           </dl>
-          <div className="ssh-key-public-preview">
+          <div className={styles['ssh-key-public-preview']}>
             <div><strong>{t('vault.sshKey.publicKey')}</strong><small>{t('vault.sshKey.publicKeyHint')}</small></div>
             <pre>{pair.public_key_authorized}</pre>
           </div>
-          <div className="ssh-key-result-actions">
+          <div className={styles['ssh-key-result-actions']}>
             <Button icon={<Copy size={15} />} onClick={() => void copyPublicKey()}>{t('vault.sshKey.copyPublicKey')}</Button>
             <Button icon={<Download size={15} />} onClick={() => void savePublicKey()}>{t('vault.sshKey.savePublicKey')}</Button>
             <Button icon={<FileKey2 size={15} />} onClick={() => void saveKeyPair()}>{t('vault.sshKey.saveKeyPair')}</Button>
           </div>
-          {resultMessage ? <div className="ssh-key-result-message"><Check size={14} />{resultMessage}</div> : null}
+          {resultMessage ? <div className={styles['ssh-key-result-message']}><Check size={14} />{resultMessage}</div> : null}
         </div>
       ) : null}
     </Modal>

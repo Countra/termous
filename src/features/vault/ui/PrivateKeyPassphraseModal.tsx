@@ -2,7 +2,9 @@ import { Alert, Button, Input, Modal, Segmented, Select } from 'antd'
 import { KeyRound } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { CredentialView } from '../../types/domain'
+import type { CredentialView } from '#entities/credential'
+import credentialStyles from './CredentialManagement.module.scss'
+import styles from './SSHKeyDialogs.module.scss'
 
 type PassphraseSource = 'existing' | 'new'
 
@@ -72,23 +74,23 @@ export function PrivateKeyPassphraseModal({
       open={open}
       width={480}
       title={t('vault.sshKey.importPassphraseTitle')}
-      rootClassName="ssh-key-passphrase-modal"
+      rootClassName={styles['ssh-key-passphrase-modal']}
       destroyOnHidden
       mask={{ closable: !busy }}
       footer={[
         <Button key="cancel" disabled={busy} onClick={onCancel}>{t('app.cancel')}</Button>,
-        <Button key="confirm" type="primary" className="ssh-key-primary-action" loading={busy} disabled={!canConfirm} onClick={confirm}>
+        <Button key="confirm" type="primary" className={styles['ssh-key-primary-action']} loading={busy} disabled={!canConfirm} onClick={confirm}>
           {t('vault.sshKey.verifyAndImport')}
         </Button>,
       ]}
       onCancel={onCancel}
     >
-      <div className="ssh-key-import-file">
+      <div className={styles['ssh-key-import-file']}>
         <span><KeyRound size={18} aria-hidden="true" /></span>
         <div><strong>{fileName}</strong><small>{t('vault.sshKey.encryptedKeyHint')}</small></div>
       </div>
-      {error ? <Alert className="ssh-key-modal-alert" type="error" showIcon message={error} /> : null}
-      <div className="ssh-key-unlock-method">
+      {error ? <Alert className={styles['ssh-key-modal-alert']} type="error" showIcon message={error} /> : null}
+      <div className={styles['ssh-key-unlock-method']}>
         <span>{t('vault.sshKey.unlockMethod')}</span>
         <Segmented<PassphraseSource>
           block
@@ -104,13 +106,13 @@ export function PrivateKeyPassphraseModal({
         />
       </div>
       {source === 'existing' ? (
-        <label className="ssh-key-form-field">
+        <label className={styles['ssh-key-form-field']}>
           <span>{t('vault.sshKey.savedPassphrase')}</span>
           <Select
             value={credentialId || undefined}
             options={options}
             className="termous-select"
-            classNames={{ popup: { root: 'termous-select-popup credential-passphrase-popup' } }}
+            classNames={{ popup: { root: `termous-select-popup ${credentialStyles['credential-passphrase-popup']}` } }}
             placeholder={t('vault.sshKey.savedPassphrasePlaceholder')}
             notFoundContent={t('vault.sshKey.noSavedPassphrases')}
             onChange={(value) => {
@@ -121,7 +123,7 @@ export function PrivateKeyPassphraseModal({
           <small>{t('vault.sshKey.savedPassphraseHint')}</small>
         </label>
       ) : (
-        <label className="ssh-key-form-field">
+        <label className={styles['ssh-key-form-field']}>
           <span>{t('vault.sshKey.passphrase')}</span>
           <Input.Password
             name="ssh-key-import-passphrase"

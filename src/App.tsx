@@ -27,7 +27,7 @@ import { isForwardRestartCompleted } from './features/forwards/forwardRestart'
 import { SettingsPage } from '#pages/settings'
 import { SnippetsPage } from './features/snippets/SnippetsPage'
 import { snippetToInput } from './features/snippets/snippetUtils'
-import { VaultPage } from './features/vault/VaultPage'
+import { VaultPage } from '#pages/vault'
 import { HostLauncherModal } from './features/workbench/HostLauncherModal'
 import {
   hostLauncherIntentForPage,
@@ -968,7 +968,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
         {page === 'vault' ? (
           <VaultPage
-            data={data}
+            credentials={data.credentials}
             actionBusy={actionBusy}
             onSave={saveCredential}
             onDelete={(id) => runAction(async () => {
