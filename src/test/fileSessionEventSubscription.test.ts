@@ -3,7 +3,7 @@ import test from 'node:test'
 import {
   fileSessionEventReconnectDelay,
   subscribeFileSessionEvents,
-} from '../features/files/fileSessionEventSubscription.ts'
+} from '../widgets/files-workspace/model/fileSessionEventSubscription.ts'
 
 class FakeWebSocket extends EventTarget {
   readyState = 0

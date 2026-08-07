@@ -17,6 +17,8 @@ const testState = vi.hoisted(() => {
     persistentStateSetter: vi.fn(),
     workbenchMounts: 0,
     workbenchUnmounts: 0,
+    filesPageMounts: 0,
+    filesPageUnmounts: 0,
     data: {
       hosts: [],
       groups: [],
@@ -104,7 +106,7 @@ vi.mock('#app/shortcut-runtime', () => ({
   ShortcutWindowAdapter: () => null,
 }))
 
-vi.mock('../features/files/FilesWorkspaceRuntimeProvider', () => ({
+vi.mock('#widgets/files-workspace', () => ({
   FilesWorkspaceRuntimeProvider: ({ children }: { children: ReactNode }) => (
     <div data-provider="files-workspace">{children}</div>
   ),
@@ -128,11 +130,12 @@ vi.mock('../components/layout/AppShell', () => ({
     onNavigate,
   }: {
     children: ReactNode
-    onNavigate: (page: 'workbench' | 'hosts') => void
+    onNavigate: (page: 'workbench' | 'hosts' | 'files') => void
   }) => (
     <div data-provider="app-shell">
       <button type="button" onClick={() => onNavigate('workbench')}>workbench</button>
       <button type="button" onClick={() => onNavigate('hosts')}>hosts</button>
+      <button type="button" onClick={() => onNavigate('files')}>files</button>
       {children}
     </div>
   ),
@@ -181,7 +184,19 @@ vi.mock('#pages/hosts', () => ({
   HostsPage: () => <div data-testid="hosts-page">Hosts</div>,
 }))
 
-vi.mock('../features/files/FilesPage', () => ({ FilesPage: () => null }))
+vi.mock('#pages/files', () => ({
+  FilesPage: () => {
+    useEffect(() => {
+      testState.filesPageMounts += 1
+      return () => {
+        testState.filesPageUnmounts += 1
+      }
+    }, [])
+    return <div data-testid="files-page">Files</div>
+  },
+  canCommitFilesBookmarkManagementRequest: () => false,
+  consumeFilesBookmarkManagementIntent: () => null,
+}))
 vi.mock('../features/forwards/ForwardingPage', () => ({ ForwardingPage: () => null }))
 vi.mock('#pages/settings', () => ({ SettingsPage: () => null }))
 vi.mock('#pages/snippets', () => ({ SnippetsPage: () => null }))
@@ -250,6 +265,8 @@ describe('应用运行时组合合同', () => {
   beforeEach(() => {
     testState.workbenchMounts = 0
     testState.workbenchUnmounts = 0
+    testState.filesPageMounts = 0
+    testState.filesPageUnmounts = 0
     testState.action.mockReset()
     testState.action.mockResolvedValue(undefined)
     testState.notifications.error.mockReset()
@@ -310,6 +327,34 @@ describe('应用运行时组合合同', () => {
     expect(workbench).toHaveAttribute('data-active', 'true')
     expect(keepAlivePage).not.toHaveAttribute('inert')
     expect(keepAlivePage).toBeVisible()
+  })
+
+  it('文件页面按需卸载，而文件工作区运行时保持常驻', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const runtimeProvider = document.querySelector('[data-provider="files-workspace"]')
+    expect(screen.queryByTestId('files-page')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'files' }))
+
+    expect(screen.getByTestId('files-page')).toBeInTheDocument()
+    expect(testState.filesPageMounts).toBe(1)
+    expect(testState.filesPageUnmounts).toBe(0)
+    expect(document.querySelector('[data-provider="files-workspace"]')).toBe(runtimeProvider)
+
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+
+    expect(screen.queryByTestId('files-page')).not.toBeInTheDocument()
+    expect(testState.filesPageMounts).toBe(1)
+    expect(testState.filesPageUnmounts).toBe(1)
+    expect(document.querySelector('[data-provider="files-workspace"]')).toBe(runtimeProvider)
+
+    await user.click(screen.getByRole('button', { name: 'files' }))
+
+    expect(screen.getByTestId('files-page')).toBeInTheDocument()
+    expect(testState.filesPageMounts).toBe(2)
+    expect(testState.filesPageUnmounts).toBe(1)
   })
 
   it('片段使用次数上报失败不会阻断已完成的工作台回调', async () => {

@@ -1,3 +1,12 @@
+/* 迁移过渡期保留历史选择器和声明，后续按局部行为类逐段收敛。 */
+/* stylelint-disable termous/no-unscoped-global, declaration-empty-line-before, selector-class-pattern, color-hex-length, declaration-block-no-redundant-longhand-properties, property-no-deprecated, keyframes-name-pattern -- 迁移期保持既有文件工作区视觉与行为兼容。 */
+@use './FilesWorkspacePanels.module' as panels;
+
+.root {
+  position: static;
+}
+
+:global {
 .files-workspace-page {
   --files-status-bar-height: 36px;
   position: relative;
@@ -923,7 +932,7 @@ body[data-files-resize-key="permissions"] .files-workspace-page [data-resize-key
   font-weight: 560;
 }
 
-@keyframes files-drop-mask-enter {
+@keyframes :global(files-drop-mask-enter) {
   from {
     opacity: 0;
     transform: translate(-50%, 4px);
@@ -949,3 +958,7 @@ body[data-files-resize-key="permissions"] .files-workspace-page [data-resize-key
     transition: none;
   }
 }
+}
+
+@include panels.styles;
+/* stylelint-enable termous/no-unscoped-global, declaration-empty-line-before, selector-class-pattern, color-hex-length, declaration-block-no-redundant-longhand-properties, property-no-deprecated, keyframes-name-pattern */

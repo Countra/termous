@@ -33,7 +33,7 @@ import {
   sortFilesWorkspaceEntries,
   type FilesWorkspaceRuntimeState,
   type RemoteDirectoryViewState,
-} from '../features/files/filesWorkspaceState.ts'
+} from '../widgets/files-workspace/model/filesWorkspaceState.ts'
 
 function entry(
   name: string,

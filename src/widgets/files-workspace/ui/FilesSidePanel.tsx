@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
-import { filesWorkspaceSidePanelWidthBounds } from './filesWorkspaceState'
+import { filesWorkspaceSidePanelWidthBounds } from '../model/filesWorkspaceState'
 
 export type FilesSidePanelMode = 'bookmarks' | 'details'
 

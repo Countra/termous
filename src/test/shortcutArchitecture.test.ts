@@ -17,7 +17,7 @@ const sources = {
   runtimeProvider: readSource('../app/shortcut-runtime/ShortcutRuntimeProvider.tsx'),
   terminalRuntime: readSource('../features/terminal/TerminalRuntimeProvider.tsx'),
   terminalViewport: readSource('../features/terminal/TerminalPaneViewport.tsx'),
-  filesPage: readSource('../features/files/FilesPage.tsx'),
+  filesPage: readSource('../widgets/files-workspace/ui/FilesWorkspace.tsx'),
   workbenchFiles: readSource('../features/workbench/WorkbenchFileList.tsx'),
   editor: readSource('../features/remote-file/ui/RemoteTextEditorModal.tsx'),
   recorder: readSource('../features/settings/ui/shortcuts/ShortcutRecorderModal.tsx'),

@@ -50,15 +50,13 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import { TermousApiError, type TermousApi } from '../../api/client'
+import { TermousApiError } from '#shared/api'
 import { SessionQuickConnect } from '#features/hosts'
 import { EmptyState, SessionTabButton, SessionTabStrip } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
-import type {
-  AppData,
-  Host,
-  ThemeMode,
-} from '../../types/domain'
+import type { TerminalSettings } from '#common/contracts'
+import type { Host } from '#entities/host'
+import type { ThemeMode } from '#shared/theme'
 import type {
   FileBookmark,
   FileBookmarkGroup,
@@ -75,6 +73,7 @@ import type {
   RemoteFileEntry,
   TransferTask,
 } from '#entities/file'
+import type { FileGateway } from '#features/files'
 import { useTransferRuntime } from '#features/transfers'
 import {
   buildRemoteFileActionMenu,
@@ -97,7 +96,7 @@ import { FilesSidePanel, type FilesSidePanelMode } from './FilesSidePanel'
 import {
   subscribeFileSessionEvents,
   type FileSessionEventSubscription,
-} from './fileSessionEventSubscription'
+} from '../model/fileSessionEventSubscription'
 import {
   canRecoverFileSession,
   cancelFileSessionRecoveryAttempt,
@@ -127,8 +126,7 @@ import {
   validateRemoteFileDrag,
   type RemoteFileDragTransaction,
 } from '#features/local-download'
-import type { FilesBookmarkManagementIntent } from './filesBookmarkManagementIntent'
-import { useFilesWorkspaceRuntime } from './useFilesWorkspaceRuntime'
+import { useFilesWorkspaceRuntime } from '../model/useFilesWorkspaceRuntime'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import {
   applyFilesWorkspaceSelection,
@@ -157,18 +155,39 @@ import {
   type FilesWorkspaceHistoryMode,
   type FilesWorkspaceSortKey,
   type RemoteDirectoryViewState,
-} from './filesWorkspaceState'
+} from '../model/filesWorkspaceState'
+import styles from './FilesWorkspace.module.scss'
 
 const RemoteTextEditorModal = lazy(loadRemoteTextEditorModal)
 const RemoteImageViewerModal = lazy(loadRemoteImageViewerModal)
 
-interface FilesPageProps {
-  api: TermousApi
-  data: AppData
+export interface FilesWorkspaceApi extends FileGateway {
+  hostIconFileUrl: (id: string) => string
+}
+
+export interface FilesWorkspaceData {
+  hosts: Host[]
+  fileSessions: FileSession[]
+  fileBookmarkGroups: FileBookmarkGroup[]
+  fileBookmarks: FileBookmark[]
+  localPathMappings: LocalPathMapping[]
+  settings: {
+    terminal: TerminalSettings
+  }
+}
+
+export interface FilesWorkspaceBookmarkManagementIntent {
+  requestId: number
+  fileSessionId: string
+}
+
+export interface FilesWorkspaceProps {
+  api: FilesWorkspaceApi
+  data: FilesWorkspaceData
   theme: ThemeMode
   activeFileSession: FileSession | null
   closingFileSessionIds: readonly string[]
-  bookmarkManagementIntent: FilesBookmarkManagementIntent | null
+  bookmarkManagementIntent: FilesWorkspaceBookmarkManagementIntent | null
   onConsumeBookmarkManagementIntent: (requestId: number) => void
   onOpenFileSession: (hostId: string) => Promise<void>
   onOpenFileSessionLauncher: () => void
@@ -331,11 +350,11 @@ function resolveStateAction<T>(action: SetStateAction<T>, current: T) {
     : action
 }
 
-export function FilesPage(props: FilesPageProps) {
-  return <FilesPageContent {...props} />
+export function FilesWorkspace(props: FilesWorkspaceProps) {
+  return <FilesWorkspaceContent {...props} />
 }
 
-function FilesPageContent({
+function FilesWorkspaceContent({
   api,
   data,
   theme,
@@ -362,7 +381,7 @@ function FilesPageContent({
   onUpdateLocalPathMapping,
   onDeleteLocalPathMapping,
   onReorderLocalPathMappings,
-}: FilesPageProps) {
+}: FilesWorkspaceProps) {
   const { t } = useTranslation()
   const { runtime: shortcutRuntime } = useShortcutRuntime()
   const filesShortcutInstanceId = useId()
@@ -3729,6 +3748,7 @@ function FilesPageContent({
     <section
       ref={filesPageRef}
       className={[
+        styles.root,
         'files-page',
         'files-workspace-page',
         inspectorOpen ? 'has-inspector' : '',

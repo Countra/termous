@@ -76,20 +76,14 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/files/filesBookmarkManagementIntent.ts",
-      "specifier": "./features/files/filesBookmarkManagementIntent"
+      "target": "src/pages/files/index.ts",
+      "specifier": "#pages/files"
     },
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/files/FilesPage.tsx",
-      "specifier": "./features/files/FilesPage"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
-      "target": "src/features/files/FilesWorkspaceRuntimeProvider.tsx",
-      "specifier": "./features/files/FilesWorkspaceRuntimeProvider"
+      "target": "src/widgets/files-workspace/index.ts",
+      "specifier": "#widgets/files-workspace"
     },
     {
       "rule": "legacy-boundary",
@@ -226,24 +220,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/components/ui/StatusBadge.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/filesBookmarkManagementIntent.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FilesPage.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/files/FilesPage.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -828,24 +804,6 @@
       "source": "src/api/client.ts",
       "target": "src/features/terminal/completionModel.ts",
       "specifier": "../features/terminal/completionModel"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/files/filesBookmarkManagementIntent.ts",
-      "specifier": "./features/files/filesBookmarkManagementIntent"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/files/FilesPage.tsx",
-      "specifier": "./features/files/FilesPage"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/files/FilesWorkspaceRuntimeProvider.tsx",
-      "specifier": "./features/files/FilesWorkspaceRuntimeProvider"
     },
     {
       "rule": "public-entry",

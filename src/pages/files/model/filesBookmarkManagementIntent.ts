@@ -1,5 +1,3 @@
-import type { Session } from '../../types/domain'
-
 export interface FilesBookmarkManagementIntent {
   requestId: number
   fileSessionId: string
@@ -9,6 +7,13 @@ export interface FilesBookmarkManagementRequest {
   requestId: number
   sourceSessionId: string
   hostId: string
+}
+
+interface FilesBookmarkManagementSession {
+  id: string
+  host_id?: string
+  kind: string
+  status: string
 }
 
 export function consumeFilesBookmarkManagementIntent(
@@ -22,7 +27,7 @@ export function canCommitFilesBookmarkManagementRequest(
   request: FilesBookmarkManagementRequest,
   currentRequest: FilesBookmarkManagementRequest | null,
   filesPageActive: boolean,
-  sessions: readonly Session[],
+  sessions: readonly FilesBookmarkManagementSession[],
 ) {
   if (
     currentRequest?.requestId !== request.requestId

@@ -6,14 +6,6 @@ import { TermousUiProvider } from '#app/ui-runtime'
 import { AppShell } from './components/layout/AppShell'
 import { ConfirmDialog } from '#shared/ui'
 import { HostsPage } from '#pages/hosts'
-import { FilesPage } from './features/files/FilesPage'
-import {
-  canCommitFilesBookmarkManagementRequest,
-  consumeFilesBookmarkManagementIntent,
-  type FilesBookmarkManagementIntent,
-  type FilesBookmarkManagementRequest,
-} from './features/files/filesBookmarkManagementIntent'
-import { FilesWorkspaceRuntimeProvider } from './features/files/FilesWorkspaceRuntimeProvider'
 import {
   includeActiveFileSessionClosure,
   pruneRetiredFileSessionIds,
@@ -53,8 +45,14 @@ import { getTermousBridge } from '#shared/bridge'
 import type { AppBuildInfo, CodeSnippet, CodeSnippetGroup, CodeSnippetInput, ConnectionProxy, ConnectionProxyInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, Language, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
 import './App.css'
 import './styles/workstation.css'
-import './styles/files-workspace.css'
-import './styles/files-workspace-panels.css'
+import {
+  canCommitFilesBookmarkManagementRequest,
+  consumeFilesBookmarkManagementIntent,
+  FilesPage,
+  type FilesBookmarkManagementIntent,
+  type FilesBookmarkManagementRequest,
+} from '#pages/files'
+import { FilesWorkspaceRuntimeProvider } from '#widgets/files-workspace'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
 const developmentUpdateSimulation = readDevelopmentUpdateSimulation()

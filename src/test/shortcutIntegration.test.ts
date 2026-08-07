@@ -28,7 +28,7 @@ const completionStyles = readFileSync(
   'utf8',
 )
 const filesPageSource = readFileSync(
-  fileURLToPath(new URL('../features/files/FilesPage.tsx', import.meta.url)),
+  fileURLToPath(new URL('../widgets/files-workspace/ui/FilesWorkspace.tsx', import.meta.url)),
   'utf8',
 )
 const workbenchFileListSource = readFileSync(
