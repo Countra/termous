@@ -52,8 +52,8 @@ import {
   FeatureSidePanel,
   SessionTabButton,
   SessionTabStrip,
+  StatusBadge,
 } from '#shared/ui'
-import { StatusBadge } from '../../components/ui/StatusBadge'
 import {
   usePersistentBooleanState,
   usePersistentJsonState,
@@ -80,7 +80,7 @@ import {
   type SnippetCatalogFilter,
 } from '#features/snippets'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '#entities/snippet'
-import { ForwardSessionPanel } from '../forwards/ForwardSessionPanel'
+import { ForwardSessionPanel } from '#features/forwards'
 import { AliasPanel } from './AliasPanel'
 import { FirewallPanel } from './FirewallPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'

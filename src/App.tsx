@@ -14,8 +14,8 @@ import {
   selectFileSessionForNavigation,
   selectFileSessionNavigationTarget,
 } from '#entities/file'
-import { ForwardingPage } from './features/forwards/ForwardingPage'
-import { isForwardRestartCompleted } from './features/forwards/forwardRestart'
+import { isForwardRestartCompleted } from '#features/forwards'
+import { ForwardsPage } from '#pages/forwards'
 import { SettingsPage } from '#pages/settings'
 import { snippetToInput } from '#entities/snippet'
 import { SnippetsPage } from '#pages/snippets'
@@ -1086,7 +1086,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         ) : null}
 
         {page === 'forwards' ? (
-          <ForwardingPage
+          <ForwardsPage
             data={data}
             actionBusy={actionBusy}
             temporaryIntent={forwardTemporaryIntent}

@@ -84,8 +84,8 @@ vi.mock('#shared/ui', () => ({
   }) => <>{tabs.find((tab) => tab.key === 'snippets')?.children}</>,
   SessionTabButton: () => null,
   SessionTabStrip: () => null,
+  StatusBadge: () => null,
 }))
-vi.mock('../components/ui/StatusBadge', () => ({ StatusBadge: () => null }))
 vi.mock('../features/terminal/ConnectionProgress', () => ({ ConnectionProgress: () => null }))
 vi.mock('../features/terminal/TerminalSearchPanel', () => ({ TerminalSearchPanel: () => null }))
 vi.mock('../features/terminal/TerminalSplitWorkspace', () => ({ TerminalSplitWorkspace: () => null }))
@@ -117,7 +117,7 @@ vi.mock('#features/snippets', () => ({
   buildSnippetTags: () => [],
   filterSnippets: (snippets: CodeSnippet[]) => snippets,
 }))
-vi.mock('../features/forwards/ForwardSessionPanel', () => ({ ForwardSessionPanel: () => null }))
+vi.mock('#features/forwards', () => ({ ForwardSessionPanel: () => null }))
 vi.mock('../features/workbench/AliasPanel', () => ({ AliasPanel: () => null }))
 vi.mock('../features/workbench/FirewallPanel', () => ({ FirewallPanel: () => null }))
 vi.mock('../features/workbench/SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))

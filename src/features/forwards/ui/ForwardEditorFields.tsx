@@ -1,7 +1,7 @@
 import { Network } from 'lucide-react'
 import { Input, InputNumber } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { ForwardMode } from '../../types/domain'
+import type { ForwardMode } from '#entities/forward'
 
 export interface ForwardEndpointDraft {
   bind_host: string

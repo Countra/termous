@@ -1,7 +1,7 @@
 import { AlertCircle, CircleDot } from 'lucide-react'
 import { Progress, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { ForwardInstance } from '../../types/domain'
+import type { ForwardInstance } from '#entities/forward'
 
 interface ForwardStateFeedbackProps {
   forward: ForwardInstance

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ForwardInstance } from '../../types/domain'
+import type { ForwardInstance } from '#entities/forward'
 import {
   emptyForwardThroughput,
   FORWARD_THROUGHPUT_PUBLISH_MS,

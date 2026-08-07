@@ -1,11 +1,11 @@
 import { ArrowDownLeft, ArrowUpRight, Cable, Clock3, Timer } from 'lucide-react'
 import { useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { ForwardInstance } from '../../types/domain'
+import type { ForwardInstance } from '#entities/forward'
 import { formatBytes } from '#shared/format'
-import { formatForwardDuration } from './forwardTiming'
-import { mapForwardTraffic } from './forwardThroughput'
-import { useForwardThroughput } from './useForwardThroughput'
+import { formatForwardDuration } from '../model/forwardTiming'
+import { mapForwardTraffic } from '../model/forwardThroughput'
+import { useForwardThroughput } from '../model/useForwardThroughput'
 
 interface ForwardRuntimeMetricsProps {
   forward: ForwardInstance

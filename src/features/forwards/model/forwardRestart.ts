@@ -2,7 +2,7 @@ import type {
   ForwardInstance,
   ForwardStartRequest,
   ForwardStatus,
-} from '../../types/domain'
+} from '#entities/forward'
 
 export type ForwardRuntimeAction = 'restart' | 'stop'
 

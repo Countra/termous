@@ -7,7 +7,7 @@ import {
   mapForwardTraffic,
   resolveForwardThroughputNextWakeAt,
   resolveForwardThroughputPublishAt,
-} from '../features/forwards/forwardThroughput.ts'
+} from './forwardThroughput.ts'
 
 test('实时速度使用固定一秒发布节拍且空闲后重新建立节拍', () => {
   assert.equal(FORWARD_THROUGHPUT_PUBLISH_MS, 1_000)

@@ -41,10 +41,6 @@ import type {
   FirewallProviderList,
   FirewallSaveResult,
   FirewallSnapshot,
-  ForwardInstance,
-  ForwardProfile,
-  ForwardProfileInput,
-  ForwardStartRequest,
   GroupReorderItem,
   Host,
   HostGroup,
@@ -87,6 +83,12 @@ import type {
   TerminalSettings,
   WindowSettings,
 } from '../types/domain'
+import type {
+  ForwardInstance,
+  ForwardProfile,
+  ForwardProfileInput,
+  ForwardStartRequest,
+} from '#entities/forward'
 import type {
   FileBookmark,
   FileBookmarkGroup,

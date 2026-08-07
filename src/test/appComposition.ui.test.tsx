@@ -197,7 +197,7 @@ vi.mock('#pages/files', () => ({
   canCommitFilesBookmarkManagementRequest: () => false,
   consumeFilesBookmarkManagementIntent: () => null,
 }))
-vi.mock('../features/forwards/ForwardingPage', () => ({ ForwardingPage: () => null }))
+vi.mock('#pages/forwards', () => ({ ForwardsPage: () => null }))
 vi.mock('#pages/settings', () => ({ SettingsPage: () => null }))
 vi.mock('#pages/snippets', () => ({ SnippetsPage: () => null }))
 vi.mock('#pages/vault', () => ({ VaultPage: () => null }))

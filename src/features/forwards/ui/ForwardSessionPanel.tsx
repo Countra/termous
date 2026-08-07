@@ -2,19 +2,20 @@ import { Cable, ChevronDown, ChevronUp, Play, Plus } from 'lucide-react'
 import { App as AntdApp, Button } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ConnectionActionButton } from '#shared/ui'
-import { StatusBadge } from '../../components/ui/StatusBadge'
-import type { ForwardInstance, ForwardMode, ForwardStartRequest, Host, Session } from '../../types/domain'
-import { WorkbenchEmptyState } from '../workbench/WorkbenchEmptyState'
+import { ConnectionActionButton, StatusBadge, WorkspaceEmptyState } from '#shared/ui'
+import type { ForwardInstance, ForwardMode, ForwardStartRequest } from '#entities/forward'
+import type { Host } from '#entities/host'
+import type { ForwardSessionContext } from '../model/types'
 import { ForwardEditorFields } from './ForwardEditorFields'
 import { ForwardModeBadge, ForwardModeSelector } from './ForwardModeSelector'
 import { ForwardRouteDiagram } from './ForwardRouteDiagram'
 import { ForwardRuntimeActions } from './ForwardRuntimeActions'
 import { ForwardRuntimeMetrics } from './ForwardRuntimeMetrics'
 import { ForwardStateFeedback } from './ForwardStateFeedback'
+import styles from './ForwardManagement.module.scss'
 
-interface ForwardSessionPanelProps {
-  session: Session | null
+export interface ForwardSessionPanelProps {
+  session: ForwardSessionContext | null
   host?: Host
   forwards: ForwardInstance[]
   enabled: boolean
@@ -143,8 +144,8 @@ export function ForwardSessionPanel({
 
   if (!connectedSSH) {
     return (
-      <WorkbenchEmptyState
-        className="forward-session-empty"
+      <WorkspaceEmptyState
+        className={`forward-session-empty ${styles.root}`}
         icon={<Cable size={20} />}
         title={t('workbench.detailsTabs.forwards')}
         description={t('forwards.sessionEmpty')}
@@ -155,7 +156,7 @@ export function ForwardSessionPanel({
   const sessionTarget = host ? `${host.username}@${host.address}:${host.port}` : t('fields.none')
 
   return (
-    <section className="forward-session-panel">
+    <section className={`forward-session-panel ${styles.root}`}>
       <header className="forward-session-context">
         <div className="forward-session-context-copy">
           <span className="forward-session-context-icon"><Cable size={16} aria-hidden="true" /></span>

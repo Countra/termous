@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { ForwardInstance } from '../types/domain.ts'
+import type { ForwardInstance } from '#entities/forward'
 import {
   buildForwardRestartRequest,
   forwardRuntimeActionAvailability,
@@ -10,7 +10,7 @@ import {
   restartForwardInstance,
   selectForwardStartSnapshot,
   shouldApplyForwardPollResponse,
-} from '../features/forwards/forwardRestart.ts'
+} from './forwardRestart.ts'
 
 test('已保存配置按配置标识重启并应用当前配置', () => {
   const forward = createForward({

@@ -1,3 +1,10 @@
+/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
+/* stylelint-disable termous/no-unscoped-global, declaration-empty-line-before, color-hex-length, value-keyword-case, media-feature-range-notation -- 迁移期保持端口转发页面与嵌入面板的视觉和 Portal 行为兼容。 */
+.root {
+  position: static;
+}
+
+:global {
 /* 端口转发共享视觉语义 */
 .forward-mode-selector.ant-segmented {
   min-width: 0;
@@ -1805,3 +1812,5 @@
     transition: none !important;
   }
 }
+}
+/* stylelint-enable termous/no-unscoped-global, declaration-empty-line-before, color-hex-length, value-keyword-case, media-feature-range-notation */

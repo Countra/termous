@@ -12,29 +12,30 @@ import {
 import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ConnectionActionButton, CustomSelect, ManagementFilterTabs } from '#shared/ui'
-import { StatusBadge } from '../../components/ui/StatusBadge'
+import { ConnectionActionButton, CustomSelect, ManagementFilterTabs, StatusBadge } from '#shared/ui'
+import type {
+  ForwardInstance,
+  ForwardMode,
+  ForwardProfile,
+  ForwardProfileInput,
+  ForwardStartRequest,
+} from '#entities/forward'
+import type { Host } from '#entities/host'
+import type { ForwardManagementData } from '../model/types'
+import { useForwardDurationTick } from '../model/forwardTiming'
 import { ForwardEditorFields } from './ForwardEditorFields'
 import { ForwardModeBadge, ForwardModeSelector } from './ForwardModeSelector'
 import { ForwardRouteDiagram } from './ForwardRouteDiagram'
 import { ForwardRuntimeActions } from './ForwardRuntimeActions'
 import { ForwardRuntimeMetrics } from './ForwardRuntimeMetrics'
 import { ForwardStateFeedback } from './ForwardStateFeedback'
-import type {
-  AppData,
-  ForwardInstance,
-  ForwardMode,
-  ForwardProfile,
-  ForwardProfileInput,
-  ForwardStartRequest,
-} from '../../types/domain'
-import { useForwardDurationTick } from './forwardTiming'
+import styles from './ForwardManagement.module.scss'
 
 type EditorMode = 'profile' | 'temporary'
 type ForwardModeFilter = 'all' | ForwardMode
 
-interface ForwardingPageProps {
-  data: AppData
+export interface ForwardManagementWorkspaceProps {
+  data: ForwardManagementData
   actionBusy: boolean
   temporaryIntent?: { key: number; hostId: string } | null
   onCreateProfile: (input: ForwardProfileInput) => Promise<ForwardProfile>
@@ -69,7 +70,7 @@ const defaultForm: ForwardFormState = {
 
 const activeStatuses = new Set(['starting', 'waiting_host_trust', 'running', 'stopping'])
 
-export function ForwardingPage({
+export function ForwardManagementWorkspace({
   data,
   actionBusy,
   temporaryIntent,
@@ -79,7 +80,7 @@ export function ForwardingPage({
   onStartForward,
   onRestartForward,
   onStopForward,
-}: ForwardingPageProps) {
+}: ForwardManagementWorkspaceProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const [editorOpen, setEditorOpen] = useState(false)
@@ -209,7 +210,7 @@ export function ForwardingPage({
   const hostById = (hostId?: string) => hostId ? hostLookup.get(hostId) : undefined
 
   return (
-    <section className="forwarding-page">
+    <section className={`forwarding-page ${styles.root}`}>
       <div className="forwarding-commandbar">
         <div className="forwarding-command-primary">
           <div className="forwarding-overview-strip" aria-label={t('forwards.overview')}>
@@ -441,7 +442,7 @@ function ForwardProfileRow({
   onDelete,
 }: {
   profile: ForwardProfile
-  host?: AppData['hosts'][number]
+  host?: Host
   running?: ForwardInstance
   actionBusy: boolean
   onStart: () => void
@@ -625,7 +626,7 @@ function matchesMode(mode: ForwardMode, filter: ForwardModeFilter) {
 
 function matchesForwardProfile(
   profile: ForwardProfile,
-  host: AppData['hosts'][number] | undefined,
+  host: Host | undefined,
   search: string,
 ) {
   if (!search) {
@@ -646,7 +647,7 @@ function matchesForwardProfile(
 
 function matchesForwardInstance(
   forward: ForwardInstance,
-  host: AppData['hosts'][number] | undefined,
+  host: Host | undefined,
   search: string,
 ) {
   if (!search) {

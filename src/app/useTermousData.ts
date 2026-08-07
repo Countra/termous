@@ -6,11 +6,6 @@ import type {
   CompletionSettings,
   ConnectionProxyInput,
   CredentialInput,
-  ForwardEvent,
-  ForwardInstance,
-  ForwardProfile,
-  ForwardProfileInput,
-  ForwardStartRequest,
   GroupReorderItem,
   HostGroup,
   HostReachability,
@@ -25,6 +20,13 @@ import type {
   TerminalSettings,
   WindowSettings,
 } from '../types/domain'
+import type {
+  ForwardEvent,
+  ForwardInstance,
+  ForwardProfile,
+  ForwardProfileInput,
+  ForwardStartRequest,
+} from '#entities/forward'
 import type {
   FileBookmark,
   FileBookmarkGroup,
@@ -83,7 +85,7 @@ import {
   restartForwardInstance,
   selectForwardStartSnapshot,
   shouldApplyForwardPollResponse,
-} from '../features/forwards/forwardRestart'
+} from '#features/forwards'
 import { canApplyReloadedValue, SerialMutationQueue } from '#shared/async'
 
 const initialSettings: Settings = {

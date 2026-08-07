@@ -19,3 +19,5 @@ export {
 export { SessionNewTabButton } from './SessionNewTabButton'
 export { SessionTabButton } from './SessionTabButton'
 export { SessionTabStrip } from './SessionTabStrip'
+export { StatusBadge, type StatusBadgeStatus } from './StatusBadge'
+export { WorkspaceEmptyState } from './WorkspaceEmptyState'

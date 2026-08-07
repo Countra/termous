@@ -1,7 +1,7 @@
 import { Network, RadioTower, Route, type LucideIcon } from 'lucide-react'
 import { Segmented } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { ForwardMode } from '../../types/domain'
+import type { ForwardMode } from '#entities/forward'
 
 interface ForwardModeSelectorProps {
   value?: ForwardMode

@@ -88,18 +88,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/forwards/ForwardingPage.tsx",
-      "specifier": "./features/forwards/ForwardingPage"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
-      "target": "src/features/forwards/forwardRestart.ts",
-      "specifier": "./features/forwards/forwardRestart"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/App.tsx",
       "target": "src/entities/file/index.ts",
       "specifier": "#entities/file"
     },
@@ -214,84 +202,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/components/layout/WindowControls.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/components/ui/StatusBadge.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardEditorFields.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardingPage.tsx",
-      "target": "src/components/ui/StatusBadge.tsx",
-      "specifier": "../../components/ui/StatusBadge"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardingPage.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardModeSelector.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/forwardRestart.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardRouteDiagram.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardRuntimeActions.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardRuntimeMetrics.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardSessionPanel.tsx",
-      "target": "src/components/ui/StatusBadge.tsx",
-      "specifier": "../../components/ui/StatusBadge"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardSessionPanel.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/ForwardStateFeedback.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/forwards/useForwardThroughput.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -718,12 +628,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/components/ui/StatusBadge.tsx",
-      "specifier": "../../components/ui/StatusBadge"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -785,10 +689,6 @@
     },
     {
       "rule": "legacy-file",
-      "source": "src/components/ui/StatusBadge.tsx"
-    },
-    {
-      "rule": "legacy-file",
       "source": "src/main.tsx"
     },
     {
@@ -804,18 +704,6 @@
       "source": "src/api/client.ts",
       "target": "src/features/terminal/completionModel.ts",
       "specifier": "../features/terminal/completionModel"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/forwards/ForwardingPage.tsx",
-      "specifier": "./features/forwards/ForwardingPage"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/forwards/forwardRestart.ts",
-      "specifier": "./features/forwards/forwardRestart"
     },
     {
       "rule": "public-entry",
@@ -843,18 +731,6 @@
     },
     {
       "rule": "public-entry",
-      "source": "src/app/useTermousData.ts",
-      "target": "src/features/forwards/forwardRestart.ts",
-      "specifier": "../features/forwards/forwardRestart"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/forwards/ForwardSessionPanel.tsx",
-      "target": "src/features/workbench/WorkbenchEmptyState.tsx",
-      "specifier": "../workbench/WorkbenchEmptyState"
-    },
-    {
-      "rule": "public-entry",
       "source": "src/features/workbench/sessionFilesState.ts",
       "target": "src/features/terminal/terminalTransport.ts",
       "specifier": "../terminal/terminalTransport.ts"
@@ -864,12 +740,6 @@
       "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
       "target": "src/features/terminal/terminalCwdContext.ts",
       "specifier": "../terminal/terminalCwdContext"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/forwards/ForwardSessionPanel.tsx",
-      "specifier": "../forwards/ForwardSessionPanel"
     },
     {
       "rule": "public-entry",
@@ -897,12 +767,6 @@
     },
     {
       "rule": "same-layer-deep-import",
-      "source": "src/features/forwards/ForwardSessionPanel.tsx",
-      "target": "src/features/workbench/WorkbenchEmptyState.tsx",
-      "specifier": "../workbench/WorkbenchEmptyState"
-    },
-    {
-      "rule": "same-layer-deep-import",
       "source": "src/features/workbench/sessionFilesState.ts",
       "target": "src/features/terminal/terminalTransport.ts",
       "specifier": "../terminal/terminalTransport.ts"
@@ -912,12 +776,6 @@
       "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
       "target": "src/features/terminal/terminalCwdContext.ts",
       "specifier": "../terminal/terminalCwdContext"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/forwards/ForwardSessionPanel.tsx",
-      "specifier": "../forwards/ForwardSessionPanel"
     },
     {
       "rule": "same-layer-deep-import",
@@ -942,6 +800,30 @@
       "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/features/terminal/TerminalSplitWorkspace.tsx",
       "specifier": "../terminal/TerminalSplitWorkspace"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/api/client.ts",
+      "target": "src/entities/forward/index.ts",
+      "specifier": "#entities/forward"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/App.tsx",
+      "target": "src/features/forwards/index.ts",
+      "specifier": "#features/forwards"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/App.tsx",
+      "target": "src/pages/forwards/index.ts",
+      "specifier": "#pages/forwards"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/types/domain.ts",
+      "target": "src/entities/forward/index.ts",
+      "specifier": "#entities/forward"
     }
   ]
 }

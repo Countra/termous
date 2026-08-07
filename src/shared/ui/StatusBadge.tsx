@@ -1,8 +1,16 @@
 import { AlertCircle, CheckCircle2, CircleDashed, CircleOff } from 'lucide-react'
-import type { SessionStatus } from '../../types/domain'
+
+export type StatusBadgeStatus =
+  | 'connected'
+  | 'connecting'
+  | 'disconnected'
+  | 'failed'
+  | 'available'
+  | 'offline'
+  | 'persisted'
 
 interface StatusBadgeProps {
-  status: SessionStatus | 'available' | 'offline' | 'persisted'
+  status: StatusBadgeStatus
   label: string
 }
 
@@ -25,4 +33,3 @@ export function StatusBadge({ status, label }: StatusBadgeProps) {
     </span>
   )
 }
-

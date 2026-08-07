@@ -2,11 +2,11 @@ import { RefreshCw, Square } from 'lucide-react'
 import { Button, Tooltip } from 'antd'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { ForwardInstance } from '../../types/domain'
+import type { ForwardInstance } from '#entities/forward'
 import {
   forwardRuntimeActionAvailability,
   type ForwardRuntimeAction,
-} from './forwardRestart'
+} from '../model/forwardRestart'
 
 interface ForwardRuntimeActionsProps {
   forward: ForwardInstance

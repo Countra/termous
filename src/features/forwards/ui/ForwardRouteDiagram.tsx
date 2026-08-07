@@ -1,8 +1,7 @@
 import { ArrowLeftRight, Cable, Monitor, Network, RadioTower, Route, Server, type LucideIcon } from 'lucide-react'
 import { App as AntdApp, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { ForwardMode } from '../../types/domain'
-import './forwarding.css'
+import type { ForwardMode } from '#entities/forward'
 
 interface ForwardRouteDiagramProps {
   mode: ForwardMode

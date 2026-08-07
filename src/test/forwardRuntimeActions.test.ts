@@ -7,9 +7,9 @@ import { fileURLToPath } from 'node:url'
 const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 test('独立页和工作站复用同一端口转发实例操作组件', () => {
-  const page = readSource('features', 'forwards', 'ForwardingPage.tsx')
-  const sessionPanel = readSource('features', 'forwards', 'ForwardSessionPanel.tsx')
-  const actions = readSource('features', 'forwards', 'ForwardRuntimeActions.tsx')
+  const page = readSource('features', 'forwards', 'ui', 'ForwardManagementWorkspace.tsx')
+  const sessionPanel = readSource('features', 'forwards', 'ui', 'ForwardSessionPanel.tsx')
+  const actions = readSource('features', 'forwards', 'ui', 'ForwardRuntimeActions.tsx')
 
   assert.match(page, /<ForwardRuntimeActions/)
   assert.match(sessionPanel, /<ForwardRuntimeActions/)
@@ -21,7 +21,7 @@ test('独立页和工作站复用同一端口转发实例操作组件', () => {
 })
 
 test('运行实例操作组使用稳定尺寸且按钮交互不会产生位移', () => {
-  const styles = readSource('features', 'forwards', 'forwarding.css')
+  const styles = readSource('features', 'forwards', 'ui', 'ForwardManagement.module.scss')
 
   assert.match(styles, /\.forward-runtime-actions\s*\{[\s\S]*grid-template-columns:\s*28px 1px 28px/)
   assert.match(styles, /\.forward-runtime-action\.ant-btn\s*\{[\s\S]*width:\s*28px/)
