@@ -1,0 +1,193 @@
+.page-grid {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  gap: 12px;
+}
+
+.workbench-grid {
+  --workbench-details-layout-width: var(--workbench-details-width, 300px);
+
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) var(--workbench-details-layout-width);
+  gap: 12px;
+  overflow: hidden;
+  transition: grid-template-columns 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.workbench-grid.is-details-collapsed {
+  grid-template-columns: minmax(0, 1fr) 72px;
+}
+
+.terminal-workspace {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+}
+
+.terminal-card {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 42px auto minmax(0, 1fr) 36px;
+  overflow: hidden;
+  border: 1px solid var(--terminal-border);
+  border-radius: 16px;
+  background: var(--terminal-frame);
+  backdrop-filter: blur(26px) saturate(1.28);
+  box-shadow:
+    0 26px 70px rgb(0 0 0 / 32%),
+    inset 0 1px 0 rgb(255 255 255 / 7%);
+}
+
+:root[data-theme="light"] .terminal-card {
+  box-shadow:
+    0 22px 52px rgb(35 48 68 / 13%),
+    inset 0 1px 0 rgb(255 255 255 / 90%);
+}
+
+.terminal-progress-slot {
+  min-height: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--connection-bg);
+}
+
+.terminal-progress-slot:not(.is-active) {
+  height: 0;
+  border-bottom: 0;
+}
+
+.terminal-progress-slot.is-active {
+  min-height: 74px;
+}
+
+.terminal-progress-slot:empty {
+  display: block;
+}
+
+.terminal-progress-slot :global(.connection-progress) {
+  height: 100%;
+}
+
+.terminal-empty-connect:global(.workbench-empty-state) {
+  min-height: 0;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 18px;
+}
+
+.terminal-empty-connect :global(.workbench-empty-state-icon) {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 1px;
+}
+
+.terminal-empty-connect :global(.workbench-empty-state-description) {
+  max-width: 320px;
+  color: var(--text-muted);
+}
+
+.terminal-empty-connect-button:global(.connection-action-button.ant-btn) {
+  min-width: 126px;
+  height: 36px;
+  min-height: 36px;
+  margin-top: 2px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.terminal-statusbar {
+  display: grid;
+  grid-template-columns:
+    minmax(74px, 0.65fr)
+    minmax(124px, 1.45fr)
+    minmax(96px, 1fr)
+    repeat(3, minmax(72px, 0.75fr));
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  min-height: 36px;
+  max-width: 100%;
+  gap: 10px;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+  background: var(--terminal-toolbar);
+  color: var(--text-muted);
+  padding: 0 12px;
+  box-sizing: border-box;
+  font-size: 12px;
+  backdrop-filter: blur(18px);
+}
+
+.terminal-status-item {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 0 10px;
+  border-left: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
+}
+
+.terminal-status-item:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.terminal-status-item small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.terminal-status-item strong {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-status-item.is-session-position strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 780;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (width <= 1240px) {
+  .workbench-grid,
+  .workbench-grid.is-details-collapsed {
+    --workbench-details-layout-width: clamp(214px, var(--workbench-details-width, 238px), 238px);
+
+    grid-template-columns: minmax(0, 1fr) var(--workbench-details-layout-width);
+  }
+
+  .workbench-grid.is-details-collapsed {
+    grid-template-columns: minmax(0, 1fr) 64px;
+  }
+
+  .terminal-workspace {
+    min-width: 0;
+  }
+}
+
+@media (width <= 1180px) {
+  .terminal-workspace {
+    min-height: 680px;
+  }
+}
+
+@media (width <= 980px) {
+  .workbench-grid,
+  .workbench-grid.is-details-collapsed {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+}

@@ -398,18 +398,22 @@ test('异步操作只允许自身身份清理', () => {
 })
 
 test('工作台在端口转发之后、代码片段之前注册别名页签', () => {
-  const source = readFileSync(
-    fileURLToPath(new URL('../features/workbench/WorkbenchPage.tsx', import.meta.url)),
+  const detailsSource = readFileSync(
+    fileURLToPath(new URL('../widgets/workbench/ui/WorkbenchDetailsPanel.tsx', import.meta.url)),
     'utf8',
   )
-  const forwards = source.indexOf("key: 'forwards'")
-  const aliases = source.indexOf("key: 'aliases'")
-  const snippets = source.indexOf("key: 'snippets'")
+  const detailsModelSource = readFileSync(
+    fileURLToPath(new URL('../widgets/workbench/model/workbenchDetails.ts', import.meta.url)),
+    'utf8',
+  )
+  const forwards = detailsSource.indexOf("key: 'forwards'")
+  const aliases = detailsSource.indexOf("key: 'aliases'")
+  const snippets = detailsSource.indexOf("key: 'snippets'")
 
   assert.ok(forwards >= 0)
   assert.ok(aliases > forwards)
   assert.ok(snippets > aliases)
-  assert.match(source, /value === 'aliases'/)
+  assert.match(detailsModelSource, /value === 'aliases'/)
 })
 
 test('Alias API 不再发送 ETag、If-Match 或 apply 请求', () => {

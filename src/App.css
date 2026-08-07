@@ -304,30 +304,12 @@
   }
 }
 
-.page-grid {
-  display: grid;
-  gap: 14px;
-  height: 100%;
-  min-height: 0;
-}
-
-.workbench-grid {
-  grid-template-columns: minmax(620px, 1fr) minmax(250px, 310px);
-  gap: 12px;
-  transition: grid-template-columns 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.workbench-grid.is-details-collapsed {
-  grid-template-columns: minmax(680px, 1fr) 82px;
-}
-
 .management-grid {
   grid-template-columns: minmax(380px, 0.92fr) minmax(420px, 1.08fr);
 }
 
 .context-panel,
 .details-panel,
-.terminal-card,
 .list-panel,
 .editor-panel {
   border: 1px solid var(--border);
@@ -374,14 +356,6 @@
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.terminal-workspace {
-  display: grid;
-  min-width: 0;
-  min-height: 0;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  gap: 9px;
 }
 
 .page-title-row,
@@ -539,21 +513,7 @@
   font-size: 15px;
 }
 
-.terminal-card {
-  display: grid;
-  min-height: 0;
-  grid-template-rows: 42px auto minmax(0, 1fr) 30px;
-  overflow: hidden;
-  border-color: color-mix(in srgb, var(--border-strong) 82%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 92%, transparent), var(--surface));
-  box-shadow:
-    0 24px 78px rgba(0, 0, 0, 0.34),
-    var(--inner-highlight);
-}
-
-.terminal-toolbar,
-.terminal-statusbar {
+.terminal-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -561,14 +521,6 @@
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
   padding: 0 12px;
-}
-
-.terminal-statusbar {
-  border-top: 1px solid var(--border);
-  border-bottom: 0;
-  color: var(--text-muted);
-  font-size: 12px;
-  backdrop-filter: blur(18px);
 }
 
 .terminal-tabs {
@@ -812,30 +764,6 @@
   white-space: nowrap;
 }
 
-.detail-list {
-  display: grid;
-  gap: 9px;
-  margin: 16px 0;
-}
-
-.detail-list div {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
-}
-
-.detail-list dt {
-  color: var(--text-muted);
-}
-
-.detail-list dd {
-  margin: 0;
-  color: var(--text-primary);
-  text-align: right;
-}
-
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -1031,7 +959,6 @@
 }
 
 @media (max-width: 1180px) {
-  .workbench-grid,
   .management-grid {
     grid-template-columns: 1fr;
     overflow: auto;
@@ -1039,10 +966,6 @@
 
   body {
     overflow: auto;
-  }
-
-  .terminal-workspace {
-    min-height: 680px;
   }
 }
 

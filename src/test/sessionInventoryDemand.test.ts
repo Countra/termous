@@ -10,7 +10,7 @@ import {
   getAutomaticSessionInventoryDemand,
   getSessionInventoryVisibleScope,
   isSessionInventoryRequestCurrent,
-} from '../features/workbench/sessionInventoryDemand.ts'
+} from '../widgets/workbench/model/sessionInventoryDemand.ts'
 
 function session(overrides: Partial<Session> = {}): Session {
   return {

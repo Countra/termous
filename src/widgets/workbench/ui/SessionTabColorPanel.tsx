@@ -2,7 +2,8 @@ import { Button, ColorPicker } from 'antd'
 import { RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
-import { normalizeSessionTabColor, sessionTabColorPresets } from './sessionTabPreferences'
+import { normalizeSessionTabColor, sessionTabColorPresets } from '../model/sessionTabPreferences'
+import styles from './WorkbenchSessionTabs.module.scss'
 
 interface SessionTabColorSelectOptions {
   keepOpen?: boolean
@@ -24,20 +25,23 @@ export function SessionTabColorPanel({ color, onSelect, onReset }: SessionTabCol
   }, [activeColor])
 
   return (
-    <div className="session-tab-color-panel">
-      <div className="session-tab-color-grid">
+    <div className={styles['session-tab-color-panel']}>
+      <div className={styles['session-tab-color-grid']}>
         {sessionTabColorPresets.map((preset) => (
           <button
             key={preset}
             type="button"
-            className={`session-tab-color-swatch ${preset === color ? 'is-active' : ''}`}
+            className={[
+              styles['session-tab-color-swatch'],
+              preset === color ? styles['is-active'] : '',
+            ].filter(Boolean).join(' ')}
             style={{ '--session-tab-swatch': preset } as CSSProperties}
             aria-label={t('terminal.tabMenu.colorValue', { color: preset })}
             onClick={() => onSelect(preset)}
           />
         ))}
       </div>
-      <div className="session-tab-color-actions">
+      <div className={styles['session-tab-color-actions']}>
         <Button className="secondary-button" size="small" icon={<RotateCcw size={13} />} onClick={onReset}>
           {t('terminal.tabMenu.resetColor')}
         </Button>

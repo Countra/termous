@@ -26,7 +26,7 @@ import {
   hostLauncherIntentForPage,
   type HostLauncherIntent,
 } from '#features/hosts'
-import { WorkbenchPage } from './features/workbench/WorkbenchPage'
+import { WorkbenchPage } from '#widgets/workbench'
 import { TransferRuntimeProvider } from '#app/transfer-runtime'
 import { useTermousData } from './app/useTermousData'
 import { TerminalRuntimeProvider } from '#features/terminal'

@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ComponentProps, ReactNode } from 'react'
+import { useEffect, type ComponentProps, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CodeSnippet } from '#entities/snippet'
 import type { AppData, Session } from '../types/domain'
@@ -13,6 +13,8 @@ const workbenchMocks = vi.hoisted(() => ({
     warning: vi.fn(),
   },
   sendTextToSession: vi.fn(),
+  terminalSplitMounts: 0,
+  terminalSplitUnmounts: 0,
 }))
 
 vi.mock('react-i18next', () => ({
@@ -85,11 +87,25 @@ vi.mock('#shared/ui', () => ({
   SessionTabButton: () => null,
   SessionTabStrip: () => null,
   StatusBadge: () => null,
+  WorkspaceEmptyState: () => null,
 }))
 vi.mock('#features/terminal', () => ({
   ConnectionProgress: () => null,
   TerminalSearchPanel: () => null,
-  TerminalSplitWorkspace: () => null,
+  TerminalSplitWorkspace: ({ workspaceActive }: { workspaceActive: boolean }) => {
+    useEffect(() => {
+      workbenchMocks.terminalSplitMounts += 1
+      return () => {
+        workbenchMocks.terminalSplitUnmounts += 1
+      }
+    }, [])
+    return (
+      <div
+        data-testid="terminal-split-workspace"
+        data-workspace-active={String(workspaceActive)}
+      />
+    )
+  },
   createEmptyTerminalSearchResult: () => ({
     found: false,
     resultIndex: -1,
@@ -129,13 +145,12 @@ vi.mock('#features/observability', () => ({
 }))
 vi.mock('#features/alias', () => ({ AliasPanel: () => null }))
 vi.mock('#features/firewall', () => ({ FirewallPanel: () => null }))
-vi.mock('../features/workbench/SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))
+vi.mock('../widgets/workbench/ui/SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))
 vi.mock('#features/docker', () => ({ DockerPanel: () => null }))
 vi.mock('#features/service', () => ({ ServicePanel: () => null }))
-vi.mock('../features/workbench/WorkbenchEmptyState', () => ({ WorkbenchEmptyState: () => null }))
 vi.mock('#features/workbench-files', () => ({ WorkbenchFilesPanel: () => null }))
 
-import { WorkbenchPage } from '../features/workbench/WorkbenchPage'
+import { WorkbenchPage } from '#widgets/workbench'
 
 const activeSession = {
   id: 'session-a',
@@ -229,6 +244,8 @@ function latestConfirmation() {
 describe('工作台命令片段发送门禁', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    workbenchMocks.terminalSplitMounts = 0
+    workbenchMocks.terminalSplitUnmounts = 0
     workbenchMocks.sendTextToSession.mockReturnValue('sent')
   })
 
@@ -299,5 +316,37 @@ describe('工作台命令片段发送门禁', () => {
     })
     expect(view.props.onSnippetUsed).not.toHaveBeenCalled()
     expect(workbenchMocks.notification.success).not.toHaveBeenCalled()
+  })
+})
+
+describe('工作台终端常驻合同', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    workbenchMocks.terminalSplitMounts = 0
+    workbenchMocks.terminalSplitUnmounts = 0
+  })
+
+  it('切换工作台激活状态时只更新 workspaceActive，不卸载终端工作区', () => {
+    const view = renderWorkbench([])
+    const workspace = screen.getByTestId('terminal-split-workspace')
+
+    expect(workspace).toHaveAttribute('data-workspace-active', 'true')
+    expect(workbenchMocks.terminalSplitMounts).toBe(1)
+    expect(workbenchMocks.terminalSplitUnmounts).toBe(0)
+
+    view.rerender(<WorkbenchPage {...view.props} active={false} />)
+    expect(screen.getByTestId('terminal-split-workspace')).toBe(workspace)
+    expect(workspace).toHaveAttribute('data-workspace-active', 'false')
+    expect(workbenchMocks.terminalSplitMounts).toBe(1)
+    expect(workbenchMocks.terminalSplitUnmounts).toBe(0)
+
+    view.rerender(<WorkbenchPage {...view.props} active />)
+    expect(screen.getByTestId('terminal-split-workspace')).toBe(workspace)
+    expect(workspace).toHaveAttribute('data-workspace-active', 'true')
+    expect(workbenchMocks.terminalSplitMounts).toBe(1)
+    expect(workbenchMocks.terminalSplitUnmounts).toBe(0)
+
+    view.unmount()
+    expect(workbenchMocks.terminalSplitUnmounts).toBe(1)
   })
 })

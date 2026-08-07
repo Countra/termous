@@ -1,36 +1,4 @@
-import {
-  Activity,
-  Boxes,
-  Cable,
-  ChevronDown,
-  ChevronRight,
-  Code2,
-  Clock3,
-  Command,
-  CopyPlus,
-  Cpu,
-  HardDrive,
-  Layers,
-  Monitor,
-  Network as NetworkIcon,
-  FolderOpen,
-  Palette,
-  Pencil,
-  Pin,
-  PinOff,
-  Power,
-  Play,
-  RotateCcw,
-  Search,
-  Send,
-  Server,
-  Shield,
-  SquareTerminal,
-  Star,
-  TriangleAlert,
-  Wrench,
-} from 'lucide-react'
-import { App as AntdApp, Button, Dropdown, Input, Modal, Popover, Skeleton, Tooltip, type MenuProps } from 'antd'
+import { App as AntdApp, Input, Modal } from 'antd'
 import {
   useCallback,
   useEffect,
@@ -40,20 +8,10 @@ import {
   type CSSProperties,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
-  type ReactNode,
 } from 'react'
 import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import type { TermousApi } from '../../api/client'
-import { HostAvatar } from '#entities/host'
-import { SessionQuickConnect } from '#features/hosts'
-import {
-  ConnectionActionButton,
-  FeatureSidePanel,
-  SessionTabButton,
-  SessionTabStrip,
-  StatusBadge,
-} from '#shared/ui'
+import type { TermousApi } from '../../../api/client'
 import {
   usePersistentBooleanState,
   usePersistentJsonState,
@@ -61,17 +19,12 @@ import {
 } from '#shared/hooks'
 import { normalizeRemotePosixPath } from '#shared/path'
 import {
-  ConnectionProgress,
-  TerminalSearchPanel,
-  TerminalSplitWorkspace,
   createEmptyTerminalSearchResult,
   useTerminalRuntime,
-  type TerminalDragPoint,
   type TerminalSearchDirection,
-  type TerminalSearchResult,
   type TerminalSplitWorkspaceHandle,
 } from '#features/terminal'
-import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
+import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../../types/domain'
 import type {
   FileBookmark,
   FileBookmarkInput,
@@ -79,8 +32,6 @@ import type {
   FileSessionClosureState,
 } from '#entities/file'
 import {
-  SnippetFilterBar,
-  SnippetList,
   buildSnippetTags,
   filterSnippets,
   type SnippetCatalogFilter,
@@ -88,12 +39,10 @@ import {
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '#entities/snippet'
 import { ForwardSessionPanel } from '#features/forwards'
 import { AliasPanel } from '#features/alias'
-import { SessionTabColorPanel } from './SessionTabColorPanel'
 import { DockerPanel } from '#features/docker'
 import { FirewallPanel } from '#features/firewall'
 import { ProcessPanel, SystemMonitorPanel } from '#features/observability'
 import { ServicePanel } from '#features/service'
-import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import {
   WorkbenchFilesPanel,
   type WorkbenchFilesPathNavigationIntent,
@@ -104,7 +53,7 @@ import {
   getSessionInventoryVisibleScope,
   isSessionInventoryRequestCurrent,
   type SessionInventoryRequestIdentity,
-} from './sessionInventoryDemand'
+} from '../model/sessionInventoryDemand'
 import {
   areSessionTabPreferenceMapsEqual,
   compactSessionTabPreference,
@@ -114,21 +63,28 @@ import {
   sortSessionsForTabs,
   type SessionTabPreference,
   type SessionTabPreferenceMap,
-} from './sessionTabPreferences'
+} from '../model/sessionTabPreferences'
 import snippetStyles from './SnippetWorkbench.module.scss'
-
-type DetailsTabKey =
-  | 'overview'
-  | 'files'
-  | 'system'
-  | 'monitor'
-  | 'processes'
-  | 'services'
-  | 'docker'
-  | 'firewall'
-  | 'forwards'
-  | 'aliases'
-  | 'snippets'
+import pageStyles from './WorkbenchPage.module.scss'
+import { parseDetailsTabKey, type DetailsTabKey } from '../model/workbenchDetails'
+import { formatWorkbenchTime } from '../model/workbenchFormatters'
+import type {
+  WorkbenchTerminalSearchState,
+  WorkbenchTerminalTabDragState,
+} from '../model/workbenchTerminalTypes'
+import { WorkbenchConnectionOverview } from './WorkbenchConnectionOverview'
+import { WorkbenchDetailsPanel } from './WorkbenchDetailsPanel'
+import {
+  WorkbenchSessionTabs,
+  type SessionTabMenuAction,
+} from './WorkbenchSessionTabs'
+import {
+  SnippetRiskDialog,
+  SnippetVariablePrompt,
+  WorkbenchSnippetPanel,
+} from './WorkbenchSnippetPanel'
+import { WorkbenchSystemInfoPanel } from './WorkbenchSystemInfoPanel'
+import { WorkbenchTerminalPanel } from './WorkbenchTerminalPanel'
 
 const workbenchDetailsPanelWidth = {
   default: 300,
@@ -136,14 +92,7 @@ const workbenchDetailsPanelWidth = {
   max: 420,
 }
 
-interface TerminalSearchState {
-  open: boolean
-  sessionId: string | null
-  query: string
-  caseSensitive: boolean
-  regex: boolean
-  result: TerminalSearchResult
-}
+type TerminalSearchState = WorkbenchTerminalSearchState
 
 interface PendingTerminalSearchRequest {
   sessionId: string
@@ -151,12 +100,7 @@ interface PendingTerminalSearchRequest {
   initialQuery: string
 }
 
-interface TerminalTabDragState {
-  sessionId: string
-  start: TerminalDragPoint
-  point: TerminalDragPoint
-  dragging: boolean
-}
+type TerminalTabDragState = WorkbenchTerminalTabDragState
 
 interface SessionInventoryRequest extends SessionInventoryRequestIdentity {
   controller: AbortController
@@ -350,17 +294,6 @@ export function WorkbenchPage({
     setTerminalSize({ cols, rows })
   }, [])
   const sessionHost = activeSession?.host_id ? data.hosts.find((host) => host.id === activeSession.host_id) : undefined
-  const detailHost = activeSession?.kind === 'ssh' ? sessionHost : undefined
-  const detailCredential = data.credentials.find((item) => item.id === detailHost?.credential_id)
-  const detailGroup = data.groups.find((group) => group.id === detailHost?.group_id)
-  const detailJumpHost = data.hosts.find((host) => host.id === detailHost?.jump_host_id)
-  const detailProxy = data.proxies.find((proxy) => (
-    proxy.id === activeSession?.proxy_id
-  ))
-  const detailTags = detailHost?.tags ?? []
-  const detailCredentialLabel = detailCredential
-    ? `${detailCredential.name} (${t(`vault.typeName.${detailCredential.type}`)})`
-    : t('fields.none')
   const visibleSessions = useMemo(
     () => sortSessionsForTabs(data.sessions, sessionTabPreferences),
     [data.sessions, sessionTabPreferences],
@@ -389,13 +322,10 @@ export function WorkbenchPage({
       : sessionHost
         ? `${sessionHost.username}@${sessionHost.address}:${sessionHost.port}`
         : t('workbench.noHost')
-  const startedAt = activeSession?.started_at ? formatTime(activeSession.started_at) : t('fields.none')
+  const startedAt = activeSession?.started_at ? formatWorkbenchTime(activeSession.started_at) : t('fields.none')
   const sessionDuration = formatSessionDuration(activeSession, durationNow, t('fields.none'))
   const terminalThemeMode = data.settings.terminal.theme_mode === 'follow_app' ? theme : data.settings.terminal.theme_mode
-  const activeSessionEnded = activeSession?.status === 'disconnected' || activeSession?.status === 'failed'
-  const canOpenFiles = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected' && activeSession.host_id)
   const canSendSnippet = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected')
-  const canReconnectSession = Boolean(activeSession?.kind === 'ssh' && activeSession.host_id && activeSessionEnded)
   const snippetTags = useMemo(() => buildSnippetTags(data.snippets), [data.snippets])
   const filteredSnippets = useMemo(
     () => filterSnippets(data.snippets, {
@@ -426,6 +356,14 @@ export function WorkbenchPage({
       { id: '__ungrouped__', name: t('snippets.ungrouped'), snippets: ungrouped },
     ].filter((group) => group.snippets.length > 0)
   }, [data.snippetGroups, filteredSnippets, t])
+  const toggleSnippetGroup = useCallback((groupId: string) => {
+    setCollapsedSnippetGroups((current) => {
+      const next = new Set(current)
+      if (next.has(groupId)) next.delete(groupId)
+      else next.add(groupId)
+      return next
+    })
+  }, [])
   const requestSessionInventory = useCallback(async (sessionId: string, force: boolean) => {
     inventoryRequestRef.current?.controller.abort()
     const request: SessionInventoryRequest = {
@@ -659,52 +597,6 @@ export function WorkbenchPage({
     },
     [actionBusy, onConnect],
   )
-  const buildSessionTabMenuItems = useCallback(
-    (session: Session): MenuProps['items'] => {
-      const preference = sessionTabPreferences[session.id]
-      const pinned = Boolean(preference?.pinned)
-      const canDuplicateSession = session.kind === 'ssh' && Boolean(session.host_id)
-      return [
-        {
-          key: 'search',
-          label: <TerminalTabMenuItem icon={<Search size={15} />} title={t('terminal.search')} />,
-        },
-        {
-          key: 'duplicate',
-          disabled: !canDuplicateSession || actionBusy,
-          label: <TerminalTabMenuItem icon={<CopyPlus size={15} />} title={t('terminal.tabMenu.duplicate')} />,
-        },
-        {
-          key: 'split',
-          label: <TerminalTabMenuItem icon={<Layers size={15} />} title={t('terminal.tabMenu.split')} />,
-        },
-        {
-          key: 'rename',
-          label: <TerminalTabMenuItem icon={<Pencil size={15} />} title={t('terminal.tabMenu.rename')} />,
-        },
-        {
-          key: 'pin',
-          label: (
-            <TerminalTabMenuItem
-              icon={pinned ? <PinOff size={15} /> : <Pin size={15} />}
-              title={pinned ? t('terminal.tabMenu.unpin') : t('terminal.tabMenu.pin')}
-            />
-          ),
-        },
-        {
-          key: 'color',
-          label: <TerminalTabMenuItem icon={<Palette size={15} />} title={t('terminal.tabMenu.color')} />,
-        },
-        {
-          key: 'reset',
-          disabled: !preference,
-          label: <TerminalTabMenuItem icon={<RotateCcw size={15} />} title={t('terminal.tabMenu.reset')} />,
-        },
-      ]
-    },
-    [actionBusy, sessionTabPreferences, t],
-  )
-
   useEffect(() => {
     const sessionIds = data.sessions.map((session) => session.id)
     setSessionTabPreferences((current) => {
@@ -780,6 +672,33 @@ export function WorkbenchPage({
       openTerminalSearch(sessionId, initialQuery)
     },
     [activeSession?.id, onSelectSession, openTerminalSearch],
+  )
+  const handleSessionTabMenuAction = useCallback(
+    (action: SessionTabMenuAction, session: Session) => {
+      if (action === 'search') {
+        requestSessionSearch(session.id)
+      } else if (action === 'duplicate') {
+        void duplicateSessionFromMenu(session)
+      } else if (action === 'split') {
+        splitSessionFromMenu(session.id)
+      } else if (action === 'rename') {
+        openRenameSession(session)
+      } else if (action === 'pin') {
+        toggleSessionPinned(session.id)
+      } else if (action === 'color') {
+        setColorSessionId(session.id)
+      } else if (action === 'reset') {
+        resetSessionTabPreference(session.id)
+      }
+    },
+    [
+      duplicateSessionFromMenu,
+      openRenameSession,
+      requestSessionSearch,
+      resetSessionTabPreference,
+      splitSessionFromMenu,
+      toggleSessionPinned,
+    ],
   )
 
   const openPathInWorkbenchFiles = useCallback((session: Session, path: string) => {
@@ -1284,338 +1203,105 @@ export function WorkbenchPage({
     <>
       <section
         ref={workbenchGridRef}
-        className={`page-grid workbench-grid ${detailsCollapsed ? 'is-details-collapsed' : ''}`}
+        className={[
+          pageStyles['page-grid'],
+          pageStyles['workbench-grid'],
+          detailsCollapsed ? pageStyles['is-details-collapsed'] : '',
+        ].filter(Boolean).join(' ')}
         style={workbenchGridStyle}
       >
-        <div className="terminal-workspace">
-          <div className="terminal-card">
-            <div className="terminal-toolbar">
-              <SessionTabStrip
-                ariaLabel={t('workbench.terminal')}
-                activeId={activeSession?.id}
-                contentKey={visibleSessions.map((session) => session.id).join('|')}
-                scrollLeftLabel={t('workbench.scrollTabsLeft')}
-                scrollRightLabel={t('workbench.scrollTabsRight')}
-                tabsClassName="terminal-tabs"
-                trailing={(
-                  <SessionQuickConnect
-                    hosts={data.hosts}
-                    actionBusy={actionBusy}
-                    triggerLabel={t('workbench.quickConnect.trigger')}
-                    open={quickConnectOpen}
-                    query={quickConnectQuery}
-                    onOpenChange={setQuickConnectOpen}
-                    onQueryChange={setQuickConnectQuery}
-                    onConnect={connectQuickHost}
-                    getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
-                  />
-                )}
-              >
-                {visibleSessions.length === 0 ? (
-                  <SessionTabButton empty icon={<SquareTerminal size={18} />} label={t('workbench.noSession')} />
-                ) : (
-                  visibleSessions.map((session) => {
-                    const preference = sessionTabPreferences[session.id]
-                    const title = resolveSessionTitle(session)
-                    const sessionClosing = closingSessionIds.has(session.id)
-                    return (
-                      <Dropdown
-                        key={session.id}
-                        disabled={sessionClosing}
-                        trigger={['contextMenu']}
-                        classNames={{ root: 'terminal-tab-dropdown' }}
-                        menu={{
-                          items: buildSessionTabMenuItems(session),
-                          onClick: ({ key, domEvent }) => {
-                            domEvent.stopPropagation()
-                            if (key === 'search') {
-                              requestSessionSearch(session.id)
-                            } else if (key === 'duplicate') {
-                              void duplicateSessionFromMenu(session)
-                            } else if (key === 'split') {
-                              splitSessionFromMenu(session.id)
-                            } else if (key === 'rename') {
-                              openRenameSession(session)
-                            } else if (key === 'pin') {
-                              toggleSessionPinned(session.id)
-                            } else if (key === 'color') {
-                              setColorSessionId(session.id)
-                            } else if (key === 'reset') {
-                              resetSessionTabPreference(session.id)
-                            }
-                          },
-                        }}
-                      >
-                        <span className="session-tab-trigger">
-                          <Popover
-                            open={colorSessionId === session.id}
-                            placement="bottomLeft"
-                            arrow={false}
-                            trigger="click"
-                            classNames={{ root: 'session-tab-color-popover' }}
-                            onOpenChange={(open) => {
-                              if (!open && colorSessionId === session.id) {
-                                setColorSessionId(null)
-                              }
-                            }}
-                            content={(
-                              <SessionTabColorPanel
-                                color={preference?.color}
-                                onSelect={(color, options) => setSessionTabColor(session.id, color, options)}
-                                onReset={() => resetSessionTabColor(session.id)}
-                              />
-                            )}
-                          >
-                            <SessionTabButton
-                              active={session.id === activeSession?.id}
-                              role="tab"
-                              aria-selected={session.id === activeSession?.id}
-                              data-session-tab-id={session.id}
-                              className={
-                                terminalTabDrag?.dragging && terminalTabDrag.sessionId === session.id ? 'is-dragging' : undefined
-                              }
-                              onClick={(event) => {
-                                if (sessionClosing || suppressNextTabClickRef.current) {
-                                  event.preventDefault()
-                                  event.stopPropagation()
-                                  return
-                                }
-                                onSelectSession(session.id)
-                              }}
-                              onMouseDown={(event) => {
-                                if (event.button === 1) {
-                                  event.preventDefault()
-                                }
-                              }}
-                              onPointerDown={(event) => {
-                                if (!sessionClosing) {
-                                  beginTerminalTabDrag(event, session.id)
-                                }
-                              }}
-                              onAuxClick={(event) => closeSessionFromTab(event, session.id)}
-                              icon={<SquareTerminal size={18} />}
-                              label={title}
-                              status={session.status}
-                              statusLabel={t(`status.${session.status}`)}
-                              closing={sessionClosing}
-                              closingLabel={t('workbench.closingSession')}
-                              pinned={preference?.pinned}
-                              pinLabel={t('terminal.tabMenu.pinned')}
-                              accentColor={preference?.color}
-                              closeLabel={`${t('app.close')} ${title}`}
-                              closeDisabled={actionBusy && !sessionClosing}
-                              onClose={() => void closeSessionTab(session.id)}
-                            />
-                          </Popover>
-                        </span>
-                      </Dropdown>
-                    )
-                  })
-                )}
-              </SessionTabStrip>
-              <StatusBadge status={sessionBadgeStatus} label={sessionStatusLabel} />
-            </div>
-          <div className={`terminal-progress-slot ${hasConnectionProgress ? 'is-active' : ''}`}>
-            <ConnectionProgress session={activeSession} showReady={showRecentConnectionProgress} />
-          </div>
-          <TerminalSplitWorkspace
-            ref={terminalSplitRef}
-            sessions={visibleSessions}
-            activeSession={activeSession}
-            workspaceActive={active}
-            themeMode={terminalThemeMode}
-            placeholder={selectedHost ? t('workbench.terminalReady') : t('workbench.terminalHint')}
-            emptyState={visibleSessions.length === 0 ? (
-              <WorkbenchEmptyState
-                className="terminal-empty-connect"
-                icon={<SquareTerminal size={20} aria-hidden="true" />}
-                title={t('workbench.emptyTerminalTitle')}
-                description={t('workbench.emptyTerminalHint')}
-                action={(
-                  <ConnectionActionButton
-                    className="terminal-empty-connect-button"
-                    icon={<Cable size={16} aria-hidden="true" />}
-                    disabled={actionBusy}
-                    onClick={onOpenConnectionLauncher}
-                  >
-                    {t('workbench.connectHost')}
-                  </ConnectionActionButton>
-                )}
-              />
-            ) : undefined}
-            actionBusy={actionBusy}
-            dragSessionId={terminalTabDrag?.dragging ? terminalTabDrag.sessionId : null}
-            dragPoint={terminalTabDrag?.dragging ? terminalTabDrag.point : null}
-            searchPanel={
-              terminalSearch.open && terminalSearch.sessionId === activeSession?.id ? (
-                <TerminalSearchPanel
-                  value={terminalSearch.query}
-                  caseSensitive={terminalSearch.caseSensitive}
-                  regex={terminalSearch.regex}
-                  result={terminalSearch.result}
-                  onChange={updateSearchQuery}
-                  onPrevious={() => runSearch('previous')}
-                  onNext={() => runSearch('next')}
-                  onToggleCase={toggleSearchCase}
-                  onToggleRegex={toggleSearchRegex}
-                  onClose={closeTerminalSearch}
-                />
-              ) : null
-            }
-            onSelectSession={onSelectSession}
-            onResize={handleTerminalResize}
-            onReconnectSession={(session) => void reconnectSession(session)}
-            onSearchSession={requestSessionSearch}
-            onOpenFilesAtPath={openPathInWorkbenchFiles}
-            onCloseSession={(session) => void closeSessionTab(session.id)}
-          />
-          <div className="terminal-statusbar">
-            <StatusItem className="is-session-position" label={t('workbench.sessionCount')} value={sessionPositionLabel} />
-            <StatusItem label={t('workbench.target')} value={targetLabel} />
-            <StatusItem label={t('workbench.sessionState')} value={sessionStateLabel} />
-            <StatusItem label={t('workbench.startedAt')} value={startedAt} />
-            <StatusItem label={t('workbench.duration')} value={sessionDuration} />
-            <StatusItem label={t('workbench.terminalSize')} value={`${terminalSize.cols} x ${terminalSize.rows}`} />
-          </div>
-        </div>
-      </div>
+        <WorkbenchTerminalPanel
+          sessionTabs={(
+            <WorkbenchSessionTabs
+              sessions={visibleSessions}
+              hosts={data.hosts}
+              activeSessionId={activeSession?.id}
+              actionBusy={actionBusy}
+              preferences={sessionTabPreferences}
+              closingSessionIds={closingSessionIds}
+              colorSessionId={colorSessionId}
+              draggingSessionId={terminalTabDrag?.dragging ? terminalTabDrag.sessionId : null}
+              quickConnectOpen={quickConnectOpen}
+              quickConnectQuery={quickConnectQuery}
+              suppressNextClickRef={suppressNextTabClickRef}
+              getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+              resolveTitle={resolveSessionTitle}
+              onQuickConnectOpenChange={setQuickConnectOpen}
+              onQuickConnectQueryChange={setQuickConnectQuery}
+              onQuickConnect={connectQuickHost}
+              onMenuAction={handleSessionTabMenuAction}
+              onColorPopoverOpenChange={(sessionId, open) => {
+                if (!open && colorSessionId === sessionId) {
+                  setColorSessionId(null)
+                }
+              }}
+              onColorSelect={setSessionTabColor}
+              onColorReset={resetSessionTabColor}
+              onSelectSession={onSelectSession}
+              onBeginDrag={beginTerminalTabDrag}
+              onAuxClose={closeSessionFromTab}
+              onClose={closeSessionTab}
+            />
+          )}
+          sessions={visibleSessions}
+          activeSession={activeSession}
+          workspaceActive={active}
+          themeMode={terminalThemeMode}
+          terminalSplitRef={terminalSplitRef}
+          sessionBadgeStatus={sessionBadgeStatus}
+          sessionStatusLabel={sessionStatusLabel}
+          hasConnectionProgress={hasConnectionProgress}
+          showRecentConnectionProgress={showRecentConnectionProgress}
+          selectedHostAvailable={Boolean(selectedHost)}
+          actionBusy={actionBusy}
+          dragSessionId={terminalTabDrag?.dragging ? terminalTabDrag.sessionId : null}
+          dragPoint={terminalTabDrag?.dragging ? terminalTabDrag.point : null}
+          search={terminalSearch}
+          sessionPositionLabel={sessionPositionLabel}
+          targetLabel={targetLabel}
+          sessionStateLabel={sessionStateLabel}
+          startedAt={startedAt}
+          sessionDuration={sessionDuration}
+          terminalSize={terminalSize}
+          onOpenConnectionLauncher={onOpenConnectionLauncher}
+          onSearchQueryChange={updateSearchQuery}
+          onSearchPrevious={() => runSearch('previous')}
+          onSearchNext={() => runSearch('next')}
+          onToggleSearchCase={toggleSearchCase}
+          onToggleSearchRegex={toggleSearchRegex}
+          onCloseSearch={closeTerminalSearch}
+          onSelectSession={onSelectSession}
+          onResize={handleTerminalResize}
+          onReconnectSession={reconnectSession}
+          onSearchSession={requestSessionSearch}
+          onOpenFilesAtPath={openPathInWorkbenchFiles}
+          onCloseSession={closeSessionTab}
+        />
 
-      <FeatureSidePanel<DetailsTabKey>
+      <WorkbenchDetailsPanel
         activeKey={detailsActiveTab}
-        ariaLabel={t('workbench.currentConnection')}
-        className={snippetStyles['workbench-panel-root']}
         collapsed={detailsCollapsed}
-        collapseLabel={t('app.collapse')}
-        expandLabel={t('app.expand')}
         resizing={detailsPanelResize.resizing}
         onActiveKeyChange={setDetailsActiveTab}
         onCollapsedChange={setDetailsCollapsed}
         onResizePointerDown={detailsPanelResize.beginResize}
-        tabs={[
-          {
-            key: 'overview',
-            label: t('workbench.detailsTabs.overview'),
-            icon: <Server size={17} aria-hidden="true" />,
-            children: detailHost ? (
-              <div className="connection-overview-panel">
-                <div className="connection-overview-hero">
-                  <HostAvatar
-                    host={detailHost}
-                    getIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
-                    className="connection-overview-icon"
-                    size={42}
-                    iconSize={22}
-                  />
-                  <div className="connection-overview-copy">
-                    <strong>{detailHost.name}</strong>
-                    <small>{`${detailHost.username}@${detailHost.address}:${detailHost.port}`}</small>
-                  </div>
-                  <StatusBadge status={sessionBadgeStatus} label={sessionStatusLabel} />
-                </div>
-                <dl className="detail-list">
-                  <div>
-                    <dt>{t('hosts.address')}</dt>
-                    <dd>{`${detailHost.address}:${detailHost.port}`}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('hosts.username')}</dt>
-                    <dd>{detailHost.username}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('hosts.platform.label')}</dt>
-                    <dd>{detailHost.platform === 'linux' ? t('hosts.platform.linux') : t('fields.none')}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('hosts.group')}</dt>
-                    <dd>{detailGroup?.name ?? t('hosts.ungrouped')}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('hosts.authMethod')}</dt>
-                    <dd>{t(`hosts.auth.${detailHost.auth_method}`)}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('workbench.credential')}</dt>
-                    <dd>{detailCredentialLabel}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('workbench.sessionState')}</dt>
-                    <dd>{sessionStateLabel}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('hosts.tags')}</dt>
-                    <dd className="connection-overview-tags-cell">
-                      {detailTags.length > 0 ? (
-                        <span className="connection-overview-tags">
-                          {detailTags.map((tag, index) => (
-                            <span key={`${tag}-${index}`}>{tag}</span>
-                          ))}
-                        </span>
-                      ) : t('fields.none')}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>{t('workbench.jumpHost')}</dt>
-                    <dd>{detailJumpHost?.name ?? t('fields.none')}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('hosts.proxy')}</dt>
-                    <dd>{detailProxy
-                      ? `${detailProxy.name} · ${t(`proxies.types.${detailProxy.type === 'http_connect' ? 'httpConnect' : 'socks5'}`)}`
-                      : t('hosts.noProxy')}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('hosts.note')}</dt>
-                    <dd>{detailHost.note || t('fields.none')}</dd>
-                  </div>
-                </dl>
-                <div className="current-connection-actions">
-                  <Button
-                    className="secondary-button"
-                    disabled={!canOpenFiles || actionBusy || !activeSession}
-                    onClick={() => activeSession && void onOpenFiles(activeSession)}
-                    icon={<FolderOpen size={16} />}
-                  >
-                    {t('workbench.manageFiles')}
-                  </Button>
-                  {canReconnectSession ? (
-                    <Button
-                      className="secondary-button"
-                      disabled={actionBusy}
-                      onClick={() => void reconnectActiveSession()}
-                      icon={<RotateCcw size={16} />}
-                    >
-                      {t('workbench.reconnectSession')}
-                    </Button>
-                  ) : null}
-                  <Button
-                    danger
-                    className="danger-button"
-                    disabled={!activeSession || (actionBusy && !activeSessionClosing)}
-                    loading={activeSessionClosing}
-                    onClick={() => activeSession && void closeSessionTab(activeSession.id)}
-                    icon={<Power size={16} />}
-                  >
-                    {activeSessionClosing
-                      ? t('workbench.closingSession')
-                      : activeSessionEnded
-                        ? t('workbench.closeDisconnectedSession')
-                        : t('workbench.closeSession')}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <WorkbenchEmptyState
-                icon={<Server size={20} />}
-                title={t('workbench.connectionOverview.emptyTitle')}
-                description={t('workbench.connectionOverview.emptyHint')}
+        panels={{
+          overview: (
+              <WorkbenchConnectionOverview
+                data={data}
+                session={activeSession}
+                actionBusy={actionBusy}
+                sessionClosing={activeSessionClosing}
+                sessionBadgeStatus={sessionBadgeStatus}
+                sessionStatusLabel={sessionStatusLabel}
+                sessionStateLabel={sessionStateLabel}
+                getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+                onOpenFiles={onOpenFiles}
+                onReconnect={reconnectActiveSession}
+                onClose={closeSessionTab}
               />
-            ),
-          },
-          {
-            key: 'files',
-            label: t('workbench.detailsTabs.files'),
-            icon: <FolderOpen size={17} aria-hidden="true" />,
-            children: (
+          ),
+          files: (
               <WorkbenchFilesPanel
                 api={api}
                 data={data}
@@ -1640,14 +1326,9 @@ export function WorkbenchPage({
                   ))
                 }}
               />
-            ),
-          },
-          {
-            key: 'system',
-            label: t('workbench.detailsTabs.systemInfo'),
-            icon: <Cpu size={17} aria-hidden="true" />,
-            children: (
-              <SystemInfoPanel
+          ),
+          system: (
+              <WorkbenchSystemInfoPanel
                 session={activeSession}
                 t={t}
                 requesting={currentInventoryRequestView.loading}
@@ -1660,13 +1341,8 @@ export function WorkbenchPage({
                   }
                 }}
               />
-            ),
-          },
-          {
-            key: 'monitor',
-            label: t('workbench.detailsTabs.systemMonitor'),
-            icon: <Monitor size={17} aria-hidden="true" />,
-            children: (
+          ),
+          monitor: (
               <SystemMonitorPanel
                 api={api}
                 session={activeSession}
@@ -1682,44 +1358,19 @@ export function WorkbenchPage({
                   }
                 }}
               />
-            ),
-          },
-          {
-            key: 'processes',
-            label: t('workbench.detailsTabs.processes'),
-            icon: <Activity size={17} aria-hidden="true" />,
-            children: <ProcessPanel api={api} session={activeSession} enabled={active && detailsActiveTab === 'processes' && !detailsCollapsed} />,
-          },
-          {
-            key: 'services',
-            label: t('workbench.detailsTabs.services'),
-            icon: <Wrench size={17} aria-hidden="true" />,
-            children: <ServicePanel api={api} session={activeSession} enabled={active && detailsActiveTab === 'services' && !detailsCollapsed} />,
-          },
-          {
-            key: 'docker',
-            label: t('workbench.detailsTabs.docker'),
-            icon: <Boxes size={17} aria-hidden="true" />,
-            children: <DockerPanel api={api} session={activeSession} enabled={active && detailsActiveTab === 'docker' && !detailsCollapsed} />,
-          },
-          {
-            key: 'firewall',
-            label: t('workbench.detailsTabs.firewall'),
-            icon: <Shield size={17} aria-hidden="true" />,
-            children: (
+          ),
+          processes: <ProcessPanel api={api} session={activeSession} enabled={active && detailsActiveTab === 'processes' && !detailsCollapsed} />,
+          services: <ServicePanel api={api} session={activeSession} enabled={active && detailsActiveTab === 'services' && !detailsCollapsed} />,
+          docker: <DockerPanel api={api} session={activeSession} enabled={active && detailsActiveTab === 'docker' && !detailsCollapsed} />,
+          firewall: (
               <FirewallPanel
                 api={api}
                 session={activeSession}
                 host={sessionHost}
                 enabled={active && detailsActiveTab === 'firewall' && !detailsCollapsed}
               />
-            ),
-          },
-          {
-            key: 'forwards',
-            label: t('workbench.detailsTabs.forwards'),
-            icon: <Cable size={17} aria-hidden="true" />,
-            children: (
+          ),
+          forwards: (
               <ForwardSessionPanel
                 session={activeSession}
                 host={sessionHost}
@@ -1730,13 +1381,8 @@ export function WorkbenchPage({
                 onRestartForward={onRestartForward}
                 onStopForward={onStopForward}
               />
-            ),
-          },
-          {
-            key: 'aliases',
-            label: t('workbench.detailsTabs.aliases'),
-            icon: <Command size={17} aria-hidden="true" />,
-            children: (
+          ),
+          aliases: (
               <AliasPanel
                 api={api}
                 session={activeSession}
@@ -1749,134 +1395,37 @@ export function WorkbenchPage({
                 reconnectDisabled={actionBusy}
                 onReconnectSession={reconnectSession}
               />
-            ),
-          },
-          {
-            key: 'snippets',
-            label: t('workbench.detailsTabs.snippets'),
-            icon: <Code2 size={17} aria-hidden="true" />,
-            children: (
-              <section className={`snippet-send-panel ${snippetStyles['workbench-root']}`}>
-                <div className="snippet-send-head">
-                  <div className="snippet-send-head-main">
-                    <span className="snippet-send-head-icon">
-                      <Code2 size={16} aria-hidden="true" />
-                    </span>
-                    <div>
-                      <h3>{t('snippets.sendPanelTitle')}</h3>
-                      <span>{t('snippets.sendPanelHint')}</span>
-                    </div>
-                  </div>
-                  <span className="snippet-send-head-count">{t('snippets.libraryCount', { count: filteredSnippets.length })}</span>
-                </div>
-                <div className="snippet-send-filter-shell">
-                  <SnippetFilterBar
-                    filter={snippetFilter}
-                    query={snippetQuery}
-                    selectedTags={snippetSelectedTags}
-                    groups={data.snippetGroups}
-                    selectedGroupId={snippetSelectedGroupId}
-                    availableTags={snippetTags}
-                    filteredCount={filteredSnippets.length}
-                    totalCount={data.snippets.length}
-                    density="compact"
-                    onFilterChange={setSnippetFilter}
-                    onQueryChange={setSnippetQuery}
-                    onSelectedTagsChange={setSnippetSelectedTags}
-                    onSelectedGroupChange={setSnippetSelectedGroupId}
-                    onClear={() => {
-                      setSnippetFilter('all')
-                      setSnippetQuery('')
-                      setSnippetSelectedTags([])
-                      setSnippetSelectedGroupId('')
-                    }}
-                  />
-                </div>
-                {filteredSnippets.length === 0 ? (
-                  <SnippetList
-                    snippets={[]}
-                    totalCount={data.snippets.length}
-                    density="compact"
-                    emptyDescription={t('snippets.emptyHint')}
-                    noResultsDescription={t('snippets.noFilterResults')}
-                  />
-                ) : (
-                  <div className="snippet-workbench-grouped-list">
-                    {groupedFilteredSnippets.map((group) => {
-                      const collapsed = collapsedSnippetGroups.has(group.id)
-                      return (
-                        <section key={group.id} className="snippet-workbench-group">
-                          <button
-                            type="button"
-                            className="snippet-workbench-group-head"
-                            aria-expanded={!collapsed}
-                            onClick={() => {
-                              setCollapsedSnippetGroups((current) => {
-                                const next = new Set(current)
-                                if (next.has(group.id)) next.delete(group.id)
-                                else next.add(group.id)
-                                return next
-                              })
-                            }}
-                          >
-                            {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-                            <FolderOpen size={14} />
-                            <strong>{group.name}</strong>
-                            <span>{group.snippets.length}</span>
-                          </button>
-                          {!collapsed ? (
-                            <SnippetList
-                              snippets={group.snippets}
-                              totalCount={group.snippets.length}
-                              density="compact"
-                              emptyDescription={t('snippets.emptyHint')}
-                              noResultsDescription={t('snippets.noFilterResults')}
-                              renderActions={(snippet) => (
-                                <>
-                                  <Tooltip title={snippet.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}>
-                                    <Button
-                                      type="text"
-                                      className={`snippet-workbench-action is-favorite ${snippet.favorite ? 'is-active' : ''}`}
-                                      disabled={actionBusy}
-                                      aria-label={snippet.favorite ? t('snippets.unfavorite') : t('snippets.favorite')}
-                                      aria-pressed={snippet.favorite}
-                                      icon={<Star size={14} fill={snippet.favorite ? 'currentColor' : 'none'} />}
-                                      onClick={() => void onToggleSnippetFavorite(snippet)}
-                                    />
-                                  </Tooltip>
-                                  <Tooltip title={t('snippets.action.insert')}>
-                                    <Button
-                                      type="text"
-                                      className="snippet-workbench-action"
-                                      disabled={!canSendSnippet || actionBusy}
-                                      aria-label={t('snippets.action.insert')}
-                                      icon={<Play size={14} />}
-                                      onClick={() => void sendSnippet(snippet, false)}
-                                    />
-                                  </Tooltip>
-                                  <Tooltip title={t('snippets.action.send')}>
-                                    <Button
-                                      type="text"
-                                      className="snippet-workbench-action"
-                                      disabled={!canSendSnippet || actionBusy}
-                                      aria-label={t('snippets.action.send')}
-                                      icon={<Send size={14} />}
-                                      onClick={() => void sendSnippet(snippet, true)}
-                                    />
-                                  </Tooltip>
-                                </>
-                              )}
-                            />
-                          ) : null}
-                        </section>
-                      )
-                    })}
-                  </div>
-                )}
-              </section>
-            ),
-          },
-        ]}
+          ),
+          snippets: (
+              <WorkbenchSnippetPanel
+                filter={snippetFilter}
+                query={snippetQuery}
+                selectedTags={snippetSelectedTags}
+                groups={data.snippetGroups}
+                selectedGroupId={snippetSelectedGroupId}
+                availableTags={snippetTags}
+                filteredSnippets={filteredSnippets}
+                totalCount={data.snippets.length}
+                groupedSnippets={groupedFilteredSnippets}
+                collapsedGroupIds={collapsedSnippetGroups}
+                actionBusy={actionBusy}
+                canSendSnippet={canSendSnippet}
+                onFilterChange={setSnippetFilter}
+                onQueryChange={setSnippetQuery}
+                onSelectedTagsChange={setSnippetSelectedTags}
+                onSelectedGroupChange={setSnippetSelectedGroupId}
+                onClear={() => {
+                  setSnippetFilter('all')
+                  setSnippetQuery('')
+                  setSnippetSelectedTags([])
+                  setSnippetSelectedGroupId('')
+                }}
+                onToggleGroup={toggleSnippetGroup}
+                onToggleFavorite={onToggleSnippetFavorite}
+                onSendSnippet={sendSnippet}
+              />
+          ),
+        }}
       />
       </section>
       <Modal
@@ -1907,300 +1456,6 @@ export function WorkbenchPage({
   )
 }
 
-function StatusItem({ label, value, className }: { label: string; value: string; className?: string }) {
-  return (
-    <span className={['terminal-status-item', className].filter(Boolean).join(' ')}>
-      <small>{label}</small>
-      <strong>{value}</strong>
-    </span>
-  )
-}
-
-type WorkbenchTranslate = (key: string, options?: Record<string, string | number>) => string
-
-interface SystemInfoTreeNode {
-  key: string
-  icon?: ReactNode
-  label: string
-  value: string
-  children?: SystemInfoTreeNode[]
-}
-
-function SystemInfoPanel({
-  session,
-  t,
-  requesting,
-  requestError,
-  onRetry,
-}: {
-  session: Session | null
-  t: WorkbenchTranslate
-  requesting: boolean
-  requestError: string
-  onRetry: () => void
-}) {
-  const status = session?.inventory_status ?? 'idle'
-  const info = session?.linux_system_info
-  const [expandedKeys, setExpandedKeys] = useState(() => new Set<string>())
-  if (!session || session.kind !== 'ssh' || session.status !== 'connected') {
-    return (
-      <WorkbenchEmptyState
-        icon={<Monitor size={20} />}
-        title={t('workbench.systemInfo.emptyTitle')}
-        description={t('workbench.systemInfo.emptyHint')}
-      />
-    )
-  }
-  if ((status === 'collecting' || status === 'idle') && !requestError) {
-    return (
-      <div className="system-info-loading">
-        <div>
-          <strong>{t('workbench.systemInfo.loadingTitle')}</strong>
-          <span>{t('workbench.systemInfo.loadingHint')}</span>
-        </div>
-        <Skeleton active paragraph={{ rows: 5 }} title={false} />
-      </div>
-    )
-  }
-  if (status !== 'ready' || !info) {
-    const failed = status === 'failed' || Boolean(requestError)
-    return (
-      <WorkbenchEmptyState
-        className={`system-info-message is-${status}`}
-        tone={failed ? 'danger' : 'warning'}
-        icon={<TriangleAlert size={18} />}
-        title={status === 'unsupported' ? t('workbench.systemInfo.unsupportedTitle') : t('workbench.systemInfo.failedTitle')}
-        description={requestError || session.inventory_message || t('workbench.systemInfo.failedHint')}
-        action={failed ? (
-          <Button
-            size="small"
-            className="secondary-button"
-            loading={requesting}
-            disabled={requesting}
-            icon={<RotateCcw size={14} />}
-            onClick={onRetry}
-          >
-            {requesting ? t('workbench.systemInfo.retrying') : t('workbench.systemInfo.retry')}
-          </Button>
-        ) : undefined}
-      />
-    )
-  }
-  const nodes = buildSystemInfoTree(info, t)
-  const toggleNode = (key: string) => {
-    setExpandedKeys((current) => {
-      const next = new Set(current)
-      if (next.has(key)) {
-        next.delete(key)
-      } else {
-        next.add(key)
-      }
-      return next
-    })
-  }
-  return (
-    <div className="system-info-panel">
-      <div className="system-info-summary">
-        <span className="system-info-platform">
-          <Server size={14} />
-          {t('hosts.platform.linux')}
-        </span>
-        <Tooltip title={info.os_pretty_name || info.os_name || t('workbench.systemInfo.unknownOS')}>
-          <strong>{info.os_pretty_name || info.os_name || t('workbench.systemInfo.unknownOS')}</strong>
-        </Tooltip>
-        <span>{info.collected_at ? t('workbench.systemInfo.collectedAt', { time: formatTime(info.collected_at) }) : t('fields.none')}</span>
-      </div>
-      <div className="system-info-tree" role="tree">
-        {nodes.map((node) => (
-          <SystemInfoTreeRow key={node.key} node={node} expandedKeys={expandedKeys} level={0} onToggle={toggleNode} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function SystemInfoTreeRow({
-  node,
-  expandedKeys,
-  level,
-  onToggle,
-}: {
-  node: SystemInfoTreeNode
-  expandedKeys: Set<string>
-  level: number
-  onToggle: (key: string) => void
-}) {
-  const hasChildren = Boolean(node.children?.length)
-  const expanded = hasChildren && expandedKeys.has(node.key)
-  return (
-    <div className={`system-info-tree-node level-${level}`} role="treeitem" aria-expanded={hasChildren ? expanded : undefined}>
-      <button
-        type="button"
-        className={`system-info-tree-row ${hasChildren ? 'is-expandable' : ''}`}
-        onClick={() => hasChildren && onToggle(node.key)}
-      >
-        <span className="system-info-tree-label">
-          <span className="system-info-tree-toggle" aria-hidden="true">
-            {hasChildren ? expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} /> : null}
-          </span>
-          {node.icon ? <span className="system-info-tree-icon">{node.icon}</span> : null}
-          <span>{node.label}</span>
-        </span>
-        <Tooltip title={node.value}>
-          <span className="system-info-tree-value">{node.value}</span>
-        </Tooltip>
-      </button>
-      {expanded && node.children?.length ? (
-        <div className="system-info-tree-children" role="group">
-          {node.children.map((child) => (
-            <SystemInfoTreeRow key={child.key} node={child} expandedKeys={expandedKeys} level={level + 1} onToggle={onToggle} />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function buildSystemInfoTree(info: NonNullable<Session['linux_system_info']>, t: WorkbenchTranslate): SystemInfoTreeNode[] {
-  return [
-    { key: 'hostname', icon: <Monitor size={15} />, label: t('workbench.systemInfo.hostname'), value: valueOrNone(info.hostname, t) },
-    { key: 'kernel', icon: <Layers size={15} />, label: t('workbench.systemInfo.kernel'), value: valueOrNone(info.kernel, t) },
-    {
-      key: 'cpu',
-      icon: <Cpu size={15} />,
-      label: t('workbench.systemInfo.cpu'),
-      value: valueOrNone(info.cpu_model, t),
-      children: [
-        { key: 'cpu-cores', label: t('workbench.systemInfo.cpuCores'), value: formatCPUCoreCount(info.cpu_cores, t) },
-        { key: 'cpu-frequency', label: t('workbench.systemInfo.cpuFrequency'), value: formatCPUFrequency(info.cpu_frequency_mhz, t) },
-      ],
-    },
-    { key: 'memory', icon: <HardDrive size={15} />, label: t('workbench.systemInfo.memory'), value: formatMemory(info.memory_total_bytes, t) },
-    buildSystemNetworkNode(info, t),
-    { key: 'architecture', icon: <Cable size={15} />, label: t('workbench.systemInfo.architecture'), value: valueOrNone(info.architecture, t) },
-    { key: 'uptime', icon: <Clock3 size={15} />, label: t('workbench.systemInfo.uptime'), value: formatUptime(info.uptime_seconds, t) },
-  ]
-}
-
-function buildSystemNetworkNode(info: NonNullable<Session['linux_system_info']>, t: WorkbenchTranslate): SystemInfoTreeNode {
-  const network = info.network
-  const interfaces = (Array.isArray(network?.interfaces) ? network.interfaces : []).filter(Boolean)
-  const addressCount = interfaces.reduce(
-    (total, networkInterface) => total + (Array.isArray(networkInterface?.addresses) ? networkInterface.addresses.length : 0),
-    0,
-  )
-  let value = t('workbench.systemInfo.networkUnavailable')
-  if (network?.status === 'failed') {
-    value = t('workbench.systemInfo.networkFailed')
-  } else if (network?.status === 'partial') {
-    value = t('workbench.systemInfo.networkSummaryPartial', { interfaces: interfaces.length, addresses: addressCount })
-  } else if (network?.status === 'ready') {
-    value = interfaces.length
-      ? t('workbench.systemInfo.networkSummary', { interfaces: interfaces.length, addresses: addressCount })
-      : t('workbench.systemInfo.networkNoInterfaces')
-  }
-  return {
-    key: 'network',
-    icon: <NetworkIcon size={15} />,
-    label: t('workbench.systemInfo.network'),
-    value,
-    children: interfaces.map((networkInterface, interfacePosition) => {
-      const addresses = (Array.isArray(networkInterface?.addresses) ? networkInterface.addresses : []).filter(Boolean)
-      const rawInterfaceName = networkInterface?.name?.trim() || ''
-      const interfaceName = rawInterfaceName || t('workbench.systemInfo.unnamedInterface', { index: interfacePosition + 1 })
-      const interfaceKey = `${networkInterface?.index ?? 0}-${rawInterfaceName || 'unnamed'}-${interfacePosition}`
-      return {
-        key: `network-interface-${interfaceKey}`,
-        label: interfaceName,
-        value: addresses.length
-          ? t('workbench.systemInfo.interfaceAddressCount', { count: addresses.length })
-          : t('workbench.systemInfo.noAssignedAddress'),
-        children: addresses.map((address, addressPosition) => ({
-          key: `network-address-${interfaceKey}-${address.family}-${address.address}-${address.prefix_length}-${addressPosition}`,
-          label: address.family === 'ipv6' ? t('workbench.systemInfo.ipv6') : t('workbench.systemInfo.ipv4'),
-          value: formatNetworkAddress(address.address, address.prefix_length, t),
-        })),
-      }
-    }),
-  }
-}
-
-function formatNetworkAddress(address: string, prefixLength: number, t: WorkbenchTranslate): string {
-  const normalizedAddress = address?.trim()
-  if (!normalizedAddress) {
-    return t('fields.none')
-  }
-  return Number.isInteger(prefixLength) && prefixLength >= 0 ? `${normalizedAddress}/${prefixLength}` : normalizedAddress
-}
-
-function parseDetailsTabKey(value: unknown): DetailsTabKey {
-  return value === 'files' ||
-    value === 'system' ||
-    value === 'monitor' ||
-    value === 'processes' ||
-    value === 'services' ||
-    value === 'docker' ||
-    value === 'firewall' ||
-    value === 'forwards' ||
-    value === 'aliases' ||
-    value === 'snippets' ||
-    value === 'overview'
-    ? value
-    : 'overview'
-}
-
-function valueOrNone(value: string | undefined, t: WorkbenchTranslate) {
-  return value && value.trim() ? value : t('fields.none')
-}
-
-function formatCPUCoreCount(value: number | undefined, t: WorkbenchTranslate) {
-  if (!value || value <= 0) {
-    return t('fields.none')
-  }
-  return t('workbench.systemInfo.cpuCoreCount', { count: value })
-}
-
-function formatCPUFrequency(value: number | undefined, t: WorkbenchTranslate) {
-  if (!value || value <= 0) {
-    return t('fields.none')
-  }
-  if (value >= 1000) {
-    return `${trimDecimal(value / 1000, 2)} GHz`
-  }
-  return `${trimDecimal(value, 0)} MHz`
-}
-
-function trimDecimal(value: number, digits: number) {
-  return value.toFixed(digits).replace(/\.?0+$/, '')
-}
-
-function formatMemory(value: number | undefined, t: WorkbenchTranslate) {
-  if (!value || value <= 0) {
-    return t('fields.none')
-  }
-  const gib = value / 1024 / 1024 / 1024
-  if (gib >= 1) {
-    return `${gib.toFixed(gib >= 10 ? 0 : 1)} GB`
-  }
-  return `${(value / 1024 / 1024).toFixed(0)} MB`
-}
-
-function formatUptime(value: number | undefined, t: WorkbenchTranslate) {
-  if (!value || value <= 0) {
-    return t('fields.none')
-  }
-  const days = Math.floor(value / 86400)
-  const hours = Math.floor((value % 86400) / 3600)
-  const minutes = Math.floor((value % 3600) / 60)
-  if (days > 0) {
-    return t('workbench.systemInfo.uptimeDays', { days, hours })
-  }
-  if (hours > 0) {
-    return t('workbench.systemInfo.uptimeHours', { hours, minutes })
-  }
-  return t('workbench.systemInfo.uptimeMinutes', { minutes: Math.max(minutes, 1) })
-}
-
 function sessionTitle(session: Session, hosts: Host[], t: (key: string) => string) {
   if (session.kind === 'local') {
     return `${t('workbench.localTerminal')} ${shortId(session.id)}`
@@ -2211,14 +1466,6 @@ function sessionTitle(session: Session, hosts: Host[], t: (key: string) => strin
 
 function shortId(id: string) {
   return id.length > 8 ? id.slice(0, 8) : id
-}
-
-function formatTime(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 function formatSessionDuration(session: Session | null, now: number, fallback: string) {
@@ -2270,55 +1517,4 @@ function sessionInventoryViewSignature(session: Session | null) {
     session?.inventory_message ?? '',
     session?.linux_system_info?.collected_at ?? '',
   ].join('\u0000')
-}
-
-function TerminalTabMenuItem({
-  icon,
-  title,
-}: {
-  icon: ReactNode
-  title: string
-}) {
-  return (
-    <span className="terminal-tab-menu-item">
-      <span className="terminal-tab-menu-icon">{icon}</span>
-      <span className="terminal-tab-menu-label">{title}</span>
-    </span>
-  )
-}
-
-function SnippetVariablePrompt({
-  variables,
-  onChange,
-}: {
-  variables: string[]
-  onChange: (name: string, value: string) => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <div className={`snippet-variable-prompt ${snippetStyles['snippet-dialog-content']}`}>
-      <p>{t('snippets.variablesHint')}</p>
-      {variables.map((variable) => (
-        <label className="field" key={variable}>
-          <span className="field-label">{`{{${variable}}}`}</span>
-          <Input autoFocus={variables[0] === variable} onChange={(event) => onChange(variable, event.target.value)} />
-        </label>
-      ))}
-    </div>
-  )
-}
-
-function SnippetRiskDialog({ snippet, reasons }: { snippet: CodeSnippet; reasons: string[] }) {
-  const { t } = useTranslation()
-  return (
-    <div className={`snippet-risk-dialog ${snippetStyles['snippet-dialog-content']}`}>
-      <p>{t('snippets.riskConfirmDescription')}</p>
-      <strong>{snippet.name}</strong>
-      <ul>
-        {reasons.map((reason) => (
-          <li key={reason}>{t(`snippets.riskReasons.${reason}`)}</li>
-        ))}
-      </ul>
-    </div>
-  )
 }

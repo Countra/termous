@@ -141,7 +141,7 @@ vi.mock('../components/layout/AppShell', () => ({
   ),
 }))
 
-vi.mock('../features/workbench/WorkbenchPage', () => ({
+vi.mock('#widgets/workbench', () => ({
   WorkbenchPage: ({
     active,
     onSnippetUsed,

@@ -1,4 +1,4 @@
-import type { Session } from '../../types/domain'
+import type { Session } from '../../../types/domain'
 
 export interface SessionInventoryRequestIdentity {
   sessionId: string

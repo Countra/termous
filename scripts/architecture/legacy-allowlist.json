@@ -118,8 +118,8 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/workbench/WorkbenchPage.tsx",
-      "specifier": "./features/workbench/WorkbenchPage"
+      "target": "src/widgets/workbench/index.ts",
+      "specifier": "#widgets/workbench"
     },
     {
       "rule": "legacy-boundary",
@@ -333,15 +333,15 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/sessionInventoryDemand.ts",
+      "source": "src/widgets/workbench/model/sessionInventoryDemand.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/sessionTabPreferences.ts",
+      "source": "src/widgets/workbench/model/sessionTabPreferences.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -375,15 +375,39 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
+      "source": "src/widgets/workbench/ui/WorkbenchConnectionOverview.tsx",
+      "target": "src/types/domain.ts",
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
+      "source": "src/widgets/workbench/ui/WorkbenchPage.tsx",
+      "target": "src/api/client.ts",
+      "specifier": "../../../api/client"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/widgets/workbench/ui/WorkbenchPage.tsx",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/widgets/workbench/ui/WorkbenchSessionTabs.tsx",
+      "target": "src/types/domain.ts",
+      "specifier": "../../../types/domain"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/widgets/workbench/ui/WorkbenchSystemInfoPanel.tsx",
+      "target": "src/types/domain.ts",
+      "specifier": "../../../types/domain"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/widgets/workbench/ui/WorkbenchTerminalPanel.tsx",
+      "target": "src/types/domain.ts",
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -454,12 +478,6 @@
       "source": "src/api/client.ts",
       "target": "src/features/terminal/completionModel.ts",
       "specifier": "../features/terminal/completionModel"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
-      "target": "src/features/workbench/WorkbenchPage.tsx",
-      "specifier": "./features/workbench/WorkbenchPage"
     },
     {
       "rule": "legacy-boundary",

@@ -4,7 +4,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const workbenchSource = readFileSync(
-  fileURLToPath(new URL('../features/workbench/WorkbenchPage.tsx', import.meta.url)),
+  fileURLToPath(new URL('../widgets/workbench/ui/WorkbenchPage.tsx', import.meta.url)),
   'utf8',
 )
 
