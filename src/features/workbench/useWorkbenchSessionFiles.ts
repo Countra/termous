@@ -19,7 +19,7 @@ import {
   useSessionCwdState,
   useSessionCwdTransportState,
   useTerminalCwdRuntime,
-} from '../terminal/terminalCwdContext'
+} from '#features/terminal'
 import {
   adoptSessionFilesCwdRefreshPending,
   applySessionFilesCwdRefreshDispatch,

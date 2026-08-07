@@ -7,9 +7,10 @@ import {
   encodeTerminalCwdChange,
   encodeTerminalCwdRefresh,
   encodeTerminalHeartbeatAck,
+  encodeTerminalResize,
   parseTerminalStreamOffset,
   TerminalProtocolError,
-} from '../features/terminal/terminalProtocol.ts'
+} from '../features/terminal/model/terminalProtocol.ts'
 
 const epoch = '00112233445566778899aabbccddeeff'
 
@@ -23,6 +24,22 @@ test('attach 使用服务端流游标恢复且空游标不携带伪字段', () =
     stream_epoch: epoch,
     last_offset: '42',
   })
+})
+
+test('终端尺寸只编码正安全整数', () => {
+  assert.deepEqual(JSON.parse(encodeTerminalResize(120, 36)), {
+    type: 'resize',
+    cols: 120,
+    rows: 36,
+  })
+  for (const [cols, rows] of [
+    [0, 36],
+    [-1, 36],
+    [120, 0],
+    [Number.MAX_SAFE_INTEGER + 1, 36],
+  ]) {
+    assert.throws(() => encodeTerminalResize(cols, rows), TerminalProtocolError)
+  }
 })
 
 test('CWD 请求只编码 operation id、base revision、文件会话和路径', () => {

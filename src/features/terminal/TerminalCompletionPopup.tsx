@@ -10,11 +10,11 @@ import {
 import { useTranslation } from 'react-i18next'
 import type { CompletionItem, ThemeMode } from '../../types/domain'
 import { useShortcutRuntime } from '#entities/shortcuts'
-import { isExactCompletionItem, splitCompletionLabel } from './completionModel'
+import { isExactCompletionItem, splitCompletionLabel } from './model/completionModel'
 import {
   TERMINAL_COMPLETION_POPUP_WIDTH,
   type TerminalCompletionPopupPosition,
-} from './terminalCompletionPosition'
+} from './model/terminalCompletionPosition'
 import '../../styles/terminal-completion.css'
 
 type CompletionIcon = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>

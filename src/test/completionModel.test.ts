@@ -4,7 +4,7 @@ import {
   isExactCompletionItem,
   normalizeCompletionItem,
   splitCompletionLabel,
-} from '../features/terminal/completionModel.ts'
+} from '../features/terminal/model/completionModel.ts'
 
 test('候选来源缺失时使用主来源安全补齐', () => {
   const candidate = normalizeCompletionItem({

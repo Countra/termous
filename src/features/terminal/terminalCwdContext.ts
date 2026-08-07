@@ -9,8 +9,8 @@ import type {
   SessionCwdRequestError,
   SessionCwdRequestScope,
   TerminalCwdRuntime,
-} from './terminalCwdRuntime'
-import type { TerminalTransportState } from './terminalTransport'
+} from './model/terminalCwdRuntime'
+import type { TerminalTransportState } from './model/terminalTransport'
 
 export const TerminalCwdRuntimeContext = createContext<TerminalCwdRuntime | null>(null)
 

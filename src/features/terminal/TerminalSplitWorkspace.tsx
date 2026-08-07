@@ -32,7 +32,7 @@ import {
   type TerminalSplitPreset,
   type TerminalSplitPresetId,
   type TerminalSplitPresetZone,
-} from './terminalSplitLayout'
+} from './model/terminalSplitLayout'
 
 export interface TerminalDragPoint {
   x: number

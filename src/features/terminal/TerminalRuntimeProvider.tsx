@@ -41,41 +41,46 @@ import {
   type TerminalClipboardAction,
   type TerminalCompletionCursorGeometry,
   type TerminalCompletionRetryResult,
-  type TerminalSearchDirection,
-  type TerminalSearchOptions,
-  type TerminalSearchResult,
   type TerminalSendResult,
   type TerminalViewportOptions,
 } from './terminalRuntimeContext'
 import {
   captureTerminalPointerTarget,
   classifyTerminalContextValue,
-  normalizeTerminalSearchSeed,
   type TerminalContextPointer,
   type TerminalContextSelectionRange,
   type TerminalContextSnapshot,
-} from './terminalContextTarget'
+} from './model/terminalContextTarget'
 import {
   TerminalCwdRuntime,
   type SessionCwdRequestError,
-} from './terminalCwdRuntime'
+} from './model/terminalCwdRuntime'
 import {
   TerminalCompletionRuntime,
   type TerminalCompletionExpectedSelection,
   type TerminalCompletionQueryExecutor,
-} from './terminalCompletionRuntime'
+} from './model/terminalCompletionRuntime'
 import {
   isPredictableTerminalCompletionText,
   predictTerminalCompletionCursor,
-} from './terminalCompletionPosition'
-import { transitionTerminalCompletionActivity } from './terminalCompletionViewport'
+} from './model/terminalCompletionPosition'
+import { transitionTerminalCompletionActivity } from './model/terminalCompletionViewport'
+import {
+  createEmptyTerminalSearchResult,
+  isValidTerminalSearchRegex,
+  normalizeTerminalSearchEventResult,
+  normalizeTerminalSearchSeed,
+  type TerminalSearchDirection,
+  type TerminalSearchOptions,
+  type TerminalSearchResult,
+} from './model/terminalSearch'
 import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from '#entities/settings'
-import type { TerminalPromptBoundary } from './terminalProtocol'
+import type { TerminalPromptBoundary } from './model/terminalProtocol'
 import {
   TerminalTransport,
   type TerminalTransportEvent,
   type TerminalTransportState,
-} from './terminalTransport'
+} from './model/terminalTransport'
 
 const terminalTextEncoder = new TextEncoder()
 const completionShortcutActionIds = [
@@ -896,7 +901,7 @@ export function TerminalRuntimeProvider({
     ): TerminalSearchResult => {
       const entry = getEntry(sessionId)
       if (!entry || !term) {
-        return emptySearchResult()
+        return createEmptyTerminalSearchResult()
       }
       return runEntrySearch(entry, term, options, direction, terminalSettingsRef.current, themeRef.current)
     },
@@ -910,7 +915,7 @@ export function TerminalRuntimeProvider({
     }
     entry.search.clearDecorations()
     entry.terminal.clearSelection()
-    entry.searchResult = emptySearchResult()
+    entry.searchResult = createEmptyTerminalSearchResult()
     entry.searchDecorationKey = ''
   }, [getEntry])
 
@@ -1035,7 +1040,7 @@ export function TerminalRuntimeProvider({
         terminal,
         fit,
         search,
-        searchResult: emptySearchResult(),
+        searchResult: createEmptyTerminalSearchResult(),
         searchDecorationKey: '',
         transport,
         transportState: 'idle',
@@ -1800,9 +1805,9 @@ function runEntrySearch(
   settings: TerminalSettings,
   appTheme: ThemeMode,
 ): TerminalSearchResult {
-  if (options.regex && !isValidRegexTerm(term, options.caseSensitive)) {
+  if (options.regex && !isValidTerminalSearchRegex(term, options.caseSensitive)) {
     resetEntrySearch(entry)
-    return { ...emptySearchResult(), error: 'invalid_regex' }
+    return { ...createEmptyTerminalSearchResult(), error: 'invalid_regex' }
   }
 
   const decorationKey = terminalSearchDecorationKey(settings, appTheme)
@@ -1817,7 +1822,7 @@ function runEntrySearch(
 
   let nextResult: TerminalSearchResult | null = null
   const disposable = entry.search.onDidChangeResults((event) => {
-    nextResult = normalizeSearchEventResult(event.resultIndex, event.resultCount)
+    nextResult = normalizeTerminalSearchEventResult(event.resultIndex, event.resultCount)
   })
 
   try {
@@ -1831,11 +1836,11 @@ function runEntrySearch(
         resultIndex: Math.max(entry.searchResult.resultIndex, 0),
         resultCount: Math.max(entry.searchResult.resultCount, 1),
       }
-      : emptySearchResult()
+      : createEmptyTerminalSearchResult()
     return entry.searchResult
   } catch {
     resetEntrySearch(entry)
-    return emptySearchResult()
+    return createEmptyTerminalSearchResult()
   } finally {
     disposable.dispose()
   }
@@ -1844,28 +1849,8 @@ function runEntrySearch(
 function resetEntrySearch(entry: TerminalEntry) {
   entry.search.clearDecorations()
   entry.terminal.clearSelection()
-  entry.searchResult = emptySearchResult()
+  entry.searchResult = createEmptyTerminalSearchResult()
   entry.searchDecorationKey = ''
-}
-
-function isValidRegexTerm(term: string, caseSensitive: boolean) {
-  try {
-    new RegExp(term, caseSensitive ? 'g' : 'gi')
-    return true
-  } catch {
-    return false
-  }
-}
-
-function normalizeSearchEventResult(resultIndex: number, resultCount: number): TerminalSearchResult {
-  if (resultCount <= 0) {
-    return emptySearchResult()
-  }
-  return {
-    found: resultIndex >= 0,
-    resultIndex,
-    resultCount,
-  }
 }
 
 function terminalSearchDecorationKey(settings: TerminalSettings, appTheme: ThemeMode) {
@@ -1891,14 +1876,6 @@ function terminalSearchDecorations(settings: TerminalSettings, appTheme: ThemeMo
     activeMatchBackground: '#d9a441',
     activeMatchBorder: '#f2cc72',
     activeMatchColorOverviewRuler: '#f2cc72',
-  }
-}
-
-function emptySearchResult(): TerminalSearchResult {
-  return {
-    found: false,
-    resultIndex: -1,
-    resultCount: 0,
   }
 }
 

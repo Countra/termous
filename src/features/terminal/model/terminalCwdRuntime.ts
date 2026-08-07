@@ -2,7 +2,7 @@ import type {
   SessionCwdChangeRequest,
   SessionCwdOperation,
   SessionCwdState,
-} from '../../types/domain'
+} from '../../../types/domain'
 import { normalizeRemotePosixPath } from '#shared/path'
 import type { TerminalTransportState } from './terminalTransport.ts'
 

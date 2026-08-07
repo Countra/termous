@@ -2,7 +2,7 @@ import { Button, Tooltip } from 'antd'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TerminalSearchResult } from './terminalRuntimeContext'
+import type { TerminalSearchResult } from './model/terminalSearch'
 
 interface TerminalSearchPanelProps {
   value: string

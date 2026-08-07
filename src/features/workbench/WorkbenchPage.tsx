@@ -64,7 +64,11 @@ import { ConnectionProgress } from '../terminal/ConnectionProgress'
 import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
 import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'
 import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
-import type { TerminalSearchDirection, TerminalSearchResult } from '../terminal/terminalRuntimeContext'
+import {
+  createEmptyTerminalSearchResult,
+  type TerminalSearchDirection,
+  type TerminalSearchResult,
+} from '#features/terminal'
 import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
 import type {
   FileBookmark,
@@ -283,7 +287,7 @@ export function WorkbenchPage({
     query: '',
     caseSensitive: false,
     regex: false,
-    result: emptyTerminalSearchResult(),
+    result: createEmptyTerminalSearchResult(),
   })
   const terminalSearchRef = useRef(terminalSearch)
   const commitTerminalSearch = useCallback((next: TerminalSearchState) => {
@@ -722,7 +726,7 @@ export function WorkbenchPage({
       open: false,
       sessionId: null,
       query: '',
-      result: emptyTerminalSearchResult(),
+      result: createEmptyTerminalSearchResult(),
     })
     if (sessionId) {
       window.setTimeout(() => {
@@ -748,7 +752,7 @@ export function WorkbenchPage({
           'next',
           sessionId,
         )
-      : emptyTerminalSearchResult()
+      : createEmptyTerminalSearchResult()
     commitTerminalSearch({
       ...current,
       open: true,
@@ -832,7 +836,7 @@ export function WorkbenchPage({
       }
       if (!query) {
         clearActiveSearch(current.sessionId ?? undefined)
-        commitTerminalSearch({ ...next, result: emptyTerminalSearchResult() })
+        commitTerminalSearch({ ...next, result: createEmptyTerminalSearchResult() })
         return
       }
       const result = searchActive(
@@ -2262,14 +2266,6 @@ function sessionInventoryViewSignature(session: Session | null) {
     session?.inventory_message ?? '',
     session?.linux_system_info?.collected_at ?? '',
   ].join('\u0000')
-}
-
-function emptyTerminalSearchResult(): TerminalSearchResult {
-  return {
-    found: false,
-    resultIndex: -1,
-    resultCount: 0,
-  }
 }
 
 function TerminalTabMenuItem({

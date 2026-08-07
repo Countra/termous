@@ -213,9 +213,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/completionModel.ts",
+      "source": "src/features/terminal/model/completionModel.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -231,15 +231,15 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/terminalCompletionRuntime.ts",
+      "source": "src/features/terminal/model/terminalCompletionRuntime.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/terminalCompletionViewport.ts",
+      "source": "src/features/terminal/model/terminalCompletionViewport.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -249,9 +249,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/terminalCwdRuntime.ts",
+      "source": "src/features/terminal/model/terminalCwdRuntime.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -261,9 +261,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/terminalProtocol.ts",
+      "source": "src/features/terminal/model/terminalProtocol.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -285,9 +285,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/terminalTransport.ts",
+      "source": "src/features/terminal/model/terminalTransport.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -475,30 +475,6 @@
     },
     {
       "rule": "public-entry",
-      "source": "src/app/TerminalCwdRuntimeProvider.tsx",
-      "target": "src/features/terminal/terminalCwdContext.ts",
-      "specifier": "../features/terminal/terminalCwdContext"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/app/TerminalCwdRuntimeProvider.tsx",
-      "target": "src/features/terminal/terminalCwdRuntime.ts",
-      "specifier": "../features/terminal/terminalCwdRuntime"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/sessionFilesState.ts",
-      "target": "src/features/terminal/terminalTransport.ts",
-      "specifier": "../terminal/terminalTransport.ts"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
-      "target": "src/features/terminal/terminalCwdContext.ts",
-      "specifier": "../terminal/terminalCwdContext"
-    },
-    {
-      "rule": "public-entry",
       "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/features/terminal/ConnectionProgress.tsx",
       "specifier": "../terminal/ConnectionProgress"
@@ -520,18 +496,6 @@
       "source": "src/features/workbench/WorkbenchPage.tsx",
       "target": "src/features/terminal/TerminalSplitWorkspace.tsx",
       "specifier": "../terminal/TerminalSplitWorkspace"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/sessionFilesState.ts",
-      "target": "src/features/terminal/terminalTransport.ts",
-      "specifier": "../terminal/terminalTransport.ts"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
-      "target": "src/features/terminal/terminalCwdContext.ts",
-      "specifier": "../terminal/terminalCwdContext"
     },
     {
       "rule": "same-layer-deep-import",

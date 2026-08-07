@@ -3,7 +3,7 @@ import test from 'node:test'
 import {
   shouldActivateTerminalCompletionViewport,
   transitionTerminalCompletionActivity,
-} from '../features/terminal/terminalCompletionViewport.ts'
+} from '../features/terminal/model/terminalCompletionViewport.ts'
 
 test('只有当前工作区内已连接的活动 SSH 分屏允许补全交互', () => {
   const base = {

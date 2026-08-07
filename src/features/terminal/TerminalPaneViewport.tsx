@@ -19,21 +19,21 @@ import {
   buildTerminalContextMenu,
   type TerminalContextMenuActionKey,
   type TerminalContextMenuItem,
-} from './terminalContextMenuModel'
-import { resolveTerminalContextPath } from './terminalContextPath'
+} from './model/terminalContextMenuModel'
+import { resolveTerminalContextPath } from './model/terminalContextPath'
 import { useSessionCwdState } from './terminalCwdContext'
 import {
   useSessionCompletionSnapshot,
   useTerminalRuntime,
 } from './terminalRuntimeContext'
-import type { TerminalContextSnapshot } from './terminalContextTarget'
+import type { TerminalContextSnapshot } from './model/terminalContextTarget'
 import {
   computeTerminalCompletionPosition,
   estimateTerminalCompletionPopupHeight,
   TERMINAL_COMPLETION_POPUP_WIDTH,
   type TerminalCompletionPopupPosition,
-} from './terminalCompletionPosition'
-import { shouldActivateTerminalCompletionViewport } from './terminalCompletionViewport'
+} from './model/terminalCompletionPosition'
+import { shouldActivateTerminalCompletionViewport } from './model/terminalCompletionViewport'
 import {
   useShortcutRuntime,
   type ShortcutScope,

@@ -5,7 +5,7 @@ import type {
   CompletionQuery,
   CompletionResult,
   CompletionStatus,
-} from '../../types/domain'
+} from '../../../types/domain'
 import {
   applyTerminalCompletionData,
   applyTerminalCompletionPaste,

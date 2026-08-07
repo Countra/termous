@@ -446,7 +446,7 @@ test('Alias 面板不依赖目录跟随运行态或外部冲突流程', () => {
     'utf8',
   )
   const cwdRuntime = readFileSync(
-    fileURLToPath(new URL('../features/terminal/terminalCwdRuntime.ts', import.meta.url)),
+    fileURLToPath(new URL('../features/terminal/model/terminalCwdRuntime.ts', import.meta.url)),
     'utf8',
   )
 

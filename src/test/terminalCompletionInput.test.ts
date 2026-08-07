@@ -8,7 +8,7 @@ import {
   createTerminalCompletionInputState,
   endTerminalCompletionComposition,
   resetTerminalCompletionInput,
-} from '../features/terminal/terminalCompletionInput.ts'
+} from '../features/terminal/model/terminalCompletionInput.ts'
 
 function trustedInput() {
   return resetTerminalCompletionInput(createTerminalCompletionInputState(), 'trusted')

@@ -4,7 +4,6 @@ import type { Terminal } from '@xterm/xterm'
 import {
   captureTerminalPointerTarget,
   classifyTerminalContextValue,
-  normalizeTerminalSearchSeed,
   terminalPointerCell,
 } from './terminalContextTarget.ts'
 
@@ -89,13 +88,6 @@ test('完整选区允许带空格的 POSIX 路径但鼠标分词不跨越空白'
   assert.equal(absolute?.kind === 'path' && absolute.value, '/tmp/release files/app.log')
   assert.equal(relative?.kind === 'path' && relative.value, 'build output/app.log')
   assert.equal(classifyTerminalContextValue('/tmp/release files', 'pointer'), null)
-})
-
-test('搜索种子拒绝多行、超长和纯空白选区', () => {
-  assert.equal(normalizeTerminalSearchSeed('needle'), 'needle')
-  assert.equal(normalizeTerminalSearchSeed('one\ntwo'), '')
-  assert.equal(normalizeTerminalSearchSeed(' '.repeat(3)), '')
-  assert.equal(normalizeTerminalSearchSeed('x'.repeat(2049)), '')
 })
 
 test('鼠标坐标只通过公开终端尺寸映射到可见单元格', () => {

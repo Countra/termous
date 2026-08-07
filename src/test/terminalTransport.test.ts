@@ -3,7 +3,7 @@ import test from 'node:test'
 import {
   TerminalTransport,
   type TerminalTransportEvent,
-} from '../features/terminal/terminalTransport.ts'
+} from '../features/terminal/model/terminalTransport.ts'
 
 const epoch = '000102030405060708090a0b0c0d0e0f'
 
@@ -17,9 +17,10 @@ class FakeWebSocket extends EventTarget {
   binaryType = 'blob'
   readonly sent: Array<string | ArrayBufferView> = []
   closeCalls = 0
+  failSend = false
 
   send(data: string | ArrayBufferView) {
-    if (this.readyState !== FakeWebSocket.OPEN) {
+    if (this.readyState !== FakeWebSocket.OPEN || this.failSend) {
       throw new Error('socket is not open')
     }
     this.sent.push(data)
@@ -45,6 +46,70 @@ class FakeWebSocket extends EventTarget {
     this.dispatchEvent(event)
   }
 }
+
+test('transport 只在 live 状态发送消息并刷新最后一次待发送尺寸', () => {
+  const restoreBrowser = installFakeBrowser()
+  const socket = new FakeWebSocket()
+  const transport = new TerminalTransport({
+    url: 'ws://termous.test/terminal',
+    onEvent: () => undefined,
+    createSocket: () => socket as unknown as WebSocket,
+    reconnectBaseDelayMs: 10_000,
+    reconnectMaxDelayMs: 10_000,
+    heartbeatIntervalMs: 10_000,
+    heartbeatTimeoutMs: 30_000,
+    random: () => 0.5,
+  })
+  const cwdRequest = {
+    operation_id: 'cwd-change-1',
+    base_revision: 3,
+    file_session_id: 'file-session-1',
+    path: '/srv/termous',
+  }
+
+  try {
+    assert.equal(transport.sendInput(new Uint8Array([0x61])), false)
+    assert.equal(transport.sendCwdChange(cwdRequest), false)
+    assert.equal(transport.sendCwdRefresh('refresh-before-live'), false)
+    assert.equal(transport.sendResize(80, 24), false)
+    assert.equal(transport.sendResize(120, 36), false)
+
+    transport.start()
+    socket.open()
+    socket.receive(attachedMessage('connected'))
+    assert.deepEqual(JSON.parse(String(socket.sent[1])), {
+      type: 'resize',
+      cols: 120,
+      rows: 36,
+    })
+
+    assert.equal(transport.sendInput(new Uint8Array([0x61, 0x62])), true)
+    assert.deepEqual([...(socket.sent[socket.sent.length - 1] as Uint8Array)], [0x61, 0x62])
+    assert.equal(transport.sendResize(132, 40), true)
+    assert.deepEqual(JSON.parse(String(socket.sent[socket.sent.length - 1])), {
+      type: 'resize',
+      cols: 132,
+      rows: 40,
+    })
+    assert.equal(transport.sendCwdChange(cwdRequest), true)
+    assert.deepEqual(JSON.parse(String(socket.sent[socket.sent.length - 1])), {
+      type: 'cwd_change',
+      cwd_change: cwdRequest,
+    })
+    assert.equal(transport.sendCwdRefresh('refresh-live'), true)
+    assert.deepEqual(JSON.parse(String(socket.sent[socket.sent.length - 1])), {
+      type: 'cwd_refresh',
+      request_id: 'refresh-live',
+    })
+
+    socket.failSend = true
+    assert.equal(transport.sendInput(new Uint8Array([0x63])), false)
+    assert.equal(socket.closeCalls, 1)
+  } finally {
+    transport.dispose()
+    restoreBrowser()
+  }
+})
 
 test('transport 保留流游标、去重输出、确认心跳并独立重连', () => {
   const originalWebSocket = globalThis.WebSocket

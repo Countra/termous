@@ -45,24 +45,11 @@ export interface TerminalContextSnapshot {
   disconnected: boolean
 }
 
-export const terminalContextSearchSeedLimit = 2048
-
 const terminalContextTargetLimit = 4096
 const terminalContextLogicalLineLimit = 16
 const terminalContextUrlPattern = /https?:\/\/[^\s<>"']+/giu
 const unsafePathCharacterPattern = /[$`*?[\]{}<>|;&()\\]/
 const textEncoder = new TextEncoder()
-
-export function normalizeTerminalSearchSeed(value: string) {
-  if (
-    !value.trim() ||
-    value.length > terminalContextSearchSeedLimit ||
-    /[\r\n]/.test(value)
-  ) {
-    return ''
-  }
-  return value
-}
 
 export function classifyTerminalContextValue(
   rawValue: string,

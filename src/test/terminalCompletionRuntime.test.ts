@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { TerminalCompletionRuntime } from '../features/terminal/terminalCompletionRuntime.ts'
+import { TerminalCompletionRuntime } from '../features/terminal/model/terminalCompletionRuntime.ts'
 import type {
   CompletionItem,
   CompletionQuery,

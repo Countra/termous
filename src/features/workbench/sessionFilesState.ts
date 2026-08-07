@@ -3,7 +3,7 @@ import type {
   SessionCwdState,
 } from '../../types/domain.ts'
 import { normalizeRemotePath, normalizeRemotePosixPath } from '#shared/path'
-import type { TerminalTransportState } from '../terminal/terminalTransport.ts'
+import type { TerminalTransportState } from '#features/terminal'
 
 export type SessionFilesSyncStatus =
   | ''
