@@ -4,7 +4,7 @@ import type {
   FirewallRuleAction,
   FirewallRuleInput,
   FirewallRuleProtocol,
-} from '../../types/domain'
+} from '#entities/firewall'
 
 export const firewallActions: FirewallRuleAction[] = ['allow', 'drop', 'reject']
 

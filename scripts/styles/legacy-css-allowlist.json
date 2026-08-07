@@ -4,8 +4,6 @@
     "src/App.css",
     "src/features/workbench/alias-panel.css",
     "src/features/workbench/alias-sync-modal.css",
-    "src/features/workbench/service-logs-modal.css",
-    "src/features/workbench/service-panel.css",
     "src/features/workbench/workbench-bookmarks-popover.css",
     "src/features/workbench/workbench-file-browser.css",
     "src/features/workbench/workbench-file-controls.css",

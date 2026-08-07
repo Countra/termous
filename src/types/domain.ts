@@ -127,6 +127,54 @@ export type {
 } from '#entities/forward'
 
 export type {
+  DockerAction,
+  DockerActionRequest,
+  DockerActionResult,
+  DockerCapability,
+  DockerCapabilityStatus,
+  DockerContainerDetail,
+  DockerContainerMount,
+  DockerContainerNetwork,
+  DockerContainerPort,
+  DockerContainerQuery,
+  DockerContainerState,
+  DockerContainerStats,
+  DockerContainerSummary,
+  DockerEnvVar,
+  DockerHealthStatus,
+  DockerListResult,
+  DockerLogsResult,
+} from '#entities/docker'
+
+export type {
+  FirewallApplyResult,
+  FirewallCapability,
+  FirewallCapabilityStatus,
+  FirewallDesiredState,
+  FirewallInstallCommand,
+  FirewallInstallPlan,
+  FirewallPersistenceInstallResult,
+  FirewallPersistenceStatus,
+  FirewallPersistenceStatusKind,
+  FirewallPlan,
+  FirewallPlanChange,
+  FirewallPortRange,
+  FirewallPrivilegeMode,
+  FirewallProvider,
+  FirewallProviderInfo,
+  FirewallProviderList,
+  FirewallProviderOption,
+  FirewallRule,
+  FirewallRuleAction,
+  FirewallRuleDirection,
+  FirewallRuleFamily,
+  FirewallRuleInput,
+  FirewallRuleProtocol,
+  FirewallSaveResult,
+  FirewallSnapshot,
+} from '#entities/firewall'
+
+export type {
   LinuxMonitorCPU,
   LinuxMonitorCPUCore,
   LinuxMonitorDisk,
@@ -147,6 +195,25 @@ export type {
   RemoteProcessTerminateResult,
   RemoteProcessTerminateSignal,
 } from '#entities/observability'
+
+export type {
+  SystemServiceAction,
+  SystemServiceActionRequest,
+  SystemServiceCapability,
+  SystemServiceCapabilityStatus,
+  SystemServiceDetail,
+  SystemServiceListResult,
+  SystemServiceLogEntry,
+  SystemServiceLogQuery,
+  SystemServiceLogsResult,
+  SystemServiceManageMode,
+  SystemServiceOperation,
+  SystemServiceOperationPhase,
+  SystemServiceQuery,
+  SystemServiceRuntimeFilter,
+  SystemServiceSort,
+  SystemServiceSummary,
+} from '#entities/service'
 
 export type {
   HostKeyChallenge,
@@ -307,215 +374,6 @@ export type SessionKind = 'ssh' | 'local'
 
 export type LocalShell = 'powershell' | 'cmd'
 
-export type FirewallProvider = 'unsupported' | 'iptables' | 'nftables'
-
-export type FirewallCapabilityStatus = 'ready' | 'unsupported' | 'permission_denied'
-
-export type FirewallPrivilegeMode = 'none' | 'root' | 'sudo'
-
-export type FirewallRuleDirection = 'inbound'
-
-export type FirewallRuleFamily = 'ipv4' | 'ipv6'
-
-export type FirewallRuleAction = 'allow' | 'drop' | 'reject'
-
-export type FirewallRuleProtocol = 'any' | 'tcp' | 'udp' | 'icmp'
-
-export interface FirewallProviderInfo {
-  provider: FirewallProvider
-  present: boolean
-  version?: string
-  backend?: string
-  message?: string
-}
-
-export interface FirewallProviderOption {
-  provider: FirewallProvider
-  status: FirewallCapabilityStatus
-  present: boolean
-  version?: string
-  backend?: string
-  privilege: FirewallPrivilegeMode
-  supports_apply: boolean
-  supports_save: boolean
-  supports_counters: boolean
-  message?: string
-  recommended: boolean
-}
-
-export interface FirewallProviderList {
-  providers: FirewallProviderOption[]
-  default_provider: FirewallProvider
-  privilege: FirewallPrivilegeMode
-}
-
-export interface FirewallCapability {
-  status: FirewallCapabilityStatus
-  provider: FirewallProvider
-  provider_version?: string
-  iptables_backend?: string
-  privilege: FirewallPrivilegeMode
-  supports_apply: boolean
-  supports_save: boolean
-  supports_counters: boolean
-  message?: string
-  detected_providers: FirewallProviderInfo[]
-  unsupported_reasons?: string[]
-}
-
-export interface FirewallPortRange {
-  from: number
-  to: number
-}
-
-export interface FirewallRule {
-  id: string
-  provider: FirewallProvider
-  direction: FirewallRuleDirection
-  family: FirewallRuleFamily
-  action: FirewallRuleAction
-  protocol: FirewallRuleProtocol
-  source?: string
-  ports?: FirewallPortRange[]
-  description?: string
-  enabled: boolean
-  managed: boolean
-  editable: boolean
-  readonly_reason?: string
-  source_provider?: FirewallProvider
-  edit_provider?: FirewallProvider
-  cross_provider?: boolean
-  counters_available?: boolean
-  hit_count?: number
-  byte_count?: number
-  remote_present?: boolean
-  disabled_local?: boolean
-  source_kind?: 'remote' | 'local_disabled'
-  signature?: string
-  raw_ref?: string
-  chain?: string
-  position?: number
-}
-
-export interface FirewallSnapshot {
-  session_id?: string
-  capability: FirewallCapability
-  rules: FirewallRule[]
-  unsupported_rules?: FirewallRule[]
-  snapshot_version: string
-  synced_at: string
-  warnings?: string[]
-  raw_snapshot_digest?: string
-}
-
-export interface FirewallRuleInput {
-  id?: string
-  raw_ref?: string
-  direction: FirewallRuleDirection
-  family: FirewallRuleFamily
-  action: FirewallRuleAction
-  protocol: FirewallRuleProtocol
-  source: string
-  ports: FirewallPortRange[]
-  description: string
-  enabled: boolean
-}
-
-export interface FirewallDesiredState {
-  snapshot_version: string
-  rules: FirewallRuleInput[]
-  confirm_risk: boolean
-}
-
-export interface FirewallPlanChange {
-  type: 'create' | 'update' | 'delete'
-  rule_id: string
-  before?: FirewallRule
-  after?: FirewallRule
-}
-
-export interface FirewallPlan {
-  provider: FirewallProvider
-  snapshot_version: string
-  changes: FirewallPlanChange[]
-  risk_warnings?: string[]
-  allowed: boolean
-  message?: string
-}
-
-export interface FirewallApplyResult {
-  snapshot: FirewallSnapshot
-  plan: FirewallPlan
-  applied: boolean
-  message?: string
-}
-
-export type FirewallPersistenceStatusKind =
-  | 'unsupported'
-  | 'ready'
-  | 'missing_tools'
-  | 'permission_denied'
-  | 'file_saved'
-  | 'service_enabled'
-  | 'partial'
-
-export interface FirewallInstallCommand {
-  id: string
-  title: string
-  command: string
-  risk: 'low' | 'medium'
-}
-
-export interface FirewallInstallPlan {
-  provider: FirewallProvider
-  package_manager?: string
-  commands: FirewallInstallCommand[]
-  missing_tools?: string[]
-  requires_root: boolean
-  warnings?: string[]
-  confirmation_required: boolean
-}
-
-export interface FirewallPersistenceStatus {
-  provider: FirewallProvider
-  supported: boolean
-  status: FirewallPersistenceStatusKind
-  home_dir?: string
-  rules_path?: string
-  metadata_path?: string
-  service_name?: string
-  service_installed: boolean
-  service_enabled: boolean
-  systemd_available: boolean
-  missing_tools?: string[]
-  package_manager?: string
-  install_available: boolean
-  install_plan?: FirewallInstallPlan
-  last_saved_at?: string
-  message?: string
-  warnings?: string[]
-}
-
-export interface FirewallSaveResult {
-  provider: FirewallProvider
-  saved: boolean
-  status?: FirewallPersistenceStatusKind
-  rules_path?: string
-  service_name?: string
-  service_enabled: boolean
-  requires_install: boolean
-  install_plan?: FirewallInstallPlan
-  message: string
-  warnings?: string[]
-}
-
-export interface FirewallPersistenceInstallResult {
-  provider: FirewallProvider
-  success: boolean
-  status: FirewallPersistenceStatus
-  message: string
-}
-
 export type CompletionProviderStatus =
   | 'idle'
   | 'building'
@@ -629,262 +487,6 @@ export interface LinuxNetworkInfo {
   status: LinuxNetworkStatus
   message?: string
   interfaces: LinuxNetworkInterface[]
-}
-
-export type SystemServiceCapabilityStatus = 'ready' | 'read_only' | 'unsupported' | 'manager_unavailable' | 'unknown'
-
-export type SystemServiceManageMode = 'direct' | 'sudo' | 'read_only'
-
-export type SystemServiceRuntimeFilter = '' | 'running' | 'stopped' | 'active' | 'inactive' | 'failed' | 'activating' | 'deactivating' | 'reloading' | 'maintenance' | 'refreshing'
-
-export type SystemServiceSort = 'name' | 'description' | 'runtime' | 'unit_file'
-
-export type SystemServiceAction = 'start' | 'stop' | 'restart' | 'reload' | 'reset_failed' | 'enable' | 'disable' | 'mask' | 'unmask'
-
-export type SystemServiceOperationPhase = 'queued' | 'enqueued' | 'verifying' | 'succeeded' | 'failed' | 'uncertain' | 'cancelled'
-
-export interface SystemServiceCapability {
-  provider: string
-  available: boolean
-  manageable: boolean
-  status: SystemServiceCapabilityStatus
-  message?: string
-  version?: string
-  manager_state?: string
-  manage_mode: SystemServiceManageMode
-  journal_readable: boolean
-  warnings: string[]
-  collected_at: string
-}
-
-export interface SystemServiceQuery {
-  query?: string
-  runtime_state?: SystemServiceRuntimeFilter
-  unit_file_state?: string
-  sort?: SystemServiceSort
-  order?: 'asc' | 'desc'
-  limit?: number
-}
-
-export interface SystemServiceSummary {
-  id: string
-  names: string[]
-  description?: string
-  load_state: string
-  active_state: string
-  sub_state: string
-  unit_file_state: string
-  template: boolean
-}
-
-export interface SystemServiceListResult {
-  items: SystemServiceSummary[]
-  total: number
-  filtered: number
-  running: number
-  failed: number
-  collected_at: string
-  warnings: string[]
-}
-
-export interface SystemServiceDetail {
-  summary: SystemServiceSummary
-  main_pid: number
-  control_pid: number
-  result?: string
-  exec_main_code?: string
-  exec_main_status: number
-  restart_count: number
-  can_start: boolean
-  can_stop: boolean
-  can_reload: boolean
-  refuse_manual_start: boolean
-  refuse_manual_stop: boolean
-  fragment_path?: string
-  drop_in_paths: string[]
-  user?: string
-  group?: string
-  working_directory?: string
-  exec_start?: string
-  restart_policy?: string
-  type?: string
-  active_duration_seconds: number
-  memory_current_bytes?: number
-  tasks_current?: number
-  cpu_usage_nanoseconds?: number
-  warnings: string[]
-  collected_at: string
-}
-
-export interface SystemServiceLogQuery {
-  limit?: number
-  priority?: string
-  boot?: 'current' | 'all'
-  after_cursor?: string
-}
-
-export interface SystemServiceLogEntry {
-  cursor?: string
-  timestamp: string
-  priority: number
-  message: string
-  pid?: number
-  command?: string
-}
-
-export interface SystemServiceLogsResult {
-  entries: SystemServiceLogEntry[]
-  cursor?: string
-  collected_at: string
-  warnings: string[]
-}
-
-export interface SystemServiceActionRequest {
-  action: SystemServiceAction
-}
-
-export interface SystemServiceOperation {
-  id: string
-  revision: number
-  session_id: string
-  unit_id: string
-  action: SystemServiceAction
-  phase: SystemServiceOperationPhase
-  message: string
-  error_code?: string
-  state?: SystemServiceSummary
-  started_at: string
-  updated_at: string
-  completed_at?: string
-}
-
-export type DockerCapabilityStatus = 'available' | 'missing_cli' | 'daemon_unavailable' | 'permission_denied' | 'unknown'
-
-export type DockerContainerState = 'created' | 'running' | 'paused' | 'restarting' | 'removing' | 'exited' | 'dead' | string
-
-export type DockerHealthStatus = 'healthy' | 'unhealthy' | 'starting' | 'none' | string
-
-export type DockerAction = 'start' | 'stop' | 'restart' | 'pause' | 'unpause'
-
-export interface DockerCapability {
-  available: boolean
-  status: DockerCapabilityStatus
-  message?: string
-  docker_version?: string
-  server_version?: string
-  context?: string
-  warnings?: string[]
-  collected_at: string
-}
-
-export interface DockerContainerQuery {
-  query?: string
-  state?: string
-  health?: string
-  port?: number
-  limit?: number
-}
-
-export interface DockerContainerPort {
-  ip?: string
-  public_port?: number
-  private_port?: number
-  type?: string
-  raw?: string
-}
-
-export interface DockerContainerStats {
-  id?: string
-  name?: string
-  cpu_percent?: string
-  memory?: string
-  memory_percent?: string
-  net_io?: string
-  block_io?: string
-  pids?: string
-}
-
-export interface DockerContainerSummary {
-  id: string
-  short_id: string
-  name: string
-  image: string
-  command?: string
-  created_at?: string
-  running_for?: string
-  ports?: DockerContainerPort[]
-  raw_ports?: string
-  state: DockerContainerState
-  status?: string
-  health?: DockerHealthStatus
-  compose_project?: string
-  stats?: DockerContainerStats
-  warnings?: string[]
-}
-
-export interface DockerContainerMount {
-  type?: string
-  source?: string
-  destination?: string
-  mode?: string
-  rw: boolean
-}
-
-export interface DockerContainerNetwork {
-  name: string
-  ip_address?: string
-  mac_address?: string
-  gateway?: string
-}
-
-export interface DockerEnvVar {
-  key: string
-  value?: string
-  redacted?: boolean
-}
-
-export interface DockerContainerDetail {
-  summary: DockerContainerSummary
-  mounts?: DockerContainerMount[]
-  networks?: DockerContainerNetwork[]
-  labels?: Record<string, string>
-  env?: DockerEnvVar[]
-  restart_policy?: string
-  created?: string
-  path?: string
-  args?: string[]
-  stats?: DockerContainerStats
-  logs_preview?: string[]
-  collected_at: string
-  warnings?: string[]
-}
-
-export interface DockerListResult {
-  items: DockerContainerSummary[]
-  total: number
-  filtered: number
-  collected_at: string
-  warnings?: string[]
-}
-
-export interface DockerLogsResult {
-  lines: string[]
-  tail: number
-  timestamps: boolean
-  collected_at: string
-}
-
-export interface DockerActionRequest {
-  action: DockerAction
-  timeout_seconds?: number
-}
-
-export interface DockerActionResult {
-  id?: string
-  action: DockerAction
-  attempted: boolean
-  message: string
-  completed_at: string
 }
 
 export type AliasBridgeStatus = 'missing' | 'installed'

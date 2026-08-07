@@ -1,0 +1,1238 @@
+/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
+/* stylelint-disable termous/no-unscoped-global, media-feature-range-notation -- 迁移期保持防火墙面板与 Portal 的视觉与交互兼容。 */
+.root {
+  position: static;
+}
+
+:global {
+.firewall-panel {
+  display: grid;
+  min-height: 0;
+  gap: 12px;
+}
+
+.firewall-toolbar,
+.firewall-rule-actions,
+.firewall-rule-card-actions,
+.firewall-warning-list span,
+.firewall-toolbar-state {
+  display: flex;
+  align-items: center;
+}
+
+.firewall-toolbar {
+  container: firewall-toolbar / inline-size;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 44%, transparent), color-mix(in srgb, var(--surface-subtle) 78%, transparent)),
+    color-mix(in srgb, var(--surface) 88%, transparent);
+  padding: 12px;
+}
+
+.firewall-toolbar-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 10px;
+}
+
+.firewall-toolbar-state {
+  gap: 9px;
+  min-width: 0;
+}
+
+.firewall-toolbar-state-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.firewall-toolbar-state.is-ready .firewall-toolbar-state-icon {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: color-mix(in srgb, var(--success) 86%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 22%, transparent);
+}
+
+.firewall-toolbar-state.is-error .firewall-toolbar-state-icon {
+  background: rgb(255 102 94 / 12%);
+  color: #ff8a84;
+  box-shadow: inset 0 0 0 1px rgb(255 102 94 / 20%);
+}
+
+.firewall-toolbar-state-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.firewall-toolbar-state-copy strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.firewall-toolbar-state-copy small {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 640;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.firewall-toolbar-state-copy time {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.firewall-toolbar-controls,
+.firewall-rule-actions,
+.firewall-rule-card-actions {
+  gap: 8px;
+}
+
+.firewall-toolbar-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+}
+
+.firewall-provider-picker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-width: 0;
+  height: 34px;
+  padding: 0;
+}
+
+.firewall-provider-picker-label {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 680;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.firewall-provider-select.termous-select {
+  flex: 0 0 112px;
+  width: 112px;
+}
+
+.firewall-provider-picker .firewall-provider-select .ant-select-selector {
+  min-height: 34px;
+  border-color: transparent !important;
+  border-radius: 12px !important;
+  background: color-mix(in srgb, var(--surface-elevated) 48%, var(--surface)) !important;
+  padding-left: 10px !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 38%, transparent) !important;
+}
+
+.firewall-provider-picker .firewall-provider-select:hover .ant-select-selector,
+.firewall-provider-picker .firewall-provider-select.ant-select-focused .ant-select-selector {
+  border-color: transparent !important;
+  background: color-mix(in srgb, var(--surface-elevated) 70%, var(--surface)) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 58%, transparent) !important;
+}
+
+.firewall-provider-picker .firewall-provider-select .ant-select-selection-item {
+  display: inline-flex;
+  align-items: center;
+  padding-inline-end: 18px;
+}
+
+.firewall-provider-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.firewall-provider-option i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.firewall-provider-option i.is-ready {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.firewall-provider-option i.is-denied {
+  background: #f3a240;
+  box-shadow: 0 0 0 3px rgb(243 162 64 / 12%);
+}
+
+.firewall-provider-option i.is-offline {
+  background: color-mix(in srgb, var(--text-muted) 72%, transparent);
+}
+
+.firewall-toolbar-icon-button.ant-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface-elevated) 42%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 38%, transparent);
+}
+
+.firewall-toolbar-icon-button.ant-btn:not(:disabled):hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface-elevated) 70%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 58%, transparent);
+}
+
+.firewall-persistence-open.ant-btn {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-elevated) 42%, var(--surface));
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 760;
+  padding: 0 11px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 38%, transparent);
+  white-space: nowrap;
+}
+
+.firewall-persistence-open.ant-btn .ant-btn-icon {
+  display: inline-flex;
+}
+
+.firewall-persistence-open.ant-btn:not(:disabled):hover {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--surface-elevated) 70%, var(--surface));
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 58%, transparent);
+}
+
+.firewall-persistence-open.is-ready.ant-btn {
+  color: color-mix(in srgb, var(--success) 86%, white);
+}
+
+.firewall-persistence-open.is-warning.ant-btn {
+  color: #f5c96a;
+}
+
+.firewall-persistence-open.is-error.ant-btn {
+  color: #ff8a84;
+}
+
+@media (max-width: 1180px) {
+  .firewall-toolbar-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .firewall-persistence-open.ant-btn {
+    justify-content: center;
+  }
+}
+
+@container firewall-toolbar (max-width: 286px) {
+  .firewall-toolbar-controls {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .firewall-provider-picker {
+    justify-content: flex-start;
+  }
+
+  .firewall-provider-picker-label {
+    display: none;
+  }
+
+  .firewall-provider-select.termous-select {
+    flex-basis: 112px;
+    width: 112px;
+  }
+}
+
+.firewall-persistence-modal .ant-modal-content {
+    overflow: hidden;
+  }
+
+.firewall-persistence-modal .ant-modal-body {
+    max-height: min(72dvh, 720px);
+    overflow: auto;
+    padding-right: 6px;
+  }
+
+.firewall-persistence-panel {
+    display: grid;
+    gap: 12px;
+  }
+
+.firewall-persistence-summary,
+.firewall-persistence-command-panel,
+.firewall-persistence-missing {
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    border-radius: 16px;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 60%, transparent), color-mix(in srgb, var(--surface) 96%, transparent)),
+      var(--surface);
+  }
+
+.firewall-persistence-summary {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+  }
+
+.firewall-persistence-summary.is-ready {
+    border-color: color-mix(in srgb, var(--success) 28%, var(--border));
+  }
+
+.firewall-persistence-summary.is-warning {
+    border-color: color-mix(in srgb, #f3a240 32%, var(--border));
+  }
+
+.firewall-persistence-summary.is-error {
+    border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
+  }
+
+.firewall-persistence-summary-head,
+.firewall-persistence-section-head,
+.firewall-persistence-missing,
+.firewall-persistence-confirm-row,
+.firewall-persistence-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+.firewall-persistence-summary-icon,
+.firewall-persistence-section-head > span,
+.firewall-persistence-missing > span {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent-soft) 70%, transparent);
+  color: var(--accent);
+}
+
+.firewall-persistence-summary.is-ready .firewall-persistence-summary-icon {
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: color-mix(in srgb, var(--success) 86%, white);
+}
+
+.firewall-persistence-summary.is-warning .firewall-persistence-summary-icon {
+  background: rgb(243 162 64 / 13%);
+  color: #f5c96a;
+}
+
+.firewall-persistence-summary.is-error .firewall-persistence-summary-icon {
+  background: rgb(255 102 94 / 12%);
+  color: #ff8a84;
+}
+
+.firewall-persistence-summary-head > div,
+.firewall-persistence-section-head > div,
+.firewall-persistence-missing > div {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    gap: 3px;
+  }
+
+.firewall-persistence-summary-head strong,
+.firewall-persistence-section-head strong,
+.firewall-persistence-missing strong {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 760;
+  }
+
+.firewall-persistence-summary-head small,
+.firewall-persistence-section-head small,
+.firewall-persistence-missing small {
+    overflow: hidden;
+    color: var(--text-secondary);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+.firewall-persistence-status-tag.ant-tag {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-elevated) 70%, transparent);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1;
+  margin-inline-end: 0;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.firewall-persistence-status-tag.is-ready.ant-tag {
+  border-color: color-mix(in srgb, var(--success) 28%, transparent);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: color-mix(in srgb, var(--success) 86%, white);
+}
+
+.firewall-persistence-status-tag.is-warning.ant-tag {
+  border-color: rgb(243 162 64 / 28%);
+  background: rgb(243 162 64 / 11%);
+  color: #f5c96a;
+}
+
+.firewall-persistence-status-tag.is-error.ant-tag {
+  border-color: rgb(255 102 94 / 28%);
+  background: rgb(255 102 94 / 10%);
+  color: #ff8a84;
+}
+
+.firewall-persistence-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+.firewall-persistence-meta {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--surface-subtle) 58%, transparent);
+    padding: 9px 10px;
+  }
+
+.firewall-persistence-meta small {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 740;
+  }
+
+.firewall-persistence-meta strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 720;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+.firewall-persistence-steps.ant-steps {
+    border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--surface-subtle) 44%, transparent);
+    padding: 10px 12px;
+  }
+
+.firewall-persistence-steps .ant-steps-item-title {
+    color: var(--text-secondary) !important;
+    font-size: 11px;
+    font-weight: 720;
+  }
+
+.firewall-persistence-missing {
+    padding: 11px 12px;
+  }
+
+.firewall-persistence-missing > span {
+    background: rgb(243 162 64 / 13%);
+    color: #f5c96a;
+  }
+
+.firewall-persistence-command-panel {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+  }
+
+.firewall-persistence-section-head .ant-btn {
+    flex: 0 0 auto;
+    color: var(--text-secondary);
+  }
+
+.firewall-persistence-command-list {
+    display: grid;
+    gap: 8px;
+  }
+
+.firewall-persistence-command-list article {
+    display: grid;
+    gap: 6px;
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+    border-radius: 12px;
+    background: #151922;
+    padding: 10px;
+  }
+
+.firewall-persistence-command-list article > span {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 740;
+  }
+
+.firewall-persistence-command-list .ant-typography {
+    display: block;
+    margin: 0;
+    overflow: auto;
+    border: 0;
+    background: transparent;
+    color: color-mix(in srgb, var(--text-primary) 88%, #8bd4ff);
+    font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre;
+  }
+
+.firewall-persistence-confirm-row {
+    justify-content: space-between;
+    gap: 12px;
+    border-top: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+    padding-top: 10px;
+  }
+
+.firewall-persistence-confirm-row .ant-checkbox-wrapper {
+    min-width: 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+.firewall-persistence-actions {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+.firewall-persistence-panel .ant-alert {
+    border-color: color-mix(in srgb, #f3a240 28%, var(--border));
+    border-radius: 13px;
+    background: rgb(243 162 64 / 9%);
+    color: var(--text-secondary);
+  }
+
+:root[data-theme="light"] .firewall-persistence-open.ant-btn,
+:root[data-theme="light"] .firewall-persistence-summary,
+:root[data-theme="light"] .firewall-persistence-command-panel,
+:root[data-theme="light"] .firewall-persistence-missing {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 76%), rgb(246 248 252 / 70%)),
+      var(--surface);
+  }
+
+:root[data-theme="light"] .firewall-persistence-command-list article {
+    background: rgb(245 248 252 / 92%);
+  }
+
+:root[data-theme="light"] .firewall-persistence-command-list .ant-typography {
+    color: color-mix(in srgb, var(--text-primary) 88%, var(--accent));
+  }
+
+@media (max-width: 760px) {
+    .firewall-persistence-meta-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .firewall-persistence-confirm-row {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .firewall-persistence-actions {
+      justify-content: stretch;
+    }
+
+    .firewall-persistence-actions .ant-btn,
+.firewall-persistence-confirm-row .ant-btn {
+      width: 100%;
+    }
+  }
+
+.firewall-rule-actions {
+    display: flex;
+    align-items: center;
+    justify-content: stretch;
+  }
+
+.firewall-rule-actions .ant-btn {
+    width: 100%;
+  }
+
+.firewall-rule-list,
+.firewall-readonly-section,
+.firewall-readonly-list,
+.firewall-warning-list,
+.firewall-preview,
+.firewall-rule-form {
+  display: grid;
+  gap: 9px;
+}
+
+.firewall-readonly-section {
+  margin-top: 2px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding-top: 10px;
+}
+
+.firewall-readonly-heading {
+  display: grid;
+  gap: 3px;
+  padding: 0 2px;
+}
+
+.firewall-readonly-heading span {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.firewall-readonly-heading small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.firewall-rule-card {
+    position: relative;
+    display: grid;
+    gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 86%, transparent), color-mix(in srgb, var(--surface-subtle) 58%, transparent)),
+    var(--surface);
+  padding: 12px;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 5%),
+    0 14px 32px rgb(0 0 0 / 13%);
+}
+
+.firewall-rule-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
+  pointer-events: none;
+}
+
+.firewall-rule-card::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 28%, transparent));
+}
+
+.firewall-rule-card.is-drop::before {
+  border-color: rgb(239 95 98 / 18%);
+}
+
+.firewall-rule-card.is-drop::after {
+  background: linear-gradient(180deg, #ef5f62, rgb(239 95 98 / 24%));
+}
+
+.firewall-rule-card.is-reject::before {
+  border-color: rgb(243 162 64 / 18%);
+}
+
+.firewall-rule-card.is-reject::after {
+  background: linear-gradient(180deg, #f3a240, rgb(243 162 64 / 24%));
+}
+
+.firewall-rule-card.is-disabled {
+  opacity: 0.62;
+}
+
+.firewall-rule-card-top,
+.firewall-rule-footer {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.firewall-rule-card-top {
+  gap: 10px;
+}
+
+.firewall-rule-symbol {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: 11px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 20%, transparent), color-mix(in srgb, var(--accent) 9%, transparent)),
+    color-mix(in srgb, var(--surface-elevated) 80%, transparent);
+  color: var(--accent);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
+}
+
+.firewall-rule-card.is-drop .firewall-rule-symbol {
+  border-color: rgb(239 95 98 / 32%);
+  background:
+    linear-gradient(180deg, rgb(239 95 98 / 18%), rgb(239 95 98 / 7%)),
+    color-mix(in srgb, var(--surface-elevated) 80%, transparent);
+  color: #ff8b8f;
+}
+
+.firewall-rule-card.is-reject .firewall-rule-symbol {
+  border-color: rgb(243 162 64 / 34%);
+  background:
+    linear-gradient(180deg, rgb(243 162 64 / 18%), rgb(243 162 64 / 7%)),
+    color-mix(in srgb, var(--surface-elevated) 80%, transparent);
+  color: #ffc06f;
+}
+
+.firewall-rule-title {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 2px;
+}
+
+.firewall-rule-title strong,
+.firewall-rule-title small,
+.firewall-rule-endpoint strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.firewall-rule-title strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.firewall-rule-title small {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.firewall-rule-action {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  color: color-mix(in srgb, var(--accent) 86%, white);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 820;
+  line-height: 1;
+}
+
+.firewall-rule-card.is-drop .firewall-rule-action {
+  border-color: rgb(239 95 98 / 32%);
+  background: rgb(239 95 98 / 13%);
+  color: #ff9ca0;
+}
+
+.firewall-rule-card.is-reject .firewall-rule-action {
+  border-color: rgb(243 162 64 / 34%);
+  background: rgb(243 162 64 / 14%);
+  color: #ffd08a;
+}
+
+.firewall-rule-route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+}
+
+.firewall-rule-endpoint {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface-elevated) 62%, transparent);
+  padding: 9px 10px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+}
+
+.firewall-rule-endpoint span,
+.firewall-rule-stats span {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.firewall-rule-endpoint span {
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 720;
+}
+
+.firewall-rule-endpoint strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.firewall-rule-flow {
+  display: grid;
+  grid-template-rows: 1fr 28px 1fr;
+  place-items: center;
+  color: var(--accent);
+}
+
+.firewall-rule-flow i {
+  width: 1px;
+  min-height: 9px;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 38%, transparent), transparent);
+}
+
+.firewall-rule-flow svg {
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 20%, rgb(255 255 255 / 12%), transparent 36%),
+    color-mix(in srgb, var(--accent) 12%, var(--surface-elevated));
+  padding: 6px;
+}
+
+.firewall-rule-footer {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.firewall-rule-stats {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.firewall-rule-stats span {
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-elevated) 48%, transparent);
+  color: var(--text-secondary);
+  padding: 4px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.firewall-rule-stats .is-enabled {
+  border-color: color-mix(in srgb, var(--success) 30%, transparent);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: color-mix(in srgb, var(--success) 84%, white);
+}
+
+.firewall-rule-stats .is-muted {
+  color: var(--text-muted);
+}
+
+.firewall-rule-card-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.firewall-rule-card-actions .ant-btn {
+  width: 29px;
+  height: 29px;
+  border-radius: 10px;
+  color: var(--text-secondary);
+}
+
+.firewall-rule-card-actions .ant-btn:hover {
+  background: color-mix(in srgb, var(--surface-elevated) 88%, transparent) !important;
+  color: var(--text-primary) !important;
+  transform: none;
+}
+
+.firewall-warning-list span {
+  gap: 7px;
+  border: 1px solid rgb(243 162 64 / 28%);
+  border-radius: 12px;
+  background: rgb(243 162 64 / 10%);
+  color: #ffc06f;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.firewall-inline-empty {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  gap: 8px;
+  border: 1px dashed color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.firewall-form-error {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.firewall-rule-modal .ant-modal-body,
+.firewall-preview-modal .ant-modal-body {
+  max-height: min(620px, calc(100dvh - 220px));
+  overflow: auto;
+  padding-right: 16px;
+}
+
+.firewall-field {
+  display: grid;
+  gap: 7px;
+}
+
+.firewall-field > span,
+.firewall-switch-line > span {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.firewall-field .ant-input,
+.firewall-field .ant-input-number {
+  width: 100%;
+  background: color-mix(in srgb, var(--surface-subtle) 88%, transparent) !important;
+}
+
+.firewall-field .ant-input-number-input-wrap,
+.firewall-field .ant-input-number-input,
+.firewall-field .ant-input-number-handler-wrap,
+.firewall-field .ant-input-number-handler {
+  background: transparent !important;
+}
+
+.firewall-port-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.firewall-switch-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border-radius: 12px;
+  padding: 9px 10px;
+}
+
+.firewall-form-error {
+  margin: 0;
+  color: #ff8b8f;
+}
+
+.firewall-change-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-subtle) 56%, transparent);
+  padding: 10px;
+}
+
+.firewall-change-row > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+.firewall-change-row.is-delete > span {
+  background: rgb(239 95 98 / 14%);
+  color: #ff8b8f;
+}
+
+.firewall-change-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.firewall-change-row small {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.firewall-risk-box {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgb(243 162 64 / 32%);
+  border-radius: 13px;
+  background: rgb(243 162 64 / 11%);
+  padding: 11px;
+}
+
+.firewall-risk-box > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ffc06f;
+  font-size: 12px;
+}
+
+:root[data-theme="light"] .firewall-toolbar,
+:root[data-theme="light"] .firewall-rule-card,
+:root[data-theme="light"] .firewall-readonly-rule,
+:root[data-theme="light"] .firewall-change-row {
+  background: rgb(255 255 255 / 78%);
+}
+
+:root[data-theme="light"] .firewall-inline-empty {
+  background: rgb(248 250 253 / 68%);
+}
+
+:root[data-theme="light"] .firewall-field .ant-input,
+:root[data-theme="light"] .firewall-field .ant-input-number {
+    background: rgb(247 249 252 / 92%) !important;
+  }
+
+.firewall-rule-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 4px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "accent main actions"
+      "accent meta switch";
+    align-items: center;
+    gap: 8px 10px;
+    min-height: 68px;
+    border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--surface-subtle) 58%, var(--surface));
+    padding: 10px 10px 10px 0;
+    overflow: hidden;
+    transition: background-color 140ms ease, border-color 140ms ease;
+  }
+
+.firewall-rule-row:hover {
+    border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+    background: color-mix(in srgb, var(--surface-elevated) 72%, var(--surface));
+  }
+
+.firewall-rule-row.is-disabled {
+    opacity: 0.72;
+  }
+
+.firewall-rule-accent {
+    grid-area: accent;
+    align-self: stretch;
+    border-radius: 0 999px 999px 0;
+    background: color-mix(in srgb, var(--success) 74%, transparent);
+  }
+
+.firewall-rule-row.is-drop .firewall-rule-accent {
+    background: #ef5f62;
+  }
+
+.firewall-rule-row.is-reject .firewall-rule-accent {
+    background: #f3a240;
+  }
+
+.firewall-rule-row .firewall-rule-card-top {
+    grid-area: main;
+    gap: 9px;
+  }
+
+.firewall-rule-row .firewall-rule-symbol {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+  }
+
+.firewall-rule-meta {
+    grid-area: meta;
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+.firewall-rule-meta > span {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 680;
+  }
+
+.firewall-rule-row .firewall-rule-action,
+.firewall-rule-local {
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 11%, transparent);
+    color: color-mix(in srgb, var(--accent) 86%, white);
+    padding: 3px 7px;
+    font-size: 11px;
+    font-weight: 780;
+  }
+
+.firewall-rule-local {
+    border-color: rgb(243 162 64 / 30%);
+    background: rgb(243 162 64 / 10%);
+    color: #ffc06f;
+  }
+
+.firewall-rule-switch {
+    grid-area: switch;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+.firewall-rule-switch > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 740;
+  }
+
+.firewall-rule-switch .is-enabled {
+    color: color-mix(in srgb, var(--success) 86%, white);
+  }
+
+.firewall-rule-row .firewall-rule-card-actions {
+    grid-area: actions;
+  }
+
+.firewall-readonly-rule {
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 64%, transparent), color-mix(in srgb, var(--surface) 94%, transparent)),
+      var(--surface);
+  }
+
+.firewall-readonly-rule .firewall-rule-source-provider {
+    flex: 0 0 auto;
+    border: 1px solid color-mix(in srgb, #f3a240 28%, transparent);
+    border-radius: 999px;
+    background: rgb(243 162 64 / 9%);
+    color: #ffd08a;
+    padding: 3px 7px;
+    font-weight: 760;
+  }
+
+.firewall-readonly-meta {
+    flex-wrap: nowrap;
+    overflow: hidden;
+    gap: 5px;
+  }
+
+.firewall-readonly-meta .firewall-rule-action {
+    flex: 0 0 auto;
+  }
+
+.firewall-readonly-rule .firewall-rule-source-value {
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+.firewall-readonly-provider-slot {
+    justify-content: flex-end;
+    min-width: 116px;
+  }
+
+.firewall-readonly-provider-slot .firewall-rule-source-provider {
+    max-width: 100%;
+  }
+
+.firewall-readonly-actions {
+    align-self: center;
+  }
+
+.firewall-readonly-actions .firewall-readonly-switch.ant-btn {
+    width: auto;
+    min-width: 0;
+    height: 29px;
+    border-radius: 10px;
+    color: var(--text-primary);
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 760;
+  }
+
+.firewall-readonly-actions .firewall-readonly-switch.ant-btn:hover {
+    background: color-mix(in srgb, var(--accent) 14%, transparent) !important;
+    color: var(--text-primary) !important;
+    transform: none;
+  }
+
+@media (max-width: 1320px) {
+    .firewall-rule-row {
+      grid-template-columns: 4px minmax(0, 1fr);
+      grid-template-areas:
+        "accent main"
+        "accent meta"
+        "accent switch"
+        "accent actions";
+    }
+
+    .firewall-rule-switch,
+.firewall-rule-row .firewall-rule-card-actions {
+      justify-content: flex-start;
+    }
+
+    .firewall-readonly-provider-slot {
+      justify-content: flex-end;
+    }
+  }
+}

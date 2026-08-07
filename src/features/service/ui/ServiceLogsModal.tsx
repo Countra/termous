@@ -13,9 +13,9 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { SystemServiceLogEntry, SystemServiceLogsResult } from '../../types/domain'
-import type { SessionServiceLogQueryState } from './useSessionServices'
-import './service-logs-modal.css'
+import type { SystemServiceLogEntry, SystemServiceLogsResult } from '#entities/service'
+import type { SessionServiceLogQueryState } from '../model/useSessionServices'
+import styles from './ServiceLogsModal.module.scss'
 
 interface ServiceLogsModalProps {
   open: boolean
@@ -105,7 +105,7 @@ export function ServiceLogsModal({
       closable={false}
       mask={{ closable: false }}
       className="service-logs-modal"
-      rootClassName="service-logs-modal-root"
+      rootClassName={`service-logs-modal-root ${styles.root}`}
       onCancel={onClose}
     >
       <div className="service-logs-view">

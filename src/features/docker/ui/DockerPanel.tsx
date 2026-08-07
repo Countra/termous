@@ -19,15 +19,15 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TermousApi } from '../../api/client'
-import type { DockerAction, DockerContainerDetail, DockerContainerPort, DockerContainerSummary, Session } from '../../types/domain'
-import { WorkbenchDetectionLoading } from './WorkbenchDetectionLoading'
-import { WorkbenchEmptyState } from './WorkbenchEmptyState'
-import { defaultDockerQuery, type SessionDockerQueryState, useSessionDocker } from './useSessionDocker'
+import type { DockerAction, DockerContainerDetail, DockerContainerPort, DockerContainerSummary } from '#entities/docker'
+import { WorkspaceDetectionLoading, WorkspaceEmptyState } from '#shared/ui'
+import type { DockerGateway, DockerSessionContext } from '../model/contracts'
+import { defaultDockerQuery, type SessionDockerQueryState, useSessionDocker } from '../model/useSessionDocker'
+import styles from './DockerPanel.module.scss'
 
-interface DockerPanelProps {
-  api: TermousApi
-  session: Session | null
+export interface DockerPanelProps {
+  api: DockerGateway
+  session: DockerSessionContext | null
   enabled: boolean
 }
 
@@ -38,6 +38,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
   const { t } = useTranslation()
   const { notification } = App.useApp()
   const docker = useSessionDocker({ api, session, enabled })
+  const interactionScopeRef = useRef({ enabled, sessionId: session?.id, supported: docker.supported })
   const items = docker.list?.items ?? []
   const detail = docker.detail
   const showingDetail = Boolean(docker.selectedRef)
@@ -59,6 +60,8 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
       docker.query.health !== defaultDockerQuery.health,
   )
 
+  interactionScopeRef.current = { enabled, sessionId: session?.id, supported: docker.supported }
+
   const resetFilters = () => {
     docker.resetQuery()
     void docker.refreshList(defaultDockerQuery)
@@ -71,6 +74,11 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
   }
 
   const runAction = async (ref: string, action: DockerAction) => {
+    const expectedSessionId = session?.id
+    const scope = interactionScopeRef.current
+    if (!scope.enabled || !scope.supported || !expectedSessionId || scope.sessionId !== expectedSessionId) {
+      return
+    }
     try {
       const result = await docker.runAction(ref, action)
       notification.success({
@@ -94,7 +102,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
   if (!docker.supported) {
     const unavailableKey = !session || session.kind !== 'ssh' || session.status !== 'connected' ? 'empty' : 'unsupported'
     return (
-      <WorkbenchEmptyState
+      <WorkspaceEmptyState
         icon={<Boxes size={20} />}
         title={t(unavailableKey === 'empty' ? 'workbench.docker.emptyTitle' : 'workbench.docker.unsupportedTitle')}
         description={t(unavailableKey === 'empty' ? 'workbench.docker.emptyHint' : 'workbench.docker.unsupportedHint')}
@@ -103,11 +111,11 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
   }
 
   if (!capability || (capability.available && !docker.list && !docker.error)) {
-    return <WorkbenchDetectionLoading icon={<Boxes size={15} />} label={t('workbench.docker.detecting')} />
+    return <WorkspaceDetectionLoading icon={<Boxes size={15} />} label={t('workbench.docker.detecting')} />
   }
 
   return (
-    <section className="docker-panel">
+    <section className={`docker-panel ${styles.root}`}>
       <div className="docker-toolbar">
         <div className={`docker-capability ${capabilityReady ? 'is-ready' : capability ? 'is-error' : 'is-loading'}`}>
           <span className="docker-capability-icon">
@@ -134,7 +142,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
       </div>
 
       {!capabilityReady && capability ? (
-        <WorkbenchEmptyState
+        <WorkspaceEmptyState
           className="docker-unavailable-state"
           tone={capability.status === 'permission_denied' ? 'warning' : 'danger'}
           icon={<AlertTriangle size={20} />}
@@ -215,7 +223,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
           </div>
 
           {docker.error ? (
-            <WorkbenchEmptyState
+            <WorkspaceEmptyState
               className="docker-error-state"
               tone="danger"
               icon={<AlertTriangle size={20} />}
@@ -238,6 +246,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
                 logsError={docker.logsError}
                 logTail={docker.query.logTail}
                 logsCollectedAt={docker.logs?.collected_at ?? detail?.collected_at ?? ''}
+                enabled={enabled}
                 onBack={docker.clearSelection}
                 onRefreshLogs={(tail) => {
                   const nextTail = tail ?? docker.query.logTail
@@ -255,7 +264,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
                   <span>{updatedText}</span>
                 </div>
                 {items.length === 0 && !docker.loadingList ? (
-                  <WorkbenchEmptyState
+                  <WorkspaceEmptyState
                     className="docker-empty-list"
                     icon={<ListFilter size={20} />}
                     title={t(docker.list ? 'workbench.docker.noResults' : 'workbench.docker.loading')}
@@ -364,6 +373,7 @@ interface DockerDetailViewProps {
   logsError: string
   logTail: number
   logsCollectedAt: string
+  enabled: boolean
   onBack: () => void
   onRefreshLogs: (tail?: number) => void
   onAction: (ref: string, action: DockerAction) => void
@@ -381,12 +391,31 @@ function DockerDetailView({
   logsError,
   logTail,
   logsCollectedAt,
+  enabled,
   onBack,
   onRefreshLogs,
   onAction,
 }: DockerDetailViewProps) {
   const { t } = useTranslation()
   const [logsOpen, setLogsOpen] = useState(false)
+  const [actionConfirm, setActionConfirm] = useState<'stop' | 'restart' | null>(null)
+  const interactionScopeRef = useRef({ enabled, selectedRef })
+  interactionScopeRef.current = { enabled, selectedRef }
+  useEffect(() => {
+    if (!enabled) {
+      setLogsOpen(false)
+    }
+    setActionConfirm(null)
+  }, [enabled, selectedRef])
+
+  const confirmAction = (ref: string, action: 'stop' | 'restart') => {
+    setActionConfirm(null)
+    const scope = interactionScopeRef.current
+    if (!scope.enabled || scope.selectedRef !== ref) {
+      return
+    }
+    onAction(ref, action)
+  }
   if (loading && !detail) {
     return (
       <div className="docker-detail-card is-loading">
@@ -409,7 +438,7 @@ function DockerDetailView({
         <Button type="text" className="docker-detail-back" icon={<ArrowLeft size={14} />} onClick={onBack}>
           {t('workbench.docker.backToList')}
         </Button>
-        <WorkbenchEmptyState
+        <WorkspaceEmptyState
           className="docker-detail-empty"
           tone="danger"
           icon={<AlertTriangle size={20} />}
@@ -473,22 +502,26 @@ function DockerDetailView({
           {running ? (
             <>
               <Popconfirm
+                open={actionConfirm === 'stop'}
                 title={t('workbench.docker.confirmStopTitle')}
                 description={t('workbench.docker.confirmStopContent')}
                 okText={t('workbench.docker.stop')}
                 cancelText={t('app.cancel')}
-                onConfirm={() => onAction(ref, 'stop')}
+                onOpenChange={(open) => setActionConfirm(open ? 'stop' : null)}
+                onConfirm={() => confirmAction(ref, 'stop')}
               >
                 <Button className="danger-button docker-action-button" loading={busy} icon={<Square size={13} />}>
                   {t('workbench.docker.stop')}
                 </Button>
               </Popconfirm>
               <Popconfirm
+                open={actionConfirm === 'restart'}
                 title={t('workbench.docker.confirmRestartTitle')}
                 description={t('workbench.docker.confirmRestartContent')}
                 okText={t('workbench.docker.restart')}
                 cancelText={t('app.cancel')}
-                onConfirm={() => onAction(ref, 'restart')}
+                onOpenChange={(open) => setActionConfirm(open ? 'restart' : null)}
+                onConfirm={() => confirmAction(ref, 'restart')}
               >
                 <Button className="secondary-button docker-action-button" loading={busy} icon={<Undo2 size={13} />}>
                   {t('workbench.docker.restart')}

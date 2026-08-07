@@ -17,27 +17,26 @@ import {
 } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TermousApi } from '../../api/client'
 import type {
-  Session,
   SystemServiceAction,
   SystemServiceDetail,
   SystemServiceOperation,
   SystemServiceOperationPhase,
   SystemServiceSummary,
-} from '../../types/domain'
-import { WorkbenchEmptyState } from './WorkbenchEmptyState'
+} from '#entities/service'
+import { WorkspaceEmptyState } from '#shared/ui'
+import type { ServiceGateway, ServiceSessionContext } from '../model/contracts'
 import { ServiceLogsModal } from './ServiceLogsModal'
 import {
   defaultServiceQuery,
   type SessionServiceQueryState,
   useSessionServices,
-} from './useSessionServices'
-import './service-panel.css'
+} from '../model/useSessionServices'
+import styles from './ServicePanel.module.scss'
 
-interface ServicePanelProps {
-  api: TermousApi
-  session: Session | null
+export interface ServicePanelProps {
+  api: ServiceGateway
+  session: ServiceSessionContext | null
   enabled: boolean
 }
 
@@ -66,6 +65,13 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
   const services = useSessionServices({ api, session, enabled })
   const [logsOpen, setLogsOpen] = useState(false)
   const operationNotificationsRef = useRef(new Map<string, ServiceOperationNotificationEntry>())
+  const actionConfirmRef = useRef<ReturnType<typeof modal.confirm> | null>(null)
+  const interactionScopeRef = useRef({
+    enabled,
+    sessionId: session?.id,
+    supported: services.supported,
+    selectedUnitId: services.selectedUnitId,
+  })
   const items = services.list?.items ?? []
   const detail = services.detail
   const selectedUnitId = services.selectedUnitId
@@ -80,9 +86,31 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
     services.query.order !== defaultServiceQuery.order,
   )
 
+  interactionScopeRef.current = {
+    enabled,
+    sessionId: session?.id,
+    supported: services.supported,
+    selectedUnitId: services.selectedUnitId,
+  }
+
+  const destroyActionConfirm = useCallback(() => {
+    actionConfirmRef.current?.destroy()
+    actionConfirmRef.current = null
+  }, [])
+
   useEffect(() => {
     setLogsOpen(false)
-  }, [session?.id, services.supported])
+    destroyActionConfirm()
+  }, [destroyActionConfirm, services.selectedUnitId, services.supported, session?.id])
+
+  useEffect(() => {
+    if (!enabled) {
+      setLogsOpen(false)
+      destroyActionConfirm()
+    }
+  }, [destroyActionConfirm, enabled])
+
+  useEffect(() => () => destroyActionConfirm(), [destroyActionConfirm])
 
   const runtimeOptions = useMemo(
     () => [
@@ -186,7 +214,17 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
     operationNotificationsRef.current.clear()
   }, [notification, session?.id])
 
-  const executeAction = async (unitId: string, action: SystemServiceAction) => {
+  const executeAction = async (unitId: string, action: SystemServiceAction, expectedSessionId = session?.id) => {
+    const scope = interactionScopeRef.current
+    if (
+      !scope.enabled ||
+      !scope.supported ||
+      !expectedSessionId ||
+      scope.sessionId !== expectedSessionId ||
+      scope.selectedUnitId !== unitId
+    ) {
+      return
+    }
     const notificationKey = serviceOperationNotificationKey(session?.id || '', unitId)
     const initialProgress = serviceOperationProgress('queued')
     operationNotificationsRef.current.set(unitId, {
@@ -227,13 +265,25 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
   }
 
   const requestAction = (unitId: string, action: SystemServiceAction) => {
+    const expectedSessionId = session?.id
+    const scope = interactionScopeRef.current
+    if (
+      !scope.enabled ||
+      !scope.supported ||
+      !expectedSessionId ||
+      scope.sessionId !== expectedSessionId ||
+      scope.selectedUnitId !== unitId
+    ) {
+      return
+    }
     const requiresConfirmation = isRiskyAction(action) || isCriticalService(unitId)
     if (!requiresConfirmation) {
-      void executeAction(unitId, action)
+      void executeAction(unitId, action, expectedSessionId)
       return
     }
     const critical = isCriticalService(unitId)
-    modal.confirm({
+    destroyActionConfirm()
+    const confirmation = modal.confirm({
       centered: true,
       className: 'service-action-confirm',
       title: t('workbench.services.confirmTitle', { action: t(`workbench.services.actions.${action}`) }),
@@ -243,8 +293,19 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
       okText: t(`workbench.services.actions.${action}`),
       cancelText: t('app.cancel'),
       okButtonProps: { danger: action === 'mask' || action === 'stop' },
-      onOk: () => executeAction(unitId, action),
+      onOk: () => executeAction(unitId, action, expectedSessionId),
+      onCancel: () => {
+        if (actionConfirmRef.current === confirmation) {
+          actionConfirmRef.current = null
+        }
+      },
+      afterClose: () => {
+        if (actionConfirmRef.current === confirmation) {
+          actionConfirmRef.current = null
+        }
+      },
     })
+    actionConfirmRef.current = confirmation
   }
 
   const openLogs = () => {
@@ -257,7 +318,7 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
 
   if (!services.supported) {
     return (
-      <WorkbenchEmptyState
+      <WorkspaceEmptyState
         icon={<Cog size={20} />}
         title={t('workbench.services.emptyTitle')}
         description={t('workbench.services.emptyHint')}
@@ -304,7 +365,7 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
     : t('workbench.services.total', { count: 0 })
 
   return (
-    <section className="service-panel">
+    <section className={`service-panel ${styles.root}`}>
       <div className="service-statusbar">
         <div className="service-statusbar-copy">
           <span className={`service-live-dot ${services.error ? 'is-danger' : services.loadingList ? 'is-loading' : 'is-ready'}`} />
@@ -421,6 +482,7 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
             operationBusy={operationBusy}
             manageable={services.capability.manageable}
             journalReadable={services.capability.journal_readable}
+            enabled={enabled}
             onBack={services.clearSelection}
             onLogs={openLogs}
             onAction={(action) => requestAction(selectedUnitId, action)}
@@ -428,7 +490,7 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
         ) : (
           <div className="service-list" aria-label={t('workbench.services.serviceList')}>
             {items.length === 0 ? (
-              <WorkbenchEmptyState
+              <WorkspaceEmptyState
                 className="service-empty-list"
                 tone={services.error && !services.list ? 'danger' : 'neutral'}
                 icon={services.loadingList
@@ -489,7 +551,7 @@ function ServiceUnavailable({
   const { t } = useTranslation()
   return (
     <div className="service-unavailable">
-      <WorkbenchEmptyState
+      <WorkspaceEmptyState
         tone={tone}
         icon={loading ? <LoaderCircle className="service-spin" size={20} /> : <Cog size={20} />}
         title={title}
@@ -540,6 +602,7 @@ function ServiceDetailView({
   operationBusy,
   manageable,
   journalReadable,
+  enabled,
   onBack,
   onLogs,
   onAction,
@@ -550,11 +613,17 @@ function ServiceDetailView({
   operationBusy: boolean
   manageable: boolean
   journalReadable: boolean
+  enabled: boolean
   onBack: () => void
   onLogs: () => void
   onAction: (action: SystemServiceAction) => void
 }) {
   const { t } = useTranslation()
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false)
+  const detailUnitId = detail?.summary.id
+  useEffect(() => {
+    setMoreActionsOpen(false)
+  }, [detailUnitId, enabled])
   if (!detail && loading) {
     return (
       <div className="service-detail is-loading">
@@ -575,7 +644,7 @@ function ServiceDetailView({
     return (
       <div className="service-detail">
         <Button type="text" className="service-back" icon={<ArrowLeft size={14} />} onClick={onBack}>{t('workbench.services.backToList')}</Button>
-        <WorkbenchEmptyState tone="danger" icon={<AlertTriangle size={20} />} title={t('workbench.services.loadFailed')} description={error} />
+        <WorkspaceEmptyState tone="danger" icon={<AlertTriangle size={20} />} title={t('workbench.services.loadFailed')} description={error} />
       </div>
     )
   }
@@ -586,7 +655,7 @@ function ServiceDetailView({
   const active = summary.active_state === 'active' || summary.active_state === 'reloading'
   const failed = summary.active_state === 'failed'
   const masked = summary.unit_file_state === 'masked' || summary.unit_file_state === 'masked-runtime'
-  const enabled = summary.unit_file_state === 'enabled' || summary.unit_file_state === 'enabled-runtime' || summary.unit_file_state === 'linked'
+  const unitEnabled = summary.unit_file_state === 'enabled' || summary.unit_file_state === 'enabled-runtime' || summary.unit_file_state === 'linked'
   const canStart = manageable && !summary.template && detail.can_start && !detail.refuse_manual_start && !active
   const canStop = manageable && !summary.template && detail.can_stop && !detail.refuse_manual_stop && active
   const canRestart = manageable && !summary.template && detail.can_start && detail.can_stop && active
@@ -595,7 +664,7 @@ function ServiceDetailView({
     { key: 'reload', label: t('workbench.services.actions.reload'), disabled: !manageable || summary.template || !active || !detail.can_reload || operationBusy },
     { key: 'reset_failed', label: t('workbench.services.actions.reset_failed'), disabled: !manageable || summary.template || !failed || operationBusy },
     { type: 'divider' },
-    { key: enabled ? 'disable' : 'enable', label: t(`workbench.services.actions.${enabled ? 'disable' : 'enable'}`), disabled: !manageable || summary.template || operationBusy },
+    { key: unitEnabled ? 'disable' : 'enable', label: t(`workbench.services.actions.${unitEnabled ? 'disable' : 'enable'}`), disabled: !manageable || summary.template || operationBusy },
     { key: masked ? 'unmask' : 'mask', label: t(`workbench.services.actions.${masked ? 'unmask' : 'mask'}`), danger: !masked, disabled: !manageable || summary.template || operationBusy },
   ]
 
@@ -656,9 +725,17 @@ function ServiceDetailView({
           {t('workbench.services.logs')}
         </Button>
         <Dropdown
+          open={moreActionsOpen}
           trigger={['click']}
-          menu={{ items: moreItems, onClick: ({ key }) => onAction(key as SystemServiceAction) }}
+          menu={{
+            items: moreItems,
+            onClick: ({ key }) => {
+              setMoreActionsOpen(false)
+              onAction(key as SystemServiceAction)
+            },
+          }}
           popupRender={(menu) => <div className="service-action-menu">{menu}</div>}
+          onOpenChange={(open) => setMoreActionsOpen(enabled && open)}
         >
           <Button className="service-action-button" icon={<MoreHorizontal size={15} />}>{t('workbench.services.moreActions')}</Button>
         </Dropdown>

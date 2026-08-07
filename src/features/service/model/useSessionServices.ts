@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { TermousApi } from '../../api/client'
 import type {
-  Session,
   SystemServiceAction,
   SystemServiceCapability,
   SystemServiceDetail,
@@ -13,7 +11,8 @@ import type {
   SystemServiceQuery,
   SystemServiceRuntimeFilter,
   SystemServiceSort,
-} from '../../types/domain'
+} from '#entities/service'
+import type { ServiceGateway, ServiceSessionContext } from './contracts'
 
 export interface SessionServiceQueryState {
   text: string
@@ -53,8 +52,8 @@ export interface SessionServiceState {
 }
 
 interface UseSessionServicesOptions {
-  api: TermousApi
-  session: Session | null
+  api: ServiceGateway
+  session: ServiceSessionContext | null
   enabled: boolean
 }
 
@@ -120,6 +119,8 @@ export function useSessionServices({ api, session, enabled }: UseSessionServices
   const [states, setStates] = useState<Record<string, SessionServiceState>>({})
   const sessionId = session?.id ?? ''
   const supported = Boolean(sessionId && session?.kind === 'ssh' && session.status === 'connected')
+  const readScopeRef = useRef({ enabled, sessionId, supported })
+  readScopeRef.current = { enabled, sessionId, supported }
   const currentState = supported ? states[sessionId] ?? emptyServiceState : emptyServiceState
   const pendingOperationKey = Object.values(currentState.operations)
     .filter((operation) => !isTerminalOperation(operation.phase))
@@ -154,7 +155,7 @@ export function useSessionServices({ api, session, enabled }: UseSessionServices
     logsAbortRef.current?.abort()
   }, [])
 
-  useEffect(() => () => abortReadRequests(), [abortReadRequests, enabled, sessionId])
+  useEffect(() => () => abortReadRequests(), [abortReadRequests, enabled, sessionId, supported])
 
   useEffect(
     () => () => {
@@ -427,17 +428,29 @@ export function useSessionServices({ api, session, enabled }: UseSessionServices
 
   const refreshAll = useCallback(async () => {
     const capability = await refreshCapability()
-    if (capability?.available) {
-      await refreshList()
-    }
-  }, [refreshCapability, refreshList])
-
-  useEffect(() => {
-    if (!enabled || !supported || currentState.capability || currentState.loadingCapability || currentState.loadingList) {
+    const scope = readScopeRef.current
+    if (!capability?.available || !scope.enabled || !scope.supported || scope.sessionId !== sessionId) {
       return
     }
-    void refreshAll()
-  }, [currentState.capability, currentState.loadingCapability, currentState.loadingList, enabled, refreshAll, supported])
+    await refreshList()
+  }, [refreshCapability, refreshList, sessionId])
+
+  useEffect(() => {
+    if (!enabled || !supported || currentState.loadingCapability || currentState.loadingList) {
+      return
+    }
+    if (!currentState.capability) {
+      void refreshAll()
+      return
+    }
+    if (currentState.capability.available && !currentState.list && !currentState.error) {
+      void refreshList()
+      return
+    }
+    if (currentState.capability.available && currentState.selectedUnitId && !currentState.detail && !currentState.detailLoading && !currentState.detailError) {
+      void selectService(currentState.selectedUnitId)
+    }
+  }, [currentState.capability, currentState.detail, currentState.detailError, currentState.detailLoading, currentState.error, currentState.list, currentState.loadingCapability, currentState.loadingList, currentState.selectedUnitId, enabled, refreshAll, refreshList, selectService, supported])
 
   useEffect(() => {
     if (!enabled || !supported || !sessionId || !pendingOperationKey) {
@@ -478,6 +491,10 @@ export function useSessionServices({ api, session, enabled }: UseSessionServices
         }
         if (reachedTerminal && !controller.signal.aborted) {
           await refreshList()
+          const scope = readScopeRef.current
+          if (!scope.enabled || !scope.supported || scope.sessionId !== sessionId || controller.signal.aborted) {
+            return
+          }
           const selectedUnitId = statesRef.current[sessionId]?.selectedUnitId
           if (selectedUnitId) {
             await selectService(selectedUnitId)

@@ -393,72 +393,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/DockerPanel.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/DockerPanel.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/FirewallPanel.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/FirewallPanel.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/FirewallPersistencePanel.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/FirewallPersistencePanel.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/FirewallRuleModal.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/firewallUtils.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/ServiceLogsModal.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/ServicePanel.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/ServicePanel.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/workbench/sessionFilesState.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain.ts"
@@ -508,30 +442,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/workbench/useSessionAliases.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useSessionDocker.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useSessionDocker.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useSessionServices.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useSessionServices.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -778,6 +688,42 @@
       "source": "src/types/domain.ts",
       "target": "src/entities/observability/index.ts",
       "specifier": "#entities/observability"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/api/client.ts",
+      "target": "src/entities/docker/index.ts",
+      "specifier": "#entities/docker"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/types/domain.ts",
+      "target": "src/entities/docker/index.ts",
+      "specifier": "#entities/docker"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/api/client.ts",
+      "target": "src/entities/firewall/index.ts",
+      "specifier": "#entities/firewall"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/types/domain.ts",
+      "target": "src/entities/firewall/index.ts",
+      "specifier": "#entities/firewall"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/api/client.ts",
+      "target": "src/entities/service/index.ts",
+      "specifier": "#entities/service"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/types/domain.ts",
+      "target": "src/entities/service/index.ts",
+      "specifier": "#entities/service"
     }
   ]
 }

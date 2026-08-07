@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { TermousApi } from '../../api/client'
 import type {
   DockerAction,
   DockerActionResult,
@@ -9,8 +8,8 @@ import type {
   DockerContainerStats,
   DockerListResult,
   DockerLogsResult,
-  Session,
-} from '../../types/domain'
+} from '#entities/docker'
+import type { DockerGateway, DockerSessionContext } from './contracts'
 
 export interface SessionDockerQueryState {
   text: string
@@ -40,11 +39,12 @@ export interface SessionDockerState {
   statsError: string
   logsError: string
   lastUpdatedAt: string
+  refreshRequired: boolean
 }
 
 interface UseSessionDockerOptions {
-  api: TermousApi
-  session: Session | null
+  api: DockerGateway
+  session: DockerSessionContext | null
   enabled: boolean
 }
 
@@ -78,6 +78,7 @@ const emptyDockerState: SessionDockerState = {
   statsError: '',
   logsError: '',
   lastUpdatedAt: '',
+  refreshRequired: false,
 }
 
 function createDockerState(): SessionDockerState {
@@ -106,9 +107,13 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
   const detailRevisionRef = useRef<Record<string, number>>({})
   const statsRevisionRef = useRef<Record<string, number>>({})
   const logsRevisionRef = useRef<Record<string, number>>({})
+  const actionRefreshRef = useRef<Set<string>>(new Set())
+  const actionRevisionRef = useRef<Record<string, number>>({})
   const [states, setStates] = useState<Record<string, SessionDockerState>>({})
   const sessionId = session?.id ?? ''
   const supported = Boolean(sessionId && session?.kind === 'ssh' && session.status === 'connected')
+  const readScopeRef = useRef({ enabled, sessionId, supported })
+  readScopeRef.current = { enabled, sessionId, supported }
   const currentState = supported ? states[sessionId] ?? emptyDockerState : emptyDockerState
 
   const updateSessionState = useCallback((id: string, updater: (current: SessionDockerState) => SessionDockerState) => {
@@ -131,16 +136,15 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
     statesRef.current = states
   }, [states])
 
-  useEffect(
-    () => () => {
-      capabilityAbortRef.current?.abort()
-      listAbortRef.current?.abort()
-      detailAbortRef.current?.abort()
-      statsAbortRef.current?.abort()
-      logsAbortRef.current?.abort()
-    },
-    [],
-  )
+  const abortReadRequests = useCallback(() => {
+    capabilityAbortRef.current?.abort()
+    listAbortRef.current?.abort()
+    detailAbortRef.current?.abort()
+    statsAbortRef.current?.abort()
+    logsAbortRef.current?.abort()
+  }, [])
+
+  useEffect(() => () => abortReadRequests(), [abortReadRequests, enabled, sessionId, supported])
 
   const updateQuery = useCallback(
     (patch: Partial<SessionDockerQueryState>) => {
@@ -308,15 +312,55 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
 
   const refreshAll = useCallback(async () => {
     const capability = await refreshCapability()
-    if (!capability?.available) {
+    const scope = readScopeRef.current
+    if (!capability?.available || !scope.enabled || !scope.supported || scope.sessionId !== sessionId) {
       return
     }
     await refreshList()
+    const nextScope = readScopeRef.current
+    if (!nextScope.enabled || !nextScope.supported || nextScope.sessionId !== sessionId) {
+      return
+    }
     const selectedRef = statesRef.current[sessionId]?.selectedRef
     if (selectedRef) {
       await selectContainer(selectedRef)
     }
   }, [refreshCapability, refreshList, selectContainer, sessionId])
+
+  const refreshChangedContainer = useCallback(async () => {
+    const scope = readScopeRef.current
+    if (!scope.enabled || !scope.supported || scope.sessionId !== sessionId || actionRefreshRef.current.has(sessionId)) {
+      return
+    }
+    actionRefreshRef.current.add(sessionId)
+    try {
+      let refreshAgain: boolean
+      do {
+        const actionRevision = actionRevisionRef.current[sessionId] ?? 0
+        await refreshList()
+        const nextScope = readScopeRef.current
+        if (!nextScope.enabled || !nextScope.supported || nextScope.sessionId !== sessionId) {
+          return
+        }
+        const selectedRef = statesRef.current[sessionId]?.selectedRef
+        if (selectedRef) {
+          await selectContainer(selectedRef)
+        }
+        const finalScope = readScopeRef.current
+        if (!finalScope.enabled || !finalScope.supported || finalScope.sessionId !== sessionId) {
+          return
+        }
+        refreshAgain = (actionRevisionRef.current[sessionId] ?? 0) !== actionRevision
+        if (!refreshAgain) {
+          updateSessionState(sessionId, (current) => (
+            current.refreshRequired ? { ...current, refreshRequired: false } : current
+          ))
+        }
+      } while (refreshAgain)
+    } finally {
+      actionRefreshRef.current.delete(sessionId)
+    }
+  }, [refreshList, selectContainer, sessionId, updateSessionState])
 
   const clearSelection = useCallback(() => {
     updateSessionState(sessionId, (current) => ({
@@ -418,24 +462,40 @@ export function useSessionDocker({ api, session, enabled }: UseSessionDockerOpti
           action,
           timeout_seconds: timeoutSeconds,
         })
-        await refreshList()
-        if (statesRef.current[sessionId]?.selectedRef === ref) {
-          await selectContainer(ref)
+        actionRevisionRef.current[sessionId] = (actionRevisionRef.current[sessionId] ?? 0) + 1
+        updateSessionState(sessionId, (current) => ({ ...current, refreshRequired: true }))
+        const scope = readScopeRef.current
+        if (scope.enabled && scope.supported && scope.sessionId === sessionId) {
+          await refreshChangedContainer()
         }
         return result
       } finally {
         updateSessionState(sessionId, (current) => ({ ...current, actionRef: '' }))
       }
     },
-    [api, enabled, refreshList, selectContainer, sessionId, supported, updateSessionState],
+    [api, enabled, refreshChangedContainer, sessionId, supported, updateSessionState],
   )
 
   useEffect(() => {
-    if (!enabled || !supported || currentState.capability || currentState.loadingCapability || currentState.loadingList) {
+    if (!enabled || !supported || currentState.loadingCapability || currentState.loadingList) {
       return
     }
-    void refreshAll()
-  }, [currentState.capability, currentState.loadingCapability, currentState.loadingList, enabled, refreshAll, supported])
+    if (!currentState.capability) {
+      void refreshAll()
+      return
+    }
+    if (currentState.refreshRequired) {
+      void refreshChangedContainer()
+      return
+    }
+    if (currentState.capability.available && !currentState.list && !currentState.error) {
+      void refreshList()
+      return
+    }
+    if (currentState.capability.available && currentState.selectedRef && !currentState.detail && !currentState.detailLoading && !currentState.detailError) {
+      void selectContainer(currentState.selectedRef)
+    }
+  }, [currentState.capability, currentState.detail, currentState.detailError, currentState.detailLoading, currentState.error, currentState.list, currentState.loadingCapability, currentState.loadingList, currentState.refreshRequired, currentState.selectedRef, enabled, refreshAll, refreshChangedContainer, refreshList, selectContainer, supported])
 
   return {
     ...currentState,

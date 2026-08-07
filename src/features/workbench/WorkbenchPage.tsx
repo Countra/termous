@@ -82,11 +82,11 @@ import {
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '#entities/snippet'
 import { ForwardSessionPanel } from '#features/forwards'
 import { AliasPanel } from './AliasPanel'
-import { FirewallPanel } from './FirewallPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
-import { DockerPanel } from './DockerPanel'
+import { DockerPanel } from '#features/docker'
+import { FirewallPanel } from '#features/firewall'
 import { ProcessPanel, SystemMonitorPanel } from '#features/observability'
-import { ServicePanel } from './ServicePanel'
+import { ServicePanel } from '#features/service'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import { WorkbenchFilesPanel } from './WorkbenchFilesPanel'
 import type { WorkbenchFilesPathNavigationIntent } from './workbenchFilesPathNavigation'
@@ -1686,13 +1686,13 @@ export function WorkbenchPage({
             key: 'services',
             label: t('workbench.detailsTabs.services'),
             icon: <Wrench size={17} aria-hidden="true" />,
-            children: <ServicePanel api={api} session={activeSession} enabled={detailsActiveTab === 'services' && !detailsCollapsed} />,
+            children: <ServicePanel api={api} session={activeSession} enabled={active && detailsActiveTab === 'services' && !detailsCollapsed} />,
           },
           {
             key: 'docker',
             label: t('workbench.detailsTabs.docker'),
             icon: <Boxes size={17} aria-hidden="true" />,
-            children: <DockerPanel api={api} session={activeSession} enabled={detailsActiveTab === 'docker' && !detailsCollapsed} />,
+            children: <DockerPanel api={api} session={activeSession} enabled={active && detailsActiveTab === 'docker' && !detailsCollapsed} />,
           },
           {
             key: 'firewall',
@@ -1703,7 +1703,7 @@ export function WorkbenchPage({
                 api={api}
                 session={activeSession}
                 host={sessionHost}
-                enabled={detailsActiveTab === 'firewall' && !detailsCollapsed}
+                enabled={active && detailsActiveTab === 'firewall' && !detailsCollapsed}
               />
             ),
           },

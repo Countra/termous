@@ -1,3 +1,10 @@
+/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
+/* stylelint-disable termous/no-unscoped-global, color-hex-length, declaration-block-no-redundant-longhand-properties, declaration-block-single-line-max-declarations, rule-empty-line-before, declaration-property-value-keyword-no-deprecated -- 迁移期保持系统服务面板与 Portal 的视觉与交互兼容。 */
+.root {
+  position: static;
+}
+
+:global {
 .service-panel {
   display: grid;
   height: 100%;
@@ -613,4 +620,5 @@
   .service-detail-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .service-detail-kpis .service-kpi:last-child { grid-column: 1 / -1; }
   .service-detail-list > div { grid-template-columns: 1fr; gap: 3px; }
+}
 }

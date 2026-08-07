@@ -1,11 +1,11 @@
 import { Input, InputNumber, Modal, Segmented, Switch } from 'antd'
-import type { FirewallRuleAction, FirewallRuleInput, FirewallRuleProtocol } from '../../types/domain'
+import type { FirewallRuleAction, FirewallRuleInput, FirewallRuleProtocol } from '#entities/firewall'
 import {
   firewallActions,
   firewallProtocols,
   normalizePorts,
   validateFirewallRuleInput,
-} from './firewallUtils'
+} from '../model/firewallUtils'
 
 interface FirewallRuleModalProps {
   open: boolean

@@ -1,3 +1,10 @@
+/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
+/* stylelint-disable termous/no-unscoped-global, declaration-empty-line-before, declaration-block-single-line-max-declarations, rule-empty-line-before -- 迁移期保持系统服务日志弹窗的视觉与交互兼容。 */
+.root {
+  position: static;
+}
+
+:global {
 .service-logs-modal-root .service-logs-modal.ant-modal {
   --service-log-modal-bg: #21252e;
   --service-log-console-bg: #080c12;
@@ -223,4 +230,5 @@
   .service-logs-view { height: calc(88vh - 20px); min-height: 0; }
   .service-logs-option-row { flex-wrap: wrap; }
   .service-logs-refresh.ant-btn { flex: 1 1 auto; }
+}
 }
