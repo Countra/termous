@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
-import type { TermousApi } from '../../../api/client'
-import type {
-  AppData,
-  Session,
-  SessionCwdState,
-} from '../../../types/domain'
+import type { FileGateway } from '#features/files'
+import type { Session, SessionCwdState } from '#entities/session'
 import type { FileSession, RemoteFileEntry } from '#entities/file'
 import { normalizeRemotePath, normalizeRemotePosixPath } from '#shared/path'
 import { retireWebSocket } from '#shared/websocket'
@@ -101,8 +97,8 @@ type FileSessionRecoveryUpdater = (
 ) => FileSessionRecoveryState
 
 interface UseWorkbenchSessionFilesOptions {
-  api: TermousApi
-  data: AppData
+  api: FileGateway
+  data: WorkbenchSessionFilesData
   fileSessionClosures: Readonly<Record<string, FileSessionClosureState>>
   activeSession: Session | null
   enabled: boolean
@@ -115,6 +111,11 @@ interface UseWorkbenchSessionFilesOptions {
   ) => Promise<FileSession>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
+}
+
+interface WorkbenchSessionFilesData {
+  fileSessions: FileSession[]
+  sessions: Session[]
 }
 
 export function useWorkbenchSessionFiles({

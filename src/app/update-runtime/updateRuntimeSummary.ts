@@ -1,5 +1,6 @@
 import type { FileSession } from '#entities/file'
-import type { ForwardInstance, Session } from '../../types/domain'
+import type { ForwardInstance } from '#entities/forward'
+import type { Session } from '#entities/session'
 import type { UpdateRuntimeSummary } from '#common/contracts'
 
 export function buildUpdateRuntimeSummary(input: {

@@ -2,15 +2,15 @@
 
 ## 目标与边界
 
-Termous Web 采用 FSD 启发式模块化单体。重构以迁移现有实现为主，目录调整不得改变 API、IPC、WebSocket、存储键、错误语义或交互行为。
+Termous Web 采用 FSD 启发式模块化单体。目录调整不得改变 API、IPC、WebSocket、存储键、错误语义或交互行为。
 
-目标目录如下：
+当前生产源码目录如下：
 
 ```text
 common/<slice>/         Electron 与 Renderer 共用的纯合同 Slice
 electron/               Main、Preload、更新与系统运行时
 src/
-  app/                  启动、Provider、导航、生命周期与装配
+  app/                  Renderer 入口、Provider、导航、生命周期与最终装配
   pages/                页面级组合
   widgets/              Workbench、Terminal、Files 等大型区域
   features/             用户可执行的业务用例
@@ -18,7 +18,7 @@ src/
   shared/               bridge、transport、UI、hooks、lib、i18n、styles
 ```
 
-`src/api`、`src/components`、`src/hooks`、`src/i18n`、`src/theme`、`src/types`、根级页面文件和全局业务样式属于迁移期旧结构。现有源码文件和引用通过精确 allowlist 暂时保留，不允许在旧结构中增加文件或依赖。
+生产 Renderer 源码必须归属上述标准层级。标准层级之外的旧目录不再承载生产源码，架构门禁会把重新写入这些目录的文件识别为 `legacy-file`。`scripts/architecture/legacy-allowlist.json` 当前为空，不存在待豁免的架构债务。
 
 ## 依赖规则
 
@@ -32,7 +32,7 @@ electron -> common
 - 上层可以跳过中间层依赖更低层；下层不得反向依赖上层。
 - `common` 只能依赖自身或外部包，不能依赖 `src`、`electron`；`common` 的一级子目录同样视为 Slice。
 - `electron` 不能依赖 Renderer 实现；Renderer 不能导入 `electron` 实现或其中的类型。
-- 迁移期旧结构生产源码除严格的纯 re-export 兼容出口外，只能通过 `#shared/<slice>` 公共入口依赖 `shared` 基础设施；相对路径、深层路径及指向其他目标层的普通依赖仍被冻结。
+- 标准层级之外不得新增生产源码或依赖；如确需短期兼容出口，必须是指向单一规范公共入口的纯 re-export，并经过单独审查和债务登记。
 - `pages`、`widgets`、`features`、`entities`、`shared` 的一级子目录视为 Slice。
 - Slice 内部只能使用相对路径，内部文件也不能相对回导自身的 `index.ts`；跨 Slice 必须通过目标 Slice 根目录的 `index.ts`，并使用 `#<layer>/<slice>` 导入。
 - 同层 Slice 不得深层导入另一 Slice。需要组合两个同层 Slice 时，将组合职责上移。
@@ -72,13 +72,15 @@ import { HostsPage, type HostLauncherIntent } from '#features/hosts'
 ## SCSS 所有权
 
 - 业务组件使用共置的 `*.module.scss`，样式跟随组件或 Slice 移动。
-- 全局 SCSS 仅保留 tokens、根节点、主题、滚动条和必要的文档级状态。
+- `src/shared/styles/global.scss` 是两个 Renderer Surface 共用的全局入口，承载 tokens、根节点、主题和必要的文档级状态。
+- 主界面通过 `#shared/main-styles` 按顺序加载 `app.scss` 和 `workstation.scss`；两者仍是受控的历史全局兼容层，不进入独立更新窗口，也不作为新增业务样式的落点。
+- 独立更新窗口只使用共享 `global.scss` 和自身共置的 SCSS Modules，不加载主界面兼容层。
 - 运行时主题继续使用 CSS Custom Properties；Sass 变量只处理编译期复用。
 - AntD Portal、xterm 和 CodeMirror 的全局覆盖必须挂在明确的局部根节点下。
 - JavaScript 查询样式类名的代码先迁移到 `data-*` 或 ref，再启用 CSS Modules。
-- `workstation.css` 按完整功能块逐段抽离，不整体改名或重写。
+- `app.scss` 和 `workstation.scss` 中的兼容规则只按完整功能块逐段抽离，不整体重写，不在结构调整时改变计算样式。
 
-## 迁移纪律
+## 结构调整纪律
 
 1. 先用特征测试记录行为，再使用 `git mv` 移动完整文件。
 2. 先调整 import、export 和公共入口，不修改文件内部业务逻辑。
@@ -100,14 +102,14 @@ pnpm run check:architecture
 - 层级方向；
 - 同层跨 Slice 深层导入；
 - Renderer 到 Electron 实现依赖；
-- 旧结构源码文件、旧结构依赖、经公共入口使用 shared 的迁移通道及严格的纯 re-export 兼容出口；
+- 非标准 Renderer 源码、Layer 根文件、兼容出口及其依赖边界；
 - Slice 内部别名、自身公共入口、Layer 根文件和生产源码导入测试；
 - 静态、类型、动态 import 与 CommonJS require 循环；
 - 跨 Slice 公共入口、统一别名、项目范围外源码与路径大小写。
 
 检查器从 `package.json#imports` 读取真实别名映射，并严格校验七个标准别名的键和值。缺失、目标漂移或额外别名都会直接中止检查，不能通过 allowlist 放行。
 
-`scripts/architecture/legacy-allowlist.json` 保存当前历史债务。规则、源文件及适用的目标文件、import specifier、循环类型共同组成精确身份。检查器同时拒绝新增违规和过期条目，因此债务消除后必须同步删除对应条目。
+`scripts/architecture/legacy-allowlist.json` 是回归门禁的一部分，当前 `violations` 为空。若未来确需临时登记债务，规则、源文件及适用的目标文件、import specifier、循环类型共同组成精确身份；检查器会同时拒绝新增违规和过期条目。不得为了通过门禁扩大清单。
 
 需要审阅当前完整违规集时执行：
 
@@ -115,4 +117,4 @@ pnpm run check:architecture
 node scripts/architecture/check.mjs --report-json
 ```
 
-该命令只输出报告，不修改 allowlist。不得为了通过门禁直接扩大 allowlist；只有确认暂时无法在当前阶段消除、且不会扩大运行风险的既有债务才能登记。
+该命令只输出报告，不修改 allowlist。

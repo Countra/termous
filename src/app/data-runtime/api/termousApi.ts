@@ -1,15 +1,8 @@
 import type {
-  AppearanceSettings,
   AppConfig,
-  CompletionQuery,
-  CompletionResult,
+  AppLanguage,
+  AppearanceSettings,
   CompletionSettings,
-  CompletionStatus,
-  ConnectionProxy,
-  ConnectionProxyInput,
-  CoreRuntimeInfo,
-  CredentialInput,
-  CredentialView,
   DataPortabilityApplyResult,
   DataPortabilityPlanItemPage,
   DataPortabilityPlanItemQuery,
@@ -17,31 +10,39 @@ import type {
   DataPortabilityResolutionRequest,
   DataPortabilityRestorePlan,
   DataPortabilitySummary,
-  GroupReorderItem,
-  Host,
-  HostGroup,
-  HostIcon,
-  HostInput,
-  HostKeyChallengeSnapshot,
-  HostKeyDecisionAction,
-  HostKeyResolution,
-  HostKeyTrustRecord,
-  HostReachability,
-  Language,
-  LocalShell,
-  PrivateKeyCredentialBundleInput,
-  PrivateKeyCredentialBundleResult,
-  Session,
   Settings,
   ShortcutSettingsPatch,
+  TerminalFont,
+  TerminalSettings,
+  WindowSettings,
+} from '#common/contracts'
+import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
+import type {
+  CredentialInput,
+  CredentialView,
+  PrivateKeyCredentialBundleInput,
+  PrivateKeyCredentialBundleResult,
   SSHKeyGenerateRequest,
   SSHKeyInspectRequest,
   SSHKeyInspectResult,
   SSHKeyPair,
-  TerminalFont,
-  TerminalSettings,
-  WindowSettings,
-} from '../types/domain'
+} from '#entities/credential'
+import type {
+  Host,
+  HostGroup,
+  HostIcon,
+  HostInput,
+  HostReachability,
+} from '#entities/host'
+import type {
+  HostKeyChallengeSnapshot,
+  HostKeyDecisionAction,
+  HostKeyResolution,
+  HostKeyTrustRecord,
+} from '#entities/host-key'
+import type { CoreRuntimeInfo } from '../model/runtimeTypes'
+import type { GroupReorderItem } from '#shared/model'
+import type { CompletionQuery, CompletionResult, CompletionStatus, LocalShell, Session } from '#entities/session'
 import type {
   AliasMutationResult,
   AliasSyncTask,
@@ -129,10 +130,12 @@ import type {
   CodeSnippetInput,
 } from '#entities/snippet'
 import { getTermousBridge } from '#shared/bridge'
-import { TermousApiTransport } from '#shared/api'
-import { normalizeCompletionResult } from '../features/terminal/completionModel'
+import { TermousApiTransport, TermousApiError } from '#shared/api'
+import { normalizeCompletionResult } from '#entities/session'
 
-export { TermousApiError } from '#shared/api'
+type Language = AppLanguage
+
+export { TermousApiError }
 
 const SESSION_ALIAS_READ_TIMEOUT_MS = 45_000
 const SESSION_ALIAS_WRITE_TIMEOUT_MS = 90_000

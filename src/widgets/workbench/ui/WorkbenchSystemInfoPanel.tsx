@@ -15,7 +15,7 @@ import {
 import { Button, Skeleton, Tooltip } from 'antd'
 import { useState, type ReactNode } from 'react'
 import { WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
-import type { Session } from '../../../types/domain'
+import type { Session } from '#entities/session'
 import { formatWorkbenchTime } from '../model/workbenchFormatters'
 import styles from './WorkbenchDetails.module.scss'
 

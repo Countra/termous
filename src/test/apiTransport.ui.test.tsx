@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { TermousApi, TermousApiError } from '../api/client'
+import { TermousApi } from '#app/data-runtime'
+import { TermousApiError } from '#shared/api'
 
 const API_BASE_URL = 'http://127.0.0.1:8122'
 

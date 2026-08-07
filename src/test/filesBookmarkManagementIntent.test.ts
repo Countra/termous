@@ -6,7 +6,7 @@ import {
   type FilesBookmarkManagementIntent,
   type FilesBookmarkManagementRequest,
 } from '../pages/files/model/filesBookmarkManagementIntent.ts'
-import type { Session } from '../types/domain.ts'
+import type { Session } from '#entities/session'
 
 test('匹配的书签管理意图只消费一次', () => {
   const intent: FilesBookmarkManagementIntent = {

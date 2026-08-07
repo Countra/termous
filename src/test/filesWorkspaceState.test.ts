@@ -3,7 +3,7 @@ import test from 'node:test'
 import type {
   RemoteDirectoryListing,
   RemoteFileEntry,
-} from '../types/domain.ts'
+} from '#entities/file'
 import {
   applyFilesWorkspaceSelection,
   beginFilesWorkspaceHistoryNavigation,

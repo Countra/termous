@@ -370,4 +370,35 @@ describe('凭据库页面状态合同', () => {
       expect.any(AbortSignal),
     )
   })
+
+  it('运行时 API 工厂变化后不再复用旧网关', async () => {
+    const user = userEvent.setup()
+    const firstGenerate = vi.fn(async () => generatedKeyPair)
+    const secondGenerate = vi.fn(async () => generatedKeyPair)
+    const firstFactory = vi.fn(async () => ({
+      generateSSHKey: firstGenerate,
+      inspectSSHKey: gatewayMocks.inspectSSHKey,
+    }))
+    const secondFactory = vi.fn(async () => ({
+      generateSSHKey: secondGenerate,
+      inspectSSHKey: gatewayMocks.inspectSSHKey,
+    }))
+    const view = renderVault([], { createGateway: firstFactory })
+
+    await user.click(screen.getByRole('button', { name: 'open-key-generation' }))
+    await user.click(screen.getByRole('button', { name: 'run-key-generation' }))
+    await waitFor(() => expect(firstGenerate).toHaveBeenCalledTimes(1))
+
+    view.rerender(
+      <VaultPage
+        {...view.pageProps}
+        createGateway={secondFactory}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'run-key-generation' }))
+
+    await waitFor(() => expect(secondGenerate).toHaveBeenCalledTimes(1))
+    expect(firstFactory).toHaveBeenCalledTimes(1)
+    expect(secondFactory).toHaveBeenCalledTimes(1)
+  })
 })

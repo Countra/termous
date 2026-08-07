@@ -12,7 +12,8 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import type { Session, ThemeMode } from '../../../types/domain'
+import type { AppTheme as ThemeMode } from '#common/contracts'
+import type { Session } from '#entities/session'
 import { TerminalCompletionPopup } from './TerminalCompletionPopup'
 import { TerminalContextMenu } from './TerminalContextMenu'
 import {

@@ -19,6 +19,11 @@ export interface FileSessionGateway {
     path: string,
     options?: { signal?: AbortSignal },
   ) => Promise<RemoteDirectoryListing>
+  statFileSessionFile: (
+    fileSessionId: string,
+    path: string,
+    signal?: AbortSignal,
+  ) => Promise<RemoteFileEntry>
   mkdirFileSessionFile: (fileSessionId: string, path: string) => Promise<void>
   renameFileSessionFile: (
     fileSessionId: string,

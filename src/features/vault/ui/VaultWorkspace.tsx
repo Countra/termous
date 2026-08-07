@@ -17,7 +17,6 @@ import { TermousApiError } from '#shared/api'
 import { ConfirmDialog } from '#shared/ui'
 import { ManagementWorkspace, type ManagementWorkspaceView } from '#shared/ui'
 import {
-  createRuntimeCredentialGateway,
   type CredentialGatewayFactory,
 } from '../api/credentialGateway.ts'
 import { validateCredentialInput } from '../model/credentialCatalog.ts'
@@ -34,7 +33,7 @@ export interface VaultWorkspaceProps {
   onSave: (id: string | null, input: CredentialInput) => Promise<CredentialView | undefined>
   onDelete: (id: string) => Promise<boolean | undefined>
   onDirtyChange: (dirty: boolean) => void
-  createGateway?: CredentialGatewayFactory
+  createGateway: CredentialGatewayFactory
 }
 
 type CredentialIntent =
@@ -56,7 +55,7 @@ export function VaultWorkspace({
   onSave,
   onDelete,
   onDirtyChange,
-  createGateway = createRuntimeCredentialGateway,
+  createGateway,
 }: VaultWorkspaceProps) {
   const { t } = useTranslation()
   const initialInput = createBlankCredentialInput()
@@ -70,6 +69,7 @@ export function VaultWorkspace({
   const [importError, setImportError] = useState('')
   const [pendingImport, setPendingImport] = useState<PendingPrivateKeyImport | null>(null)
   const gatewayRef = useRef<ReturnType<CredentialGatewayFactory> | null>(null)
+  const gatewayFactoryRef = useRef(createGateway)
   const importControllerRef = useRef<AbortController | null>(null)
   const importRevisionRef = useRef(0)
   const dirty = useMemo(() => !credentialInputsEqual(draft, baseline), [baseline, draft])
@@ -111,6 +111,10 @@ export function VaultWorkspace({
   }, [])
 
   const getGateway = useCallback(() => {
+    if (gatewayFactoryRef.current !== createGateway) {
+      gatewayFactoryRef.current = createGateway
+      gatewayRef.current = null
+    }
     if (!gatewayRef.current) {
       gatewayRef.current = createGateway()
     }

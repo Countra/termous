@@ -1,0 +1,61 @@
+/* 窗口控制按钮与窗口控制组件共置，保持 Electron 桌面窗口行为样式。 */
+
+.window-controls {
+  display: flex;
+  height: 32px;
+  align-self: center;
+  align-items: center;
+  gap: 4px;
+  border-left: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  margin-left: 4px;
+  padding: 0 8px 0 10px;
+  -webkit-app-region: no-drag;
+}
+
+.window-control:global(.ant-btn) {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  box-shadow: none;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    transform 0.12s ease;
+  -webkit-app-region: no-drag;
+}
+
+.window-control:global(.ant-btn):hover {
+  background: color-mix(in srgb, var(--surface-subtle) 86%, #fff 4%);
+  color: var(--text-primary);
+}
+
+.window-control:global(.ant-btn):active {
+  transform: scale(0.96);
+}
+
+.window-control:global(.ant-btn):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  outline-offset: 2px;
+}
+
+.window-control.danger:global(.ant-btn):hover {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: #ff8a84;
+
+  :global(:root[data-theme="light"]) & {
+    background: color-mix(in srgb, var(--danger) 10%, #fff 90%);
+    color: var(--danger);
+  }
+}
+
+@media (width <= 760px) {
+  .window-controls {
+    display: none;
+  }
+}

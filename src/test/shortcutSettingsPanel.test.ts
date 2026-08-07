@@ -14,7 +14,7 @@ import {
   shortcutScopeTranslationSegment,
   validateShortcutDraft,
 } from '../features/settings/model/shortcutSettingsPanel.ts'
-import type { ShortcutSettings } from '../types/domain.ts'
+import type { ShortcutSettings } from '#common/contracts'
 
 const defaultSettings: ShortcutSettings = {
   schema_version: 1,

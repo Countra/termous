@@ -1,5 +1,5 @@
 import type { FileSession } from '#entities/file'
-import type { Session } from '../../../types/domain'
+import type { Session } from '#entities/session'
 import { isOlderFileSessionSnapshot } from '#entities/file'
 import {
   isFileSessionRecoverySupersededError,

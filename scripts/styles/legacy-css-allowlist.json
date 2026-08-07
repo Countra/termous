@@ -1,7 +1,4 @@
 {
   "schemaVersion": 1,
-  "legacyCssFiles": [
-    "src/App.css",
-    "src/styles/workstation.css"
-  ]
+  "legacyCssFiles": []
 }

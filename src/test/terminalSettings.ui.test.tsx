@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { TermousApi } from '../api/client'
+import type { TermousApi } from '#app/data-runtime'
 import {
   defaultTerminalSettings,
   fontFamilyFromSetting,
@@ -7,7 +7,7 @@ import {
   normalizeTerminalSettings,
   syncImportedFontFaces,
 } from '#entities/settings'
-import type { TerminalFont } from '../types/domain'
+import type { TerminalFont } from '#common/contracts'
 
 const importedFontStyleId = 'termous-imported-terminal-fonts'
 const originalDocumentFonts = Object.getOwnPropertyDescriptor(document, 'fonts')

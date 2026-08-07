@@ -13,7 +13,8 @@ import {
   StatusBadge,
   WorkspaceEmptyState as WorkbenchEmptyState,
 } from '#shared/ui'
-import type { Session, ThemeMode } from '../../../types/domain'
+import type { AppTheme as ThemeMode } from '#common/contracts'
+import type { Session } from '#entities/session'
 import type { WorkbenchTerminalSearchState } from '../model/workbenchTerminalTypes'
 import styles from './WorkbenchPage.module.scss'
 

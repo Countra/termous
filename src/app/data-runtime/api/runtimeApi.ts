@@ -1,2 +1,1 @@
-export { createApiFromRuntime, TermousApi } from '../../../api/client'
-export { TermousApiError } from '#shared/api'
+export { createApiFromRuntime, TermousApi, TermousApiError } from './termousApi.ts'

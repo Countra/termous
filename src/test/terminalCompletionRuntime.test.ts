@@ -6,7 +6,7 @@ import type {
   CompletionQuery,
   CompletionResult,
   CompletionStatus,
-} from '../types/domain.ts'
+} from '#entities/session'
 
 const boundary = {
   source_generation: 2,

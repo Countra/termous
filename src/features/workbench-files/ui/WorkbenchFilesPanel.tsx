@@ -40,7 +40,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import type { TermousApi } from '../../../api/client'
+import type { FileGateway } from '#features/files'
 import { useTransferRuntime } from '#features/transfers'
 import {
   buildRemoteFileActionMenu,
@@ -50,13 +50,12 @@ import {
   type RemoteFileActionHandlers,
   RemotePermissionModal,
 } from '#features/remote-file'
-import type {
-  AppData,
-  Session,
-  ThemeMode,
-} from '../../../types/domain'
+import type { AppTheme as ThemeMode, Settings } from '#common/contracts'
+import type { Host } from '#entities/host'
+import type { Session } from '#entities/session'
 import type {
   FileBookmark,
+  FileBookmarkGroup,
   FileBookmarkInput,
   FileSession,
   LocalGrantSource,
@@ -93,8 +92,8 @@ const RemoteImageViewerModal = lazy(loadRemoteImageViewerModal)
 const imagePattern = /\.(?:png|jpe?g|gif|webp|bmp|svg)$/i
 
 interface WorkbenchFilesPanelProps {
-  api: TermousApi
-  data: AppData
+  api: FileGateway
+  data: WorkbenchFilesData
   fileSessionClosures: Readonly<Record<string, FileSessionClosureState>>
   session: Session | null
   enabled: boolean
@@ -119,6 +118,15 @@ interface WorkbenchFilesPanelProps {
   onReconnectSession: (session: Session) => Promise<void>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
+}
+
+interface WorkbenchFilesData {
+  hosts: Host[]
+  fileBookmarkGroups: FileBookmarkGroup[]
+  fileBookmarks: FileBookmark[]
+  fileSessions: FileSession[]
+  sessions: Session[]
+  settings: Settings
 }
 
 interface RemoteClipboard {

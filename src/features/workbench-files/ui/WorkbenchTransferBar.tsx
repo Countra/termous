@@ -1,14 +1,14 @@
 import { Button, Progress, Tooltip } from 'antd'
 import { Copy, DownloadCloud, RotateCcw, UploadCloud, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { TermousApi } from '../../../api/client'
+import type { FileTransferGateway } from '#features/files'
 import { useTransferRuntime } from '#features/transfers'
 import { formatBytes } from '#shared/format'
 import { summarizeWorkbenchTransfers } from '../model/workbenchTransferState'
 import styles from './WorkbenchTransferBar.module.scss'
 
 interface WorkbenchTransferBarProps {
-  api: TermousApi
+  api: FileTransferGateway
   fileSessionId?: string
   onActionError: () => void
 }

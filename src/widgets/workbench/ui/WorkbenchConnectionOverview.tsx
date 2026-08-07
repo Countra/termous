@@ -4,11 +4,14 @@ import { useTranslation } from 'react-i18next'
 import type { ComponentProps } from 'react'
 import { HostAvatar } from '#entities/host'
 import { StatusBadge, WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
-import type { AppData, Session } from '../../../types/domain'
+import type { CredentialView } from '#entities/credential'
+import type { ConnectionProxy } from '#entities/connection-proxy'
+import type { Host, HostGroup } from '#entities/host'
+import type { Session } from '#entities/session'
 import styles from './WorkbenchDetails.module.scss'
 
 interface WorkbenchConnectionOverviewProps {
-  data: AppData
+  data: WorkbenchConnectionData
   session: Session | null
   actionBusy: boolean
   sessionClosing: boolean
@@ -19,6 +22,13 @@ interface WorkbenchConnectionOverviewProps {
   onOpenFiles: (session: Session) => Promise<void>
   onReconnect: () => Promise<void>
   onClose: (sessionId: string) => Promise<boolean>
+}
+
+interface WorkbenchConnectionData {
+  hosts: Host[]
+  groups: HostGroup[]
+  proxies: ConnectionProxy[]
+  credentials: CredentialView[]
 }
 
 export function WorkbenchConnectionOverview({

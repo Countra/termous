@@ -16,7 +16,7 @@ const docker = readStyle('../features/docker/ui/DockerPanel.module.scss')
 const firewall = readStyle('../features/firewall/ui/FirewallPanel.module.scss')
 const detection = readStyle('../shared/ui/WorkspaceDetectionLoading.module.scss')
 const workstation = readFileSync(
-  fileURLToPath(new URL('../styles/workstation.css', import.meta.url)),
+  fileURLToPath(new URL('../shared/styles/workstation.scss', import.meta.url)),
   'utf8',
 )
 

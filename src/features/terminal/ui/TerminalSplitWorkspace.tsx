@@ -11,7 +11,8 @@ import {
   type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Session, ThemeMode } from '../../../types/domain'
+import type { AppTheme as ThemeMode } from '#common/contracts'
+import type { Session } from '#entities/session'
 import { TerminalPaneViewport } from './TerminalPaneViewport'
 import {
   compactTerminalSplitLayout,

@@ -7,9 +7,10 @@ import type {
   CompletionSettings,
   TerminalSettings,
   WindowSettings,
-} from '../types/domain'
+} from '#common/contracts'
 
 const childState = vi.hoisted(() => ({
+  dataPortabilityGateway: null as unknown,
   platform: 'darwin' as const,
 }))
 
@@ -77,8 +78,14 @@ vi.mock('#entities/shortcuts', () => ({
 }))
 
 vi.mock('#features/settings', () => ({
-  DataPortabilitySettings: ({ appVersion }: { appVersion: string }) => (
-    <div data-testid="data-portability" data-app-version={appVersion} />
+  DataPortabilitySettings: ({ appVersion, gateway }: { appVersion: string; gateway: unknown }) => (
+    <div
+      data-testid="data-portability"
+      data-app-version={appVersion}
+      ref={() => {
+        childState.dataPortabilityGateway = gateway
+      }}
+    />
   ),
   GeneralSettings: ({
     onAppearanceSettingsChange,
@@ -179,6 +186,14 @@ const completionSettings: CompletionSettings = {
 
 function renderSettingsPage(overrides: Record<string, unknown> = {}) {
   const handlers = {
+    dataPortabilityGateway: {
+      applyDataPortabilityPlan: vi.fn(async () => { throw new Error('unused') }),
+      cancelDataPortabilityImport: vi.fn(async () => { throw new Error('unused') }),
+      createDataPortabilityPlan: vi.fn(async () => { throw new Error('unused') }),
+      dataPortabilityPlanItems: vi.fn(async () => { throw new Error('unused') }),
+      dataPortabilitySummary: vi.fn(async () => { throw new Error('unused') }),
+      resolveDataPortabilityPlan: vi.fn(async () => { throw new Error('unused') }),
+    },
     onAppearanceSettingsChange: vi.fn(async () => undefined),
     onCompletionSettingsChange: vi.fn(async () => undefined),
     onDeleteTerminalFont: vi.fn(async () => undefined),
@@ -271,6 +286,7 @@ describe('设置页面装配合同', () => {
 
     await user.click(screen.getByRole('tab', { name: 'settings.tabData' }))
     expect(screen.getByTestId('data-portability')).toHaveAttribute('data-app-version', '1.2.3')
+    expect(childState.dataPortabilityGateway).toBe(handlers.dataPortabilityGateway)
 
     await user.click(screen.getByRole('tab', { name: 'settings.tabUpdates' }))
     expect(screen.getByTestId('update-settings')).toHaveAttribute('data-generation', '7')

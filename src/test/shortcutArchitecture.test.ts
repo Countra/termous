@@ -13,7 +13,7 @@ import {
 } from '#entities/shortcuts'
 
 const sources = {
-  app: readSource('../App.tsx'),
+  app: readSource('../app/main/App.tsx'),
   runtimeProvider: readSource('../app/shortcut-runtime/ShortcutRuntimeProvider.tsx'),
   terminalRuntime: readSource('../features/terminal/runtime/TerminalRuntimeProvider.tsx'),
   terminalViewport: readSource('../features/terminal/ui/TerminalPaneViewport.tsx'),

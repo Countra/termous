@@ -4,7 +4,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const appSource = readFileSync(
-  fileURLToPath(new URL('../App.tsx', import.meta.url)),
+  fileURLToPath(new URL('../app/main/App.tsx', import.meta.url)),
   'utf8',
 )
 const shortcutProviderSource = readFileSync(

@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { useEffect, type ComponentProps, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CodeSnippet } from '#entities/snippet'
-import type { AppData, Session } from '../types/domain'
+import type { AppData } from '#app/data-runtime'
+import type { Session } from '#entities/session'
 
 const workbenchMocks = vi.hoisted(() => ({
   modalConfirm: vi.fn(),

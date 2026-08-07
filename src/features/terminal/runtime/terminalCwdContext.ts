@@ -4,7 +4,7 @@ import {
   useContext,
   useSyncExternalStore,
 } from 'react'
-import type { SessionCwdState } from '../../../types/domain'
+import type { SessionCwdState } from '#entities/session'
 import type {
   SessionCwdRequestError,
   SessionCwdRequestScope,

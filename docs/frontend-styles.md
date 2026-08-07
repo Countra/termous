@@ -3,13 +3,25 @@
 ## 检查范围
 
 - 样式清单会盘点 `src` 内的 `.css`、`.scss` 和 `.sass`，并拒绝扩展名大小写异常及任何符号链接。
-- Stylelint 检查新建或已经迁移的 `src/**/*.scss` 和 `src/**/*.module.scss`。
-- 历史 `.css` 在所属模块迁移完成前保持原样，不参与自动修复。
-- `scripts/styles/legacy-css-allowlist.json` 必须与现有历史 CSS 完全一致：新增 CSS 或删除、迁移后未同步收口清单都会使门禁失败。
+- Stylelint 检查全部 `src/**/*.scss` 和 `src/**/*.module.scss`。
+- 当前 `src` 内没有 `.css` 或 `.sass`；`scripts/styles/legacy-css-allowlist.json` 为空，并作为禁止重新引入 legacy CSS 的回归门禁保留。
 - 业务目录只允许 `*.module.scss`；应用级非 Module SCSS 只能放在 `src/shared/styles`。
 - 不使用缩进语法 `.sass`，所有 Sass 文件统一采用 SCSS 语法和小写扩展名。
-- 迁移期可能暂时没有 SCSS 文件，因此样式检查命令必须保留 `--allow-empty-input`。
 - Sass 只承担嵌套、拆分和编译期复用；运行时主题继续使用现有 CSS Custom Properties。
+
+## Renderer 样式入口
+
+- `src/app/renderer-entry/main.tsx` 固定加载 `#shared/styles`，该入口只导入 `src/shared/styles/global.scss`，因此 `main` 与 `update` Surface 都能获得主题变量、根节点和文档级基础样式。
+- `src/app/main/App.tsx` 额外加载 `#shared/main-styles`，并按 `app.scss`、`workstation.scss` 的顺序加载主界面全局规则。
+- `update` Surface 不加载 `#shared/main-styles`，只使用共享 `global.scss` 与 `src/app/update-surface` 内共置的 SCSS Modules，避免主界面规则污染独立更新窗口。
+- Surface 分流和样式入口由 Renderer 静态合同测试约束；调整入口或顺序时必须同步验证两个 Surface。
+
+## 全局兼容层
+
+- `global.scss` 是正式的共享全局层，只承载 CSS Custom Properties、主题、根节点和必要的文档级状态。
+- `app.scss` 与 `workstation.scss` 已从旧 CSS 转为 SCSS，但仍包含主界面历史类名、第三方覆盖和跨组件规则；它们是受控兼容层，不代表业务样式已全部完成局部作用域治理。
+- 新增或重构后的业务样式应与组件共置到 `*.module.scss`，不得继续扩大 `app.scss` 或 `workstation.scss`。兼容规则只能在保留导入顺序、最终计算样式和交互行为的前提下按完整功能块抽离。
+- 部分现有 Module 为保持历史 DOM 类名和 Portal 行为，仍使用文件级 Stylelint 豁免或顶层 `:global`。这些写法属于可识别的兼容状态，不应复制到新组件；后续收敛时应先解除 JavaScript 和跨组件对类名的依赖。
 
 ## SCSS Modules
 
@@ -24,6 +36,8 @@
 - `@at-root`、mixin 或其他无法静态证明会保留选择器祖先的边界不会继承外层安全作用域，应改用显式本地 class 前缀。
 - 无法由组件根节点限定的 Portal 覆盖应放入受控的应用级全局 SCSS，不得在 Module 中使用裸 `:global`。
 
-## 迁移顺序
+以上约束适用于新增和已经完成局部作用域治理的 Module；“全局兼容层”中明确记录的现有豁免不作为新代码模板。
 
-先按样式所有权原样移动规则并保持导入顺序，再解除行为类依赖、转换为 SCSS Modules，最后删除已经无引用的旧 CSS。结构迁移阶段不同时调整视觉设计或业务交互。
+## 收敛顺序
+
+先按样式所有权原样移动兼容规则并保持导入顺序，再解除行为类依赖、转换为 SCSS Modules，最后删除已经无引用的全局 SCSS 规则。结构调整阶段不同时调整视觉设计或业务交互。

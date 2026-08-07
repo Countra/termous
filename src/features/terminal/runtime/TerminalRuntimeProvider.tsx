@@ -13,17 +13,15 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import { TermousApi } from '../../../api/client'
+import type { TerminalGateway } from '../api/terminalGateway'
 import { TerminalCwdRuntimeProvider } from './TerminalCwdRuntimeProvider'
 import type {
+  AppTheme as ThemeMode,
   CompletionSettings,
-  Session,
-  SessionCwdState,
-  SessionStatus,
   TerminalFont,
   TerminalSettings,
-  ThemeMode,
-} from '../../../types/domain'
+} from '#common/contracts'
+import type { Session, SessionCwdState, SessionStatus } from '#entities/session'
 import {
   completionProviderSettingsSignature,
   defaultTerminalSettings,
@@ -90,7 +88,7 @@ const completionShortcutActionIds = [
 ] as const
 
 interface TerminalRuntimeProviderProps {
-  api: TermousApi
+  api: TerminalGateway
   sessions: Session[]
   theme: ThemeMode
   terminalSettings: TerminalSettings

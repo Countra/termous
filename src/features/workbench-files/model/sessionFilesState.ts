@@ -1,7 +1,7 @@
 import type {
   RemoteDirectoryListing,
-  SessionCwdState,
-} from '../../../types/domain.ts'
+} from '#entities/file'
+import type { SessionCwdState } from '#entities/session'
 import { normalizeRemotePath, normalizeRemotePosixPath } from '#shared/path'
 import type { TerminalTransportState } from '#features/terminal'
 

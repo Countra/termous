@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import '#shared/i18n'
 import '#shared/styles'
-import { loadRendererSurface } from '#app/renderer-entry'
+import { loadRendererSurface } from './rendererSurface.ts'
 import { installDevelopmentUpdateSimulation } from '#app/update-simulation-slot'
 
 const rootElement = document.getElementById('root')
@@ -27,7 +27,7 @@ const prepareDevelopmentUpdateSimulation = import.meta.env.DEV
   : Promise.resolve()
 
 void prepareDevelopmentUpdateSimulation.then(() => loadRendererSurface(window.location.search, {
-  main: () => import('./App.tsx'),
+  main: () => import('#app/main'),
   update: () => import('#app/update-surface'),
 })).then(({ default: SurfaceRoot }) => {
   root.render(

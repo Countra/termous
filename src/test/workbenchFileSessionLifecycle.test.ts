@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { Session, SessionStatus } from '../types/domain.ts'
+import type { Session, SessionStatus } from '#entities/session'
 import type { FileSession, FileSessionStatus } from '#entities/file'
 import {
   filterFileSessionsByActiveSources,

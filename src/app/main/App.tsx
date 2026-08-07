@@ -3,7 +3,7 @@ import { App as AntdApp, Button, Modal } from 'antd'
 import { LogOut, ServerOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { TermousUiProvider } from '#app/ui-runtime'
-import { AppShell } from './components/layout/AppShell'
+import { AppShell } from '#app/app-shell'
 import { ConfirmDialog } from '#shared/ui'
 import { HostsPage } from '#pages/hosts'
 import {
@@ -42,9 +42,23 @@ import { readDevelopmentUpdateSimulation } from '#app/update-simulation-slot'
 import { useUpdateRuntime } from '#features/update'
 import { usePersistentBooleanState } from '#shared/hooks'
 import { getTermousBridge } from '#shared/bridge'
-import type { AppBuildInfo, CodeSnippet, CodeSnippetGroup, CodeSnippetInput, ConnectionProxy, ConnectionProxyInput, CoreFatalEvent, CredentialInput, CredentialView, ForwardEvent, GroupReorderItem, Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent, Language, LocalShell, PageKey, Session, TerminalFont, ThemeMode, TrayCommand } from './types/domain'
-import './App.css'
-import './styles/workstation.css'
+import type {
+  AppBuildInfo,
+  AppLanguage as Language,
+  AppTheme as ThemeMode,
+  CoreFatalEvent,
+  TerminalFont,
+  TrayCommand,
+} from '#common/contracts'
+import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput } from '#entities/snippet'
+import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
+import type { CredentialInput, CredentialView } from '#entities/credential'
+import type { ForwardEvent } from '#entities/forward'
+import type { Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent } from '#entities/host'
+import type { GroupReorderItem, PageKey } from '#shared/model'
+import type { LocalShell, Session } from '#entities/session'
+import '#shared/main-styles'
+import styles from './App.module.scss'
 import {
   canCommitFilesBookmarkManagementRequest,
   consumeFilesBookmarkManagementIntent,
@@ -86,6 +100,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const { api, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
+  const createCredentialGateway = useCallback(() => Promise.resolve(api), [api])
   const updateRuntime = useUpdateRuntime()
   const updateForwardRef = useRef(actions.updateForward)
   const reloadForwardStateRef = useRef(actions.reloadForwardsSilent)
@@ -893,7 +908,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onCloseError={showActionError}
           >
         <div
-          className={`app-keepalive-page ${page === 'workbench' ? 'is-active' : 'is-hidden'}`}
+          className={`${styles['app-keepalive-page']} ${page === 'workbench' ? styles['is-active'] : styles['is-hidden']}`}
           inert={page !== 'workbench'}
         >
           <WorkbenchPage
@@ -973,6 +988,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               return true
             })}
             onDirtyChange={setVaultDirty}
+            createGateway={createCredentialGateway}
           />
         ) : null}
 
@@ -1128,6 +1144,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             windowSettings={data.settings.window}
             terminalFonts={data.terminalFonts}
             appVersion={appVersion}
+            dataPortabilityGateway={api}
             updatePreferencesRuntime={updatePreferencesRuntime}
             actionBusy={actionBusy}
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
@@ -1186,23 +1203,23 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         closeIcon={null}
         mask={{ closable: false }}
         keyboard={false}
-        className="core-fatal-modal"
+        className={styles['core-fatal-modal']}
         wrapClassName="confirm-modal-wrap"
         rootClassName="termous-modal-root"
         getContainer={() => document.body}
       >
-        <section className="core-fatal-dialog" aria-labelledby="core-fatal-title">
-          <div className="core-fatal-icon">
+        <section className={styles['core-fatal-dialog']} aria-labelledby="core-fatal-title">
+          <div className={styles['core-fatal-icon']}>
             <ServerOff size={22} aria-hidden="true" />
           </div>
-          <div className="core-fatal-copy">
+          <div className={styles['core-fatal-copy']}>
             <h2 id="core-fatal-title">{t('app.coreFatalTitle')}</h2>
           </div>
-          <div className="core-fatal-actions">
+          <div className={styles['core-fatal-actions']}>
             <Button
               type="primary"
               danger
-              className="core-fatal-exit-button"
+              className={styles['core-fatal-exit-button']}
               icon={<LogOut size={16} aria-hidden="true" />}
               onClick={() => void getTermousBridge()?.windowControls?.confirmClose()}
             >

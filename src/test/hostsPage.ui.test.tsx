@@ -2,7 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AppData, Host, HostIcon, HostInput } from '../types/domain'
+import type { AppData } from '#app/data-runtime'
+import type { Host, HostIcon, HostInput } from '#entities/host'
 
 const appMocks = vi.hoisted(() => ({
   warning: vi.fn(),

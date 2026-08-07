@@ -1,1 +1,1 @@
-export type { LocalShell, Session } from '../../../types/domain'
+export type { LocalShell, Session } from '#entities/session'

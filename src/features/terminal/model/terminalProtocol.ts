@@ -2,7 +2,7 @@ import type {
   Session,
   SessionCwdChangeRequest,
   SessionCwdState,
-} from '../../../types/domain'
+} from '#entities/session'
 
 const terminalOutputFrameType = 0x01
 const terminalOutputFrameHeaderSize = 25

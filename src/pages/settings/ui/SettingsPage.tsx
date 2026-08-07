@@ -19,6 +19,7 @@ import {
   TerminalCompletionSettings,
   TerminalStyleSettings,
   UpdateSettings,
+  type DataPortabilityGateway,
   type UpdatePreferencesRuntime,
 } from '#features/settings'
 import styles from './SettingsPage.module.scss'
@@ -32,6 +33,7 @@ export interface SettingsPageProps {
   windowSettings: WindowSettings
   terminalFonts: TerminalFont[]
   appVersion: string
+  dataPortabilityGateway: DataPortabilityGateway
   updatePreferencesRuntime?: UpdatePreferencesRuntime | null
   actionBusy: boolean
   onLanguageChange: (language: AppLanguage) => Promise<void>
@@ -53,6 +55,7 @@ export function SettingsPage({
   windowSettings,
   terminalFonts,
   appVersion,
+  dataPortabilityGateway,
   updatePreferencesRuntime = null,
   actionBusy,
   onLanguageChange,
@@ -157,7 +160,10 @@ export function SettingsPage({
             ),
             children: (
               <div className={styles['tab-scroll']}>
-                <DataPortabilitySettings appVersion={appVersion} />
+                <DataPortabilitySettings
+                  appVersion={appVersion}
+                  gateway={dataPortabilityGateway}
+                />
               </div>
             ),
           },

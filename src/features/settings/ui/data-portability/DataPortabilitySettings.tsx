@@ -13,7 +13,8 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import { createApiFromRuntime, TermousApiError, type TermousApi } from '../../../../api/client'
+import { TermousApiError } from '#shared/api'
+import type { DataPortabilityGateway } from '../../api/dataPortabilityGateway'
 import type {
   DataPortabilityDatasetKey,
   DataPortabilityImport,
@@ -45,10 +46,15 @@ type SelectedBackup = Required<Pick<DataPortabilityImportSelectionResult, 'selec
 
 const PAGE_SIZE = 20
 
-export function DataPortabilitySettings({ appVersion }: { appVersion: string }) {
+export function DataPortabilitySettings({
+  appVersion,
+  gateway,
+}: {
+  appVersion: string
+  gateway: DataPortabilityGateway
+}) {
   const { t, i18n } = useTranslation()
   const { notification, modal } = AntdApp.useApp()
-  const apiRef = useRef<Promise<TermousApi> | null>(null)
   const activeImportIdRef = useRef('')
   const [summary, setSummary] = useState<DataPortabilitySummary | null>(null)
   const [summaryBusy, setSummaryBusy] = useState(false)
@@ -75,10 +81,7 @@ export function DataPortabilitySettings({ appVersion }: { appVersion: string }) 
   const [applyConfirmOpen, setApplyConfirmOpen] = useState(false)
   const [restorePrepared, setRestorePrepared] = useState(false)
 
-  const getApi = useCallback(() => {
-    apiRef.current ??= createApiFromRuntime()
-    return apiRef.current
-  }, [])
+  const getApi = useCallback(() => Promise.resolve(gateway), [gateway])
 
   const loadSummary = useCallback(async () => {
     setSummaryBusy(true)

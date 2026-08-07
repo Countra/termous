@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { TermousApi } from '../../../api/client.ts'
+import type { TermousApi } from '#app/data-runtime'
 import type { FileGateway } from './fileGateway.ts'
 
 test('TermousApi 保持文件网关合同兼容', () => {

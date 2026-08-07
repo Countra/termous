@@ -8,7 +8,8 @@ import {
   type SVGProps,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { CompletionItem, ThemeMode } from '../../../types/domain'
+import type { AppTheme as ThemeMode } from '#common/contracts'
+import type { CompletionItem } from '#entities/session'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import { isExactCompletionItem, splitCompletionLabel } from '../model/completionModel'
 import {

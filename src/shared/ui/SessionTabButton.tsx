@@ -88,7 +88,12 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
     const leading = (
       <span className="session-tab-leading" aria-hidden="true">
         {icon}
-        {resolvedStatus ? <span className={`session-dot is-${resolvedStatus}`} aria-hidden="true" /> : null}
+        {resolvedStatus ? (
+          <span
+            className={`session-dot is-${resolvedStatus.replace(/_/g, '-')}`}
+            aria-hidden="true"
+          />
+        ) : null}
       </span>
     )
 

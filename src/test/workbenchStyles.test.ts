@@ -8,8 +8,8 @@ function readSource(relativePath: string) {
 }
 
 const legacyStyles = [
-  readSource('../App.css'),
-  readSource('../styles/workstation.css'),
+  readSource('../shared/styles/app.scss'),
+  readSource('../shared/styles/workstation.scss'),
 ].join('\n')
 const pageStyles = readSource('../widgets/workbench/ui/WorkbenchPage.module.scss')
 const sessionStyles = readSource('../widgets/workbench/ui/WorkbenchSessionTabs.module.scss')

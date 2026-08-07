@@ -18,11 +18,14 @@ import { Button, Dropdown, Space, Tooltip, type MenuProps } from 'antd'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import type { LocalShell, PageKey, WindowCloseBehavior } from '../../types/domain'
+import type { WindowCloseBehavior } from '#common/contracts'
+import type { LocalShell } from '#entities/session'
+import type { PageKey } from '#shared/model'
 import { BrandVersionControl } from '#features/update'
 import { WindowControls } from './WindowControls'
+import styles from './AppShell.module.scss'
 
-interface AppShellProps {
+export interface AppShellProps {
   page: PageKey
   appVersion: string
   windowCloseBehavior: WindowCloseBehavior
@@ -96,13 +99,13 @@ export function AppShell({
   }
 
   return (
-    <div className={`app-shell ${sidebarCollapsed ? 'is-collapsed' : ''}`}>
-      <aside className="sidebar" aria-label="Primary">
-        <div className="brand-row">
-          <div className="brand-mark" aria-hidden="true">
+    <div className={`${styles['app-shell']} ${sidebarCollapsed ? styles['is-collapsed'] : ''}`}>
+      <aside className={styles.sidebar} aria-label="Primary">
+        <div className={styles['brand-row']}>
+          <div className={styles['brand-mark']} aria-hidden="true">
             <img src="./termous-icon.png" alt="" />
           </div>
-          <div className="brand-copy">
+          <div className={styles['brand-copy']}>
             <strong>{t('app.name')}</strong>
             <BrandVersionControl
               appVersion={appVersion}
@@ -110,14 +113,14 @@ export function AppShell({
             />
           </div>
         </div>
-        <nav className="primary-nav">
+        <nav className={styles['primary-nav']}>
           {navItems.map((item) => {
             const Icon = item.icon
             return (
               <Tooltip key={item.key} title={sidebarCollapsed ? t(`nav.${item.key}`) : undefined} placement="right">
                 <Button
                   type="text"
-                  className={`nav-item ${page === item.key ? 'is-active' : ''}`}
+                  className={`${styles['nav-item']} ${page === item.key ? styles['is-active'] : ''}`}
                   onClick={() => onNavigate(item.key)}
                   aria-label={t(`nav.${item.key}`)}
                   icon={<Icon size={18} aria-hidden="true" />}
@@ -128,11 +131,11 @@ export function AppShell({
             )
           })}
         </nav>
-        <div className="sidebar-footer">
+        <div className={styles['sidebar-footer']}>
           <Tooltip title={sidebarCollapsed ? t('nav.settings') : undefined} placement="right">
             <Button
               type="text"
-              className={`nav-item ${page === 'settings' ? 'is-active' : ''}`}
+              className={`${styles['nav-item']} ${page === 'settings' ? styles['is-active'] : ''}`}
               onClick={() => onNavigate('settings')}
               aria-label={t('nav.settings')}
               icon={<Settings size={18} aria-hidden="true" />}
@@ -143,46 +146,46 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="main-frame">
-        <header className="window-chrome">
-          <div className="chrome-drag-region">
+      <div className={styles['main-frame']}>
+        <header className={styles['window-chrome']}>
+          <div className={styles['chrome-drag-region']}>
             <Tooltip title={sidebarCollapsed ? t('app.expand') : t('app.collapse')}>
               <Button
                 type="text"
-                className="icon-button"
+                className={styles['icon-button']}
                 onClick={onToggleSidebar}
                 aria-label={sidebarCollapsed ? t('app.expand') : t('app.collapse')}
                 icon={sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
               />
             </Tooltip>
-            <div className="chrome-title">
+            <div className={styles['chrome-title']}>
               <span>{pageTitle}</span>
-              <PageIcon className="chrome-title-icon" size={18} strokeWidth={2.1} aria-hidden="true" />
+              <PageIcon className={styles['chrome-title-icon']} size={18} strokeWidth={2.1} aria-hidden="true" />
             </div>
           </div>
-          <div className="topbar-actions">
-            <div className="topbar-connect-group" aria-label={t('app.connect')}>
-              <Space.Compact className="topbar-connect-dropdown-button">
+          <div className={styles['topbar-actions']}>
+            <div className={styles['topbar-connect-group']} aria-label={t('app.connect')}>
+              <Space.Compact className={styles['topbar-connect-dropdown-button']}>
                 <Button type="primary" disabled={actionBusy} onClick={onOpenConnectionLauncher}>
-                  <span className="topbar-connect-content">
-                    <span className="topbar-connect-mark" aria-hidden="true">
+                  <span className={styles['topbar-connect-content']}>
+                    <span className={styles['topbar-connect-mark']} aria-hidden="true">
                       <PlugZap size={18} strokeWidth={2.15} />
                     </span>
-                    <span className="topbar-connect-label">{t('app.connect')}</span>
+                    <span className={styles['topbar-connect-label']}>{t('app.connect')}</span>
                   </span>
                 </Button>
                 <Dropdown
                   trigger={['click']}
                   placement="bottomRight"
                   disabled={actionBusy}
-                  classNames={{ root: 'topbar-connect-dropdown' }}
+                  classNames={{ root: styles['topbar-connect-dropdown'] }}
                   menu={{ items: connectionMenuItems, onClick: handleConnectionMenuClick }}
                 >
                   <Button type="primary" disabled={actionBusy} aria-label={t('app.connect')} icon={<ChevronDown size={15} aria-hidden="true" />} />
                 </Dropdown>
               </Space.Compact>
             </div>
-            <span className="topbar-action-divider" aria-hidden="true" />
+            <span className={styles['topbar-action-divider']} aria-hidden="true" />
             {showWindowControls ? (
               <WindowControls
                 closeBehavior={windowCloseBehavior}
@@ -192,7 +195,7 @@ export function AppShell({
             ) : null}
           </div>
         </header>
-        <main className="content-frame">{children}</main>
+        <main className={styles['content-frame']}>{children}</main>
       </div>
     </div>
   )
@@ -200,8 +203,8 @@ export function AppShell({
 
 function TopbarConnectionMenuItem({ icon, title }: { icon: ReactNode; title: string }) {
   return (
-    <span className="topbar-connect-menu-item">
-      <span className="topbar-connect-menu-icon">{icon}</span>
+    <span className={styles['topbar-connect-menu-item']}>
+      <span className={styles['topbar-connect-menu-icon']}>{icon}</span>
       <span>{title}</span>
     </span>
   )

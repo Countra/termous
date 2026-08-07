@@ -37,7 +37,7 @@ test('进程终止按钮保留尺寸，并抵御后加载的通用按钮规则',
 
 test('跨模块 Select 与 Tooltip 规则继续由全局样式持有', () => {
   const workstation = readFileSync(
-    fileURLToPath(new URL('../../../styles/workstation.css', import.meta.url)),
+    fileURLToPath(new URL('../../../shared/styles/workstation.scss', import.meta.url)),
     'utf8',
   )
 

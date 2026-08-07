@@ -123,7 +123,7 @@ describe('远端管理运行时合同', () => {
 
     view.rerender({ enabled: true })
     await waitFor(() => expect(sessionDockerContainers).toHaveBeenCalledTimes(2))
-    expect(view.result.current.list).toEqual(dockerList)
+    await waitFor(() => expect(view.result.current.list).toEqual(dockerList))
   })
 
   it('Docker 详情读取被断连取消后在重连时恢复', async () => {

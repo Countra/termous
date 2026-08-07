@@ -5,7 +5,8 @@ import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { ConfirmDialog } from '#shared/ui'
-import type { WindowCloseBehavior } from '../../types/domain'
+import type { WindowCloseBehavior } from '#common/contracts'
+import styles from './WindowControls.module.scss'
 
 interface WindowControlsProps {
   closeBehavior: WindowCloseBehavior
@@ -75,10 +76,10 @@ export function WindowControls({ closeBehavior, onBeforeClose, onCloseError }: W
 
   return (
     <>
-      <div className="window-controls" aria-label={t('app.windowControls')}>
+      <div className={styles['window-controls']} aria-label={t('app.windowControls')}>
         <Tooltip title={t('app.minimize')}>
           <Button
-            className="window-control"
+            className={styles['window-control']}
             onClick={() => void getTermousBridge()?.windowControls?.minimize().catch(() => undefined)}
             aria-label={t('app.minimize')}
             icon={<Minus size={15} />}
@@ -86,7 +87,7 @@ export function WindowControls({ closeBehavior, onBeforeClose, onCloseError }: W
         </Tooltip>
         <Tooltip title={isMaximized ? t('app.restore') : t('app.maximize')}>
           <Button
-            className="window-control"
+            className={styles['window-control']}
             onClick={() =>
               void getTermousBridge()?.windowControls
                 ?.toggleMaximize()
@@ -98,7 +99,7 @@ export function WindowControls({ closeBehavior, onBeforeClose, onCloseError }: W
           />
         </Tooltip>
         <Tooltip title={t('app.close')}>
-          <Button className="window-control danger" onClick={() => void requestClose()} aria-label={t('app.close')} icon={<X size={15} />} />
+          <Button className={`${styles['window-control']} ${styles.danger}`} onClick={() => void requestClose()} aria-label={t('app.close')} icon={<X size={15} />} />
         </Tooltip>
       </div>
       {confirmClose ? (

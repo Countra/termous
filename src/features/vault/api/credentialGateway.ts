@@ -4,7 +4,6 @@ import type {
   SSHKeyInspectResult,
   SSHKeyPair,
 } from '#entities/credential'
-import { createApiFromRuntime } from '../../../api/client'
 
 export interface CredentialGateway {
   generateSSHKey(input: SSHKeyGenerateRequest, signal?: AbortSignal): Promise<SSHKeyPair>
@@ -12,7 +11,3 @@ export interface CredentialGateway {
 }
 
 export type CredentialGatewayFactory = () => Promise<CredentialGateway>
-
-export function createRuntimeCredentialGateway(): Promise<CredentialGateway> {
-  return createApiFromRuntime()
-}

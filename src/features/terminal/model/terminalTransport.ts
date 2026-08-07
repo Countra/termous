@@ -1,4 +1,4 @@
-import type { SessionCwdChangeRequest } from '../../../types/domain'
+import type { SessionCwdChangeRequest } from '#entities/session'
 import {
   decodeTerminalControlMessage,
   decodeTerminalOutputFrame,

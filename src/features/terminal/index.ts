@@ -19,6 +19,7 @@ export {
   type TerminalSearchResult,
 } from './model/terminalSearch.ts'
 export type { TerminalTransportState } from './model/terminalTransport.ts'
+export type { TerminalGateway } from './api/terminalGateway.ts'
 export { ConnectionProgress } from './ui/ConnectionProgress.tsx'
 export { TerminalSearchPanel } from './ui/TerminalSearchPanel.tsx'
 export {

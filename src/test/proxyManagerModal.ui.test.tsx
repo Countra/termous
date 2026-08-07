@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { ConnectionProxy, ConnectionProxyInput } from '../types/domain'
+import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),

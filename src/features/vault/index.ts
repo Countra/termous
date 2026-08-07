@@ -1,5 +1,4 @@
 export {
-  createRuntimeCredentialGateway,
   type CredentialGateway,
   type CredentialGatewayFactory,
 } from './api/credentialGateway.ts'

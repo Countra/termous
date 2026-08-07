@@ -33,7 +33,7 @@ test('surface 分流只调用目标模块加载器', async () => {
 })
 
 test('Renderer 启动入口保持 main 与 update 模块映射', () => {
-  const mainPath = fileURLToPath(new URL('../main.tsx', import.meta.url))
+  const mainPath = fileURLToPath(new URL('../app/renderer-entry/main.tsx', import.meta.url))
   const sourceFile = ts.createSourceFile(
     mainPath,
     fs.readFileSync(mainPath, 'utf8'),
@@ -71,7 +71,33 @@ test('Renderer 启动入口保持 main 与 update 模块映射', () => {
   visit(sourceFile)
 
   assert.deepEqual(loaders, {
-    main: './App.tsx',
+    main: '#app/main',
     update: '#app/update-surface',
   })
+})
+
+test('主界面全局样式不进入独立更新窗口的共享入口', () => {
+  const sharedStyles = fs.readFileSync(
+    fileURLToPath(new URL('../shared/styles/index.ts', import.meta.url)),
+    'utf8',
+  )
+  const mainStyles = fs.readFileSync(
+    fileURLToPath(new URL('../shared/main-styles/index.ts', import.meta.url)),
+    'utf8',
+  )
+  const mainSurface = fs.readFileSync(
+    fileURLToPath(new URL('../app/main/App.tsx', import.meta.url)),
+    'utf8',
+  )
+  const updateSurface = fs.readFileSync(
+    fileURLToPath(new URL('../app/update-surface/index.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(sharedStyles, /import '\.\/global\.scss'/)
+  assert.doesNotMatch(sharedStyles, /app\.scss|workstation\.scss/)
+  assert.match(mainStyles, /import '\.\.\/styles\/app\.scss'/)
+  assert.match(mainStyles, /import '\.\.\/styles\/workstation\.scss'/)
+  assert.match(mainSurface, /import '#shared\/main-styles'/)
+  assert.doesNotMatch(updateSurface, /#shared\/main-styles/)
 })

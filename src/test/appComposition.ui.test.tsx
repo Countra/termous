@@ -1,5 +1,3 @@
-import fs from 'node:fs'
-import path from 'node:path'
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -124,7 +122,7 @@ vi.mock('#features/terminal', () => ({
   ),
 }))
 
-vi.mock('../components/layout/AppShell', () => ({
+vi.mock('#app/app-shell', () => ({
   AppShell: ({
     children,
     onNavigate,
@@ -240,14 +238,11 @@ vi.mock('#app/data-runtime', () => ({
   }),
 }))
 
-import App from '../App'
+import App from '#app/main'
+import appStyles from '../app/main/App.module.scss'
 
-const workstationStyles = fs.readFileSync(
-  path.join(process.cwd(), 'src/styles/workstation.css'),
-  'utf8',
-)
-const workstationStyleElement = document.createElement('style')
-workstationStyleElement.textContent = workstationStyles
+const appStyleElement = document.createElement('style')
+appStyleElement.textContent = `.${appStyles['app-keepalive-page']}.${appStyles['is-hidden']} { display: none; }`
 
 function directProviderChild(element: Element) {
   return Array.from(element.children).find((child) => child.hasAttribute('data-provider'))
@@ -255,11 +250,11 @@ function directProviderChild(element: Element) {
 
 describe('应用运行时组合合同', () => {
   beforeAll(() => {
-    document.head.append(workstationStyleElement)
+    document.head.append(appStyleElement)
   })
 
   afterAll(() => {
-    workstationStyleElement.remove()
+    appStyleElement.remove()
   })
 
   beforeEach(() => {

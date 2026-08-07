@@ -11,7 +11,6 @@ import {
 } from 'react'
 import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import type { TermousApi } from '../../../api/client'
 import {
   usePersistentBooleanState,
   usePersistentJsonState,
@@ -24,13 +23,21 @@ import {
   type TerminalSearchDirection,
   type TerminalSplitWorkspaceHandle,
 } from '#features/terminal'
-import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../../types/domain'
+import type { AppTheme as ThemeMode, Settings } from '#common/contracts'
+import type { CodeSnippet, CodeSnippetGroup } from '#entities/snippet'
+import type { ConnectionProxy } from '#entities/connection-proxy'
+import type { CredentialView } from '#entities/credential'
+import type { ForwardInstance, ForwardStartRequest } from '#entities/forward'
+import type { Host, HostGroup, HostReachability } from '#entities/host'
+import type { Session } from '#entities/session'
 import type {
   FileBookmark,
+  FileBookmarkGroup,
   FileBookmarkInput,
   FileSession,
   FileSessionClosureState,
 } from '#entities/file'
+import type { FileGateway } from '#features/files'
 import {
   buildSnippetTags,
   filterSnippets,
@@ -38,11 +45,15 @@ import {
 } from '#features/snippets'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '#entities/snippet'
 import { ForwardSessionPanel } from '#features/forwards'
-import { AliasPanel } from '#features/alias'
-import { DockerPanel } from '#features/docker'
-import { FirewallPanel } from '#features/firewall'
-import { ProcessPanel, SystemMonitorPanel } from '#features/observability'
-import { ServicePanel } from '#features/service'
+import { AliasPanel, type AliasGateway } from '#features/alias'
+import { DockerPanel, type DockerGateway } from '#features/docker'
+import { FirewallPanel, type FirewallGateway } from '#features/firewall'
+import {
+  ProcessPanel,
+  SystemMonitorPanel,
+  type ObservabilityGateway,
+} from '#features/observability'
+import { ServicePanel, type ServiceGateway } from '#features/service'
 import {
   WorkbenchFilesPanel,
   type WorkbenchFilesPathNavigationIntent,
@@ -115,8 +126,8 @@ interface SessionInventoryRequestView {
 }
 
 interface WorkbenchPageProps {
-  api: TermousApi
-  data: AppData
+  api: WorkbenchGateway
+  data: WorkbenchData
   fileSessionClosures: Readonly<Record<string, FileSessionClosureState>>
   theme: ThemeMode
   active: boolean
@@ -1517,4 +1528,27 @@ function sessionInventoryViewSignature(session: Session | null) {
     session?.inventory_message ?? '',
     session?.linux_system_info?.collected_at ?? '',
   ].join('\u0000')
+}
+
+type WorkbenchGateway = FileGateway
+  & ObservabilityGateway
+  & ServiceGateway
+  & DockerGateway
+  & FirewallGateway
+  & AliasGateway
+
+interface WorkbenchData {
+  credentials: CredentialView[]
+  fileBookmarkGroups: FileBookmarkGroup[]
+  fileBookmarks: FileBookmark[]
+  fileSessions: FileSession[]
+  forwards: ForwardInstance[]
+  groups: HostGroup[]
+  hostReachability: Record<string, HostReachability>
+  hosts: Host[]
+  proxies: ConnectionProxy[]
+  sessions: Session[]
+  settings: Settings
+  snippetGroups: CodeSnippetGroup[]
+  snippets: CodeSnippet[]
 }

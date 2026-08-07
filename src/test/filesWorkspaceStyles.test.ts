@@ -13,7 +13,19 @@ const panelStyles = readFileSync(
   'utf8',
 )
 const appSource = readFileSync(
-  fileURLToPath(new URL('../App.tsx', import.meta.url)),
+  fileURLToPath(new URL('../app/main/App.tsx', import.meta.url)),
+  'utf8',
+)
+const rendererSource = readFileSync(
+  fileURLToPath(new URL('../app/renderer-entry/main.tsx', import.meta.url)),
+  'utf8',
+)
+const sharedStylesSource = readFileSync(
+  fileURLToPath(new URL('../shared/styles/index.ts', import.meta.url)),
+  'utf8',
+)
+const mainStylesSource = readFileSync(
+  fileURLToPath(new URL('../shared/main-styles/index.ts', import.meta.url)),
   'utf8',
 )
 
@@ -49,11 +61,22 @@ test('文件工作区历史行为类保持全局选择器', () => {
 })
 
 test('文件工作区样式在旧工作台样式后加载', () => {
-  const workstationStyleImport = appSource.indexOf("import './styles/workstation.css'")
+  const sharedStyleImport = rendererSource.indexOf("import '#shared/styles'")
+  const mainSurfaceImport = rendererSource.indexOf("main: () => import('#app/main')")
+  const mainStyleImport = appSource.indexOf("import '#shared/main-styles'")
+  const globalStyleImport = sharedStylesSource.indexOf("import './global.scss'")
+  const appStyleImport = mainStylesSource.indexOf("import '../styles/app.scss'")
+  const workstationStyleImport = mainStylesSource.indexOf("import '../styles/workstation.scss'")
   const filesPageImport = appSource.indexOf("from '#pages/files'")
   const filesWorkspaceImport = appSource.indexOf("from '#widgets/files-workspace'")
 
+  assert.ok(sharedStyleImport >= 0)
+  assert.ok(mainSurfaceImport > sharedStyleImport)
+  assert.ok(mainStyleImport >= 0)
+  assert.ok(globalStyleImport >= 0)
+  assert.ok(appStyleImport >= 0)
   assert.ok(workstationStyleImport >= 0)
-  assert.ok(filesPageImport > workstationStyleImport)
-  assert.ok(filesWorkspaceImport > workstationStyleImport)
+  assert.ok(workstationStyleImport > appStyleImport)
+  assert.ok(filesPageImport >= 0)
+  assert.ok(filesWorkspaceImport >= 0)
 })

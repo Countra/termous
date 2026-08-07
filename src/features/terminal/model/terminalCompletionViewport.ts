@@ -1,4 +1,4 @@
-import type { SessionKind, SessionStatus } from '../../../types/domain'
+import type { SessionKind, SessionStatus } from '#entities/session'
 
 export interface TerminalCompletionViewportContext {
   sessionId: string | null
