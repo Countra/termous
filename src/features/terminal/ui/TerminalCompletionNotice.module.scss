@@ -1,0 +1,48 @@
+.terminal-completion-notice {
+  position: absolute;
+  z-index: 7;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  max-width: min(420px, calc(100% - 24px));
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-strong) 94%, var(--warning) 6%);
+  padding: 4px 6px 4px 9px;
+  color: var(--text-secondary);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 18%);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.terminal-completion-notice > svg {
+  flex: 0 0 auto;
+  color: var(--warning);
+}
+
+.terminal-completion-notice > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.terminal-completion-notice :global(.ant-btn) {
+  flex: 0 0 auto;
+  height: 24px;
+  padding-inline: 6px;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.terminal-completion-notice.is-degraded,
+.terminal-completion-notice.is-unsupported {
+  border-color: color-mix(in srgb, var(--border) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 96%, var(--text-muted) 4%);
+}
+
+.terminal-completion-notice.is-degraded > svg,
+.terminal-completion-notice.is-unsupported > svg {
+  color: var(--text-muted);
+}

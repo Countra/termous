@@ -17,8 +17,8 @@ import { useShortcutRuntime } from '#entities/shortcuts'
 import type {
   TerminalContextMenuActionKey,
   TerminalContextMenuItem,
-} from './model/terminalContextMenuModel.ts'
-import { terminalContextMenuShortcutAction } from './model/terminalContextMenuShortcuts'
+} from '../model/terminalContextMenuModel.ts'
+import { terminalContextMenuShortcutAction } from '../model/terminalContextMenuShortcuts'
 
 interface TerminalContextMenuProps {
   instanceId: number

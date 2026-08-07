@@ -13,8 +13,8 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import { TermousApi } from '../../api/client'
-import { TerminalCwdRuntimeProvider } from '../../app/TerminalCwdRuntimeProvider'
+import { TermousApi } from '../../../api/client'
+import { TerminalCwdRuntimeProvider } from './TerminalCwdRuntimeProvider'
 import type {
   CompletionSettings,
   Session,
@@ -23,7 +23,7 @@ import type {
   TerminalFont,
   TerminalSettings,
   ThemeMode,
-} from '../../types/domain'
+} from '../../../types/domain'
 import {
   completionProviderSettingsSignature,
   defaultTerminalSettings,
@@ -50,21 +50,21 @@ import {
   type TerminalContextPointer,
   type TerminalContextSelectionRange,
   type TerminalContextSnapshot,
-} from './model/terminalContextTarget'
+} from '../model/terminalContextTarget'
 import {
   TerminalCwdRuntime,
   type SessionCwdRequestError,
-} from './model/terminalCwdRuntime'
+} from '../model/terminalCwdRuntime'
 import {
   TerminalCompletionRuntime,
   type TerminalCompletionExpectedSelection,
   type TerminalCompletionQueryExecutor,
-} from './model/terminalCompletionRuntime'
+} from '../model/terminalCompletionRuntime'
 import {
   isPredictableTerminalCompletionText,
   predictTerminalCompletionCursor,
-} from './model/terminalCompletionPosition'
-import { transitionTerminalCompletionActivity } from './model/terminalCompletionViewport'
+} from '../model/terminalCompletionPosition'
+import { transitionTerminalCompletionActivity } from '../model/terminalCompletionViewport'
 import {
   createEmptyTerminalSearchResult,
   isValidTerminalSearchRegex,
@@ -73,14 +73,14 @@ import {
   type TerminalSearchDirection,
   type TerminalSearchOptions,
   type TerminalSearchResult,
-} from './model/terminalSearch'
+} from '../model/terminalSearch'
 import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from '#entities/settings'
-import type { TerminalPromptBoundary } from './model/terminalProtocol'
+import type { TerminalPromptBoundary } from '../model/terminalProtocol'
 import {
   TerminalTransport,
   type TerminalTransportEvent,
   type TerminalTransportState,
-} from './model/terminalTransport'
+} from '../model/terminalTransport'
 
 const terminalTextEncoder = new TextEncoder()
 const completionShortcutActionIds = [

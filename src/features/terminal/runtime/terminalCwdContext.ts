@@ -4,13 +4,13 @@ import {
   useContext,
   useSyncExternalStore,
 } from 'react'
-import type { SessionCwdState } from '../../types/domain'
+import type { SessionCwdState } from '../../../types/domain'
 import type {
   SessionCwdRequestError,
   SessionCwdRequestScope,
   TerminalCwdRuntime,
-} from './model/terminalCwdRuntime'
-import type { TerminalTransportState } from './model/terminalTransport'
+} from '../model/terminalCwdRuntime'
+import type { TerminalTransportState } from '../model/terminalTransport'
 
 export const TerminalCwdRuntimeContext = createContext<TerminalCwdRuntime | null>(null)
 

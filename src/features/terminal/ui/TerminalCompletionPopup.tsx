@@ -8,14 +8,14 @@ import {
   type SVGProps,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { CompletionItem, ThemeMode } from '../../types/domain'
+import type { CompletionItem, ThemeMode } from '../../../types/domain'
 import { useShortcutRuntime } from '#entities/shortcuts'
-import { isExactCompletionItem, splitCompletionLabel } from './model/completionModel'
+import { isExactCompletionItem, splitCompletionLabel } from '../model/completionModel'
 import {
   TERMINAL_COMPLETION_POPUP_WIDTH,
   type TerminalCompletionPopupPosition,
-} from './model/terminalCompletionPosition'
-import '../../styles/terminal-completion.css'
+} from '../model/terminalCompletionPosition'
+import styles from './TerminalCompletionPopup.module.scss'
 
 type CompletionIcon = ComponentType<SVGProps<SVGSVGElement> & { size?: number }>
 
@@ -85,8 +85,8 @@ export function TerminalCompletionPopup({
 
   return (
     <div
-      className={`terminal-completion-popup terminal-completion-theme-${themeMode} ${
-        showShortcutFooter ? 'has-shortcut-footer' : ''
+      className={`${styles['terminal-completion-popup']} ${styles[`terminal-completion-theme-${themeMode}`]} ${
+        showShortcutFooter ? styles['has-shortcut-footer'] : ''
       }`}
       data-placement={position.placement}
       style={{
@@ -100,7 +100,7 @@ export function TerminalCompletionPopup({
       <div
         ref={popupRef}
         id={id}
-        className="terminal-completion-options"
+        className={styles['terminal-completion-options']}
         role="listbox"
         aria-label={t('terminal.completion.label')}
         aria-activedescendant={activeDescendant}
@@ -128,7 +128,7 @@ export function TerminalCompletionPopup({
               }}
               id={`${id}-option-${index}`}
               key={item.id}
-              className={`terminal-completion-option ${selected ? 'is-selected' : ''} ${exact ? 'is-exact' : ''}`}
+              className={`${styles['terminal-completion-option']} ${selected ? styles['is-selected'] : ''} ${exact ? styles['is-exact'] : ''}`}
               type="button"
               role="option"
               aria-selected={selected}
@@ -150,24 +150,24 @@ export function TerminalCompletionPopup({
                 onAccept(item, index)
               }}
             >
-              <Icon className="terminal-completion-option-icon" size={16} aria-hidden="true" />
-              <span className="terminal-completion-option-content">
-                <span className="terminal-completion-option-label">
+              <Icon className={styles['terminal-completion-option-icon']} size={16} aria-hidden="true" />
+              <span className={styles['terminal-completion-option-content']}>
+                <span className={styles['terminal-completion-option-label']}>
                   {label.entered ? (
-                    <span className="terminal-completion-option-entered">{label.entered}</span>
+                    <span className={styles['terminal-completion-option-entered']}>{label.entered}</span>
                   ) : null}
                   {label.suggestion ? (
-                    <span className="terminal-completion-option-suggestion">{label.suggestion}</span>
+                    <span className={styles['terminal-completion-option-suggestion']}>{label.suggestion}</span>
                   ) : null}
                 </span>
                 {item.detail ? (
-                  <span className="terminal-completion-option-detail">{item.detail}</span>
+                  <span className={styles['terminal-completion-option-detail']}>{item.detail}</span>
                 ) : null}
               </span>
-              <span className="terminal-completion-option-meta">
-                <span className="terminal-completion-option-source">{sourceSummary}</span>
+              <span className={styles['terminal-completion-option-meta']}>
+                <span className={styles['terminal-completion-option-source']}>{sourceSummary}</span>
                 {exact ? (
-                  <span className="terminal-completion-option-exact">
+                  <span className={styles['terminal-completion-option-exact']}>
                     <Check size={10} strokeWidth={2.5} aria-hidden="true" />
                     {t('terminal.completion.exact')}
                   </span>
@@ -183,7 +183,7 @@ export function TerminalCompletionPopup({
             <Tooltip
               key={item.id}
               title={(
-                <span className="terminal-completion-tooltip-content">
+                <span className={styles['terminal-completion-tooltip-content']}>
                   <strong>{item.label}</strong>
                   {item.detail ? <span>{item.detail}</span> : null}
                   <small>{sourceSummary}</small>
@@ -193,7 +193,7 @@ export function TerminalCompletionPopup({
               mouseEnterDelay={0.4}
               destroyOnHidden
               classNames={{
-                root: `termous-tooltip terminal-completion-tooltip terminal-completion-theme-${themeMode}`,
+                root: `termous-tooltip ${styles['terminal-completion-tooltip']} ${styles[`terminal-completion-theme-${themeMode}`]}`,
               }}
             >
               {option}
@@ -202,15 +202,15 @@ export function TerminalCompletionPopup({
         })}
       </div>
       {showShortcutFooter ? (
-        <div id={`${id}-shortcuts`} className="terminal-completion-shortcuts">
+        <div id={`${id}-shortcuts`} className={styles['terminal-completion-shortcuts']}>
           {navigationShortcuts.length > 0 ? (
-            <span className="terminal-completion-shortcut">
+            <span className={styles['terminal-completion-shortcut']}>
               <kbd>{navigationShortcuts.join(' / ')}</kbd>
               <span>{t('terminal.completion.shortcuts.navigate')}</span>
             </span>
           ) : null}
           {acceptShortcut ? (
-            <span className="terminal-completion-shortcut">
+            <span className={styles['terminal-completion-shortcut']}>
               <kbd>{acceptShortcut}</kbd>
               <span>{t('terminal.completion.shortcuts.select')}</span>
             </span>

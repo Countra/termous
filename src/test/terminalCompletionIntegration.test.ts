@@ -4,15 +4,15 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const providerSource = readFileSync(
-  fileURLToPath(new URL('../features/terminal/TerminalRuntimeProvider.tsx', import.meta.url)),
+  fileURLToPath(new URL('../features/terminal/runtime/TerminalRuntimeProvider.tsx', import.meta.url)),
   'utf8',
 )
 const viewportSource = readFileSync(
-  fileURLToPath(new URL('../features/terminal/TerminalPaneViewport.tsx', import.meta.url)),
+  fileURLToPath(new URL('../features/terminal/ui/TerminalPaneViewport.tsx', import.meta.url)),
   'utf8',
 )
 const contextSource = readFileSync(
-  fileURLToPath(new URL('../features/terminal/terminalRuntimeContext.ts', import.meta.url)),
+  fileURLToPath(new URL('../features/terminal/runtime/terminalRuntimeContext.ts', import.meta.url)),
   'utf8',
 )
 

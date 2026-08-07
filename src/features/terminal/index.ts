@@ -1,12 +1,12 @@
 export {
-  TerminalCwdRuntimeContext,
   useSessionCwdRequestError,
   useTerminalCwdRuntime,
   useSessionCwdState,
   useSessionCwdTransportState,
-} from './terminalCwdContext.ts'
+} from './runtime/terminalCwdContext.ts'
+export { TerminalRuntimeProvider } from './runtime/TerminalRuntimeProvider.tsx'
+export { useTerminalRuntime } from './runtime/terminalRuntimeContext.ts'
 export {
-  TerminalCwdRuntime,
   type SessionCwdRefreshResult,
   type SessionCwdRequestError,
   type SessionCwdRequestResult,
@@ -19,3 +19,10 @@ export {
   type TerminalSearchResult,
 } from './model/terminalSearch.ts'
 export type { TerminalTransportState } from './model/terminalTransport.ts'
+export { ConnectionProgress } from './ui/ConnectionProgress.tsx'
+export { TerminalSearchPanel } from './ui/TerminalSearchPanel.tsx'
+export {
+  TerminalSplitWorkspace,
+  type TerminalDragPoint,
+  type TerminalSplitWorkspaceHandle,
+} from './ui/TerminalSplitWorkspace.tsx'

@@ -15,8 +15,8 @@ import {
 const sources = {
   app: readSource('../App.tsx'),
   runtimeProvider: readSource('../app/shortcut-runtime/ShortcutRuntimeProvider.tsx'),
-  terminalRuntime: readSource('../features/terminal/TerminalRuntimeProvider.tsx'),
-  terminalViewport: readSource('../features/terminal/TerminalPaneViewport.tsx'),
+  terminalRuntime: readSource('../features/terminal/runtime/TerminalRuntimeProvider.tsx'),
+  terminalViewport: readSource('../features/terminal/ui/TerminalPaneViewport.tsx'),
   filesPage: readSource('../widgets/files-workspace/ui/FilesWorkspace.tsx'),
   workbenchFiles: readSource('../features/workbench/WorkbenchFileList.tsx'),
   editor: readSource('../features/remote-file/ui/RemoteTextEditorModal.tsx'),

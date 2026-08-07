@@ -8,17 +8,17 @@ import {
 import type {
   TerminalCompletionExpectedSelection,
   TerminalCompletionSessionSnapshot,
-} from './model/terminalCompletionRuntime'
+} from '../model/terminalCompletionRuntime'
 import type {
   TerminalContextPointer,
   TerminalContextSelectionRange,
   TerminalContextSnapshot,
-} from './model/terminalContextTarget'
+} from '../model/terminalContextTarget'
 import type {
   TerminalSearchDirection,
   TerminalSearchOptions,
   TerminalSearchResult,
-} from './model/terminalSearch'
+} from '../model/terminalSearch'
 
 export type {
   TerminalContextPointer,
@@ -26,12 +26,12 @@ export type {
   TerminalContextSnapshot,
   TerminalContextTarget,
   TerminalMouseTrackingMode,
-} from './model/terminalContextTarget'
+} from '../model/terminalContextTarget'
 export type {
   TerminalSearchDirection,
   TerminalSearchOptions,
   TerminalSearchResult,
-} from './model/terminalSearch'
+} from '../model/terminalSearch'
 
 export type TerminalCompletionRetryResult = 'succeeded' | 'failed' | 'cancelled'
 

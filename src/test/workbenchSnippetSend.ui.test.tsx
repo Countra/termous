@@ -86,10 +86,15 @@ vi.mock('#shared/ui', () => ({
   SessionTabStrip: () => null,
   StatusBadge: () => null,
 }))
-vi.mock('../features/terminal/ConnectionProgress', () => ({ ConnectionProgress: () => null }))
-vi.mock('../features/terminal/TerminalSearchPanel', () => ({ TerminalSearchPanel: () => null }))
-vi.mock('../features/terminal/TerminalSplitWorkspace', () => ({ TerminalSplitWorkspace: () => null }))
-vi.mock('../features/terminal/terminalRuntimeContext', () => ({
+vi.mock('#features/terminal', () => ({
+  ConnectionProgress: () => null,
+  TerminalSearchPanel: () => null,
+  TerminalSplitWorkspace: () => null,
+  createEmptyTerminalSearchResult: () => ({
+    found: false,
+    resultIndex: -1,
+    resultCount: 0,
+  }),
   useTerminalRuntime: () => ({
     clearActiveSearch: vi.fn(),
     focusSession: vi.fn(),

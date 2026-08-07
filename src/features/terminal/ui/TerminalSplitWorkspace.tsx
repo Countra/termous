@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Session, ThemeMode } from '../../types/domain'
+import type { Session, ThemeMode } from '../../../types/domain'
 import { TerminalPaneViewport } from './TerminalPaneViewport'
 import {
   compactTerminalSplitLayout,
@@ -32,7 +32,7 @@ import {
   type TerminalSplitPreset,
   type TerminalSplitPresetId,
   type TerminalSplitPresetZone,
-} from './model/terminalSplitLayout'
+} from '../model/terminalSplitLayout'
 
 export interface TerminalDragPoint {
   x: number

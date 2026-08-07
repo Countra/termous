@@ -9,6 +9,7 @@
   --completion-text-muted: #778498;
   --completion-accent: #68abff;
   --completion-accent-muted: #92c3ff;
+
   position: absolute;
   z-index: 16;
   display: grid;
@@ -27,8 +28,7 @@
 
 .terminal-completion-options {
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden auto;
   padding: 4px;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -77,7 +77,7 @@
 }
 
 .terminal-completion-popup.terminal-completion-theme-light {
-  --completion-bg: #ffffff;
+  --completion-bg: #fff;
   --completion-border: #d6dce5;
   --completion-row-hover: #f3f6fa;
   --completion-row-selected: #e9f2fd;
@@ -87,6 +87,7 @@
   --completion-text-muted: #7c899b;
   --completion-accent: #1769c2;
   --completion-accent-muted: #2e76c7;
+
   box-shadow: 0 12px 26px rgb(24 36 52 / 15%);
 }
 
@@ -225,86 +226,37 @@
   line-height: 1.45;
 }
 
-.terminal-completion-tooltip.terminal-completion-theme-dark.ant-tooltip {
+.terminal-completion-tooltip.terminal-completion-theme-dark:global(.ant-tooltip) {
   --ant-tooltip-bg: #202632;
   --antd-arrow-background-color: #202632;
 }
 
-.terminal-completion-tooltip.terminal-completion-theme-dark.ant-tooltip .ant-tooltip-inner,
-.terminal-completion-tooltip.terminal-completion-theme-dark.ant-tooltip .ant-tooltip-container {
+.terminal-completion-tooltip.terminal-completion-theme-dark:global(.ant-tooltip) :global(.ant-tooltip-inner),
+.terminal-completion-tooltip.terminal-completion-theme-dark:global(.ant-tooltip) :global(.ant-tooltip-container) {
   border-color: #353e4d !important;
   background: #202632 !important;
   color: #e7edf6 !important;
 }
 
-.terminal-completion-tooltip.terminal-completion-theme-dark.ant-tooltip .ant-tooltip-arrow::before {
+.terminal-completion-tooltip.terminal-completion-theme-dark:global(.ant-tooltip) :global(.ant-tooltip-arrow)::before {
   background: #202632 !important;
 }
 
-.terminal-completion-tooltip.terminal-completion-theme-light.ant-tooltip {
-  --ant-tooltip-bg: #ffffff;
-  --antd-arrow-background-color: #ffffff;
+.terminal-completion-tooltip.terminal-completion-theme-light:global(.ant-tooltip) {
+  --ant-tooltip-bg: #fff;
+  --antd-arrow-background-color: #fff;
 }
 
-.terminal-completion-tooltip.terminal-completion-theme-light.ant-tooltip .ant-tooltip-inner,
-.terminal-completion-tooltip.terminal-completion-theme-light.ant-tooltip .ant-tooltip-container {
+.terminal-completion-tooltip.terminal-completion-theme-light:global(.ant-tooltip) :global(.ant-tooltip-inner),
+.terminal-completion-tooltip.terminal-completion-theme-light:global(.ant-tooltip) :global(.ant-tooltip-container) {
   border-color: #d6dce5 !important;
-  background: #ffffff !important;
+  background: #fff !important;
   color: #172033 !important;
   box-shadow: 0 12px 26px rgb(24 36 52 / 15%) !important;
 }
 
-.terminal-completion-tooltip.terminal-completion-theme-light.ant-tooltip .ant-tooltip-arrow::before {
-  background: #ffffff !important;
-}
-
-.terminal-completion-notice {
-  position: absolute;
-  z-index: 7;
-  right: 12px;
-  bottom: 12px;
-  display: inline-flex;
-  max-width: min(420px, calc(100% - 24px));
-  min-height: 32px;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid color-mix(in srgb, var(--warning) 42%, var(--border));
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--surface-strong) 94%, var(--warning) 6%);
-  padding: 4px 6px 4px 9px;
-  color: var(--text-secondary);
-  box-shadow: 0 8px 20px rgb(0 0 0 / 18%);
-  font-size: 12px;
-  line-height: 18px;
-}
-
-.terminal-completion-notice > svg {
-  flex: 0 0 auto;
-  color: var(--warning);
-}
-
-.terminal-completion-notice > span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.terminal-completion-notice .ant-btn {
-  flex: 0 0 auto;
-  height: 24px;
-  padding-inline: 6px;
-  color: var(--accent);
-  font-size: 12px;
-}
-
-.terminal-completion-notice.is-degraded,
-.terminal-completion-notice.is-unsupported {
-  border-color: color-mix(in srgb, var(--border) 86%, transparent);
-  background: color-mix(in srgb, var(--surface-strong) 96%, var(--text-muted) 4%);
-}
-
-.terminal-completion-notice.is-degraded > svg,
-.terminal-completion-notice.is-unsupported > svg {
-  color: var(--text-muted);
+.terminal-completion-tooltip.terminal-completion-theme-light:global(.ant-tooltip) :global(.ant-tooltip-arrow)::before {
+  background: #fff !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

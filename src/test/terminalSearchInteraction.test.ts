@@ -8,7 +8,7 @@ const workbenchSource = readFileSync(
   'utf8',
 )
 const searchPanelSource = readFileSync(
-  fileURLToPath(new URL('../features/terminal/TerminalSearchPanel.tsx', import.meta.url)),
+  fileURLToPath(new URL('../features/terminal/ui/TerminalSearchPanel.tsx', import.meta.url)),
   'utf8',
 )
 

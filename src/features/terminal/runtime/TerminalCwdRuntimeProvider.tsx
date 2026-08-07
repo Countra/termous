@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react'
-import {
-  TerminalCwdRuntimeContext,
-  type TerminalCwdRuntime,
-} from '#features/terminal'
+import type { TerminalCwdRuntime } from '../model/terminalCwdRuntime'
+import { TerminalCwdRuntimeContext } from './terminalCwdContext'
 
 interface TerminalCwdRuntimeProviderProps {
   runtime: TerminalCwdRuntime

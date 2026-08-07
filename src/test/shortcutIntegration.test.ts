@@ -12,19 +12,19 @@ const shortcutProviderSource = readFileSync(
   'utf8',
 )
 const terminalRuntimeSource = readFileSync(
-  fileURLToPath(new URL('../features/terminal/TerminalRuntimeProvider.tsx', import.meta.url)),
+  fileURLToPath(new URL('../features/terminal/runtime/TerminalRuntimeProvider.tsx', import.meta.url)),
   'utf8',
 )
 const terminalViewportSource = readFileSync(
-  fileURLToPath(new URL('../features/terminal/TerminalPaneViewport.tsx', import.meta.url)),
+  fileURLToPath(new URL('../features/terminal/ui/TerminalPaneViewport.tsx', import.meta.url)),
   'utf8',
 )
 const completionPopupSource = readFileSync(
-  fileURLToPath(new URL('../features/terminal/TerminalCompletionPopup.tsx', import.meta.url)),
+  fileURLToPath(new URL('../features/terminal/ui/TerminalCompletionPopup.tsx', import.meta.url)),
   'utf8',
 )
 const completionStyles = readFileSync(
-  fileURLToPath(new URL('../styles/terminal-completion.css', import.meta.url)),
+  fileURLToPath(new URL('../features/terminal/ui/TerminalCompletionPopup.module.scss', import.meta.url)),
   'utf8',
 )
 const filesPageSource = readFileSync(
@@ -68,7 +68,7 @@ test('非 xterm 的终端区域仍由 viewport 适配器处理上下文动作', 
 })
 
 test('补全弹层只在实际显示快捷键提示时保留底部网格行', () => {
-  assert.match(completionPopupSource, /showShortcutFooter \? 'has-shortcut-footer' : ''/)
+  assert.match(completionPopupSource, /showShortcutFooter \? styles\['has-shortcut-footer'\] : ''/)
   assert.match(
     completionStyles,
     /\.terminal-completion-popup\s*\{[\s\S]*?grid-template-rows: minmax\(0, 1fr\);/,

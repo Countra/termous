@@ -1,6 +1,6 @@
 import { CheckCircle2, Circle, CircleDashed, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { Session, SessionPhase } from '../../types/domain'
+import type { Session, SessionPhase } from '../../../types/domain'
 
 const sshPhaseOrder: SessionPhase[] = [
   'queued',

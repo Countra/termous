@@ -118,7 +118,7 @@ vi.mock('#app/transfer-runtime', () => ({
   ),
 }))
 
-vi.mock('../features/terminal/TerminalRuntimeProvider', () => ({
+vi.mock('#features/terminal', () => ({
   TerminalRuntimeProvider: ({ children }: { children: ReactNode }) => (
     <div data-provider="terminal">{children}</div>
   ),

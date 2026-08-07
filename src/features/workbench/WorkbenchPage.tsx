@@ -60,14 +60,16 @@ import {
   useRafResizablePanelWidth,
 } from '#shared/hooks'
 import { normalizeRemotePosixPath } from '#shared/path'
-import { ConnectionProgress } from '../terminal/ConnectionProgress'
-import { TerminalSearchPanel } from '../terminal/TerminalSearchPanel'
-import { TerminalSplitWorkspace, type TerminalDragPoint, type TerminalSplitWorkspaceHandle } from '../terminal/TerminalSplitWorkspace'
-import { useTerminalRuntime } from '../terminal/terminalRuntimeContext'
 import {
+  ConnectionProgress,
+  TerminalSearchPanel,
+  TerminalSplitWorkspace,
   createEmptyTerminalSearchResult,
+  useTerminalRuntime,
+  type TerminalDragPoint,
   type TerminalSearchDirection,
   type TerminalSearchResult,
+  type TerminalSplitWorkspaceHandle,
 } from '#features/terminal'
 import type { AppData, CodeSnippet, ForwardInstance, ForwardStartRequest, Host, Session, ThemeMode } from '../../types/domain'
 import type {

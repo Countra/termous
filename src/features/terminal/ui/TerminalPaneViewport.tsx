@@ -12,32 +12,33 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import type { Session, ThemeMode } from '../../types/domain'
+import type { Session, ThemeMode } from '../../../types/domain'
 import { TerminalCompletionPopup } from './TerminalCompletionPopup'
 import { TerminalContextMenu } from './TerminalContextMenu'
 import {
   buildTerminalContextMenu,
   type TerminalContextMenuActionKey,
   type TerminalContextMenuItem,
-} from './model/terminalContextMenuModel'
-import { resolveTerminalContextPath } from './model/terminalContextPath'
-import { useSessionCwdState } from './terminalCwdContext'
+} from '../model/terminalContextMenuModel'
+import { resolveTerminalContextPath } from '../model/terminalContextPath'
+import { useSessionCwdState } from '../runtime/terminalCwdContext'
 import {
   useSessionCompletionSnapshot,
   useTerminalRuntime,
-} from './terminalRuntimeContext'
-import type { TerminalContextSnapshot } from './model/terminalContextTarget'
+} from '../runtime/terminalRuntimeContext'
+import type { TerminalContextSnapshot } from '../model/terminalContextTarget'
 import {
   computeTerminalCompletionPosition,
   estimateTerminalCompletionPopupHeight,
   TERMINAL_COMPLETION_POPUP_WIDTH,
   type TerminalCompletionPopupPosition,
-} from './model/terminalCompletionPosition'
-import { shouldActivateTerminalCompletionViewport } from './model/terminalCompletionViewport'
+} from '../model/terminalCompletionPosition'
+import { shouldActivateTerminalCompletionViewport } from '../model/terminalCompletionViewport'
 import {
   useShortcutRuntime,
   type ShortcutScope,
 } from '#entities/shortcuts'
+import noticeStyles from './TerminalCompletionNotice.module.scss'
 
 interface TerminalPaneViewportProps {
   paneId: string
@@ -804,7 +805,11 @@ export function TerminalPaneViewport({
         ) : null}
         {completionNotice ? (
           <div
-            className={`terminal-completion-notice is-${completionNotice}`}
+            className={`${noticeStyles['terminal-completion-notice']} ${
+              completionNotice === 'degraded' || completionNotice === 'unsupported'
+                ? noticeStyles[`is-${completionNotice}`]
+                : ''
+            }`}
             role="status"
             onMouseDown={(event) => event.stopPropagation()}
           >

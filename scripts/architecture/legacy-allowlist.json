@@ -2,12 +2,6 @@
   "schemaVersion": 1,
   "violations": [
     {
-      "rule": "layer-direction",
-      "source": "src/features/terminal/TerminalRuntimeProvider.tsx",
-      "target": "src/app/TerminalCwdRuntimeProvider.tsx",
-      "specifier": "../../app/TerminalCwdRuntimeProvider"
-    },
-    {
       "rule": "legacy-boundary",
       "source": "src/api/client.ts",
       "target": "src/entities/file/index.ts",
@@ -106,8 +100,8 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/features/terminal/TerminalRuntimeProvider.tsx",
-      "specifier": "./features/terminal/TerminalRuntimeProvider"
+      "target": "src/features/terminal/index.ts",
+      "specifier": "#features/terminal"
     },
     {
       "rule": "legacy-boundary",
@@ -219,15 +213,15 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/ConnectionProgress.tsx",
+      "source": "src/features/terminal/ui/ConnectionProgress.tsx",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/TerminalCompletionPopup.tsx",
+      "source": "src/features/terminal/ui/TerminalCompletionPopup.tsx",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -243,9 +237,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/terminalCwdContext.ts",
+      "source": "src/features/terminal/runtime/terminalCwdContext.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -255,9 +249,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/TerminalPaneViewport.tsx",
+      "source": "src/features/terminal/ui/TerminalPaneViewport.tsx",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -267,21 +261,21 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/TerminalRuntimeProvider.tsx",
+      "source": "src/features/terminal/runtime/TerminalRuntimeProvider.tsx",
       "target": "src/api/client.ts",
-      "specifier": "../../api/client"
+      "specifier": "../../../api/client"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/TerminalRuntimeProvider.tsx",
+      "source": "src/features/terminal/runtime/TerminalRuntimeProvider.tsx",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/terminal/TerminalSplitWorkspace.tsx",
+      "source": "src/features/terminal/ui/TerminalSplitWorkspace.tsx",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -464,62 +458,8 @@
     {
       "rule": "public-entry",
       "source": "src/App.tsx",
-      "target": "src/features/terminal/TerminalRuntimeProvider.tsx",
-      "specifier": "./features/terminal/TerminalRuntimeProvider"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/App.tsx",
       "target": "src/features/workbench/WorkbenchPage.tsx",
       "specifier": "./features/workbench/WorkbenchPage"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/terminal/ConnectionProgress.tsx",
-      "specifier": "../terminal/ConnectionProgress"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/terminal/terminalRuntimeContext.ts",
-      "specifier": "../terminal/terminalRuntimeContext"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/terminal/TerminalSearchPanel.tsx",
-      "specifier": "../terminal/TerminalSearchPanel"
-    },
-    {
-      "rule": "public-entry",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/terminal/TerminalSplitWorkspace.tsx",
-      "specifier": "../terminal/TerminalSplitWorkspace"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/terminal/ConnectionProgress.tsx",
-      "specifier": "../terminal/ConnectionProgress"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/terminal/terminalRuntimeContext.ts",
-      "specifier": "../terminal/terminalRuntimeContext"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/terminal/TerminalSearchPanel.tsx",
-      "specifier": "../terminal/TerminalSearchPanel"
-    },
-    {
-      "rule": "same-layer-deep-import",
-      "source": "src/features/workbench/WorkbenchPage.tsx",
-      "target": "src/features/terminal/TerminalSplitWorkspace.tsx",
-      "specifier": "../terminal/TerminalSplitWorkspace"
     },
     {
       "rule": "legacy-boundary",
