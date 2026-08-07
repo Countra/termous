@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
-import type { AliasWorkspace, ShellAlias } from '../types/domain.ts'
+import type { AliasWorkspace, ShellAlias } from '../entities/alias/index.ts'
 import {
   aliasPanelControlScope,
   aliasSessionViewReducer,
@@ -14,7 +14,7 @@ import {
   serializeAliasReconnectSessionIds,
   shellAliasTone,
   type AliasSessionViewStates,
-} from '../features/workbench/aliasWorkspaceState.ts'
+} from '../features/alias/model/aliasWorkspaceState.ts'
 
 test('别名搜索同时匹配名称、命令和说明且忽略大小写', () => {
   const items = [
@@ -434,15 +434,15 @@ test('Alias API 不再发送 ETag、If-Match 或 apply 请求', () => {
 
 test('Alias 面板不依赖目录跟随运行态或外部冲突流程', () => {
   const panel = readFileSync(
-    fileURLToPath(new URL('../features/workbench/AliasPanel.tsx', import.meta.url)),
+    fileURLToPath(new URL('../features/alias/ui/AliasPanel.tsx', import.meta.url)),
     'utf8',
   )
   const helpers = readFileSync(
-    fileURLToPath(new URL('../features/workbench/aliasPanelHelpers.ts', import.meta.url)),
+    fileURLToPath(new URL('../features/alias/ui/aliasPanelHelpers.ts', import.meta.url)),
     'utf8',
   )
   const hook = readFileSync(
-    fileURLToPath(new URL('../features/workbench/useSessionAliases.ts', import.meta.url)),
+    fileURLToPath(new URL('../features/alias/model/useSessionAliases.ts', import.meta.url)),
     'utf8',
   )
   const cwdRuntime = readFileSync(
@@ -480,7 +480,7 @@ test('别名表单控件使用会话隔离的稳定 ID 与标签关联', () => {
   assert.equal(aliasPanelControlScope(undefined), 'workbench-alias-inactive')
 
   const editor = readFileSync(
-    fileURLToPath(new URL('../features/workbench/AliasEditorView.tsx', import.meta.url)),
+    fileURLToPath(new URL('../features/alias/ui/AliasEditorView.tsx', import.meta.url)),
     'utf8',
   )
   for (const field of ['name', 'command', 'description']) {
@@ -496,11 +496,11 @@ test('别名表单控件使用会话隔离的稳定 ID 与标签关联', () => {
 
 test('重连使用同步门控且行操作包含具体别名的无障碍名称', () => {
   const panel = readFileSync(
-    fileURLToPath(new URL('../features/workbench/AliasPanel.tsx', import.meta.url)),
+    fileURLToPath(new URL('../features/alias/ui/AliasPanel.tsx', import.meta.url)),
     'utf8',
   )
   const parts = readFileSync(
-    fileURLToPath(new URL('../features/workbench/AliasPanelParts.tsx', import.meta.url)),
+    fileURLToPath(new URL('../features/alias/ui/AliasPanelParts.tsx', import.meta.url)),
     'utf8',
   )
 
@@ -517,7 +517,7 @@ test('重连使用同步门控且行操作包含具体别名的无障碍名称',
 
 test('重连要求使用会话级存储恢复并按存活会话清理', () => {
   const hook = readFileSync(
-    fileURLToPath(new URL('../features/workbench/useSessionAliases.ts', import.meta.url)),
+    fileURLToPath(new URL('../features/alias/model/useSessionAliases.ts', import.meta.url)),
     'utf8',
   )
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import type { AliasSyncTask } from '../types/domain.ts'
+import type { AliasSyncTask } from '../entities/alias/index.ts'
 import {
   aliasSyncCloseNeedsCancellation,
   aliasSyncProgress,
@@ -14,29 +14,29 @@ import {
   isAliasSyncTaskTerminal,
   parseAliasSyncTaskEvent,
   reconcileAliasSyncTask,
-} from '../features/workbench/aliasSyncTaskState.ts'
+} from '../features/alias/model/aliasSyncTaskState.ts'
 import {
   groupAliasSyncHosts,
   isAliasSyncHostSelectable,
   orderAliasSyncHosts,
   orderAliasSyncSelectionIds,
-} from '../features/workbench/aliasSyncSelection.ts'
-import type { Host, HostGroup } from '../types/domain.ts'
+} from '../features/alias/model/aliasSyncSelection.ts'
+import type { Host, HostGroup } from '../entities/host/index.ts'
 
 const aliasSyncStyles = readFileSync(
-  new URL('../features/workbench/alias-sync-modal.css', import.meta.url),
+  new URL('../features/alias/ui/AliasSyncModal.module.scss', import.meta.url),
   'utf8',
 )
 const aliasPanelSource = readFileSync(
-  new URL('../features/workbench/AliasPanel.tsx', import.meta.url),
+  new URL('../features/alias/ui/AliasPanel.tsx', import.meta.url),
   'utf8',
 )
 const aliasSyncModalSource = readFileSync(
-  new URL('../features/workbench/AliasSyncModal.tsx', import.meta.url),
+  new URL('../features/alias/ui/AliasSyncModal.tsx', import.meta.url),
   'utf8',
 )
 const aliasPanelHelpersSource = readFileSync(
-  new URL('../features/workbench/aliasPanelHelpers.ts', import.meta.url),
+  new URL('../features/alias/ui/aliasPanelHelpers.ts', import.meta.url),
   'utf8',
 )
 

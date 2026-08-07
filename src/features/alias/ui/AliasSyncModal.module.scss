@@ -1,3 +1,10 @@
+/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
+/* stylelint-disable termous/no-unscoped-global, declaration-empty-line-before, media-feature-range-notation, keyframes-name-pattern -- 迁移期保持别名同步弹窗及 Portal 的视觉与交互兼容。 */
+.root {
+  position: static;
+}
+
+:global {
 .alias-sync-modal-root {
   z-index: 3700;
 }
@@ -674,7 +681,7 @@
   animation: alias-sync-spin 0.85s linear infinite;
 }
 
-@keyframes alias-sync-spin {
+@keyframes :global(alias-sync-spin) {
   to {
     transform: rotate(360deg);
   }
@@ -724,4 +731,5 @@
     padding-top: 8px;
     padding-left: 0;
   }
+}
 }

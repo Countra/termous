@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import type { TermousApi } from '../../api/client'
-import type { AliasSyncTask } from '../../types/domain'
+import type { AliasSyncTask } from '#entities/alias'
+import type { AliasGateway } from './contracts'
 import { isAliasSyncTaskTerminal } from './aliasSyncTaskState'
 
 interface UseAliasSyncActiveIndicatorOptions {
-  api: TermousApi
+  api: AliasGateway
   enabled: boolean
 }
 

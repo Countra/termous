@@ -333,66 +333,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/AliasPanel.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/AliasPanel.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/aliasPanelHelpers.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/AliasPanelParts.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/AliasSyncModal.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/AliasSyncModal.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/aliasSyncSelection.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/aliasSyncTaskState.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/aliasSyncTerminalWaiters.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/aliasWorkspaceState.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/workbench/sessionFilesState.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain.ts"
@@ -406,42 +346,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/workbench/sessionTabPreferences.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useAliasSyncActiveIndicator.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useAliasSyncActiveIndicator.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useAliasSyncTask.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useAliasSyncTask.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useSessionAliases.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useSessionAliases.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -724,6 +628,18 @@
       "source": "src/types/domain.ts",
       "target": "src/entities/service/index.ts",
       "specifier": "#entities/service"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/api/client.ts",
+      "target": "src/entities/alias/index.ts",
+      "specifier": "#entities/alias"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/types/domain.ts",
+      "target": "src/entities/alias/index.ts",
+      "specifier": "#entities/alias"
     }
   ]
 }

@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { AliasSyncTask } from '../types/domain.ts'
+import type { AliasSyncTask } from '../entities/alias/index.ts'
 import {
   rejectAliasSyncTerminalWaiters,
   rejectAllAliasSyncTerminalWaiters,
   resolveAliasSyncTerminalWaiters,
   waitForAliasSyncTerminal,
   type AliasSyncTerminalWaiterMap,
-} from '../features/workbench/aliasSyncTerminalWaiters.ts'
+} from '../features/alias/model/aliasSyncTerminalWaiters.ts'
 
 test('Alias 同步终态会完成 waiter 并清理定时器与任务集合', async () => {
   const waiters: AliasSyncTerminalWaiterMap = new Map()

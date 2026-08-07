@@ -1,6 +1,6 @@
 import { App } from 'antd'
 import type { TFunction } from 'i18next'
-import { TermousApiError } from '../../api/client'
+import { TermousApiError } from '#shared/api'
 
 export function displayAliasShell(shell: string | undefined) {
   const normalized = shell?.trim()

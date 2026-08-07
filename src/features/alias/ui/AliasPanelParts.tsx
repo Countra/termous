@@ -1,11 +1,11 @@
 import { Check, Pencil, RotateCcw, Trash2, Wrench } from 'lucide-react'
 import { Button, Popconfirm, Switch, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
-import type { ShellAlias } from '../../types/domain'
+import type { ShellAlias } from '#entities/alias'
 import {
   shellAliasTone,
   type AliasMutationKind,
-} from './aliasWorkspaceState'
+} from '../model/aliasWorkspaceState'
 
 interface AliasRowProps {
   id: string

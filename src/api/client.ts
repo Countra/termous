@@ -1,8 +1,4 @@
 import type {
-  AliasMutationResult,
-  AliasSyncTask,
-  AliasSyncTaskInput,
-  AliasWorkspace,
   AppearanceSettings,
   AppConfig,
   CompletionQuery,
@@ -36,9 +32,6 @@ import type {
   PrivateKeyCredentialBundleInput,
   PrivateKeyCredentialBundleResult,
   Session,
-  ShellAlias,
-  ShellAliasInput,
-  ShellAliasPatch,
   Settings,
   ShortcutSettingsPatch,
   SSHKeyGenerateRequest,
@@ -49,6 +42,15 @@ import type {
   TerminalSettings,
   WindowSettings,
 } from '../types/domain'
+import type {
+  AliasMutationResult,
+  AliasSyncTask,
+  AliasSyncTaskInput,
+  AliasWorkspace,
+  ShellAlias,
+  ShellAliasInput,
+  ShellAliasPatch,
+} from '#entities/alias'
 import type {
   DockerActionRequest,
   DockerActionResult,

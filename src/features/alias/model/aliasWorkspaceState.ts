@@ -4,7 +4,7 @@ import type {
   ShellAlias,
   ShellAliasInput,
   ShellAliasPatch,
-} from '../../types/domain'
+} from '#entities/alias'
 
 export type AliasMutationKind =
   | 'create'

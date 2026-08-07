@@ -1,3 +1,10 @@
+/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
+/* stylelint-disable termous/no-unscoped-global, declaration-block-no-redundant-longhand-properties -- 迁移期保持别名面板及 Portal 的视觉与交互兼容。 */
+.root {
+  position: static;
+}
+
+:global {
 .alias-panel {
   display: grid;
   height: 100%;
@@ -651,4 +658,5 @@
   .alias-row {
     transition: none;
   }
+}
 }

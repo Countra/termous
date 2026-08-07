@@ -16,41 +16,39 @@ import {
 import { Alert, Button, Checkbox, Input, Modal, Progress, Skeleton, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { TermousApiError, type TermousApi } from '../../api/client'
-import { AuthMethodBadge, HostAvatar } from '#entities/host'
-import { ConfirmDialog } from '#shared/ui'
+import { TermousApiError } from '#shared/api'
 import type {
   AliasSyncTask,
   AliasSyncTaskSource,
   AliasSyncTarget,
-  CredentialView,
-  Host,
-  HostGroup,
-  HostReachability,
-  Session,
   ShellAlias,
-} from '../../types/domain'
+} from '#entities/alias'
+import type { CredentialView } from '#entities/credential'
+import { AuthMethodBadge, HostAvatar } from '#entities/host'
+import type { Host, HostGroup, HostReachability } from '#entities/host'
+import { ConfirmDialog } from '#shared/ui'
+import type { AliasGateway, AliasSessionContext } from '../model/contracts'
 import {
   aliasSyncCloseNeedsCancellation,
   aliasSyncProgress,
   aliasSyncTaskMatchesRequest,
   isAliasSyncStartOutcomeUnknown,
   isAliasSyncTaskTerminal,
-} from './aliasSyncTaskState'
+} from '../model/aliasSyncTaskState'
 import {
   groupAliasSyncHosts,
   isAliasSyncHostSelectable,
   orderAliasSyncHosts,
   orderAliasSyncSelectionIds,
-} from './aliasSyncSelection'
-import { useAliasSyncTask } from './useAliasSyncTask'
+} from '../model/aliasSyncSelection'
+import { useAliasSyncTask } from '../model/useAliasSyncTask'
 import { aliasSyncErrorDescription } from './aliasPanelHelpers'
-import './alias-sync-modal.css'
+import styles from './AliasSyncModal.module.scss'
 
 interface AliasSyncModalProps {
-  api: TermousApi
+  api: AliasGateway
   open: boolean
-  sourceSession: Session
+  sourceSession: AliasSessionContext
   sourceAliases: readonly ShellAlias[]
   sourceShell?: 'bash' | 'zsh' | 'fish'
   hosts: readonly Host[]
@@ -325,7 +323,7 @@ export function AliasSyncModal({
         mask={{ closable: !closeConfirmOpen }}
         closable={!closeConfirmOpen}
         zIndex={3700}
-        rootClassName="termous-modal-root alias-sync-modal-root"
+        rootClassName={`termous-modal-root alias-sync-modal-root ${styles.root}`}
         className="alias-sync-modal"
         title={(
           <span className="alias-sync-modal-title">
@@ -479,7 +477,7 @@ export function AliasSyncModal({
 }
 
 interface SourceSummaryProps {
-  api: TermousApi
+  api: AliasGateway
   host?: Host
   snapshot?: AliasSyncTaskSource
   shell?: 'bash' | 'zsh' | 'fish'
@@ -584,7 +582,7 @@ function SelectionColumn({
 }
 
 interface SelectableHostRowProps {
-  api: TermousApi
+  api: AliasGateway
   host: Host
   reachability?: HostReachability
   checked: boolean
@@ -650,7 +648,7 @@ function SelectableHostRow({
 interface AliasSyncProgressViewProps {
   task: AliasSyncTask
   hosts: ReadonlyMap<string, Host>
-  api: TermousApi
+  api: AliasGateway
 }
 
 function AliasSyncProgressView({ task, hosts, api }: AliasSyncProgressViewProps) {
@@ -724,7 +722,7 @@ function ResultMetric({ value, label, tone }: { value: number; label: string; to
   )
 }
 
-function TargetResultRow({ target, host, api }: { target: AliasSyncTarget; host?: Host; api: TermousApi }) {
+function TargetResultRow({ target, host, api }: { target: AliasSyncTarget; host?: Host; api: AliasGateway }) {
   const { t } = useTranslation()
   const tone = targetStatusTone(target.status)
   const resultDetails: string[] = []

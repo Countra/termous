@@ -9,22 +9,20 @@ import {
 import { App, Button, Form, Input, Skeleton, Tooltip } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TermousApi } from '../../api/client'
 import type {
   AliasMutationResult,
-  CredentialView,
-  Host,
-  HostGroup,
-  HostReachability,
-  Session,
   ShellAlias,
   ShellAliasInput,
-} from '../../types/domain'
+} from '#entities/alias'
+import type { CredentialView } from '#entities/credential'
+import type { Host, HostGroup, HostReachability } from '#entities/host'
+import { WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
+import type { AliasGateway, AliasSessionContext } from '../model/contracts'
 import {
   aliasPanelControlScope,
   buildShellAliasPatch,
   filterShellAliases,
-} from './aliasWorkspaceState'
+} from '../model/aliasWorkspaceState'
 import {
   aliasErrorDescription,
   displayAliasShell,
@@ -37,14 +35,13 @@ import {
 } from './AliasPanelParts'
 import { AliasEditorView, type AliasEditorValues } from './AliasEditorView'
 import { AliasSyncModal } from './AliasSyncModal'
-import { useAliasSyncActiveIndicator } from './useAliasSyncActiveIndicator'
-import { useSessionAliases } from './useSessionAliases'
-import { WorkbenchEmptyState } from './WorkbenchEmptyState'
-import './alias-panel.css'
+import { useAliasSyncActiveIndicator } from '../model/useAliasSyncActiveIndicator'
+import { useSessionAliases } from '../model/useSessionAliases'
+import styles from './AliasPanel.module.scss'
 
-interface AliasPanelProps {
-  api: TermousApi
-  session: Session | null
+export interface AliasPanelProps<TSession extends AliasSessionContext = AliasSessionContext> {
+  api: AliasGateway
+  session: TSession | null
   sessionIds: readonly string[]
   hosts: readonly Host[]
   groups: readonly HostGroup[]
@@ -52,7 +49,7 @@ interface AliasPanelProps {
   reachability: Readonly<Record<string, HostReachability>>
   enabled: boolean
   reconnectDisabled: boolean
-  onReconnectSession: (session: Session) => Promise<void>
+  onReconnectSession: (session: TSession) => Promise<void>
 }
 
 const emptyEditorValues: AliasEditorValues = {
@@ -62,7 +59,7 @@ const emptyEditorValues: AliasEditorValues = {
   enabled: true,
 }
 
-export function AliasPanel({
+export function AliasPanel<TSession extends AliasSessionContext>({
   api,
   session,
   sessionIds,
@@ -73,7 +70,7 @@ export function AliasPanel({
   enabled,
   reconnectDisabled,
   onReconnectSession,
-}: AliasPanelProps) {
+}: AliasPanelProps<TSession>) {
   const { t } = useTranslation()
   const { notification } = App.useApp()
   const aliases = useSessionAliases({ api, session, sessionIds, enabled })
@@ -86,7 +83,7 @@ export function AliasPanel({
   const [reconnecting, setReconnecting] = useState(false)
   const [deleteConfirmAliasId, setDeleteConfirmAliasId] = useState('')
   const [syncSource, setSyncSource] = useState<{
-    session: Session
+    session: TSession
     aliases: ShellAlias[]
     shell?: 'bash' | 'zsh' | 'fish'
   } | null>(null)
@@ -508,7 +505,7 @@ export function AliasPanel({
   const renderWithSync = (content: ReactNode, stateSurface = false) => (
     <>
       {stateSurface ? (
-        <div id={`${controlScope}-surface`} className="alias-panel-state-frame" tabIndex={-1}>
+        <div id={`${controlScope}-surface`} className={`alias-panel-state-frame ${styles.root}`} tabIndex={-1}>
           {activeSyncTask && syncEntryButton ? (
             <div className="alias-panel-state-actions">{syncEntryButton}</div>
           ) : null}
@@ -604,7 +601,7 @@ export function AliasPanel({
   }
 
   return renderWithSync(
-    <section id={`${controlScope}-surface`} className="alias-panel" tabIndex={-1}>
+    <section id={`${controlScope}-surface`} className={`alias-panel ${styles.root}`} tabIndex={-1}>
       <header className="alias-panel-header">
         <div className="alias-panel-heading">
           <span className="alias-panel-heading-icon">

@@ -3,7 +3,7 @@ import type {
   AliasSyncTaskEvent,
   AliasSyncTaskStatus,
   AliasSyncTargetStatus,
-} from '../../types/domain'
+} from '#entities/alias'
 
 export interface AliasSyncTaskViewState {
   task: AliasSyncTask | null

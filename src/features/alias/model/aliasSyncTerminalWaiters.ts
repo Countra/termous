@@ -1,4 +1,4 @@
-import type { AliasSyncTask } from '../../types/domain'
+import type { AliasSyncTask } from '#entities/alias'
 
 export const ALIAS_SYNC_TERMINAL_WAIT_TIMEOUT_MS = 15_000
 

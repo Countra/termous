@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { TermousApiError, type TermousApi } from '../../api/client'
 import type {
   AliasMutationResult,
-  Session,
   ShellAliasInput,
   ShellAliasPatch,
-} from '../../types/domain'
+} from '#entities/alias'
+import { TermousApiError } from '#shared/api'
+import type { AliasGateway, AliasSessionContext } from './contracts'
 import {
   aliasSessionViewReducer,
   createAliasSessionViewState,
@@ -22,8 +22,8 @@ const aliasReconnectStorageKey = 'termous.runtime.aliasReconnectRequired'
 let aliasReconnectSessionIds: Set<string> | null = null
 
 interface UseSessionAliasesOptions {
-  api: TermousApi
-  session: Session | null
+  api: AliasGateway
+  session: AliasSessionContext | null
   sessionIds: readonly string[]
   enabled: boolean
 }

@@ -122,7 +122,7 @@ vi.mock('#features/observability', () => ({
   ProcessPanel: () => null,
   SystemMonitorPanel: () => null,
 }))
-vi.mock('../features/workbench/AliasPanel', () => ({ AliasPanel: () => null }))
+vi.mock('#features/alias', () => ({ AliasPanel: () => null }))
 vi.mock('#features/firewall', () => ({ FirewallPanel: () => null }))
 vi.mock('../features/workbench/SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))
 vi.mock('#features/docker', () => ({ DockerPanel: () => null }))

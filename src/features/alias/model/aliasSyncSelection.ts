@@ -1,4 +1,4 @@
-import type { Host, HostGroup } from '../../types/domain'
+import type { Host, HostGroup } from '#entities/host'
 
 export interface AliasSyncHostSection {
   id: string

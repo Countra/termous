@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
-import { TermousApiError, type TermousApi } from '../../api/client'
-import type { AliasSyncTask, AliasSyncTaskInput } from '../../types/domain'
+import type { AliasSyncTask, AliasSyncTaskInput } from '#entities/alias'
+import { TermousApiError } from '#shared/api'
 import { retireWebSocket } from '#shared/websocket'
+import type { AliasGateway } from './contracts'
 import {
   aliasSyncTaskReducer,
   aliasSyncTaskMatchesRequest,
@@ -22,7 +23,7 @@ import {
 } from './aliasSyncTerminalWaiters'
 
 interface UseAliasSyncTaskOptions {
-  api: TermousApi
+  api: AliasGateway
   enabled: boolean
 }
 

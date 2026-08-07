@@ -81,7 +81,7 @@ import {
 } from '#features/snippets'
 import { analyzeSnippetRisk, extractSnippetVariables, renderSnippetCommand } from '#entities/snippet'
 import { ForwardSessionPanel } from '#features/forwards'
-import { AliasPanel } from './AliasPanel'
+import { AliasPanel } from '#features/alias'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
 import { DockerPanel } from '#features/docker'
 import { FirewallPanel } from '#features/firewall'
