@@ -1,3 +1,10 @@
+/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
+/* stylelint-disable termous/no-unscoped-global, keyframes-name-pattern -- 迁移期保持文件列表、Portal 提示和动画名称兼容。 */
+.root {
+  position: static;
+}
+
+:global {
 .workbench-file-list-shell {
   position: relative;
   height: 100%;
@@ -199,7 +206,7 @@
   animation: workbench-file-list-enter 150ms ease-out;
 }
 
-@keyframes workbench-file-list-enter {
+@keyframes :global(workbench-file-list-enter) {
   from {
     opacity: 0.72;
     transform: translateY(2px);
@@ -469,7 +476,7 @@
   transform: rotate(225deg);
 }
 
-@keyframes workbench-file-tooltip-in {
+@keyframes :global(workbench-file-tooltip-in) {
   from {
     opacity: 0;
   }
@@ -603,7 +610,7 @@
   width: 54%;
 }
 
-@keyframes workbench-files-skeleton {
+@keyframes :global(workbench-files-skeleton) {
   from {
     transform: translateX(-100%);
   }
@@ -699,7 +706,7 @@
   font-size: 10px;
 }
 
-@keyframes workbench-files-drop-in {
+@keyframes :global(workbench-files-drop-in) {
   from {
     opacity: 0;
     transform: scale(0.985);
@@ -730,4 +737,5 @@
   .workbench-file-row {
     min-height: 42px;
   }
+}
 }

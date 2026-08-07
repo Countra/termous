@@ -1,7 +1,7 @@
 import type {
   RemoteDirectoryListing,
   SessionCwdState,
-} from '../../types/domain.ts'
+} from '../../../types/domain.ts'
 import { normalizeRemotePath, normalizeRemotePosixPath } from '#shared/path'
 import type { TerminalTransportState } from '#features/terminal'
 

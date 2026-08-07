@@ -18,7 +18,7 @@ const sources = {
   terminalRuntime: readSource('../features/terminal/runtime/TerminalRuntimeProvider.tsx'),
   terminalViewport: readSource('../features/terminal/ui/TerminalPaneViewport.tsx'),
   filesPage: readSource('../widgets/files-workspace/ui/FilesWorkspace.tsx'),
-  workbenchFiles: readSource('../features/workbench/WorkbenchFileList.tsx'),
+  workbenchFiles: readSource('../features/workbench-files/ui/WorkbenchFileList.tsx'),
   editor: readSource('../features/remote-file/ui/RemoteTextEditorModal.tsx'),
   recorder: readSource('../features/settings/ui/shortcuts/ShortcutRecorderModal.tsx'),
 }

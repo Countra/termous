@@ -40,7 +40,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import type { TermousApi } from '../../api/client'
+import type { TermousApi } from '../../../api/client'
 import { useTransferRuntime } from '#features/transfers'
 import {
   buildRemoteFileActionMenu,
@@ -54,7 +54,7 @@ import type {
   AppData,
   Session,
   ThemeMode,
-} from '../../types/domain'
+} from '../../../types/domain'
 import type {
   FileBookmark,
   FileBookmarkInput,
@@ -64,7 +64,7 @@ import type {
 } from '#entities/file'
 import { joinPath, normalizeRemotePath, parentPath } from '#shared/path'
 import type { FileSessionClosureState } from '#entities/file'
-import { WorkbenchEmptyState } from './WorkbenchEmptyState'
+import { WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
 import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
 import { WorkbenchFileList } from './WorkbenchFileList'
 import { WorkbenchTransferBar } from './WorkbenchTransferBar'
@@ -72,21 +72,21 @@ import {
   resolveWorkbenchFilesPathNavigationAction,
   resolveWorkbenchFilesPathNavigationTarget,
   type WorkbenchFilesPathNavigationIntent,
-} from './workbenchFilesPathNavigation'
+} from '../model/workbenchFilesPathNavigation'
 import {
   getSessionFilesNavigationState,
   isSessionFilesCwdRefreshPending,
   shouldShowSessionFilesInitialLoading,
-} from './sessionFilesState'
-import { useWorkbenchSessionFiles } from './useWorkbenchSessionFiles'
+} from '../model/sessionFilesState'
+import { useWorkbenchSessionFiles } from '../model/useWorkbenchSessionFiles'
 import {
   fileSessionRecoveryPresentationKind,
   shouldNotifyFileSessionRecoveryFailure,
   type FileSessionRecoveryState,
-} from './workbenchFileSessionLifecycle'
-import { isLocalFileDrag } from './workbenchFileDrag'
-import './workbench-files-panel.css'
-import './workbench-file-controls.css'
+} from '../model/workbenchFileSessionLifecycle'
+import { isLocalFileDrag } from '../model/workbenchFileDrag'
+import styles from './WorkbenchFilesPanel.module.scss'
+import controlsStyles from './WorkbenchFileControls.module.scss'
 
 const RemoteTextEditorModal = lazy(loadRemoteTextEditorModal)
 const RemoteImageViewerModal = lazy(loadRemoteImageViewerModal)
@@ -953,10 +953,12 @@ function WorkbenchFilesPanelContent({
     <section
       className={[
         'workbench-files-panel',
+        styles.root,
         directoryChanging ? 'is-changing-directory' : '',
       ].filter(Boolean).join(' ')}
+      data-workbench-files-panel
     >
-      <div className="workbench-files-toolbar">
+      <div className={`workbench-files-toolbar ${controlsStyles.root}`}>
         <header className="workbench-files-summary">
           <div className="workbench-files-summary-copy">
             <span className="workbench-files-summary-icon" aria-hidden="true">

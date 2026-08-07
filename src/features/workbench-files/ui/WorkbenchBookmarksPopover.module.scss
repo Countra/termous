@@ -1,3 +1,10 @@
+/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
+/* stylelint-disable termous/no-unscoped-global, keyframes-name-pattern, declaration-block-no-redundant-longhand-properties, color-hex-length, declaration-empty-line-before -- 迁移期保持书签浮层、Portal 和动画名称兼容。 */
+.root {
+  position: static;
+}
+
+:global {
 .workbench-bookmarks-trigger.ant-btn {
   width: 27px;
   min-width: 27px;
@@ -752,7 +759,7 @@
     inset 0 1px 0 #ffffff;
 }
 
-@keyframes workbench-bookmarks-spin {
+@keyframes :global(workbench-bookmarks-spin) {
   to {
     transform: rotate(360deg);
   }
@@ -770,4 +777,5 @@
   .workbench-bookmarks-spinner {
     animation: none;
   }
+}
 }

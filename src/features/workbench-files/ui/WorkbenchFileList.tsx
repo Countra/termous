@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next'
 import type { RemoteFileEntry } from '#entities/file'
 import { formatBytes, formatDate } from '#shared/format'
 import { useShortcutRuntime } from '#entities/shortcuts'
-import { isLocalFileDrag } from './workbenchFileDrag'
-import './workbench-file-browser.css'
+import { isLocalFileDrag } from '../model/workbenchFileDrag'
+import styles from './WorkbenchFileList.module.scss'
 
 interface WorkbenchFileListProps {
   entries: RemoteFileEntry[]
@@ -103,8 +103,8 @@ export function WorkbenchFileList({
       const rowRect = row.getBoundingClientRect()
       const listRect = list.getBoundingClientRect()
       const transferRect = list
-        .closest('.workbench-files-panel')
-        ?.querySelector('.workbench-file-transfer')
+        .closest('[data-workbench-files-panel]')
+        ?.querySelector('[data-workbench-file-transfer]')
         ?.getBoundingClientRect()
       const visibleBottom = transferRect
         ? Math.min(listRect.bottom, transferRect.top - 6)
@@ -279,7 +279,7 @@ export function WorkbenchFileList({
   }, [entries, listRef, listingPath])
 
   return (
-    <div className="workbench-file-list-shell">
+    <div className={`workbench-file-list-shell ${styles.root}`}>
       <div
         ref={listRef}
         className={[

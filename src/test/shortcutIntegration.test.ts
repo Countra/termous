@@ -32,7 +32,7 @@ const filesPageSource = readFileSync(
   'utf8',
 )
 const workbenchFileListSource = readFileSync(
-  fileURLToPath(new URL('../features/workbench/WorkbenchFileList.tsx', import.meta.url)),
+  fileURLToPath(new URL('../features/workbench-files/ui/WorkbenchFileList.tsx', import.meta.url)),
   'utf8',
 )
 const remoteTextEditorSource = readFileSync(

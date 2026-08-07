@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { isLocalFileDrag } from '../features/workbench/workbenchFileDrag.ts'
+import { isLocalFileDrag } from '../features/workbench-files/model/workbenchFileDrag.ts'
 
 test('工作站文件面板只接受本地文件拖入', () => {
   assert.equal(isLocalFileDrag(['Files']), true)

@@ -94,8 +94,10 @@ import { FirewallPanel } from '#features/firewall'
 import { ProcessPanel, SystemMonitorPanel } from '#features/observability'
 import { ServicePanel } from '#features/service'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
-import { WorkbenchFilesPanel } from './WorkbenchFilesPanel'
-import type { WorkbenchFilesPathNavigationIntent } from './workbenchFilesPathNavigation'
+import {
+  WorkbenchFilesPanel,
+  type WorkbenchFilesPathNavigationIntent,
+} from '#features/workbench-files'
 import {
   canRetrySessionInventory,
   getAutomaticSessionInventoryDemand,

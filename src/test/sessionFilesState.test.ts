@@ -47,7 +47,7 @@ import {
   updateMatchingSessionFilesCwdRefresh,
   updateSessionFilesViewState,
   type SessionFilesViewStateMap,
-} from '../features/workbench/sessionFilesState.ts'
+} from '../features/workbench-files/model/sessionFilesState.ts'
 
 function listing(path: string): RemoteDirectoryListing {
   return {

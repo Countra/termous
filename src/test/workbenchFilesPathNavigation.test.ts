@@ -3,7 +3,7 @@ import test from 'node:test'
 import {
   resolveWorkbenchFilesPathNavigationAction,
   resolveWorkbenchFilesPathNavigationTarget,
-} from '../features/workbench/workbenchFilesPathNavigation.ts'
+} from '../features/workbench-files/model/workbenchFilesPathNavigation.ts'
 import type { RemoteFileEntry } from '#entities/file'
 
 test('目录路径直接进入，文件路径进入父目录', () => {

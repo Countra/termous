@@ -1,11 +1,11 @@
 import { Button, Progress, Tooltip } from 'antd'
 import { Copy, DownloadCloud, RotateCcw, UploadCloud, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { TermousApi } from '../../api/client'
+import type { TermousApi } from '../../../api/client'
 import { useTransferRuntime } from '#features/transfers'
 import { formatBytes } from '#shared/format'
-import { summarizeWorkbenchTransfers } from './workbenchTransferState'
-import './workbench-file-status.css'
+import { summarizeWorkbenchTransfers } from '../model/workbenchTransferState'
+import styles from './WorkbenchTransferBar.module.scss'
 
 interface WorkbenchTransferBarProps {
   api: TermousApi
@@ -78,10 +78,12 @@ export function WorkbenchTransferBar({
     <div
       className={[
         'workbench-file-transfer',
+        styles.root,
         active ? 'is-active' : 'is-failed',
         upload ? 'is-upload' : '',
         download ? 'is-download' : '',
       ].filter(Boolean).join(' ')}
+      data-workbench-file-transfer
     >
       <span
         className="workbench-file-transfer-announcement"

@@ -1,3 +1,10 @@
+/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
+/* stylelint-disable termous/no-unscoped-global, property-no-deprecated -- 迁移期保持文件传输条和连接状态样式兼容。 */
+.root {
+  position: static;
+}
+
+:global {
 .workbench-file-inline-error {
   width: 100%;
   min-height: 30px;
@@ -192,4 +199,5 @@
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 72%),
     0 5px 14px rgb(35 48 68 / 4%);
+}
 }

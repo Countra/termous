@@ -2,11 +2,6 @@
   "schemaVersion": 1,
   "legacyCssFiles": [
     "src/App.css",
-    "src/features/workbench/workbench-bookmarks-popover.css",
-    "src/features/workbench/workbench-file-browser.css",
-    "src/features/workbench/workbench-file-controls.css",
-    "src/features/workbench/workbench-file-status.css",
-    "src/features/workbench/workbench-files-panel.css",
     "src/styles/workstation.css"
   ]
 }

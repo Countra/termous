@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
-import type { TermousApi } from '../../api/client'
+import type { TermousApi } from '../../../api/client'
 import type {
   AppData,
   Session,
   SessionCwdState,
-} from '../../types/domain'
+} from '../../../types/domain'
 import type { FileSession, RemoteFileEntry } from '#entities/file'
 import { normalizeRemotePath, normalizeRemotePosixPath } from '#shared/path'
 import { retireWebSocket } from '#shared/websocket'

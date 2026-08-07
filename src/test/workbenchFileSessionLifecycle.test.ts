@@ -35,7 +35,7 @@ import {
   shouldMaintainFileSessionEventStream,
   shouldSilentlyCancelFileSessionRecovery,
   waitForFileSessionRecovery,
-} from '../features/workbench/workbenchFileSessionLifecycle.ts'
+} from '../features/workbench-files/model/workbenchFileSessionLifecycle.ts'
 import { FileSessionRecoverySupersededError } from '#entities/file'
 
 function fileSession(overrides: Partial<FileSession> = {}): FileSession {

@@ -1,3 +1,10 @@
+/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
+/* stylelint-disable termous/no-unscoped-global, keyframes-name-pattern, custom-property-empty-line-before, selector-class-pattern, value-keyword-case, declaration-block-no-redundant-longhand-properties -- 迁移期保持工作台文件面板及跨模块动画名称兼容。 */
+.root {
+  position: static;
+}
+
+:global {
 .details-tabs .ant-tabs-content-active:has(> .workbench-files-panel) {
   overflow: hidden;
   padding-right: 0;
@@ -561,13 +568,13 @@
   pointer-events: auto;
 }
 
-@keyframes workbench-files-spin {
+@keyframes :global(workbench-files-spin) {
   to {
     transform: rotate(360deg);
   }
 }
 
-@keyframes workbench-files-loading-track {
+@keyframes :global(workbench-files-loading-track) {
   0% {
     opacity: 0.35;
     transform: translateX(0);
@@ -618,4 +625,5 @@
     transform: none;
     animation: none !important;
   }
+}
 }

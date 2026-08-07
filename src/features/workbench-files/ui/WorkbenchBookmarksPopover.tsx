@@ -29,7 +29,7 @@ import {
   findBookmarkForPath,
 } from '#entities/file'
 import { WorkbenchBookmarkEditorModal } from './WorkbenchBookmarkEditorModal'
-import './workbench-bookmarks-popover.css'
+import styles from './WorkbenchBookmarksPopover.module.scss'
 
 export interface WorkbenchBookmarksPopoverProps {
   bookmarks: FileBookmark[]
@@ -330,7 +330,7 @@ export function WorkbenchBookmarksPopover({
   const content = (
     <section
       id={panelId}
-      className="workbench-bookmarks-panel"
+      className={`workbench-bookmarks-panel ${styles.root}`}
       role="dialog"
       aria-modal="false"
       aria-label={t('files.bookmarkPanelLabel')}

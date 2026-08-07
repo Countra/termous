@@ -327,9 +327,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/sessionFilesState.ts",
+      "source": "src/features/workbench-files/model/sessionFilesState.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain.ts"
+      "specifier": "../../../types/domain.ts"
     },
     {
       "rule": "legacy-boundary",
@@ -345,33 +345,33 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
+      "source": "src/features/workbench-files/model/useWorkbenchSessionFiles.ts",
       "target": "src/api/client.ts",
-      "specifier": "../../api/client"
+      "specifier": "../../../api/client"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/useWorkbenchSessionFiles.ts",
+      "source": "src/features/workbench-files/model/useWorkbenchSessionFiles.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/workbenchFileSessionLifecycle.ts",
+      "source": "src/features/workbench-files/model/workbenchFileSessionLifecycle.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
+      "source": "src/features/workbench-files/ui/WorkbenchFilesPanel.tsx",
       "target": "src/api/client.ts",
-      "specifier": "../../api/client"
+      "specifier": "../../../api/client"
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchFilesPanel.tsx",
+      "source": "src/features/workbench-files/ui/WorkbenchFilesPanel.tsx",
       "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -387,9 +387,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/WorkbenchTransferBar.tsx",
+      "source": "src/features/workbench-files/ui/WorkbenchTransferBar.tsx",
       "target": "src/api/client.ts",
-      "specifier": "../../api/client"
+      "specifier": "../../../api/client"
     },
     {
       "rule": "legacy-boundary",

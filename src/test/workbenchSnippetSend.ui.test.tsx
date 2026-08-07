@@ -133,7 +133,7 @@ vi.mock('../features/workbench/SessionTabColorPanel', () => ({ SessionTabColorPa
 vi.mock('#features/docker', () => ({ DockerPanel: () => null }))
 vi.mock('#features/service', () => ({ ServicePanel: () => null }))
 vi.mock('../features/workbench/WorkbenchEmptyState', () => ({ WorkbenchEmptyState: () => null }))
-vi.mock('../features/workbench/WorkbenchFilesPanel', () => ({ WorkbenchFilesPanel: () => null }))
+vi.mock('#features/workbench-files', () => ({ WorkbenchFilesPanel: () => null }))
 
 import { WorkbenchPage } from '../features/workbench/WorkbenchPage'
 

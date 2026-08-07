@@ -1,3 +1,10 @@
+/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
+/* stylelint-disable termous/no-unscoped-global, keyframes-name-pattern, selector-not-notation -- 迁移期保持文件工具栏和动画名称兼容。 */
+.root {
+  position: static;
+}
+
+:global {
 .workbench-files-toolbar-row {
   display: flex;
   min-width: 0;
@@ -195,13 +202,13 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
-@keyframes workbench-files-follow-spin {
+@keyframes :global(workbench-files-follow-spin) {
   to {
     transform: rotate(360deg);
   }
 }
 
-@keyframes workbench-files-follow-halo {
+@keyframes :global(workbench-files-follow-halo) {
   0% {
     opacity: 0.22;
     transform: scale(0.55);
@@ -236,4 +243,5 @@
   .workbench-files-follow {
     padding-left: 4px;
   }
+}
 }
