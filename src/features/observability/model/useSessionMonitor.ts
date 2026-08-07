@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { TermousApi } from '../../api/client'
-import type { LinuxMonitorSnapshot, LinuxMonitorStatus, Session } from '../../types/domain'
+import type { LinuxMonitorSnapshot, LinuxMonitorStatus } from '#entities/observability'
+import type { ObservabilityGateway, ObservabilitySessionContext } from './contracts'
 
 type MonitorMessage =
   | {
@@ -19,8 +19,8 @@ type MonitorMessage =
     }
 
 interface UseSessionMonitorOptions {
-  api: TermousApi
-  session: Session | null
+  api: ObservabilityGateway
+  session: ObservabilitySessionContext | null
   enabled: boolean
   intervalSeconds: number
 }

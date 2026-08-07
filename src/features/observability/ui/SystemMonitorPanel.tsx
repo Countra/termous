@@ -3,23 +3,26 @@ import type { EChartsCoreOption } from 'echarts/core'
 import { Activity, ArrowDownToLine, ArrowUpFromLine, ChartNoAxesCombined, Cpu, Gauge, HardDrive, MemoryStick, Pause, Play, RadioTower, RotateCcw, Rows3 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TermousApi } from '../../api/client'
-import { EChartView } from '../../components/charts/EChartView'
+import { EChartView } from '#shared/charts'
+import type { ThemeMode } from '#shared/theme'
+import { WorkspaceEmptyState } from '#shared/ui'
 import type {
   LinuxMonitorCPUCore,
   LinuxMonitorDiskIODevice,
   LinuxMonitorLoadAverage,
   LinuxMonitorNetwork,
   LinuxMonitorSnapshot,
-  Session,
-  ThemeMode,
-} from '../../types/domain'
-import { WorkbenchEmptyState } from './WorkbenchEmptyState'
-import { useSessionMonitor } from './useSessionMonitor'
+} from '#entities/observability'
+import type {
+  ObservabilityGateway,
+  ObservabilitySessionContext,
+} from '../model/contracts'
+import { useSessionMonitor } from '../model/useSessionMonitor'
+import styles from './Observability.module.scss'
 
-interface SystemMonitorPanelProps {
-  api: TermousApi
-  session: Session | null
+export interface SystemMonitorPanelProps {
+  api: ObservabilityGateway
+  session: ObservabilitySessionContext | null
   enabled: boolean
   theme: ThemeMode
   inventoryRequesting: boolean
@@ -192,7 +195,7 @@ export function SystemMonitorPanel({
 
   if (!session || session.kind !== 'ssh' || session.status !== 'connected') {
     return (
-      <WorkbenchEmptyState
+      <WorkspaceEmptyState
         className="system-monitor-empty"
         icon={<Activity size={20} />}
         title={t('workbench.systemMonitor.emptyTitle')}
@@ -205,7 +208,7 @@ export function SystemMonitorPanel({
   const latest = monitor.sample
   const inventoryFailed = session.inventory_status === 'failed' || Boolean(inventoryRequestError)
   return (
-    <section className="system-monitor-panel">
+    <section className={`system-monitor-panel ${styles.root}`}>
       {inventoryFailed ? (
         <Alert
           className="system-monitor-inventory-alert"
@@ -256,7 +259,7 @@ export function SystemMonitorPanel({
       </div>
 
       {!latest ? (
-        <WorkbenchEmptyState
+        <WorkspaceEmptyState
           className={`system-monitor-message is-${monitor.status}`}
           tone={monitor.status === 'failed' ? 'danger' : 'warning'}
           icon={<RotateCcw size={18} />}
@@ -310,7 +313,7 @@ function CPUPanel({
 }: {
   snapshot: LinuxMonitorSnapshot
   history: LinuxMonitorSnapshot[]
-  session: Session
+  session: ObservabilitySessionContext
   theme: ThemeMode
   mode: CPUViewMode
   onModeChange: (mode: CPUViewMode) => void
@@ -945,7 +948,7 @@ function safeCounterDelta(start: number, current: number) {
   return current - start
 }
 
-function formatCPUStatic(session: Session | null) {
+function formatCPUStatic(session: ObservabilitySessionContext | null) {
   const info = session?.linux_system_info
   if (!info) {
     return ''

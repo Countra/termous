@@ -55,11 +55,6 @@ import type {
   LocalShell,
   PrivateKeyCredentialBundleInput,
   PrivateKeyCredentialBundleResult,
-  RemoteProcessDetail,
-  RemoteProcessListResult,
-  RemoteProcessQuery,
-  RemoteProcessTerminateResult,
-  RemoteProcessTerminateSignal,
   Session,
   ShellAlias,
   ShellAliasInput,
@@ -89,6 +84,13 @@ import type {
   ForwardProfileInput,
   ForwardStartRequest,
 } from '#entities/forward'
+import type {
+  RemoteProcessDetail,
+  RemoteProcessListResult,
+  RemoteProcessQuery,
+  RemoteProcessTerminateResult,
+  RemoteProcessTerminateSignal,
+} from '#entities/observability'
 import type {
   FileBookmark,
   FileBookmarkGroup,

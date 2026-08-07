@@ -85,9 +85,8 @@ import { AliasPanel } from './AliasPanel'
 import { FirewallPanel } from './FirewallPanel'
 import { SessionTabColorPanel } from './SessionTabColorPanel'
 import { DockerPanel } from './DockerPanel'
-import { ProcessPanel } from './ProcessPanel'
+import { ProcessPanel, SystemMonitorPanel } from '#features/observability'
 import { ServicePanel } from './ServicePanel'
-import { SystemMonitorPanel } from './SystemMonitorPanel'
 import { WorkbenchEmptyState } from './WorkbenchEmptyState'
 import { WorkbenchFilesPanel } from './WorkbenchFilesPanel'
 import type { WorkbenchFilesPathNavigationIntent } from './workbenchFilesPathNavigation'
@@ -1663,7 +1662,7 @@ export function WorkbenchPage({
               <SystemMonitorPanel
                 api={api}
                 session={activeSession}
-                enabled={detailsActiveTab === 'monitor' && !detailsCollapsed}
+                enabled={active && detailsActiveTab === 'monitor' && !detailsCollapsed}
                 theme={theme}
                 inventoryRequesting={currentInventoryRequestView.loading}
                 inventoryRequestError={currentInventoryRequestView.error}
@@ -1681,7 +1680,7 @@ export function WorkbenchPage({
             key: 'processes',
             label: t('workbench.detailsTabs.processes'),
             icon: <Activity size={17} aria-hidden="true" />,
-            children: <ProcessPanel api={api} session={activeSession} enabled={detailsActiveTab === 'processes' && !detailsCollapsed} />,
+            children: <ProcessPanel api={api} session={activeSession} enabled={active && detailsActiveTab === 'processes' && !detailsCollapsed} />,
           },
           {
             key: 'services',

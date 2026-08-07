@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { TermousApi } from '../../api/client'
 import type {
   RemoteProcessDetail,
   RemoteProcessListResult,
@@ -7,8 +6,8 @@ import type {
   RemoteProcessSort,
   RemoteProcessTerminateResult,
   RemoteProcessTerminateSignal,
-  Session,
-} from '../../types/domain'
+} from '#entities/observability'
+import type { ObservabilityGateway, ObservabilitySessionContext } from './contracts'
 
 export type ProcessAutoRefreshSeconds = 0 | 5 | 10 | 30
 
@@ -35,8 +34,8 @@ export interface SessionProcessState {
 }
 
 interface UseSessionProcessesOptions {
-  api: TermousApi
-  session: Session | null
+  api: ObservabilityGateway
+  session: ObservabilitySessionContext | null
   enabled: boolean
 }
 
@@ -75,6 +74,7 @@ export function useSessionProcesses({ api, session, enabled }: UseSessionProcess
   const detailAbortRef = useRef<AbortController | null>(null)
   const listRevisionRef = useRef<Record<string, number>>({})
   const detailRevisionRef = useRef<Record<string, number>>({})
+  const activeSessionIdRef = useRef('')
   const [states, setStates] = useState<Record<string, SessionProcessState>>({})
   const sessionId = session?.id ?? ''
   const supported = Boolean(sessionId && session?.kind === 'ssh' && session.status === 'connected')
@@ -107,6 +107,32 @@ export function useSessionProcesses({ api, session, enabled }: UseSessionProcess
     },
     [],
   )
+
+  useEffect(() => {
+    const previousSessionId = activeSessionIdRef.current
+    const nextSessionId = enabled && supported ? sessionId : ''
+    if (previousSessionId === nextSessionId) {
+      return
+    }
+
+    listAbortRef.current?.abort()
+    detailAbortRef.current?.abort()
+    listAbortRef.current = null
+    detailAbortRef.current = null
+
+    const invalidatedSessionIds = new Set([previousSessionId, sessionId].filter(Boolean))
+    invalidatedSessionIds.forEach((id) => {
+      listRevisionRef.current[id] = (listRevisionRef.current[id] ?? 0) + 1
+      detailRevisionRef.current[id] = (detailRevisionRef.current[id] ?? 0) + 1
+      updateSessionState(id, (current) => {
+        if (!current.loading && !current.detailLoading) {
+          return current
+        }
+        return { ...current, loading: false, detailLoading: false }
+      })
+    })
+    activeSessionIdRef.current = nextSessionId
+  }, [enabled, sessionId, supported, updateSessionState])
 
   const updateQuery = useCallback(
     (patch: Partial<SessionProcessQueryState>) => {
@@ -222,8 +248,17 @@ export function useSessionProcesses({ api, session, enabled }: UseSessionProcess
       }
       updateSessionState(sessionId, (current) => ({ ...current, terminatingPid: pid }))
       try {
-        const result = await api.terminateSessionProcess(sessionId, pid, signal)
-        await refresh()
+        const targetSessionId = sessionId
+        const result = await api.terminateSessionProcess(targetSessionId, pid, signal)
+        if (activeSessionIdRef.current === targetSessionId) {
+          await refresh()
+        } else {
+          updateSessionState(targetSessionId, (current) => ({
+            ...current,
+            list: null,
+            lastUpdatedAt: '',
+          }))
+        }
         return result
       } finally {
         updateSessionState(sessionId, (current) => ({ ...current, terminatingPid: null }))

@@ -441,18 +441,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/ProcessPanel.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/ProcessPanel.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/workbench/ServiceLogsModal.tsx",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
@@ -489,24 +477,6 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/features/workbench/SystemMonitorPanel.tsx",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/SystemMonitorPanel.tsx",
-      "target": "src/components/charts/EChartView.tsx",
-      "specifier": "../../components/charts/EChartView"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/SystemMonitorPanel.tsx",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
       "source": "src/features/workbench/useAliasSyncActiveIndicator.ts",
       "target": "src/api/client.ts",
       "specifier": "../../api/client"
@@ -550,30 +520,6 @@
     {
       "rule": "legacy-boundary",
       "source": "src/features/workbench/useSessionDocker.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useSessionMonitor.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useSessionMonitor.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../../types/domain"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useSessionProcesses.ts",
-      "target": "src/api/client.ts",
-      "specifier": "../../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/features/workbench/useSessionProcesses.ts",
       "target": "src/types/domain.ts",
       "specifier": "../../types/domain"
     },
@@ -674,10 +620,6 @@
     {
       "rule": "legacy-file",
       "source": "src/App.tsx"
-    },
-    {
-      "rule": "legacy-file",
-      "source": "src/components/charts/EChartView.tsx"
     },
     {
       "rule": "legacy-file",
@@ -824,6 +766,18 @@
       "source": "src/types/domain.ts",
       "target": "src/entities/forward/index.ts",
       "specifier": "#entities/forward"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/api/client.ts",
+      "target": "src/entities/observability/index.ts",
+      "specifier": "#entities/observability"
+    },
+    {
+      "rule": "legacy-boundary",
+      "source": "src/types/domain.ts",
+      "target": "src/entities/observability/index.ts",
+      "specifier": "#entities/observability"
     }
   ]
 }

@@ -118,13 +118,15 @@ vi.mock('#features/snippets', () => ({
   filterSnippets: (snippets: CodeSnippet[]) => snippets,
 }))
 vi.mock('#features/forwards', () => ({ ForwardSessionPanel: () => null }))
+vi.mock('#features/observability', () => ({
+  ProcessPanel: () => null,
+  SystemMonitorPanel: () => null,
+}))
 vi.mock('../features/workbench/AliasPanel', () => ({ AliasPanel: () => null }))
 vi.mock('../features/workbench/FirewallPanel', () => ({ FirewallPanel: () => null }))
 vi.mock('../features/workbench/SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))
 vi.mock('../features/workbench/DockerPanel', () => ({ DockerPanel: () => null }))
-vi.mock('../features/workbench/ProcessPanel', () => ({ ProcessPanel: () => null }))
 vi.mock('../features/workbench/ServicePanel', () => ({ ServicePanel: () => null }))
-vi.mock('../features/workbench/SystemMonitorPanel', () => ({ SystemMonitorPanel: () => null }))
 vi.mock('../features/workbench/WorkbenchEmptyState', () => ({ WorkbenchEmptyState: () => null }))
 vi.mock('../features/workbench/WorkbenchFilesPanel', () => ({ WorkbenchFilesPanel: () => null }))
 

@@ -16,14 +16,15 @@ import {
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import type { TermousApi } from '../../api/client'
-import type { RemoteProcessDetail, RemoteProcessPort, RemoteProcessSort, RemoteProcessSummary, Session } from '../../types/domain'
-import { WorkbenchEmptyState } from './WorkbenchEmptyState'
-import { defaultProcessQuery, type ProcessAutoRefreshSeconds, type SessionProcessQueryState, useSessionProcesses } from './useSessionProcesses'
+import type { RemoteProcessDetail, RemoteProcessPort, RemoteProcessSort, RemoteProcessSummary } from '#entities/observability'
+import { WorkspaceEmptyState } from '#shared/ui'
+import type { ObservabilityGateway, ObservabilitySessionContext } from '../model/contracts'
+import { defaultProcessQuery, type ProcessAutoRefreshSeconds, type SessionProcessQueryState, useSessionProcesses } from '../model/useSessionProcesses'
+import styles from './Observability.module.scss'
 
-interface ProcessPanelProps {
-  api: TermousApi
-  session: Session | null
+export interface ProcessPanelProps {
+  api: ObservabilityGateway
+  session: ObservabilitySessionContext | null
   enabled: boolean
 }
 
@@ -105,7 +106,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
   if (!processes.supported) {
     const unavailableKey = !session || session.kind !== 'ssh' || session.status !== 'connected' ? 'empty' : 'unsupported'
     return (
-      <WorkbenchEmptyState
+      <WorkspaceEmptyState
         icon={<Activity size={20} />}
         title={t(unavailableKey === 'empty' ? 'workbench.processes.emptyTitle' : 'workbench.processes.unsupportedTitle')}
         description={t(unavailableKey === 'empty' ? 'workbench.processes.emptyHint' : 'workbench.processes.unsupportedHint')}
@@ -114,7 +115,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
   }
 
   return (
-    <section className="process-panel">
+    <section className={`process-panel ${styles.root}`}>
       <div className="process-toolbar">
         <div className="process-toolbar-status">
           <span className={`process-status-dot ${processes.error ? 'is-danger' : processes.loading ? 'is-loading' : 'is-ready'}`} />
@@ -222,7 +223,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
       </div>
 
       {processes.error ? (
-        <WorkbenchEmptyState
+        <WorkspaceEmptyState
           className="process-error-state"
           tone="danger"
           icon={<AlertTriangle size={20} />}
@@ -247,7 +248,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
         ) : (
           <div className="process-list" aria-label={t('workbench.processes.processList')}>
             {items.length === 0 && !processes.loading ? (
-              <WorkbenchEmptyState
+              <WorkspaceEmptyState
                 className="process-empty-list"
                 icon={<ListFilter size={20} />}
                 title={t(processes.list ? 'workbench.processes.noResults' : 'workbench.processes.loading')}
@@ -339,7 +340,7 @@ function ProcessDetailView({
   const { t } = useTranslation()
   if (!detail && !loading && !error) {
     return (
-      <WorkbenchEmptyState
+      <WorkspaceEmptyState
         className="process-detail-empty"
         icon={<Gauge size={20} />}
         title={t('workbench.processes.noSelection')}
@@ -364,7 +365,7 @@ function ProcessDetailView({
         <Button type="text" className="process-detail-back" icon={<ArrowLeft size={14} />} onClick={onBack}>
           {t('workbench.processes.backToList')}
         </Button>
-        <WorkbenchEmptyState
+        <WorkspaceEmptyState
           className="process-detail-empty"
           tone="danger"
           icon={<AlertTriangle size={20} />}

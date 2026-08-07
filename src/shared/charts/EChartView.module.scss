@@ -1,0 +1,7 @@
+/* 图表容器尺寸随共享组件迁移，监控专属样式仍由业务模块持有。 */
+.root {
+  min-height: 76px;
+  border-radius: 10px;
+  background: transparent;
+  overflow: hidden;
+}

@@ -4,6 +4,7 @@ import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/compon
 import * as echarts from 'echarts/core'
 import type { EChartsCoreOption, EChartsType } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
+import styles from './EChartView.module.scss'
 
 echarts.use([LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 
@@ -44,7 +45,7 @@ export function EChartView({ option, className = '', theme = 'dark' }: EChartVie
 
   useEffect(() => {
     chartRef.current?.setOption(option, { notMerge: false, lazyUpdate: true })
-  }, [option])
+  }, [option, theme])
 
-  return <div ref={containerRef} className={`echart-view ${className}`.trim()} />
+  return <div ref={containerRef} className={`echart-view ${styles.root} ${className}`.trim()} />
 }
