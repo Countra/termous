@@ -1,65 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createApiFromRuntime, TermousApi, TermousApiError } from '../api/client'
-import type {
-  AppData,
-  AppearanceSettings,
-  CompletionSettings,
-  ConnectionProxyInput,
-  CredentialInput,
-  GroupReorderItem,
-  HostGroup,
-  HostReachability,
-  HostReachabilityEvent,
-  HostInput,
-  Language,
-  LocalShell,
-  Session,
-  Settings,
-  ShortcutSettingsPatch,
-  TerminalFont,
-  TerminalSettings,
-  WindowSettings,
-} from '../types/domain'
+import { createApiFromRuntime, TermousApi, TermousApiError } from './api/runtimeApi'
 import type {
   ForwardEvent,
   ForwardInstance,
-  ForwardProfile,
-  ForwardProfileInput,
   ForwardStartRequest,
 } from '#entities/forward'
 import type {
-  FileBookmark,
-  FileBookmarkGroup,
-  FileBookmarkGroupInput,
-  FileBookmarkGroupReorderItem,
-  FileBookmarkInput,
-  FileBookmarkReorderItem,
   FileSession,
-  LocalPathMapping,
-  LocalPathMappingInput,
-  LocalPathMappingReorderItem,
 } from '#entities/file'
+import { sortCodeSnippetGroups } from '#entities/snippet'
+import { normalizeSettings } from '#features/settings'
 import { changeLanguage } from '#shared/i18n'
-import {
-  completionSettingsEqual,
-  defaultAppearanceSettings,
-  defaultCompletionSettings,
-  defaultTerminalSettings,
-  defaultWindowSettings,
-  normalizeSettings,
-  applyShortcutSettingsPatch,
-  defaultShortcutSettings,
-  shortcutSettingsEqual,
-} from '#features/settings'
-import { hostToInput } from '#entities/host'
-import {
-  replaceCodeSnippet,
-  sortCodeSnippetGroups,
-  upsertCodeSnippet,
-  upsertCodeSnippetGroup,
-  type CodeSnippetGroupInput,
-  type CodeSnippetInput,
-} from '#entities/snippet'
 import {
   adoptSuppressedFileSessionRecoveryResult,
   cleanupSuppressedFileSessionRecoveryResult,
@@ -78,53 +29,50 @@ import {
   mergeSessionReloadSnapshot,
   sessionChangedSince,
   shouldApplySessionInventoryResponse,
-} from './sessionInventoryState'
+} from './model/sessionInventoryState'
 import {
   isForwardStartSettledStatus,
   reconcileForwardsAfterRestartFailure,
   restartForwardInstance,
   selectForwardStartSnapshot,
-  shouldApplyForwardPollResponse,
 } from '#features/forwards'
 import { canApplyReloadedValue, SerialMutationQueue } from '#shared/async'
-
-const initialSettings: Settings = {
-  language: 'zh-CN',
-  appearance: defaultAppearanceSettings,
-  terminal: defaultTerminalSettings,
-  completion: defaultCompletionSettings,
-  shortcuts: defaultShortcutSettings,
-  window: defaultWindowSettings,
-}
-type LoadMode = 'initial' | 'background' | 'silent'
-
-const FORWARD_START_MISSING_GRACE_MS = 2_000
-const FORWARD_START_COMPLETION_TIMEOUT_MS = 30 * 60 * 1_000
-
-interface ForwardStartCompletionWaiter {
-  resolve: (forward: ForwardInstance | null) => void
-  registeredAt: number
-  cleanupTimer: number
-}
-
-const initialData: AppData = {
-  hosts: [],
-  groups: [],
-  proxies: [],
-  credentials: [],
-  sessions: [],
-  fileSessions: [],
-  forwardProfiles: [],
-  forwards: [],
-  snippetGroups: [],
-  snippets: [],
-  fileBookmarkGroups: [],
-  fileBookmarks: [],
-  localPathMappings: [],
-  settings: initialSettings,
-  terminalFonts: [],
-  hostReachability: {},
-}
+import {
+  bumpSessionRevision,
+  indexHostReachability,
+  initialData,
+  markHostRecentlyConnected,
+  reconcileActiveSession,
+  removeMatchingFileSessionClosure,
+  sessionInventorySignature,
+  sortConnectionProxies,
+  sortFileBookmarkGroups,
+  sortFileBookmarks,
+  sortLocalPathMappings,
+  upsertSession,
+  type LoadMode,
+} from './model/appDataState'
+import {
+  FORWARD_START_COMPLETION_TIMEOUT_MS,
+  reconcileForwardStartCompletions,
+  rememberForwardEventSnapshot,
+  settleForwardStartCompletion,
+  shouldEmitForwardError,
+  shouldRemoveForward,
+  syncForwardAfterStart,
+  upsertForward,
+  visibleForwards,
+  type ForwardStartCompletionWaiter,
+} from './model/forwardRuntimeState'
+import { createCredentialCommands } from './commands/credentialCommands'
+import { createFileCatalogCommands } from './commands/fileCatalogCommands'
+import { createForwardProfileCommands } from './commands/forwardProfileCommands'
+import { createHostCommands } from './commands/hostCommands'
+import { createSettingsCommands } from './commands/settingsCommands'
+import { createSnippetCommands } from './commands/snippetCommands'
+import { loadAppDataSnapshot } from './api/appDataSnapshotGateway'
+import type { AppData } from './model/appData'
+import type { LocalShell, Session } from './model/sessionTypes'
 
 export function useTermousData() {
   const [api, setApi] = useState(() => new TermousApi())
@@ -290,24 +238,7 @@ export function useTermousData() {
         fileSessions,
         forwardProfiles,
         forwards,
-      ] = await Promise.all([
-        apiClient.settings(),
-        apiClient.terminalFonts(),
-        apiClient.codeSnippetGroups(),
-        apiClient.codeSnippets(),
-        apiClient.fileBookmarkGroups(),
-        apiClient.fileBookmarks(),
-        apiClient.localPathMappings(),
-        apiClient.hostGroups(),
-        apiClient.connectionProxies(),
-        apiClient.hosts(),
-        apiClient.hostReachability(),
-        apiClient.credentials(),
-        apiClient.sessions(),
-        apiClient.fileSessions(),
-        apiClient.forwardProfiles(),
-        apiClient.forwards(),
-      ])
+      ] = await loadAppDataSnapshot(apiClient)
       if (loadRevision !== loadRevisionRef.current) {
         return
       }
@@ -604,318 +535,24 @@ export function useTermousData() {
       reload: () => load('background'),
       reloadSilent: () => load('silent'),
       reloadForwardsSilent: () => reloadForwards(),
-      async setLanguage(language: Language) {
-        const settings = normalizeSettings(await api.updateLanguage(language))
-        setData((current) => ({ ...current, settings }))
-        await changeLanguage(settings.language)
-      },
-      async setAppearanceSettings(appearance: AppearanceSettings) {
-        const previousSettings = data.settings
-        setData((current) => ({ ...current, settings: { ...current.settings, appearance } }))
-        try {
-          const settings = normalizeSettings(await api.updateAppearanceSettings(appearance))
-          setData((current) => ({ ...current, settings }))
-        } catch (updateError) {
-          setData((current) => ({ ...current, settings: previousSettings }))
-          throw updateError
-        }
-      },
-      async setTerminalSettings(terminal: TerminalSettings) {
-        const previousSettings = data.settings
-        setData((current) => ({ ...current, settings: { ...current.settings, terminal } }))
-        try {
-          const settings = normalizeSettings(await api.updateTerminalSettings(terminal))
-          setData((current) => ({ ...current, settings }))
-        } catch (updateError) {
-          setData((current) => ({ ...current, settings: previousSettings }))
-          throw updateError
-        }
-      },
-      async setCompletionSettings(completion: CompletionSettings) {
-        const mutation = completionSettingsMutationRef.current + 1
-        completionSettingsMutationRef.current = mutation
-        completionSettingsPendingWritesRef.current += 1
-        completionSettingsRef.current = completion
-        setData((current) => ({ ...current, settings: { ...current.settings, completion } }))
-        try {
-          const settings = normalizeSettings(await completionSettingsWriteQueue.enqueue(
-            () => api.updateCompletionSettings(completion),
-          ))
-          completionSettingsConfirmedRef.current = settings.completion
-          if (completionSettingsMutationRef.current !== mutation) {
-            return
-          }
-          if (!completionSettingsEqual(completionSettingsRef.current, completion)) {
-            return
-          }
-          completionSettingsRef.current = settings.completion
-          setData((current) => (
-            completionSettingsEqual(current.settings.completion, completion)
-              ? {
-                  ...current,
-                  settings: {
-                    ...current.settings,
-                    completion: settings.completion,
-                  },
-                }
-              : current
-          ))
-        } catch (updateError) {
-          if (completionSettingsMutationRef.current !== mutation) {
-            return
-          }
-          if (!completionSettingsEqual(completionSettingsRef.current, completion)) {
-            throw updateError
-          }
-          const confirmedCompletion = completionSettingsConfirmedRef.current
-          completionSettingsRef.current = confirmedCompletion
-          setData((current) => (
-            completionSettingsEqual(current.settings.completion, completion)
-              ? {
-                  ...current,
-                  settings: {
-                    ...current.settings,
-                    completion: confirmedCompletion,
-                  },
-                }
-              : current
-          ))
-          throw updateError
-        } finally {
-          completionSettingsPendingWritesRef.current = Math.max(
-            0,
-            completionSettingsPendingWritesRef.current - 1,
-          )
-        }
-      },
-      async updateShortcutSettings(patch: ShortcutSettingsPatch) {
-        const mutation = shortcutSettingsMutationRef.current + 1
-        shortcutSettingsMutationRef.current = mutation
-        shortcutSettingsPendingWritesRef.current += 1
-        const optimistic = applyShortcutSettingsPatch(shortcutSettingsRef.current, patch)
-        shortcutSettingsRef.current = optimistic
-        setData((current) => ({
-          ...current,
-          settings: { ...current.settings, shortcuts: optimistic },
-        }))
-        try {
-          const settings = normalizeSettings(await shortcutSettingsWriteQueue.enqueue(
-            () => api.updateShortcutSettings(patch),
-          ))
-          shortcutSettingsConfirmedRef.current = settings.shortcuts
-          if (shortcutSettingsMutationRef.current !== mutation) {
-            return
-          }
-          if (!shortcutSettingsEqual(shortcutSettingsRef.current, optimistic)) {
-            return
-          }
-          shortcutSettingsRef.current = settings.shortcuts
-          setData((current) => (
-            shortcutSettingsEqual(current.settings.shortcuts, optimistic)
-              ? {
-                  ...current,
-                  settings: {
-                    ...current.settings,
-                    shortcuts: settings.shortcuts,
-                  },
-                }
-              : current
-          ))
-        } catch (updateError) {
-          if (shortcutSettingsMutationRef.current !== mutation) {
-            throw updateError
-          }
-          if (!shortcutSettingsEqual(shortcutSettingsRef.current, optimistic)) {
-            throw updateError
-          }
-          const confirmedShortcuts = shortcutSettingsConfirmedRef.current
-          shortcutSettingsRef.current = confirmedShortcuts
-          setData((current) => (
-            shortcutSettingsEqual(current.settings.shortcuts, optimistic)
-              ? {
-                  ...current,
-                  settings: {
-                    ...current.settings,
-                    shortcuts: confirmedShortcuts,
-                  },
-                }
-              : current
-          ))
-          throw updateError
-        } finally {
-          shortcutSettingsPendingWritesRef.current = Math.max(
-            0,
-            shortcutSettingsPendingWritesRef.current - 1,
-          )
-        }
-      },
-      async setWindowSettings(windowSettings: WindowSettings) {
-        const previousSettings = data.settings
-        setData((current) => ({ ...current, settings: { ...current.settings, window: windowSettings } }))
-        try {
-          const settings = normalizeSettings(await api.updateWindowSettings(windowSettings))
-          setData((current) => ({ ...current, settings }))
-        } catch (updateError) {
-          setData((current) => ({ ...current, settings: previousSettings }))
-          throw updateError
-        }
-      },
-      async uploadTerminalFont(file: File) {
-        const font = await api.uploadTerminalFont(file)
-        const terminalFonts = await api.terminalFonts()
-        setData((current) => ({ ...current, terminalFonts: terminalFonts ?? upsertTerminalFont(current.terminalFonts, font) }))
-        return font
-      },
-      async deleteTerminalFont(id: string) {
-        await api.deleteTerminalFont(id)
-        const [settings, terminalFonts] = await Promise.all([api.settings(), api.terminalFonts()])
-        setData((current) => ({
-          ...current,
-          settings: normalizeSettings(settings),
-          terminalFonts: terminalFonts ?? current.terminalFonts.filter((font) => font.id !== id),
-        }))
-      },
-      async uploadHostIcon(file: File) {
-        return api.uploadHostIcon(file)
-      },
-      async deleteHostIcon(id: string) {
-        await api.deleteHostIcon(id)
-      },
-      async createCodeSnippet(input: CodeSnippetInput) {
-        const snippet = await api.createCodeSnippet(input)
-        setData((current) => ({ ...current, snippets: upsertCodeSnippet(current.snippets, snippet) }))
-        return snippet
-      },
-      async updateCodeSnippet(id: string, input: CodeSnippetInput) {
-        const snippet = await api.updateCodeSnippet(id, input)
-        setData((current) => ({ ...current, snippets: upsertCodeSnippet(current.snippets, snippet) }))
-        return snippet
-      },
-      async deleteCodeSnippet(id: string) {
-        await api.deleteCodeSnippet(id)
-        setData((current) => ({ ...current, snippets: current.snippets.filter((snippet) => snippet.id !== id) }))
-      },
-      async markCodeSnippetUsed(id: string) {
-        const snippet = await api.markCodeSnippetUsed(id)
-        setData((current) => ({ ...current, snippets: replaceCodeSnippet(current.snippets, snippet) }))
-        return snippet
-      },
-      async createCodeSnippetGroup(input: CodeSnippetGroupInput) {
-        const group = await api.createCodeSnippetGroup(input)
-        setData((current) => ({
-          ...current,
-          snippetGroups: upsertCodeSnippetGroup(current.snippetGroups, group),
-        }))
-        return group
-      },
-      async updateCodeSnippetGroup(id: string, input: CodeSnippetGroupInput) {
-        const group = await api.updateCodeSnippetGroup(id, input)
-        setData((current) => ({
-          ...current,
-          snippetGroups: upsertCodeSnippetGroup(current.snippetGroups, group),
-        }))
-        return group
-      },
-      async deleteCodeSnippetGroup(id: string) {
-        await api.deleteCodeSnippetGroup(id)
-        setData((current) => ({
-          ...current,
-          snippetGroups: current.snippetGroups.filter((group) => group.id !== id),
-          snippets: current.snippets.map((snippet) => (
-            snippet.group_id === id ? { ...snippet, group_id: '' } : snippet
-          )),
-        }))
-      },
-      async reorderCodeSnippetGroups(items: GroupReorderItem[]) {
-        const groups = await api.reorderCodeSnippetGroups(items)
-        setData((current) => ({ ...current, snippetGroups: sortCodeSnippetGroups(groups) }))
-        return groups
-      },
-      async createFileBookmarkGroup(input: FileBookmarkGroupInput) {
-        const group = await api.createFileBookmarkGroup(input)
-        setData((current) => ({ ...current, fileBookmarkGroups: upsertFileBookmarkGroup(current.fileBookmarkGroups, group) }))
-        return group
-      },
-      async updateFileBookmarkGroup(id: string, input: FileBookmarkGroupInput) {
-        const group = await api.updateFileBookmarkGroup(id, input)
-        setData((current) => ({ ...current, fileBookmarkGroups: upsertFileBookmarkGroup(current.fileBookmarkGroups, group) }))
-        return group
-      },
-      async deleteFileBookmarkGroup(id: string) {
-        await api.deleteFileBookmarkGroup(id)
-        let nextBookmarks: FileBookmark[] | null = null
-        try {
-          nextBookmarks = await api.fileBookmarks()
-        } catch {
-          nextBookmarks = null
-        }
-        setData((current) => ({
-          ...current,
-          fileBookmarkGroups: current.fileBookmarkGroups.filter((group) => group.id !== id),
-          fileBookmarks: nextBookmarks
-            ? sortFileBookmarks(nextBookmarks)
-            : sortFileBookmarks(current.fileBookmarks.map((bookmark) => (
-              bookmark.group_id === id ? { ...bookmark, group_id: '' } : bookmark
-            ))),
-        }))
-      },
-      async reorderFileBookmarkGroups(items: FileBookmarkGroupReorderItem[]) {
-        const groups = await api.reorderFileBookmarkGroups(items)
-        setData((current) => ({ ...current, fileBookmarkGroups: sortFileBookmarkGroups(groups ?? current.fileBookmarkGroups) }))
-        return groups
-      },
-      async createFileBookmark(input: FileBookmarkInput) {
-        const bookmark = await api.createFileBookmark(input)
-        setData((current) => ({ ...current, fileBookmarks: upsertFileBookmark(current.fileBookmarks, bookmark) }))
-        return bookmark
-      },
-      async updateFileBookmark(id: string, input: FileBookmarkInput) {
-        const bookmark = await api.updateFileBookmark(id, input)
-        setData((current) => ({ ...current, fileBookmarks: upsertFileBookmark(current.fileBookmarks, bookmark) }))
-        return bookmark
-      },
-      async deleteFileBookmark(id: string) {
-        await api.deleteFileBookmark(id)
-        setData((current) => ({ ...current, fileBookmarks: current.fileBookmarks.filter((bookmark) => bookmark.id !== id) }))
-      },
-      async reorderFileBookmarks(items: FileBookmarkReorderItem[]) {
-        const bookmarks = await api.reorderFileBookmarks(items)
-        setData((current) => ({ ...current, fileBookmarks: sortFileBookmarks(bookmarks ?? current.fileBookmarks) }))
-        return bookmarks
-      },
-      async createLocalPathMapping(input: LocalPathMappingInput) {
-        const mapping = await api.createLocalPathMapping(input)
-        setData((current) => ({ ...current, localPathMappings: upsertLocalPathMapping(current.localPathMappings, mapping) }))
-        return mapping
-      },
-      async updateLocalPathMapping(id: string, input: LocalPathMappingInput) {
-        const mapping = await api.updateLocalPathMapping(id, input)
-        setData((current) => ({ ...current, localPathMappings: upsertLocalPathMapping(current.localPathMappings, mapping) }))
-        return mapping
-      },
-      async deleteLocalPathMapping(id: string) {
-        await api.deleteLocalPathMapping(id)
-        setData((current) => ({ ...current, localPathMappings: current.localPathMappings.filter((mapping) => mapping.id !== id) }))
-      },
-      async reorderLocalPathMappings(items: LocalPathMappingReorderItem[]) {
-        const mappings = await api.reorderLocalPathMappings(items)
-        setData((current) => ({ ...current, localPathMappings: sortLocalPathMappings(mappings ?? current.localPathMappings) }))
-        return mappings
-      },
-      async createForwardProfile(input: ForwardProfileInput) {
-        const profile = await api.createForwardProfile(input)
-        setData((current) => ({ ...current, forwardProfiles: upsertForwardProfile(current.forwardProfiles, profile) }))
-        return profile
-      },
-      async updateForwardProfile(id: string, input: ForwardProfileInput) {
-        const profile = await api.updateForwardProfile(id, input)
-        setData((current) => ({ ...current, forwardProfiles: upsertForwardProfile(current.forwardProfiles, profile) }))
-        return profile
-      },
-      async deleteForwardProfile(id: string) {
-        await api.deleteForwardProfile(id)
-        setData((current) => ({ ...current, forwardProfiles: current.forwardProfiles.filter((profile) => profile.id !== id) }))
-      },
+      ...createSettingsCommands({
+        api,
+        currentSettings: data.settings,
+        setData,
+        completionSettingsMutation: completionSettingsMutationRef,
+        completionSettingsPendingWrites: completionSettingsPendingWritesRef,
+        completionSettingsWriteQueue,
+        completionSettings: completionSettingsRef,
+        confirmedCompletionSettings: completionSettingsConfirmedRef,
+        shortcutSettingsMutation: shortcutSettingsMutationRef,
+        shortcutSettingsPendingWrites: shortcutSettingsPendingWritesRef,
+        shortcutSettingsWriteQueue,
+        shortcutSettings: shortcutSettingsRef,
+        confirmedShortcutSettings: shortcutSettingsConfirmedRef,
+      }),
+      ...createSnippetCommands(api, setData),
+      ...createFileCatalogCommands(api, setData),
+      ...createForwardProfileCommands(api, setData),
       async startForward(input: ForwardStartRequest) {
         const forward = await api.startForward(input)
         void registerStartedForward(forward)
@@ -967,119 +604,8 @@ export function useTermousData() {
           return { ...current, forwards: upsertForward(current.forwards, event.forward) }
         })
       },
-      async createHost(input: HostInput) {
-        const host = await api.createHost(input)
-        await load('silent')
-        return host
-      },
-      async createHostGroup(name: string) {
-        const group = await api.createHostGroup(name)
-        setData((current) => ({ ...current, groups: upsertHostGroup(current.groups, group) }))
-        return group
-      },
-      async updateHostGroup(id: string, name: string) {
-        const group = await api.updateHostGroup(id, name)
-        setData((current) => ({ ...current, groups: upsertHostGroup(current.groups, group) }))
-        return group
-      },
-      async deleteHostGroup(id: string) {
-        await api.deleteHostGroup(id)
-        setData((current) => ({
-          ...current,
-          groups: current.groups.filter((group) => group.id !== id),
-          hosts: current.hosts.map((host) => (host.group_id === id ? { ...host, group_id: '' } : host)),
-        }))
-      },
-      async reorderHostGroups(items: GroupReorderItem[]) {
-        const groups = await api.reorderHostGroups(items)
-        setData((current) => ({ ...current, groups: [...groups].sort(sortHostGroups) }))
-        return groups
-      },
-      async createConnectionProxy(input: ConnectionProxyInput) {
-        const proxy = await api.createConnectionProxy(input)
-        setData((current) => ({
-          ...current,
-          proxies: upsertConnectionProxy(current.proxies, proxy),
-        }))
-        return proxy
-      },
-      async updateConnectionProxy(id: string, input: ConnectionProxyInput) {
-        const proxy = await api.updateConnectionProxy(id, input)
-        setData((current) => ({
-          ...current,
-          proxies: upsertConnectionProxy(current.proxies, proxy),
-        }))
-        return proxy
-      },
-      async deleteConnectionProxy(id: string) {
-        await api.deleteConnectionProxy(id)
-        setData((current) => ({
-          ...current,
-          proxies: current.proxies.filter((proxy) => proxy.id !== id),
-        }))
-      },
-      async updateHost(id: string, input: HostInput) {
-        const host = await api.updateHost(id, input)
-        await load('silent')
-        return host
-      },
-      async toggleHostFavorite(hostId: string) {
-        const host = data.hosts.find((item) => item.id === hostId)
-        if (!host) {
-          return
-        }
-        const nextHost = await api.updateHost(host.id, { ...hostToInput(host), favorite: !host.favorite })
-        setData((current) => ({
-          ...current,
-          hosts: current.hosts.map((item) => (item.id === nextHost.id ? nextHost : item)),
-        }))
-      },
-      async deleteHost(id: string) {
-        await api.deleteHost(id)
-        await load('silent')
-      },
-      async refreshHostReachability(hostIds: string[] = [], force = false) {
-        const states = await api.refreshHostReachability(hostIds, force)
-        setData((current) => ({
-          ...current,
-          hostReachability: mergeHostReachabilityStates(current.hostReachability, states ?? []),
-        }))
-      },
-      updateHostReachability(event: HostReachabilityEvent) {
-        setData((current) => ({
-          ...current,
-          hostReachability: mergeHostReachabilityEvent(current.hostReachability, event),
-        }))
-      },
-      async createCredential(input: CredentialInput) {
-        const passphraseCredentialId = input.metadata.passphrase_credential_id?.trim()
-        const privateKeyMetadata = { ...input.metadata }
-        delete privateKeyMetadata.passphrase_credential_id
-        const credential = input.type === 'private_key' && input.ssh_key_info
-          ? (await api.createPrivateKeyCredentialBundle({
-              private_key: {
-                name: input.name,
-                vault_id: input.vault_id,
-                secret: input.secret,
-                metadata: privateKeyMetadata,
-              },
-              ssh_key_info: input.ssh_key_info,
-              passphrase: input.pending_passphrase,
-              passphrase_credential_id: input.pending_passphrase ? undefined : passphraseCredentialId,
-            })).private_key
-          : await api.createCredential(input)
-        await load('silent')
-        return credential
-      },
-      async updateCredential(id: string, input: CredentialInput) {
-        const credential = await api.updateCredential(id, input)
-        await load('silent')
-        return credential
-      },
-      async deleteCredential(id: string) {
-        await api.deleteCredential(id)
-        await load('silent')
-      },
+      ...createHostCommands({ api, hosts: data.hosts, load, setData }),
+      ...createCredentialCommands(api, load),
       async connect(hostId: string, cols = 120, rows = 32) {
         const session = await api.createSession(hostId, cols, rows)
         bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
@@ -1434,405 +960,6 @@ export function useTermousData() {
   )
 
   return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, fileSessionClosures, actions }
-}
-
-function removeMatchingFileSessionClosure(
-  closures: Record<string, FileSessionClosureState>,
-  sourceSessionId: string,
-  fileSessionId: string,
-) {
-  const closure = closures[sourceSessionId]
-  if (!closure || closure.session.id !== fileSessionId) {
-    return closures
-  }
-  const next = { ...closures }
-  delete next[sourceSessionId]
-  return next
-}
-
-function reconcileActiveSession(current: Session | null, nextSessions: Session[], mode: LoadMode) {
-  if (current) {
-    const updated = nextSessions.find((session) => session.id === current.id)
-    if (updated) {
-      return updated
-    }
-  }
-  if (mode === 'initial') {
-    return nextSessions[0] ?? null
-  }
-  return null
-}
-
-function upsertTerminalFont(fonts: TerminalFont[], next: TerminalFont) {
-  const exists = fonts.some((font) => font.id === next.id)
-  if (exists) {
-    return fonts.map((font) => (font.id === next.id ? next : font))
-  }
-  return [next, ...fonts]
-}
-
-function upsertHostGroup(groups: HostGroup[], next: HostGroup) {
-  const exists = groups.some((group) => group.id === next.id)
-  const merged = exists ? groups.map((group) => (group.id === next.id ? next : group)) : [...groups, next]
-  return [...merged].sort(sortHostGroups)
-}
-
-function sortHostGroups(left: HostGroup, right: HostGroup) {
-  if (left.sort_order !== right.sort_order) {
-    return left.sort_order - right.sort_order
-  }
-  if (left.name !== right.name) {
-    return left.name.localeCompare(right.name)
-  }
-  return left.id.localeCompare(right.id)
-}
-
-function sortConnectionProxies(proxies: AppData['proxies']) {
-  return [...proxies].sort((left, right) => (
-    left.name.localeCompare(right.name)
-    || left.id.localeCompare(right.id)
-  ))
-}
-
-function upsertConnectionProxy(
-  proxies: AppData['proxies'],
-  next: AppData['proxies'][number],
-) {
-  const exists = proxies.some((proxy) => proxy.id === next.id)
-  return sortConnectionProxies(
-    exists
-      ? proxies.map((proxy) => (proxy.id === next.id ? next : proxy))
-      : [...proxies, next],
-  )
-}
-
-function upsertSession(sessions: Session[], next: Session) {
-  const exists = sessions.some((session) => session.id === next.id)
-  if (exists) {
-    return sessions.map((session) => (session.id === next.id ? next : session))
-  }
-  return [...sessions, next]
-}
-
-function markHostRecentlyConnected(
-  hosts: AppData['hosts'],
-  sessions: Session[],
-  sessionId: string,
-  patch: Partial<Session>,
-) {
-  const sessionsWithPatch = sessions.map((session) => (session.id === sessionId ? { ...session, ...patch } : session))
-  const updatedSession = sessionsWithPatch.find((session) => session.id === sessionId)
-  if (updatedSession?.kind !== 'ssh' || updatedSession.status !== 'connected' || !updatedSession.host_id) {
-    return { hosts, sessions: sessionsWithPatch }
-  }
-  const connectedAt = updatedSession.connected_at ?? new Date().toISOString()
-  return {
-    hosts: hosts.map((host) => (host.id === updatedSession.host_id ? { ...host, last_connected_at: connectedAt } : host)),
-    sessions: sessionsWithPatch,
-  }
-}
-
-function upsertFileBookmarkGroup(groups: FileBookmarkGroup[], next: FileBookmarkGroup) {
-  const exists = groups.some((group) => group.id === next.id)
-  const merged = exists ? groups.map((group) => (group.id === next.id ? next : group)) : [...groups, next]
-  return sortFileBookmarkGroups(merged)
-}
-
-function sortFileBookmarkGroups(groups: FileBookmarkGroup[]) {
-  return [...groups].sort((left, right) => {
-    if (left.sort_order !== right.sort_order) {
-      return left.sort_order - right.sort_order
-    }
-    if (left.name !== right.name) {
-      return left.name.localeCompare(right.name)
-    }
-    return left.id.localeCompare(right.id)
-  })
-}
-
-function upsertFileBookmark(bookmarks: FileBookmark[], next: FileBookmark) {
-  const exists = bookmarks.some((bookmark) => bookmark.id === next.id)
-  const merged = exists ? bookmarks.map((bookmark) => (bookmark.id === next.id ? next : bookmark)) : [...bookmarks, next]
-  return sortFileBookmarks(merged)
-}
-
-function sortFileBookmarks(bookmarks: FileBookmark[]) {
-  return [...bookmarks].sort((left, right) => {
-    if (left.group_id !== right.group_id) {
-      return left.group_id.localeCompare(right.group_id)
-    }
-    if (left.sort_order !== right.sort_order) {
-      return left.sort_order - right.sort_order
-    }
-    if (left.name !== right.name) {
-      return left.name.localeCompare(right.name)
-    }
-    return left.id.localeCompare(right.id)
-  })
-}
-
-function upsertLocalPathMapping(mappings: LocalPathMapping[], next: LocalPathMapping) {
-  const exists = mappings.some((mapping) => mapping.id === next.id)
-  const merged = exists ? mappings.map((mapping) => (mapping.id === next.id ? next : mapping)) : [...mappings, next]
-  return sortLocalPathMappings(merged)
-}
-
-function sortLocalPathMappings(mappings: LocalPathMapping[]) {
-  return [...mappings].sort((left, right) => {
-    if (left.sort_order !== right.sort_order) {
-      return left.sort_order - right.sort_order
-    }
-    if (left.name !== right.name) {
-      return left.name.localeCompare(right.name)
-    }
-    return left.id.localeCompare(right.id)
-  })
-}
-
-function upsertForwardProfile(profiles: ForwardProfile[], next: ForwardProfile) {
-  const exists = profiles.some((profile) => profile.id === next.id)
-  const merged = exists ? profiles.map((profile) => (profile.id === next.id ? next : profile)) : [next, ...profiles]
-  return [...merged].sort(sortForwardProfiles)
-}
-
-function sortForwardProfiles(left: ForwardProfile, right: ForwardProfile) {
-  if (left.mode !== right.mode) {
-    return left.mode.localeCompare(right.mode)
-  }
-  if (left.name !== right.name) {
-    return left.name.localeCompare(right.name)
-  }
-  return left.id.localeCompare(right.id)
-}
-
-function upsertForward(forwards: ForwardInstance[], next: ForwardInstance) {
-  const exists = forwards.some((forward) => forward.id === next.id)
-  const merged = exists ? forwards.map((forward) => (forward.id === next.id ? next : forward)) : [next, ...forwards]
-  return [...merged].sort(sortForwards)
-}
-
-function visibleForwards(forwards: ForwardInstance[]) {
-  return forwards.filter((forward) => !shouldRemoveForward(forward))
-}
-
-function bumpSessionRevision(revisions: Map<string, number>, sessionId: string) {
-  revisions.set(sessionId, (revisions.get(sessionId) ?? 0) + 1)
-}
-
-function settleForwardStartCompletion(
-  waiters: Map<string, ForwardStartCompletionWaiter>,
-  snapshots: Map<string, ForwardInstance>,
-  revisions: Map<string, number>,
-  forwardId: string,
-  forward: ForwardInstance | null,
-) {
-  if (forward && !isForwardStartSettledStatus(forward.status)) {
-    return false
-  }
-  const waiter = waiters.get(forwardId)
-  if (!waiter) {
-    return false
-  }
-  waiters.delete(forwardId)
-  snapshots.delete(forwardId)
-  revisions.delete(forwardId)
-  window.clearTimeout(waiter.cleanupTimer)
-  waiter.resolve(forward)
-  return true
-}
-
-function reconcileForwardStartCompletions(
-  waiters: Map<string, ForwardStartCompletionWaiter>,
-  snapshots: Map<string, ForwardInstance>,
-  revisions: Map<string, number>,
-  authoritativeForwards: ForwardInstance[],
-) {
-  const byId = new Map(authoritativeForwards.map((forward) => [forward.id, forward]))
-  const now = performance.now()
-  for (const [forwardId, waiter] of waiters) {
-    const forward = byId.get(forwardId)
-    if (forward) {
-      settleForwardStartCompletion(
-        waiters,
-        snapshots,
-        revisions,
-        forwardId,
-        forward,
-      )
-      continue
-    }
-    if (now - waiter.registeredAt >= FORWARD_START_MISSING_GRACE_MS) {
-      settleForwardStartCompletion(
-        waiters,
-        snapshots,
-        revisions,
-        forwardId,
-        null,
-      )
-    }
-  }
-}
-
-function rememberForwardEventSnapshot(
-  snapshots: Map<string, ForwardInstance>,
-  forward: ForwardInstance,
-) {
-  snapshots.delete(forward.id)
-  snapshots.set(forward.id, forward)
-  if (snapshots.size <= 256) {
-    return
-  }
-  const oldestForwardId = snapshots.keys().next().value
-  if (oldestForwardId) {
-    snapshots.delete(oldestForwardId)
-  }
-}
-
-function sessionInventorySignature(session: Partial<Session>) {
-  return [
-    session.inventory_status ?? 'idle',
-    session.inventory_message ?? '',
-    session.linux_system_info?.collected_at ?? '',
-  ].join('\u0000')
-}
-
-function indexHostReachability(states: HostReachability[]) {
-  return states.reduce<Record<string, HostReachability>>((acc, state) => {
-    acc[state.host_id] = state
-    return acc
-  }, {})
-}
-
-function mergeHostReachabilityStates(
-  current: Record<string, HostReachability>,
-  states: HostReachability[],
-) {
-  if (states.length === 0) {
-    return current
-  }
-  return { ...current, ...indexHostReachability(states) }
-}
-
-function mergeHostReachabilityEvent(
-  current: Record<string, HostReachability>,
-  event: HostReachabilityEvent,
-) {
-  if (event.type === 'snapshot' && event.items) {
-    return indexHostReachability(event.items)
-  }
-  if (event.state) {
-    return { ...current, [event.state.host_id]: event.state }
-  }
-  return current
-}
-
-function shouldRemoveForward(forward: ForwardInstance) {
-  return forward.status === 'stopped' || forward.status === 'failed'
-}
-
-function shouldEmitForwardError(event: ForwardEvent) {
-  if (event.type === 'snapshot') {
-    return false
-  }
-  if (event.type === 'error' || event.forward.status === 'failed') {
-    return true
-  }
-  return event.type === 'update' && event.forward.status === 'running' && Boolean(event.forward.last_error)
-}
-
-function sortForwards(left: ForwardInstance, right: ForwardInstance) {
-  const leftTime = new Date(left.started_at).getTime()
-  const rightTime = new Date(right.started_at).getTime()
-  if (leftTime !== rightTime) {
-    return rightTime - leftTime
-  }
-  return left.id.localeCompare(right.id)
-}
-
-async function syncForwardAfterStart(
-  api: TermousApi,
-  id: string,
-  onForward: (forward: ForwardInstance) => void,
-  currentEventRevision: () => number,
-  isCompletionPending: () => boolean,
-): Promise<ForwardInstance | null | undefined> {
-  const intervals = [240, 420, 700, 1100, 1700, 2600, 4000]
-  for (const interval of intervals) {
-    await delay(interval)
-    if (!isCompletionPending()) {
-      return undefined
-    }
-    const eventRevision = currentEventRevision()
-    try {
-      const forward = await api.getForward(id)
-      if (!isCompletionPending()) {
-        return undefined
-      }
-      if (!shouldApplyForwardPollResponse(eventRevision, currentEventRevision())) {
-        continue
-      }
-      onForward(forward)
-      if (isForwardStartSettledStatus(forward.status)) {
-        return forward
-      }
-    } catch (syncError) {
-      if (!isCompletionPending()) {
-        return undefined
-      }
-      if (!shouldApplyForwardPollResponse(eventRevision, currentEventRevision())) {
-        continue
-      }
-      if (syncError instanceof TermousApiError && syncError.status === 404) {
-        return syncForwardFromList(
-          api,
-          id,
-          onForward,
-          currentEventRevision,
-          isCompletionPending,
-        )
-      }
-    }
-  }
-  return syncForwardFromList(
-    api,
-    id,
-    onForward,
-    currentEventRevision,
-    isCompletionPending,
-  )
-}
-
-async function syncForwardFromList(
-  api: TermousApi,
-  id: string,
-  onForward: (forward: ForwardInstance) => void,
-  currentEventRevision: () => number,
-  isCompletionPending: () => boolean,
-): Promise<ForwardInstance | null | undefined> {
-  const eventRevision = currentEventRevision()
-  try {
-    const forwards = await api.forwards()
-    if (
-      !isCompletionPending()
-      || !shouldApplyForwardPollResponse(eventRevision, currentEventRevision())
-    ) {
-      return undefined
-    }
-    const forward = (forwards ?? []).find((item) => item.id === id)
-    if (!forward) {
-      return null
-    }
-    onForward(forward)
-    return isForwardStartSettledStatus(forward.status) ? forward : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function delay(ms: number) {
-  return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
 }
 
 function publicMessage(error: unknown) {

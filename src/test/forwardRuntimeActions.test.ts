@@ -31,7 +31,10 @@ test('运行实例操作组使用稳定尺寸且按钮交互不会产生位移',
 
 test('重启完成提示等待替代实例进入最终运行状态', () => {
   const app = readSource('App.tsx')
-  const data = readSource('app', 'useTermousData.ts')
+  const data = [
+    readSource('app', 'data-runtime', 'useTermousData.ts'),
+    readSource('app', 'data-runtime', 'model', 'forwardRuntimeState.ts'),
+  ].join('\n')
 
   assert.match(app, /restart\.completion\.then/)
   assert.match(app, /isForwardRestartCompleted\(forward\)/)

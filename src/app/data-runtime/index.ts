@@ -1,0 +1,1 @@
+export { useTermousData } from './useTermousData'

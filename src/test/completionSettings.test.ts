@@ -17,7 +17,11 @@ const settingsViewSource = readFileSync(
   'utf8',
 )
 const dataSource = readFileSync(
-  fileURLToPath(new URL('../app/useTermousData.ts', import.meta.url)),
+  fileURLToPath(new URL('../app/data-runtime/commands/settingsCommands.ts', import.meta.url)),
+  'utf8',
+)
+const dataCoordinatorSource = readFileSync(
+  fileURLToPath(new URL('../app/data-runtime/useTermousData.ts', import.meta.url)),
   'utf8',
 )
 
@@ -101,10 +105,10 @@ test('补全来源使用可展开设置并串行提交写请求', () => {
 
 test('补全设置只允许最新 mutation 应用响应或回滚', () => {
   assert.match(dataSource, /completionSettingsWriteQueue\.enqueue/)
-  assert.match(dataSource, /completionSettingsMutationRef\.current !== mutation/)
+  assert.match(dataSource, /completionSettingsMutation\.current !== mutation/)
   assert.match(dataSource, /completionSettingsEqual\(current\.settings\.completion, completion\)/)
-  assert.match(dataSource, /completionSettingsConfirmedRef\.current = settings\.completion/)
-  assert.match(dataSource, /const confirmedCompletion = completionSettingsConfirmedRef\.current/)
-  assert.match(dataSource, /canApplyReloadedValue\(/)
-  assert.doesNotMatch(dataSource, /completionSettingsRef\.current = previousCompletion/)
+  assert.match(dataSource, /confirmedCompletionSettings\.current = settings\.completion/)
+  assert.match(dataSource, /const confirmedCompletion = confirmedCompletionSettings\.current/)
+  assert.match(dataCoordinatorSource, /canApplyReloadedValue\(/)
+  assert.doesNotMatch(dataSource, /completionSettings\.current = previousCompletion/)
 })

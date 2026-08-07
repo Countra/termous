@@ -4,7 +4,7 @@ import type { Session } from '../types/domain.ts'
 import {
   mergeSessionReloadSnapshot,
   shouldApplySessionInventoryResponse,
-} from '../app/sessionInventoryState.ts'
+} from '../app/data-runtime/model/sessionInventoryState.ts'
 import {
   canRetrySessionInventory,
   getAutomaticSessionInventoryDemand,

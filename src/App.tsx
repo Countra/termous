@@ -28,7 +28,7 @@ import {
 } from '#features/hosts'
 import { WorkbenchPage } from '#widgets/workbench'
 import { TransferRuntimeProvider } from '#app/transfer-runtime'
-import { useTermousData } from './app/useTermousData'
+import { useTermousData } from '#app/data-runtime'
 import { TerminalRuntimeProvider } from '#features/terminal'
 import {
   ShortcutRuntimeProvider,

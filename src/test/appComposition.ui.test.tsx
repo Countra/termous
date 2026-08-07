@@ -226,7 +226,7 @@ vi.mock('#shared/hooks', () => ({
   usePersistentBooleanState: () => [false, testState.persistentStateSetter],
 }))
 
-vi.mock('../app/useTermousData', () => ({
+vi.mock('#app/data-runtime', () => ({
   useTermousData: () => ({
     api: {},
     data: testState.data,

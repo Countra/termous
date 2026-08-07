@@ -58,8 +58,8 @@
     {
       "rule": "legacy-boundary",
       "source": "src/App.tsx",
-      "target": "src/app/useTermousData.ts",
-      "specifier": "./app/useTermousData"
+      "target": "src/app/data-runtime/index.ts",
+      "specifier": "#app/data-runtime"
     },
     {
       "rule": "legacy-boundary",
@@ -147,9 +147,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/app/sessionInventoryState.ts",
+      "source": "src/app/data-runtime/model/sessionTypes.ts",
       "target": "src/types/domain.ts",
-      "specifier": "../types/domain"
+      "specifier": "../../../types/domain"
     },
     {
       "rule": "legacy-boundary",
@@ -165,15 +165,9 @@
     },
     {
       "rule": "legacy-boundary",
-      "source": "src/app/useTermousData.ts",
+      "source": "src/app/data-runtime/api/runtimeApi.ts",
       "target": "src/api/client.ts",
-      "specifier": "../api/client"
-    },
-    {
-      "rule": "legacy-boundary",
-      "source": "src/app/useTermousData.ts",
-      "target": "src/types/domain.ts",
-      "specifier": "../types/domain"
+      "specifier": "../../../api/client"
     },
     {
       "rule": "legacy-boundary",

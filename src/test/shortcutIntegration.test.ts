@@ -40,7 +40,7 @@ const remoteTextEditorSource = readFileSync(
   'utf8',
 )
 const termousDataSource = readFileSync(
-  fileURLToPath(new URL('../app/useTermousData.ts', import.meta.url)),
+  fileURLToPath(new URL('../app/data-runtime/commands/settingsCommands.ts', import.meta.url)),
   'utf8',
 )
 
@@ -166,6 +166,6 @@ test('较早的快捷键写入失败会通知对应行且不会回退较新的�
   const mutationSource = termousDataSource.slice(mutationStart, mutationEnd)
   assert.match(
     mutationSource,
-    /if \(shortcutSettingsMutationRef\.current !== mutation\) \{\s*throw updateError\s*\}/,
+    /if \(shortcutSettingsMutation\.current !== mutation\) \{\s*throw updateError\s*\}/,
   )
 })
