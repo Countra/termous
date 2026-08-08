@@ -16,6 +16,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
+import type { AppLanguage, AppTheme, DataPortabilityProgress } from '#common/contracts'
 import { AppExitCoordinator } from './appExitCoordinator'
 import { CoreProcessManager } from './coreProcess'
 import { createElectronUpdaterEngine } from './electronUpdaterEngine'
@@ -76,8 +77,6 @@ const trayController = new TermousTrayController({
 })
 
 type StartupPhase = 'core' | 'workspace' | 'error'
-type AppTheme = 'dark' | 'light'
-type AppLanguage = 'zh-CN' | 'en-US'
 
 let win: BrowserWindow | null
 let splashWin: BrowserWindow | null = null
@@ -103,13 +102,6 @@ const exitCoordinator = new AppExitCoordinator({
     })
   },
 })
-
-interface PortabilityProgress {
-  operation: 'export' | 'import'
-  phase: 'selecting' | 'transferring' | 'finalizing' | 'complete'
-  transferred_bytes?: number
-  total_bytes?: number
-}
 
 interface PendingBackupSelection {
   id: string
@@ -279,7 +271,7 @@ app.on('child-process-gone', (_event, details) => {
   })
 })
 
-function emitPortabilityProgress(sender: WebContents, progress: PortabilityProgress) {
+function emitPortabilityProgress(sender: WebContents, progress: DataPortabilityProgress) {
   if (!sender.isDestroyed()) {
     sender.send('portability:progress', progress)
   }

@@ -7,7 +7,7 @@ function readSource(relativePath: string) {
   return readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8')
 }
 
-const legacyStyles = readSource('../shared/styles/workstation.scss')
+const legacyStyles = readSource('../shared/main-styles/workstation.scss')
 const globalStyles = readSource('../shared/styles/global.scss')
 
 test('终端与会话样式不再由旧工作台全局层承载', () => {

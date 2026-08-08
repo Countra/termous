@@ -14,6 +14,7 @@ export const expectedPackageImports = Object.freeze({
 
 const governedRoots = new Set(['src', 'electron', 'common'])
 const sourceExtensions = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'])
+const governedTargetExtensions = new Set([...sourceExtensions, '.css', '.sass', '.scss'])
 const typescriptSubstitutions = new Map([
   ['.js', ['.ts', '.tsx', '.d.ts']],
   ['.jsx', ['.tsx', '.ts', '.d.ts']],
@@ -37,7 +38,7 @@ export function isTestSource(projectRoot, filePath) {
     || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(relative)
 }
 
-function collectSourceFiles(directory, projectRoot) {
+function collectGovernedFiles(directory, projectRoot, extensions) {
   let directoryStat
   try {
     directoryStat = fs.lstatSync(directory)
@@ -62,8 +63,8 @@ function collectSourceFiles(directory, projectRoot) {
       throw new Error(`受管源码根不允许符号链接: ${relativeProjectPath(projectRoot, entryPath)}`)
     }
     if (entry.isDirectory()) {
-      files.push(...collectSourceFiles(entryPath, projectRoot))
-    } else if (entry.isFile() && sourceExtensions.has(path.extname(entry.name))) {
+      files.push(...collectGovernedFiles(entryPath, projectRoot, extensions))
+    } else if (entry.isFile() && extensions.has(path.extname(entry.name))) {
       files.push(entryPath)
     }
   }
@@ -386,7 +387,7 @@ function governedTarget(candidate, candidates, lookup) {
 
 function isProjectLocalOutsideRoots(projectRoot, candidate) {
   const realCandidate = realPathIfFile(candidate)
-  if (!realCandidate || !sourceExtensions.has(path.extname(realCandidate))) {
+  if (!realCandidate || !governedTargetExtensions.has(path.extname(realCandidate))) {
     return null
   }
   const relative = relativeProjectPath(fs.realpathSync.native(projectRoot), realCandidate)
@@ -434,11 +435,17 @@ export function buildProjectGraph(inputRoot) {
   const projectRoot = path.resolve(inputRoot)
   const packageImports = readPackageImports(projectRoot)
   const compilerOptions = readCompilerOptions(projectRoot)
-  const allSourceFiles = [...governedRoots]
-    .flatMap((root) => collectSourceFiles(path.join(projectRoot, root), projectRoot))
+  const allGovernedFiles = [...governedRoots]
+    .flatMap((root) => collectGovernedFiles(
+      path.join(projectRoot, root),
+      projectRoot,
+      governedTargetExtensions,
+    ))
+  const allSourceFiles = allGovernedFiles
+    .filter((file) => sourceExtensions.has(path.extname(file)))
   const productionSourceFiles = allSourceFiles
     .filter((file) => !isTestSource(projectRoot, file))
-  const lookup = sourceLookup(allSourceFiles)
+  const lookup = sourceLookup(allGovernedFiles)
   const edges = []
   const externalImports = []
   const outOfScopeImports = []

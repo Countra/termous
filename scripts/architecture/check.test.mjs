@@ -315,6 +315,17 @@ test('跨 Slice 深层导入同时违反公共入口和同层边界', (t) => {
   assert.equal(violations.filter((item) => item.rule === 'same-layer-deep-import').length, 1)
 })
 
+test('脚本导入样式文件同样遵守 Slice 公共入口边界', (t) => {
+  const violations = violationsFor(t, {
+    'src/shared/alpha/index.ts': "import './local.module.scss'\nimport '../beta/internal.module.scss'\nexport const alpha = true\n",
+    'src/shared/alpha/local.module.scss': '.root { color: red; }\n',
+    'src/shared/beta/internal.module.scss': '.root { color: blue; }\n',
+  })
+
+  assert.equal(violations.filter((item) => item.rule === 'public-entry').length, 1)
+  assert.equal(violations.filter((item) => item.rule === 'same-layer-deep-import').length, 1)
+})
+
 test('解析到受管目录外的本地源码会被明确标记', (t) => {
   const violations = violationsFor(t, {
     'src/features/hosts/index.ts': "import { helper } from '../../../tooling/helper'\nexport const hosts = helper\n",

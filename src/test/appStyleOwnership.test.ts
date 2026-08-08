@@ -13,7 +13,7 @@ test('主界面入口不再加载 app 全局业务样式', () => {
 
   assert.equal(existsSync(appStylePath), false)
   assert.doesNotMatch(mainStyles, /app\.scss/)
-  assert.match(mainStyles, /import '\.\.\/styles\/workstation\.scss'/)
+  assert.match(mainStyles, /import '\.\/workstation\.scss'/)
 })
 
 test('共享控件基础样式通过显式 Module 合同消费', () => {
@@ -74,11 +74,11 @@ test('原 app 业务选择器由组件共置 Module 承载', () => {
   ]) {
     assert.match(workspaceEmptyStateStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
   }
-  assert.doesNotMatch(source('../shared/styles/workstation.scss'), /^\.workbench-empty-state(?:\b|-)/m)
+  assert.doesNotMatch(source('../shared/main-styles/workstation.scss'), /^\.workbench-empty-state(?:\b|-)/m)
 
   const statusBadgeStyles = source('../shared/ui/StatusBadge.module.scss')
   assert.match(statusBadgeStyles, /\.status-badge\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/s)
-  assert.doesNotMatch(source('../shared/styles/workstation.scss'), /^\.status-badge\s*\{/m)
+  assert.doesNotMatch(source('../shared/main-styles/workstation.scss'), /^\.status-badge\s*\{/m)
 
   const authMethodBadgeStyles = source('../entities/host/ui/AuthMethodBadge.module.scss')
   for (const className of [
@@ -89,14 +89,14 @@ test('原 app 业务选择器由组件共置 Module 承载', () => {
     assert.match(authMethodBadgeStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
   }
 
-  const legacyStyles = source('../shared/styles/workstation.scss')
+  const legacyStyles = source('../shared/main-styles/workstation.scss')
   assert.doesNotMatch(legacyStyles, /^\.host-auth-badge(?:\b|\s|\.)/m)
   assert.match(legacyStyles, /^\.data-row \.row-trailing > \.host-auth-badge\s*\{/m)
 })
 
 test('详情侧栏的折叠轨道与 Tabs Portal 样式由共置 Module 承载', () => {
   const featureSidePanelStyles = source('../shared/ui/FeatureSidePanel.module.scss')
-  const legacyStyles = source('../shared/styles/workstation.scss')
+  const legacyStyles = source('../shared/main-styles/workstation.scss')
 
   for (const className of [
     'details-collapsed-rail',

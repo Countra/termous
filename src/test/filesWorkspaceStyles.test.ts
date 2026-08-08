@@ -24,7 +24,7 @@ const detailsStyles = readFileSync(
   'utf8',
 )
 const workstationStyles = readFileSync(
-  fileURLToPath(new URL('../shared/styles/workstation.scss', import.meta.url)),
+  fileURLToPath(new URL('../shared/main-styles/workstation.scss', import.meta.url)),
   'utf8',
 )
 const appSource = readFileSync(
@@ -98,7 +98,7 @@ test('文件工作区样式在旧工作台样式后加载', () => {
   const mainSurfaceImport = rendererSource.indexOf("main: () => import('#app/main')")
   const mainStyleImport = appSource.indexOf("import '#shared/main-styles'")
   const globalStyleImport = sharedStylesSource.indexOf("import './global.scss'")
-  const workstationStyleImport = mainStylesSource.indexOf("import '../styles/workstation.scss'")
+  const workstationStyleImport = mainStylesSource.indexOf("import './workstation.scss'")
   const filesPageImport = appSource.indexOf("from '#pages/files'")
   const filesWorkspaceImport = appSource.indexOf("from '#widgets/files-workspace'")
 

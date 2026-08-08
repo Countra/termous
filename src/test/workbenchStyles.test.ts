@@ -7,7 +7,7 @@ function readSource(relativePath: string) {
   return readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8')
 }
 
-const legacyStyles = readSource('../shared/styles/workstation.scss')
+const legacyStyles = readSource('../shared/main-styles/workstation.scss')
 const pageStyles = readSource('../widgets/workbench/ui/WorkbenchPage.module.scss')
 const sessionStyles = readSource('../widgets/workbench/ui/WorkbenchSessionTabs.module.scss')
 const detailsStyles = readSource('../widgets/workbench/ui/WorkbenchDetails.module.scss')

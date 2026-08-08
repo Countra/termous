@@ -13,7 +13,7 @@ const appSource = readSource('../app/main/App.tsx')
 const appShellStyles = readSource('../app/app-shell/ui/AppShell.module.scss')
 const windowControlsStyles = readSource('../app/app-shell/ui/WindowControls.module.scss')
 const appStyles = readSource('../app/main/App.module.scss')
-const sharedStyles = readSource('../shared/styles/workstation.scss')
+const sharedStyles = readSource('../shared/main-styles/workstation.scss')
 
 test('应用壳层和窗口控制使用共置 SCSS Modules', () => {
   assert.match(appShellSource, /import styles from '\.\/AppShell\.module\.scss'/)

@@ -1,1 +1,1 @@
-import '../styles/workstation.scss'
+import './workstation.scss'

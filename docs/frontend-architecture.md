@@ -39,6 +39,7 @@ electron -> common
 - `common` 和所有 Sliced Layer 不能直接放置源码文件，源码必须归属具体 Slice。
 - 生产源码不能导入 `src/test`、`*.test.*` 或 `*.spec.*`；测试文件作为目标保留在依赖图中，作为依赖源时跳过。
 - 静态 import、re-export、类型 import、字符串形式的动态 `import()` 和 `require()` 都参与依赖图与循环检测。
+- TypeScript/JavaScript 对本地 CSS、Sass 和 SCSS 文件的导入同样参与层级、Slice 与路径大小写检查；门禁只解析脚本中的导入，不解析 Sass 内部语法。
 - 生产源码不得使用三斜线 `path` 引用；共享类型必须通过受管模块的显式 type import 暴露。
 - 相对路径或 `#` 别名解析到 `src`、`electron`、`common` 之外的项目源码会被拒绝。
 - 已存在的本地目标通过 realpath 进入依赖图，同时校验 import 路径大小写，避免只在 Linux 构建时暴露错误。
