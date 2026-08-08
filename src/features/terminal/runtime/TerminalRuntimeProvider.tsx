@@ -12,8 +12,8 @@ import {
   type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import { getTermousBridge } from '#shared/bridge'
 import type { TerminalGateway } from '../api/terminalGateway'
+import { readClipboardText, writeClipboardText } from '../lib/terminalClipboard'
 import { TerminalCwdRuntimeProvider } from './TerminalCwdRuntimeProvider'
 import styles from './TerminalRuntimeProvider.module.scss'
 import type {
@@ -60,9 +60,14 @@ import {
   type TerminalCompletionQueryExecutor,
 } from '../model/terminalCompletionRuntime'
 import {
+  shouldFitAfterSettingsChange,
+  terminalTheme,
+} from '../model/terminalAppearance'
+import {
   isPredictableTerminalCompletionText,
   predictTerminalCompletionCursor,
 } from '../model/terminalCompletionPosition'
+import { binaryStringToBytes, ensureTerminalEnter } from '../model/terminalInput'
 import { transitionTerminalCompletionActivity } from '../model/terminalCompletionViewport'
 import {
   createEmptyTerminalSearchResult,
@@ -1717,15 +1722,6 @@ function syncTerminalCssVariables(settings: TerminalSettings, appTheme: ThemeMod
   root.style.setProperty('--terminal-selection-bg', theme.selectionBackground ?? '#24476d')
 }
 
-function shouldFitAfterSettingsChange(previous: TerminalSettings, next: TerminalSettings) {
-  return (
-    previous.font_family !== next.font_family ||
-    previous.font_size !== next.font_size ||
-    previous.line_height !== next.line_height ||
-    previous.letter_spacing !== next.letter_spacing
-  )
-}
-
 function handleTerminalTransportEvent(
   entry: TerminalEntry,
   event: TerminalTransportEvent,
@@ -1887,93 +1883,4 @@ function terminalSearchDecorations(settings: TerminalSettings, appTheme: ThemeMo
 
 function isEndedSessionStatus(status?: SessionStatus) {
   return status === 'disconnected' || status === 'failed'
-}
-
-async function readClipboardText() {
-  const clipboardBridge = getTermousBridge()?.clipboard
-  if (clipboardBridge?.readText) {
-    return clipboardBridge.readText()
-  }
-  if (navigator.clipboard?.readText) {
-    return navigator.clipboard.readText()
-  }
-  throw new Error('clipboard read unavailable')
-}
-
-async function writeClipboardText(text: string) {
-  const clipboardBridge = getTermousBridge()?.clipboard
-  if (clipboardBridge?.writeText) {
-    await clipboardBridge.writeText(text)
-    return
-  }
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text)
-    return
-  }
-  if (fallbackCopyText(text)) {
-    return
-  }
-  throw new Error('clipboard write unavailable')
-}
-
-function fallbackCopyText(text: string) {
-  const textarea = document.createElement('textarea')
-  textarea.value = text
-  textarea.setAttribute('readonly', 'true')
-  textarea.style.position = 'fixed'
-  textarea.style.left = '-9999px'
-  textarea.style.top = '0'
-  document.body.appendChild(textarea)
-  textarea.select()
-  try {
-    return document.execCommand('copy')
-  } finally {
-    textarea.remove()
-  }
-}
-
-function binaryStringToBytes(data: string) {
-  const bytes = new Uint8Array(data.length)
-  for (let index = 0; index < data.length; index += 1) {
-    bytes[index] = data.charCodeAt(index) & 0xff
-  }
-  return bytes
-}
-
-function ensureTerminalEnter(text: string) {
-  return /\r?\n$/.test(text) ? text : `${text}\r`
-}
-
-function terminalTheme(settings: TerminalSettings, appTheme: ThemeMode) {
-  const theme = settings.theme_mode === 'follow_app' ? appTheme : settings.theme_mode
-  if (theme === 'light') {
-    return {
-      background: '#fbfcfe',
-      foreground: '#1f2630',
-      cursor: '#1f6feb',
-      selectionBackground: '#d7e5ff',
-      black: '#151a22',
-      blue: '#1f6feb',
-      cyan: '#087f9b',
-      green: '#0e7d58',
-      magenta: '#7d55c7',
-      red: '#bf343b',
-      white: '#ffffff',
-      yellow: '#966100',
-    }
-  }
-  return {
-    background: '#080a0f',
-    foreground: '#e6ebf4',
-    cursor: '#61a8ff',
-    selectionBackground: '#24476d',
-    black: '#020617',
-    blue: '#61a8ff',
-    cyan: '#22d3ee',
-    green: '#34d399',
-    magenta: '#b58cff',
-    red: '#ff6a63',
-    white: '#f8fafc',
-    yellow: '#f0b84c',
-  }
 }
