@@ -1,6 +1,7 @@
 import { Server } from 'lucide-react'
 import { useMemo, useState, type CSSProperties } from 'react'
 import type { Host } from '../model/types.ts'
+import styles from './HostAvatar.module.scss'
 
 interface HostAvatarProps {
   host?: Pick<Host, 'icon_id' | 'name'>
@@ -34,7 +35,7 @@ export function HostAvatar({
 
   return (
     <span
-      className={`host-avatar ${src ? 'has-custom-icon' : 'is-default-icon'} ${className}`.trim()}
+      className={`${styles['host-avatar']} host-avatar ${src ? 'has-custom-icon' : 'is-default-icon'} ${className}`.trim()}
       style={style}
       aria-hidden={decorative ? 'true' : undefined}
     >

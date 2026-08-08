@@ -112,6 +112,11 @@ vi.mock('antd', () => {
 })
 
 vi.mock('#shared/ui', () => ({
+  uiStyles: {
+    'field-label': 'field-label',
+    'page-actions': 'page-actions',
+    'secondary-button': 'secondary-button',
+  },
   ConnectionActionButton: ({
     children,
     disabled,

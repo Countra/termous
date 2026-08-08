@@ -17,7 +17,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { RemoteProcessDetail, RemoteProcessPort, RemoteProcessSort, RemoteProcessSummary } from '#entities/observability'
-import { WorkspaceEmptyState } from '#shared/ui'
+import { uiStyles, WorkspaceEmptyState } from '#shared/ui'
 import type { ObservabilityGateway, ObservabilitySessionContext } from '../model/contracts'
 import { defaultProcessQuery, type ProcessAutoRefreshSeconds, type SessionProcessQueryState, useSessionProcesses } from '../model/useSessionProcesses'
 import styles from './Observability.module.scss'
@@ -424,7 +424,7 @@ function ProcessDetailView({
           onConfirm={onTerminate}
         >
           <Button
-            className="secondary-button process-terminate-button"
+            className={`${uiStyles['secondary-button']} secondary-button process-terminate-button`}
             disabled={!canTerminate}
             loading={terminatingPid === summary.pid}
             icon={<Square size={13} />}
@@ -442,7 +442,7 @@ function ProcessDetailView({
         >
           <Button
             danger
-            className="danger-button process-terminate-button"
+            className={`${uiStyles['danger-button']} danger-button process-terminate-button`}
             disabled={!canTerminate}
             loading={terminatingPid === summary.pid}
             icon={<XOctagon size={14} />}

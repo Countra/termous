@@ -20,7 +20,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DockerAction, DockerContainerDetail, DockerContainerPort, DockerContainerSummary } from '#entities/docker'
-import { WorkspaceDetectionLoading, WorkspaceEmptyState } from '#shared/ui'
+import { uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState } from '#shared/ui'
 import type { DockerGateway, DockerSessionContext } from '../model/contracts'
 import { defaultDockerQuery, type SessionDockerQueryState, useSessionDocker } from '../model/useSessionDocker'
 import styles from './DockerPanel.module.scss'
@@ -495,7 +495,7 @@ function DockerDetailView({
         </div>
         <div className="docker-action-row">
           {stopped ? (
-            <Button className="secondary-button docker-action-button" loading={busy} icon={<Play size={13} />} onClick={() => onAction(ref, 'start')}>
+            <Button className={`${uiStyles['secondary-button']} secondary-button docker-action-button`} loading={busy} icon={<Play size={13} />} onClick={() => onAction(ref, 'start')}>
               {t('workbench.docker.start')}
             </Button>
           ) : null}
@@ -510,7 +510,7 @@ function DockerDetailView({
                 onOpenChange={(open) => setActionConfirm(open ? 'stop' : null)}
                 onConfirm={() => confirmAction(ref, 'stop')}
               >
-                <Button className="danger-button docker-action-button" loading={busy} icon={<Square size={13} />}>
+                <Button className={`${uiStyles['danger-button']} danger-button docker-action-button`} loading={busy} icon={<Square size={13} />}>
                   {t('workbench.docker.stop')}
                 </Button>
               </Popconfirm>
@@ -523,17 +523,17 @@ function DockerDetailView({
                 onOpenChange={(open) => setActionConfirm(open ? 'restart' : null)}
                 onConfirm={() => confirmAction(ref, 'restart')}
               >
-                <Button className="secondary-button docker-action-button" loading={busy} icon={<Undo2 size={13} />}>
+                <Button className={`${uiStyles['secondary-button']} secondary-button docker-action-button`} loading={busy} icon={<Undo2 size={13} />}>
                   {t('workbench.docker.restart')}
                 </Button>
               </Popconfirm>
-              <Button className="secondary-button docker-action-button" loading={busy} icon={<CirclePause size={13} />} onClick={() => onAction(ref, 'pause')}>
+              <Button className={`${uiStyles['secondary-button']} secondary-button docker-action-button`} loading={busy} icon={<CirclePause size={13} />} onClick={() => onAction(ref, 'pause')}>
                 {t('workbench.docker.pause')}
               </Button>
             </>
           ) : null}
           {paused ? (
-            <Button className="secondary-button docker-action-button" loading={busy} icon={<Play size={13} />} onClick={() => onAction(ref, 'unpause')}>
+            <Button className={`${uiStyles['secondary-button']} secondary-button docker-action-button`} loading={busy} icon={<Play size={13} />} onClick={() => onAction(ref, 'unpause')}>
               {t('workbench.docker.unpause')}
             </Button>
           ) : null}

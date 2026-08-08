@@ -1,0 +1,12 @@
+.custom-select {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.field-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}

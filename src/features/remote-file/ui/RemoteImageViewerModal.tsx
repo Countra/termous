@@ -3,6 +3,7 @@ import { AlertTriangle, Expand, Image as ImageIcon, Maximize2, RefreshCw, Rotate
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError } from '#shared/api'
+import { uiStyles } from '#shared/ui'
 import type { RemoteImageFile } from '#entities/file'
 import type { ThemeMode } from '#shared/theme'
 import { FileOperationProgress, type FileOperationProgressState } from './FileOperationProgress'
@@ -296,7 +297,7 @@ export function RemoteImageViewerModal({ api, open, fileSessionId, path, theme, 
             <div className="remote-image-viewer-state is-error">
               <AlertTriangle size={24} aria-hidden="true" />
               <strong>{error}</strong>
-              <Button className="secondary-button" icon={<RefreshCw size={14} />} onClick={() => void loadImage(true)}>
+              <Button className={`${uiStyles['secondary-button']} secondary-button`} icon={<RefreshCw size={14} />} onClick={() => void loadImage(true)}>
                 {t('files.imageViewerReload')}
               </Button>
             </div>
@@ -339,35 +340,35 @@ export function RemoteImageViewerModal({ api, open, fileSessionId, path, theme, 
           </div>
           <div className="remote-image-viewer-actions">
             <Tooltip title={t('files.imageViewerFit')}>
-              <Button className="secondary-button" icon={<Expand size={14} />} disabled={!blobUrl} onClick={() => {
+              <Button className={`${uiStyles['secondary-button']} secondary-button`} icon={<Expand size={14} />} disabled={!blobUrl} onClick={() => {
                 setFitMode(true)
                 setZoom(1)
                 setOffset({ x: 0, y: 0 })
               }} />
             </Tooltip>
             <Tooltip title={t('files.imageViewerActualSize')}>
-              <Button className="secondary-button" icon={<Maximize2 size={14} />} disabled={!blobUrl} onClick={() => {
+              <Button className={`${uiStyles['secondary-button']} secondary-button`} icon={<Maximize2 size={14} />} disabled={!blobUrl} onClick={() => {
                 setFitMode(false)
                 setZoom(1)
                 setOffset({ x: 0, y: 0 })
               }} />
             </Tooltip>
             <Tooltip title={t('files.imageViewerZoomOut')}>
-              <Button className="secondary-button" icon={<ZoomOut size={14} />} disabled={!blobUrl} onClick={() => changeZoom(-0.2)} />
+              <Button className={`${uiStyles['secondary-button']} secondary-button`} icon={<ZoomOut size={14} />} disabled={!blobUrl} onClick={() => changeZoom(-0.2)} />
             </Tooltip>
             <Tooltip title={t('files.imageViewerZoomIn')}>
-              <Button className="secondary-button" icon={<ZoomIn size={14} />} disabled={!blobUrl} onClick={() => changeZoom(0.2)} />
+              <Button className={`${uiStyles['secondary-button']} secondary-button`} icon={<ZoomIn size={14} />} disabled={!blobUrl} onClick={() => changeZoom(0.2)} />
             </Tooltip>
             <Tooltip title={t('files.imageViewerRotateLeft')}>
-              <Button className="secondary-button" icon={<RotateCcw size={14} />} disabled={!blobUrl} onClick={() => setRotation((value) => value - 90)} />
+              <Button className={`${uiStyles['secondary-button']} secondary-button`} icon={<RotateCcw size={14} />} disabled={!blobUrl} onClick={() => setRotation((value) => value - 90)} />
             </Tooltip>
             <Tooltip title={t('files.imageViewerRotateRight')}>
-              <Button className="secondary-button" icon={<RotateCw size={14} />} disabled={!blobUrl} onClick={() => setRotation((value) => value + 90)} />
+              <Button className={`${uiStyles['secondary-button']} secondary-button`} icon={<RotateCw size={14} />} disabled={!blobUrl} onClick={() => setRotation((value) => value + 90)} />
             </Tooltip>
-            <Button className="secondary-button" disabled={loading} icon={<RefreshCw size={14} />} onClick={() => void loadImage(true)}>
+            <Button className={`${uiStyles['secondary-button']} secondary-button`} disabled={loading} icon={<RefreshCw size={14} />} onClick={() => void loadImage(true)}>
               {t('files.imageViewerReload')}
             </Button>
-            <Button className="secondary-button" onClick={onClose}>
+            <Button className={`${uiStyles['secondary-button']} secondary-button`} onClick={onClose}>
               {t('app.close')}
             </Button>
           </div>

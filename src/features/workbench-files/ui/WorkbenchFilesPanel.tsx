@@ -63,7 +63,7 @@ import type {
 } from '#entities/file'
 import { joinPath, normalizeRemotePath, parentPath } from '#shared/path'
 import type { FileSessionClosureState } from '#entities/file'
-import { WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
+import { uiStyles, WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
 import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
 import { WorkbenchFileList } from './WorkbenchFileList'
 import { WorkbenchTransferBar } from './WorkbenchTransferBar'
@@ -939,7 +939,7 @@ function WorkbenchFilesPanelContent({
       || files.fileSession?.status === 'waiting_trust'
     return (
       <div className="workbench-file-connect">
-        {files.recoveryBusy ? <LoaderCircle className="is-spinning" size={21} /> : <FolderOpen size={21} />}
+        {files.recoveryBusy ? <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={21} /> : <FolderOpen size={21} />}
         <strong>{recoveryPresentation.title}</strong>
         <span>{recoveryPresentation.detail}</span>
         {pendingConnection ? <Progress percent={progress} showInfo={false} size="small" /> : null}
@@ -989,7 +989,7 @@ function WorkbenchFilesPanelContent({
                 type="text"
                 className="workbench-files-icon-button"
                 aria-label={t('app.reload')}
-                icon={<RefreshCw className={directoryRefreshing ? 'is-spinning' : ''} size={14} />}
+                icon={<RefreshCw className={directoryRefreshing ? `${uiStyles['is-spinning']} is-spinning` : ''} size={14} />}
                 disabled={directoryLoading || !files.connected}
                 onClick={() => void files.loadDirectory(currentPath)}
               />
@@ -1220,7 +1220,7 @@ function WorkbenchFilesPanelContent({
                 }
               },
             }}
-            classNames={{ root: 'files-row-menu' }}
+            classNames={{ root: styles['files-row-menu'] }}
           >
             <Button
               type="text"
@@ -1237,7 +1237,7 @@ function WorkbenchFilesPanelContent({
             aria-live="polite"
           >
             <span className="workbench-file-recovery-icon" aria-hidden="true">
-              {files.recoveryBusy ? <LoaderCircle className="is-spinning" size={14} /> : <CircleAlert size={14} />}
+              {files.recoveryBusy ? <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={14} /> : <CircleAlert size={14} />}
             </span>
             <span className="workbench-file-recovery-copy">
               <strong>{recoveryPresentation.title}</strong>

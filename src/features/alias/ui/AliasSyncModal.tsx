@@ -26,7 +26,7 @@ import type {
 import type { CredentialView } from '#entities/credential'
 import { AuthMethodBadge, HostAvatar } from '#entities/host'
 import type { Host, HostGroup, HostReachability } from '#entities/host'
-import { ConfirmDialog } from '#shared/ui'
+import { ConfirmDialog, uiStyles } from '#shared/ui'
 import type { AliasGateway, AliasSessionContext } from '../model/contracts'
 import {
   aliasSyncCloseNeedsCancellation,
@@ -812,13 +812,13 @@ function taskStatusIcon(status: string) {
   if (status === 'failed' || status === 'partial_failed') return <AlertTriangle size={14} />
   if (status === 'cancelled') return <XCircle size={14} />
   if (status === 'queued') return <Clock3 size={14} />
-  return <LoaderCircle className="is-spinning" size={14} />
+  return <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={14} />
 }
 
 function targetStatusIcon(status: string) {
   if (status === 'succeeded' || status === 'skipped') return <CheckCircle2 size={15} />
   if (status === 'failed' || status === 'uncertain') return <AlertTriangle size={15} />
   if (status === 'cancelled') return <XCircle size={15} />
-  if (status === 'running') return <LoaderCircle className="is-spinning" size={15} />
+  if (status === 'running') return <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={15} />
   return <Circle size={15} />
 }

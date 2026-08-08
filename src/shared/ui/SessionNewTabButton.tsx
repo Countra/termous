@@ -1,6 +1,7 @@
 import { Button, Tooltip, type ButtonProps } from 'antd'
 import { Plus } from 'lucide-react'
 import { forwardRef } from 'react'
+import styles from './SessionTabs.module.scss'
 
 interface SessionNewTabButtonProps extends Omit<ButtonProps, 'children' | 'icon' | 'title' | 'type'> {
   label: string
@@ -23,14 +24,14 @@ export const SessionNewTabButton = forwardRef<HTMLButtonElement, SessionNewTabBu
       arrow={false}
       mouseEnterDelay={0.35}
       mouseLeaveDelay={0}
-      classNames={{ root: 'termous-tooltip session-tab-tooltip' }}
+      classNames={{ root: `termous-tooltip ${styles['session-tab-tooltip']}` }}
       destroyOnHidden
     >
       <Button
         {...props}
         ref={ref}
         type="text"
-        className={['session-new-tab-button', active ? 'is-open' : '', className].filter(Boolean).join(' ')}
+        className={[styles['session-new-tab-button'], active ? styles['is-open'] : '', className].filter(Boolean).join(' ')}
         aria-label={label}
         aria-busy={busy}
         disabled={disabled}

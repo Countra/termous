@@ -10,6 +10,7 @@ import {
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
+import { uiStyles } from '#shared/ui'
 import type { LocalPathMapping, LocalTreeEntry } from '#entities/file'
 import {
   isLocalDirectoryBusy,
@@ -125,7 +126,7 @@ export function LocalDownloadBrowserPane({
                 <RefreshCw
                   size={14}
                   aria-hidden="true"
-                  className={state?.status === 'refreshing' ? 'is-spinning' : ''}
+                  className={state?.status === 'refreshing' ? `${uiStyles['is-spinning']} is-spinning` : ''}
                 />
               )}
               onClick={onRefresh}

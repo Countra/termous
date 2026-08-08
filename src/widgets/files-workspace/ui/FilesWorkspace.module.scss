@@ -1,12 +1,14 @@
-/* 迁移过渡期保留历史选择器和声明，后续按局部行为类逐段收敛。 */
-/* stylelint-disable termous/no-unscoped-global, declaration-empty-line-before, selector-class-pattern, color-hex-length, declaration-block-no-redundant-longhand-properties, property-no-deprecated, keyframes-name-pattern -- 迁移期保持既有文件工作区视觉与行为兼容。 */
+/* stylelint-disable declaration-empty-line-before, selector-class-pattern, color-hex-length, declaration-block-no-redundant-longhand-properties, property-no-deprecated, keyframes-name-pattern -- 保持既有文件工作区声明与级联顺序。 */
+@use './FilesWorkspaceSurface.module' as surface;
+@use './FilesWorkspaceDetails.module' as details;
 @use './FilesWorkspacePanels.module' as panels;
+@include surface.styles;
+@include details.styles;
 
 .root {
   position: static;
 }
 
-:global {
 .files-workspace-page {
   --files-status-bar-height: 36px;
   position: relative;
@@ -91,9 +93,9 @@
   gap: 3px;
 }
 
-.files-chrome-button.ant-btn,
-.files-navigation-button.ant-btn,
-.files-path-action.ant-btn {
+.files-chrome-button:global(.ant-btn),
+.files-navigation-button:global(.ant-btn),
+.files-path-action:global(.ant-btn) {
   display: inline-flex;
   width: 32px;
   height: 32px;
@@ -109,28 +111,28 @@
     transform 0.14s ease;
 }
 
-.files-chrome-button.ant-btn:hover,
-.files-navigation-button.ant-btn:not(:disabled):hover,
-.files-path-action.ant-btn:not(:disabled):hover,
-.files-chrome-button.ant-btn.is-active,
-.files-path-action.ant-btn.is-confirm {
+.files-chrome-button:global(.ant-btn):hover,
+.files-navigation-button:global(.ant-btn):not(:disabled):hover,
+.files-path-action:global(.ant-btn):not(:disabled):hover,
+.files-chrome-button:global(.ant-btn).is-active,
+.files-path-action:global(.ant-btn).is-confirm {
   background: color-mix(in srgb, var(--accent-soft) 46%, var(--surface-subtle));
   color: var(--text-primary);
 }
 
-.files-chrome-button.ant-btn:active,
-.files-navigation-button.ant-btn:not(:disabled):active,
-.files-path-action.ant-btn:not(:disabled):active {
+.files-chrome-button:global(.ant-btn):active,
+.files-navigation-button:global(.ant-btn):not(:disabled):active,
+.files-path-action:global(.ant-btn):not(:disabled):active {
   transform: translateY(1px);
 }
 
-.files-navigation-button.ant-btn {
+.files-navigation-button:global(.ant-btn) {
   width: 29px;
   height: 29px;
   border-radius: 6px;
 }
 
-.files-navigation-button.ant-btn:disabled {
+.files-navigation-button:global(.ant-btn):disabled {
   color: color-mix(in srgb, var(--text-muted) 48%, transparent);
 }
 
@@ -181,7 +183,7 @@
   background: color-mix(in srgb, var(--danger) 4%, var(--input-bg));
 }
 
-.files-path-control .ant-input {
+.files-path-control :global(.ant-input) {
   height: 30px;
   border: 0;
   background: transparent;
@@ -201,17 +203,17 @@
   padding-left: 3px;
 }
 
-.files-path-action.ant-btn {
+.files-path-action:global(.ant-btn) {
   width: 28px;
   height: 28px;
   border-radius: 6px;
 }
 
-.files-path-action.ant-btn.is-confirm {
+.files-path-action:global(.ant-btn).is-confirm {
   color: var(--accent);
 }
 
-.files-path-action.ant-btn.is-error {
+.files-path-action:global(.ant-btn).is-error {
   color: var(--danger);
 }
 
@@ -223,11 +225,11 @@
   background: color-mix(in srgb, var(--border) 68%, transparent);
 }
 
-.files-path-action.ant-btn.is-bookmark-rail-toggle {
+.files-path-action:global(.ant-btn).is-bookmark-rail-toggle {
   color: var(--text-muted);
 }
 
-.files-path-action.ant-btn.is-bookmark-rail-toggle.is-active {
+.files-path-action:global(.ant-btn).is-bookmark-rail-toggle.is-active {
   background: color-mix(in srgb, var(--accent) 9%, transparent);
   color: var(--accent);
 }
@@ -286,7 +288,7 @@
   place-items: center;
 }
 
-.files-breadcrumb-scroll.ant-btn {
+.files-breadcrumb-scroll:global(.ant-btn) {
   display: grid;
   width: 24px;
   height: 25px;
@@ -297,19 +299,19 @@
   padding: 0;
 }
 
-.files-breadcrumb-scroll.ant-btn:hover {
+.files-breadcrumb-scroll:global(.ant-btn):hover {
   background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface-subtle));
   color: var(--text-primary);
 }
 
-.files-workspace-breadcrumb.ant-breadcrumb {
+.files-workspace-breadcrumb:global(.ant-breadcrumb) {
   min-height: 30px;
   min-width: max-content;
   overflow: visible;
   color: var(--text-secondary);
 }
 
-.files-workspace-breadcrumb.ant-breadcrumb ol {
+.files-workspace-breadcrumb:global(.ant-breadcrumb) ol {
   display: flex;
   min-width: max-content;
   min-height: 30px;
@@ -318,13 +320,13 @@
   gap: 1px;
 }
 
-.files-workspace-breadcrumb .ant-breadcrumb-link,
-.files-workspace-breadcrumb .ant-breadcrumb-separator {
+.files-workspace-breadcrumb :global(.ant-breadcrumb-link),
+.files-workspace-breadcrumb :global(.ant-breadcrumb-separator) {
   display: inline-flex;
   align-items: center;
 }
 
-.files-workspace-breadcrumb .ant-breadcrumb-separator {
+.files-workspace-breadcrumb :global(.ant-breadcrumb-separator) {
   margin-inline: 2px;
   color: color-mix(in srgb, var(--text-muted) 68%, transparent);
 }
@@ -452,7 +454,7 @@
   padding: 2px;
 }
 
-.files-workspace-toggle.ant-btn {
+.files-workspace-toggle:global(.ant-btn) {
   display: inline-flex;
   height: 28px;
   align-items: center;
@@ -469,12 +471,12 @@
     color 0.14s ease;
 }
 
-.files-workspace-toggle.ant-btn:not(:disabled):hover {
+.files-workspace-toggle:global(.ant-btn):not(:disabled):hover {
   background: color-mix(in srgb, var(--surface-subtle) 88%, transparent);
   color: var(--text-primary);
 }
 
-.files-workspace-toggle.ant-btn.is-active {
+.files-workspace-toggle:global(.ant-btn).is-active {
   background: color-mix(in srgb, var(--accent-soft) 52%, var(--surface-subtle));
   color: var(--accent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
@@ -500,8 +502,8 @@
   line-height: 1;
 }
 
-.files-command-button.ant-btn,
-.files-upload-button.ant-btn {
+.files-command-button:global(.ant-btn),
+.files-upload-button:global(.ant-btn) {
   display: inline-flex;
   height: 32px;
   align-items: center;
@@ -511,33 +513,33 @@
   font-weight: 640;
 }
 
-.files-selection-more.ant-btn {
+.files-selection-more:global(.ant-btn) {
   display: none;
 }
 
-.files-command-button.ant-btn {
+.files-command-button:global(.ant-btn) {
   color: var(--text-secondary);
 }
 
-.files-command-button.ant-btn:hover {
+.files-command-button:global(.ant-btn):hover {
   background: var(--surface-subtle);
   color: var(--text-primary);
 }
 
-.files-upload-button.ant-btn {
+.files-upload-button:global(.ant-btn) {
   border-color: color-mix(in srgb, var(--accent) 62%, transparent);
   background: color-mix(in srgb, var(--accent-strong) 90%, #000000);
   color: #ffffff;
   box-shadow: 0 5px 16px color-mix(in srgb, var(--accent-strong) 22%, transparent);
 }
 
-.files-workspace-page .files-upload-button.ant-btn:not(:disabled):is(:hover, :focus-visible) {
+.files-workspace-page .files-upload-button:global(.ant-btn):not(:disabled):is(:hover, :focus-visible) {
   border-color: color-mix(in srgb, var(--accent-strong) 84%, #000000);
   background: color-mix(in srgb, var(--accent-strong) 84%, #000000);
   color: #ffffff;
 }
 
-.files-workspace-page .files-upload-button.ant-btn:not(:disabled):active {
+.files-workspace-page .files-upload-button:global(.ant-btn):not(:disabled):active {
   border-color: color-mix(in srgb, var(--accent-strong) 76%, #000000);
   background: color-mix(in srgb, var(--accent-strong) 76%, #000000);
   color: #ffffff;
@@ -555,7 +557,7 @@
   font-weight: 680;
 }
 
-.files-delete-command.ant-btn {
+.files-delete-command:global(.ant-btn) {
   color: var(--danger);
 }
 
@@ -579,11 +581,11 @@
 
 .files-workspace-page.has-bookmarks-sidebar .files-table-shell,
 .files-workspace-page.has-bookmarks-sidebar .files-table,
-.files-workspace-page.has-bookmarks-sidebar .files-table .ant-spin-nested-loading,
-.files-workspace-page.has-bookmarks-sidebar .files-table .ant-spin-container,
-.files-workspace-page.has-bookmarks-sidebar .files-table .ant-table,
-.files-workspace-page.has-bookmarks-sidebar .files-table .ant-table-container,
-.files-workspace-page.has-bookmarks-sidebar .files-table .ant-table-header {
+.files-workspace-page.has-bookmarks-sidebar .files-table :global(.ant-spin-nested-loading),
+.files-workspace-page.has-bookmarks-sidebar .files-table :global(.ant-spin-container),
+.files-workspace-page.has-bookmarks-sidebar .files-table :global(.ant-table),
+.files-workspace-page.has-bookmarks-sidebar .files-table :global(.ant-table-container),
+.files-workspace-page.has-bookmarks-sidebar .files-table :global(.ant-table-header) {
   border-top-right-radius: 0 !important;
   border-start-end-radius: 0 !important;
 }
@@ -593,29 +595,29 @@
 }
 
 .files-workspace-page .files-table,
-.files-workspace-page .files-table .ant-spin-nested-loading,
-.files-workspace-page .files-table .ant-spin-container {
+.files-workspace-page .files-table :global(.ant-spin-nested-loading),
+.files-workspace-page .files-table :global(.ant-spin-container) {
   height: 100%;
 }
 
-.files-workspace-page .files-table .ant-table-container,
-.files-workspace-page .files-table .ant-table,
-.files-workspace-page .files-table .ant-table-header,
-.files-workspace-page .files-table .ant-table-container table,
-.files-workspace-page .files-table .ant-table-thead,
-.files-workspace-page .files-table .ant-table-thead > tr:first-child > th:first-child,
-.files-workspace-page .files-table .ant-table-thead > tr:first-child > th:last-child {
+.files-workspace-page .files-table :global(.ant-table-container),
+.files-workspace-page .files-table :global(.ant-table),
+.files-workspace-page .files-table :global(.ant-table-header),
+.files-workspace-page .files-table :global(.ant-table-container) table,
+.files-workspace-page .files-table :global(.ant-table-thead),
+.files-workspace-page .files-table :global(.ant-table-thead) > tr:first-child > th:first-child,
+.files-workspace-page .files-table :global(.ant-table-thead) > tr:first-child > th:last-child {
   border-radius: 0 !important;
   border-start-start-radius: 0 !important;
   border-start-end-radius: 0 !important;
 }
 
-.files-workspace-page .files-table .ant-table-header,
-.files-workspace-page .files-table .ant-table-thead {
+.files-workspace-page .files-table :global(.ant-table-header),
+.files-workspace-page .files-table :global(.ant-table-thead) {
   background: color-mix(in srgb, var(--surface-strong) 86%, transparent) !important;
 }
 
-.files-workspace-page .files-table .ant-table-thead > tr > th {
+.files-workspace-page .files-table :global(.ant-table-thead) > tr > th {
   height: 34px;
   background: color-mix(in srgb, var(--surface-strong) 86%, transparent) !important;
   padding: 6px 8px;
@@ -623,36 +625,36 @@
   font-weight: 680;
 }
 
-.files-workspace-page .files-table .ant-table-thead > tr > th::before {
+.files-workspace-page .files-table :global(.ant-table-thead) > tr > th::before {
   display: none !important;
 }
 
-.files-workspace-page .files-table .ant-table-column-sorters {
+.files-workspace-page .files-table :global(.ant-table-column-sorters) {
   justify-content: flex-start;
   gap: 6px;
 }
 
-.files-workspace-page .files-table .ant-table-column-sorter {
+.files-workspace-page .files-table :global(.ant-table-column-sorter) {
   margin-inline-start: 0;
   color: color-mix(in srgb, var(--text-muted) 70%, transparent);
 }
 
-.files-workspace-page .files-table th.ant-table-column-has-sorters:hover {
+.files-workspace-page .files-table th:global(.ant-table-column-has-sorters):hover {
   background: color-mix(in srgb, var(--row-hover-bg) 72%, var(--surface-strong)) !important;
   color: var(--text-primary);
 }
 
-.files-workspace-page .files-table th.ant-table-column-sort {
+.files-workspace-page .files-table th:global(.ant-table-column-sort) {
   background: color-mix(in srgb, var(--accent) 7%, var(--surface-strong)) !important;
   color: var(--text-primary);
 }
 
-.files-workspace-page .files-table th.ant-table-column-sort .ant-table-column-sorter {
+.files-workspace-page .files-table th:global(.ant-table-column-sort) :global(.ant-table-column-sorter) {
   color: var(--accent);
 }
 
-.files-workspace-page .files-table .ant-table-tbody > tr > td,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .ant-table-row > .ant-table-cell {
+.files-workspace-page .files-table :global(.ant-table-tbody) > tr > td,
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) :global(.ant-table-row) > :global(.ant-table-cell) {
   height: 40px;
   padding: 4px 8px;
   border-bottom-color: color-mix(in srgb, var(--border) 54%, transparent) !important;
@@ -672,7 +674,7 @@
 }
 
 .files-workspace-page .files-table .files-table-row > td,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .files-table-row > .ant-table-cell {
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) .files-table-row > :global(.ant-table-cell) {
   cursor: pointer;
   transition:
     background 0.14s ease,
@@ -681,44 +683,44 @@
 }
 
 .files-workspace-page .files-table .files-table-row[draggable="true"] > td,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .files-table-row[draggable="true"] > .ant-table-cell {
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) .files-table-row[draggable="true"] > :global(.ant-table-cell) {
   cursor: pointer;
 }
 
 .files-workspace-page .files-table .files-table-row[draggable="true"]:active > td,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .files-table-row[draggable="true"]:active > .ant-table-cell {
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) .files-table-row[draggable="true"]:active > :global(.ant-table-cell) {
   cursor: pointer;
 }
 
-.files-workspace-page .files-table .ant-table-tbody > tr.ant-table-row:hover > td,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .ant-table-row:hover > .ant-table-cell {
+.files-workspace-page .files-table :global(.ant-table-tbody) > tr:global(.ant-table-row):hover > td,
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) :global(.ant-table-row):hover > :global(.ant-table-cell) {
   background: color-mix(in srgb, var(--row-hover-bg) 92%, transparent) !important;
 }
 
-.files-workspace-page .files-table .ant-table-tbody > tr.ant-table-row-selected > td,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .ant-table-row-selected > .ant-table-cell {
+.files-workspace-page .files-table :global(.ant-table-tbody) > tr:global(.ant-table-row-selected) > td,
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) :global(.ant-table-row-selected) > :global(.ant-table-cell) {
   background: color-mix(in srgb, var(--accent) 9%, var(--surface)) !important;
 }
 
-.files-workspace-page .files-table .ant-table-tbody > tr.ant-table-row-selected:hover > td,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .ant-table-row-selected:hover > .ant-table-cell {
+.files-workspace-page .files-table :global(.ant-table-tbody) > tr:global(.ant-table-row-selected):hover > td,
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) :global(.ant-table-row-selected):hover > :global(.ant-table-cell) {
   background: color-mix(in srgb, var(--accent) 13%, var(--surface)) !important;
 }
 
-.files-workspace-page .files-table .ant-table-tbody > tr.ant-table-row-selected > td:first-child,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .ant-table-row-selected > .ant-table-cell:first-child {
+.files-workspace-page .files-table :global(.ant-table-tbody) > tr:global(.ant-table-row-selected) > td:first-child,
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) :global(.ant-table-row-selected) > :global(.ant-table-cell):first-child {
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 88%, transparent);
 }
 
-.files-workspace-page .files-table .ant-table-tbody > tr:focus-visible > td,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .files-table-row:focus-visible > .ant-table-cell {
+.files-workspace-page .files-table :global(.ant-table-tbody) > tr:focus-visible > td,
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) .files-table-row:focus-visible > :global(.ant-table-cell) {
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--accent) 38%, transparent),
     inset 0 -1px 0 color-mix(in srgb, var(--accent) 34%, transparent);
 }
 
-.files-workspace-page .files-table .ant-table-tbody > tr:focus-visible > td:first-child,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .files-table-row:focus-visible > .ant-table-cell:first-child {
+.files-workspace-page .files-table :global(.ant-table-tbody) > tr:focus-visible > td:first-child,
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) .files-table-row:focus-visible > :global(.ant-table-cell):first-child {
   box-shadow:
     inset 2px 0 0 var(--accent),
     inset 0 1px 0 color-mix(in srgb, var(--accent) 38%, transparent),
@@ -758,7 +760,7 @@
 
 .files-workspace-page .files-table-row:hover .files-table-actions-cell .files-icon-button,
 .files-workspace-page .files-table-row:focus-within .files-table-actions-cell .files-icon-button,
-.files-workspace-page .ant-table-row-selected .files-table-actions-cell .files-icon-button {
+.files-workspace-page :global(.ant-table-row-selected) .files-table-actions-cell .files-icon-button {
   opacity: 1;
 }
 
@@ -790,12 +792,12 @@ body[data-files-resize-key="permissions"] .files-workspace-page [data-resize-key
 }
 
 .files-workspace-page .files-table .files-table-row.is-being-dragged > td,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .files-table-row.is-being-dragged > .ant-table-cell {
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) .files-table-row.is-being-dragged > :global(.ant-table-cell) {
   opacity: 0.48;
 }
 
 .files-workspace-page .files-table .files-table-row.is-directory.is-drop-target > td,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .files-table-row.is-directory.is-drop-target > .ant-table-cell {
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) .files-table-row.is-directory.is-drop-target > :global(.ant-table-cell) {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface)) !important;
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--accent) 34%, transparent),
@@ -803,7 +805,7 @@ body[data-files-resize-key="permissions"] .files-workspace-page [data-resize-key
 }
 
 .files-workspace-page .files-table .files-table-row.is-directory.is-drop-target > td:first-child,
-.files-workspace-page .files-table .ant-table-tbody-virtual-holder .files-table-row.is-directory.is-drop-target > .ant-table-cell:first-child {
+.files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) .files-table-row.is-directory.is-drop-target > :global(.ant-table-cell):first-child {
   box-shadow:
     inset 2px 0 0 var(--accent),
     inset 0 1px 0 color-mix(in srgb, var(--accent) 34%, transparent),
@@ -954,11 +956,103 @@ body[data-files-resize-key="permissions"] .files-workspace-page [data-resize-key
   }
 
   .files-workspace-page .files-table .files-table-row > td,
-  .files-workspace-page .files-table .ant-table-tbody-virtual-holder .files-table-row > .ant-table-cell {
+  .files-workspace-page .files-table :global(.ant-table-tbody-virtual-holder) .files-table-row > :global(.ant-table-cell) {
     transition: none;
   }
 }
-}
 
 @include panels.styles;
-/* stylelint-enable termous/no-unscoped-global, declaration-empty-line-before, selector-class-pattern, color-hex-length, declaration-block-no-redundant-longhand-properties, property-no-deprecated, keyframes-name-pattern */
+/* stylelint-enable declaration-empty-line-before, selector-class-pattern, color-hex-length, declaration-block-no-redundant-longhand-properties, property-no-deprecated, keyframes-name-pattern */
+
+.terminal-toolbar {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  max-width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--terminal-toolbar);
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+.terminal-tabs {
+  display: flex;
+  min-width: 0;
+}
+
+.connection-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.connection-progress-head strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.connection-progress-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+}
+
+.connection-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.22s ease;
+}
+
+.connection-phase-row {
+  display: flex;
+  min-width: 0;
+  gap: 9px;
+  overflow: hidden;
+}
+
+.connection-phase {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.connection-phase span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.connection-phase-active {
+  color: var(--warning);
+}
+
+.connection-phase-active svg {
+  animation: files-connection-progress-spin 0.9s linear infinite;
+}
+
+.connection-phase-done {
+  color: var(--success);
+}
+
+.connection-phase-failed {
+  color: var(--danger);
+}
+
+@keyframes files-connection-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

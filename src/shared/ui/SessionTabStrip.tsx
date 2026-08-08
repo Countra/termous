@@ -9,6 +9,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react'
+import styles from './SessionTabs.module.scss'
 
 interface SessionTabStripProps {
   ariaLabel: string
@@ -34,7 +35,7 @@ const emptyScrollState: TabScrollState = {
   canScrollRight: false,
 }
 
-const sessionTabTooltipClassNames = { root: 'termous-tooltip session-tab-tooltip' }
+const sessionTabTooltipClassNames = { root: `termous-tooltip ${styles['session-tab-tooltip']}` }
 
 export function SessionTabStrip({
   ariaLabel,
@@ -322,15 +323,15 @@ export function SessionTabStrip({
   }, [findActiveTab, scrollState])
 
   const classes = [
-    'session-tabs-shell',
-    trailing ? 'has-trailing' : '',
-    scrollState.hasOverflow ? 'has-overflow' : '',
+    styles['session-tabs-shell'],
+    trailing ? styles['has-trailing'] : '',
+    scrollState.hasOverflow ? styles['has-overflow'] : '',
     className,
   ].filter(Boolean).join(' ')
   const tabsClasses = [
-    'session-tabs',
-    scrollState.canScrollLeft ? 'has-left-overflow' : '',
-    scrollState.canScrollRight ? 'has-right-overflow' : '',
+    styles['session-tabs'],
+    scrollState.canScrollLeft ? styles['has-left-overflow'] : '',
+    scrollState.canScrollRight ? styles['has-right-overflow'] : '',
     tabsClassName,
   ].filter(Boolean).join(' ')
 
@@ -348,7 +349,7 @@ export function SessionTabStrip({
         >
           <Button
             type="text"
-            className="session-scroll-button is-left"
+            className={styles['session-scroll-button']}
             data-session-tab-scroll-direction="left"
             aria-label={scrollLeftLabel}
             disabled={!scrollState.canScrollLeft}
@@ -358,18 +359,18 @@ export function SessionTabStrip({
           />
         </Tooltip>
       ) : null}
-      <div ref={stageRef} className="session-tabs-stage">
+      <div ref={stageRef} className={styles['session-tabs-stage']}>
         <div
           ref={viewportRef}
           className={tabsClasses}
           onKeyDown={handleKeyDown}
           onClickCapture={handleClickCapture}
         >
-          <div ref={trackRef} className="session-tabs-track" role="tablist" aria-label={ariaLabel}>
+          <div ref={trackRef} className={styles['session-tabs-track']} role="tablist" aria-label={ariaLabel}>
             {children}
           </div>
         </div>
-        {trailing ? <div className="session-tabs-trailing">{trailing}</div> : null}
+        {trailing ? <div className={styles['session-tabs-trailing']}>{trailing}</div> : null}
       </div>
       {scrollState.hasOverflow ? (
         <Tooltip
@@ -383,7 +384,7 @@ export function SessionTabStrip({
         >
           <Button
             type="text"
-            className="session-scroll-button is-right"
+            className={styles['session-scroll-button']}
             data-session-tab-scroll-direction="right"
             aria-label={scrollRightLabel}
             disabled={!scrollState.canScrollRight}

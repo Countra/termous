@@ -1,6 +1,7 @@
 import { CheckCircle2, Circle, CircleDashed, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { Session, SessionPhase } from '#entities/session'
+import styles from './ConnectionProgress.module.scss'
 
 const sshPhaseOrder: SessionPhase[] = [
   'queued',
@@ -30,20 +31,24 @@ export function ConnectionProgress({ session, showReady = false }: { session: Se
     : t(`connection.phase.${currentPhase}`)
 
   return (
-    <div className="connection-progress" aria-live="polite">
-      <div className="connection-progress-head">
+    <div className={`${styles['connection-progress']} connection-progress`} aria-live="polite">
+      <div className={styles['connection-progress-head']}>
         <span>{headline}</span>
         <strong>{progress}%</strong>
       </div>
-      <div className="connection-progress-bar">
+      <div className={styles['connection-progress-bar']}>
         <span style={{ width: `${progress}%` }} />
       </div>
-      <div className="connection-phase-row">
+      <div className={styles['connection-phase-row']}>
         {phaseOrder.map((phase, index) => {
           const state = phaseState(session, index, currentIndex)
           const Icon = state === 'done' ? CheckCircle2 : state === 'failed' ? XCircle : state === 'active' ? CircleDashed : Circle
           return (
-            <span key={phase} className={`connection-phase is-${state}`} title={t(`connection.phase.${phase}`)}>
+            <span
+              key={phase}
+              className={`${styles['connection-phase']} ${styles[`is-${state}`] ?? ''}`}
+              title={t(`connection.phase.${phase}`)}
+            >
               <Icon size={13} aria-hidden="true" />
               <span>{t(`connection.phaseShort.${phase}`)}</span>
             </span>

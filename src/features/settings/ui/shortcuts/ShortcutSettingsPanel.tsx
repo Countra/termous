@@ -23,6 +23,7 @@ import type {
   ShortcutChord,
   ShortcutSettings,
 } from '#common/contracts'
+import { termousPopconfirmProps } from '#shared/ui'
 import {
   formatShortcutChord,
   shortcutBindingListsEqual,
@@ -225,13 +226,12 @@ export function ShortcutSettingsPanel({
           <div className={styles['shortcut-settings-summary']}>
             <span>{t('settings.shortcuts.customizedCount', { count: customizedCount })}</span>
             <Popconfirm
+              {...termousPopconfirmProps}
               title={t('settings.shortcuts.resetAllTitle')}
               description={t('settings.shortcuts.resetAllDescription')}
               okText={t('settings.shortcuts.resetAllConfirm')}
               cancelText={t('settings.shortcuts.recorder.cancel')}
               placement="bottomRight"
-              rootClassName="termous-popconfirm"
-              classNames={{ container: 'termous-popconfirm-surface' }}
               onConfirm={() => resetAll()}
             >
               <Button
@@ -381,12 +381,11 @@ function ShortcutSettingsRowView({
       <div className={styles['shortcut-settings-row-actions']}>
         {row.customized && (
           <Popconfirm
+            {...termousPopconfirmProps}
             title={t('settings.shortcuts.binding.restoreTitle')}
             description={t('settings.shortcuts.binding.restoreDescription')}
             okText={t('settings.shortcuts.binding.restoreConfirm')}
             cancelText={t('settings.shortcuts.recorder.cancel')}
-            rootClassName="termous-popconfirm"
-            classNames={{ container: 'termous-popconfirm-surface' }}
             onConfirm={() => onRestore()}
           >
             <Tooltip title={t('settings.shortcuts.binding.restore')}>

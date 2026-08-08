@@ -95,9 +95,13 @@ export function WorkbenchTerminalPanel({
   return (
     <div className={styles['terminal-workspace']}>
       <div className={styles['terminal-card']}>
-        <div className="terminal-toolbar">
+        <div className={`${styles['terminal-toolbar']} terminal-toolbar`}>
           {sessionTabs}
-          <StatusBadge status={sessionBadgeStatus} label={sessionStatusLabel} />
+          <StatusBadge
+            className={styles['terminal-toolbar-status']}
+            status={sessionBadgeStatus}
+            label={sessionStatusLabel}
+          />
         </div>
         <div className={[
           styles['terminal-progress-slot'],

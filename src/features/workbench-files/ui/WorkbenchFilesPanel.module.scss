@@ -4,6 +4,32 @@
   position: static;
 }
 
+.files-row-menu {
+  border-radius: 12px;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.files-row-menu :global(.ant-dropdown-menu) {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #21252e !important;
+  background-clip: padding-box;
+  backdrop-filter: none !important;
+  box-shadow: var(--shadow-soft);
+}
+
+.files-row-menu {
+  :global(:root[data-theme='light']) & {
+    background: transparent !important;
+  }
+
+  :global(:root[data-theme='light']) & :global(.ant-dropdown-menu) {
+    background: #fff !important;
+  }
+}
+
 :global {
 .details-tabs .ant-tabs-content-active:has(> .workbench-files-panel) {
   overflow: hidden;

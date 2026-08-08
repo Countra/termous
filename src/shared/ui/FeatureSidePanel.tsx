@@ -1,6 +1,7 @@
 import { Button, Tabs, Tooltip } from 'antd'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { ReactNode, PointerEvent as ReactPointerEvent } from 'react'
+import styles from './FeatureSidePanel.module.scss'
 
 export interface FeatureSidePanelTab<Key extends string> {
   key: Key
@@ -38,7 +39,14 @@ export function FeatureSidePanel<Key extends string>({
   onCollapsedChange,
   onResizePointerDown,
 }: FeatureSidePanelProps<Key>) {
-  const classes = ['details-panel', 'feature-side-panel', className, collapsed ? 'is-collapsed' : '', resizing ? 'is-resizing' : '']
+  const classes = [
+    styles['details-panel'],
+    'details-panel',
+    'feature-side-panel',
+    className,
+    collapsed ? `${styles['is-collapsed']} is-collapsed` : '',
+    resizing ? 'is-resizing' : '',
+  ]
     .filter(Boolean)
     .join(' ')
 
@@ -55,7 +63,7 @@ export function FeatureSidePanel<Key extends string>({
         />
       </Tooltip>
       {collapsed ? (
-        <div className="details-collapsed-rail" aria-label={ariaLabel}>
+        <div className={`${styles['details-collapsed-rail']} details-collapsed-rail`} aria-label={ariaLabel}>
           {tabs.map((item) => (
             <Tooltip key={item.key} title={item.label} placement="left">
               <Button

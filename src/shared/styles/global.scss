@@ -105,10 +105,23 @@ body {
   overflow: hidden;
 }
 
+@media (width <= 1180px) {
+  body {
+    overflow: auto;
+  }
+}
+
 body[data-termous-bottom-drawer-resizing],
 body[data-termous-bottom-drawer-resizing] * {
   cursor: ns-resize !important;
   user-select: none !important;
+}
+
+/* 终端标签拖拽会跨越工作台与 Portal，光标状态必须由 document 统一持有。 */
+body[data-terminal-tab-dragging='true'],
+body[data-terminal-tab-dragging='true'] * {
+  cursor: grabbing !important;
+  user-select: none;
 }
 
 button,

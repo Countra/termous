@@ -15,6 +15,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ShortcutChord } from '#common/contracts'
+import { termousPopconfirmProps } from '#shared/ui'
 import {
   applyShortcutDispatchResult,
   formatShortcutChord,
@@ -205,13 +206,12 @@ function ShortcutRecorderBody({
               onClick={() => onRecord(index)}
             />
             <Popconfirm
+              {...termousPopconfirmProps}
               title={t('settings.shortcuts.binding.removeTitle')}
               description={t('settings.shortcuts.binding.removeDescription')}
               okText={t('settings.shortcuts.binding.removeConfirm')}
               cancelText={t('settings.shortcuts.recorder.cancel')}
               placement="topRight"
-              rootClassName="termous-popconfirm"
-              classNames={{ container: 'termous-popconfirm-surface' }}
               onConfirm={() => onRemove(index)}
             >
               <Button

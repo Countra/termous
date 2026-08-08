@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TerminalSearchResult } from '../model/terminalSearch'
+import styles from './TerminalSearchPanel.module.scss'
 
 interface TerminalSearchPanelProps {
   value: string
@@ -44,7 +45,7 @@ export function TerminalSearchPanel({
 
   return (
     <div
-      className={`terminal-search-panel ${hasError ? 'is-error' : ''}`}
+      className={[styles.panel, hasError ? styles.error : ''].filter(Boolean).join(' ')}
       data-terminal-search-panel=""
       role="search"
       onMouseDown={(event) => event.stopPropagation()}
@@ -52,7 +53,7 @@ export function TerminalSearchPanel({
     >
       <input
         ref={inputRef}
-        className={`terminal-search-input ${hasError ? 'is-error' : ''}`}
+        className={[styles.input, hasError ? styles.error : ''].filter(Boolean).join(' ')}
         value={value}
         type="search"
         name="terminal-search"
@@ -81,13 +82,13 @@ export function TerminalSearchPanel({
           }
         }}
       />
-      <span className="terminal-search-count" aria-live="polite">
+      <span className={styles.count} aria-live="polite">
         {countLabel}
       </span>
       <Tooltip title={t('terminal.previousMatch')}>
         <Button
           type="text"
-          className="terminal-search-button"
+          className={styles.button}
           aria-label={t('terminal.previousMatch')}
           icon={<ChevronUp size={15} />}
           onMouseDown={(event) => event.preventDefault()}
@@ -97,7 +98,7 @@ export function TerminalSearchPanel({
       <Tooltip title={t('terminal.nextMatch')}>
         <Button
           type="text"
-          className="terminal-search-button"
+          className={styles.button}
           aria-label={t('terminal.nextMatch')}
           icon={<ChevronDown size={15} />}
           onMouseDown={(event) => event.preventDefault()}
@@ -107,7 +108,7 @@ export function TerminalSearchPanel({
       <Tooltip title={t('terminal.matchCase')}>
         <Button
           type="text"
-          className={`terminal-search-button terminal-search-toggle ${caseSensitive ? 'is-active' : ''}`}
+          className={[styles.button, styles.toggle, caseSensitive ? styles.active : ''].filter(Boolean).join(' ')}
           aria-label={t('terminal.matchCase')}
           aria-pressed={caseSensitive}
           onMouseDown={(event) => event.preventDefault()}
@@ -119,7 +120,7 @@ export function TerminalSearchPanel({
       <Tooltip title={t('terminal.useRegex')}>
         <Button
           type="text"
-          className={`terminal-search-button terminal-search-toggle ${regex ? 'is-active' : ''}`}
+          className={[styles.button, styles.toggle, regex ? styles.active : ''].filter(Boolean).join(' ')}
           aria-label={t('terminal.useRegex')}
           aria-pressed={regex}
           onMouseDown={(event) => event.preventDefault()}
@@ -131,7 +132,7 @@ export function TerminalSearchPanel({
       <Tooltip title={t('app.close')}>
         <Button
           type="text"
-          className="terminal-search-button terminal-search-close"
+          className={`${styles.button} ${styles.close}`}
           aria-label={t('app.close')}
           icon={<X size={15} />}
           onMouseDown={(event) => event.preventDefault()}

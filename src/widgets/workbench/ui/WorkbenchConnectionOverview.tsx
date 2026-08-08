@@ -3,7 +3,7 @@ import { FolderOpen, Power, RotateCcw, Server } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ComponentProps } from 'react'
 import { HostAvatar } from '#entities/host'
-import { StatusBadge, WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
+import { StatusBadge, uiStyles, WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
 import type { CredentialView } from '#entities/credential'
 import type { ConnectionProxy } from '#entities/connection-proxy'
 import type { Host, HostGroup } from '#entities/host'
@@ -144,7 +144,7 @@ export function WorkbenchConnectionOverview({
       </dl>
       <div className={styles['current-connection-actions']}>
         <Button
-          className="secondary-button"
+          className={`${uiStyles['secondary-button']} secondary-button`}
           disabled={!canOpenFiles || actionBusy || !session}
           onClick={() => session && void onOpenFiles(session)}
           icon={<FolderOpen size={16} />}
@@ -153,7 +153,7 @@ export function WorkbenchConnectionOverview({
         </Button>
         {canReconnect ? (
           <Button
-            className="secondary-button"
+            className={`${uiStyles['secondary-button']} secondary-button`}
             disabled={actionBusy}
             onClick={() => void onReconnect()}
             icon={<RotateCcw size={16} />}
@@ -163,7 +163,7 @@ export function WorkbenchConnectionOverview({
         ) : null}
         <Button
           danger
-          className="danger-button"
+          className={`${uiStyles['danger-button']} danger-button`}
           disabled={!session || (actionBusy && !sessionClosing)}
           loading={sessionClosing}
           onClick={() => session && void onClose(session.id)}

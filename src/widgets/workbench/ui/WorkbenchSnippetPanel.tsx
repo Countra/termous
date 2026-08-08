@@ -2,6 +2,7 @@ import { Button, Input, Tooltip } from 'antd'
 import { ChevronDown, ChevronRight, Code2, FolderOpen, Play, Send, Star } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { CodeSnippet, CodeSnippetGroup } from '#entities/snippet'
+import { uiStyles } from '#shared/ui'
 import {
   SnippetFilterBar,
   SnippetList,
@@ -185,7 +186,7 @@ export function SnippetVariablePrompt({
       <p>{t('snippets.variablesHint')}</p>
       {variables.map((variable) => (
         <label className="field" key={variable}>
-          <span className="field-label">{`{{${variable}}}`}</span>
+          <span className={`${uiStyles['field-label']} field-label`}>{`{{${variable}}}`}</span>
           <Input autoFocus={variables[0] === variable} onChange={(event) => onChange(variable, event.target.value)} />
         </label>
       ))}

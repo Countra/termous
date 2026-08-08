@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import type { TerminalGateway } from '../api/terminalGateway'
 import { TerminalCwdRuntimeProvider } from './TerminalCwdRuntimeProvider'
+import styles from './TerminalRuntimeProvider.module.scss'
 import type {
   AppTheme as ThemeMode,
   CompletionSettings,
@@ -960,7 +961,7 @@ export function TerminalRuntimeProvider({
       }
 
       const pane = document.createElement('div')
-      pane.className = 'terminal-session-pane'
+      pane.className = styles.pane
       pane.dataset.sessionId = sessionId
       pane.dataset.terminalVisibility = 'inactive'
       ;(parkingHostRef.current ?? document.body).appendChild(pane)
@@ -1649,7 +1650,7 @@ export function TerminalRuntimeProvider({
     <TerminalCwdRuntimeProvider runtime={cwdRuntime}>
       <TerminalRuntimeContext.Provider value={value}>
         {children}
-        <div className="terminal-runtime-parking" ref={parkingHostRef} aria-hidden="true" />
+        <div className={styles.parking} ref={parkingHostRef} aria-hidden="true" />
       </TerminalRuntimeContext.Provider>
     </TerminalCwdRuntimeProvider>
   )

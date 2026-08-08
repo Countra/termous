@@ -3,6 +3,7 @@ import { Alert, App as AntdApp, Button, Modal, Tag, Typography } from 'antd'
 import { Clock3, Server, ShieldAlert, ShieldCheck, ShieldQuestion, ShieldX } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError } from '#shared/api'
+import { uiStyles } from '#shared/ui'
 import type { Host } from '#entities/host'
 import type {
   HostKeyChallenge,
@@ -230,7 +231,7 @@ export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorPr
             </span>
             <div className={styles['host-key-dialog-actions']}>
               <Button
-                className={['danger-button', styles['host-key-action'], styles['host-key-action-reject']].join(' ')}
+                className={[uiStyles['danger-button'], 'danger-button', styles['host-key-action'], styles['host-key-action-reject']].join(' ')}
                 danger
                 icon={<ShieldX size={16} />}
                 disabled={decisionBusy}
@@ -241,7 +242,9 @@ export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorPr
               <Button
                 className={[
                   styles['host-key-action'],
-                  changed ? styles['host-key-action-replace'] : 'primary-button',
+                  changed
+                    ? styles['host-key-action-replace']
+                    : `${uiStyles['primary-button']} primary-button`,
                 ].join(' ')}
                 icon={changed ? <ShieldAlert size={16} /> : <ShieldCheck size={16} />}
                 loading={decisionBusy}

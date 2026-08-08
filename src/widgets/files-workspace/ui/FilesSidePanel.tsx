@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { filesWorkspaceSidePanelWidthBounds } from '../model/filesWorkspaceState'
+import styles from './FilesWorkspace.module.scss'
 
 export type FilesSidePanelMode = 'bookmarks' | 'details'
 
@@ -235,10 +236,10 @@ export const FilesSidePanel = forwardRef<HTMLElement, FilesSidePanelProps>(
         ref={assignPanelRef}
         id={id}
         className={[
-          'files-side-panel',
+          styles['files-side-panel'],
           `is-${mode}`,
-          mode === 'bookmarks' ? 'files-bookmarks-sidebar' : 'files-inspector',
-          overlay ? 'is-overlay' : 'is-docked',
+          mode === 'bookmarks' ? styles['files-bookmarks-sidebar'] : styles['files-inspector'],
+          overlay ? 'is-overlay' : styles['is-docked'],
         ].join(' ')}
         style={panelStyle}
         aria-label={ariaLabel}
@@ -253,7 +254,7 @@ export const FilesSidePanel = forwardRef<HTMLElement, FilesSidePanelProps>(
       >
         {children}
         <div
-          className="files-side-panel-resize-edge"
+          className={styles['files-side-panel-resize-edge']}
           role="separator"
           tabIndex={overlay ? -1 : 0}
           aria-hidden={overlay ? true : undefined}

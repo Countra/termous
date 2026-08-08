@@ -25,6 +25,9 @@ vi.mock('#entities/host', () => ({
 }))
 
 vi.mock('#shared/ui', () => ({
+  uiStyles: {
+    'secondary-button': 'secondary-button',
+  },
   ConnectionActionButton: ({
     children,
     disabled,

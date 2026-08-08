@@ -190,6 +190,9 @@ vi.mock('../features/snippets/ui/SnippetCatalog', () => ({
 }))
 
 vi.mock('#shared/ui', () => ({
+  uiStyles: {
+    'field-label': 'field-label',
+  },
   ConnectionActionButton: ({
     children,
     disabled,

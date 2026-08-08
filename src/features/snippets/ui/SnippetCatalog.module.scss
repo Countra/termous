@@ -550,3 +550,35 @@ button.snippet-catalog-row-main:focus-visible {
 }
   }
 }
+
+.segmented-control {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-subtle) 86%, transparent);
+  padding: 4px;
+  box-shadow: var(--inner-highlight);
+}
+
+.segmented-control button {
+  min-height: 32px;
+  flex: 1;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.segmented-control button:global(.is-active) {
+  background: color-mix(in srgb, var(--accent-soft) 82%, var(--surface-strong));
+  color: var(--text-primary);
+  box-shadow: var(--inner-highlight);
+}

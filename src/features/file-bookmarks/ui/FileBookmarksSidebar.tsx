@@ -47,6 +47,7 @@ import type {
   FileBookmarkReorderItem,
 } from '#entities/file'
 import { normalizeRemotePosixPath } from '#shared/path'
+import { contextActionMenuPopupClassName, uiStyles } from '#shared/ui'
 import {
   buildBookmarkGroups,
   buildBookmarkReorderItems,
@@ -1065,7 +1066,7 @@ export function FileBookmarksSidebar({
             <strong>{t('files.manageBookmarks')}</strong>
             <small>{bookmarks.length}</small>
             {reordering ? (
-              <LoaderCircle className="is-spinning" size={13} aria-hidden="true" />
+              <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={13} aria-hidden="true" />
             ) : null}
           </span>
           <span className="files-bookmarks-sidebar-heading-actions">
@@ -1074,7 +1075,7 @@ export function FileBookmarksSidebar({
               trigger={['click']}
               popupRender={renderBookmarkFloatingLayer}
               classNames={{
-                root: `context-action-menu files-bookmarks-sidebar-menu ${styles['menu-portal']}`,
+                root: `${contextActionMenuPopupClassName} files-bookmarks-sidebar-menu ${styles['menu-portal']}`,
               }}
             >
               <Tooltip title={t('app.create')} placement="bottom">
@@ -1313,7 +1314,7 @@ function SidebarBookmarkRow({
         >
           <span className="files-bookmarks-sidebar-row-icon" aria-hidden="true">
             {navigating ? (
-              <LoaderCircle className="is-spinning" size={15} />
+              <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={15} />
             ) : (
               <Bookmark size={15} />
             )}
@@ -1429,7 +1430,7 @@ function SidebarGroupMenu({
         trigger={['click']}
         popupRender={renderBookmarkFloatingLayer}
         classNames={{
-          root: `context-action-menu files-bookmarks-sidebar-menu ${styles['menu-portal']}`,
+          root: `${contextActionMenuPopupClassName} files-bookmarks-sidebar-menu ${styles['menu-portal']}`,
         }}
         disabled={disabled}
       >

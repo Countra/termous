@@ -14,6 +14,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { TermousApiError } from '#shared/api'
+import { uiStyles } from '#shared/ui'
 import type { DataPortabilityGateway } from '../../api/dataPortabilityGateway'
 import type {
   DataPortabilityDatasetKey,
@@ -601,7 +602,7 @@ function OperationProgress({ progress }: { progress: DataPortabilityProgress }) 
   const progressLabel = progress.operation === 'import' && progress.phase === 'transferring'
     ? t('settings.data.progress.importTransferring')
     : t(`settings.data.progress.${progress.phase}`)
-  return <div className={styles['data-portability-progress']}><div>{progress.phase === 'complete' ? <CheckCircle2 size={16} /> : <RefreshCw className="is-spinning" size={16} />}<span>{progressLabel}</span><strong>{percent}%</strong></div><Progress percent={percent} showInfo={false} size="small" /></div>
+  return <div className={styles['data-portability-progress']}><div>{progress.phase === 'complete' ? <CheckCircle2 size={16} /> : <RefreshCw className={`${uiStyles['is-spinning']} is-spinning`} size={16} />}<span>{progressLabel}</span><strong>{percent}%</strong></div><Progress percent={percent} showInfo={false} size="small" /></div>
 }
 
 function isBackupVersionError(error: unknown) {

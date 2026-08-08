@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { Dropdown, type MenuProps } from 'antd'
+import { contextActionMenuPopupClassName } from './contextActionMenuStyles'
 
 interface ContextActionMenuProps {
   children: ReactElement
@@ -14,14 +15,14 @@ export function ContextActionMenu({
   items,
   onClick,
   disabled = false,
-  popupClassName = 'context-action-menu',
+  popupClassName,
 }: ContextActionMenuProps) {
   const hasItems = Array.isArray(items) && items.length > 0
 
   return (
     <Dropdown
       trigger={!disabled && hasItems ? ['contextMenu'] : []}
-      classNames={{ root: popupClassName }}
+      classNames={{ root: [contextActionMenuPopupClassName, popupClassName].filter(Boolean).join(' ') }}
       menu={{ items, onClick }}
       disabled={disabled || !hasItems}
     >

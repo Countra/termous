@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { RemoteFileEntry } from '#entities/file'
 import { formatBytes, formatDate } from '#shared/format'
+import { uiStyles } from '#shared/ui'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import { isLocalFileDrag } from '../model/workbenchFileDrag'
 import styles from './WorkbenchFileList.module.scss'
@@ -369,7 +370,7 @@ export function WorkbenchFileList({
               menu={menu}
               trigger={['contextMenu']}
               disabled={interactionLocked}
-              classNames={{ root: 'files-row-menu' }}
+              classNames={{ root: styles['files-row-menu'] }}
             >
               <div
                 ref={(node) => {
@@ -540,7 +541,7 @@ export function WorkbenchFileList({
                 </span>
                 <span className="workbench-file-row-disclosure" aria-hidden="true">
                   {opening
-                    ? <LoaderCircle className="is-spinning" size={13} />
+                    ? <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={13} />
                     : directory ? <ChevronRight size={14} /> : null}
                 </span>
               </div>

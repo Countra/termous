@@ -29,7 +29,7 @@ import {
   type HostGroup,
   type HostReachability,
 } from '#entities/host'
-import { ConnectionActionButton, EmptyState } from '#shared/ui'
+import { ConnectionActionButton, EmptyState, uiStyles } from '#shared/ui'
 import {
   hostLauncherActionPlan,
   type HostLauncherActionId,
@@ -517,7 +517,7 @@ export function HostLauncherModal({
                 })
               )}
             </div>
-            <Button className="secondary-button host-launcher-create-button" icon={<Plus size={15} />} onClick={() => void runLauncherAction(onCreateHost)}>
+            <Button className={`${uiStyles['secondary-button']} secondary-button host-launcher-create-button`} icon={<Plus size={15} />} onClick={() => void runLauncherAction(onCreateHost)}>
               {t('hosts.addHost')}
             </Button>
           </aside>
@@ -595,7 +595,7 @@ export function HostLauncherModal({
                     {actionPlan.shortcuts.map((actionId) => (
                       <Button
                         key={actionId}
-                        className="secondary-button"
+                        className={`${uiStyles['secondary-button']} secondary-button`}
                         icon={hostLauncherActionIcon(actionId, 15)}
                         loading={pendingHostAction === actionId}
                         disabled={hostActionBusy}

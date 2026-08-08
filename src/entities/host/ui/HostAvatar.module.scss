@@ -1,0 +1,10 @@
+.host-avatar {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
+  color: var(--accent);
+}

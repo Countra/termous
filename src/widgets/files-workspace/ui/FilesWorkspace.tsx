@@ -53,7 +53,7 @@ import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { TermousApiError } from '#shared/api'
 import { SessionQuickConnect } from '#features/hosts'
-import { EmptyState, SessionTabButton, SessionTabStrip } from '#shared/ui'
+import { EmptyState, SessionTabButton, SessionTabStrip, uiStyles } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
 import type { TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
@@ -2812,18 +2812,18 @@ function FilesWorkspaceContent({
     setRemoteMoveTargetPath(null)
     remoteDragPreviewRef.current?.remove()
     const preview = document.createElement('div')
-    preview.className = 'files-remote-drag-preview'
+    preview.className = styles['files-remote-drag-preview']
     const icon = event.currentTarget.querySelector<HTMLElement>('[data-file-kind-icon]')?.cloneNode(true)
     if (icon instanceof HTMLElement) {
       preview.append(icon)
     }
     const label = document.createElement('span')
-    label.className = 'files-remote-drag-preview-label'
+    label.className = styles['files-remote-drag-preview-label']
     label.textContent = entry.name
     preview.append(label)
     if (paths.length > 1) {
       const count = document.createElement('span')
-      count.className = 'files-remote-drag-preview-count'
+      count.className = styles['files-remote-drag-preview-count']
       count.textContent = String(paths.length)
       preview.append(count)
     }
@@ -3140,7 +3140,7 @@ function FilesWorkspaceContent({
       {
         title: t('files.name'),
         dataIndex: 'name',
-        className: 'files-table-name-cell',
+          className: 'files-table-name-cell',
         onCell: () => ({
           'data-files-name-cell': 'true',
         } as HTMLAttributes<HTMLTableCellElement> & { 'data-files-name-cell': string }),
@@ -3159,12 +3159,21 @@ function FilesWorkspaceContent({
           )
 
           return (
-            <span className="file-name-cell">
-              <span className={`file-kind-icon is-${entry.kind}`} data-file-kind-icon data-files-entry-open>
+            <span className={styles['file-name-cell']}>
+              <span
+                className={`${styles['file-kind-icon']} ${entry.kind === 'directory' ? styles['is-directory'] : ''}`}
+                data-file-kind-icon
+                data-files-entry-open
+              >
                 {entry.kind === 'directory' ? <Folder size={16} /> : <File size={16} />}
               </span>
-              <Tooltip title={fullName} placement="topLeft" mouseEnterDelay={0.35} classNames={{ root: 'file-name-tooltip' }}>
-                <span className="file-name-copy" data-files-entry-open>{nameCopy}</span>
+              <Tooltip
+                title={fullName}
+                placement="topLeft"
+                mouseEnterDelay={0.35}
+                classNames={{ root: styles['file-name-tooltip'] }}
+              >
+                <span className={styles['file-name-copy']} data-files-entry-open>{nameCopy}</span>
               </Tooltip>
             </span>
           )
@@ -3203,24 +3212,24 @@ function FilesWorkspaceContent({
       {
         key: 'spacer',
         title: '',
-        className: 'files-table-spacer-cell',
+          className: styles['files-table-spacer-cell'],
         render: () => null,
       },
       {
         title: '',
         width: 40,
-        className: 'files-table-actions-cell',
+          className: styles['files-table-actions-cell'],
         render: (_: unknown, entry: RemoteFileEntry) => (
           <Dropdown
             disabled={!fileActionsEnabled}
             menu={fileRowMenuPropsRef.current(entry)}
             trigger={['click']}
             popupRender={renderFilesRowMenu}
-            classNames={{ root: 'files-row-menu' }}
+            classNames={{ root: styles['files-row-menu'] }}
           >
             <Button
               type="text"
-              className="files-icon-button"
+              className={styles['files-icon-button']}
               data-files-drag-block
               aria-label={t('files.actions')}
               icon={<MoreHorizontal size={16} />}
@@ -3760,14 +3769,14 @@ function FilesWorkspaceContent({
       ref={filesPageRef}
       className={[
         styles.root,
-        'files-page',
-        'files-workspace-page',
+        styles['files-page'],
+        styles['files-workspace-page'],
         inspectorOpen ? 'has-inspector' : '',
         transfersOpen ? 'has-transfer-dock' : '',
-        bookmarksExpanded ? 'has-bookmarks-sidebar' : '',
+        bookmarksExpanded ? styles['has-bookmarks-sidebar'] : '',
         localConsoleOpen ? 'has-local-download-console' : '',
-        dragActive ? 'is-dragging' : '',
-        remoteMoveDrag ? 'is-moving' : '',
+        dragActive ? styles['is-dragging'] : '',
+        remoteMoveDrag ? styles['is-moving'] : '',
       ].filter(Boolean).join(' ')}
       onMouseDown={handleFilePageMouseDown}
       onDragEnter={onDragEnter}
@@ -3776,15 +3785,15 @@ function FilesWorkspaceContent({
       onDragEnd={resetDragState}
       onDrop={(event) => void onDrop(event)}
     >
-      <main className="files-main-panel">
-        <div className="files-session-toolbar terminal-toolbar">
+      <main className={styles['files-main-panel']}>
+        <div className={`files-session-toolbar ${styles['terminal-toolbar']} terminal-toolbar`}>
           <SessionTabStrip
             ariaLabel={t('files.sessions')}
             activeId={activeFileSessionId}
             contentKey={displayedFileSessionKey}
             scrollLeftLabel={t('workbench.scrollTabsLeft')}
             scrollRightLabel={t('workbench.scrollTabsRight')}
-            tabsClassName="terminal-tabs"
+            tabsClassName={`${styles['terminal-tabs']} terminal-tabs`}
             trailing={(
               <SessionQuickConnect
                 hosts={data.hosts}
@@ -3838,13 +3847,13 @@ function FilesWorkspaceContent({
           </SessionTabStrip>
         </div>
 
-        <div className="files-location-bar" role="toolbar" aria-label={t('files.pathNavigation')}>
-          <div className="files-navigation-cluster">
-            <div className="files-history-actions">
+        <div className={styles['files-location-bar']} role="toolbar" aria-label={t('files.pathNavigation')}>
+          <div className={styles['files-navigation-cluster']}>
+            <div className={styles['files-history-actions']}>
               <Tooltip title={t('files.back')}>
                 <Button
                   type="text"
-                  className="files-navigation-button"
+                  className={styles['files-navigation-button']}
                   aria-label={t('files.back')}
                   disabled={navigationDisabled || !backTarget}
                   icon={<ArrowLeft size={15} aria-hidden="true" />}
@@ -3854,7 +3863,7 @@ function FilesWorkspaceContent({
               <Tooltip title={t('files.forward')}>
                 <Button
                   type="text"
-                  className="files-navigation-button"
+                  className={styles['files-navigation-button']}
                   aria-label={t('files.forward')}
                   disabled={navigationDisabled || !forwardTarget}
                   icon={<ArrowRight size={15} aria-hidden="true" />}
@@ -3862,11 +3871,11 @@ function FilesWorkspaceContent({
                 />
               </Tooltip>
             </div>
-            <span className="files-navigation-divider" aria-hidden="true" />
+              <span className={styles['files-navigation-divider']} aria-hidden="true" />
             <Tooltip title={t('files.parent')}>
               <Button
                 type="text"
-                className="files-navigation-button"
+                className={styles['files-navigation-button']}
                 aria-label={t('files.parent')}
                 disabled={navigationDisabled || displayedPath === '/'}
                 icon={<ArrowUp size={15} aria-hidden="true" />}
@@ -3877,10 +3886,10 @@ function FilesWorkspaceContent({
 
           <div
             className={[
-              'files-path-control',
+              styles['files-path-control'],
               editingPath ? 'is-editing' : '',
-              directoryNavigationBusy ? 'is-busy' : '',
-              directoryHasInlineError ? 'is-error' : '',
+              directoryNavigationBusy ? styles['is-busy'] : '',
+              directoryHasInlineError ? styles['is-error'] : '',
             ].filter(Boolean).join(' ')}
             aria-busy={directoryNavigationBusy}
           >
@@ -3906,16 +3915,16 @@ function FilesWorkspaceContent({
               />
             ) : (
               <div className={[
-                'files-breadcrumb-shell',
+                styles['files-breadcrumb-shell'],
                 breadcrumbScrollState.canScrollLeft ? 'has-left-overflow' : '',
                 breadcrumbScrollState.canScrollRight ? 'has-right-overflow' : '',
               ].filter(Boolean).join(' ')}>
-                <span className="files-breadcrumb-scroll-slot is-left">
+                <span className={`${styles['files-breadcrumb-scroll-slot']} is-left`}>
                   {breadcrumbScrollState.canScrollLeft ? (
                     <Tooltip title={t('files.scrollPathLeft')}>
                       <Button
                         type="text"
-                        className="files-breadcrumb-scroll"
+                        className={styles['files-breadcrumb-scroll']}
                         aria-label={t('files.scrollPathLeft')}
                         icon={<ArrowLeft size={13} aria-hidden="true" />}
                         onClick={() => scrollBreadcrumb('left')}
@@ -3925,7 +3934,7 @@ function FilesWorkspaceContent({
                 </span>
                 <div
                   ref={breadcrumbViewportRef}
-                  className="files-breadcrumb-viewport"
+                  className={styles['files-breadcrumb-viewport']}
                   onScroll={() => updateBreadcrumbScrollState()}
                   onWheel={handleBreadcrumbWheel}
                 >
@@ -3941,12 +3950,12 @@ function FilesWorkspaceContent({
                     onDrop={onBreadcrumbDrop}
                   />
                 </div>
-                <span className="files-breadcrumb-scroll-slot is-right">
+                <span className={`${styles['files-breadcrumb-scroll-slot']} is-right`}>
                   {breadcrumbScrollState.canScrollRight ? (
                     <Tooltip title={t('files.scrollPathRight')}>
                       <Button
                         type="text"
-                        className="files-breadcrumb-scroll"
+                        className={styles['files-breadcrumb-scroll']}
                         aria-label={t('files.scrollPathRight')}
                         icon={<ArrowRight size={13} aria-hidden="true" />}
                         onClick={() => scrollBreadcrumb('right')}
@@ -3956,13 +3965,13 @@ function FilesWorkspaceContent({
                 </span>
               </div>
             )}
-            <div className="files-path-actions">
+            <div className={styles['files-path-actions']}>
               {editingPath ? (
                 <>
                   <Tooltip title={t('app.confirm')}>
                     <Button
                       type="text"
-                      className="files-path-action is-confirm"
+                      className={`${styles['files-path-action']} ${styles['is-confirm']}`}
                       aria-label={t('app.confirm')}
                       disabled={!fileSessionConnected}
                       icon={<Check size={14} aria-hidden="true" />}
@@ -3973,7 +3982,7 @@ function FilesWorkspaceContent({
                   <Tooltip title={t('app.cancel')}>
                     <Button
                       type="text"
-                      className="files-path-action"
+                      className={styles['files-path-action']}
                       aria-label={t('app.cancel')}
                       icon={<X size={14} aria-hidden="true" />}
                       onMouseDown={(event) => event.preventDefault()}
@@ -3990,14 +3999,14 @@ function FilesWorkspaceContent({
                   >
                     <Button
                       type="text"
-                      className={`files-path-action ${directoryHasInlineError ? 'is-error' : ''}`}
+                      className={`${styles['files-path-action']} ${directoryHasInlineError ? styles['is-error'] : ''}`}
                       aria-label={directoryHasInlineError ? t('app.retry') : t('app.reload')}
                       disabled={navigationDisabled}
                       icon={directoryHasInlineError
                         ? <XCircle size={14} aria-hidden="true" />
                         : (
                             <RefreshCw
-                              className={directoryNavigationBusy ? 'is-spinning' : ''}
+                              className={directoryNavigationBusy ? `${uiStyles['is-spinning']} is-spinning` : ''}
                               size={14}
                               aria-hidden="true"
                             />
@@ -4010,7 +4019,7 @@ function FilesWorkspaceContent({
                   <Tooltip title={t('files.editPath')}>
                     <Button
                       type="text"
-                      className="files-path-action"
+                      className={styles['files-path-action']}
                       aria-label={t('files.editPath')}
                       disabled={navigationDisabled}
                       icon={<Pencil size={14} aria-hidden="true" />}
@@ -4019,7 +4028,7 @@ function FilesWorkspaceContent({
                   </Tooltip>
                 </>
               )}
-              <span className="files-path-action-divider" aria-hidden="true" />
+              <span className={styles['files-path-action-divider']} aria-hidden="true" />
               <Tooltip title={t(
                 bookmarkRailExpanded
                   ? 'files.collapseBookmarkRail'
@@ -4028,9 +4037,9 @@ function FilesWorkspaceContent({
                 <Button
                   type="text"
                   className={[
-                    'files-path-action',
-                    'is-bookmark-rail-toggle',
-                    bookmarkRailExpanded ? 'is-active' : '',
+                    styles['files-path-action'],
+                    styles['is-bookmark-rail-toggle'],
+                    bookmarkRailExpanded ? styles['is-active'] : '',
                   ].filter(Boolean).join(' ')}
                   aria-label={t(
                     bookmarkRailExpanded
@@ -4044,10 +4053,10 @@ function FilesWorkspaceContent({
                 />
               </Tooltip>
             </div>
-            {directoryNavigationBusy ? <span className="files-path-progress" aria-hidden="true" /> : null}
+            {directoryNavigationBusy ? <span className={styles['files-path-progress']} aria-hidden="true" /> : null}
             {directoryStatusMessage ? (
               <span
-                className="files-directory-live-status"
+                className={styles['files-directory-live-status']}
                 role={directoryHasInlineError ? 'alert' : 'status'}
                 aria-live={directoryHasInlineError ? 'assertive' : 'polite'}
               >
@@ -4059,11 +4068,11 @@ function FilesWorkspaceContent({
 
         <div
           id="files-bookmark-rail"
-          className={`files-bookmark-rail-region ${bookmarkRailExpanded ? 'is-expanded' : 'is-collapsed'}`}
+          className={`${styles['files-bookmark-rail-region']} ${bookmarkRailExpanded ? 'is-expanded' : styles['is-collapsed']}`}
           aria-hidden={!bookmarkRailExpanded}
           inert={!bookmarkRailExpanded}
         >
-          <div className="files-bookmark-rail-region-content">
+          <div className={styles['files-bookmark-rail-region-content']}>
             <FileBookmarksRail
               ref={bookmarkRailToggleRef}
               bookmarks={data.fileBookmarks}
@@ -4087,16 +4096,16 @@ function FilesWorkspaceContent({
           </div>
         </div>
 
-        <div className={`files-command-bar ${selectedPaths.length > 0 ? 'has-selection' : ''}`}>
-          <div className="files-command-primary">
+        <div className={`${styles['files-command-bar']} ${selectedPaths.length > 0 ? 'has-selection' : ''}`}>
+          <div className={styles['files-command-primary']}>
             {selectedPaths.length > 0 ? (
               <>
-                <span className="files-selection-summary">
+                <span className={styles['files-selection-summary']}>
                   {t('files.selectedCount', { count: selectedPaths.length })}
                 </span>
                 <Button
                   type="text"
-                  className="files-command-button"
+                  className={styles['files-command-button']}
                   disabled={!fileActionsEnabled}
                   icon={<Copy size={15} aria-hidden="true" />}
                   onClick={() => copySelected('copy')}
@@ -4105,7 +4114,7 @@ function FilesWorkspaceContent({
                 </Button>
                 <Button
                   type="text"
-                  className="files-command-button"
+                  className={styles['files-command-button']}
                   disabled={!fileActionsEnabled}
                   icon={<Scissors size={15} aria-hidden="true" />}
                   onClick={() => copySelected('cut')}
@@ -4114,7 +4123,7 @@ function FilesWorkspaceContent({
                 </Button>
                 <Button
                   type="text"
-                  className="files-command-button"
+                  className={styles['files-command-button']}
                   disabled={!fileActionsEnabled || selectedPaths.length !== 1}
                   icon={<Pencil size={15} aria-hidden="true" />}
                   onClick={() => openRename()}
@@ -4123,7 +4132,7 @@ function FilesWorkspaceContent({
                 </Button>
                 <Button
                   type="text"
-                  className="files-command-button is-low-priority"
+                  className={`${styles['files-command-button']} ${styles['is-low-priority']}`}
                   disabled={!fileActionsEnabled || selectedPaths.length !== 1}
                   icon={<ShieldCheck size={15} aria-hidden="true" />}
                   onClick={() => openPermissions()}
@@ -4134,11 +4143,11 @@ function FilesWorkspaceContent({
                   menu={selectionMoreActions}
                   trigger={['click']}
                   popupRender={renderFilesRowMenu}
-                  classNames={{ root: 'files-row-menu' }}
+                  classNames={{ root: styles['files-row-menu'] }}
                 >
                   <Button
                     type="text"
-                    className="files-chrome-button files-selection-more"
+                    className={`${styles['files-chrome-button']} ${styles['files-selection-more']}`}
                     disabled={!fileActionsEnabled}
                     aria-label={t('files.actions')}
                     icon={<MoreHorizontal size={16} aria-hidden="true" />}
@@ -4149,7 +4158,7 @@ function FilesWorkspaceContent({
               <>
                 <Button
                   type="primary"
-                  className="files-upload-button"
+                  className={styles['files-upload-button']}
                   disabled={actionDisabled}
                   icon={<Upload size={16} aria-hidden="true" />}
                   onClick={() => void pickFiles()}
@@ -4158,7 +4167,7 @@ function FilesWorkspaceContent({
                 </Button>
                 <Button
                   type="text"
-                  className="files-command-button"
+                  className={styles['files-command-button']}
                   disabled={actionDisabled}
                   icon={<FolderPlus size={15} aria-hidden="true" />}
                   onClick={openCreateDirectory}
@@ -4167,7 +4176,7 @@ function FilesWorkspaceContent({
                 </Button>
                 <Button
                   type="text"
-                  className="files-command-button is-low-priority"
+                  className={`${styles['files-command-button']} ${styles['is-low-priority']}`}
                   disabled={actionDisabled}
                   icon={<Clipboard size={15} aria-hidden="true" />}
                   onClick={() => void pasteFromClipboard()}
@@ -4178,11 +4187,11 @@ function FilesWorkspaceContent({
                   menu={moreActions}
                   trigger={['click']}
                   popupRender={renderFilesRowMenu}
-                  classNames={{ root: 'files-row-menu' }}
+                  classNames={{ root: styles['files-row-menu'] }}
                 >
                   <Button
                     type="text"
-                    className="files-chrome-button"
+                    className={styles['files-chrome-button']}
                     disabled={actionDisabled}
                     aria-label={t('files.actions')}
                     icon={<MoreHorizontal size={16} aria-hidden="true" />}
@@ -4191,28 +4200,28 @@ function FilesWorkspaceContent({
               </>
             )}
           </div>
-          <div className="files-command-secondary">
+          <div className={styles['files-command-secondary']}>
             {selectedPaths.length > 0 ? (
               <>
                 <Button
                   type="text"
                   danger
-                  className="files-command-button files-delete-command"
+                  className={`${styles['files-command-button']} ${styles['files-delete-command']}`}
                   disabled={!fileActionsEnabled}
                   icon={<Trash2 size={15} aria-hidden="true" />}
                   onClick={() => confirmDelete()}
                 >
                   {t('app.delete')}
                 </Button>
-                <span className="files-command-divider" aria-hidden="true" />
+                <span className={styles['files-command-divider']} aria-hidden="true" />
               </>
             ) : null}
-            <div className="files-view-actions" role="group" aria-label={t('files.workspacePanels')}>
+            <div className={styles['files-view-actions']} role="group" aria-label={t('files.workspacePanels')}>
               <Tooltip title={t('files.details')}>
                 <Button
                   ref={inspectorToggleRef}
                   type="text"
-                  className={`files-workspace-toggle ${inspectorOpen ? 'is-active' : ''}`}
+                  className={`${styles['files-workspace-toggle']} ${inspectorOpen ? styles['is-active'] : ''}`}
                   aria-label={t('files.details')}
                   aria-pressed={inspectorOpen}
                   icon={<PanelRight size={15} aria-hidden="true" />}
@@ -4224,14 +4233,14 @@ function FilesWorkspaceContent({
                     openInspector()
                   }}
                 >
-                  <span className="files-workspace-toggle-label">{t('files.details')}</span>
+                  <span className={styles['files-workspace-toggle-label']}>{t('files.details')}</span>
                 </Button>
               </Tooltip>
               <Tooltip title={t('files.transfers')}>
                 <Button
                   ref={transferToggleRef}
                   type="text"
-                  className={`files-workspace-toggle files-transfer-toggle ${transfersOpen ? 'is-active' : ''}`}
+                  className={`${styles['files-workspace-toggle']} ${styles['files-transfer-toggle']} ${transfersOpen ? styles['is-active'] : ''}`}
                   disabled={localDownloadOperationActive}
                   aria-label={t('files.transfers')}
                   aria-pressed={transfersOpen}
@@ -4257,9 +4266,9 @@ function FilesWorkspaceContent({
                     }
                   }}
                 >
-                  <span className="files-workspace-toggle-label">{t('files.transfers')}</span>
+                  <span className={styles['files-workspace-toggle-label']}>{t('files.transfers')}</span>
                   {currentSessionActiveTransferCount > 0 ? (
-                    <span className="files-workspace-toggle-count">{currentSessionActiveTransferCount}</span>
+                    <span className={styles['files-workspace-toggle-count']}>{currentSessionActiveTransferCount}</span>
                   ) : null}
                 </Button>
               </Tooltip>
@@ -4267,10 +4276,10 @@ function FilesWorkspaceContent({
           </div>
         </div>
 
-        <div className="files-canvas-row">
+        <div className={styles['files-canvas-row']}>
           <div
             ref={filesTableShellRef}
-            className="files-table-shell"
+            className={styles['files-table-shell']}
             data-shortcut-adapter="files-page"
             tabIndex={activeFileSession ? 0 : -1}
             onPointerDown={() => {
@@ -4281,15 +4290,15 @@ function FilesWorkspaceContent({
             onKeyDown={handleFileTableKeyDown}
           >
             {!activeFileSession ? (
-              <div className="files-workspace-empty">
-                <span className="files-workspace-empty-icon">
+              <div className={styles['files-workspace-empty']}>
+                <span className={styles['files-workspace-empty-icon']}>
                   <Folder size={28} aria-hidden="true" />
                 </span>
                 <strong>{t('files.noFileSession')}</strong>
                 <p>{t('files.noFileSessionHint')}</p>
                 <Button
                   type="primary"
-                  className="files-upload-button"
+                  className={styles['files-upload-button']}
                   icon={<Plus size={16} aria-hidden="true" />}
                   onClick={onOpenFileSessionLauncher}
                 >
@@ -4314,14 +4323,14 @@ function FilesWorkspaceContent({
             ) && !workspaceViewState.listing ? (
               <FilesDirectorySkeleton label={t('files.loadingDirectory')} />
             ) : workspaceViewState.directoryStatus === 'failed' && !workspaceViewState.listing ? (
-              <div className="files-workspace-empty is-error" role="alert">
-                <span className="files-workspace-empty-icon">
+              <div className={`${styles['files-workspace-empty']} ${styles['is-error']}`} role="alert">
+                <span className={styles['files-workspace-empty-icon']}>
                   <XCircle size={28} aria-hidden="true" />
                 </span>
                 <strong>{t('files.directoryReadFailed')}</strong>
                 <p>{workspaceViewState.error || t('app.error')}</p>
                 <Button
-                  className="secondary-button"
+                  className={`${uiStyles['secondary-button']} secondary-button`}
                   disabled={!fileSessionConnected}
                   icon={<RefreshCw size={15} aria-hidden="true" />}
                   onClick={retryDirectoryRequest}
@@ -4345,7 +4354,7 @@ function FilesWorkspaceContent({
                   }}
                   size="small"
                   tableLayout="fixed"
-                  className="files-table"
+                  className={styles['files-table']}
                   onChange={handleTableChange}
                   rowSelection={{
                     columnWidth: 38,
@@ -4365,12 +4374,12 @@ function FilesWorkspaceContent({
                     },
                   }}
                   rowClassName={(entry) => [
-                    'files-table-row',
-                    `is-${entry.kind}`,
+                    styles['files-table-row'],
+                    entry.kind === 'directory' ? styles['is-directory'] : '',
                     workspaceViewState.focusedPath === entry.path ? 'is-focused' : '',
-                    dropTargetDirectoryPath === entry.path || remoteMoveTargetPath === entry.path ? 'is-drop-target' : '',
-                    remoteMoveTargetPath === entry.path ? 'is-move-target' : '',
-                    remoteMoveDrag?.paths.includes(entry.path) ? 'is-being-dragged' : '',
+                    dropTargetDirectoryPath === entry.path || remoteMoveTargetPath === entry.path ? styles['is-drop-target'] : '',
+                    remoteMoveTargetPath === entry.path ? styles['is-move-target'] : '',
+                    remoteMoveDrag?.paths.includes(entry.path) ? styles['is-being-dragged'] : '',
                   ].filter(Boolean).join(' ')}
                   onRow={(entry) => ({
                     'data-files-table-row': '',
@@ -4470,7 +4479,7 @@ function FilesWorkspaceContent({
                 placement="bottomLeft"
                 menu={fileRowMenuProps(fileContextMenu.entry)}
                 popupRender={renderFilesRowMenu}
-                classNames={{ root: 'files-row-menu' }}
+                classNames={{ root: styles['files-row-menu'] }}
                 onOpenChange={(open) => {
                   if (!open) {
                     setFileContextMenu(null)
@@ -4478,7 +4487,7 @@ function FilesWorkspaceContent({
                 }}
               >
                 <span
-                  className="files-context-menu-anchor"
+                  className={styles['files-context-menu-anchor']}
                   style={{ left: fileContextMenu.x, top: fileContextMenu.y }}
                 />
               </Dropdown>
@@ -4531,14 +4540,14 @@ function FilesWorkspaceContent({
                 />
               ) : (
                 <>
-                  <header className="files-panel-heading">
+                  <header className={styles['files-panel-heading']}>
                     <span>
                       <Info size={15} aria-hidden="true" />
                       {t('files.details')}
                     </span>
                     <Button
                       type="text"
-                      className="files-chrome-button"
+                      className={styles['files-chrome-button']}
                       aria-label={t('app.close')}
                       icon={<X size={15} aria-hidden="true" />}
                       onClick={closeInspector}
@@ -4578,17 +4587,17 @@ function FilesWorkspaceContent({
               : undefined}
         >
           {transfersOpen ? (
-            <TransferQueueDock className="files-transfer-dock">
-              <header className="files-panel-heading files-transfer-heading">
+            <TransferQueueDock className={styles['files-transfer-dock']}>
+              <header className={`${styles['files-panel-heading']} ${styles['files-transfer-heading']}`}>
                 <span>
                   <Activity size={15} aria-hidden="true" />
                   {t('files.transfers')}
                 </span>
-                <div className="files-transfer-scope" role="group" aria-label={t('files.transferScope')}>
+                <div className={styles['files-transfer-scope']} role="group" aria-label={t('files.transferScope')}>
                   <button
                     type="button"
                     aria-pressed={transferScope === 'session'}
-                    className={transferScope === 'session' ? 'is-active' : ''}
+                    className={transferScope === 'session' ? styles['is-active'] : ''}
                     onClick={() => setTransferScope('session')}
                   >
                     {t('files.currentSession')}
@@ -4596,7 +4605,7 @@ function FilesWorkspaceContent({
                   <button
                     type="button"
                     aria-pressed={transferScope === 'all'}
-                    className={transferScope === 'all' ? 'is-active' : ''}
+                    className={transferScope === 'all' ? styles['is-active'] : ''}
                     onClick={() => setTransferScope('all')}
                   >
                     {t('files.allSessions')}
@@ -4604,7 +4613,7 @@ function FilesWorkspaceContent({
                 </div>
                 <Button
                   type="text"
-                  className="files-chrome-button"
+                  className={styles['files-chrome-button']}
                   aria-label={t('app.close')}
                   icon={<X size={15} aria-hidden="true" />}
                   onClick={closeTransfers}
@@ -4676,20 +4685,20 @@ function FilesWorkspaceContent({
           />
         </FilesBottomDrawer>
 
-        <footer className="files-status-bar">
-          <div className="files-status-overview">
-            <span className="files-status-count">
+        <footer className={styles['files-status-bar']}>
+          <div className={styles['files-status-overview']}>
+            <span className={styles['files-status-count']}>
               {t('files.itemCount', { count: entries.length })}
               {selectedPaths.length > 0 ? ` · ${t('files.selectedCount', { count: selectedPaths.length })}` : ''}
             </span>
-            <span className={`files-status-connection is-${connectionStatusKey}`}>
+            <span className={`${styles['files-status-connection']} ${styles[`is-${connectionStatusKey}`]}`}>
               <i aria-hidden="true" />
               {activeFileSession
                 ? `${activeFileSessionHost?.name ?? shortId(activeFileSession.id)} · ${t(`files.sessionStatus.${connectionStatusKey}`)}`
                 : t('files.noFileSession')}
             </span>
           </div>
-          <div className="files-status-actions">
+          <div className={styles['files-status-actions']}>
             <LocalDownloadQuickTarget
               ref={localConsoleToggleRef}
               api={api}
@@ -4720,7 +4729,7 @@ function FilesWorkspaceContent({
             />
             <button
               type="button"
-              className={`files-transfer-summary ${activeTransferCount > 0 ? 'is-active' : ''}`}
+              className={`${styles['files-transfer-summary']} ${activeTransferCount > 0 ? styles['is-active'] : ''}`}
               disabled={localDownloadOperationActive}
               aria-label={activeTransferCount > 0
                 ? t('files.activeTransferCount', { count: activeTransferCount })
@@ -4767,14 +4776,14 @@ function FilesWorkspaceContent({
 
       {(dragActive || remoteMoveDrag) && !localDownloadDropActive ? (
         <div
-          className={`files-drop-mask ${remoteMoveDrag ? 'is-move' : ''}`}
+          className={`${styles['files-drop-mask']} ${remoteMoveDrag ? styles['is-move'] : ''}`}
           role="status"
           aria-live="polite"
         >
-          <span className="files-drop-mask-icon" aria-hidden="true">
+          <span className={styles['files-drop-mask-icon']} aria-hidden="true">
             {remoteMoveDrag ? <FolderDown size={17} /> : <Upload size={17} />}
           </span>
-          <span className="files-drop-mask-copy">
+          <span className={styles['files-drop-mask-copy']}>
             <strong>
               {remoteMoveDrag
                 ? remoteMoveTargetDirectoryName
@@ -4872,8 +4881,10 @@ function PathTrail({
         <Tooltip title={index === 0 ? rootLabel : crumb.label} mouseEnterDelay={0.45}>
           <button
             type="button"
-            className={`files-workspace-breadcrumb-link ${current ? 'is-current' : ''} ${index === 0 ? 'is-root' : ''} ${
-              dropTarget ? 'is-drop-target' : ''
+            className={`${styles['files-workspace-breadcrumb-link']} ${current ? styles['is-current'] : ''} ${
+              index === 0 ? styles['is-root'] : ''
+            } ${
+              dropTarget ? styles['is-drop-target'] : ''
             }`}
             aria-label={index === 0 ? rootLabel : crumb.label}
             aria-current={current ? 'page' : undefined}
@@ -4898,7 +4909,7 @@ function PathTrail({
 
   return (
     <Breadcrumb
-      className="files-workspace-breadcrumb"
+      className={styles['files-workspace-breadcrumb']}
       aria-label={ariaLabel}
       separator={<ChevronRight size={12} strokeWidth={2.2} />}
       items={items}
@@ -4925,7 +4936,7 @@ function ResizableFileHeaderCell({
       {children}
       {resizable ? (
         <span
-          className="files-table-column-resizer"
+          className={styles['files-table-column-resizer']}
           data-files-drag-block
           data-resize-key={resizeKey}
           role="separator"
@@ -4947,10 +4958,10 @@ function ResizableFileHeaderCell({
 
 function FilesDirectorySkeleton({ label }: { label: string }) {
   return (
-    <div className="files-directory-skeleton" role="status" aria-label={label}>
-      <div className="files-directory-skeleton-head" />
+    <div className={styles['files-directory-skeleton']} role="status" aria-label={label}>
+      <div className={styles['files-directory-skeleton-head']} />
       {Array.from({ length: 9 }, (_, index) => (
-        <div key={index} className="files-directory-skeleton-row">
+        <div key={index} className={styles['files-directory-skeleton-row']}>
           <span />
           <span />
           <span />
@@ -4976,19 +4987,19 @@ function FileDetailPanel({
   const extended = entry?.extended?.filter((item) => item.type || item.data) ?? []
 
   return (
-    <section className="files-detail-panel">
+    <section className={styles['files-detail-panel']}>
       {entry ? (
         <>
-          <div className="files-detail-hero">
-            <span className={`files-detail-kind-icon is-${entry.kind}`}>
+          <div className={styles['files-detail-hero']}>
+            <span className={`${styles['files-detail-kind-icon']} ${entry.kind === 'directory' ? styles['is-directory'] : ''}`}>
               {entry.kind === 'directory' ? <Folder size={19} aria-hidden="true" /> : <File size={19} aria-hidden="true" />}
             </span>
-            <div className="files-detail-hero-copy">
+            <div className={styles['files-detail-hero-copy']}>
               <strong>{entry.name}</strong>
               <span>{host ? host.name : t('files.noHost')}</span>
             </div>
           </div>
-          <dl className="files-detail-list">
+          <dl className={styles['files-detail-list']}>
             <div>
               <dt>{t('files.path')}</dt>
               <dd>{renderFileDetailValue(entry.path)}</dd>
@@ -5007,13 +5018,13 @@ function FileDetailPanel({
             </div>
             <div>
               <dt>{t('files.permissions')}</dt>
-              <dd className="files-permission-detail">
+              <dd className={styles['files-permission-detail']}>
                 {renderFileDetailValue(formatPermission(entry))}
                 <Tooltip title={connected ? null : t('files.connectionRequired')}>
                   <Button
                     type="text"
                     size="small"
-                    className="files-inline-action"
+                    className={styles['files-inline-action']}
                     disabled={!connected}
                     icon={<ShieldCheck size={13} />}
                     onClick={() => onEditPermissions(entry)}
@@ -5058,7 +5069,7 @@ function FileDetailPanel({
           </dl>
         </>
       ) : (
-        <div className="files-quiet-empty">
+        <div className={styles['files-quiet-empty']}>
           <strong>{t('files.noSelection')}</strong>
           <span>{t('files.noSelectionHint')}</span>
         </div>
@@ -5074,9 +5085,9 @@ function renderFileDetailValue(value?: string | number | null) {
       title={display === '-' ? null : display}
       placement="topRight"
       mouseEnterDelay={0.35}
-      classNames={{ root: 'file-detail-tooltip' }}
+      classNames={{ root: styles['file-detail-tooltip'] }}
     >
-      <span className="files-detail-value">{display}</span>
+      <span className={styles['files-detail-value']}>{display}</span>
     </Tooltip>
   )
 }
@@ -5099,20 +5110,20 @@ function FileSessionCachedDirectoryOverlay({
 
   return (
     <div
-      className={`files-session-cache-overlay${recovering || closing ? ' is-recovering' : ''}`}
+      className={`${styles['files-session-cache-overlay']} ${recovering || closing ? styles['is-recovering'] : ''}`}
       role={terminal && !recovering && !closing ? 'alert' : 'status'}
       aria-live="polite"
     >
-      <span className="files-session-cache-overlay-icon" aria-hidden="true">
+      <span className={styles['files-session-cache-overlay-icon']} aria-hidden="true">
         {recovering || closing ? <CircleDashed size={16} /> : <XCircle size={16} />}
       </span>
-      <span className="files-session-cache-overlay-copy">
+      <span className={styles['files-session-cache-overlay-copy']}>
         <strong>{copy.title}</strong>
         <small>{copy.detail}</small>
       </span>
       {showRecoveryAction ? (
         <Button
-          className="secondary-button"
+          className={`${uiStyles['secondary-button']} secondary-button`}
           size="small"
           loading={recovering}
           disabled={recovering}
@@ -5156,17 +5167,17 @@ function FileSessionProgress({
     const copy = fileSessionRecoveryStatusCopy(fileSession, recovering, closing, t)
 
     return (
-      <div className="files-session-progress is-terminal" role="status" aria-live="polite">
-        <div className={`files-session-terminal-icon${recovering || closing ? ' is-recovering' : ''}`}>
+      <div className={`${styles['files-session-progress']} ${styles['is-terminal']}`} role="status" aria-live="polite">
+        <div className={`${styles['files-session-terminal-icon']} ${recovering || closing ? styles['is-recovering'] : ''}`}>
           {recovering || closing ? <CircleDashed size={22} aria-hidden="true" /> : <XCircle size={22} aria-hidden="true" />}
         </div>
-        <div className="files-session-terminal-copy">
+        <div className={styles['files-session-terminal-copy']}>
           <strong>{copy.title}</strong>
           <span>{copy.detail}</span>
         </div>
         {!closing && canRecoverFileSession(fileSession) ? (
           <Button
-            className="secondary-button"
+            className={`${uiStyles['secondary-button']} secondary-button`}
             size="small"
             loading={recovering}
             disabled={recovering}
@@ -5180,13 +5191,13 @@ function FileSessionProgress({
   }
 
   return (
-    <div className="files-session-progress" role="status" aria-live="polite">
-      <div className="connection-progress-head">
+    <div className={styles['files-session-progress']} role="status" aria-live="polite">
+      <div className={`${styles['connection-progress-head']} connection-progress-head`}>
         <span>{phaseLabel}</span>
         <strong>{progress}%</strong>
       </div>
       <div
-        className="connection-progress-bar"
+        className={`${styles['connection-progress-bar']} connection-progress-bar`}
         role="progressbar"
         aria-label={phaseLabel}
         aria-valuemin={0}
@@ -5195,23 +5206,35 @@ function FileSessionProgress({
       >
         <span style={{ width: `${progress}%` }} />
       </div>
-      <div className="connection-phase-row files-session-phase-row">
+      <div className={`${styles['connection-phase-row']} ${styles['files-session-phase-row']} connection-phase-row`}>
         {phaseOrder.map((item, index) => {
           const state = fileSessionPhaseState(fileSession, index, currentIndex)
           const Icon = state === 'done' ? CheckCircle2 : state === 'failed' ? XCircle : state === 'active' ? CircleDashed : Circle
           return (
-            <span key={item} className={`connection-phase is-${state}`} title={t(`files.sessionPhase.${item}`)}>
+            <span
+              key={item}
+              className={`${styles['connection-phase']} ${
+                state === 'active'
+                  ? styles['connection-phase-active']
+                  : state === 'done'
+                    ? styles['connection-phase-done']
+                    : state === 'failed'
+                      ? styles['connection-phase-failed']
+                      : ''
+              } connection-phase is-${state}`}
+              title={t(`files.sessionPhase.${item}`)}
+            >
               <Icon size={13} aria-hidden="true" />
               <span>{t(`files.sessionPhaseShort.${item}`)}</span>
             </span>
           )
         })}
       </div>
-      <div className="files-session-progress-footer">
+      <div className={styles['files-session-progress-footer']}>
         <span>{t(`files.sessionStatus.${fileSession.status}`)}</span>
         {recovering ? (
           <Button
-            className="secondary-button"
+            className={`${uiStyles['secondary-button']} secondary-button`}
             size="small"
             loading
             disabled

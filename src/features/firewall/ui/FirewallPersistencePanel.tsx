@@ -3,6 +3,7 @@ import { ClipboardCopy, FileText, PackagePlus, RefreshCw, Save, ServerCog, Shiel
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TFunction } from 'i18next'
 import { TermousApiError } from '#shared/api'
+import { connectionActionButtonClassName, uiStyles } from '#shared/ui'
 import type { FirewallInstallPlan, FirewallPersistenceStatus, FirewallProvider, FirewallSaveResult } from '#entities/firewall'
 import type { FirewallGateway } from '../model/contracts'
 
@@ -312,15 +313,15 @@ export function FirewallPersistencePanel({ api, sessionId, sessionStatus, provid
           <CommandPreview plan={currentPlan} confirmed={installConfirmed} busy={installing} disabled={!sessionConnected || saving} t={t} onConfirmChange={setInstallConfirmed} onInstall={() => void installDependencies()} />
         ) : null}
         <div className="firewall-persistence-actions">
-          <Button className="secondary-button" icon={<RefreshCw size={15} />} loading={loading} disabled={!sessionConnected || saving || installing} onClick={() => void loadStatus()}>
+          <Button className={`${uiStyles['secondary-button']} secondary-button`} icon={<RefreshCw size={15} />} loading={loading} disabled={!sessionConnected || saving || installing} onClick={() => void loadStatus()}>
             {t('workbench.firewall.persistence.redetect')}
           </Button>
           {!currentPlan?.commands.length && missingTools.length ? (
-            <Button className="secondary-button" icon={<PackagePlus size={15} />} loading={loading} disabled={!sessionConnected || saving || installing} onClick={() => void loadInstallPlan()}>
+            <Button className={`${uiStyles['secondary-button']} secondary-button`} icon={<PackagePlus size={15} />} loading={loading} disabled={!sessionConnected || saving || installing} onClick={() => void loadInstallPlan()}>
               {t('workbench.firewall.persistence.showInstallPlan')}
             </Button>
           ) : null}
-          <Button className="connection-action-button" icon={<Save size={15} />} loading={saving} disabled={Boolean(missingTools.length) || !sessionConnected || installing} onClick={() => void saveRules()}>
+          <Button className={`${connectionActionButtonClassName} connection-action-button`} icon={<Save size={15} />} loading={saving} disabled={Boolean(missingTools.length) || !sessionConnected || installing} onClick={() => void saveRules()}>
             {t('workbench.firewall.persistence.saveCurrent')}
           </Button>
         </div>
@@ -436,7 +437,7 @@ function CommandPreview({
         <Checkbox checked={confirmed} onChange={(event) => onConfirmChange(event.target.checked)}>
           {t('workbench.firewall.persistence.confirmInstall')}
         </Checkbox>
-        <Button className="primary-button" icon={<PackagePlus size={15} />} loading={busy} disabled={!confirmed || busy || disabled} onClick={onInstall}>
+        <Button className={`${uiStyles['primary-button']} primary-button`} icon={<PackagePlus size={15} />} loading={busy} disabled={!confirmed || busy || disabled} onClick={onInstall}>
           {t('workbench.firewall.persistence.install')}
         </Button>
       </div>

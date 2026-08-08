@@ -1,0 +1,142 @@
+.context-panel {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 14px;
+  box-shadow: var(--shadow-soft), var(--inner-highlight);
+  backdrop-filter: blur(26px) saturate(1.28);
+}
+
+.host-context-panel {
+  overflow: hidden;
+}
+
+.host-context-panel.is-collapsed {
+  padding: 10px 9px;
+}
+
+.host-context-panel.is-collapsed .panel-heading {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.host-context-panel.is-collapsed .panel-title-copy {
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+}
+
+.host-context-panel.is-collapsed .panel-title-copy h2 {
+  max-width: 58px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-heading h2 {
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.panel-heading span {
+  margin: 5px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.content-before {
+  flex: 0 0 auto;
+}
+
+.host-stack {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.host-group-block {
+  display: grid;
+  gap: 6px;
+}
+
+.group-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.host-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+  color: var(--text-primary);
+  padding: 9px;
+  text-align: left;
+  box-shadow: var(--inner-highlight);
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.host-row:hover,
+.host-row.is-active {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface-subtle));
+}
+
+.host-row.is-active {
+  box-shadow:
+    inset 3px 0 0 var(--accent),
+    var(--inner-highlight);
+}
+
+.host-row.is-compact {
+  width: 100%;
+  height: 44px;
+  justify-content: center;
+  padding: 0;
+}
+
+.host-main {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.host-main strong {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-row small {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

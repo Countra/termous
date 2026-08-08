@@ -1,6 +1,7 @@
 import { Button, Tooltip, type ButtonProps } from 'antd'
 import { LoaderCircle, Pin, X } from 'lucide-react'
 import { forwardRef, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
+import styles from './SessionTabs.module.scss'
 
 interface SessionTabButtonProps extends Omit<ButtonProps, 'children' | 'icon' | 'title' | 'type'> {
   active?: boolean
@@ -15,12 +16,13 @@ interface SessionTabButtonProps extends Omit<ButtonProps, 'children' | 'icon' | 
   closeLabel?: string
   closeDisabled?: boolean
   closing?: boolean
+  dragging?: boolean
   closingLabel?: string
   tooltipTitle?: ReactNode
   onClose?: () => void
 }
 
-const sessionTabTooltipClassNames = { root: 'termous-tooltip session-tab-tooltip' }
+const sessionTabTooltipClassNames = { root: `termous-tooltip ${styles['session-tab-tooltip']}` }
 
 export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonProps>(
   ({
@@ -37,6 +39,7 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
     closeLabel,
     closeDisabled,
     closing = false,
+    dragging = false,
     closingLabel,
     tooltipTitle,
     onClose,
@@ -46,13 +49,14 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
     ...props
   }, ref) => {
     const classes = [
-      'session-tab-button',
-      active ? 'is-active' : '',
-      empty ? 'is-empty' : '',
-      accentColor ? 'has-accent' : '',
-      pinned ? 'is-pinned' : '',
-      closing ? 'is-closing' : '',
-      disabled ? 'is-disabled' : '',
+      styles['session-tab-button'],
+      active ? styles['is-active'] : '',
+      empty ? styles['is-empty'] : '',
+      accentColor ? styles['has-accent'] : '',
+      pinned ? styles['is-pinned'] : '',
+      closing ? styles['is-closing'] : '',
+      dragging ? styles['is-dragging'] : '',
+      disabled ? styles['is-disabled'] : '',
       className,
     ]
       .filter(Boolean)
@@ -64,6 +68,9 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
       : baseTitle
     const resolvedStatus = closing ? 'closing' : status
     const resolvedStatusLabel = closing ? closingLabel : statusLabel
+    const resolvedStatusClassName = resolvedStatus
+      ? styles[`is-${resolvedStatus.replace(/_/g, '-')}`]
+      : ''
     const tabStyle = accentColor
       ? ({ ...style, '--session-tab-accent': accentColor } as CSSProperties)
       : style
@@ -86,11 +93,11 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
     }
 
     const leading = (
-      <span className="session-tab-leading" aria-hidden="true">
+      <span className={styles['session-tab-leading']} aria-hidden="true">
         {icon}
         {resolvedStatus ? (
           <span
-            className={`session-dot is-${resolvedStatus.replace(/_/g, '-')}`}
+            className={`${styles['session-dot']} ${resolvedStatusClassName}`}
             aria-hidden="true"
           />
         ) : null}
@@ -100,9 +107,9 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
     if (empty) {
       return (
         <span className={classes} style={tabStyle} role="status" data-session-tab-root="">
-          <span className="session-tab-empty-content">
+          <span className={styles['session-tab-empty-content']}>
             {leading}
-            <span className="session-tab-label">{label}</span>
+            <span className={styles['session-tab-label']}>{label}</span>
           </span>
         </span>
       )
@@ -123,19 +130,19 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
             {...props}
             ref={ref}
             type="text"
-            className="session-tab-main"
+            className={styles['session-tab-main']}
             data-session-tab-main=""
             disabled={disabled}
             aria-busy={closing || undefined}
             aria-disabled={disabled || closing || undefined}
             tabIndex={tabIndex ?? (active ? 0 : -1)}
           >
-            <span className="session-tab-content">
+            <span className={styles['session-tab-content']}>
               {leading}
-              <span className="session-tab-label">{label}</span>
-              {resolvedStatusLabel ? <span className="session-tab-status-label">，{resolvedStatusLabel}</span> : null}
+              <span className={styles['session-tab-label']}>{label}</span>
+              {resolvedStatusLabel ? <span className={styles['session-tab-status-label']}>，{resolvedStatusLabel}</span> : null}
               {pinned ? (
-                <span className="session-tab-pin" aria-label={pinLabel}>
+                <span className={styles['session-tab-pin']} aria-label={pinLabel}>
                   <Pin size={11} strokeWidth={2.2} aria-hidden="true" />
                 </span>
               ) : null}
@@ -154,7 +161,7 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
           >
             <button
               type="button"
-              className="session-tab-close"
+              className={styles['session-tab-close']}
               data-session-tab-close=""
               aria-label={closing ? closingLabel : closeLabel}
               aria-disabled={disabled || closeDisabled || closing}
@@ -164,7 +171,7 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
               onClick={handleClose}
             >
               {closing ? (
-                <LoaderCircle className="session-tab-closing-spinner" size={13} strokeWidth={2.2} aria-hidden="true" />
+                <LoaderCircle className={styles['session-tab-closing-spinner']} size={13} strokeWidth={2.2} aria-hidden="true" />
               ) : (
                 <X size={13} strokeWidth={2.2} aria-hidden="true" />
               )}

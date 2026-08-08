@@ -11,7 +11,7 @@ const providerSource = readFileSync(
 test('终端运行时保持单一 Provider 所有权和常驻 parking host', () => {
   assert.match(
     providerSource,
-    /<TerminalCwdRuntimeProvider runtime=\{cwdRuntime\}>\s*<TerminalRuntimeContext\.Provider value=\{value\}>\s*\{children\}\s*<div className="terminal-runtime-parking" ref=\{parkingHostRef\}/,
+    /<TerminalCwdRuntimeProvider runtime=\{cwdRuntime\}>\s*<TerminalRuntimeContext\.Provider value=\{value\}>\s*\{children\}\s*<div className=\{styles\.parking\} ref=\{parkingHostRef\}/,
   )
 })
 

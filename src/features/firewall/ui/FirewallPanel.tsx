@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError } from '#shared/api'
 import { formatBytes } from '#shared/format'
-import { WorkspaceDetectionLoading, WorkspaceEmptyState } from '#shared/ui'
+import { uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState } from '#shared/ui'
 import type {
   FirewallDesiredState,
   FirewallPersistenceStatus,
@@ -440,7 +440,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
       ) : null}
 
       {capabilityReady ? <div className="firewall-rule-actions">
-        <Button className="secondary-button" icon={<Plus size={15} />} onClick={() => setEditing({ index: null, value: createFirewallRuleInput() })}>
+        <Button className={`${uiStyles['secondary-button']} secondary-button`} icon={<Plus size={15} />} onClick={() => setEditing({ index: null, value: createFirewallRuleInput() })}>
           {t('workbench.firewall.addRule')}
         </Button>
       </div> : null}

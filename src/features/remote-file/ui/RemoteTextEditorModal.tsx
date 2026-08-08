@@ -10,6 +10,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { useTranslation } from 'react-i18next'
 import type { TerminalSettings } from '#common/contracts'
 import { TermousApiError } from '#shared/api'
+import { uiStyles } from '#shared/ui'
 import type {
   RemoteFileEntry,
   RemoteTextFile,
@@ -677,7 +678,7 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
             <div className="remote-text-editor-state is-error">
               <AlertTriangle size={24} aria-hidden="true" />
               <strong>{error}</strong>
-              <Button className="secondary-button" disabled={disabled} icon={<RefreshCw size={14} />} onClick={requestReload}>
+              <Button className={`${uiStyles['secondary-button']} secondary-button`} disabled={disabled} icon={<RefreshCw size={14} />} onClick={requestReload}>
                 {t('files.textEditorReload')}
               </Button>
             </div>
@@ -698,15 +699,15 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
             <span>{t('files.textEditorHint')}</span>
           </div>
           <div className="remote-text-editor-actions">
-            <Button className="secondary-button" disabled={disabled || loading || saving} onClick={requestReload}>
+            <Button className={`${uiStyles['secondary-button']} secondary-button`} disabled={disabled || loading || saving} onClick={requestReload}>
               {t('files.textEditorReload')}
             </Button>
-            <Button className="secondary-button" disabled={saving} onClick={requestClose}>
+            <Button className={`${uiStyles['secondary-button']} secondary-button`} disabled={saving} onClick={requestClose}>
               {t('app.close')}
             </Button>
             <Button
               type="primary"
-              className="primary-button"
+              className={`${uiStyles['primary-button']} primary-button`}
               disabled={disabled || generationStale || !file || loading || !dirty}
               loading={saving}
               icon={<Save size={14} />}

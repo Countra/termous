@@ -73,12 +73,12 @@ import { HostsPage, type HostLauncherIntent } from '#features/hosts'
 
 - 业务组件使用共置的 `*.module.scss`，样式跟随组件或 Slice 移动。
 - `src/shared/styles/global.scss` 是两个 Renderer Surface 共用的全局入口，承载 tokens、根节点、主题和必要的文档级状态。
-- 主界面通过 `#shared/main-styles` 按顺序加载 `app.scss` 和 `workstation.scss`；两者仍是受控的历史全局兼容层，不进入独立更新窗口，也不作为新增业务样式的落点。
+- 主界面通过 `#shared/main-styles` 加载尚未完成所有权迁移的 `workstation.scss`；该受控历史兼容层不进入独立更新窗口，也不作为新增业务样式的落点。
 - 独立更新窗口只使用共享 `global.scss` 和自身共置的 SCSS Modules，不加载主界面兼容层。
 - 运行时主题继续使用 CSS Custom Properties；Sass 变量只处理编译期复用。
 - AntD Portal、xterm 和 CodeMirror 的全局覆盖必须挂在明确的局部根节点下。
 - JavaScript 查询样式类名的代码先迁移到 `data-*` 或 ref，再启用 CSS Modules。
-- `app.scss` 和 `workstation.scss` 中的兼容规则只按完整功能块逐段抽离，不整体重写，不在结构调整时改变计算样式。
+- `workstation.scss` 中的兼容规则只按完整功能块逐段抽离，不整体重写，不在结构调整时改变计算样式。
 
 ## 结构调整纪律
 

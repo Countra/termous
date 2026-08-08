@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { compileString } from 'sass'
 import test from 'node:test'
 
 const workspaceStyles = readFileSync(
@@ -14,6 +13,18 @@ const workspaceSource = readFileSync(
 )
 const panelStyles = readFileSync(
   fileURLToPath(new URL('../widgets/files-workspace/ui/_FilesWorkspacePanels.module.scss', import.meta.url)),
+  'utf8',
+)
+const surfaceStyles = readFileSync(
+  fileURLToPath(new URL('../widgets/files-workspace/ui/_FilesWorkspaceSurface.module.scss', import.meta.url)),
+  'utf8',
+)
+const detailsStyles = readFileSync(
+  fileURLToPath(new URL('../widgets/files-workspace/ui/_FilesWorkspaceDetails.module.scss', import.meta.url)),
+  'utf8',
+)
+const workstationStyles = readFileSync(
+  fileURLToPath(new URL('../shared/styles/workstation.scss', import.meta.url)),
   'utf8',
 )
 const appSource = readFileSync(
@@ -45,22 +56,40 @@ test('文件工作区动画使用稳定的全局 keyframe 名称', () => {
   }
 })
 
-test('文件工作区历史行为类保持全局选择器', () => {
-  const compiledPanels = compileString(
-    "@use 'FilesWorkspacePanels.module' as panels; @include panels.styles;",
-    {
-      loadPaths: [
-        fileURLToPath(new URL('../widgets/files-workspace/ui', import.meta.url)),
-      ],
-    },
-  ).css
+test('文件工作区样式使用局部模块边界', () => {
+  for (const source of [workspaceStyles, panelStyles, surfaceStyles, detailsStyles]) {
+    assert.doesNotMatch(source, /:global\s*\{/)
+    assert.doesNotMatch(source, /stylelint-disable[^\n]*termous\/no-unscoped-global/)
+  }
 
   for (const className of [
-    'files-bookmarks-sidebar',
-    'files-transfer-scope',
+    'files-workspace-page',
+    'files-table',
+    'files-detail-panel',
     'files-status-bar',
+    'files-row-menu',
   ]) {
-    assert.match(compiledPanels, new RegExp(`:global \\.${className}(?:[\\s.:,{])`))
+    assert.match(workspaceSource, new RegExp(`styles\\['${className}'\\]`))
+  }
+
+  for (const pattern of [
+    /\.files-chrome-button:global\(\.ant-btn\)/,
+    /\.files-table :global\(\.ant-table\)/,
+    /\.files-workspace-breadcrumb:global\(\.ant-breadcrumb\)/,
+    /\.files-row-menu :global\(\.ant-dropdown-menu\)/,
+  ]) {
+    assert.match(`${workspaceStyles}\n${surfaceStyles}\n${detailsStyles}`, pattern)
+  }
+})
+
+test('共享工作台样式不再承载文件工作区选择器', () => {
+  for (const className of [
+    'files-page',
+    'files-row-menu',
+    'files-icon-button',
+    'file-name-tooltip',
+  ]) {
+    assert.doesNotMatch(workstationStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
   }
 })
 
@@ -69,7 +98,6 @@ test('文件工作区样式在旧工作台样式后加载', () => {
   const mainSurfaceImport = rendererSource.indexOf("main: () => import('#app/main')")
   const mainStyleImport = appSource.indexOf("import '#shared/main-styles'")
   const globalStyleImport = sharedStylesSource.indexOf("import './global.scss'")
-  const appStyleImport = mainStylesSource.indexOf("import '../styles/app.scss'")
   const workstationStyleImport = mainStylesSource.indexOf("import '../styles/workstation.scss'")
   const filesPageImport = appSource.indexOf("from '#pages/files'")
   const filesWorkspaceImport = appSource.indexOf("from '#widgets/files-workspace'")
@@ -78,9 +106,8 @@ test('文件工作区样式在旧工作台样式后加载', () => {
   assert.ok(mainSurfaceImport > sharedStyleImport)
   assert.ok(mainStyleImport >= 0)
   assert.ok(globalStyleImport >= 0)
-  assert.ok(appStyleImport >= 0)
   assert.ok(workstationStyleImport >= 0)
-  assert.ok(workstationStyleImport > appStyleImport)
+  assert.doesNotMatch(mainStylesSource, /app\.scss/)
   assert.ok(filesPageImport >= 0)
   assert.ok(filesWorkspaceImport >= 0)
 })

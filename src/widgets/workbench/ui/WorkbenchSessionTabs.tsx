@@ -95,7 +95,7 @@ export function WorkbenchSessionTabs({
       contentKey={sessions.map((session) => session.id).join('|')}
       scrollLeftLabel={t('workbench.scrollTabsLeft')}
       scrollRightLabel={t('workbench.scrollTabsRight')}
-      tabsClassName="terminal-tabs"
+      tabsClassName={`${styles['terminal-tabs']} terminal-tabs`}
       trailing={(
         <SessionQuickConnect
           hosts={hosts}
@@ -152,7 +152,7 @@ export function WorkbenchSessionTabs({
                     role="tab"
                     aria-selected={session.id === activeSessionId}
                     data-session-tab-id={session.id}
-                    className={draggingSessionId === session.id ? 'is-dragging' : undefined}
+                    dragging={draggingSessionId === session.id}
                     onClick={(event) => {
                       if (sessionClosing || suppressNextClickRef.current) {
                         event.preventDefault()

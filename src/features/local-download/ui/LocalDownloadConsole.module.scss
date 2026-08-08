@@ -961,3 +961,16 @@
     }
   }
 }
+
+.file-name-tooltip :global(.ant-tooltip-inner) {
+  max-width: min(520px, calc(100vw - 48px));
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-raised) 94%, #000 6%);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+  box-shadow: 0 16px 36px color-mix(in srgb, #000 28%, transparent);
+}

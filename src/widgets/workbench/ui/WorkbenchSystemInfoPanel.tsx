@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { Button, Skeleton, Tooltip } from 'antd'
 import { useState, type ReactNode } from 'react'
-import { WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
+import { uiStyles, WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
 import type { Session } from '#entities/session'
 import { formatWorkbenchTime } from '../model/workbenchFormatters'
 import styles from './WorkbenchDetails.module.scss'
@@ -79,7 +79,7 @@ export function WorkbenchSystemInfoPanel({
         action={failed ? (
           <Button
             size="small"
-            className="secondary-button"
+            className={`${uiStyles['secondary-button']} secondary-button`}
             loading={requesting}
             disabled={requesting}
             icon={<RotateCcw size={14} />}

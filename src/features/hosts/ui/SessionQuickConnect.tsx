@@ -4,6 +4,7 @@ import { useCallback, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AuthMethodBadge, HostAvatar, type Host } from '#entities/host'
 import { SessionNewTabButton } from '#shared/ui'
+import styles from './SessionQuickConnect.module.scss'
 
 export interface SessionQuickConnectProps {
   hosts: Host[]
@@ -59,7 +60,7 @@ export function SessionQuickConnect({
       trigger="click"
       placement="bottomLeft"
       arrow={false}
-      classNames={{ root: 'session-quick-connect-popover' }}
+      classNames={{ root: styles.popover }}
       onOpenChange={onOpenChange}
       content={(
         <QuickConnectHostPanel
@@ -100,11 +101,11 @@ function QuickConnectHostPanel({
   const emptyTitle = totalCount === 0 ? t('workbench.quickConnect.empty') : t('workbench.quickConnect.noResults')
 
   return (
-    <section className="session-quick-connect" aria-label={t('workbench.quickConnect.title')}>
+    <section className={styles.panel} aria-label={t('workbench.quickConnect.title')}>
       <Input
         id={searchInputId}
         name="session-quick-connect-search"
-        className="termous-search-input session-quick-connect-search"
+        className={`termous-search-input ${styles.search}`}
         value={query}
         allowClear
         variant="borderless"
@@ -117,35 +118,35 @@ function QuickConnectHostPanel({
           }
         }}
       />
-      <div className="session-quick-connect-list" role="listbox" aria-label={t('workbench.quickConnect.hostList')}>
+      <div className={styles.list} role="listbox" aria-label={t('workbench.quickConnect.hostList')}>
         {hosts.length === 0 ? (
-          <div className="session-quick-connect-empty">{emptyTitle}</div>
+          <div className={styles.empty}>{emptyTitle}</div>
         ) : (
           hosts.map((host) => (
             <button
               key={host.id}
               type="button"
-              className="session-quick-connect-row"
+              className={styles.row}
               role="option"
               disabled={actionBusy}
               onClick={() => void onConnect(host.id)}
             >
-              <HostAvatar host={host} getIconUrl={getHostIconUrl} className="session-quick-connect-host-icon" size={28} iconSize={15} />
-              <span className="session-quick-connect-copy">
+              <HostAvatar host={host} getIconUrl={getHostIconUrl} className={styles['host-icon']} size={28} iconSize={15} />
+              <span className={styles.copy}>
                 <strong>
                   {host.name}
                   {host.favorite ? <Star size={12} aria-label={t('workbench.hostLauncher.favorite')} /> : null}
                 </strong>
                 <small>{host.username}@{host.address}:{host.port}</small>
               </span>
-              <span className="session-quick-connect-meta">
+              <span className={styles.meta}>
                 <AuthMethodBadge method={host.auth_method} compact />
               </span>
             </button>
           ))
         )}
       </div>
-      <footer className="session-quick-connect-footer">
+      <footer className={styles.footer}>
         <small>{t('workbench.quickConnect.count', { count: totalCount })}</small>
       </footer>
     </section>

@@ -20,10 +20,15 @@ test('终端内部交互使用稳定 DOM marker 而不是业务样式类名', ()
   assert.doesNotMatch(splitWorkspaceSource, /closest<HTMLElement>\('\.terminal-pane-frame/)
 })
 
-test('终端 DOM marker 解耦不改变样式类名和第三方 xterm 查询', () => {
-  assert.match(searchPanelSource, /className=\{`terminal-search-panel/)
-  assert.match(contextMenuSource, /classNames=\{\{ root: 'terminal-context-menu context-action-menu' \}\}/)
-  assert.match(viewportSource, /className=\{`terminal-pane-frame/)
+test('终端 DOM marker 与局部样式解耦并保留第三方 xterm 查询', () => {
+  assert.match(searchPanelSource, /import styles from '\.\/TerminalSearchPanel\.module\.scss'/)
+  assert.match(searchPanelSource, /className=\{\[styles\.panel,/)
+  assert.match(contextMenuSource, /import styles from '\.\/TerminalContextMenu\.module\.scss'/)
+  assert.match(contextMenuSource, /classNames=\{\{ root: `\$\{contextActionMenuPopupClassName\} \$\{styles\.root\}` \}\}/)
+  assert.match(viewportSource, /import styles from '\.\/TerminalPaneViewport\.module\.scss'/)
+  assert.match(viewportSource, /className=\{\[\s*styles\.frame,/)
+  assert.match(splitWorkspaceSource, /import styles from '\.\/TerminalSplitWorkspace\.module\.scss'/)
+  assert.match(splitWorkspaceSource, /className=\{\[styles\.workspace,/)
   assert.match(viewportSource, /querySelector\('\.xterm-helper-textarea'\)/)
 })
 

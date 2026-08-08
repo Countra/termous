@@ -1,4 +1,5 @@
 import { Select } from 'antd'
+import styles from './CustomSelect.module.scss'
 
 export interface SelectOption {
   value: string
@@ -17,8 +18,8 @@ interface CustomSelectProps {
 
 export function CustomSelect({ label, value, options, onChange, disabled = false, id }: CustomSelectProps) {
   return (
-    <label className="custom-select">
-      <span className="field-label">{label}</span>
+    <label className={`${styles['custom-select']} custom-select`}>
+      <span className={`${styles['field-label']} field-label`}>{label}</span>
       <Select
         id={id}
         value={value}

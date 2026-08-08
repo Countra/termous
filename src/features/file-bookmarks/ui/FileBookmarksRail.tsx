@@ -25,6 +25,7 @@ import type {
   FileBookmarkInput,
 } from '#entities/file'
 import { normalizeRemotePosixPath } from '#shared/path'
+import { uiStyles } from '#shared/ui'
 import {
   buildBookmarkGroups,
   findBookmarkForPath,
@@ -364,7 +365,7 @@ export const FileBookmarksRail = forwardRef<HTMLButtonElement, FileBookmarksRail
                           >
                             {navigating ? (
                               <span className="files-bookmark-rail-item-loader" aria-hidden="true">
-                                <LoaderCircle className="is-spinning" size={13} />
+                                <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={13} />
                               </span>
                             ) : null}
                             <span>{bookmark.name}</span>
@@ -417,7 +418,7 @@ export const FileBookmarksRail = forwardRef<HTMLButtonElement, FileBookmarksRail
             onClick={() => void saveCurrentPath()}
           >
             {savingCurrent ? (
-              <LoaderCircle className="is-spinning" size={14} aria-hidden="true" />
+              <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={14} aria-hidden="true" />
             ) : currentBookmark ? (
               <BookmarkCheck size={14} aria-hidden="true" />
             ) : (

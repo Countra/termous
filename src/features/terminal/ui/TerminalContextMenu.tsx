@@ -14,11 +14,13 @@ import { useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { useShortcutRuntime } from '#entities/shortcuts'
+import { contextActionMenuPopupClassName } from '#shared/ui'
 import type {
   TerminalContextMenuActionKey,
   TerminalContextMenuItem,
 } from '../model/terminalContextMenuModel.ts'
 import { terminalContextMenuShortcutAction } from '../model/terminalContextMenuShortcuts'
+import styles from './TerminalContextMenu.module.scss'
 
 interface TerminalContextMenuProps {
   instanceId: number
@@ -82,9 +84,9 @@ export function TerminalContextMenu({
       return {
         key: item.key,
         disabled: item.disabled,
-        icon: <Icon className="terminal-context-menu-icon" size={16} strokeWidth={1.8} aria-hidden="true" />,
+        icon: <Icon size={16} strokeWidth={1.8} aria-hidden="true" />,
         label: (
-          <span className="terminal-context-menu-label">
+          <span className={styles.label}>
             <span>{t(actionTranslationKeys[item.key])}</span>
             {shortcut ? (
               <kbd>{shortcut}</kbd>
@@ -112,7 +114,7 @@ export function TerminalContextMenu({
       destroyOnHidden
       transitionName=""
       getPopupContainer={() => document.body}
-      classNames={{ root: 'terminal-context-menu context-action-menu' }}
+      classNames={{ root: `${contextActionMenuPopupClassName} ${styles.root}` }}
       menu={{
         ...terminalContextMenuMarker,
         items: menuItems,
@@ -123,7 +125,7 @@ export function TerminalContextMenu({
       onOpenChange={onOpenChange}
     >
       <span
-        className="terminal-context-menu-anchor"
+        className={styles.anchor}
         style={{ left: point.x, top: point.y }}
         aria-hidden="true"
       />

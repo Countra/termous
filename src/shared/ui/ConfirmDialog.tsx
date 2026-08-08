@@ -1,6 +1,7 @@
 import { AlertTriangle, X } from 'lucide-react'
 import { Button, Modal } from 'antd'
 import { useTranslation } from 'react-i18next'
+import styles from './ConfirmDialog.module.scss'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -63,15 +64,15 @@ export function ConfirmDialog({
         }
       }}
     >
-      <section className="confirm-dialog" aria-labelledby="confirm-dialog-title">
-        <div className={`dialog-icon ${danger ? 'is-danger' : ''}`}>
+      <section className={`${styles['confirm-dialog']} confirm-dialog`} aria-labelledby="confirm-dialog-title">
+        <div className={`${styles['dialog-icon']} dialog-icon ${danger ? `${styles['is-danger']} is-danger` : ''}`}>
           <AlertTriangle size={20} aria-hidden="true" />
         </div>
-        <div className="dialog-copy">
+        <div className={`${styles['dialog-copy']} dialog-copy`}>
           <h2 id="confirm-dialog-title">{title}</h2>
           <p>{description}</p>
         </div>
-        <div className="dialog-actions">
+        <div className={`${styles['dialog-actions']} dialog-actions`}>
           {showCancelButton ? (
             <Button onClick={onCancel} disabled={busy}>{cancelLabel ?? t('app.cancel')}</Button>
           ) : null}

@@ -40,6 +40,7 @@ import {
   type ShortcutScope,
 } from '#entities/shortcuts'
 import noticeStyles from './TerminalCompletionNotice.module.scss'
+import styles from './TerminalPaneViewport.module.scss'
 
 interface TerminalPaneViewportProps {
   paneId: string
@@ -742,7 +743,11 @@ export function TerminalPaneViewport({
   return (
     <div
       ref={frameRef}
-      className={`terminal-pane-frame ${active ? 'is-active' : ''} ${dropTargeted ? 'is-drop-target' : ''}`}
+      className={[
+        styles.frame,
+        active ? styles.active : '',
+        dropTargeted ? styles['drop-target'] : '',
+      ].filter(Boolean).join(' ')}
       data-terminal-pane-frame=""
       data-pane-id={paneId}
       onMouseDownCapture={handleMouseDownCapture}
@@ -751,29 +756,32 @@ export function TerminalPaneViewport({
       onContextMenu={handleContextMenu}
     >
       <div
-        className={`terminal-canvas terminal-theme-${themeMode} ${session ? 'has-session' : 'is-empty'} ${
-          sessionEnded ? 'is-session-ended' : ''
-        }`}
+        className={[
+          styles['terminal-canvas'],
+          styles[`terminal-theme-${themeMode}`],
+          session ? styles['has-session'] : '',
+          sessionEnded ? styles['session-ended'] : '',
+        ].filter(Boolean).join(' ')}
         aria-label={session ? t('workbench.terminal') : placeholder}
       >
         <div
-          className="terminal-session-stack"
+          className={styles['session-stack']}
           data-shortcut-adapter="xterm"
           ref={paneHostRef}
         />
         <div
-          className={`terminal-empty-state ${emptyState ? 'has-action' : ''}`}
+          className={[styles['empty-state'], emptyState ? styles['has-action'] : ''].filter(Boolean).join(' ')}
           aria-hidden={session ? true : undefined}
         >
           {emptyState ?? placeholder}
         </div>
         {session && sessionEnded ? (
-          <div className="terminal-disconnect-overlay" aria-live="polite">
-            <div className={`terminal-disconnect-card ${session.status === 'failed' ? 'is-failed' : 'is-disconnected'}`}>
-              <span className="terminal-disconnect-icon" aria-hidden="true">
+          <div className={styles['disconnect-overlay']} aria-live="polite">
+            <div className={[styles['disconnect-card'], session.status === 'failed' ? styles.failed : ''].filter(Boolean).join(' ')}>
+              <span className={styles['disconnect-icon']} aria-hidden="true">
                 <DisconnectIcon size={18} />
               </span>
-              <div className="terminal-disconnect-copy">
+              <div className={styles['disconnect-copy']}>
                 <strong>
                   {session.status === 'failed'
                     ? t('workbench.terminalFailedTitle')
@@ -785,10 +793,10 @@ export function TerminalPaneViewport({
                     (session.status === 'failed' ? t('workbench.terminalFailedHint') : t('workbench.terminalDisconnectedHint'))}
                 </span>
               </div>
-              <div className="terminal-disconnect-actions">
+              <div className={styles['disconnect-actions']}>
                 {onReconnect ? (
                   <Button
-                    className="terminal-disconnect-button terminal-disconnect-button-primary"
+                    className={`${styles['disconnect-button']} ${styles['disconnect-button-primary']}`}
                     disabled={actionBusy}
                     icon={<RefreshCw size={15} />}
                     onClick={onReconnect}
@@ -797,7 +805,7 @@ export function TerminalPaneViewport({
                   </Button>
                 ) : null}
                 {onClose ? (
-                  <Button className="terminal-disconnect-button" disabled={actionBusy} icon={<X size={15} />} onClick={onClose}>
+                  <Button className={styles['disconnect-button']} disabled={actionBusy} icon={<X size={15} />} onClick={onClose}>
                     {t('workbench.closeDisconnectedSession')}
                   </Button>
                 ) : null}

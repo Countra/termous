@@ -12,7 +12,7 @@ import {
 import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ConnectionActionButton, CustomSelect, ManagementFilterTabs, StatusBadge } from '#shared/ui'
+import { ConnectionActionButton, CustomSelect, ManagementFilterTabs, StatusBadge, uiStyles } from '#shared/ui'
 import type {
   ForwardInstance,
   ForwardMode,
@@ -218,8 +218,8 @@ export function ForwardManagementWorkspace({
             <OverviewMetric icon={<Activity size={16} />} label={t('forwards.active')} value={String(runningForwards.length)} />
             <OverviewMetric icon={<Cable size={16} />} label={t('forwards.connections')} value={String(activeConnections)} />
           </div>
-          <div className="page-actions">
-            <Button className="secondary-button" disabled={actionBusy || data.hosts.length === 0} icon={<Plus size={16} />} onClick={openTemporaryForward}>
+          <div className={`${uiStyles['page-actions']} page-actions`}>
+            <Button className={`${uiStyles['secondary-button']} secondary-button`} disabled={actionBusy || data.hosts.length === 0} icon={<Plus size={16} />} onClick={openTemporaryForward}>
               {t('forwards.newTemporary')}
             </Button>
             <ConnectionActionButton disabled={actionBusy || data.hosts.length === 0} icon={<Plus size={16} />} onClick={openCreateProfile}>
@@ -371,7 +371,7 @@ function ForwardEditorForm({
         </header>
         <div className="forwarding-editor-basic-grid">
           <label className="forward-field">
-            <span className="field-label">{t('forwards.name')}</span>
+            <span className={`${uiStyles['field-label']} field-label`}>{t('forwards.name')}</span>
             <Input
               id="forward-name"
               name="forward-name"
@@ -389,7 +389,7 @@ function ForwardEditorForm({
           />
         </div>
         <label className="forward-field">
-          <span className="field-label">{t('forwards.mode')}</span>
+          <span className={`${uiStyles['field-label']} field-label`}>{t('forwards.mode')}</span>
           <ForwardModeSelector value={form.mode} onChange={(mode) => onChange({ mode })} />
         </label>
       </section>
@@ -418,7 +418,7 @@ function ForwardEditorForm({
           onChange={onChange}
         />
         <label className="forward-field">
-          <span className="field-label">{t('forwards.description')}</span>
+          <span className={`${uiStyles['field-label']} field-label`}>{t('forwards.description')}</span>
           <Input.TextArea
             id="forward-description"
             name="forward-description"

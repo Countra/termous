@@ -2,6 +2,7 @@ import { Network } from 'lucide-react'
 import { Input, InputNumber } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { ForwardMode } from '#entities/forward'
+import { uiStyles } from '#shared/ui'
 
 export interface ForwardEndpointDraft {
   bind_host: string
@@ -39,7 +40,7 @@ export function ForwardEditorFields({
         </span>
         <div className="forward-editor-field-grid">
           <label className="forward-field">
-            <span className="field-label">
+            <span className={`${uiStyles['field-label']} field-label`}>
               {mode === 'remote' ? t('forwards.remoteBindHost') : t('forwards.localBindHost')}
             </span>
             <Input
@@ -51,7 +52,7 @@ export function ForwardEditorFields({
             />
           </label>
           <label className="forward-field is-port">
-            <span className="field-label">
+            <span className={`${uiStyles['field-label']} field-label`}>
               {mode === 'remote' ? t('forwards.remoteBindPort') : t('forwards.localBindPort')}
             </span>
             <InputNumber
@@ -79,7 +80,7 @@ export function ForwardEditorFields({
           </span>
           <div className="forward-editor-field-grid">
             <label className="forward-field">
-              <span className="field-label">{t('forwards.targetHost')}</span>
+              <span className={`${uiStyles['field-label']} field-label`}>{t('forwards.targetHost')}</span>
               <Input
                 id={`${idPrefix}-target-host`}
                 name={`${idPrefix}-target-host`}
@@ -89,7 +90,7 @@ export function ForwardEditorFields({
               />
             </label>
             <label className="forward-field is-port">
-              <span className="field-label">{t('forwards.targetPort')}</span>
+              <span className={`${uiStyles['field-label']} field-label`}>{t('forwards.targetPort')}</span>
               <InputNumber
                 id={`${idPrefix}-target-port`}
                 name={`${idPrefix}-target-port`}

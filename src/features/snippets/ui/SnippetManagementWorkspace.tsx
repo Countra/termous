@@ -19,8 +19,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
-import { ConnectionActionButton, CustomSelect } from '#shared/ui'
-import { GroupManagerModal } from '#shared/ui'
+import { ConnectionActionButton, CustomSelect, GroupManagerModal, uiStyles } from '#shared/ui'
 import type { GroupReorderItem } from '#shared/model'
 import {
   analyzeSnippetRisk,
@@ -592,7 +591,7 @@ function SnippetEditor({
               onChange={(shell) => onFormChange({ ...form, shell: shell as SnippetShell })}
             />
             <div className="field snippet-editor-group-field snippet-editor-wide-field">
-              <span className="field-label">{t('snippets.group')}</span>
+              <span className={`${uiStyles['field-label']} field-label`}>{t('snippets.group')}</span>
               <div className="snippet-editor-group-control">
                 <Select
                   value={form.group_id}
@@ -645,7 +644,7 @@ function SnippetEditor({
               </div>
             ) : null}
             <label className="field snippet-editor-wide-field">
-              <span className="field-label">{t('snippets.description')}</span>
+              <span className={`${uiStyles['field-label']} field-label`}>{t('snippets.description')}</span>
               <Input.TextArea
                 id="snippet-description"
                 value={form.description}
@@ -655,7 +654,7 @@ function SnippetEditor({
               />
             </label>
             <label className="field snippet-editor-wide-field snippet-tags-field">
-              <span className="field-label">{t('snippets.tags')}</span>
+              <span className={`${uiStyles['field-label']} field-label`}>{t('snippets.tags')}</span>
               <Select
                 id="snippet-tags"
                 mode="tags"
@@ -810,7 +809,7 @@ function Field({
 }) {
   return (
     <label className="field">
-      <span className="field-label">{label}</span>
+      <span className={`${uiStyles['field-label']} field-label`}>{label}</span>
       <Input id={id} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   )

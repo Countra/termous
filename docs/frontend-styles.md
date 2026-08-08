@@ -12,15 +12,15 @@
 ## Renderer 样式入口
 
 - `src/app/renderer-entry/main.tsx` 固定加载 `#shared/styles`，该入口只导入 `src/shared/styles/global.scss`，因此 `main` 与 `update` Surface 都能获得主题变量、根节点和文档级基础样式。
-- `src/app/main/App.tsx` 额外加载 `#shared/main-styles`，并按 `app.scss`、`workstation.scss` 的顺序加载主界面全局规则。
+- `src/app/main/App.tsx` 额外加载 `#shared/main-styles`，该入口只保留尚未完成所有权迁移的 `workstation.scss` 主界面兼容规则。
 - `update` Surface 不加载 `#shared/main-styles`，只使用共享 `global.scss` 与 `src/app/update-surface` 内共置的 SCSS Modules，避免主界面规则污染独立更新窗口。
 - Surface 分流和样式入口由 Renderer 静态合同测试约束；调整入口或顺序时必须同步验证两个 Surface。
 
 ## 全局兼容层
 
 - `global.scss` 是正式的共享全局层，只承载 CSS Custom Properties、主题、根节点和必要的文档级状态。
-- `app.scss` 与 `workstation.scss` 已从旧 CSS 转为 SCSS，但仍包含主界面历史类名、第三方覆盖和跨组件规则；它们是受控兼容层，不代表业务样式已全部完成局部作用域治理。
-- 新增或重构后的业务样式应与组件共置到 `*.module.scss`，不得继续扩大 `app.scss` 或 `workstation.scss`。兼容规则只能在保留导入顺序、最终计算样式和交互行为的前提下按完整功能块抽离。
+- `app.scss` 的通用业务规则已经迁入所有者共置的 SCSS Modules；`workstation.scss` 仍包含主界面历史类名、第三方覆盖和跨组件规则，是受控兼容层，不代表业务样式已全部完成局部作用域治理。
+- 新增或重构后的业务样式应与组件共置到 `*.module.scss`，不得继续扩大 `workstation.scss`。兼容规则只能在保留导入顺序、最终计算样式和交互行为的前提下按完整功能块抽离。
 - 部分现有 Module 为保持历史 DOM 类名和 Portal 行为，仍使用文件级 Stylelint 豁免或顶层 `:global`。这些写法属于可识别的兼容状态，不应复制到新组件；后续收敛时应先解除 JavaScript 和跨组件对类名的依赖。
 
 ## SCSS Modules

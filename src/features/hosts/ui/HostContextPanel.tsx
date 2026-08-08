@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type PointerEvent, type ReactNode } from 
 import { useTranslation } from 'react-i18next'
 import { AuthMethodBadge, HostAvatar, type Host, type HostGroup } from '#entities/host'
 import { EmptyState } from '#shared/ui'
+import styles from './HostContextPanel.module.scss'
 
 interface HostContextPanelProps {
   hosts: Host[]
@@ -73,7 +74,7 @@ export function HostContextPanel({
 
   return (
     <aside
-      className={`context-panel host-context-panel ${collapsed ? 'is-collapsed' : ''} ${
+      className={`${styles['context-panel']} context-panel ${styles['host-context-panel']} host-context-panel ${collapsed ? `${styles['is-collapsed']} is-collapsed` : ''} ${
         contentCollapsed ? 'is-content-collapsed' : ''
       } ${resizing ? 'is-resizing' : ''} ${className}`.trim()}
     >
@@ -90,14 +91,16 @@ export function HostContextPanel({
         />
       </Tooltip>
       {showHeading ? (
-        <div className="panel-heading">
-          <div className="panel-title-copy">
+        <div className={`${styles['panel-heading']} panel-heading`}>
+          <div className={`${styles['panel-title-copy']} panel-title-copy`}>
             <h2>{contentCollapsed ? collapsedTitle : title}</h2>
             {!contentCollapsed && subtitle ? <span>{subtitle}</span> : null}
           </div>
         </div>
       ) : null}
-      {!contentCollapsed && contentBefore ? <div className="host-context-content-before">{contentBefore}</div> : null}
+      {!contentCollapsed && contentBefore ? (
+        <div className={styles['content-before']}>{contentBefore}</div>
+      ) : null}
       {!contentCollapsed && searchPlaceholder ? (
         <Input
           id="host-context-search"
@@ -116,10 +119,10 @@ export function HostContextPanel({
       ) : visibleHosts.length === 0 && contentCollapsed ? null : visibleHosts.length === 0 ? (
         <EmptyState title={t('hosts.noFilterResults')} description={t('hosts.noFilterResultsHint')} />
       ) : (
-        <div className="host-stack">
+        <div className={`${styles['host-stack']} host-stack`}>
           {Object.entries(groupedHosts).map(([group, items]) => (
-            <div className="host-group-block" key={group}>
-              {!contentCollapsed ? <span className="group-label">{group || t('hosts.ungrouped')}</span> : null}
+            <div className={`${styles['host-group-block']} host-group-block`} key={group}>
+              {!contentCollapsed ? <span className={`${styles['group-label']} group-label`}>{group || t('hosts.ungrouped')}</span> : null}
               {items.map((host) => (
                 <HostRow
                   key={host.id}
@@ -204,14 +207,14 @@ function HostRow({
     >
       <button
         type="button"
-        className={`host-row ${active ? 'is-active' : ''} ${collapsed ? 'is-compact' : ''}`}
+        className={`${styles['host-row']} host-row ${active ? `${styles['is-active']} is-active` : ''} ${collapsed ? `${styles['is-compact']} is-compact` : ''}`}
         onClick={onSelect}
         aria-label={`${host.name} ${host.username}@${host.address}:${host.port} ${authLabel}`}
       >
         <HostAvatar host={host} getIconUrl={getHostIconUrl} size={30} iconSize={collapsed ? 17 : 15} />
         {!collapsed ? (
           <>
-            <span className="host-main">
+            <span className={`${styles['host-main']} host-main`}>
               <strong>{host.name}</strong>
               <small>
                 {host.username}@{host.address}:{host.port}

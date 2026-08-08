@@ -2,6 +2,7 @@ import { Button, ColorPicker } from 'antd'
 import { RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
+import { uiStyles } from '#shared/ui'
 import { normalizeSessionTabColor, sessionTabColorPresets } from '../model/sessionTabPreferences'
 import styles from './WorkbenchSessionTabs.module.scss'
 
@@ -42,7 +43,7 @@ export function SessionTabColorPanel({ color, onSelect, onReset }: SessionTabCol
         ))}
       </div>
       <div className={styles['session-tab-color-actions']}>
-        <Button className="secondary-button" size="small" icon={<RotateCcw size={13} />} onClick={onReset}>
+        <Button className={`${uiStyles['secondary-button']} secondary-button`} size="small" icon={<RotateCcw size={13} />} onClick={onReset}>
           {t('terminal.tabMenu.resetColor')}
         </Button>
         <ColorPicker
@@ -58,7 +59,7 @@ export function SessionTabColorPanel({ color, onSelect, onReset }: SessionTabCol
             }
           }}
         >
-          <Button className="secondary-button" size="small">
+          <Button className={`${uiStyles['secondary-button']} secondary-button`} size="small">
             {t('terminal.tabMenu.customColor')}
           </Button>
         </ColorPicker>

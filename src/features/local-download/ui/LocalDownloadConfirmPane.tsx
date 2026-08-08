@@ -10,6 +10,7 @@ import type { LocalDirectoryViewState } from '../model/localDownloadWorkspaceSta
 import type { RemoteFileDragSelection } from '../model/remoteFileDragRegistry'
 import type { useLocalDownloadDrop } from '../model/useLocalDownloadDrop'
 import type { LocalDownloadTarget } from '../model/types'
+import styles from './LocalDownloadConsole.module.scss'
 
 type DropController = ReturnType<typeof useLocalDownloadDrop>
 
@@ -71,7 +72,7 @@ export function LocalDownloadConfirmPane({
           title={target?.path}
           placement="topLeft"
           mouseEnterDelay={0.35}
-          classNames={{ root: 'file-name-tooltip' }}
+          classNames={{ root: styles['file-name-tooltip'] }}
         >
           <small>{target?.path ?? t('files.downloadDestinationNoMappingsHint')}</small>
         </Tooltip>

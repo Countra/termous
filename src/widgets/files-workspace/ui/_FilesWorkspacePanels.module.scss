@@ -1,7 +1,5 @@
-/* 迁移过渡期保持面板样式的级联顺序和响应式断点，避免改变现有界面。 */
-/* stylelint-disable termous/no-unscoped-global, rule-empty-line-before, media-feature-range-notation, keyframes-name-pattern -- 迁移期保持既有面板级联与响应式兼容。 */
+/* stylelint-disable rule-empty-line-before, media-feature-range-notation, keyframes-name-pattern -- 保持既有面板级联与响应式兼容。 */
 @mixin styles {
-  :global {
 .files-workspace-empty,
 .files-directory-skeleton {
   width: 100%;
@@ -375,7 +373,7 @@ body[data-panel-resizing='true'] .files-side-panel-resize-edge::after {
     display: none;
   }
 
-  .files-workspace-toggle.ant-btn {
+  .files-workspace-toggle:global(.ant-btn) {
     width: 28px;
     padding-inline: 0;
   }
@@ -384,13 +382,13 @@ body[data-panel-resizing='true'] .files-side-panel-resize-edge::after {
     display: none;
   }
 
-  .files-transfer-toggle.ant-btn {
+  .files-transfer-toggle:global(.ant-btn) {
     width: auto;
     min-width: 28px;
     padding-inline: 6px;
   }
 
-  .files-selection-more.ant-btn {
+  .files-selection-more:global(.ant-btn) {
     display: inline-flex;
   }
 
@@ -414,13 +412,13 @@ body[data-panel-resizing='true'] .files-side-panel-resize-edge::after {
     padding-inline: 7px;
   }
 
-  .files-command-button.ant-btn > span:not(.ant-btn-icon),
-  .files-upload-button.ant-btn > span:not(.ant-btn-icon) {
+  .files-command-button:global(.ant-btn) > span:not([class~='ant-btn-icon']),
+  .files-upload-button:global(.ant-btn) > span:not([class~='ant-btn-icon']) {
     display: none;
   }
 
-  .files-command-button.ant-btn,
-  .files-upload-button.ant-btn {
+  .files-command-button:global(.ant-btn),
+  .files-upload-button:global(.ant-btn) {
     width: 32px;
     justify-content: center;
     padding-inline: 0;
@@ -479,6 +477,5 @@ body[data-panel-resizing='true'] .files-side-panel-resize-edge::after {
   .transfer-progress-line span {
     transition: none !important;
   }
-}
 }
 }

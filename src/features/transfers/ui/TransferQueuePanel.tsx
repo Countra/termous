@@ -23,7 +23,8 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { formatBytes } from '#shared/format'
-import { ContextActionMenu } from '#shared/ui'
+import { ContextActionMenu, contextActionMenuPopupClassName } from '#shared/ui'
+import rowStyles from './TransferQueueRows.module.scss'
 import type { TransferTask } from '#entities/file'
 import {
   buildTransferQueueItems,
@@ -379,7 +380,7 @@ function TransferPreparationRow({
             <Button
               type="text"
               size="small"
-              className="files-icon-button transfer-more-button"
+              className={`${rowStyles['files-icon-button']} transfer-more-button`}
               aria-label={t('files.deleteTransferRecord')}
               icon={<Trash2 size={14} aria-hidden="true" />}
               onClick={() => onDismiss(operation.id)}
@@ -575,7 +576,7 @@ function TransferRow({
                   <Button
                     type="text"
                     size="small"
-                    className="files-icon-button transfer-cancel-action"
+                    className={`${rowStyles['files-icon-button']} transfer-cancel-action`}
                     aria-label={t('files.cancelTransfer')}
                     icon={<CircleStop size={15} aria-hidden="true" />}
                     onClick={() => void onCancel(task.id)}
@@ -597,14 +598,14 @@ function TransferRow({
                 <Dropdown
                   trigger={['click']}
                   placement="bottomRight"
-                  classNames={{ root: 'context-action-menu' }}
+                  classNames={{ root: contextActionMenuPopupClassName }}
                   menu={{ items: secondaryMenuItems, onClick: handleMenuClick }}
                 >
                   <Tooltip title={t('files.actions')}>
                     <Button
                       type="text"
                       size="small"
-                      className="files-icon-button transfer-more-button"
+                      className={`${rowStyles['files-icon-button']} transfer-more-button`}
                       aria-label={t('files.actions')}
                       icon={<MoreHorizontal size={15} aria-hidden="true" />}
                     />
@@ -629,8 +630,8 @@ function transferMenuItem(
     key,
     danger,
     label: (
-      <span className="context-action-menu-item">
-        <span className="context-action-menu-icon">{icon}</span>
+      <span className={rowStyles['context-menu-item']}>
+        <span className={rowStyles['context-menu-icon']}>{icon}</span>
         <span>{label}</span>
       </span>
     ),

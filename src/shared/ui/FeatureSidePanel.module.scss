@@ -1,0 +1,47 @@
+.details-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 14px;
+  box-shadow: var(--shadow-soft), var(--inner-highlight);
+  backdrop-filter: blur(26px) saturate(1.28);
+}
+
+.details-panel.is-collapsed {
+  padding: 10px 9px;
+}
+
+.details-panel.is-collapsed :global(.panel-heading) {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.details-panel.is-collapsed :global(.panel-heading) h2 {
+  max-width: 58px;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.details-collapsed-rail {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  margin-top: 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.details-collapsed-rail span {
+  max-width: 58px;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 import type { AppTheme as ThemeMode } from '#common/contracts'
 import type { Session } from '#entities/session'
 import { TerminalPaneViewport } from './TerminalPaneViewport'
+import styles from './TerminalSplitWorkspace.module.scss'
 import {
   compactTerminalSplitLayout,
   createDropSessionOrder,
@@ -321,7 +322,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
           <Group
             key={node.id}
             orientation={node.direction}
-            className={`terminal-split-group is-${node.direction}`}
+            className={`${styles.group} ${styles[node.direction]}`}
             onLayoutChange={(sizes) => {
               updateBranchSizes(
                 node.id,
@@ -335,7 +336,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
                   {renderNode(child)}
                 </Panel>
                 {index < node.children.length - 1 ? (
-                  <Separator id={`${node.id}-separator-${index}`} className={`terminal-split-resize-handle is-${node.direction}`} />
+                  <Separator id={`${node.id}-separator-${index}`} className={`${styles['resize-handle']} ${styles[node.direction]}`} />
                 ) : null}
               </Fragment>
             ))}
@@ -365,7 +366,7 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
     return (
       <div
         ref={rootRef}
-        className={`terminal-split-workspace ${dragInsideWorkspace ? 'is-drag-over' : ''}`}
+        className={[styles.workspace, dragInsideWorkspace ? styles['drag-over'] : ''].filter(Boolean).join(' ')}
         aria-label={t('workbench.terminal')}
       >
         {layout.root ? renderNode(layout.root) : (
@@ -409,8 +410,8 @@ function TerminalSnapOverlay({
     return null
   }
   return (
-    <div className="terminal-snap-layer">
-      <div className="terminal-snap-bar" aria-label={t('workbench.split.chooseLayout')} onPointerLeave={() => onTargetChange(null)}>
+    <div className={styles['snap-layer']}>
+      <div className={styles['snap-bar']} aria-label={t('workbench.split.chooseLayout')} onPointerLeave={() => onTargetChange(null)}>
         {terminalSplitPresets.map((preset) => (
           <TerminalSnapPresetButton
             key={preset.id}
@@ -421,11 +422,11 @@ function TerminalSnapOverlay({
         ))}
       </div>
       {activePreset && target ? (
-        <div className="terminal-snap-preview" aria-hidden="true">
+        <div className={styles['snap-preview']} aria-hidden="true">
           {activePreset.zones.map((zone) => (
             <span
               key={zone.id}
-              className={`terminal-snap-preview-zone ${zone.id === target.zoneId ? 'is-target' : ''}`}
+              className={[styles['snap-preview-zone'], zone.id === target.zoneId ? styles.target : ''].filter(Boolean).join(' ')}
               style={zoneStyle(zone)}
             />
           ))}
@@ -446,14 +447,15 @@ function TerminalSnapPresetButton({
 }) {
   const { t } = useTranslation()
   return (
-    <div className={`terminal-snap-preset ${preset.id === 'focus' ? 'is-focus-preset' : ''}`} aria-label={t(preset.labelKey)}>
+    <div className={[styles['snap-preset'], preset.id === 'focus' ? styles['focus-preset'] : ''].filter(Boolean).join(' ')} aria-label={t(preset.labelKey)}>
       {preset.zones.map((zone) => (
         <button
           key={zone.id}
           type="button"
-          className={`terminal-snap-zone ${
-            target?.presetId === preset.id && target.zoneId === zone.id ? 'is-active' : ''
-          }`}
+          className={[
+            styles['snap-zone'],
+            target?.presetId === preset.id && target.zoneId === zone.id ? styles.active : '',
+          ].filter(Boolean).join(' ')}
           style={zoneStyle(zone)}
           aria-label={`${t(preset.labelKey)} ${zone.id}`}
           onPointerEnter={() => onTargetChange({ presetId: preset.id, zoneId: zone.id })}
