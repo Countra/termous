@@ -35,6 +35,7 @@ import {
   useRef,
   useState,
   type DragEvent,
+  type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
@@ -108,6 +109,14 @@ interface BookmarkRowContext {
 
 const overlayMediaQuery = '(max-width: 1279px)'
 const fullOverlayMediaQuery = '(max-width: 699px)'
+const bookmarkFloatingLayerSelector = [
+  '.ant-dropdown:not(.ant-dropdown-hidden) [data-files-bookmarks-floating-layer]',
+  '.ant-select-dropdown:not(.ant-select-dropdown-hidden) [data-files-bookmarks-floating-layer]',
+].join(', ')
+
+const renderBookmarkFloatingLayer = (content: ReactNode) => (
+  <div data-files-bookmarks-floating-layer>{content}</div>
+)
 
 function useMediaQuery(query: string) {
   const [matches, setMatches] = useState(() => (
@@ -133,10 +142,7 @@ function placementFromPointer(
 }
 
 function hasOpenBookmarkFloatingLayer() {
-  return Boolean(document.querySelector(
-    '.files-bookmarks-sidebar-menu:not(.ant-dropdown-hidden), '
-    + '.files-bookmarks-sidebar-select-popup:not(.ant-select-dropdown-hidden)',
-  ))
+  return Boolean(document.querySelector(bookmarkFloatingLayerSelector))
 }
 
 export function FileBookmarksSidebar({
@@ -1066,6 +1072,7 @@ export function FileBookmarksSidebar({
             <Dropdown
               menu={createMenu}
               trigger={['click']}
+              popupRender={renderBookmarkFloatingLayer}
               classNames={{
                 root: `context-action-menu files-bookmarks-sidebar-menu ${styles['menu-portal']}`,
               }}
@@ -1420,6 +1427,7 @@ function SidebarGroupMenu({
       <Dropdown
         menu={menu}
         trigger={['click']}
+        popupRender={renderBookmarkFloatingLayer}
         classNames={{
           root: `context-action-menu files-bookmarks-sidebar-menu ${styles['menu-portal']}`,
         }}
@@ -1655,6 +1663,7 @@ function SidebarEditor({
                 id={groupId}
                 value={view.draft.group_id}
                 className="termous-select"
+                popupRender={renderBookmarkFloatingLayer}
                 classNames={{ popup: { root: 'files-bookmarks-sidebar-select-popup' } }}
                 options={groupOptions}
                 disabled={saving || blocked}

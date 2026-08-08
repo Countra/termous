@@ -8,6 +8,10 @@ const workspaceStyles = readFileSync(
   fileURLToPath(new URL('../widgets/files-workspace/ui/FilesWorkspace.module.scss', import.meta.url)),
   'utf8',
 )
+const workspaceSource = readFileSync(
+  fileURLToPath(new URL('../widgets/files-workspace/ui/FilesWorkspace.tsx', import.meta.url)),
+  'utf8',
+)
 const panelStyles = readFileSync(
   fileURLToPath(new URL('../widgets/files-workspace/ui/_FilesWorkspacePanels.module.scss', import.meta.url)),
   'utf8',
@@ -79,4 +83,25 @@ test('文件工作区样式在旧工作台样式后加载', () => {
   assert.ok(workstationStyleImport > appStyleImport)
   assert.ok(filesPageImport >= 0)
   assert.ok(filesWorkspaceImport >= 0)
+})
+
+test('文件工作区行为使用稳定数据标记而不读取内部样式类名', () => {
+  for (const marker of [
+    'data-files-drag-block',
+    'data-file-kind-icon',
+    'data-files-entry-open',
+    'data-files-name-cell',
+    'data-files-row-menu',
+    'data-files-table-row',
+    'data-files-entry-kind',
+  ]) {
+    assert.match(workspaceSource, new RegExp(marker))
+  }
+  assert.doesNotMatch(
+    workspaceSource,
+    /(?:closest|querySelector)(?:<[^>]+>)?\('\.(?:files-icon-button|files-table-column-resizer|file-kind-icon|file-name-copy|files-table-name-cell)'/,
+  )
+  assert.doesNotMatch(workspaceSource, /closest<HTMLElement>\('\.files-table-row\.is-directory/)
+  assert.doesNotMatch(workspaceSource, /target\.closest\('\.ant-dropdown'\)/)
+  assert.doesNotMatch(workspaceSource, /classList\.(?:add|remove)\('is-files-column-resizing'\)/)
 })

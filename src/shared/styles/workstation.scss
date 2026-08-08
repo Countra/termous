@@ -291,12 +291,12 @@
   border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
 }
 
-body.is-panel-resizing {
+body[data-panel-resizing='true'] {
   cursor: col-resize;
   user-select: none;
 }
 
-body.is-panel-resizing * {
+body[data-panel-resizing='true'] * {
   cursor: col-resize !important;
 }
 
@@ -1849,8 +1849,8 @@ body.is-panel-resizing * {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
-body.is-terminal-tab-dragging,
-body.is-terminal-tab-dragging * {
+body[data-terminal-tab-dragging='true'],
+body[data-terminal-tab-dragging='true'] * {
   cursor: grabbing !important;
   user-select: none;
 }
@@ -1997,14 +1997,14 @@ body.is-terminal-tab-dragging * {
   box-shadow: inset 0 0 0 1px rgb(173 116 21 / 12%);
 }
 
-.terminal-session-pane.is-active {
+.terminal-session-pane[data-terminal-visibility='active'] {
   z-index: 1;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
 }
 
-.terminal-session-pane.is-inactive {
+.terminal-session-pane[data-terminal-visibility='inactive'] {
   z-index: 0;
   opacity: 0;
   visibility: hidden;
@@ -2036,7 +2036,7 @@ body.is-terminal-tab-dragging * {
   filter: saturate(0.86) brightness(0.78);
 }
 
-.terminal-session-pane.is-terminal-ended {
+.terminal-session-pane[data-terminal-ended='true'] {
   cursor: default;
 }
 
@@ -3981,7 +3981,7 @@ body.is-terminal-tab-dragging * {
   transition: grid-template-columns 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-body.is-panel-resizing .files-page {
+body[data-panel-resizing='true'] .files-page {
   transition: none;
 }
 
@@ -4383,12 +4383,12 @@ body.is-panel-resizing .files-page {
 }
 
 .files-table-column-resizer:hover::after,
-body.is-files-column-resizing .files-table-column-resizer::after {
+body[data-files-column-resizing='true'] .files-table-column-resizer::after {
   opacity: 1;
 }
 
-body.is-files-column-resizing,
-body.is-files-column-resizing * {
+body[data-files-column-resizing='true'],
+body[data-files-column-resizing='true'] * {
   cursor: col-resize !important;
   user-select: none !important;
 }

@@ -103,7 +103,7 @@ export const FilesSidePanel = forwardRef<HTMLElement, FilesSidePanelProps>(
       let previewFrame: number | null = null
       let finished = false
       resizeTarget.setPointerCapture(pointerId)
-      document.body.classList.add('is-panel-resizing')
+      document.body.dataset.panelResizing = 'true'
 
       const handlePointerMove = (moveEvent: PointerEvent) => {
         moveEvent.preventDefault()
@@ -136,7 +136,7 @@ export const FilesSidePanel = forwardRef<HTMLElement, FilesSidePanelProps>(
         if (resizeTarget.hasPointerCapture(pointerId)) {
           resizeTarget.releasePointerCapture(pointerId)
         }
-        document.body.classList.remove('is-panel-resizing')
+        delete document.body.dataset.panelResizing
         resizeCleanupRef.current = null
         if (commit && previewWidth !== startWidth) {
           onWidthChange(previewWidth)
@@ -172,7 +172,7 @@ export const FilesSidePanel = forwardRef<HTMLElement, FilesSidePanelProps>(
 
     useEffect(() => () => {
       resizeCleanupRef.current?.()
-      document.body.classList.remove('is-panel-resizing')
+      delete document.body.dataset.panelResizing
     }, [])
 
     useEffect(() => {

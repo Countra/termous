@@ -59,12 +59,15 @@ export function SessionTabStrip({
 
   const commitScrollState = useCallback((next: TabScrollState) => {
     const focusedElement = document.activeElement
+    const focusedScrollDirection = focusedElement instanceof HTMLElement
+      ? focusedElement.dataset.sessionTabScrollDirection
+      : undefined
     if (
       focusedElement instanceof HTMLElement
       && shellRef.current?.contains(focusedElement)
-      && focusedElement.classList.contains('session-scroll-button')
+      && (focusedScrollDirection === 'left' || focusedScrollDirection === 'right')
     ) {
-      const isLeftButton = focusedElement.classList.contains('is-left')
+      const isLeftButton = focusedScrollDirection === 'left'
       const buttonWillBecomeUnavailable = !next.hasOverflow
         || (isLeftButton ? !next.canScrollLeft : !next.canScrollRight)
       if (buttonWillBecomeUnavailable) {
@@ -194,7 +197,7 @@ export function SessionTabStrip({
     if (!(target instanceof Element)) {
       return
     }
-    const closeButton = target.closest<HTMLElement>('.session-tab-close')
+    const closeButton = target.closest<HTMLElement>('[data-session-tab-close]')
     closingButtonWithFocusRef.current = closeButton && document.activeElement === closeButton ? closeButton : null
   }, [])
 
@@ -215,7 +218,7 @@ export function SessionTabStrip({
     }
 
     const viewportRect = viewport.getBoundingClientRect()
-    const tabElement = activeTab.closest<HTMLElement>('.session-tab-button') ?? activeTab
+    const tabElement = activeTab.closest<HTMLElement>('[data-session-tab-root]') ?? activeTab
     const tabRect = tabElement.getBoundingClientRect()
     const edgePadding = 8
     let nextScrollLeft = viewport.scrollLeft
@@ -305,7 +308,7 @@ export function SessionTabStrip({
       const tabs = Array.from(trackRef.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])
         .filter((tab) => tab.getAttribute('aria-disabled') !== 'true' && !tab.hasAttribute('disabled'))
       const boundaryTab = scrollState.hasOverflow
-        ? navigationButton.classList.contains('is-left')
+        ? navigationButton.dataset.sessionTabScrollDirection === 'left'
           ? tabs[0]
           : tabs[tabs.length - 1]
         : null
@@ -346,6 +349,7 @@ export function SessionTabStrip({
           <Button
             type="text"
             className="session-scroll-button is-left"
+            data-session-tab-scroll-direction="left"
             aria-label={scrollLeftLabel}
             disabled={!scrollState.canScrollLeft}
             tabIndex={scrollState.canScrollLeft ? 0 : -1}
@@ -380,6 +384,7 @@ export function SessionTabStrip({
           <Button
             type="text"
             className="session-scroll-button is-right"
+            data-session-tab-scroll-direction="right"
             aria-label={scrollRightLabel}
             disabled={!scrollState.canScrollRight}
             tabIndex={scrollState.canScrollRight ? 0 : -1}

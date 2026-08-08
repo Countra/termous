@@ -78,8 +78,8 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
       event.stopPropagation()
       if (!disabled && !closeDisabled && !closing) {
         event.currentTarget
-          .closest('.session-tab-button')
-          ?.querySelector<HTMLButtonElement>('.session-tab-main')
+          .closest('[data-session-tab-root]')
+          ?.querySelector<HTMLButtonElement>('[data-session-tab-main]')
           ?.focus({ preventScroll: true })
         onClose?.()
       }
@@ -99,7 +99,7 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
 
     if (empty) {
       return (
-        <span className={classes} style={tabStyle} role="status">
+        <span className={classes} style={tabStyle} role="status" data-session-tab-root="">
           <span className="session-tab-empty-content">
             {leading}
             <span className="session-tab-label">{label}</span>
@@ -109,7 +109,7 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
     }
 
     return (
-      <span className={classes} style={tabStyle}>
+      <span className={classes} style={tabStyle} data-session-tab-root="">
         <Tooltip
           title={resolvedTitle}
           placement="bottom"
@@ -124,6 +124,7 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
             ref={ref}
             type="text"
             className="session-tab-main"
+            data-session-tab-main=""
             disabled={disabled}
             aria-busy={closing || undefined}
             aria-disabled={disabled || closing || undefined}
@@ -154,6 +155,7 @@ export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonPr
             <button
               type="button"
               className="session-tab-close"
+              data-session-tab-close=""
               aria-label={closing ? closingLabel : closeLabel}
               aria-disabled={disabled || closeDisabled || closing}
               disabled={disabled || closeDisabled || closing}

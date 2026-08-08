@@ -823,14 +823,14 @@ export function WorkbenchPage({
 
   const beginTerminalTabDrag = useCallback(
     (event: ReactPointerEvent<HTMLElement>, sessionId: string) => {
-      if (event.button !== 0 || actionBusy || (event.target as Element).closest('.session-tab-close')) {
+      if (event.button !== 0 || actionBusy || (event.target as Element).closest('[data-session-tab-close]')) {
         return
       }
       const start = { x: event.clientX, y: event.clientY }
       updateTerminalTabDrag({ sessionId, start, point: start, dragging: false })
 
       const cleanup = () => {
-        document.body.classList.remove('is-terminal-tab-dragging')
+        delete document.body.dataset.terminalTabDragging
         window.removeEventListener('pointermove', handlePointerMove)
         window.removeEventListener('pointerup', handlePointerUp)
         window.removeEventListener('keydown', handleKeyDown)
@@ -847,7 +847,7 @@ export function WorkbenchPage({
         const dragging = current.dragging || moved
         if (dragging) {
           moveEvent.preventDefault()
-          document.body.classList.add('is-terminal-tab-dragging')
+          document.body.dataset.terminalTabDragging = 'true'
         }
         updateTerminalTabDrag({ ...current, point, dragging })
       }

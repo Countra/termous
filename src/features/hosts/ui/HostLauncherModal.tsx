@@ -43,6 +43,10 @@ type LauncherPlatformFilter = 'all' | Host['platform']
 type LauncherAuthFilter = 'all' | Host['auth_method']
 type LauncherGroupFilter = 'all' | '__ungrouped' | string
 
+const renderHostLauncherFilterPopup = (content: ReactNode) => (
+  <div data-host-launcher-filter-popup>{content}</div>
+)
+
 export interface HostLauncherModalProps {
   open: boolean
   intent?: HostLauncherIntent
@@ -172,7 +176,7 @@ export function HostLauncherModal({
       if (target instanceof Node && filterAnchorRef.current?.contains(target)) {
         return
       }
-      if (target instanceof Element && target.closest('.termous-select-popup, .ant-select-dropdown')) {
+      if (target instanceof Element && target.closest('[data-host-launcher-filter-popup]')) {
         return
       }
       setFilterOpen(false)
@@ -307,6 +311,7 @@ export function HostLauncherModal({
             <Select
               value={platformFilter}
               className="termous-select"
+              popupRender={renderHostLauncherFilterPopup}
               classNames={{ popup: { root: 'termous-select-popup' } }}
               optionLabelProp="label"
               onChange={(value) => setPlatformFilter(value as LauncherPlatformFilter)}
@@ -321,6 +326,7 @@ export function HostLauncherModal({
             <Select
               value={groupFilter}
               className="termous-select"
+              popupRender={renderHostLauncherFilterPopup}
               classNames={{ popup: { root: 'termous-select-popup' } }}
               optionLabelProp="label"
               onChange={(value) => setGroupFilter(value as LauncherGroupFilter)}
@@ -332,6 +338,7 @@ export function HostLauncherModal({
             <Select
               value={authFilter}
               className="termous-select"
+              popupRender={renderHostLauncherFilterPopup}
               classNames={{ popup: { root: 'termous-select-popup' } }}
               optionLabelProp="label"
               onChange={(value) => setAuthFilter(value as LauncherAuthFilter)}

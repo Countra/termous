@@ -13,7 +13,7 @@ import {
   resolveEffectiveShortcutBindings,
   shortcutChordSignature,
   ShortcutRuntime,
-  ShortcutRuntimeContext,
+  ShortcutRuntimeContextProvider,
   type ShortcutActionId,
   type ShortcutHandler,
   type ShortcutSettings,
@@ -63,9 +63,9 @@ export function ShortcutRuntimeProvider({
   )
 
   return (
-    <ShortcutRuntimeContext.Provider value={value}>
+    <ShortcutRuntimeContextProvider value={value}>
       {children}
-    </ShortcutRuntimeContext.Provider>
+    </ShortcutRuntimeContextProvider>
   )
 }
 

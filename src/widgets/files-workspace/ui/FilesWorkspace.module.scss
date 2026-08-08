@@ -767,7 +767,7 @@
   opacity: 1;
 }
 
-body.is-files-column-resizing .files-workspace-page .files-table-column-resizer::after {
+body[data-files-column-resizing='true'] .files-workspace-page .files-table-column-resizer::after {
   opacity: 0;
 }
 

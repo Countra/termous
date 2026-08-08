@@ -30,8 +30,11 @@ test('终端会话容器只创建一次并在可见视口与 parking host 之间
   assert.match(createEntrySource, /const existingEntry = entriesRef\.current\.get\(sessionId\)[\s\S]*?return existingEntry/)
   assert.equal((createEntrySource.match(/document\.createElement\('div'\)/g) ?? []).length, 1)
   assert.match(createEntrySource, /\(parkingHostRef\.current \?\? document\.body\)\.appendChild\(pane\)/)
+  assert.match(createEntrySource, /pane\.dataset\.terminalVisibility = 'inactive'/)
   assert.match(viewportSyncSource, /const targetHost = host \?\? parkingHostRef\.current/)
   assert.match(viewportSyncSource, /targetHost\.appendChild\(entry\.container\)/)
+  assert.match(viewportSyncSource, /entry\.container\.dataset\.terminalVisibility = !visible \? 'inactive' : active \? 'active' : 'visible'/)
+  assert.doesNotMatch(viewportSyncSource, /classList\.toggle\('is-(?:active|inactive)'/)
   assert.doesNotMatch(viewportSyncSource, /document\.createElement|disposeSession/)
 })
 

@@ -163,4 +163,45 @@ describe('HostLauncherModal 行为合同', () => {
     pending.resolve()
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
+
+  it('高级筛选只保留自身 Select 浮层的指针交互', async () => {
+    const current = host('host-a', 'Alpha')
+    render(
+      <HostLauncherModal
+        open
+        data={data([current])}
+        selectedHostId={current.id}
+        actionBusy={false}
+        onClose={vi.fn()}
+        onSelectHost={vi.fn()}
+        onConnect={vi.fn().mockResolvedValue(undefined)}
+        onCreateHost={vi.fn()}
+        onEditHost={vi.fn()}
+        onOpenFiles={vi.fn().mockResolvedValue(undefined)}
+        onOpenForward={vi.fn()}
+        onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
+        onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
+        getHostIconUrl={vi.fn(() => '')}
+      />,
+    )
+
+    const filterName = 'workbench.hostLauncher.filters.advanced'
+    fireEvent.click(screen.getByRole('button', { name: filterName }))
+    expect(screen.getByRole('dialog', { name: filterName })).toBeInTheDocument()
+
+    const unrelatedPopup = document.createElement('div')
+    unrelatedPopup.className = 'ant-select-dropdown'
+    document.body.append(unrelatedPopup)
+    fireEvent.pointerDown(unrelatedPopup)
+    expect(screen.queryByRole('dialog', { name: filterName })).not.toBeInTheDocument()
+    unrelatedPopup.remove()
+
+    fireEvent.click(screen.getByRole('button', { name: filterName }))
+    const ownedPopup = document.createElement('div')
+    ownedPopup.dataset.hostLauncherFilterPopup = ''
+    document.body.append(ownedPopup)
+    fireEvent.pointerDown(ownedPopup)
+    expect(screen.getByRole('dialog', { name: filterName })).toBeInTheDocument()
+    ownedPopup.remove()
+  })
 })

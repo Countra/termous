@@ -45,6 +45,7 @@ export function TerminalSearchPanel({
   return (
     <div
       className={`terminal-search-panel ${hasError ? 'is-error' : ''}`}
+      data-terminal-search-panel=""
       role="search"
       onMouseDown={(event) => event.stopPropagation()}
       onContextMenu={(event) => event.stopPropagation()}

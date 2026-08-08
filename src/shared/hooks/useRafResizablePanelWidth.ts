@@ -44,7 +44,7 @@ export function useRafResizablePanelWidth({
   useEffect(() => {
     return () => {
       cleanupRef.current?.()
-      document.body.classList.remove('is-panel-resizing')
+      delete document.body.dataset.panelResizing
     }
   }, [])
 
@@ -97,7 +97,7 @@ export function useRafResizablePanelWidth({
           applyWidth()
         }
 
-        document.body.classList.remove('is-panel-resizing')
+        delete document.body.dataset.panelResizing
       }
 
       const finishAndCommit = () => {
@@ -109,7 +109,7 @@ export function useRafResizablePanelWidth({
 
       cleanupRef.current = stopListening
       setResizing(true)
-      document.body.classList.add('is-panel-resizing')
+      document.body.dataset.panelResizing = 'true'
       window.addEventListener('pointermove', handlePointerMove, { passive: false })
       window.addEventListener('pointerup', finishAndCommit)
       window.addEventListener('pointercancel', finishAndCommit)

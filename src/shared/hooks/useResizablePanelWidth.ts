@@ -40,7 +40,7 @@ export function useResizablePanelWidth({
   useEffect(() => {
     return () => {
       cleanupRef.current?.()
-      document.body.classList.remove('is-panel-resizing')
+      delete document.body.dataset.panelResizing
     }
   }, [])
 
@@ -67,7 +67,7 @@ export function useResizablePanelWidth({
         active = true
         onExpand?.()
         setResizing(true)
-        document.body.classList.add('is-panel-resizing')
+        document.body.dataset.panelResizing = 'true'
         window.getSelection()?.removeAllRanges()
       }
 
@@ -100,7 +100,7 @@ export function useResizablePanelWidth({
 
         if (active) {
           setResizing(false)
-          document.body.classList.remove('is-panel-resizing')
+          delete document.body.dataset.panelResizing
         }
         if (active || moved || movedBeforeActivation) {
           suppressClickRef.current = true

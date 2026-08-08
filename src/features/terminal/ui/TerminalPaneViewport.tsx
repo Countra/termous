@@ -260,7 +260,7 @@ export function TerminalPaneViewport({
 
   const handleMouseDown = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
-      if (event.button === 2 || (event.target as Element).closest('.terminal-search-panel')) {
+      if (event.button === 2 || (event.target as Element).closest('[data-terminal-search-panel]')) {
         return
       }
       onActivate()
@@ -341,7 +341,7 @@ export function TerminalPaneViewport({
 
   const handleContextMenu = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
-      if (!session || (event.target as Element).closest('.terminal-search-panel')) {
+      if (!session || (event.target as Element).closest('[data-terminal-search-panel]')) {
         return
       }
       event.preventDefault()
@@ -379,7 +379,7 @@ export function TerminalPaneViewport({
     if (
       event.button !== 2
       || !event.shiftKey
-      || (event.target as Element).closest('.terminal-search-panel')
+      || (event.target as Element).closest('[data-terminal-search-panel]')
     ) {
       return
     }
@@ -390,7 +390,7 @@ export function TerminalPaneViewport({
   const handleKeyDownCapture = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
       const target = event.target as Element
-      const inSearchPanel = Boolean(target.closest('.terminal-search-panel'))
+      const inSearchPanel = Boolean(target.closest('[data-terminal-search-panel]'))
       const opensContextMenu = event.key === 'ContextMenu'
         || (event.shiftKey && event.key === 'F10')
       if (session && opensContextMenu && !inSearchPanel) {
@@ -533,7 +533,7 @@ export function TerminalPaneViewport({
 
     const handleDocumentPointerDown = (event: PointerEvent) => {
       const target = event.target
-      if (target instanceof Element && target.closest('.terminal-context-menu')) {
+      if (target instanceof Element && target.closest('[data-terminal-context-menu]')) {
         return
       }
       closeContextMenu()
@@ -743,6 +743,7 @@ export function TerminalPaneViewport({
     <div
       ref={frameRef}
       className={`terminal-pane-frame ${active ? 'is-active' : ''} ${dropTargeted ? 'is-drop-target' : ''}`}
+      data-terminal-pane-frame=""
       data-pane-id={paneId}
       onMouseDownCapture={handleMouseDownCapture}
       onKeyDownCapture={handleKeyDownCapture}

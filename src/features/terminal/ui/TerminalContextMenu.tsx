@@ -56,6 +56,10 @@ const actionTranslationKeys: Record<TerminalContextMenuActionKey, string> = {
   find: 'terminal.contextMenu.find',
 }
 
+const terminalContextMenuMarker = {
+  'data-terminal-context-menu': '',
+}
+
 export function TerminalContextMenu({
   instanceId,
   open,
@@ -110,6 +114,7 @@ export function TerminalContextMenu({
       getPopupContainer={() => document.body}
       classNames={{ root: 'terminal-context-menu context-action-menu' }}
       menu={{
+        ...terminalContextMenuMarker,
         items: menuItems,
         selectable: false,
         'aria-label': t('terminal.contextMenu.label'),

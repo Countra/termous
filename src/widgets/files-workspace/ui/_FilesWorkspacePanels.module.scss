@@ -160,7 +160,7 @@
 
 .files-side-panel-resize-edge:hover::after,
 .files-side-panel-resize-edge:focus-visible::after,
-body.is-panel-resizing .files-side-panel-resize-edge::after {
+body[data-panel-resizing='true'] .files-side-panel-resize-edge::after {
   opacity: 1;
   transform: scaleY(1);
 }

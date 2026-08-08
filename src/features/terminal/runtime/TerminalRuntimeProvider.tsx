@@ -706,7 +706,11 @@ export function TerminalRuntimeProvider({
   const applyEntrySessionState = useCallback(
     (entry: TerminalEntry) => {
       const ended = isEntryEnded(entry)
-      entry.container.classList.toggle('is-terminal-ended', ended)
+      if (ended) {
+        entry.container.dataset.terminalEnded = 'true'
+      } else {
+        delete entry.container.dataset.terminalEnded
+      }
     },
     [isEntryEnded],
   )
@@ -956,8 +960,9 @@ export function TerminalRuntimeProvider({
       }
 
       const pane = document.createElement('div')
-      pane.className = 'terminal-session-pane is-inactive'
+      pane.className = 'terminal-session-pane'
       pane.dataset.sessionId = sessionId
+      pane.dataset.terminalVisibility = 'inactive'
       ;(parkingHostRef.current ?? document.body).appendChild(pane)
 
       const fit = new FitAddon()
@@ -1324,8 +1329,7 @@ export function TerminalRuntimeProvider({
     if (targetHost && entry.container.parentElement !== targetHost) {
       targetHost.appendChild(entry.container)
     }
-    entry.container.classList.toggle('is-active', active && visible)
-    entry.container.classList.toggle('is-inactive', !visible)
+    entry.container.dataset.terminalVisibility = !visible ? 'inactive' : active ? 'active' : 'visible'
   }, [])
 
   const syncViewports = useCallback(() => {
@@ -1731,17 +1735,20 @@ function handleTerminalTransportEvent(
   outputGapMessage: string,
 ) {
   switch (event.type) {
-    case 'transport_state':
+    case 'transport_state': {
       entry.transportState = event.state
       onTransportState(event.state)
       entry.container.dataset.transportState = event.state
-      entry.container.classList.toggle(
-        'is-terminal-transport-reconnecting',
-        event.state === 'connecting' ||
-          event.state === 'attaching' ||
-          event.state === 'retry_wait',
-      )
+      const reconnecting = event.state === 'connecting'
+        || event.state === 'attaching'
+        || event.state === 'retry_wait'
+      if (reconnecting) {
+        entry.container.dataset.terminalTransportReconnecting = 'true'
+      } else {
+        delete entry.container.dataset.terminalTransportReconnecting
+      }
       return
+    }
     case 'attached':
       delete entry.container.dataset.transportError
       onSessionEvent?.(entry.sessionId, event.message.session)

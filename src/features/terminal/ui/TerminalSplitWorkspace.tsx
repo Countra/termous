@@ -506,7 +506,7 @@ function findPaneIdFromPoint(point: TerminalDragPoint, root: HTMLElement | null)
     if (!(element instanceof HTMLElement)) {
       continue
     }
-    const pane = element.closest<HTMLElement>('.terminal-pane-frame[data-pane-id]')
+    const pane = element.closest<HTMLElement>('[data-terminal-pane-frame][data-pane-id]')
     if (pane && root.contains(pane)) {
       return pane.dataset.paneId ?? null
     }

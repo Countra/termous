@@ -14,6 +14,9 @@ const legacyStyles = [
 const pageStyles = readSource('../widgets/workbench/ui/WorkbenchPage.module.scss')
 const sessionStyles = readSource('../widgets/workbench/ui/WorkbenchSessionTabs.module.scss')
 const detailsStyles = readSource('../widgets/workbench/ui/WorkbenchDetails.module.scss')
+const sessionTabButtonSource = readSource('../shared/ui/SessionTabButton.tsx')
+const sessionTabStripSource = readSource('../shared/ui/SessionTabStrip.tsx')
+const workbenchPageSource = readSource('../widgets/workbench/ui/WorkbenchPage.tsx')
 
 test('工作台独占选择器不再由旧全局样式承载', () => {
   for (const className of [
@@ -104,5 +107,30 @@ test('工作台模块保留 Portal 边界与详情树层级', () => {
   assert.match(
     detailsStyles,
     /\.connection-overview-icon:global\(\.host-avatar\)\s*\{/,
+  )
+})
+
+test('会话标签行为使用稳定数据标记而不读取内部样式类名', () => {
+  for (const marker of [
+    'data-session-tab-root',
+    'data-session-tab-main',
+    'data-session-tab-close',
+  ]) {
+    assert.match(sessionTabButtonSource, new RegExp(marker))
+  }
+  assert.match(sessionTabStripSource, /data-session-tab-scroll-direction/)
+  assert.match(workbenchPageSource, /closest\('\[data-session-tab-close\]'\)/)
+  assert.match(workbenchPageSource, /document\.body\.dataset\.terminalTabDragging = 'true'/)
+  assert.match(workbenchPageSource, /delete document\.body\.dataset\.terminalTabDragging/)
+  assert.doesNotMatch(workbenchPageSource, /classList\.(?:add|remove)\('is-terminal-tab-dragging'\)/)
+
+  const behaviorSources = [sessionTabButtonSource, sessionTabStripSource, workbenchPageSource].join('\n')
+  assert.doesNotMatch(
+    behaviorSources,
+    /(?:closest|querySelector)(?:<[^>]+>)?\('\.(?:session-tab-button|session-tab-main|session-tab-close)'/,
+  )
+  assert.doesNotMatch(
+    behaviorSources,
+    /classList\.contains\('(?:session-scroll-button|is-left|is-right)'\)/,
   )
 })

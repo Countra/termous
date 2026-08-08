@@ -45,6 +45,7 @@ import {
   type HTMLAttributes,
   type KeyboardEvent,
   type MouseEvent,
+  type ReactNode,
   type SetStateAction,
   type WheelEvent,
 } from 'react'
@@ -328,6 +329,10 @@ const fileDragAutoScrollEdge = 72
 const fileDragAutoScrollMaxSpeed = 18
 const filesWorkspaceCacheMaxAgeMs = 5_000
 const filesWorkspaceVirtualThreshold = 200
+
+const renderFilesRowMenu = (content: ReactNode) => (
+  <div data-files-row-menu>{content}</div>
+)
 
 const remotePathDisplayName = (path: string) => {
   const normalized = normalizeRemotePath(path)
@@ -1629,7 +1634,7 @@ function FilesWorkspaceContent({
     }
 
     const closeOnPointerDown = (event: globalThis.PointerEvent) => {
-      if (event.target instanceof Element && event.target.closest('.files-row-menu')) {
+      if (event.target instanceof Element && event.target.closest('[data-files-row-menu]')) {
         return
       }
       setFileContextMenu(null)
@@ -2464,7 +2469,9 @@ function FilesWorkspaceContent({
     if (!(target instanceof HTMLElement)) {
       return null
     }
-    const row = target.closest<HTMLElement>('.files-table-row.is-directory[data-row-key]')
+    const row = target.closest<HTMLElement>(
+      '[data-files-table-row][data-files-entry-kind="directory"][data-row-key]',
+    )
     const rowKey = row?.getAttribute('data-row-key')
     if (!rowKey) {
       return null
@@ -2776,7 +2783,7 @@ function FilesWorkspaceContent({
     if (!(target instanceof Element)) {
       return false
     }
-    return Boolean(target.closest('.ant-checkbox, .files-icon-button, .files-table-column-resizer'))
+    return Boolean(target.closest('.ant-checkbox, [data-files-drag-block]'))
   }
 
   const remoteDragPathsForEntry = (entry: RemoteFileEntry) => {
@@ -2807,7 +2814,7 @@ function FilesWorkspaceContent({
     remoteDragPreviewRef.current?.remove()
     const preview = document.createElement('div')
     preview.className = 'files-remote-drag-preview'
-    const icon = event.currentTarget.querySelector<HTMLElement>('.file-kind-icon')?.cloneNode(true)
+    const icon = event.currentTarget.querySelector<HTMLElement>('[data-file-kind-icon]')?.cloneNode(true)
     if (icon instanceof HTMLElement) {
       preview.append(icon)
     }
@@ -3067,7 +3074,7 @@ function FilesWorkspaceContent({
       setFileColumnWidths((current) => current[key] === nextWidth ? current : { ...current, [key]: nextWidth })
     }
     const cleanup = () => {
-      document.body.classList.remove('is-files-column-resizing')
+      delete document.body.dataset.filesColumnResizing
       delete document.body.dataset.filesResizeKey
       window.removeEventListener('mousemove', onMouseMove)
       window.removeEventListener('mouseup', cleanup)
@@ -3075,7 +3082,7 @@ function FilesWorkspaceContent({
       fileResizeCleanupRef.current = null
     }
 
-    document.body.classList.add('is-files-column-resizing')
+    document.body.dataset.filesColumnResizing = 'true'
     document.body.dataset.filesResizeKey = key
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseup', cleanup, { once: true })
@@ -3135,6 +3142,9 @@ function FilesWorkspaceContent({
         title: t('files.name'),
         dataIndex: 'name',
         className: 'files-table-name-cell',
+        onCell: () => ({
+          'data-files-name-cell': 'true',
+        } as HTMLAttributes<HTMLTableCellElement> & { 'data-files-name-cell': string }),
         width: fileColumnWidths.name,
         onHeaderCell: () => resizableHeader('name'),
         sorter: true,
@@ -3151,11 +3161,11 @@ function FilesWorkspaceContent({
 
           return (
             <span className="file-name-cell">
-              <span className={`file-kind-icon is-${entry.kind}`}>
+              <span className={`file-kind-icon is-${entry.kind}`} data-file-kind-icon data-files-entry-open>
                 {entry.kind === 'directory' ? <Folder size={16} /> : <File size={16} />}
               </span>
               <Tooltip title={fullName} placement="topLeft" mouseEnterDelay={0.35} classNames={{ root: 'file-name-tooltip' }}>
-                <span className="file-name-copy">{nameCopy}</span>
+                <span className="file-name-copy" data-files-entry-open>{nameCopy}</span>
               </Tooltip>
             </span>
           )
@@ -3206,11 +3216,13 @@ function FilesWorkspaceContent({
             disabled={!fileActionsEnabled}
             menu={fileRowMenuPropsRef.current(entry)}
             trigger={['click']}
+            popupRender={renderFilesRowMenu}
             classNames={{ root: 'files-row-menu' }}
           >
             <Button
               type="text"
               className="files-icon-button"
+              data-files-drag-block
               aria-label={t('files.actions')}
               icon={<MoreHorizontal size={16} />}
             />
@@ -4119,7 +4131,12 @@ function FilesWorkspaceContent({
                 >
                   {t('files.editPermissions')}
                 </Button>
-                <Dropdown menu={selectionMoreActions} trigger={['click']} classNames={{ root: 'files-row-menu' }}>
+                <Dropdown
+                  menu={selectionMoreActions}
+                  trigger={['click']}
+                  popupRender={renderFilesRowMenu}
+                  classNames={{ root: 'files-row-menu' }}
+                >
                   <Button
                     type="text"
                     className="files-chrome-button files-selection-more"
@@ -4158,7 +4175,12 @@ function FilesWorkspaceContent({
                 >
                   {t('files.paste')}
                 </Button>
-                <Dropdown menu={moreActions} trigger={['click']} classNames={{ root: 'files-row-menu' }}>
+                <Dropdown
+                  menu={moreActions}
+                  trigger={['click']}
+                  popupRender={renderFilesRowMenu}
+                  classNames={{ root: 'files-row-menu' }}
+                >
                   <Button
                     type="text"
                     className="files-chrome-button"
@@ -4352,6 +4374,8 @@ function FilesWorkspaceContent({
                     remoteMoveDrag?.paths.includes(entry.path) ? 'is-being-dragged' : '',
                   ].filter(Boolean).join(' ')}
                   onRow={(entry) => ({
+                    'data-files-table-row': '',
+                    'data-files-entry-kind': entry.kind,
                     tabIndex: workspaceViewState.focusedPath === entry.path ? 0 : -1,
                     draggable: fileActionsEnabled && !loading,
                     onFocus: () => focusEntry(entry),
@@ -4367,7 +4391,7 @@ function FilesWorkspaceContent({
                       }
                       if (
                         entry.kind === 'directory'
-                        && target?.closest('.file-name-copy, .file-kind-icon')
+                        && target?.closest('[data-files-entry-open]')
                       ) {
                         enterEntry(entry)
                         return
@@ -4379,8 +4403,8 @@ function FilesWorkspaceContent({
                           shiftKey: event.shiftKey,
                         })
                         const opensInspector = (
-                          target?.closest('.files-table-name-cell')
-                          && !target.closest('.file-name-copy, .file-kind-icon')
+                          target?.closest('[data-files-name-cell]')
+                          && !target.closest('[data-files-entry-open]')
                         )
                         if (
                           opensInspector
@@ -4446,6 +4470,7 @@ function FilesWorkspaceContent({
                 trigger={[]}
                 placement="bottomLeft"
                 menu={fileRowMenuProps(fileContextMenu.entry)}
+                popupRender={renderFilesRowMenu}
                 classNames={{ root: 'files-row-menu' }}
                 onOpenChange={(open) => {
                   if (!open) {
@@ -4902,6 +4927,7 @@ function ResizableFileHeaderCell({
       {resizable ? (
         <span
           className="files-table-column-resizer"
+          data-files-drag-block
           data-resize-key={resizeKey}
           role="separator"
           aria-orientation="vertical"

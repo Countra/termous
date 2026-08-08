@@ -9,10 +9,12 @@ export interface ShortcutRuntimeContextValue {
   bindingSignatures: ReadonlyMap<ShortcutActionId, string>
 }
 
-export const ShortcutRuntimeContext = createContext<ShortcutRuntimeContextValue | null>(null)
+const shortcutRuntimeContext = createContext<ShortcutRuntimeContextValue | null>(null)
+
+export const ShortcutRuntimeContextProvider = shortcutRuntimeContext.Provider
 
 export function useShortcutRuntime() {
-  const context = useContext(ShortcutRuntimeContext)
+  const context = useContext(shortcutRuntimeContext)
   if (!context) {
     throw new Error('useShortcutRuntime must be used within ShortcutRuntimeProvider')
   }

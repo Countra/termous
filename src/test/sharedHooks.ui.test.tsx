@@ -51,7 +51,7 @@ function ResizablePanelHarness() {
 describe('共享状态 Hook 行为合同', () => {
   beforeEach(() => {
     window.localStorage.clear()
-    document.body.classList.remove('is-panel-resizing')
+    delete document.body.dataset.panelResizing
   })
 
   it('从本地存储恢复合法值，并对非法 JSON 使用默认值', () => {
@@ -89,7 +89,7 @@ describe('共享状态 Hook 行为合同', () => {
 
     fireEvent.pointerDown(handle, { button: 0, clientX: 100 })
     fireEvent.pointerMove(window, { clientX: 170 })
-    expect(document.body).toHaveClass('is-panel-resizing')
+    expect(document.body).toHaveAttribute('data-panel-resizing', 'true')
     expect(requestAnimationFrame).toHaveBeenCalledTimes(1)
 
     const pendingFrame = frameCallback as FrameRequestCallback | null
@@ -98,7 +98,7 @@ describe('共享状态 Hook 行为合同', () => {
     expect(panel.style.getPropertyValue('--test-panel-width')).toBe('310px')
 
     fireEvent.pointerUp(window)
-    expect(document.body).not.toHaveClass('is-panel-resizing')
+    expect(document.body).not.toHaveAttribute('data-panel-resizing')
     expect(window.localStorage.getItem('test-panel-width')).toBe('310')
     expect(cancelAnimationFrame).not.toHaveBeenCalled()
   })
