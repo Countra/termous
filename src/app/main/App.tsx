@@ -7,10 +7,6 @@ import { AppShell } from '#app/app-shell'
 import { ConfirmDialog, confirmDialogStyles, termousNotificationClassName } from '#shared/ui'
 import { HostsPage, type HostsPageProps } from '#pages/hosts'
 import {
-  includeActiveFileSessionClosure,
-  pruneRetiredFileSessionIds,
-  selectActiveFileSessionAfterConnect,
-  selectFileSessionCloseFallback,
   selectFileSessionForNavigation,
   selectFileSessionNavigationTarget,
 } from '#entities/file'
@@ -55,7 +51,7 @@ import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput } from '#entities/
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
 import type { CredentialInput, CredentialView } from '#entities/credential'
 import type { ForwardEvent } from '#entities/forward'
-import type { Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent } from '#entities/host'
+import type { Host, HostGroup, HostIcon, HostInput } from '#entities/host'
 import type { GroupReorderItem, PageKey } from '#shared/model'
 import type { LocalShell, Session } from '#entities/session'
 import styles from './App.module.scss'
@@ -68,6 +64,8 @@ import {
   type FilesPageProps,
 } from '#pages/files'
 import { FilesWorkspaceRuntimeProvider } from '#widgets/files-workspace'
+import { useFileSessionCoordinator } from './model/useFileSessionCoordinator'
+import { useRealtimeStatusSubscriptions } from './model/useRealtimeStatusSubscriptions'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
 const developmentUpdateSimulation = readDevelopmentUpdateSimulation()
@@ -113,17 +111,53 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     [gateways.credentials],
   )
   const updateRuntime = useUpdateRuntime()
-  const updateForwardRef = useRef(actions.updateForward)
-  const reloadForwardStateRef = useRef(actions.reloadForwardsSilent)
-  const updateHostReachabilityRef = useRef(actions.updateHostReachability)
   const notifiedForwardFailuresRef = useRef(new Set<string>())
   const notifiedForwardRuntimeErrorsRef = useRef(new Map<string, string>())
+  const showActionError = useCallback((actionError: unknown) => {
+    notification.error({
+      title: t('app.error'),
+      description: actionError instanceof Error ? actionError.message : t('app.error'),
+      duration: 5,
+      role: 'alert',
+      className: termousNotificationClassName,
+    })
+  }, [notification, t])
+  const {
+    displayedFileSessions,
+    activeFileSession,
+    closingFileSessionIds,
+    activateFileSession,
+    connectAndActivateFileSession,
+    closeFileSession,
+  } = useFileSessionCoordinator({
+    fileSessions: data.fileSessions,
+    fileSessionClosures,
+    connectFileSession: actions.connectFileSession,
+    closeFileSession: actions.closeFileSession,
+    supersedeFileSessionRecovery: actions.supersedeFileSessionRecovery,
+    onCloseError: showActionError,
+  })
+  const forwardEventsUrl = useCallback(
+    () => gateways.forwards.forwardEventsUrl(),
+    [gateways.forwards],
+  )
+  const hostReachabilityEventsUrl = useCallback(
+    () => gateways.hosts.hostReachabilityEventsUrl(),
+    [gateways.hosts],
+  )
+  useRealtimeStatusSubscriptions({
+    enabled: apiReady,
+    forwardEventsUrl,
+    hostReachabilityEventsUrl,
+    onForwardEvent: actions.updateForward,
+    reloadForwards: actions.reloadForwardsSilent,
+    onHostReachabilityEvent: actions.updateHostReachability,
+  })
   const [page, setPage] = useState<PageKey>('workbench')
   const [vaultDirty, setVaultDirty] = useState(false)
   const [pendingPage, setPendingPage] = useState<PageKey | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const [selectedHostId, setSelectedHostId] = useState('')
-  const [activeFileSessionId, setActiveFileSessionId] = useState('')
   const [filesBookmarkManagementIntent, setFilesBookmarkManagementIntent] =
     useState<FilesBookmarkManagementIntent | null>(null)
   const nextFilesBookmarkManagementIntentIdRef = useRef(0)
@@ -131,13 +165,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     useRef<FilesBookmarkManagementRequest | null>(null)
   const pageRef = useRef(page)
   const sessionsRef = useRef(data.sessions)
-  const [closingFileSessionIds, setClosingFileSessionIds] = useState<string[]>([])
-  const closingFileSessionIdsRef = useRef(new Set<string>())
-  const retiredFileSessionIdsRef = useRef(new Set<string>())
-  const fileSessionsRef = useRef(data.fileSessions)
-  const fileSessionClosuresRef = useRef(fileSessionClosures)
-  fileSessionsRef.current = data.fileSessions
-  fileSessionClosuresRef.current = fileSessionClosures
   pageRef.current = page
   sessionsRef.current = data.sessions
   const [hostLauncherState, setHostLauncherState] = useState<{
@@ -222,99 +249,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [])
 
   useEffect(() => {
-    updateForwardRef.current = actions.updateForward
-    reloadForwardStateRef.current = actions.reloadForwardsSilent
-    updateHostReachabilityRef.current = actions.updateHostReachability
-  }, [actions.reloadForwardsSilent, actions.updateForward, actions.updateHostReachability])
-
-  useEffect(() => {
     if (!forwardErrorEvent) {
       return
     }
     notifyForwardError(forwardErrorEvent, notification, t, notifiedForwardFailuresRef, notifiedForwardRuntimeErrorsRef)
   }, [forwardErrorEvent, notification, t])
-
-  useEffect(() => {
-    if (!apiReady) {
-      return undefined
-    }
-    let disposed = false
-    let reconnectTimer: number | undefined
-    let socket: WebSocket | undefined
-
-    const handleForwardMessage = (event: MessageEvent<string>) => {
-      try {
-        const forwardEvent = JSON.parse(event.data) as ForwardEvent
-        updateForwardRef.current(forwardEvent)
-      } catch {
-        // 忽略无法解析的转发事件，避免单条异常消息中断状态同步。
-      }
-    }
-
-    const connect = () => {
-      socket = new WebSocket(gateways.forwards.forwardEventsUrl())
-      socket.onopen = () => {
-        void reloadForwardStateRef.current().catch(() => undefined)
-      }
-      socket.onmessage = handleForwardMessage
-      socket.onerror = () => {
-        socket?.close()
-      }
-      socket.onclose = () => {
-        if (disposed) {
-          return
-        }
-        reconnectTimer = window.setTimeout(connect, 1200)
-      }
-    }
-
-    connect()
-    return () => {
-      disposed = true
-      if (reconnectTimer !== undefined) {
-        window.clearTimeout(reconnectTimer)
-      }
-      socket?.close()
-    }
-  }, [apiReady, gateways.forwards, notification, t])
-
-  useEffect(() => {
-    if (!apiReady) {
-      return undefined
-    }
-    let disposed = false
-    let reconnectTimer: number | undefined
-    let socket: WebSocket | undefined
-
-    const connect = () => {
-      socket = new WebSocket(gateways.hosts.hostReachabilityEventsUrl())
-      socket.onmessage = (event: MessageEvent<string>) => {
-        try {
-          updateHostReachabilityRef.current(JSON.parse(event.data) as HostReachabilityEvent)
-        } catch {
-          // 忽略无法解析的主机在线状态事件，避免单条异常消息中断状态同步。
-        }
-      }
-      socket.onerror = () => {
-        socket?.close()
-      }
-      socket.onclose = () => {
-        if (disposed) {
-          return
-        }
-        reconnectTimer = window.setTimeout(connect, 1500)
-      }
-    }
-
-    connect()
-    return () => {
-      disposed = true
-      if (reconnectTimer !== undefined) {
-        window.clearTimeout(reconnectTimer)
-      }
-      socket?.close()
-    }
-  }, [apiReady, gateways.hosts])
 
   useEffect(() => {
     let disposed = false
@@ -338,31 +277,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       cleanup?.()
     }
   }, [])
-
-  useEffect(() => {
-    pruneRetiredFileSessionIds(
-      retiredFileSessionIdsRef.current,
-      data.fileSessions,
-      fileSessionClosures,
-    )
-  }, [data.fileSessions, fileSessionClosures])
-
-  useEffect(() => {
-    if (!activeFileSessionId && data.fileSessions[0]) {
-      setActiveFileSessionId(data.fileSessions[0].id)
-      return
-    }
-    const activeClosureExists = Object.values(fileSessionClosures).some(
-      (closure) => closure.session.id === activeFileSessionId,
-    )
-    if (
-      activeFileSessionId
-      && !activeClosureExists
-      && !data.fileSessions.some((session) => session.id === activeFileSessionId)
-    ) {
-      setActiveFileSessionId(data.fileSessions[0]?.id ?? '')
-    }
-  }, [activeFileSessionId, data.fileSessions, fileSessionClosures])
 
   const selectedHostIdStable = useMemo(() => {
     if (data.hosts.some((host) => host.id === selectedHostId)) {
@@ -430,17 +344,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     data.fileSessions,
   ])
 
-  const filesPageFileSessions = useMemo(
-    () => includeActiveFileSessionClosure(
-      data.fileSessions,
-      fileSessionClosures,
-      activeFileSessionId,
-    ),
-    [activeFileSessionId, data.fileSessions, fileSessionClosures],
-  )
   const filesPageData = useMemo<FilesPageProps['data']>(() => ({
     hosts: data.hosts,
-    fileSessions: filesPageFileSessions,
+    fileSessions: displayedFileSessions,
     fileBookmarkGroups: data.fileBookmarkGroups,
     fileBookmarks: data.fileBookmarks,
     localPathMappings: data.localPathMappings,
@@ -453,14 +359,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     data.hosts,
     data.localPathMappings,
     data.settings.terminal,
-    filesPageFileSessions,
+    displayedFileSessions,
   ])
-  const activeFileSession = useMemo(
-    () => filesPageFileSessions.find((session) => session.id === activeFileSessionId)
-      ?? filesPageFileSessions[0]
-      ?? null,
-    [activeFileSessionId, filesPageFileSessions],
-  )
   const updatePreferencesRuntime = useMemo(() => {
     if (!updateRuntime.bridgeAvailable) {
       return null
@@ -643,16 +543,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       await actions.updateCodeSnippet(snippet.id, { ...snippetToInput(snippet), favorite: !snippet.favorite })
     })
 
-  const showActionError = (actionError: unknown) => {
-    notification.error({
-      title: t('app.error'),
-      description: actionError instanceof Error ? actionError.message : t('app.error'),
-      duration: 5,
-      role: 'alert',
-      className: termousNotificationClassName,
-    })
-  }
-
   const saveTerminalSettings = async (terminalSettings: Parameters<typeof actions.setTerminalSettings>[0]) => {
     try {
       await actions.setTerminalSettings(terminalSettings)
@@ -733,12 +623,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       session.id,
     )
     if (existing) {
-      setActiveFileSessionId(existing.id)
+      activateFileSession(existing.id)
       return
     }
     try {
       const fileSession = await actions.connectFileSession(session.host_id, session.id)
-      setActiveFileSessionId(fileSession.id)
+      activateFileSession(fileSession.id)
     } catch (actionError) {
       showActionError(actionError)
     }
@@ -798,7 +688,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         return
       }
       filesBookmarkManagementRequestRef.current = null
-      setActiveFileSessionId(fileSession.id)
+      activateFileSession(fileSession.id)
       setFilesBookmarkManagementIntent({
         requestId: request.requestId,
         fileSessionId: fileSession.id,
@@ -832,7 +722,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     setPage('files')
     const existing = selectFileSessionForNavigation(data.fileSessions, hostId)
     if (existing) {
-      setActiveFileSessionId(existing.id)
+      activateFileSession(existing.id)
       if (
         existing.status === 'connected'
         || existing.status === 'connecting'
@@ -845,7 +735,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       const fileSession = existing
         ? await actions.reconnectFileSession(existing.id)
         : await actions.connectFileSession(hostId)
-      setActiveFileSessionId(fileSession.id)
+      activateFileSession(fileSession.id)
     } catch (actionError) {
       showActionError(actionError)
     }
@@ -1080,76 +970,19 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               replacedFileSessionId,
             ) => {
               invalidateFilesBookmarkManagementRequest()
-              const fileSession = await actions.connectFileSession(
+              const fileSession = await connectAndActivateFileSession(
                 hostId,
                 sourceSessionId,
                 initialPath,
                 replacedFileSessionId,
               )
-              retiredFileSessionIdsRef.current.delete(fileSession.id)
-              setActiveFileSessionId((current) => selectActiveFileSessionAfterConnect(
-                current,
-                fileSession.id,
-                replacedFileSessionId,
-              ))
               return fileSession
             }}
             onSelectFileSession={(fileSessionId) => {
               invalidateFilesBookmarkManagementRequest()
-              setActiveFileSessionId(fileSessionId)
+              activateFileSession(fileSessionId)
             }}
-            onCloseFileSession={async (fileSessionId) => {
-              const isClosedLocalSnapshot = !data.fileSessions.some(
-                (session) => session.id === fileSessionId,
-              ) && Object.values(fileSessionClosures).some(
-                (closure) => closure.phase === 'closed' && closure.session.id === fileSessionId,
-              )
-              if (isClosedLocalSnapshot) {
-                actions.supersedeFileSessionRecovery(fileSessionId)
-                retiredFileSessionIdsRef.current.add(fileSessionId)
-                setActiveFileSessionId((current) => {
-                  if (current !== fileSessionId) {
-                    return current
-                  }
-                  return selectFileSessionCloseFallback(
-                    fileSessionsRef.current,
-                    fileSessionClosuresRef.current,
-                    new Set([
-                      ...closingFileSessionIdsRef.current,
-                      ...retiredFileSessionIdsRef.current,
-                    ]),
-                  )
-                })
-                return
-              }
-              if (closingFileSessionIdsRef.current.has(fileSessionId)) {
-                return
-              }
-              closingFileSessionIdsRef.current.add(fileSessionId)
-              setClosingFileSessionIds([...closingFileSessionIdsRef.current])
-              try {
-                await actions.closeFileSession(fileSessionId)
-                retiredFileSessionIdsRef.current.add(fileSessionId)
-                setActiveFileSessionId((current) => {
-                  if (current !== fileSessionId) {
-                    return current
-                  }
-                  return selectFileSessionCloseFallback(
-                    fileSessionsRef.current,
-                    fileSessionClosuresRef.current,
-                    new Set([
-                      ...closingFileSessionIdsRef.current,
-                      ...retiredFileSessionIdsRef.current,
-                    ]),
-                  )
-                })
-              } catch (actionError) {
-                showActionError(actionError)
-              } finally {
-                closingFileSessionIdsRef.current.delete(fileSessionId)
-                setClosingFileSessionIds([...closingFileSessionIdsRef.current])
-              }
-            }}
+            onCloseFileSession={closeFileSession}
             onReconnectFileSession={actions.reconnectFileSession}
             onUpdateFileSession={actions.updateFileSession}
             onCreateFileBookmark={actions.createFileBookmark}
