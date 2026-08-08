@@ -2,8 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AppData } from '#app/data-runtime'
 import type { Host, HostIcon, HostInput } from '#entities/host'
+import type { HostManagementData } from '#features/hosts'
 
 const appMocks = vi.hoisted(() => ({
   warning: vi.fn(),
@@ -142,7 +142,7 @@ function host(id: string, address: string): Host {
   }
 }
 
-function data(hosts: Host[]): AppData {
+function data(hosts: Host[]): HostManagementData {
   return {
     hosts,
     groups: [],
@@ -155,18 +155,6 @@ function data(hosts: Host[]): AppData {
       metadata: {},
       bound_host_count: hosts.length,
     }],
-    sessions: [],
-    fileSessions: [],
-    forwardProfiles: [],
-    forwards: [],
-    snippetGroups: [],
-    snippets: [],
-    fileBookmarkGroups: [],
-    fileBookmarks: [],
-    localPathMappings: [],
-    settings: {} as AppData['settings'],
-    terminalFonts: [],
-    hostReachability: {},
   }
 }
 

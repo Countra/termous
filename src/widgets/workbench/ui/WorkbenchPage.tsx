@@ -125,7 +125,7 @@ interface SessionInventoryRequestView {
   baselineSignature: string
 }
 
-interface WorkbenchPageProps {
+export interface WorkbenchPageProps {
   api: WorkbenchGateway
   data: WorkbenchData
   fileSessionClosures: Readonly<Record<string, FileSessionClosureState>>
@@ -1537,7 +1537,7 @@ type WorkbenchGateway = FileGateway
   & FirewallGateway
   & AliasGateway
 
-interface WorkbenchData {
+export interface WorkbenchData {
   credentials: CredentialView[]
   fileBookmarkGroups: FileBookmarkGroup[]
   fileBookmarks: FileBookmark[]

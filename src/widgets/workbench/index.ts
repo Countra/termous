@@ -1,1 +1,5 @@
-export { WorkbenchPage } from './ui/WorkbenchPage'
+export {
+  WorkbenchPage,
+  type WorkbenchData,
+  type WorkbenchPageProps,
+} from './ui/WorkbenchPage'

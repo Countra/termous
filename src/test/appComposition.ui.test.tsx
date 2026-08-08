@@ -17,6 +17,14 @@ const testState = vi.hoisted(() => {
     workbenchUnmounts: 0,
     filesPageMounts: 0,
     filesPageUnmounts: 0,
+    projectionKeys: {
+      workbench: [] as string[],
+      hosts: [] as string[],
+      files: [] as string[],
+      forwards: [] as string[],
+      snippets: [] as string[],
+      hostLauncher: [] as string[],
+    },
     data: {
       hosts: [],
       groups: [],
@@ -128,12 +136,14 @@ vi.mock('#app/app-shell', () => ({
     onNavigate,
   }: {
     children: ReactNode
-    onNavigate: (page: 'workbench' | 'hosts' | 'files') => void
+    onNavigate: (page: 'workbench' | 'hosts' | 'files' | 'forwards' | 'snippets') => void
   }) => (
     <div data-provider="app-shell">
       <button type="button" onClick={() => onNavigate('workbench')}>workbench</button>
       <button type="button" onClick={() => onNavigate('hosts')}>hosts</button>
       <button type="button" onClick={() => onNavigate('files')}>files</button>
+      <button type="button" onClick={() => onNavigate('forwards')}>forwards</button>
+      <button type="button" onClick={() => onNavigate('snippets')}>snippets</button>
       {children}
     </div>
   ),
@@ -142,11 +152,14 @@ vi.mock('#app/app-shell', () => ({
 vi.mock('#widgets/workbench', () => ({
   WorkbenchPage: ({
     active,
+    data,
     onSnippetUsed,
   }: {
     active: boolean
+    data: Record<string, unknown>
     onSnippetUsed?: (snippetId: string) => Promise<void>
   }) => {
+    testState.projectionKeys.workbench = Object.keys(data).sort()
     const [snippetUsageState, setSnippetUsageState] = useState('idle')
     useEffect(() => {
       testState.workbenchMounts += 1
@@ -179,11 +192,15 @@ vi.mock('#widgets/workbench', () => ({
 }))
 
 vi.mock('#pages/hosts', () => ({
-  HostsPage: () => <div data-testid="hosts-page">Hosts</div>,
+  HostsPage: ({ data }: { data: Record<string, unknown> }) => {
+    testState.projectionKeys.hosts = Object.keys(data).sort()
+    return <div data-testid="hosts-page">Hosts</div>
+  },
 }))
 
 vi.mock('#pages/files', () => ({
-  FilesPage: () => {
+  FilesPage: ({ data }: { data: Record<string, unknown> }) => {
+    testState.projectionKeys.files = Object.keys(data).sort()
     useEffect(() => {
       testState.filesPageMounts += 1
       return () => {
@@ -195,12 +212,25 @@ vi.mock('#pages/files', () => ({
   canCommitFilesBookmarkManagementRequest: () => false,
   consumeFilesBookmarkManagementIntent: () => null,
 }))
-vi.mock('#pages/forwards', () => ({ ForwardsPage: () => null }))
+vi.mock('#pages/forwards', () => ({
+  ForwardsPage: ({ data }: { data: Record<string, unknown> }) => {
+    testState.projectionKeys.forwards = Object.keys(data).sort()
+    return null
+  },
+}))
 vi.mock('#pages/settings', () => ({ SettingsPage: () => null }))
-vi.mock('#pages/snippets', () => ({ SnippetsPage: () => null }))
+vi.mock('#pages/snippets', () => ({
+  SnippetsPage: ({ data }: { data: Record<string, unknown> }) => {
+    testState.projectionKeys.snippets = Object.keys(data).sort()
+    return null
+  },
+}))
 vi.mock('#pages/vault', () => ({ VaultPage: () => null }))
 vi.mock('#features/hosts', () => ({
-  HostLauncherModal: () => null,
+  HostLauncherModal: ({ data }: { data: Record<string, unknown> }) => {
+    testState.projectionKeys.hostLauncher = Object.keys(data).sort()
+    return null
+  },
   HostKeyCoordinator: () => null,
   hostLauncherIntentForPage: (page: string) => page === 'files' ? 'files' : 'terminal',
 }))
@@ -262,6 +292,7 @@ describe('应用运行时组合合同', () => {
     testState.workbenchUnmounts = 0
     testState.filesPageMounts = 0
     testState.filesPageUnmounts = 0
+    Object.values(testState.projectionKeys).forEach((keys) => keys.splice(0))
     testState.action.mockReset()
     testState.action.mockResolvedValue(undefined)
     testState.notifications.error.mockReset()
@@ -289,6 +320,53 @@ describe('应用运行时组合合同', () => {
     }
 
     expect(actualOrder).toEqual(expectedOrder)
+  })
+
+  it('只向各页面和工作区传递声明的数据视图', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    expect(testState.projectionKeys.workbench).toEqual([
+      'credentials',
+      'fileBookmarkGroups',
+      'fileBookmarks',
+      'fileSessions',
+      'forwards',
+      'groups',
+      'hostReachability',
+      'hosts',
+      'proxies',
+      'sessions',
+      'settings',
+      'snippetGroups',
+      'snippets',
+    ])
+    expect(testState.projectionKeys.hostLauncher).toEqual([
+      'credentials',
+      'groups',
+      'hostReachability',
+      'hosts',
+      'proxies',
+    ])
+
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+    expect(testState.projectionKeys.hosts).toEqual(['credentials', 'groups', 'hosts', 'proxies'])
+
+    await user.click(screen.getByRole('button', { name: 'files' }))
+    expect(testState.projectionKeys.files).toEqual([
+      'fileBookmarkGroups',
+      'fileBookmarks',
+      'fileSessions',
+      'hosts',
+      'localPathMappings',
+      'settings',
+    ])
+
+    await user.click(screen.getByRole('button', { name: 'forwards' }))
+    expect(testState.projectionKeys.forwards).toEqual(['forwardProfiles', 'forwards', 'hosts'])
+
+    await user.click(screen.getByRole('button', { name: 'snippets' }))
+    expect(testState.projectionKeys.snippets).toEqual(['snippetGroups', 'snippets'])
   })
 
   it('切换页面时保留 Workbench，并通过 inert 与 active 停用', async () => {

@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AppData } from '#app/data-runtime'
 import type { Host } from '#entities/host'
+import type { HostLauncherData } from '#features/hosts'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -56,7 +56,7 @@ function host(id: string, name: string): Host {
   }
 }
 
-function data(hosts: Host[]): AppData {
+function data(hosts: Host[]): HostLauncherData {
   return {
     hosts,
     groups: [],
@@ -69,17 +69,6 @@ function data(hosts: Host[]): AppData {
       metadata: {},
       bound_host_count: hosts.length,
     }],
-    sessions: [],
-    fileSessions: [],
-    forwardProfiles: [],
-    forwards: [],
-    snippetGroups: [],
-    snippets: [],
-    fileBookmarkGroups: [],
-    fileBookmarks: [],
-    localPathMappings: [],
-    settings: {} as AppData['settings'],
-    terminalFonts: [],
     hostReachability: {},
   }
 }

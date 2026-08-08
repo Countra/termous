@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { AppShell } from '#app/app-shell'
 import { ConfirmDialog } from '#shared/ui'
-import { HostsPage } from '#pages/hosts'
+import { HostsPage, type HostsPageProps } from '#pages/hosts'
 import {
   includeActiveFileSessionClosure,
   pruneRetiredFileSessionIds,
@@ -15,18 +15,19 @@ import {
   selectFileSessionNavigationTarget,
 } from '#entities/file'
 import { isForwardRestartCompleted } from '#features/forwards'
-import { ForwardsPage } from '#pages/forwards'
+import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { SettingsPage } from '#pages/settings'
 import { snippetToInput } from '#entities/snippet'
-import { SnippetsPage } from '#pages/snippets'
+import { SnippetsPage, type SnippetsPageProps } from '#pages/snippets'
 import { VaultPage } from '#pages/vault'
 import {
   HostKeyCoordinator,
   HostLauncherModal,
   hostLauncherIntentForPage,
+  type HostLauncherData,
   type HostLauncherIntent,
 } from '#features/hosts'
-import { WorkbenchPage } from '#widgets/workbench'
+import { WorkbenchPage, type WorkbenchPageProps } from '#widgets/workbench'
 import { TransferRuntimeProvider } from '#app/transfer-runtime'
 import { useTermousData } from '#app/data-runtime'
 import { TerminalRuntimeProvider } from '#features/terminal'
@@ -65,6 +66,7 @@ import {
   FilesPage,
   type FilesBookmarkManagementIntent,
   type FilesBookmarkManagementRequest,
+  type FilesPageProps,
 } from '#pages/files'
 import { FilesWorkspaceRuntimeProvider } from '#widgets/files-workspace'
 
@@ -386,6 +388,55 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     [t],
   )
 
+  const hostManagementData = useMemo<HostsPageProps['data']>(() => ({
+    hosts: data.hosts,
+    groups: data.groups,
+    proxies: data.proxies,
+    credentials: data.credentials,
+  }), [data.credentials, data.groups, data.hosts, data.proxies])
+  const hostLauncherData = useMemo<HostLauncherData>(() => ({
+    ...hostManagementData,
+    hostReachability: data.hostReachability,
+  }), [data.hostReachability, hostManagementData])
+  const forwardManagementData = useMemo<ForwardsPageProps['data']>(() => ({
+    hosts: data.hosts,
+    forwardProfiles: data.forwardProfiles,
+    forwards: data.forwards,
+  }), [data.forwardProfiles, data.forwards, data.hosts])
+  const snippetManagementData = useMemo<SnippetsPageProps['data']>(() => ({
+    snippetGroups: data.snippetGroups,
+    snippets: data.snippets,
+  }), [data.snippetGroups, data.snippets])
+  const workbenchData = useMemo<WorkbenchPageProps['data']>(() => ({
+    credentials: data.credentials,
+    fileBookmarkGroups: data.fileBookmarkGroups,
+    fileBookmarks: data.fileBookmarks,
+    fileSessions: data.fileSessions,
+    forwards: data.forwards,
+    groups: data.groups,
+    hostReachability: data.hostReachability,
+    hosts: data.hosts,
+    proxies: data.proxies,
+    sessions: data.sessions,
+    settings: data.settings,
+    snippetGroups: data.snippetGroups,
+    snippets: data.snippets,
+  }), [
+    data.credentials,
+    data.fileBookmarkGroups,
+    data.fileBookmarks,
+    data.fileSessions,
+    data.forwards,
+    data.groups,
+    data.hostReachability,
+    data.hosts,
+    data.proxies,
+    data.sessions,
+    data.settings,
+    data.snippetGroups,
+    data.snippets,
+  ])
+
   const filesPageFileSessions = useMemo(
     () => includeActiveFileSessionClosure(
       data.fileSessions,
@@ -394,12 +445,23 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     ),
     [activeFileSessionId, data.fileSessions, fileSessionClosures],
   )
-  const filesPageData = useMemo(
-    () => filesPageFileSessions === data.fileSessions
-      ? data
-      : { ...data, fileSessions: filesPageFileSessions },
-    [data, filesPageFileSessions],
-  )
+  const filesPageData = useMemo<FilesPageProps['data']>(() => ({
+    hosts: data.hosts,
+    fileSessions: filesPageFileSessions,
+    fileBookmarkGroups: data.fileBookmarkGroups,
+    fileBookmarks: data.fileBookmarks,
+    localPathMappings: data.localPathMappings,
+    settings: {
+      terminal: data.settings.terminal,
+    },
+  }), [
+    data.fileBookmarkGroups,
+    data.fileBookmarks,
+    data.hosts,
+    data.localPathMappings,
+    data.settings.terminal,
+    filesPageFileSessions,
+  ])
   const activeFileSession = useMemo(
     () => filesPageFileSessions.find((session) => session.id === activeFileSessionId)
       ?? filesPageFileSessions[0]
@@ -913,7 +975,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         >
           <WorkbenchPage
             api={api}
-            data={data}
+            data={workbenchData}
             fileSessionClosures={fileSessionClosures}
             theme={theme}
             active={page === 'workbench'}
@@ -949,7 +1011,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
         {page === 'hosts' ? (
           <HostsPage
-            data={data}
+            data={hostManagementData}
             selectedHostId={selectedHostIdStable}
             createIntentKey={hostCreateIntentKey}
             actionBusy={actionBusy}
@@ -1103,7 +1165,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
         {page === 'forwards' ? (
           <ForwardsPage
-            data={data}
+            data={forwardManagementData}
             actionBusy={actionBusy}
             temporaryIntent={forwardTemporaryIntent}
             onCreateProfile={(input) => actions.createForwardProfile(input)}
@@ -1117,7 +1179,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
         {page === 'snippets' ? (
           <SnippetsPage
-            data={data}
+            data={snippetManagementData}
             actionBusy={actionBusy}
             onSave={saveCodeSnippet}
             onDelete={(id) => runAction(async () => {
@@ -1178,7 +1240,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       <HostLauncherModal
         open={hostLauncherState.open}
         intent={hostLauncherState.intent}
-        data={data}
+        data={hostLauncherData}
         selectedHostId={selectedHostIdStable}
         actionBusy={actionBusy}
         onClose={closeHostLauncher}

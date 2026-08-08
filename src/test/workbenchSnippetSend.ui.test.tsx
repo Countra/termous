@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { useEffect, type ComponentProps, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CodeSnippet } from '#entities/snippet'
-import type { AppData } from '#app/data-runtime'
 import type { Session } from '#entities/session'
+import type { WorkbenchData } from '#widgets/workbench'
 
 const workbenchMocks = vi.hoisted(() => ({
   modalConfirm: vi.fn(),
@@ -178,7 +178,7 @@ function snippet(command: string): CodeSnippet {
   }
 }
 
-function data(snippets: CodeSnippet[]): AppData {
+function data(snippets: CodeSnippet[]): WorkbenchData {
   return {
     hosts: [],
     groups: [],
@@ -186,17 +186,14 @@ function data(snippets: CodeSnippet[]): AppData {
     credentials: [],
     sessions: [activeSession],
     fileSessions: [],
-    forwardProfiles: [],
     forwards: [],
     snippetGroups: [],
     snippets,
     fileBookmarkGroups: [],
     fileBookmarks: [],
-    localPathMappings: [],
     settings: {
       terminal: { theme_mode: 'follow_app' },
-    } as AppData['settings'],
-    terminalFonts: [],
+    } as WorkbenchData['settings'],
     hostReachability: {},
   }
 }
