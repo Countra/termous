@@ -1,6 +1,6 @@
-import type { TermousApi } from './runtimeApi'
+import type { AppDataSnapshotGateway } from './runtimeGatewayContracts'
 
-export function loadAppDataSnapshot(api: TermousApi) {
+export function loadAppDataSnapshot(api: AppDataSnapshotGateway) {
   return Promise.all([
     api.settings(),
     api.terminalFonts(),

@@ -1,7 +1,7 @@
 import type { ConnectionProxyInput } from '#entities/connection-proxy'
 import type { HostInput, HostReachabilityEvent } from '#entities/host'
 import type { GroupReorderItem } from '#shared/model'
-import type { TermousApi } from '../api/runtimeApi'
+import type { HostCommandGateway } from '../api/runtimeGatewayContracts'
 import { hostToInput } from '#entities/host'
 import {
   mergeHostReachabilityEvent,
@@ -15,7 +15,7 @@ import type { SetAppData } from '../model/runtimeTypes'
 import type { AppData } from '../model/appData'
 
 interface HostCommandDependencies {
-  api: TermousApi
+  api: HostCommandGateway
   hosts: AppData['hosts']
   load: (mode?: LoadMode) => Promise<void>
   setData: SetAppData

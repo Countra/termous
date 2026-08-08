@@ -1,4 +1,5 @@
-import { TermousApiError, type TermousApi } from '../api/runtimeApi'
+import { TermousApiError } from '#shared/api'
+import type { ForwardRuntimeGateway } from '../api/runtimeGatewayContracts'
 import type { ForwardEvent, ForwardInstance, ForwardProfile } from '#entities/forward'
 import {
   isForwardStartSettledStatus,
@@ -133,7 +134,7 @@ function sortForwards(left: ForwardInstance, right: ForwardInstance) {
 }
 
 export async function syncForwardAfterStart(
-  api: TermousApi,
+  api: ForwardRuntimeGateway,
   id: string,
   onForward: (forward: ForwardInstance) => void,
   currentEventRevision: () => number,
@@ -186,7 +187,7 @@ export async function syncForwardAfterStart(
 }
 
 async function syncForwardFromList(
-  api: TermousApi,
+  api: ForwardRuntimeGateway,
   id: string,
   onForward: (forward: ForwardInstance) => void,
   currentEventRevision: () => number,

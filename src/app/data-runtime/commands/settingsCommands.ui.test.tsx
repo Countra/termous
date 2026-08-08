@@ -2,7 +2,7 @@ import { expect, test } from 'vitest'
 import type { CompletionSettings, Settings, ShortcutSettingsPatch } from '#common/contracts'
 import { SerialMutationQueue } from '#shared/async'
 import { initialData } from '../model/appDataState'
-import type { TermousApi } from '../api/runtimeApi'
+import type { SettingsCommandGateway } from '../api/runtimeGatewayContracts'
 import { createSettingsCommands } from './settingsCommands'
 
 function deferred<T>() {
@@ -15,7 +15,7 @@ function deferred<T>() {
   return { promise, reject, resolve }
 }
 
-function createHarness(api: Partial<TermousApi>) {
+function createHarness(api: Partial<SettingsCommandGateway>) {
   let data = structuredClone(initialData)
   const completionSettingsMutation = { current: 0 }
   const completionSettingsPendingWrites = { current: 0 }
@@ -26,7 +26,7 @@ function createHarness(api: Partial<TermousApi>) {
   const shortcutSettings = { current: data.settings.shortcuts }
   const confirmedShortcutSettings = { current: data.settings.shortcuts }
   const commands = createSettingsCommands({
-    api: api as TermousApi,
+    api: api as SettingsCommandGateway,
     currentSettings: data.settings,
     setData: (update) => {
       data = typeof update === 'function' ? update(data) : update

@@ -1,9 +1,9 @@
-import type { TermousApi } from '../api/runtimeApi'
+import type { ForwardProfileCommandGateway } from '../api/runtimeGatewayContracts'
 import type { ForwardProfileInput } from '#entities/forward'
 import { upsertForwardProfile } from '../model/forwardRuntimeState'
 import type { SetAppData } from '../model/runtimeTypes'
 
-export function createForwardProfileCommands(api: TermousApi, setData: SetAppData) {
+export function createForwardProfileCommands(api: ForwardProfileCommandGateway, setData: SetAppData) {
   return {
     async createForwardProfile(input: ForwardProfileInput) {
       const profile = await api.createForwardProfile(input)

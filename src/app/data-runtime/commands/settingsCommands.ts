@@ -6,7 +6,7 @@ import type {
   TerminalSettings,
   WindowSettings,
 } from '#common/contracts'
-import type { TermousApi } from '../api/runtimeApi'
+import type { SettingsCommandGateway } from '../api/runtimeGatewayContracts'
 import { changeLanguage } from '#shared/i18n'
 import {
   applyShortcutSettingsPatch,
@@ -19,7 +19,7 @@ import { upsertTerminalFont } from '../model/appDataState'
 import type { MutableValue, SetAppData } from '../model/runtimeTypes'
 
 interface SettingsCommandDependencies {
-  api: TermousApi
+  api: SettingsCommandGateway
   currentSettings: Settings
   setData: SetAppData
   completionSettingsMutation: MutableValue<number>

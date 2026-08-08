@@ -1,9 +1,9 @@
 import type { CredentialInput } from '#entities/credential'
-import type { TermousApi } from '../api/runtimeApi'
+import type { CredentialCommandGateway } from '../api/runtimeGatewayContracts'
 import type { LoadMode } from '../model/appDataState'
 
 export function createCredentialCommands(
-  api: TermousApi,
+  api: CredentialCommandGateway,
   load: (mode?: LoadMode) => Promise<void>,
 ) {
   return {

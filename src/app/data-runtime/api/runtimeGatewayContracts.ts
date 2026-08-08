@@ -1,0 +1,143 @@
+import type {
+  AppearanceSettings,
+  CompletionSettings,
+  Settings,
+  ShortcutSettingsPatch,
+  TerminalFont,
+  TerminalSettings,
+  WindowSettings,
+} from '#common/contracts'
+import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
+import type {
+  CredentialInput,
+  CredentialView,
+  PrivateKeyCredentialBundleInput,
+  PrivateKeyCredentialBundleResult,
+} from '#entities/credential'
+import type {
+  FileBookmark,
+  FileBookmarkGroup,
+  FileBookmarkGroupInput,
+  FileBookmarkGroupReorderItem,
+  FileBookmarkInput,
+  FileBookmarkReorderItem,
+  FileSession,
+  LocalPathMapping,
+  LocalPathMappingInput,
+  LocalPathMappingReorderItem,
+} from '#entities/file'
+import type {
+  ForwardInstance,
+  ForwardProfile,
+  ForwardProfileInput,
+} from '#entities/forward'
+import type {
+  Host,
+  HostGroup,
+  HostIcon,
+  HostInput,
+  HostReachability,
+} from '#entities/host'
+import type { Session } from '#entities/session'
+import type {
+  CodeSnippet,
+  CodeSnippetGroup,
+  CodeSnippetGroupInput,
+  CodeSnippetInput,
+} from '#entities/snippet'
+import type { GroupReorderItem } from '#shared/model'
+
+export interface AppDataSnapshotGateway {
+  settings: () => Promise<Settings>
+  terminalFonts: () => Promise<TerminalFont[]>
+  codeSnippetGroups: () => Promise<CodeSnippetGroup[]>
+  codeSnippets: () => Promise<CodeSnippet[]>
+  fileBookmarkGroups: () => Promise<FileBookmarkGroup[]>
+  fileBookmarks: () => Promise<FileBookmark[]>
+  localPathMappings: () => Promise<LocalPathMapping[]>
+  hostGroups: () => Promise<HostGroup[]>
+  connectionProxies: () => Promise<ConnectionProxy[]>
+  hosts: () => Promise<Host[]>
+  hostReachability: () => Promise<HostReachability[]>
+  credentials: () => Promise<CredentialView[]>
+  sessions: () => Promise<Session[]>
+  fileSessions: () => Promise<FileSession[]>
+  forwardProfiles: () => Promise<ForwardProfile[]>
+  forwards: () => Promise<ForwardInstance[]>
+}
+
+export interface CredentialCommandGateway {
+  createCredential: (input: CredentialInput) => Promise<CredentialView>
+  updateCredential: (id: string, input: CredentialInput) => Promise<CredentialView>
+  deleteCredential: (id: string) => Promise<void>
+  createPrivateKeyCredentialBundle: (
+    input: PrivateKeyCredentialBundleInput,
+  ) => Promise<PrivateKeyCredentialBundleResult>
+}
+
+export interface FileCatalogCommandGateway {
+  createFileBookmarkGroup: (input: FileBookmarkGroupInput) => Promise<FileBookmarkGroup>
+  updateFileBookmarkGroup: (id: string, input: FileBookmarkGroupInput) => Promise<FileBookmarkGroup>
+  deleteFileBookmarkGroup: (id: string) => Promise<void>
+  reorderFileBookmarkGroups: (items: FileBookmarkGroupReorderItem[]) => Promise<FileBookmarkGroup[]>
+  fileBookmarks: () => Promise<FileBookmark[]>
+  createFileBookmark: (input: FileBookmarkInput) => Promise<FileBookmark>
+  updateFileBookmark: (id: string, input: FileBookmarkInput) => Promise<FileBookmark>
+  deleteFileBookmark: (id: string) => Promise<void>
+  reorderFileBookmarks: (items: FileBookmarkReorderItem[]) => Promise<FileBookmark[]>
+  createLocalPathMapping: (input: LocalPathMappingInput) => Promise<LocalPathMapping>
+  updateLocalPathMapping: (id: string, input: LocalPathMappingInput) => Promise<LocalPathMapping>
+  deleteLocalPathMapping: (id: string) => Promise<void>
+  reorderLocalPathMappings: (items: LocalPathMappingReorderItem[]) => Promise<LocalPathMapping[]>
+}
+
+export interface ForwardProfileCommandGateway {
+  createForwardProfile: (input: ForwardProfileInput) => Promise<ForwardProfile>
+  updateForwardProfile: (id: string, input: ForwardProfileInput) => Promise<ForwardProfile>
+  deleteForwardProfile: (id: string) => Promise<void>
+}
+
+export interface HostCommandGateway {
+  uploadHostIcon: (file: File) => Promise<HostIcon>
+  deleteHostIcon: (id: string) => Promise<void>
+  createHost: (input: HostInput) => Promise<Host>
+  createHostGroup: (name: string) => Promise<HostGroup>
+  updateHostGroup: (id: string, name: string) => Promise<HostGroup>
+  deleteHostGroup: (id: string) => Promise<void>
+  reorderHostGroups: (items: GroupReorderItem[]) => Promise<HostGroup[]>
+  createConnectionProxy: (input: ConnectionProxyInput) => Promise<ConnectionProxy>
+  updateConnectionProxy: (id: string, input: ConnectionProxyInput) => Promise<ConnectionProxy>
+  deleteConnectionProxy: (id: string) => Promise<void>
+  updateHost: (id: string, input: HostInput) => Promise<Host>
+  deleteHost: (id: string) => Promise<void>
+  refreshHostReachability: (hostIds?: string[], force?: boolean) => Promise<HostReachability[]>
+}
+
+export interface SettingsCommandGateway {
+  settings: () => Promise<Settings>
+  updateLanguage: (language: Settings['language']) => Promise<Settings>
+  updateAppearanceSettings: (appearance: AppearanceSettings) => Promise<Settings>
+  updateTerminalSettings: (terminal: TerminalSettings) => Promise<Settings>
+  updateCompletionSettings: (completion: CompletionSettings) => Promise<Settings>
+  updateShortcutSettings: (patch: ShortcutSettingsPatch) => Promise<Settings>
+  updateWindowSettings: (windowSettings: WindowSettings) => Promise<Settings>
+  terminalFonts: () => Promise<TerminalFont[]>
+  uploadTerminalFont: (file: File) => Promise<TerminalFont>
+  deleteTerminalFont: (id: string) => Promise<void>
+}
+
+export interface SnippetCommandGateway {
+  createCodeSnippet: (input: CodeSnippetInput) => Promise<CodeSnippet>
+  updateCodeSnippet: (id: string, input: CodeSnippetInput) => Promise<CodeSnippet>
+  deleteCodeSnippet: (id: string) => Promise<void>
+  markCodeSnippetUsed: (id: string) => Promise<CodeSnippet>
+  createCodeSnippetGroup: (input: CodeSnippetGroupInput) => Promise<CodeSnippetGroup>
+  updateCodeSnippetGroup: (id: string, input: CodeSnippetGroupInput) => Promise<CodeSnippetGroup>
+  deleteCodeSnippetGroup: (id: string) => Promise<void>
+  reorderCodeSnippetGroups: (items: GroupReorderItem[]) => Promise<CodeSnippetGroup[]>
+}
+
+export interface ForwardRuntimeGateway {
+  getForward: (id: string) => Promise<ForwardInstance>
+  forwards: () => Promise<ForwardInstance[]>
+}

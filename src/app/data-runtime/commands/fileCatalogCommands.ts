@@ -1,4 +1,4 @@
-import type { TermousApi } from '../api/runtimeApi'
+import type { FileCatalogCommandGateway } from '../api/runtimeGatewayContracts'
 import type {
   FileBookmark,
   FileBookmarkGroupInput,
@@ -18,7 +18,7 @@ import {
 } from '../model/appDataState'
 import type { SetAppData } from '../model/runtimeTypes'
 
-export function createFileCatalogCommands(api: TermousApi, setData: SetAppData) {
+export function createFileCatalogCommands(api: FileCatalogCommandGateway, setData: SetAppData) {
   return {
     async createFileBookmarkGroup(input: FileBookmarkGroupInput) {
       const group = await api.createFileBookmarkGroup(input)

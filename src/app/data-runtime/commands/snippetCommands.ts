@@ -1,5 +1,5 @@
 import type { GroupReorderItem } from '#shared/model'
-import type { TermousApi } from '../api/runtimeApi'
+import type { SnippetCommandGateway } from '../api/runtimeGatewayContracts'
 import {
   replaceCodeSnippet,
   sortCodeSnippetGroups,
@@ -10,7 +10,7 @@ import {
 } from '#entities/snippet'
 import type { SetAppData } from '../model/runtimeTypes'
 
-export function createSnippetCommands(api: TermousApi, setData: SetAppData) {
+export function createSnippetCommands(api: SnippetCommandGateway, setData: SetAppData) {
   return {
     async createCodeSnippet(input: CodeSnippetInput) {
       const snippet = await api.createCodeSnippet(input)
