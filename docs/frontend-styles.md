@@ -5,6 +5,7 @@
 - 样式清单会盘点 `src` 内的 `.css`、`.scss` 和 `.sass`，并拒绝扩展名大小写异常及任何符号链接。
 - Stylelint 检查全部 `src/**/*.scss` 和 `src/**/*.module.scss`。
 - 当前 `src` 内没有 `.css` 或 `.sass`；`scripts/styles/legacy-css-allowlist.json` 为空，并作为禁止重新引入 legacy CSS 的回归门禁保留。
+- `scripts/styles/no-unscoped-global-allowlist.json` 精确登记仍在使用 `termous/no-unscoped-global` 文件级禁用的 Module；检查器拒绝新增豁免、过期条目和非规范清单。清理豁免时必须在同一变更中删除对应条目，使清单只减不增并最终归零。
 - 业务目录只允许 `*.module.scss`；应用级非 Module SCSS 只能放在 `src/shared/styles`。
 - 不使用缩进语法 `.sass`，所有 Sass 文件统一采用 SCSS 语法和小写扩展名。
 - Sass 只承担嵌套、拆分和编译期复用；运行时主题继续使用现有 CSS Custom Properties。

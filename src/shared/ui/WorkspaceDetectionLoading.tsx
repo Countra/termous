@@ -9,8 +9,8 @@ interface WorkspaceDetectionLoadingProps {
 
 export function WorkspaceDetectionLoading({ icon, label }: WorkspaceDetectionLoadingProps) {
   return (
-    <div className={`workbench-detection-loading ${styles.root}`} role="status" aria-live="polite">
-      <div className="workbench-detection-loading-card">
+    <div className={styles.root} role="status" aria-live="polite">
+      <div className={styles.card}>
         <span>{icon}{label}</span>
         <Skeleton active title={false} paragraph={{ rows: 4 }} />
       </div>

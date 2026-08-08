@@ -60,62 +60,6 @@
   background: transparent;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 .termous-notification.ant-notification-notice {
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -1151,55 +1095,9 @@ body[data-panel-resizing='true'] * {
   white-space: nowrap;
 }
 
-.host-auth-badge {
-  display: inline-flex;
-  min-width: 64px;
-  max-width: 164px;
-  height: 24px;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 6px;
-  margin-inline-end: 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-subtle);
-  color: var(--text-muted);
-  padding: 0 8px 0 6px;
-  font-size: 11px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .data-row .row-trailing > .host-auth-badge {
   display: inline-flex;
   min-width: 64px;
-}
-
-.host-auth-badge.is-compact {
-  width: 24px;
-  min-width: 24px;
-  justify-content: center;
-  padding: 0;
-}
-
-.host-auth-badge-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.host-auth-badge-icon {
-  display: inline-grid;
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
-  color: var(--accent);
 }
 
 .data-row .row-trailing .host-auth-badge-icon {

@@ -50,6 +50,7 @@ test('原 app 业务选择器由组件共置 Module 承载', () => {
     ['../shared/ui/FeatureSidePanel.tsx', './FeatureSidePanel.module.scss', 'details-panel'],
     ['../shared/ui/StatusBadge.tsx', './StatusBadge.module.scss', 'status-badge'],
     ['../shared/ui/WorkspaceEmptyState.tsx', './WorkspaceEmptyState.module.scss', 'workbench-empty-state'],
+    ['../entities/host/ui/AuthMethodBadge.tsx', './AuthMethodBadge.module.scss', 'host-auth-badge'],
     ['../entities/host/ui/HostAvatar.tsx', './HostAvatar.module.scss', 'host-avatar'],
     ['../features/hosts/ui/HostContextPanel.tsx', './HostContextPanel.module.scss', 'host-context-panel'],
     ['../features/terminal/ui/ConnectionProgress.tsx', './ConnectionProgress.module.scss', 'connection-progress'],
@@ -78,6 +79,19 @@ test('原 app 业务选择器由组件共置 Module 承载', () => {
   const statusBadgeStyles = source('../shared/ui/StatusBadge.module.scss')
   assert.match(statusBadgeStyles, /\.status-badge\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/s)
   assert.doesNotMatch(source('../shared/styles/workstation.scss'), /^\.status-badge\s*\{/m)
+
+  const authMethodBadgeStyles = source('../entities/host/ui/AuthMethodBadge.module.scss')
+  for (const className of [
+    'host-auth-badge',
+    'host-auth-badge-label',
+    'host-auth-badge-icon',
+  ]) {
+    assert.match(authMethodBadgeStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
+  }
+
+  const legacyStyles = source('../shared/styles/workstation.scss')
+  assert.doesNotMatch(legacyStyles, /^\.host-auth-badge(?:\b|\s|\.)/m)
+  assert.match(legacyStyles, /^\.data-row \.row-trailing > \.host-auth-badge\s*\{/m)
 })
 
 test('详情侧栏的折叠轨道与 Tabs Portal 样式由共置 Module 承载', () => {

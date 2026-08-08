@@ -26,12 +26,17 @@ test('远端管理 SCSS 保留面板与 Portal 的历史全局类名', () => {
     [serviceLogs.compiled, ['service-logs-modal-root', 'service-logs-modal']],
     [docker.compiled, ['docker-panel', 'docker-filter-popover']],
     [firewall.compiled, ['firewall-panel', 'firewall-rule-modal', 'firewall-persistence-modal']],
-    [detection.compiled, ['workbench-detection-loading', 'workbench-detection-loading-card']],
   ] as const) {
     for (const className of classNames) {
       assert.match(compiled, new RegExp(`:global \\.${className}(?:[\\s.:,{])`))
     }
   }
+})
+
+test('共享检测加载状态由组件 Module 私有类承载', () => {
+  assert.doesNotMatch(detection.source, /:global|stylelint-disable/)
+  assert.match(detection.source, /\.root\s*{[^}]*min-height:\s*150px/)
+  assert.match(detection.source, /\.card\s*{[^}]*padding:\s*18px/)
 })
 
 test('远端管理私有样式离开全局工作站文件且共享弹层规则保留', () => {
@@ -46,5 +51,5 @@ test('远端管理关键滚动与弹层尺寸保持不变', () => {
   assert.match(serviceLogs.source, /\.service-logs-console\s*{[^}]*overflow:\s*auto/)
   assert.match(docker.source, /\.docker-log-section pre\s*{[^}]*max-height:\s*220px/)
   assert.match(firewall.source, /\.firewall-preview-modal \.ant-modal-body\s*{[^}]*overflow:\s*auto/)
-  assert.match(detection.source, /\.workbench-detection-loading\s*{[^}]*min-height:\s*150px/)
+  assert.match(detection.source, /\.root\s*{[^}]*min-height:\s*150px/)
 })

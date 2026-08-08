@@ -2,6 +2,7 @@ import { KeyRound, ShieldCheck } from 'lucide-react'
 import { Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { AuthMethod } from '../model/types.ts'
+import styles from './AuthMethodBadge.module.scss'
 
 interface AuthMethodBadgeProps {
   method: AuthMethod
@@ -14,11 +15,14 @@ export function AuthMethodBadge({ method, compact = false }: AuthMethodBadgeProp
   const Icon = method === 'private_key' ? ShieldCheck : KeyRound
 
   const badge = (
-    <span className={`host-auth-badge ${compact ? 'is-compact' : ''}`} aria-label={`${t('hosts.authMethod')}：${label}`}>
-      <span className="host-auth-badge-icon">
+    <span
+      className={`${styles['host-auth-badge']} host-auth-badge ${compact ? `${styles['is-compact']} is-compact` : ''}`}
+      aria-label={`${t('hosts.authMethod')}：${label}`}
+    >
+      <span className={`${styles['host-auth-badge-icon']} host-auth-badge-icon`}>
         <Icon size={12} aria-hidden="true" />
       </span>
-      {!compact ? <span className="host-auth-badge-label">{label}</span> : null}
+      {!compact ? <span className={`${styles['host-auth-badge-label']} host-auth-badge-label`}>{label}</span> : null}
     </span>
   )
 
