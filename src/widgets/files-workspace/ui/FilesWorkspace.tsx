@@ -51,7 +51,6 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import { TermousApiError } from '#shared/api'
 import { SessionQuickConnect } from '#features/hosts'
 import { confirmDialogStyles, EmptyState, SessionTabButton, SessionTabStrip, uiStyles, termousNotificationClassName } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
@@ -93,10 +92,6 @@ import { FileBookmarksRail, FileBookmarksSidebar } from '#features/file-bookmark
 import { FilesBottomDrawer, TransferQueueDock, TransferQueuePanel } from '#features/transfers'
 import { FilesSidePanel, type FilesSidePanelMode } from './FilesSidePanel'
 import {
-  subscribeFileSessionEvents,
-  type FileSessionEventSubscription,
-} from '../model/fileSessionEventSubscription'
-import {
   canRecoverFileSession,
   cancelFileSessionRecoveryAttempt,
   fileSessionRecoveryOutcome,
@@ -105,7 +100,6 @@ import {
   isFileSessionRecoverySupersededError,
   isTerminatedFileSession,
   shouldCreateFileSessionAfterReconnect,
-  terminatedFileSessionSnapshot,
   type FileSessionRecoveryAttempt,
 } from '#entities/file'
 import type {
@@ -130,6 +124,7 @@ import {
   isFilesTransferActive,
   useFilesTransferRefresh,
 } from '../model/useFilesTransferRefresh'
+import { useFileSessionStatusSync } from '../model/useFileSessionStatusSync'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import {
   applyFilesWorkspaceSelection,
@@ -217,11 +212,6 @@ function matchesRemoteClipboard(
   expected: RemoteClipboard | null,
 ) {
   return current !== null && current === expected
-}
-
-interface FileSessionEventMessage {
-  type: string
-  session: FileSession
 }
 
 interface RemoteMoveDragState {
@@ -390,7 +380,6 @@ function FilesWorkspaceContent({
     id: string
     connectionGeneration: number
   } | null>(null)
-  const fileSessionSubscriptionsRef = useRef(new Map<string, FileSessionEventSubscription>())
   const fileSessionRecoveryAttemptsRef = useRef(new Map<string, FileSessionRecoveryAttempt>())
   const fileSessionsRef = useRef(data.fileSessions)
   const localPathMappingsRef = useRef(data.localPathMappings)
@@ -408,7 +397,6 @@ function FilesWorkspaceContent({
   const transferToggleRef = useRef<HTMLButtonElement>(null)
   const lastTransferTriggerRef = useRef<HTMLButtonElement | null>(null)
   const pendingPanelFocusRestoreRef = useRef<'local' | 'inspector' | 'transfers' | null>(null)
-  const onUpdateFileSessionRef = useRef(onUpdateFileSession)
   const {
     states: workspaceStates,
     pendingTransferOperations,
@@ -942,27 +930,6 @@ function FilesWorkspaceContent({
     () => data.fileSessions.map((session) => session.id).join('|'),
     [data.fileSessions],
   )
-  const socketFileSessionIds = useMemo(
-    () => data.fileSessions
-      .filter((session) => (
-        !closingFileSessionIdSet.has(session.id)
-        && !isTerminatedFileSession(session)
-      ))
-      .map((session) => session.id)
-      .join('|'),
-    [closingFileSessionIdSet, data.fileSessions],
-  )
-  const syncingFileSessionIds = useMemo(
-    () =>
-      data.fileSessions
-        .filter((session) => (
-          !closingFileSessionIdSet.has(session.id)
-          && (session.status === 'connecting' || session.status === 'waiting_trust')
-        ))
-        .map((session) => session.id)
-        .join('|'),
-    [closingFileSessionIdSet, data.fileSessions],
-  )
   const selectedEntries = useMemo(
     () => entries.filter((entry) => selectedPaths.includes(entry.path)),
     [entries, selectedPaths],
@@ -987,10 +954,6 @@ function FilesWorkspaceContent({
   )
   const dropTargetDirectoryName = dropTargetDirectory?.name ?? (dropTargetDirectoryPath ? remotePathDisplayName(dropTargetDirectoryPath) : '')
   const remoteMoveTargetDirectoryName = remoteMoveTargetDirectory?.name ?? (remoteMoveTargetPath ? remotePathDisplayName(remoteMoveTargetPath) : '')
-
-  useEffect(() => {
-    onUpdateFileSessionRef.current = onUpdateFileSession
-  }, [onUpdateFileSession])
 
   useEffect(
     () => () => {
@@ -1134,96 +1097,12 @@ function FilesWorkspaceContent({
     markDirectoryDirty,
   })
 
-  useEffect(() => {
-    const ids = new Set(socketFileSessionIds ? socketFileSessionIds.split('|') : [])
-    fileSessionSubscriptionsRef.current.forEach((subscription, fileSessionId) => {
-      if (!ids.has(fileSessionId)) {
-        fileSessionSubscriptionsRef.current.delete(fileSessionId)
-        subscription.dispose()
-      }
-    })
-    ids.forEach((fileSessionId) => {
-      if (fileSessionSubscriptionsRef.current.has(fileSessionId)) {
-        return
-      }
-      const subscription = subscribeFileSessionEvents({
-        createSocket: () => new WebSocket(api.fileSessionEventsUrl(fileSessionId)),
-        getSnapshot: async () => {
-          const snapshot = await api.getFileSession(fileSessionId)
-          if (snapshot.id !== fileSessionId) {
-            throw new Error('file session snapshot identity mismatch')
-          }
-          return snapshot
-        },
-        onSnapshot: (snapshot) => onUpdateFileSessionRef.current(snapshot),
-        onMessage: (data) => {
-          const message = JSON.parse(String(data)) as FileSessionEventMessage
-          if (!message.session) {
-            return false
-          }
-          if (message.session.id !== fileSessionId) {
-            throw new Error('file session event identity mismatch')
-          }
-          if (message.type === 'closed') {
-            onUpdateFileSessionRef.current(terminatedFileSessionSnapshot(message.session))
-            return 'stop'
-          }
-          onUpdateFileSessionRef.current(message.session)
-          return true
-        },
-        onSnapshotError: (error) => {
-          if (!isMissingFileSessionError(error)) {
-            return 'retry'
-          }
-          const current = fileSessionsRef.current.find((session) => session.id === fileSessionId)
-          if (current) {
-            onUpdateFileSessionRef.current(terminatedFileSessionSnapshot(current))
-          }
-          return 'stop'
-        },
-      })
-      fileSessionSubscriptionsRef.current.set(fileSessionId, subscription)
-    })
-  }, [api, socketFileSessionIds])
-
-  useEffect(
-    () => () => {
-      const subscriptions = [...fileSessionSubscriptionsRef.current.values()]
-      fileSessionSubscriptionsRef.current.clear()
-      subscriptions.forEach((subscription) => subscription.dispose())
-    },
-    [updateWorkspaceSession],
-  )
-
-  useEffect(() => {
-    const ids = syncingFileSessionIds ? syncingFileSessionIds.split('|') : []
-    if (ids.length === 0) {
-      return undefined
-    }
-    let disposed = false
-    const syncSessions = async () => {
-      await Promise.all(
-        ids.map(async (fileSessionId) => {
-          try {
-            const session = await api.getFileSession(fileSessionId)
-            if (!disposed) {
-              onUpdateFileSessionRef.current(session)
-            }
-          } catch {
-            // 事件流可能会因窗口休眠或网络抖动漏帧，轮询兜底失败时保持当前 UI 状态即可。
-          }
-        }),
-      )
-    }
-    void syncSessions()
-    const timer = window.setInterval(() => {
-      void syncSessions()
-    }, 1000)
-    return () => {
-      disposed = true
-      window.clearInterval(timer)
-    }
-  }, [api, syncingFileSessionIds])
+  useFileSessionStatusSync({
+    gateway: api,
+    fileSessions: data.fileSessions,
+    closingFileSessionIds: closingFileSessionIdSet,
+    onUpdateFileSession,
+  })
 
   useEffect(() => {
     if (!fileContextMenu) {
@@ -4963,16 +4842,4 @@ function fileSessionRecoveryErrorMessage(
     default:
       return t('workbench.files.recoveryUnknown')
   }
-}
-
-function isMissingFileSessionError(error: unknown) {
-  if (error instanceof TermousApiError) {
-    return error.code === 'SFTP_FILE_SESSION_NOT_FOUND'
-  }
-  return Boolean(
-    error
-    && typeof error === 'object'
-    && 'code' in error
-    && (error as { code?: unknown }).code === 'SFTP_FILE_SESSION_NOT_FOUND',
-  )
 }
