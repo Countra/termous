@@ -25,7 +25,15 @@ vi.mock('#entities/host', () => ({
 }))
 
 vi.mock('#shared/ui', () => ({
+  confirmDialogStyles: {
+    'modal-root': 'modal-root',
+  },
+  customSelectStyles: {
+    select: 'select',
+    'select-popup': 'select-popup',
+  },
   uiStyles: {
+    'search-input': 'search-input',
     'secondary-button': 'secondary-button',
   },
   ConnectionActionButton: ({

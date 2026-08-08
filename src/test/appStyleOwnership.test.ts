@@ -255,3 +255,53 @@ test('主机目录行、搜索、提示层与头像样式由 Host Module 承载'
     assert.doesNotMatch(legacyStyles, selector)
   }
 })
+
+test('主机表单与启动入口显式挂载共享控件 Module', () => {
+  const hostCatalogSource = source('../features/hosts/ui/HostCatalog.tsx')
+  const hostEditorSource = source('../features/hosts/ui/HostEditor.tsx')
+  const hostLauncherSource = source('../features/hosts/ui/HostLauncherModal.tsx')
+  const proxyManagerSource = source('../features/hosts/ui/ProxyManagerModal.tsx')
+  const quickConnectSource = source('../features/hosts/ui/SessionQuickConnect.tsx')
+  const hostManagementStyles = source('../features/hosts/ui/HostManagement.module.scss')
+
+  assert.match(hostCatalogSource, /customSelectStyles\.select/)
+  assert.match(hostCatalogSource, /customSelectStyles\['select-popup'\]/)
+  assert.match(hostCatalogSource, /uiStyles\['search-input'\]/)
+
+  assert.match(hostEditorSource, /styles\['visually-hidden-input'\]/)
+  assert.match(hostEditorSource, /customSelectStyles\.select/)
+  assert.match(hostEditorSource, /customSelectStyles\['select-popup'\]/)
+  assert.match(hostManagementStyles, /\.visually-hidden-input\s*\{[^}]*clip-path:\s*inset\(50%\);/s)
+
+  assert.match(hostLauncherSource, /confirmDialogStyles\['modal-root'\]/)
+  assert.match(hostLauncherSource, /customSelectStyles\.select/)
+  assert.match(hostLauncherSource, /customSelectStyles\['select-popup'\]/)
+  assert.match(hostLauncherSource, /uiStyles\['search-input'\]/)
+
+  assert.match(proxyManagerSource, /customSelectStyles\.select/)
+  assert.match(proxyManagerSource, /customSelectStyles\['select-popup'\]/)
+  assert.match(proxyManagerSource, /uiStyles\.tooltip/)
+  assert.match(quickConnectSource, /uiStyles\['search-input'\]/)
+
+  const legacyStyles = source('../shared/main-styles/workstation.scss')
+  for (const selector of [
+    /^\.termous-select(?:\s|\.|\{|:)/m,
+    /^\.termous-select-popup(?:\s|\.|\{|:)/m,
+    /^\.termous-search-input(?:\s|\.|\{|:)/m,
+    /^\.termous-tooltip(?:\s|\.|\{|:)/m,
+    /^\.termous-modal-root(?:\s|\.|\{|:)/m,
+    /^\.visually-hidden-input(?:\s|\{|:)/m,
+  ]) {
+    assert.doesNotMatch(legacyStyles, selector)
+  }
+})
+
+test('命令片段筛选的 AntD Segmented 样式由共置 Module 承载', () => {
+  const snippetCatalogSource = source('../features/snippets/ui/SnippetCatalog.tsx')
+  const snippetCatalogStyles = source('../features/snippets/ui/SnippetCatalog.module.scss')
+
+  assert.match(snippetCatalogSource, /styles\['segmented-control'\]/)
+  assert.match(snippetCatalogStyles, /\.segmented-control:global\(\.ant-segmented\)\s*\{[^}]*border-radius:\s*10px;[^}]*padding:\s*3px;/s)
+  assert.match(snippetCatalogStyles, /\.segmented-control:global\(\.ant-segmented\) :global\(\.ant-segmented-item-label\)/)
+  assert.doesNotMatch(source('../shared/main-styles/workstation.scss'), /^\.(?:segmented-control|ant-segmented \.ant-segmented-item-label)/m)
+})

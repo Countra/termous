@@ -29,7 +29,13 @@ import {
   type HostGroup,
   type HostReachability,
 } from '#entities/host'
-import { ConnectionActionButton, EmptyState, uiStyles } from '#shared/ui'
+import {
+  confirmDialogStyles,
+  ConnectionActionButton,
+  customSelectStyles,
+  EmptyState,
+  uiStyles,
+} from '#shared/ui'
 import {
   hostLauncherActionPlan,
   type HostLauncherActionId,
@@ -310,9 +316,9 @@ export function HostLauncherModal({
             <span>{t('hosts.platform.label')}</span>
             <Select
               value={platformFilter}
-              className="termous-select"
+              className={customSelectStyles.select}
               popupRender={renderHostLauncherFilterPopup}
-              classNames={{ popup: { root: 'termous-select-popup' } }}
+              classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
               optionLabelProp="label"
               onChange={(value) => setPlatformFilter(value as LauncherPlatformFilter)}
               options={[
@@ -325,9 +331,9 @@ export function HostLauncherModal({
             <span>{t('hosts.group')}</span>
             <Select
               value={groupFilter}
-              className="termous-select"
+              className={customSelectStyles.select}
               popupRender={renderHostLauncherFilterPopup}
-              classNames={{ popup: { root: 'termous-select-popup' } }}
+              classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
               optionLabelProp="label"
               onChange={(value) => setGroupFilter(value as LauncherGroupFilter)}
               options={groupOptions}
@@ -337,9 +343,9 @@ export function HostLauncherModal({
             <span>{t('hosts.authMethod')}</span>
             <Select
               value={authFilter}
-              className="termous-select"
+              className={customSelectStyles.select}
               popupRender={renderHostLauncherFilterPopup}
-              classNames={{ popup: { root: 'termous-select-popup' } }}
+              classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
               optionLabelProp="label"
               onChange={(value) => setAuthFilter(value as LauncherAuthFilter)}
               options={[
@@ -383,7 +389,7 @@ export function HostLauncherModal({
       title={null}
       onCancel={onClose}
       className="host-launcher-modal termous-modal"
-      rootClassName={`termous-modal-root host-launcher-modal-root ${styles['host-launcher-scope']}`}
+      rootClassName={`${confirmDialogStyles['modal-root']} host-launcher-modal-root ${styles['host-launcher-scope']}`}
     >
       <section className="host-launcher" tabIndex={-1} onKeyDown={handleKeyDown}>
         <header className="host-launcher-titlebar">
@@ -413,7 +419,7 @@ export function HostLauncherModal({
                 <Input
                   id="workbench-host-launcher-search"
                   name="workbench-host-launcher-search"
-                  className="termous-search-input host-launcher-search"
+                  className={`${uiStyles['search-input']} host-launcher-search`}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   allowClear

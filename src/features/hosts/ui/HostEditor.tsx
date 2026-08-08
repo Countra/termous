@@ -9,8 +9,7 @@ import {
   type HostGroup,
   type HostInput,
 } from '#entities/host'
-import { ManagementPanel } from '#shared/ui'
-import { ConnectionActionButton } from '#shared/ui'
+import { ConnectionActionButton, customSelectStyles, ManagementPanel } from '#shared/ui'
 import { connectionProxyTypeLabelKey } from '#entities/connection-proxy'
 import {
   HOST_ICON_ACCEPT,
@@ -136,7 +135,7 @@ export function HostEditor({
           </span>
           <input
             ref={iconInputRef}
-            className="visually-hidden-input"
+            className={styles['visually-hidden-input']}
             type="file"
             accept={HOST_ICON_ACCEPT}
             onChange={(event) => {
@@ -201,8 +200,8 @@ export function HostEditor({
             <div className="host-group-editor-control">
               <Select
                 value={draft.group_id}
-                className="termous-select"
-                classNames={{ popup: { root: 'termous-select-popup' } }}
+                className={customSelectStyles.select}
+                classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
                 options={[
                   { value: '', label: t('hosts.ungrouped') },
                   ...data.groups.map((group) => ({ value: group.id, label: group.name })),
@@ -288,8 +287,8 @@ export function HostEditor({
                 <Select
                   id="host-connection-proxy"
                   value={draft.proxy_id}
-                  className="termous-select"
-                  classNames={{ popup: { root: `termous-select-popup host-proxy-select-popup ${styles['proxy-select-popup']}` } }}
+                  className={customSelectStyles.select}
+                  classNames={{ popup: { root: `${customSelectStyles['select-popup']} host-proxy-select-popup ${styles['proxy-select-popup']}` } }}
                   status={visibleErrors.proxyId ? 'error' : undefined}
                   options={[
                     { value: '', label: t('hosts.noProxy') },
@@ -383,8 +382,8 @@ function HostSelectField({ label, value, options, mode, placeholder, error, onCh
         options={options}
         placeholder={placeholder}
         status={error ? 'error' : undefined}
-        className="termous-select"
-        classNames={{ popup: { root: 'termous-select-popup' } }}
+        className={customSelectStyles.select}
+        classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
         maxTagCount={3}
         onChange={onChange}
       />

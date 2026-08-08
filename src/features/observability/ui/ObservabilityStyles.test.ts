@@ -60,5 +60,5 @@ test('跨模块 Select 与 Tooltip 规则由共享 Module 持有', () => {
   assert.match(monitorSource, /customSelectStyles\['select-dropdown'\]/)
   assert.match(monitorSource, /uiStyles\.tooltip/)
   assert.doesNotMatch(workstation, /^\.termous-select-dropdown\.ant-select-dropdown/m)
-  assert.match(workstation, /^\.termous-tooltip\.ant-tooltip/m)
+  assert.doesNotMatch(workstation, /^\.termous-tooltip\.ant-tooltip/m)
 })

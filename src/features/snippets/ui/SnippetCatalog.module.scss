@@ -562,6 +562,19 @@ button.snippet-catalog-row-main:focus-visible {
   box-shadow: var(--inner-highlight);
 }
 
+.segmented-control:global(.ant-segmented) {
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  padding: 3px;
+}
+
+.segmented-control:global(.ant-segmented) :global(.ant-segmented-item-label) {
+  min-height: 30px;
+  line-height: 30px;
+}
+
 .segmented-control button {
   min-height: 32px;
   flex: 1;

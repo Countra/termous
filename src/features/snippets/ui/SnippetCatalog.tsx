@@ -68,7 +68,7 @@ export function SnippetFilterBar({
   const scopeControl = (
     <Segmented
       block
-      className={`${styles['segmented-control']} segmented-control snippet-catalog-segmented`}
+      className={`${styles['segmented-control']} snippet-catalog-segmented`}
       value={filter}
       options={[
         { value: 'all', label: t('snippets.all'), icon: <Code2 size={13} aria-hidden="true" /> },

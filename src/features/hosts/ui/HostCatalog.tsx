@@ -10,8 +10,13 @@ import {
   type HostGroup,
 } from '#entities/host'
 import styles from './HostManagement.module.scss'
-import { ManagementPanel } from '#shared/ui'
-import { ConnectionActionButton, EmptyState } from '#shared/ui'
+import {
+  ConnectionActionButton,
+  customSelectStyles,
+  EmptyState,
+  ManagementPanel,
+  uiStyles,
+} from '#shared/ui'
 import {
   buildHostTagOptions,
   filterHosts,
@@ -84,8 +89,8 @@ export function HostCatalog({
         <span>{t('hosts.filterGroup')}</span>
         <Select
           value={filters.groupId}
-          className="termous-select"
-          classNames={{ popup: { root: `termous-select-popup host-filter-select-popup ${styles['filter-select-popup']}` } }}
+          className={customSelectStyles.select}
+          classNames={{ popup: { root: `${customSelectStyles['select-popup']} host-filter-select-popup ${styles['filter-select-popup']}` } }}
           options={[
             { value: '', label: t('hosts.allGroups') },
             ...groups.map((group) => ({ value: group.id, label: group.name })),
@@ -172,7 +177,7 @@ export function HostCatalog({
       <div className="host-catalog-toolbar">
         <div className="host-catalog-search-row">
           <Input
-            className="termous-search-input"
+            className={uiStyles['search-input']}
             value={query}
             allowClear
             variant="borderless"

@@ -26,6 +26,7 @@ import {
   type ConnectionProxyInput,
   type ConnectionProxyType,
 } from '#entities/connection-proxy'
+import { customSelectStyles, uiStyles } from '#shared/ui'
 import hostManagementStyles from './HostManagement.module.scss'
 import styles from './ProxyManagerModal.module.scss'
 
@@ -257,10 +258,10 @@ export function ProxyManagerModal({
                   <Network size={16} aria-hidden="true" />
                 </span>
                 <span className={styles['proxy-manager-row-copy']}>
-                  <Tooltip title={proxy.name} rootClassName="termous-tooltip">
+                  <Tooltip title={proxy.name} rootClassName={uiStyles.tooltip}>
                     <strong>{proxy.name}</strong>
                   </Tooltip>
-                  <Tooltip title={proxy.url} rootClassName="termous-tooltip">
+                  <Tooltip title={proxy.url} rootClassName={uiStyles.tooltip}>
                     <small>{proxy.url}</small>
                   </Tooltip>
                 </span>
@@ -313,10 +314,10 @@ export function ProxyManagerModal({
               <Select
                 id="connection-proxy-type"
                 value={draft.type}
-                className="termous-select"
+                className={customSelectStyles.select}
                 classNames={{
                   popup: {
-                    root: `termous-select-popup ${styles['proxy-manager-select-popup']}`,
+                    root: `${customSelectStyles['select-popup']} ${styles['proxy-manager-select-popup']}`,
                   },
                 }}
                 disabled={busy}

@@ -3,7 +3,7 @@ import { Input, Popover } from 'antd'
 import { useCallback, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AuthMethodBadge, HostAvatar, type Host } from '#entities/host'
-import { SessionNewTabButton } from '#shared/ui'
+import { SessionNewTabButton, uiStyles } from '#shared/ui'
 import styles from './SessionQuickConnect.module.scss'
 
 export interface SessionQuickConnectProps {
@@ -105,7 +105,7 @@ function QuickConnectHostPanel({
       <Input
         id={searchInputId}
         name="session-quick-connect-search"
-        className={`termous-search-input ${styles.search}`}
+        className={`${uiStyles['search-input']} ${styles.search}`}
         value={query}
         allowClear
         variant="borderless"

@@ -114,7 +114,7 @@ test('远端管理私有样式离开全局工作站文件且共享弹层显式�
   assert.match(dockerSource, /customSelectStyles\['select-dropdown'\]/)
   assert.match(servicePanelSource, /customSelectStyles\['select-dropdown'\]/)
   assert.doesNotMatch(workstation, /^\.termous-select-dropdown\.ant-select-dropdown/m)
-  assert.match(workstation, /^\.termous-tooltip\.ant-tooltip/m)
+  assert.doesNotMatch(workstation, /^\.termous-tooltip\.ant-tooltip/m)
 })
 
 test('远端管理关键滚动与弹层尺寸保持不变', () => {
