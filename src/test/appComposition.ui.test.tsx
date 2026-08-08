@@ -17,8 +17,13 @@ const testState = vi.hoisted(() => {
     workbenchUnmounts: 0,
     filesPageMounts: 0,
     filesPageUnmounts: 0,
+    workbenchForwardsIsArray: false,
     projectionKeys: {
       workbench: [] as string[],
+      workbenchHostView: [] as string[],
+      workbenchSessionView: [] as string[],
+      workbenchFilesView: [] as string[],
+      workbenchSnippetView: [] as string[],
       hosts: [] as string[],
       files: [] as string[],
       forwards: [] as string[],
@@ -150,16 +155,38 @@ vi.mock('#app/app-shell', () => ({
 }))
 
 vi.mock('#widgets/workbench', () => ({
-  WorkbenchPage: ({
-    active,
-    data,
-    onSnippetUsed,
-  }: {
+  WorkbenchPage: (props: {
     active: boolean
-    data: Record<string, unknown>
+    hostView: Record<string, unknown>
+    sessionView: Record<string, unknown>
+    filesView: Record<string, unknown>
+    forwards: unknown[]
+    snippetView: Record<string, unknown>
+    data?: unknown
     onSnippetUsed?: (snippetId: string) => Promise<void>
   }) => {
-    testState.projectionKeys.workbench = Object.keys(data).sort()
+    const {
+      active,
+      hostView,
+      sessionView,
+      filesView,
+      forwards,
+      snippetView,
+      onSnippetUsed,
+    } = props
+    testState.projectionKeys.workbench = [
+      'data',
+      'filesView',
+      'forwards',
+      'hostView',
+      'sessionView',
+      'snippetView',
+    ].filter((key) => Object.prototype.hasOwnProperty.call(props, key)).sort()
+    testState.projectionKeys.workbenchHostView = Object.keys(hostView).sort()
+    testState.projectionKeys.workbenchSessionView = Object.keys(sessionView).sort()
+    testState.projectionKeys.workbenchFilesView = Object.keys(filesView).sort()
+    testState.projectionKeys.workbenchSnippetView = Object.keys(snippetView).sort()
+    testState.workbenchForwardsIsArray = Array.isArray(forwards)
     const [snippetUsageState, setSnippetUsageState] = useState('idle')
     useEffect(() => {
       testState.workbenchMounts += 1
@@ -312,6 +339,7 @@ describe('应用运行时组合合同', () => {
     testState.workbenchUnmounts = 0
     testState.filesPageMounts = 0
     testState.filesPageUnmounts = 0
+    testState.workbenchForwardsIsArray = false
     Object.values(testState.projectionKeys).forEach((keys) => keys.splice(0))
     testState.action.mockReset()
     testState.action.mockResolvedValue(undefined)
@@ -347,20 +375,33 @@ describe('应用运行时组合合同', () => {
     render(<App />)
 
     expect(testState.projectionKeys.workbench).toEqual([
-      'credentials',
-      'fileBookmarkGroups',
-      'fileBookmarks',
-      'fileSessions',
+      'filesView',
       'forwards',
+      'hostView',
+      'sessionView',
+      'snippetView',
+    ])
+    expect(testState.projectionKeys.workbenchHostView).toEqual([
+      'credentials',
       'groups',
       'hostReachability',
       'hosts',
       'proxies',
+    ])
+    expect(testState.projectionKeys.workbenchSessionView).toEqual([
       'sessions',
-      'settings',
+      'terminalSettings',
+    ])
+    expect(testState.projectionKeys.workbenchFilesView).toEqual([
+      'fileBookmarkGroups',
+      'fileBookmarks',
+      'fileSessions',
+    ])
+    expect(testState.projectionKeys.workbenchSnippetView).toEqual([
       'snippetGroups',
       'snippets',
     ])
+    expect(testState.workbenchForwardsIsArray).toBe(true)
     expect(testState.projectionKeys.hostLauncher).toEqual([
       'credentials',
       'groups',

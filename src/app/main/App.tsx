@@ -410,34 +410,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     snippetGroups: data.snippetGroups,
     snippets: data.snippets,
   }), [data.snippetGroups, data.snippets])
-  const workbenchData = useMemo<WorkbenchPageProps['data']>(() => ({
-    credentials: data.credentials,
+  const workbenchSessionView = useMemo<WorkbenchPageProps['sessionView']>(() => ({
+    sessions: data.sessions,
+    terminalSettings: data.settings.terminal,
+  }), [data.sessions, data.settings.terminal])
+  const workbenchFilesView = useMemo<WorkbenchPageProps['filesView']>(() => ({
     fileBookmarkGroups: data.fileBookmarkGroups,
     fileBookmarks: data.fileBookmarks,
     fileSessions: data.fileSessions,
-    forwards: data.forwards,
-    groups: data.groups,
-    hostReachability: data.hostReachability,
-    hosts: data.hosts,
-    proxies: data.proxies,
-    sessions: data.sessions,
-    settings: data.settings,
-    snippetGroups: data.snippetGroups,
-    snippets: data.snippets,
   }), [
-    data.credentials,
     data.fileBookmarkGroups,
     data.fileBookmarks,
     data.fileSessions,
-    data.forwards,
-    data.groups,
-    data.hostReachability,
-    data.hosts,
-    data.proxies,
-    data.sessions,
-    data.settings,
-    data.snippetGroups,
-    data.snippets,
   ])
 
   const filesPageFileSessions = useMemo(
@@ -984,7 +968,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             firewallGateway={gateways.firewall}
             aliasGateway={gateways.alias}
             getHostIconUrl={(iconId) => gateways.hosts.hostIconFileUrl(iconId)}
-            data={workbenchData}
+            hostView={hostLauncherData}
+            sessionView={workbenchSessionView}
+            filesView={workbenchFilesView}
+            forwards={data.forwards}
+            snippetView={snippetManagementData}
             fileSessionClosures={fileSessionClosures}
             theme={theme}
             active={page === 'workbench'}

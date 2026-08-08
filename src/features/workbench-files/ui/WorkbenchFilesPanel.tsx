@@ -50,7 +50,7 @@ import {
   type RemoteFileActionHandlers,
   RemotePermissionModal,
 } from '#features/remote-file'
-import type { AppTheme as ThemeMode, Settings } from '#common/contracts'
+import type { AppTheme as ThemeMode, TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
 import type { Session } from '#entities/session'
 import type {
@@ -132,7 +132,7 @@ interface WorkbenchFilesData {
   fileBookmarks: FileBookmark[]
   fileSessions: FileSession[]
   sessions: Session[]
-  settings: Settings
+  terminalSettings: TerminalSettings
 }
 
 interface RemoteClipboard {
@@ -1418,7 +1418,7 @@ function WorkbenchFilesPanelContent({
             connectionGeneration={files.fileSession.connection_generation ?? 0}
             path={textEditorPath}
             theme={theme}
-            terminalSettings={data.settings.terminal}
+            terminalSettings={data.terminalSettings}
             onClose={() => setTextEditorPath(null)}
             onSaved={() => void files.loadDirectory(currentPath)}
           />

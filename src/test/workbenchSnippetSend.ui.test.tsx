@@ -4,7 +4,7 @@ import { useEffect, type ComponentProps, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CodeSnippet } from '#entities/snippet'
 import type { Session } from '#entities/session'
-import type { WorkbenchData } from '#widgets/workbench'
+import type { WorkbenchPageProps } from '#widgets/workbench'
 
 const workbenchMocks = vi.hoisted(() => ({
   modalConfirm: vi.fn(),
@@ -178,23 +178,36 @@ function snippet(command: string): CodeSnippet {
   }
 }
 
-function data(snippets: CodeSnippet[]): WorkbenchData {
+type WorkbenchViewProps = Pick<
+  WorkbenchPageProps,
+  'hostView' | 'sessionView' | 'filesView' | 'forwards' | 'snippetView'
+>
+
+function workbenchViews(snippets: CodeSnippet[]): WorkbenchViewProps {
   return {
-    hosts: [],
-    groups: [],
-    proxies: [],
-    credentials: [],
-    sessions: [activeSession],
-    fileSessions: [],
+    hostView: {
+      hosts: [],
+      groups: [],
+      proxies: [],
+      credentials: [],
+      hostReachability: {},
+    },
+    sessionView: {
+      sessions: [activeSession],
+      terminalSettings: {
+        theme_mode: 'follow_app',
+      } as WorkbenchPageProps['sessionView']['terminalSettings'],
+    },
+    filesView: {
+      fileBookmarkGroups: [],
+      fileBookmarks: [],
+      fileSessions: [],
+    },
     forwards: [],
-    snippetGroups: [],
-    snippets,
-    fileBookmarkGroups: [],
-    fileBookmarks: [],
-    settings: {
-      terminal: { theme_mode: 'follow_app' },
-    } as WorkbenchData['settings'],
-    hostReachability: {},
+    snippetView: {
+      snippetGroups: [],
+      snippets,
+    },
   }
 }
 
@@ -210,7 +223,7 @@ function renderWorkbench(
     firewallGateway: {} as never,
     aliasGateway: {} as never,
     getHostIconUrl: vi.fn(() => ''),
-    data: data(snippets),
+    ...workbenchViews(snippets),
     fileSessionClosures: {},
     theme: 'dark',
     active: true,

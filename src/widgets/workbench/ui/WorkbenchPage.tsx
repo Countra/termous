@@ -23,16 +23,13 @@ import {
   type TerminalSearchDirection,
   type TerminalSplitWorkspaceHandle,
 } from '#features/terminal'
-import type { AppTheme as ThemeMode, Settings } from '#common/contracts'
-import type { CodeSnippet, CodeSnippetGroup } from '#entities/snippet'
-import type { ConnectionProxy } from '#entities/connection-proxy'
-import type { CredentialView } from '#entities/credential'
+import type { AppTheme as ThemeMode } from '#common/contracts'
+import type { CodeSnippet } from '#entities/snippet'
 import type { ForwardInstance, ForwardStartRequest } from '#entities/forward'
-import type { Host, HostGroup, HostReachability } from '#entities/host'
+import type { Host } from '#entities/host'
 import type { Session } from '#entities/session'
 import type {
   FileBookmark,
-  FileBookmarkGroup,
   FileBookmarkInput,
   FileSession,
   FileSessionClosureState,
@@ -79,6 +76,12 @@ import snippetStyles from './SnippetWorkbench.module.scss'
 import pageStyles from './WorkbenchPage.module.scss'
 import { parseDetailsTabKey, type DetailsTabKey } from '../model/workbenchDetails'
 import { formatWorkbenchTime } from '../model/workbenchFormatters'
+import type {
+  WorkbenchFilesView,
+  WorkbenchHostView,
+  WorkbenchSessionView,
+  WorkbenchSnippetView,
+} from '../model/workbenchViewModels'
 import type {
   WorkbenchTerminalSearchState,
   WorkbenchTerminalTabDragState,
@@ -133,7 +136,11 @@ export interface WorkbenchPageProps {
   firewallGateway: FirewallGateway
   aliasGateway: AliasGateway
   getHostIconUrl: (iconId: string) => string
-  data: WorkbenchData
+  hostView: WorkbenchHostView
+  sessionView: WorkbenchSessionView
+  filesView: WorkbenchFilesView
+  forwards: ForwardInstance[]
+  snippetView: WorkbenchSnippetView
   fileSessionClosures: Readonly<Record<string, FileSessionClosureState>>
   theme: ThemeMode
   active: boolean
@@ -175,7 +182,11 @@ export function WorkbenchPage({
   firewallGateway,
   aliasGateway,
   getHostIconUrl,
-  data,
+  hostView,
+  sessionView,
+  filesView,
+  forwards,
+  snippetView,
   fileSessionClosures,
   theme,
   active,
@@ -282,7 +293,7 @@ export function WorkbenchPage({
     error: '',
     baselineSignature: '',
   })
-  const selectedHost = data.hosts.find((host) => host.id === selectedHostId) ?? data.hosts[0]
+  const selectedHost = hostView.hosts.find((host) => host.id === selectedHostId) ?? hostView.hosts[0]
   const activeSessionId = activeSession?.id
   const inventoryVisibleSessionId = getSessionInventoryVisibleScope(activeSession, detailsActiveTab, detailsCollapsed)
   const automaticInventorySessionId = getAutomaticSessionInventoryDemand(activeSession, detailsActiveTab, detailsCollapsed)
@@ -316,16 +327,16 @@ export function WorkbenchPage({
   const handleTerminalResize = useCallback((cols: number, rows: number) => {
     setTerminalSize({ cols, rows })
   }, [])
-  const sessionHost = activeSession?.host_id ? data.hosts.find((host) => host.id === activeSession.host_id) : undefined
+  const sessionHost = activeSession?.host_id ? hostView.hosts.find((host) => host.id === activeSession.host_id) : undefined
   const visibleSessions = useMemo(
-    () => sortSessionsForTabs(data.sessions, sessionTabPreferences),
-    [data.sessions, sessionTabPreferences],
+    () => sortSessionsForTabs(sessionView.sessions, sessionTabPreferences),
+    [sessionTabPreferences, sessionView.sessions],
   )
   const aliasSessionIds = useMemo(
-    () => data.sessions
+    () => sessionView.sessions
       .filter((session) => session.kind === 'ssh')
       .map((session) => session.id),
-    [data.sessions],
+    [sessionView.sessions],
   )
   const activeSessionIndex = activeSession ? visibleSessions.findIndex((session) => session.id === activeSession.id) : -1
   const sessionPositionLabel =
@@ -347,20 +358,37 @@ export function WorkbenchPage({
         : t('workbench.noHost')
   const startedAt = activeSession?.started_at ? formatWorkbenchTime(activeSession.started_at) : t('fields.none')
   const sessionDuration = formatSessionDuration(activeSession, durationNow, t('fields.none'))
-  const terminalThemeMode = data.settings.terminal.theme_mode === 'follow_app' ? theme : data.settings.terminal.theme_mode
+  const terminalThemeMode = sessionView.terminalSettings.theme_mode === 'follow_app'
+    ? theme
+    : sessionView.terminalSettings.theme_mode
+  const workbenchFilesData = useMemo(() => ({
+    hosts: hostView.hosts,
+    sessions: sessionView.sessions,
+    terminalSettings: sessionView.terminalSettings,
+    fileBookmarkGroups: filesView.fileBookmarkGroups,
+    fileBookmarks: filesView.fileBookmarks,
+    fileSessions: filesView.fileSessions,
+  }), [
+    filesView.fileBookmarkGroups,
+    filesView.fileBookmarks,
+    filesView.fileSessions,
+    hostView.hosts,
+    sessionView.sessions,
+    sessionView.terminalSettings,
+  ])
   const canSendSnippet = Boolean(activeSession?.kind === 'ssh' && activeSession.status === 'connected')
-  const snippetTags = useMemo(() => buildSnippetTags(data.snippets), [data.snippets])
+  const snippetTags = useMemo(() => buildSnippetTags(snippetView.snippets), [snippetView.snippets])
   const filteredSnippets = useMemo(
-    () => filterSnippets(data.snippets, {
+    () => filterSnippets(snippetView.snippets, {
       filter: snippetFilter,
       query: snippetQuery,
       selectedTags: snippetSelectedTags,
       groupId: snippetSelectedGroupId,
     }),
-    [data.snippets, snippetFilter, snippetQuery, snippetSelectedGroupId, snippetSelectedTags],
+    [snippetFilter, snippetQuery, snippetSelectedGroupId, snippetSelectedTags, snippetView.snippets],
   )
   const groupedFilteredSnippets = useMemo(() => {
-    const snippetsByGroup = new Map(data.snippetGroups.map((group) => [group.id, [] as CodeSnippet[]]))
+    const snippetsByGroup = new Map(snippetView.snippetGroups.map((group) => [group.id, [] as CodeSnippet[]]))
     const ungrouped: CodeSnippet[] = []
     filteredSnippets.forEach((snippet) => {
       const groupSnippets = snippetsByGroup.get(snippet.group_id)
@@ -371,14 +399,14 @@ export function WorkbenchPage({
       }
     })
     return [
-      ...data.snippetGroups.map((group) => ({
+      ...snippetView.snippetGroups.map((group) => ({
         id: group.id,
         name: group.name,
         snippets: snippetsByGroup.get(group.id) ?? [],
       })),
       { id: '__ungrouped__', name: t('snippets.ungrouped'), snippets: ungrouped },
     ].filter((group) => group.snippets.length > 0)
-  }, [data.snippetGroups, filteredSnippets, t])
+  }, [filteredSnippets, snippetView.snippetGroups, t])
   const toggleSnippetGroup = useCallback((groupId: string) => {
     setCollapsedSnippetGroups((current) => {
       const next = new Set(current)
@@ -484,13 +512,13 @@ export function WorkbenchPage({
   }, [])
   useEffect(() => {
     if (!snippetSelectedGroupId || snippetSelectedGroupId === '__ungrouped__') return
-    if (!data.snippetGroups.some((group) => group.id === snippetSelectedGroupId)) {
+    if (!snippetView.snippetGroups.some((group) => group.id === snippetSelectedGroupId)) {
       setSnippetSelectedGroupId('')
     }
-  }, [data.snippetGroups, snippetSelectedGroupId])
+  }, [snippetSelectedGroupId, snippetView.snippetGroups])
   const resolveSessionTitle = useCallback(
-    (session: Session) => sessionTabPreferences[session.id]?.title ?? sessionTitle(session, data.hosts, t),
-    [data.hosts, sessionTabPreferences, t],
+    (session: Session) => sessionTabPreferences[session.id]?.title ?? sessionTitle(session, hostView.hosts, t),
+    [hostView.hosts, sessionTabPreferences, t],
   )
   const updateSessionTabPreference = useCallback(
     (sessionId: string, updater: (preference: SessionTabPreference) => SessionTabPreference) => {
@@ -621,7 +649,7 @@ export function WorkbenchPage({
     [actionBusy, onConnect],
   )
   useEffect(() => {
-    const sessionIds = data.sessions.map((session) => session.id)
+    const sessionIds = sessionView.sessions.map((session) => session.id)
     setSessionTabPreferences((current) => {
       const pruned = pruneSessionTabPreferences(current, sessionIds)
       return areSessionTabPreferenceMapsEqual(current, pruned) ? current : pruned
@@ -633,7 +661,7 @@ export function WorkbenchPage({
       setRenamingSessionId(null)
       setRenameValue('')
     }
-  }, [colorSessionId, data.sessions, renamingSessionId, setSessionTabPreferences])
+  }, [colorSessionId, renamingSessionId, sessionView.sessions, setSessionTabPreferences])
 
   const closeTerminalSearch = useCallback(() => {
     const current = terminalSearchRef.current
@@ -1066,7 +1094,7 @@ export function WorkbenchPage({
   }, [activeSession])
 
   useEffect(() => {
-    const currentSessionIds = new Set(data.sessions.map((session) => session.id))
+    const currentSessionIds = new Set(sessionView.sessions.map((session) => session.id))
     const clearReadyState = (sessionId: string) => {
       const timer = recentConnectionTimersRef.current.get(sessionId)
       if (timer !== undefined) {
@@ -1083,7 +1111,7 @@ export function WorkbenchPage({
       })
     }
 
-    for (const session of data.sessions) {
+    for (const session of sessionView.sessions) {
       const previousStatus = previousSessionStatusRef.current.get(session.id)
       previousSessionStatusRef.current.set(session.id, session.status)
       if (session.status === 'disconnected' || session.status === 'failed') {
@@ -1123,7 +1151,7 @@ export function WorkbenchPage({
         clearReadyState(sessionId)
       }
     }
-  }, [data.sessions])
+  }, [sessionView.sessions])
 
   useEffect(() => {
     const timers = recentConnectionTimersRef.current
@@ -1139,7 +1167,7 @@ export function WorkbenchPage({
     if (!pendingSearchRequest) {
       return
     }
-    if (!data.sessions.some((session) => session.id === pendingSearchRequest.sessionId)) {
+    if (!sessionView.sessions.some((session) => session.id === pendingSearchRequest.sessionId)) {
       setPendingSearchRequest(null)
       return
     }
@@ -1152,14 +1180,14 @@ export function WorkbenchPage({
     if (activeSessionId !== pendingSearchRequest.sourceSessionId) {
       setPendingSearchRequest(null)
     }
-  }, [activeSession?.id, data.sessions, openTerminalSearch, pendingSearchRequest])
+  }, [activeSession?.id, openTerminalSearch, pendingSearchRequest, sessionView.sessions])
 
   useEffect(() => {
     if (!filesPathNavigationIntent) {
       activatedFilesPathNavigationRequestIdRef.current = null
       return
     }
-    const sourceSession = data.sessions.find(
+    const sourceSession = sessionView.sessions.find(
       (session) => session.id === filesPathNavigationIntent.sourceSessionId,
     )
     if (
@@ -1169,7 +1197,7 @@ export function WorkbenchPage({
     ) {
       setFilesPathNavigationIntent(null)
     }
-  }, [data.sessions, filesPathNavigationIntent])
+  }, [filesPathNavigationIntent, sessionView.sessions])
 
   useEffect(() => {
     if (!filesPathNavigationIntent) {
@@ -1237,7 +1265,7 @@ export function WorkbenchPage({
           sessionTabs={(
             <WorkbenchSessionTabs
               sessions={visibleSessions}
-              hosts={data.hosts}
+              hosts={hostView.hosts}
               activeSessionId={activeSession?.id}
               actionBusy={actionBusy}
               preferences={sessionTabPreferences}
@@ -1311,7 +1339,7 @@ export function WorkbenchPage({
         panels={{
           overview: (
               <WorkbenchConnectionOverview
-                data={data}
+                data={hostView}
                 session={activeSession}
                 actionBusy={actionBusy}
                 sessionClosing={activeSessionClosing}
@@ -1327,7 +1355,7 @@ export function WorkbenchPage({
           files: (
               <WorkbenchFilesPanel
                 api={fileGateway}
-                data={data}
+                data={workbenchFilesData}
                 fileSessionClosures={fileSessionClosures}
                 session={activeSession}
                 enabled={active && detailsActiveTab === 'files' && !detailsCollapsed}
@@ -1397,7 +1425,7 @@ export function WorkbenchPage({
               <ForwardSessionPanel
                 session={activeSession}
                 host={sessionHost}
-                forwards={data.forwards}
+                forwards={forwards}
                 enabled={active && detailsActiveTab === 'forwards' && !detailsCollapsed}
                 actionBusy={actionBusy}
                 onStartForward={onStartForward}
@@ -1410,10 +1438,10 @@ export function WorkbenchPage({
                 api={aliasGateway}
                 session={activeSession}
                 sessionIds={aliasSessionIds}
-                hosts={data.hosts}
-                groups={data.groups}
-                credentials={data.credentials}
-                reachability={data.hostReachability}
+                hosts={hostView.hosts}
+                groups={hostView.groups}
+                credentials={hostView.credentials}
+                reachability={hostView.hostReachability}
                 enabled={active && detailsActiveTab === 'aliases' && !detailsCollapsed}
                 reconnectDisabled={actionBusy}
                 onReconnectSession={reconnectSession}
@@ -1424,11 +1452,11 @@ export function WorkbenchPage({
                 filter={snippetFilter}
                 query={snippetQuery}
                 selectedTags={snippetSelectedTags}
-                groups={data.snippetGroups}
+                groups={snippetView.snippetGroups}
                 selectedGroupId={snippetSelectedGroupId}
                 availableTags={snippetTags}
                 filteredSnippets={filteredSnippets}
-                totalCount={data.snippets.length}
+                totalCount={snippetView.snippets.length}
                 groupedSnippets={groupedFilteredSnippets}
                 collapsedGroupIds={collapsedSnippetGroups}
                 actionBusy={actionBusy}
@@ -1540,20 +1568,4 @@ function sessionInventoryViewSignature(session: Session | null) {
     session?.inventory_message ?? '',
     session?.linux_system_info?.collected_at ?? '',
   ].join('\u0000')
-}
-
-export interface WorkbenchData {
-  credentials: CredentialView[]
-  fileBookmarkGroups: FileBookmarkGroup[]
-  fileBookmarks: FileBookmark[]
-  fileSessions: FileSession[]
-  forwards: ForwardInstance[]
-  groups: HostGroup[]
-  hostReachability: Record<string, HostReachability>
-  hosts: Host[]
-  proxies: ConnectionProxy[]
-  sessions: Session[]
-  settings: Settings
-  snippetGroups: CodeSnippetGroup[]
-  snippets: CodeSnippet[]
 }
