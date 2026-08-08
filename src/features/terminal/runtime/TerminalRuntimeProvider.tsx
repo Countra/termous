@@ -16,6 +16,11 @@ import type { TerminalGateway } from '../api/terminalGateway'
 import { readClipboardText, writeClipboardText } from '../lib/terminalClipboard'
 import { TerminalCompletionStatusReconciler } from './completionStatusReconciler'
 import { TerminalCwdRuntimeProvider } from './TerminalCwdRuntimeProvider'
+import { TerminalEntryLifecycle } from './terminalEntryLifecycle'
+import type {
+  CompletionPromptAnchor,
+  TerminalEntry,
+} from './terminalRuntimeTypes'
 import styles from './TerminalRuntimeProvider.module.scss'
 import type {
   AppTheme as ThemeMode,
@@ -102,33 +107,6 @@ interface TerminalRuntimeProviderProps {
   terminalFonts: TerminalFont[]
   children: ReactNode
   onSessionEvent?: (sessionId: string, patch: Partial<Session>) => void
-}
-
-interface TerminalEntry {
-  sessionId: string
-  terminal: Terminal
-  fit: FitAddon
-  search: SearchAddon
-  searchResult: TerminalSearchResult
-  searchDecorationKey: string
-  transport: TerminalTransport
-  transportState: TerminalTransportState
-  container: HTMLDivElement
-  disposables: Array<{ dispose: () => void }>
-  lastSize: { cols: number; rows: number }
-  resizeTimer: number | null
-  suppressCompletionInput: boolean
-  completionPromptAnchor: CompletionPromptAnchor | null
-  disposed: boolean
-}
-
-interface CompletionPromptAnchor {
-  sourceGeneration: number
-  shellId: string
-  promptGeneration: number
-  inputEpoch: number
-  cursorX: number
-  cursorY: number
 }
 
 interface ViewportState {
@@ -286,42 +264,31 @@ export function TerminalRuntimeProvider({
     tRef.current = t
   }, [onSessionEvent, t])
 
+  const entryLifecycleRef = useRef<TerminalEntryLifecycle | null>(null)
+  if (!entryLifecycleRef.current) {
+    entryLifecycleRef.current = new TerminalEntryLifecycle({
+      getEntries: () => entriesRef.current,
+      applyCwdDisposed: (sessionId) => cwdRuntime.applyTransportState(sessionId, 'disposed'),
+      stopCompletionStatusReconciliation,
+      disposeCompletionSession: (sessionId) => completionRuntime.disposeSession(sessionId),
+      deleteCompletionLayoutListeners: (sessionId) => {
+        completionLayoutListenersRef.current.delete(sessionId)
+      },
+    })
+  }
+  const entryLifecycle = entryLifecycleRef.current
   const disposeEntry = useCallback(
-    (entry: TerminalEntry) => {
-      if (entry.disposed) {
-        return
-      }
-      cwdRuntime.applyTransportState(entry.sessionId, 'disposed')
-      stopCompletionStatusReconciliation(entry.sessionId)
-      completionRuntime.disposeSession(entry.sessionId)
-      entry.disposed = true
-      if (entry.resizeTimer) {
-        window.clearTimeout(entry.resizeTimer)
-        entry.resizeTimer = null
-      }
-      entry.disposables.forEach((disposable) => disposable.dispose())
-      entry.transport.dispose()
-      entry.terminal.dispose()
-      entry.container.remove()
-      entriesRef.current.delete(entry.sessionId)
-      completionLayoutListenersRef.current.delete(entry.sessionId)
-    },
-    [completionRuntime, cwdRuntime, stopCompletionStatusReconciliation],
+    (entry: TerminalEntry) => entryLifecycle.disposeEntry(entry),
+    [entryLifecycle],
   )
-
   const disposeSession = useCallback(
-    (sessionId: string) => {
-      const entry = entriesRef.current.get(sessionId)
-      if (entry) {
-        disposeEntry(entry)
-      }
-    },
-    [disposeEntry],
+    (sessionId: string) => entryLifecycle.disposeSession(sessionId),
+    [entryLifecycle],
   )
-
-  const disposeAll = useCallback(() => {
-    Array.from(entriesRef.current.values()).forEach(disposeEntry)
-  }, [disposeEntry])
+  const disposeAll = useCallback(
+    () => entryLifecycle.disposeAll(),
+    [entryLifecycle],
+  )
 
   const getViewportForSession = useCallback((sessionId: string) => {
     const viewports = Array.from(viewportsRef.current.values()).filter((viewport) => (
