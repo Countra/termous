@@ -14,6 +14,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import type { TerminalGateway } from '../api/terminalGateway'
 import { readClipboardText, writeClipboardText } from '../lib/terminalClipboard'
+import { TerminalCompletionStatusReconciler } from './completionStatusReconciler'
 import { TerminalCwdRuntimeProvider } from './TerminalCwdRuntimeProvider'
 import styles from './TerminalRuntimeProvider.module.scss'
 import type {
@@ -39,7 +40,6 @@ import {
   type TerminalRuntimeContextValue,
   type TerminalClipboardAction,
   type TerminalCompletionCursorGeometry,
-  type TerminalCompletionRetryResult,
   type TerminalSendResult,
   type TerminalViewportOptions,
 } from './terminalRuntimeContext'
@@ -141,15 +141,6 @@ interface ViewportState {
   onResize?: (cols: number, rows: number) => void
 }
 
-interface CompletionStatusReconciliation {
-  attempt: number
-  controller?: AbortController
-  timer?: number
-  refreshPromise?: Promise<TerminalCompletionRetryResult>
-}
-
-const completionStatusRetryDelays = [0, 1_000, 2_000, 4_000, 8_000, 16_000, 18_000]
-
 export function TerminalRuntimeProvider({
   api,
   sessions,
@@ -194,6 +185,16 @@ export function TerminalRuntimeProvider({
     })
   }
   const completionRuntime = completionRuntimeRef.current
+  const completionStatusReconcilerRef = useRef<TerminalCompletionStatusReconciler | null>(null)
+  if (!completionStatusReconcilerRef.current) {
+    completionStatusReconcilerRef.current = new TerminalCompletionStatusReconciler({
+      completionRuntime,
+      getApi: () => apiRef.current,
+      getEntry: (sessionId) => entriesRef.current.get(sessionId),
+      getSession: (sessionId) => sessionsRef.current.get(sessionId),
+    })
+  }
+  const completionStatusReconciler = completionStatusReconcilerRef.current
   const {
     runtime: shortcutRuntime,
     bindingSignatures: shortcutBindingSignatures,
@@ -205,9 +206,6 @@ export function TerminalRuntimeProvider({
   const { t } = useTranslation()
   const { message } = AntdApp.useApp()
   const completionLayoutListenersRef = useRef(new Map<string, Set<() => void>>())
-  const completionStatusReconciliationsRef = useRef(
-    new Map<string, CompletionStatusReconciliation>(),
-  )
   const sessionSnapshot = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
   sessionsRef.current = sessionSnapshot
 
@@ -221,199 +219,22 @@ export function TerminalRuntimeProvider({
     })
   }, [completionRuntime, completionShortcutSignature])
 
-  const stopCompletionStatusReconciliation = useCallback((sessionId: string) => {
-    const reconciliation = completionStatusReconciliationsRef.current.get(sessionId)
-    if (!reconciliation) {
-      return
-    }
-    reconciliation.controller?.abort()
-    if (reconciliation.timer !== undefined) {
-      window.clearTimeout(reconciliation.timer)
-    }
-    completionStatusReconciliationsRef.current.delete(sessionId)
-  }, [])
-
-  const startCompletionStatusReconciliation = useCallback((sessionId: string) => {
-    stopCompletionStatusReconciliation(sessionId)
-    const session = sessionsRef.current.get(sessionId)
-    const entry = entriesRef.current.get(sessionId)
-    const snapshot = completionRuntime.getSnapshot(sessionId)
-    if (
-      session?.kind !== 'ssh'
-      || session.status !== 'connected'
-      || !entry
-      || entry.disposed
-      || !entry.transport.isLive()
-      || snapshot.readiness === 'disabled'
-      || snapshot.boundary !== null
-    ) {
-      return
-    }
-
-    const reconciliation: CompletionStatusReconciliation = { attempt: 0 }
-    completionStatusReconciliationsRef.current.set(sessionId, reconciliation)
-
-    const isCurrent = () => (
-      completionStatusReconciliationsRef.current.get(sessionId) === reconciliation
-    )
-    const finish = () => {
-      if (isCurrent()) {
-        completionStatusReconciliationsRef.current.delete(sessionId)
-      }
-    }
-    const scheduleNext = () => {
-      if (!isCurrent() || reconciliation.attempt >= completionStatusRetryDelays.length) {
-        if (isCurrent()) {
-          const currentEntry = entriesRef.current.get(sessionId)
-          const currentSnapshot = completionRuntime.getSnapshot(sessionId)
-          if (
-            currentEntry
-            && !currentEntry.disposed
-            && currentEntry.transport.isLive()
-            && currentSnapshot.readiness !== 'disabled'
-            && currentSnapshot.boundary === null
-          ) {
-            completionRuntime.markPromptObservationUnavailable(sessionId)
-          }
-        }
-        finish()
-        return
-      }
-      const delay = completionStatusRetryDelays[reconciliation.attempt] ?? 0
-      reconciliation.attempt += 1
-      if (delay === 0) {
-        void poll()
-        return
-      }
-      reconciliation.timer = window.setTimeout(() => {
-        reconciliation.timer = undefined
-        void poll()
-      }, delay)
-    }
-    const poll = async () => {
-      if (!isCurrent()) {
-        return
-      }
-      const currentEntry = entriesRef.current.get(sessionId)
-      const currentSnapshot = completionRuntime.getSnapshot(sessionId)
-      if (
-        !currentEntry
-        || currentEntry.disposed
-        || !currentEntry.transport.isLive()
-        || currentSnapshot.readiness === 'disabled'
-        || currentSnapshot.boundary !== null
-      ) {
-        finish()
-        return
-      }
-
-      const controller = new AbortController()
-      reconciliation.controller = controller
-      try {
-        const status = await apiRef.current.sessionCompletionStatus(sessionId, {
-          signal: controller.signal,
-        })
-        if (!isCurrent() || controller.signal.aborted) {
-          return
-        }
-        reconciliation.controller = undefined
-        completionRuntime.applyStatus(sessionId, status)
-        if (
-          status.prompt_observation.status === 'waiting'
-          || status.prompt_observation.status === 'preparing'
-          || (
-            status.prompt_observation.status === 'degraded'
-            && status.prompt_observation.retryable === true
-          )
-        ) {
-          scheduleNext()
-        } else {
-          finish()
-        }
-      } catch {
-        if (!isCurrent() || controller.signal.aborted) {
-          return
-        }
-        reconciliation.controller = undefined
-        scheduleNext()
-      }
-    }
-
-    scheduleNext()
-  }, [completionRuntime, stopCompletionStatusReconciliation])
-
-  const retrySessionCompletion = useCallback((sessionId: string) => {
-    const existing = completionStatusReconciliationsRef.current.get(sessionId)
-    if (existing?.refreshPromise) {
-      return existing.refreshPromise
-    }
-    stopCompletionStatusReconciliation(sessionId)
-    const entry = entriesRef.current.get(sessionId)
-    const session = sessionsRef.current.get(sessionId)
-    const snapshot = completionRuntime.getSnapshot(sessionId)
-    if (
-      session?.kind !== 'ssh'
-      || session.status !== 'connected'
-      || !entry
-      || entry.disposed
-      || !entry.transport.isLive()
-      || snapshot.readiness === 'disabled'
-      || snapshot.promptObservation.retryable !== true
-    ) {
-      return Promise.resolve<TerminalCompletionRetryResult>('cancelled')
-    }
-
-    const controller = new AbortController()
-    const reconciliation: CompletionStatusReconciliation = {
-      attempt: 0,
-      controller,
-    }
-    const hasRecoveredPrompt = () => {
-      const latest = completionRuntime.getSnapshot(sessionId)
-      return latest.readiness === 'ready' && latest.boundary !== null
-    }
-    completionStatusReconciliationsRef.current.set(sessionId, reconciliation)
-    const refreshPromise: Promise<TerminalCompletionRetryResult> = apiRef.current.refreshSessionCompletions(sessionId, {
-      signal: controller.signal,
-    }).then((status) => {
-      if (
-        controller.signal.aborted
-        || completionStatusReconciliationsRef.current.get(sessionId) !== reconciliation
-      ) {
-        return hasRecoveredPrompt() ? 'succeeded' : 'cancelled'
-      }
-      reconciliation.controller = undefined
-      completionStatusReconciliationsRef.current.delete(sessionId)
-      completionRuntime.applyStatus(sessionId, status)
-      if (
-        status.prompt_observation.status === 'waiting'
-        || status.prompt_observation.status === 'preparing'
-        || (
-          status.prompt_observation.status === 'degraded'
-          && status.prompt_observation.retryable === true
-        )
-      ) {
-        startCompletionStatusReconciliation(sessionId)
-      }
-      return 'succeeded'
-    }).catch(() => {
-      const interrupted = controller.signal.aborted
-        || completionStatusReconciliationsRef.current.get(sessionId) !== reconciliation
-      if (!interrupted) {
-        completionStatusReconciliationsRef.current.delete(sessionId)
-      }
-      if (hasRecoveredPrompt()) {
-        return 'succeeded'
-      }
-      return interrupted ? 'cancelled' : 'failed'
-    })
-    reconciliation.refreshPromise = refreshPromise
-    return refreshPromise
-  }, [
-    completionRuntime,
-    startCompletionStatusReconciliation,
-    stopCompletionStatusReconciliation,
-  ])
+  const stopCompletionStatusReconciliation = useCallback(
+    (sessionId: string) => completionStatusReconciler.stop(sessionId),
+    [completionStatusReconciler],
+  )
+  const stopAllCompletionStatusReconciliations = useCallback(
+    () => completionStatusReconciler.stopAll(),
+    [completionStatusReconciler],
+  )
+  const startCompletionStatusReconciliation = useCallback(
+    (sessionId: string) => completionStatusReconciler.start(sessionId),
+    [completionStatusReconciler],
+  )
+  const retrySessionCompletion = useCallback(
+    (sessionId: string) => completionStatusReconciler.retry(sessionId),
+    [completionStatusReconciler],
+  )
 
   useEffect(() => {
     apiRef.current = api
@@ -437,9 +258,7 @@ export function TerminalRuntimeProvider({
   useEffect(() => {
     completionRuntime.setEnabled(completionSettings.enabled)
     if (!completionSettings.enabled) {
-      for (const sessionId of completionStatusReconciliationsRef.current.keys()) {
-        stopCompletionStatusReconciliation(sessionId)
-      }
+      stopAllCompletionStatusReconciliations()
       return
     }
     for (const entry of entriesRef.current.values()) {
@@ -451,7 +270,7 @@ export function TerminalRuntimeProvider({
     completionRuntime,
     completionSettings.enabled,
     startCompletionStatusReconciliation,
-    stopCompletionStatusReconciliation,
+    stopAllCompletionStatusReconciliations,
   ])
 
   useEffect(() => {
@@ -1576,17 +1395,14 @@ export function TerminalRuntimeProvider({
 
   useEffect(() => {
     const completionLayoutListeners = completionLayoutListenersRef.current
-    const completionStatusReconciliations = completionStatusReconciliationsRef.current
     return () => {
-      for (const sessionId of completionStatusReconciliations.keys()) {
-        stopCompletionStatusReconciliation(sessionId)
-      }
+      stopAllCompletionStatusReconciliations()
       disposeAll()
       cwdRuntime.dispose()
       completionRuntime.clear()
       completionLayoutListeners.clear()
     }
-  }, [api, completionRuntime, cwdRuntime, disposeAll, stopCompletionStatusReconciliation])
+  }, [api, completionRuntime, cwdRuntime, disposeAll, stopAllCompletionStatusReconciliations])
 
   const value = useMemo<TerminalRuntimeContextValue>(
     () => ({

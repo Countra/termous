@@ -7,6 +7,10 @@ const providerSource = readFileSync(
   fileURLToPath(new URL('../features/terminal/runtime/TerminalRuntimeProvider.tsx', import.meta.url)),
   'utf8',
 )
+const reconciliationSource = readFileSync(
+  fileURLToPath(new URL('../features/terminal/runtime/completionStatusReconciler.ts', import.meta.url)),
+  'utf8',
+)
 const viewportSource = readFileSync(
   fileURLToPath(new URL('../features/terminal/ui/TerminalPaneViewport.tsx', import.meta.url)),
   'utf8',
@@ -73,8 +77,8 @@ test('所有终端输入入口统一更新补全可信状态', () => {
 })
 
 test('缺少提示符时有界对账补全状态并在生命周期变化时停止', () => {
-  assert.match(providerSource, /sessionCompletionStatus\(sessionId/)
-  assert.match(providerSource, /completionStatusRetryDelays/)
+  assert.match(reconciliationSource, /sessionCompletionStatus\(sessionId/)
+  assert.match(reconciliationSource, /completionStatusRetryDelays/)
   assert.match(
     providerSource,
     /event\.type === 'prompt_boundary'[\s\S]*?stopCompletionStatusReconciliation\(sessionId\)/,
@@ -85,9 +89,9 @@ test('缺少提示符时有界对账补全状态并在生命周期变化时停�
   )
   assert.match(viewportSource, /terminal-completion-notice/)
   assert.match(viewportSource, /completionNotice === 'reconnect_required'/)
-  assert.match(providerSource, /refreshSessionCompletions\(sessionId/)
+  assert.match(reconciliationSource, /refreshSessionCompletions\(sessionId/)
   assert.match(viewportSource, /completion\.promptObservation\.retryable/)
-  assert.match(providerSource, /markPromptObservationUnavailable\(sessionId\)/)
+  assert.match(reconciliationSource, /markPromptObservationUnavailable\(sessionId\)/)
   assert.match(viewportSource, /result === 'failed'/)
 })
 
