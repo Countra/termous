@@ -72,7 +72,6 @@ import type {
   LocalPathMappingInput,
   LocalPathMappingReorderItem,
   RemoteFileEntry,
-  TransferTask,
 } from '#entities/file'
 import type { FileGateway } from '#features/files'
 import { useTransferRuntime } from '#features/transfers'
@@ -112,7 +111,6 @@ import {
 import type {
   LocalDownloadRequest,
   LocalDownloadTarget,
-  LocalDownloadRefreshRequest,
 } from '#features/local-download'
 import {
   LocalDownloadConsole,
@@ -128,6 +126,10 @@ import {
 } from '#features/local-download'
 import { useFilesWorkspaceRuntime } from '../model/useFilesWorkspaceRuntime'
 import { useFilesDirectoryController } from '../model/useFilesDirectoryController'
+import {
+  isFilesTransferActive,
+  useFilesTransferRefresh,
+} from '../model/useFilesTransferRefresh'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import {
   applyFilesWorkspaceSelection,
@@ -384,7 +386,6 @@ function FilesWorkspaceContent({
   const localDownloadOperationSourcesRef = useRef(new Set<LocalDownloadDropSource>())
   const localDownloadTaskRef = useRef<{ key: string; promise: Promise<boolean> } | null>(null)
   const resetDragStateRef = useRef<() => void>(() => undefined)
-  const downloadRefreshTasksRef = useRef(new Map<string, { mappingId?: string; targetPath: string }>())
   const lastActiveFileSessionRef = useRef<{
     id: string
     connectionGeneration: number
@@ -446,7 +447,6 @@ function FilesWorkspaceContent({
   const [remoteMoveTargetPath, setRemoteMoveTargetPath] = useState<string | null>(null)
   const [localDownloadDropActive, setLocalDownloadDropActive] = useState(false)
   const [localDownloadOperationActive, setLocalDownloadOperationActive] = useState(false)
-  const [localRefreshRequests, setLocalRefreshRequests] = useState<LocalDownloadRefreshRequest[]>([])
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionTarget, setPermissionTarget] = useState<SessionBoundRemoteEntry | null>(null)
   const [textEditorTarget, setTextEditorTarget] = useState<SessionBoundRemotePath | null>(null)
@@ -1048,26 +1048,6 @@ function FilesWorkspaceContent({
     [loadDirectory, notification, t],
   )
 
-  const trackUploadRefreshTask = useCallback((task: TransferTask) => {
-    if (!isUploadTransfer(task) || !task.file_session_id) {
-      return
-    }
-    trackWorkspaceUploadRefreshTask(task.id, {
-      fileSessionId: task.file_session_id,
-      targetPath: normalizeRemotePath(task.target_path || '/'),
-    })
-  }, [trackWorkspaceUploadRefreshTask])
-
-  const trackDownloadRefreshTask = useCallback((task: TransferTask, mappingId?: string) => {
-    if (!isDownloadTransfer(task) || !task.target_path) {
-      return
-    }
-    downloadRefreshTasksRef.current.set(task.id, {
-      mappingId,
-      targetPath: task.target_path,
-    })
-  }, [])
-
   useEffect(() => {
     if (!activeFileSession) {
       lastActiveFileSessionRef.current = null
@@ -1134,98 +1114,25 @@ function FilesWorkspaceContent({
     return () => window.removeEventListener('resize', keepNarrowPanelsExclusive)
   }, [auxiliarySurface, sidePanelMode, updateSidePanelMode])
 
-  useEffect(() => {
-    const transferIds = new Set(transfers.map((task) => task.id))
-    pruneUploadRefreshTasks(transferIds)
-    const completedTargets = new Map<string, { fileSessionId: string; targetPath: string }>()
-    transfers.forEach((task) => {
-      if (!isUploadTransfer(task) || !task.file_session_id) {
-        return
-      }
-      if (isTransferActive(task)) {
-        trackUploadRefreshTask(task)
-      }
-      if (!isTransferTerminal(task)) {
-        return
-      }
-      if (!hasUploadRefreshTask(task.id)) {
-        return
-      }
-      const target = consumeUploadRefreshTask(task.id)
-      if (task.status === 'completed' && target) {
-        completedTargets.set(
-          `${target.fileSessionId}\u0000${target.targetPath}`,
-          target,
-        )
-      }
-    })
-    const currentTargetPath = normalizeRemotePath(currentPath)
-    completedTargets.forEach((target) => {
-      markDirectoryDirty(target.fileSessionId, target.targetPath)
-      if (
-        fileSessionConnected
-        && target.fileSessionId === activeFileSessionId
-        && target.targetPath === currentTargetPath
-      ) {
-        void loadDirectory(target.targetPath, { kind: 'refresh', quiet: true })
-      }
-    })
-  }, [
-    activeFileSessionId,
-    consumeUploadRefreshTask,
-    currentPath,
-    fileSessionConnected,
-    hasUploadRefreshTask,
-    loadDirectory,
-    markDirectoryDirty,
-    pruneUploadRefreshTasks,
+  const transferRefreshActiveDirectory = useMemo(() => activeFileSessionId ? {
+    fileSessionId: activeFileSessionId,
+    path: currentPath,
+    connected: fileSessionConnected,
+  } : null, [activeFileSessionId, currentPath, fileSessionConnected])
+  const {
+    localRefreshRequests,
     trackUploadRefreshTask,
+    trackDownloadRefreshTask,
+  } = useFilesTransferRefresh({
     transfers,
-  ])
-
-  useEffect(() => {
-    const transferById = new Map(transfers.map((task) => [task.id, task]))
-    transfers.forEach((task) => {
-      if (isDownloadTransfer(task) && task.target_path && (isTransferActive(task) || downloadRefreshTasksRef.current.has(task.id))) {
-        const existing = downloadRefreshTasksRef.current.get(task.id)
-        downloadRefreshTasksRef.current.set(task.id, {
-          mappingId: existing?.mappingId,
-          targetPath: task.target_path,
-        })
-      }
-    })
-
-    const completedRequests: LocalDownloadRefreshRequest[] = []
-    const taskIdsToDelete: string[] = []
-    downloadRefreshTasksRef.current.forEach((target, taskId) => {
-      const task = transferById.get(taskId)
-      if (!task) {
-        taskIdsToDelete.push(taskId)
-        return
-      }
-      if (isTransferActive(task)) {
-        return
-      }
-      if (task.status === 'completed') {
-        completedRequests.push({
-          id: task.id,
-          mappingId: target.mappingId,
-          targetPath: target.targetPath,
-        })
-      }
-      if (isTransferTerminal(task)) {
-        taskIdsToDelete.push(taskId)
-      }
-    })
-
-    taskIdsToDelete.forEach((taskId) => {
-      downloadRefreshTasksRef.current.delete(taskId)
-    })
-
-    if (completedRequests.length > 0) {
-      setLocalRefreshRequests((current) => [...current, ...completedRequests].slice(-50))
-    }
-  }, [transfers])
+    activeDirectory: transferRefreshActiveDirectory,
+    loadDirectory,
+    trackWorkspaceUploadRefreshTask,
+    hasUploadRefreshTask,
+    consumeUploadRefreshTask,
+    pruneUploadRefreshTasks,
+    markDirectoryDirty,
+  })
 
   useEffect(() => {
     const ids = new Set(socketFileSessionIds ? socketFileSessionIds.split('|') : [])
@@ -3352,7 +3259,7 @@ function FilesWorkspaceContent({
     [activeFileSessionId, pendingTransferOperations, transferScope],
   )
   const activeTransfers = useMemo(
-    () => transfers.filter(isTransferActive),
+    () => transfers.filter(isFilesTransferActive),
     [transfers],
   )
   const pendingRunningOperations = useMemo(
@@ -3365,7 +3272,7 @@ function FilesWorkspaceContent({
       return 0
     }
     return transfers.filter((task) => (
-      task.file_session_id === activeFileSessionId && isTransferActive(task)
+      task.file_session_id === activeFileSessionId && isFilesTransferActive(task)
     )).length + pendingTransferOperations.filter((operation) => (
       operation.fileSessionId === activeFileSessionId && operation.status === 'running'
     )).length
@@ -5010,22 +4917,6 @@ function formatPermission(entry: RemoteFileEntry) {
     return `${entry.permissions} (${entry.permission_octal})`
   }
   return entry.permission_octal || entry.permissions || '-'
-}
-
-function isUploadTransfer(task: TransferTask) {
-  return task.type.startsWith('upload')
-}
-
-function isDownloadTransfer(task: TransferTask) {
-  return task.type.startsWith('download')
-}
-
-function isTransferActive(task: TransferTask) {
-  return task.status === 'queued' || task.status === 'running'
-}
-
-function isTransferTerminal(task: TransferTask) {
-  return task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled'
 }
 
 function shortId(id: string) {
