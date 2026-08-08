@@ -88,7 +88,6 @@ import { formatBytes, formatDate } from '#shared/format'
 import {
   joinPath,
   normalizeRemotePath,
-  normalizeRemotePosixPath,
   parentPath,
 } from '#shared/path'
 import { FileBookmarksRail, FileBookmarksSidebar } from '#features/file-bookmarks'
@@ -128,32 +127,22 @@ import {
   type RemoteFileDragTransaction,
 } from '#features/local-download'
 import { useFilesWorkspaceRuntime } from '../model/useFilesWorkspaceRuntime'
+import { useFilesDirectoryController } from '../model/useFilesDirectoryController'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import {
   applyFilesWorkspaceSelection,
-  beginFilesWorkspaceHistoryNavigation,
-  beginFilesWorkspaceNavigation,
-  beginFilesWorkspaceRefresh,
-  canStartFilesWorkspaceDirectoryLoad,
-  cancelFilesWorkspaceDirectoryRequest,
   clearFilesWorkspaceSelection,
-  completeFilesWorkspaceDirectoryRequest,
   createRemoteDirectoryViewState,
   defaultFilesWorkspaceLayoutPreferences,
-  failFilesWorkspaceDirectoryRequest,
   filesWorkspaceColumnWidthBounds,
   filesWorkspaceLayoutStorageKey,
   getFilesWorkspaceHistoryTarget,
   getFilesWorkspaceSessionState,
-  isActiveFilesWorkspaceDirectoryResult,
   parseFilesWorkspaceLayoutPreferences,
-  resolveFilesWorkspaceAutomaticDirectoryRequest,
   resolveFilesWorkspaceSortState,
-  setFilesWorkspaceDirectoryStatus,
   setFilesWorkspaceScrollTop,
   setFilesWorkspaceSortState,
   sortFilesWorkspaceEntries,
-  type FilesWorkspaceHistoryMode,
   type FilesWorkspaceSortKey,
   type RemoteDirectoryViewState,
 } from '../model/filesWorkspaceState'
@@ -264,14 +253,6 @@ interface DownloadDestinationRequest {
   paths: string[]
 }
 
-interface LoadDirectoryOptions {
-  kind?: 'navigate' | 'refresh'
-  historyMode?: FilesWorkspaceHistoryMode
-  historyIndex?: number
-  quiet?: boolean
-  onError?: (description: string) => void
-}
-
 type FileColumnKey = 'name' | 'size' | 'modified' | 'permissions'
 type FileColumnWidths = Record<FileColumnKey, number>
 
@@ -324,7 +305,6 @@ const maxFileColumnWidths: FileColumnWidths = {
 
 const fileDragAutoScrollEdge = 72
 const fileDragAutoScrollMaxSpeed = 18
-const filesWorkspaceCacheMaxAgeMs = 5_000
 const filesWorkspaceVirtualThreshold = 200
 
 const renderFilesRowMenu = (content: ReactNode) => (
@@ -404,12 +384,7 @@ function FilesWorkspaceContent({
   const localDownloadOperationSourcesRef = useRef(new Set<LocalDownloadDropSource>())
   const localDownloadTaskRef = useRef<{ key: string; promise: Promise<boolean> } | null>(null)
   const resetDragStateRef = useRef<() => void>(() => undefined)
-  const directoryRequestControllersRef = useRef(new Map<string, {
-    controller: AbortController
-    connectionGeneration: number
-  }>())
   const downloadRefreshTasksRef = useRef(new Map<string, { mappingId?: string; targetPath: string }>())
-  const lastSessionLoadKeyRef = useRef('')
   const lastActiveFileSessionRef = useRef<{
     id: string
     connectionGeneration: number
@@ -864,6 +839,49 @@ function FilesWorkspaceContent({
   closingFileSessionIdsRef.current = closingFileSessionIdSet
   const activeFileSessionClosing = Boolean(activeFileSessionId && closingFileSessionIdSet.has(activeFileSessionId))
   const fileSessionConnected = activeFileSession?.status === 'connected' && !activeFileSessionClosing
+  const handleInvalidDirectoryPath = useCallback(() => {
+    notification.warning({
+      message: t('workbench.files.invalidPath'),
+      duration: 3,
+      role: 'alert',
+      className: termousNotificationClassName,
+    })
+  }, [notification, t])
+  const handleDirectoryReadFailed = useCallback((description: string) => {
+    notification.error({
+      message: t('files.directoryReadFailed'),
+      description,
+      duration: 5,
+      role: 'alert',
+      className: termousNotificationClassName,
+    })
+  }, [notification, t])
+  const handleActiveDirectoryCommitted = useCallback(() => {
+    setDropTargetDirectoryPath(null)
+    setRemoteMoveTargetPath(null)
+  }, [])
+  const { loadDirectory } = useFilesDirectoryController({
+    gateway: api,
+    activeFileSession,
+    activeFileSessionId,
+    activeFileSessionClosing,
+    activeFileSessionRecovering: Boolean(activeFileSessionRecovery),
+    fileSessions: data.fileSessions,
+    closingFileSessionIds: closingFileSessionIdSet,
+    fileSessionsRef,
+    workspaceStatesRef,
+    activeFileSessionIdRef,
+    closingFileSessionIdsRef,
+    updateSession: updateWorkspaceSession,
+    updateExistingSession: updateExistingWorkspaceSession,
+    updateActiveSession: updateActiveWorkspaceView,
+    clearDirectoryDirty,
+    isDirectoryDirty,
+    unknownErrorMessage: t('app.error'),
+    onInvalidPath: handleInvalidDirectoryPath,
+    onDirectoryReadFailed: handleDirectoryReadFailed,
+    onActiveDirectoryCommitted: handleActiveDirectoryCommitted,
+  })
   const activeFileSessionHostId = activeFileSession?.host_id ?? ''
   const activeFileSessionConnectionGeneration = activeFileSession?.connection_generation ?? 0
   const fileListingCurrent = (
@@ -976,18 +994,8 @@ function FilesWorkspaceContent({
 
   useEffect(
     () => () => {
-      // React 严格模式会在开发环境模拟一次卸载；必须释放加载标记，让第二次挂载重新发起被取消的首次请求。
-      lastSessionLoadKeyRef.current = ''
       fileResizeCleanupRef.current?.()
       fileResizeCleanupRef.current = null
-      directoryRequestControllersRef.current.forEach((request, fileSessionId) => {
-        request.controller.abort()
-        updateExistingWorkspaceSession(
-          fileSessionId,
-          cancelFilesWorkspaceDirectoryRequest,
-        )
-      })
-      directoryRequestControllersRef.current.clear()
       releaseRemoteFileDrag(remoteMoveDragRef.current?.transactionId)
       remoteMoveDragRef.current = null
       remoteDragPreviewRef.current?.remove()
@@ -998,7 +1006,7 @@ function FilesWorkspaceContent({
       }
       autoScrollSpeedRef.current = 0
     },
-    [updateExistingWorkspaceSession],
+    [],
   )
 
   useEffect(() => {
@@ -1010,187 +1018,6 @@ function FilesWorkspaceContent({
       document.removeEventListener('dragend', resetDragState)
     }
   }, [])
-
-  const loadDirectory = useCallback(
-    async (nextPath: string, options: LoadDirectoryOptions = {}) => {
-      if (!activeFileSession) {
-        return false
-      }
-      const requestSession = fileSessionsRef.current.find(
-        (session) => session.id === activeFileSession.id,
-      )
-      if (
-        !requestSession
-        || activeFileSessionIdRef.current !== activeFileSession.id
-        || requestSession.status !== 'connected'
-        || (requestSession.connection_generation ?? 0)
-          !== (activeFileSession.connection_generation ?? 0)
-        || closingFileSessionIdsRef.current.has(requestSession.id)
-      ) {
-        return false
-      }
-      const normalized = normalizeRemotePosixPath(nextPath)
-      if (!normalized) {
-        notification.warning({
-          message: t('workbench.files.invalidPath'),
-          duration: 3,
-          role: 'alert',
-          className: termousNotificationClassName,
-        })
-        return false
-      }
-
-      const currentState = getFilesWorkspaceSessionState(
-        workspaceStatesRef.current,
-        requestSession.id,
-        requestSession.current_path || '/',
-      )
-      const request = options.historyMode === 'traverse'
-        ? beginFilesWorkspaceHistoryNavigation(
-            currentState,
-            options.historyIndex ?? currentState.historyIndex,
-          )
-        : options.kind === 'refresh'
-          ? beginFilesWorkspaceRefresh(currentState)
-          : beginFilesWorkspaceNavigation(currentState, normalized, {
-              historyMode: options.historyMode,
-            })
-      if (!request) {
-        return false
-      }
-
-      const controller = new AbortController()
-      directoryRequestControllersRef.current.get(requestSession.id)?.controller.abort()
-      directoryRequestControllersRef.current.set(requestSession.id, {
-        controller,
-        connectionGeneration: requestSession.connection_generation ?? 0,
-      })
-      updateWorkspaceSession(
-        requestSession.id,
-        requestSession.current_path || '/',
-        () => request.state,
-      )
-      const cancelRequestState = () => {
-        updateExistingWorkspaceSession(
-          requestSession.id,
-          (latest) => (
-            latest.activeRequest?.requestSequence === request.requestSequence
-              ? cancelFilesWorkspaceDirectoryRequest(latest)
-              : latest
-          ),
-        )
-      }
-      try {
-        const listing = await api.listFileSessionFiles(
-          requestSession.id,
-          normalized,
-          { signal: controller.signal },
-        )
-        const currentRequest = directoryRequestControllersRef.current.get(requestSession.id)
-        const currentSession = fileSessionsRef.current.find(
-          (session) => session.id === requestSession.id,
-        )
-        const isCurrentRequest = currentRequest?.controller === controller
-        const isCurrentGeneration = (
-          currentSession?.status === 'connected'
-          && (currentSession.connection_generation ?? 0)
-            === (requestSession.connection_generation ?? 0)
-          && !closingFileSessionIdsRef.current.has(requestSession.id)
-        )
-        if (!isCurrentRequest || !isCurrentGeneration) {
-          cancelRequestState()
-          return false
-        }
-        updateExistingWorkspaceSession(
-          requestSession.id,
-          (latest) => completeFilesWorkspaceDirectoryRequest(
-            latest,
-            request.requestSequence,
-            listing,
-            Date.now(),
-            requestSession.connection_generation ?? 0,
-          ),
-        )
-        if (isActiveFilesWorkspaceDirectoryResult(
-          requestSession,
-          activeFileSessionIdRef.current,
-          currentSession,
-        )) {
-          clearDirectoryDirty(requestSession.id, normalized)
-          setDropTargetDirectoryPath(null)
-          setRemoteMoveTargetPath(null)
-          return true
-        }
-        return false
-      } catch (loadError) {
-        if (controller.signal.aborted) {
-          cancelRequestState()
-          return false
-        }
-        const currentRequest = directoryRequestControllersRef.current.get(requestSession.id)
-        const currentSession = fileSessionsRef.current.find(
-          (session) => session.id === requestSession.id,
-        )
-        if (
-          currentRequest?.controller !== controller
-          || currentSession?.status !== 'connected'
-          || (currentSession.connection_generation ?? 0)
-            !== (requestSession.connection_generation ?? 0)
-          || closingFileSessionIdsRef.current.has(requestSession.id)
-        ) {
-          cancelRequestState()
-          return false
-        }
-        const description = loadError instanceof Error ? loadError.message : t('app.error')
-        updateExistingWorkspaceSession(
-          requestSession.id,
-          (latest) => failFilesWorkspaceDirectoryRequest(
-            latest,
-            request.requestSequence,
-            description,
-          ),
-        )
-        if (
-          !isActiveFilesWorkspaceDirectoryResult(
-            requestSession,
-            activeFileSessionIdRef.current,
-            currentSession,
-          )
-          || closingFileSessionIdsRef.current.has(requestSession.id)
-        ) {
-          return false
-        }
-        options.onError?.(description)
-        if (options.quiet) {
-          return false
-        }
-        notification.error({
-          message: t('files.directoryReadFailed'),
-          description,
-          duration: 5,
-          role: 'alert',
-          className: termousNotificationClassName,
-        })
-        return false
-      } finally {
-        if (
-          directoryRequestControllersRef.current.get(requestSession.id)?.controller
-            === controller
-        ) {
-          directoryRequestControllersRef.current.delete(requestSession.id)
-        }
-      }
-    },
-    [
-      activeFileSession,
-      api,
-      clearDirectoryDirty,
-      notification,
-      t,
-      updateExistingWorkspaceSession,
-      updateWorkspaceSession,
-    ],
-  )
 
   const retryDirectoryRequest = useCallback(() => {
     const failedRequest = workspaceViewState.failedRequest
@@ -1243,7 +1070,6 @@ function FilesWorkspaceContent({
 
   useEffect(() => {
     if (!activeFileSession) {
-      lastSessionLoadKeyRef.current = ''
       lastActiveFileSessionRef.current = null
       setPathInput('/')
       setFileContextMenu(null)
@@ -1276,68 +1102,7 @@ function FilesWorkspaceContent({
         setTextEditorTarget(null)
       }
     }
-    if (!canStartFilesWorkspaceDirectoryLoad(
-      activeFileSession.status,
-      Boolean(activeFileSessionRecovery),
-    )) {
-      lastSessionLoadKeyRef.current = ''
-      return
-    }
-    const loadKey = [
-      activeFileSession.id,
-      activeFileSession.connection_generation ?? 0,
-      activeFileSession.connected_at ?? '',
-    ].join(':')
-    if (lastSessionLoadKeyRef.current === loadKey) {
-      return undefined
-    }
-    const cached = getFilesWorkspaceSessionState(
-      workspaceStatesRef.current,
-      activeFileSession.id,
-      activeFileSession.current_path || '/',
-    )
-    const cacheDirty = isDirectoryDirty(activeFileSession.id, cached.committedPath)
-    const automaticRequest = resolveFilesWorkspaceAutomaticDirectoryRequest(
-      cached,
-      activeFileSession.current_path || '/',
-      Date.now(),
-      filesWorkspaceCacheMaxAgeMs,
-      cacheDirty,
-      activeFileSession.connection_generation ?? 0,
-    )
-    if (!automaticRequest) {
-      lastSessionLoadKeyRef.current = loadKey
-      return undefined
-    }
-    const request = automaticRequest.kind === 'initial'
-      ? {
-          path: automaticRequest.path,
-          options: { historyMode: 'replace' as const },
-        }
-      : {
-          path: automaticRequest.path,
-          options: { kind: 'refresh' as const, quiet: true },
-        }
-
-    // 将首次请求推迟到严格模式的试运行清理之后，避免发送一条必然被取消的重复请求。
-    const timer = window.setTimeout(() => {
-      const currentSession = fileSessionsRef.current.find((session) => session.id === activeFileSession.id)
-      if (
-        activeFileSessionIdRef.current !== activeFileSession.id
-        || currentSession?.status !== 'connected'
-        || (currentSession.connection_generation ?? 0)
-          !== (activeFileSession.connection_generation ?? 0)
-        || Boolean(activeFileSessionRecovery)
-        || closingFileSessionIdsRef.current.has(activeFileSession.id)
-        || directoryRequestControllersRef.current.has(activeFileSession.id)
-      ) {
-        return
-      }
-      lastSessionLoadKeyRef.current = loadKey
-      void loadDirectory(request.path, request.options)
-    }, 0)
-    return () => window.clearTimeout(timer)
-  }, [activeFileSession, activeFileSessionRecovery, isDirectoryDirty, loadDirectory])
+  }, [activeFileSession])
 
   useEffect(() => {
     if (!editingPath) {
@@ -1349,30 +1114,6 @@ function FilesWorkspaceContent({
     const fileSessionIds = new Set(data.fileSessions.map((session) => session.id))
     retainWorkspaceSessions(fileSessionIds)
   }, [data.fileSessions, retainWorkspaceSessions])
-
-  useEffect(() => {
-    const fileSessionsById = new Map(data.fileSessions.map((session) => [session.id, session]))
-    directoryRequestControllersRef.current.forEach((request, fileSessionId) => {
-      const fileSession = fileSessionsById.get(fileSessionId)
-      if (
-        fileSession?.status === 'connected'
-        && (fileSession.connection_generation ?? 0) === request.connectionGeneration
-        && !closingFileSessionIdSet.has(fileSessionId)
-      ) {
-        return
-      }
-      request.controller.abort()
-      directoryRequestControllersRef.current.delete(fileSessionId)
-      updateExistingWorkspaceSession(
-        fileSessionId,
-        cancelFilesWorkspaceDirectoryRequest,
-      )
-    })
-  }, [
-    closingFileSessionIdSet,
-    data.fileSessions,
-    updateExistingWorkspaceSession,
-  ])
 
   useEffect(() => {
     if (auxiliarySurface === 'none' || sidePanelMode === 'none') {
@@ -1392,56 +1133,6 @@ function FilesWorkspaceContent({
     window.addEventListener('resize', keepNarrowPanelsExclusive)
     return () => window.removeEventListener('resize', keepNarrowPanelsExclusive)
   }, [auxiliarySurface, sidePanelMode, updateSidePanelMode])
-
-  useEffect(() => {
-    if (!activeFileSessionId) {
-      return
-    }
-    if (activeFileSessionClosing) {
-      directoryRequestControllersRef.current.get(activeFileSessionId)?.controller.abort()
-      directoryRequestControllersRef.current.delete(activeFileSessionId)
-      updateActiveWorkspaceView((current) => setFilesWorkspaceDirectoryStatus(current, 'closing'))
-      return
-    }
-    const recovering = Boolean(activeFileSessionRecovery)
-    if (recovering) {
-      directoryRequestControllersRef.current.get(activeFileSessionId)?.controller.abort()
-      directoryRequestControllersRef.current.delete(activeFileSessionId)
-      updateActiveWorkspaceView((current) => setFilesWorkspaceDirectoryStatus(current, 'recovering'))
-      return
-    }
-    if (activeFileSession?.status === 'failed' || activeFileSession?.status === 'disconnected') {
-      directoryRequestControllersRef.current.get(activeFileSessionId)?.controller.abort()
-      directoryRequestControllersRef.current.delete(activeFileSessionId)
-      updateActiveWorkspaceView((current) => setFilesWorkspaceDirectoryStatus(
-        current,
-        'offline',
-        activeFileSession.last_error || activeFileSession.status_message || '',
-      ))
-      return
-    }
-    if (activeFileSession?.status === 'connected') {
-      updateActiveWorkspaceView((current) => {
-        if (
-          current.activeRequest
-          || !['offline', 'recovering', 'closing'].includes(current.directoryStatus)
-        ) {
-          return current
-        }
-        return {
-          ...current,
-          directoryStatus: 'idle',
-          error: '',
-        }
-      })
-    }
-  }, [
-    activeFileSession,
-    activeFileSessionClosing,
-    activeFileSessionId,
-    activeFileSessionRecovery,
-    updateActiveWorkspaceView,
-  ])
 
   useEffect(() => {
     const transferIds = new Set(transfers.map((task) => task.id))
