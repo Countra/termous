@@ -33,6 +33,7 @@ test('应用壳层独占选择器不再由共享全局样式承载', () => {
     'primary-nav',
     'main-frame',
     'window-chrome',
+    'icon-button',
     'topbar-connect-group',
     'window-controls',
     'content-frame',

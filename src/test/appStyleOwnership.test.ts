@@ -49,6 +49,7 @@ test('原 app 业务选择器由组件共置 Module 承载', () => {
     ['../shared/ui/EmptyState.tsx', './EmptyState.module.scss', 'empty-state'],
     ['../shared/ui/FeatureSidePanel.tsx', './FeatureSidePanel.module.scss', 'details-panel'],
     ['../shared/ui/StatusBadge.tsx', './StatusBadge.module.scss', 'status-badge'],
+    ['../shared/ui/WorkspaceEmptyState.tsx', './WorkspaceEmptyState.module.scss', 'workbench-empty-state'],
     ['../entities/host/ui/HostAvatar.tsx', './HostAvatar.module.scss', 'host-avatar'],
     ['../features/hosts/ui/HostContextPanel.tsx', './HostContextPanel.module.scss', 'host-context-panel'],
     ['../features/terminal/ui/ConnectionProgress.tsx', './ConnectionProgress.module.scss', 'connection-progress'],
@@ -60,4 +61,42 @@ test('原 app 业务选择器由组件共置 Module 承载', () => {
     assert.match(componentSource, new RegExp(`import styles from '${styleImport.replace('.', '\\.').replace('/', '\\/')}'`))
     assert.match(componentSource, new RegExp(`styles\\['${className}'\\]`))
   }
+
+  const workspaceEmptyStateStyles = source('../shared/ui/WorkspaceEmptyState.module.scss')
+  for (const className of [
+    'workbench-empty-state',
+    'workbench-empty-state-icon',
+    'workbench-empty-state-description',
+    'workbench-empty-state-action',
+    'is-warning',
+    'is-danger',
+  ]) {
+    assert.match(workspaceEmptyStateStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
+  }
+  assert.doesNotMatch(source('../shared/styles/workstation.scss'), /^\.workbench-empty-state(?:\b|-)/m)
+
+  const statusBadgeStyles = source('../shared/ui/StatusBadge.module.scss')
+  assert.match(statusBadgeStyles, /\.status-badge\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/s)
+  assert.doesNotMatch(source('../shared/styles/workstation.scss'), /^\.status-badge\s*\{/m)
+})
+
+test('详情侧栏的折叠轨道与 Tabs Portal 样式由共置 Module 承载', () => {
+  const featureSidePanelStyles = source('../shared/ui/FeatureSidePanel.module.scss')
+  const legacyStyles = source('../shared/styles/workstation.scss')
+
+  for (const className of [
+    'details-collapsed-rail',
+    'details-rail-tab',
+    'details-content-shell',
+    'details-tabs',
+    'details-tabs-dropdown',
+    'is-active',
+    'is-hidden',
+  ]) {
+    assert.match(featureSidePanelStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
+    assert.doesNotMatch(legacyStyles, new RegExp(`^\\.${className}(?=[\\s.:,{])`, 'm'))
+  }
+
+  assert.match(featureSidePanelStyles, /\.details-tabs:global\(\.ant-tabs\)/)
+  assert.match(featureSidePanelStyles, /\.details-tabs-dropdown:global\(\.ant-tabs-dropdown\)/)
 })

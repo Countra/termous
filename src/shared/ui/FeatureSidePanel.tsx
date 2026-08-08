@@ -25,6 +25,8 @@ interface FeatureSidePanelProps<Key extends string> {
   onResizePointerDown?: (event: ReactPointerEvent<HTMLDivElement>) => void
 }
 
+const legacyPopupClassName = 'details-tabs-dropdown'
+
 export function FeatureSidePanel<Key extends string>({
   activeKey,
   ariaLabel,
@@ -39,6 +41,14 @@ export function FeatureSidePanel<Key extends string>({
   onCollapsedChange,
   onResizePointerDown,
 }: FeatureSidePanelProps<Key>) {
+  const popupRootClassName = [
+    popupClassName.split(/\s+/u).includes(legacyPopupClassName)
+      ? styles['details-tabs-dropdown']
+      : '',
+    popupClassName,
+  ]
+    .filter(Boolean)
+    .join(' ')
   const classes = [
     styles['details-panel'],
     'details-panel',
@@ -68,7 +78,11 @@ export function FeatureSidePanel<Key extends string>({
             <Tooltip key={item.key} title={item.label} placement="left">
               <Button
                 type="text"
-                className={`details-rail-tab ${activeKey === item.key ? 'is-active' : ''}`}
+                className={[
+                  styles['details-rail-tab'],
+                  'details-rail-tab',
+                  activeKey === item.key ? `${styles['is-active']} is-active` : '',
+                ].filter(Boolean).join(' ')}
                 aria-label={String(item.label)}
                 icon={item.icon}
                 onClick={() => {
@@ -80,10 +94,17 @@ export function FeatureSidePanel<Key extends string>({
           ))}
         </div>
       ) : null}
-      <div className={`details-content-shell ${collapsed ? 'is-hidden' : ''}`} aria-hidden={collapsed}>
+      <div
+        className={[
+          styles['details-content-shell'],
+          'details-content-shell',
+          collapsed ? `${styles['is-hidden']} is-hidden` : '',
+        ].filter(Boolean).join(' ')}
+        aria-hidden={collapsed}
+      >
         <Tabs
-          className="details-tabs"
-          classNames={{ popup: { root: popupClassName } }}
+          className={`${styles['details-tabs']} details-tabs`}
+          classNames={{ popup: { root: popupRootClassName } }}
           size="small"
           activeKey={activeKey}
           destroyOnHidden={false}
