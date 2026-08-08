@@ -2,6 +2,19 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import {
+  compileShortcutIndex,
+  createShortcutChord,
+  setShortcutBindingOverride,
+  ShortcutRuntime,
+  type ShortcutKeyboardEventLike,
+} from '#entities/shortcuts'
+import {
+  applyFilesWorkspaceSelection,
+  clearFilesWorkspaceSelection,
+  createRemoteDirectoryViewState,
+  type RemoteDirectoryViewState,
+} from '../widgets/files-workspace/model/filesWorkspaceState.ts'
 
 const appSource = readFileSync(
   fileURLToPath(new URL('../app/main/App.tsx', import.meta.url)),
@@ -101,31 +114,106 @@ test('断开的终端仍可通过选区上下文复制已有输出', () => {
   assert.doesNotMatch(shortcutContextSource, /host\?\.isConnected/)
 })
 
-test('独立文件列表由聚焦上下文处理可配置动作并保留固定键语义', () => {
-  const handlerStart = filesPageSource.indexOf('const handleFileTableKeyDown =')
-  const handlerEnd = filesPageSource.indexOf(
-    'const updateBreadcrumbScrollState =',
-    handlerStart,
-  )
-  assert.notEqual(handlerStart, -1)
-  assert.notEqual(handlerEnd, -1)
-  const handlerSource = filesPageSource.slice(handlerStart, handlerEnd)
-
+test('独立文件列表声明聚焦上下文并注册可配置动作', () => {
   assert.match(filesPageSource, /data-shortcut-adapter="files-page"/)
   assert.match(filesPageSource, /scopes: \['files\.standalone', 'files\.list'\]/)
   assert.match(filesPageSource, /registerHandler\(filesShortcutContextId, 'files\.select_all'/)
   assert.match(filesPageSource, /registerHandler\(filesShortcutContextId, 'files\.open_focused'/)
   assert.match(filesPageSource, /registerHandler\(filesShortcutContextId, 'files\.rename_focused'/)
   assert.match(filesPageSource, /registerHandler\(filesShortcutContextId, 'files\.delete_selection'/)
-  assert.match(handlerSource, /event\.key === ' '/)
-  assert.match(handlerSource, /event\.key === 'Escape'/)
-  assert.match(handlerSource, /event\.key === 'ContextMenu'/)
-  assert.match(handlerSource, /navigationKey && \(event\.ctrlKey \|\| event\.metaKey \|\| event\.altKey\)/)
-  assert.match(handlerSource, /shortcutRuntime\.dispatch\(event\.nativeEvent/)
-  assert.doesNotMatch(handlerSource, /event\.key === 'Enter'/)
-  assert.doesNotMatch(handlerSource, /event\.key === 'F2'/)
-  assert.doesNotMatch(handlerSource, /event\.key === 'Delete'/)
-  assert.doesNotMatch(handlerSource, /event\.key\.toLowerCase\(\) === 'a'/)
+  assert.match(filesPageSource, /shortcutRuntime\.dispatch\(event\.nativeEvent/)
+})
+
+test('文件快捷键通过真实运行时驱动选择和命令合同', () => {
+  const paths = ['/srv/alpha.txt', '/srv/beta.txt', '/srv/gamma.txt']
+  let state: RemoteDirectoryViewState = {
+    ...createRemoteDirectoryViewState('/srv'),
+    focusedPath: paths[1],
+    selectedPaths: [paths[1]],
+    anchorPath: paths[1],
+  }
+  let fileActionsEnabled = true
+  const commands: string[] = []
+  const runtime = new ShortcutRuntime({
+    index: compileShortcutIndex({}, 'win32'),
+  })
+  const contextId = 'files.contract'
+  runtime.pushContext({
+    id: contextId,
+    layer: 'focus',
+    priority: 10,
+    scopes: ['files.standalone', 'files.list'],
+  })
+  runtime.registerHandler(contextId, 'files.select_all', () => {
+    if (!fileActionsEnabled || paths.length === 0) return 'fallthrough'
+    state = {
+      ...state,
+      selectedPaths: paths,
+      anchorPath: paths[0] ?? null,
+    }
+    return 'handled'
+  })
+  runtime.registerHandler(contextId, 'files.open_focused', () => {
+    if (!fileActionsEnabled || !state.focusedPath) return 'fallthrough'
+    commands.push(`open:${state.focusedPath}`)
+    return 'handled'
+  })
+  runtime.registerHandler(contextId, 'files.rename_focused', () => {
+    if (!fileActionsEnabled || !state.focusedPath) return 'fallthrough'
+    commands.push(`rename:${state.focusedPath}`)
+    return 'handled'
+  })
+  runtime.registerHandler(contextId, 'files.delete_selection', () => {
+    if (!fileActionsEnabled || !state.focusedPath) return 'fallthrough'
+    const selected = state.selectedPaths.includes(state.focusedPath)
+      ? state.selectedPaths
+      : [state.focusedPath]
+    commands.push(`delete:${selected.join(',')}`)
+    return 'handled'
+  })
+
+  const dispatch = (
+    code: string,
+    key: string,
+    values: Partial<ShortcutKeyboardEventLike> = {},
+  ) => {
+    const result = runtime.dispatch({ type: 'keydown', code, key, ...values }, {
+      adapterId: 'files-page',
+      contextIds: [contextId],
+      editable: false,
+    })
+    runtime.releaseKey(code)
+    return result
+  }
+
+  assert.equal(dispatch('KeyA', 'a', { ctrlKey: true }).actionId, 'files.select_all')
+  assert.deepEqual(state.selectedPaths, paths)
+  assert.equal(dispatch('Enter', 'Enter').actionId, 'files.open_focused')
+  assert.equal(dispatch('F2', 'F2').actionId, 'files.rename_focused')
+  assert.equal(dispatch('Delete', 'Delete').actionId, 'files.delete_selection')
+  assert.deepEqual(commands, [
+    'open:/srv/beta.txt',
+    'rename:/srv/beta.txt',
+    'delete:/srv/alpha.txt,/srv/beta.txt,/srv/gamma.txt',
+  ])
+
+  const customBindings = setShortcutBindingOverride(
+    {},
+    'files.rename_focused',
+    [createShortcutChord('F6', 'F6')],
+  )
+  runtime.updateIndex(compileShortcutIndex(customBindings, 'win32'))
+  assert.equal(dispatch('F2', 'F2').reason, 'no_match')
+  assert.equal(dispatch('F6', 'F6').actionId, 'files.rename_focused')
+
+  fileActionsEnabled = false
+  assert.equal(dispatch('KeyA', 'a', { ctrlKey: true }).result, 'fallthrough')
+
+  state = applyFilesWorkspaceSelection(state, paths, paths[2], { contextMenu: true })
+  assert.deepEqual(state.selectedPaths, paths)
+  state = clearFilesWorkspaceSelection(state)
+  assert.deepEqual(state.selectedPaths, [])
+  assert.equal(state.focusedPath, paths[2])
 })
 
 test('工作台文件列表只迁移打开动作且不会重复经过窗口适配器', () => {

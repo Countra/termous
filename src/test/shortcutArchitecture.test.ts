@@ -53,13 +53,6 @@ test('所有首版动作均由统一动作目录和上下文适配器承接', ()
     /event\.(?:key|code)\s*===\s*['"](?:ArrowUp|ArrowDown|Enter|KeyC|KeyV)['"]/,
   )
 
-  const fileHandler = sliceBetween(
-    sources.filesPage,
-    'const handleFileTableKeyDown =',
-    'const updateBreadcrumbScrollState =',
-  )
-  assert.doesNotMatch(fileHandler, /event\.key\s*===\s*['"](?:Enter|F2|Delete)['"]/)
-  assert.doesNotMatch(fileHandler, /event\.key\.toLowerCase\(\)\s*===\s*['"]a['"]/)
   assert.doesNotMatch(
     sources.editor,
     /\(event\.ctrlKey\s*\|\|\s*event\.metaKey\)[\s\S]{0,120}event\.key\.toLowerCase\(\)\s*===\s*['"]s['"]/,
