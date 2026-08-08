@@ -6,22 +6,22 @@
 - Stylelint 检查全部 `src/**/*.scss` 和 `src/**/*.module.scss`。
 - 当前 `src` 内没有 `.css` 或 `.sass`；`scripts/styles/legacy-css-allowlist.json` 为空，并作为禁止重新引入 legacy CSS 的回归门禁保留。
 - `scripts/styles/no-unscoped-global-allowlist.json` 当前为空；检查器拒绝重新引入 `termous/no-unscoped-global` 文件级禁用、过期条目和非规范清单。
-- 业务目录只允许 `*.module.scss`；应用级非 Module SCSS 只能放在 `src/shared/styles` 或主窗口专用的 `src/shared/main-styles`。
+- 业务目录只允许 `*.module.scss`；应用级非 Module SCSS 只能放在 `src/shared/styles`。
 - 不使用缩进语法 `.sass`，所有 Sass 文件统一采用 SCSS 语法和小写扩展名。
 - Sass 只承担嵌套、拆分和编译期复用；运行时主题继续使用现有 CSS Custom Properties。
 
 ## Renderer 样式入口
 
 - `src/app/renderer-entry/main.tsx` 固定加载 `#shared/styles`，该入口只导入 `src/shared/styles/global.scss`，因此 `main` 与 `update` Surface 都能获得主题变量、根节点和文档级基础样式。
-- `src/app/main/App.tsx` 额外加载 `#shared/main-styles`，该入口只保留尚未完成所有权迁移的 `workstation.scss` 主界面兼容规则。
-- `update` Surface 不加载 `#shared/main-styles`，只使用共享 `global.scss` 与 `src/app/update-surface` 内共置的 SCSS Modules，避免主界面规则污染独立更新窗口。
+- 两个 Surface 都只从该入口加载非 Module SCSS；业务样式由各自组件共置的 SCSS Modules 提供。
+- 仅主窗口需要的文档级规则必须通过 `data-termous-main-surface` 限定，避免滚动条和第三方覆盖污染独立更新窗口。
 - Surface 分流和样式入口由 Renderer 静态合同测试约束；调整入口或顺序时必须同步验证两个 Surface。
 
-## 全局兼容层
+## 全局边界
 
 - `global.scss` 是正式的共享全局层，只承载 CSS Custom Properties、主题、根节点和必要的文档级状态。
-- `app.scss` 的通用业务规则已经迁入所有者共置的 SCSS Modules；`workstation.scss` 仍包含主界面历史类名、第三方覆盖和跨组件规则，是受控兼容层，不代表业务样式已全部完成局部作用域治理。
-- 新增或重构后的业务样式应与组件共置到 `*.module.scss`，不得继续扩大 `workstation.scss`。兼容规则只能在保留导入顺序、最终计算样式和交互行为的前提下按完整功能块抽离。
+- 原 `app.scss` 与 `workstation.scss` 兼容层已经删除；新增或重构后的业务样式必须与组件共置到 `*.module.scss`。
+- 主窗口滚动条、跨 Portal 调整状态和少量第三方全局覆盖保留在 `global.scss`，并通过明确的 `body[data-*]` Surface 或交互状态限定。
 - Module 内的文件级全局样式豁免和顶层裸 `:global` 已清零；第三方 Portal 覆盖必须由组件挂载局部 Module 根节点后再定向覆盖。
 
 ## SCSS Modules
@@ -37,8 +37,8 @@
 - `@at-root`、mixin 或其他无法静态证明会保留选择器祖先的边界不会继承外层安全作用域，应改用显式本地 class 前缀。
 - 无法由组件根节点限定的 Portal 覆盖应放入受控的应用级全局 SCSS，不得在 Module 中使用裸 `:global`。
 
-以上约束适用于所有 Module；尚未完成所有权迁移的规则只能保留在受控的 `workstation.scss` 兼容层中，不作为新代码模板。
+以上约束适用于所有 Module；项目不再保留第二个全局兼容样式入口。
 
 ## 收敛顺序
 
-先按样式所有权原样移动兼容规则并保持导入顺序，再解除行为类依赖、转换为 SCSS Modules，最后删除已经无引用的全局 SCSS 规则。结构调整阶段不同时调整视觉设计或业务交互。
+调整既有样式时先补充计算样式或 DOM 合同，再按所有权移动完整规则并保持最终计算样式。结构调整阶段不同时调整视觉设计或业务交互。

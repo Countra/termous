@@ -20,7 +20,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DockerAction, DockerContainerDetail, DockerContainerPort, DockerContainerSummary } from '#entities/docker'
-import { customSelectStyles, uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState } from '#shared/ui'
+import { customSelectStyles, uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
 import type { DockerGateway, DockerSessionContext } from '../model/contracts'
 import { defaultDockerQuery, type SessionDockerQueryState, useSessionDocker } from '../model/useSessionDocker'
 import styles from './DockerPanel.module.scss'
@@ -86,7 +86,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
         description: result?.message,
         duration: 3,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     } catch (error) {
       notification.error({
@@ -94,7 +94,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
         description: error instanceof Error ? error.message : undefined,
         duration: 4,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     }
   }

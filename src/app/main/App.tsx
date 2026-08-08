@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { App as AntdApp, Button, Modal } from 'antd'
 import { LogOut, ServerOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { AppShell } from '#app/app-shell'
-import { ConfirmDialog, confirmDialogStyles } from '#shared/ui'
+import { ConfirmDialog, confirmDialogStyles, termousNotificationClassName } from '#shared/ui'
 import { HostsPage, type HostsPageProps } from '#pages/hosts'
 import {
   includeActiveFileSessionClosure,
@@ -58,7 +58,6 @@ import type { ForwardEvent } from '#entities/forward'
 import type { Host, HostGroup, HostIcon, HostInput, HostReachabilityEvent } from '#entities/host'
 import type { GroupReorderItem, PageKey } from '#shared/model'
 import type { LocalShell, Session } from '#entities/session'
-import '#shared/main-styles'
 import styles from './App.module.scss'
 import {
   canCommitFilesBookmarkManagementRequest,
@@ -77,6 +76,13 @@ function App() {
   const { i18n } = useTranslation()
   const [theme, setTheme] = useState<ThemeMode>(readInitialTheme)
   const language: Language = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
+
+  useLayoutEffect(() => {
+    document.body.dataset.termousMainSurface = 'true'
+    return () => {
+      delete document.body.dataset.termousMainSurface
+    }
+  }, [])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
@@ -506,7 +512,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           title: success,
           duration: 3,
           role: 'status',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
       }
       return result
@@ -516,7 +522,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         description: actionError instanceof Error ? actionError.message : t('app.error'),
         duration: 5,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
       return undefined
     } finally {
@@ -537,7 +543,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         title: t('forwards.restartCompleted'),
         duration: 3,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     }).catch((error) => {
       console.error('等待端口转发重启终态失败', error)
@@ -560,7 +566,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         title: t('hosts.groupCreated'),
         duration: 3,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
       return group
     } catch (actionError) {
@@ -569,7 +575,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         description: actionError instanceof Error ? actionError.message : t('app.error'),
         duration: 5,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
       throw actionError
     } finally {
@@ -643,7 +649,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       description: actionError instanceof Error ? actionError.message : t('app.error'),
       duration: 5,
       role: 'alert',
-      className: 'termous-notification',
+      className: termousNotificationClassName,
     })
   }
 
@@ -662,7 +668,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         title: t('settings.fontImported'),
         duration: 3,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
       return font
     } catch (actionError) {
@@ -678,7 +684,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         title: t('settings.fontDeleted'),
         duration: 3,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     } catch (actionError) {
       showActionError(actionError)
@@ -1336,7 +1342,7 @@ function notifyForwardError(
         description: event.forward.last_error,
         duration: 6,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
       return
     }
@@ -1350,7 +1356,7 @@ function notifyForwardError(
       description: event.message || event.forward.last_error || event.forward.status_message || t('app.error'),
       duration: 6,
       role: 'alert',
-      className: 'termous-notification',
+      className: termousNotificationClassName,
     })
   }
 }

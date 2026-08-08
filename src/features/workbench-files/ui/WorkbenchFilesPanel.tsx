@@ -63,7 +63,7 @@ import type {
 } from '#entities/file'
 import { joinPath, normalizeRemotePath, parentPath } from '#shared/path'
 import type { FileSessionClosureState } from '#entities/file'
-import { confirmDialogStyles, uiStyles, WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
+import { confirmDialogStyles, uiStyles, WorkspaceEmptyState as WorkbenchEmptyState, termousNotificationClassName } from '#shared/ui'
 import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
 import { WorkbenchFileList } from './WorkbenchFileList'
 import { WorkbenchTransferBar } from './WorkbenchTransferBar'
@@ -380,7 +380,7 @@ function WorkbenchFilesPanelContent({
       description: recoveryPresentation.detail,
       duration: 4,
       role: 'alert',
-      className: 'termous-notification',
+      className: termousNotificationClassName,
     })
   }, [files.recoveryState, files.sourceSessionId, notification, recoveryPresentation.detail, recoveryPresentation.title])
 
@@ -449,7 +449,7 @@ function WorkbenchFilesPanelContent({
           title: t('files.reconnectFailed'),
           duration: 4,
           role: 'alert',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
         consumeIntent()
       })
@@ -461,7 +461,7 @@ function WorkbenchFilesPanelContent({
           title: t('files.reconnectFailed'),
           duration: 4,
           role: 'alert',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
       }
       consumeIntent()
@@ -510,7 +510,7 @@ function WorkbenchFilesPanelContent({
         description,
         duration: 4,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     }
 
@@ -624,14 +624,14 @@ function WorkbenchFilesPanelContent({
     title: t('files.operationFailed'),
     duration: 4,
     role: 'alert',
-    className: 'termous-notification',
+    className: termousNotificationClassName,
   })
 
   const runAction = async (action: () => Promise<void>, success?: string) => {
     try {
       await action()
       if (success) {
-        notification.success({ title: success, duration: 2, className: 'termous-notification' })
+        notification.success({ title: success, duration: 2, className: termousNotificationClassName })
       }
     } catch {
       notifyFailure()

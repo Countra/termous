@@ -96,11 +96,10 @@ test("legacy CSS 清单拒绝已删除但未收口的条目", () => {
   );
 });
 
-test("样式清单允许业务 Module SCSS 和受控共享全局 SCSS", () => {
+test("样式清单允许业务 Module SCSS 和唯一共享全局 SCSS 目录", () => {
   withStyleFixture(
     {
       "src/features/example/View.module.scss": ".root { color: red; }",
-      "src/shared/main-styles/workstation.scss": ".workstation { color: red; }",
       "src/shared/styles/root.scss": ":root { color: red; }",
     },
     ({ allowlistPath, root }) => {
@@ -115,12 +114,13 @@ test("样式清单拒绝受控共享目录之外的非 Module SCSS", () => {
   withStyleFixture(
     {
       "src/features/example/unsafe.scss": "body { color: red; }",
+      "src/shared/main-styles/workstation.scss": ".workstation { color: red; }",
       "src/shared/unsafe.scss": "body { color: red; }",
     },
     ({ allowlistPath, root }) => {
       assert.throws(
         () => assertLegacyCssAllowlist({ allowlistPath, projectRoot: root }),
-        /必须使用 \*\.module\.scss.*src\/features\/example\/unsafe\.scss.*src\/shared\/unsafe\.scss/su,
+        /必须使用 \*\.module\.scss.*src\/features\/example\/unsafe\.scss.*src\/shared\/main-styles\/workstation\.scss.*src\/shared\/unsafe\.scss/su,
       );
     },
   );

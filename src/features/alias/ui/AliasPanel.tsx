@@ -16,7 +16,7 @@ import type {
 } from '#entities/alias'
 import type { CredentialView } from '#entities/credential'
 import type { Host, HostGroup, HostReachability } from '#entities/host'
-import { uiStyles, WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
+import { uiStyles, WorkspaceEmptyState as WorkbenchEmptyState, termousNotificationClassName } from '#shared/ui'
 import type { AliasGateway, AliasSessionContext } from '../model/contracts'
 import {
   aliasPanelControlScope,
@@ -244,7 +244,7 @@ export function AliasPanel<TSession extends AliasSessionContext>({
       description: t(descriptionKey),
       duration: reconnectRequired ? 4 : 2.5,
       role: 'status',
-      className: 'termous-notification',
+      className: termousNotificationClassName,
     })
   }
 
@@ -428,7 +428,7 @@ export function AliasPanel<TSession extends AliasSessionContext>({
           description: error instanceof Error ? error.message : undefined,
           duration: 4,
           role: 'alert',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
       }
     } finally {

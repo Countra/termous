@@ -262,6 +262,7 @@ vi.mock('#features/hosts', () => ({
   hostLauncherIntentForPage: (page: string) => page === 'files' ? 'files' : 'terminal',
 }))
 vi.mock('#shared/ui', () => ({
+  termousNotificationClassName: 'termous-notification',
   confirmDialogStyles: {
     'modal-root': 'modal-root',
     'modal-wrap': 'modal-wrap',

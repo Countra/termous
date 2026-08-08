@@ -176,3 +176,15 @@
 
   }
 }
+
+/* stylelint-disable-next-line keyframes-name-pattern -- CSS Modules 全局关键帧需要保留运行时稳定名称。 */
+@keyframes :global(transfer-queue-pulse) {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}

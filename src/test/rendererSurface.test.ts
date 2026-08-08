@@ -76,15 +76,13 @@ test('Renderer 启动入口保持 main 与 update 模块映射', () => {
   })
 })
 
-test('主界面全局样式不进入独立更新窗口的共享入口', () => {
+test('两个 Surface 仅加载正式共享全局入口', () => {
   const sharedStyles = fs.readFileSync(
     fileURLToPath(new URL('../shared/styles/index.ts', import.meta.url)),
     'utf8',
   )
-  const mainStyles = fs.readFileSync(
-    fileURLToPath(new URL('../shared/main-styles/index.ts', import.meta.url)),
-    'utf8',
-  )
+  const mainStylesEntryPath = fileURLToPath(new URL('../shared/main-styles/index.ts', import.meta.url))
+  const workstationStylesPath = fileURLToPath(new URL('../shared/main-styles/workstation.scss', import.meta.url))
   const mainSurface = fs.readFileSync(
     fileURLToPath(new URL('../app/main/App.tsx', import.meta.url)),
     'utf8',
@@ -96,8 +94,8 @@ test('主界面全局样式不进入独立更新窗口的共享入口', () => {
 
   assert.match(sharedStyles, /import '\.\/global\.scss'/)
   assert.doesNotMatch(sharedStyles, /app\.scss|workstation\.scss/)
-  assert.doesNotMatch(mainStyles, /app\.scss/)
-  assert.match(mainStyles, /import '\.\/workstation\.scss'/)
-  assert.match(mainSurface, /import '#shared\/main-styles'/)
+  assert.equal(fs.existsSync(mainStylesEntryPath), false)
+  assert.equal(fs.existsSync(workstationStylesPath), false)
+  assert.doesNotMatch(mainSurface, /#shared\/main-styles/)
   assert.doesNotMatch(updateSurface, /#shared\/main-styles/)
 })

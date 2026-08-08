@@ -17,7 +17,6 @@ const comparePaths = (left, right) => left.localeCompare(right, "en");
 const toPosix = (value) => value.replaceAll(path.sep, "/");
 const styleExtensions = [".css", ".sass", ".scss"];
 const globalScssDirectoryPrefixes = [
-  "src/shared/main-styles/",
   "src/shared/styles/",
 ];
 const noUnscopedGlobalRuleName = "termous/no-unscoped-global";
@@ -324,7 +323,7 @@ export function assertLegacyCssAllowlist(options) {
   }
   if (result.unscopedScssFiles.length > 0) {
     problems.push(
-      `业务样式必须使用 *.module.scss；非 Module SCSS 只能放在 src/shared/styles 或 src/shared/main-styles：\n${result.unscopedScssFiles
+      `业务样式必须使用 *.module.scss；非 Module SCSS 只能放在 src/shared/styles：\n${result.unscopedScssFiles
         .map((file) => `  - ${file}`)
         .join("\n")}`,
     );

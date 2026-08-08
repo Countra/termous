@@ -3,7 +3,7 @@ import { ClipboardCopy, FileText, PackagePlus, RefreshCw, Save, ServerCog, Shiel
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { TFunction } from 'i18next'
 import { TermousApiError } from '#shared/api'
-import { connectionActionButtonClassName, uiStyles } from '#shared/ui'
+import { connectionActionButtonClassName, uiStyles, termousNotificationClassName } from '#shared/ui'
 import type { FirewallInstallPlan, FirewallPersistenceStatus, FirewallProvider, FirewallSaveResult } from '#entities/firewall'
 import type { FirewallGateway } from '../model/contracts'
 import styles from './FirewallPanel.module.scss'
@@ -134,7 +134,7 @@ export function FirewallPersistencePanel({ api, sessionId, sessionStatus, provid
         description: error instanceof Error ? error.message : t('app.error'),
         duration: 5,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     } finally {
       const ownsRequest = activeRequestRef.current?.controller === controller
@@ -179,7 +179,7 @@ export function FirewallPersistencePanel({ api, sessionId, sessionStatus, provid
         description: error instanceof Error ? error.message : t('app.error'),
         duration: 5,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     } finally {
       const ownsRequest = activeRequestRef.current?.controller === controller
@@ -214,7 +214,7 @@ export function FirewallPersistencePanel({ api, sessionId, sessionStatus, provid
       setStatus(result.status)
       setInstallPlan(result.status.install_plan ?? null)
       setInstallConfirmed(false)
-      notification.success({ title: result.message, duration: 4, role: 'status', className: 'termous-notification' })
+      notification.success({ title: result.message, duration: 4, role: 'status', className: termousNotificationClassName })
     } catch (error) {
       if (isRequestAbort(error) || !isCurrentRequest(controller, targetSessionId, targetProvider)) {
         return
@@ -224,7 +224,7 @@ export function FirewallPersistencePanel({ api, sessionId, sessionStatus, provid
         description: error instanceof Error ? error.message : t('app.error'),
         duration: 6,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     } finally {
       const ownsRequest = activeRequestRef.current?.controller === controller
@@ -254,7 +254,7 @@ export function FirewallPersistencePanel({ api, sessionId, sessionStatus, provid
         return
       }
       applySaveResult(result)
-      notification[result.saved ? 'success' : 'info']({ title: result.message, duration: 4, role: 'status', className: 'termous-notification' })
+      notification[result.saved ? 'success' : 'info']({ title: result.message, duration: 4, role: 'status', className: termousNotificationClassName })
       if (result.saved && sessionConnectedRef.current) {
         onSaved?.()
       }
@@ -267,7 +267,7 @@ export function FirewallPersistencePanel({ api, sessionId, sessionStatus, provid
         description: error instanceof Error ? error.message : t('app.error'),
         duration: 5,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     } finally {
       const ownsRequest = activeRequestRef.current?.controller === controller
@@ -497,6 +497,6 @@ function notifySessionUnavailable(notification: ReturnType<typeof AntdApp.useApp
     description: t('workbench.firewall.sessionUnavailableHint'),
     duration: 4,
     role: 'status',
-    className: 'termous-notification',
+    className: termousNotificationClassName,
   })
 }

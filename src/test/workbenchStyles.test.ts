@@ -7,59 +7,12 @@ function readSource(relativePath: string) {
   return readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8')
 }
 
-const legacyStyles = readSource('../shared/main-styles/workstation.scss')
 const pageStyles = readSource('../widgets/workbench/ui/WorkbenchPage.module.scss')
 const sessionStyles = readSource('../widgets/workbench/ui/WorkbenchSessionTabs.module.scss')
 const detailsStyles = readSource('../widgets/workbench/ui/WorkbenchDetails.module.scss')
 const sessionTabButtonSource = readSource('../shared/ui/SessionTabButton.tsx')
 const sessionTabStripSource = readSource('../shared/ui/SessionTabStrip.tsx')
 const workbenchPageSource = readSource('../widgets/workbench/ui/WorkbenchPage.tsx')
-
-test('工作台独占选择器不再由旧全局样式承载', () => {
-  for (const className of [
-    'page-grid',
-    'workbench-grid',
-    'terminal-workspace',
-    'terminal-card',
-    'terminal-progress-slot',
-    'terminal-empty-connect',
-    'terminal-empty-connect-button',
-    'terminal-statusbar',
-    'terminal-status-item',
-    'session-tab-trigger',
-    'session-tab-color-popover',
-    'session-tab-color-panel',
-    'session-tab-color-grid',
-    'session-tab-color-swatch',
-    'session-tab-color-actions',
-    'terminal-tab-dropdown',
-    'terminal-tab-menu-item',
-    'terminal-tab-menu-icon',
-    'terminal-tab-menu-label',
-    'connection-overview-panel',
-    'connection-overview-hero',
-    'connection-overview-icon',
-    'connection-overview-copy',
-    'connection-overview-tags-cell',
-    'connection-overview-tags',
-    'detail-list',
-    'current-connection-actions',
-    'system-info-loading',
-    'system-info-panel',
-    'system-info-summary',
-    'system-info-platform',
-    'system-info-tree',
-    'system-info-tree-node',
-    'system-info-tree-row',
-    'system-info-tree-label',
-    'system-info-tree-toggle',
-    'system-info-tree-icon',
-    'system-info-tree-value',
-    'system-info-tree-children',
-  ]) {
-    assert.doesNotMatch(legacyStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
-  }
-})
 
 test('工作台模块保留终端布局与响应式合同', () => {
   assert.match(

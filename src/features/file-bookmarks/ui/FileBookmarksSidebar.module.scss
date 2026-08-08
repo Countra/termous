@@ -692,3 +692,10 @@
     animation: none;
   }
 }
+
+/* stylelint-disable-next-line keyframes-name-pattern -- CSS Modules 全局关键帧需要保留运行时稳定名称。 */
+@keyframes :global(termous-spin) {
+  to {
+    transform: rotate(360deg);
+  }
+}

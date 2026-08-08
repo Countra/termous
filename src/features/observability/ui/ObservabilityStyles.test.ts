@@ -41,10 +41,6 @@ test('进程终止按钮保留尺寸，并抵御后加载的通用按钮规则',
 })
 
 test('跨模块 Select 与 Tooltip 规则由共享 Module 持有', () => {
-  const workstation = readFileSync(
-    fileURLToPath(new URL('../../../shared/main-styles/workstation.scss', import.meta.url)),
-    'utf8',
-  )
   const selectStyles = readFileSync(
     fileURLToPath(new URL('../../../shared/ui/CustomSelect.module.scss', import.meta.url)),
     'utf8',
@@ -59,6 +55,4 @@ test('跨模块 Select 与 Tooltip 规则由共享 Module 持有', () => {
   assert.match(primitiveStyles, /^\.tooltip:global\(\.ant-tooltip\)/m)
   assert.match(monitorSource, /customSelectStyles\['select-dropdown'\]/)
   assert.match(monitorSource, /uiStyles\.tooltip/)
-  assert.doesNotMatch(workstation, /^\.termous-select-dropdown\.ant-select-dropdown/m)
-  assert.doesNotMatch(workstation, /^\.termous-tooltip\.ant-tooltip/m)
 })

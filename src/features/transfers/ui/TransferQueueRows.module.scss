@@ -488,3 +488,21 @@
   background: var(--surface-subtle);
   color: var(--text-primary);
 }
+
+/* stylelint-disable-next-line keyframes-name-pattern -- CSS Modules 全局关键帧需要保留运行时稳定名称。 */
+@keyframes :global(termous-spin) {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* stylelint-disable-next-line keyframes-name-pattern -- CSS Modules 全局关键帧需要保留运行时稳定名称。 */
+@keyframes :global(transfer-queue-slide) {
+  0% {
+    transform: translateX(-115%);
+  }
+
+  100% {
+    transform: translateX(330%);
+  }
+}

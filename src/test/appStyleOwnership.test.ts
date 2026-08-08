@@ -1,19 +1,25 @@
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, globSync, readFileSync } from 'node:fs'
 import test from 'node:test'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 function source(relativePath: string) {
   return readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8')
 }
 
-test('主界面入口不再加载 app 全局业务样式', () => {
+const legacyStylesPath = fileURLToPath(new URL('../shared/main-styles/workstation.scss', import.meta.url))
+const legacyStyles = existsSync(legacyStylesPath) ? readFileSync(legacyStylesPath, 'utf8') : ''
+const globalStyles = source('../shared/styles/global.scss')
+const sourceRoot = dirname(fileURLToPath(new URL('../index.tsx', import.meta.url)))
+
+test('主界面旧全局业务样式入口已经删除', () => {
   const appStylePath = fileURLToPath(new URL('../shared/styles/app.scss', import.meta.url))
-  const mainStyles = source('../shared/main-styles/index.ts')
+  const mainStylesEntryPath = fileURLToPath(new URL('../shared/main-styles/index.ts', import.meta.url))
 
   assert.equal(existsSync(appStylePath), false)
-  assert.doesNotMatch(mainStyles, /app\.scss/)
-  assert.match(mainStyles, /import '\.\/workstation\.scss'/)
+  assert.equal(existsSync(legacyStylesPath), false)
+  assert.equal(existsSync(mainStylesEntryPath), false)
 })
 
 test('共享控件基础样式通过显式 Module 合同消费', () => {
@@ -48,7 +54,6 @@ test('共享控件基础样式通过显式 Module 合同消费', () => {
 })
 
 test('共享表单和弹层样式通过显式 Module root 消费', () => {
-  const legacyStyles = source('../shared/main-styles/workstation.scss')
   const primitiveStyles = source('../shared/ui/Primitives.module.scss')
   const customSelectStyles = source('../shared/ui/CustomSelect.module.scss')
   const confirmDialogStyles = source('../shared/ui/ConfirmDialog.module.scss')
@@ -89,7 +94,6 @@ test('共享操作按钮与设置页标题不再依赖全局基础选择器', ()
   const primitiveStyles = source('../shared/ui/Primitives.module.scss')
   const settingsStyles = source('../pages/settings/ui/SettingsPage.module.scss')
   const settingsSource = source('../pages/settings/ui/SettingsPage.tsx')
-  const legacyStyles = source('../shared/main-styles/workstation.scss')
 
   for (const className of ['primary-button', 'secondary-button', 'danger-button']) {
     assert.match(primitiveStyles, new RegExp(`\\.${className}:global\\(\\.ant-btn\\)`))
@@ -139,11 +143,11 @@ test('原 app 业务选择器由组件共置 Module 承载', () => {
   ]) {
     assert.match(workspaceEmptyStateStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
   }
-  assert.doesNotMatch(source('../shared/main-styles/workstation.scss'), /^\.workbench-empty-state(?:\b|-)/m)
+  assert.doesNotMatch(legacyStyles, /^\.workbench-empty-state(?:\b|-)/m)
 
   const statusBadgeStyles = source('../shared/ui/StatusBadge.module.scss')
   assert.match(statusBadgeStyles, /\.status-badge\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/s)
-  assert.doesNotMatch(source('../shared/main-styles/workstation.scss'), /^\.status-badge\s*\{/m)
+  assert.doesNotMatch(legacyStyles, /^\.status-badge\s*\{/m)
 
   const authMethodBadgeStyles = source('../entities/host/ui/AuthMethodBadge.module.scss')
   for (const className of [
@@ -154,14 +158,12 @@ test('原 app 业务选择器由组件共置 Module 承载', () => {
     assert.match(authMethodBadgeStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
   }
 
-  const legacyStyles = source('../shared/main-styles/workstation.scss')
   assert.doesNotMatch(legacyStyles, /^\.host-auth-badge(?:\b|\s|\.)/m)
   assert.doesNotMatch(legacyStyles, /^\.data-row \.row-trailing > \.host-auth-badge\s*\{/m)
 })
 
 test('详情侧栏的折叠轨道与 Tabs Portal 样式由共置 Module 承载', () => {
   const featureSidePanelStyles = source('../shared/ui/FeatureSidePanel.module.scss')
-  const legacyStyles = source('../shared/main-styles/workstation.scss')
 
   for (const className of [
     'details-collapsed-rail',
@@ -186,7 +188,6 @@ test('侧栏框架与折叠控件由共享 Module 承载', () => {
   const hostContextPanelSource = source('../features/hosts/ui/HostContextPanel.tsx')
   const hostContextPanelStyles = source('../features/hosts/ui/HostContextPanel.module.scss')
   const publicEntry = source('../shared/ui/index.ts')
-  const legacyStyles = source('../shared/main-styles/workstation.scss')
 
   for (const className of [
     'panel',
@@ -207,7 +208,7 @@ test('侧栏框架与折叠控件由共享 Module 承载', () => {
   assert.match(hostContextPanelSource, /import \{ EmptyState, sidePanelStyles \} from '#shared\/ui'/)
 
   assert.match(hostContextPanelStyles, /\.host-context-panel\.is-content-collapsed/)
-  assert.match(legacyStyles, /^body\[data-panel-resizing='true'\]\s*\{/m)
+  assert.match(globalStyles, /^body\[data-panel-resizing='true'\]\s*\{/m)
   assert.doesNotMatch(legacyStyles, /^\.(?:context-panel|details-panel)(?=[\s.,:{])/m)
   assert.doesNotMatch(legacyStyles, /^\.(?:host-context-resize-edge|details-resize-edge)(?=[\s.,:{])/m)
   assert.doesNotMatch(legacyStyles, /^\.panel-side-toggle(?:\b|-)/m)
@@ -216,12 +217,38 @@ test('侧栏框架与折叠控件由共享 Module 承载', () => {
   assert.doesNotMatch(legacyStyles, /^\.panel-heading(?:\s|\{)/m)
 })
 
+test('主窗口全局规则通过 Surface 标记隔离，通知使用显式 Module class', () => {
+  const appSource = source('../app/main/App.tsx')
+  const notificationStyles = source('../shared/ui/Notification.module.scss')
+  const notificationContract = source('../shared/ui/notificationStyles.ts')
+  const publicEntry = source('../shared/ui/index.ts')
+
+  assert.match(appSource, /document\.body\.dataset\.termousMainSurface = 'true'/)
+  assert.match(appSource, /delete document\.body\.dataset\.termousMainSurface/)
+  assert.match(globalStyles, /:where\(body\[data-termous-main-surface='true'\]\) \.termous-antd-root/)
+  assert.match(globalStyles, /:where\(body\[data-termous-main-surface='true'\]\) \.ant-input/)
+  assert.match(globalStyles, /:where\(body\[data-termous-main-surface='true'\]\) \*::-webkit-scrollbar/)
+  assert.doesNotMatch(globalStyles, /(?<!:where\()body\[data-termous-main-surface='true'\] \.ant-input/)
+  assert.match(notificationStyles, /\.notice:global\(\.ant-notification-notice\)/)
+  assert.match(notificationContract, /export const termousNotificationClassName = styles\.notice/)
+  assert.match(publicEntry, /export \{ termousNotificationClassName \} from '\.\/notificationStyles'/)
+})
+
+test('生产 TypeScript 不再直接使用旧通知样式字面量', () => {
+  const legacyConsumers = globSync(['**/*.ts', '**/*.tsx'], { cwd: sourceRoot })
+    .filter((relativePath) => !relativePath.startsWith('test/'))
+    .filter((relativePath) => !relativePath.includes('.test.'))
+    .filter((relativePath) => /['"]termous-notification['"]/.test(readFileSync(join(sourceRoot, relativePath), 'utf8')))
+    .sort()
+
+  assert.deepEqual(legacyConsumers, [])
+})
+
 test('主机目录行、搜索、提示层与头像样式由 Host Module 承载', () => {
   const hostContextPanelSource = source('../features/hosts/ui/HostContextPanel.tsx')
   const hostContextPanelStyles = source('../features/hosts/ui/HostContextPanel.module.scss')
   const hostAvatarSource = source('../entities/host/ui/HostAvatar.tsx')
   const hostAvatarStyles = source('../entities/host/ui/HostAvatar.module.scss')
-  const legacyStyles = source('../shared/main-styles/workstation.scss')
 
   assert.match(hostContextPanelSource, /styles\['host-context-search'\]/)
   assert.match(hostContextPanelSource, /classNames=\{\{ root: `\$\{styles\['host-row-tooltip'\]\}/)
@@ -263,6 +290,7 @@ test('主机表单与启动入口显式挂载共享控件 Module', () => {
   const proxyManagerSource = source('../features/hosts/ui/ProxyManagerModal.tsx')
   const quickConnectSource = source('../features/hosts/ui/SessionQuickConnect.tsx')
   const hostManagementStyles = source('../features/hosts/ui/HostManagement.module.scss')
+  const hostLauncherStyles = source('../features/hosts/ui/HostLauncherModal.module.scss')
 
   assert.match(hostCatalogSource, /customSelectStyles\.select/)
   assert.match(hostCatalogSource, /customSelectStyles\['select-popup'\]/)
@@ -277,13 +305,14 @@ test('主机表单与启动入口显式挂载共享控件 Module', () => {
   assert.match(hostLauncherSource, /customSelectStyles\.select/)
   assert.match(hostLauncherSource, /customSelectStyles\['select-popup'\]/)
   assert.match(hostLauncherSource, /uiStyles\['search-input'\]/)
+  assert.match(hostLauncherStyles, /@keyframes :global\(host-launcher-filter-in\)/)
+  assert.match(hostLauncherStyles, /@keyframes :global\(termous-reachability-pulse\)/)
 
   assert.match(proxyManagerSource, /customSelectStyles\.select/)
   assert.match(proxyManagerSource, /customSelectStyles\['select-popup'\]/)
   assert.match(proxyManagerSource, /uiStyles\.tooltip/)
   assert.match(quickConnectSource, /uiStyles\['search-input'\]/)
 
-  const legacyStyles = source('../shared/main-styles/workstation.scss')
   for (const selector of [
     /^\.termous-select(?:\s|\.|\{|:)/m,
     /^\.termous-select-popup(?:\s|\.|\{|:)/m,
@@ -303,11 +332,10 @@ test('命令片段筛选的 AntD Segmented 样式由共置 Module 承载', () =>
   assert.match(snippetCatalogSource, /styles\['segmented-control'\]/)
   assert.match(snippetCatalogStyles, /\.segmented-control:global\(\.ant-segmented\)\s*\{[^}]*border-radius:\s*10px;[^}]*padding:\s*3px;/s)
   assert.match(snippetCatalogStyles, /\.segmented-control:global\(\.ant-segmented\) :global\(\.ant-segmented-item-label\)/)
-  assert.doesNotMatch(source('../shared/main-styles/workstation.scss'), /^\.(?:segmented-control|ant-segmented \.ant-segmented-item-label)/m)
+  assert.doesNotMatch(legacyStyles, /^\.(?:segmented-control|ant-segmented \.ant-segmented-item-label)/m)
 })
 
 test('失效的管理表单规则离开兼容层，现行布局由共置 Module 承载', () => {
-  const legacyStyles = source('../shared/main-styles/workstation.scss')
   const managementWorkspaceSource = source('../shared/ui/ManagementWorkspace.tsx')
   const managementWorkspaceStyles = source('../shared/ui/ManagementWorkspace.module.scss')
   const hostWorkspaceSource = source('../features/hosts/ui/HostManagementWorkspace.tsx')

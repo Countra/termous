@@ -99,6 +99,7 @@ import {
 } from './WorkbenchSnippetPanel'
 import { WorkbenchSystemInfoPanel } from './WorkbenchSystemInfoPanel'
 import { WorkbenchTerminalPanel } from './WorkbenchTerminalPanel'
+import { termousNotificationClassName } from '#shared/ui'
 
 const workbenchDetailsPanelWidth = {
   default: 300,
@@ -607,21 +608,21 @@ export function WorkbenchPage({
           description: t('workbench.split.limitDescription'),
           duration: 3,
           role: 'status',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
       } else if (result === 'not-enough-sessions') {
         notification.warning({
           title: t('workbench.split.notEnoughSessions'),
           duration: 3,
           role: 'status',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
       } else if (result === 'missing-session') {
         notification.warning({
           title: t('workbench.split.sessionUnavailable'),
           duration: 3,
           role: 'status',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
       }
     },
@@ -1020,7 +1021,7 @@ export function WorkbenchPage({
           title: t('snippets.noActiveSession'),
           duration: 3,
           role: 'status',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
         return
       }
@@ -1038,7 +1039,7 @@ export function WorkbenchPage({
           description: t(`snippets.sendResult.${result}`),
           duration: 4,
           role: 'alert',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
         return
       }
@@ -1047,7 +1048,7 @@ export function WorkbenchPage({
         title: execute ? t('snippets.sent') : t('snippets.inserted'),
         duration: 2,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     },
     [

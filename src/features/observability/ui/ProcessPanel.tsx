@@ -17,7 +17,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { RemoteProcessDetail, RemoteProcessPort, RemoteProcessSort, RemoteProcessSummary } from '#entities/observability'
-import { uiStyles, WorkspaceEmptyState } from '#shared/ui'
+import { uiStyles, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
 import type { ObservabilityGateway, ObservabilitySessionContext } from '../model/contracts'
 import { defaultProcessQuery, type ProcessAutoRefreshSeconds, type SessionProcessQueryState, useSessionProcesses } from '../model/useSessionProcesses'
 import styles from './Observability.module.scss'
@@ -73,7 +73,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
         description: result?.message,
         duration: 3,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     } catch (error) {
       notification.error({
@@ -81,7 +81,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
         description: error instanceof Error ? error.message : undefined,
         duration: 4,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     }
   }

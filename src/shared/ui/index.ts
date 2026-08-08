@@ -11,6 +11,7 @@ export { EmptyState } from './EmptyState'
 export { FeatureSidePanel } from './FeatureSidePanel'
 export type { FeatureSidePanelTab } from './FeatureSidePanel'
 export { ManagementFilterTabs } from './ManagementFilterTabs'
+export { termousNotificationClassName } from './notificationStyles'
 export {
   GroupManagerModal,
   type GroupManagerItem,

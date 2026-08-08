@@ -23,7 +23,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { formatBytes } from '#shared/format'
-import { confirmDialogStyles, ContextActionMenu, contextActionMenuPopupClassName } from '#shared/ui'
+import { confirmDialogStyles, ContextActionMenu, contextActionMenuPopupClassName, termousNotificationClassName } from '#shared/ui'
 import rowStyles from './TransferQueueRows.module.scss'
 import type { TransferTask } from '#entities/file'
 import {
@@ -152,7 +152,7 @@ export function TransferQueuePanel({
               description: t('files.clearTransferRecordsPartialHint', { count: failedCount }),
               placement: 'topRight',
               duration: 3.2,
-              className: 'termous-notification',
+              className: termousNotificationClassName,
             })
           }
         } finally {
@@ -175,7 +175,7 @@ export function TransferQueuePanel({
         description: error instanceof Error ? error.message : undefined,
         placement: 'topRight',
         duration: 3,
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     } finally {
       setRefreshing(false)
@@ -428,7 +428,7 @@ function TransferRow({
         message: t('files.openLocalDirectoryFailed'),
         placement: 'topRight',
         duration: 2.8,
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
       return
     }
@@ -443,7 +443,7 @@ function TransferRow({
         description: error instanceof Error ? error.message : undefined,
         placement: 'topRight',
         duration: 3,
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     }
   }

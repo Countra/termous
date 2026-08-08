@@ -517,6 +517,12 @@
   }
 }
 
+@keyframes termous-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .session-tab-leading .session-dot.is-connecting,
   .session-tab-leading .session-dot.is-waiting-trust,

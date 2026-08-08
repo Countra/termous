@@ -1,4 +1,4 @@
-/* stylelint-disable declaration-empty-line-before, selector-class-pattern, color-hex-length, declaration-block-no-redundant-longhand-properties, property-no-deprecated, keyframes-name-pattern -- 保持既有文件工作区声明与级联顺序。 */
+/* stylelint-disable declaration-empty-line-before, selector-class-pattern, color-hex-length, declaration-block-no-redundant-longhand-properties, property-no-deprecated -- 保持既有文件工作区声明与级联顺序。 */
 @use './FilesWorkspaceSurface.module' as surface;
 @use './FilesWorkspaceDetails.module' as details;
 @use './FilesWorkspacePanels.module' as panels;
@@ -934,7 +934,7 @@ body[data-files-resize-key="permissions"] .files-workspace-page [data-resize-key
   font-weight: 560;
 }
 
-@keyframes :global(files-drop-mask-enter) {
+@keyframes files-drop-mask-enter {
   from {
     opacity: 0;
     transform: translate(-50%, 4px);
@@ -962,7 +962,7 @@ body[data-files-resize-key="permissions"] .files-workspace-page [data-resize-key
 }
 
 @include panels.styles;
-/* stylelint-enable declaration-empty-line-before, selector-class-pattern, color-hex-length, declaration-block-no-redundant-longhand-properties, property-no-deprecated, keyframes-name-pattern */
+/* stylelint-enable declaration-empty-line-before, selector-class-pattern, color-hex-length, declaration-block-no-redundant-longhand-properties, property-no-deprecated */
 
 .terminal-toolbar {
   display: flex;

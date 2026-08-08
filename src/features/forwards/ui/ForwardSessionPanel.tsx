@@ -2,7 +2,7 @@ import { Cable, ChevronDown, ChevronUp, Play, Plus } from 'lucide-react'
 import { App as AntdApp, Button } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ConnectionActionButton, StatusBadge, WorkspaceEmptyState } from '#shared/ui'
+import { ConnectionActionButton, StatusBadge, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
 import type { ForwardInstance, ForwardMode, ForwardStartRequest } from '#entities/forward'
 import type { Host } from '#entities/host'
 import type { ForwardSessionContext } from '../model/types'
@@ -118,7 +118,7 @@ export function ForwardSessionPanel({
   const startForward = async () => {
     const validation = validateForm(form, t)
     if (validation) {
-      notification.warning({ title: validation, duration: 3, role: 'status', className: 'termous-notification' })
+      notification.warning({ title: validation, duration: 3, role: 'status', className: termousNotificationClassName })
       return
     }
     try {
@@ -142,7 +142,7 @@ export function ForwardSessionPanel({
         description: error instanceof Error ? error.message : t('app.error'),
         duration: 5,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     }
   }

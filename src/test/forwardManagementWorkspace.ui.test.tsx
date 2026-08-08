@@ -112,6 +112,7 @@ vi.mock('antd', () => {
 })
 
 vi.mock('#shared/ui', () => ({
+  termousNotificationClassName: 'termous-notification',
   uiStyles: {
     'field-label': 'field-label',
     'page-actions': 'page-actions',

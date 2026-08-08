@@ -7,32 +7,7 @@ function readSource(relativePath: string) {
   return readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8')
 }
 
-const legacyStyles = readSource('../shared/main-styles/workstation.scss')
 const globalStyles = readSource('../shared/styles/global.scss')
-
-test('终端与会话样式不再由旧工作台全局层承载', () => {
-  for (const className of [
-    'session-tabs-shell',
-    'session-tab-button',
-    'session-quick-connect-popover',
-    'context-action-menu',
-    'termous-popconfirm',
-    'terminal-context-menu',
-    'terminal-split-workspace',
-    'terminal-snap-layer',
-    'terminal-pane-frame',
-    'terminal-canvas',
-    'terminal-session-pane',
-    'terminal-runtime-parking',
-    'terminal-disconnect-overlay',
-    'terminal-search-panel',
-    'terminal-toolbar',
-    'connection-progress',
-    'connection-action-button',
-  ]) {
-    assert.doesNotMatch(legacyStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
-  }
-})
 
 test('终端与会话组件显式加载各自的 SCSS Module', () => {
   const owners = [
@@ -78,7 +53,6 @@ test('第三方覆盖和跨 Portal 拖拽状态保留受控边界', () => {
     /\.button:global\(\.ant-btn\):not\(:disabled\):hover/,
   )
   assert.match(globalStyles, /body\[data-terminal-tab-dragging='true'\]/)
-  assert.doesNotMatch(legacyStyles, /data-terminal-tab-dragging/)
 })
 
 function escapeRegExp(value: string) {

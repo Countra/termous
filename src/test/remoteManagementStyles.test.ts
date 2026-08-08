@@ -39,10 +39,6 @@ const firewallRuleModalSource = readFileSync(
   'utf8',
 )
 const detection = readStyle('../shared/ui/WorkspaceDetectionLoading.module.scss')
-const workstation = readFileSync(
-  fileURLToPath(new URL('../shared/main-styles/workstation.scss', import.meta.url)),
-  'utf8',
-)
 
 test('防火墙面板使用私有 Module 类并局部约束 Modal Portal', () => {
   assert.doesNotMatch(firewall.source, /stylelint-disable[^\n]*termous\/no-unscoped-global/)
@@ -103,18 +99,14 @@ test('共享检测加载状态由组件 Module 私有类承载', () => {
   assert.match(detection.source, /\.card\s*{[^}]*padding:\s*18px/)
 })
 
-test('远端管理私有样式离开全局工作站文件且共享弹层显式接入 Module', () => {
+test('远端管理共享弹层显式接入 Module', () => {
   const selectStyles = readStyle('../shared/ui/CustomSelect.module.scss')
   const primitiveStyles = readStyle('../shared/ui/Primitives.module.scss')
 
-  assert.doesNotMatch(workstation, /^\.(?:service|docker|firewall)-/m)
-  assert.doesNotMatch(workstation, /^\.workbench-detection-loading/m)
   assert.match(selectStyles.source, /^\.select-dropdown:global\(\.ant-select-dropdown\)/m)
   assert.match(primitiveStyles.source, /^\.tooltip:global\(\.ant-tooltip\)/m)
   assert.match(dockerSource, /customSelectStyles\['select-dropdown'\]/)
   assert.match(servicePanelSource, /customSelectStyles\['select-dropdown'\]/)
-  assert.doesNotMatch(workstation, /^\.termous-select-dropdown\.ant-select-dropdown/m)
-  assert.doesNotMatch(workstation, /^\.termous-tooltip\.ant-tooltip/m)
 })
 
 test('远端管理关键滚动与弹层尺寸保持不变', () => {

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { resolveGlobalUpdateStatus } from '#entities/update'
 import { useUpdateRuntime } from '../model/updateRuntime'
 import styles from './BrandVersionControl.module.scss'
+import { termousNotificationClassName } from '#shared/ui'
 
 interface BrandVersionControlProps {
   appVersion: string
@@ -108,7 +109,7 @@ export function BrandVersionControl({
         }),
         duration: 5,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     } finally {
       openingRef.current = false

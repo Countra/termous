@@ -1,0 +1,17 @@
+.notice:global(.ant-notification-notice) {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-strong) 96%, transparent);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+}
+
+.notice :global(.ant-notification-notice-message) {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.notice :global(.ant-notification-notice-description) {
+  color: var(--text-secondary);
+}

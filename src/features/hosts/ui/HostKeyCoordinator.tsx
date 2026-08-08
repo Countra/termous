@@ -3,7 +3,7 @@ import { Alert, App as AntdApp, Button, Modal, Tag, Typography } from 'antd'
 import { Clock3, Server, ShieldAlert, ShieldCheck, ShieldQuestion, ShieldX } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError } from '#shared/api'
-import { uiStyles } from '#shared/ui'
+import { uiStyles, termousNotificationClassName } from '#shared/ui'
 import type { Host } from '#entities/host'
 import type {
   HostKeyChallenge,
@@ -144,7 +144,7 @@ export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorPr
           description: t('hostKey.decisionExpiredDescription'),
           duration: 4,
           role: 'status',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
         void reconcile().catch(() => undefined)
       } else {
@@ -153,7 +153,7 @@ export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorPr
           description: t('hostKey.decisionFailedDescription'),
           duration: 5,
           role: 'alert',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
       }
     } finally {

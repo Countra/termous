@@ -24,7 +24,7 @@ import type {
   SystemServiceOperationPhase,
   SystemServiceSummary,
 } from '#entities/service'
-import { customSelectStyles, uiStyles, WorkspaceEmptyState } from '#shared/ui'
+import { customSelectStyles, uiStyles, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
 import type { ServiceGateway, ServiceSessionContext } from '../model/contracts'
 import { ServiceLogsModal } from './ServiceLogsModal'
 import {
@@ -154,7 +154,7 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
       duration: serviceOperationDuration(tone),
       role: (tone === 'error' || tone === 'warning' ? 'alert' : 'status') as 'alert' | 'status',
       className: [
-        'termous-notification',
+        termousNotificationClassName,
         styles['service-operation-notification'],
         styles[`is-${tone}`] ?? '',
       ].filter(Boolean).join(' '),

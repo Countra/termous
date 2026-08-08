@@ -12,7 +12,7 @@ import {
 import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ConnectionActionButton, CustomSelect, ManagementFilterTabs, StatusBadge, uiStyles } from '#shared/ui'
+import { ConnectionActionButton, CustomSelect, ManagementFilterTabs, StatusBadge, uiStyles, termousNotificationClassName } from '#shared/ui'
 import type {
   ForwardInstance,
   ForwardMode,
@@ -171,7 +171,7 @@ export function ForwardManagementWorkspace({
   const saveEditor = async () => {
     const validation = validateForwardForm(form, t)
     if (validation) {
-      notification.warning({ title: validation, duration: 3, role: 'status', className: 'termous-notification' })
+      notification.warning({ title: validation, duration: 3, role: 'status', className: termousNotificationClassName })
       return
     }
     try {
@@ -193,7 +193,7 @@ export function ForwardManagementWorkspace({
         description: error instanceof Error ? error.message : t('app.error'),
         duration: 5,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     }
   }
@@ -207,7 +207,7 @@ export function ForwardManagementWorkspace({
         description: error instanceof Error ? error.message : t('app.error'),
         duration: 5,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     }
   }

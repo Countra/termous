@@ -177,7 +177,8 @@
   box-shadow: none;
 }
 
-@keyframes host-launcher-filter-in {
+/* stylelint-disable-next-line keyframes-name-pattern -- CSS Modules 全局关键帧需要保留运行时稳定名称。 */
+@keyframes :global(host-launcher-filter-in) {
   from {
     opacity: 0;
     transform: translateY(-4px) scale(0.99);
@@ -703,7 +704,8 @@
   animation: termous-reachability-pulse 1s ease-in-out infinite;
 }
 
-@keyframes termous-reachability-pulse {
+/* stylelint-disable-next-line keyframes-name-pattern -- CSS Modules 全局关键帧需要保留运行时稳定名称。 */
+@keyframes :global(termous-reachability-pulse) {
   0%, 100% {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent);
   }

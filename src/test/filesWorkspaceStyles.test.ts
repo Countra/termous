@@ -23,10 +23,6 @@ const detailsStyles = readFileSync(
   fileURLToPath(new URL('../widgets/files-workspace/ui/_FilesWorkspaceDetails.module.scss', import.meta.url)),
   'utf8',
 )
-const workstationStyles = readFileSync(
-  fileURLToPath(new URL('../shared/main-styles/workstation.scss', import.meta.url)),
-  'utf8',
-)
 const appSource = readFileSync(
   fileURLToPath(new URL('../app/main/App.tsx', import.meta.url)),
   'utf8',
@@ -39,21 +35,48 @@ const sharedStylesSource = readFileSync(
   fileURLToPath(new URL('../shared/styles/index.ts', import.meta.url)),
   'utf8',
 )
-const mainStylesSource = readFileSync(
-  fileURLToPath(new URL('../shared/main-styles/index.ts', import.meta.url)),
+const transferDockStyles = readFileSync(
+  fileURLToPath(new URL('../features/transfers/ui/TransferQueueDock.module.scss', import.meta.url)),
+  'utf8',
+)
+const transferRowsStyles = readFileSync(
+  fileURLToPath(new URL('../features/transfers/ui/TransferQueueRows.module.scss', import.meta.url)),
+  'utf8',
+)
+const bookmarkRailStyles = readFileSync(
+  fileURLToPath(new URL('../features/file-bookmarks/ui/FileBookmarksRail.module.scss', import.meta.url)),
+  'utf8',
+)
+const bookmarkSidebarStyles = readFileSync(
+  fileURLToPath(new URL('../features/file-bookmarks/ui/FileBookmarksSidebar.module.scss', import.meta.url)),
+  'utf8',
+)
+const remoteFileModalStyles = readFileSync(
+  fileURLToPath(new URL('../features/remote-file/ui/RemoteFileModalShared.module.scss', import.meta.url)),
   'utf8',
 )
 
-test('文件工作区动画使用稳定的全局 keyframe 名称', () => {
-  assert.match(workspaceStyles, /@keyframes :global\(files-drop-mask-enter\)/)
+test('文件工作区局部动画与 CSS Modules 使用同一 keyframe 作用域', () => {
+  assert.match(workspaceStyles, /@keyframes files-drop-mask-enter/)
   for (const animation of [
     'files-directory-progress',
     'files-skeleton',
     'files-status-pulse',
     'files-side-panel-enter',
   ]) {
-    assert.match(panelStyles, new RegExp(`@keyframes :global\\(${animation}\\)`))
+    assert.match(panelStyles, new RegExp(`@keyframes ${animation}`))
   }
+  assert.doesNotMatch(`${workspaceStyles}\n${panelStyles}`, /@keyframes :global\(files-/)
+})
+
+test('全局文件辅助选择器引用稳定的全局 keyframe 名称', () => {
+  assert.match(transferDockStyles, /@keyframes :global\(transfer-queue-pulse\)/)
+  assert.match(transferRowsStyles, /@keyframes :global\(termous-spin\)/)
+  assert.match(transferRowsStyles, /@keyframes :global\(transfer-queue-slide\)/)
+  assert.match(bookmarkRailStyles, /@keyframes :global\(termous-spin\)/)
+  assert.match(bookmarkSidebarStyles, /@keyframes :global\(termous-spin\)/)
+  assert.match(remoteFileModalStyles, /@keyframes :global\(termous-spin\)/)
+  assert.match(remoteFileModalStyles, /@keyframes :global\(file-operation-indeterminate\)/)
 })
 
 test('文件工作区样式使用局部模块边界', () => {
@@ -82,32 +105,17 @@ test('文件工作区样式使用局部模块边界', () => {
   }
 })
 
-test('共享工作台样式不再承载文件工作区选择器', () => {
-  for (const className of [
-    'files-page',
-    'files-row-menu',
-    'files-icon-button',
-    'file-name-tooltip',
-  ]) {
-    assert.doesNotMatch(workstationStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
-  }
-})
-
-test('文件工作区样式在旧工作台样式后加载', () => {
+test('文件工作区样式由共享入口和组件 Module 加载', () => {
   const sharedStyleImport = rendererSource.indexOf("import '#shared/styles'")
   const mainSurfaceImport = rendererSource.indexOf("main: () => import('#app/main')")
-  const mainStyleImport = appSource.indexOf("import '#shared/main-styles'")
   const globalStyleImport = sharedStylesSource.indexOf("import './global.scss'")
-  const workstationStyleImport = mainStylesSource.indexOf("import './workstation.scss'")
   const filesPageImport = appSource.indexOf("from '#pages/files'")
   const filesWorkspaceImport = appSource.indexOf("from '#widgets/files-workspace'")
 
   assert.ok(sharedStyleImport >= 0)
   assert.ok(mainSurfaceImport > sharedStyleImport)
-  assert.ok(mainStyleImport >= 0)
   assert.ok(globalStyleImport >= 0)
-  assert.ok(workstationStyleImport >= 0)
-  assert.doesNotMatch(mainStylesSource, /app\.scss/)
+  assert.doesNotMatch(appSource, /#shared\/main-styles/)
   assert.ok(filesPageImport >= 0)
   assert.ok(filesWorkspaceImport >= 0)
 })

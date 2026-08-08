@@ -53,7 +53,7 @@ import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { TermousApiError } from '#shared/api'
 import { SessionQuickConnect } from '#features/hosts'
-import { confirmDialogStyles, EmptyState, SessionTabButton, SessionTabStrip, uiStyles } from '#shared/ui'
+import { confirmDialogStyles, EmptyState, SessionTabButton, SessionTabStrip, uiStyles, termousNotificationClassName } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
 import type { TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
@@ -1035,7 +1035,7 @@ function FilesWorkspaceContent({
           message: t('workbench.files.invalidPath'),
           duration: 3,
           role: 'alert',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
         return false
       }
@@ -1169,7 +1169,7 @@ function FilesWorkspaceContent({
           description,
           duration: 5,
           role: 'alert',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
         return false
       } finally {
@@ -1214,7 +1214,7 @@ function FilesWorkspaceContent({
           description,
           duration: 4,
           role: 'alert',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
       },
     }),
@@ -1708,7 +1708,7 @@ function FilesWorkspaceContent({
       description: actionError instanceof Error ? actionError.message : t('app.error'),
       duration: 5,
       role: 'alert',
-      className: 'termous-notification',
+      className: termousNotificationClassName,
     })
   }
 
@@ -1716,7 +1716,7 @@ function FilesWorkspaceContent({
     try {
       await action()
       if (success) {
-        notification.success({ title: success, duration: 3, role: 'status', className: 'termous-notification' })
+        notification.success({ title: success, duration: 3, role: 'status', className: termousNotificationClassName })
       }
     } catch (actionError) {
       notifyError(actionError)
@@ -1777,7 +1777,7 @@ function FilesWorkspaceContent({
       description: fileSessionRecoveryErrorMessage(errorCode, t),
       duration: 4,
       role: 'alert',
-      className: 'termous-notification',
+      className: termousNotificationClassName,
     })
   }, [notification, t])
 
@@ -1996,7 +1996,7 @@ function FilesWorkspaceContent({
         title: t('files.transferCreated'),
         duration: 3,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     }
     return created
@@ -2248,7 +2248,7 @@ function FilesWorkspaceContent({
         title: t('files.openFileOnlyFiles'),
         duration: 3,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
       return
     }
@@ -2342,7 +2342,7 @@ function FilesWorkspaceContent({
         title: t('files.permissionsUpdated'),
         duration: 3,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     } catch (actionError) {
       notifyError(actionError)
@@ -2436,7 +2436,7 @@ function FilesWorkspaceContent({
       title: t('files.remoteMoveUnavailable'),
       duration: 3,
       role: 'status',
-      className: 'termous-notification',
+      className: termousNotificationClassName,
     })
   }
 
@@ -2652,7 +2652,7 @@ function FilesWorkspaceContent({
         title: t('files.dropPathUnavailable'),
         duration: 4,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
       return
     }
@@ -2771,7 +2771,7 @@ function FilesWorkspaceContent({
         title: t('files.dropPathUnavailable'),
         duration: 4,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
       return
     }

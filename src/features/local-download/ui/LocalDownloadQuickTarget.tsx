@@ -6,6 +6,7 @@ import styles from './LocalDownloadConsole.module.scss'
 import { localPathRelativeLabel } from '../model/localDownloadWorkspaceState'
 import type { LocalDownloadQuickTargetProps } from '../model/types'
 import { useLocalDownloadDrop } from '../model/useLocalDownloadDrop'
+import { termousNotificationClassName } from '#shared/ui'
 
 export const LocalDownloadQuickTarget = forwardRef<HTMLButtonElement, LocalDownloadQuickTargetProps>(
 function LocalDownloadQuickTarget({
@@ -56,7 +57,7 @@ function LocalDownloadQuickTarget({
         message,
         placement: 'topRight',
         duration: 3,
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     },
   })

@@ -13,7 +13,6 @@ const appSource = readSource('../app/main/App.tsx')
 const appShellStyles = readSource('../app/app-shell/ui/AppShell.module.scss')
 const windowControlsStyles = readSource('../app/app-shell/ui/WindowControls.module.scss')
 const appStyles = readSource('../app/main/App.module.scss')
-const sharedStyles = readSource('../shared/main-styles/workstation.scss')
 
 test('应用壳层和窗口控制使用共置 SCSS Modules', () => {
   assert.match(appShellSource, /import styles from '\.\/AppShell\.module\.scss'/)
@@ -23,26 +22,6 @@ test('应用壳层和窗口控制使用共置 SCSS Modules', () => {
   assert.match(windowControlsSource, /styles\['window-controls'\]/)
   assert.match(appSource, /styles\['app-keepalive-page'\]/)
   assert.match(appSource, /styles\['core-fatal-modal'\]/)
-})
-
-test('应用壳层独占选择器不再由共享全局样式承载', () => {
-  for (const className of [
-    'app-shell',
-    'sidebar',
-    'brand-row',
-    'primary-nav',
-    'main-frame',
-    'window-chrome',
-    'icon-button',
-    'topbar-connect-group',
-    'window-controls',
-    'content-frame',
-    'app-keepalive-page',
-    'app-inline-status',
-    'core-fatal-modal',
-  ]) {
-    assert.doesNotMatch(sharedStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
-  }
 })
 
 test('应用壳层模块保留布局、Portal 和窄窗口合同', () => {

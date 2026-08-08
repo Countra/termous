@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError } from '#shared/api'
 import { formatBytes } from '#shared/format'
-import { customSelectStyles, uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState } from '#shared/ui'
+import { customSelectStyles, uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
 import type {
   FirewallDesiredState,
   FirewallPersistenceStatus,
@@ -189,7 +189,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         description: message,
         duration: 5,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     } finally {
       if (isLoadOwner(request)) {
@@ -303,7 +303,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
           return false
         }
         setSnapshot(result.snapshot)
-        notification.success({ title: result.message || t('workbench.firewall.applySuccess'), duration: 3, role: 'status', className: 'termous-notification' })
+        notification.success({ title: result.message || t('workbench.firewall.applySuccess'), duration: 3, role: 'status', className: termousNotificationClassName })
         afterSuccess?.()
         return true
       } catch (error) {
@@ -315,7 +315,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
           description: error instanceof Error ? error.message : t('app.error'),
           duration: 5,
           role: 'alert',
-          className: 'termous-notification',
+          className: termousNotificationClassName,
         })
         return false
       } finally {
@@ -334,7 +334,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
     }
     const error = validateFirewallRuleInput(editing.value, t)
     if (error) {
-      notification.warning({ title: error, duration: 3, role: 'status', className: 'termous-notification' })
+      notification.warning({ title: error, duration: 3, role: 'status', className: termousNotificationClassName })
       return
     }
     const next = [...rules]

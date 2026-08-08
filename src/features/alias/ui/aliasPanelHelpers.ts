@@ -1,6 +1,7 @@
 import { App } from 'antd'
 import type { TFunction } from 'i18next'
 import { TermousApiError } from '#shared/api'
+import { termousNotificationClassName } from '#shared/ui'
 
 export function displayAliasShell(shell: string | undefined) {
   const normalized = shell?.trim()
@@ -81,6 +82,6 @@ export function showAliasError(
     description: aliasErrorDescription(code, message, t),
     duration: 4,
     role: 'alert',
-    className: 'termous-notification',
+    className: termousNotificationClassName,
   })
 }

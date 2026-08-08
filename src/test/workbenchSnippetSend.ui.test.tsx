@@ -71,6 +71,7 @@ vi.mock('#shared/hooks', () => ({
 }))
 vi.mock('#shared/path', () => ({ normalizeRemotePosixPath: (path: string) => path }))
 vi.mock('#shared/ui', () => ({
+  termousNotificationClassName: 'termous-notification',
   ConnectionActionButton: ({
     children,
     disabled,

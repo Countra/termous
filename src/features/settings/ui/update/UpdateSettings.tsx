@@ -10,6 +10,7 @@ import {
   type UpdatePreferenceKey,
 } from '../../model/updateSettings'
 import { UpdateSettingsView } from './UpdateSettingsView'
+import { termousNotificationClassName } from '#shared/ui'
 
 export interface UpdatePreferencesRuntime {
   generation: number
@@ -98,7 +99,7 @@ export function UpdateSettings({
         title: t('settings.update.preferencesSaveFailed'),
         duration: 5,
         role: 'alert',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
     } finally {
       if (runtimeGenerationRef.current === operationGeneration) {

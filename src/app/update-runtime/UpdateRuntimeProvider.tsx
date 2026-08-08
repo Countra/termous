@@ -24,6 +24,7 @@ import {
   type UpdateRuntimeBridge,
   type UpdateRuntimeValue,
 } from '#features/update'
+import { termousNotificationClassName } from '#shared/ui'
 
 export interface UpdateNotificationStorage {
   getItem: (key: string) => string | null
@@ -195,7 +196,7 @@ export function UpdateRuntimeProvider({
         }),
         duration: 6,
         role: 'status',
-        className: 'termous-notification',
+        className: termousNotificationClassName,
       })
       return
     }
@@ -214,7 +215,7 @@ export function UpdateRuntimeProvider({
       }),
       duration: 0,
       role: 'status',
-      className: 'termous-notification',
+      className: termousNotificationClassName,
     })
   }, [bridge, i18n.resolvedLanguage, notification, snapshot, storage, t])
 
