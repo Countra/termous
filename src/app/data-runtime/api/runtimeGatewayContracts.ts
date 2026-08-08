@@ -30,6 +30,7 @@ import type {
   ForwardInstance,
   ForwardProfile,
   ForwardProfileInput,
+  ForwardStartRequest,
 } from '#entities/forward'
 import type {
   Host,
@@ -38,7 +39,7 @@ import type {
   HostInput,
   HostReachability,
 } from '#entities/host'
-import type { Session } from '#entities/session'
+import type { LocalShell, Session } from '#entities/session'
 import type {
   CodeSnippet,
   CodeSnippetGroup,
@@ -140,4 +141,30 @@ export interface SnippetCommandGateway {
 export interface ForwardRuntimeGateway {
   getForward: (id: string) => Promise<ForwardInstance>
   forwards: () => Promise<ForwardInstance[]>
+}
+
+export interface ForwardCommandGateway extends ForwardRuntimeGateway {
+  startForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
+  stopForward: (id: string) => Promise<void>
+}
+
+export interface SessionCommandGateway {
+  createSession: (hostId: string, cols: number, rows: number) => Promise<Session>
+  createLocalSession: (shell: LocalShell, cols: number, rows: number) => Promise<Session>
+  deleteSession: (id: string) => Promise<void>
+  refreshSessionInventory: (
+    id: string,
+    force?: boolean,
+    options?: { signal?: AbortSignal },
+  ) => Promise<Session>
+}
+
+export interface FileSessionCommandGateway {
+  createFileSession: (
+    hostId: string,
+    sourceSessionId?: string,
+    initialPath?: string,
+  ) => Promise<FileSession>
+  deleteFileSession: (id: string) => Promise<void>
+  reconnectFileSession: (id: string) => Promise<FileSession>
 }

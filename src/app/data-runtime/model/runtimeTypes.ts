@@ -20,3 +20,4 @@ export interface MutableValue<T> {
 }
 
 export type SetAppData = Dispatch<SetStateAction<AppData>>
+export type SetRuntimeState<T> = Dispatch<SetStateAction<T>>

@@ -8,76 +8,54 @@ import {
 import type {
   ForwardEvent,
   ForwardInstance,
-  ForwardStartRequest,
 } from '#entities/forward'
-import type {
-  FileSession,
-} from '#entities/file'
 import { sortCodeSnippetGroups } from '#entities/snippet'
 import { normalizeSettings } from '#features/settings'
 import { changeLanguage } from '#shared/i18n'
 import {
-  adoptSuppressedFileSessionRecoveryResult,
   cleanupSuppressedFileSessionRecoveryResult,
   filterSuppressedFileSessions,
   isFileSessionRecoverySupersededError,
   runQueuedFileSessionRecoveryOperation,
-  suppressFileSessionRecoveryResult,
   supersedeQueuedFileSessionRecovery,
   type FileSessionClosureState,
   filterFileSessionsByActiveSources,
   reconcileFileSessionSnapshotList,
-  replaceFileSessionSnapshot,
-  upsertFileSessionSnapshot,
 } from '#entities/file'
 import {
   mergeSessionReloadSnapshot,
   sessionChangedSince,
-  shouldApplySessionInventoryResponse,
 } from './model/sessionInventoryState'
-import {
-  isForwardStartSettledStatus,
-  reconcileForwardsAfterRestartFailure,
-  restartForwardInstance,
-  selectForwardStartSnapshot,
-} from '#features/forwards'
 import { canApplyReloadedValue, SerialMutationQueue } from '#shared/async'
 import {
   bumpSessionRevision,
   indexHostReachability,
   initialData,
-  markHostRecentlyConnected,
   reconcileActiveSession,
-  removeMatchingFileSessionClosure,
   sessionInventorySignature,
   sortConnectionProxies,
   sortFileBookmarkGroups,
   sortFileBookmarks,
   sortLocalPathMappings,
-  upsertSession,
   type LoadMode,
 } from './model/appDataState'
 import {
-  FORWARD_START_COMPLETION_TIMEOUT_MS,
   reconcileForwardStartCompletions,
-  rememberForwardEventSnapshot,
-  settleForwardStartCompletion,
-  shouldEmitForwardError,
-  shouldRemoveForward,
-  syncForwardAfterStart,
-  upsertForward,
   visibleForwards,
   type ForwardStartCompletionWaiter,
 } from './model/forwardRuntimeState'
 import { createCredentialCommands } from './commands/credentialCommands'
 import { createFileCatalogCommands } from './commands/fileCatalogCommands'
+import { createFileSessionCommands } from './commands/fileSessionCommands'
+import { createForwardCommands } from './commands/forwardCommands'
 import { createForwardProfileCommands } from './commands/forwardProfileCommands'
 import { createHostCommands } from './commands/hostCommands'
+import { createSessionCommands } from './commands/sessionCommands'
 import { createSettingsCommands } from './commands/settingsCommands'
 import { createSnippetCommands } from './commands/snippetCommands'
 import { loadAppDataSnapshot } from './api/appDataSnapshotGateway'
 import type { AppData } from './model/appData'
-import type { LocalShell, Session } from './model/sessionTypes'
+import type { Session } from './model/sessionTypes'
 
 export function useTermousData() {
   const [gateways, setGateways] = useState(() => createRuntimeGatewaysFromConfig())
@@ -385,19 +363,6 @@ export function useTermousData() {
     [gateways, reloadForwardsWithGateways],
   )
 
-  const resolveForwardStartCompletion = useCallback((
-    forwardId: string,
-    forward: ForwardInstance | null,
-  ) => {
-    settleForwardStartCompletion(
-      forwardStartCompletionWaitersRef.current,
-      forwardEventSnapshotsRef.current,
-      forwardEventRevisionsRef.current,
-      forwardId,
-      forward,
-    )
-  }, [])
-
   useEffect(() => () => {
     const waiters = [...forwardStartCompletionWaitersRef.current.values()]
     forwardStartCompletionWaitersRef.current.clear()
@@ -408,112 +373,6 @@ export function useTermousData() {
       waiter.resolve(null)
     })
   }, [])
-
-  const registerStartedForward = useCallback((
-    forward: ForwardInstance,
-    replacedForwardId = '',
-  ) => {
-    const latestForward = selectForwardStartSnapshot(
-      forward,
-      forwardEventSnapshotsRef.current.get(forward.id) ?? null,
-    )
-    setData((current) => ({
-      ...current,
-      forwards: shouldRemoveForward(latestForward)
-        ? current.forwards.filter((item) => (
-            item.id !== replacedForwardId && item.id !== latestForward.id
-          ))
-        : upsertForward(
-            current.forwards.filter((item) => item.id !== replacedForwardId),
-            latestForward,
-          ),
-    }))
-    const previousWaiter = forwardStartCompletionWaitersRef.current.get(forward.id)
-    forwardStartCompletionWaitersRef.current.delete(forward.id)
-    if (previousWaiter) {
-      window.clearTimeout(previousWaiter.cleanupTimer)
-      previousWaiter.resolve(null)
-    }
-    let waiter!: ForwardStartCompletionWaiter
-    const completion = new Promise<ForwardInstance | null>((resolve) => {
-      waiter = {
-        resolve,
-        registeredAt: performance.now(),
-        cleanupTimer: 0,
-      }
-    })
-    waiter.cleanupTimer = window.setTimeout(() => {
-      if (forwardStartCompletionWaitersRef.current.get(forward.id) === waiter) {
-        resolveForwardStartCompletion(forward.id, null)
-      }
-    }, FORWARD_START_COMPLETION_TIMEOUT_MS)
-    forwardStartCompletionWaitersRef.current.set(forward.id, waiter)
-    if (isForwardStartSettledStatus(latestForward.status)) {
-      resolveForwardStartCompletion(forward.id, latestForward)
-      return completion
-    }
-    void syncForwardAfterStart(
-      gateways.forwards,
-      forward.id,
-      (nextForward) => {
-        const shouldRemove = shouldRemoveForward(nextForward)
-        if (shouldRemove) {
-          setForwardErrorEvent({
-            type: 'error',
-            forward: nextForward,
-            message: nextForward.last_error || nextForward.status_message,
-          })
-        }
-        setData((current) => {
-          if (shouldRemove) {
-            return {
-              ...current,
-              forwards: current.forwards.filter((item) => item.id !== nextForward.id),
-            }
-          }
-          return { ...current, forwards: upsertForward(current.forwards, nextForward) }
-        })
-      },
-      () => forwardEventRevisionsRef.current.get(forward.id) ?? 0,
-      () => forwardStartCompletionWaitersRef.current.has(forward.id),
-    ).then((settledForward) => {
-      if (settledForward !== undefined) {
-        resolveForwardStartCompletion(forward.id, settledForward)
-      }
-    }).catch((error) => {
-      console.error('同步端口转发启动终态失败', error)
-    })
-    return completion
-  }, [gateways.forwards, resolveForwardStartCompletion])
-
-  const reconcileRestartFailure = useCallback(async (
-    replacedForwardId: string,
-    stopConfirmed: boolean,
-  ) => {
-    try {
-      const forwards = await gateways.forwards.forwards()
-      setData((current) => ({
-        ...current,
-        forwards: reconcileForwardsAfterRestartFailure(
-          current.forwards,
-          visibleForwards(forwards ?? []),
-          replacedForwardId,
-          stopConfirmed,
-        ),
-      }))
-    } catch (error) {
-      console.error('端口转发重启失败后的状态对账失败', error)
-      setData((current) => ({
-        ...current,
-        forwards: reconcileForwardsAfterRestartFailure(
-          current.forwards,
-          null,
-          replacedForwardId,
-          stopConfirmed,
-        ),
-      }))
-    }
-  }, [gateways.forwards])
 
   useEffect(() => {
     let disposed = false
@@ -561,395 +420,54 @@ export function useTermousData() {
       ...createSnippetCommands(gateways.snippets, setData),
       ...createFileCatalogCommands(gateways.fileCatalog, setData),
       ...createForwardProfileCommands(gateways.forwards, setData),
-      async startForward(input: ForwardStartRequest) {
-        const forward = await gateways.forwards.startForward(input)
-        void registerStartedForward(forward)
-        return forward
-      },
-      async restartForward(id: string) {
-        const currentForward = data.forwards.find((forward) => forward.id === id)
-        if (!currentForward) {
-          throw new Error('端口转发任务不存在')
-        }
-        let stopConfirmed = false
-        try {
-          const replacement = await restartForwardInstance(
-            currentForward,
-            async (forwardId) => {
-              await gateways.forwards.stopForward(forwardId)
-              stopConfirmed = true
-            },
-            (input) => gateways.forwards.startForward(input),
-          )
-          const completion = registerStartedForward(replacement, currentForward.id)
-          return { forward: replacement, completion }
-        } catch (error) {
-          await reconcileRestartFailure(id, stopConfirmed)
-          throw error
-        }
-      },
-      async stopForward(id: string) {
-        await gateways.forwards.stopForward(id)
-        resolveForwardStartCompletion(id, null)
-        setData((current) => ({
-          ...current,
-          forwards: current.forwards.filter((forward) => forward.id !== id),
-        }))
-      },
-      updateForward(event: ForwardEvent) {
-        if (forwardStartCompletionWaitersRef.current.has(event.forward.id)) {
-          bumpSessionRevision(forwardEventRevisionsRef.current, event.forward.id)
-        }
-        rememberForwardEventSnapshot(forwardEventSnapshotsRef.current, event.forward)
-        resolveForwardStartCompletion(event.forward.id, event.forward)
-        if (shouldEmitForwardError(event)) {
-          setForwardErrorEvent(event)
-        }
-        setData((current) => {
-          if (event.type === 'deleted' || shouldRemoveForward(event.forward)) {
-            return { ...current, forwards: current.forwards.filter((forward) => forward.id !== event.forward.id) }
-          }
-          return { ...current, forwards: upsertForward(current.forwards, event.forward) }
-        })
-      },
+      ...createForwardCommands({
+        api: gateways.forwards,
+        forwards: data.forwards,
+        setData,
+        setForwardErrorEvent,
+        forwardStartCompletionWaiters: forwardStartCompletionWaitersRef.current,
+        forwardEventRevisions: forwardEventRevisionsRef.current,
+        forwardEventSnapshots: forwardEventSnapshotsRef.current,
+      }),
       ...createHostCommands({ api: gateways.hosts, hosts: data.hosts, load, setData }),
       ...createCredentialCommands(gateways.credentials, load),
-      async connect(hostId: string, cols = 120, rows = 32) {
-        const session = await gateways.sessions.createSession(hostId, cols, rows)
-        bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
-        inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
-        setActiveSession(session)
-        setData((current) => ({ ...current, sessions: upsertSession(current.sessions, session) }))
-        void load('silent')
-        return session
-      },
-      async openLocalTerminal(shell: LocalShell, cols = 120, rows = 32) {
-        const session = await gateways.sessions.createLocalSession(shell, cols, rows)
-        bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
-        inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
-        setActiveSession(session)
-        setData((current) => ({ ...current, sessions: upsertSession(current.sessions, session) }))
-        void load('silent')
-        return session
-      },
-      async disconnect(sessionId: string) {
-        const linkedFileSessionIds = data.fileSessions
-          .filter((session) => session.source_session_id === sessionId)
-          .map((session) => session.id)
-        try {
-          await gateways.sessions.deleteSession(sessionId)
-        } catch (error) {
-          if (
-            !(error instanceof TermousApiError)
-            || error.status !== 404
-            || error.code !== 'SESSION_NOT_FOUND'
-          ) {
-            throw error
-          }
-        }
-        inventoryRequestRevisionsRef.current.delete(sessionId)
-        inventoryEventRevisionsRef.current.delete(sessionId)
-        inventoryStateSignaturesRef.current.delete(sessionId)
-        bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
-        linkedFileSessionIds.forEach((fileSessionId) => {
-          supersedeFileSessionRecoveryOperation(fileSessionId)
-          bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
-        })
-        const fallbackSession = data.sessions.find((session) => session.id !== sessionId) ?? null
-        setData((current) => ({
-          ...current,
-          sessions: current.sessions.filter((session) => session.id !== sessionId),
-          fileSessions: current.fileSessions.filter((session) => session.source_session_id !== sessionId),
-        }))
-        setFileSessionClosures((current) => {
-          if (!current[sessionId]) {
-            return current
-          }
-          const next = { ...current }
-          delete next[sessionId]
-          return next
-        })
-        setActiveSession((current) => (current?.id === sessionId ? fallbackSession : current))
-        void load('silent')
-      },
-      async refreshSessionInventory(sessionId: string, force = false, signal?: AbortSignal) {
-        const requestRevision = (inventoryRequestRevisionsRef.current.get(sessionId) ?? 0) + 1
-        inventoryRequestRevisionsRef.current.set(sessionId, requestRevision)
-        const baselineEventRevision = inventoryEventRevisionsRef.current.get(sessionId) ?? 0
-        let refreshed: Session
-        try {
-          refreshed = await gateways.sessions.refreshSessionInventory(sessionId, force, { signal })
-        } catch (requestError) {
-          if (baselineEventRevision !== (inventoryEventRevisionsRef.current.get(sessionId) ?? 0)) {
-            throw new TermousApiError('系统信息状态已由实时事件更新', 'REQUEST_SUPERSEDED', 0)
-          }
-          throw requestError
-        }
-        if (!shouldApplySessionInventoryResponse({
-          sessionId,
-          responseSessionId: refreshed.id,
-          requestRevision,
-          latestRequestRevision: inventoryRequestRevisionsRef.current.get(sessionId) ?? 0,
-          baselineEventRevision,
-          latestEventRevision: inventoryEventRevisionsRef.current.get(sessionId) ?? 0,
-          aborted: Boolean(signal?.aborted),
-        })) {
-          return refreshed
-        }
-        bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
-        bumpSessionRevision(inventoryEventRevisionsRef.current, sessionId)
-        inventoryStateSignaturesRef.current.set(sessionId, sessionInventorySignature(refreshed))
-        setData((current) => ({ ...current, sessions: upsertSession(current.sessions, refreshed) }))
-        setActiveSession((current) => (current?.id === refreshed.id ? refreshed : current))
-        return refreshed
-      },
-      async disconnectAllConnections() {
-        const sessionsToClose = data.sessions
-        const fileSessionsToClose = data.fileSessions
-        const forwardsToClose = data.forwards.filter((forward) => (
-          forward.status === 'starting' ||
-          forward.status === 'waiting_host_trust' ||
-          forward.status === 'running' ||
-          forward.status === 'stopping'
-        ))
-        fileSessionsToClose.forEach((fileSession) => {
-          bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
-        })
-        const results = await Promise.allSettled([
-          ...sessionsToClose.map((session) => gateways.sessions.deleteSession(session.id)),
-          ...fileSessionsToClose.map((fileSession) => (
-            gateways.fileSessions.deleteFileSession(fileSession.id)
-          )),
-          ...forwardsToClose.map((forward) => gateways.forwards.stopForward(forward.id)),
-        ])
-        const failed = results.find((result) => result.status === 'rejected')
-        if (failed && failed.status === 'rejected') {
-          throw failed.reason
-        }
-        inventoryRequestRevisionsRef.current.clear()
-        sessionsToClose.forEach((session) => {
-          bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
-          inventoryEventRevisionsRef.current.delete(session.id)
-          inventoryStateSignaturesRef.current.delete(session.id)
-        })
-        fileSessionsToClose.forEach((fileSession) => {
-          bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
-        })
-        setData((current) => ({ ...current, sessions: [], fileSessions: [], forwards: [] }))
-        setActiveSession(null)
-        void load('silent')
-      },
-      selectSession(sessionId: string) {
-        const next = data.sessions.find((session) => session.id === sessionId)
-        if (next) {
-          setActiveSession(next)
-        }
-      },
-      updateSession(sessionId: string, patch: Partial<Session>) {
-        bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
-        const nextInventorySignature = sessionInventorySignature(patch)
-        if (inventoryStateSignaturesRef.current.get(sessionId) !== nextInventorySignature) {
-          inventoryStateSignaturesRef.current.set(sessionId, nextInventorySignature)
-          bumpSessionRevision(inventoryEventRevisionsRef.current, sessionId)
-        }
-        setActiveSession((current) => (current?.id === sessionId ? { ...current, ...patch } : current))
-        setData((current) => ({
-          ...current,
-          ...markHostRecentlyConnected(
-            current.hosts,
-            current.sessions,
-            sessionId,
-            patch,
-          ),
-        }))
-      },
-      async connectFileSession(
-        hostId: string,
-        sourceSessionId = '',
-        initialPath = '',
-        replacedFileSessionId = '',
-      ) {
-        if (replacedFileSessionId) {
-          bumpSessionRevision(fileSessionEventRevisionsRef.current, replacedFileSessionId)
-        }
-        const createFileSession = () => (
-          gateways.fileSessions.createFileSession(hostId, sourceSessionId, initialPath)
-        )
-        const fileSession = replacedFileSessionId
-          ? await runQueuedFileSessionRecoveryOperation(
-              fileSessionRecoveryCloseEpochsRef.current,
-              fileSessionRecoveryQueuesRef.current,
-              replacedFileSessionId,
-              createFileSession,
-              async (supersededSession) => {
-                if (supersededSession.id !== replacedFileSessionId) {
-                  suppressFileSessionRecoveryResult(
-                    suppressedFileSessionIdsRef.current,
-                    supersededSession.id,
-                    replacedFileSessionId,
-                  )
-                  bumpSessionRevision(
-                    fileSessionEventRevisionsRef.current,
-                    supersededSession.id,
-                  )
-                  setData((current) => ({
-                    ...current,
-                    fileSessions: current.fileSessions.filter(
-                      (session) => session.id !== supersededSession.id,
-                    ),
-                  }))
-                  try {
-                    const cleaned = await cleanupSuppressedFileSessionRecoveryResult(
-                      suppressedFileSessionIdsRef.current,
-                      supersededSession.id,
-                      replacedFileSessionId,
-                      () => gateways.fileSessions.deleteFileSession(supersededSession.id),
-                    )
-                    if (cleaned) {
-                      bumpSessionRevision(
-                        fileSessionEventRevisionsRef.current,
-                        supersededSession.id,
-                      )
-                    }
-                  } catch (error) {
-                    console.error('清理已被显式关闭覆盖的文件会话失败', {
-                      fileSessionId: supersededSession.id,
-                      error,
-                    })
-                    scheduleSuppressedFileSessionCleanup(
-                      gateways,
-                      supersededSession.id,
-                      replacedFileSessionId,
-                    )
-                    throw error
-                  }
-                }
-              },
-              releaseFileSessionRecoveryEpoch,
-            )
-          : await createFileSession()
-        adoptSuppressedFileSessionRecoveryResult(
-          suppressedFileSessionIdsRef.current,
-          fileSession.id,
-        )
-        if (replacedFileSessionId && replacedFileSessionId !== fileSession.id) {
-          bumpSessionRevision(fileSessionEventRevisionsRef.current, replacedFileSessionId)
-        }
-        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
-        setData((current) => ({
-          ...current,
-          fileSessions: replaceFileSessionSnapshot(
-            current.fileSessions,
-            fileSession,
-            replacedFileSessionId,
-          ),
-        }))
-        if (fileSession.source_session_id) {
-          setFileSessionClosures((current) => {
-            if (!current[fileSession.source_session_id as string]) {
-              return current
-            }
-            const next = { ...current }
-            delete next[fileSession.source_session_id as string]
-            return next
-          })
-        }
-        return fileSession
-      },
-      async closeFileSession(fileSessionId: string) {
-        supersedeFileSessionRecoveryOperation(fileSessionId)
-        const closingFileSession = data.fileSessions.find((session) => session.id === fileSessionId)
-        const sourceSessionId = closingFileSession?.source_session_id ?? ''
-        if (closingFileSession && sourceSessionId) {
-          setFileSessionClosures((current) => ({
-            ...current,
-            [sourceSessionId]: {
-              session: closingFileSession,
-              phase: 'closing',
-            },
-          }))
-        }
-        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
-        try {
-          await gateways.fileSessions.deleteFileSession(fileSessionId)
-        } catch (error) {
-          if (!(error instanceof TermousApiError && error.code === 'SFTP_FILE_SESSION_NOT_FOUND')) {
-            if (sourceSessionId) {
-              setFileSessionClosures((current) => removeMatchingFileSessionClosure(
-                current,
-                sourceSessionId,
-                fileSessionId,
-              ))
-            }
-            throw error
-          }
-        }
-        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
-        if (closingFileSession && sourceSessionId) {
-          setFileSessionClosures((current) => {
-            const closure = current[sourceSessionId]
-            if (!closure || closure.session.id !== fileSessionId) {
-              return current
-            }
-            return {
-              ...current,
-              [sourceSessionId]: {
-                session: closingFileSession,
-                phase: 'closed',
-              },
-            }
-          })
-        }
-        setData((current) => ({
-          ...current,
-          fileSessions: current.fileSessions.filter((session) => session.id !== fileSessionId),
-        }))
-      },
-      async reconnectFileSession(fileSessionId: string) {
-        const fileSession = await runQueuedFileSessionRecoveryOperation(
-          fileSessionRecoveryCloseEpochsRef.current,
-          fileSessionRecoveryQueuesRef.current,
-          fileSessionId,
-          () => gateways.fileSessions.reconnectFileSession(fileSessionId),
-          undefined,
-          releaseFileSessionRecoveryEpoch,
-        )
-        adoptSuppressedFileSessionRecoveryResult(
-          suppressedFileSessionIdsRef.current,
-          fileSession.id,
-        )
-        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
-        setData((current) => ({
-          ...current,
-          fileSessions: upsertFileSessionSnapshot(current.fileSessions, fileSession),
-        }))
-        if (fileSession.source_session_id) {
-          setFileSessionClosures((current) => removeMatchingFileSessionClosure(
-            current,
-            fileSession.source_session_id as string,
-            fileSession.id,
-          ))
-        }
-        return fileSession
-      },
-      supersedeFileSessionRecovery(fileSessionId: string) {
-        supersedeFileSessionRecoveryOperation(fileSessionId)
-      },
-      updateFileSession(fileSession: FileSession) {
-        if (suppressedFileSessionIdsRef.current.has(fileSession.id)) {
-          return
-        }
-        bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
-        setData((current) => {
-          if (!current.fileSessions.some((session) => session.id === fileSession.id)) {
-            return current
-          }
-          return {
-            ...current,
-            fileSessions: upsertFileSessionSnapshot(current.fileSessions, fileSession),
-          }
-        })
-      },
+      ...createSessionCommands({
+        sessionApi: gateways.sessions,
+        fileSessionApi: gateways.fileSessions,
+        forwardApi: gateways.forwards,
+        sessions: data.sessions,
+        fileSessions: data.fileSessions,
+        forwards: data.forwards,
+        setData,
+        setActiveSession,
+        setFileSessionClosures,
+        sessionEventRevisions: sessionEventRevisionsRef.current,
+        fileSessionEventRevisions: fileSessionEventRevisionsRef.current,
+        inventoryRequestRevisions: inventoryRequestRevisionsRef.current,
+        inventoryEventRevisions: inventoryEventRevisionsRef.current,
+        inventoryStateSignatures: inventoryStateSignaturesRef.current,
+        load,
+        supersedeFileSessionRecoveryOperation,
+      }),
+      ...createFileSessionCommands({
+        api: gateways.fileSessions,
+        fileSessions: data.fileSessions,
+        setData,
+        setFileSessionClosures,
+        fileSessionRecoveryCloseEpochs: fileSessionRecoveryCloseEpochsRef.current,
+        fileSessionRecoveryQueues: fileSessionRecoveryQueuesRef.current,
+        suppressedFileSessionIds: suppressedFileSessionIdsRef.current,
+        fileSessionEventRevisions: fileSessionEventRevisionsRef.current,
+        releaseFileSessionRecoveryEpoch,
+        scheduleSuppressedFileSessionCleanup: (fileSessionId, originalSessionId) => {
+          scheduleSuppressedFileSessionCleanup(
+            gateways,
+            fileSessionId,
+            originalSessionId,
+          )
+        },
+        supersedeFileSessionRecoveryOperation,
+      }),
     }),
     [
       gateways,
@@ -963,9 +481,6 @@ export function useTermousData() {
       load,
       releaseFileSessionRecoveryEpoch,
       reloadForwards,
-      reconcileRestartFailure,
-      registerStartedForward,
-      resolveForwardStartCompletion,
       scheduleSuppressedFileSessionCleanup,
       supersedeFileSessionRecoveryOperation,
     ],

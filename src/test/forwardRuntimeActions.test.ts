@@ -33,6 +33,7 @@ test('重启完成提示等待替代实例进入最终运行状态', () => {
   const app = readSource('app', 'main', 'App.tsx')
   const data = [
     readSource('app', 'data-runtime', 'useTermousData.ts'),
+    readSource('app', 'data-runtime', 'commands', 'forwardCommands.ts'),
     readSource('app', 'data-runtime', 'model', 'forwardRuntimeState.ts'),
   ].join('\n')
 
@@ -49,7 +50,7 @@ test('重启完成提示等待替代实例进入最终运行状态', () => {
   assert.match(data, /FORWARD_START_COMPLETION_TIMEOUT_MS/)
   assert.match(
     data,
-    /if \(forwardStartCompletionWaitersRef\.current\.has\(event\.forward\.id\)\)/,
+    /if \(forwardStartCompletionWaiters\.has\(event\.forward\.id\)\)/,
   )
   assert.match(
     data,

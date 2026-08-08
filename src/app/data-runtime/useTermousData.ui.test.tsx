@@ -14,7 +14,7 @@ function restoreProperty(
   Reflect.deleteProperty(target, property)
 }
 
-test('普通父级重渲染保持 RuntimeGateways 及各领域 gateway 引用稳定', () => {
+test('普通父级重渲染保持 RuntimeGateways、领域 gateway 及 action 引用稳定', () => {
   const originalBridge = Object.getOwnPropertyDescriptor(window, 'termous')
   const pendingConfig = new Promise<never>(() => undefined)
   Object.defineProperty(window, 'termous', {
@@ -32,6 +32,8 @@ test('普通父级重渲染保持 RuntimeGateways 及各领域 gateway 引用稳
   try {
     const firstGateways = view.result.current.state.gateways
     const firstDomainGateways = Object.entries(firstGateways)
+    const firstActions = view.result.current.state.actions
+    const firstDomainActions = Object.entries(firstActions)
 
     view.rerender({ marker: 'second' })
 
@@ -39,6 +41,10 @@ test('普通父级重渲染保持 RuntimeGateways 及各领域 gateway 引用稳
     expect(view.result.current.state.gateways).toBe(firstGateways)
     for (const [name, gateway] of firstDomainGateways) {
       expect(view.result.current.state.gateways[name as keyof typeof firstGateways]).toBe(gateway)
+    }
+    expect(view.result.current.state.actions).toBe(firstActions)
+    for (const [name, action] of firstDomainActions) {
+      expect(view.result.current.state.actions[name as keyof typeof firstActions]).toBe(action)
     }
   } finally {
     view.unmount()
