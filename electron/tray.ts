@@ -5,8 +5,8 @@ import type {
   TrayMenuLabels,
   TrayMenuState as TrayMenuContract,
   TrayRecentHost,
+  UpdateSnapshot,
 } from '#common/contracts'
-import type { UpdateSnapshot } from './updateTypes'
 
 type TrayLanguage = TrayMenuContract['language']
 

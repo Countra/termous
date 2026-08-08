@@ -4,7 +4,7 @@ import {
   UpdateInstallConfirmationAuthority,
   normalizeRuntimeSummary,
 } from './updateInstallConfirmation.ts'
-import type { UpdateSnapshot } from './updateTypes.ts'
+import type { UpdateSnapshot } from '#common/contracts'
 
 function downloadedSnapshot(
   patch: Partial<UpdateSnapshot> = {},

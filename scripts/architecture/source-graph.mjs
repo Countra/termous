@@ -21,6 +21,7 @@ const typescriptSubstitutions = new Map([
   ['.cjs', ['.cts', '.d.cts', '.ts', '.d.ts']],
 ])
 const declarationExtensions = ['.d.ts', '.d.mts', '.d.cts']
+const rendererBridgeProperties = new Set(['termous', 'termousUpdate'])
 
 const toPosix = (value) => value.split(path.sep).join('/')
 const foldedPath = (value) => path.resolve(value).toLocaleLowerCase('en-US')
@@ -166,6 +167,46 @@ function pureReExportSpecifier(sourceFile) {
   return first && specifiers.every((specifier) => specifier === first) ? first : null
 }
 
+function unwrapExpression(input) {
+  let expression = input
+  while (
+    ts.isParenthesizedExpression(expression)
+    || ts.isAsExpression(expression)
+    || ts.isTypeAssertionExpression(expression)
+    || ts.isNonNullExpression(expression)
+    || ts.isSatisfiesExpression(expression)
+  ) {
+    expression = expression.expression
+  }
+  return expression
+}
+
+function isGlobalThisExpression(input) {
+  const expression = unwrapExpression(input)
+  return ts.isIdentifier(expression) && expression.text === 'globalThis'
+}
+
+function isWindowExpression(input) {
+  const expression = unwrapExpression(input)
+  if (ts.isIdentifier(expression)) {
+    return expression.text === 'window'
+  }
+  if (ts.isPropertyAccessExpression(expression)) {
+    return expression.name.text === 'window' && isGlobalThisExpression(expression.expression)
+  }
+  return ts.isElementAccessExpression(expression)
+    && Boolean(expression.argumentExpression)
+    && ts.isStringLiteralLike(expression.argumentExpression)
+    && expression.argumentExpression.text === 'window'
+    && isGlobalThisExpression(expression.expression)
+}
+
+function staticPropertyName(node) {
+  return node && (ts.isIdentifier(node) || ts.isStringLiteralLike(node))
+    ? node.text
+    : null
+}
+
 function readModule(projectRoot, filePath) {
   const sourceFile = ts.createSourceFile(
     filePath,
@@ -180,9 +221,15 @@ function readModule(projectRoot, filePath) {
     throw new Error(`${relativeProjectPath(projectRoot, filePath)} 无法解析: ${message}`)
   }
   const imports = []
+  const windowBridgeReferences = []
   const addImport = (specifier, kind) => {
     if (typeof specifier === 'string' && specifier.length > 0) {
       imports.push({ specifier, kind })
+    }
+  }
+  const addWindowBridgeReference = (property, kind) => {
+    if (rendererBridgeProperties.has(property)) {
+      windowBridgeReferences.push({ property, kind })
     }
   }
   const visit = (node) => {
@@ -218,6 +265,27 @@ function readModule(projectRoot, filePath) {
     ) {
       addImport(node.argument.literal.text, 'type')
     }
+    if (ts.isPropertyAccessExpression(node) && isWindowExpression(node.expression)) {
+      addWindowBridgeReference(node.name.text, 'property')
+    } else if (
+      ts.isElementAccessExpression(node)
+      && isWindowExpression(node.expression)
+      && node.argumentExpression
+    ) {
+      addWindowBridgeReference(staticPropertyName(node.argumentExpression), 'element')
+    } else if (
+      ts.isVariableDeclaration(node)
+      && ts.isObjectBindingPattern(node.name)
+      && node.initializer
+      && isWindowExpression(node.initializer)
+    ) {
+      for (const element of node.name.elements) {
+        addWindowBridgeReference(
+          staticPropertyName(element.propertyName ?? element.name),
+          'destructure',
+        )
+      }
+    }
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
@@ -225,6 +293,7 @@ function readModule(projectRoot, filePath) {
     imports,
     pathReferences: sourceFile.referencedFiles.map((reference) => reference.fileName),
     pureReExportSpecifier: pureReExportSpecifier(sourceFile),
+    windowBridgeReferences,
   }
 }
 
@@ -371,14 +440,22 @@ export function buildProjectGraph(inputRoot) {
     .filter((file) => !isTestSource(projectRoot, file))
   const lookup = sourceLookup(allSourceFiles)
   const edges = []
+  const externalImports = []
   const outOfScopeImports = []
   const pathReferences = []
+  const windowBridgeReferences = []
   for (const sourceFile of productionSourceFiles) {
     const module = readModule(projectRoot, sourceFile)
     for (const specifier of module.pathReferences) {
       pathReferences.push({ sourceFile, specifier })
     }
+    for (const reference of module.windowBridgeReferences) {
+      windowBridgeReferences.push({ sourceFile, ...reference })
+    }
     for (const imported of module.imports) {
+      if (!imported.specifier.startsWith('.') && !imported.specifier.startsWith('#')) {
+        externalImports.push({ sourceFile, ...imported })
+      }
       const resolved = resolveImport(
         projectRoot,
         imported.specifier,
@@ -409,7 +486,9 @@ export function buildProjectGraph(inputRoot) {
     allSourceFiles,
     productionSourceFiles,
     edges,
+    externalImports,
     outOfScopeImports,
     pathReferences,
+    windowBridgeReferences,
   }
 }

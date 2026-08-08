@@ -82,6 +82,87 @@ test('合法的公共入口和向下层依赖不产生违规', (t) => {
   assert.deepEqual(violations, [])
 })
 
+test('Renderer 裸导入 electron 包及其子路径会被明确拒绝', (t) => {
+  const violations = violationsFor(t, {
+    'electron/main.ts': "import { app } from 'electron'\nexport const main = app\n",
+    'src/features/hosts/index.ts': [
+      "import type { BrowserWindow } from 'electron'",
+      "import updater from 'electron-updater'",
+      "void import('electron/main')",
+      "const renderer = require('electron/renderer')",
+      'export type HostWindow = BrowserWindow',
+      'export const hostRuntime = { renderer, updater }',
+      '',
+    ].join('\n'),
+  })
+
+  assert.deepEqual(
+    violations.filter((item) => item.rule === 'renderer-electron-package'),
+    [
+      {
+        rule: 'renderer-electron-package',
+        source: 'src/features/hosts/index.ts',
+        specifier: 'electron/main',
+        kind: 'dynamic',
+      },
+      {
+        rule: 'renderer-electron-package',
+        source: 'src/features/hosts/index.ts',
+        specifier: 'electron/renderer',
+        kind: 'static',
+      },
+      {
+        rule: 'renderer-electron-package',
+        source: 'src/features/hosts/index.ts',
+        specifier: 'electron',
+        kind: 'type',
+      },
+    ],
+  )
+})
+
+test('Renderer 只有 shared bridge 可以直接访问预加载桥接对象', (t) => {
+  const violations = violationsFor(t, {
+    'src/shared/bridge/index.ts': [
+      'export const mainBridge = window.termous',
+      "export const updateBridge = globalThis['window']['termousUpdate']",
+      '',
+    ].join('\n'),
+    'src/features/hosts/index.ts': [
+      'const propertyBridge = (window as Window).termous',
+      "const elementBridge = globalThis['window']['termousUpdate']",
+      'const { termous: destructuredBridge } = window',
+      'export const hostBridges = { propertyBridge, elementBridge, destructuredBridge }',
+      '',
+    ].join('\n'),
+    'src/features/hosts/index.test.ts': 'export const testBridge = window.termous\n',
+  })
+
+  assert.deepEqual(
+    violations.filter((item) => item.rule === 'renderer-window-termous'),
+    [
+      {
+        rule: 'renderer-window-termous',
+        source: 'src/features/hosts/index.ts',
+        specifier: 'window.termous',
+        kind: 'destructure',
+      },
+      {
+        rule: 'renderer-window-termous',
+        source: 'src/features/hosts/index.ts',
+        specifier: 'window.termous',
+        kind: 'property',
+      },
+      {
+        rule: 'renderer-window-termous',
+        source: 'src/features/hosts/index.ts',
+        specifier: 'window.termousUpdate',
+        kind: 'element',
+      },
+    ],
+  )
+})
+
 test('下层反向依赖上层会被标记', (t) => {
   const violations = violationsFor(t, {
     'src/features/connect/index.ts': 'export const connect = true\n',

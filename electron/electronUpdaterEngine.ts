@@ -16,7 +16,7 @@ import type {
   UpdateErrorCode,
   UpdateReleaseInfo,
   UpdateSupport,
-} from './updateTypes.ts'
+} from '#common/contracts'
 
 const releaseNotesLimit = 4_000
 const releaseNotesEntryLimit = 16

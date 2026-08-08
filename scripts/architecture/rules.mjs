@@ -104,6 +104,12 @@ function isLegacySharedPublicDependency(sourceInfo, targetInfo, edge) {
     && edge.specifier === canonicalPublicSpecifier(targetInfo)
 }
 
+function isRendererBridgeSource(info) {
+  return info.realm === 'renderer'
+    && info.layer === 'shared'
+    && info.slice === 'bridge'
+}
+
 function collectFileViolations(projectRoot, sourceFiles, violations) {
   for (const sourceFile of sourceFiles) {
     const info = classify(projectRoot, sourceFile)
@@ -208,6 +214,42 @@ function collectOutOfScopeViolations(projectRoot, outOfScopeImports, violations)
   }
 }
 
+function collectExternalImportViolations(projectRoot, externalImports, violations) {
+  for (const imported of externalImports) {
+    const sourceInfo = classify(projectRoot, imported.sourceFile)
+    if (
+      sourceInfo.realm !== 'renderer'
+      || (
+        imported.specifier !== 'electron'
+        && !imported.specifier.startsWith('electron/')
+      )
+    ) {
+      continue
+    }
+    addViolation(violations, {
+      rule: 'renderer-electron-package',
+      source: relativeProjectPath(projectRoot, imported.sourceFile),
+      specifier: imported.specifier,
+      kind: imported.kind,
+    })
+  }
+}
+
+function collectWindowBridgeViolations(projectRoot, references, violations) {
+  for (const reference of references) {
+    const sourceInfo = classify(projectRoot, reference.sourceFile)
+    if (sourceInfo.realm !== 'renderer' || isRendererBridgeSource(sourceInfo)) {
+      continue
+    }
+    addViolation(violations, {
+      rule: 'renderer-window-termous',
+      source: relativeProjectPath(projectRoot, reference.sourceFile),
+      specifier: `window.${reference.property}`,
+      kind: reference.kind,
+    })
+  }
+}
+
 function collectPathReferenceViolations(projectRoot, pathReferences, violations) {
   for (const reference of pathReferences) {
     addViolation(violations, {
@@ -293,8 +335,10 @@ export function collectArchitectureViolations(inputRoot) {
   const violations = new Map()
   collectFileViolations(graph.projectRoot, graph.productionSourceFiles, violations)
   collectEdgeViolations(graph.projectRoot, graph.edges, violations)
+  collectExternalImportViolations(graph.projectRoot, graph.externalImports, violations)
   collectOutOfScopeViolations(graph.projectRoot, graph.outOfScopeImports, violations)
   collectPathReferenceViolations(graph.projectRoot, graph.pathReferences, violations)
+  collectWindowBridgeViolations(graph.projectRoot, graph.windowBridgeReferences, violations)
   addCycleViolations(graph.projectRoot, violations, graph.allSourceFiles, graph.edges)
   return [...violations.values()]
     .sort((left, right) => violationKey(left).localeCompare(violationKey(right), 'en'))

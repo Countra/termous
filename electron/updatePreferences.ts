@@ -5,7 +5,7 @@ import type {
   UpdateCheckInterval,
   UpdatePreferences,
   UpdatePreferencesPatch,
-} from './updateTypes.ts'
+} from '#common/contracts'
 
 const updatePreferencesSchemaVersion = 1
 const dailyIntervalMs = 24 * 60 * 60 * 1000

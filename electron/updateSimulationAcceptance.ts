@@ -9,9 +9,9 @@ import {
 } from 'node:fs/promises'
 import path from 'node:path'
 import { BrowserWindow } from 'electron'
+import type { UpdateSnapshot } from '#common/contracts'
 import type { ApplicationUpdateRuntime } from './updateRuntime'
 import type { ValidatedSimulationAsset } from './updateSimulationFixtureValidation'
-import type { UpdateSnapshot } from './updateTypes'
 
 const targetVersion = '0.0.2'
 const reportFileName = 'acceptance-report.json'
