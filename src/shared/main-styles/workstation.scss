@@ -78,15 +78,6 @@
   color: var(--text-secondary);
 }
 
-.list-panel,
-.editor-panel {
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
-  backdrop-filter: blur(18px) saturate(1.12);
-  box-shadow: var(--shadow-soft);
-}
-
 body[data-panel-resizing='true'] {
   cursor: col-resize;
   user-select: none;
@@ -94,176 +85,6 @@ body[data-panel-resizing='true'] {
 
 body[data-panel-resizing='true'] * {
   cursor: col-resize !important;
-}
-
-.compact-title p {
-  color: var(--text-secondary);
-}
-
-.management-grid {
-  grid-template-columns: minmax(360px, 0.86fr) minmax(440px, 1.14fr);
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.management-grid > .list-panel,
-.management-grid > .editor-panel {
-  display: flex;
-  min-width: 0;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.management-grid > .editor-panel .editor-sections {
-  min-height: 0;
-  flex: 1 1 auto;
-  overflow: auto;
-  padding-right: 2px;
-}
-
-.management-grid > .editor-panel > .danger-zone,
-.management-grid > .editor-panel > .full-width {
-  flex: 0 0 auto;
-  margin-top: 12px;
-}
-
-.list-panel,
-.editor-panel {
-  padding: 16px;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
-  gap: 12px;
-}
-
-.editor-sections {
-  display: grid;
-  gap: 14px;
-  margin-top: 14px;
-}
-
-.form-section {
-  display: grid;
-  gap: 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-subtle);
-  padding: 12px;
-}
-
-.form-section h3 {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 760;
-}
-
-.host-icon-editor {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 12px;
-}
-
-.host-icon-preview {
-  --host-avatar-radius: 14px;
-  --host-avatar-border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
-  --host-avatar-bg-local:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent),
-    color-mix(in srgb, var(--surface-elevated) 82%, transparent);
-}
-
-.host-icon-copy {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.host-icon-copy h3,
-.host-icon-copy p {
-  margin: 0;
-}
-
-.host-icon-copy p,
-.host-icon-copy small {
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.host-icon-remove.ant-btn {
-  height: 34px;
-  padding-inline: 8px;
-  color: var(--text-muted);
-}
-
-.host-icon-remove.ant-btn:not(:disabled):hover {
-  background: color-mix(in srgb, var(--surface-strong) 58%, transparent);
-  color: var(--text-primary);
-}
-
-.host-group-field {
-  display: grid;
-  align-content: start;
-  gap: 6px;
-}
-
-.host-group-control .ant-select-selector {
-  min-height: 38px;
-}
-
-.host-group-control {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 38px;
-  gap: 8px;
-  align-items: center;
-}
-
-.host-group-create-trigger.ant-btn {
-  width: 38px;
-  min-width: 38px;
-  height: 38px;
-  padding: 0;
-  border-radius: 11px;
-}
-
-.host-group-create-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 8px;
-  align-items: center;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface-subtle) 54%, transparent);
-  padding: 8px;
-}
-
-.host-group-create-row .ant-input {
-  min-height: 36px;
-}
-
-.host-group-create-row .secondary-button.ant-btn,
-.host-group-cancel.ant-btn {
-  height: 36px;
-  min-height: 36px;
-  padding-inline: 12px;
-}
-
-.host-group-cancel.ant-btn {
-  color: var(--text-secondary);
-}
-
-.host-group-cancel.ant-btn:not(:disabled):hover {
-  background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
-  color: var(--text-primary);
 }
 
 .ant-input,
@@ -299,15 +120,6 @@ body[data-panel-resizing='true'] * {
   color: var(--text-muted);
 }
 
-.security-stack {
-  display: none;
-}
-
-.danger-zone {
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--danger) 6%, transparent);
-}
-
 @keyframes termous-spin {
   to {
     transform: rotate(360deg);
@@ -318,30 +130,8 @@ body[data-panel-resizing='true'] * {
   z-index: 3400;
 }
 
-@media (width <= 1180px) {
-  .management-grid {
-    grid-template-columns: 1fr;
-    overflow: auto;
-  }
-
-  .management-grid > .list-panel {
-    min-height: 360px;
-  }
-
-  .management-grid > .editor-panel {
-    min-height: 560px;
-  }
-
-}
-
 @media (width <= 980px) {
   body {
     overflow: auto;
-  }
-}
-
-@media (width <= 760px) {
-  .form-grid {
-    grid-template-columns: 1fr;
   }
 }

@@ -305,3 +305,50 @@ test('命令片段筛选的 AntD Segmented 样式由共置 Module 承载', () =>
   assert.match(snippetCatalogStyles, /\.segmented-control:global\(\.ant-segmented\) :global\(\.ant-segmented-item-label\)/)
   assert.doesNotMatch(source('../shared/main-styles/workstation.scss'), /^\.(?:segmented-control|ant-segmented \.ant-segmented-item-label)/m)
 })
+
+test('失效的管理表单规则离开兼容层，现行布局由共置 Module 承载', () => {
+  const legacyStyles = source('../shared/main-styles/workstation.scss')
+  const managementWorkspaceSource = source('../shared/ui/ManagementWorkspace.tsx')
+  const managementWorkspaceStyles = source('../shared/ui/ManagementWorkspace.module.scss')
+  const hostWorkspaceSource = source('../features/hosts/ui/HostManagementWorkspace.tsx')
+  const hostEditorSource = source('../features/hosts/ui/HostEditor.tsx')
+  const hostManagementStyles = source('../features/hosts/ui/HostManagement.module.scss')
+
+  for (const selector of [
+    'list-panel',
+    'editor-panel',
+    'compact-title',
+    'management-grid',
+    'form-grid',
+    'editor-sections',
+    'form-section',
+    'host-icon-editor',
+    'host-icon-preview',
+    'host-icon-copy',
+    'host-icon-remove',
+    'host-group-field',
+    'host-group-control',
+    'host-group-create-trigger',
+    'host-group-create-row',
+    'host-group-cancel',
+    'security-stack',
+    'danger-zone',
+  ]) {
+    assert.doesNotMatch(legacyStyles, new RegExp(`^\\.${selector}(?=[\\s.,:{-])`, 'm'))
+  }
+
+  assert.match(managementWorkspaceSource, /import styles from '\.\/ManagementWorkspace\.module\.scss'/)
+  assert.match(managementWorkspaceSource, /styles\['management-workspace-grid'\]/)
+  assert.match(managementWorkspaceSource, /styles\['management-panel'\]/)
+  assert.match(managementWorkspaceStyles, /\.management-workspace-grid\s*\{[^}]*grid-template-columns:/s)
+  assert.match(managementWorkspaceStyles, /\.management-panel\s*\{[^}]*border-radius:\s*14px;/s)
+
+  assert.match(hostWorkspaceSource, /styles\['workspace-root'\]/)
+  assert.match(hostEditorSource, /className="host-editor-icon-actions"/)
+  assert.match(hostEditorSource, /className="host-group-editor-control"/)
+  assert.match(hostEditorSource, /className="host-group-editor-create"/)
+  assert.match(hostManagementStyles, /\.workspace-root:global\(\.hosts-management-workspace\)/)
+  assert.match(hostManagementStyles, /\.host-editor-icon-actions\s*\{/)
+  assert.match(hostManagementStyles, /\.host-group-editor-control\s*\{/)
+  assert.match(hostManagementStyles, /\.host-group-editor-create\s*\{/)
+})
