@@ -256,7 +256,21 @@ vi.mock('#shared/hooks', () => ({
 
 vi.mock('#app/data-runtime', () => ({
   useTermousData: () => ({
-    api: {},
+    gateways: {
+      forwards: {},
+      hosts: {},
+      credentials: {},
+      hostKeys: {},
+      terminal: {},
+      transfers: {},
+      files: {},
+      observability: {},
+      service: {},
+      docker: {},
+      firewall: {},
+      alias: {},
+      dataPortability: {},
+    },
     data: testState.data,
     initializing: false,
     apiReady: false,

@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { TermousApi } from '#app/data-runtime'
+import { createRuntimeGatewaysFromConfig } from '#app/data-runtime'
 import { TermousApiError } from '#shared/api'
 
 const API_BASE_URL = 'http://127.0.0.1:8122'
 
-function createApi(apiToken = 'test-token') {
-  return new TermousApi({
+function createGateways(apiToken = 'test-token') {
+  return createRuntimeGatewaysFromConfig({
     apiBaseUrl: API_BASE_URL,
     apiToken,
     version: '1.0.0-test',
@@ -23,7 +23,7 @@ function createAbortablePendingFetch() {
   }))
 }
 
-describe('TermousApi HTTP transport 合同', () => {
+describe('领域 API HTTP transport 合同', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
@@ -35,11 +35,11 @@ describe('TermousApi HTTP transport 合同', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ status: 'stopping' }), { status: 200 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
     vi.stubGlobal('fetch', fetchMock)
-    const api = createApi()
+    const gateways = createGateways()
 
-    await expect(api.health()).resolves.toEqual({ status: 'ok' })
-    await expect(api.shutdown('transport-test')).resolves.toEqual({ status: 'stopping' })
-    await expect(api.deleteConnectionProxy('proxy/id')).resolves.toBeUndefined()
+    await expect(gateways.runtime.health()).resolves.toEqual({ status: 'ok' })
+    await expect(gateways.runtime.shutdown('transport-test')).resolves.toEqual({ status: 'stopping' })
+    await expect(gateways.hosts.deleteConnectionProxy('proxy/id')).resolves.toBeUndefined()
 
     const [healthUrl, healthInit] = fetchMock.mock.calls[0] as [URL, RequestInit]
     expect(healthUrl.toString()).toBe(`${API_BASE_URL}/api/v1/healthz`)
@@ -72,7 +72,7 @@ describe('TermousApi HTTP transport 合同', () => {
       },
     }), { status: 409 })))
 
-    await expect(createApi().health()).rejects.toMatchObject({
+    await expect(createGateways().runtime.health()).rejects.toMatchObject({
       name: 'TermousApiError',
       message: '资源状态已变化',
       code: 'RESOURCE_CONFLICT',
@@ -86,7 +86,7 @@ describe('TermousApi HTTP transport 合同', () => {
       throw new TypeError('连接被拒绝')
     }))
 
-    await expect(createApi().health()).rejects.toMatchObject({
+    await expect(createGateways().runtime.health()).rejects.toMatchObject({
       name: 'TermousApiError',
       message: '连接被拒绝',
       code: 'NETWORK_ERROR',
@@ -97,9 +97,9 @@ describe('TermousApi HTTP transport 合同', () => {
   it('将调用方取消与 transport 超时区分为不同错误码', async () => {
     const fetchMock = createAbortablePendingFetch()
     vi.stubGlobal('fetch', fetchMock)
-    const api = createApi()
+    const gateways = createGateways()
     const callerController = new AbortController()
-    const canceledRequest = api.hostKeyChallenges(callerController.signal)
+    const canceledRequest = gateways.hostKeys.hostKeyChallenges(callerController.signal)
 
     callerController.abort()
 
@@ -110,7 +110,7 @@ describe('TermousApi HTTP transport 合同', () => {
     })
 
     vi.useFakeTimers()
-    const timedOutRequest = api.refreshHostReachability()
+    const timedOutRequest = gateways.hosts.refreshHostReachability()
     const timedOutAssertion = expect(timedOutRequest).rejects.toMatchObject({
       message: '请求超时',
       code: 'REQUEST_TIMEOUT',
@@ -127,7 +127,7 @@ describe('TermousApi HTTP transport 合同', () => {
     }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const result = await createApi().fileOperationBlobResult('operation/id')
+    const result = await createGateways().files.fileOperationBlobResult('operation/id')
 
     expect(await result.text()).toBe('termous-binary')
     expect(result.type).toBe('application/octet-stream')
@@ -146,7 +146,7 @@ describe('TermousApi HTTP transport 合同', () => {
       },
     }), { status: 409 })))
 
-    await expect(createApi().fileOperationBlobResult('operation/id')).rejects.toMatchObject({
+    await expect(createGateways().files.fileOperationBlobResult('operation/id')).rejects.toMatchObject({
       name: 'TermousApiError',
       message: '文件操作失败',
       code: 'FILE_OPERATION_FAILED',
@@ -159,7 +159,7 @@ describe('TermousApi HTTP transport 合同', () => {
     vi.useFakeTimers()
     vi.stubGlobal('fetch', createAbortablePendingFetch())
 
-    const timedOutRequest = createApi().fileOperationBlobResult('operation/id')
+    const timedOutRequest = createGateways().files.fileOperationBlobResult('operation/id')
     const timedOutAssertion = expect(timedOutRequest).rejects.toMatchObject({
       message: '请求超时',
       code: 'REQUEST_TIMEOUT',
@@ -174,7 +174,7 @@ describe('TermousApi HTTP transport 合同', () => {
     vi.stubGlobal('fetch', fetchMock)
     const file = new File(['font-data'], 'custom.ttf', { type: 'font/ttf' })
 
-    await createApi().uploadTerminalFont(file)
+    await createGateways().settings.uploadTerminalFont(file)
 
     const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit]
     expect(init.method).toBe('POST')
@@ -184,18 +184,18 @@ describe('TermousApi HTTP transport 合同', () => {
   })
 
   it('保持 WebSocket 与静态资源 URL 的协议、鉴权和编码规则', () => {
-    const api = new TermousApi({
+    const gateways = createRuntimeGatewaysFromConfig({
       apiBaseUrl: 'https://core.example.test/base?stale=1',
       apiToken: 'token value',
     })
 
-    const websocketUrl = new URL(api.websocketUrl('/api/v1/events'))
+    const websocketUrl = new URL(gateways.terminal.websocketUrl('/api/v1/events'))
     expect(websocketUrl.protocol).toBe('wss:')
     expect(websocketUrl.pathname).toBe('/api/v1/events')
     expect(websocketUrl.searchParams.get('token')).toBe('token value')
     expect(websocketUrl.searchParams.has('stale')).toBe(false)
 
-    const fontUrl = new URL(api.terminalFontFileUrl('font/id', 'sha value'))
+    const fontUrl = new URL(gateways.terminal.terminalFontFileUrl('font/id', 'sha value'))
     expect(fontUrl.pathname).toBe('/api/v1/terminal-fonts/font%2Fid/file')
     expect(fontUrl.searchParams.get('token')).toBe('token value')
     expect(fontUrl.searchParams.get('sha256')).toBe('sha value')
@@ -206,6 +206,6 @@ describe('TermousApi HTTP transport 合同', () => {
       throw new Error('offline')
     }))
 
-    await expect(createApi().health()).rejects.toBeInstanceOf(TermousApiError)
+    await expect(createGateways().runtime.health()).rejects.toBeInstanceOf(TermousApiError)
   })
 })

@@ -1,6 +1,5 @@
 export { FilesWorkspace } from './ui/FilesWorkspace.tsx'
 export type {
-  FilesWorkspaceApi,
   FilesWorkspaceBookmarkManagementIntent,
   FilesWorkspaceData,
   FilesWorkspaceProps,

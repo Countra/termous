@@ -101,8 +101,11 @@ function App() {
 function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<SetStateAction<ThemeMode>> }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
-  const { api, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
-  const createCredentialGateway = useCallback(() => Promise.resolve(api), [api])
+  const { gateways, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
+  const createCredentialGateway = useCallback(
+    () => Promise.resolve(gateways.credentials),
+    [gateways.credentials],
+  )
   const updateRuntime = useUpdateRuntime()
   const updateForwardRef = useRef(actions.updateForward)
   const reloadForwardStateRef = useRef(actions.reloadForwardsSilent)
@@ -243,7 +246,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
 
     const connect = () => {
-      socket = new WebSocket(api.forwardEventsUrl())
+      socket = new WebSocket(gateways.forwards.forwardEventsUrl())
       socket.onopen = () => {
         void reloadForwardStateRef.current().catch(() => undefined)
       }
@@ -267,7 +270,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       }
       socket?.close()
     }
-  }, [api, apiReady, notification, t])
+  }, [apiReady, gateways.forwards, notification, t])
 
   useEffect(() => {
     if (!apiReady) {
@@ -278,7 +281,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     let socket: WebSocket | undefined
 
     const connect = () => {
-      socket = new WebSocket(api.hostReachabilityEventsUrl())
+      socket = new WebSocket(gateways.hosts.hostReachabilityEventsUrl())
       socket.onmessage = (event: MessageEvent<string>) => {
         try {
           updateHostReachabilityRef.current(JSON.parse(event.data) as HostReachabilityEvent)
@@ -305,7 +308,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       }
       socket?.close()
     }
-  }, [api, apiReady])
+  }, [apiReady, gateways.hosts])
 
   useEffect(() => {
     let disposed = false
@@ -940,7 +943,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         },
       }} />
       <FilesWorkspaceRuntimeProvider>
-        <TransferRuntimeProvider api={api}>
+        <TransferRuntimeProvider api={gateways.transfers}>
           <UpdateRuntimeSummaryReporter
             apiReady={apiReady}
             sessions={data.sessions}
@@ -948,7 +951,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             forwards={data.forwards}
           />
           <TerminalRuntimeProvider
-            api={api}
+            api={gateways.terminal}
             sessions={data.sessions}
             theme={theme}
             terminalSettings={data.settings.terminal}
@@ -974,7 +977,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           inert={page !== 'workbench'}
         >
           <WorkbenchPage
-            api={api}
+            fileGateway={gateways.files}
+            observabilityGateway={gateways.observability}
+            serviceGateway={gateways.service}
+            dockerGateway={gateways.docker}
+            firewallGateway={gateways.firewall}
+            aliasGateway={gateways.alias}
+            getHostIconUrl={(iconId) => gateways.hosts.hostIconFileUrl(iconId)}
             data={workbenchData}
             fileSessionClosures={fileSessionClosures}
             theme={theme}
@@ -1036,7 +1045,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             }, t('proxies.deleted'))}
             onUploadHostIcon={uploadHostIcon}
             onDeleteHostIcon={deleteHostIcon}
-            getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+            getHostIconUrl={(iconId) => gateways.hosts.hostIconFileUrl(iconId)}
           />
         ) : null}
 
@@ -1056,7 +1065,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
         {page === 'files' ? (
           <FilesPage
-            api={api}
+            fileGateway={gateways.files}
+            getHostIconUrl={(iconId) => gateways.hosts.hostIconFileUrl(iconId)}
             data={filesPageData}
             theme={theme}
             activeFileSession={activeFileSession}
@@ -1206,7 +1216,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             windowSettings={data.settings.window}
             terminalFonts={data.terminalFonts}
             appVersion={appVersion}
-            dataPortabilityGateway={api}
+            dataPortabilityGateway={gateways.dataPortability}
             updatePreferencesRuntime={updatePreferencesRuntime}
             actionBusy={actionBusy}
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
@@ -1252,9 +1262,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         onOpenForward={openTemporaryForwardForHost}
         onToggleFavorite={(hostId) => runAction(() => actions.toggleHostFavorite(hostId))}
         onRefreshReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
-        getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+        getHostIconUrl={(iconId) => gateways.hosts.hostIconFileUrl(iconId)}
       />
-      <HostKeyCoordinator api={api} enabled={apiReady && !coreFatal} hosts={data.hosts} />
+      <HostKeyCoordinator api={gateways.hostKeys} enabled={apiReady && !coreFatal} hosts={data.hosts} />
       <Modal
         centered
         width={420}

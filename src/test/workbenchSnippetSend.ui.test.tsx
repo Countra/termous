@@ -203,7 +203,13 @@ function renderWorkbench(
   overrides: Partial<ComponentProps<typeof WorkbenchPage>> = {},
 ) {
   const props: ComponentProps<typeof WorkbenchPage> = {
-    api: {} as never,
+    fileGateway: {} as never,
+    observabilityGateway: {} as never,
+    serviceGateway: {} as never,
+    dockerGateway: {} as never,
+    firewallGateway: {} as never,
+    aliasGateway: {} as never,
+    getHostIconUrl: vi.fn(() => ''),
     data: data(snippets),
     fileSessionClosures: {},
     theme: 'dark',

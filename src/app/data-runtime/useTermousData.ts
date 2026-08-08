@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createApiFromRuntime, TermousApi, TermousApiError } from './api/runtimeApi'
+import { TermousApiError } from '#shared/api'
+import {
+  createRuntimeGateways,
+  createRuntimeGatewaysFromConfig,
+  type RuntimeGateways,
+} from './api/runtimeGateways'
 import type {
   ForwardEvent,
   ForwardInstance,
@@ -75,7 +80,7 @@ import type { AppData } from './model/appData'
 import type { LocalShell, Session } from './model/sessionTypes'
 
 export function useTermousData() {
-  const [api, setApi] = useState(() => new TermousApi())
+  const [gateways, setGateways] = useState(() => createRuntimeGatewaysFromConfig())
   const [data, setData] = useState<AppData>(initialData)
   const [initializing, setInitializing] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -139,7 +144,7 @@ export function useTermousData() {
   }, [])
 
   const scheduleSuppressedFileSessionCleanup = useCallback((
-    apiClient: TermousApi,
+    runtimeGateways: RuntimeGateways,
     fileSessionId: string,
     originalSessionId: string,
   ) => {
@@ -158,7 +163,7 @@ export function useTermousData() {
         suppressedFileSessionIdsRef.current,
         fileSessionId,
         originalSessionId,
-        () => apiClient.deleteFileSession(fileSessionId),
+        () => runtimeGateways.fileSessions.deleteFileSession(fileSessionId),
       ).then((cleaned) => {
         if (cleaned) {
           bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
@@ -197,7 +202,10 @@ export function useTermousData() {
     })
   }, [data.fileSessions, data.sessions])
 
-  const loadWithApi = useCallback(async (apiClient: TermousApi, mode: LoadMode = 'background') => {
+  const loadWithGateways = useCallback(async (
+    runtimeGateways: RuntimeGateways,
+    mode: LoadMode = 'background',
+  ) => {
     const loadRevision = loadRevisionRef.current + 1
     loadRevisionRef.current = loadRevision
     const completionSettingsReloadCheckpoint = {
@@ -217,9 +225,9 @@ export function useTermousData() {
     }
     setError(null)
     try {
-      await apiClient.health()
+      await runtimeGateways.runtime.health()
       for (const [fileSessionId, originalSessionId] of suppressedFileSessionIdsRef.current) {
-        scheduleSuppressedFileSessionCleanup(apiClient, fileSessionId, originalSessionId)
+        scheduleSuppressedFileSessionCleanup(runtimeGateways, fileSessionId, originalSessionId)
       }
       const [
         settings,
@@ -238,7 +246,7 @@ export function useTermousData() {
         fileSessions,
         forwardProfiles,
         forwards,
-      ] = await loadAppDataSnapshot(apiClient)
+      ] = await loadAppDataSnapshot(runtimeGateways.snapshot)
       if (loadRevision !== loadRevisionRef.current) {
         return
       }
@@ -356,12 +364,12 @@ export function useTermousData() {
   }, [scheduleSuppressedFileSessionCleanup])
 
   const load = useCallback(
-    (mode: LoadMode = 'background') => loadWithApi(api, mode),
-    [api, loadWithApi],
+    (mode: LoadMode = 'background') => loadWithGateways(gateways, mode),
+    [gateways, loadWithGateways],
   )
 
-  const reloadForwardsWithApi = useCallback(async (apiClient: TermousApi) => {
-    const forwards = await apiClient.forwards()
+  const reloadForwardsWithGateways = useCallback(async (runtimeGateways: RuntimeGateways) => {
+    const forwards = await runtimeGateways.forwards.forwards()
     reconcileForwardStartCompletions(
       forwardStartCompletionWaitersRef.current,
       forwardEventSnapshotsRef.current,
@@ -373,8 +381,8 @@ export function useTermousData() {
   }, [])
 
   const reloadForwards = useCallback(
-    () => reloadForwardsWithApi(api),
-    [api, reloadForwardsWithApi],
+    () => reloadForwardsWithGateways(gateways),
+    [gateways, reloadForwardsWithGateways],
   )
 
   const resolveForwardStartCompletion = useCallback((
@@ -445,7 +453,7 @@ export function useTermousData() {
       return completion
     }
     void syncForwardAfterStart(
-      api,
+      gateways.forwards,
       forward.id,
       (nextForward) => {
         const shouldRemove = shouldRemoveForward(nextForward)
@@ -476,14 +484,14 @@ export function useTermousData() {
       console.error('同步端口转发启动终态失败', error)
     })
     return completion
-  }, [api, resolveForwardStartCompletion])
+  }, [gateways.forwards, resolveForwardStartCompletion])
 
   const reconcileRestartFailure = useCallback(async (
     replacedForwardId: string,
     stopConfirmed: boolean,
   ) => {
     try {
-      const forwards = await api.forwards()
+      const forwards = await gateways.forwards.forwards()
       setData((current) => ({
         ...current,
         forwards: reconcileForwardsAfterRestartFailure(
@@ -505,17 +513,17 @@ export function useTermousData() {
         ),
       }))
     }
-  }, [api])
+  }, [gateways.forwards])
 
   useEffect(() => {
     let disposed = false
-    void createApiFromRuntime()
-      .then((runtimeApi) => {
+    void createRuntimeGateways()
+      .then((runtimeGateways) => {
         if (disposed) {
           return
         }
-        setApi(runtimeApi)
-        void loadWithApi(runtimeApi, 'initial')
+        setGateways(runtimeGateways)
+        void loadWithGateways(runtimeGateways, 'initial')
       })
       .catch((runtimeError) => {
         if (disposed) {
@@ -528,7 +536,7 @@ export function useTermousData() {
     return () => {
       disposed = true
     }
-  }, [loadWithApi])
+  }, [loadWithGateways])
 
   const actions = useMemo(
     () => ({
@@ -536,7 +544,7 @@ export function useTermousData() {
       reloadSilent: () => load('silent'),
       reloadForwardsSilent: () => reloadForwards(),
       ...createSettingsCommands({
-        api,
+        api: gateways.settings,
         currentSettings: data.settings,
         setData,
         completionSettingsMutation: completionSettingsMutationRef,
@@ -550,11 +558,11 @@ export function useTermousData() {
         shortcutSettings: shortcutSettingsRef,
         confirmedShortcutSettings: shortcutSettingsConfirmedRef,
       }),
-      ...createSnippetCommands(api, setData),
-      ...createFileCatalogCommands(api, setData),
-      ...createForwardProfileCommands(api, setData),
+      ...createSnippetCommands(gateways.snippets, setData),
+      ...createFileCatalogCommands(gateways.fileCatalog, setData),
+      ...createForwardProfileCommands(gateways.forwards, setData),
       async startForward(input: ForwardStartRequest) {
-        const forward = await api.startForward(input)
+        const forward = await gateways.forwards.startForward(input)
         void registerStartedForward(forward)
         return forward
       },
@@ -568,10 +576,10 @@ export function useTermousData() {
           const replacement = await restartForwardInstance(
             currentForward,
             async (forwardId) => {
-              await api.stopForward(forwardId)
+              await gateways.forwards.stopForward(forwardId)
               stopConfirmed = true
             },
-            (input) => api.startForward(input),
+            (input) => gateways.forwards.startForward(input),
           )
           const completion = registerStartedForward(replacement, currentForward.id)
           return { forward: replacement, completion }
@@ -581,7 +589,7 @@ export function useTermousData() {
         }
       },
       async stopForward(id: string) {
-        await api.stopForward(id)
+        await gateways.forwards.stopForward(id)
         resolveForwardStartCompletion(id, null)
         setData((current) => ({
           ...current,
@@ -604,10 +612,10 @@ export function useTermousData() {
           return { ...current, forwards: upsertForward(current.forwards, event.forward) }
         })
       },
-      ...createHostCommands({ api, hosts: data.hosts, load, setData }),
-      ...createCredentialCommands(api, load),
+      ...createHostCommands({ api: gateways.hosts, hosts: data.hosts, load, setData }),
+      ...createCredentialCommands(gateways.credentials, load),
       async connect(hostId: string, cols = 120, rows = 32) {
-        const session = await api.createSession(hostId, cols, rows)
+        const session = await gateways.sessions.createSession(hostId, cols, rows)
         bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
         inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
         setActiveSession(session)
@@ -616,7 +624,7 @@ export function useTermousData() {
         return session
       },
       async openLocalTerminal(shell: LocalShell, cols = 120, rows = 32) {
-        const session = await api.createLocalSession(shell, cols, rows)
+        const session = await gateways.sessions.createLocalSession(shell, cols, rows)
         bumpSessionRevision(sessionEventRevisionsRef.current, session.id)
         inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
         setActiveSession(session)
@@ -629,7 +637,7 @@ export function useTermousData() {
           .filter((session) => session.source_session_id === sessionId)
           .map((session) => session.id)
         try {
-          await api.deleteSession(sessionId)
+          await gateways.sessions.deleteSession(sessionId)
         } catch (error) {
           if (
             !(error instanceof TermousApiError)
@@ -670,7 +678,7 @@ export function useTermousData() {
         const baselineEventRevision = inventoryEventRevisionsRef.current.get(sessionId) ?? 0
         let refreshed: Session
         try {
-          refreshed = await api.refreshSessionInventory(sessionId, force, { signal })
+          refreshed = await gateways.sessions.refreshSessionInventory(sessionId, force, { signal })
         } catch (requestError) {
           if (baselineEventRevision !== (inventoryEventRevisionsRef.current.get(sessionId) ?? 0)) {
             throw new TermousApiError('系统信息状态已由实时事件更新', 'REQUEST_SUPERSEDED', 0)
@@ -708,9 +716,11 @@ export function useTermousData() {
           bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSession.id)
         })
         const results = await Promise.allSettled([
-          ...sessionsToClose.map((session) => api.deleteSession(session.id)),
-          ...fileSessionsToClose.map((fileSession) => api.deleteFileSession(fileSession.id)),
-          ...forwardsToClose.map((forward) => api.stopForward(forward.id)),
+          ...sessionsToClose.map((session) => gateways.sessions.deleteSession(session.id)),
+          ...fileSessionsToClose.map((fileSession) => (
+            gateways.fileSessions.deleteFileSession(fileSession.id)
+          )),
+          ...forwardsToClose.map((forward) => gateways.forwards.stopForward(forward.id)),
         ])
         const failed = results.find((result) => result.status === 'rejected')
         if (failed && failed.status === 'rejected') {
@@ -762,7 +772,9 @@ export function useTermousData() {
         if (replacedFileSessionId) {
           bumpSessionRevision(fileSessionEventRevisionsRef.current, replacedFileSessionId)
         }
-        const createFileSession = () => api.createFileSession(hostId, sourceSessionId, initialPath)
+        const createFileSession = () => (
+          gateways.fileSessions.createFileSession(hostId, sourceSessionId, initialPath)
+        )
         const fileSession = replacedFileSessionId
           ? await runQueuedFileSessionRecoveryOperation(
               fileSessionRecoveryCloseEpochsRef.current,
@@ -791,7 +803,7 @@ export function useTermousData() {
                       suppressedFileSessionIdsRef.current,
                       supersededSession.id,
                       replacedFileSessionId,
-                      () => api.deleteFileSession(supersededSession.id),
+                      () => gateways.fileSessions.deleteFileSession(supersededSession.id),
                     )
                     if (cleaned) {
                       bumpSessionRevision(
@@ -805,7 +817,7 @@ export function useTermousData() {
                       error,
                     })
                     scheduleSuppressedFileSessionCleanup(
-                      api,
+                      gateways,
                       supersededSession.id,
                       replacedFileSessionId,
                     )
@@ -859,7 +871,7 @@ export function useTermousData() {
         }
         bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
         try {
-          await api.deleteFileSession(fileSessionId)
+          await gateways.fileSessions.deleteFileSession(fileSessionId)
         } catch (error) {
           if (!(error instanceof TermousApiError && error.code === 'SFTP_FILE_SESSION_NOT_FOUND')) {
             if (sourceSessionId) {
@@ -898,7 +910,7 @@ export function useTermousData() {
           fileSessionRecoveryCloseEpochsRef.current,
           fileSessionRecoveryQueuesRef.current,
           fileSessionId,
-          () => api.reconnectFileSession(fileSessionId),
+          () => gateways.fileSessions.reconnectFileSession(fileSessionId),
           undefined,
           releaseFileSessionRecoveryEpoch,
         )
@@ -940,7 +952,7 @@ export function useTermousData() {
       },
     }),
     [
-      api,
+      gateways,
       completionSettingsWriteQueue,
       shortcutSettingsWriteQueue,
       data.fileSessions,
@@ -959,7 +971,7 @@ export function useTermousData() {
     ],
   )
 
-  return { api, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, fileSessionClosures, actions }
+  return { gateways, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, fileSessionClosures, actions }
 }
 
 function publicMessage(error: unknown) {

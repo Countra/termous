@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { TermousApi } from '#app/data-runtime'
 import {
   defaultTerminalSettings,
   fontFamilyFromSetting,
@@ -78,7 +77,7 @@ describe('Terminal 字体与配置合同', () => {
   it('只为导入字体写入受控 Font Face，并在清空时移除', () => {
     const api = {
       terminalFontFileUrl: vi.fn(() => 'http://127.0.0.1/font/"custom".ttf'),
-    } as unknown as TermousApi
+    }
 
     syncImportedFontFaces(api, fonts)
 

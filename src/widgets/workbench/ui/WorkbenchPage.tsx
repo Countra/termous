@@ -126,7 +126,13 @@ interface SessionInventoryRequestView {
 }
 
 export interface WorkbenchPageProps {
-  api: WorkbenchGateway
+  fileGateway: FileGateway
+  observabilityGateway: ObservabilityGateway
+  serviceGateway: ServiceGateway
+  dockerGateway: DockerGateway
+  firewallGateway: FirewallGateway
+  aliasGateway: AliasGateway
+  getHostIconUrl: (iconId: string) => string
   data: WorkbenchData
   fileSessionClosures: Readonly<Record<string, FileSessionClosureState>>
   theme: ThemeMode
@@ -162,7 +168,13 @@ export interface WorkbenchPageProps {
 }
 
 export function WorkbenchPage({
-  api,
+  fileGateway,
+  observabilityGateway,
+  serviceGateway,
+  dockerGateway,
+  firewallGateway,
+  aliasGateway,
+  getHostIconUrl,
   data,
   fileSessionClosures,
   theme,
@@ -1235,7 +1247,7 @@ export function WorkbenchPage({
               quickConnectOpen={quickConnectOpen}
               quickConnectQuery={quickConnectQuery}
               suppressNextClickRef={suppressNextTabClickRef}
-              getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+              getHostIconUrl={getHostIconUrl}
               resolveTitle={resolveSessionTitle}
               onQuickConnectOpenChange={setQuickConnectOpen}
               onQuickConnectQueryChange={setQuickConnectQuery}
@@ -1306,7 +1318,7 @@ export function WorkbenchPage({
                 sessionBadgeStatus={sessionBadgeStatus}
                 sessionStatusLabel={sessionStatusLabel}
                 sessionStateLabel={sessionStateLabel}
-                getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+                getHostIconUrl={getHostIconUrl}
                 onOpenFiles={onOpenFiles}
                 onReconnect={reconnectActiveSession}
                 onClose={closeSessionTab}
@@ -1314,7 +1326,7 @@ export function WorkbenchPage({
           ),
           files: (
               <WorkbenchFilesPanel
-                api={api}
+                api={fileGateway}
                 data={data}
                 fileSessionClosures={fileSessionClosures}
                 session={activeSession}
@@ -1355,7 +1367,7 @@ export function WorkbenchPage({
           ),
           monitor: (
               <SystemMonitorPanel
-                api={api}
+                api={observabilityGateway}
                 session={activeSession}
                 enabled={active && detailsActiveTab === 'monitor' && !detailsCollapsed}
                 theme={theme}
@@ -1370,12 +1382,12 @@ export function WorkbenchPage({
                 }}
               />
           ),
-          processes: <ProcessPanel api={api} session={activeSession} enabled={active && detailsActiveTab === 'processes' && !detailsCollapsed} />,
-          services: <ServicePanel api={api} session={activeSession} enabled={active && detailsActiveTab === 'services' && !detailsCollapsed} />,
-          docker: <DockerPanel api={api} session={activeSession} enabled={active && detailsActiveTab === 'docker' && !detailsCollapsed} />,
+          processes: <ProcessPanel api={observabilityGateway} session={activeSession} enabled={active && detailsActiveTab === 'processes' && !detailsCollapsed} />,
+          services: <ServicePanel api={serviceGateway} session={activeSession} enabled={active && detailsActiveTab === 'services' && !detailsCollapsed} />,
+          docker: <DockerPanel api={dockerGateway} session={activeSession} enabled={active && detailsActiveTab === 'docker' && !detailsCollapsed} />,
           firewall: (
               <FirewallPanel
-                api={api}
+                api={firewallGateway}
                 session={activeSession}
                 host={sessionHost}
                 enabled={active && detailsActiveTab === 'firewall' && !detailsCollapsed}
@@ -1395,7 +1407,7 @@ export function WorkbenchPage({
           ),
           aliases: (
               <AliasPanel
-                api={api}
+                api={aliasGateway}
                 session={activeSession}
                 sessionIds={aliasSessionIds}
                 hosts={data.hosts}
@@ -1529,13 +1541,6 @@ function sessionInventoryViewSignature(session: Session | null) {
     session?.linux_system_info?.collected_at ?? '',
   ].join('\u0000')
 }
-
-type WorkbenchGateway = FileGateway
-  & ObservabilityGateway
-  & ServiceGateway
-  & DockerGateway
-  & FirewallGateway
-  & AliasGateway
 
 export interface WorkbenchData {
   credentials: CredentialView[]

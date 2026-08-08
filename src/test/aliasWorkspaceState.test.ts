@@ -418,7 +418,7 @@ test('工作台在端口转发之后、代码片段之前注册别名页签', ()
 
 test('Alias API 不再发送 ETag、If-Match 或 apply 请求', () => {
   const source = readFileSync(
-    fileURLToPath(new URL('../app/data-runtime/api/termousApi.ts', import.meta.url)),
+    fileURLToPath(new URL('../app/data-runtime/api/gateways/aliasClient.ts', import.meta.url)),
     'utf8',
   )
 

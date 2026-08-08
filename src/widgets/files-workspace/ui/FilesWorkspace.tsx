@@ -162,10 +162,6 @@ import styles from './FilesWorkspace.module.scss'
 const RemoteTextEditorModal = lazy(loadRemoteTextEditorModal)
 const RemoteImageViewerModal = lazy(loadRemoteImageViewerModal)
 
-export interface FilesWorkspaceApi extends FileGateway {
-  hostIconFileUrl: (id: string) => string
-}
-
 export interface FilesWorkspaceData {
   hosts: Host[]
   fileSessions: FileSession[]
@@ -183,7 +179,8 @@ export interface FilesWorkspaceBookmarkManagementIntent {
 }
 
 export interface FilesWorkspaceProps {
-  api: FilesWorkspaceApi
+  fileGateway: FileGateway
+  getHostIconUrl: (iconId: string) => string
   data: FilesWorkspaceData
   theme: ThemeMode
   activeFileSession: FileSession | null
@@ -360,7 +357,8 @@ export function FilesWorkspace(props: FilesWorkspaceProps) {
 }
 
 function FilesWorkspaceContent({
-  api,
+  fileGateway,
+  getHostIconUrl,
   data,
   theme,
   activeFileSession,
@@ -388,6 +386,7 @@ function FilesWorkspaceContent({
   onReorderLocalPathMappings,
 }: FilesWorkspaceProps) {
   const { t } = useTranslation()
+  const api = fileGateway
   const { runtime: shortcutRuntime } = useShortcutRuntime()
   const filesShortcutInstanceId = useId()
   const filesShortcutContextId = `files.page:${filesShortcutInstanceId}`
@@ -3795,7 +3794,7 @@ function FilesWorkspaceContent({
                 onOpenChange={setQuickConnectOpen}
                 onQueryChange={setQuickConnectQuery}
                 onConnect={connectQuickFileHost}
-                getHostIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+                getHostIconUrl={getHostIconUrl}
               />
             )}
           >

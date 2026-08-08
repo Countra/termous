@@ -1,9 +1,9 @@
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TermousApi } from '#app/data-runtime'
 import { TransferRuntimeProvider } from '#app/transfer-runtime'
 import {
   useTransferRuntime,
+  type TransferRuntimeApi,
   type TransferRuntimeValue,
 } from '#features/transfers'
 
@@ -55,7 +55,7 @@ describe('Transfer Runtime Provider', () => {
     const api = {
       transfers,
       transferEventsUrl: () => 'ws://127.0.0.1/api/v1/transfers/events',
-    } as unknown as TermousApi
+    } satisfies TransferRuntimeApi
     const latestValues = new Map<string, TransferRuntimeValue>()
 
     function Probe({ id }: { id: string }) {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { TermousApi } from '#app/data-runtime'
+import { createRuntimeGatewaysFromConfig } from '#app/data-runtime'
 import { TermousApiError } from '#shared/api'
 
 describe('TermousApiError 运行时身份合同', () => {
@@ -18,14 +18,14 @@ describe('TermousApiError 运行时身份合同', () => {
       headers: { 'Content-Type': 'application/json' },
       status: 409,
     })))
-    const api = new TermousApi({
+    const gateways = createRuntimeGatewaysFromConfig({
       apiBaseUrl: 'http://127.0.0.1:8122',
       apiToken: '',
     })
 
     let caught: unknown
     try {
-      await api.health()
+      await gateways.runtime.health()
     } catch (error) {
       caught = error
     }
