@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowLeft, Command, Save } from 'lucide-react'
 import { Button, Checkbox, Form, Input, Tooltip, type FormInstance } from 'antd'
 import { useTranslation } from 'react-i18next'
+import { uiStyles } from '#shared/ui'
 import styles from './AliasPanel.module.scss'
 
 export interface AliasEditorValues {
@@ -35,7 +36,7 @@ export function AliasEditorView({
       <header className={styles['alias-editor-page-header']}>
         <Tooltip
           title={t('workbench.aliases.backToList')}
-          classNames={{ root: 'termous-tooltip' }}
+          classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}
         >
           <Button
             type="text"

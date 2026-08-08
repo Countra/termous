@@ -2,6 +2,7 @@ import { Button, Empty, Select, Tag, Tooltip } from 'antd'
 import { ChevronLeft, ChevronRight, GitCompareArrows, Layers3, ListFilter, SlidersHorizontal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ReactNode } from 'react'
+import { customSelectStyles } from '#shared/ui'
 import type {
   DataPortabilityPlanItem,
   DataPortabilityPlanItemPage,
@@ -94,7 +95,7 @@ export function DataPortabilityPlanView({
         </div>
         <Select<PlanStatusFilter>
           value={statusFilter}
-          classNames={{ popup: { root: `termous-select-popup ${styles['data-portability-select-popup']}` } }}
+          classNames={{ popup: { root: `${customSelectStyles['select-popup']} termous-select-popup ${styles['data-portability-select-popup']}` } }}
           options={[
             { value: 'all', label: t('settings.data.status.all') },
             ...statusOrder.map((status) => ({ value: status, label: t(`settings.data.status.${status}`) })),

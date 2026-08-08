@@ -26,7 +26,7 @@ import type {
 import type { CredentialView } from '#entities/credential'
 import { AuthMethodBadge, HostAvatar } from '#entities/host'
 import type { Host, HostGroup, HostReachability } from '#entities/host'
-import { ConfirmDialog, uiStyles } from '#shared/ui'
+import { ConfirmDialog, confirmDialogStyles, uiStyles } from '#shared/ui'
 import type { AliasGateway, AliasSessionContext } from '../model/contracts'
 import {
   aliasSyncCloseNeedsCancellation,
@@ -323,7 +323,7 @@ export function AliasSyncModal({
         mask={{ closable: !closeConfirmOpen }}
         closable={!closeConfirmOpen}
         zIndex={3700}
-        rootClassName={`termous-modal-root ${styles.root}`}
+        rootClassName={`${confirmDialogStyles['modal-root']} termous-modal-root ${styles.root}`}
         className={styles.modal}
         title={(
           <span className={styles['modal-title']}>
@@ -611,7 +611,7 @@ function SelectableHostRow({
     <Tooltip
       title={tooltip}
       zIndex={3800}
-      classNames={{ root: `termous-tooltip ${styles['host-tooltip']}` }}
+      classNames={{ root: `${uiStyles.tooltip} termous-tooltip ${styles['host-tooltip']}` }}
     >
       <Checkbox
         className={`${styles['select-row']} ${styles['host-row']} ${missingCredential ? styles['is-disabled'] : ''}`}

@@ -63,7 +63,7 @@ import type {
 } from '#entities/file'
 import { joinPath, normalizeRemotePath, parentPath } from '#shared/path'
 import type { FileSessionClosureState } from '#entities/file'
-import { uiStyles, WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
+import { confirmDialogStyles, uiStyles, WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
 import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
 import { WorkbenchFileList } from './WorkbenchFileList'
 import { WorkbenchTransferBar } from './WorkbenchTransferBar'
@@ -713,8 +713,8 @@ function WorkbenchFilesPanelContent({
       content: <Input autoFocus placeholder={t('files.folderName')} onChange={(event) => { name = event.target.value }} />,
       okText: t('app.create'),
       cancelText: t('app.cancel'),
-      className: 'confirm-modal',
-      rootClassName: 'termous-modal-root',
+      className: `${confirmDialogStyles.modal} confirm-modal`,
+      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
       onOk: async () => {
         if (!name.trim() || !files.fileSession?.id) {
           throw new Error(t('files.nameRequired'))
@@ -733,8 +733,8 @@ function WorkbenchFilesPanelContent({
       content: <Input autoFocus defaultValue={entry.name} onChange={(event) => { name = event.target.value }} />,
       okText: t('app.save'),
       cancelText: t('app.cancel'),
-      className: 'confirm-modal',
-      rootClassName: 'termous-modal-root',
+      className: `${confirmDialogStyles.modal} confirm-modal`,
+      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
       onOk: async () => {
         if (!files.fileSession?.id || !name.trim()) {
           throw new Error(t('files.nameRequired'))
@@ -751,8 +751,8 @@ function WorkbenchFilesPanelContent({
     okText: t('app.delete'),
     cancelText: t('app.cancel'),
     okButtonProps: { danger: true },
-    className: 'confirm-modal',
-    rootClassName: 'termous-modal-root',
+    className: `${confirmDialogStyles.modal} confirm-modal`,
+    rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
     onOk: async () => {
       if (files.fileSession?.id) {
         await api.deleteFileSessionFiles(files.fileSession.id, [entry.path], true)

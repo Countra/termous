@@ -234,7 +234,13 @@ vi.mock('#features/hosts', () => ({
   HostKeyCoordinator: () => null,
   hostLauncherIntentForPage: (page: string) => page === 'files' ? 'files' : 'terminal',
 }))
-vi.mock('#shared/ui', () => ({ ConfirmDialog: () => null }))
+vi.mock('#shared/ui', () => ({
+  confirmDialogStyles: {
+    'modal-root': 'modal-root',
+    'modal-wrap': 'modal-wrap',
+  },
+  ConfirmDialog: () => null,
+}))
 vi.mock('#app/update-simulation-slot', () => ({
   readDevelopmentUpdateSimulation: () => null,
 }))

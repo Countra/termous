@@ -2,6 +2,7 @@ import { Button, Empty, Input, Popover, Segmented, Select, Tag, Tooltip } from '
 import { Code2, Filter, Search, Star, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { customSelectStyles, uiStyles } from '#shared/ui'
 import {
   analyzeSnippetRisk,
   normalizeSnippetTags,
@@ -93,10 +94,10 @@ export function SnippetFilterBar({
           </div>
           <Select
             value={selectedGroupId}
-            className="termous-select"
+            className={`${customSelectStyles.select} termous-select`}
             classNames={{
               popup: {
-                root: `termous-select-popup snippet-filter-select-popup ${styles['catalog-root']}`,
+                root: `${customSelectStyles['select-popup']} termous-select-popup snippet-filter-select-popup ${styles['catalog-root']}`,
               },
             }}
             options={[
@@ -141,7 +142,7 @@ export function SnippetFilterBar({
     <div className={`snippet-catalog-filters is-${density} ${styles['catalog-root']}`}>
       <div className="snippet-catalog-search-row">
         <Input
-          className="termous-search-input snippet-catalog-search"
+          className={`${uiStyles['search-input']} termous-search-input snippet-catalog-search`}
           value={query}
           allowClear
           variant="borderless"

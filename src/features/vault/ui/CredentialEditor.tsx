@@ -8,7 +8,7 @@ import {
   type CredentialType,
   type CredentialView,
 } from '#entities/credential'
-import { ConnectionActionButton } from '#shared/ui'
+import { ConnectionActionButton, customSelectStyles } from '#shared/ui'
 import { ManagementPanel } from '#shared/ui'
 import type { CredentialValidationErrors } from '../model/credentialCatalog.ts'
 import { sshKeyAlgorithmSummary } from '../model/sshKeyUi.ts'
@@ -161,8 +161,8 @@ export function CredentialEditor({
                 value={draft.pending_passphrase ? '__pending__' : draft.metadata.passphrase_credential_id ?? ''}
                 options={passphraseOptions}
                 disabled={Boolean(draft.pending_passphrase)}
-                className="termous-select"
-                classNames={{ popup: { root: `termous-select-popup ${styles['credential-passphrase-popup']}` } }}
+                className={`${customSelectStyles.select} termous-select`}
+                classNames={{ popup: { root: `${customSelectStyles['select-popup']} termous-select-popup ${styles['credential-passphrase-popup']}` } }}
                 onChange={(value) => onChange({ metadata: value
                   ? { ...draft.metadata, passphrase_credential_id: value }
                   : omitKey(draft.metadata, 'passphrase_credential_id') })}

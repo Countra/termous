@@ -3,6 +3,7 @@ import { FileText, RotateCcw, SquareTerminal, Trash2, UploadCloud } from 'lucide
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TerminalFont, TerminalSettings } from '#common/contracts'
+import { customSelectStyles } from '#shared/ui'
 import {
   defaultTerminalSettings,
   fontFamilyFromSetting,
@@ -120,8 +121,8 @@ export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUplo
             <Select
               value={draft.font_family}
               disabled={disabled}
-              className={`termous-select ${styles.select}`}
-              classNames={{ popup: { root: 'termous-select-popup' } }}
+              className={`${customSelectStyles.select} termous-select ${styles.select}`}
+              classNames={{ popup: { root: `${customSelectStyles['select-popup']} termous-select-popup` } }}
               options={fontOptions}
               onChange={(fontFamily) => updateDraft({ font_family: fontFamily as TerminalSettings['font_family'] })}
             />

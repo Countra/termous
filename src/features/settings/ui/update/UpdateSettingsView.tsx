@@ -6,6 +6,7 @@ import type {
   UpdateCheckInterval,
   UpdatePreferences,
 } from '#common/contracts'
+import { customSelectStyles } from '#shared/ui'
 import {
   isPreferencePending,
   type PendingPreferenceValues,
@@ -103,10 +104,10 @@ export function UpdateSettingsView({
             hintId="update-settings-check-interval-hint"
             control={(
               <Select<UpdateCheckInterval>
-                className={`termous-select ${styles['update-preference-select']}`}
+                className={`${customSelectStyles.select} termous-select ${styles['update-preference-select']}`}
                 classNames={{
                   popup: {
-                    root: `termous-select-popup ${styles['update-check-interval-popup']}`,
+                    root: `${customSelectStyles['select-popup']} termous-select-popup ${styles['update-check-interval-popup']}`,
                   },
                 }}
                 value={preferences?.check_interval}

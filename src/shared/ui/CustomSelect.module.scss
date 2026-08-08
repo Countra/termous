@@ -2,11 +2,164 @@
   position: relative;
   display: grid;
   min-width: 0;
-  gap: 7px;
+  align-content: start;
+  gap: 6px;
 }
 
 .field-label {
   color: var(--text-secondary);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 650;
+}
+
+.custom-select :global(.ant-select-selector) {
+  min-height: 38px;
+}
+
+.select {
+  width: 100%;
+}
+
+.select :global(.ant-select-selector) {
+  border-color: var(--border) !important;
+  background: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+.select :global(.ant-select-selection-placeholder),
+.select :global(.ant-select-arrow),
+.select :global(.ant-select-clear) {
+  color: var(--text-muted);
+}
+
+.select :global(.ant-select-clear) {
+  background: transparent;
+}
+
+.select:global(.ant-select-multiple) :global(.ant-select-selection-item-remove) {
+  color: var(--text-muted);
+}
+
+.select-popup {
+  z-index: 3300;
+}
+
+.select-popup:global(.ant-select-dropdown) {
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 12px;
+  background: var(--surface-strong) !important;
+  box-shadow:
+    0 18px 42px rgb(0 0 0 / 32%),
+    var(--inner-highlight);
+  padding: 6px;
+}
+
+.select-popup {
+  :global(:root[data-theme="dark"]) &:global(.ant-select-dropdown),
+  :global(:root[data-theme="dark"]) & :global(.rc-virtual-list),
+  :global(:root[data-theme="dark"]) & :global(.rc-virtual-list-holder),
+  :global(:root[data-theme="dark"]) & :global(.rc-virtual-list-holder-inner) {
+    background: var(--surface-strong) !important;
+  }
+}
+
+.select-popup :global(.ant-select-item) {
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+.select-popup :global(.ant-select-item-group) {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 720;
+  background: transparent !important;
+}
+
+.select-popup :global(.ant-select-item-option-content) {
+  min-width: 0;
+}
+
+.select-popup :global(.ant-select-item-option-active:not(.ant-select-item-option-disabled)) {
+  background: #2a2d35 !important;
+  color: var(--text-primary) !important;
+}
+
+.select-popup :global(.ant-select-item-option-selected:not(.ant-select-item-option-disabled)) {
+  background: #343741 !important;
+  color: var(--text-primary) !important;
+}
+
+.select-popup {
+  :global(:root[data-theme="light"]) & :global(.ant-select-item-option-active:not(.ant-select-item-option-disabled)) {
+    background: color-mix(in srgb, var(--surface-subtle) 92%, #fff 8%) !important;
+  }
+
+  :global(:root[data-theme="light"]) & :global(.ant-select-item-option-selected:not(.ant-select-item-option-disabled)) {
+    background: color-mix(in srgb, var(--surface-subtle) 88%, var(--accent-soft) 12%) !important;
+  }
+}
+
+.option-content {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.option-content small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select-dropdown:global(.ant-select-dropdown) {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 12px;
+  background: #21252e !important;
+  box-shadow: var(--shadow-soft);
+}
+
+.select-dropdown :global(.rc-virtual-list),
+.select-dropdown :global(.rc-virtual-list-holder),
+.select-dropdown :global(.rc-virtual-list-holder-inner) {
+  background: #21252e !important;
+}
+
+.select-dropdown :global(.ant-select-item) {
+  color: var(--text-secondary);
+  background: #21252e;
+}
+
+.select-dropdown :global(.ant-select-item-option-active) {
+  background: #2b303a !important;
+}
+
+.select-dropdown :global(.ant-select-item-option-selected) {
+  background: #343b48 !important;
+  color: var(--text-primary);
+  font-weight: 760;
+}
+
+.select-dropdown {
+  :global(:root[data-theme="light"]) &:global(.ant-select-dropdown),
+  :global(:root[data-theme="light"]) & :global(.rc-virtual-list),
+  :global(:root[data-theme="light"]) & :global(.rc-virtual-list-holder),
+  :global(:root[data-theme="light"]) & :global(.rc-virtual-list-holder-inner) {
+    background: #f7f9fc !important;
+  }
+
+  :global(:root[data-theme="light"]) & :global(.ant-select-item) {
+    background: #f7f9fc;
+  }
+
+  :global(:root[data-theme="light"]) & :global(.ant-select-item-option-active) {
+    background: #eef3f9 !important;
+  }
+
+  :global(:root[data-theme="light"]) & :global(.ant-select-item-option-selected) {
+    background: #e5edf8 !important;
+  }
 }

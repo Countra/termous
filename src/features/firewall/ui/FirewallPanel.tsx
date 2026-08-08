@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError } from '#shared/api'
 import { formatBytes } from '#shared/format'
-import { uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState } from '#shared/ui'
+import { customSelectStyles, uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState } from '#shared/ui'
 import type {
   FirewallDesiredState,
   FirewallPersistenceStatus,
@@ -395,8 +395,8 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
           <div className={styles['firewall-provider-picker']}>
             <span className={styles['firewall-provider-picker-label']}>{t('workbench.firewall.providerSwitch')}</span>
             <Select
-              className={`termous-select ${styles['firewall-provider-select']}`}
-              classNames={{ popup: { root: 'termous-select-popup' } }}
+              className={`${customSelectStyles.select} termous-select ${styles['firewall-provider-select']}`}
+              classNames={{ popup: { root: `${customSelectStyles['select-popup']} termous-select-popup` } }}
               value={selectedProvider}
               options={providerOptions.map((provider) => ({
                 value: provider.provider,

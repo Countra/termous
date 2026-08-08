@@ -2,6 +2,7 @@ import { Check, Pencil, RotateCcw, Trash2, Wrench } from 'lucide-react'
 import { Button, Popconfirm, Switch, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { ShellAlias } from '#entities/alias'
+import { uiStyles } from '#shared/ui'
 import {
   shellAliasTone,
   type AliasMutationKind,
@@ -56,7 +57,7 @@ export function AliasRow({
       <Tooltip
         title={panelBusy ? null : detail}
         mouseEnterDelay={0.45}
-        classNames={{ root: `termous-tooltip ${styles['alias-detail-tooltip']}` }}
+        classNames={{ root: `${uiStyles.tooltip} termous-tooltip ${styles['alias-detail-tooltip']}` }}
       >
         <button
           id={id}
@@ -81,7 +82,7 @@ export function AliasRow({
       <div className={styles['alias-row-actions']}>
         <Tooltip
           title={t(alias.enabled ? 'workbench.aliases.disable' : 'workbench.aliases.enable')}
-          classNames={{ root: 'termous-tooltip' }}
+          classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}
         >
           <Switch
             id={`${id}-toggle`}
@@ -98,7 +99,7 @@ export function AliasRow({
             onChange={onToggle}
           />
         </Tooltip>
-        <Tooltip title={t('app.edit')} classNames={{ root: 'termous-tooltip' }}>
+        <Tooltip title={t('app.edit')} classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}>
           <Button
             type="text"
             className={styles['alias-row-action']}
@@ -120,7 +121,7 @@ export function AliasRow({
           onOpenChange={onDeleteConfirmOpenChange}
           onConfirm={onDelete}
         >
-          <Tooltip title={t('app.delete')} classNames={{ root: 'termous-tooltip' }}>
+          <Tooltip title={t('app.delete')} classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}>
             <Button
               type="text"
               danger

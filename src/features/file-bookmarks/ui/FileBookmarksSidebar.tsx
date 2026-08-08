@@ -47,7 +47,7 @@ import type {
   FileBookmarkReorderItem,
 } from '#entities/file'
 import { normalizeRemotePosixPath } from '#shared/path'
-import { contextActionMenuPopupClassName, uiStyles } from '#shared/ui'
+import { contextActionMenuPopupClassName, customSelectStyles, uiStyles } from '#shared/ui'
 import {
   buildBookmarkGroups,
   buildBookmarkReorderItems,
@@ -1663,7 +1663,7 @@ function SidebarEditor({
               <Select
                 id={groupId}
                 value={view.draft.group_id}
-                className="termous-select"
+                className={`${customSelectStyles.select} termous-select`}
                 popupRender={renderBookmarkFloatingLayer}
                 classNames={{ popup: { root: 'files-bookmarks-sidebar-select-popup' } }}
                 options={groupOptions}

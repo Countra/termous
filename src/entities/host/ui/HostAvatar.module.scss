@@ -1,10 +1,30 @@
-.host-avatar {
-  display: grid;
-  width: 32px;
-  height: 32px;
+.host-avatar.host-avatar {
+  --host-avatar-size: 30px;
+  --host-avatar-radius: 8px;
+  --host-avatar-border: 0;
+  --host-avatar-bg-local: var(--host-avatar-bg);
+  --host-avatar-color: var(--accent);
+
+  display: inline-grid;
+  width: var(--host-avatar-size);
+  height: var(--host-avatar-size);
+  flex: 0 0 auto;
   place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
-  color: var(--accent);
+  overflow: hidden;
+  border: var(--host-avatar-border);
+  border-radius: var(--host-avatar-radius);
+  background: var(--host-avatar-bg-local);
+  color: var(--host-avatar-color);
+}
+
+.host-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.host-avatar.has-custom-icon {
+  --host-avatar-border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  --host-avatar-bg-local: color-mix(in srgb, var(--surface-elevated) 82%, transparent);
 }

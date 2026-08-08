@@ -3,7 +3,7 @@ import { Link2, Plus, Search, ShieldCheck, Wand2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { credentialTypeIcon, type CredentialType, type CredentialView } from '#entities/credential'
-import { ConnectionActionButton, EmptyState, ManagementFilterTabs } from '#shared/ui'
+import { ConnectionActionButton, EmptyState, ManagementFilterTabs, uiStyles } from '#shared/ui'
 import { ManagementPanel } from '#shared/ui'
 import { filterCredentials, type CredentialCatalogFilter } from '../model/credentialCatalog.ts'
 import styles from './CredentialManagement.module.scss'
@@ -52,7 +52,7 @@ export function CredentialCatalog({
     >
       <div className={styles['credential-catalog-toolbar']}>
         <Input
-          className="termous-search-input"
+          className={`${uiStyles['search-input']} termous-search-input`}
           value={query}
           allowClear
           variant="borderless"

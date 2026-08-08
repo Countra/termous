@@ -2,6 +2,7 @@ import { Checkbox, Input, Modal, Segmented } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RemoteFileEntry } from '#entities/file'
+import { confirmDialogStyles } from '#shared/ui'
 import styles from './RemotePermissionModal.module.scss'
 
 type PermissionEditorMode = 'visual' | 'numeric'
@@ -63,7 +64,7 @@ export function RemotePermissionModal({
       confirmLoading={saving}
       okButtonProps={{ disabled: !entry || !valid }}
       className="termous-modal permission-editor-modal"
-      rootClassName={`termous-modal-root ${styles.root}`}
+      rootClassName={`${confirmDialogStyles['modal-root']} termous-modal-root ${styles.root}`}
       onCancel={onCancel}
       onOk={() => {
         if (entry && valid) {

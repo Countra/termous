@@ -1,6 +1,7 @@
 import { Button, Tooltip, type ButtonProps } from 'antd'
 import { Plus } from 'lucide-react'
 import { forwardRef } from 'react'
+import uiStyles from './Primitives.module.scss'
 import styles from './SessionTabs.module.scss'
 
 interface SessionNewTabButtonProps extends Omit<ButtonProps, 'children' | 'icon' | 'title' | 'type'> {
@@ -24,7 +25,7 @@ export const SessionNewTabButton = forwardRef<HTMLButtonElement, SessionNewTabBu
       arrow={false}
       mouseEnterDelay={0.35}
       mouseLeaveDelay={0}
-      classNames={{ root: `termous-tooltip ${styles['session-tab-tooltip']}` }}
+      classNames={{ root: `${uiStyles.tooltip} termous-tooltip ${styles['session-tab-tooltip']}` }}
       destroyOnHidden
     >
       <Button

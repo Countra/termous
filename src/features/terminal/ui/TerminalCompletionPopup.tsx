@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import type { AppTheme as ThemeMode } from '#common/contracts'
 import type { CompletionItem } from '#entities/session'
 import { useShortcutRuntime } from '#entities/shortcuts'
+import { uiStyles } from '#shared/ui'
 import { isExactCompletionItem, splitCompletionLabel } from '../model/completionModel'
 import {
   TERMINAL_COMPLETION_POPUP_WIDTH,
@@ -194,7 +195,7 @@ export function TerminalCompletionPopup({
               mouseEnterDelay={0.4}
               destroyOnHidden
               classNames={{
-                root: `termous-tooltip ${styles['terminal-completion-tooltip']} ${styles[`terminal-completion-theme-${themeMode}`]}`,
+                root: `${uiStyles.tooltip} termous-tooltip ${styles['terminal-completion-tooltip']} ${styles[`terminal-completion-theme-${themeMode}`]}`,
               }}
             >
               {option}

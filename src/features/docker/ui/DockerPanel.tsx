@@ -20,7 +20,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DockerAction, DockerContainerDetail, DockerContainerPort, DockerContainerSummary } from '#entities/docker'
-import { uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState } from '#shared/ui'
+import { customSelectStyles, uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState } from '#shared/ui'
 import type { DockerGateway, DockerSessionContext } from '../model/contracts'
 import { defaultDockerQuery, type SessionDockerQueryState, useSessionDocker } from '../model/useSessionDocker'
 import styles from './DockerPanel.module.scss'
@@ -171,7 +171,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
             <Input
               id="docker-container-search"
               name="docker-container-search"
-              className={`host-search-input termous-search-input ${styles['docker-search-input']}`}
+              className={`host-search-input ${uiStyles['search-input']} termous-search-input ${styles['docker-search-input']}`}
               value={docker.query.text}
               allowClear
               variant="borderless"
@@ -358,7 +358,7 @@ function DockerRow({ item, selected, onSelect }: DockerRowProps) {
           </span>
           <div>
             <strong>{item.name || item.short_id || item.id}</strong>
-            <Tooltip title={item.image} classNames={{ root: 'termous-tooltip' }}>
+            <Tooltip title={item.image} classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}>
               <small>{item.image}</small>
             </Tooltip>
           </div>
@@ -377,7 +377,7 @@ function DockerRow({ item, selected, onSelect }: DockerRowProps) {
           <small>{t('workbench.docker.memory')}</small>
           <strong>{stats?.memory_percent || '-'}</strong>
         </span>
-        <Tooltip title={ports || t('workbench.docker.noPorts')} classNames={{ root: 'termous-tooltip' }}>
+        <Tooltip title={ports || t('workbench.docker.noPorts')} classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}>
           <span>
             <small>{t('workbench.docker.ports')}</small>
             <strong>{ports || t('workbench.docker.noPorts')}</strong>
@@ -754,7 +754,7 @@ function DockerLogsModal({ open, containerName, logs, loading, error, tail, coll
           <div className={styles['docker-logs-control-surface']}>
             <div className={styles['docker-logs-primary-row']}>
               <Input
-                className={`host-search-input termous-search-input ${styles['docker-logs-search']}`}
+                className={`host-search-input ${uiStyles['search-input']} termous-search-input ${styles['docker-logs-search']}`}
                 value={query}
                 allowClear
                 variant="borderless"
@@ -776,7 +776,7 @@ function DockerLogsModal({ open, containerName, logs, loading, error, tail, coll
               </div>
               <Select
                 className={styles['docker-log-tail-select']}
-                popupClassName="termous-select-dropdown"
+                popupClassName={`${customSelectStyles['select-dropdown']} termous-select-dropdown`}
                 value={normalizedTail}
                 options={getDockerLogTailOptions(normalizedTail)}
                 onChange={(value) => onRefresh(value)}
@@ -970,7 +970,7 @@ function DockerDetailItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt>{label}</dt>
-      <Tooltip title={value} classNames={{ root: 'termous-tooltip' }}>
+      <Tooltip title={value} classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}>
         <dd>{value}</dd>
       </Tooltip>
     </div>
@@ -986,7 +986,7 @@ function DockerCompactSection({ title, values }: { title: string; values: string
       <strong>{title}</strong>
       <div>
         {values.slice(0, 4).map((value) => (
-          <Tooltip key={value} title={value} classNames={{ root: 'termous-tooltip' }}>
+          <Tooltip key={value} title={value} classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}>
             <span>{value}</span>
           </Tooltip>
         ))}

@@ -8,6 +8,7 @@ import type {
   FileBookmarkInput,
 } from '#entities/file'
 import { sortBookmarkGroups, suggestBookmarkName } from '#entities/file'
+import { confirmDialogStyles, uiStyles } from '#shared/ui'
 import styles from './WorkbenchBookmarksPopover.module.scss'
 
 const scopedClassName = (...classNames: string[]) => classNames
@@ -81,7 +82,7 @@ export function WorkbenchBookmarkEditorModal({
       mask={{ closable: !saving }}
       closable={!saving}
       zIndex={3700}
-      rootClassName={scopedClassName('termous-modal-root', 'workbench-bookmark-editor-root')}
+      rootClassName={`${confirmDialogStyles['modal-root']} ${scopedClassName('termous-modal-root', 'workbench-bookmark-editor-root')}`}
       className={scopedClassName('workbench-bookmark-editor-modal')}
       title={(
         <span className={scopedClassName('workbench-bookmark-editor-title')}>
@@ -133,7 +134,7 @@ export function WorkbenchBookmarkEditorModal({
               placement="topLeft"
               mouseEnterDelay={0.45}
               zIndex={3800}
-              classNames={{ root: scopedClassName('termous-tooltip', 'workbench-bookmark-editor-tooltip') }}
+              classNames={{ root: `${uiStyles.tooltip} ${scopedClassName('termous-tooltip', 'workbench-bookmark-editor-tooltip')}` }}
             >
               <strong>{currentPath}</strong>
             </Tooltip>

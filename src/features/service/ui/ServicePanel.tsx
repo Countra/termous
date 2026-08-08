@@ -24,7 +24,7 @@ import type {
   SystemServiceOperationPhase,
   SystemServiceSummary,
 } from '#entities/service'
-import { WorkspaceEmptyState } from '#shared/ui'
+import { customSelectStyles, uiStyles, WorkspaceEmptyState } from '#shared/ui'
 import type { ServiceGateway, ServiceSessionContext } from '../model/contracts'
 import { ServiceLogsModal } from './ServiceLogsModal'
 import {
@@ -44,7 +44,7 @@ const unitFileStates = ['', 'enabled', 'disabled', 'masked', 'static', 'indirect
 const serviceSorts: SessionServiceQueryState['sort'][] = ['name', 'description', 'runtime', 'unit_file']
 const filterPopoverClassNames = { root: styles['service-filter-popover'] }
 const filterSelectClassNames = {
-  popup: { root: `termous-select-dropdown ${styles['service-filter-select-dropdown']}` },
+  popup: { root: `${customSelectStyles['select-dropdown']} termous-select-dropdown ${styles['service-filter-select-dropdown']}` },
 }
 const rowTooltipClassNames = { root: styles['service-row-tooltip'] }
 
@@ -402,7 +402,7 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
         <Input
           id="service-search"
           name="service-search"
-          className={`host-search-input termous-search-input ${styles['service-search-input']}`}
+          className={`host-search-input ${uiStyles['search-input']} termous-search-input ${styles['service-search-input']}`}
           value={services.query.text}
           allowClear
           variant="borderless"

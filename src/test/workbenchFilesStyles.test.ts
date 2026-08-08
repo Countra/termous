@@ -151,9 +151,9 @@ test('书签浮层和编辑弹窗通过本地 Module root 约束 Portal 样式',
   }
 
   assert.ok(bookmarksSource.includes("classNames={{ root: scopedClassName('workbench-bookmarks-popover') }}"))
-  assert.ok(bookmarksSource.includes("scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip')"))
+  assert.ok(bookmarksSource.includes("`${uiStyles.tooltip} ${scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip')}`"))
   assert.ok(bookmarksSource.includes("scopedClassName('workbench-files-address-action', 'workbench-bookmarks-trigger')"))
-  assert.ok(bookmarkEditorSource.includes("rootClassName={scopedClassName('termous-modal-root', 'workbench-bookmark-editor-root')}"))
+  assert.ok(bookmarkEditorSource.includes("`${confirmDialogStyles['modal-root']} ${scopedClassName('termous-modal-root', 'workbench-bookmark-editor-root')}`"))
   assert.ok(bookmarkEditorSource.includes("className={scopedClassName('workbench-bookmark-editor-modal')}"))
   assert.ok(bookmarkEditorSource.includes("root: scopedClassName('workbench-bookmark-editor-select-popup')"))
 

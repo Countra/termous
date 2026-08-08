@@ -35,7 +35,9 @@ export function HostAvatar({
 
   return (
     <span
-      className={`${styles['host-avatar']} host-avatar ${src ? 'has-custom-icon' : 'is-default-icon'} ${className}`.trim()}
+      className={`${styles['host-avatar']} host-avatar ${
+        src ? `${styles['has-custom-icon']} has-custom-icon` : 'is-default-icon'
+      } ${className}`.trim()}
       style={style}
       aria-hidden={decorative ? 'true' : undefined}
     >

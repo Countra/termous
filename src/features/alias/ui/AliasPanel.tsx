@@ -16,7 +16,7 @@ import type {
 } from '#entities/alias'
 import type { CredentialView } from '#entities/credential'
 import type { Host, HostGroup, HostReachability } from '#entities/host'
-import { WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
+import { uiStyles, WorkspaceEmptyState as WorkbenchEmptyState } from '#shared/ui'
 import type { AliasGateway, AliasSessionContext } from '../model/contracts'
 import {
   aliasPanelControlScope,
@@ -469,7 +469,7 @@ export function AliasPanel<TSession extends AliasSessionContext>({
       title={t(activeSyncTask
         ? 'workbench.aliases.sync.reattach'
         : 'workbench.aliases.sync.open')}
-      classNames={{ root: 'termous-tooltip' }}
+      classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}
     >
       <Button
         id={syncEntryID}
@@ -626,7 +626,7 @@ export function AliasPanel<TSession extends AliasSessionContext>({
           {syncEntryButton}
           <Tooltip
             title={t('workbench.aliases.refresh')}
-            classNames={{ root: 'termous-tooltip' }}
+            classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}
           >
             <Button
               type="text"
@@ -640,7 +640,7 @@ export function AliasPanel<TSession extends AliasSessionContext>({
           </Tooltip>
           <Tooltip
             title={t('workbench.aliases.create')}
-            classNames={{ root: 'termous-tooltip' }}
+            classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}
           >
             <Button
               id={`${controlScope}-create-header`}
@@ -660,7 +660,7 @@ export function AliasPanel<TSession extends AliasSessionContext>({
           <Input
             id={`${controlScope}-search`}
             name={`${controlScope}-search`}
-            className={`termous-search-input ${styles['alias-search-input']}`}
+            className={`${uiStyles['search-input']} termous-search-input ${styles['alias-search-input']}`}
             value={query}
             allowClear
             variant="borderless"

@@ -37,10 +37,10 @@ export function CustomSelect({
         disabled={disabled}
         classNames={{
           popup: {
-            root: ['termous-select-popup', popupClassName].filter(Boolean).join(' '),
+            root: [styles['select-popup'], 'termous-select-popup', popupClassName].filter(Boolean).join(' '),
           },
         }}
-        className="termous-select"
+        className={`${styles.select} termous-select`}
         optionLabelProp="label"
         onChange={onChange}
         options={options.map((option) => ({
@@ -53,7 +53,7 @@ export function CustomSelect({
         optionRender={(option) => {
           const item = option.data.item as SelectOption
           return (
-            <span className="select-option-content">
+            <span className={`${styles['option-content']} select-option-content`}>
               <span>{item.label}</span>
               {item.description ? <small>{item.description}</small> : null}
             </span>

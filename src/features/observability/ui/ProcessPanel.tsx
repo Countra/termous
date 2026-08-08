@@ -141,7 +141,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
 
       <div className={styles['process-filter-panel']}>
         <Input
-          className={`host-search-input termous-search-input ${styles['process-search-input']}`}
+          className={`host-search-input ${uiStyles['search-input']} termous-search-input ${styles['process-search-input']}`}
           value={processes.query.text}
           allowClear
           variant="borderless"
@@ -310,7 +310,7 @@ function ProcessRow({ item, selected, onSelect }: ProcessRowProps) {
         </div>
       </div>
       {ports.length > 0 ? (
-        <Tooltip title={portSummary} overlayClassName="termous-tooltip">
+        <Tooltip title={portSummary} overlayClassName={`${uiStyles.tooltip} termous-tooltip`}>
           <span className={styles['process-row-port-summary']} aria-label={t('workbench.processes.portsShort', { count: ports.length })}>
             <PlugZap size={12} />
             <span>{compactPortSummary}</span>
@@ -408,7 +408,7 @@ function ProcessDetailView({
         <Tooltip
           title={stateTooltip}
           placement="left"
-          classNames={{ root: `termous-tooltip ${styles['process-state-tooltip-root']}` }}
+          classNames={{ root: `${uiStyles.tooltip} termous-tooltip ${styles['process-state-tooltip-root']}` }}
         >
           <Tag className={styles['process-state-tag']}>{stateText}</Tag>
         </Tooltip>

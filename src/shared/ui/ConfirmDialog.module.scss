@@ -1,14 +1,13 @@
 .confirm-dialog {
   display: grid;
-  width: min(420px, calc(100vw - 32px));
   grid-template-columns: auto minmax(0, 1fr);
   gap: 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--surface);
+  width: 100%;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
   padding: 18px;
-  box-shadow: var(--shadow), var(--inner-highlight);
-  backdrop-filter: blur(30px) saturate(1.35);
+  box-shadow: none;
 }
 
 .dialog-icon {
@@ -16,7 +15,7 @@
   width: 38px;
   height: 38px;
   place-items: center;
-  border-radius: var(--radius);
+  border-radius: 11px;
   background: var(--accent-soft);
   color: var(--accent);
 }
@@ -33,6 +32,7 @@
 .dialog-copy h2 {
   margin: 0;
   font-size: 16px;
+  font-weight: 760;
   letter-spacing: 0;
 }
 
@@ -46,6 +46,60 @@
 .dialog-actions {
   display: flex;
   grid-column: 1 / -1;
+  align-items: center;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.modal-root {
+  z-index: 3600;
+}
+
+.modal-root :global(.ant-modal-mask) {
+  background: rgb(0 0 0 / 42%);
+  backdrop-filter: blur(18px);
+}
+
+.modal-wrap {
+  z-index: 3600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal :global(.ant-modal-content) {
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  background: var(--surface-strong);
+  box-shadow:
+    0 30px 90px rgb(0 0 0 / 36%),
+    inset 0 1px 0 rgb(255 255 255 / 10%);
+  padding: 0;
+}
+
+.modal :global(.ant-modal-close) {
+  top: 10px;
+  inset-inline-end: 10px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--text-secondary);
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.modal :global(.ant-modal-close):hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.modal :global(.ant-modal-close-x) {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  line-height: 1;
 }

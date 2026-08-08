@@ -18,6 +18,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { normalizeRemotePosixPath } from '#shared/path'
+import { uiStyles } from '#shared/ui'
 import type {
   FileBookmark,
   FileBookmarkGroup,
@@ -361,7 +362,7 @@ export function WorkbenchBookmarksPopover({
           placement="top"
           mouseEnterDelay={0.45}
           zIndex={3500}
-          classNames={{ root: scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip') }}
+          classNames={{ root: `${uiStyles.tooltip} ${scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip')}` }}
         >
           <span className={scopedClassName('workbench-bookmarks-current-target')}>
             <button
@@ -468,7 +469,7 @@ export function WorkbenchBookmarksPopover({
                   placement="left"
                   mouseEnterDelay={0.45}
                   zIndex={3500}
-                  classNames={{ root: scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip') }}
+                  classNames={{ root: `${uiStyles.tooltip} ${scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip')}` }}
                 >
                   <span>{group.name}</span>
                 </Tooltip>
@@ -491,7 +492,7 @@ export function WorkbenchBookmarksPopover({
                       placement="left"
                       mouseEnterDelay={0.45}
                       zIndex={3500}
-                      classNames={{ root: scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip') }}
+                      classNames={{ root: `${uiStyles.tooltip} ${scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip')}` }}
                     >
                       <button
                         type="button"
@@ -585,7 +586,7 @@ export function WorkbenchBookmarksPopover({
           mouseEnterDelay={0.45}
           open={open ? false : undefined}
           zIndex={3500}
-          classNames={{ root: scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip') }}
+          classNames={{ root: `${uiStyles.tooltip} ${scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip')}` }}
         >
           <Button
             ref={triggerRef}

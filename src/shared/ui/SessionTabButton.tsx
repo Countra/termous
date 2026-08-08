@@ -1,6 +1,7 @@
 import { Button, Tooltip, type ButtonProps } from 'antd'
 import { LoaderCircle, Pin, X } from 'lucide-react'
 import { forwardRef, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
+import uiStyles from './Primitives.module.scss'
 import styles from './SessionTabs.module.scss'
 
 interface SessionTabButtonProps extends Omit<ButtonProps, 'children' | 'icon' | 'title' | 'type'> {
@@ -22,7 +23,7 @@ interface SessionTabButtonProps extends Omit<ButtonProps, 'children' | 'icon' | 
   onClose?: () => void
 }
 
-const sessionTabTooltipClassNames = { root: `termous-tooltip ${styles['session-tab-tooltip']}` }
+const sessionTabTooltipClassNames = { root: `${uiStyles.tooltip} termous-tooltip ${styles['session-tab-tooltip']}` }
 
 export const SessionTabButton = forwardRef<HTMLButtonElement, SessionTabButtonProps>(
   ({

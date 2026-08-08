@@ -53,7 +53,7 @@ import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { TermousApiError } from '#shared/api'
 import { SessionQuickConnect } from '#features/hosts'
-import { EmptyState, SessionTabButton, SessionTabStrip, uiStyles } from '#shared/ui'
+import { confirmDialogStyles, EmptyState, SessionTabButton, SessionTabStrip, uiStyles } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
 import type { TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
@@ -2188,8 +2188,8 @@ function FilesWorkspaceContent({
       content: <Input autoFocus placeholder={t('files.folderName')} onChange={(event) => { name = event.target.value }} />,
       okText: t('app.create'),
       cancelText: t('app.cancel'),
-      className: 'confirm-modal',
-      rootClassName: 'termous-modal-root',
+      className: `${confirmDialogStyles.modal} confirm-modal`,
+      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
       onOk: async () => {
         requireCurrentFileListing(fileSessionId, connectionGeneration)
         const cleanName = name.trim()
@@ -2216,8 +2216,8 @@ function FilesWorkspaceContent({
       content: <Input autoFocus defaultValue={entry.name} onChange={(event) => { name = event.target.value }} />,
       okText: t('app.update'),
       cancelText: t('app.cancel'),
-      className: 'confirm-modal',
-      rootClassName: 'termous-modal-root',
+      className: `${confirmDialogStyles.modal} confirm-modal`,
+      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
       onOk: async () => {
         requireCurrentFileListing(fileSessionId, connectionGeneration)
         const cleanName = name.trim()
@@ -2363,8 +2363,8 @@ function FilesWorkspaceContent({
       okText: t('app.delete'),
       cancelText: t('app.cancel'),
       okButtonProps: { danger: true },
-      className: 'confirm-modal',
-      rootClassName: 'termous-modal-root',
+      className: `${confirmDialogStyles.modal} confirm-modal`,
+      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
       onOk: async () => {
         requireCurrentFileListing(fileSessionId, connectionGeneration)
         await api.deleteFileSessionFiles(fileSessionId, paths, true)

@@ -190,7 +190,12 @@ vi.mock('../features/snippets/ui/SnippetCatalog', () => ({
 }))
 
 vi.mock('#shared/ui', () => ({
+  customSelectStyles: {
+    select: 'select',
+    'select-popup': 'select-popup',
+  },
   uiStyles: {
+    field: 'field',
     'field-label': 'field-label',
   },
   ConnectionActionButton: ({

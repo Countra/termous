@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { AuthMethodBadge } from '../entities/host/ui/AuthMethodBadge'
 import authStyles from '../entities/host/ui/AuthMethodBadge.module.scss'
+import { HostAvatar } from '../entities/host/ui/HostAvatar'
+import avatarStyles from '../entities/host/ui/HostAvatar.module.scss'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -37,5 +39,36 @@ describe('主机实体原子组件样式合同', () => {
     )
     expect(compactBadge.parentElement).toHaveAttribute('data-tooltip-title', 'hosts.auth.private_key')
     expect(screen.queryByText('hosts.auth.private_key')).not.toBeInTheDocument()
+  })
+
+  it('主机头像保留尺寸变量和自定义图标的 Module 状态类', () => {
+    const view = render(<HostAvatar host={{ icon_id: '', name: '测试主机' }} size={36} />)
+    const defaultAvatar = view.container.firstElementChild
+
+    expect(defaultAvatar).toHaveClass(avatarStyles['host-avatar'], 'host-avatar', 'is-default-icon')
+    expect(defaultAvatar).toHaveStyle({ '--host-avatar-size': '36px' })
+
+    view.rerender(
+      <HostAvatar
+        host={{ icon_id: 'host-icon-1', name: '测试主机' }}
+        getIconUrl={(iconId) => `/icons/${iconId}`}
+        decorative={false}
+      />,
+    )
+
+    const customImage = screen.getByRole('img', { name: '测试主机' })
+    const customAvatar = customImage.parentElement
+    expect(customAvatar).toHaveClass(
+      avatarStyles['host-avatar'],
+      avatarStyles['has-custom-icon'],
+      'host-avatar',
+      'has-custom-icon',
+    )
+
+    fireEvent.error(customImage)
+
+    expect(customAvatar).toHaveClass(avatarStyles['host-avatar'], 'host-avatar', 'is-default-icon')
+    expect(customAvatar).not.toHaveClass(avatarStyles['has-custom-icon'], 'has-custom-icon')
+    expect(screen.queryByRole('img', { name: '测试主机' })).not.toBeInTheDocument()
   })
 })

@@ -54,9 +54,9 @@ export function ConfirmDialog({
       destroyOnHidden
       mask={{ closable: !busy }}
       keyboard={!busy}
-      className="confirm-modal"
-      wrapClassName="confirm-modal-wrap"
-      rootClassName="termous-modal-root"
+      className={`${styles.modal} confirm-modal`}
+      wrapClassName={`${styles['modal-wrap']} confirm-modal-wrap`}
+      rootClassName={`${styles['modal-root']} termous-modal-root`}
       getContainer={() => document.body}
       onCancel={() => {
         if (!busy) {
@@ -64,15 +64,15 @@ export function ConfirmDialog({
         }
       }}
     >
-      <section className={`${styles['confirm-dialog']} confirm-dialog`} aria-labelledby="confirm-dialog-title">
-        <div className={`${styles['dialog-icon']} dialog-icon ${danger ? `${styles['is-danger']} is-danger` : ''}`}>
+      <section className={styles['confirm-dialog']} aria-labelledby="confirm-dialog-title">
+        <div className={`${styles['dialog-icon']} ${danger ? styles['is-danger'] : ''}`}>
           <AlertTriangle size={20} aria-hidden="true" />
         </div>
-        <div className={`${styles['dialog-copy']} dialog-copy`}>
+        <div className={styles['dialog-copy']}>
           <h2 id="confirm-dialog-title">{title}</h2>
           <p>{description}</p>
         </div>
-        <div className={`${styles['dialog-actions']} dialog-actions`}>
+        <div className={styles['dialog-actions']}>
           {showCancelButton ? (
             <Button onClick={onCancel} disabled={busy}>{cancelLabel ?? t('app.cancel')}</Button>
           ) : null}

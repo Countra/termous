@@ -10,7 +10,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import { useTranslation } from 'react-i18next'
 import type { TerminalSettings } from '#common/contracts'
 import { TermousApiError } from '#shared/api'
-import { uiStyles } from '#shared/ui'
+import { confirmDialogStyles, uiStyles } from '#shared/ui'
 import type {
   RemoteFileEntry,
   RemoteTextFile,
@@ -293,8 +293,8 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
           content: t('files.textEditorConflictContent'),
           okText: t('files.textEditorForceSave'),
           cancelText: t('app.cancel'),
-          className: 'confirm-modal remote-text-confirm-modal',
-          rootClassName: 'confirm-modal-wrap',
+          className: `${confirmDialogStyles.modal} confirm-modal remote-text-confirm-modal`,
+          rootClassName: `${confirmDialogStyles['modal-wrap']} confirm-modal-wrap`,
           onOk: () => saveFileRef.current(true),
         })
       } else {
@@ -383,8 +383,8 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
       content: t('files.textEditorUnsavedContent'),
       okText: t('files.textEditorDiscard'),
       cancelText: t('app.cancel'),
-      className: 'confirm-modal remote-text-confirm-modal',
-      rootClassName: 'confirm-modal-wrap',
+      className: `${confirmDialogStyles.modal} confirm-modal remote-text-confirm-modal`,
+      rootClassName: `${confirmDialogStyles['modal-wrap']} confirm-modal-wrap`,
       onOk: onClose,
     })
   }, [dirty, modal, onClose, t])
@@ -406,8 +406,8 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
       content: t('files.textEditorReloadConfirmContent'),
       okText: t('files.textEditorReload'),
       cancelText: t('app.cancel'),
-      className: 'confirm-modal remote-text-confirm-modal',
-      rootClassName: 'confirm-modal-wrap',
+      className: `${confirmDialogStyles.modal} confirm-modal remote-text-confirm-modal`,
+      rootClassName: `${confirmDialogStyles['modal-wrap']} confirm-modal-wrap`,
       onOk: reload,
       afterClose: () => {
         reloadConfirmationOpenRef.current = false
@@ -596,7 +596,7 @@ export function RemoteTextEditorModal({ api, open, disabled = false, closing = f
       centered
       destroyOnHidden
       className="termous-modal remote-text-editor-modal"
-      rootClassName={`termous-modal-root remote-text-editor-root ${styles.root} ${theme === 'light' ? styles.light : ''} ${sharedStyles.root}`}
+      rootClassName={`${confirmDialogStyles['modal-root']} termous-modal-root remote-text-editor-root ${styles.root} ${theme === 'light' ? styles.light : ''} ${sharedStyles.root}`}
       onCancel={requestClose}
     >
       <section

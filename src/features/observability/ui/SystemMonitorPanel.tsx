@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { EChartView } from '#shared/charts'
 import type { ThemeMode } from '#shared/theme'
-import { WorkspaceEmptyState } from '#shared/ui'
+import { customSelectStyles, uiStyles, WorkspaceEmptyState } from '#shared/ui'
 import type {
   LinuxMonitorCPUCore,
   LinuxMonitorDiskIODevice,
@@ -63,7 +63,7 @@ function MonitorDeviceOption({ value }: { value: string }) {
       title={value}
       placement="left"
       mouseEnterDelay={0.3}
-      classNames={{ root: 'termous-tooltip' }}
+      classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}
     >
       <span className={styles['monitor-device-select-option']}>{value}</span>
     </Tooltip>
@@ -496,7 +496,7 @@ function NetworkPanel({
         <Select
           size="small"
           className={styles['monitor-network-select']}
-          classNames={{ popup: { root: `termous-select-dropdown ${styles['monitor-device-select-dropdown']}` } }}
+          classNames={{ popup: { root: `${customSelectStyles['select-dropdown']} termous-select-dropdown ${styles['monitor-device-select-dropdown']}` } }}
           value={selectedNetwork?.name ?? networkName}
           options={snapshot.networks.map((item) => ({ label: item.name, value: item.name, title: '' }))}
           optionRender={(option) => <MonitorDeviceOption value={String(option.label ?? option.value ?? '')} />}
@@ -556,7 +556,7 @@ function DiskIOPanel({
         <Select
           size="small"
           className={styles['monitor-disk-select']}
-          classNames={{ popup: { root: `termous-select-dropdown ${styles['monitor-device-select-dropdown']}` } }}
+          classNames={{ popup: { root: `${customSelectStyles['select-dropdown']} termous-select-dropdown ${styles['monitor-device-select-dropdown']}` } }}
           aria-label={t('workbench.systemMonitor.diskDevice')}
           value={selectedDevice?.name ?? deviceName}
           options={diskIO.devices.map((item) => ({ label: item.name, value: item.name, title: '' }))}

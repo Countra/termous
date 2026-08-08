@@ -113,7 +113,7 @@ export function HostContextPanel({
         <Input
           id="host-context-search"
           name="host-context-search"
-          className="host-search-input host-context-search termous-search-input"
+          className={`${styles['host-context-search']} host-search-input host-context-search termous-search-input`}
           value={query}
           allowClear
           variant="borderless"
@@ -166,15 +166,21 @@ function HostRow({
   const authLabel = t(`hosts.auth.${host.auth_method}`)
   const endpoint = `${host.address}:${host.port}`
   const tooltip = (
-    <div className="host-row-tooltip-card">
-      <div className="host-row-tooltip-head">
-        <HostAvatar host={host} getIconUrl={getHostIconUrl} className="host-row-tooltip-icon" size={34} iconSize={16} />
-        <span className="host-row-tooltip-title">
+    <div className={`${styles['host-row-tooltip-card']} host-row-tooltip-card`}>
+      <div className={`${styles['host-row-tooltip-head']} host-row-tooltip-head`}>
+        <HostAvatar
+          host={host}
+          getIconUrl={getHostIconUrl}
+          className={`${styles['host-row-tooltip-icon']} host-row-tooltip-icon`}
+          size={34}
+          iconSize={16}
+        />
+        <span className={`${styles['host-row-tooltip-title']} host-row-tooltip-title`}>
           <strong>{host.name}</strong>
           <small>{endpoint}</small>
         </span>
       </div>
-      <div className="host-row-tooltip-meta">
+      <div className={`${styles['host-row-tooltip-meta']} host-row-tooltip-meta`}>
         <span>
           <UserRound size={13} />
           <strong>{host.username}</strong>
@@ -185,7 +191,7 @@ function HostRow({
         </span>
       </div>
       {host.tags.length > 0 ? (
-        <div className="host-row-tooltip-tags">
+        <div className={`${styles['host-row-tooltip-tags']} host-row-tooltip-tags`}>
           <span>
             <Tags size={13} />
             {t('hosts.tags')}
@@ -197,7 +203,7 @@ function HostRow({
           </div>
         </div>
       ) : null}
-      <div className="host-row-tooltip-endpoint">
+      <div className={`${styles['host-row-tooltip-endpoint']} host-row-tooltip-endpoint`}>
         <MapPin size={13} />
         <code>
           {host.username}@{endpoint}
@@ -211,7 +217,7 @@ function HostRow({
       placement="right"
       arrow={false}
       mouseEnterDelay={0.25}
-      classNames={{ root: 'host-row-tooltip' }}
+      classNames={{ root: `${styles['host-row-tooltip']} host-row-tooltip` }}
     >
       <button
         type="button"

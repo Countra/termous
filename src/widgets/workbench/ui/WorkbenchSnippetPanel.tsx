@@ -185,7 +185,7 @@ export function SnippetVariablePrompt({
     <div className={`snippet-variable-prompt ${snippetStyles['snippet-dialog-content']}`}>
       <p>{t('snippets.variablesHint')}</p>
       {variables.map((variable) => (
-        <label className="field" key={variable}>
+        <label className={`${uiStyles.field} field`} key={variable}>
           <span className={`${uiStyles['field-label']} field-label`}>{`{{${variable}}}`}</span>
           <Input autoFocus={variables[0] === variable} onChange={(event) => onChange(variable, event.target.value)} />
         </label>

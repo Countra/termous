@@ -9,6 +9,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react'
+import uiStyles from './Primitives.module.scss'
 import styles from './SessionTabs.module.scss'
 
 interface SessionTabStripProps {
@@ -35,7 +36,7 @@ const emptyScrollState: TabScrollState = {
   canScrollRight: false,
 }
 
-const sessionTabTooltipClassNames = { root: `termous-tooltip ${styles['session-tab-tooltip']}` }
+const sessionTabTooltipClassNames = { root: `${uiStyles.tooltip} termous-tooltip ${styles['session-tab-tooltip']}` }
 
 export function SessionTabStrip({
   ariaLabel,

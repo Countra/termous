@@ -3,6 +3,7 @@ import { KeyRound } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { CredentialView } from '#entities/credential'
+import { customSelectStyles } from '#shared/ui'
 import credentialStyles from './CredentialManagement.module.scss'
 import styles from './SSHKeyDialogs.module.scss'
 
@@ -111,8 +112,8 @@ export function PrivateKeyPassphraseModal({
           <Select
             value={credentialId || undefined}
             options={options}
-            className="termous-select"
-            classNames={{ popup: { root: `termous-select-popup ${credentialStyles['credential-passphrase-popup']}` } }}
+            className={`${customSelectStyles.select} termous-select`}
+            classNames={{ popup: { root: `${customSelectStyles['select-popup']} termous-select-popup ${credentialStyles['credential-passphrase-popup']}` } }}
             placeholder={t('vault.sshKey.savedPassphrasePlaceholder')}
             notFoundContent={t('vault.sshKey.noSavedPassphrases')}
             onChange={(value) => {

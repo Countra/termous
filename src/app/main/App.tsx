@@ -4,7 +4,7 @@ import { LogOut, ServerOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { TermousUiProvider } from '#app/ui-runtime'
 import { AppShell } from '#app/app-shell'
-import { ConfirmDialog } from '#shared/ui'
+import { ConfirmDialog, confirmDialogStyles } from '#shared/ui'
 import { HostsPage, type HostsPageProps } from '#pages/hosts'
 import {
   includeActiveFileSessionClosure,
@@ -1276,8 +1276,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         mask={{ closable: false }}
         keyboard={false}
         className={styles['core-fatal-modal']}
-        wrapClassName="confirm-modal-wrap"
-        rootClassName="termous-modal-root"
+        wrapClassName={`${confirmDialogStyles['modal-wrap']} confirm-modal-wrap`}
+        rootClassName={`${confirmDialogStyles['modal-root']} termous-modal-root`}
         getContainer={() => document.body}
       >
         <section className={styles['core-fatal-dialog']} aria-labelledby="core-fatal-title">

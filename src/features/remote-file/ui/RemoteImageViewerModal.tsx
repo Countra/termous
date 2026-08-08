@@ -3,7 +3,7 @@ import { AlertTriangle, Expand, Image as ImageIcon, Maximize2, RefreshCw, Rotate
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { TermousApiError } from '#shared/api'
-import { uiStyles } from '#shared/ui'
+import { confirmDialogStyles, uiStyles } from '#shared/ui'
 import type { RemoteImageFile } from '#entities/file'
 import type { ThemeMode } from '#shared/theme'
 import { FileOperationProgress, type FileOperationProgressState } from './FileOperationProgress'
@@ -262,7 +262,7 @@ export function RemoteImageViewerModal({ api, open, fileSessionId, path, theme, 
       centered
       destroyOnHidden
       className="termous-modal remote-image-viewer-modal"
-      rootClassName={`termous-modal-root remote-image-viewer-root ${styles.root} ${theme === 'light' ? styles.light : ''} ${sharedStyles.root}`}
+      rootClassName={`${confirmDialogStyles['modal-root']} termous-modal-root remote-image-viewer-root ${styles.root} ${theme === 'light' ? styles.light : ''} ${sharedStyles.root}`}
       onCancel={onClose}
     >
       <section className={`remote-image-viewer is-viewer-${theme}`}>

@@ -25,12 +25,17 @@ test('共享控件基础样式通过显式 Module 合同消费', () => {
     'secondary-button',
     'danger-button',
     'page-actions',
+    'field',
     'field-label',
+    'search-input',
+    'tooltip',
     'is-spinning',
   ]) {
     assert.match(primitiveStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
   }
   assert.match(publicEntry, /default as uiStyles.*Primitives\.module\.scss/)
+  assert.match(publicEntry, /default as customSelectStyles.*CustomSelect\.module\.scss/)
+  assert.match(publicEntry, /default as confirmDialogStyles.*ConfirmDialog\.module\.scss/)
 
   for (const relativePath of [
     '../features/firewall/ui/FirewallPersistencePanel.tsx',
@@ -40,6 +45,44 @@ test('共享控件基础样式通过显式 Module 合同消费', () => {
   ]) {
     assert.match(source(relativePath), /uiStyles\[/)
   }
+})
+
+test('共享表单和弹层样式通过显式 Module root 消费', () => {
+  const legacyStyles = source('../shared/main-styles/workstation.scss')
+  const primitiveStyles = source('../shared/ui/Primitives.module.scss')
+  const customSelectStyles = source('../shared/ui/CustomSelect.module.scss')
+  const confirmDialogStyles = source('../shared/ui/ConfirmDialog.module.scss')
+  const emptyStateStyles = source('../shared/ui/EmptyState.module.scss')
+
+  assert.match(primitiveStyles, /\.field\s*\{[^}]*align-content:\s*start;[^}]*gap:\s*6px;/s)
+  assert.match(primitiveStyles, /\.search-input:global\(\.ant-input-affix-wrapper\)/)
+  assert.match(primitiveStyles, /\.tooltip:global\(\.ant-tooltip\)/)
+  assert.match(customSelectStyles, /\.select-popup:global\(\.ant-select-dropdown\)/)
+  assert.match(customSelectStyles, /\.select-dropdown:global\(\.ant-select-dropdown\)/)
+  assert.match(confirmDialogStyles, /\.modal-root\s*\{[^}]*z-index:\s*3600;/s)
+  assert.match(confirmDialogStyles, /\.modal\s+:global\(\.ant-modal-content\)/)
+  assert.match(emptyStateStyles, /\.empty-state\s*\{[^}]*min-height:\s*170px;[^}]*background:\s*var\(--surface-subtle\);/s)
+
+  for (const selector of [
+    'field',
+    'field-label',
+    'select-option-content',
+    'empty-state',
+    'confirm-modal-wrap',
+    'confirm-modal',
+    'confirm-dialog',
+    'dialog-icon',
+    'dialog-copy',
+    'dialog-actions',
+    'termous-select-dropdown',
+  ]) {
+    assert.doesNotMatch(legacyStyles, new RegExp(`^\\.${selector}(?=[\\s.,:{])`, 'm'))
+  }
+
+  assert.match(source('../features/docker/ui/DockerPanel.tsx'), /customSelectStyles\['select-dropdown'\]/)
+  assert.match(source('../features/alias/ui/AliasPanel.tsx'), /uiStyles\['search-input'\]/)
+  assert.match(source('../features/alias/ui/AliasPanel.tsx'), /uiStyles\.tooltip/)
+  assert.match(source('../features/local-download/ui/LocalDownloadMappingPane.tsx'), /confirmDialogStyles\.modal/)
 })
 
 test('共享操作按钮与设置页标题不再依赖全局基础选择器', () => {
@@ -113,7 +156,7 @@ test('原 app 业务选择器由组件共置 Module 承载', () => {
 
   const legacyStyles = source('../shared/main-styles/workstation.scss')
   assert.doesNotMatch(legacyStyles, /^\.host-auth-badge(?:\b|\s|\.)/m)
-  assert.match(legacyStyles, /^\.data-row \.row-trailing > \.host-auth-badge\s*\{/m)
+  assert.doesNotMatch(legacyStyles, /^\.data-row \.row-trailing > \.host-auth-badge\s*\{/m)
 })
 
 test('详情侧栏的折叠轨道与 Tabs Portal 样式由共置 Module 承载', () => {
@@ -171,4 +214,44 @@ test('侧栏框架与折叠控件由共享 Module 承载', () => {
   assert.doesNotMatch(legacyStyles, /^\.host-context-panel\.is-(?:content-collapsed|resizing)\b/m)
   assert.doesNotMatch(legacyStyles, /^\.host-context-panel\.is-collapsed \.panel-heading\b/m)
   assert.doesNotMatch(legacyStyles, /^\.panel-heading(?:\s|\{)/m)
+})
+
+test('主机目录行、搜索、提示层与头像样式由 Host Module 承载', () => {
+  const hostContextPanelSource = source('../features/hosts/ui/HostContextPanel.tsx')
+  const hostContextPanelStyles = source('../features/hosts/ui/HostContextPanel.module.scss')
+  const hostAvatarSource = source('../entities/host/ui/HostAvatar.tsx')
+  const hostAvatarStyles = source('../entities/host/ui/HostAvatar.module.scss')
+  const legacyStyles = source('../shared/main-styles/workstation.scss')
+
+  assert.match(hostContextPanelSource, /styles\['host-context-search'\]/)
+  assert.match(hostContextPanelSource, /classNames=\{\{ root: `\$\{styles\['host-row-tooltip'\]\}/)
+  assert.match(hostContextPanelSource, /styles\['host-row-tooltip-card'\]/)
+  assert.match(hostContextPanelStyles, /\.host-context-search:global\(\.ant-input-affix-wrapper\)\s*\{[^}]*margin:\s*12px 0 16px;/s)
+  assert.match(hostContextPanelStyles, /\.host-context-search:global\(\.ant-input-affix-wrapper\)\s*\{[^}]*padding:\s*0 11px;[^}]*rgb\(255 255 255 \/ 4%\)/s)
+  assert.match(hostContextPanelStyles, /\.host-context-search:global\(\.ant-input-affix-wrapper\)::after\s*\{[^}]*right:\s*12px;[^}]*transform:\s*scaleX\(0\.72\);/s)
+  assert.match(hostContextPanelStyles, /\.host-stack\s*\{[^}]*gap:\s*6px;[^}]*padding:\s*0 2px 14px 0;/s)
+  assert.match(hostContextPanelStyles, /\.host-row\s*\{[^}]*min-height:\s*42px;[^}]*border:\s*0;[^}]*background:\s*transparent;/s)
+  assert.match(hostContextPanelStyles, /\.host-row-tooltip :global\(\.ant-tooltip-inner\)/)
+  assert.match(hostContextPanelStyles, /min-width:\s*260px;[^}]*max-width:\s*312px;[^}]*background:\s*#25272e;/s)
+
+  assert.match(hostAvatarSource, /styles\['has-custom-icon'\]/)
+  assert.match(hostAvatarStyles, /\.host-avatar\.host-avatar\s*\{[^}]*--host-avatar-size:\s*30px;[^}]*display:\s*inline-grid;/s)
+  assert.match(hostAvatarStyles, /\.host-avatar\.has-custom-icon\s*\{/)
+
+  for (const selector of [
+    /^\.host-stack(?:\s|,|\{)/m,
+    /^\.host-filter-(?:panel|primary-row|meta|clear|tags)(?:\s|\.|\{)/m,
+    /^\.host-search-input(?:\s|\.|\{)/m,
+    /^\.host-context-panel \.host-context-search(?:\s|\.|:|\{)/m,
+    /^\.group-label(?:\s|\{)/m,
+    /^\.host-row(?:\s|,|\.|:|\{)/m,
+    /^\.host-row-tooltip(?:\s|-|\{)/m,
+    /^\.host-avatar(?:\s|\.|\{)/m,
+    /^\.data-(?:list|row)(?:\s|,|\.|:|\{)/m,
+    /^\.row-(?:icon|copy|trailing)(?:\s|\{)/m,
+    /^\.soft-tag(?:\s|\.|\{)/m,
+    /^\.host-(?:data-list|tag-summary|row-meta-line|row-endpoint|row-tags|row-tag|tags-field)(?:\s|\.|\{)/m,
+  ]) {
+    assert.doesNotMatch(legacyStyles, selector)
+  }
 })
