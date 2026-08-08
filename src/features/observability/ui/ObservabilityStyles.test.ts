@@ -2,23 +2,28 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { compileString } from 'sass'
 
 const styleUrl = new URL('./Observability.module.scss', import.meta.url)
 const source = readFileSync(fileURLToPath(styleUrl), 'utf8')
+const processSource = readFileSync(
+  fileURLToPath(new URL('./ProcessPanel.tsx', import.meta.url)),
+  'utf8',
+)
+const monitorSource = readFileSync(
+  fileURLToPath(new URL('./SystemMonitorPanel.tsx', import.meta.url)),
+  'utf8',
+)
 
-test('监控与进程 SCSS 保留面板及 Portal 的历史全局类名', () => {
-  const compiled = compileString(source, { url: styleUrl }).css
-
-  for (const className of [
-    'system-monitor-panel',
-    'process-panel',
-    'process-filter-popover',
-    'monitor-device-select-dropdown',
-    'monitor-chart-tooltip',
-  ]) {
-    assert.match(compiled, new RegExp(`:global \\.${className}(?:[\\s.:,{])`))
-  }
+test('监控与进程面板使用私有 Module 类并局部约束 Portal', () => {
+  assert.doesNotMatch(source, /stylelint-disable[^\n]*termous\/no-unscoped-global/)
+  assert.doesNotMatch(source, /:global\s*\{/)
+  assert.match(source, /\.process-filter-popover:global\(\.ant-popover\)/)
+  assert.match(source, /\.monitor-device-select-dropdown :global\(\.ant-select-item-option-content\)/)
+  assert.match(source, /\.monitor-time-chart:global\(\.echart-view\)/)
+  assert.match(processSource, /overlayClassName=\{styles\['process-filter-popover'\]\}/)
+  assert.match(processSource, /styles\['process-state-tooltip-root'\]/)
+  assert.match(monitorSource, /styles\['monitor-device-select-dropdown'\]/)
+  assert.match(monitorSource, /className: styles\['monitor-chart-tooltip'\]/)
 })
 
 test('监控关键滚动尺寸和 CPU 响应式边界保持不变', () => {
@@ -31,7 +36,7 @@ test('监控关键滚动尺寸和 CPU 响应式边界保持不变', () => {
 test('进程终止按钮保留尺寸，并抵御后加载的通用按钮规则', () => {
   assert.match(
     source,
-    /\.process-panel \.process-terminate-button\.ant-btn\s*\{[\s\S]*height:\s*34px/,
+    /\.process-panel \.process-terminate-button:global\(\.ant-btn\)\s*\{[\s\S]*height:\s*34px/,
   )
 })
 

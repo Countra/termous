@@ -6,6 +6,12 @@ import { formatBytes } from '#shared/format'
 import { formatForwardDuration } from '../model/forwardTiming'
 import { mapForwardTraffic } from '../model/forwardThroughput'
 import { useForwardThroughput } from '../model/useForwardThroughput'
+import styles from './ForwardManagement.module.scss'
+
+const scopedClassName = (...classNames: string[]) => classNames
+  .flatMap((className) => [className, styles[className]])
+  .filter(Boolean)
+  .join(' ')
 
 interface ForwardRuntimeMetricsProps {
   forward: ForwardInstance
@@ -32,7 +38,10 @@ export function ForwardRuntimeMetrics({
 
   return (
     <div
-      className={`forward-runtime-metrics${compact ? ' is-compact' : ''}`}
+      className={scopedClassName(
+        'forward-runtime-metrics',
+        compact ? 'is-compact' : '',
+      )}
       role="group"
       aria-label={t('forwards.runtimeMetrics')}
     >
@@ -143,13 +152,13 @@ function Metric({
 
   return (
     <span
-      className={[
+      className={scopedClassName(
         'forward-runtime-metric',
         rate ? 'has-rate' : '',
         rateActive ? 'is-rate-active' : '',
         tone ? `is-${tone}` : '',
         className,
-      ].filter(Boolean).join(' ')}
+      )}
       role="group"
       aria-label={rate && rateLabel ? `${label}: ${value}; ${rateLabel}: ${rate}` : `${label}: ${value}`}
       tabIndex={rate ? 0 : undefined}
@@ -170,28 +179,28 @@ function Metric({
         }
       } : undefined}
     >
-      <span className="forward-runtime-metric-icon" aria-hidden="true">{icon}</span>
-      <span className="forward-runtime-metric-copy" aria-hidden="true">
+      <span className={scopedClassName('forward-runtime-metric-icon')} aria-hidden="true">{icon}</span>
+      <span className={scopedClassName('forward-runtime-metric-copy')} aria-hidden="true">
         {rate ? (
           <>
-            <span className="forward-runtime-summary">
-              <small className="forward-runtime-metric-label">{label}</small>
-              <span className="forward-runtime-total">{value}</span>
+            <span className={scopedClassName('forward-runtime-summary')}>
+              <small className={scopedClassName('forward-runtime-metric-label')}>{label}</small>
+              <span className={scopedClassName('forward-runtime-total')}>{value}</span>
             </span>
-            <span className="forward-runtime-rate" aria-hidden="true">
+            <span className={scopedClassName('forward-runtime-rate')} aria-hidden="true">
               <i aria-hidden="true" />
               <strong>{rate}</strong>
             </span>
-            <span ref={detailRef} className="forward-runtime-metric-detail" aria-hidden="true" popover="manual">
-              <span className="forward-runtime-metric-detail-heading">
+            <span ref={detailRef} className={scopedClassName('forward-runtime-metric-detail')} aria-hidden="true" popover="manual">
+              <span className={scopedClassName('forward-runtime-metric-detail-heading')}>
                 <i />
                 <strong>{label}</strong>
               </span>
-              <span className="forward-runtime-metric-detail-row">
+              <span className={scopedClassName('forward-runtime-metric-detail-row')}>
                 <small>{totalLabel}</small>
                 <b>{value}</b>
               </span>
-              <span className="forward-runtime-metric-detail-row is-rate">
+              <span className={scopedClassName('forward-runtime-metric-detail-row', 'is-rate')}>
                 <small>{rateLabel}</small>
                 <b>{rate}</b>
               </span>
@@ -199,8 +208,8 @@ function Metric({
           </>
         ) : (
           <>
-            <small className="forward-runtime-metric-label">{label}</small>
-            <strong className="forward-runtime-value">{value}</strong>
+            <small className={scopedClassName('forward-runtime-metric-label')}>{label}</small>
+            <strong className={scopedClassName('forward-runtime-value')}>{value}</strong>
           </>
         )}
       </span>

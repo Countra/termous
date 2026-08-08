@@ -203,32 +203,32 @@ test('活动任务可在 Shell 尚未解析时重挂且成功目标展示生效�
 test('同步弹窗使用 AntD 6 单一外壳且列表行从顶部紧凑排列', () => {
   assert.match(
     aliasSyncStyles,
-    /\.alias-sync-modal \.ant-modal-container\s*\{[^}]*background:\s*var\(--surface-strong\);[^}]*padding:\s*0;/s,
+    /\.modal\s+:global\(\.ant-modal-container\)\s*\{[^}]*background:\s*var\(--surface-strong\);[^}]*padding:\s*0;/s,
   )
-  assert.doesNotMatch(aliasSyncStyles, /\.alias-sync-modal \.ant-modal-content\s*\{/)
+  assert.doesNotMatch(aliasSyncStyles, /\.modal\s+:global\(\.ant-modal-content\)\s*\{/)
   assert.match(
     aliasSyncStyles,
-    /\.alias-sync-target-list\s*\{[^}]*grid-auto-rows:\s*max-content;[^}]*align-content:\s*start;/s,
-  )
-  assert.match(
-    aliasSyncStyles,
-    /\.alias-sync-selection-list\s*\{[^}]*grid-auto-rows:\s*max-content;[^}]*align-content:\s*start;/s,
+    /\.target-list\s*\{[^}]*grid-auto-rows:\s*max-content;[^}]*align-content:\s*start;/s,
   )
   assert.match(
     aliasSyncStyles,
-    /\.alias-sync-select-row\.ant-checkbox-wrapper\s*\{[^}]*height:\s*52px;[^}]*align-items:\s*center;[^}]*padding:\s*6px 8px;/s,
+    /\.selection-list\s*\{[^}]*grid-auto-rows:\s*max-content;[^}]*align-content:\s*start;/s,
   )
   assert.match(
     aliasSyncStyles,
-    /\.alias-sync-select-row\.ant-checkbox-wrapper::after\s*\{[^}]*display:\s*none;[^}]*content:\s*none;/s,
+    /\.select-row:global\(\.ant-checkbox-wrapper\)\s*\{[^}]*height:\s*52px;[^}]*align-items:\s*center;[^}]*padding:\s*6px 8px;/s,
   )
   assert.match(
     aliasSyncStyles,
-    /\.alias-sync-select-row\.ant-checkbox-wrapper > \.ant-checkbox-label\s*\{[^}]*height:\s*auto;[^}]*align-items:\s*center;[^}]*align-self:\s*center;/s,
+    /\.select-row:global\(\.ant-checkbox-wrapper\)::after\s*\{[^}]*display:\s*none;[^}]*content:\s*none;/s,
   )
   assert.match(
     aliasSyncStyles,
-    /\.alias-sync-host-trailing\s*\{[^}]*justify-self:\s*end;[^}]*gap:\s*6px;/s,
+    /\.select-row:global\(\.ant-checkbox-wrapper\) > :global\(\.ant-checkbox-label\)\s*\{[^}]*height:\s*auto;[^}]*align-items:\s*center;[^}]*align-self:\s*center;/s,
+  )
+  assert.match(
+    aliasSyncStyles,
+    /\.host-trailing\s*\{[^}]*justify-self:\s*end;[^}]*gap:\s*6px;/s,
   )
 })
 

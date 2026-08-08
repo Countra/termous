@@ -6,6 +6,7 @@ import {
   normalizePorts,
   validateFirewallRuleInput,
 } from '../model/firewallUtils'
+import styles from './FirewallPanel.module.scss'
 
 interface FirewallRuleModalProps {
   open: boolean
@@ -44,7 +45,8 @@ export function FirewallRuleModal({
       open={open}
       centered
       destroyOnHidden
-      className="termous-modal firewall-rule-modal"
+      className={`termous-modal ${styles['firewall-rule-modal']}`}
+      rootClassName={styles['firewall-rule-modal-root']}
       title={title}
       okText={t('workbench.firewall.editor.save')}
       cancelText={t('app.cancel')}
@@ -53,8 +55,8 @@ export function FirewallRuleModal({
       onCancel={onCancel}
       onOk={onSubmit}
     >
-      <div className="firewall-rule-form">
-        <label className="firewall-field">
+      <div className={styles['firewall-rule-form']}>
+        <label className={styles['firewall-field']}>
           <span>{t('workbench.firewall.fields.action')}</span>
           <Segmented
             block
@@ -63,7 +65,7 @@ export function FirewallRuleModal({
             onChange={(next) => update({ action: next as FirewallRuleAction })}
           />
         </label>
-        <label className="firewall-field">
+        <label className={styles['firewall-field']}>
           <span>{t('workbench.firewall.fields.protocol')}</span>
           <Segmented
             block
@@ -72,7 +74,7 @@ export function FirewallRuleModal({
             onChange={(next) => updateProtocol(next as FirewallRuleProtocol)}
           />
         </label>
-        <label className="firewall-field">
+        <label className={styles['firewall-field']}>
           <span>{t('workbench.firewall.fields.source')}</span>
           <Input
             id="firewall-rule-source"
@@ -83,8 +85,8 @@ export function FirewallRuleModal({
           />
         </label>
         {value.protocol === 'tcp' || value.protocol === 'udp' ? (
-          <div className="firewall-port-grid">
-            <label className="firewall-field">
+          <div className={styles['firewall-port-grid']}>
+            <label className={styles['firewall-field']}>
               <span>{t('workbench.firewall.fields.portFrom')}</span>
               <InputNumber
                 id="firewall-rule-port-from"
@@ -95,7 +97,7 @@ export function FirewallRuleModal({
                 onChange={(next) => update({ ports: [{ from: Number(next || 0), to: Math.max(Number(next || 0), port.to) }] })}
               />
             </label>
-            <label className="firewall-field">
+            <label className={styles['firewall-field']}>
               <span>{t('workbench.firewall.fields.portTo')}</span>
               <InputNumber
                 id="firewall-rule-port-to"
@@ -108,7 +110,7 @@ export function FirewallRuleModal({
             </label>
           </div>
         ) : null}
-        <label className="firewall-field">
+        <label className={styles['firewall-field']}>
           <span>{t('workbench.firewall.fields.description')}</span>
           <Input
             id="firewall-rule-description"
@@ -119,11 +121,11 @@ export function FirewallRuleModal({
             onChange={(event) => update({ description: event.target.value })}
           />
         </label>
-        <div className="firewall-switch-line">
+        <div className={styles['firewall-switch-line']}>
           <span>{t('workbench.firewall.fields.enabled')}</span>
           <Switch checked={value.enabled} onChange={(checked) => update({ enabled: checked })} />
         </div>
-        {error ? <p className="firewall-form-error">{error}</p> : null}
+        {error ? <p className={styles['firewall-form-error']}>{error}</p> : null}
       </div>
     </Modal>
   )

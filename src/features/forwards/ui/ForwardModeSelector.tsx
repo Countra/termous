@@ -2,6 +2,12 @@ import { Network, RadioTower, Route, type LucideIcon } from 'lucide-react'
 import { Segmented } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { ForwardMode } from '#entities/forward'
+import styles from './ForwardManagement.module.scss'
+
+const scopedClassName = (...classNames: string[]) => classNames
+  .flatMap((className) => [className, styles[className]])
+  .filter(Boolean)
+  .join(' ')
 
 interface ForwardModeSelectorProps {
   value?: ForwardMode
@@ -16,7 +22,10 @@ export function ForwardModeSelector({ value, disabled, compact = false, onChange
   return (
     <Segmented
       block
-      className={`forward-mode-selector${compact ? ' is-compact' : ''}`}
+      className={[
+        scopedClassName('forward-mode-selector'),
+        compact ? scopedClassName('is-compact') : '',
+      ].filter(Boolean).join(' ')}
       value={value}
       disabled={disabled}
       onChange={(nextValue) => onChange?.(nextValue as ForwardMode)}
@@ -25,7 +34,7 @@ export function ForwardModeSelector({ value, disabled, compact = false, onChange
         return {
           value: mode,
           icon: <Icon size={compact ? 13 : 14} aria-hidden="true" />,
-          label: t(`forwards.modeName.${mode}`),
+          label: <span className={scopedClassName('forward-mode-label')}>{t(`forwards.modeName.${mode}`)}</span>,
           tooltip: modeTooltip(mode, t),
         }
       })}
@@ -38,7 +47,11 @@ export function ForwardModeBadge({ mode, compact = false }: { mode: ForwardMode;
   const Icon = forwardModeIcon(mode)
 
   return (
-    <span className={`forward-mode-badge is-${mode}${compact ? ' is-compact' : ''}`}>
+    <span className={[
+      scopedClassName('forward-mode-badge'),
+      scopedClassName(`is-${mode}`),
+      compact ? scopedClassName('is-compact') : '',
+    ].filter(Boolean).join(' ')}>
       <Icon size={compact ? 12 : 14} aria-hidden="true" />
       {t(`forwards.modeName.${mode}`)}
     </span>

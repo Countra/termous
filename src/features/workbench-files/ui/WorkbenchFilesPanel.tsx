@@ -86,10 +86,16 @@ import {
 import { isLocalFileDrag } from '../model/workbenchFileDrag'
 import styles from './WorkbenchFilesPanel.module.scss'
 import controlsStyles from './WorkbenchFileControls.module.scss'
+import fileListStyles from './WorkbenchFileList.module.scss'
+import transferStyles from './WorkbenchTransferBar.module.scss'
 
 const RemoteTextEditorModal = lazy(loadRemoteTextEditorModal)
 const RemoteImageViewerModal = lazy(loadRemoteImageViewerModal)
 const imagePattern = /\.(?:png|jpe?g|gif|webp|bmp|svg)$/i
+const panelClassName = (className: string) => [className, styles[className]].filter(Boolean).join(' ')
+const controlsClassName = (className: string) => [panelClassName(className), controlsStyles[className]].filter(Boolean).join(' ')
+const fileListClassName = (className: string) => `${className} ${fileListStyles[className]}`
+const transferClassName = (className: string) => `${className} ${transferStyles[className]}`
 
 interface WorkbenchFilesPanelProps {
   api: FileGateway
@@ -938,7 +944,7 @@ function WorkbenchFilesPanelContent({
     const pendingConnection = files.fileSession?.status === 'connecting'
       || files.fileSession?.status === 'waiting_trust'
     return (
-      <div className="workbench-file-connect">
+      <div className={transferClassName('workbench-file-connect')}>
         {files.recoveryBusy ? <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={21} /> : <FolderOpen size={21} />}
         <strong>{recoveryPresentation.title}</strong>
         <span>{recoveryPresentation.detail}</span>
@@ -960,36 +966,40 @@ function WorkbenchFilesPanelContent({
   return (
     <section
       className={[
-        'workbench-files-panel',
+        panelClassName('workbench-files-panel'),
+        fileListStyles['workbench-files-panel'],
         styles.root,
         directoryChanging ? 'is-changing-directory' : '',
       ].filter(Boolean).join(' ')}
       data-workbench-files-panel
     >
-      <div className={`workbench-files-toolbar ${controlsStyles.root}`}>
-        <header className="workbench-files-summary">
-          <div className="workbench-files-summary-copy">
-            <span className="workbench-files-summary-icon" aria-hidden="true">
+      <div className={`${panelClassName('workbench-files-toolbar')} ${controlsStyles.root}`}>
+        <header className={panelClassName('workbench-files-summary')}>
+          <div className={panelClassName('workbench-files-summary-copy')}>
+            <span className={panelClassName('workbench-files-summary-icon')} aria-hidden="true">
               <FolderOpen size={16} />
             </span>
-            <span className="workbench-files-summary-text">
+            <span className={panelClassName('workbench-files-summary-text')}>
               <strong>{t('workbench.files.remoteFiles')}</strong>
               <small>
                 <span
-                  className={`workbench-files-ready-dot${files.connected ? '' : ' is-disconnected'}`}
+                  className={[
+                    panelClassName('workbench-files-ready-dot'),
+                    files.connected ? '' : panelClassName('is-disconnected'),
+                  ].filter(Boolean).join(' ')}
                   aria-hidden="true"
                 />
                 {files.connected ? t('workbench.files.sftpReady') : recoveryPresentation.title}
               </small>
             </span>
           </div>
-          <div className="workbench-files-summary-actions">
+          <div className={panelClassName('workbench-files-summary-actions')}>
             <Tooltip title={t('app.reload')}>
               <Button
                 type="text"
-                className="workbench-files-icon-button"
+                className={panelClassName('workbench-files-icon-button')}
                 aria-label={t('app.reload')}
-                icon={<RefreshCw className={directoryRefreshing ? `${uiStyles['is-spinning']} is-spinning` : ''} size={14} />}
+                icon={<RefreshCw className={directoryRefreshing ? `${uiStyles['is-spinning']} ${panelClassName('is-spinning')}` : ''} size={14} />}
                 disabled={directoryLoading || !files.connected}
                 onClick={() => void files.loadDirectory(currentPath)}
               />
@@ -997,7 +1007,7 @@ function WorkbenchFilesPanelContent({
             <Tooltip title={t('workbench.manageFiles')}>
               <Button
                 type="text"
-                className="workbench-files-icon-button"
+                className={panelClassName('workbench-files-icon-button')}
                 aria-label={t('workbench.manageFiles')}
                 icon={<ExternalLink size={14} />}
                 onClick={() => void runAction(() => onOpenFull(session))}
@@ -1005,11 +1015,11 @@ function WorkbenchFilesPanelContent({
             </Tooltip>
           </div>
         </header>
-        <div className="workbench-files-location">
+        <div className={panelClassName('workbench-files-location')}>
           <Tooltip title={t('files.parent')}>
             <Button
               type="text"
-              className="workbench-files-back"
+              className={panelClassName('workbench-files-back')}
               aria-label={t('files.parent')}
               icon={<ChevronLeft size={16} />}
               disabled={currentPath === '/' || directoryNavigationLocked}
@@ -1018,11 +1028,11 @@ function WorkbenchFilesPanelContent({
           </Tooltip>
           <div
             className={[
-              'workbench-files-address',
-              editingPath ? 'is-editing' : '',
-              directoryLoading ? 'is-loading' : '',
-              directoryChanging ? 'is-navigating' : '',
-              syncStatus === 'invalid_path' ? 'is-invalid' : '',
+              panelClassName('workbench-files-address'),
+              editingPath ? panelClassName('is-editing') : '',
+              directoryLoading ? panelClassName('is-loading') : '',
+              directoryChanging ? panelClassName('is-navigating') : '',
+              syncStatus === 'invalid_path' ? panelClassName('is-invalid') : '',
             ].filter(Boolean).join(' ')}
             aria-busy={directoryLoading}
           >
@@ -1033,7 +1043,7 @@ function WorkbenchFilesPanelContent({
                   id={pathInputId}
                   name="workbench-remote-path"
                   value={pathInput}
-                  className="workbench-files-path-input"
+                  className={panelClassName('workbench-files-path-input')}
                   status={syncStatus === 'invalid_path' ? 'error' : undefined}
                   disabled={directoryNavigationLocked}
                   aria-label={t('workbench.files.pathInput')}
@@ -1052,7 +1062,7 @@ function WorkbenchFilesPanelContent({
                 />
                 <Button
                   type="text"
-                  className="workbench-files-address-action"
+                  className={panelClassName('workbench-files-address-action')}
                   aria-label={t('files.go')}
                   icon={<Check size={14} />}
                   disabled={directoryNavigationLocked}
@@ -1060,7 +1070,7 @@ function WorkbenchFilesPanelContent({
                 />
                 <Button
                   type="text"
-                  className="workbench-files-address-action"
+                  className={panelClassName('workbench-files-address-action')}
                   aria-label={t('workbench.files.cancelPathEdit')}
                   icon={<X size={14} />}
                   onClick={cancelPathEditing}
@@ -1070,19 +1080,19 @@ function WorkbenchFilesPanelContent({
               <>
                 <div
                   className={[
-                    'workbench-files-breadcrumb-shell',
-                    breadcrumbScrollState.canScrollLeft ? 'has-left-overflow' : '',
-                    breadcrumbScrollState.canScrollRight ? 'has-right-overflow' : '',
+                    panelClassName('workbench-files-breadcrumb-shell'),
+                    breadcrumbScrollState.canScrollLeft ? panelClassName('has-left-overflow') : '',
+                    breadcrumbScrollState.canScrollRight ? panelClassName('has-right-overflow') : '',
                   ].filter(Boolean).join(' ')}
                 >
                   <div
                     ref={breadcrumbViewportRef}
-                    className="workbench-files-breadcrumb-viewport"
+                    className={panelClassName('workbench-files-breadcrumb-viewport')}
                     onScroll={() => updateBreadcrumbScrollState()}
                     onWheel={handleBreadcrumbWheel}
                   >
                     <Breadcrumb
-                      className="workbench-files-breadcrumb"
+                      className={panelClassName('workbench-files-breadcrumb')}
                       separator={<ChevronRight size={11} strokeWidth={1.8} aria-hidden="true" />}
                       items={buildBreadcrumbItems(
                         currentPath,
@@ -1095,7 +1105,7 @@ function WorkbenchFilesPanelContent({
                   <Tooltip title={t('workbench.files.scrollPathLeft')}>
                     <Button
                       type="text"
-                      className="workbench-files-breadcrumb-scroll is-left"
+                      className={`${panelClassName('workbench-files-breadcrumb-scroll')} ${panelClassName('is-left')}`}
                       aria-label={t('workbench.files.scrollPathLeft')}
                       disabled={!breadcrumbScrollState.canScrollLeft}
                       icon={<ChevronLeft size={13} />}
@@ -1105,7 +1115,7 @@ function WorkbenchFilesPanelContent({
                   <Tooltip title={t('workbench.files.scrollPathRight')}>
                     <Button
                       type="text"
-                      className="workbench-files-breadcrumb-scroll is-right"
+                      className={`${panelClassName('workbench-files-breadcrumb-scroll')} ${panelClassName('is-right')}`}
                       aria-label={t('workbench.files.scrollPathRight')}
                       disabled={!breadcrumbScrollState.canScrollRight}
                       icon={<ChevronRight size={13} />}
@@ -1140,7 +1150,7 @@ function WorkbenchFilesPanelContent({
                 <Tooltip title={t('workbench.files.editPath')}>
                   <Button
                     type="text"
-                    className="workbench-files-address-action"
+                    className={panelClassName('workbench-files-address-action')}
                     aria-label={t('workbench.files.editPath')}
                     icon={<PencilLine size={13} />}
                     disabled={directoryNavigationLocked}
@@ -1151,24 +1161,24 @@ function WorkbenchFilesPanelContent({
             )}
           </div>
         </div>
-        <div className="workbench-files-toolbar-row">
+        <div className={controlsClassName('workbench-files-toolbar-row')}>
           <Tooltip title={t('files.uploadFiles')}>
             <Button
               type="default"
-              className="workbench-files-upload-button"
+              className={controlsClassName('workbench-files-upload-button')}
               aria-label={t('files.uploadFiles')}
               icon={<Upload size={15} />}
               loading={uploadPicking}
               disabled={directoryNavigationLocked}
               onClick={() => void uploadPickedFiles()}
             >
-              <span className="workbench-files-upload-label">{t('files.uploadFiles')}</span>
+              <span className={controlsClassName('workbench-files-upload-label')}>{t('files.uploadFiles')}</span>
             </Button>
           </Tooltip>
           <Tooltip title={t('files.newFolder')}>
             <Button
               type="text"
-              className="workbench-files-action-button"
+              className={controlsClassName('workbench-files-action-button')}
               aria-label={t('files.newFolder')}
               icon={<FolderPlus size={15} />}
               disabled={directoryNavigationLocked}
@@ -1178,7 +1188,7 @@ function WorkbenchFilesPanelContent({
           <Tooltip title={t('files.paste')}>
             <Button
               type="text"
-              className="workbench-files-action-button"
+              className={controlsClassName('workbench-files-action-button')}
               aria-label={t('files.paste')}
               icon={<Clipboard size={15} />}
               disabled={directoryNavigationLocked}
@@ -1187,20 +1197,21 @@ function WorkbenchFilesPanelContent({
           </Tooltip>
           <Tooltip title={followTooltip}>
             <div
-              className="workbench-files-follow"
+              className={controlsClassName('workbench-files-follow')}
               data-state={followVisualState}
               aria-busy={followProgressVisible}
             >
-              <span className="workbench-files-follow-indicator" aria-hidden="true">
+              <span className={controlsClassName('workbench-files-follow-indicator')} aria-hidden="true">
                 {followProgressVisible ? (
-                  <LoaderCircle className="workbench-files-follow-spinner" size={11} />
+                  <LoaderCircle className={controlsClassName('workbench-files-follow-spinner')} size={11} />
                 ) : (
-                  <span className="workbench-files-follow-dot" />
+                  <span className={controlsClassName('workbench-files-follow-dot')} />
                 )}
               </span>
               <span>{t('workbench.files.followLabel')}</span>
               <Switch
                 size="small"
+                className={controlsClassName('workbench-files-follow-switch')}
                 aria-label={t('workbench.files.followTerminal')}
                 checked={followTerminal}
                 disabled={closing || !files.connected}
@@ -1224,7 +1235,7 @@ function WorkbenchFilesPanelContent({
           >
             <Button
               type="text"
-              className="workbench-files-action-button"
+              className={controlsClassName('workbench-files-action-button')}
               aria-label={t('workbench.files.moreActions')}
               icon={<MoreHorizontal size={15} />}
             />
@@ -1232,14 +1243,15 @@ function WorkbenchFilesPanelContent({
         </div>
         {recoveryVisible ? (
           <div
-            className={`workbench-file-recovery is-${files.recoveryState.phase}`}
+            className={`${panelClassName('workbench-file-recovery')} is-${files.recoveryState.phase}`}
+            data-phase={files.recoveryState.phase}
             role={files.recoveryState.phase === 'failed' ? 'alert' : 'status'}
             aria-live="polite"
           >
-            <span className="workbench-file-recovery-icon" aria-hidden="true">
-              {files.recoveryBusy ? <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={14} /> : <CircleAlert size={14} />}
+            <span className={panelClassName('workbench-file-recovery-icon')} aria-hidden="true">
+              {files.recoveryBusy ? <LoaderCircle className={`${uiStyles['is-spinning']} ${panelClassName('is-spinning')}`} size={14} /> : <CircleAlert size={14} />}
             </span>
-            <span className="workbench-file-recovery-copy">
+            <span className={panelClassName('workbench-file-recovery-copy')}>
               <strong>{recoveryPresentation.title}</strong>
               <small>{recoveryPresentation.detail}</small>
             </span>
@@ -1257,15 +1269,15 @@ function WorkbenchFilesPanelContent({
       </div>
       <div
         className={[
-          'workbench-file-list-caption',
-          directoryChanging ? 'is-navigating' : '',
-          directoryReadFailed ? 'is-error' : '',
+          fileListClassName('workbench-file-list-caption'),
+          directoryChanging ? fileListClassName('is-navigating') : '',
+          directoryReadFailed ? fileListClassName('is-error') : '',
         ].filter(Boolean).join(' ')}
         role={directoryReadFailed ? 'alert' : undefined}
       >
         {directoryReadFailed ? (
           <button
-            className="workbench-file-caption-error"
+            className={fileListClassName('workbench-file-caption-error')}
             type="button"
             title={files.viewState?.error || undefined}
             onClick={() => void files.retryDirectory()}
@@ -1280,7 +1292,7 @@ function WorkbenchFilesPanelContent({
           </button>
         ) : directoryChanging ? (
           <span
-            className="workbench-file-navigation-status"
+            className={fileListClassName('workbench-file-navigation-status')}
             role="status"
             aria-live="polite"
             aria-label={t('workbench.files.directoryChangeAria', {
@@ -1299,7 +1311,7 @@ function WorkbenchFilesPanelContent({
         ) : syncNoticeTone && syncMessage ? (
           <span
             id={syncStatus === 'invalid_path' ? pathErrorId : undefined}
-            className={`workbench-file-caption-notice is-${syncNoticeTone}`}
+            className={`${fileListClassName('workbench-file-caption-notice')} ${fileListClassName(`is-${syncNoticeTone}`)}`}
             role={syncNoticeTone === 'error' ? 'alert' : 'status'}
           >
             <CircleAlert size={12} aria-hidden="true" />
@@ -1308,7 +1320,7 @@ function WorkbenchFilesPanelContent({
               <Button
                 type="link"
                 size="small"
-                className="workbench-file-caption-action"
+                className={fileListClassName('workbench-file-caption-action')}
                 icon={<RefreshCw size={11} />}
                 disabled={closing || actionBusy}
                 onClick={files.retryCwdSync}
@@ -1319,7 +1331,7 @@ function WorkbenchFilesPanelContent({
               <Button
                 type="link"
                 size="small"
-                className="workbench-file-caption-action"
+                className={fileListClassName('workbench-file-caption-action')}
                 icon={<RefreshCw size={11} />}
                 loading={sessionReconnectPending}
                 disabled={closing || actionBusy || sessionReconnectPending}
@@ -1331,7 +1343,7 @@ function WorkbenchFilesPanelContent({
           </span>
         ) : followProgressVisible && followDetailMessage ? (
           <span
-            className="workbench-file-navigation-status"
+            className={fileListClassName('workbench-file-navigation-status')}
             role="status"
             aria-live="polite"
           >
@@ -1340,7 +1352,7 @@ function WorkbenchFilesPanelContent({
           </span>
         ) : initialDirectoryPending || directoryRefreshing ? (
           <span
-            className="workbench-file-navigation-status"
+            className={fileListClassName('workbench-file-navigation-status')}
             role="status"
             aria-live="polite"
           >
@@ -1370,7 +1382,7 @@ function WorkbenchFilesPanelContent({
         onUploadFiles={() => void uploadPickedFiles()}
         uploading={uploadPicking}
       />
-      <div className="workbench-file-transfer-overlay">
+      <div className={panelClassName('workbench-file-transfer-overlay')}>
         <WorkbenchTransferBar
           api={api}
           fileSessionId={files.fileSession.id}
@@ -1445,9 +1457,9 @@ function buildBreadcrumbItems(
       <button
         type="button"
         className={[
-          'workbench-files-crumb',
-          index === 0 ? 'is-root' : '',
-          index === paths.length - 1 ? 'is-current' : '',
+          panelClassName('workbench-files-crumb'),
+          index === 0 ? panelClassName('is-root') : '',
+          index === paths.length - 1 ? panelClassName('is-current') : '',
         ].filter(Boolean).join(' ')}
         aria-current={index === paths.length - 1 ? 'page' : undefined}
         aria-label={index === 0 ? rootLabel : undefined}
@@ -1463,7 +1475,7 @@ function buildBreadcrumbItems(
 
 function FileStatusSpinner() {
   return (
-    <span className="workbench-file-status-spinner" aria-hidden="true">
+    <span className={fileListClassName('workbench-file-status-spinner')} aria-hidden="true">
       <LoaderCircle size={12} />
     </span>
   )

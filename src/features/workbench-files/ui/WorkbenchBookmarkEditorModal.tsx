@@ -8,6 +8,12 @@ import type {
   FileBookmarkInput,
 } from '#entities/file'
 import { sortBookmarkGroups, suggestBookmarkName } from '#entities/file'
+import styles from './WorkbenchBookmarksPopover.module.scss'
+
+const scopedClassName = (...classNames: string[]) => classNames
+  .flatMap((className) => [className, styles[className]])
+  .filter(Boolean)
+  .join(' ')
 
 interface WorkbenchBookmarkEditorModalProps {
   open: boolean
@@ -75,16 +81,16 @@ export function WorkbenchBookmarkEditorModal({
       mask={{ closable: !saving }}
       closable={!saving}
       zIndex={3700}
-      rootClassName="termous-modal-root workbench-bookmark-editor-root"
-      className="workbench-bookmark-editor-modal"
+      rootClassName={scopedClassName('termous-modal-root', 'workbench-bookmark-editor-root')}
+      className={scopedClassName('workbench-bookmark-editor-modal')}
       title={(
-        <span className="workbench-bookmark-editor-title">
+        <span className={scopedClassName('workbench-bookmark-editor-title')}>
           <Bookmark size={16} aria-hidden="true" />
           <span>{t(editing ? 'files.editBookmark' : 'files.addBookmark')}</span>
         </span>
       )}
       footer={(
-        <div className="workbench-bookmark-editor-actions">
+        <div className={scopedClassName('workbench-bookmark-editor-actions')}>
           <Button disabled={saving} onClick={onCancel}>
             {t('app.cancel')}
           </Button>
@@ -109,15 +115,15 @@ export function WorkbenchBookmarkEditorModal({
         form={form}
         layout="vertical"
         requiredMark={false}
-        className="workbench-bookmark-editor-form"
+        className={scopedClassName('workbench-bookmark-editor-form')}
         onFinish={(values) => void onSubmit({
           name: values.name.trim(),
           path: currentPath,
           group_id: values.group_id,
         })}
       >
-        <div className="workbench-bookmark-editor-path">
-          <span className="workbench-bookmark-editor-path-icon" aria-hidden="true">
+        <div className={scopedClassName('workbench-bookmark-editor-path')}>
+          <span className={scopedClassName('workbench-bookmark-editor-path-icon')} aria-hidden="true">
             <FolderTree size={15} />
           </span>
           <span>
@@ -127,7 +133,7 @@ export function WorkbenchBookmarkEditorModal({
               placement="topLeft"
               mouseEnterDelay={0.45}
               zIndex={3800}
-              classNames={{ root: 'termous-tooltip workbench-bookmark-editor-tooltip' }}
+              classNames={{ root: scopedClassName('termous-tooltip', 'workbench-bookmark-editor-tooltip') }}
             >
               <strong>{currentPath}</strong>
             </Tooltip>
@@ -159,10 +165,10 @@ export function WorkbenchBookmarkEditorModal({
           initialValue=""
         >
           <Select
-            className="termous-select workbench-bookmark-editor-select"
+            className={scopedClassName('termous-select', 'workbench-bookmark-editor-select')}
             classNames={{
               popup: {
-                root: 'workbench-bookmark-editor-select-popup',
+                root: scopedClassName('workbench-bookmark-editor-select-popup'),
               },
             }}
             options={groupOptions}
@@ -171,7 +177,7 @@ export function WorkbenchBookmarkEditorModal({
         </Form.Item>
 
         {error ? (
-          <div className="workbench-bookmark-editor-error" role="alert">
+          <div className={scopedClassName('workbench-bookmark-editor-error')} role="alert">
             {error}
           </div>
         ) : null}

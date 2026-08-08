@@ -16,6 +16,10 @@ const defaultNoUnscopedGlobalAllowlistPath = path.join(
 const comparePaths = (left, right) => left.localeCompare(right, "en");
 const toPosix = (value) => value.replaceAll(path.sep, "/");
 const styleExtensions = [".css", ".sass", ".scss"];
+const globalScssDirectoryPrefixes = [
+  "src/shared/main-styles/",
+  "src/shared/styles/",
+];
 const noUnscopedGlobalRuleName = "termous/no-unscoped-global";
 
 function collectScssCommentBodies(source) {
@@ -145,7 +149,9 @@ function collectSourceFiles(directory, projectRoot, inventory) {
         inventory.noUnscopedGlobalDisabledFiles.push(relativePath);
       }
     } else if (
-      !relativePath.startsWith("src/shared/styles/")
+      !globalScssDirectoryPrefixes.some((prefix) =>
+        relativePath.startsWith(prefix),
+      )
     ) {
       inventory.unscopedScssFiles.push(relativePath);
     }
@@ -318,7 +324,7 @@ export function assertLegacyCssAllowlist(options) {
   }
   if (result.unscopedScssFiles.length > 0) {
     problems.push(
-      `业务样式必须使用 *.module.scss；非 Module SCSS 只能放在 src/shared/styles：\n${result.unscopedScssFiles
+      `业务样式必须使用 *.module.scss；非 Module SCSS 只能放在 src/shared/styles 或 src/shared/main-styles：\n${result.unscopedScssFiles
         .map((file) => `  - ${file}`)
         .join("\n")}`,
     );

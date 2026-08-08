@@ -31,6 +31,11 @@ import { ForwardRuntimeMetrics } from './ForwardRuntimeMetrics'
 import { ForwardStateFeedback } from './ForwardStateFeedback'
 import styles from './ForwardManagement.module.scss'
 
+const scopedClassName = (...classNames: string[]) => classNames
+  .flatMap((className) => [className, styles[className]])
+  .filter(Boolean)
+  .join(' ')
+
 type EditorMode = 'profile' | 'temporary'
 type ForwardModeFilter = 'all' | ForwardMode
 
@@ -210,15 +215,15 @@ export function ForwardManagementWorkspace({
   const hostById = (hostId?: string) => hostId ? hostLookup.get(hostId) : undefined
 
   return (
-    <section className={`forwarding-page ${styles.root}`}>
-      <div className="forwarding-commandbar">
-        <div className="forwarding-command-primary">
-          <div className="forwarding-overview-strip" aria-label={t('forwards.overview')}>
+    <section className={`${scopedClassName('forwarding-page')} ${styles.root}`}>
+      <div className={scopedClassName('forwarding-commandbar')}>
+        <div className={scopedClassName('forwarding-command-primary')}>
+          <div className={scopedClassName('forwarding-overview-strip')} aria-label={t('forwards.overview')}>
             <OverviewMetric icon={<Route size={16} />} label={t('forwards.profiles')} value={String(data.forwardProfiles.length)} />
             <OverviewMetric icon={<Activity size={16} />} label={t('forwards.active')} value={String(runningForwards.length)} />
             <OverviewMetric icon={<Cable size={16} />} label={t('forwards.connections')} value={String(activeConnections)} />
           </div>
-          <div className={`${uiStyles['page-actions']} page-actions`}>
+          <div className={`${uiStyles['page-actions']} ${scopedClassName('page-actions')}`}>
             <Button className={`${uiStyles['secondary-button']} secondary-button`} disabled={actionBusy || data.hosts.length === 0} icon={<Plus size={16} />} onClick={openTemporaryForward}>
               {t('forwards.newTemporary')}
             </Button>
@@ -227,10 +232,10 @@ export function ForwardManagementWorkspace({
             </ConnectionActionButton>
           </div>
         </div>
-        <div className="forwarding-filterbar">
+        <div className={scopedClassName('forwarding-filterbar')}>
           <Input
             allowClear
-            className="forwarding-search"
+            className={scopedClassName('forwarding-search')}
             prefix={<Search size={15} aria-hidden="true" />}
             value={searchValue}
             aria-label={t('forwards.searchPlaceholder')}
@@ -238,7 +243,7 @@ export function ForwardManagementWorkspace({
             onChange={(event) => setSearchValue(event.target.value)}
           />
           <ManagementFilterTabs
-            className="forwarding-mode-tabs"
+            className={scopedClassName('forwarding-mode-tabs')}
             activeKey={modeFilter}
             animated={{ inkBar: true, tabPane: false }}
             aria-label={t('forwards.modeFilter')}
@@ -250,13 +255,13 @@ export function ForwardManagementWorkspace({
               { label: t('forwards.modeName.dynamic'), key: 'dynamic' },
             ]}
           />
-          <span className="forwarding-filter-count">
+          <span className={scopedClassName('forwarding-filter-count')}>
             {t('forwards.filteredCount', { count: filteredCount, total: searchableCount })}
           </span>
         </div>
       </div>
 
-      <div className="forwarding-workspace-grid">
+      <div className={scopedClassName('forwarding-workspace-grid')}>
         <ForwardWorkspacePane
           className="is-profiles"
           icon={<Route size={17} />}
@@ -269,7 +274,7 @@ export function ForwardManagementWorkspace({
               description={data.forwardProfiles.length === 0 ? t('forwards.noProfiles') : t('forwards.noProfileResults')}
             />
           ) : (
-            <div className="forwarding-profile-list">
+            <div className={scopedClassName('forwarding-profile-list')}>
               {filteredProfiles.map((profile) => (
                 <ForwardProfileRow
                   key={profile.id}
@@ -298,7 +303,7 @@ export function ForwardManagementWorkspace({
               description={runningForwards.length === 0 ? t('forwards.noRunning') : t('forwards.noRunningResults')}
             />
           ) : (
-            <div className="forwarding-runtime-list">
+            <div className={scopedClassName('forwarding-runtime-list')}>
               {filteredRunningForwards.map((forward) => (
                 <ForwardRuntimeRow
                   key={forward.id}
@@ -319,10 +324,11 @@ export function ForwardManagementWorkspace({
         centered
         open={editorOpen}
         width={580}
-        className="termous-modal forwarding-modal"
+        rootClassName={scopedClassName('forwarding-modal-root')}
+        className={scopedClassName('termous-modal', 'forwarding-modal')}
         title={
-          <span className="forwarding-modal-title">
-            <span className="forwarding-modal-title-icon" aria-hidden="true">
+          <span className={scopedClassName('forwarding-modal-title')}>
+            <span className={scopedClassName('forwarding-modal-title-icon')} aria-hidden="true">
               <Cable size={18} strokeWidth={2.15} />
             </span>
             <span>
@@ -361,17 +367,17 @@ function ForwardEditorForm({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="forwarding-editor-form">
-      <section className="forwarding-editor-section is-basic">
-        <header className="forwarding-editor-section-header">
-          <span className="forwarding-editor-section-icon" aria-hidden="true">
+    <div className={scopedClassName('forwarding-editor-form')}>
+      <section className={scopedClassName('forwarding-editor-section', 'is-basic')}>
+        <header className={scopedClassName('forwarding-editor-section-header')}>
+          <span className={scopedClassName('forwarding-editor-section-icon')} aria-hidden="true">
             <Activity size={15} />
           </span>
-          <span className="forwarding-editor-section-title">{t('forwards.basicInfo')}</span>
+          <span className={scopedClassName('forwarding-editor-section-title')}>{t('forwards.basicInfo')}</span>
         </header>
-        <div className="forwarding-editor-basic-grid">
-          <label className="forward-field">
-            <span className={`${uiStyles['field-label']} field-label`}>{t('forwards.name')}</span>
+        <div className={scopedClassName('forwarding-editor-basic-grid')}>
+          <label className={scopedClassName('forward-field')}>
+            <span className={`${uiStyles['field-label']} ${scopedClassName('field-label')}`}>{t('forwards.name')}</span>
             <Input
               id="forward-name"
               name="forward-name"
@@ -381,6 +387,8 @@ function ForwardEditorForm({
             />
           </label>
           <CustomSelect
+            className={scopedClassName('forwarding-modal-select')}
+            popupClassName={scopedClassName('forwarding-select-popup')}
             label={t('forwards.host')}
             value={form.host_id}
             options={hostOptions}
@@ -388,18 +396,18 @@ function ForwardEditorForm({
             disabled={hostOptions.length === 0}
           />
         </div>
-        <label className="forward-field">
-          <span className={`${uiStyles['field-label']} field-label`}>{t('forwards.mode')}</span>
+        <label className={scopedClassName('forward-field')}>
+          <span className={`${uiStyles['field-label']} ${scopedClassName('field-label')}`}>{t('forwards.mode')}</span>
           <ForwardModeSelector value={form.mode} onChange={(mode) => onChange({ mode })} />
         </label>
       </section>
 
-      <section className="forwarding-editor-section is-endpoints">
-        <header className="forwarding-editor-section-header">
-          <span className="forwarding-editor-section-icon" aria-hidden="true">
+      <section className={scopedClassName('forwarding-editor-section', 'is-endpoints')}>
+        <header className={scopedClassName('forwarding-editor-section-header')}>
+          <span className={scopedClassName('forwarding-editor-section-icon')} aria-hidden="true">
             <Route size={15} />
           </span>
-          <span className="forwarding-editor-section-title">{t('forwards.endpointSettings')}</span>
+          <span className={scopedClassName('forwarding-editor-section-title')}>{t('forwards.endpointSettings')}</span>
         </header>
         <ForwardRouteDiagram
           mode={form.mode}
@@ -417,8 +425,8 @@ function ForwardEditorForm({
           target_port={form.target_port}
           onChange={onChange}
         />
-        <label className="forward-field">
-          <span className={`${uiStyles['field-label']} field-label`}>{t('forwards.description')}</span>
+        <label className={scopedClassName('forward-field')}>
+          <span className={`${uiStyles['field-label']} ${scopedClassName('field-label')}`}>{t('forwards.description')}</span>
           <Input.TextArea
             id="forward-description"
             name="forward-description"
@@ -454,21 +462,29 @@ function ForwardProfileRow({
   const secondary = [host?.name ?? t('fields.none'), profile.description].filter(Boolean).join(' · ')
 
   return (
-    <article className="forwarding-profile-row">
-      <div className="forwarding-row-heading">
-        <div className="forwarding-row-title">
+    <article className={scopedClassName('forwarding-profile-row')}>
+      <div className={scopedClassName('forwarding-row-heading')}>
+        <div className={scopedClassName('forwarding-row-title')}>
           <strong>{profile.name}</strong>
-          <Tooltip title={secondary} mouseEnterDelay={0.35} classNames={{ root: 'forward-route-tooltip' }}>
+          <Tooltip
+            title={secondary}
+            mouseEnterDelay={0.35}
+            classNames={{ root: scopedClassName('forward-route-tooltip') }}
+          >
             <span>{secondary}</span>
           </Tooltip>
         </div>
-        <div className="forwarding-row-actions">
+        <div className={scopedClassName('forwarding-row-actions')}>
           {running ? <StatusBadge status="connected" label={t('forwards.running')} /> : null}
-          <Tooltip title={startHint} mouseEnterDelay={0.3} classNames={{ root: 'forward-route-tooltip' }}>
+          <Tooltip
+            title={startHint}
+            mouseEnterDelay={0.3}
+            classNames={{ root: scopedClassName('forward-route-tooltip') }}
+          >
             <span>
               <Button
                 type="text"
-                className="forwarding-row-action is-start"
+                className={scopedClassName('forwarding-row-action', 'is-start')}
                 aria-label={startHint}
                 disabled={actionBusy || Boolean(running)}
                 icon={<Play size={14} />}
@@ -476,10 +492,14 @@ function ForwardProfileRow({
               />
             </span>
           </Tooltip>
-          <Tooltip title={t('app.update')} mouseEnterDelay={0.3} classNames={{ root: 'forward-route-tooltip' }}>
+          <Tooltip
+            title={t('app.update')}
+            mouseEnterDelay={0.3}
+            classNames={{ root: scopedClassName('forward-route-tooltip') }}
+          >
             <Button
               type="text"
-              className="forwarding-row-action"
+              className={scopedClassName('forwarding-row-action')}
               aria-label={t('app.update')}
               disabled={actionBusy}
               icon={<Edit3 size={14} />}
@@ -492,13 +512,18 @@ function ForwardProfileRow({
             okText={t('app.delete')}
             cancelText={t('app.cancel')}
             okButtonProps={{ danger: true }}
+            rootClassName={scopedClassName('forwarding-delete-popconfirm')}
             onConfirm={onDelete}
           >
-            <Tooltip title={t('app.delete')} mouseEnterDelay={0.3} classNames={{ root: 'forward-route-tooltip' }}>
+            <Tooltip
+              title={t('app.delete')}
+              mouseEnterDelay={0.3}
+              classNames={{ root: scopedClassName('forward-route-tooltip') }}
+            >
               <Button
                 type="text"
                 danger
-                className="forwarding-row-action"
+                className={scopedClassName('forwarding-row-action')}
                 aria-label={t('app.delete')}
                 disabled={actionBusy}
                 icon={<Trash2 size={14} />}
@@ -507,7 +532,7 @@ function ForwardProfileRow({
           </Popconfirm>
         </div>
       </div>
-      <div className="forwarding-row-mode"><ForwardModeBadge compact mode={profile.mode} /></div>
+      <div className={scopedClassName('forwarding-row-mode')}><ForwardModeBadge compact mode={profile.mode} /></div>
       <ForwardRouteDiagram
         compact
         mode={profile.mode}
@@ -540,13 +565,13 @@ function ForwardRuntimeRow({
   const forwardName = forward.name.trim()
   const showForwardName = forwardName !== '' && forwardName !== modeLabel
   return (
-    <article className={`forwarding-runtime-row is-${forward.status}`}>
-      <div className="forwarding-row-heading">
-        <div className="forwarding-row-title">
+    <article className={scopedClassName('forwarding-runtime-row', `is-${forward.status}`)}>
+      <div className={scopedClassName('forwarding-row-heading')}>
+        <div className={scopedClassName('forwarding-row-title')}>
           <strong>{showForwardName ? forwardName : hostName}</strong>
           {showForwardName ? <span>{hostName}</span> : null}
         </div>
-        <div className="forwarding-row-actions">
+        <div className={scopedClassName('forwarding-row-actions')}>
           <ForwardModeBadge compact mode={forward.mode} />
           <StatusBadge status={forward.status === 'running' ? 'connected' : 'connecting'} label={t(`forwards.status.${forward.status}`)} />
           <ForwardRuntimeActions
@@ -588,23 +613,23 @@ function ForwardWorkspacePane({
   children: ReactNode
 }) {
   return (
-    <section className={`forwarding-workspace-pane ${className}`}>
-      <header className="forwarding-section-header">
-        <span className="forwarding-section-icon" aria-hidden="true">{icon}</span>
+    <section className={scopedClassName('forwarding-workspace-pane', className)}>
+      <header className={scopedClassName('forwarding-section-header')}>
+        <span className={scopedClassName('forwarding-section-icon')} aria-hidden="true">{icon}</span>
         <div>
           <h2>{title}</h2>
           <p>{hint}</p>
         </div>
         <strong>{count}</strong>
       </header>
-      <div className="forwarding-pane-content">{children}</div>
+      <div className={scopedClassName('forwarding-pane-content')}>{children}</div>
     </section>
   )
 }
 
 function OverviewMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <span className="forwarding-overview-metric">
+    <span className={scopedClassName('forwarding-overview-metric')}>
       <span aria-hidden="true">{icon}</span>
       <small>{label}</small>
       <strong>{value}</strong>
@@ -614,7 +639,7 @@ function OverviewMetric({ icon, label, value }: { icon: ReactNode; label: string
 
 function ForwardingEmpty({ description }: { description: string }) {
   return (
-    <div className="forwarding-empty">
+    <div className={scopedClassName('forwarding-empty')}>
       <Empty description={description} image={Empty.PRESENTED_IMAGE_SIMPLE} />
     </div>
   )

@@ -44,6 +44,8 @@ interface LogSearchResult {
 const priorityOptions = ['', 'emerg', 'alert', 'crit', 'err', 'warning', 'notice', 'info', 'debug']
 const limitOptions = [100, 200, 500, 1000]
 const emptyLogEntries: SystemServiceLogEntry[] = []
+const tooltipClassNames = { root: styles['tooltip-root'] }
+const selectClassNames = { popup: { root: styles['select-dropdown'] } }
 
 export function ServiceLogsModal({
   open,
@@ -104,35 +106,35 @@ export function ServiceLogsModal({
       title={null}
       closable={false}
       mask={{ closable: false }}
-      className="service-logs-modal"
-      rootClassName={`service-logs-modal-root ${styles.root}`}
+      className={styles.modal}
+      rootClassName={styles.root}
       onCancel={onClose}
     >
-      <div className="service-logs-view">
-        <header className="service-logs-header">
-          <span className="service-logs-heading-icon"><FileClock size={18} /></span>
-          <div className="service-logs-heading-copy">
+      <div className={styles.view}>
+        <header className={styles.header}>
+          <span className={styles['heading-icon']}><FileClock size={18} /></span>
+          <div className={styles['heading-copy']}>
             <strong>{t('workbench.services.logsViewerTitle')}</strong>
-            <Tooltip title={unitId}><span>{unitId}</span></Tooltip>
+            <Tooltip title={unitId} classNames={tooltipClassNames}><span>{unitId}</span></Tooltip>
           </div>
           <Button
             type="text"
-            className="service-logs-close"
+            className={styles.close}
             icon={<X size={17} />}
             aria-label={t('app.close')}
             onClick={onClose}
           />
         </header>
 
-        <div className="service-logs-toolbar">
-          <div className="service-logs-search-row">
+        <div className={styles.toolbar}>
+          <div className={styles['search-row']}>
             <Input
               id="service-logs-search"
               name="service-logs-search"
               value={searchText}
               allowClear
               variant="borderless"
-              className="service-logs-search"
+              className={styles.search}
               prefix={<Search size={14} />}
               status={search.invalidRegex ? 'error' : undefined}
               placeholder={t('workbench.services.logsSearchPlaceholder')}
@@ -141,27 +143,27 @@ export function ServiceLogsModal({
                 setActiveMatch(0)
               }}
             />
-            <span className="service-logs-match-count">
+            <span className={styles['match-count']}>
               {search.matches.length > 0 ? `${activeMatch + 1} / ${search.matches.length}` : '0 / 0'}
             </span>
-            <Tooltip title={t('workbench.services.logsPrevious')}>
-              <Button type="text" className="service-logs-tool" aria-label={t('workbench.services.logsPrevious')} disabled={search.matches.length === 0} icon={<ChevronUp size={15} />} onClick={() => moveMatch(-1)} />
+            <Tooltip title={t('workbench.services.logsPrevious')} classNames={tooltipClassNames}>
+              <Button type="text" className={styles.tool} aria-label={t('workbench.services.logsPrevious')} disabled={search.matches.length === 0} icon={<ChevronUp size={15} />} onClick={() => moveMatch(-1)} />
             </Tooltip>
-            <Tooltip title={t('workbench.services.logsNext')}>
-              <Button type="text" className="service-logs-tool" aria-label={t('workbench.services.logsNext')} disabled={search.matches.length === 0} icon={<ChevronDown size={15} />} onClick={() => moveMatch(1)} />
+            <Tooltip title={t('workbench.services.logsNext')} classNames={tooltipClassNames}>
+              <Button type="text" className={styles.tool} aria-label={t('workbench.services.logsNext')} disabled={search.matches.length === 0} icon={<ChevronDown size={15} />} onClick={() => moveMatch(1)} />
             </Tooltip>
-            <Tooltip title={t('workbench.services.logsCaseSensitive')}>
-              <Button type="text" className={`service-logs-tool ${caseSensitive ? 'is-active' : ''}`} aria-label={t('workbench.services.logsCaseSensitive')} icon={<CaseSensitive size={16} />} onClick={() => setCaseSensitive((value) => !value)} />
+            <Tooltip title={t('workbench.services.logsCaseSensitive')} classNames={tooltipClassNames}>
+              <Button type="text" className={`${styles.tool} ${caseSensitive ? styles['is-active'] : ''}`} aria-label={t('workbench.services.logsCaseSensitive')} icon={<CaseSensitive size={16} />} onClick={() => setCaseSensitive((value) => !value)} />
             </Tooltip>
-            <Tooltip title={t('workbench.services.logsRegex')}>
-              <Button type="text" className={`service-logs-tool ${regexMode ? 'is-active' : ''}`} aria-label={t('workbench.services.logsRegex')} icon={<Regex size={15} />} onClick={() => setRegexMode((value) => !value)} />
+            <Tooltip title={t('workbench.services.logsRegex')} classNames={tooltipClassNames}>
+              <Button type="text" className={`${styles.tool} ${regexMode ? styles['is-active'] : ''}`} aria-label={t('workbench.services.logsRegex')} icon={<Regex size={15} />} onClick={() => setRegexMode((value) => !value)} />
             </Tooltip>
-            <Tooltip title={t('workbench.services.logsWrap')}>
-              <Button type="text" className={`service-logs-tool ${wrapLines ? 'is-active' : ''}`} aria-label={t('workbench.services.logsWrap')} icon={<WrapText size={15} />} onClick={() => setWrapLines((value) => !value)} />
+            <Tooltip title={t('workbench.services.logsWrap')} classNames={tooltipClassNames}>
+              <Button type="text" className={`${styles.tool} ${wrapLines ? styles['is-active'] : ''}`} aria-label={t('workbench.services.logsWrap')} icon={<WrapText size={15} />} onClick={() => setWrapLines((value) => !value)} />
             </Tooltip>
           </div>
 
-          <div className="service-logs-option-row">
+          <div className={styles['option-row']}>
             <Segmented
               size="small"
               value={query.boot}
@@ -173,8 +175,8 @@ export function ServiceLogsModal({
             />
             <Select
               value={query.priority}
-              className="service-logs-priority"
-              classNames={{ popup: { root: 'service-logs-select-dropdown' } }}
+              className={styles.priority}
+              classNames={selectClassNames}
               aria-label={t('workbench.services.logsPriority')}
               options={priorityOptions.map((priority) => ({
                 value: priority,
@@ -184,14 +186,14 @@ export function ServiceLogsModal({
             />
             <Select
               value={query.limit}
-              className="service-logs-limit"
-              classNames={{ popup: { root: 'service-logs-select-dropdown' } }}
+              className={styles.limit}
+              classNames={selectClassNames}
               aria-label={t('workbench.services.logsLimit')}
               options={limitOptions.map((limit) => ({ value: limit, label: String(limit) }))}
               onChange={(value) => applyRemoteQuery({ limit: value })}
             />
             <Button
-              className="service-logs-refresh"
+              className={styles.refresh}
               loading={loading}
               icon={<RefreshCw size={14} />}
               onClick={() => onRefresh(query, false)}
@@ -199,7 +201,7 @@ export function ServiceLogsModal({
               {t('workbench.services.logsRefresh')}
             </Button>
             <Button
-              className="service-logs-refresh"
+              className={styles.refresh}
               disabled={loading || !logs?.cursor}
               icon={<ArrowDownToLine size={14} />}
               onClick={() => onRefresh(query, true)}
@@ -209,12 +211,12 @@ export function ServiceLogsModal({
           </div>
         </div>
 
-        {search.invalidRegex ? <div className="service-logs-error">{t('workbench.services.logsInvalidRegex')}</div> : null}
-        {error ? <div className="service-logs-error">{error}</div> : null}
+        {search.invalidRegex ? <div className={styles.error}>{t('workbench.services.logsInvalidRegex')}</div> : null}
+        {error ? <div className={styles.error}>{error}</div> : null}
 
-        <div ref={consoleRef} className={`service-logs-console ${wrapLines ? 'is-wrap' : ''}`}>
+        <div ref={consoleRef} className={`${styles.console} ${wrapLines ? styles['is-wrap'] : ''}`}>
           {entries.length === 0 && !loading ? (
-            <div className="service-logs-empty">
+            <div className={styles.empty}>
               <FileClock size={24} />
               <span>{t('workbench.services.logsEmpty')}</span>
             </div>
@@ -230,7 +232,7 @@ export function ServiceLogsModal({
           ))}
         </div>
 
-        <footer className="service-logs-footer">
+        <footer className={styles.footer}>
           <span>{t('workbench.services.logsLineCount', { count: entries.length })}</span>
           <span>{t('workbench.services.logsMatchCount', { count: search.matches.length })}</span>
           <span>{logs?.collected_at ? t('workbench.services.logsUpdatedAt', { time: formatLogTime(logs.collected_at, true) }) : t('workbench.services.updatedNever')}</span>
@@ -252,9 +254,9 @@ function ServiceLogLine({
   activeMatch: number
 }) {
   return (
-    <div className={`service-log-line is-priority-${entry.priority}`} data-service-log-line={lineIndex}>
+    <div className={`${styles['log-line']} ${styles[`is-priority-${entry.priority}`] ?? ''}`} data-service-log-line={lineIndex}>
       <time>{formatLogTime(entry.timestamp, false)}</time>
-      <span className="service-log-source">
+      <span className={styles['log-source']}>
         {entry.command || '-'}{entry.pid ? ` · ${entry.pid}` : ''}
       </span>
       <code>{highlightMessage(entry.message, ranges, activeMatch)}</code>
@@ -335,7 +337,7 @@ function highlightMessage(message: string, ranges: LogMatchRange[], activeMatch:
       nodes.push(message.slice(cursor, range.start))
     }
     nodes.push(
-      <mark key={`${range.start}-${range.end}`} className={range.index === activeMatch ? 'is-active' : undefined}>
+      <mark key={`${range.start}-${range.end}`} className={range.index === activeMatch ? styles['is-active'] : undefined}>
         {message.slice(range.start, range.end) || ' '}
       </mark>,
     )

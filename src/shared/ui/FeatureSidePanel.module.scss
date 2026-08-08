@@ -1,16 +1,11 @@
 .details-panel {
   min-width: 0;
-  overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 14px;
   background: var(--surface);
   padding: 14px;
-  box-shadow: var(--shadow-soft), var(--inner-highlight);
-  backdrop-filter: blur(26px) saturate(1.28);
-}
-
-.details-panel.is-collapsed {
-  padding: 10px 9px;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px) saturate(1.12);
 }
 
 .details-panel.is-collapsed :global(.panel-heading) {
@@ -199,6 +194,11 @@
 .details-tabs :global(.ant-tabs-content-active) {
   overflow: auto;
   padding-right: 2px;
+}
+
+.details-tabs :global(.ant-tabs-content-active):has(> [data-workbench-files-panel]) {
+  overflow: hidden;
+  padding-right: 0;
 }
 
 .details-tabs :global(.ant-tabs-nav)::before {

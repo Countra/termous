@@ -1,10 +1,8 @@
-/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
-/* stylelint-disable termous/no-unscoped-global, media-feature-range-notation -- 迁移期保持防火墙面板与 Portal 的视觉与交互兼容。 */
+/* stylelint-disable media-feature-range-notation -- 保持现有媒体查询语义，避免样式归属迁移改变兼容范围。 */
 .root {
   position: static;
 }
 
-:global {
 .firewall-panel {
   display: grid;
   min-height: 0;
@@ -132,12 +130,12 @@
   white-space: nowrap;
 }
 
-.firewall-provider-select.termous-select {
+.firewall-provider-select:global(.termous-select) {
   flex: 0 0 112px;
   width: 112px;
 }
 
-.firewall-provider-picker .firewall-provider-select .ant-select-selector {
+.firewall-provider-picker .firewall-provider-select :global(.ant-select-selector) {
   min-height: 34px;
   border-color: transparent !important;
   border-radius: 12px !important;
@@ -146,14 +144,14 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 38%, transparent) !important;
 }
 
-.firewall-provider-picker .firewall-provider-select:hover .ant-select-selector,
-.firewall-provider-picker .firewall-provider-select.ant-select-focused .ant-select-selector {
+.firewall-provider-picker .firewall-provider-select:hover :global(.ant-select-selector),
+.firewall-provider-picker .firewall-provider-select:global(.ant-select-focused) :global(.ant-select-selector) {
   border-color: transparent !important;
   background: color-mix(in srgb, var(--surface-elevated) 70%, var(--surface)) !important;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 58%, transparent) !important;
 }
 
-.firewall-provider-picker .firewall-provider-select .ant-select-selection-item {
+.firewall-provider-picker .firewall-provider-select :global(.ant-select-selection-item) {
   display: inline-flex;
   align-items: center;
   padding-inline-end: 18px;
@@ -189,7 +187,7 @@
   background: color-mix(in srgb, var(--text-muted) 72%, transparent);
 }
 
-.firewall-toolbar-icon-button.ant-btn {
+.firewall-toolbar-icon-button:global(.ant-btn) {
   width: 34px;
   height: 34px;
   border-radius: 12px;
@@ -198,13 +196,13 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 38%, transparent);
 }
 
-.firewall-toolbar-icon-button.ant-btn:not(:disabled):hover {
+.firewall-toolbar-icon-button:global(.ant-btn):not(:disabled):hover {
   color: var(--text-primary);
   background: color-mix(in srgb, var(--surface-elevated) 70%, var(--surface));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 58%, transparent);
 }
 
-.firewall-persistence-open.ant-btn {
+.firewall-persistence-open:global(.ant-btn) {
   display: inline-flex;
   height: 34px;
   align-items: center;
@@ -220,26 +218,26 @@
   white-space: nowrap;
 }
 
-.firewall-persistence-open.ant-btn .ant-btn-icon {
+.firewall-persistence-open:global(.ant-btn) :global(.ant-btn-icon) {
   display: inline-flex;
 }
 
-.firewall-persistence-open.ant-btn:not(:disabled):hover {
+.firewall-persistence-open:global(.ant-btn):not(:disabled):hover {
   border-color: transparent;
   background: color-mix(in srgb, var(--surface-elevated) 70%, var(--surface));
   color: var(--text-primary);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 58%, transparent);
 }
 
-.firewall-persistence-open.is-ready.ant-btn {
+.firewall-persistence-open.is-ready:global(.ant-btn) {
   color: color-mix(in srgb, var(--success) 86%, white);
 }
 
-.firewall-persistence-open.is-warning.ant-btn {
+.firewall-persistence-open.is-warning:global(.ant-btn) {
   color: #f5c96a;
 }
 
-.firewall-persistence-open.is-error.ant-btn {
+.firewall-persistence-open.is-error:global(.ant-btn) {
   color: #ff8a84;
 }
 
@@ -248,7 +246,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .firewall-persistence-open.ant-btn {
+  .firewall-persistence-open:global(.ant-btn) {
     justify-content: center;
   }
 }
@@ -266,17 +264,17 @@
     display: none;
   }
 
-  .firewall-provider-select.termous-select {
+  .firewall-provider-select:global(.termous-select) {
     flex-basis: 112px;
     width: 112px;
   }
 }
 
-.firewall-persistence-modal .ant-modal-content {
+.firewall-persistence-modal-root .firewall-persistence-modal:global(.ant-modal) :global(.ant-modal-content) {
     overflow: hidden;
   }
 
-.firewall-persistence-modal .ant-modal-body {
+.firewall-persistence-modal-root .firewall-persistence-modal:global(.ant-modal) :global(.ant-modal-body) {
     max-height: min(72dvh, 720px);
     overflow: auto;
     padding-right: 6px;
@@ -380,7 +378,7 @@
     white-space: nowrap;
   }
 
-.firewall-persistence-status-tag.ant-tag {
+.firewall-persistence-status-tag:global(.ant-tag) {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -398,19 +396,19 @@
   white-space: nowrap;
 }
 
-.firewall-persistence-status-tag.is-ready.ant-tag {
+.firewall-persistence-status-tag.is-ready:global(.ant-tag) {
   border-color: color-mix(in srgb, var(--success) 28%, transparent);
   background: color-mix(in srgb, var(--success) 12%, transparent);
   color: color-mix(in srgb, var(--success) 86%, white);
 }
 
-.firewall-persistence-status-tag.is-warning.ant-tag {
+.firewall-persistence-status-tag.is-warning:global(.ant-tag) {
   border-color: rgb(243 162 64 / 28%);
   background: rgb(243 162 64 / 11%);
   color: #f5c96a;
 }
 
-.firewall-persistence-status-tag.is-error.ant-tag {
+.firewall-persistence-status-tag.is-error:global(.ant-tag) {
   border-color: rgb(255 102 94 / 28%);
   background: rgb(255 102 94 / 10%);
   color: #ff8a84;
@@ -446,14 +444,14 @@
     white-space: nowrap;
   }
 
-.firewall-persistence-steps.ant-steps {
+.firewall-persistence-steps:global(.ant-steps) {
     border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
     border-radius: 14px;
     background: color-mix(in srgb, var(--surface-subtle) 44%, transparent);
     padding: 10px 12px;
   }
 
-.firewall-persistence-steps .ant-steps-item-title {
+.firewall-persistence-steps :global(.ant-steps-item-title) {
     color: var(--text-secondary) !important;
     font-size: 11px;
     font-weight: 720;
@@ -474,7 +472,7 @@
     padding: 12px;
   }
 
-.firewall-persistence-section-head .ant-btn {
+.firewall-persistence-section-head :global(.ant-btn) {
     flex: 0 0 auto;
     color: var(--text-secondary);
   }
@@ -499,7 +497,7 @@
     font-weight: 740;
   }
 
-.firewall-persistence-command-list .ant-typography {
+.firewall-persistence-command-list :global(.ant-typography) {
     display: block;
     margin: 0;
     overflow: auto;
@@ -519,7 +517,7 @@
     padding-top: 10px;
   }
 
-.firewall-persistence-confirm-row .ant-checkbox-wrapper {
+.firewall-persistence-confirm-row :global(.ant-checkbox-wrapper) {
     min-width: 0;
     color: var(--text-secondary);
     font-size: 12px;
@@ -530,29 +528,35 @@
     flex-wrap: wrap;
   }
 
-.firewall-persistence-panel .ant-alert {
+.firewall-persistence-panel :global(.ant-alert) {
     border-color: color-mix(in srgb, #f3a240 28%, var(--border));
     border-radius: 13px;
     background: rgb(243 162 64 / 9%);
     color: var(--text-secondary);
   }
 
-:root[data-theme="light"] .firewall-persistence-open.ant-btn,
-:root[data-theme="light"] .firewall-persistence-summary,
-:root[data-theme="light"] .firewall-persistence-command-panel,
-:root[data-theme="light"] .firewall-persistence-missing {
+.firewall-persistence-open,
+.firewall-persistence-summary,
+.firewall-persistence-command-panel,
+.firewall-persistence-missing {
+  :global(:root[data-theme="light"]) & {
     background:
       linear-gradient(180deg, rgb(255 255 255 / 76%), rgb(246 248 252 / 70%)),
       var(--surface);
   }
+}
 
-:root[data-theme="light"] .firewall-persistence-command-list article {
+.firewall-persistence-command-list article {
+  :global(:root[data-theme="light"]) & {
     background: rgb(245 248 252 / 92%);
   }
+}
 
-:root[data-theme="light"] .firewall-persistence-command-list .ant-typography {
+.firewall-persistence-command-list :global(.ant-typography) {
+  :global(:root[data-theme="light"]) & {
     color: color-mix(in srgb, var(--text-primary) 88%, var(--accent));
   }
+}
 
 @media (max-width: 760px) {
     .firewall-persistence-meta-grid {
@@ -568,8 +572,8 @@
       justify-content: stretch;
     }
 
-    .firewall-persistence-actions .ant-btn,
-.firewall-persistence-confirm-row .ant-btn {
+    .firewall-persistence-actions :global(.ant-btn),
+.firewall-persistence-confirm-row :global(.ant-btn) {
       width: 100%;
     }
   }
@@ -580,7 +584,7 @@
     justify-content: stretch;
   }
 
-.firewall-rule-actions .ant-btn {
+.firewall-rule-actions :global(.ant-btn) {
     width: 100%;
   }
 
@@ -872,14 +876,14 @@
   gap: 3px;
 }
 
-.firewall-rule-card-actions .ant-btn {
+.firewall-rule-card-actions :global(.ant-btn) {
   width: 29px;
   height: 29px;
   border-radius: 10px;
   color: var(--text-secondary);
 }
 
-.firewall-rule-card-actions .ant-btn:hover {
+.firewall-rule-card-actions :global(.ant-btn):hover {
   background: color-mix(in srgb, var(--surface-elevated) 88%, transparent) !important;
   color: var(--text-primary) !important;
   transform: none;
@@ -912,8 +916,8 @@
   font-size: 12px;
 }
 
-.firewall-rule-modal .ant-modal-body,
-.firewall-preview-modal .ant-modal-body {
+.firewall-rule-modal-root .firewall-rule-modal:global(.ant-modal) :global(.ant-modal-body),
+.firewall-preview-modal :global(.ant-modal-body) {
   max-height: min(620px, calc(100dvh - 220px));
   overflow: auto;
   padding-right: 16px;
@@ -931,16 +935,16 @@
   font-weight: 700;
 }
 
-.firewall-field .ant-input,
-.firewall-field .ant-input-number {
+.firewall-field :global(.ant-input),
+.firewall-field :global(.ant-input-number) {
   width: 100%;
   background: color-mix(in srgb, var(--surface-subtle) 88%, transparent) !important;
 }
 
-.firewall-field .ant-input-number-input-wrap,
-.firewall-field .ant-input-number-input,
-.firewall-field .ant-input-number-handler-wrap,
-.firewall-field .ant-input-number-handler {
+.firewall-field :global(.ant-input-number-input-wrap),
+.firewall-field :global(.ant-input-number-input),
+.firewall-field :global(.ant-input-number-handler-wrap),
+.firewall-field :global(.ant-input-number-handler) {
   background: transparent !important;
 }
 
@@ -1022,21 +1026,27 @@
   font-size: 12px;
 }
 
-:root[data-theme="light"] .firewall-toolbar,
-:root[data-theme="light"] .firewall-rule-card,
-:root[data-theme="light"] .firewall-readonly-rule,
-:root[data-theme="light"] .firewall-change-row {
+.firewall-toolbar,
+.firewall-rule-card,
+.firewall-readonly-rule,
+.firewall-change-row {
+  :global(:root[data-theme="light"]) & {
   background: rgb(255 255 255 / 78%);
+  }
 }
 
-:root[data-theme="light"] .firewall-inline-empty {
+.firewall-inline-empty {
+  :global(:root[data-theme="light"]) & {
   background: rgb(248 250 253 / 68%);
+  }
 }
 
-:root[data-theme="light"] .firewall-field .ant-input,
-:root[data-theme="light"] .firewall-field .ant-input-number {
+.firewall-field {
+  :global(:root[data-theme="light"]) & :global(.ant-input),
+  :global(:root[data-theme="light"]) & :global(.ant-input-number) {
     background: rgb(247 249 252 / 92%) !important;
   }
+}
 
 .firewall-rule-row {
     position: relative;
@@ -1199,7 +1209,7 @@
     align-self: center;
   }
 
-.firewall-readonly-actions .firewall-readonly-switch.ant-btn {
+.firewall-readonly-actions .firewall-readonly-switch:global(.ant-btn) {
     width: auto;
     min-width: 0;
     height: 29px;
@@ -1210,7 +1220,7 @@
     font-weight: 760;
   }
 
-.firewall-readonly-actions .firewall-readonly-switch.ant-btn:hover {
+.firewall-readonly-actions .firewall-readonly-switch:global(.ant-btn):hover {
     background: color-mix(in srgb, var(--accent) 14%, transparent) !important;
     color: var(--text-primary) !important;
     transform: none;
@@ -1235,4 +1245,3 @@
       justify-content: flex-end;
     }
   }
-}

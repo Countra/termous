@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, KeyRound, MapPin, Search, Tags, UserRound } 
 import { useEffect, useMemo, useState, type PointerEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { AuthMethodBadge, HostAvatar, type Host, type HostGroup } from '#entities/host'
-import { EmptyState } from '#shared/ui'
+import { EmptyState, sidePanelStyles } from '#shared/ui'
 import styles from './HostContextPanel.module.scss'
 
 interface HostContextPanelProps {
@@ -74,15 +74,23 @@ export function HostContextPanel({
 
   return (
     <aside
-      className={`${styles['context-panel']} context-panel ${styles['host-context-panel']} host-context-panel ${collapsed ? `${styles['is-collapsed']} is-collapsed` : ''} ${
-        contentCollapsed ? 'is-content-collapsed' : ''
-      } ${resizing ? 'is-resizing' : ''} ${className}`.trim()}
+      className={`${styles['context-panel']} ${styles['host-context-panel']} ${sidePanelStyles.panel} host-context-panel ${
+        collapsed ? `${styles['is-collapsed']} ${sidePanelStyles['is-collapsed']} is-collapsed` : ''
+      } ${contentCollapsed ? styles['is-content-collapsed'] : ''} ${
+        resizing ? sidePanelStyles['is-resizing'] : ''
+      } ${className}`.trim()}
     >
-      {onResizePointerDown ? <div className="host-context-resize-edge" aria-hidden="true" onPointerDown={onResizePointerDown} /> : null}
+      {onResizePointerDown ? (
+        <div
+          className={`${sidePanelStyles['resize-edge']} ${sidePanelStyles['resize-edge-right']}`}
+          aria-hidden="true"
+          onPointerDown={onResizePointerDown}
+        />
+      ) : null}
       <Tooltip title={collapsed ? t('app.expand') : t('app.collapse')} destroyOnHidden mouseLeaveDelay={0}>
         <Button
           type="text"
-          className="panel-side-toggle panel-side-toggle-left"
+          className={`${sidePanelStyles['panel-side-toggle']} ${sidePanelStyles['panel-side-toggle-left']}`}
           onClick={() => {
             onToggleCollapsed()
           }}

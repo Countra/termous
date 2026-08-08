@@ -1,22 +1,39 @@
 .context-panel {
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 14px;
   background: var(--surface);
   padding: 14px;
-  box-shadow: var(--shadow-soft), var(--inner-highlight);
-  backdrop-filter: blur(26px) saturate(1.28);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px) saturate(1.12);
 }
 
-.host-context-panel {
+.host-context-panel:not(.is-content-collapsed) .panel-title-copy {
+  min-width: 0;
   overflow: hidden;
 }
 
-.host-context-panel.is-collapsed {
-  padding: 10px 9px;
+.host-context-panel:not(.is-content-collapsed) .panel-title-copy h2,
+.host-context-panel:not(.is-content-collapsed) .panel-title-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-context-panel.is-content-collapsed .panel-title-copy {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  place-items: center;
+}
+
+.host-context-panel.is-content-collapsed :global(.host-context-search),
+.host-context-panel.is-content-collapsed :global(.empty-state) {
+  display: none;
 }
 
 .host-context-panel.is-collapsed .panel-heading {
+  width: 100%;
   flex-direction: column;
   align-items: center;
   gap: 8px;
@@ -32,23 +49,26 @@
   max-width: 58px;
   overflow: hidden;
   font-size: 12px;
-  line-height: 1.2;
+  line-height: 1.25;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
+  writing-mode: horizontal-tb;
+  transform: none;
 }
 
 .panel-heading {
   display: flex;
   min-width: 0;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
 .panel-heading h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 700;
   letter-spacing: 0;
 }
 

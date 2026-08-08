@@ -14,6 +14,11 @@ import { ForwardRuntimeMetrics } from './ForwardRuntimeMetrics'
 import { ForwardStateFeedback } from './ForwardStateFeedback'
 import styles from './ForwardManagement.module.scss'
 
+const scopedClassName = (...classNames: string[]) => classNames
+  .flatMap((className) => [className, styles[className]])
+  .filter(Boolean)
+  .join(' ')
+
 export interface ForwardSessionPanelProps {
   session: ForwardSessionContext | null
   host?: Host
@@ -145,7 +150,7 @@ export function ForwardSessionPanel({
   if (!connectedSSH) {
     return (
       <WorkspaceEmptyState
-        className={`forward-session-empty ${styles.root}`}
+        className={`${scopedClassName('forward-session-empty')} ${styles.root}`}
         icon={<Cable size={20} />}
         title={t('workbench.detailsTabs.forwards')}
         description={t('forwards.sessionEmpty')}
@@ -156,10 +161,10 @@ export function ForwardSessionPanel({
   const sessionTarget = host ? `${host.username}@${host.address}:${host.port}` : t('fields.none')
 
   return (
-    <section className={`forward-session-panel ${styles.root}`}>
-      <header className="forward-session-context">
-        <div className="forward-session-context-copy">
-          <span className="forward-session-context-icon"><Cable size={16} aria-hidden="true" /></span>
+    <section className={`${scopedClassName('forward-session-panel')} ${styles.root}`}>
+      <header className={scopedClassName('forward-session-context')}>
+        <div className={scopedClassName('forward-session-context-copy')}>
+          <span className={scopedClassName('forward-session-context-icon')}><Cable size={16} aria-hidden="true" /></span>
           <span>
             <strong>{sessionTarget}</strong>
             <small>{t('forwards.sessionCount', { count: sessionForwards.length })}</small>
@@ -168,19 +173,25 @@ export function ForwardSessionPanel({
         <Button
           ref={composerToggleRef}
           type="text"
-          className="forward-session-composer-toggle"
+          className={scopedClassName('forward-session-composer-toggle')}
           aria-expanded={composerOpen}
           icon={<Plus size={14} />}
           onClick={() => setComposerVisibility(!composerOpen)}
         >
-          <span>{t('forwards.newForward')}</span>
+          <span className={scopedClassName('forward-session-composer-label')}>{t('forwards.newForward')}</span>
           {composerOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </Button>
       </header>
 
-      <div className={`forward-session-composer-shell${composerOpen ? ' is-open' : ''}`} aria-hidden={!composerOpen}>
-        <div className="forward-session-composer-inner">
-          <div className="forward-session-editor">
+      <div
+        className={scopedClassName(
+          'forward-session-composer-shell',
+          composerOpen ? 'is-open' : '',
+        )}
+        aria-hidden={!composerOpen}
+      >
+        <div className={scopedClassName('forward-session-composer-inner')}>
+          <div className={scopedClassName('forward-session-editor')}>
             <ForwardModeSelector
               compact
               value={form.mode}
@@ -198,16 +209,21 @@ export function ForwardSessionPanel({
               disabled={actionBusy}
               onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
             />
-            <ConnectionActionButton disabled={!canCreate || actionBusy} icon={<Play size={15} />} onClick={() => void startForward()}>
+            <ConnectionActionButton
+              className={scopedClassName('connection-action-button')}
+              disabled={!canCreate || actionBusy}
+              icon={<Play size={15} />}
+              onClick={() => void startForward()}
+            >
               {t('forwards.startSessionForward')}
             </ConnectionActionButton>
           </div>
         </div>
       </div>
 
-      <div ref={listRef} className="forward-session-list">
+      <div ref={listRef} className={scopedClassName('forward-session-list')}>
         {sessionForwards.length === 0 ? (
-          <div className="forward-session-empty-inline">{t('forwards.noSessionForwards')}</div>
+          <div className={scopedClassName('forward-session-empty-inline')}>{t('forwards.noSessionForwards')}</div>
         ) : (
           sessionForwards.map((forward) => (
             <SessionForwardRow
@@ -242,10 +258,13 @@ function SessionForwardRow({
   const status = forward.status === 'running' ? 'connected' : forward.status === 'failed' ? 'failed' : forward.status === 'stopped' ? 'disconnected' : 'connecting'
 
   return (
-    <article className={`forward-session-row is-${forward.status}`} data-forward-id={forward.id}>
-      <div className="forward-session-row-head">
+    <article
+      className={scopedClassName('forward-session-row', `is-${forward.status}`)}
+      data-forward-id={forward.id}
+    >
+      <div className={scopedClassName('forward-session-row-head')}>
         <ForwardModeBadge compact mode={forward.mode} />
-        <div className="forward-session-row-actions">
+        <div className={scopedClassName('forward-session-row-actions')}>
           <StatusBadge status={status} label={t(`forwards.status.${forward.status}`)} />
           <ForwardRuntimeActions
             forward={forward}

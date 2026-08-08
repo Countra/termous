@@ -42,6 +42,11 @@ export interface ServicePanelProps {
 
 const unitFileStates = ['', 'enabled', 'disabled', 'masked', 'static', 'indirect']
 const serviceSorts: SessionServiceQueryState['sort'][] = ['name', 'description', 'runtime', 'unit_file']
+const filterPopoverClassNames = { root: styles['service-filter-popover'] }
+const filterSelectClassNames = {
+  popup: { root: `termous-select-dropdown ${styles['service-filter-select-dropdown']}` },
+}
+const rowTooltipClassNames = { root: styles['service-row-tooltip'] }
 
 interface ServiceOperationNotificationEntry {
   operationId: string
@@ -137,7 +142,7 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
     const tone = serviceOperationTone(notice.phase)
     const config = {
       key: notice.notificationKey,
-      title: <strong className="service-operation-notification-title">{displayUnitName(notice.unitId)}</strong>,
+      title: <strong className={styles['service-operation-notification-title']}>{displayUnitName(notice.unitId)}</strong>,
       description: (
         <ServiceOperationNotice
           phaseLabel={t(`workbench.services.operationPhases.${notice.phase}`)}
@@ -148,7 +153,11 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
       ),
       duration: serviceOperationDuration(tone),
       role: (tone === 'error' || tone === 'warning' ? 'alert' : 'status') as 'alert' | 'status',
-      className: `termous-notification service-operation-notification is-${tone}`,
+      className: [
+        'termous-notification',
+        styles['service-operation-notification'],
+        styles[`is-${tone}`] ?? '',
+      ].filter(Boolean).join(' '),
       icon: serviceOperationStatusIcon(notice.phase),
     }
 
@@ -285,7 +294,7 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
     destroyActionConfirm()
     const confirmation = modal.confirm({
       centered: true,
-      className: 'service-action-confirm',
+      className: styles['service-action-confirm'],
       title: t('workbench.services.confirmTitle', { action: t(`workbench.services.actions.${action}`) }),
       content: critical
         ? t('workbench.services.confirmCritical', { unit: unitId })
@@ -365,21 +374,21 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
     : t('workbench.services.total', { count: 0 })
 
   return (
-    <section className={`service-panel ${styles.root}`}>
-      <div className="service-statusbar">
-        <div className="service-statusbar-copy">
-          <span className={`service-live-dot ${services.error ? 'is-danger' : services.loadingList ? 'is-loading' : 'is-ready'}`} />
+    <section className={`${styles['service-panel']} ${styles.root}`}>
+      <div className={styles['service-statusbar']}>
+        <div className={styles['service-statusbar-copy']}>
+          <span className={`${styles['service-live-dot']} ${services.error ? styles['is-danger'] : services.loadingList ? styles['is-loading'] : ''}`} />
           <div>
             <strong>{summary}</strong>
             <span>{services.lastUpdatedAt ? t('workbench.services.collectedAt', { time: formatTime(services.lastUpdatedAt) }) : t('workbench.services.updatedNever')}</span>
           </div>
         </div>
-        <div className="service-statusbar-actions">
-          {!services.capability.manageable ? <Tag className="service-readonly-tag">{t('workbench.services.readOnly')}</Tag> : null}
+        <div className={styles['service-statusbar-actions']}>
+          {!services.capability.manageable ? <Tag className={styles['service-readonly-tag']}>{t('workbench.services.readOnly')}</Tag> : null}
           <Tooltip title={t('workbench.services.refresh')}>
             <Button
               type="text"
-              className="service-icon-button"
+              className={styles['service-icon-button']}
               loading={services.loadingList || services.loadingCapability}
               icon={<RefreshCw size={15} />}
               aria-label={t('workbench.services.refresh')}
@@ -389,11 +398,11 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
         </div>
       </div>
 
-      <div className="service-filterbar">
+      <div className={styles['service-filterbar']}>
         <Input
           id="service-search"
           name="service-search"
-          className="host-search-input termous-search-input service-search-input"
+          className={`host-search-input termous-search-input ${styles['service-search-input']}`}
           value={services.query.text}
           allowClear
           variant="borderless"
@@ -406,30 +415,29 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
           trigger="click"
           placement="bottomRight"
           arrow={false}
-          classNames={{ root: 'service-filter-popover' }}
+          classNames={filterPopoverClassNames}
           content={
-            <div className="service-filter-content">
-              <div className="service-filter-head">
+            <div className={styles['service-filter-content']}>
+              <div className={styles['service-filter-head']}>
                 <strong>{t('workbench.services.filters')}</strong>
                 <Button type="text" size="small" onClick={resetFilters}>{t('workbench.services.resetFilters')}</Button>
               </div>
-              <label className="service-filter-field">
+              <label className={styles['service-filter-field']}>
                 <span>{t('workbench.services.runtimeState')}</span>
                 <Segmented
                   block
                   size="small"
-                  className="service-runtime-segment"
                   value={services.query.runtimeState}
                   options={runtimeOptions}
                   onChange={(value) => applyQuery({ runtimeState: String(value) as SessionServiceQueryState['runtimeState'] })}
                 />
               </label>
-              <div className="service-filter-grid">
-                <label className="service-filter-field">
+              <div className={styles['service-filter-grid']}>
+                <label className={styles['service-filter-field']}>
                   <span>{t('workbench.services.unitFileState')}</span>
                   <Select
                     value={services.query.unitFileState}
-                    classNames={{ popup: { root: 'termous-select-dropdown service-filter-select-dropdown' } }}
+                    classNames={filterSelectClassNames}
                     options={unitFileStates.map((state) => ({
                       value: state,
                       label: state ? t(`workbench.services.unitStates.${state}`) : t('workbench.services.filtersAll'),
@@ -437,17 +445,17 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
                     onChange={(value) => applyQuery({ unitFileState: value })}
                   />
                 </label>
-                <label className="service-filter-field">
+                <label className={styles['service-filter-field']}>
                   <span>{t('workbench.services.sort')}</span>
                   <Select
                     value={services.query.sort}
-                    classNames={{ popup: { root: 'termous-select-dropdown service-filter-select-dropdown' } }}
+                    classNames={filterSelectClassNames}
                     options={serviceSorts.map((sort) => ({ value: sort, label: t(`workbench.services.sortOptions.${sort}`) }))}
                     onChange={(value) => applyQuery({ sort: value })}
                   />
                 </label>
               </div>
-              <label className="service-filter-field">
+              <label className={styles['service-filter-field']}>
                 <span>{t('workbench.services.order')}</span>
                 <Segmented
                   block
@@ -463,17 +471,17 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
             </div>
           }
         >
-          <Button type="text" className={`service-filter-button ${hasFilters ? 'is-active' : ''}`} icon={<SlidersHorizontal size={15} />}>
+          <Button type="text" className={`${styles['service-filter-button']} ${hasFilters ? styles['is-active'] : ''}`} icon={<SlidersHorizontal size={15} />}>
             {t('workbench.services.filters')}
           </Button>
         </Popover>
       </div>
 
       {services.error && services.list ? (
-        <div className="service-inline-error"><AlertTriangle size={14} /><span>{services.error}</span></div>
+        <div className={styles['service-inline-error']}><AlertTriangle size={14} /><span>{services.error}</span></div>
       ) : null}
 
-      <div className="service-content">
+      <div className={styles['service-content']}>
         {selectedUnitId ? (
           <ServiceDetailView
             detail={detail}
@@ -488,13 +496,12 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
             onAction={(action) => requestAction(selectedUnitId, action)}
           />
         ) : (
-          <div className="service-list" aria-label={t('workbench.services.serviceList')}>
+          <div className={styles['service-list']} aria-label={t('workbench.services.serviceList')}>
             {items.length === 0 ? (
               <WorkspaceEmptyState
-                className="service-empty-list"
                 tone={services.error && !services.list ? 'danger' : 'neutral'}
                 icon={services.loadingList
-                  ? <LoaderCircle className="service-spin" size={20} />
+                  ? <LoaderCircle className={styles['service-spin']} size={20} />
                   : services.error && !services.list
                     ? <AlertTriangle size={20} />
                     : <ListFilter size={20} />}
@@ -550,14 +557,14 @@ function ServiceUnavailable({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="service-unavailable">
+    <div className={styles['service-unavailable']}>
       <WorkspaceEmptyState
         tone={tone}
-        icon={loading ? <LoaderCircle className="service-spin" size={20} /> : <Cog size={20} />}
+        icon={loading ? <LoaderCircle className={styles['service-spin']} size={20} /> : <Cog size={20} />}
         title={title}
         description={description}
       />
-      {!loading ? <Button type="text" className="service-retry" icon={<RefreshCw size={14} />} onClick={onRefresh}>{t('workbench.services.retry')}</Button> : null}
+      {!loading ? <Button type="text" className={styles['service-retry']} icon={<RefreshCw size={14} />} onClick={onRefresh}>{t('workbench.services.retry')}</Button> : null}
     </div>
   )
 }
@@ -569,25 +576,25 @@ function ServiceRow({ item, onSelect }: { item: SystemServiceSummary; onSelect: 
       title={item.template ? t('workbench.services.templateHint') : undefined}
       placement="left"
       mouseEnterDelay={0.3}
-      classNames={{ root: 'service-row-tooltip' }}
+      classNames={rowTooltipClassNames}
     >
       <button
         type="button"
-        className={`service-row is-${serviceTone(item.active_state)}`}
+        className={`${styles['service-row']} ${styles[`is-${serviceTone(item.active_state)}`] ?? ''}`}
         disabled={item.template}
         onClick={onSelect}
       >
-        <span className="service-row-state"><Cog size={15} /></span>
-        <div className="service-row-copy">
-          <Tooltip title={item.id} mouseEnterDelay={0.3} classNames={{ root: 'service-row-tooltip' }}>
+        <span className={styles['service-row-state']}><Cog size={15} /></span>
+        <div className={styles['service-row-copy']}>
+          <Tooltip title={item.id} mouseEnterDelay={0.3} classNames={rowTooltipClassNames}>
             <strong>{displayUnitName(item.id)}</strong>
           </Tooltip>
-          <Tooltip title={item.description || item.id} mouseEnterDelay={0.3} classNames={{ root: 'service-row-tooltip' }}>
+          <Tooltip title={item.description || item.id} mouseEnterDelay={0.3} classNames={rowTooltipClassNames}>
             <small>{item.description || item.id}</small>
           </Tooltip>
         </div>
-        <div className="service-row-meta">
-          <span className={`service-runtime-pill is-${serviceTone(item.active_state)}`}>{serviceStateLabel(item.active_state, t)}</span>
+        <div className={styles['service-row-meta']}>
+          <span className={`${styles['service-runtime-pill']} ${styles[`is-${serviceTone(item.active_state)}`] ?? ''}`}>{serviceStateLabel(item.active_state, t)}</span>
           <span>{unitStateLabel(item.unit_file_state, t)}</span>
         </div>
       </button>
@@ -626,24 +633,24 @@ function ServiceDetailView({
   }, [detailUnitId, enabled])
   if (!detail && loading) {
     return (
-      <div className="service-detail is-loading">
-        <div className="service-detail-topbar">
-          <Button type="text" className="service-back" icon={<ArrowLeft size={14} />} onClick={onBack}>{t('workbench.services.backToList')}</Button>
+      <div className={`${styles['service-detail']} ${styles['is-loading']}`}>
+        <div className={styles['service-detail-topbar']}>
+          <Button type="text" className={styles['service-back']} icon={<ArrowLeft size={14} />} onClick={onBack}>{t('workbench.services.backToList')}</Button>
         </div>
-        <div className="service-detail-loading-body" role="status" aria-live="polite">
-          <span className="service-detail-loading-mark" aria-hidden="true">
-            <span className="service-detail-spinner" />
+        <div className={styles['service-detail-loading-body']} role="status" aria-live="polite">
+          <span className={styles['service-detail-loading-mark']} aria-hidden="true">
+            <span className={styles['service-detail-spinner']} />
           </span>
           <strong>{t('workbench.services.detailLoading')}</strong>
-          <span className="service-detail-loading-track" aria-hidden="true"><span /></span>
+          <span className={styles['service-detail-loading-track']} aria-hidden="true"><span /></span>
         </div>
       </div>
     )
   }
   if (!detail && error) {
     return (
-      <div className="service-detail">
-        <Button type="text" className="service-back" icon={<ArrowLeft size={14} />} onClick={onBack}>{t('workbench.services.backToList')}</Button>
+      <div className={styles['service-detail']}>
+        <Button type="text" className={styles['service-back']} icon={<ArrowLeft size={14} />} onClick={onBack}>{t('workbench.services.backToList')}</Button>
         <WorkspaceEmptyState tone="danger" icon={<AlertTriangle size={20} />} title={t('workbench.services.loadFailed')} description={error} />
       </div>
     )
@@ -669,30 +676,30 @@ function ServiceDetailView({
   ]
 
   return (
-    <article className="service-detail">
-      <div className="service-detail-topbar">
-        <Button type="text" className="service-back" icon={<ArrowLeft size={14} />} onClick={onBack}>{t('workbench.services.backToList')}</Button>
-        {loading ? <span className="service-detail-refreshing"><LoaderCircle size={13} />{t('workbench.services.detailRefreshing')}</span> : null}
+    <article className={styles['service-detail']}>
+      <div className={styles['service-detail-topbar']}>
+        <Button type="text" className={styles['service-back']} icon={<ArrowLeft size={14} />} onClick={onBack}>{t('workbench.services.backToList')}</Button>
+        {loading ? <span className={styles['service-detail-refreshing']}><LoaderCircle size={13} />{t('workbench.services.detailRefreshing')}</span> : null}
       </div>
-      <header className="service-detail-head">
-        <span className={`service-detail-icon is-${serviceTone(summary.active_state)}`}><Cog size={18} /></span>
+      <header className={styles['service-detail-head']}>
+        <span className={`${styles['service-detail-icon']} ${styles[`is-${serviceTone(summary.active_state)}`] ?? ''}`}><Cog size={18} /></span>
         <div>
           <Tooltip title={summary.id}><strong>{displayUnitName(summary.id)}</strong></Tooltip>
           <Tooltip title={summary.description || summary.id}><span>{summary.description || summary.id}</span></Tooltip>
         </div>
-        <div className="service-detail-tags">
-          <Tag className={`service-state-tag is-${serviceTone(summary.active_state)}`}>{serviceStateLabel(summary.active_state, t)}</Tag>
-          <Tag className="service-unit-tag">{unitStateLabel(summary.unit_file_state, t)}</Tag>
+        <div className={styles['service-detail-tags']}>
+          <Tag className={`${styles['service-state-tag']} ${styles[`is-${serviceTone(summary.active_state)}`] ?? ''}`}>{serviceStateLabel(summary.active_state, t)}</Tag>
+          <Tag>{unitStateLabel(summary.unit_file_state, t)}</Tag>
         </div>
       </header>
 
-      <div className="service-detail-kpis">
+      <div className={styles['service-detail-kpis']}>
         <ServiceKpi label={t('workbench.services.mainPid')} value={detail.main_pid > 0 ? String(detail.main_pid) : '-'} />
         <ServiceKpi label={t('workbench.services.activeDuration')} value={formatDuration(detail.active_duration_seconds)} />
         <ServiceKpi label={t('workbench.services.restartCount')} value={String(detail.restart_count)} />
       </div>
 
-      <dl className="service-detail-list">
+      <dl className={styles['service-detail-list']}>
         <ServiceDetailItem label={t('workbench.services.user')} value={detail.user || 'root'} />
         <ServiceDetailItem label={t('workbench.services.type')} value={detail.type || t('fields.none')} />
         <ServiceDetailItem label={t('workbench.services.result')} value={detail.result || t('fields.none')} />
@@ -706,11 +713,11 @@ function ServiceDetailView({
         {detail.drop_in_paths.length > 0 ? <ServiceDetailItem label={t('workbench.services.dropIns')} value={detail.drop_in_paths.join(' · ')} /> : null}
       </dl>
 
-      {warnings.length > 0 ? <div className="service-warning"><AlertTriangle size={14} /><span>{warnings.join(' · ')}</span></div> : null}
+      {warnings.length > 0 ? <div className={styles['service-warning']}><AlertTriangle size={14} /><span>{warnings.join(' · ')}</span></div> : null}
 
-      <div className="service-detail-actions">
+      <div className={styles['service-detail-actions']}>
         <Button
-          className="service-action-button"
+          className={styles['service-action-button']}
           disabled={active ? !canStop : !canStart || masked}
           loading={operationBusy}
           icon={active ? <Square size={13} /> : <Play size={14} />}
@@ -718,10 +725,10 @@ function ServiceDetailView({
         >
           {t(`workbench.services.actions.${active ? 'stop' : 'start'}`)}
         </Button>
-        <Button className="service-action-button" disabled={!canRestart || operationBusy} icon={<RefreshCw size={14} />} onClick={() => onAction('restart')}>
+        <Button className={styles['service-action-button']} disabled={!canRestart || operationBusy} icon={<RefreshCw size={14} />} onClick={() => onAction('restart')}>
           {t('workbench.services.actions.restart')}
         </Button>
-        <Button className="service-action-button" disabled={!journalReadable} icon={<FileText size={14} />} onClick={onLogs}>
+        <Button className={styles['service-action-button']} disabled={!journalReadable} icon={<FileText size={14} />} onClick={onLogs}>
           {t('workbench.services.logs')}
         </Button>
         <Dropdown
@@ -734,10 +741,10 @@ function ServiceDetailView({
               onAction(key as SystemServiceAction)
             },
           }}
-          popupRender={(menu) => <div className="service-action-menu">{menu}</div>}
+          popupRender={(menu) => <div className={styles['service-action-menu']}>{menu}</div>}
           onOpenChange={(open) => setMoreActionsOpen(enabled && open)}
         >
-          <Button className="service-action-button" icon={<MoreHorizontal size={15} />}>{t('workbench.services.moreActions')}</Button>
+          <Button className={styles['service-action-button']} icon={<MoreHorizontal size={15} />}>{t('workbench.services.moreActions')}</Button>
         </Dropdown>
       </div>
     </article>
@@ -745,7 +752,7 @@ function ServiceDetailView({
 }
 
 function ServiceKpi({ label, value }: { label: string; value: string }) {
-  return <div className="service-kpi"><span>{label}</span><strong>{value}</strong></div>
+  return <div className={styles['service-kpi']}><span>{label}</span><strong>{value}</strong></div>
 }
 
 function ServiceDetailItem({ label, value }: { label: string; value: string }) {
@@ -766,13 +773,13 @@ function ServiceOperationNotice({
   const normalizedMessage = message?.trim()
   const progressStatus = tone === 'success' ? 'success' : tone === 'error' ? 'exception' : tone === 'running' ? 'active' : 'normal'
   return (
-    <div className={`service-operation-notice is-${tone}`}>
-      <div className="service-operation-notice-state">
+    <div className={`${styles['service-operation-notice']} ${styles[`is-${tone}`] ?? ''}`}>
+      <div className={styles['service-operation-notice-state']}>
         <span>{phaseLabel}</span>
         <strong>{progress}%</strong>
       </div>
       <Progress
-        className="service-operation-notice-progress"
+        className={styles['service-operation-notice-progress']}
         percent={progress}
         showInfo={false}
         size="small"
@@ -845,7 +852,7 @@ function serviceOperationStatusIcon(phase: SystemServiceOperationPhase): ReactNo
   if (phase === 'succeeded') return <CheckCircle2 size={18} />
   if (phase === 'failed' || phase === 'cancelled') return <XCircle size={18} />
   if (phase === 'uncertain') return <AlertTriangle size={18} />
-  return <LoaderCircle className="service-spin" size={18} />
+  return <LoaderCircle className={styles['service-spin']} size={18} />
 }
 
 function formatTime(value: string): string {

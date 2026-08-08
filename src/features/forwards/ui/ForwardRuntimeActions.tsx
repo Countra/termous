@@ -7,6 +7,12 @@ import {
   forwardRuntimeActionAvailability,
   type ForwardRuntimeAction,
 } from '../model/forwardRestart'
+import styles from './ForwardManagement.module.scss'
+
+const scopedClassName = (...classNames: string[]) => classNames
+  .flatMap((className) => [className, styles[className]])
+  .filter(Boolean)
+  .join(' ')
 
 interface ForwardRuntimeActionsProps {
   forward: ForwardInstance
@@ -46,7 +52,7 @@ export function ForwardRuntimeActions({
 
   return (
     <div
-      className="forward-runtime-actions"
+      className={scopedClassName('forward-runtime-actions')}
       role="group"
       aria-label={t('forwards.runtimeActions')}
       aria-busy={pendingAction !== null}
@@ -54,12 +60,12 @@ export function ForwardRuntimeActions({
       <Tooltip
         title={t('forwards.restartForward')}
         mouseEnterDelay={0.3}
-        classNames={{ root: 'forward-route-tooltip' }}
+        classNames={{ root: scopedClassName('forward-route-tooltip') }}
       >
-        <span className="forward-runtime-action-trigger">
+        <span className={scopedClassName('forward-runtime-action-trigger')}>
           <Button
             type="text"
-            className="forward-runtime-action is-restart"
+            className={scopedClassName('forward-runtime-action', 'is-restart')}
             aria-label={t('forwards.restartForward')}
             disabled={busy || !availability.restart}
             loading={pendingAction === 'restart'}
@@ -68,16 +74,16 @@ export function ForwardRuntimeActions({
           />
         </span>
       </Tooltip>
-      <span className="forward-runtime-action-divider" aria-hidden="true" />
+      <span className={scopedClassName('forward-runtime-action-divider')} aria-hidden="true" />
       <Tooltip
         title={t('forwards.stopForward')}
         mouseEnterDelay={0.3}
-        classNames={{ root: 'forward-route-tooltip' }}
+        classNames={{ root: scopedClassName('forward-route-tooltip') }}
       >
-        <span className="forward-runtime-action-trigger">
+        <span className={scopedClassName('forward-runtime-action-trigger')}>
           <Button
             type="text"
-            className="forward-runtime-action is-stop"
+            className={scopedClassName('forward-runtime-action', 'is-stop')}
             aria-label={t('forwards.stopForward')}
             disabled={busy || !availability.stop}
             loading={pendingAction === 'stop'}

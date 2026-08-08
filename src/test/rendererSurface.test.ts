@@ -97,7 +97,7 @@ test('主界面全局样式不进入独立更新窗口的共享入口', () => {
   assert.match(sharedStyles, /import '\.\/global\.scss'/)
   assert.doesNotMatch(sharedStyles, /app\.scss|workstation\.scss/)
   assert.doesNotMatch(mainStyles, /app\.scss/)
-  assert.match(mainStyles, /import '\.\.\/styles\/workstation\.scss'/)
+  assert.match(mainStyles, /import '\.\/workstation\.scss'/)
   assert.match(mainSurface, /import '#shared\/main-styles'/)
   assert.doesNotMatch(updateSurface, /#shared\/main-styles/)
 })

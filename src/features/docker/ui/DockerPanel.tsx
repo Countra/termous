@@ -115,24 +115,38 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
   }
 
   return (
-    <section className={`docker-panel ${styles.root}`}>
-      <div className="docker-toolbar">
-        <div className={`docker-capability ${capabilityReady ? 'is-ready' : capability ? 'is-error' : 'is-loading'}`}>
-          <span className="docker-capability-icon">
+    <section className={[styles['docker-panel'], styles.root].join(' ')}>
+      <div className={styles['docker-toolbar']}>
+        <div className={[
+          styles['docker-capability'],
+          capabilityReady
+            ? styles['is-ready']
+            : capability
+              ? styles['is-error']
+              : styles['is-loading'],
+        ].filter(Boolean).join(' ')}>
+          <span className={styles['docker-capability-icon']}>
             {capabilityReady ? <Container size={17} /> : capability ? <AlertTriangle size={17} /> : <Boxes size={17} />}
           </span>
-          <div className="docker-capability-copy">
+          <div className={styles['docker-capability-copy']}>
             <strong>{t('workbench.docker.managerTitle')}</strong>
             <span>{capabilityMessage}</span>
           </div>
-          <span className={`docker-capability-status ${capabilityReady ? 'is-ready' : capability ? 'is-error' : 'is-loading'}`}>
+          <span className={[
+            styles['docker-capability-status'],
+            capabilityReady
+              ? styles['is-ready']
+              : capability
+                ? styles['is-error']
+                : styles['is-loading'],
+          ].filter(Boolean).join(' ')}>
             {capabilityStatusText}
           </span>
         </div>
         <Tooltip title={t('workbench.docker.refresh')}>
           <Button
             type="text"
-            className="docker-icon-button"
+            className={styles['docker-icon-button']}
             aria-label={t('workbench.docker.refresh')}
             loading={docker.loadingCapability || docker.loadingList}
             icon={<RotateCcw size={15} />}
@@ -143,7 +157,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
 
       {!capabilityReady && capability ? (
         <WorkspaceEmptyState
-          className="docker-unavailable-state"
+          className={styles['docker-unavailable-state']}
           tone={capability.status === 'permission_denied' ? 'warning' : 'danger'}
           icon={<AlertTriangle size={20} />}
           title={getCapabilityTitle(capability.status, t)}
@@ -153,11 +167,11 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
 
       {capabilityReady ? (
         <>
-          <div className="docker-filter-panel">
+          <div className={styles['docker-filter-panel']}>
             <Input
               id="docker-container-search"
               name="docker-container-search"
-              className="host-search-input termous-search-input docker-search-input"
+              className={`host-search-input termous-search-input ${styles['docker-search-input']}`}
               value={docker.query.text}
               allowClear
               variant="borderless"
@@ -170,10 +184,10 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
               trigger="click"
               placement="bottomRight"
               arrow={false}
-              classNames={{ root: 'docker-filter-popover' }}
+              classNames={{ root: styles['docker-filter-popover'] }}
               content={
-                <div className="docker-filter-popover-content">
-                  <div className="docker-filter-popover-head">
+                <div className={styles['docker-filter-popover-content']}>
+                  <div className={styles['docker-filter-popover-head']}>
                     <strong>{t('workbench.docker.filters')}</strong>
                     <Button type="text" size="small" onClick={resetFilters}>
                       {t('workbench.docker.resetFilters')}
@@ -182,7 +196,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
                   <Input
                     id="docker-port-filter"
                     name="docker-port-filter"
-                    className="docker-compact-input"
+                    className={styles['docker-compact-input']}
                     value={docker.query.port}
                     allowClear
                     variant="borderless"
@@ -214,7 +228,10 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
             >
               <Button
                 type="text"
-                className={`docker-filter-button ${hasActiveFilters ? 'is-active' : ''}`}
+                className={[
+                  styles['docker-filter-button'],
+                  hasActiveFilters ? styles['is-active'] : '',
+                ].filter(Boolean).join(' ')}
                 icon={<ListFilter size={15} />}
               >
                 {t('workbench.docker.filters')}
@@ -224,7 +241,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
 
           {docker.error ? (
             <WorkspaceEmptyState
-              className="docker-error-state"
+              className={styles['docker-error-state']}
               tone="danger"
               icon={<AlertTriangle size={20} />}
               title={t('workbench.docker.loadFailed')}
@@ -232,7 +249,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
             />
           ) : null}
 
-          <div className="docker-content">
+          <div className={styles['docker-content']}>
             {showingDetail ? (
               <DockerDetailView
                 detail={detail}
@@ -258,14 +275,14 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
                 onAction={runAction}
               />
             ) : (
-              <div className="docker-list" aria-label={t('workbench.docker.containerList')}>
-                <div className="docker-list-summary">
+              <div className={styles['docker-list']} aria-label={t('workbench.docker.containerList')}>
+                <div className={styles['docker-list-summary']}>
                   <strong>{listSummary}</strong>
                   <span>{updatedText}</span>
                 </div>
                 {items.length === 0 && !docker.loadingList ? (
                   <WorkspaceEmptyState
-                    className="docker-empty-list"
+                    className={styles['docker-empty-list']}
                     icon={<ListFilter size={20} />}
                     title={t(docker.list ? 'workbench.docker.noResults' : 'workbench.docker.loading')}
                     description={docker.list ? undefined : t('workbench.docker.emptyListHint')}
@@ -297,14 +314,17 @@ interface DockerFilterOptionGroupProps {
 
 function DockerFilterOptionGroup({ label, value, options, onChange }: DockerFilterOptionGroupProps) {
   return (
-    <div className="docker-filter-field">
+    <div className={styles['docker-filter-field']}>
       <span>{label}</span>
-      <div className="docker-filter-options">
+      <div className={styles['docker-filter-options']}>
         {options.map((option) => (
           <button
             key={option.value || 'all'}
             type="button"
-            className={`docker-filter-chip ${option.value === value ? 'is-selected' : ''}`}
+            className={[
+              styles['docker-filter-chip'],
+              option.value === value ? styles['is-selected'] : '',
+            ].filter(Boolean).join(' ')}
             onClick={() => onChange(option.value)}
           >
             {option.label}
@@ -326,10 +346,14 @@ function DockerRow({ item, selected, onSelect }: DockerRowProps) {
   const ports = summarizePorts(item.ports ?? [], item.raw_ports)
   const stats = item.stats
   return (
-    <button type="button" className={`docker-row ${selected ? 'is-selected' : ''}`} onClick={onSelect}>
-      <div className="docker-row-top">
-        <div className="docker-row-main">
-          <span className="docker-row-icon">
+    <button
+      type="button"
+      className={[styles['docker-row'], selected ? styles['is-selected'] : ''].filter(Boolean).join(' ')}
+      onClick={onSelect}
+    >
+      <div className={styles['docker-row-top']}>
+        <div className={styles['docker-row-main']}>
+          <span className={styles['docker-row-icon']}>
             <Container size={15} />
           </span>
           <div>
@@ -339,9 +363,12 @@ function DockerRow({ item, selected, onSelect }: DockerRowProps) {
             </Tooltip>
           </div>
         </div>
-        <Tag className={`docker-state-tag is-${normalizeStateClass(item.state)}`}>{formatDockerState(item.state)}</Tag>
+        <Tag className={[
+          styles['docker-state-tag'],
+          styles[`is-${normalizeStateClass(item.state)}`],
+        ].filter(Boolean).join(' ')}>{formatDockerState(item.state)}</Tag>
       </div>
-      <div className="docker-row-statline">
+      <div className={styles['docker-row-statline']}>
         <span>
           <small>CPU</small>
           <strong>{stats?.cpu_percent || '-'}</strong>
@@ -418,14 +445,14 @@ function DockerDetailView({
   }
   if (loading && !detail) {
     return (
-      <div className="docker-detail-card is-loading">
-        <div className="docker-detail-topbar">
-          <Button type="text" className="docker-detail-back" icon={<ArrowLeft size={14} />} onClick={onBack}>
+      <div className={[styles['docker-detail-card'], styles['is-loading']].join(' ')}>
+        <div className={styles['docker-detail-topbar']}>
+          <Button type="text" className={styles['docker-detail-back']} icon={<ArrowLeft size={14} />} onClick={onBack}>
             {t('workbench.docker.backToList')}
           </Button>
         </div>
-        <div className="docker-detail-loading-body">
-          <span className="docker-detail-spinner" />
+        <div className={styles['docker-detail-loading-body']}>
+          <span className={styles['docker-detail-spinner']} />
           <strong>{t('workbench.docker.detailLoading')}</strong>
           <small>{selectedLabel || selectedRef}</small>
         </div>
@@ -434,12 +461,12 @@ function DockerDetailView({
   }
   if (error && !detail) {
     return (
-      <div className="docker-detail-card">
-        <Button type="text" className="docker-detail-back" icon={<ArrowLeft size={14} />} onClick={onBack}>
+      <div className={styles['docker-detail-card']}>
+        <Button type="text" className={styles['docker-detail-back']} icon={<ArrowLeft size={14} />} onClick={onBack}>
           {t('workbench.docker.backToList')}
         </Button>
         <WorkspaceEmptyState
-          className="docker-detail-empty"
+          className={styles['docker-detail-empty']}
           tone="danger"
           icon={<AlertTriangle size={20} />}
           title={t('workbench.docker.detailFailed')}
@@ -465,37 +492,40 @@ function DockerDetailView({
 
   return (
     <>
-      <article className="docker-detail-card">
-        <div className="docker-detail-topbar">
-          <Button type="text" className="docker-detail-back" icon={<ArrowLeft size={14} />} onClick={onBack}>
+      <article className={styles['docker-detail-card']}>
+        <div className={styles['docker-detail-topbar']}>
+          <Button type="text" className={styles['docker-detail-back']} icon={<ArrowLeft size={14} />} onClick={onBack}>
             {t('workbench.docker.backToList')}
           </Button>
           {loading ? (
-            <span className="docker-detail-refreshing">
+            <span className={styles['docker-detail-refreshing']}>
               <LoaderCircle size={13} />
               {t('workbench.docker.detailRefreshing')}
             </span>
           ) : null}
           {!loading && error ? (
-            <span className="docker-detail-refreshing is-error">
+            <span className={[styles['docker-detail-refreshing'], styles['is-error']].join(' ')}>
               <AlertTriangle size={13} />
               {t('workbench.docker.detailRefreshFailed')}
             </span>
           ) : null}
         </div>
-        <div className="docker-detail-head">
-          <span className="docker-detail-icon">
+        <div className={styles['docker-detail-head']}>
+          <span className={styles['docker-detail-icon']}>
             <Container size={18} />
           </span>
           <div>
             <strong>{summary.name || summary.short_id || summary.id}</strong>
             <small>{summary.image}</small>
           </div>
-          <Tag className={`docker-state-tag is-${normalizeStateClass(summary.state)}`}>{formatDockerState(summary.state)}</Tag>
+          <Tag className={[
+            styles['docker-state-tag'],
+            styles[`is-${normalizeStateClass(summary.state)}`],
+          ].filter(Boolean).join(' ')}>{formatDockerState(summary.state)}</Tag>
         </div>
-        <div className="docker-action-row">
+        <div className={styles['docker-action-row']}>
           {stopped ? (
-            <Button className={`${uiStyles['secondary-button']} secondary-button docker-action-button`} loading={busy} icon={<Play size={13} />} onClick={() => onAction(ref, 'start')}>
+            <Button className={`${uiStyles['secondary-button']} secondary-button ${styles['docker-action-button']}`} loading={busy} icon={<Play size={13} />} onClick={() => onAction(ref, 'start')}>
               {t('workbench.docker.start')}
             </Button>
           ) : null}
@@ -510,7 +540,7 @@ function DockerDetailView({
                 onOpenChange={(open) => setActionConfirm(open ? 'stop' : null)}
                 onConfirm={() => confirmAction(ref, 'stop')}
               >
-                <Button className={`${uiStyles['danger-button']} danger-button docker-action-button`} loading={busy} icon={<Square size={13} />}>
+                <Button className={`${uiStyles['danger-button']} danger-button ${styles['docker-action-button']}`} loading={busy} icon={<Square size={13} />}>
                   {t('workbench.docker.stop')}
                 </Button>
               </Popconfirm>
@@ -523,28 +553,28 @@ function DockerDetailView({
                 onOpenChange={(open) => setActionConfirm(open ? 'restart' : null)}
                 onConfirm={() => confirmAction(ref, 'restart')}
               >
-                <Button className={`${uiStyles['secondary-button']} secondary-button docker-action-button`} loading={busy} icon={<Undo2 size={13} />}>
+                <Button className={`${uiStyles['secondary-button']} secondary-button ${styles['docker-action-button']}`} loading={busy} icon={<Undo2 size={13} />}>
                   {t('workbench.docker.restart')}
                 </Button>
               </Popconfirm>
-              <Button className={`${uiStyles['secondary-button']} secondary-button docker-action-button`} loading={busy} icon={<CirclePause size={13} />} onClick={() => onAction(ref, 'pause')}>
+              <Button className={`${uiStyles['secondary-button']} secondary-button ${styles['docker-action-button']}`} loading={busy} icon={<CirclePause size={13} />} onClick={() => onAction(ref, 'pause')}>
                 {t('workbench.docker.pause')}
               </Button>
             </>
           ) : null}
           {paused ? (
-            <Button className={`${uiStyles['secondary-button']} secondary-button docker-action-button`} loading={busy} icon={<Play size={13} />} onClick={() => onAction(ref, 'unpause')}>
+            <Button className={`${uiStyles['secondary-button']} secondary-button ${styles['docker-action-button']}`} loading={busy} icon={<Play size={13} />} onClick={() => onAction(ref, 'unpause')}>
               {t('workbench.docker.unpause')}
             </Button>
           ) : null}
         </div>
-        <div className="docker-detail-kpis">
+        <div className={styles['docker-detail-kpis']}>
           <DockerKpi label="CPU" value={detail.stats?.cpu_percent || '-'} />
           <DockerKpi label={t('workbench.docker.memory')} value={detail.stats?.memory_percent || detail.stats?.memory || '-'} />
           <DockerKpi label="PIDs" value={detail.stats?.pids || '-'} />
           <DockerKpi label="Net" value={detail.stats?.net_io || '-'} />
         </div>
-        <dl className="docker-detail-list">
+        <dl className={styles['docker-detail-list']}>
           <DockerDetailItem label="ID" value={summary.short_id || summary.id} />
           <DockerDetailItem label={t('workbench.docker.created')} value={detail.created || summary.created_at || t('fields.none')} />
           <DockerDetailItem label={t('workbench.docker.restartPolicy')} value={detail.restart_policy || t('fields.none')} />
@@ -559,23 +589,23 @@ function DockerDetailView({
           title={t('workbench.docker.networks')}
           values={(detail.networks ?? []).map((network) => `${network.name}${network.ip_address ? ` · ${network.ip_address}` : ''}`)}
         />
-        <div className="docker-log-section">
-          <div className="docker-section-head">
+        <div className={styles['docker-log-section']}>
+          <div className={styles['docker-section-head']}>
             <span>
               <FileText size={13} />
               {t('workbench.docker.logs')}
             </span>
-            <div className="docker-log-actions">
+            <div className={styles['docker-log-actions']}>
               <Button
                 type="text"
-                className="docker-mini-button"
+                className={styles['docker-mini-button']}
                 loading={logsLoading}
                 icon={<RotateCcw size={13} />}
                 onClick={() => onRefreshLogs(logTail)}
               >
                 {t('app.reload')}
               </Button>
-              <Button type="text" className="docker-mini-button" icon={<CornerDownRight size={13} />} onClick={openLogs}>
+              <Button type="text" className={styles['docker-mini-button']} icon={<CornerDownRight size={13} />} onClick={openLogs}>
                 {t('workbench.docker.logsOpen')}
               </Button>
             </div>
@@ -583,7 +613,7 @@ function DockerDetailView({
           {logs.length > 0 ? (
             <pre>{logs.slice(-24).join('\n')}</pre>
           ) : (
-            <span className="docker-muted-line">{t('workbench.docker.noLogs')}</span>
+            <span className={styles['docker-muted-line']}>{t('workbench.docker.noLogs')}</span>
           )}
         </div>
       </article>
@@ -692,8 +722,8 @@ function DockerLogsModal({ open, containerName, logs, loading, error, tail, coll
   return (
     <Modal
       centered
-      className="docker-logs-modal"
-      rootClassName="docker-logs-modal-root"
+      className={styles['docker-logs-modal']}
+      rootClassName={styles['docker-logs-modal-root']}
       open={open}
       width="min(1120px, calc(100vw - 80px))"
       footer={null}
@@ -701,30 +731,30 @@ function DockerLogsModal({ open, containerName, logs, loading, error, tail, coll
       closable={false}
       onCancel={onClose}
     >
-      <article className="docker-logs-view">
-        <header className="docker-logs-modal-header">
-          <div className="docker-logs-title">
-            <span className="docker-logs-title-icon">
+      <article className={styles['docker-logs-view']}>
+        <header className={styles['docker-logs-modal-header']}>
+          <div className={styles['docker-logs-title']}>
+            <span className={styles['docker-logs-title-icon']}>
               <FileText size={19} />
             </span>
-            <div className="docker-logs-title-copy">
+            <div className={styles['docker-logs-title-copy']}>
               <strong>{t('workbench.docker.logsViewerTitle')}</strong>
               <span>{containerName}</span>
             </div>
           </div>
-          <div className="docker-logs-header-actions">
-            <span className={`docker-logs-state ${headerStatusClass}`}>
+          <div className={styles['docker-logs-header-actions']}>
+            <span className={[styles['docker-logs-state'], styles[headerStatusClass]].filter(Boolean).join(' ')}>
               {loading ? <LoaderCircle size={13} /> : error ? <AlertTriangle size={13} /> : <FileText size={13} />}
               {headerStatusText}
             </span>
-            <Button type="text" className="docker-logs-close" icon={<X size={16} />} onClick={onClose} aria-label={t('app.close')} />
+            <Button type="text" className={styles['docker-logs-close']} icon={<X size={16} />} onClick={onClose} aria-label={t('app.close')} />
           </div>
         </header>
-        <section className="docker-logs-shell">
-          <div className="docker-logs-control-surface">
-            <div className="docker-logs-primary-row">
+        <section className={styles['docker-logs-shell']}>
+          <div className={styles['docker-logs-control-surface']}>
+            <div className={styles['docker-logs-primary-row']}>
               <Input
-                className="host-search-input termous-search-input docker-logs-search"
+                className={`host-search-input termous-search-input ${styles['docker-logs-search']}`}
                 value={query}
                 allowClear
                 variant="borderless"
@@ -736,40 +766,40 @@ function DockerLogsModal({ open, containerName, logs, loading, error, tail, coll
                   moveMatch(event.shiftKey ? -1 : 1)
                 }}
               />
-              <div className="docker-logs-match-controls">
-                <Button type="text" className="docker-log-tool-button" disabled={matchCount === 0} onClick={() => moveMatch(-1)}>
+              <div className={styles['docker-logs-match-controls']}>
+                <Button type="text" className={styles['docker-log-tool-button']} disabled={matchCount === 0} onClick={() => moveMatch(-1)}>
                   {t('workbench.docker.logsPrevious')}
                 </Button>
-                <Button type="text" className="docker-log-tool-button" disabled={matchCount === 0} onClick={() => moveMatch(1)}>
+                <Button type="text" className={styles['docker-log-tool-button']} disabled={matchCount === 0} onClick={() => moveMatch(1)}>
                   {t('workbench.docker.logsNext')}
                 </Button>
               </div>
               <Select
-                className="docker-log-tail-select"
+                className={styles['docker-log-tail-select']}
                 popupClassName="termous-select-dropdown"
                 value={normalizedTail}
                 options={getDockerLogTailOptions(normalizedTail)}
                 onChange={(value) => onRefresh(value)}
               />
             </div>
-            <div className="docker-logs-secondary-row">
-              <div className="docker-logs-options" aria-label={t('workbench.docker.logsOptions')}>
-                <button type="button" className={caseSensitive ? 'is-active' : ''} onClick={() => setCaseSensitive((value) => !value)}>
+            <div className={styles['docker-logs-secondary-row']}>
+              <div className={styles['docker-logs-options']} aria-label={t('workbench.docker.logsOptions')}>
+                <button type="button" className={caseSensitive ? styles['is-active'] : ''} onClick={() => setCaseSensitive((value) => !value)}>
                   Aa
                 </button>
-                <button type="button" className={regexMode ? 'is-active' : ''} onClick={() => setRegexMode((value) => !value)}>
+                <button type="button" className={regexMode ? styles['is-active'] : ''} onClick={() => setRegexMode((value) => !value)}>
                   .*
                 </button>
-                <button type="button" className={wrapLines ? 'is-active' : ''} onClick={() => setWrapLines((value) => !value)}>
+                <button type="button" className={wrapLines ? styles['is-active'] : ''} onClick={() => setWrapLines((value) => !value)}>
                   {t('workbench.docker.logsWrap')}
                 </button>
-                <button type="button" className={followTail ? 'is-active' : ''} onClick={() => setFollowTail((value) => !value)}>
+                <button type="button" className={followTail ? styles['is-active'] : ''} onClick={() => setFollowTail((value) => !value)}>
                   {t('workbench.docker.logsFollowTail')}
                 </button>
               </div>
               <Button
                 type="text"
-                className="docker-log-tool-button is-refresh"
+                className={[styles['docker-log-tool-button'], styles['is-refresh']].join(' ')}
                 loading={loading}
                 icon={<RotateCcw size={13} />}
                 onClick={() => onRefresh(normalizedTail)}
@@ -778,25 +808,36 @@ function DockerLogsModal({ open, containerName, logs, loading, error, tail, coll
               </Button>
             </div>
           </div>
-          <div ref={consoleRef} className={`docker-logs-console ${wrapLines ? 'is-wrap' : ''}`} role="log" aria-live="polite">
+          <div
+            ref={consoleRef}
+            className={[
+              styles['docker-logs-console'],
+              wrapLines ? styles['is-wrap'] : '',
+            ].filter(Boolean).join(' ')}
+            role="log"
+            aria-live="polite"
+          >
             {logs.length > 0 ? (
               logs.map((line, lineIndex) => (
                 <div
                   key={`line-${lineIndex}`}
-                  className={`docker-log-line ${searchResult.lineMatches[lineIndex]?.length ? 'has-match' : ''} ${getLogToneClass(line)}`}
+                  className={[
+                    styles['docker-log-line'],
+                    styles[getLogToneClass(line)],
+                  ].filter(Boolean).join(' ')}
                 >
-                  <span className="docker-log-line-number">{lineIndex + 1}</span>
+                  <span className={styles['docker-log-line-number']}>{lineIndex + 1}</span>
                   <code>{renderLogLine(line, searchResult.lineMatches[lineIndex] ?? [], visibleActiveMatch)}</code>
                 </div>
               ))
             ) : (
-              <div className="docker-logs-empty">
+              <div className={styles['docker-logs-empty']}>
                 <FileText size={18} />
                 <strong>{t('workbench.docker.noLogs')}</strong>
               </div>
             )}
           </div>
-          <footer className="docker-logs-status">
+          <footer className={styles['docker-logs-status']}>
             <span>{t('workbench.docker.logsLineCount', { count: logs.length })}</span>
             <span>{statusText}</span>
             <span>{collectedAt ? t('workbench.docker.collectedAt', { time: formatTime(collectedAt) }) : t('workbench.processes.updatedNever')}</span>
@@ -891,7 +932,7 @@ function renderLogLine(line: string, matches: DockerLogMatch[], activeMatch: num
     nodes.push(
       <mark
         key={`${match.start}-${match.end}-${match.index}`}
-        className={match.index === activeMatch ? 'is-active' : ''}
+        className={match.index === activeMatch ? styles['is-active'] : ''}
         data-log-match-index={match.index}
       >
         {line.slice(match.start, match.end)}
@@ -918,7 +959,7 @@ function getLogToneClass(line: string): string {
 
 function DockerKpi({ label, value }: { label: string; value: string }) {
   return (
-    <div className="docker-kpi">
+    <div className={styles['docker-kpi']}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -941,7 +982,7 @@ function DockerCompactSection({ title, values }: { title: string; values: string
     return null
   }
   return (
-    <section className="docker-compact-section">
+    <section className={styles['docker-compact-section']}>
       <strong>{title}</strong>
       <div>
         {values.slice(0, 4).map((value) => (

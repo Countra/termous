@@ -10,6 +10,8 @@ import { useShortcutRuntime } from '#entities/shortcuts'
 import { isLocalFileDrag } from '../model/workbenchFileDrag'
 import styles from './WorkbenchFileList.module.scss'
 
+const scopedClassName = (className: string) => `${className} ${styles[className]}`
+
 interface WorkbenchFileListProps {
   entries: RemoteFileEntry[]
   selectedPaths: string[]
@@ -280,15 +282,15 @@ export function WorkbenchFileList({
   }, [entries, listRef, listingPath])
 
   return (
-    <div className={`workbench-file-list-shell ${styles.root}`}>
+    <div className={`${scopedClassName('workbench-file-list-shell')} ${styles.root}`}>
       <div
         ref={listRef}
         className={[
-          'workbench-file-list',
-          loading || initialPending ? 'is-loading' : '',
-          navigationPending ? 'is-navigating' : '',
-          entries.length === 0 ? 'is-empty' : '',
-          uploadTargetPath !== null ? 'is-upload-active' : '',
+          scopedClassName('workbench-file-list'),
+          loading || initialPending ? scopedClassName('is-loading') : '',
+          navigationPending ? scopedClassName('is-navigating') : '',
+          entries.length === 0 ? scopedClassName('is-empty') : '',
+          uploadTargetPath !== null ? scopedClassName('is-upload-active') : '',
         ].filter(Boolean).join(' ')}
         data-shortcut-adapter="workbench-files"
         role="listbox"
@@ -323,17 +325,17 @@ export function WorkbenchFileList({
           onUploadDrop('', event)
         }}
       >
-      <div key={listingPath} className="workbench-file-list-content" role="presentation">
+      <div key={listingPath} className={scopedClassName('workbench-file-list-content')} role="presentation">
       {initialPlaceholder ? (
         <div
           className={[
-            'workbench-file-skeleton',
-            initialPending ? 'is-active' : '',
+            scopedClassName('workbench-file-skeleton'),
+            initialPending ? scopedClassName('is-active') : '',
           ].filter(Boolean).join(' ')}
           aria-hidden="true"
         >
           {Array.from({ length: 6 }, (_, index) => (
-            <span key={index} className="workbench-file-skeleton-row">
+            <span key={index} className={scopedClassName('workbench-file-skeleton-row')}>
               <span />
               <span />
               <span />
@@ -341,8 +343,8 @@ export function WorkbenchFileList({
           ))}
         </div>
       ) : entries.length === 0 ? (
-        <div className="workbench-file-empty">
-          <span className="workbench-file-empty-icon" aria-hidden="true">
+        <div className={scopedClassName('workbench-file-empty')}>
+          <span className={scopedClassName('workbench-file-empty-icon')} aria-hidden="true">
             <Folder size={22} />
           </span>
           <strong>{t('workbench.files.emptyDirectory')}</strong>
@@ -370,7 +372,7 @@ export function WorkbenchFileList({
               menu={menu}
               trigger={['contextMenu']}
               disabled={interactionLocked}
-              classNames={{ root: styles['files-row-menu'] }}
+              classNames={{ root: scopedClassName('files-row-menu') }}
             >
               <div
                 ref={(node) => {
@@ -381,11 +383,11 @@ export function WorkbenchFileList({
                   }
                 }}
                 className={[
-                  'workbench-file-row',
-                  selected ? 'is-selected' : '',
-                  directory ? 'is-directory' : '',
-                  opening ? 'is-opening' : '',
-                  uploadTargetPath === entry.path ? 'is-upload-target' : '',
+                  scopedClassName('workbench-file-row'),
+                  selected ? scopedClassName('is-selected') : '',
+                  directory ? scopedClassName('is-directory') : '',
+                  opening ? scopedClassName('is-opening') : '',
+                  uploadTargetPath === entry.path ? scopedClassName('is-upload-target') : '',
                 ].filter(Boolean).join(' ')}
                 data-workbench-file-path={entry.path}
                 data-workbench-file-kind={entry.kind}
@@ -521,8 +523,8 @@ export function WorkbenchFileList({
                   onUploadDrop(entry.path, event)
                 }}
               >
-                <span className="workbench-file-row-icon">{fileIcon(entry)}</span>
-                <span className="workbench-file-row-copy">
+                <span className={scopedClassName('workbench-file-row-icon')}>{fileIcon(entry)}</span>
+                <span className={scopedClassName('workbench-file-row-copy')}>
                   <strong
                     ref={(node) => {
                       if (node) {
@@ -536,10 +538,10 @@ export function WorkbenchFileList({
                   </strong>
                   <small>{formatDate(entry.modified_at)}</small>
                 </span>
-                <span className="workbench-file-row-meta">
+                <span className={scopedClassName('workbench-file-row-meta')}>
                   {directory ? t('files.kindName.directory') : formatBytes(entry.size)}
                 </span>
-                <span className="workbench-file-row-disclosure" aria-hidden="true">
+                <span className={scopedClassName('workbench-file-row-disclosure')} aria-hidden="true">
                   {opening
                     ? <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={13} />
                     : directory ? <ChevronRight size={14} /> : null}
@@ -552,7 +554,7 @@ export function WorkbenchFileList({
       </div>
       </div>
       {uploadTargetPath !== null ? (
-        <div className="workbench-file-upload-overlay" aria-hidden="true">
+        <div className={scopedClassName('workbench-file-upload-overlay')} aria-hidden="true">
           <span><UploadCloud size={19} /></span>
           <strong>
             {uploadTarget
@@ -565,7 +567,7 @@ export function WorkbenchFileList({
       {nameTooltip ? createPortal(
         <div
           id="workbench-file-name-tooltip"
-          className="workbench-file-name-tooltip"
+          className={scopedClassName('workbench-file-name-tooltip')}
           data-placement={nameTooltip.placement}
           role="tooltip"
           style={{

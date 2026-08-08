@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowLeft, Command, Save } from 'lucide-react'
 import { Button, Checkbox, Form, Input, Tooltip, type FormInstance } from 'antd'
 import { useTranslation } from 'react-i18next'
+import styles from './AliasPanel.module.scss'
 
 export interface AliasEditorValues {
   name: string
@@ -30,22 +31,22 @@ export function AliasEditorView({
   const aliasName = Form.useWatch('name', form)
   const hasRiskyName = /^(rm|sudo|ssh|cd)$/i.test(aliasName?.trim() ?? '')
   return (
-    <section className="alias-panel alias-editor-page">
-      <header className="alias-editor-page-header">
+    <section className={[styles['alias-panel'], styles['alias-editor-page']].join(' ')}>
+      <header className={styles['alias-editor-page-header']}>
         <Tooltip
           title={t('workbench.aliases.backToList')}
           classNames={{ root: 'termous-tooltip' }}
         >
           <Button
             type="text"
-            className="alias-icon-button"
+            className={styles['alias-icon-button']}
             aria-label={t('workbench.aliases.backToList')}
             disabled={saving}
             icon={<ArrowLeft size={15} />}
             onClick={onCancel}
           />
         </Tooltip>
-        <span className="alias-panel-heading-icon">
+        <span className={styles['alias-panel-heading-icon']}>
           <Command size={16} aria-hidden="true" />
         </span>
         <div>
@@ -58,14 +59,14 @@ export function AliasEditorView({
         </div>
       </header>
 
-      <div className="alias-editor-page-body">
+      <div className={styles['alias-editor-page-body']}>
         <Form
           id={`${controlScope}-form`}
           form={form}
           name={`${controlScope}-form`}
           layout="vertical"
           requiredMark={false}
-          className="alias-editor-form"
+          className={styles['alias-editor-form']}
           scrollToFirstError={{ block: 'nearest', focus: true }}
           onFinish={onSave}
         >
@@ -75,7 +76,7 @@ export function AliasEditorView({
             label={t('workbench.aliases.name')}
             validateStatus={hasRiskyName ? 'warning' : undefined}
             extra={hasRiskyName ? (
-              <span className="alias-editor-risk-warning">
+              <span className={styles['alias-editor-risk-warning']}>
                 <AlertTriangle size={13} aria-hidden="true" />
                 {t('workbench.aliases.riskyNameWarning')}
               </span>
@@ -141,7 +142,7 @@ export function AliasEditorView({
               placeholder={t('workbench.aliases.descriptionPlaceholder')}
             />
           </Form.Item>
-          <div className="alias-editor-options">
+          <div className={styles['alias-editor-options']}>
             <Form.Item name="enabled" valuePropName="checked" noStyle>
               <Checkbox
                 id={`${controlScope}-enabled`}
@@ -154,7 +155,7 @@ export function AliasEditorView({
         </Form>
       </div>
 
-      <footer className="alias-editor-page-footer">
+      <footer className={styles['alias-editor-page-footer']}>
         <Button disabled={saving} onClick={onCancel}>
           {t('app.cancel')}
         </Button>

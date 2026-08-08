@@ -6,6 +6,7 @@ import {
   shellAliasTone,
   type AliasMutationKind,
 } from '../model/aliasWorkspaceState'
+import styles from './AliasPanel.module.scss'
 
 interface AliasRowProps {
   id: string
@@ -36,7 +37,7 @@ export function AliasRow({
   const deletePending = mutation === 'delete'
   const deleteDisabled = panelBusy && !deletePending
   const detail = (
-    <div className="alias-row-tooltip-content">
+    <div className={styles['alias-row-tooltip-content']}>
       <strong>{alias.name}</strong>
       <code>{alias.command}</code>
       {alias.description ? <span>{alias.description}</span> : null}
@@ -44,36 +45,40 @@ export function AliasRow({
   )
   return (
     <article
-      className={`alias-row is-${tone} ${alias.enabled ? '' : 'is-disabled'}`}
+      className={[
+        styles['alias-row'],
+        styles[`is-${tone}`],
+        alias.enabled ? '' : styles['is-disabled'],
+      ].filter(Boolean).join(' ')}
       role="listitem"
       aria-busy={mutation ? true : undefined}
     >
       <Tooltip
         title={panelBusy ? null : detail}
         mouseEnterDelay={0.45}
-        classNames={{ root: 'termous-tooltip alias-detail-tooltip' }}
+        classNames={{ root: `termous-tooltip ${styles['alias-detail-tooltip']}` }}
       >
         <button
           id={id}
           type="button"
-          className="alias-row-main"
+          className={styles['alias-row-main']}
           disabled={panelBusy}
           aria-label={t('workbench.aliases.editAlias', { name: alias.name })}
           onClick={onEdit}
         >
-          <div className="alias-row-title">
+          <div className={styles['alias-row-title']}>
             <strong>{alias.name}</strong>
-            <span className={`alias-runtime-state is-${tone}`}>
+            <span className={[styles['alias-runtime-state'], styles[`is-${tone}`]].join(' ')}>
               {t(alias.enabled ? 'workbench.aliases.enabledStatus' : 'workbench.aliases.disabledStatus')}
             </span>
           </div>
           <code>{alias.command}</code>
           {alias.description ? (
-            <span className="alias-row-description">{alias.description}</span>
+            <span className={styles['alias-row-description']}>{alias.description}</span>
           ) : null}
         </button>
       </Tooltip>
-      <div className="alias-row-actions">
+      <div className={styles['alias-row-actions']}>
         <Tooltip
           title={t(alias.enabled ? 'workbench.aliases.disable' : 'workbench.aliases.enable')}
           classNames={{ root: 'termous-tooltip' }}
@@ -96,7 +101,7 @@ export function AliasRow({
         <Tooltip title={t('app.edit')} classNames={{ root: 'termous-tooltip' }}>
           <Button
             type="text"
-            className="alias-row-action"
+            className={styles['alias-row-action']}
             aria-label={t('workbench.aliases.editAlias', { name: alias.name })}
             disabled={panelBusy}
             icon={<Pencil size={14} />}
@@ -110,7 +115,7 @@ export function AliasRow({
           okText={t('app.delete')}
           cancelText={t('app.cancel')}
           okButtonProps={{ danger: true, loading: deletePending }}
-          rootClassName="alias-delete-popconfirm"
+          rootClassName={styles['alias-delete-popconfirm']}
           disabled={deleteDisabled}
           onOpenChange={onDeleteConfirmOpenChange}
           onConfirm={onDelete}
@@ -119,7 +124,7 @@ export function AliasRow({
             <Button
               type="text"
               danger
-              className="alias-row-action"
+              className={styles['alias-row-action']}
               aria-label={t('workbench.aliases.deleteAlias', { name: alias.name })}
               disabled={deleteDisabled}
               loading={deletePending}
@@ -150,7 +155,7 @@ export function AliasBridgeRepairBar({
     return null
   }
   return (
-    <div className="alias-bridge-repair" role="status">
+    <div className={styles['alias-bridge-repair']} role="status">
       <Wrench size={14} aria-hidden="true" />
       <div>
         <strong>{t('workbench.aliases.bridgeRepairTitle')}</strong>
@@ -186,8 +191,8 @@ export function AliasReconnectBar({
     return null
   }
   return (
-    <footer className="alias-reconnect-bar">
-      <span className="alias-reconnect-icon">
+    <footer className={styles['alias-reconnect-bar']}>
+      <span className={styles['alias-reconnect-icon']}>
         <Check size={14} aria-hidden="true" />
       </span>
       <div>

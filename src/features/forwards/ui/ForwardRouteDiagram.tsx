@@ -2,6 +2,12 @@ import { ArrowLeftRight, Cable, Monitor, Network, RadioTower, Route, Server, typ
 import { App as AntdApp, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { ForwardMode } from '#entities/forward'
+import styles from './ForwardManagement.module.scss'
+
+const scopedClassName = (...classNames: string[]) => classNames
+  .flatMap((className) => [className, styles[className]])
+  .filter(Boolean)
+  .join(' ')
 
 interface ForwardRouteDiagramProps {
   mode: ForwardMode
@@ -37,11 +43,15 @@ export function ForwardRouteDiagram({
   }
 
   return (
-    <div className={`forward-route-diagram is-${mode}${compact ? ' is-compact' : ''}`}>
+    <div className={scopedClassName(
+      'forward-route-diagram',
+      `is-${mode}`,
+      compact ? 'is-compact' : '',
+    )}>
       <ForwardEndpoint icon={route.sourceIcon} label={route.sourceLabel} value={sourceValue} onCopy={copyAddress} />
-      <div className="forward-route-link" aria-hidden="true">
-        <span className="forward-route-line" />
-        <span className="forward-route-mark">
+      <div className={scopedClassName('forward-route-link')} aria-hidden="true">
+        <span className={scopedClassName('forward-route-line')} />
+        <span className={scopedClassName('forward-route-mark')}>
           <route.linkIcon size={17} strokeWidth={2.35} />
         </span>
         <small>{route.channelLabel}</small>
@@ -69,7 +79,10 @@ function ForwardEndpoint({
   const content = (
     <button
       type="button"
-      className={`forward-route-endpoint${canCopy ? ' is-copyable' : ''}`}
+      className={scopedClassName(
+        'forward-route-endpoint',
+        canCopy ? 'is-copyable' : '',
+      )}
       aria-label={canCopy ? t('forwards.copyAddress', { address: value }) : `${label} ${value}`}
       aria-disabled={!canCopy}
       onClick={() => {
@@ -78,17 +91,21 @@ function ForwardEndpoint({
         }
       }}
     >
-      <span className="forward-route-endpoint-icon">
+      <span className={scopedClassName('forward-route-endpoint-icon')}>
         <Icon size={15} strokeWidth={2.15} />
       </span>
-      <span className="forward-route-endpoint-copy">
+      <span className={scopedClassName('forward-route-endpoint-copy')}>
         <span>{label}</span>
         <strong>{value}</strong>
       </span>
     </button>
   )
   return (
-    <Tooltip title={value} mouseEnterDelay={0.25} classNames={{ root: 'forward-route-tooltip' }}>
+    <Tooltip
+      title={value}
+      mouseEnterDelay={0.25}
+      classNames={{ root: scopedClassName('forward-route-tooltip') }}
+    >
       {content}
     </Tooltip>
   )

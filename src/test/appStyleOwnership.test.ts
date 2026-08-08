@@ -42,6 +42,28 @@ test('共享控件基础样式通过显式 Module 合同消费', () => {
   }
 })
 
+test('共享操作按钮与设置页标题不再依赖全局基础选择器', () => {
+  const primitiveStyles = source('../shared/ui/Primitives.module.scss')
+  const settingsStyles = source('../pages/settings/ui/SettingsPage.module.scss')
+  const settingsSource = source('../pages/settings/ui/SettingsPage.tsx')
+  const legacyStyles = source('../shared/main-styles/workstation.scss')
+
+  for (const className of ['primary-button', 'secondary-button', 'danger-button']) {
+    assert.match(primitiveStyles, new RegExp(`\\.${className}:global\\(\\.ant-btn\\)`))
+    assert.doesNotMatch(legacyStyles, new RegExp(`^\\.${className}\\.ant-btn`, 'm'))
+  }
+
+  assert.match(primitiveStyles, /\.page-actions\s*\{[^}]*gap:\s*8px;/s)
+  assert.match(primitiveStyles, /--main-action-bg-active:/)
+  assert.doesNotMatch(legacyStyles, /^\.page-actions\s*\{/m)
+
+  assert.match(settingsStyles, /\.page-title-row\s*\{[^}]*align-items:\s*center;/s)
+  assert.match(settingsStyles, /\.page-title-row h1\s*\{[^}]*font-size:\s*22px;[^}]*font-weight:\s*760;/s)
+  assert.match(settingsSource, /className=\{styles\['page-title-row'\]\}/)
+  assert.doesNotMatch(settingsSource, /styles\['page-title-row'\][^\n]*page-title-row/)
+  assert.doesNotMatch(legacyStyles, /^\.page-title-row(?:\s|\{)/m)
+})
+
 test('原 app 业务选择器由组件共置 Module 承载', () => {
   const owners = [
     ['../shared/ui/ConfirmDialog.tsx', './ConfirmDialog.module.scss', 'confirm-dialog'],
@@ -113,4 +135,40 @@ test('详情侧栏的折叠轨道与 Tabs Portal 样式由共置 Module 承载',
 
   assert.match(featureSidePanelStyles, /\.details-tabs:global\(\.ant-tabs\)/)
   assert.match(featureSidePanelStyles, /\.details-tabs-dropdown:global\(\.ant-tabs-dropdown\)/)
+})
+
+test('侧栏框架与折叠控件由共享 Module 承载', () => {
+  const controlsStyles = source('../shared/ui/SidePanelControls.module.scss')
+  const featureSidePanelSource = source('../shared/ui/FeatureSidePanel.tsx')
+  const hostContextPanelSource = source('../features/hosts/ui/HostContextPanel.tsx')
+  const hostContextPanelStyles = source('../features/hosts/ui/HostContextPanel.module.scss')
+  const publicEntry = source('../shared/ui/index.ts')
+  const legacyStyles = source('../shared/main-styles/workstation.scss')
+
+  for (const className of [
+    'panel',
+    'is-collapsed',
+    'is-resizing',
+    'resize-edge',
+    'resize-edge-left',
+    'resize-edge-right',
+    'panel-side-toggle',
+    'panel-side-toggle-left',
+    'panel-side-toggle-right',
+  ]) {
+    assert.match(controlsStyles, new RegExp(`\\.${className}(?=[\\s.:,{])`))
+  }
+
+  assert.match(publicEntry, /default as sidePanelStyles.*SidePanelControls\.module\.scss/)
+  assert.match(featureSidePanelSource, /import sidePanelStyles from '\.\/SidePanelControls\.module\.scss'/)
+  assert.match(hostContextPanelSource, /import \{ EmptyState, sidePanelStyles \} from '#shared\/ui'/)
+
+  assert.match(hostContextPanelStyles, /\.host-context-panel\.is-content-collapsed/)
+  assert.match(legacyStyles, /^body\[data-panel-resizing='true'\]\s*\{/m)
+  assert.doesNotMatch(legacyStyles, /^\.(?:context-panel|details-panel)(?=[\s.,:{])/m)
+  assert.doesNotMatch(legacyStyles, /^\.(?:host-context-resize-edge|details-resize-edge)(?=[\s.,:{])/m)
+  assert.doesNotMatch(legacyStyles, /^\.panel-side-toggle(?:\b|-)/m)
+  assert.doesNotMatch(legacyStyles, /^\.host-context-panel\.is-(?:content-collapsed|resizing)\b/m)
+  assert.doesNotMatch(legacyStyles, /^\.host-context-panel\.is-collapsed \.panel-heading\b/m)
+  assert.doesNotMatch(legacyStyles, /^\.panel-heading(?:\s|\{)/m)
 })

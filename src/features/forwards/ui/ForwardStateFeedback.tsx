@@ -2,6 +2,12 @@ import { AlertCircle, CircleDot } from 'lucide-react'
 import { Progress, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { ForwardInstance } from '#entities/forward'
+import styles from './ForwardManagement.module.scss'
+
+const scopedClassName = (...classNames: string[]) => classNames
+  .flatMap((className) => [className, styles[className]])
+  .filter(Boolean)
+  .join(' ')
 
 interface ForwardStateFeedbackProps {
   forward: ForwardInstance
@@ -19,8 +25,19 @@ export function ForwardStateFeedback({ forward, compact = false }: ForwardStateF
   if (forward.status === 'failed') {
     const error = forward.last_error || forward.status_message || t('forwards.status.failed')
     return (
-      <Tooltip title={error} mouseEnterDelay={0.3} classNames={{ root: 'forward-route-tooltip' }}>
-        <div className={`forward-state-feedback is-failed${compact ? ' is-compact' : ''}`} role="alert">
+      <Tooltip
+        title={error}
+        mouseEnterDelay={0.3}
+        classNames={{ root: scopedClassName('forward-route-tooltip') }}
+      >
+        <div
+          className={scopedClassName(
+            'forward-state-feedback',
+            'is-failed',
+            compact ? 'is-compact' : '',
+          )}
+          role="alert"
+        >
           <AlertCircle size={14} aria-hidden="true" />
           <span>{error}</span>
         </div>
@@ -29,8 +46,15 @@ export function ForwardStateFeedback({ forward, compact = false }: ForwardStateF
   }
 
   return (
-    <div className={`forward-state-feedback is-transitioning${compact ? ' is-compact' : ''}`} role="status">
-      <div className="forward-state-feedback-copy">
+    <div
+      className={scopedClassName(
+        'forward-state-feedback',
+        'is-transitioning',
+        compact ? 'is-compact' : '',
+      )}
+      role="status"
+    >
+      <div className={scopedClassName('forward-state-feedback-copy')}>
         <span>
           <CircleDot size={13} aria-hidden="true" />
           {t(`forwards.phaseName.${forward.phase}`)}

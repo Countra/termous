@@ -1,11 +1,13 @@
-/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
-/* stylelint-disable termous/no-unscoped-global, declaration-empty-line-before, declaration-block-single-line-max-declarations, rule-empty-line-before -- 迁移期保持系统服务日志弹窗的视觉与交互兼容。 */
+/* stylelint-disable declaration-empty-line-before, declaration-block-single-line-max-declarations, rule-empty-line-before -- 保持迁移前的声明顺序与紧凑规则。 */
 .root {
   position: static;
 }
 
-:global {
-.service-logs-modal-root .service-logs-modal.ant-modal {
+.tooltip-root:global(.ant-tooltip) {
+  box-sizing: border-box;
+}
+
+.root .modal:global(.ant-modal) {
   --service-log-modal-bg: #21252e;
   --service-log-console-bg: #080c12;
   top: 0;
@@ -13,12 +15,12 @@
   padding-bottom: 0;
 }
 
-:root[data-theme="light"] .service-logs-modal-root .service-logs-modal.ant-modal {
+:root[data-theme="light"] .root .modal:global(.ant-modal) {
   --service-log-modal-bg: #f7f9fc;
   --service-log-console-bg: #f4f7fb;
 }
 
-.service-logs-modal .ant-modal-container {
+.modal :global(.ant-modal-container) {
   overflow: hidden;
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--border-strong) 78%, transparent);
@@ -27,9 +29,9 @@
   box-shadow: 0 28px 70px rgb(0 0 0 / 36%);
 }
 
-.service-logs-modal .ant-modal-body { padding: 0 !important; }
+.modal :global(.ant-modal-body) { padding: 0 !important; }
 
-.service-logs-view {
+.view {
   display: grid;
   height: min(780px, calc(88vh - 20px));
   min-height: min(620px, calc(88vh - 20px));
@@ -38,7 +40,7 @@
   background: var(--service-log-modal-bg);
 }
 
-.service-logs-header {
+.header {
   display: grid;
   min-width: 0;
   grid-template-columns: 38px minmax(0, 1fr) 32px;
@@ -49,7 +51,7 @@
   border-bottom: 1px solid var(--border);
 }
 
-.service-logs-heading-icon {
+.heading-icon {
   display: grid;
   width: 36px;
   height: 36px;
@@ -59,20 +61,20 @@
   color: var(--accent);
 }
 
-.service-logs-heading-copy,
-.service-logs-heading-copy strong,
-.service-logs-heading-copy span {
+.heading-copy,
+.heading-copy strong,
+.heading-copy span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.service-logs-heading-copy strong { display: block; color: var(--text-primary); font-size: 14px; }
-.service-logs-heading-copy span { display: block; color: var(--text-muted); font-size: 11px; }
-.service-logs-close.ant-btn { width: 32px; height: 32px; color: var(--text-muted); }
+.heading-copy strong { display: block; color: var(--text-primary); font-size: 14px; }
+.heading-copy span { display: block; color: var(--text-muted); font-size: 11px; }
+.close:global(.ant-btn) { width: 32px; height: 32px; color: var(--text-muted); }
 
-.service-logs-toolbar {
+.toolbar {
   display: grid;
   gap: 8px;
   padding: 10px 12px;
@@ -80,15 +82,15 @@
   background: var(--service-log-modal-bg);
 }
 
-.service-logs-search-row,
-.service-logs-option-row {
+.search-row,
+.option-row {
   display: flex;
   min-width: 0;
   align-items: center;
   gap: 6px;
 }
 
-.service-logs-search.ant-input-affix-wrapper {
+.search:global(.ant-input-affix-wrapper) {
   flex: 1 1 260px;
   min-width: 160px;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
@@ -97,7 +99,7 @@
   box-shadow: none;
 }
 
-.service-logs-match-count {
+.match-count {
   flex: 0 0 auto;
   min-width: 54px;
   color: var(--text-muted);
@@ -105,7 +107,7 @@
   text-align: center;
 }
 
-.service-logs-tool.ant-btn {
+.tool:global(.ant-btn) {
   width: 32px;
   height: 32px;
   border: 1px solid transparent;
@@ -113,25 +115,25 @@
   color: var(--text-secondary);
 }
 
-.service-logs-tool.ant-btn.is-active,
-.service-logs-tool.ant-btn:not(:disabled):hover {
+.tool:global(.ant-btn).is-active,
+.tool:global(.ant-btn):not(:disabled):hover {
   border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
   background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
   color: var(--accent);
 }
 
-.service-logs-option-row .ant-segmented,
-.service-logs-priority .ant-select-selector,
-.service-logs-limit .ant-select-selector {
+.option-row :global(.ant-segmented),
+.priority :global(.ant-select-selector),
+.limit :global(.ant-select-selector) {
   border-color: color-mix(in srgb, var(--border) 78%, transparent) !important;
   background: var(--surface-subtle) !important;
   box-shadow: none !important;
 }
 
-.service-logs-priority { width: 132px; }
-.service-logs-limit { width: 82px; }
+.priority { width: 132px; }
+.limit { width: 82px; }
 
-.service-logs-refresh.ant-btn {
+.refresh:global(.ant-btn) {
   height: 32px;
   border-color: color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 9px;
@@ -140,20 +142,20 @@
   box-shadow: none;
 }
 
-.service-logs-refresh.ant-btn:not(:disabled):hover {
+.refresh:global(.ant-btn):not(:disabled):hover {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
   color: var(--accent);
 }
 
-.service-logs-select-dropdown.ant-select-dropdown {
+.select-dropdown:global(.ant-select-dropdown) {
   border: 1px solid var(--border);
   background: #21252e !important;
   box-shadow: var(--shadow-soft);
 }
 
-:root[data-theme="light"] .service-logs-select-dropdown.ant-select-dropdown { background: #f7f9fc !important; }
+:root[data-theme="light"] .select-dropdown:global(.ant-select-dropdown) { background: #f7f9fc !important; }
 
-.service-logs-error {
+.error {
   grid-row: 3;
   padding: 7px 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--danger) 26%, var(--border));
@@ -162,7 +164,7 @@
   font-size: 11px;
 }
 
-.service-logs-console {
+.console {
   grid-row: 4;
   min-width: 0;
   min-height: 0;
@@ -174,32 +176,32 @@
   line-height: 1.55;
 }
 
-:root[data-theme="light"] .service-logs-console { color: #253247; }
+:root[data-theme="light"] .console { color: #253247; }
 
-.service-log-line {
+.log-line {
   display: grid;
   min-width: max-content;
   grid-template-columns: 78px 112px minmax(420px, 1fr);
   border-bottom: 1px solid color-mix(in srgb, var(--border) 38%, transparent);
 }
 
-.service-log-line time,
-.service-log-source,
-.service-log-line code { padding: 4px 8px; }
-.service-log-line time { color: #6f829b; text-align: right; }
-.service-log-source { overflow: hidden; color: #7e91aa; text-overflow: ellipsis; white-space: nowrap; }
-.service-log-line code { color: inherit; white-space: pre; }
-.service-log-line.is-priority-0 code,
-.service-log-line.is-priority-1 code,
-.service-log-line.is-priority-2 code,
-.service-log-line.is-priority-3 code { color: #ff9298; }
-.service-log-line.is-priority-4 code { color: #f5c778; }
-.service-logs-console.is-wrap .service-log-line { min-width: 0; grid-template-columns: 78px 112px minmax(0, 1fr); }
-.service-logs-console.is-wrap .service-log-line code { overflow-wrap: anywhere; white-space: pre-wrap; }
-.service-log-line mark { padding: 0 1px; border-radius: 2px; background: color-mix(in srgb, var(--accent) 32%, transparent); color: inherit; }
-.service-log-line mark.is-active { background: #75a9ff; color: #07111f; }
+.log-line time,
+.log-source,
+.log-line code { padding: 4px 8px; }
+.log-line time { color: #6f829b; text-align: right; }
+.log-source { overflow: hidden; color: #7e91aa; text-overflow: ellipsis; white-space: nowrap; }
+.log-line code { color: inherit; white-space: pre; }
+.log-line.is-priority-0 code,
+.log-line.is-priority-1 code,
+.log-line.is-priority-2 code,
+.log-line.is-priority-3 code { color: #ff9298; }
+.log-line.is-priority-4 code { color: #f5c778; }
+.console.is-wrap .log-line { min-width: 0; grid-template-columns: 78px 112px minmax(0, 1fr); }
+.console.is-wrap .log-line code { overflow-wrap: anywhere; white-space: pre-wrap; }
+.log-line mark { padding: 0 1px; border-radius: 2px; background: color-mix(in srgb, var(--accent) 32%, transparent); color: inherit; }
+.log-line mark.is-active { background: #75a9ff; color: #07111f; }
 
-.service-logs-empty {
+.empty {
   display: grid;
   min-height: 220px;
   place-items: center;
@@ -209,7 +211,7 @@
   font-size: 12px;
 }
 
-.service-logs-footer {
+.footer {
   display: grid;
   grid-row: 5;
   grid-template-columns: repeat(3, 1fr);
@@ -223,12 +225,11 @@
   font-size: 10px;
 }
 
-.service-logs-footer span:nth-child(2) { text-align: center; }
-.service-logs-footer span:last-child { text-align: right; }
+.footer span:nth-child(2) { text-align: center; }
+.footer span:last-child { text-align: right; }
 
 @media (width <= 820px) {
-  .service-logs-view { height: calc(88vh - 20px); min-height: 0; }
-  .service-logs-option-row { flex-wrap: wrap; }
-  .service-logs-refresh.ant-btn { flex: 1 1 auto; }
-}
+  .view { height: calc(88vh - 20px); min-height: 0; }
+  .option-row { flex-wrap: wrap; }
+  .refresh:global(.ant-btn) { flex: 1 1 auto; }
 }

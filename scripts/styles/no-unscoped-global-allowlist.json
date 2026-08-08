@@ -1,18 +1,4 @@
 {
   "schemaVersion": 1,
-  "disabledFiles": [
-    "src/features/alias/ui/AliasPanel.module.scss",
-    "src/features/alias/ui/AliasSyncModal.module.scss",
-    "src/features/docker/ui/DockerPanel.module.scss",
-    "src/features/firewall/ui/FirewallPanel.module.scss",
-    "src/features/forwards/ui/ForwardManagement.module.scss",
-    "src/features/observability/ui/Observability.module.scss",
-    "src/features/service/ui/ServiceLogsModal.module.scss",
-    "src/features/service/ui/ServicePanel.module.scss",
-    "src/features/workbench-files/ui/WorkbenchBookmarksPopover.module.scss",
-    "src/features/workbench-files/ui/WorkbenchFileControls.module.scss",
-    "src/features/workbench-files/ui/WorkbenchFileList.module.scss",
-    "src/features/workbench-files/ui/WorkbenchFilesPanel.module.scss",
-    "src/features/workbench-files/ui/WorkbenchTransferBar.module.scss"
-  ]
+  "disabledFiles": []
 }

@@ -3,6 +3,12 @@ import { Input, InputNumber } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { ForwardMode } from '#entities/forward'
 import { uiStyles } from '#shared/ui'
+import styles from './ForwardManagement.module.scss'
+
+const scopedClassName = (...classNames: string[]) => classNames
+  .flatMap((className) => [className, styles[className]])
+  .filter(Boolean)
+  .join(' ')
 
 export interface ForwardEndpointDraft {
   bind_host: string
@@ -33,14 +39,18 @@ export function ForwardEditorFields({
   const { t } = useTranslation()
 
   return (
-    <div className={`forward-editor-fields is-${mode}${compact ? ' is-compact' : ''}`}>
-      <div className="forward-editor-endpoint-group">
-        <span className="forward-editor-group-label">
+    <div className={[
+      scopedClassName('forward-editor-fields'),
+      scopedClassName(`is-${mode}`),
+      compact ? scopedClassName('is-compact') : '',
+    ].filter(Boolean).join(' ')}>
+      <div className={scopedClassName('forward-editor-endpoint-group')}>
+        <span className={scopedClassName('forward-editor-group-label')}>
           {mode === 'remote' ? t('forwards.route.remoteListen') : t('forwards.route.localListen')}
         </span>
-        <div className="forward-editor-field-grid">
-          <label className="forward-field">
-            <span className={`${uiStyles['field-label']} field-label`}>
+        <div className={scopedClassName('forward-editor-field-grid')}>
+          <label className={scopedClassName('forward-field')}>
+            <span className={`${uiStyles['field-label']} ${scopedClassName('field-label')}`}>
               {mode === 'remote' ? t('forwards.remoteBindHost') : t('forwards.localBindHost')}
             </span>
             <Input
@@ -51,8 +61,8 @@ export function ForwardEditorFields({
               onChange={(event) => onChange({ bind_host: event.target.value })}
             />
           </label>
-          <label className="forward-field is-port">
-            <span className={`${uiStyles['field-label']} field-label`}>
+          <label className={`${scopedClassName('forward-field')} ${scopedClassName('is-port')}`}>
+            <span className={`${uiStyles['field-label']} ${scopedClassName('field-label')}`}>
               {mode === 'remote' ? t('forwards.remoteBindPort') : t('forwards.localBindPort')}
             </span>
             <InputNumber
@@ -69,18 +79,18 @@ export function ForwardEditorFields({
       </div>
 
       {mode === 'dynamic' ? (
-        <div className="forwarding-socks-hint">
+        <div className={scopedClassName('forwarding-socks-hint')}>
           <Network size={15} aria-hidden="true" />
           <span>{t('forwards.dynamicHint')}</span>
         </div>
       ) : (
-        <div className="forward-editor-endpoint-group">
-          <span className="forward-editor-group-label">
+        <div className={scopedClassName('forward-editor-endpoint-group')}>
+          <span className={scopedClassName('forward-editor-group-label')}>
             {mode === 'remote' ? t('forwards.route.localTarget') : t('forwards.route.remoteTarget')}
           </span>
-          <div className="forward-editor-field-grid">
-            <label className="forward-field">
-              <span className={`${uiStyles['field-label']} field-label`}>{t('forwards.targetHost')}</span>
+          <div className={scopedClassName('forward-editor-field-grid')}>
+            <label className={scopedClassName('forward-field')}>
+              <span className={`${uiStyles['field-label']} ${scopedClassName('field-label')}`}>{t('forwards.targetHost')}</span>
               <Input
                 id={`${idPrefix}-target-host`}
                 name={`${idPrefix}-target-host`}
@@ -89,8 +99,8 @@ export function ForwardEditorFields({
                 onChange={(event) => onChange({ target_host: event.target.value })}
               />
             </label>
-            <label className="forward-field is-port">
-              <span className={`${uiStyles['field-label']} field-label`}>{t('forwards.targetPort')}</span>
+            <label className={`${scopedClassName('forward-field')} ${scopedClassName('is-port')}`}>
+              <span className={`${uiStyles['field-label']} ${scopedClassName('field-label')}`}>{t('forwards.targetPort')}</span>
               <InputNumber
                 id={`${idPrefix}-target-port`}
                 name={`${idPrefix}-target-port`}

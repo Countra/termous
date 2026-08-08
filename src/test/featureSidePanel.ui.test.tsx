@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { FeatureSidePanel } from '../shared/ui/FeatureSidePanel'
 import styles from '../shared/ui/FeatureSidePanel.module.scss'
+import sidePanelStyles from '../shared/ui/SidePanelControls.module.scss'
 
 vi.mock('antd', () => ({
   Button: ({
@@ -76,6 +77,38 @@ const baseProps = {
 }
 
 describe('FeatureSidePanel 样式与常驻合同', () => {
+  it('侧栏容器、拖拽边缘与折叠按钮消费共享 Module', () => {
+    const onResizePointerDown = vi.fn()
+    const view = render(
+      <FeatureSidePanel
+        {...baseProps}
+        resizing
+        onResizePointerDown={onResizePointerDown}
+      />,
+    )
+
+    const panel = view.container.querySelector('aside')
+    const resizeEdge = panel?.querySelector('[aria-hidden="true"]')
+    const toggle = screen.getByRole('button', { name: '收起' })
+
+    expect(panel).toHaveClass(
+      styles['details-panel'],
+      sidePanelStyles.panel,
+      sidePanelStyles['is-resizing'],
+    )
+    expect(resizeEdge).toHaveClass(
+      sidePanelStyles['resize-edge'],
+      sidePanelStyles['resize-edge-left'],
+    )
+    expect(toggle).toHaveClass(
+      sidePanelStyles['panel-side-toggle'],
+      sidePanelStyles['panel-side-toggle-right'],
+    )
+    expect(panel).not.toHaveClass('details-panel', 'is-resizing')
+    expect(resizeEdge).not.toHaveClass('details-resize-edge')
+    expect(toggle).not.toHaveClass('panel-side-toggle', 'panel-side-toggle-right')
+  })
+
   it.each([
     {
       name: '默认类',

@@ -474,7 +474,11 @@ export function AliasPanel<TSession extends AliasSessionContext>({
       <Button
         id={syncEntryID}
         type="text"
-        className={`alias-icon-button alias-sync-entry-button${activeSyncTask ? ' is-active' : ''}`}
+        className={[
+          styles['alias-icon-button'],
+          styles['alias-sync-entry-button'],
+          activeSyncTask ? styles['is-active'] : '',
+        ].filter(Boolean).join(' ')}
         aria-label={t(activeSyncTask
           ? 'workbench.aliases.sync.reattach'
           : 'workbench.aliases.sync.open')}
@@ -505,9 +509,13 @@ export function AliasPanel<TSession extends AliasSessionContext>({
   const renderWithSync = (content: ReactNode, stateSurface = false) => (
     <>
       {stateSurface ? (
-        <div id={`${controlScope}-surface`} className={`alias-panel-state-frame ${styles.root}`} tabIndex={-1}>
+        <div
+          id={`${controlScope}-surface`}
+          className={[styles['alias-panel-state-frame'], styles.root].join(' ')}
+          tabIndex={-1}
+        >
           {activeSyncTask && syncEntryButton ? (
-            <div className="alias-panel-state-actions">{syncEntryButton}</div>
+            <div className={styles['alias-panel-state-actions']}>{syncEntryButton}</div>
           ) : null}
           {content}
         </div>
@@ -530,7 +538,7 @@ export function AliasPanel<TSession extends AliasSessionContext>({
   if (aliases.loading && !workspace) {
     return renderWithSync(
       <section
-        className="alias-panel alias-panel-loading"
+        className={[styles['alias-panel'], styles['alias-panel-loading']].join(' ')}
         role="status"
         aria-busy="true"
         aria-label={t('workbench.aliases.loading')}
@@ -544,7 +552,6 @@ export function AliasPanel<TSession extends AliasSessionContext>({
   if (aliases.templateOutdated || aliases.mutation === 'refresh-template') {
     return renderWithSync(
       <WorkbenchEmptyState
-        className="alias-panel-load-error alias-panel-template-outdated"
         tone="warning"
         icon={<RefreshCw size={20} />}
         title={t('workbench.aliases.templateOutdatedTitle')}
@@ -568,7 +575,6 @@ export function AliasPanel<TSession extends AliasSessionContext>({
   if (hasAliasError && !workspace) {
     return renderWithSync(
       <WorkbenchEmptyState
-        className="alias-panel-load-error"
         tone="danger"
         icon={<AlertTriangle size={20} />}
         title={t('workbench.aliases.loadFailed')}
@@ -601,10 +607,14 @@ export function AliasPanel<TSession extends AliasSessionContext>({
   }
 
   return renderWithSync(
-    <section id={`${controlScope}-surface`} className={`alias-panel ${styles.root}`} tabIndex={-1}>
-      <header className="alias-panel-header">
-        <div className="alias-panel-heading">
-          <span className="alias-panel-heading-icon">
+    <section
+      id={`${controlScope}-surface`}
+      className={[styles['alias-panel'], styles.root].join(' ')}
+      tabIndex={-1}
+    >
+      <header className={styles['alias-panel-header']}>
+        <div className={styles['alias-panel-heading']}>
+          <span className={styles['alias-panel-heading-icon']}>
             <Command size={16} aria-hidden="true" />
           </span>
           <div>
@@ -612,7 +622,7 @@ export function AliasPanel<TSession extends AliasSessionContext>({
             <span>{t('workbench.aliases.summary', { shell: displayAliasShell(workspace?.shell), count: workspace?.items.length ?? 0 })}</span>
           </div>
         </div>
-        <div className="alias-panel-header-actions">
+        <div className={styles['alias-panel-header-actions']}>
           {syncEntryButton}
           <Tooltip
             title={t('workbench.aliases.refresh')}
@@ -620,7 +630,7 @@ export function AliasPanel<TSession extends AliasSessionContext>({
           >
             <Button
               type="text"
-              className="alias-icon-button"
+              className={styles['alias-icon-button']}
               aria-label={t('workbench.aliases.refresh')}
               loading={aliases.refreshing}
               disabled={panelBusy}
@@ -635,7 +645,7 @@ export function AliasPanel<TSession extends AliasSessionContext>({
             <Button
               id={`${controlScope}-create-header`}
               type="primary"
-              className="alias-create-button"
+              className={styles['alias-create-button']}
               aria-label={t('workbench.aliases.create')}
               disabled={panelBusy}
               icon={<Plus size={15} />}
@@ -645,12 +655,12 @@ export function AliasPanel<TSession extends AliasSessionContext>({
         </div>
       </header>
 
-      <div className="alias-panel-controls">
-        <div className="alias-panel-search-row">
+      <div className={styles['alias-panel-controls']}>
+        <div className={styles['alias-panel-search-row']}>
           <Input
             id={`${controlScope}-search`}
             name={`${controlScope}-search`}
-            className="termous-search-input alias-search-input"
+            className={`termous-search-input ${styles['alias-search-input']}`}
             value={query}
             allowClear
             variant="borderless"
@@ -661,7 +671,7 @@ export function AliasPanel<TSession extends AliasSessionContext>({
           />
         </div>
         {hasAliasError ? (
-          <div className="alias-inline-error" role="alert">
+          <div className={styles['alias-inline-error']} role="alert">
             <AlertTriangle size={14} aria-hidden="true" />
             <span>{aliasErrorDescription(aliases.errorCode, aliases.errorMessage, t)}</span>
           </div>
@@ -675,14 +685,14 @@ export function AliasPanel<TSession extends AliasSessionContext>({
       </div>
 
       <div
-        className="alias-panel-list"
+        className={styles['alias-panel-list']}
         role={filteredAliases.length > 0 ? 'list' : undefined}
         aria-label={t('workbench.aliases.listLabel')}
         aria-busy={aliases.refreshing || Boolean(aliases.mutation)}
       >
         {filteredAliases.length === 0 ? (
           <WorkbenchEmptyState
-            className="alias-list-empty"
+            className={styles['alias-list-empty']}
             icon={<Command size={19} />}
             title={t(query ? 'workbench.aliases.noResults' : 'workbench.aliases.noAliases')}
             description={query ? undefined : t('workbench.aliases.noAliasesHint')}

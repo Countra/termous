@@ -31,6 +31,11 @@ import {
 import { WorkbenchBookmarkEditorModal } from './WorkbenchBookmarkEditorModal'
 import styles from './WorkbenchBookmarksPopover.module.scss'
 
+const scopedClassName = (...classNames: string[]) => classNames
+  .flatMap((className) => [className, styles[className]])
+  .filter(Boolean)
+  .join(' ')
+
 export interface WorkbenchBookmarksPopoverProps {
   bookmarks: FileBookmark[]
   groups: FileBookmarkGroup[]
@@ -330,7 +335,7 @@ export function WorkbenchBookmarksPopover({
   const content = (
     <section
       id={panelId}
-      className={`workbench-bookmarks-panel ${styles.root}`}
+      className={`${scopedClassName('workbench-bookmarks-panel')} ${styles.root}`}
       role="dialog"
       aria-modal="false"
       aria-label={t('files.bookmarkPanelLabel')}
@@ -341,8 +346,8 @@ export function WorkbenchBookmarksPopover({
         }
       }}
     >
-      <header className="workbench-bookmarks-header">
-        <span className="workbench-bookmarks-heading">
+      <header className={scopedClassName('workbench-bookmarks-header')}>
+        <span className={scopedClassName('workbench-bookmarks-heading')}>
           <Bookmark size={15} aria-hidden="true" />
           <span>
             <strong>{t('files.bookmarks')}</strong>
@@ -356,13 +361,16 @@ export function WorkbenchBookmarksPopover({
           placement="top"
           mouseEnterDelay={0.45}
           zIndex={3500}
-          classNames={{ root: 'termous-tooltip workbench-bookmarks-tooltip' }}
+          classNames={{ root: scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip') }}
         >
-          <span className="workbench-bookmarks-current-target">
+          <span className={scopedClassName('workbench-bookmarks-current-target')}>
             <button
               ref={currentActionRef}
               type="button"
-              className={`workbench-bookmarks-current ${currentBookmark ? 'is-saved' : ''}`}
+              className={[
+                scopedClassName('workbench-bookmarks-current'),
+                currentBookmark ? scopedClassName('is-saved') : '',
+              ].filter(Boolean).join(' ')}
               aria-label={currentBookmark
                 ? t('files.editBookmark')
                 : t('files.bookmarkCurrentAdd')}
@@ -378,7 +386,7 @@ export function WorkbenchBookmarksPopover({
             >
               {savingCurrent ? (
                 <LoaderCircle
-                  className="workbench-bookmarks-spinner"
+                  className={scopedClassName('workbench-bookmarks-spinner')}
                   size={13}
                   aria-hidden="true"
                 />
@@ -397,11 +405,11 @@ export function WorkbenchBookmarksPopover({
         </Tooltip>
       </header>
 
-      <div className="workbench-bookmarks-search-shell">
+      <div className={scopedClassName('workbench-bookmarks-search-shell')}>
         <Input
           id={`${panelId}-search`}
           ref={searchInputRef}
-          className="workbench-bookmarks-search"
+          className={scopedClassName('workbench-bookmarks-search')}
           value={query}
           allowClear
           variant="borderless"
@@ -417,12 +425,12 @@ export function WorkbenchBookmarksPopover({
       </div>
 
       {!connected ? (
-        <div className="workbench-bookmarks-notice is-offline" role="status">
+        <div className={`${scopedClassName('workbench-bookmarks-notice')} ${scopedClassName('is-offline')}`} role="status">
           <CircleAlert size={14} aria-hidden="true" />
           <span>{t('files.bookmarkNoSession')}</span>
         </div>
       ) : error ? (
-        <div className="workbench-bookmarks-notice is-error" role="alert">
+        <div className={`${scopedClassName('workbench-bookmarks-notice')} ${scopedClassName('is-error')}`} role="alert">
           <CircleAlert size={14} aria-hidden="true" />
           <span>{error}</span>
         </div>
@@ -430,14 +438,14 @@ export function WorkbenchBookmarksPopover({
 
       <div
         ref={listRef}
-        className="workbench-bookmarks-list"
+        className={scopedClassName('workbench-bookmarks-list')}
         role="listbox"
         aria-label={t('files.bookmarkPanelLabel')}
         aria-busy={actionPending || undefined}
         onKeyDown={handleListKeyDown}
       >
         {bookmarkGroups.length === 0 ? (
-          <div className="workbench-bookmarks-empty">
+          <div className={scopedClassName('workbench-bookmarks-empty')}>
             <Bookmark size={18} aria-hidden="true" />
             <strong>
               {bookmarks.length === 0
@@ -450,23 +458,23 @@ export function WorkbenchBookmarksPopover({
           bookmarkGroups.map((group) => (
             <section
               key={group.id || '__ungrouped__'}
-              className="workbench-bookmarks-group"
+              className={scopedClassName('workbench-bookmarks-group')}
               role="group"
               aria-label={group.name}
             >
-              <div className="workbench-bookmarks-group-heading">
+              <div className={scopedClassName('workbench-bookmarks-group-heading')}>
                 <Tooltip
                   title={group.name}
                   placement="left"
                   mouseEnterDelay={0.45}
                   zIndex={3500}
-                  classNames={{ root: 'termous-tooltip workbench-bookmarks-tooltip' }}
+                  classNames={{ root: scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip') }}
                 >
                   <span>{group.name}</span>
                 </Tooltip>
                 <small>{group.items.length}</small>
               </div>
-              <div className="workbench-bookmarks-group-items">
+              <div className={scopedClassName('workbench-bookmarks-group-items')}>
                 {group.items.map((bookmark) => {
                   const current = bookmark.id === currentBookmark?.id
                   const navigating = bookmark.id === navigatingBookmarkId
@@ -474,7 +482,7 @@ export function WorkbenchBookmarksPopover({
                     <Tooltip
                       key={bookmark.id}
                       title={(
-                        <span className="workbench-bookmark-tooltip-copy">
+                        <span className={scopedClassName('workbench-bookmark-tooltip-copy')}>
                           <strong>{bookmark.name}</strong>
                           <span>{bookmark.path}</span>
                           <small>{group.name}</small>
@@ -483,14 +491,14 @@ export function WorkbenchBookmarksPopover({
                       placement="left"
                       mouseEnterDelay={0.45}
                       zIndex={3500}
-                      classNames={{ root: 'termous-tooltip workbench-bookmarks-tooltip' }}
+                      classNames={{ root: scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip') }}
                     >
                       <button
                         type="button"
                         className={[
-                          'workbench-bookmarks-item',
-                          current ? 'is-current' : '',
-                          navigating ? 'is-loading' : '',
+                          scopedClassName('workbench-bookmarks-item'),
+                          current ? scopedClassName('is-current') : '',
+                          navigating ? scopedClassName('is-loading') : '',
                         ].filter(Boolean).join(' ')}
                         role="option"
                         aria-selected={current}
@@ -501,10 +509,10 @@ export function WorkbenchBookmarksPopover({
                         data-workbench-bookmark-item
                         onClick={() => void navigateToBookmark(bookmark)}
                       >
-                        <span className="workbench-bookmarks-item-icon" aria-hidden="true">
+                        <span className={scopedClassName('workbench-bookmarks-item-icon')} aria-hidden="true">
                           {navigating ? (
                             <LoaderCircle
-                              className="workbench-bookmarks-spinner"
+                              className={scopedClassName('workbench-bookmarks-spinner')}
                               size={14}
                             />
                           ) : current ? (
@@ -513,7 +521,7 @@ export function WorkbenchBookmarksPopover({
                             <Bookmark size={14} />
                           )}
                         </span>
-                        <span className="workbench-bookmarks-item-copy">
+                        <span className={scopedClassName('workbench-bookmarks-item-copy')}>
                           <strong>{bookmark.name}</strong>
                           <small>{bookmark.path}</small>
                         </span>
@@ -527,10 +535,10 @@ export function WorkbenchBookmarksPopover({
         )}
       </div>
 
-      <footer className="workbench-bookmarks-footer">
+      <footer className={scopedClassName('workbench-bookmarks-footer')}>
         <button
           type="button"
-          className="workbench-bookmarks-manage"
+          className={scopedClassName('workbench-bookmarks-manage')}
           disabled={actionPending}
           onClick={() => {
             closePopover()
@@ -553,7 +561,7 @@ export function WorkbenchBookmarksPopover({
         arrow={false}
         autoAdjustOverflow
         zIndex={3400}
-        classNames={{ root: 'workbench-bookmarks-popover' }}
+        classNames={{ root: scopedClassName('workbench-bookmarks-popover') }}
         getPopupContainer={() => document.body}
         content={content}
         onOpenChange={(nextOpen) => {
@@ -577,16 +585,15 @@ export function WorkbenchBookmarksPopover({
           mouseEnterDelay={0.45}
           open={open ? false : undefined}
           zIndex={3500}
-          classNames={{ root: 'termous-tooltip workbench-bookmarks-tooltip' }}
+          classNames={{ root: scopedClassName('termous-tooltip', 'workbench-bookmarks-tooltip') }}
         >
           <Button
             ref={triggerRef}
             type="text"
             className={[
-              'workbench-files-address-action',
-              'workbench-bookmarks-trigger',
-              open ? 'is-open' : '',
-              currentBookmark ? 'is-saved' : '',
+              scopedClassName('workbench-files-address-action', 'workbench-bookmarks-trigger'),
+              open ? scopedClassName('is-open') : '',
+              currentBookmark ? scopedClassName('is-saved') : '',
             ].filter(Boolean).join(' ')}
             aria-label={t('files.bookmarks')}
             aria-expanded={open}

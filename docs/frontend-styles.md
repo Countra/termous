@@ -5,8 +5,8 @@
 - 样式清单会盘点 `src` 内的 `.css`、`.scss` 和 `.sass`，并拒绝扩展名大小写异常及任何符号链接。
 - Stylelint 检查全部 `src/**/*.scss` 和 `src/**/*.module.scss`。
 - 当前 `src` 内没有 `.css` 或 `.sass`；`scripts/styles/legacy-css-allowlist.json` 为空，并作为禁止重新引入 legacy CSS 的回归门禁保留。
-- `scripts/styles/no-unscoped-global-allowlist.json` 精确登记仍在使用 `termous/no-unscoped-global` 文件级禁用的 Module；检查器拒绝新增豁免、过期条目和非规范清单。清理豁免时必须在同一变更中删除对应条目，使清单只减不增并最终归零。
-- 业务目录只允许 `*.module.scss`；应用级非 Module SCSS 只能放在 `src/shared/styles`。
+- `scripts/styles/no-unscoped-global-allowlist.json` 当前为空；检查器拒绝重新引入 `termous/no-unscoped-global` 文件级禁用、过期条目和非规范清单。
+- 业务目录只允许 `*.module.scss`；应用级非 Module SCSS 只能放在 `src/shared/styles` 或主窗口专用的 `src/shared/main-styles`。
 - 不使用缩进语法 `.sass`，所有 Sass 文件统一采用 SCSS 语法和小写扩展名。
 - Sass 只承担嵌套、拆分和编译期复用；运行时主题继续使用现有 CSS Custom Properties。
 
@@ -22,7 +22,7 @@
 - `global.scss` 是正式的共享全局层，只承载 CSS Custom Properties、主题、根节点和必要的文档级状态。
 - `app.scss` 的通用业务规则已经迁入所有者共置的 SCSS Modules；`workstation.scss` 仍包含主界面历史类名、第三方覆盖和跨组件规则，是受控兼容层，不代表业务样式已全部完成局部作用域治理。
 - 新增或重构后的业务样式应与组件共置到 `*.module.scss`，不得继续扩大 `workstation.scss`。兼容规则只能在保留导入顺序、最终计算样式和交互行为的前提下按完整功能块抽离。
-- 部分现有 Module 为保持历史 DOM 类名和 Portal 行为，仍使用文件级 Stylelint 豁免或顶层 `:global`。这些写法属于可识别的兼容状态，不应复制到新组件；后续收敛时应先解除 JavaScript 和跨组件对类名的依赖。
+- Module 内的文件级全局样式豁免和顶层裸 `:global` 已清零；第三方 Portal 覆盖必须由组件挂载局部 Module 根节点后再定向覆盖。
 
 ## SCSS Modules
 
@@ -37,7 +37,7 @@
 - `@at-root`、mixin 或其他无法静态证明会保留选择器祖先的边界不会继承外层安全作用域，应改用显式本地 class 前缀。
 - 无法由组件根节点限定的 Portal 覆盖应放入受控的应用级全局 SCSS，不得在 Module 中使用裸 `:global`。
 
-以上约束适用于新增和已经完成局部作用域治理的 Module；“全局兼容层”中明确记录的现有豁免不作为新代码模板。
+以上约束适用于所有 Module；尚未完成所有权迁移的规则只能保留在受控的 `workstation.scss` 兼容层中，不作为新代码模板。
 
 ## 收敛顺序
 

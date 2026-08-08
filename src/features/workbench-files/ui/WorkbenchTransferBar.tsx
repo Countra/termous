@@ -7,6 +7,8 @@ import { formatBytes } from '#shared/format'
 import { summarizeWorkbenchTransfers } from '../model/workbenchTransferState'
 import styles from './WorkbenchTransferBar.module.scss'
 
+const scopedClassName = (className: string) => `${className} ${styles[className]}`
+
 interface WorkbenchTransferBarProps {
   api: FileTransferGateway
   fileSessionId?: string
@@ -77,24 +79,26 @@ export function WorkbenchTransferBar({
   return (
     <div
       className={[
-        'workbench-file-transfer',
+        scopedClassName('workbench-file-transfer'),
         styles.root,
         active ? 'is-active' : 'is-failed',
+        !active ? styles['is-failed'] : '',
         upload ? 'is-upload' : '',
         download ? 'is-download' : '',
       ].filter(Boolean).join(' ')}
       data-workbench-file-transfer
+      data-state={active ? 'active' : 'failed'}
     >
       <span
-        className="workbench-file-transfer-announcement"
+        className={scopedClassName('workbench-file-transfer-announcement')}
         role={task.status === 'failed' ? 'alert' : 'status'}
         aria-live={task.status === 'failed' ? 'assertive' : 'polite'}
       >
         {title}
       </span>
-      <div className="workbench-file-transfer-main">
-        <span className="workbench-file-transfer-icon" aria-hidden="true"><TransferIcon size={15} /></span>
-        <div className="workbench-file-transfer-copy">
+      <div className={scopedClassName('workbench-file-transfer-main')}>
+        <span className={scopedClassName('workbench-file-transfer-icon')} aria-hidden="true"><TransferIcon size={15} /></span>
+        <div className={scopedClassName('workbench-file-transfer-copy')}>
           <strong>{title}</strong>
           <span>{description}</span>
         </div>
@@ -123,21 +127,21 @@ export function WorkbenchTransferBar({
       </div>
       {active ? (
         <>
-          <dl className="workbench-file-transfer-metrics" aria-label={metricsLabel}>
+          <dl className={scopedClassName('workbench-file-transfer-metrics')} aria-label={metricsLabel}>
             <div className="is-bytes">
               <dt>{t('workbench.files.transferSizeLabel')}</dt>
               <dd>{t('files.transferBytes', { done: transferred, total })}</dd>
             </div>
-            <div className="is-speed">
+            <div className={scopedClassName('is-speed')}>
               <dt>{t('files.transferSpeedLabel')}</dt>
               <dd>{speed}</dd>
             </div>
-            <div className="is-progress">
+            <div className={scopedClassName('is-progress')}>
               <dt>{t('workbench.files.transferProgressLabel')}</dt>
               <dd>{progressText}</dd>
             </div>
           </dl>
-          <div className="workbench-file-transfer-progress">
+          <div className={scopedClassName('workbench-file-transfer-progress')}>
             <Progress
               aria-label={t('workbench.files.transferProgressLabel')}
               percent={summary.progress}

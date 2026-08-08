@@ -271,12 +271,12 @@ export function AliasSyncModal({
   }
 
   const footer = task ? (
-    <div className="alias-sync-modal-actions">
-      <span className="alias-sync-selected-summary">{t('workbench.aliases.sync.selectedSummary', {
+    <div className={styles['modal-actions']}>
+      <span className={styles['selected-summary']}>{t('workbench.aliases.sync.selectedSummary', {
         aliases: task.alias_ids.length,
         hosts: task.target_host_ids.length,
       })}</span>
-      <span className="alias-sync-modal-action-buttons">
+      <span className={styles['modal-action-buttons']}>
         {isAliasSyncTaskTerminal(task.status) && canSyncAgain ? (
           <Button icon={<RotateCcw size={14} />} onClick={resetTask}>
             {t('workbench.aliases.sync.syncAgain')}
@@ -290,12 +290,12 @@ export function AliasSyncModal({
       </span>
     </div>
   ) : (
-    <div className="alias-sync-modal-actions">
-      <span className="alias-sync-selected-summary">{t('workbench.aliases.sync.selectedSummary', {
+    <div className={styles['modal-actions']}>
+      <span className={styles['selected-summary']}>{t('workbench.aliases.sync.selectedSummary', {
         aliases: orderedSelectedAliasIds.length,
         hosts: orderedSelectedHostIds.length,
       })}</span>
-      <span className="alias-sync-modal-action-buttons">
+      <span className={styles['modal-action-buttons']}>
         <Button onClick={requestClose}>
           {t('app.cancel')}
         </Button>
@@ -323,10 +323,10 @@ export function AliasSyncModal({
         mask={{ closable: !closeConfirmOpen }}
         closable={!closeConfirmOpen}
         zIndex={3700}
-        rootClassName={`termous-modal-root alias-sync-modal-root ${styles.root}`}
-        className="alias-sync-modal"
+        rootClassName={`termous-modal-root ${styles.root}`}
+        className={styles.modal}
         title={(
-          <span className="alias-sync-modal-title">
+          <span className={styles['modal-title']}>
             <Send size={17} aria-hidden="true" />
             <span>{t('workbench.aliases.sync.title')}</span>
           </span>
@@ -334,7 +334,7 @@ export function AliasSyncModal({
         footer={footer}
         onCancel={requestClose}
       >
-        <div className="alias-sync-modal-body">
+        <div className={styles['modal-body']}>
           <SourceSummary
             api={api}
             host={task
@@ -351,18 +351,18 @@ export function AliasSyncModal({
               showIcon
               message={t('workbench.aliases.sync.errorTitle')}
               description={aliasSyncErrorDescription(sync.errorCode, sync.errorMessage, t)}
-              className="alias-sync-alert"
+              className={styles.alert}
             />
           ) : null}
 
           {sync.recovering && !task ? (
-            <div className="alias-sync-recovering" role="status" aria-label={t('workbench.aliases.sync.recovering')}>
+            <div className={styles.recovering} role="status" aria-label={t('workbench.aliases.sync.recovering')}>
               <Skeleton active title={{ width: '38%' }} paragraph={{ rows: 7 }} />
             </div>
           ) : task ? (
             <AliasSyncProgressView task={task} hosts={hostById} api={api} />
           ) : (
-            <div className="alias-sync-picker-grid">
+            <div className={styles['picker-grid']}>
               <SelectionColumn
                 icon={<Command size={15} />}
                 title={t('workbench.aliases.sync.aliasesTitle')}
@@ -385,7 +385,7 @@ export function AliasSyncModal({
                 {visibleAliases.map((alias) => (
                   <Checkbox
                     key={alias.id}
-                    className="alias-sync-select-row alias-sync-alias-row"
+                    className={`${styles['select-row']} ${styles['alias-row']}`}
                     checked={selectedAliasIds.includes(alias.id)}
                     disabled={selectionLocked}
                     onChange={(event) => setSelectedAliasIds((current) => toggleID(
@@ -394,11 +394,11 @@ export function AliasSyncModal({
                       event.target.checked,
                     ))}
                   >
-                    <span className="alias-sync-row-copy">
+                    <span className={styles['row-copy']}>
                       <strong>{alias.name}</strong>
                       <code>{alias.command}</code>
                     </span>
-                    <span className={`alias-sync-enabled-dot ${alias.enabled ? 'is-enabled' : ''}`} title={t(alias.enabled
+                    <span className={`${styles['enabled-dot']} ${alias.enabled ? styles['is-enabled'] : ''}`} title={t(alias.enabled
                       ? 'workbench.aliases.enabledStatus'
                       : 'workbench.aliases.disabledStatus')} />
                   </Checkbox>
@@ -425,7 +425,7 @@ export function AliasSyncModal({
                 )}
               >
                 {visibleHostSections.map((section) => (
-                  <section key={section.id || 'ungrouped'} className="alias-sync-host-section">
+                  <section key={section.id || 'ungrouped'} className={styles['host-section']}>
                     <header>
                       <strong>{section.name || t('workbench.aliases.sync.ungroupedHosts')}</strong>
                       <span>{section.hosts.length}</span>
@@ -491,22 +491,22 @@ function SourceSummary({ api, host, snapshot, shell, totalAliases }: SourceSumma
   const port = snapshot?.port ?? host?.port
   const username = snapshot?.username ?? host?.username
   return (
-    <div className="alias-sync-source-summary">
+    <div className={styles['source-summary']}>
       <HostAvatar
         host={host ?? (displayName ? { name: displayName } : undefined)}
         getIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
         size={34}
       />
-      <span className="alias-sync-source-copy">
+      <span className={styles['source-copy']}>
         <small>{t('workbench.aliases.sync.source')}</small>
         <strong>{displayName}</strong>
         {address ? <span>{username ? `${username}@` : ''}{address}{port ? `:${port}` : ''}</span> : null}
       </span>
-      <span className="alias-sync-source-metric">
+      <span className={styles['source-metric']}>
         <strong>{shell ?? '—'}</strong>
         <small>{t('workbench.aliases.sync.shellMetric')}</small>
       </span>
-      <span className="alias-sync-source-metric">
+      <span className={styles['source-metric']}>
         <strong>{totalAliases}</strong>
         <small>{t('workbench.aliases.sync.aliasTotalMetric')}</small>
       </span>
@@ -549,12 +549,12 @@ function SelectionColumn({
 }: SelectionColumnProps) {
   const { t } = useTranslation()
   return (
-    <section className="alias-sync-selection-column">
+    <section className={styles['selection-column']}>
       <header>
-        <span className="alias-sync-selection-heading">{icon}<strong>{title}</strong></span>
-        <span className="alias-sync-selection-count">{count} / {total}</span>
+        <span className={styles['selection-heading']}>{icon}<strong>{title}</strong></span>
+        <span className={styles['selection-count']}>{count} / {total}</span>
       </header>
-      <div className="alias-sync-selection-tools">
+      <div className={styles['selection-tools']}>
         <Input
           value={query}
           allowClear
@@ -572,9 +572,9 @@ function SelectionColumn({
           {t('workbench.aliases.sync.selectAll')}
         </Checkbox>
       </div>
-      <div className={`alias-sync-selection-list ${empty ? 'is-empty' : ''}`}>
+      <div className={`${styles['selection-list']} ${empty ? styles['is-empty'] : ''}`}>
         {empty ? (
-          <div className="alias-sync-selection-empty">{emptyText}</div>
+          <div className={styles['selection-empty']}>{emptyText}</div>
         ) : children}
       </div>
     </section>
@@ -611,10 +611,10 @@ function SelectableHostRow({
     <Tooltip
       title={tooltip}
       zIndex={3800}
-      classNames={{ root: 'termous-tooltip alias-sync-host-tooltip' }}
+      classNames={{ root: `termous-tooltip ${styles['host-tooltip']}` }}
     >
       <Checkbox
-        className={`alias-sync-select-row alias-sync-host-row ${missingCredential ? 'is-disabled' : ''}`}
+        className={`${styles['select-row']} ${styles['host-row']} ${missingCredential ? styles['is-disabled'] : ''}`}
         checked={checked}
         disabled={disabled || missingCredential}
         onChange={(event) => onChange(event.target.checked)}
@@ -624,19 +624,19 @@ function SelectableHostRow({
           getIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
           size={27}
         />
-        <span className="alias-sync-row-copy">
+        <span className={styles['row-copy']}>
           <strong>{host.name}</strong>
           <span>{host.username}@{host.address}:{host.port}</span>
         </span>
-        <span className="alias-sync-host-trailing">
-          <span className="alias-sync-host-state">
+        <span className={styles['host-trailing']}>
+          <span className={styles['host-state']}>
             {missingCredential
-              ? <KeyRound size={13} className="is-blocked" aria-label={t('workbench.aliases.sync.missingCredential')} />
+              ? <KeyRound size={13} className={styles['is-blocked']} aria-label={t('workbench.aliases.sync.missingCredential')} />
               : offline
-                ? <WifiOff size={13} className="is-offline" aria-label={t('workbench.aliases.sync.offlineHint')} />
+                ? <WifiOff size={13} className={styles['is-offline']} aria-label={t('workbench.aliases.sync.offlineHint')} />
                 : null}
           </span>
-          <span className="alias-sync-host-auth">
+          <span className={styles['host-auth']}>
             <AuthMethodBadge method={host.auth_method} />
           </span>
         </span>
@@ -678,20 +678,20 @@ function AliasSyncProgressView({ task, hosts, api }: AliasSyncProgressViewProps)
           total: task.total_targets,
         })
   return (
-    <section className="alias-sync-progress-view" aria-live="polite">
-      <div className="alias-sync-progress-head">
+    <section className={styles['progress-view']} aria-live="polite">
+      <div className={styles['progress-head']}>
         <div>
-          <span className={`alias-sync-task-status is-${taskStatusTone(task.status)}`}>
+          <span className={`${styles['task-status']} ${styles[`is-${taskStatusTone(task.status)}`]}`}>
             {taskStatusIcon(task.status)}
             {t(`workbench.aliases.sync.taskStatus.${task.status}`)}
           </span>
           <strong>{t('workbench.aliases.sync.progressTitle')}</strong>
           <small>{summary}</small>
         </div>
-        <span className="alias-sync-progress-value">{progress}%</span>
+        <span className={styles['progress-value']}>{progress}%</span>
       </div>
       <Progress percent={progress} status={progressStatus} showInfo={false} />
-      <div className="alias-sync-result-metrics">
+      <div className={styles['result-metrics']}>
         <ResultMetric value={task.succeeded_targets} label={t('workbench.aliases.sync.succeeded')} tone="success" />
         <ResultMetric value={task.skipped_targets} label={t('workbench.aliases.sync.skipped')} tone="muted" />
         <ResultMetric value={task.failed_targets} label={t('workbench.aliases.sync.failed')} tone="danger" />
@@ -699,7 +699,7 @@ function AliasSyncProgressView({ task, hosts, api }: AliasSyncProgressViewProps)
         <ResultMetric value={task.cancelled_targets} label={t('workbench.aliases.sync.cancelled')} tone="muted" />
         <ResultMetric value={Math.max(0, task.total_targets - task.completed_targets)} label={t('workbench.aliases.sync.remaining')} tone="active" />
       </div>
-      <div className="alias-sync-target-list" role="list" aria-label={t('workbench.aliases.sync.targetList')}>
+      <div className={styles['target-list']} role="list" aria-label={t('workbench.aliases.sync.targetList')}>
         {task.targets.map((target) => (
           <TargetResultRow
             key={target.id || `${target.host_id}-${target.index}`}
@@ -715,7 +715,7 @@ function AliasSyncProgressView({ task, hosts, api }: AliasSyncProgressViewProps)
 
 function ResultMetric({ value, label, tone }: { value: number; label: string; tone: string }) {
   return (
-    <span className={`alias-sync-result-metric is-${tone}`}>
+    <span className={`${styles['result-metric']} ${styles[`is-${tone}`]}`}>
       <strong>{value}</strong>
       <small>{label}</small>
     </span>
@@ -760,17 +760,17 @@ function TargetResultRow({ target, host, api }: { target: AliasSyncTarget; host?
     : ''
   const detail = [...resultDetails, applyStatusDetail].filter(Boolean).join(' · ')
   return (
-    <article className={`alias-sync-target-row is-${tone}`} role="listitem">
-      <span className="alias-sync-target-state" aria-hidden="true">{targetStatusIcon(target.status)}</span>
+    <article className={`${styles['target-row']} ${styles[`is-${tone}`]}`} role="listitem">
+      <span className={styles['target-state']} aria-hidden="true">{targetStatusIcon(target.status)}</span>
       <HostAvatar
         host={host ?? (target.host_name ? { name: target.host_name } : undefined)}
         getIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
         size={29}
       />
-      <span className="alias-sync-target-copy">
+      <span className={styles['target-copy']}>
         <strong>{target.host_name ?? host?.name ?? target.host_id}</strong>
         {target.address || host?.address ? (
-          <span className="alias-sync-target-endpoint">
+          <span className={styles['target-endpoint']}>
             {target.username || host?.username ? `${target.username ?? host?.username}@` : ''}
             {target.address ?? host?.address}
             {target.port || host?.port ? `:${target.port || host?.port}` : ''}
@@ -779,7 +779,7 @@ function TargetResultRow({ target, host, api }: { target: AliasSyncTarget; host?
         ) : null}
         <small>{detail}</small>
       </span>
-      <span className="alias-sync-target-status-label">
+      <span className={styles['target-status-label']}>
         {t(`workbench.aliases.sync.targetStatus.${target.status}`)}
       </span>
     </article>
@@ -812,13 +812,13 @@ function taskStatusIcon(status: string) {
   if (status === 'failed' || status === 'partial_failed') return <AlertTriangle size={14} />
   if (status === 'cancelled') return <XCircle size={14} />
   if (status === 'queued') return <Clock3 size={14} />
-  return <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={14} />
+  return <LoaderCircle className={`${uiStyles['is-spinning']} ${styles['is-spinning']}`} size={14} />
 }
 
 function targetStatusIcon(status: string) {
   if (status === 'succeeded' || status === 'skipped') return <CheckCircle2 size={15} />
   if (status === 'failed' || status === 'uncertain') return <AlertTriangle size={15} />
   if (status === 'cancelled') return <XCircle size={15} />
-  if (status === 'running') return <LoaderCircle className={`${uiStyles['is-spinning']} is-spinning`} size={15} />
+  if (status === 'running') return <LoaderCircle className={`${uiStyles['is-spinning']} ${styles['is-spinning']}`} size={15} />
   return <Circle size={15} />
 }

@@ -65,7 +65,7 @@ function MonitorDeviceOption({ value }: { value: string }) {
       mouseEnterDelay={0.3}
       classNames={{ root: 'termous-tooltip' }}
     >
-      <span className="monitor-device-select-option">{value}</span>
+      <span className={styles['monitor-device-select-option']}>{value}</span>
     </Tooltip>
   )
 }
@@ -196,7 +196,6 @@ export function SystemMonitorPanel({
   if (!session || session.kind !== 'ssh' || session.status !== 'connected') {
     return (
       <WorkspaceEmptyState
-        className="system-monitor-empty"
         icon={<Activity size={20} />}
         title={t('workbench.systemMonitor.emptyTitle')}
         description={t('workbench.systemMonitor.emptyHint')}
@@ -208,10 +207,10 @@ export function SystemMonitorPanel({
   const latest = monitor.sample
   const inventoryFailed = session.inventory_status === 'failed' || Boolean(inventoryRequestError)
   return (
-    <section className={`system-monitor-panel ${styles.root}`}>
+    <section className={[styles['system-monitor-panel'], styles.root].join(' ')}>
       {inventoryFailed ? (
         <Alert
-          className="system-monitor-inventory-alert"
+          className={styles['system-monitor-inventory-alert']}
           type="warning"
           showIcon
           message={t('workbench.systemInfo.failedTitle')}
@@ -229,9 +228,12 @@ export function SystemMonitorPanel({
           )}
         />
       ) : null}
-      <div className="system-monitor-toolbar">
-        <div className="system-monitor-status">
-          <span className={`monitor-status-dot is-${monitor.status}`} />
+      <div className={styles['system-monitor-toolbar']}>
+        <div className={styles['system-monitor-status']}>
+          <span className={[
+            styles['monitor-status-dot'],
+            styles[`is-${monitor.status}`],
+          ].join(' ')} />
           <div>
             <strong>{statusText}</strong>
             <span>
@@ -240,7 +242,7 @@ export function SystemMonitorPanel({
             </span>
           </div>
         </div>
-        <div className="system-monitor-controls">
+        <div className={styles['system-monitor-controls']}>
           <Segmented
             size="small"
             value={intervalSeconds}
@@ -249,7 +251,7 @@ export function SystemMonitorPanel({
           />
           <Button
             type="text"
-            className="monitor-control-button"
+            className={styles['monitor-control-button']}
             icon={monitor.paused ? <Play size={14} /> : <Pause size={14} />}
             onClick={monitor.paused ? monitor.resume : monitor.pause}
           >
@@ -260,14 +262,13 @@ export function SystemMonitorPanel({
 
       {!latest ? (
         <WorkspaceEmptyState
-          className={`system-monitor-message is-${monitor.status}`}
           tone={monitor.status === 'failed' ? 'danger' : 'warning'}
           icon={<RotateCcw size={18} />}
           title={t('workbench.systemMonitor.warmingTitle')}
           description={statusText}
         />
       ) : (
-        <div className="system-monitor-content">
+        <div className={styles['system-monitor-content']}>
           <CPUPanel
             snapshot={latest}
             history={monitor.history}
@@ -321,9 +322,9 @@ function CPUPanel({
   const { t } = useTranslation()
   const cores = snapshot.cpu.cores
   return (
-    <article className="monitor-metric-panel monitor-cpu-panel">
-      <div className="monitor-card-head monitor-cpu-card-head">
-        <div className="monitor-cpu-identity">
+    <article className={[styles['monitor-metric-panel'], styles['monitor-cpu-panel']].join(' ')}>
+      <div className={[styles['monitor-card-head'], styles['monitor-cpu-card-head']].join(' ')}>
+        <div className={styles['monitor-cpu-identity']}>
           <span>
             <Cpu size={17} />
           </span>
@@ -333,7 +334,7 @@ function CPUPanel({
           </div>
         </div>
         <Segmented<CPUViewMode>
-          className="monitor-cpu-view-switch"
+          className={styles['monitor-cpu-view-switch']}
           size="small"
           value={mode}
           aria-label={t('workbench.systemMonitor.cpuViewMode')}
@@ -357,7 +358,7 @@ function CPUPanel({
         <CPUCoreList cores={cores} warming={snapshot.status === 'warming'} />
       ) : (
         <EChartView
-          className="monitor-time-chart"
+          className={styles['monitor-time-chart']}
           theme={theme}
           option={cpuOption(history, theme, t('workbench.systemMonitor.cpu'))}
         />
@@ -371,7 +372,7 @@ function CPUCoreList({ cores, warming }: { cores: LinuxMonitorCPUCore[]; warming
   const { t } = useTranslation()
   if (cores.length === 0) {
     return (
-      <div className="monitor-cpu-core-empty">
+      <div className={styles['monitor-cpu-core-empty']}>
         <RotateCcw size={15} />
         <span>
           {t(
@@ -385,7 +386,7 @@ function CPUCoreList({ cores, warming }: { cores: LinuxMonitorCPUCore[]; warming
   }
   return (
     <div
-      className="monitor-cpu-core-list"
+      className={styles['monitor-cpu-core-list']}
       role="list"
       aria-label={t('workbench.systemMonitor.cpuCores')}
       tabIndex={0}
@@ -393,9 +394,9 @@ function CPUCoreList({ cores, warming }: { cores: LinuxMonitorCPUCore[]; warming
       {cores.map((core) => {
         const percent = clampPercent(core.usage_percent)
         return (
-          <div className="monitor-cpu-core-row" key={core.name} role="listitem">
+          <div className={styles['monitor-cpu-core-row']} key={core.name} role="listitem">
             <span>{formatCPUCoreLabel(core.name)}</span>
-            <div className="monitor-cpu-core-meter" aria-hidden="true">
+            <div className={styles['monitor-cpu-core-meter']} aria-hidden="true">
               <i style={{ width: `${percent}%` }} />
             </div>
             <strong>{formatPercent(percent)}%</strong>
@@ -414,7 +415,7 @@ function LoadAverageStrip({ load }: { load?: LinuxMonitorLoadAverage }) {
     { label: t('workbench.systemMonitor.loadFifteenMinutes'), value: load?.fifteen_minutes },
   ]
   return (
-    <div className="monitor-load-strip" aria-label={t('workbench.systemMonitor.loadAverage')}>
+    <div className={styles['monitor-load-strip']} aria-label={t('workbench.systemMonitor.loadAverage')}>
       <span>{t('workbench.systemMonitor.loadAverage')}</span>
       {values.map((item) => (
         <strong key={item.label}>
@@ -429,8 +430,8 @@ function LoadAverageStrip({ load }: { load?: LinuxMonitorLoadAverage }) {
 function MemoryPanel({ snapshot, theme }: { snapshot: LinuxMonitorSnapshot; theme: ThemeMode }) {
   const { t } = useTranslation()
   return (
-    <article className="monitor-metric-panel">
-      <div className="monitor-card-head">
+    <article className={styles['monitor-metric-panel']}>
+      <div className={styles['monitor-card-head']}>
         <span>
           <MemoryStick size={17} />
         </span>
@@ -446,7 +447,7 @@ function MemoryPanel({ snapshot, theme }: { snapshot: LinuxMonitorSnapshot; them
         strokeColor={theme === 'dark' ? '#70a7ff' : '#2f70d8'}
         railColor={theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)'}
       />
-      <div className="monitor-memory-grid">
+      <div className={styles['monitor-memory-grid']}>
         <span>
           <small>{t('workbench.systemMonitor.available')}</small>
           <strong>{formatBytes(snapshot.memory.available_bytes)}</strong>
@@ -483,8 +484,8 @@ function NetworkPanel({
 }) {
   const { t } = useTranslation()
   return (
-    <article className="monitor-metric-panel monitor-network-panel">
-      <div className="monitor-card-head">
+    <article className={styles['monitor-metric-panel']}>
+      <div className={styles['monitor-card-head']}>
         <span>
           <RadioTower size={17} />
         </span>
@@ -494,15 +495,15 @@ function NetworkPanel({
         </div>
         <Select
           size="small"
-          className="monitor-network-select"
-          classNames={{ popup: { root: 'termous-select-dropdown monitor-device-select-dropdown' } }}
+          className={styles['monitor-network-select']}
+          classNames={{ popup: { root: `termous-select-dropdown ${styles['monitor-device-select-dropdown']}` } }}
           value={selectedNetwork?.name ?? networkName}
           options={snapshot.networks.map((item) => ({ label: item.name, value: item.name, title: '' }))}
           optionRender={(option) => <MonitorDeviceOption value={String(option.label ?? option.value ?? '')} />}
           onChange={onNetworkChange}
         />
       </div>
-      <div className="monitor-network-rates">
+      <div className={styles['monitor-network-rates']}>
         <span>
           <small>{t('workbench.systemMonitor.download')}</small>
           <strong>{formatRate(selectedNetwork?.rx_bytes_per_sec ?? 0)}</strong>
@@ -515,7 +516,7 @@ function NetworkPanel({
         </span>
       </div>
       <EChartView
-        className="monitor-time-chart"
+        className={styles['monitor-time-chart']}
         theme={theme}
         option={networkOption(history, selectedNetwork, theme, downloadLabel, uploadLabel)}
       />
@@ -543,8 +544,8 @@ function DiskIOPanel({
   const warming = diskIO.status === 'warming'
   const unavailable = !warming && (diskIO.status === 'unsupported' || diskIO.devices.length === 0)
   return (
-    <article className="monitor-metric-panel monitor-disk-io-panel">
-      <div className="monitor-card-head">
+    <article className={[styles['monitor-metric-panel'], styles['monitor-disk-io-panel']].join(' ')}>
+      <div className={styles['monitor-card-head']}>
         <span>
           <Gauge size={17} />
         </span>
@@ -554,8 +555,8 @@ function DiskIOPanel({
         </div>
         <Select
           size="small"
-          className="monitor-disk-select"
-          classNames={{ popup: { root: 'termous-select-dropdown monitor-device-select-dropdown' } }}
+          className={styles['monitor-disk-select']}
+          classNames={{ popup: { root: `termous-select-dropdown ${styles['monitor-device-select-dropdown']}` } }}
           aria-label={t('workbench.systemMonitor.diskDevice')}
           value={selectedDevice?.name ?? deviceName}
           options={diskIO.devices.map((item) => ({ label: item.name, value: item.name, title: '' }))}
@@ -565,7 +566,10 @@ function DiskIOPanel({
         />
       </div>
       {unavailable || warming || !selectedDevice ? (
-        <div className={`monitor-disk-io-state is-${diskIO.status}`}>
+        <div className={[
+          styles['monitor-disk-io-state'],
+          styles[`is-${diskIO.status}`],
+        ].join(' ')}>
           <RotateCcw size={15} />
           <span>
             {t(
@@ -577,20 +581,20 @@ function DiskIOPanel({
         </div>
       ) : (
         <>
-          <div className="monitor-disk-io-rates">
-            <span className="is-read">
+          <div className={styles['monitor-disk-io-rates']}>
+            <span className={styles['is-read']}>
               <ArrowUpFromLine size={14} />
               <small>{t('workbench.systemMonitor.diskRead')}</small>
               <strong>{formatRate(selectedDevice.read_bytes_per_sec)}</strong>
             </span>
-            <span className="is-write">
+            <span className={styles['is-write']}>
               <ArrowDownToLine size={14} />
               <small>{t('workbench.systemMonitor.diskWrite')}</small>
               <strong>{formatRate(selectedDevice.write_bytes_per_sec)}</strong>
             </span>
           </div>
           <EChartView
-            className="monitor-time-chart monitor-disk-io-chart"
+            className={[styles['monitor-time-chart'], styles['monitor-disk-io-chart']].join(' ')}
             theme={theme}
             option={diskIOOption(
               history,
@@ -600,7 +604,7 @@ function DiskIOPanel({
               t('workbench.systemMonitor.diskWrite'),
             )}
           />
-          <dl className="monitor-disk-io-facts">
+          <dl className={styles['monitor-disk-io-facts']}>
             <div>
               <dt>{t('workbench.systemMonitor.diskIOPS')}</dt>
               <dd>
@@ -640,8 +644,8 @@ function DiskPanel({ snapshot }: { snapshot: LinuxMonitorSnapshot }) {
   const { t } = useTranslation()
   const peakUsage = snapshot.disks.reduce((max, disk) => Math.max(max, clampPercent(disk.used_percent)), 0)
   return (
-    <article className="monitor-metric-panel monitor-disk-panel">
-      <div className="monitor-card-head monitor-disk-head">
+    <article className={[styles['monitor-metric-panel'], styles['monitor-disk-panel']].join(' ')}>
+      <div className={[styles['monitor-card-head'], styles['monitor-disk-head']].join(' ')}>
         <span>
           <HardDrive size={17} />
         </span>
@@ -652,19 +656,23 @@ function DiskPanel({ snapshot }: { snapshot: LinuxMonitorSnapshot }) {
         <em>{snapshot.disks.length > 0 ? t('workbench.systemMonitor.peakUsage', { percent: formatPercent(peakUsage) }) : ''}</em>
       </div>
       {snapshot.disks.length === 0 ? (
-        <div className="monitor-disk-empty">{t('workbench.systemMonitor.noPartitions')}</div>
+        <div className={styles['monitor-disk-empty']}>{t('workbench.systemMonitor.noPartitions')}</div>
       ) : (
-        <div className="monitor-disk-list" role="list">
+        <div className={styles['monitor-disk-list']} role="list">
           {snapshot.disks.map((disk) => {
             const percent = clampPercent(disk.used_percent)
             return (
-              <div className={`monitor-disk-row is-${disk.severity}`} key={`${disk.filesystem}-${disk.mountpoint}`} role="listitem">
-                <div className="monitor-disk-row-summary">
-                  <div className="monitor-disk-title">
+              <div
+                className={[styles['monitor-disk-row'], styles[`is-${disk.severity}`]].join(' ')}
+                key={`${disk.filesystem}-${disk.mountpoint}`}
+                role="listitem"
+              >
+                <div className={styles['monitor-disk-row-summary']}>
+                  <div className={styles['monitor-disk-title']}>
                     <Tooltip title={disk.mountpoint} placement="topLeft">
                       <strong>{disk.mountpoint}</strong>
                     </Tooltip>
-                    <div className="monitor-disk-source">
+                    <div className={styles['monitor-disk-source']}>
                       <Tooltip title={disk.filesystem} placement="topLeft">
                         <span>{disk.filesystem}</span>
                       </Tooltip>
@@ -672,15 +680,15 @@ function DiskPanel({ snapshot }: { snapshot: LinuxMonitorSnapshot }) {
                       <span>{disk.type}</span>
                     </div>
                   </div>
-                  <div className="monitor-disk-usage">
+                  <div className={styles['monitor-disk-usage']}>
                     <strong>{formatPercent(percent)}%</strong>
                     <small>{t('workbench.systemMonitor.diskUsed')}</small>
                   </div>
                 </div>
-                <div className="monitor-disk-meter" aria-hidden="true">
+                <div className={styles['monitor-disk-meter']} aria-hidden="true">
                   <i style={{ width: `${percent}%` }} />
                 </div>
-                <dl className="monitor-disk-row-meta">
+                <dl className={styles['monitor-disk-row-meta']}>
                   <div>
                     <dt>{t('workbench.systemMonitor.diskTotal')}</dt>
                     <dd>{formatBytes(disk.total_bytes)}</dd>
@@ -734,7 +742,7 @@ function cpuOption(history: LinuxMonitorSnapshot[], theme: ThemeMode, label: str
       renderMode: 'html',
       appendToBody: true,
       confine: true,
-      className: 'monitor-chart-tooltip',
+      className: styles['monitor-chart-tooltip'],
       extraCssText: 'z-index:3600;border-radius:8px;box-shadow:0 14px 34px rgba(0,0,0,.24);',
       backgroundColor: theme === 'dark' ? '#20242f' : '#ffffff',
       borderWidth: 0,
@@ -796,7 +804,7 @@ function networkOption(
       renderMode: 'html',
       appendToBody: true,
       confine: true,
-      className: 'monitor-chart-tooltip',
+      className: styles['monitor-chart-tooltip'],
       extraCssText: 'z-index:3600;border-radius:8px;box-shadow:0 14px 34px rgba(0,0,0,.24);',
       backgroundColor: theme === 'dark' ? '#20242f' : '#ffffff',
       borderWidth: 0,
@@ -867,7 +875,7 @@ function diskIOOption(
       renderMode: 'html',
       appendToBody: true,
       confine: false,
-      className: 'monitor-chart-tooltip',
+      className: styles['monitor-chart-tooltip'],
       extraCssText: 'z-index:3600;border-radius:8px;box-shadow:0 14px 34px rgba(0,0,0,.24);',
       backgroundColor: theme === 'dark' ? '#20242f' : '#ffffff',
       borderWidth: 0,

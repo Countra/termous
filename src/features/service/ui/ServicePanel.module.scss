@@ -1,10 +1,8 @@
-/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
-/* stylelint-disable termous/no-unscoped-global, color-hex-length, declaration-block-no-redundant-longhand-properties, declaration-block-single-line-max-declarations, rule-empty-line-before, declaration-property-value-keyword-no-deprecated -- 迁移期保持系统服务面板与 Portal 的视觉与交互兼容。 */
+/* stylelint-disable color-hex-length, declaration-block-no-redundant-longhand-properties, declaration-block-single-line-max-declarations, rule-empty-line-before, declaration-property-value-keyword-no-deprecated -- 保持迁移前的声明顺序与兼容写法。 */
 .root {
   position: static;
 }
 
-:global {
 .service-panel {
   display: grid;
   height: 100%;
@@ -62,7 +60,7 @@
 .service-live-dot.is-danger { background: var(--danger); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 14%, transparent); }
 .service-statusbar-actions { display: flex; align-items: center; gap: 5px; }
 
-.service-readonly-tag.ant-tag {
+.service-readonly-tag:global(.ant-tag) {
   margin: 0;
   border-color: color-mix(in srgb, var(--warning) 34%, var(--border));
   border-radius: 999px;
@@ -71,8 +69,8 @@
   font-size: 10px;
 }
 
-.service-icon-button.ant-btn,
-.service-filter-button.ant-btn {
+.service-icon-button:global(.ant-btn),
+.service-filter-button:global(.ant-btn) {
   min-width: 32px;
   height: 32px;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
@@ -82,9 +80,9 @@
   box-shadow: none;
 }
 
-.service-icon-button.ant-btn:not(:disabled):hover,
-.service-filter-button.ant-btn:not(:disabled):hover,
-.service-filter-button.ant-btn.is-active {
+.service-icon-button:global(.ant-btn):not(:disabled):hover,
+.service-filter-button:global(.ant-btn):not(:disabled):hover,
+.service-filter-button:global(.ant-btn).is-active {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
   background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
   color: var(--accent);
@@ -97,54 +95,54 @@
   gap: 8px;
 }
 
-.service-search-input.ant-input-affix-wrapper {
+.service-search-input:global(.ant-input-affix-wrapper) {
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
   box-shadow: none;
 }
 
-.service-filter-button.ant-btn { padding-inline: 10px; font-size: 12px; font-weight: 720; }
-.service-filter-popover.ant-popover {
+.service-filter-button:global(.ant-btn) { padding-inline: 10px; font-size: 12px; font-weight: 720; }
+.service-filter-popover:global(.ant-popover) {
   --service-filter-bg: #21252e;
   --ant-popover-bg: var(--service-filter-bg);
   --antd-arrow-background-color: var(--service-filter-bg);
+
+  :global(:root[data-theme="light"]) & { --service-filter-bg: #f7f9fc; }
 }
 
-:root[data-theme="light"] .service-filter-popover.ant-popover { --service-filter-bg: #f7f9fc; }
-
-.service-filter-popover.ant-popover .ant-popover-container,
-.service-filter-popover.ant-popover .ant-popover-content,
-.service-filter-popover.ant-popover .ant-popover-inner {
+.service-filter-popover:global(.ant-popover) :global(.ant-popover-container),
+.service-filter-popover:global(.ant-popover) :global(.ant-popover-content),
+.service-filter-popover:global(.ant-popover) :global(.ant-popover-inner) {
   border-radius: 14px;
   background: var(--service-filter-bg) !important;
   background-color: var(--service-filter-bg) !important;
 }
 
-.service-filter-popover.ant-popover .ant-popover-container {
+.service-filter-popover:global(.ant-popover) :global(.ant-popover-container) {
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   box-shadow: var(--shadow-soft);
 }
 
-.service-filter-popover.ant-popover .ant-popover-inner { box-shadow: none; }
-.service-filter-popover.ant-popover .ant-popover-inner-content { padding: 12px; }
+.service-filter-popover:global(.ant-popover) :global(.ant-popover-inner) { box-shadow: none; }
+.service-filter-popover:global(.ant-popover) :global(.ant-popover-inner-content) { padding: 12px; }
 .service-filter-content { display: grid; width: min(286px, calc(100vw - 36px)); gap: 11px; }
 .service-filter-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .service-filter-head strong { color: var(--text-primary); font-size: 13px; }
-.service-filter-head .ant-btn { color: var(--text-muted); font-size: 11px; }
+.service-filter-head :global(.ant-btn) { color: var(--text-muted); font-size: 11px; }
 .service-filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .service-filter-field { display: grid; min-width: 0; gap: 6px; }
 .service-filter-field > span { color: var(--text-muted); font-size: 11px; font-weight: 700; }
 
-.service-filter-field .ant-select-selector,
-.service-filter-field .ant-segmented {
+.service-filter-field :global(.ant-select-selector),
+.service-filter-field :global(.ant-segmented) {
   border-color: color-mix(in srgb, var(--border) 82%, transparent) !important;
   background: var(--surface-subtle) !important;
   box-shadow: none !important;
 }
 
-.service-filter-field .ant-select { width: 100%; }
+.service-filter-field :global(.ant-select) { width: 100%; }
 
-.service-filter-select-dropdown.ant-select-dropdown {
+.service-filter-select-dropdown:global(.ant-select-dropdown) {
   z-index: 3500 !important;
 }
 
@@ -217,7 +215,7 @@
 }
 
 .service-row-tooltip,
-.service-row-tooltip .ant-tooltip-container { pointer-events: none !important; }
+.service-row-tooltip :global(.ant-tooltip-container) { pointer-events: none !important; }
 
 .service-row-state,
 .service-detail-icon {
@@ -287,7 +285,7 @@
   align-content: stretch;
 }
 .service-detail-topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.service-back.ant-btn { height: 28px; padding-inline: 4px 8px; color: var(--text-secondary); font-size: 11px; }
+.service-back:global(.ant-btn) { height: 28px; padding-inline: 4px 8px; color: var(--text-secondary); font-size: 11px; }
 .service-detail-refreshing { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); font-size: 10px; }
 .service-detail-refreshing svg,
 .service-spin { animation: service-spin 900ms linear infinite; }
@@ -360,7 +358,7 @@
 .service-detail-head > div:nth-child(2) span { color: var(--text-muted); font-size: 10px; }
 .service-detail-tags { display: grid; justify-items: end; gap: 4px; }
 
-.service-detail-tags .ant-tag {
+.service-detail-tags :global(.ant-tag) {
   max-width: 92px;
   margin: 0;
   overflow: hidden;
@@ -425,7 +423,7 @@
 .service-warning { border-color: color-mix(in srgb, var(--warning) 32%, var(--border)); background: color-mix(in srgb, var(--warning) 8%, var(--surface-subtle)); color: var(--warning); }
 .service-detail-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 
-.service-action-button.ant-btn {
+.service-action-button:global(.ant-btn) {
   min-width: 0;
   height: 32px;
   border-color: color-mix(in srgb, var(--border) 74%, transparent);
@@ -436,9 +434,11 @@
   box-shadow: none;
 }
 
-.service-action-button.ant-btn:not(:disabled):hover { border-color: color-mix(in srgb, var(--accent) 34%, var(--border)); background: color-mix(in srgb, var(--accent) 8%, var(--surface-subtle)); color: var(--accent); }
+.service-action-button:global(.ant-btn):not(:disabled):hover { border-color: color-mix(in srgb, var(--accent) 34%, var(--border)); background: color-mix(in srgb, var(--accent) 8%, var(--surface-subtle)); color: var(--accent); }
 
-.service-operation-notification.ant-notification-notice {
+.service-action-confirm:global(.ant-modal) { box-sizing: border-box; }
+
+.service-operation-notification:global(.ant-notification-notice) {
   width: min(360px, calc(100vw - 24px));
   padding: 14px 38px 14px 15px;
   border-color: color-mix(in srgb, var(--accent) 28%, var(--border)) !important;
@@ -447,24 +447,26 @@
   backdrop-filter: none !important;
 }
 
-.service-operation-notification.is-success.ant-notification-notice {
+.service-operation-notification.is-success:global(.ant-notification-notice) {
   border-color: color-mix(in srgb, var(--success) 32%, var(--border)) !important;
 }
 
-.service-operation-notification.is-warning.ant-notification-notice {
+.service-operation-notification.is-warning:global(.ant-notification-notice) {
   border-color: color-mix(in srgb, var(--warning) 34%, var(--border)) !important;
 }
 
-.service-operation-notification.is-error.ant-notification-notice {
+.service-operation-notification.is-error:global(.ant-notification-notice) {
   border-color: color-mix(in srgb, var(--danger) 34%, var(--border)) !important;
 }
 
-:root[data-theme="light"] .service-operation-notification.ant-notification-notice {
-  background: #ffffff !important;
-  background-color: #ffffff !important;
+.service-operation-notification:global(.ant-notification-notice) {
+  :global(:root[data-theme="light"]) & {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+  }
 }
 
-.service-operation-notification .ant-notification-notice-icon {
+.service-operation-notification :global(.ant-notification-notice-icon) {
   display: grid;
   width: 22px;
   height: 22px;
@@ -473,16 +475,16 @@
   color: var(--accent);
 }
 
-.service-operation-notification.is-success .ant-notification-notice-icon { color: var(--success); }
-.service-operation-notification.is-warning .ant-notification-notice-icon { color: var(--warning); }
-.service-operation-notification.is-error .ant-notification-notice-icon { color: var(--danger); }
+.service-operation-notification.is-success :global(.ant-notification-notice-icon) { color: var(--success); }
+.service-operation-notification.is-warning :global(.ant-notification-notice-icon) { color: var(--warning); }
+.service-operation-notification.is-error :global(.ant-notification-notice-icon) { color: var(--danger); }
 
-.service-operation-notification .ant-notification-notice-with-icon .ant-notification-notice-message,
-.service-operation-notification .ant-notification-notice-with-icon .ant-notification-notice-description {
+.service-operation-notification :global(.ant-notification-notice-with-icon) :global(.ant-notification-notice-message),
+.service-operation-notification :global(.ant-notification-notice-with-icon) :global(.ant-notification-notice-description) {
   margin-inline-start: 32px;
 }
 
-.service-operation-notification .ant-notification-notice-message {
+.service-operation-notification :global(.ant-notification-notice-message) {
   margin-bottom: 7px;
 }
 
@@ -528,31 +530,31 @@
   font-weight: 720;
 }
 
-.service-operation-notice-progress.ant-progress {
+.service-operation-notice-progress:global(.ant-progress) {
   display: block;
   margin: 0;
   line-height: 0;
 }
 
-.service-operation-notice-progress .ant-progress-rail,
-.service-operation-notice-progress .ant-progress-inner {
+.service-operation-notice-progress :global(.ant-progress-rail),
+.service-operation-notice-progress :global(.ant-progress-inner) {
   height: 4px !important;
   background: color-mix(in srgb, var(--text-muted) 15%, transparent) !important;
 }
 
-.service-operation-notice-progress .ant-progress-track,
-.service-operation-notice-progress .ant-progress-bg {
+.service-operation-notice-progress :global(.ant-progress-track),
+.service-operation-notice-progress :global(.ant-progress-bg) {
   height: 4px !important;
   background: var(--accent) !important;
   transition: width 320ms ease, background-color 160ms ease;
 }
 
-.service-operation-notice.is-success .ant-progress-track,
-.service-operation-notice.is-success .ant-progress-bg { background: var(--success) !important; }
-.service-operation-notice.is-warning .ant-progress-track,
-.service-operation-notice.is-warning .ant-progress-bg { background: var(--warning) !important; }
-.service-operation-notice.is-error .ant-progress-track,
-.service-operation-notice.is-error .ant-progress-bg { background: var(--danger) !important; }
+.service-operation-notice.is-success :global(.ant-progress-track),
+.service-operation-notice.is-success :global(.ant-progress-bg) { background: var(--success) !important; }
+.service-operation-notice.is-warning :global(.ant-progress-track),
+.service-operation-notice.is-warning :global(.ant-progress-bg) { background: var(--warning) !important; }
+.service-operation-notice.is-error :global(.ant-progress-track),
+.service-operation-notice.is-error :global(.ant-progress-bg) { background: var(--danger) !important; }
 
 .service-operation-notice p {
   display: -webkit-box;
@@ -566,7 +568,7 @@
 }
 
 .service-unavailable { display: grid; min-height: 100%; place-items: center; align-content: center; gap: 8px; }
-.service-retry.ant-btn { color: var(--accent); }
+.service-retry:global(.ant-btn) { color: var(--accent); }
 
 .service-action-menu {
   min-width: 150px;
@@ -579,17 +581,19 @@
   box-shadow: var(--shadow-soft);
 }
 
-.service-action-menu .ant-dropdown-menu {
+.service-action-menu :global(.ant-dropdown-menu) {
   background: #21252e !important;
   background-color: #21252e !important;
   backdrop-filter: none !important;
   box-shadow: none;
 }
 
-:root[data-theme="light"] .service-action-menu,
-:root[data-theme="light"] .service-action-menu .ant-dropdown-menu {
-  background: #ffffff !important;
-  background-color: #ffffff !important;
+.service-action-menu {
+  :global(:root[data-theme="light"]) &,
+  :global(:root[data-theme="light"]) & :global(.ant-dropdown-menu) {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+  }
 }
 
 @keyframes service-spin { to { transform: rotate(360deg); } }
@@ -608,7 +612,7 @@
 @container service-panel (width <= 360px) {
   .service-detail-head { grid-template-columns: 34px minmax(0, 1fr); }
   .service-detail-tags { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-items: stretch; }
-  .service-detail-tags .ant-tag { max-width: none; text-align: center; }
+  .service-detail-tags :global(.ant-tag) { max-width: none; text-align: center; }
   .service-filter-grid { grid-template-columns: 1fr; }
   .service-row { grid-template-columns: 28px minmax(0, 1fr) max-content; }
   .service-detail-list > div { grid-template-columns: 76px minmax(0, 1fr); }
@@ -620,5 +624,4 @@
   .service-detail-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .service-detail-kpis .service-kpi:last-child { grid-column: 1 / -1; }
   .service-detail-list > div { grid-template-columns: 1fr; gap: 3px; }
-}
 }

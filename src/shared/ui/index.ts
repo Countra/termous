@@ -21,6 +21,7 @@ export {
 export { SessionNewTabButton } from './SessionNewTabButton'
 export { SessionTabButton } from './SessionTabButton'
 export { SessionTabStrip } from './SessionTabStrip'
+export { default as sidePanelStyles } from './SidePanelControls.module.scss'
 export { StatusBadge, type StatusBadgeStatus } from './StatusBadge'
 export { termousPopconfirmProps } from './termousPopconfirm'
 export { WorkspaceEmptyState } from './WorkspaceEmptyState'

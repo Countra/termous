@@ -6,6 +6,7 @@ import { TermousApiError } from '#shared/api'
 import { connectionActionButtonClassName, uiStyles } from '#shared/ui'
 import type { FirewallInstallPlan, FirewallPersistenceStatus, FirewallProvider, FirewallSaveResult } from '#entities/firewall'
 import type { FirewallGateway } from '../model/contracts'
+import styles from './FirewallPanel.module.scss'
 
 interface FirewallPersistencePanelProps {
   api: FirewallGateway
@@ -302,8 +303,17 @@ export function FirewallPersistencePanel({ api, sessionId, sessionStatus, provid
   }
 
   return (
-    <Modal open={open} centered width={620} footer={null} title={t('workbench.firewall.persistence.title')} className="termous-modal firewall-persistence-modal" onCancel={onClose}>
-      <div className="firewall-persistence-panel">
+    <Modal
+      open={open}
+      centered
+      width={620}
+      footer={null}
+      title={t('workbench.firewall.persistence.title')}
+      className={`termous-modal ${styles['firewall-persistence-modal']}`}
+      rootClassName={styles['firewall-persistence-modal-root']}
+      onCancel={onClose}
+    >
+      <div className={styles['firewall-persistence-panel']}>
         {loading && !status ? <Skeleton active paragraph={{ rows: 7 }} title={false} /> : null}
         {status ? <PersistenceSummary status={status} provider={provider} t={t} /> : null}
         {status ? <PersistenceSteps status={status} t={t} /> : null}
@@ -312,7 +322,7 @@ export function FirewallPersistencePanel({ api, sessionId, sessionStatus, provid
         {currentPlan?.commands.length ? (
           <CommandPreview plan={currentPlan} confirmed={installConfirmed} busy={installing} disabled={!sessionConnected || saving} t={t} onConfirmChange={setInstallConfirmed} onInstall={() => void installDependencies()} />
         ) : null}
-        <div className="firewall-persistence-actions">
+        <div className={styles['firewall-persistence-actions']}>
           <Button className={`${uiStyles['secondary-button']} secondary-button`} icon={<RefreshCw size={15} />} loading={loading} disabled={!sessionConnected || saving || installing} onClick={() => void loadStatus()}>
             {t('workbench.firewall.persistence.redetect')}
           </Button>
@@ -333,16 +343,22 @@ export function FirewallPersistencePanel({ api, sessionId, sessionStatus, provid
 function PersistenceSummary({ status, provider, t }: { status: FirewallPersistenceStatus; provider: FirewallProvider; t: TFunction }) {
   const tone = persistenceTone(status.status)
   return (
-    <section className={`firewall-persistence-summary ${tone}`}>
-      <div className="firewall-persistence-summary-head">
-        <span className="firewall-persistence-summary-icon"><Save size={18} /></span>
+    <section className={[
+      styles['firewall-persistence-summary'],
+      styles[tone] ?? '',
+    ].filter(Boolean).join(' ')}>
+      <div className={styles['firewall-persistence-summary-head']}>
+        <span className={styles['firewall-persistence-summary-icon']}><Save size={18} /></span>
         <div>
           <strong>{t(`workbench.firewall.provider.${provider}`)}</strong>
           <small>{persistenceStatusDescription(status, t)}</small>
         </div>
-        <Tag className={`firewall-persistence-status-tag ${tone}`}>{t(`workbench.firewall.persistence.status.${status.status}`)}</Tag>
+        <Tag className={[
+          styles['firewall-persistence-status-tag'],
+          styles[tone] ?? '',
+        ].filter(Boolean).join(' ')}>{t(`workbench.firewall.persistence.status.${status.status}`)}</Tag>
       </div>
-      <div className="firewall-persistence-meta-grid">
+      <div className={styles['firewall-persistence-meta-grid']}>
         <PersistenceMeta label={t('workbench.firewall.persistence.rulesPath')} value={status.rules_path} />
         <PersistenceMeta label={t('workbench.firewall.persistence.serviceName')} value={status.service_name || t('fields.none')} />
         <PersistenceMeta label={t('workbench.firewall.persistence.packageManager')} value={status.package_manager || t('fields.none')} />
@@ -355,7 +371,7 @@ function PersistenceSummary({ status, provider, t }: { status: FirewallPersisten
 function PersistenceMeta({ label, value }: { label: string; value?: string }) {
   return (
     <Tooltip title={value || ''} placement="topLeft">
-      <span className="firewall-persistence-meta">
+      <span className={styles['firewall-persistence-meta']}>
         <small>{label}</small>
         <strong>{value || '-'}</strong>
       </span>
@@ -378,12 +394,12 @@ function PersistenceSteps({ status, t }: { status: FirewallPersistenceStatus; t:
     { title: t('workbench.firewall.persistence.step.save'), icon: <FileText size={14} /> },
     { title: t('workbench.firewall.persistence.step.service'), icon: <ServerCog size={14} /> },
   ]
-  return <Steps className="firewall-persistence-steps" size="small" current={current} status={status.status === 'permission_denied' ? 'error' : 'process'} items={items} />
+  return <Steps className={styles['firewall-persistence-steps']} size="small" current={current} status={status.status === 'permission_denied' ? 'error' : 'process'} items={items} />
 }
 
 function MissingTools({ tools, packageManager, t }: { tools: string[]; packageManager?: string; t: TFunction }) {
   return (
-    <section className="firewall-persistence-missing">
+    <section className={styles['firewall-persistence-missing']}>
       <span><ShieldAlert size={16} /></span>
       <div>
         <strong>{t('workbench.firewall.persistence.missingTools')}</strong>
@@ -414,8 +430,8 @@ function CommandPreview({
     await navigator.clipboard.writeText(plan.commands.map((command) => command.command).join('\n'))
   }
   return (
-    <section className="firewall-persistence-command-panel">
-      <div className="firewall-persistence-section-head">
+    <section className={styles['firewall-persistence-command-panel']}>
+      <div className={styles['firewall-persistence-section-head']}>
         <span><TerminalSquare size={16} /></span>
         <div>
           <strong>{t('workbench.firewall.persistence.commandPreview')}</strong>
@@ -425,7 +441,7 @@ function CommandPreview({
           <Button type="text" icon={<ClipboardCopy size={14} />} onClick={() => void copyCommands()} />
         </Tooltip>
       </div>
-      <div className="firewall-persistence-command-list">
+      <div className={styles['firewall-persistence-command-list']}>
         {plan.commands.map((command) => (
           <article key={command.id}>
             <span>{command.title}</span>
@@ -433,7 +449,7 @@ function CommandPreview({
           </article>
         ))}
       </div>
-      <div className="firewall-persistence-confirm-row">
+      <div className={styles['firewall-persistence-confirm-row']}>
         <Checkbox checked={confirmed} onChange={(event) => onConfirmChange(event.target.checked)}>
           {t('workbench.firewall.persistence.confirmInstall')}
         </Checkbox>

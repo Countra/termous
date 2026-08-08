@@ -14,17 +14,32 @@ interface CustomSelectProps {
   onChange: (value: string) => void
   disabled?: boolean
   id?: string
+  className?: string
+  popupClassName?: string
 }
 
-export function CustomSelect({ label, value, options, onChange, disabled = false, id }: CustomSelectProps) {
+export function CustomSelect({
+  label,
+  value,
+  options,
+  onChange,
+  disabled = false,
+  id,
+  className,
+  popupClassName,
+}: CustomSelectProps) {
   return (
-    <label className={`${styles['custom-select']} custom-select`}>
+    <label className={[styles['custom-select'], 'custom-select', className].filter(Boolean).join(' ')}>
       <span className={`${styles['field-label']} field-label`}>{label}</span>
       <Select
         id={id}
         value={value}
         disabled={disabled}
-        classNames={{ popup: { root: 'termous-select-popup' } }}
+        classNames={{
+          popup: {
+            root: ['termous-select-popup', popupClassName].filter(Boolean).join(' '),
+          },
+        }}
         className="termous-select"
         optionLabelProp="label"
         onChange={onChange}

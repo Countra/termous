@@ -273,7 +273,7 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         destroyRiskConfirm()
         const confirmation = Modal.confirm({
           centered: true,
-          className: 'termous-modal firewall-risk-confirm',
+          className: 'termous-modal',
           title: t('workbench.firewall.confirmRiskRequired'),
           content: t('workbench.firewall.confirmRisk'),
           okText: t('app.confirm'),
@@ -369,14 +369,17 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
   const capabilityReady = snapshot.capability.status === 'ready'
 
   return (
-    <section className={`firewall-panel ${styles.root}`}>
-      <div className="firewall-toolbar">
-        <div className="firewall-toolbar-summary">
-          <div className={`firewall-toolbar-state ${capabilityReady ? 'is-ready' : 'is-error'}`}>
-            <span className="firewall-toolbar-state-icon">
+    <section className={[styles['firewall-panel'], styles.root].join(' ')}>
+      <div className={styles['firewall-toolbar']}>
+        <div className={styles['firewall-toolbar-summary']}>
+          <div className={[
+            styles['firewall-toolbar-state'],
+            styles[capabilityReady ? 'is-ready' : 'is-error'],
+          ].join(' ')}>
+            <span className={styles['firewall-toolbar-state-icon']}>
               <Shield size={15} />
             </span>
-            <span className="firewall-toolbar-state-copy">
+            <span className={styles['firewall-toolbar-state-copy']}>
               <strong>{capabilityReady ? t('status.available') : t('status.failed')}</strong>
               <small>
                 {t('workbench.firewall.syncedAtLabel')}
@@ -385,21 +388,21 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
             </span>
           </div>
           <Tooltip title={t('workbench.firewall.refresh')}>
-            <Button className="firewall-toolbar-icon-button" type="text" aria-label={t('workbench.firewall.refresh')} icon={<RefreshCw size={15} />} loading={loading} onClick={() => void load(selectedProvider)} />
+            <Button className={styles['firewall-toolbar-icon-button']} type="text" aria-label={t('workbench.firewall.refresh')} icon={<RefreshCw size={15} />} loading={loading} onClick={() => void load(selectedProvider)} />
           </Tooltip>
         </div>
-        <div className="firewall-toolbar-controls">
-          <div className="firewall-provider-picker">
-            <span className="firewall-provider-picker-label">{t('workbench.firewall.providerSwitch')}</span>
+        <div className={styles['firewall-toolbar-controls']}>
+          <div className={styles['firewall-provider-picker']}>
+            <span className={styles['firewall-provider-picker-label']}>{t('workbench.firewall.providerSwitch')}</span>
             <Select
-              className="termous-select firewall-provider-select"
-              classNames={{ popup: { root: 'termous-select-popup firewall-provider-select-popup' } }}
+              className={`termous-select ${styles['firewall-provider-select']}`}
+              classNames={{ popup: { root: 'termous-select-popup' } }}
               value={selectedProvider}
               options={providerOptions.map((provider) => ({
                 value: provider.provider,
                 label: (
-                  <span className="firewall-provider-option">
-                    <i className={firewallProviderStatusClass(provider)} />
+                  <span className={styles['firewall-provider-option']}>
+                    <i className={styles[firewallProviderStatusClass(provider)]} />
                     {t(`workbench.firewall.provider.${provider.provider}`)}
                   </span>
                 ),
@@ -419,7 +422,10 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
           </div>
           <Tooltip title={snapshot.capability.supports_save ? t('workbench.firewall.persistence.open') : t('workbench.firewall.saveUnsupported')}>
             <Button
-              className={`firewall-persistence-open ${persistenceStatusClass(persistenceStatus)}`}
+              className={[
+                styles['firewall-persistence-open'],
+                styles[persistenceStatusClass(persistenceStatus)] ?? '',
+              ].filter(Boolean).join(' ')}
               type="text"
               aria-label={t('workbench.firewall.persistence.open')}
               disabled={!snapshot.capability.supports_save}
@@ -439,23 +445,23 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
         />
       ) : null}
 
-      {capabilityReady ? <div className="firewall-rule-actions">
+      {capabilityReady ? <div className={styles['firewall-rule-actions']}>
         <Button className={`${uiStyles['secondary-button']} secondary-button`} icon={<Plus size={15} />} onClick={() => setEditing({ index: null, value: createFirewallRuleInput() })}>
           {t('workbench.firewall.addRule')}
         </Button>
       </div> : null}
 
       {capabilityReady && snapshot.warnings?.length ? (
-        <div className="firewall-warning-list">
+        <div className={styles['firewall-warning-list']}>
           {snapshot.warnings.map((warning) => (
             <span key={warning}><AlertTriangle size={13} />{warning}</span>
           ))}
         </div>
       ) : null}
 
-      {capabilityReady ? <div className="firewall-rule-list">
+      {capabilityReady ? <div className={styles['firewall-rule-list']}>
         {rules.length === 0 ? (
-          <div className="firewall-inline-empty">{t('workbench.firewall.noRules')}</div>
+          <div className={styles['firewall-inline-empty']}>{t('workbench.firewall.noRules')}</div>
         ) : (
           rules.map((rule, index) => {
             const ruleKey = rule.id || `${rule.protocol}-${rule.action}-${index}`
@@ -486,12 +492,12 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
       </div> : null}
 
       {capabilityReady && readonlyRules.length > 0 ? (
-        <div className="firewall-readonly-section">
-          <div className="firewall-readonly-heading">
+        <div className={styles['firewall-readonly-section']}>
+          <div className={styles['firewall-readonly-heading']}>
             <span>{t('workbench.firewall.crossProviderTitle')}</span>
             <small>{t('workbench.firewall.crossProviderHint')}</small>
           </div>
-          <div className="firewall-readonly-list">
+          <div className={styles['firewall-readonly-list']}>
             {readonlyRules.map((rule) => (
               <FirewallReadonlyRuleCard
                 key={rule.id}
@@ -555,29 +561,33 @@ function FirewallReadonlyRuleCard({
   const source = formatFirewallSource(rule.source)
   const actionIcon = rule.action === 'allow' ? <ShieldCheck size={15} /> : rule.action === 'reject' ? <ShieldAlert size={15} /> : <Ban size={15} />
   return (
-    <article className={`firewall-rule-row firewall-readonly-rule ${firewallActionTone(rule.action)}`}>
-      <span className="firewall-rule-accent" />
-      <div className="firewall-rule-card-top">
-        <span className="firewall-rule-symbol">{actionIcon}</span>
-        <div className="firewall-rule-title">
+    <article className={[
+      styles['firewall-rule-row'],
+      styles['firewall-readonly-rule'],
+      styles[firewallActionTone(rule.action)] ?? '',
+    ].filter(Boolean).join(' ')}>
+      <span className={styles['firewall-rule-accent']} />
+      <div className={styles['firewall-rule-card-top']}>
+        <span className={styles['firewall-rule-symbol']}>{actionIcon}</span>
+        <div className={styles['firewall-rule-title']}>
           <strong>{t(`workbench.firewall.protocol.${rule.protocol}`)} · {ports}</strong>
           <Tooltip title={rule.description || t('workbench.firewall.noDescription')} placement="topLeft">
             <small>{rule.description || t('workbench.firewall.noDescription')}</small>
           </Tooltip>
         </div>
       </div>
-      <div className="firewall-rule-meta firewall-readonly-meta">
-        <span className="firewall-rule-action">{t(`workbench.firewall.action.${rule.action}`)}</span>
+      <div className={[styles['firewall-rule-meta'], styles['firewall-readonly-meta']].join(' ')}>
+        <span className={styles['firewall-rule-action']}>{t(`workbench.firewall.action.${rule.action}`)}</span>
         <Tooltip title={source} placement="topLeft">
-          <span className="firewall-rule-source-value"><Globe2 size={13} />{t('workbench.firewall.sourceLabel')} {source}</span>
+          <span className={styles['firewall-rule-source-value']}><Globe2 size={13} />{t('workbench.firewall.sourceLabel')} {source}</span>
         </Tooltip>
       </div>
-      <div className="firewall-rule-switch firewall-readonly-provider-slot">
-        <span className="firewall-rule-source-provider"><LockKeyhole size={12} />{t('workbench.firewall.managedByProvider', { provider: t(`workbench.firewall.provider.${sourceProvider}`) })}</span>
+      <div className={[styles['firewall-rule-switch'], styles['firewall-readonly-provider-slot']].join(' ')}>
+        <span className={styles['firewall-rule-source-provider']}><LockKeyhole size={12} />{t('workbench.firewall.managedByProvider', { provider: t(`workbench.firewall.provider.${sourceProvider}`) })}</span>
       </div>
-      <div className="firewall-rule-card-actions firewall-readonly-actions">
+      <div className={[styles['firewall-rule-card-actions'], styles['firewall-readonly-actions']].join(' ')}>
         <Tooltip title={rule.readonly_reason || t('workbench.firewall.readonly')}>
-          <Button type="text" className="firewall-readonly-switch" icon={<ExternalLink size={14} />} onClick={() => onSwitchProvider(sourceProvider)}>
+          <Button type="text" className={styles['firewall-readonly-switch']} icon={<ExternalLink size={14} />} onClick={() => onSwitchProvider(sourceProvider)}>
             {t('workbench.firewall.switchProvider', { provider: t(`workbench.firewall.provider.${sourceProvider}`) })}
           </Button>
         </Tooltip>
@@ -616,11 +626,15 @@ function FirewallRuleCard({
   const localDisabled = Boolean(snapshotRule?.disabled_local)
   const editable = snapshotRule?.editable ?? true
   return (
-    <article className={`firewall-rule-row ${firewallActionTone(rule.action)} ${rule.enabled ? '' : 'is-disabled'}`}>
-      <span className="firewall-rule-accent" />
-      <div className="firewall-rule-card-top">
-        <span className="firewall-rule-symbol">{actionIcon}</span>
-        <div className="firewall-rule-title">
+    <article className={[
+      styles['firewall-rule-row'],
+      styles[firewallActionTone(rule.action)] ?? '',
+      rule.enabled ? '' : styles['is-disabled'],
+    ].filter(Boolean).join(' ')}>
+      <span className={styles['firewall-rule-accent']} />
+      <div className={styles['firewall-rule-card-top']}>
+        <span className={styles['firewall-rule-symbol']}>{actionIcon}</span>
+        <div className={styles['firewall-rule-title']}>
           <strong>{t(`workbench.firewall.protocol.${rule.protocol}`)} · {ports}</strong>
           <Tooltip title={rule.description || t('workbench.firewall.noDescription')} placement="topLeft">
             <small>{rule.description || t('workbench.firewall.noDescription')}</small>
@@ -628,25 +642,25 @@ function FirewallRuleCard({
         </div>
       </div>
 
-      <div className="firewall-rule-meta">
-        <span className="firewall-rule-action">{t(`workbench.firewall.action.${rule.action}`)}</span>
+      <div className={styles['firewall-rule-meta']}>
+        <span className={styles['firewall-rule-action']}>{t(`workbench.firewall.action.${rule.action}`)}</span>
         <Tooltip title={source} placement="topLeft">
           <span><Globe2 size={13} />{t('workbench.firewall.sourceLabel')} {source}</span>
         </Tooltip>
-        {localDisabled ? <span className="firewall-rule-local">{t('workbench.firewall.localDisabled')}</span> : null}
+        {localDisabled ? <span className={styles['firewall-rule-local']}>{t('workbench.firewall.localDisabled')}</span> : null}
         {hasCounters ? <span><Activity size={13} />{t('workbench.firewall.hitCount', { count: snapshotRule?.hit_count ?? 0 })}</span> : null}
         {hasCounters ? <span><Database size={13} />{formatBytes(snapshotRule?.byte_count ?? 0)}</span> : null}
       </div>
 
-      <div className="firewall-rule-switch">
-        <span className={rule.enabled ? 'is-enabled' : 'is-muted'}>
+      <div className={styles['firewall-rule-switch']}>
+        <span className={styles[rule.enabled ? 'is-enabled' : 'is-muted']}>
           <Power size={13} />
           {rule.enabled ? t('workbench.firewall.enabledState') : t('workbench.firewall.disabledState')}
         </span>
         <Switch size="small" checked={rule.enabled} loading={applying} disabled={!editable || applying} onChange={onToggle} />
       </div>
 
-      <div className="firewall-rule-card-actions">
+      <div className={styles['firewall-rule-card-actions']}>
         <Tooltip title={editable ? t('workbench.firewall.edit') : snapshotRule?.readonly_reason || t('workbench.firewall.readonly')}>
           <Button type="text" aria-label={t('workbench.firewall.edit')} disabled={!editable || applying} icon={<Pencil size={14} />} onClick={onEdit} />
         </Tooltip>
@@ -671,7 +685,6 @@ function FirewallRuleCard({
 function FirewallEmpty({ title, description }: { title: string; description: string }) {
   return (
     <WorkspaceEmptyState
-      className="firewall-empty"
       tone="warning"
       icon={<ShieldAlert size={22} />}
       title={title}

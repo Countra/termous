@@ -115,10 +115,13 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
   }
 
   return (
-    <section className={`process-panel ${styles.root}`}>
-      <div className="process-toolbar">
-        <div className="process-toolbar-status">
-          <span className={`process-status-dot ${processes.error ? 'is-danger' : processes.loading ? 'is-loading' : 'is-ready'}`} />
+    <section className={[styles['process-panel'], styles.root].join(' ')}>
+      <div className={styles['process-toolbar']}>
+        <div className={styles['process-toolbar-status']}>
+          <span className={[
+            styles['process-status-dot'],
+            styles[processes.error ? 'is-danger' : processes.loading ? 'is-loading' : 'is-ready'],
+          ].join(' ')} />
           <div>
             <strong>{listSummary}</strong>
             <span>{updatedText}</span>
@@ -127,7 +130,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
         <Tooltip title={t('workbench.processes.refresh')}>
           <Button
             type="text"
-            className="process-icon-button"
+            className={styles['process-icon-button']}
             aria-label={t('workbench.processes.refresh')}
             loading={processes.loading}
             icon={<RotateCcw size={15} />}
@@ -136,9 +139,9 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
         </Tooltip>
       </div>
 
-      <div className="process-filter-panel">
+      <div className={styles['process-filter-panel']}>
         <Input
-          className="host-search-input termous-search-input process-search-input"
+          className={`host-search-input termous-search-input ${styles['process-search-input']}`}
           value={processes.query.text}
           allowClear
           variant="borderless"
@@ -151,18 +154,18 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
           trigger="click"
           placement="bottomRight"
           arrow={false}
-          overlayClassName="process-filter-popover"
+          overlayClassName={styles['process-filter-popover']}
           content={
-            <div className="process-filter-popover-content">
-              <div className="process-filter-popover-head">
+            <div className={styles['process-filter-popover-content']}>
+              <div className={styles['process-filter-popover-head']}>
                 <strong>{t('workbench.processes.filters')}</strong>
                 <Button type="text" size="small" onClick={resetFilters}>
                   {t('workbench.processes.resetFilters')}
                 </Button>
               </div>
-              <div className="process-filter-grid">
+              <div className={styles['process-filter-grid']}>
                 <Input
-                  className="process-compact-input"
+                  className={styles['process-compact-input']}
                   value={processes.query.pid}
                   allowClear
                   variant="borderless"
@@ -172,7 +175,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
                   onPressEnter={(event) => refreshWithQuery({ pid: event.currentTarget.value.replace(/[^\d]/g, '') })}
                 />
                 <Input
-                  className="process-compact-input"
+                  className={styles['process-compact-input']}
                   value={processes.query.port}
                   allowClear
                   variant="borderless"
@@ -182,10 +185,10 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
                   onPressEnter={(event) => refreshWithQuery({ port: event.currentTarget.value.replace(/[^\d]/g, '') })}
                 />
               </div>
-              <label className="process-filter-field">
+              <label className={styles['process-filter-field']}>
                 <span>{t('workbench.processes.refreshEvery')}</span>
                 <Segmented
-                  className="process-refresh-segment"
+                  className={styles['process-refresh-segment']}
                   size="small"
                   value={processes.query.autoRefreshSeconds}
                   options={autoRefreshSelectOptions}
@@ -197,22 +200,28 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
         >
           <Button
             type="text"
-            className={`process-filter-button ${hasActiveFilters ? 'is-active' : ''}`}
+            className={[
+              styles['process-filter-button'],
+              hasActiveFilters ? styles['is-active'] : '',
+            ].filter(Boolean).join(' ')}
             icon={<SlidersHorizontal size={15} />}
           >
             {t('workbench.processes.filters')}
           </Button>
         </Popover>
-        <div className="process-sort-strip" aria-label={t('workbench.processes.sort')}>
-          <span className="process-sort-label">{t('workbench.processes.sort')}</span>
-          <div className="process-sort-options" role="radiogroup">
+        <div className={styles['process-sort-strip']} aria-label={t('workbench.processes.sort')}>
+          <span className={styles['process-sort-label']}>{t('workbench.processes.sort')}</span>
+          <div className={styles['process-sort-options']} role="radiogroup">
             {sortOptions.map((sort) => (
               <button
                 key={sort}
                 type="button"
                 role="radio"
                 aria-checked={processes.query.sort === sort}
-                className={`process-sort-option ${processes.query.sort === sort ? 'is-active' : ''}`}
+                className={[
+                  styles['process-sort-option'],
+                  processes.query.sort === sort ? styles['is-active'] : '',
+                ].filter(Boolean).join(' ')}
                 onClick={() => changeSort(sort)}
               >
                 {t(`workbench.processes.sortOptions.${sort}`)}
@@ -224,7 +233,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
 
       {processes.error ? (
         <WorkspaceEmptyState
-          className="process-error-state"
+          className={styles['process-error-state']}
           tone="danger"
           icon={<AlertTriangle size={20} />}
           title={t('workbench.processes.loadFailed')}
@@ -232,7 +241,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
         />
       ) : null}
 
-      <div className="process-content">
+      <div className={styles['process-content']}>
         {showingDetail ? (
           <ProcessDetailView
             detail={detail}
@@ -246,10 +255,10 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
             onForceTerminate={() => void terminateProcess('kill')}
           />
         ) : (
-          <div className="process-list" aria-label={t('workbench.processes.processList')}>
+          <div className={styles['process-list']} aria-label={t('workbench.processes.processList')}>
             {items.length === 0 && !processes.loading ? (
               <WorkspaceEmptyState
-                className="process-empty-list"
+                className={styles['process-empty-list']}
                 icon={<ListFilter size={20} />}
                 title={t(processes.list ? 'workbench.processes.noResults' : 'workbench.processes.loading')}
                 description={processes.list ? undefined : t('workbench.processes.emptyListHint')}
@@ -282,11 +291,15 @@ function ProcessRow({ item, selected, onSelect }: ProcessRowProps) {
   return (
     <button
       type="button"
-      className={`process-row ${selected ? 'is-selected' : ''} ${ports.length > 0 ? 'has-ports' : ''}`}
+      className={[
+        styles['process-row'],
+        selected ? styles['is-selected'] : '',
+        ports.length > 0 ? styles['has-ports'] : '',
+      ].filter(Boolean).join(' ')}
       onClick={onSelect}
     >
-      <div className="process-row-main">
-        <span className="process-row-icon">
+      <div className={styles['process-row-main']}>
+        <span className={styles['process-row-icon']}>
           <Activity size={15} />
         </span>
         <div>
@@ -298,14 +311,14 @@ function ProcessRow({ item, selected, onSelect }: ProcessRowProps) {
       </div>
       {ports.length > 0 ? (
         <Tooltip title={portSummary} overlayClassName="termous-tooltip">
-          <span className="process-row-port-summary" aria-label={t('workbench.processes.portsShort', { count: ports.length })}>
+          <span className={styles['process-row-port-summary']} aria-label={t('workbench.processes.portsShort', { count: ports.length })}>
             <PlugZap size={12} />
             <span>{compactPortSummary}</span>
             {hiddenPortCount > 0 ? <em>{`+${hiddenPortCount}`}</em> : null}
           </span>
         </Tooltip>
       ) : null}
-      <div className="process-row-statline">
+      <div className={styles['process-row-statline']}>
         <span>{`PID ${item.pid}`}</span>
         <span>{`${t('workbench.processes.cpu')} ${formatPercent(item.cpu_percent)}`}</span>
         <span>{`${t('workbench.processes.memory')} ${formatPercent(item.memory_percent)}`}</span>
@@ -341,7 +354,7 @@ function ProcessDetailView({
   if (!detail && !loading && !error) {
     return (
       <WorkspaceEmptyState
-        className="process-detail-empty"
+        className={styles['process-detail-empty']}
         icon={<Gauge size={20} />}
         title={t('workbench.processes.noSelection')}
       />
@@ -349,11 +362,11 @@ function ProcessDetailView({
   }
   if (loading) {
     return (
-      <div className="process-detail-card is-loading">
-        <Button type="text" className="process-detail-back" icon={<ArrowLeft size={14} />} onClick={onBack}>
+      <div className={[styles['process-detail-card'], styles['is-loading']].join(' ')}>
+        <Button type="text" className={styles['process-detail-back']} icon={<ArrowLeft size={14} />} onClick={onBack}>
           {t('workbench.processes.backToList')}
         </Button>
-        <span className="process-detail-spinner" />
+        <span className={styles['process-detail-spinner']} />
         <strong>{t('workbench.processes.detailLoading')}</strong>
         {selectedPid ? <small>{`PID ${selectedPid}`}</small> : null}
       </div>
@@ -361,12 +374,12 @@ function ProcessDetailView({
   }
   if (error) {
     return (
-      <div className="process-detail-card">
-        <Button type="text" className="process-detail-back" icon={<ArrowLeft size={14} />} onClick={onBack}>
+      <div className={styles['process-detail-card']}>
+        <Button type="text" className={styles['process-detail-back']} icon={<ArrowLeft size={14} />} onClick={onBack}>
           {t('workbench.processes.backToList')}
         </Button>
         <WorkspaceEmptyState
-          className="process-detail-empty"
+          className={styles['process-detail-empty']}
           tone="danger"
           icon={<AlertTriangle size={20} />}
           title={t('workbench.processes.loadFailed')}
@@ -383,25 +396,29 @@ function ProcessDetailView({
   const stateText = summary.state || t('fields.none')
   const stateTooltip = summary.state ? getProcessStateTooltip(summary.state, t) : t('workbench.processes.stateEmptyHint')
   return (
-    <article className="process-detail-card">
-      <Button type="text" className="process-detail-back" icon={<ArrowLeft size={14} />} onClick={onBack}>
+    <article className={styles['process-detail-card']}>
+      <Button type="text" className={styles['process-detail-back']} icon={<ArrowLeft size={14} />} onClick={onBack}>
         {t('workbench.processes.backToList')}
       </Button>
-      <div className="process-detail-head">
+      <div className={styles['process-detail-head']}>
         <div>
           <strong>{summary.name || `PID ${summary.pid}`}</strong>
           <small>{`PID ${summary.pid} · ${summary.user || t('fields.none')}`}</small>
         </div>
-        <Tooltip title={stateTooltip} placement="left" overlayClassName="termous-tooltip">
-          <Tag className="process-state-tag">{stateText}</Tag>
+        <Tooltip
+          title={stateTooltip}
+          placement="left"
+          classNames={{ root: `termous-tooltip ${styles['process-state-tooltip-root']}` }}
+        >
+          <Tag className={styles['process-state-tag']}>{stateText}</Tag>
         </Tooltip>
       </div>
-      <div className="process-detail-kpis">
+      <div className={styles['process-detail-kpis']}>
         <ProcessKpi label={t('workbench.processes.cpu')} value={formatPercent(summary.cpu_percent)} />
         <ProcessKpi label={t('workbench.processes.memory')} value={formatPercent(summary.memory_percent)} />
         <ProcessKpi label={t('workbench.processes.runtime')} value={formatDuration(summary.runtime_seconds)} />
       </div>
-      <dl className="process-detail-list">
+      <dl className={styles['process-detail-list']}>
         <ProcessDetailItem label={t('workbench.processes.parentPid')} value={String(summary.ppid || '-')} />
         <ProcessDetailItem label={t('workbench.processes.memory')} value={formatBytes(summary.rss_bytes)} />
         <ProcessDetailItem label={t('workbench.processes.workingDirectory')} value={detail.cwd || t('fields.none')} />
@@ -410,12 +427,12 @@ function ProcessDetailView({
       </dl>
       <ProcessPorts ports={detail.ports ?? []} />
       {warnings.length > 0 ? (
-        <div className="process-warning-strip">
+        <div className={styles['process-warning-strip']}>
           <AlertTriangle size={14} />
           <span>{warnings.join(' · ')}</span>
         </div>
       ) : null}
-      <div className="process-detail-actions">
+      <div className={styles['process-detail-actions']}>
         <Popconfirm
           title={t('workbench.processes.terminateTitle', { pid: summary.pid })}
           description={t('workbench.processes.terminateContent', { pid: summary.pid })}
@@ -424,7 +441,7 @@ function ProcessDetailView({
           onConfirm={onTerminate}
         >
           <Button
-            className={`${uiStyles['secondary-button']} secondary-button process-terminate-button`}
+            className={`${uiStyles['secondary-button']} secondary-button ${styles['process-terminate-button']}`}
             disabled={!canTerminate}
             loading={terminatingPid === summary.pid}
             icon={<Square size={13} />}
@@ -442,7 +459,7 @@ function ProcessDetailView({
         >
           <Button
             danger
-            className={`${uiStyles['danger-button']} danger-button process-terminate-button`}
+            className={`${uiStyles['danger-button']} danger-button ${styles['process-terminate-button']}`}
             disabled={!canTerminate}
             loading={terminatingPid === summary.pid}
             icon={<XOctagon size={14} />}
@@ -482,7 +499,7 @@ function getProcessStateTooltip(state: string, t: TFunction) {
     return t(`workbench.processes.stateCodes.${key}`, { code })
   })
   return (
-    <div className="process-state-tooltip">
+    <div className={styles['process-state-tooltip']}>
       <strong>{t('workbench.processes.stateTooltipTitle', { state })}</strong>
       <span>{t('workbench.processes.stateTooltipHint')}</span>
       <ul>
@@ -496,7 +513,7 @@ function getProcessStateTooltip(state: string, t: TFunction) {
 
 function ProcessKpi({ label, value }: { label: string; value: string }) {
   return (
-    <div className="process-kpi">
+    <div className={styles['process-kpi']}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -517,10 +534,10 @@ function ProcessDetailItem({ label, value }: { label: string; value: string }) {
 function ProcessPorts({ ports }: { ports: RemoteProcessPort[] }) {
   const { t } = useTranslation()
   if (ports.length === 0) {
-    return <div className="process-port-empty">{t('workbench.processes.noPorts')}</div>
+    return <div className={styles['process-port-empty']}>{t('workbench.processes.noPorts')}</div>
   }
   return (
-    <div className="process-port-list">
+    <div className={styles['process-port-list']}>
       {ports.map((port, index) => (
         <span key={`${port.protocol}-${port.local_address}-${port.local_port}-${index}`}>
           <PlugZap size={12} />

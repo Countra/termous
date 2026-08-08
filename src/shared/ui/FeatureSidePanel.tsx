@@ -2,6 +2,7 @@ import { Button, Tabs, Tooltip } from 'antd'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { ReactNode, PointerEvent as ReactPointerEvent } from 'react'
 import styles from './FeatureSidePanel.module.scss'
+import sidePanelStyles from './SidePanelControls.module.scss'
 
 export interface FeatureSidePanelTab<Key extends string> {
   key: Key
@@ -51,22 +52,28 @@ export function FeatureSidePanel<Key extends string>({
     .join(' ')
   const classes = [
     styles['details-panel'],
-    'details-panel',
+    sidePanelStyles.panel,
     'feature-side-panel',
     className,
-    collapsed ? `${styles['is-collapsed']} is-collapsed` : '',
-    resizing ? 'is-resizing' : '',
+    collapsed ? `${styles['is-collapsed']} ${sidePanelStyles['is-collapsed']}` : '',
+    resizing ? sidePanelStyles['is-resizing'] : '',
   ]
     .filter(Boolean)
     .join(' ')
 
   return (
     <aside className={classes}>
-      {onResizePointerDown ? <div className="details-resize-edge" aria-hidden="true" onPointerDown={onResizePointerDown} /> : null}
+      {onResizePointerDown ? (
+        <div
+          className={`${sidePanelStyles['resize-edge']} ${sidePanelStyles['resize-edge-left']}`}
+          aria-hidden="true"
+          onPointerDown={onResizePointerDown}
+        />
+      ) : null}
       <Tooltip title={collapsed ? expandLabel : collapseLabel}>
         <Button
           type="text"
-          className="panel-side-toggle panel-side-toggle-right"
+          className={`${sidePanelStyles['panel-side-toggle']} ${sidePanelStyles['panel-side-toggle-right']}`}
           onClick={() => onCollapsedChange(!collapsed)}
           aria-label={collapsed ? expandLabel : collapseLabel}
           icon={collapsed ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}

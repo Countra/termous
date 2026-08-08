@@ -1,10 +1,8 @@
-/* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
-/* stylelint-disable termous/no-unscoped-global, declaration-empty-line-before, color-hex-length, selector-not-notation, declaration-property-value-keyword-no-deprecated -- 迁移期保持 Docker 面板与 Portal 的视觉与交互兼容。 */
+/* stylelint-disable declaration-empty-line-before, color-hex-length, selector-not-notation, declaration-property-value-keyword-no-deprecated -- 保持现有兼容声明，避免在样式归属迁移中改变计算结果。 */
 .root {
   position: static;
 }
 
-:global {
 .docker-panel {
   display: grid;
   min-width: 0;
@@ -122,7 +120,7 @@
   color: #ff8585;
 }
 
-.docker-icon-button.ant-btn {
+.docker-icon-button:global(.ant-btn) {
   width: 36px;
   height: 36px;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
@@ -131,7 +129,7 @@
   color: var(--text-secondary);
 }
 
-.docker-icon-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+.docker-icon-button:global(.ant-btn):not(:disabled):not([class~="ant-btn-disabled"]):hover {
   border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
   background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
   color: var(--accent);
@@ -145,11 +143,11 @@
   gap: 8px;
 }
 
-.docker-search-input.ant-input-affix-wrapper {
+.docker-search-input:global(.ant-input-affix-wrapper) {
   min-width: 0;
 }
 
-.docker-filter-button.ant-btn {
+.docker-filter-button:global(.ant-btn) {
   height: 34px;
   padding: 0 10px;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
@@ -160,19 +158,19 @@
   font-weight: 720;
 }
 
-.docker-filter-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover,
-.docker-filter-button.ant-btn.is-active {
+.docker-filter-button:global(.ant-btn):not(:disabled):not([class~="ant-btn-disabled"]):hover,
+.docker-filter-button:global(.ant-btn).is-active {
   border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
   background: color-mix(in srgb, var(--accent) 10%, var(--surface-subtle));
   color: var(--accent);
 }
 
-.docker-filter-popover.ant-popover {
+.docker-filter-popover:global(.ant-popover) {
   --ant-popover-bg: var(--surface-strong);
   --antd-arrow-background-color: var(--surface-strong);
 }
 
-.docker-filter-popover.ant-popover .ant-popover-container {
+.docker-filter-popover:global(.ant-popover) :global(.ant-popover-container) {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   border-radius: 15px;
@@ -180,14 +178,14 @@
   box-shadow: none !important;
 }
 
-.docker-filter-popover.ant-popover .ant-popover-content,
-.docker-filter-popover.ant-popover .ant-popover-inner,
-.docker-filter-popover.ant-popover .ant-popover-inner-content {
+.docker-filter-popover:global(.ant-popover) :global(.ant-popover-content),
+.docker-filter-popover:global(.ant-popover) :global(.ant-popover-inner),
+.docker-filter-popover:global(.ant-popover) :global(.ant-popover-inner-content) {
   border-radius: 15px;
   background: var(--surface-strong) !important;
 }
 
-.docker-filter-popover.ant-popover .ant-popover-inner-content {
+.docker-filter-popover:global(.ant-popover) :global(.ant-popover-inner-content) {
   padding: 12px;
 }
 
@@ -210,18 +208,18 @@
   font-weight: 760;
 }
 
-.docker-filter-popover-head .ant-btn {
+.docker-filter-popover-head :global(.ant-btn) {
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 680;
 }
 
-.docker-filter-popover-head .ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+.docker-filter-popover-head :global(.ant-btn):not(:disabled):not([class~="ant-btn-disabled"]):hover {
   background: color-mix(in srgb, var(--surface-subtle) 80%, transparent);
   color: var(--accent);
 }
 
-.docker-compact-input.ant-input-affix-wrapper {
+.docker-compact-input:global(.ant-input-affix-wrapper) {
   height: 34px;
   border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 11px;
@@ -229,8 +227,8 @@
   color: var(--text-primary);
 }
 
-.docker-compact-input.ant-input-affix-wrapper:hover,
-.docker-compact-input.ant-input-affix-wrapper-focused {
+.docker-compact-input:global(.ant-input-affix-wrapper):hover,
+.docker-compact-input:global(.ant-input-affix-wrapper-focused) {
   border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
   background: color-mix(in srgb, var(--surface-subtle) 92%, transparent);
 }
@@ -450,7 +448,7 @@
   font-weight: 760;
 }
 
-.docker-state-tag.ant-tag {
+.docker-state-tag:global(.ant-tag) {
   position: absolute;
   top: 10px;
   right: 10px;
@@ -467,28 +465,28 @@
   white-space: nowrap;
 }
 
-.docker-row .docker-state-tag.ant-tag {
+.docker-row .docker-state-tag:global(.ant-tag) {
   position: static;
   max-width: 86px;
   height: 22px;
   line-height: 20px;
 }
 
-.docker-state-tag.is-running.ant-tag {
+.docker-state-tag.is-running:global(.ant-tag) {
   border-color: color-mix(in srgb, #31d0a0 42%, var(--border));
   background: color-mix(in srgb, #31d0a0 14%, var(--surface));
   color: #31d0a0;
 }
 
-.docker-state-tag.is-exited.ant-tag,
-.docker-state-tag.is-dead.ant-tag {
+.docker-state-tag.is-exited:global(.ant-tag),
+.docker-state-tag.is-dead:global(.ant-tag) {
   border-color: color-mix(in srgb, #ff6b6b 34%, var(--border));
   background: color-mix(in srgb, #ff6b6b 12%, var(--surface));
   color: #ff8585;
 }
 
-.docker-state-tag.is-paused.ant-tag,
-.docker-state-tag.is-restarting.ant-tag {
+.docker-state-tag.is-paused:global(.ant-tag),
+.docker-state-tag.is-restarting:global(.ant-tag) {
   border-color: color-mix(in srgb, #f5c542 34%, var(--border));
   background: color-mix(in srgb, #f5c542 12%, var(--surface));
   color: #f5c542;
@@ -566,7 +564,7 @@
   white-space: nowrap;
 }
 
-.docker-detail-back.ant-btn {
+.docker-detail-back:global(.ant-btn) {
   height: 30px;
   padding: 0 8px;
   color: var(--text-secondary);
@@ -574,7 +572,7 @@
   font-weight: 720;
 }
 
-.docker-detail-back.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+.docker-detail-back:global(.ant-btn):not(:disabled):not([class~="ant-btn-disabled"]):hover {
   background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
   color: var(--accent);
 }
@@ -622,7 +620,7 @@
   gap: 8px;
 }
 
-.docker-action-button.ant-btn {
+.docker-action-button:global(.ant-btn) {
   flex: 1 1 92px;
   min-width: 0;
 }
@@ -761,7 +759,7 @@
   gap: 6px;
 }
 
-.docker-mini-button.ant-btn {
+.docker-mini-button:global(.ant-btn) {
   height: 28px;
   padding: 0 8px;
   color: var(--text-muted);
@@ -769,7 +767,7 @@
   font-weight: 720;
 }
 
-.docker-mini-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+.docker-mini-button:global(.ant-btn):not(:disabled):not([class~="ant-btn-disabled"]):hover {
   background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
   color: var(--accent);
 }
@@ -790,7 +788,7 @@
   word-break: break-word;
 }
 
-.docker-logs-modal-root .docker-logs-modal.ant-modal {
+.docker-logs-modal-root .docker-logs-modal:global(.ant-modal) {
   --ant-modal-content-bg: #21252e;
   --docker-log-toolbar-bg: #1a1f28;
   --docker-log-console-bg: #080c12;
@@ -800,14 +798,16 @@
   padding-bottom: 0;
 }
 
-:root[data-theme="light"] .docker-logs-modal-root .docker-logs-modal.ant-modal {
-  --ant-modal-content-bg: #f7f9fc;
-  --docker-log-toolbar-bg: #eef2f7;
-  --docker-log-console-bg: #fbfcff;
-  --docker-log-line-number-bg: #eef3fa;
+.docker-logs-modal-root {
+  :global(:root[data-theme="light"]) & .docker-logs-modal:global(.ant-modal) {
+    --ant-modal-content-bg: #f7f9fc;
+    --docker-log-toolbar-bg: #eef2f7;
+    --docker-log-console-bg: #fbfcff;
+    --docker-log-line-number-bg: #eef3fa;
+  }
 }
 
-.docker-logs-modal-root .docker-logs-modal.ant-modal .ant-modal-content {
+.docker-logs-modal-root .docker-logs-modal:global(.ant-modal) :global(.ant-modal-content) {
   overflow: hidden;
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--border-strong) 78%, transparent);
@@ -818,7 +818,7 @@
     inset 0 1px 0 color-mix(in srgb, var(--text-primary) 7%, transparent);
 }
 
-.docker-logs-modal-root .docker-logs-modal.ant-modal .ant-modal-body {
+.docker-logs-modal-root .docker-logs-modal:global(.ant-modal) :global(.ant-modal-body) {
   padding: 0 !important;
 }
 
@@ -941,7 +941,7 @@
   color: var(--danger);
 }
 
-.docker-logs-close.ant-btn {
+.docker-logs-close:global(.ant-btn) {
   position: absolute;
   top: 7px;
   right: 10px;
@@ -952,7 +952,7 @@
   color: var(--text-muted);
 }
 
-.docker-logs-close.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+.docker-logs-close:global(.ant-btn):not(:disabled):not([class~="ant-btn-disabled"]):hover {
   border-color: color-mix(in srgb, var(--border) 82%, transparent);
   background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
   color: var(--text-primary);
@@ -966,18 +966,18 @@
   background: var(--docker-log-toolbar-bg);
 }
 
-.docker-log-tail-select.ant-select {
+.docker-log-tail-select:global(.ant-select) {
   width: 90px;
 }
 
-.docker-log-tail-select .ant-select-selector {
+.docker-log-tail-select :global(.ant-select-selector) {
   height: 34px !important;
   border-color: color-mix(in srgb, var(--border) 78%, transparent) !important;
   border-radius: 11px !important;
   background: var(--ant-modal-content-bg) !important;
 }
 
-.docker-log-tail-select .ant-select-selection-item {
+.docker-log-tail-select :global(.ant-select-selection-item) {
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 740;
@@ -992,7 +992,7 @@
   gap: 8px;
 }
 
-.docker-logs-search.ant-input-affix-wrapper {
+.docker-logs-search:global(.ant-input-affix-wrapper) {
   height: 34px;
 }
 
@@ -1002,7 +1002,7 @@
   gap: 6px;
 }
 
-.docker-log-tool-button.ant-btn {
+.docker-log-tool-button:global(.ant-btn) {
   height: 34px;
   padding: 0 10px;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
@@ -1013,17 +1013,17 @@
   font-weight: 740;
 }
 
-.docker-log-tool-button.ant-btn:not(:disabled):not(.ant-btn-disabled):hover {
+.docker-log-tool-button:global(.ant-btn):not(:disabled):not([class~="ant-btn-disabled"]):hover {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
   background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
   color: var(--accent);
 }
 
-.docker-log-tool-button.ant-btn:disabled {
+.docker-log-tool-button:global(.ant-btn):disabled {
   opacity: 0.48;
 }
 
-.docker-log-tool-button.is-refresh.ant-btn {
+.docker-log-tool-button.is-refresh:global(.ant-btn) {
   margin-left: auto;
 }
 
@@ -1046,7 +1046,7 @@
   background: transparent;
 }
 
-.docker-logs-options button:not(.ant-btn) {
+.docker-logs-options button:not([class~="ant-btn"]) {
   height: 30px;
   min-width: 34px;
   padding: 0 9px;
@@ -1060,8 +1060,8 @@
   cursor: pointer;
 }
 
-.docker-logs-options button:not(.ant-btn):hover,
-.docker-logs-options button:not(.ant-btn).is-active {
+.docker-logs-options button:not([class~="ant-btn"]):hover,
+.docker-logs-options button:not([class~="ant-btn"]).is-active {
   border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
   background: color-mix(in srgb, var(--accent) 10%, var(--surface-subtle));
   color: var(--accent);
@@ -1224,16 +1224,22 @@
   white-space: nowrap;
 }
 
-:root[data-theme="light"] .docker-logs-console {
-  color: #1f2937;
+.docker-logs-console {
+  :global(:root[data-theme="light"]) & {
+    color: #1f2937;
+  }
 }
 
-:root[data-theme="light"] .docker-log-line {
-  border-bottom-color: color-mix(in srgb, #c9d4e4 54%, transparent);
+.docker-log-line {
+  :global(:root[data-theme="light"]) & {
+    border-bottom-color: color-mix(in srgb, #c9d4e4 54%, transparent);
+  }
 }
 
-:root[data-theme="light"] .docker-log-line-number {
-  color: #728198;
+.docker-log-line-number {
+  :global(:root[data-theme="light"]) & {
+    color: #728198;
+  }
 }
 
 .docker-muted-line {
@@ -1263,31 +1269,36 @@
   min-height: 140px;
 }
 
-:root[data-theme="light"] .docker-capability,
-:root[data-theme="light"] .docker-row,
-:root[data-theme="light"] .docker-detail-head,
-:root[data-theme="light"] .docker-kpi,
-:root[data-theme="light"] .docker-compact-section,
-:root[data-theme="light"] .docker-detail-list,
-:root[data-theme="light"] .docker-filter-options,
-:root[data-theme="light"] .docker-detail-loading-body {
-  background: #ffffff;
+.docker-capability,
+.docker-row,
+.docker-detail-head,
+.docker-kpi,
+.docker-compact-section,
+.docker-detail-list,
+.docker-filter-options,
+.docker-detail-loading-body {
+  :global(:root[data-theme="light"]) & {
+    background: #ffffff;
+  }
 }
 
-:root[data-theme="light"] .docker-filter-popover.ant-popover {
-  --ant-popover-bg: #ffffff;
-  --antd-arrow-background-color: #ffffff;
+.docker-filter-popover:global(.ant-popover) {
+  :global(:root[data-theme="light"]) & {
+    --ant-popover-bg: #ffffff;
+    --antd-arrow-background-color: #ffffff;
+  }
+
+  :global(:root[data-theme="light"]) & :global(.ant-popover-container),
+  :global(:root[data-theme="light"]) & :global(.ant-popover-content),
+  :global(:root[data-theme="light"]) & :global(.ant-popover-inner),
+  :global(:root[data-theme="light"]) & :global(.ant-popover-inner-content) {
+    background: #ffffff !important;
+  }
 }
 
-:root[data-theme="light"] .docker-filter-popover.ant-popover .ant-popover-container,
-:root[data-theme="light"] .docker-filter-popover.ant-popover .ant-popover-content,
-:root[data-theme="light"] .docker-filter-popover.ant-popover .ant-popover-inner,
-:root[data-theme="light"] .docker-filter-popover.ant-popover .ant-popover-inner-content {
-  background: #ffffff !important;
-}
-
-:root[data-theme="light"] .docker-log-section pre {
-  background: #f8fafc;
-  color: #1f2937;
-}
+.docker-log-section {
+  :global(:root[data-theme="light"]) & pre {
+    background: #f8fafc;
+    color: #1f2937;
+  }
 }

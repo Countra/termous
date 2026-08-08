@@ -1,12 +1,11 @@
 /* 迁移过渡期保留历史选择器和声明，后续按组件边界逐段收敛。 */
-/* stylelint-disable termous/no-unscoped-global, declaration-empty-line-before, color-hex-length, value-keyword-case, media-feature-range-notation -- 迁移期保持端口转发页面与嵌入面板的视觉和 Portal 行为兼容。 */
+/* stylelint-disable declaration-empty-line-before, color-hex-length, value-keyword-case, media-feature-range-notation -- 保持端口转发既有声明顺序、颜色写法与媒体查询兼容。 */
 .root {
   position: static;
 }
 
-:global {
 /* 端口转发共享视觉语义 */
-.forward-mode-selector.ant-segmented {
+.forward-mode-selector:global(.ant-segmented) {
   min-width: 0;
   border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   border-radius: 10px;
@@ -15,14 +14,14 @@
   box-shadow: none;
 }
 
-.forward-mode-selector .ant-segmented-item {
+.forward-mode-selector :global(.ant-segmented-item) {
   min-width: 0;
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 680;
 }
 
-.forward-mode-selector .ant-segmented-item-label {
+.forward-mode-selector :global(.ant-segmented-item-label) {
   display: inline-flex;
   min-width: 0;
   align-items: center;
@@ -33,13 +32,13 @@
   white-space: nowrap;
 }
 
-.forward-mode-selector .ant-segmented-item-selected {
+.forward-mode-selector :global(.ant-segmented-item-selected) {
   background: color-mix(in srgb, var(--surface-elevated, var(--surface)) 88%, var(--accent) 12%);
   color: var(--text-primary);
   box-shadow: none;
 }
 
-.forward-mode-selector.is-compact .ant-segmented-item-label {
+.forward-mode-selector.is-compact :global(.ant-segmented-item-label) {
   min-height: 26px;
   padding-inline: 3px;
 }
@@ -91,30 +90,30 @@
   font-weight: 650;
 }
 
-.forward-field .ant-input,
-.forward-field .ant-input-number,
-.forward-field textarea.ant-input {
+.forward-field :global(.ant-input),
+.forward-field :global(.ant-input-number),
+.forward-field textarea:global(.ant-input) {
   width: 100%;
   min-width: 0;
   background: var(--surface-subtle) !important;
 }
 
-.forward-field .ant-input-affix-wrapper,
-.forward-field .ant-input-password,
-.forward-field .ant-input-number-input-wrap,
-.forward-field .ant-input-number-input,
-.forward-field .ant-input-number-handler-wrap,
-.forward-field .ant-input-number-handler {
+.forward-field :global(.ant-input-affix-wrapper),
+.forward-field :global(.ant-input-password),
+.forward-field :global(.ant-input-number-input-wrap),
+.forward-field :global(.ant-input-number-input),
+.forward-field :global(.ant-input-number-handler-wrap),
+.forward-field :global(.ant-input-number-handler) {
   background: transparent !important;
 }
 
-.forward-field .ant-input-number-handler-wrap {
+.forward-field :global(.ant-input-number-handler-wrap) {
   border-inline-start-color: color-mix(in srgb, var(--border) 78%, transparent) !important;
   box-shadow: none !important;
 }
 
-.forward-field .ant-input-number:hover .ant-input-number-handler-wrap,
-.forward-field .ant-input-number-focused .ant-input-number-handler-wrap {
+.forward-field :global(.ant-input-number):hover :global(.ant-input-number-handler-wrap),
+.forward-field :global(.ant-input-number-focused) :global(.ant-input-number-handler-wrap) {
   background: transparent !important;
 }
 
@@ -311,8 +310,8 @@
   white-space: nowrap;
 }
 
-.forward-route-tooltip .ant-tooltip-inner,
-.forward-route-tooltip .ant-tooltip-container {
+.forward-route-tooltip :global(.ant-tooltip-inner),
+.forward-route-tooltip :global(.ant-tooltip-container) {
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 9px;
   background: #222733;
@@ -324,7 +323,7 @@
   box-shadow: 0 14px 30px rgb(0 0 0 / 24%);
 }
 
-.forward-route-tooltip .ant-tooltip-arrow::before {
+.forward-route-tooltip :global(.ant-tooltip-arrow)::before {
   background: #222733;
 }
 
@@ -359,7 +358,7 @@
   place-items: center;
 }
 
-.forward-runtime-action.ant-btn {
+.forward-runtime-action:global(.ant-btn) {
   width: 28px;
   min-width: 28px;
   height: 28px;
@@ -374,40 +373,40 @@
     color 0.16s ease;
 }
 
-.forward-runtime-action.ant-btn .ant-btn-icon,
-.forward-runtime-action.ant-btn .ant-btn-loading-icon {
+.forward-runtime-action:global(.ant-btn) :global(.ant-btn-icon),
+.forward-runtime-action:global(.ant-btn) :global(.ant-btn-loading-icon) {
   display: grid;
   margin-inline-end: 0;
   place-items: center;
 }
 
-.forward-runtime-action.ant-btn:not(:disabled):hover,
-.forward-runtime-action.ant-btn:not(:disabled):active {
+.forward-runtime-action:global(.ant-btn):not(:disabled):hover,
+.forward-runtime-action:global(.ant-btn):not(:disabled):active {
   transform: none;
 }
 
-.forward-runtime-action.is-restart.ant-btn:not(:disabled):hover,
-.forward-runtime-action.is-restart.ant-btn:not(:disabled):active {
+.forward-runtime-action.is-restart:global(.ant-btn):not(:disabled):hover,
+.forward-runtime-action.is-restart:global(.ant-btn):not(:disabled):active {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: color-mix(in srgb, var(--accent) 82%, var(--text-primary));
 }
 
-.forward-runtime-action.is-stop.ant-btn:not(:disabled):hover,
-.forward-runtime-action.is-stop.ant-btn:not(:disabled):active {
+.forward-runtime-action.is-stop:global(.ant-btn):not(:disabled):hover,
+.forward-runtime-action.is-stop:global(.ant-btn):not(:disabled):active {
   background: color-mix(in srgb, #ff656d 11%, transparent);
   color: #ff7e85;
 }
 
-.forward-runtime-action.ant-btn:focus-visible {
+.forward-runtime-action:global(.ant-btn):focus-visible {
   outline: 1px solid color-mix(in srgb, var(--accent) 76%, transparent);
   outline-offset: -2px;
 }
 
-.forward-runtime-action.is-stop.ant-btn:focus-visible {
+.forward-runtime-action.is-stop:global(.ant-btn):focus-visible {
   outline-color: color-mix(in srgb, #ff737a 76%, transparent);
 }
 
-.forward-runtime-action.ant-btn:disabled {
+.forward-runtime-action:global(.ant-btn):disabled {
   background: transparent;
   color: color-mix(in srgb, var(--text-muted) 52%, transparent);
 }
@@ -741,11 +740,11 @@
   font-size: 10px;
 }
 
-.forward-state-feedback .ant-progress {
+.forward-state-feedback :global(.ant-progress) {
   line-height: 1;
 }
 
-.forward-state-feedback .ant-progress-inner {
+.forward-state-feedback :global(.ant-progress-inner) {
   background: color-mix(in srgb, var(--border) 64%, transparent);
 }
 
@@ -851,7 +850,7 @@
   font-size: 10px;
 }
 
-.forward-session-composer-toggle.ant-btn {
+.forward-session-composer-toggle:global(.ant-btn) {
   min-width: 0;
   height: 30px;
   flex: 0 0 auto;
@@ -866,15 +865,15 @@
   box-shadow: none;
 }
 
-.forward-session-composer-toggle.ant-btn:not(:disabled):hover {
+.forward-session-composer-toggle:global(.ant-btn):not(:disabled):hover {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
   background: color-mix(in srgb, var(--accent) 11%, var(--surface));
   color: var(--text-primary);
   transform: none;
 }
 
-.forward-session-composer-toggle .ant-btn-icon,
-.forward-session-composer-toggle > span:not(.ant-btn-icon) {
+.forward-session-composer-toggle :global(.ant-btn-icon),
+.forward-session-composer-toggle > .forward-session-composer-label {
   display: inline-flex;
   align-items: center;
 }
@@ -1072,12 +1071,12 @@
 }
 
 @container forward-session (max-width: 259px) {
-  .forward-mode-selector .ant-segmented-item-label {
+  .forward-mode-selector :global(.ant-segmented-item-label) {
     gap: 3px;
     font-size: 10px;
   }
 
-  .forward-mode-selector .ant-segmented-item-label > span:last-child:not(.ant-segmented-item-icon) {
+  .forward-mode-selector .forward-mode-label {
     display: none;
   }
 
@@ -1098,7 +1097,7 @@
     display: none;
   }
 
-  .forward-session-composer-toggle > span:not(.ant-btn-icon) span {
+  .forward-session-composer-label span {
     display: none;
   }
 }
@@ -1191,7 +1190,7 @@
   padding: 8px 12px;
 }
 
-.forwarding-search.ant-input-affix-wrapper {
+.forwarding-search:global(.ant-input-affix-wrapper) {
   min-width: 0;
   height: 34px;
   border-color: transparent !important;
@@ -1199,26 +1198,26 @@
   box-shadow: none !important;
 }
 
-.forwarding-search.ant-input-affix-wrapper:hover,
-.forwarding-search.ant-input-affix-wrapper-focused {
+.forwarding-search:global(.ant-input-affix-wrapper):hover,
+.forwarding-search:global(.ant-input-affix-wrapper-focused) {
   border-color: color-mix(in srgb, var(--accent) 48%, var(--border)) !important;
 }
 
-.forwarding-search .ant-input,
-.forwarding-search .ant-input-clear-icon {
+.forwarding-search :global(.ant-input),
+.forwarding-search :global(.ant-input-clear-icon) {
   background: transparent !important;
 }
 
-.forwarding-search .ant-input-prefix {
+.forwarding-search :global(.ant-input-prefix) {
   color: var(--text-muted);
 }
 
-.forwarding-mode-tabs.ant-tabs {
+.forwarding-mode-tabs:global(.ant-tabs) {
   width: min(420px, 38vw);
   min-width: 0;
 }
 
-.forwarding-mode-tabs .ant-tabs-nav {
+.forwarding-mode-tabs :global(.ant-tabs-nav) {
   width: 100%;
 }
 
@@ -1398,7 +1397,7 @@
   gap: 4px;
 }
 
-.forwarding-row-action.ant-btn {
+.forwarding-row-action:global(.ant-btn) {
   width: 27px;
   min-width: 27px;
   height: 27px;
@@ -1407,13 +1406,13 @@
   padding: 0;
 }
 
-.forwarding-row-action.ant-btn:not(:disabled):hover {
+.forwarding-row-action:global(.ant-btn):not(:disabled):hover {
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   color: var(--text-primary);
   transform: none;
 }
 
-.forwarding-row-action.is-start.ant-btn:not(:disabled):hover {
+.forwarding-row-action.is-start:global(.ant-btn):not(:disabled):hover {
   color: var(--accent);
 }
 
@@ -1566,8 +1565,14 @@
   max-width: calc(100vw - 28px);
 }
 
-.forwarding-modal .ant-modal-content,
-.forwarding-modal .ant-modal-container {
+.forwarding-modal-root,
+.forwarding-delete-popconfirm,
+.forwarding-select-popup {
+  --forward-management-portal-scope: 1;
+}
+
+.forwarding-modal :global(.ant-modal-content),
+.forwarding-modal :global(.ant-modal-container) {
   display: flex;
   max-height: calc(100dvh - 48px);
   flex-direction: column;
@@ -1577,32 +1582,32 @@
   box-shadow: 0 22px 60px rgb(0 0 0 / 34%);
 }
 
-.forwarding-modal .ant-modal-header {
+.forwarding-modal :global(.ant-modal-header) {
   margin: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   background: var(--forwarding-modal-bg) !important;
   padding: 15px 18px 13px;
 }
 
-.forwarding-modal .ant-modal-title {
+.forwarding-modal :global(.ant-modal-title) {
   color: var(--text-primary);
   font-size: 16px;
   font-weight: 760;
 }
 
-.forwarding-modal .ant-modal-close {
+.forwarding-modal :global(.ant-modal-close) {
   top: 14px;
   right: 14px;
 }
 
-.forwarding-modal .ant-modal-body {
+.forwarding-modal :global(.ant-modal-body) {
   min-height: 0;
   overflow: auto;
   background: var(--forwarding-modal-bg);
   padding: 14px 18px;
 }
 
-.forwarding-modal .ant-modal-footer {
+.forwarding-modal :global(.ant-modal-footer) {
   display: flex;
   justify-content: flex-end;
   gap: 9px;
@@ -1612,9 +1617,9 @@
   padding: 12px 18px 14px;
 }
 
-.forwarding-modal .forward-field .ant-input,
-.forwarding-modal .forward-field .ant-input-number,
-.forwarding-modal .custom-select .ant-select-selector {
+.forwarding-modal .forward-field :global(.ant-input),
+.forwarding-modal .forward-field :global(.ant-input-number),
+.forwarding-modal .forwarding-modal-select :global(.ant-select-selector) {
   min-height: 38px;
 }
 
@@ -1622,44 +1627,44 @@
   background: var(--forwarding-modal-panel-bg);
 }
 
-.forwarding-modal .forward-mode-selector .ant-segmented-item-label {
+.forwarding-modal .forward-mode-selector :global(.ant-segmented-item-label) {
   min-height: 34px;
 }
 
-.forwarding-modal .ant-modal-footer .ant-btn {
+.forwarding-modal :global(.ant-modal-footer) :global(.ant-btn) {
   min-width: 74px;
   height: 36px;
   margin: 0;
   border-radius: 9px;
 }
 
-.forwarding-modal .ant-modal-footer .ant-btn:not(:disabled):hover {
+.forwarding-modal :global(.ant-modal-footer) :global(.ant-btn):not(:disabled):hover {
   transform: none;
 }
 
 .forwarding-profile-list,
 .forwarding-runtime-list,
-.forwarding-modal .ant-modal-body {
+.forwarding-modal :global(.ant-modal-body) {
   scrollbar-color: color-mix(in srgb, var(--text-muted) 30%, transparent) transparent;
   scrollbar-width: thin;
 }
 
 .forwarding-profile-list::-webkit-scrollbar,
 .forwarding-runtime-list::-webkit-scrollbar,
-.forwarding-modal .ant-modal-body::-webkit-scrollbar {
+.forwarding-modal :global(.ant-modal-body)::-webkit-scrollbar {
   width: 9px;
   height: 9px;
 }
 
 .forwarding-profile-list::-webkit-scrollbar-track,
 .forwarding-runtime-list::-webkit-scrollbar-track,
-.forwarding-modal .ant-modal-body::-webkit-scrollbar-track {
+.forwarding-modal :global(.ant-modal-body)::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .forwarding-profile-list::-webkit-scrollbar-thumb,
 .forwarding-runtime-list::-webkit-scrollbar-thumb,
-.forwarding-modal .ant-modal-body::-webkit-scrollbar-thumb {
+.forwarding-modal :global(.ant-modal-body)::-webkit-scrollbar-thumb {
   min-height: 38px;
   border: 3px solid transparent;
   border-radius: 999px;
@@ -1669,20 +1674,20 @@
 
 .forwarding-profile-list::-webkit-scrollbar-thumb:hover,
 .forwarding-runtime-list::-webkit-scrollbar-thumb:hover,
-.forwarding-modal .ant-modal-body::-webkit-scrollbar-thumb:hover {
+.forwarding-modal :global(.ant-modal-body)::-webkit-scrollbar-thumb:hover {
   background: color-mix(in srgb, var(--text-muted) 44%, transparent);
   background-clip: content-box;
 }
 
-:root[data-theme="light"] .forward-route-tooltip .ant-tooltip-inner,
-:root[data-theme="light"] .forward-route-tooltip .ant-tooltip-container {
+:root[data-theme="light"] .forward-route-tooltip :global(.ant-tooltip-inner),
+:root[data-theme="light"] .forward-route-tooltip :global(.ant-tooltip-container) {
   border-color: rgb(30 42 58 / 14%);
   background: #ffffff;
   color: var(--text-primary);
   box-shadow: 0 14px 28px rgb(20 32 48 / 14%);
 }
 
-:root[data-theme="light"] .forward-route-tooltip .ant-tooltip-arrow::before {
+:root[data-theme="light"] .forward-route-tooltip :global(.ant-tooltip-arrow)::before {
   background: #ffffff;
 }
 
@@ -1724,7 +1729,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .forwarding-mode-tabs.ant-tabs {
+  .forwarding-mode-tabs:global(.ant-tabs) {
     width: 100%;
     min-width: 0;
   }
@@ -1779,7 +1784,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .forwarding-mode-tabs.ant-tabs {
+  .forwarding-mode-tabs:global(.ant-tabs) {
     width: 100%;
     min-width: 0;
   }
@@ -1808,9 +1813,8 @@
   .forward-runtime-metric-detail,
   .forward-runtime-action,
   .forward-route-endpoint,
-  .forward-mode-selector .ant-segmented-thumb {
+  .forward-mode-selector :global(.ant-segmented-thumb) {
     transition: none !important;
   }
 }
-}
-/* stylelint-enable termous/no-unscoped-global, declaration-empty-line-before, color-hex-length, value-keyword-case, media-feature-range-notation */
+/* stylelint-enable declaration-empty-line-before, color-hex-length, value-keyword-case, media-feature-range-notation */
