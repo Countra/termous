@@ -141,11 +141,12 @@ vi.mock('#app/app-shell', () => ({
     onNavigate,
   }: {
     children: ReactNode
-    onNavigate: (page: 'workbench' | 'hosts' | 'files' | 'forwards' | 'snippets') => void
+    onNavigate: (page: 'workbench' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets') => void
   }) => (
     <div data-provider="app-shell">
       <button type="button" onClick={() => onNavigate('workbench')}>workbench</button>
       <button type="button" onClick={() => onNavigate('hosts')}>hosts</button>
+      <button type="button" onClick={() => onNavigate('vault')}>vault</button>
       <button type="button" onClick={() => onNavigate('files')}>files</button>
       <button type="button" onClick={() => onNavigate('forwards')}>forwards</button>
       <button type="button" onClick={() => onNavigate('snippets')}>snippets</button>
@@ -252,7 +253,13 @@ vi.mock('#pages/snippets', () => ({
     return null
   },
 }))
-vi.mock('#pages/vault', () => ({ VaultPage: () => null }))
+vi.mock('#pages/vault', () => ({
+  VaultPage: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => (
+    <div data-testid="vault-page">
+      <button type="button" onClick={() => onDirtyChange(true)}>vault-dirty</button>
+    </div>
+  ),
+}))
 vi.mock('#features/hosts', () => ({
   HostLauncherModal: ({ data }: { data: Record<string, unknown> }) => {
     testState.projectionKeys.hostLauncher = Object.keys(data).sort()
@@ -267,7 +274,23 @@ vi.mock('#shared/ui', () => ({
     'modal-root': 'modal-root',
     'modal-wrap': 'modal-wrap',
   },
-  ConfirmDialog: () => null,
+  ConfirmDialog: ({
+    open,
+    title,
+    onCancel,
+    onConfirm,
+  }: {
+    open: boolean
+    title: ReactNode
+    onCancel: () => void
+    onConfirm: () => void
+  }) => open ? (
+    <div role="dialog">
+      <span>{title}</span>
+      <button type="button" onClick={onCancel}>confirm-cancel</button>
+      <button type="button" onClick={onConfirm}>confirm-continue</button>
+    </div>
+  ) : null,
 }))
 vi.mock('#app/update-simulation-slot', () => ({
   readDevelopmentUpdateSimulation: () => null,
@@ -490,6 +513,29 @@ describe('应用运行时组合合同', () => {
     expect(screen.getByTestId('files-page')).toBeInTheDocument()
     expect(testState.filesPageMounts).toBe(2)
     expect(testState.filesPageUnmounts).toBe(1)
+  })
+
+  it('Vault 脏状态只拦截离页导航，并支持取消或确认继续', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'vault' }))
+    await user.click(screen.getByRole('button', { name: 'vault-dirty' }))
+    await user.click(screen.getByRole('button', { name: 'vault' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+    expect(screen.getByTestId('vault-page')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveTextContent('vault.unsavedTitle')
+
+    await user.click(screen.getByRole('button', { name: 'confirm-cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('vault-page')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+    await user.click(screen.getByRole('button', { name: 'confirm-continue' }))
+    expect(screen.queryByTestId('vault-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('hosts-page')).toBeInTheDocument()
   })
 
   it('片段使用次数上报失败不会阻断已完成的工作台回调', async () => {

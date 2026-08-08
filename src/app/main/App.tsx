@@ -40,12 +40,12 @@ import { useUpdateRuntime } from '#features/update'
 import { usePersistentBooleanState } from '#shared/hooks'
 import { getTermousBridge } from '#shared/bridge'
 import type {
-  AppBuildInfo,
   AppLanguage as Language,
   AppTheme as ThemeMode,
   CoreFatalEvent,
   TerminalFont,
   TrayCommand,
+  TrayMenuState,
 } from '#common/contracts'
 import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput } from '#entities/snippet'
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
@@ -66,6 +66,7 @@ import {
 import { FilesWorkspaceRuntimeProvider } from '#widgets/files-workspace'
 import { useFileSessionCoordinator } from './model/useFileSessionCoordinator'
 import { useRealtimeStatusSubscriptions } from './model/useRealtimeStatusSubscriptions'
+import { useDesktopBridgeRuntime } from './model/useDesktopBridgeRuntime'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
 const developmentUpdateSimulation = readDevelopmentUpdateSimulation()
@@ -177,11 +178,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
   const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
-  const [buildInfo, setBuildInfo] = useState<AppBuildInfo | null>(
-    developmentUpdateSimulation?.buildInfo ?? null,
-  )
-  const appVersion = buildInfo?.version ?? import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev'
-  const [coreFatal, setCoreFatal] = useState<CoreFatalEvent | null>(null)
 
   const invalidateFilesBookmarkManagementRequest = useCallback(() => {
     nextFilesBookmarkManagementIntentIdRef.current += 1
@@ -208,28 +204,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [invalidateFilesBookmarkManagementRequest, page])
 
   useEffect(() => {
-    if (initializing || !apiReady) {
-      return
-    }
-    const appearanceTheme = data.settings.appearance.theme
-    setTheme(appearanceTheme)
-    const appearanceBridge = getTermousBridge()?.appearance
-    void appearanceBridge?.setTheme(appearanceTheme).catch(() => undefined)
-  }, [apiReady, data.settings.appearance.theme, initializing, setTheme])
-
-  useEffect(() => {
     if (!selectedHostId && data.hosts[0]) {
       setSelectedHostId(data.hosts[0].id)
     }
   }, [data.hosts, selectedHostId])
-
-  useEffect(() => {
-    if (initializing && !coreFatal) {
-      return
-    }
-    const startupBridge = getTermousBridge()?.startup
-    void startupBridge?.ready()
-  }, [coreFatal, initializing])
 
   useEffect(() => {
     const preventFileDropNavigation = (event: globalThis.DragEvent) => {
@@ -254,29 +232,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
     notifyForwardError(forwardErrorEvent, notification, t, notifiedForwardFailuresRef, notifiedForwardRuntimeErrorsRef)
   }, [forwardErrorEvent, notification, t])
-
-  useEffect(() => {
-    let disposed = false
-    const bridge = getTermousBridge()
-    void bridge?.getBuildInfo?.()
-      .then((info) => {
-        if (!disposed && info?.version) {
-          setBuildInfo(info)
-        }
-      })
-      .catch(() => undefined)
-    const coreBridge = bridge?.core
-    void coreBridge?.getFatal().then((fatal) => {
-      if (!disposed && fatal) {
-        setCoreFatal(fatal)
-      }
-    })
-    const cleanup = coreBridge?.onFatal((fatal) => setCoreFatal(fatal))
-    return () => {
-      disposed = true
-      cleanup?.()
-    }
-  }, [])
 
   const selectedHostIdStable = useMemo(() => {
     if (data.hosts.some((host) => host.id === selectedHostId)) {
@@ -310,6 +265,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }),
     [t],
   )
+  const trayState = useMemo<TrayMenuState>(() => ({
+    language: data.settings.language,
+    recentHosts: trayRecentHosts,
+    labels: trayLabels,
+  }), [data.settings.language, trayLabels, trayRecentHosts])
 
   const hostManagementData = useMemo<HostsPageProps['data']>(() => ({
     hosts: data.hosts,
@@ -381,27 +341,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       },
     }
   }, [updateRuntime])
-
-  useEffect(() => {
-    if (!error) {
-      setCoreFatal((current) => (current?.code === 'LOCAL_API_UNAVAILABLE' ? null : current))
-      return
-    }
-    setCoreFatal((current) => current ?? {
-      title: t('app.coreFatalTitle'),
-      message: error,
-      code: 'LOCAL_API_UNAVAILABLE',
-    })
-  }, [error, t])
-
-  useEffect(() => {
-    const trayBridge = getTermousBridge()?.tray
-    void trayBridge?.updateState({
-      language: data.settings.language,
-      recentHosts: trayRecentHosts,
-      labels: trayLabels,
-    }).catch(() => undefined)
-  }, [data.settings.language, trayLabels, trayRecentHosts])
 
   const runAction = useCallback(async <T,>(task: () => Promise<T>, success?: string): Promise<T | undefined> => {
     setActionBusy(true)
@@ -787,29 +726,39 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     void runAction(() => actions.openLocalTerminal(shell).then(() => undefined))
   }
 
-  useEffect(() => {
-    const trayBridge = getTermousBridge()?.tray
-    const cleanup = trayBridge?.onCommand((command) => {
-      if (!isTrayCommand(command)) {
-        return
-      }
-      if (command.type === 'open-host-launcher') {
-        openHostLauncher('terminal')
-        return
-      }
-      if (command.type === 'open-forwards') {
-        setPage('forwards')
-        return
-      }
-      if (command.type === 'connect-recent-host') {
-        void runAction(async () => {
-          await actions.connect(command.hostId)
-          setPage('workbench')
-        })
-      }
-    })
-    return () => cleanup?.()
+  const handleTrayCommand = useCallback((command: TrayCommand) => {
+    if (command.type === 'open-host-launcher') {
+      openHostLauncher('terminal')
+      return
+    }
+    if (command.type === 'open-forwards') {
+      setPage('forwards')
+      return
+    }
+    if (command.type === 'connect-recent-host') {
+      void runAction(async () => {
+        await actions.connect(command.hostId)
+        setPage('workbench')
+      })
+    }
   }, [actions, openHostLauncher, runAction])
+
+  const { buildInfo, nativeCoreFatal } = useDesktopBridgeRuntime({
+    initialBuildInfo: developmentUpdateSimulation?.buildInfo ?? null,
+    initializing,
+    startupFailed: Boolean(error),
+    apiReady,
+    appearanceTheme: data.settings.appearance.theme,
+    onThemeChange: setTheme,
+    trayState,
+    onTrayCommand: handleTrayCommand,
+  })
+  const appVersion = buildInfo?.version ?? import.meta.env.VITE_TERMOUS_APP_VERSION ?? '0.0.0-dev'
+  const coreFatal: CoreFatalEvent | null = nativeCoreFatal ?? (error ? {
+    title: t('app.coreFatalTitle'),
+    message: error,
+    code: 'LOCAL_API_UNAVAILABLE',
+  } : null)
 
   return (
     <ShortcutRuntimeProvider settings={data.settings.shortcuts}>
@@ -1197,15 +1146,4 @@ function notifyForwardError(
 function readTimestamp(value?: string) {
   const timestamp = new Date(value ?? '').getTime()
   return Number.isFinite(timestamp) ? timestamp : 0
-}
-
-function isTrayCommand(command: unknown): command is TrayCommand {
-  if (!command || typeof command !== 'object') {
-    return false
-  }
-  const value = command as { type?: unknown; hostId?: unknown }
-  if (value.type === 'connect-recent-host') {
-    return typeof value.hostId === 'string' && value.hostId.length > 0
-  }
-  return value.type === 'open-app' || value.type === 'open-host-launcher' || value.type === 'open-forwards'
 }
