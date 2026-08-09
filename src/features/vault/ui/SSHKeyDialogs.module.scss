@@ -194,8 +194,8 @@
   font-weight: 680;
 }
 
-.ssh-key-form-field :global(.ant-input),
-.ssh-key-form-field :global(.ant-input-affix-wrapper) {
+.ssh-key-form-field > :global(.ant-input),
+.ssh-key-form-field > :global(.ant-input-affix-wrapper) {
   background: var(--surface-subtle) !important;
 }
 

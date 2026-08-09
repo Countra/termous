@@ -50,10 +50,16 @@ test('Alias 同步弹窗通过 Module 类约束内部样式与 Portal', () => {
 
 test('Alias 关键滚动、弹层与紧凑列表尺寸保持不变', () => {
   assert.match(panel.source, /\.alias-panel-list\s*\{[^}]*overflow-y:\s*auto/s)
+  assert.match(syncModal.source, /\.modal\s*\{[^}]*--alias-sync-modal-bg:\s*#20242d;/s)
   assert.match(
     syncModal.source,
-    /\.modal\s+:global\(\.ant-modal-container\)\s*\{[^}]*background:\s*var\(--surface-strong\);[^}]*padding:\s*0;/s,
+    /:global\(:root\[data-theme="light"\]\) &\s*\{[^}]*--alias-sync-modal-bg:\s*#fff;/s,
   )
+  assert.match(
+    syncModal.source,
+    /\.modal\s+:global\(\.ant-modal-container\)\s*\{[^}]*background:\s*var\(--alias-sync-modal-bg\);[^}]*padding:\s*0;/s,
+  )
+  assert.doesNotMatch(syncModal.source, /var\(--surface-strong\)/)
   assert.match(
     syncModal.source,
     /\.select-row:global\(\.ant-checkbox-wrapper\)\s*\{[^}]*height:\s*52px;[^}]*padding:\s*6px 8px;/s,

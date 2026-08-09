@@ -51,6 +51,7 @@
   --row-hover-bg: rgba(255, 255, 255, 0.055);
   --row-active-bg: rgba(97, 168, 255, 0.14);
   --host-avatar-bg: rgba(255, 255, 255, 0.07);
+  --termous-dropdown-bg: #20242d;
   --termous-scrollbar-thumb: color-mix(in srgb, var(--text-muted) 26%, transparent);
   --termous-scrollbar-thumb-hover: color-mix(in srgb, var(--text-muted) 40%, transparent);
   --termous-scrollbar-track: transparent;
@@ -97,6 +98,7 @@
   --row-hover-bg: rgba(20, 28, 42, 0.055);
   --row-active-bg: rgba(31, 111, 235, 0.1);
   --host-avatar-bg: rgba(31, 111, 235, 0.08);
+  --termous-dropdown-bg: #fff;
   --termous-scrollbar-thumb: rgb(58 72 92 / 20%);
   --termous-scrollbar-thumb-hover: rgb(58 72 92 / 34%);
   --termous-search-bg: rgb(255 255 255 / 42%);
@@ -148,6 +150,27 @@
 :where(body[data-termous-main-surface='true'])::-webkit-scrollbar-corner,
 :where(body[data-termous-main-surface='true']) *::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* AntD 虚拟列表使用自绘滚动条，保留拖拽区域的同时收窄可见滑块。 */
+:where(body[data-termous-main-surface='true']) .ant-select-dropdown {
+  --rc-virtual-list-scrollbar-bg: var(--termous-scrollbar-thumb);
+}
+
+:where(body[data-termous-main-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-vertical {
+  width: 9px !important;
+  inset-inline-end: 2px !important;
+}
+
+:where(body[data-termous-main-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-thumb {
+  border-inline: 2px solid transparent;
+  background-clip: content-box !important;
+  transition: background 0.16s ease;
+}
+
+:where(body[data-termous-main-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-thumb:hover,
+:where(body[data-termous-main-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-thumb-moving {
+  --rc-virtual-list-scrollbar-bg: var(--termous-scrollbar-thumb-hover);
 }
 
 html,

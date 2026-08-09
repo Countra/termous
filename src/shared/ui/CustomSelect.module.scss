@@ -48,20 +48,17 @@
 .select-popup:global(.ant-select-dropdown) {
   border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 12px;
-  background: var(--surface-strong) !important;
+  background: var(--termous-dropdown-bg) !important;
   box-shadow:
     0 18px 42px rgb(0 0 0 / 32%),
     var(--inner-highlight);
   padding: 6px;
 }
 
-.select-popup {
-  :global(:root[data-theme="dark"]) &:global(.ant-select-dropdown),
-  :global(:root[data-theme="dark"]) & :global(.rc-virtual-list),
-  :global(:root[data-theme="dark"]) & :global(.rc-virtual-list-holder),
-  :global(:root[data-theme="dark"]) & :global(.rc-virtual-list-holder-inner) {
-    background: var(--surface-strong) !important;
-  }
+.select-popup :global(.rc-virtual-list),
+.select-popup :global(.rc-virtual-list-holder),
+.select-popup :global(.rc-virtual-list-holder-inner) {
+  background: var(--termous-dropdown-bg) !important;
 }
 
 .select-popup :global(.ant-select-item) {

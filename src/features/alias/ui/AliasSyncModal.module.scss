@@ -9,17 +9,25 @@
   backdrop-filter: none;
 }
 
+.modal {
+  --alias-sync-modal-bg: #20242d;
+
+  :global(:root[data-theme="light"]) & {
+    --alias-sync-modal-bg: #fff;
+  }
+}
+
 .host-tooltip:global(.ant-tooltip) {
   z-index: 3800;
 }
 
 .modal :global(.ant-modal-container) {
-  --ant-modal-content-bg: var(--surface-strong);
+  --ant-modal-content-bg: var(--alias-sync-modal-bg);
   overflow: hidden;
   max-height: calc(100vh - 24px);
   border: 1px solid var(--border-strong);
   border-radius: 14px;
-  background: var(--surface-strong);
+  background: var(--alias-sync-modal-bg);
   box-shadow: 0 22px 64px rgb(0 0 0 / 34%);
   padding: 0;
 }

@@ -201,10 +201,16 @@ test('活动任务可在 Shell 尚未解析时重挂且成功目标展示生效�
 })
 
 test('同步弹窗使用 AntD 6 单一外壳且列表行从顶部紧凑排列', () => {
+  assert.match(aliasSyncStyles, /\.modal\s*\{[^}]*--alias-sync-modal-bg:\s*#20242d;/s)
   assert.match(
     aliasSyncStyles,
-    /\.modal\s+:global\(\.ant-modal-container\)\s*\{[^}]*background:\s*var\(--surface-strong\);[^}]*padding:\s*0;/s,
+    /:global\(:root\[data-theme="light"\]\) &\s*\{[^}]*--alias-sync-modal-bg:\s*#fff;/s,
   )
+  assert.match(
+    aliasSyncStyles,
+    /\.modal\s+:global\(\.ant-modal-container\)\s*\{[^}]*background:\s*var\(--alias-sync-modal-bg\);[^}]*padding:\s*0;/s,
+  )
+  assert.doesNotMatch(aliasSyncStyles, /var\(--surface-strong\)/)
   assert.doesNotMatch(aliasSyncStyles, /\.modal\s+:global\(\.ant-modal-content\)\s*\{/)
   assert.match(
     aliasSyncStyles,
