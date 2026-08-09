@@ -87,7 +87,9 @@ let mainWindowReady = false
 let startupReadyRequested = false
 let startupCompleted = false
 let splashPhase: StartupPhase = 'core'
-let splashStartedAt = 0
+let splashShownAt: number | null = null
+let splashReadyForDisplay = false
+let splashFocusRequested = false
 let startupCompletionTimer: NodeJS.Timeout | null = null
 
 const exitCoordinator = new AppExitCoordinator({
@@ -549,8 +551,10 @@ function createSplashWindow() {
   if (splashWin && !splashWin.isDestroyed()) {
     return
   }
-  splashStartedAt = Date.now()
-  splashWin = new BrowserWindow({
+  splashShownAt = null
+  splashReadyForDisplay = false
+  splashFocusRequested = false
+  const target = new BrowserWindow({
     width: 400,
     height: 236,
     useContentSize: true,
@@ -571,20 +575,40 @@ function createSplashWindow() {
       sandbox: true,
     },
   })
-  splashWin.center()
-  splashWin.once('ready-to-show', () => {
-    if (!startupCompleted) {
-      splashWin?.show()
+  splashWin = target
+  target.center()
+  target.once('ready-to-show', () => {
+    if (splashWin !== target || startupCompleted) {
+      return
+    }
+    splashReadyForDisplay = true
+    showSplashWindow()
+  })
+  target.webContents.once('did-finish-load', () => {
+    if (splashWin === target) {
+      applySplashPhase()
+      if (!splashReadyForDisplay) {
+        splashReadyForDisplay = true
+        showSplashWindow()
+      }
     }
   })
-  splashWin.webContents.once('did-finish-load', applySplashPhase)
-  splashWin.on('closed', () => {
-    splashWin = null
+  target.on('closed', () => {
+    if (splashWin === target) {
+      splashWin = null
+      splashShownAt = null
+      splashReadyForDisplay = false
+      splashFocusRequested = false
+    }
   })
-  void splashWin
+  void target
     .loadFile(path.join(process.env.VITE_PUBLIC, 'startup.html'), { query: { theme: appTheme } })
     .catch(() => {
+      if (splashWin !== target) {
+        return
+      }
       closeSplashWindow()
+      tryCompleteStartup()
     })
 }
 
@@ -603,17 +627,42 @@ function updateSplashPhase(phase: StartupPhase) {
 }
 
 function closeSplashWindow() {
-  if (splashWin && !splashWin.isDestroyed()) {
-    splashWin.destroy()
-  }
-  splashWin = null
-}
-
-function prepareApplicationExit() {
   if (startupCompletionTimer) {
     clearTimeout(startupCompletionTimer)
     startupCompletionTimer = null
   }
+  if (splashWin && !splashWin.isDestroyed()) {
+    splashWin.destroy()
+  }
+  splashWin = null
+  splashShownAt = null
+  splashReadyForDisplay = false
+  splashFocusRequested = false
+}
+
+function showSplashWindow(focus = false) {
+  const target = splashWin
+  if (!target || target.isDestroyed() || startupCompleted) {
+    return
+  }
+  if (focus) {
+    splashFocusRequested = true
+  }
+  if (!splashReadyForDisplay) {
+    return
+  }
+  target.show()
+  if (splashShownAt === null) {
+    splashShownAt = Date.now()
+  }
+  if (splashFocusRequested) {
+    target.focus()
+    splashFocusRequested = false
+  }
+  tryCompleteStartup()
+}
+
+function prepareApplicationExit() {
   closeSplashWindow()
   trayController.destroy()
 }
@@ -656,9 +705,14 @@ function tryCompleteStartup() {
   if (startupCompleted || startupCompletionTimer || !startupReadyRequested || !mainWindowReady) {
     return
   }
-  const remaining = splashWin
-    ? Math.max(0, STARTUP_MIN_VISIBLE_MS - (Date.now() - splashStartedAt))
-    : 0
+  let remaining = 0
+  const target = splashWin
+  if (target && !target.isDestroyed()) {
+    if (splashShownAt === null) {
+      return
+    }
+    remaining = Math.max(0, STARTUP_MIN_VISIBLE_MS - (Date.now() - splashShownAt))
+  }
   startupCompletionTimer = setTimeout(() => {
     startupCompletionTimer = null
     if (!startupReadyRequested || !mainWindowReady) {
@@ -797,8 +851,7 @@ function showMainWindow() {
   }
   if (!startupCompleted) {
     if (splashWin && !splashWin.isDestroyed()) {
-      splashWin.show()
-      splashWin.focus()
+      showSplashWindow(true)
     }
     return
   }
