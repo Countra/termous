@@ -231,7 +231,7 @@ if ($phase -in @("all", "prepare")) {
     "build",
     "-trimpath",
     "-ldflags",
-    "-s -w -X termous/backend/internal/buildinfo.Version=$version",
+    "-s -w -X termous/backend/internal/platform/buildinfo.Version=$version",
     "-o",
     $coreExe,
     "./cmd/termous-core"
