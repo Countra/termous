@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ChangeEvent, ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ForwardInstance, ForwardMode } from '#entities/forward'
+import type { ForwardInstance, ForwardMode, ForwardProfile } from '#entities/forward'
 import type { Host } from '#entities/host'
 
 const workspaceMocks = vi.hoisted(() => ({
@@ -87,6 +87,7 @@ vi.mock('antd', () => {
     Input,
     Modal: ({
       open,
+      title,
       children,
       okText,
       cancelText,
@@ -94,6 +95,7 @@ vi.mock('antd', () => {
       onCancel,
     }: {
       open: boolean
+      title?: ReactNode
       children?: ReactNode
       okText?: ReactNode
       cancelText?: ReactNode
@@ -101,6 +103,7 @@ vi.mock('antd', () => {
       onCancel?: () => void
     }) => open ? (
       <div role="dialog">
+        {title}
         {children}
         <button type="button" onClick={onCancel}>{cancelText}</button>
         <button type="button" onClick={onOk}>{okText}</button>
@@ -146,6 +149,9 @@ vi.mock('#shared/ui', () => ({
         ))}
       </select>
     </label>
+  ),
+  EditorModeContext: ({ mode, label, title }: { mode: string; label: string; title?: ReactNode }) => (
+    <div data-editor-mode={mode}>{title}<span>{label}</span></div>
   ),
   ManagementFilterTabs: () => null,
   StatusBadge: () => null,
@@ -223,6 +229,22 @@ function workspaceProps() {
   } satisfies ComponentProps<typeof ForwardManagementWorkspace>
 }
 
+function profile(): ForwardProfile {
+  return {
+    id: 'profile-a',
+    name: 'Profile Alpha',
+    description: '',
+    mode: 'local',
+    host_id: 'host-a',
+    bind_host: '127.0.0.1',
+    bind_port: 8080,
+    target_host: '127.0.0.1',
+    target_port: 80,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  }
+}
+
 describe('端口转发临时启动意图', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -235,6 +257,8 @@ describe('端口转发临时启动意图', () => {
 
     const hostSelect = await screen.findByRole('combobox', { name: 'forwards.host' })
     expect(hostSelect).toHaveValue('host-b')
+    expect(screen.getByText('forwards.temporaryTitle')).toBeInTheDocument()
+    expect(document.querySelector('[data-editor-mode]')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'select-dynamic' }))
     await user.click(screen.getByRole('button', { name: 'forwards.start' }))
@@ -265,5 +289,34 @@ describe('端口转发临时启动意图', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(props.onStartForward).toHaveBeenCalledTimes(1)
+  })
+
+  it('Profile 弹窗区分新建和编辑模式，临时转发不复用模式标识', async () => {
+    const user = userEvent.setup()
+    const props = workspaceProps()
+    const savedProfile = profile()
+    render(
+      <ForwardManagementWorkspace
+        {...props}
+        temporaryIntent={undefined}
+        data={{
+          ...props.data,
+          forwardProfiles: [savedProfile],
+        }}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'forwards.newProfile' }))
+    const createContext = document.querySelector('[data-editor-mode="create"]')
+    expect(createContext).toHaveTextContent('forwards.profiles')
+    expect(createContext).toHaveTextContent('app.add')
+    expect(screen.getByRole('button', { name: 'app.create' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'app.cancel' }))
+    await user.click(screen.getByRole('button', { name: 'app.update' }))
+    const editContext = document.querySelector('[data-editor-mode="edit"]')
+    expect(editContext).toHaveTextContent('Profile Alpha')
+    expect(editContext).toHaveTextContent('app.edit')
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeInTheDocument()
   })
 })

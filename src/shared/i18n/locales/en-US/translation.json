@@ -9,6 +9,7 @@
     "disconnect": "Disconnect",
     "save": "Save",
     "create": "Create",
+    "add": "Add",
     "update": "Update",
     "edit": "Edit",
     "delete": "Delete",
@@ -298,10 +299,7 @@
       "noResults": "No matching aliases",
       "noAliases": "No command aliases",
       "noAliasesHint": "Create short names for frequently used commands.",
-      "createTitle": "New command alias",
-      "editTitle": "Edit command alias",
       "backToList": "Back to alias list",
-      "editorHint": "Configure the alias for the remote login shell.",
       "name": "Alias",
       "namePlaceholder": "For example, ll",
       "nameRequired": "Enter an alias",
@@ -972,8 +970,7 @@
         "description": "The note must be 120 characters or fewer"
       },
       "editor": {
-        "createTitle": "Add inbound rule",
-        "editTitle": "Edit inbound rule",
+        "ruleTitle": "Inbound rule",
         "save": "Save rule",
         "descriptionPlaceholder": "Example: Web service access"
       },

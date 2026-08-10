@@ -520,26 +520,8 @@
       padding: 0 6px;
     }
 
-    .files-bookmarks-sidebar-editor-heading > span {
-      display: flex;
-      min-width: 0;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
-    }
-
-    .files-bookmarks-sidebar-editor-heading > span svg {
-      flex: 0 0 auto;
-      color: var(--accent);
-    }
-
-    .files-bookmarks-sidebar-editor-heading strong {
-      overflow: hidden;
-      color: var(--text-primary);
-      font-size: 12px;
-      font-weight: 720;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .files-bookmarks-sidebar-editor-mode {
+      justify-self: center;
     }
 
     .files-bookmarks-sidebar-editor-body {
@@ -554,14 +536,22 @@
 
     .files-bookmarks-sidebar-editor-intro {
       display: grid;
+      min-width: 0;
       gap: 4px;
       padding-bottom: 2px;
     }
 
     .files-bookmarks-sidebar-editor-intro strong {
+      display: block;
+      width: fit-content;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
       color: var(--text-primary);
       font-size: 14px;
       font-weight: 740;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .files-bookmarks-sidebar-editor-intro span {

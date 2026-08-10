@@ -481,27 +481,22 @@
 }
 
 .alias-editor-page-header > div {
+  display: grid;
   min-width: 0;
+  justify-items: start;
+  gap: 3px;
 }
 
-.alias-editor-page-header strong,
-.alias-editor-page-header > div > span {
+.alias-editor-page-title {
   display: block;
+  max-width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.alias-editor-page-header strong {
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 760;
-}
-
-.alias-editor-page-header > div > span {
-  margin-top: 1px;
-  color: var(--text-muted);
-  font-size: 10px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .alias-editor-page-body {

@@ -23,6 +23,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Save,
   Search,
   Trash2,
   X,
@@ -47,7 +48,7 @@ import type {
   FileBookmarkReorderItem,
 } from '#entities/file'
 import { normalizeRemotePosixPath } from '#shared/path'
-import { contextActionMenuPopupClassName, customSelectStyles, uiStyles } from '#shared/ui'
+import { contextActionMenuPopupClassName, customSelectStyles, EditorModeContext, uiStyles } from '#shared/ui'
 import {
   buildBookmarkGroups,
   buildBookmarkReorderItems,
@@ -1585,14 +1586,12 @@ function SidebarEditor({
             onClick={onCancel}
           />
         </Tooltip>
-        <span>
-          {bookmarkEditor ? (
-            <Bookmark size={15} aria-hidden="true" />
-          ) : (
-            <Folder size={15} aria-hidden="true" />
-          )}
-          <strong>{title}</strong>
-        </span>
+        <EditorModeContext
+          className="files-bookmarks-sidebar-editor-mode"
+          mode={editing ? 'edit' : 'create'}
+          size="compact"
+          label={t(editing ? 'app.edit' : 'app.add')}
+        />
         <Tooltip title={t('app.close')} placement="bottom">
           <Button
             type="text"
@@ -1607,7 +1606,7 @@ function SidebarEditor({
 
       <div className="files-bookmarks-sidebar-editor-body">
         <div className="files-bookmarks-sidebar-editor-intro">
-          <strong>{title}</strong>
+          <strong>{view.draft.name.trim() || title}</strong>
           <span>
             {t(bookmarkEditor
               ? 'files.bookmarkInlineHint'
@@ -1684,7 +1683,9 @@ function SidebarEditor({
         </Button>
         <Button
           type="primary"
-          icon={<Check size={14} aria-hidden="true" />}
+          icon={editing
+            ? <Save size={14} aria-hidden="true" />
+            : <Plus size={14} aria-hidden="true" />}
           loading={saving}
           disabled={blocked}
           onClick={onSave}

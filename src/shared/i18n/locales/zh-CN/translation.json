@@ -9,6 +9,7 @@
     "disconnect": "断开",
     "save": "保存",
     "create": "新建",
+    "add": "新增",
     "update": "更新",
     "edit": "编辑",
     "delete": "删除",
@@ -298,10 +299,7 @@
       "noResults": "没有匹配的别名",
       "noAliases": "暂无命令别名",
       "noAliasesHint": "创建常用命令的短名称，减少重复输入。",
-      "createTitle": "新建命令别名",
-      "editTitle": "编辑命令别名",
       "backToList": "返回别名列表",
-      "editorHint": "配置远端登录 Shell 使用的命令别名。",
       "name": "别名",
       "namePlaceholder": "例如 ll",
       "nameRequired": "请输入别名",
@@ -972,8 +970,7 @@
         "description": "备注不能超过 120 个字符"
       },
       "editor": {
-        "createTitle": "新增入站规则",
-        "editTitle": "编辑入站规则",
+        "ruleTitle": "入站规则",
         "save": "保存规则",
         "descriptionPlaceholder": "例如：Web 服务入口"
       },

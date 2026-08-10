@@ -229,6 +229,19 @@ vi.mock('#shared/ui', () => ({
       </select>
     </label>
   ),
+  EditorModeContext: ({
+    className,
+    mode,
+    label,
+    title,
+  }: {
+    className?: string
+    mode: string
+    label: string
+    title?: ReactNode
+  }) => (
+    <div className={className} data-editor-mode={mode}>{title}<span>{label}</span></div>
+  ),
   GroupManagerModal: () => null,
 }))
 
@@ -304,6 +317,13 @@ describe('命令片段管理工作区状态合同', () => {
       expect(document.getElementById('snippet-name')).toHaveValue('')
       expect(document.getElementById('snippet-command')).toHaveValue('')
     })
+    const createMode = document.querySelector('[data-editor-mode="create"]')
+    const editorTitle = document.querySelector<HTMLHeadingElement>('.snippet-editor-identity h2')
+    expect(createMode).toHaveTextContent('snippets.newSnippet')
+    expect(createMode).toHaveTextContent('app.add')
+    expect(createMode).toContainElement(editorTitle)
+    expect(screen.getByRole('button', { name: 'app.create' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'app.delete' })).not.toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'snippets.discardTitle' })).toBeNull()
   })
 
@@ -316,7 +336,13 @@ describe('命令片段管理工作区状态合同', () => {
     const nameInput = document.getElementById('snippet-name') as HTMLInputElement
     const saveButton = screen.getByRole('button', { name: 'app.save' })
 
+    expect(document.querySelector('[data-editor-mode="edit"]')).toHaveTextContent('Alpha')
+    expect(document.querySelector('[data-editor-mode="edit"]')).toHaveTextContent('app.edit')
+    expect(screen.getByRole('button', { name: 'app.delete' })).toBeInTheDocument()
+
     await user.clear(nameInput)
+    expect(document.querySelector('[data-editor-mode="edit"]')).toHaveTextContent('Alpha')
+    expect(document.querySelector('[data-editor-mode="edit"]')).not.toHaveTextContent('snippets.newSnippet')
     await user.type(nameInput, '  Local draft  ')
     expect(saveButton).toBeEnabled()
 
@@ -362,13 +388,13 @@ describe('命令片段管理工作区状态合同', () => {
     const commandInput = document.getElementById('snippet-command') as HTMLTextAreaElement
     await user.type(nameInput, 'Pending snippet')
     await user.type(commandInput, 'echo pending')
-    await user.click(screen.getByRole('button', { name: 'app.save' }))
+    await user.click(screen.getByRole('button', { name: 'app.create' }))
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
     expect(nameInput).toHaveValue('Pending snippet')
     expect(commandInput).toHaveValue('echo pending')
     expect(screen.getByText('snippets.unsaved')).toBeVisible()
-    expect(screen.getByRole('button', { name: 'app.save' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'app.create' })).toBeEnabled()
   })
 
   it('外部快照刷新不会覆盖脏草稿，清洁状态才同步服务端内容', async () => {

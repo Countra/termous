@@ -19,7 +19,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TextAreaRef } from 'antd/es/input/TextArea'
-import { ConnectionActionButton, CustomSelect, customSelectStyles, GroupManagerModal, uiStyles } from '#shared/ui'
+import { ConnectionActionButton, CustomSelect, customSelectStyles, EditorModeContext, GroupManagerModal, uiStyles } from '#shared/ui'
 import type { GroupReorderItem } from '#shared/model'
 import {
   analyzeSnippetRisk,
@@ -220,6 +220,7 @@ export function SnippetManagementWorkspace({
         form={form}
         groups={data.snippetGroups}
         editingId={editingId}
+        editingName={editing?.name}
         actionBusy={actionBusy}
         dirty={dirty}
         canSave={canSave}
@@ -433,6 +434,7 @@ function SnippetEditor({
   form,
   groups,
   editingId,
+  editingName,
   actionBusy,
   dirty,
   canSave,
@@ -449,6 +451,7 @@ function SnippetEditor({
   form: CodeSnippetInput
   groups: CodeSnippetGroup[]
   editingId: string | null
+  editingName?: string
   actionBusy: boolean
   dirty: boolean
   canSave: boolean
@@ -475,6 +478,9 @@ function SnippetEditor({
   const normalizedVariableName = variableName.trim()
   const variableNameValid = /^[a-zA-Z_][\w.-]{0,63}$/.test(normalizedVariableName)
   const normalizedGroupName = groupName.trim().replace(/\s+/g, ' ')
+  const displayName = form.name.trim()
+    || editingName?.trim()
+    || t(editingId ? 'snippets.editor' : 'snippets.newSnippet')
 
   const createGroup = async () => {
     if (!normalizedGroupName || creatingGroup) return
@@ -549,10 +555,16 @@ function SnippetEditor({
             {t('snippets.backToList')}
           </Button>
           <span className="snippet-editor-identity-icon"><Code2 size={18} aria-hidden="true" /></span>
-          <div>
-            <span>{editingId ? t('snippets.editor') : t('snippets.newSnippet')}</span>
-            <h2>{form.name || t('snippets.newSnippet')}</h2>
-          </div>
+          <EditorModeContext
+            className="snippet-editor-context"
+            mode={editingId ? 'edit' : 'create'}
+            label={t(editingId ? 'app.edit' : 'app.add')}
+            title={(
+              <Tooltip title={displayName} rootClassName={uiStyles.tooltip}>
+                <h2>{displayName}</h2>
+              </Tooltip>
+            )}
+          />
         </div>
         <div className="snippet-editor-status">
           {dirty ? <Tag className="snippet-dirty-tag">{t('snippets.unsaved')}</Tag> : null}
@@ -770,26 +782,28 @@ function SnippetEditor({
         </section>
       </div>
       <footer className="snippet-management-editor-footer">
-        <Popconfirm
-          title={t('app.confirmDelete')}
-          description={t('snippets.deleteHint')}
-          okText={t('app.delete')}
-          cancelText={t('app.cancel')}
-          disabled={!editingId || actionBusy}
-          onConfirm={onDelete}
-        >
-          <Button danger disabled={!editingId || actionBusy} icon={<Trash2 size={15} />}>
-            {t('app.delete')}
-          </Button>
-        </Popconfirm>
+        {editingId ? (
+          <Popconfirm
+            title={t('app.confirmDelete')}
+            description={t('snippets.deleteHint')}
+            okText={t('app.delete')}
+            cancelText={t('app.cancel')}
+            disabled={actionBusy}
+            onConfirm={onDelete}
+          >
+            <Button danger disabled={actionBusy} icon={<Trash2 size={15} />}>
+              {t('app.delete')}
+            </Button>
+          </Popconfirm>
+        ) : null}
         <ConnectionActionButton
           className="snippet-save-button"
           disabled={actionBusy || !canSave || !dirty}
           loading={actionBusy}
-          icon={<Save size={15} />}
+          icon={editingId ? <Save size={15} /> : <Plus size={15} />}
           onClick={onSave}
         >
-          {t('app.save')}
+          {t(editingId ? 'app.save' : 'app.create')}
         </ConnectionActionButton>
       </footer>
     </section>

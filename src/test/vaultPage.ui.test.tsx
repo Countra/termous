@@ -286,6 +286,53 @@ describe('凭据库页面状态合同', () => {
     expect(onDirtyChange).toHaveBeenLastCalledWith(false)
   })
 
+  it('新建凭据失败时保留草稿，成功同步快照后进入编辑状态', async () => {
+    const user = userEvent.setup()
+    const saved = credential('credential-created', 'Server created credential')
+    const saveRequest = deferred<CredentialView>()
+    const onSave = vi.fn<(
+      id: string | null,
+      input: CredentialInput,
+    ) => Promise<CredentialView | undefined>>()
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(async () => saveRequest.promise)
+    const view = renderVault([], { onSave })
+
+    await user.click(screen.getByRole('button', { name: 'create-credential' }))
+    fireEvent.change(screen.getByLabelText('credential-draft-name'), {
+      target: { value: 'Pending credential' },
+    })
+    await user.click(screen.getByRole('button', { name: 'save-credential' }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect(onSave).toHaveBeenLastCalledWith(
+      null,
+      expect.objectContaining({ name: 'Pending credential' }),
+    )
+    expect(screen.getByTestId('editing-id')).toHaveTextContent('new')
+    expect(screen.getByTestId('draft-name')).toHaveTextContent('Pending credential')
+    expect(screen.getByTestId('draft-dirty')).toHaveTextContent('true')
+
+    await user.click(screen.getByRole('button', { name: 'save-credential' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2))
+    view.rerender(
+      <VaultPage
+        {...view.pageProps}
+        credentials={[saved]}
+      />,
+    )
+    await act(async () => {
+      saveRequest.resolve(saved)
+      await saveRequest.promise
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('editing-id')).toHaveTextContent(saved.id)
+      expect(screen.getByTestId('draft-name')).toHaveTextContent(saved.name)
+      expect(screen.getByTestId('draft-dirty')).toHaveTextContent('false')
+    })
+  })
+
   it('外部快照刷新不会覆盖脏草稿及其原始基线', async () => {
     const user = userEvent.setup()
     const original = credential('credential-a', 'Original snapshot')

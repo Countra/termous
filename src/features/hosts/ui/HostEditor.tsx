@@ -1,5 +1,5 @@
 import { Button, Input, InputNumber, Popconfirm, Radio, Select, Tooltip } from 'antd'
-import { ArrowLeft, FileKey2, ImageOff, ImagePlus, KeyRound, Network, Plus, ServerCog, Settings2, Trash2 } from 'lucide-react'
+import { ArrowLeft, FileKey2, ImageOff, ImagePlus, KeyRound, Network, Plus, Save, ServerCog, Settings2, Trash2 } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -9,7 +9,7 @@ import {
   type HostGroup,
   type HostInput,
 } from '#entities/host'
-import { ConnectionActionButton, customSelectStyles, ManagementPanel } from '#shared/ui'
+import { ConnectionActionButton, customSelectStyles, EditorModeContext, ManagementPanel } from '#shared/ui'
 import { connectionProxyTypeLabelKey } from '#entities/connection-proxy'
 import {
   HOST_ICON_ACCEPT,
@@ -82,7 +82,10 @@ export function HostEditor({
   )
   const hasErrors = Object.values(errors).some(Boolean)
   const visibleErrors = dirty ? errors : {}
-  const displayName = draft.name.trim() || draft.address.trim() || t('hosts.newHost')
+  const displayName = draft.name.trim()
+    || draft.address.trim()
+    || editingHost?.name.trim()
+    || t('hosts.newHost')
 
   const changeAuthMethod = (authMethod: AuthMethod) => {
     const expectedType = authMethod === 'password' ? 'password' : 'private_key'
@@ -126,13 +129,17 @@ export function HostEditor({
         <div className="host-editor-heading">
           <Button type="text" className="host-editor-back" icon={<ArrowLeft size={17} />} aria-label={t('hosts.backToList')} onClick={onBack} />
           <HostAvatar host={{ name: displayName, icon_id: draft.icon_id }} getIconUrl={getHostIconUrl} size={44} iconSize={21} />
-          <div className="host-editor-title">
-            <Tooltip title={displayName}><h2>{displayName}</h2></Tooltip>
-            <span>{editingHost ? t('hosts.editHost') : t('hosts.newHost')}</span>
-          </div>
-          <span className={`host-editor-state ${dirty ? `is-dirty ${styles['is-dirty']}` : ''}`}>
-            {dirty ? t('hosts.unsaved') : editingHost ? t('hosts.saved') : t('app.create')}
-          </span>
+          <EditorModeContext
+            className="host-editor-title"
+            mode={editingHost ? 'edit' : 'create'}
+            label={t(editingHost ? 'app.edit' : 'app.add')}
+            title={<Tooltip title={displayName}><h2>{displayName}</h2></Tooltip>}
+          />
+          {dirty || editingHost ? (
+            <span className={`host-editor-state ${dirty ? `is-dirty ${styles['is-dirty']}` : ''}`}>
+              {dirty ? t('hosts.unsaved') : t('hosts.saved')}
+            </span>
+          ) : null}
           <input
             ref={iconInputRef}
             className={styles['visually-hidden-input']}
@@ -172,21 +179,28 @@ export function HostEditor({
       )}
       footer={(
         <div className="host-editor-footer-actions">
-          <Popconfirm
-            title={t('app.confirmDelete')}
-            description={t('hosts.deleteHint')}
-            okText={t('app.delete')}
-            cancelText={t('app.cancel')}
-            disabled={!editingHost || actionBusy}
-            rootClassName={`host-popconfirm ${styles.popconfirm}`}
-            onConfirm={onDelete}
-          >
-            <Button danger icon={<Trash2 size={15} />} disabled={!editingHost || actionBusy}>{t('app.delete')}</Button>
-          </Popconfirm>
+          {editingHost ? (
+            <Popconfirm
+              title={t('app.confirmDelete')}
+              description={t('hosts.deleteHint')}
+              okText={t('app.delete')}
+              cancelText={t('app.cancel')}
+              disabled={actionBusy}
+              rootClassName={`host-popconfirm ${styles.popconfirm}`}
+              onConfirm={onDelete}
+            >
+              <Button danger icon={<Trash2 size={15} />} disabled={actionBusy}>{t('app.delete')}</Button>
+            </Popconfirm>
+          ) : null}
           <span className="host-editor-footer-spacer" />
           <Button disabled={!dirty || actionBusy || uploadingIcon} onClick={onDiscard}>{t('hosts.discard')}</Button>
-          <ConnectionActionButton disabled={!dirty || hasErrors || actionBusy || uploadingIcon} loading={actionBusy} onClick={onSave}>
-            {t('app.save')}
+          <ConnectionActionButton
+            disabled={!dirty || hasErrors || actionBusy || uploadingIcon}
+            loading={actionBusy}
+            icon={editingHost ? <Save size={15} /> : <Plus size={15} />}
+            onClick={onSave}
+          >
+            {t(editingHost ? 'app.save' : 'app.create')}
           </ConnectionActionButton>
         </div>
       )}

@@ -253,12 +253,15 @@ export function GroupManagerModal<T extends GroupManagerItem>({
                   className={[
                     'group-manager-row',
                     styles['group-manager-row'],
+                    editing ? 'is-editing' : '',
+                    editing ? styles['is-editing'] : '',
                     draggingId === group.id ? 'is-dragging' : '',
                     draggingId === group.id ? styles['is-dragging'] : '',
                     dropEdge ? `is-drop-${dropEdge}` : '',
                     dropEdge ? styles[`is-drop-${dropEdge}`] : '',
                   ].filter(Boolean).join(' ')}
                   data-group-manager-row="true"
+                  data-editing={editing ? 'true' : undefined}
                   onDragOver={(event) => updateDropTarget(event, group.id)}
                   onDrop={(event) => finishDrop(event, group.id)}
                 >

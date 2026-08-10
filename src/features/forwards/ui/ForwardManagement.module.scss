@@ -1475,6 +1475,24 @@
   gap: 10px;
 }
 
+.forwarding-modal-profile-title {
+  max-width: min(430px, calc(100vw - 150px));
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 760;
+  line-height: 21px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forwarding-modal-action-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 .forwarding-editor-section-icon,
 .forwarding-modal-title-icon {
   display: inline-flex;
@@ -1586,7 +1604,7 @@
   margin: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   background: var(--forwarding-modal-bg) !important;
-  padding: 15px 18px 13px;
+  padding: 15px 56px 13px 18px;
 }
 
 .forwarding-modal :global(.ant-modal-title) {
@@ -1598,6 +1616,10 @@
 .forwarding-modal :global(.ant-modal-close) {
   top: 14px;
   right: 14px;
+}
+
+.forwarding-modal-profile-editor :global(.ant-modal-close) {
+  top: 19px;
 }
 
 .forwarding-modal :global(.ant-modal-body) {

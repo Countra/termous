@@ -214,24 +214,14 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 11px;
   border-bottom: 1px solid var(--border);
   padding: 16px 18px;
 }
 
-.proxy-manager-editor-heading > span {
-  display: inline-grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--accent-soft) 58%, transparent);
-  color: var(--accent);
-}
-
-.proxy-manager-editor-heading > div {
+.proxy-manager-editor-heading-copy {
+  display: grid;
   min-width: 0;
+  gap: 4px;
 }
 
 .proxy-manager-editor-heading h3,
@@ -243,13 +233,15 @@
 }
 
 .proxy-manager-editor-heading h3 {
+  width: fit-content;
+  max-width: 100%;
   color: var(--text-primary);
   font-size: 14px;
   font-weight: 700;
 }
 
 .proxy-manager-editor-heading p {
-  margin-top: 2px;
+  margin-left: 11px;
   color: var(--text-muted);
   font-size: 11px;
 }

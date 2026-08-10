@@ -24,6 +24,10 @@ test('端口转发 SCSS 保留页面、会话和 Portal 的模块样式', () => 
   assert.doesNotMatch(source, /^\s*:global\s*\{/m)
   assert.match(source, /\.forward-runtime-action:global\(\.ant-btn\)/)
   assert.match(source, /\.forwarding-modal :global\(\.ant-modal-content\)/)
+  assert.match(
+    source,
+    /\.forwarding-modal-profile-editor :global\(\.ant-modal-close\)\s*\{[\s\S]*?top:\s*19px/,
+  )
 })
 
 test('端口转发消费者挂载同一模块实现和独立 Portal 根', () => {
@@ -52,6 +56,7 @@ test('端口转发消费者挂载同一模块实现和独立 Portal 根', () => 
   )
 
   assert.match(workspace, /rootClassName=\{scopedClassName\('forwarding-modal-root'\)\}/)
+  assert.match(workspace, /editorMode === 'profile' \? 'forwarding-modal-profile-editor' : ''/)
   assert.match(workspace, /rootClassName=\{scopedClassName\('forwarding-delete-popconfirm'\)\}/)
   assert.match(workspace, /popupClassName=\{scopedClassName\('forwarding-select-popup'\)\}/)
   assert.match(customSelect, /popupClassName\?: string/)

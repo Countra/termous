@@ -55,6 +55,18 @@ test('防火墙面板使用私有 Module 类并局部约束 Modal Portal', () =>
   assert.match(firewallPanelSource, /styles\[firewallProviderStatusClass\(provider\)\]/)
   assert.match(firewallPersistenceSource, /rootClassName=\{styles\['firewall-persistence-modal-root'\]\}/)
   assert.match(firewallRuleModalSource, /rootClassName=\{styles\['firewall-rule-modal-root'\]\}/)
+  assert.match(
+    firewall.source,
+    /\.firewall-rule-modal :global\(\.ant-modal-close\)\s*\{[\s\S]*?top:\s*20px/,
+  )
+})
+
+test('防火墙规则显式按编辑索引区分模式，复制规则保持新建语义', () => {
+  assert.match(firewallPanelSource, /mode=\{editing\.index === null \? 'create' : 'edit'\}/)
+  assert.match(
+    firewallPanelSource,
+    /setEditing\(\{ index: null, value: \{ \.\.\.rule, id: undefined, raw_ref: undefined,/,
+  )
 })
 
 test('服务面板使用私有 Module 类并局部约束 Portal 第三方节点', () => {

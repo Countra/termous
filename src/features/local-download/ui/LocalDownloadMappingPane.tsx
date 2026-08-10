@@ -2,18 +2,19 @@ import { App as AntdApp, Button, Input, Tooltip } from 'antd'
 import {
   ArrowDown,
   ArrowUp,
-  Check,
   FolderOpen,
   FolderPlus,
   HardDrive,
   Pencil,
+  Plus,
+  Save,
   Trash2,
   X,
 } from 'lucide-react'
 import { useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
-import { confirmDialogStyles } from '#shared/ui'
+import { confirmDialogStyles, EditorModeContext } from '#shared/ui'
 import type {
   LocalPathMapping,
   LocalPathMappingInput,
@@ -175,23 +176,20 @@ export function LocalDownloadMappingPane({
       className="local-download-console-mappings"
       aria-label={t('files.downloadDestinationMappings')}
     >
-      <header className={[
-        'local-download-console-pane-head',
-        draft ? 'is-editing' : '',
-      ].filter(Boolean).join(' ')}>
-        <span className="local-download-console-pane-title">
-          {draft
-            ? draft.id
-              ? <Pencil size={15} aria-hidden="true" />
-              : <FolderPlus size={15} aria-hidden="true" />
-            : <HardDrive size={15} aria-hidden="true" />}
-          {draft
-            ? draft.id
-              ? t('files.editLocalMapping')
-              : t('files.addLocalMapping')
-            : t('files.downloadDestinationMappings')}
-          {!draft ? <small>{mappings.length}</small> : null}
-        </span>
+      <header className="local-download-console-pane-head">
+        {draft ? (
+          <EditorModeContext
+            mode={draft.id ? 'edit' : 'create'}
+            size="compact"
+            label={t(draft.id ? 'app.edit' : 'app.add')}
+          />
+        ) : (
+          <span className="local-download-console-pane-title">
+            <HardDrive size={15} aria-hidden="true" />
+            {t('files.downloadDestinationMappings')}
+            <small>{mappings.length}</small>
+          </span>
+        )}
         <div className="local-download-console-pane-actions">
           {draft ? (
             <Tooltip title={t('app.cancel')} mouseLeaveDelay={0}>
@@ -345,9 +343,11 @@ export function LocalDownloadMappingPane({
               size="small"
               loading={saving}
               disabled={disabled}
-              icon={<Check size={13} aria-hidden="true" />}
+              icon={draft.id
+                ? <Save size={13} aria-hidden="true" />
+                : <Plus size={13} aria-hidden="true" />}
             >
-              {draft.id ? t('app.update') : t('app.create')}
+              {draft.id ? t('app.save') : t('app.create')}
             </Button>
           </footer>
         </form>

@@ -1,7 +1,7 @@
-import { AlertTriangle, ArrowLeft, Command, Save } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Command, Plus, Save } from 'lucide-react'
 import { Button, Checkbox, Form, Input, Tooltip, type FormInstance } from 'antd'
 import { useTranslation } from 'react-i18next'
-import { uiStyles } from '#shared/ui'
+import { EditorModeContext, uiStyles } from '#shared/ui'
 import styles from './AliasPanel.module.scss'
 
 export interface AliasEditorValues {
@@ -30,6 +30,7 @@ export function AliasEditorView({
 }: AliasEditorViewProps) {
   const { t } = useTranslation()
   const aliasName = Form.useWatch('name', form)
+  const aliasTitle = aliasName?.trim() || t('workbench.aliases.title')
   const hasRiskyName = /^(rm|sudo|ssh|cd)$/i.test(aliasName?.trim() ?? '')
   return (
     <section className={[styles['alias-panel'], styles['alias-editor-page']].join(' ')}>
@@ -51,12 +52,15 @@ export function AliasEditorView({
           <Command size={16} aria-hidden="true" />
         </span>
         <div>
-          <strong>
-            {t(editing
-              ? 'workbench.aliases.editTitle'
-              : 'workbench.aliases.createTitle')}
-          </strong>
-          <span>{t('workbench.aliases.editorHint')}</span>
+          <EditorModeContext
+            mode={editing ? 'edit' : 'create'}
+            label={t(editing ? 'app.edit' : 'app.add')}
+            title={(
+              <strong className={styles['alias-editor-page-title']}>
+                {aliasTitle}
+              </strong>
+            )}
+          />
         </div>
       </header>
 
@@ -165,7 +169,7 @@ export function AliasEditorView({
           htmlType="submit"
           type="primary"
           loading={saving}
-          icon={<Save size={14} />}
+          icon={editing ? <Save size={14} /> : <Plus size={14} />}
         >
           {t(editing ? 'app.save' : 'app.create')}
         </Button>

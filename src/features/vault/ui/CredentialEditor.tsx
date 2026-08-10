@@ -1,5 +1,5 @@
 import { Alert, Button, Input, Popconfirm, Radio, Select, Tooltip } from 'antd'
-import { ArrowLeft, DatabaseZap, FileKey2, FileUp, Fingerprint, KeyRound, ShieldCheck, Trash2 } from 'lucide-react'
+import { ArrowLeft, DatabaseZap, FileKey2, FileUp, Fingerprint, KeyRound, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -8,8 +8,7 @@ import {
   type CredentialType,
   type CredentialView,
 } from '#entities/credential'
-import { ConnectionActionButton, customSelectStyles } from '#shared/ui'
-import { ManagementPanel } from '#shared/ui'
+import { ConnectionActionButton, customSelectStyles, EditorModeContext, ManagementPanel } from '#shared/ui'
 import type { CredentialValidationErrors } from '../model/credentialCatalog.ts'
 import { sshKeyAlgorithmSummary } from '../model/sshKeyUi.ts'
 import styles from './CredentialManagement.module.scss'
@@ -53,7 +52,9 @@ export function CredentialEditor({
 }: CredentialEditorProps) {
   const { t } = useTranslation()
   const Icon = credentialTypeIcon(draft.type)
-  const displayName = draft.name.trim() || t('vault.newCredential')
+  const displayName = draft.name.trim()
+    || editingCredential?.name.trim()
+    || t('vault.newCredential')
   const hasErrors = Object.values(errors).some(Boolean)
   const visibleErrors = dirty ? errors : {}
   const deleteBlocked = Boolean(editingCredential?.bound_host_count)
@@ -88,36 +89,47 @@ export function CredentialEditor({
             styles['credential-editor-avatar'],
             draft.type === 'private_key_passphrase' ? styles['is-private-key-passphrase'] : '',
           ].filter(Boolean).join(' ')}><Icon size={21} aria-hidden="true" /></span>
-          <div className={styles['credential-editor-title']}>
-            <Tooltip title={displayName}><h2>{displayName}</h2></Tooltip>
-            <span>{editingCredential ? t('vault.editCredential') : t('vault.newCredential')}</span>
-          </div>
-          <span className={[styles['credential-editor-state'], dirty ? styles['is-dirty'] : ''].filter(Boolean).join(' ')}>
-            {dirty ? t('vault.unsaved') : editingCredential ? t('vault.saved') : t('app.create')}
-          </span>
+          <EditorModeContext
+            className={styles['credential-editor-title']}
+            mode={editingCredential ? 'edit' : 'create'}
+            label={t(editingCredential ? 'app.edit' : 'app.add')}
+            title={<Tooltip title={displayName}><h2>{displayName}</h2></Tooltip>}
+          />
+          {dirty || editingCredential ? (
+            <span className={[styles['credential-editor-state'], dirty ? styles['is-dirty'] : ''].filter(Boolean).join(' ')}>
+              {dirty ? t('vault.unsaved') : t('vault.saved')}
+            </span>
+          ) : null}
         </div>
       )}
       footer={(
         <div className={styles['credential-editor-footer-actions']}>
-          <Tooltip title={deleteBlocked ? t('vault.deleteHint') : undefined}>
-            <span>
-              <Popconfirm
-                title={t('app.confirmDelete')}
-                description={t('vault.deleteConfirmHint')}
-                okText={t('app.delete')}
-                cancelText={t('app.cancel')}
-                disabled={!editingCredential || deleteBlocked || actionBusy}
-                rootClassName={styles['credential-popconfirm']}
-                onConfirm={onDelete}
-              >
-                <Button danger icon={<Trash2 size={15} />} disabled={!editingCredential || deleteBlocked || actionBusy}>{t('app.delete')}</Button>
-              </Popconfirm>
-            </span>
-          </Tooltip>
+          {editingCredential ? (
+            <Tooltip title={deleteBlocked ? t('vault.deleteHint') : undefined}>
+              <span>
+                <Popconfirm
+                  title={t('app.confirmDelete')}
+                  description={t('vault.deleteConfirmHint')}
+                  okText={t('app.delete')}
+                  cancelText={t('app.cancel')}
+                  disabled={deleteBlocked || actionBusy}
+                  rootClassName={styles['credential-popconfirm']}
+                  onConfirm={onDelete}
+                >
+                  <Button danger icon={<Trash2 size={15} />} disabled={deleteBlocked || actionBusy}>{t('app.delete')}</Button>
+                </Popconfirm>
+              </span>
+            </Tooltip>
+          ) : null}
           <span className={styles['credential-editor-footer-spacer']} />
           <Button disabled={!dirty || actionBusy} onClick={onDiscard}>{t('vault.discard')}</Button>
-          <ConnectionActionButton disabled={!dirty || hasErrors || actionBusy} loading={actionBusy} onClick={onSave}>
-            {t('app.save')}
+          <ConnectionActionButton
+            disabled={!dirty || hasErrors || actionBusy}
+            loading={actionBusy}
+            icon={editingCredential ? <Save size={15} /> : <Plus size={15} />}
+            onClick={onSave}
+          >
+            {t(editingCredential ? 'app.save' : 'app.create')}
           </ConnectionActionButton>
         </div>
       )}

@@ -565,7 +565,7 @@
   margin: 0;
   border-bottom: 1px solid var(--workbench-bookmark-editor-border);
   background: var(--workbench-bookmark-editor-bg);
-  padding: 16px 20px 14px;
+  padding: 16px 56px 14px 20px;
 }
 
 .workbench-bookmark-editor-modal :global(.ant-modal-title) {
@@ -573,20 +573,18 @@
 }
 
 .workbench-bookmark-editor-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
+  max-width: min(300px, calc(100vw - 130px));
+  overflow: hidden;
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 720;
-}
-
-.workbench-bookmark-editor-title svg {
-  color: var(--accent);
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workbench-bookmark-editor-modal :global(.ant-modal-close) {
-  top: 10px;
+  top: 18px;
   inset-inline-end: 10px;
   display: grid;
   width: 30px;

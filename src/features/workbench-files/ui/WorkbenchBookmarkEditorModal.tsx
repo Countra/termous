@@ -1,5 +1,5 @@
 import { Button, Form, Input, Modal, Select, Tooltip } from 'antd'
-import { Bookmark, Check, FolderTree } from 'lucide-react'
+import { FolderTree, Plus, Save } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
@@ -8,7 +8,7 @@ import type {
   FileBookmarkInput,
 } from '#entities/file'
 import { sortBookmarkGroups, suggestBookmarkName } from '#entities/file'
-import { confirmDialogStyles, uiStyles } from '#shared/ui'
+import { confirmDialogStyles, EditorModeContext, uiStyles } from '#shared/ui'
 import styles from './WorkbenchBookmarksPopover.module.scss'
 
 const scopedClassName = (...classNames: string[]) => classNames
@@ -44,6 +44,7 @@ export function WorkbenchBookmarkEditorModal({
 }: WorkbenchBookmarkEditorModalProps) {
   const { t } = useTranslation()
   const [form] = Form.useForm<BookmarkCreateFormValue>()
+  const watchedName = Form.useWatch('name', form)
   const groupOptions = useMemo(
     () => [
       { value: '', label: t('files.bookmarksUngrouped') },
@@ -85,10 +86,15 @@ export function WorkbenchBookmarkEditorModal({
       rootClassName={`${confirmDialogStyles['modal-root']} ${scopedClassName('termous-modal-root', 'workbench-bookmark-editor-root')}`}
       className={scopedClassName('workbench-bookmark-editor-modal')}
       title={(
-        <span className={scopedClassName('workbench-bookmark-editor-title')}>
-          <Bookmark size={16} aria-hidden="true" />
-          <span>{t(editing ? 'files.editBookmark' : 'files.addBookmark')}</span>
-        </span>
+        <EditorModeContext
+          mode={editing ? 'edit' : 'create'}
+          label={t(editing ? 'app.edit' : 'app.add')}
+          title={(
+            <span className={scopedClassName('workbench-bookmark-editor-title')}>
+              {watchedName?.trim() || bookmark?.name || t('files.bookmarks')}
+            </span>
+          )}
+        />
       )}
       footer={(
         <div className={scopedClassName('workbench-bookmark-editor-actions')}>
@@ -97,7 +103,9 @@ export function WorkbenchBookmarkEditorModal({
           </Button>
           <Button
             type="primary"
-            icon={<Check size={14} aria-hidden="true" />}
+            icon={editing
+              ? <Save size={14} aria-hidden="true" />
+              : <Plus size={14} aria-hidden="true" />}
             loading={saving}
             onClick={() => form.submit()}
           >

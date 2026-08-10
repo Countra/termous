@@ -519,7 +519,8 @@ export function FirewallPanel({ api, session, host, enabled }: FirewallPanelProp
       {editing ? (
         <FirewallRuleModal
           open
-          title={editing.index === null ? t('workbench.firewall.editor.createTitle') : t('workbench.firewall.editor.editTitle')}
+          mode={editing.index === null ? 'create' : 'edit'}
+          title={t('workbench.firewall.editor.ruleTitle')}
           value={editing.value}
           busy={applying}
           t={t}

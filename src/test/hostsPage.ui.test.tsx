@@ -326,6 +326,29 @@ describe('HostManagementWorkspace 行为合同', () => {
     expect(handlers.onSelectHost).toHaveBeenLastCalledWith(saved.id)
   })
 
+  it('创建失败时保留新建草稿和未保存状态', async () => {
+    const user = userEvent.setup()
+    const handlers = callbacks()
+    handlers.onSave.mockResolvedValueOnce(undefined)
+    render(
+      <HostManagementWorkspace
+        data={data([])}
+        selectedHostId=""
+        actionBusy={false}
+        {...handlers}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'create-host' }))
+    await user.type(screen.getByLabelText('host-draft-address'), 'pending.example.com')
+    await user.click(screen.getByRole('button', { name: 'save-host' }))
+
+    await waitFor(() => expect(handlers.onSave).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('editing-id')).toHaveTextContent('new')
+    expect(screen.getByTestId('draft-address')).toHaveTextContent('pending.example.com')
+    expect(screen.getByTestId('draft-dirty')).toHaveTextContent('true')
+  })
+
   it('clean silent reload 同步服务端快照并更新草稿基线', async () => {
     const current = host('host-a', 'before.example.com')
     const reloaded = { ...current, address: 'after.example.com' }

@@ -49,11 +49,6 @@
       padding: 0 10px 0 12px;
     }
 
-    .local-download-console-pane-head.is-editing .local-download-console-pane-title,
-    .local-download-console-pane-head.is-editing .local-download-console-pane-title svg {
-      color: var(--accent);
-    }
-
     .local-download-console-pane-title {
       display: inline-flex;
       min-width: 0;
@@ -64,7 +59,7 @@
       font-weight: 700;
     }
 
-    .local-download-console-pane-title svg {
+    .local-download-console-pane-title > svg {
       flex: 0 0 auto;
       color: var(--text-muted);
     }

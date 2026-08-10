@@ -6,13 +6,14 @@ import {
   Play,
   Plus,
   Route,
+  Save,
   Search,
   Trash2,
 } from 'lucide-react'
 import { App as AntdApp, Button, Empty, Input, Modal, Popconfirm, Tooltip } from 'antd'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ConnectionActionButton, CustomSelect, ManagementFilterTabs, StatusBadge, uiStyles, termousNotificationClassName } from '#shared/ui'
+import { ConnectionActionButton, CustomSelect, EditorModeContext, ManagementFilterTabs, StatusBadge, uiStyles, termousNotificationClassName } from '#shared/ui'
 import type {
   ForwardInstance,
   ForwardMode,
@@ -325,22 +326,43 @@ export function ForwardManagementWorkspace({
         open={editorOpen}
         width={580}
         rootClassName={scopedClassName('forwarding-modal-root')}
-        className={scopedClassName('termous-modal', 'forwarding-modal')}
-        title={
+        className={scopedClassName(
+          'termous-modal',
+          'forwarding-modal',
+          editorMode === 'profile' ? 'forwarding-modal-profile-editor' : '',
+        )}
+        title={editorMode === 'temporary' ? (
           <span className={scopedClassName('forwarding-modal-title')}>
             <span className={scopedClassName('forwarding-modal-title-icon')} aria-hidden="true">
-              <Cable size={18} strokeWidth={2.15} />
+              <Play size={17} strokeWidth={2.15} />
             </span>
+            <span>{t('forwards.temporaryTitle')}</span>
+          </span>
+        ) : (
+          <EditorModeContext
+            mode={editingProfile ? 'edit' : 'create'}
+            label={t(editingProfile ? 'app.edit' : 'app.add')}
+            title={(
+              <span className={scopedClassName('forwarding-modal-profile-title')}>
+                {form.name.trim() || t('forwards.profiles')}
+              </span>
+            )}
+          />
+        )}
+        okText={(
+          <span className={scopedClassName('forwarding-modal-action-label')}>
+            {editorMode === 'temporary'
+              ? <Play size={14} aria-hidden="true" />
+              : editingProfile
+                ? <Save size={14} aria-hidden="true" />
+                : <Plus size={14} aria-hidden="true" />}
             <span>
               {editorMode === 'temporary'
-                ? t('forwards.temporaryTitle')
-                : editingProfile
-                  ? t('forwards.editProfile')
-                  : t('forwards.newProfile')}
+                ? t('forwards.start')
+                : t(editingProfile ? 'app.save' : 'app.create')}
             </span>
           </span>
-        }
-        okText={editorMode === 'temporary' ? t('forwards.start') : t('app.save')}
+        )}
         cancelText={t('app.cancel')}
         okButtonProps={{ disabled: actionBusy }}
         onOk={() => void saveEditor()}

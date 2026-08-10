@@ -21,3 +21,15 @@ if (!window.matchMedia) {
     }),
   })
 }
+
+if (!globalThis.ResizeObserver) {
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    configurable: true,
+    writable: true,
+    value: class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  })
+}

@@ -1,5 +1,7 @@
 import { Input, InputNumber, Modal, Segmented, Switch } from 'antd'
+import { Plus, Save } from 'lucide-react'
 import type { FirewallRuleAction, FirewallRuleInput, FirewallRuleProtocol } from '#entities/firewall'
+import { EditorModeContext, type EditorMode } from '#shared/ui'
 import {
   firewallActions,
   firewallProtocols,
@@ -10,6 +12,7 @@ import styles from './FirewallPanel.module.scss'
 
 interface FirewallRuleModalProps {
   open: boolean
+  mode: EditorMode
   title: string
   value: FirewallRuleInput
   busy: boolean
@@ -21,6 +24,7 @@ interface FirewallRuleModalProps {
 
 export function FirewallRuleModal({
   open,
+  mode,
   title,
   value,
   busy,
@@ -47,8 +51,21 @@ export function FirewallRuleModal({
       destroyOnHidden
       className={`termous-modal ${styles['firewall-rule-modal']}`}
       rootClassName={styles['firewall-rule-modal-root']}
-      title={title}
-      okText={t('workbench.firewall.editor.save')}
+      title={(
+        <EditorModeContext
+          mode={mode}
+          label={t(mode === 'edit' ? 'app.edit' : 'app.add')}
+          title={<span className={styles['firewall-editor-title']}>{title}</span>}
+        />
+      )}
+      okText={(
+        <span className={styles['firewall-editor-action-label']}>
+          {mode === 'create'
+            ? <Plus size={14} aria-hidden="true" />
+            : <Save size={14} aria-hidden="true" />}
+          <span>{t(mode === 'create' ? 'app.create' : 'workbench.firewall.editor.save')}</span>
+        </span>
+      )}
       cancelText={t('app.cancel')}
       confirmLoading={busy}
       okButtonProps={{ disabled: Boolean(error) }}

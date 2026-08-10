@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
 
@@ -114,6 +114,68 @@ function deferred<T>() {
 }
 
 describe('ProxyManagerModal 行为合同', () => {
+  it('创建失败时保持新建模式，成功同步父级快照后切换为编辑模式', async () => {
+    const user = userEvent.setup()
+    const failedCreate = vi.fn(async () => undefined)
+    const commonProps = {
+      open: true,
+      actionBusy: false,
+      onClose: vi.fn(),
+      onUpdate: vi.fn<(id: string, input: ConnectionProxyInput) => Promise<ConnectionProxy | undefined>>(),
+      onDelete: vi.fn<(id: string) => Promise<boolean | undefined>>(),
+    }
+    const failedView = render(
+      <ProxyManagerModal
+        {...commonProps}
+        proxies={[]}
+        onCreate={failedCreate}
+      />,
+    )
+
+    expect(document.querySelector('[data-editor-mode="create"]')).toHaveTextContent('proxies.new')
+    expect(document.querySelector('[data-editor-mode="create"]')).toHaveTextContent('app.add')
+    expect(screen.getByRole('button', { name: 'app.create' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'app.delete' })).not.toBeInTheDocument()
+
+    await user.type(document.getElementById('connection-proxy-name') as HTMLInputElement, 'Proxy Created')
+    await user.click(screen.getByRole('button', { name: 'app.create' }))
+    await waitFor(() => expect(failedCreate).toHaveBeenCalledTimes(1))
+    expect(document.querySelector('[data-editor-mode="create"]')).toHaveTextContent('Proxy Created')
+    expect(document.querySelector('[data-editor-mode="create"]')).toHaveTextContent('app.add')
+
+    failedView.unmount()
+
+    const saved = proxy('proxy-created', { name: 'Proxy Created' })
+    function ControlledProxyManager() {
+      const [proxies, setProxies] = useState<ConnectionProxy[]>([])
+      return (
+        <ProxyManagerModal
+          {...commonProps}
+          proxies={proxies}
+          onCreate={async () => {
+            setProxies([saved])
+            return saved
+          }}
+        />
+      )
+    }
+
+    render(<ControlledProxyManager />)
+    await user.type(document.getElementById('connection-proxy-name') as HTMLInputElement, saved.name)
+    await user.click(screen.getByRole('button', { name: 'app.create' }))
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-editor-mode="edit"]')).toHaveTextContent(saved.name)
+      expect(document.querySelector('[data-editor-mode="edit"]')).toHaveTextContent('app.edit')
+    })
+    expect(screen.getByRole('button', { name: 'app.save' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'app.delete' })).toBeInTheDocument()
+
+    await user.clear(document.getElementById('connection-proxy-name') as HTMLInputElement)
+    expect(document.querySelector('[data-editor-mode="edit"]')).toHaveTextContent(saved.name)
+    expect(document.querySelector('[data-editor-mode="edit"]')).not.toHaveTextContent('proxies.new')
+  })
+
   it('更新失败时保留草稿，成功后才使用服务端快照回填', async () => {
     const user = userEvent.setup()
     const current = proxy('proxy-a')

@@ -598,6 +598,24 @@
   gap: 9px;
 }
 
+.firewall-editor-action-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.firewall-editor-title {
+  max-width: min(360px, calc(100vw - 130px));
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 760;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .firewall-readonly-section {
   margin-top: 2px;
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
@@ -921,6 +939,14 @@
   max-height: min(620px, calc(100dvh - 220px));
   overflow: auto;
   padding-right: 16px;
+}
+
+.firewall-rule-modal :global(.ant-modal-header) {
+  padding-inline-end: 52px;
+}
+
+.firewall-rule-modal :global(.ant-modal-close) {
+  top: 20px;
 }
 
 .firewall-field {

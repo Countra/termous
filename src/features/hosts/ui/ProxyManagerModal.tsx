@@ -8,10 +8,9 @@ import {
   Tooltip,
 } from 'antd'
 import {
-  CirclePlus,
   Network,
-  Pencil,
   Plus,
+  Save,
   Search,
   Trash2,
 } from 'lucide-react'
@@ -26,7 +25,7 @@ import {
   type ConnectionProxyInput,
   type ConnectionProxyType,
 } from '#entities/connection-proxy'
-import { customSelectStyles, uiStyles } from '#shared/ui'
+import { customSelectStyles, EditorModeContext, uiStyles } from '#shared/ui'
 import hostManagementStyles from './HostManagement.module.scss'
 import styles from './ProxyManagerModal.module.scss'
 
@@ -63,6 +62,9 @@ export function ProxyManagerModal({
   const [deleting, setDeleting] = useState(false)
   const operationRef = useRef(false)
   const editingProxy = proxies.find((proxy) => proxy.id === editingId)
+  const editorTitle = draft.name.trim()
+    || editingProxy?.name.trim()
+    || t('proxies.new')
   const filteredProxies = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
     if (!normalizedQuery) {
@@ -276,14 +278,20 @@ export function ProxyManagerModal({
 
         <section className={styles['proxy-manager-editor']}>
           <header className={styles['proxy-manager-editor-heading']}>
-            <span>
-              {editingProxy
-                ? <Pencil size={17} aria-hidden="true" />
-                : <CirclePlus size={18} aria-hidden="true" />}
-            </span>
-            <div>
-              <h3>{editingProxy ? t('proxies.edit') : t('proxies.new')}</h3>
-              <p>{editingProxy ? editingProxy.name : t('proxies.newHint')}</p>
+            <div className={styles['proxy-manager-editor-heading-copy']}>
+              <EditorModeContext
+                mode={editingProxy ? 'edit' : 'create'}
+                label={t(editingProxy ? 'app.edit' : 'app.add')}
+                title={(
+                  <Tooltip
+                    title={editorTitle}
+                    rootClassName={uiStyles.tooltip}
+                  >
+                    <h3>{editorTitle}</h3>
+                  </Tooltip>
+                )}
+              />
+              <p>{editingProxy ? editingProxy.url : t('proxies.newHint')}</p>
             </div>
           </header>
           <div className={styles['proxy-manager-form']}>
@@ -389,7 +397,13 @@ export function ProxyManagerModal({
                 </span>
               </Tooltip>
             ) : <span />}
-            <Button type="primary" loading={saving} disabled={busy} onClick={() => void save()}>
+            <Button
+              type="primary"
+              loading={saving}
+              disabled={busy}
+              icon={editingProxy ? <Save size={15} /> : <Plus size={15} />}
+              onClick={() => void save()}
+            >
               {editingProxy ? t('app.save') : t('app.create')}
             </Button>
           </footer>

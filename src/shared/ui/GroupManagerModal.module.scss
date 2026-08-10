@@ -136,6 +136,11 @@
   background: var(--row-hover-bg);
 }
 
+.group-manager-row.is-editing {
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface) 92%);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--warning) 68%, var(--border));
+}
+
 .group-manager-row.is-dragging {
   opacity: 0.42;
 }

@@ -8,6 +8,12 @@ export { CustomSelect } from './CustomSelect'
 export type { SelectOption } from './CustomSelect'
 export { default as customSelectStyles } from './CustomSelect.module.scss'
 export { EmptyState } from './EmptyState'
+export {
+  EditorModeContext,
+  type EditorMode,
+  type EditorModeContextProps,
+  type EditorModeContextSize,
+} from './EditorModeContext'
 export { FeatureSidePanel } from './FeatureSidePanel'
 export type { FeatureSidePanelTab } from './FeatureSidePanel'
 export { FilterPopover, type FilterPopoverProps } from './FilterPopover'

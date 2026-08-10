@@ -58,11 +58,19 @@
   color: var(--accent);
 }
 
-.snippet-management-title > div,
-.snippet-editor-identity > div {
+.snippet-management-title > div {
   display: grid;
   min-width: 0;
   gap: 2px;
+}
+
+.snippet-editor-identity {
+  flex: 1 1 auto;
+}
+
+.snippet-editor-context {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .snippet-management-title h1,
@@ -82,8 +90,12 @@
   font-weight: 780;
 }
 
+.snippet-editor-identity h2 {
+  width: fit-content;
+  max-width: 100%;
+}
+
 .snippet-management-title span,
-.snippet-editor-identity > div > span,
 .snippet-editor-section-head span {
   color: var(--text-muted);
   font-size: 11px;
@@ -597,6 +609,10 @@
   min-height: 62px;
   border-top: 1px solid var(--border);
   padding: 10px 16px;
+}
+
+.snippet-save-button {
+  margin-left: auto;
 }
 
 .snippet-discard-copy {
