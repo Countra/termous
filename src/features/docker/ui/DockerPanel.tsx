@@ -1,4 +1,4 @@
-import { App, Button, Input, Modal, Popconfirm, Popover, Select, Tag, Tooltip } from 'antd'
+import { App, Button, Input, Modal, Popconfirm, Select, Tag, Tooltip } from 'antd'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -20,7 +20,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { DockerAction, DockerContainerDetail, DockerContainerPort, DockerContainerSummary } from '#entities/docker'
-import { customSelectStyles, uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
+import { customSelectStyles, FilterPopover, uiStyles, WorkspaceDetectionLoading, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
 import type { DockerGateway, DockerSessionContext } from '../model/contracts'
 import { defaultDockerQuery, type SessionDockerQueryState, useSessionDocker } from '../model/useSessionDocker'
 import styles from './DockerPanel.module.scss'
@@ -180,11 +180,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
               onChange={(event) => docker.updateQuery({ text: event.target.value })}
               onPressEnter={(event) => refreshWithQuery({ text: event.currentTarget.value })}
             />
-            <Popover
-              trigger="click"
-              placement="bottomRight"
-              arrow={false}
-              classNames={{ root: styles['docker-filter-popover'] }}
+            <FilterPopover
               content={
                 <div className={styles['docker-filter-popover-content']}>
                   <div className={styles['docker-filter-popover-head']}>
@@ -236,7 +232,7 @@ export function DockerPanel({ api, session, enabled }: DockerPanelProps) {
               >
                 {t('workbench.docker.filters')}
               </Button>
-            </Popover>
+            </FilterPopover>
           </div>
 
           {docker.error ? (

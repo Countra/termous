@@ -1,8 +1,8 @@
-import { Button, Empty, Input, Popover, Segmented, Select, Tag, Tooltip } from 'antd'
+import { Button, Empty, Input, Segmented, Select, Tag, Tooltip } from 'antd'
 import { Code2, Filter, Search, Star, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { customSelectStyles, uiStyles } from '#shared/ui'
+import { customSelectStyles, FilterPopover, uiStyles } from '#shared/ui'
 import {
   analyzeSnippetRisk,
   normalizeSnippetTags,
@@ -151,12 +151,9 @@ export function SnippetFilterBar({
           onChange={(event) => onQueryChange(event.target.value)}
         />
         {allowTagFilter ? (
-          <Popover
-            trigger="click"
-            placement="bottomRight"
-            arrow={false}
+          <FilterPopover
             content={filterContent}
-            rootClassName={`termous-snippet-filter-popover ${styles['catalog-root']}`}
+            popupClassName={styles['catalog-root']}
           >
             <Button
               className={`snippet-filter-button ${activeFilterCount > 0 ? 'is-active' : ''}`}
@@ -165,7 +162,7 @@ export function SnippetFilterBar({
             >
               {activeFilterCount > 0 ? <small className="snippet-filter-count">{activeFilterCount}</small> : null}
             </Button>
-          </Popover>
+          </FilterPopover>
         ) : null}
       </div>
       {density === 'compact' ? (

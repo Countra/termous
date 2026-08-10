@@ -165,30 +165,6 @@
   color: var(--accent);
 }
 
-.docker-filter-popover:global(.ant-popover) {
-  --ant-popover-bg: var(--surface-strong);
-  --antd-arrow-background-color: var(--surface-strong);
-}
-
-.docker-filter-popover:global(.ant-popover) :global(.ant-popover-container) {
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  border-radius: 15px;
-  background: var(--surface-strong) !important;
-  box-shadow: none !important;
-}
-
-.docker-filter-popover:global(.ant-popover) :global(.ant-popover-content),
-.docker-filter-popover:global(.ant-popover) :global(.ant-popover-inner),
-.docker-filter-popover:global(.ant-popover) :global(.ant-popover-inner-content) {
-  border-radius: 15px;
-  background: var(--surface-strong) !important;
-}
-
-.docker-filter-popover:global(.ant-popover) :global(.ant-popover-inner-content) {
-  padding: 12px;
-}
-
 .docker-filter-popover-content {
   display: grid;
   width: min(318px, calc(100vw - 40px));
@@ -1279,20 +1255,6 @@
 .docker-detail-loading-body {
   :global(:root[data-theme="light"]) & {
     background: #ffffff;
-  }
-}
-
-.docker-filter-popover:global(.ant-popover) {
-  :global(:root[data-theme="light"]) & {
-    --ant-popover-bg: #ffffff;
-    --antd-arrow-background-color: #ffffff;
-  }
-
-  :global(:root[data-theme="light"]) & :global(.ant-popover-container),
-  :global(:root[data-theme="light"]) & :global(.ant-popover-content),
-  :global(:root[data-theme="light"]) & :global(.ant-popover-inner),
-  :global(:root[data-theme="light"]) & :global(.ant-popover-inner-content) {
-    background: #ffffff !important;
   }
 }
 

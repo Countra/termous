@@ -1,4 +1,4 @@
-/* stylelint-disable declaration-empty-line-before, color-hex-length, selector-not-notation, declaration-block-no-redundant-longhand-properties -- 保持现有兼容声明，避免样式归属迁移改变计算结果。 */
+/* stylelint-disable declaration-empty-line-before, selector-not-notation, declaration-block-no-redundant-longhand-properties -- 保持现有兼容声明，避免样式归属迁移改变计算结果。 */
 .root {
   position: static;
 }
@@ -193,66 +193,6 @@
   border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
   background: color-mix(in srgb, var(--accent) 11%, var(--surface-subtle));
   color: var(--accent);
-}
-
-.process-filter-popover:global(.ant-popover) {
-  --ant-popover-bg: var(--surface-strong);
-  --antd-arrow-background-color: var(--surface-strong);
-}
-
-.process-filter-popover:global(.ant-popover) :global(.ant-popover-container) {
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  border-radius: 15px;
-  background: var(--surface-strong) !important;
-  background-color: var(--surface-strong) !important;
-  box-shadow: var(--shadow-soft);
-}
-
-.process-filter-popover:global(.ant-popover) :global(.ant-popover-content) {
-  border-radius: 15px;
-  background: var(--surface-strong) !important;
-  background-color: var(--surface-strong) !important;
-}
-
-.process-filter-popover:global(.ant-popover) :global(.ant-popover-inner) {
-  border: 0;
-  border-radius: 15px;
-  background: var(--surface-strong) !important;
-  background-color: var(--surface-strong) !important;
-  box-shadow: none;
-}
-
-.process-filter-popover:global(.ant-popover) :global(.ant-popover-inner-content) {
-  padding: 12px;
-}
-
-.process-filter-popover:global(.ant-popover) :global(.ant-popover-arrow)::before {
-  background: var(--surface-strong) !important;
-}
-
-.process-filter-popover:global(.ant-popover) {
-  :global(:root[data-theme="light"]) & {
-  --ant-popover-bg: #ffffff;
-  --antd-arrow-background-color: #ffffff;
-  }
-}
-
-.process-filter-popover:global(.ant-popover) :global(.ant-popover-container) {
-  :global(:root[data-theme="light"]) & {
-  border-color: rgb(30 42 58 / 12%);
-  background: #ffffff !important;
-  background-color: #ffffff !important;
-  box-shadow: 0 18px 44px rgb(23 31 45 / 14%);
-  }
-}
-
-.process-filter-popover:global(.ant-popover) :global(.ant-popover-content),
-.process-filter-popover:global(.ant-popover) :global(.ant-popover-inner),
-.process-filter-popover:global(.ant-popover) :global(.ant-popover-arrow)::before {
-  :global(:root[data-theme="light"]) & {
-  background: #ffffff !important;
-  background-color: #ffffff !important;
-  }
 }
 
 .process-filter-popover-content {

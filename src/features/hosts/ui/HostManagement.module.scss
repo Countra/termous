@@ -431,27 +431,10 @@
 }
 
 .filter-popover {
-  &:global(.host-filter-popover.ant-popover) {
-    --ant-popover-bg: #21252e;
-    --antd-arrow-background-color: #21252e;
-    --host-filter-background: #21252e;
-
-    z-index: 3500;
-  }
+  z-index: 3500;
 
   :global(.ant-popover-container) {
     width: min(340px, calc(100vw - 28px));
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: var(--host-filter-background) !important;
-    box-shadow: 0 18px 44px rgb(0 0 0 / 28%);
-    padding: 12px;
-  }
-
-  :global(.ant-popover-content),
-  :global(.ant-popover-inner),
-  :global(.host-filter-content) {
-    background: var(--host-filter-background) !important;
   }
 
   :global(.host-filter-content) {
@@ -873,19 +856,6 @@
     border: 1px solid var(--border);
     background: var(--surface-strong) !important;
     color: var(--text-primary);
-  }
-
-  :root[data-theme="light"] & :global(.ant-popover-container) {
-    background: #fff !important;
-    box-shadow: 0 18px 42px rgb(42 55 72 / 16%);
-  }
-}
-
-.filter-popover {
-  :root[data-theme="light"] &:global(.host-filter-popover.ant-popover) {
-    --ant-popover-bg: #fff;
-    --antd-arrow-background-color: #fff;
-    --host-filter-background: #fff;
   }
 
   :root[data-theme="light"] & :global(.ant-popover-container) {

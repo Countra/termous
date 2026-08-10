@@ -102,29 +102,6 @@
 }
 
 .service-filter-button:global(.ant-btn) { padding-inline: 10px; font-size: 12px; font-weight: 720; }
-.service-filter-popover:global(.ant-popover) {
-  --service-filter-bg: #21252e;
-  --ant-popover-bg: var(--service-filter-bg);
-  --antd-arrow-background-color: var(--service-filter-bg);
-
-  :global(:root[data-theme="light"]) & { --service-filter-bg: #f7f9fc; }
-}
-
-.service-filter-popover:global(.ant-popover) :global(.ant-popover-container),
-.service-filter-popover:global(.ant-popover) :global(.ant-popover-content),
-.service-filter-popover:global(.ant-popover) :global(.ant-popover-inner) {
-  border-radius: 14px;
-  background: var(--service-filter-bg) !important;
-  background-color: var(--service-filter-bg) !important;
-}
-
-.service-filter-popover:global(.ant-popover) :global(.ant-popover-container) {
-  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  box-shadow: var(--shadow-soft);
-}
-
-.service-filter-popover:global(.ant-popover) :global(.ant-popover-inner) { box-shadow: none; }
-.service-filter-popover:global(.ant-popover) :global(.ant-popover-inner-content) { padding: 12px; }
 .service-filter-content { display: grid; width: min(286px, calc(100vw - 36px)); gap: 11px; }
 .service-filter-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .service-filter-head strong { color: var(--text-primary); font-size: 13px; }

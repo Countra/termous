@@ -1,0 +1,35 @@
+.root:global(.ant-popover) {
+  --termous-filter-popover-bg: #21252e;
+  --ant-popover-bg: var(--termous-filter-popover-bg);
+  --antd-arrow-background-color: var(--termous-filter-popover-bg);
+}
+
+.root:global(.ant-popover) :global(.ant-popover-content) {
+  border-radius: 12px;
+  background: transparent !important;
+}
+
+.surface:global(.ant-popover-container),
+.surface:global(.ant-popover-unique-container) {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 12px;
+  background: var(--termous-filter-popover-bg) !important;
+  background-image: none !important;
+  box-shadow: 0 18px 42px rgb(0 0 0 / 24%);
+  padding: 12px;
+  backdrop-filter: none;
+}
+
+.root:global(.ant-popover) {
+  :global(:root[data-theme="light"]) & {
+    --termous-filter-popover-bg: #fff;
+  }
+}
+
+.surface {
+  :global(:root[data-theme="light"]) &:global(.ant-popover-container),
+  :global(:root[data-theme="light"]) &:global(.ant-popover-unique-container) {
+    box-shadow: 0 18px 42px rgb(42 55 72 / 16%);
+  }
+}

@@ -10,6 +10,7 @@ export { default as customSelectStyles } from './CustomSelect.module.scss'
 export { EmptyState } from './EmptyState'
 export { FeatureSidePanel } from './FeatureSidePanel'
 export type { FeatureSidePanelTab } from './FeatureSidePanel'
+export { FilterPopover, type FilterPopoverProps } from './FilterPopover'
 export { ManagementFilterTabs } from './ManagementFilterTabs'
 export { termousNotificationClassName } from './notificationStyles'
 export {

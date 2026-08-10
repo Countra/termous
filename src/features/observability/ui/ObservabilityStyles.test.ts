@@ -17,10 +17,10 @@ const monitorSource = readFileSync(
 test('监控与进程面板使用私有 Module 类并局部约束 Portal', () => {
   assert.doesNotMatch(source, /stylelint-disable[^\n]*termous\/no-unscoped-global/)
   assert.doesNotMatch(source, /:global\s*\{/)
-  assert.match(source, /\.process-filter-popover:global\(\.ant-popover\)/)
+  assert.doesNotMatch(source, /\.process-filter-popover:global\(\.ant-popover\)/)
   assert.match(source, /\.monitor-device-select-dropdown :global\(\.ant-select-item-option-content\)/)
   assert.match(source, /\.monitor-time-chart:global\(\.echart-view\)/)
-  assert.match(processSource, /overlayClassName=\{styles\['process-filter-popover'\]\}/)
+  assert.match(processSource, /<FilterPopover/)
   assert.match(processSource, /styles\['process-state-tooltip-root'\]/)
   assert.match(monitorSource, /styles\['monitor-device-select-dropdown'\]/)
   assert.match(monitorSource, /className: styles\['monitor-chart-tooltip'\]/)

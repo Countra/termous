@@ -1,4 +1,4 @@
-import { App, Button, Dropdown, Input, Popover, Progress, Segmented, Select, Tag, Tooltip, type MenuProps } from 'antd'
+import { App, Button, Dropdown, Input, Progress, Segmented, Select, Tag, Tooltip, type MenuProps } from 'antd'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -24,7 +24,7 @@ import type {
   SystemServiceOperationPhase,
   SystemServiceSummary,
 } from '#entities/service'
-import { customSelectStyles, uiStyles, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
+import { customSelectStyles, FilterPopover, uiStyles, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
 import type { ServiceGateway, ServiceSessionContext } from '../model/contracts'
 import { ServiceLogsModal } from './ServiceLogsModal'
 import {
@@ -42,7 +42,6 @@ export interface ServicePanelProps {
 
 const unitFileStates = ['', 'enabled', 'disabled', 'masked', 'static', 'indirect']
 const serviceSorts: SessionServiceQueryState['sort'][] = ['name', 'description', 'runtime', 'unit_file']
-const filterPopoverClassNames = { root: styles['service-filter-popover'] }
 const filterSelectClassNames = {
   popup: { root: `${customSelectStyles['select-dropdown']} termous-select-dropdown ${styles['service-filter-select-dropdown']}` },
 }
@@ -411,11 +410,7 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
           onChange={(event) => services.updateQuery({ text: event.target.value })}
           onPressEnter={(event) => applyQuery({ text: event.currentTarget.value })}
         />
-        <Popover
-          trigger="click"
-          placement="bottomRight"
-          arrow={false}
-          classNames={filterPopoverClassNames}
+        <FilterPopover
           content={
             <div className={styles['service-filter-content']}>
               <div className={styles['service-filter-head']}>
@@ -474,7 +469,7 @@ export function ServicePanel({ api, session, enabled }: ServicePanelProps) {
           <Button type="text" className={`${styles['service-filter-button']} ${hasFilters ? styles['is-active'] : ''}`} icon={<SlidersHorizontal size={15} />}>
             {t('workbench.services.filters')}
           </Button>
-        </Popover>
+        </FilterPopover>
       </div>
 
       {services.error && services.list ? (

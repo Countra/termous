@@ -60,10 +60,10 @@ test('防火墙面板使用私有 Module 类并局部约束 Modal Portal', () =>
 test('服务面板使用私有 Module 类并局部约束 Portal 第三方节点', () => {
   assert.doesNotMatch(servicePanel.source, /stylelint-disable[^\n]*termous\/no-unscoped-global/)
   assert.doesNotMatch(servicePanel.source, /:global\s*\{/)
-  assert.match(servicePanel.source, /\.service-filter-popover:global\(\.ant-popover\)/)
+  assert.doesNotMatch(servicePanel.source, /\.service-filter-popover:global\(\.ant-popover\)/)
   assert.match(servicePanel.source, /\.service-operation-notification:global\(\.ant-notification-notice\)/)
   assert.match(servicePanelSource, /styles\['service-panel'\]/)
-  assert.match(servicePanelSource, /classNames=\{filterPopoverClassNames\}/)
+  assert.match(servicePanelSource, /<FilterPopover/)
   assert.match(servicePanelSource, /classNames=\{filterSelectClassNames\}/)
   assert.match(servicePanelSource, /classNames=\{rowTooltipClassNames\}/)
   assert.match(servicePanelSource, /styles\['service-operation-notification'\]/)
@@ -73,13 +73,13 @@ test('服务面板使用私有 Module 类并局部约束 Portal 第三方节点'
 test('Docker 面板使用私有 Module 类并只局部开放 Portal 第三方节点', () => {
   assert.doesNotMatch(docker.source, /stylelint-disable[^\n]*termous\/no-unscoped-global/)
   assert.doesNotMatch(docker.source, /:global\s*\{/)
-  assert.match(docker.source, /\.docker-filter-popover:global\(\.ant-popover\)/)
+  assert.doesNotMatch(docker.source, /\.docker-filter-popover:global\(\.ant-popover\)/)
   assert.match(
     docker.source,
     /\.docker-logs-modal-root \.docker-logs-modal:global\(\.ant-modal\)/,
   )
   assert.match(dockerSource, /styles\['docker-panel'\]/)
-  assert.match(dockerSource, /classNames=\{\{ root: styles\['docker-filter-popover'\] \}\}/)
+  assert.match(dockerSource, /<FilterPopover/)
   assert.match(dockerSource, /rootClassName=\{styles\['docker-logs-modal-root'\]\}/)
   assert.match(dockerSource, /className=\{styles\['docker-logs-modal'\]\}/)
 })

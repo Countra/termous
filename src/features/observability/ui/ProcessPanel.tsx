@@ -1,4 +1,4 @@
-import { App, Button, Input, Popconfirm, Popover, Segmented, Tag, Tooltip } from 'antd'
+import { App, Button, Input, Popconfirm, Segmented, Tag, Tooltip } from 'antd'
 import {
   Activity,
   AlertTriangle,
@@ -17,7 +17,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
 import type { RemoteProcessDetail, RemoteProcessPort, RemoteProcessSort, RemoteProcessSummary } from '#entities/observability'
-import { uiStyles, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
+import { FilterPopover, uiStyles, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
 import type { ObservabilityGateway, ObservabilitySessionContext } from '../model/contracts'
 import { defaultProcessQuery, type ProcessAutoRefreshSeconds, type SessionProcessQueryState, useSessionProcesses } from '../model/useSessionProcesses'
 import styles from './Observability.module.scss'
@@ -150,11 +150,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
           onChange={(event) => processes.updateQuery({ text: event.target.value })}
           onPressEnter={(event) => refreshWithQuery({ text: event.currentTarget.value })}
         />
-        <Popover
-          trigger="click"
-          placement="bottomRight"
-          arrow={false}
-          overlayClassName={styles['process-filter-popover']}
+        <FilterPopover
           content={
             <div className={styles['process-filter-popover-content']}>
               <div className={styles['process-filter-popover-head']}>
@@ -208,7 +204,7 @@ export function ProcessPanel({ api, session, enabled }: ProcessPanelProps) {
           >
             {t('workbench.processes.filters')}
           </Button>
-        </Popover>
+        </FilterPopover>
         <div className={styles['process-sort-strip']} aria-label={t('workbench.processes.sort')}>
           <span className={styles['process-sort-label']}>{t('workbench.processes.sort')}</span>
           <div className={styles['process-sort-options']} role="radiogroup">

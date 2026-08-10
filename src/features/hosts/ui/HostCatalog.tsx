@@ -1,4 +1,4 @@
-import { Button, Input, Popover, Select, Tag, Tooltip } from 'antd'
+import { Button, Input, Select, Tag, Tooltip } from 'antd'
 import { ChevronDown, ChevronRight, Filter, FolderCog, Network, Plus, Search, Server, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,6 +14,7 @@ import {
   ConnectionActionButton,
   customSelectStyles,
   EmptyState,
+  FilterPopover,
   ManagementPanel,
   uiStyles,
 } from '#shared/ui'
@@ -185,13 +186,13 @@ export function HostCatalog({
             placeholder={t('hosts.searchPlaceholder')}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <Popover trigger="click" placement="bottomRight" arrow={false} content={filterContent} rootClassName={`host-filter-popover ${styles['filter-popover']}`}>
+          <FilterPopover content={filterContent} popupClassName={styles['filter-popover']}>
             <Tooltip title={t('hosts.filterTitle')}>
               <Button className={`host-filter-trigger ${activeFilterCount > 0 ? `is-active ${styles['is-active']}` : ''}`} icon={<Filter size={15} />}>
                 {activeFilterCount > 0 ? activeFilterCount : null}
               </Button>
             </Tooltip>
-          </Popover>
+          </FilterPopover>
         </div>
         <ConnectionActionButton block icon={<Plus size={16} />} disabled={actionBusy} onClick={onCreate}>
           {t('hosts.addHost')}
