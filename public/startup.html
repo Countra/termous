@@ -170,7 +170,7 @@
       <div class="startup-content">
         <img class="startup-icon" src="./termous-icon.png" alt="" />
         <h1 class="startup-title">Termous</h1>
-        <div id="startup-status" class="startup-status">Starting core services</div>
+        <div id="startup-status" class="startup-status">Starting</div>
         <div class="startup-track" aria-hidden="true"><span></span></div>
       </div>
     </main>
@@ -179,12 +179,12 @@
         const isChinese = navigator.language === 'zh-CN' || navigator.language.startsWith('zh')
         const messages = isChinese
           ? {
-              core: '正在启动核心服务',
+              core: '启动中',
               workspace: '正在准备工作区',
               error: '启动未完成',
             }
           : {
-              core: 'Starting core services',
+              core: 'Starting',
               workspace: 'Preparing workspace',
               error: 'Startup did not complete',
             }
