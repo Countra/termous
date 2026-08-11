@@ -435,7 +435,7 @@ describe('应用运行时组合合同', () => {
     ])
 
     await user.click(screen.getByRole('button', { name: 'hosts' }))
-    expect(testState.projectionKeys.hosts).toEqual(['credentials', 'groups', 'hosts', 'proxies'])
+    expect(testState.projectionKeys.hosts).toEqual(['credentials', 'groups', 'hostIcons', 'hosts', 'proxies'])
 
     await user.click(screen.getByRole('button', { name: 'files' }))
     expect(testState.projectionKeys.files).toEqual([

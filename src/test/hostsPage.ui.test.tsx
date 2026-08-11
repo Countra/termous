@@ -2,21 +2,11 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Host, HostIcon, HostInput } from '#entities/host'
+import type { Host, HostIcon, HostIconReorderItem, HostInput } from '#entities/host'
 import type { HostManagementData } from '#features/hosts'
-
-const appMocks = vi.hoisted(() => ({
-  warning: vi.fn(),
-}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
-}))
-
-vi.mock('antd', () => ({
-  App: {
-    useApp: () => ({ message: { warning: appMocks.warning } }),
-  },
 }))
 
 vi.mock('../features/hosts/ui/ProxyManagerModal', () => ({
@@ -29,11 +19,13 @@ vi.mock('../features/hosts/ui/HostCatalog', () => ({
     selectedHostId,
     onSelect,
     onCreate,
+    onManageIcons,
   }: {
     hosts: Host[]
     selectedHostId: string | null
     onSelect: (hostId: string) => void
     onCreate: () => void
+    onManageIcons: () => void
   }) => (
     <section data-testid="host-catalog" data-selected-id={selectedHostId ?? ''}>
       {hosts.map((host) => (
@@ -42,6 +34,7 @@ vi.mock('../features/hosts/ui/HostCatalog', () => ({
         </button>
       ))}
       <button type="button" onClick={onCreate}>create-host</button>
+      <button type="button" onClick={onManageIcons}>manage-icons-catalog</button>
     </section>
   ),
 }))
@@ -54,8 +47,9 @@ vi.mock('../features/hosts/ui/HostEditor', () => ({
     onChange,
     onBack,
     onSave,
+    onDelete,
     onDiscard,
-    onUploadIcon,
+    onManageIcons,
   }: {
     editingHost?: Host
     draft: HostInput
@@ -63,8 +57,9 @@ vi.mock('../features/hosts/ui/HostEditor', () => ({
     onChange: (patch: Partial<HostInput>) => void
     onBack: () => void
     onSave: () => void
+    onDelete: () => void
     onDiscard: () => void
-    onUploadIcon: (file: File) => Promise<void>
+    onManageIcons: () => void
   }) => (
     <section data-testid="host-editor">
       <output data-testid="editing-id">{editingHost?.id ?? 'new'}</output>
@@ -76,19 +71,32 @@ vi.mock('../features/hosts/ui/HostEditor', () => ({
         value={draft.address}
         onChange={(event) => onChange({ address: event.target.value })}
       />
-      <input
-        aria-label="host-icon-file"
-        type="file"
-        onChange={(event) => {
-          const file = event.target.files?.[0]
-          if (file) void onUploadIcon(file)
-        }}
-      />
+      <button type="button" onClick={() => onChange({ icon_id: 'icon-library' })}>select-library-icon</button>
+      <button type="button" onClick={() => onChange({ icon_id: '' })}>clear-library-icon</button>
+      <button type="button" onClick={onManageIcons}>manage-icons-editor</button>
       <button type="button" onClick={onBack}>back-to-catalog</button>
       <button type="button" onClick={onSave}>save-host</button>
+      <button type="button" onClick={onDelete}>delete-host</button>
       <button type="button" onClick={onDiscard}>discard-host</button>
     </section>
   ),
+}))
+
+vi.mock('../features/hosts/ui/HostIconManagerModal', () => ({
+  HostIconManagerModal: ({
+    open,
+    protectedIconIds,
+    onClose,
+  }: {
+    open: boolean
+    protectedIconIds?: readonly string[]
+    onClose: () => void
+  }) => open ? (
+    <div role="dialog" aria-label="host-icon-manager">
+      <output data-testid="protected-icon-ids">{protectedIconIds?.join(',') ?? ''}</output>
+      <button type="button" onClick={onClose}>close-icon-manager</button>
+    </div>
+  ) : null,
 }))
 
 vi.mock('#shared/ui', () => ({
@@ -142,11 +150,25 @@ function host(id: string, address: string): Host {
   }
 }
 
-function data(hosts: Host[]): HostManagementData {
+function hostIcon(id = 'icon-library'): HostIcon {
+  return {
+    id,
+    display_name: 'Library Icon',
+    file_name: 'library.png',
+    mime_type: 'image/png',
+    size_bytes: 3,
+    sha256: id,
+    sort_order: 0,
+    created_at: '',
+  }
+}
+
+function data(hosts: Host[], hostIcons: HostIcon[] = []): HostManagementData {
   return {
     hosts,
     groups: [],
     proxies: [],
+    hostIcons,
     credentials: [{
       id: 'credential-password',
       name: 'Password',
@@ -171,6 +193,8 @@ function callbacks() {
     onUpdateProxy: vi.fn(),
     onDeleteProxy: vi.fn(),
     onUploadHostIcon: vi.fn<(file: File) => Promise<HostIcon>>(),
+    onRenameHostIcon: vi.fn<(id: string, displayName: string) => Promise<HostIcon | undefined>>(),
+    onReorderHostIcons: vi.fn<(items: HostIconReorderItem[]) => Promise<HostIcon[] | undefined>>(),
     onDeleteHostIcon: vi.fn<(id: string) => Promise<void>>().mockResolvedValue(undefined),
     getHostIconUrl: vi.fn((iconId: string) => `http://localhost/${iconId}`),
   }
@@ -404,48 +428,68 @@ describe('HostManagementWorkspace 行为合同', () => {
     expect(screen.getByTestId('draft-dirty')).toHaveTextContent('true')
   })
 
-  it('放弃和卸载会清理未保存图标，保存成功后解除清理责任', async () => {
+  it('目录与编辑器入口打开同一个图标管理器，并保护脏草稿引用', async () => {
     const user = userEvent.setup()
     const current = host('host-a', 'a.example.com')
     const handlers = callbacks()
-    handlers.onUploadHostIcon
-      .mockResolvedValueOnce({ id: 'icon-discard', display_name: 'Discard', file_name: 'discard.png', mime_type: 'image/png', size_bytes: 3, sha256: 'a', sort_order: 0, created_at: '' })
-      .mockResolvedValueOnce({ id: 'icon-unmount', display_name: 'Unmount', file_name: 'unmount.png', mime_type: 'image/png', size_bytes: 3, sha256: 'b', sort_order: 1, created_at: '' })
-      .mockResolvedValueOnce({ id: 'icon-saved', display_name: 'Saved', file_name: 'saved.png', mime_type: 'image/png', size_bytes: 3, sha256: 'c', sort_order: 2, created_at: '' })
-    handlers.onSave.mockImplementation(async (_id, input) => ({ ...current, icon_id: input.icon_id }))
+    render(
+      <HostManagementWorkspace
+        data={data([current], [hostIcon()])}
+        selectedHostId={current.id}
+        actionBusy={false}
+        {...handlers}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'manage-icons-catalog' }))
+    expect(screen.getByRole('dialog', { name: 'host-icon-manager' })).toBeInTheDocument()
+    expect(screen.getByTestId('protected-icon-ids')).toBeEmptyDOMElement()
+    await user.click(screen.getByRole('button', { name: 'close-icon-manager' }))
+
+    await user.click(screen.getByRole('button', { name: 'select-library-icon' }))
+    expect(screen.getByTestId('draft-icon')).toHaveTextContent('icon-library')
+    expect(screen.getByTestId('draft-dirty')).toHaveTextContent('true')
+    await user.click(screen.getByRole('button', { name: 'manage-icons-editor' }))
+    expect(screen.getByTestId('protected-icon-ids')).toHaveTextContent('icon-library')
+  })
+
+  it('放弃、切换、删除和卸载主机都不会自动删除图标库资源', async () => {
+    const user = userEvent.setup()
+    const first = host('host-a', 'a.example.com')
+    const second = host('host-b', 'b.example.com')
+    const handlers = callbacks()
+    handlers.onDelete.mockResolvedValue(true)
     const view = render(
       <HostManagementWorkspace
-        data={data([current])}
-        selectedHostId={current.id}
+        data={data([first, second], [hostIcon()])}
+        selectedHostId={first.id}
         actionBusy={false}
         {...handlers}
       />,
     )
 
-    const input = screen.getByLabelText('host-icon-file')
-    await user.upload(input, new File(['one'], 'discard.png', { type: 'image/png' }))
-    await waitFor(() => expect(screen.getByTestId('draft-icon')).toHaveTextContent('icon-discard'))
+    await user.click(screen.getByRole('button', { name: 'select-library-icon' }))
     await user.click(screen.getByRole('button', { name: 'discard-host' }))
-    await waitFor(() => expect(handlers.onDeleteHostIcon).toHaveBeenCalledWith('icon-discard'))
+    expect(screen.getByTestId('draft-icon')).toBeEmptyDOMElement()
 
-    await user.upload(input, new File(['two'], 'unmount.png', { type: 'image/png' }))
-    await waitFor(() => expect(screen.getByTestId('draft-icon')).toHaveTextContent('icon-unmount'))
-    view.unmount()
-    await waitFor(() => expect(handlers.onDeleteHostIcon).toHaveBeenCalledWith('icon-unmount'))
-
-    const savedView = render(
+    await user.click(screen.getByRole('button', { name: 'select-library-icon' }))
+    await user.click(screen.getByRole('button', { name: `select-${second.id}` }))
+    await user.click(await screen.findByRole('button', { name: 'confirm-intent' }))
+    view.rerender(
       <HostManagementWorkspace
-        data={data([current])}
-        selectedHostId={current.id}
+        data={data([first, second], [hostIcon()])}
+        selectedHostId={second.id}
         actionBusy={false}
         {...handlers}
       />,
     )
-    await user.upload(screen.getByLabelText('host-icon-file'), new File(['three'], 'saved.png', { type: 'image/png' }))
-    await waitFor(() => expect(screen.getByTestId('draft-icon')).toHaveTextContent('icon-saved'))
-    await user.click(screen.getByRole('button', { name: 'save-host' }))
-    await waitFor(() => expect(handlers.onSave).toHaveBeenCalled())
-    savedView.unmount()
-    expect(handlers.onDeleteHostIcon).not.toHaveBeenCalledWith('icon-saved')
+    await waitFor(() => expect(screen.getByTestId('editing-id')).toHaveTextContent(second.id))
+
+    await user.click(screen.getByRole('button', { name: 'select-library-icon' }))
+    await user.click(screen.getByRole('button', { name: 'delete-host' }))
+    await waitFor(() => expect(handlers.onDelete).toHaveBeenCalledWith(second.id))
+
+    view.unmount()
+    expect(handlers.onDeleteHostIcon).not.toHaveBeenCalled()
   })
 })

@@ -62,12 +62,12 @@ function hostEditorProps(): ComponentProps<typeof HostEditor> {
       groups: [],
       proxies: [],
       credentials: [passwordCredential],
+      hostIcons: [],
     },
     draft: hostDraft,
     dirty: false,
     errors: {},
     actionBusy: false,
-    uploadingIcon: false,
     getHostIconUrl: (iconId) => iconId,
     onChange: vi.fn(),
     onBack: vi.fn(),
@@ -76,8 +76,7 @@ function hostEditorProps(): ComponentProps<typeof HostEditor> {
     onDiscard: vi.fn(),
     onCreateGroup: vi.fn(async (name: string) => ({ id: 'group-a', name, sort_order: 0 })),
     onManageProxies: vi.fn(),
-    onUploadIcon: vi.fn(async () => undefined),
-    onRemoveIcon: vi.fn(),
+    onManageIcons: vi.fn(),
   }
 }
 

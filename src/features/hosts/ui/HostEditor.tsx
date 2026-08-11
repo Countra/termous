@@ -1,18 +1,18 @@
 import { Button, Input, InputNumber, Popconfirm, Radio, Select, Tooltip } from 'antd'
-import { ArrowLeft, FileKey2, ImageOff, ImagePlus, KeyRound, Network, Plus, Save, ServerCog, Settings2, Trash2 } from 'lucide-react'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { ArrowLeft, FileKey2, Images, KeyRound, Network, Plus, Save, ServerCog, Settings2, Trash2 } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   HostAvatar,
   type AuthMethod,
   type Host,
   type HostGroup,
+  type HostIcon,
   type HostInput,
 } from '#entities/host'
 import { ConnectionActionButton, customSelectStyles, EditorModeContext, ManagementPanel } from '#shared/ui'
 import { connectionProxyTypeLabelKey } from '#entities/connection-proxy'
 import {
-  HOST_ICON_ACCEPT,
   normalizeGroupName,
   normalizeHostTags,
   type HostValidationErrors,
@@ -27,7 +27,6 @@ interface HostEditorProps {
   dirty: boolean
   errors: HostValidationErrors
   actionBusy: boolean
-  uploadingIcon: boolean
   getHostIconUrl: (iconId: string) => string
   onChange: (patch: Partial<HostInput>) => void
   onBack: () => void
@@ -36,8 +35,14 @@ interface HostEditorProps {
   onDiscard: () => void
   onCreateGroup: (name: string) => Promise<HostGroup>
   onManageProxies: () => void
-  onUploadIcon: (file: File) => Promise<void>
-  onRemoveIcon: () => void
+  onManageIcons: () => void
+}
+
+interface HostIconOption {
+  value: string
+  label: string
+  searchText: string
+  icon: HostIcon
 }
 
 export function HostEditor({
@@ -47,7 +52,6 @@ export function HostEditor({
   dirty,
   errors,
   actionBusy,
-  uploadingIcon,
   getHostIconUrl,
   onChange,
   onBack,
@@ -56,11 +60,9 @@ export function HostEditor({
   onDiscard,
   onCreateGroup,
   onManageProxies,
-  onUploadIcon,
-  onRemoveIcon,
+  onManageIcons,
 }: HostEditorProps) {
   const { t } = useTranslation()
-  const iconInputRef = useRef<HTMLInputElement>(null)
   const [groupCreatorOpen, setGroupCreatorOpen] = useState(false)
   const [groupDraft, setGroupDraft] = useState('')
   const [creatingGroup, setCreatingGroup] = useState(false)
@@ -79,6 +81,15 @@ export function HostEditor({
   const tagOptions = useMemo(
     () => Array.from(new Set(data.hosts.flatMap((host) => host.tags ?? []))).map((tag) => ({ value: tag, label: tag })),
     [data.hosts],
+  )
+  const hostIconOptions = useMemo<HostIconOption[]>(
+    () => data.hostIcons.map((icon) => ({
+      value: icon.id,
+      label: icon.display_name,
+      searchText: `${icon.display_name}\n${icon.file_name}`.toLocaleLowerCase(),
+      icon,
+    })),
+    [data.hostIcons],
   )
   const hasErrors = Object.values(errors).some(Boolean)
   const visibleErrors = dirty ? errors : {}
@@ -140,41 +151,6 @@ export function HostEditor({
               {dirty ? t('hosts.unsaved') : t('hosts.saved')}
             </span>
           ) : null}
-          <input
-            ref={iconInputRef}
-            className={styles['visually-hidden-input']}
-            type="file"
-            accept={HOST_ICON_ACCEPT}
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              if (file) {
-                void onUploadIcon(file).finally(() => {
-                  if (iconInputRef.current) {
-                    iconInputRef.current.value = ''
-                  }
-                })
-              }
-            }}
-          />
-          <div className="host-editor-icon-actions">
-            <Tooltip title={t('hosts.icon.upload')}>
-              <Button
-                icon={<ImagePlus size={16} />}
-                loading={uploadingIcon}
-                disabled={actionBusy}
-                aria-label={t('hosts.icon.upload')}
-                onClick={() => iconInputRef.current?.click()}
-              />
-            </Tooltip>
-            <Tooltip title={t('hosts.icon.remove')}>
-              <Button
-                icon={<ImageOff size={16} />}
-                disabled={!draft.icon_id || actionBusy || uploadingIcon}
-                aria-label={t('hosts.icon.remove')}
-                onClick={onRemoveIcon}
-              />
-            </Tooltip>
-          </div>
         </div>
       )}
       footer={(
@@ -193,9 +169,9 @@ export function HostEditor({
             </Popconfirm>
           ) : null}
           <span className="host-editor-footer-spacer" />
-          <Button disabled={!dirty || actionBusy || uploadingIcon} onClick={onDiscard}>{t('hosts.discard')}</Button>
+          <Button disabled={!dirty || actionBusy} onClick={onDiscard}>{t('hosts.discard')}</Button>
           <ConnectionActionButton
-            disabled={!dirty || hasErrors || actionBusy || uploadingIcon}
+            disabled={!dirty || hasErrors || actionBusy}
             loading={actionBusy}
             icon={editingHost ? <Save size={15} /> : <Plus size={15} />}
             onClick={onSave}
@@ -209,6 +185,49 @@ export function HostEditor({
         <div className="host-editor-grid">
           <HostTextField label={t('hosts.name')} value={draft.name} hint={t('hosts.nameHint')} onChange={(name) => onChange({ name })} />
           <HostSelectField label={t('hosts.platform.label')} value={draft.platform} options={[{ value: 'linux', label: t('hosts.platform.linux') }]} onChange={() => onChange({ platform: 'linux' })} />
+          <div className={`host-editor-field host-icon-select-field is-wide ${styles['is-wide']}`}>
+            <span className="host-editor-field-label">
+              <span>{t('hosts.icon.title')}</span>
+              <Button
+                type="text"
+                size="small"
+                className="host-icon-inline-manage"
+                aria-haspopup="dialog"
+                icon={<Images size={12} aria-hidden="true" />}
+                onClick={onManageIcons}
+              >
+                {t('hosts.iconLibrary.manage')}
+              </Button>
+            </span>
+            <Select<string, HostIconOption>
+              value={draft.icon_id || undefined}
+              allowClear
+              showSearch
+              virtual={false}
+              aria-label={t('hosts.iconLibrary.select')}
+              placeholder={t('hosts.iconLibrary.default')}
+              className={customSelectStyles.select}
+              classNames={{ popup: { root: `${customSelectStyles['select-popup']} ${styles['host-icon-select-popup']}` } }}
+              options={hostIconOptions}
+              notFoundContent={t('hosts.iconLibrary.empty')}
+              filterOption={(input, option) => option?.searchText.includes(input.trim().toLocaleLowerCase()) ?? false}
+              optionRender={(option) => (
+                <span className={styles['host-icon-select-option']}>
+                  <HostAvatar
+                    host={{ name: option.data.icon.display_name, icon_id: option.data.icon.id }}
+                    getIconUrl={getHostIconUrl}
+                    size={30}
+                    iconSize={15}
+                  />
+                  <span className={styles['host-icon-select-option-copy']}>
+                    <strong>{option.data.icon.display_name}</strong>
+                    <small>{option.data.icon.file_name}</small>
+                  </span>
+                </span>
+              )}
+              onChange={(iconId) => onChange({ icon_id: iconId || '' })}
+            />
+          </div>
           <div className="host-editor-field host-group-editor-field">
             <span className="host-editor-field-label">{t('hosts.group')}</span>
             <div className="host-group-editor-control">

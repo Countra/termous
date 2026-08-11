@@ -1,12 +1,3 @@
-.visually-hidden-input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
 .workspace-root:global(.hosts-management-workspace) {
   :global {
 .management-panel {
@@ -194,7 +185,8 @@
   font-size: 11px;
 }
 
-.host-proxy-select-field .host-editor-field-label {
+.host-proxy-select-field .host-editor-field-label,
+.host-icon-select-field .host-editor-field-label {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -202,13 +194,15 @@
   gap: 8px;
 }
 
-.host-proxy-select-field .host-editor-field-label .ant-btn {
+.host-proxy-select-field .host-editor-field-label .ant-btn,
+.host-icon-select-field .host-editor-field-label .ant-btn {
   height: 22px;
   padding-inline: 3px;
   font-size: 10px;
 }
 
-.host-proxy-inline-manage.ant-btn {
+.host-proxy-inline-manage.ant-btn,
+.host-icon-inline-manage.ant-btn {
   display: inline-flex;
   height: 24px;
   align-items: center;
@@ -226,20 +220,24 @@
     color 0.15s ease;
 }
 
-.host-proxy-inline-manage.ant-btn .ant-btn-icon {
+.host-proxy-inline-manage.ant-btn .ant-btn-icon,
+.host-icon-inline-manage.ant-btn .ant-btn-icon {
   display: inline-grid;
   place-items: center;
   margin: 0;
 }
 
 .host-proxy-inline-manage.ant-btn:not(:disabled):hover,
-.host-proxy-inline-manage.ant-btn:not(:disabled):focus-visible {
+.host-proxy-inline-manage.ant-btn:not(:disabled):focus-visible,
+.host-icon-inline-manage.ant-btn:not(:disabled):hover,
+.host-icon-inline-manage.ant-btn:not(:disabled):focus-visible {
   border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
   background: color-mix(in srgb, var(--accent-soft) 38%, var(--surface-subtle));
   color: var(--accent);
 }
 
-.host-proxy-inline-manage.ant-btn:not(:disabled):active {
+.host-proxy-inline-manage.ant-btn:not(:disabled):active,
+.host-icon-inline-manage.ant-btn:not(:disabled):active {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
   background: color-mix(in srgb, var(--accent-soft) 56%, var(--surface-subtle));
   color: var(--accent);
@@ -278,6 +276,48 @@
     min-height: 44px;
     align-items: center;
   }
+}
+
+.host-icon-select-popup {
+  &:global(.ant-select-dropdown) :global(.ant-select-item-option-content) {
+    min-width: 0;
+  }
+
+  &:global(.ant-select-dropdown) :global(.ant-select-item) {
+    min-height: 46px;
+    align-items: center;
+  }
+}
+
+.host-icon-select-option {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  padding-block: 2px;
+}
+
+.host-icon-select-option-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.host-icon-select-option-copy strong,
+.host-icon-select-option-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-icon-select-option-copy strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.host-icon-select-option-copy small {
+  color: var(--text-muted);
+  font-size: 10px;
 }
 
 .workspace-root:global(.hosts-management-workspace) {
@@ -576,22 +616,6 @@
   border-color: color-mix(in srgb, var(--warning) 34%, var(--border));
   background: color-mix(in srgb, var(--warning) 10%, var(--surface-subtle));
   color: var(--warning);
-}
-
-.host-editor-icon-actions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 6px;
-}
-
-.host-editor-icon-actions .ant-btn {
-  width: 34px;
-  min-width: 34px;
-  height: 34px;
-  padding: 0;
-  border-color: var(--border);
-  background: var(--surface-subtle);
-  color: var(--text-secondary);
 }
 
 .host-editor-body {
@@ -898,10 +922,6 @@
     display: none;
   }
 
-  .host-editor-icon-actions .ant-btn {
-    width: 32px;
-    min-width: 32px;
-  }
 }
 
 @container host-editor-body (max-width: 760px) {
@@ -916,10 +936,6 @@
 }
 
 @container management-workspace (max-width: 460px) {
-  .host-editor-icon-actions {
-    gap: 3px;
-  }
-
   .host-editor-footer-actions {
     gap: 6px;
   }

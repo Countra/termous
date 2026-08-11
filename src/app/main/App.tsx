@@ -51,7 +51,7 @@ import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput } from '#entities/
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
 import type { CredentialInput, CredentialView } from '#entities/credential'
 import type { ForwardEvent } from '#entities/forward'
-import type { Host, HostGroup, HostIcon, HostInput } from '#entities/host'
+import type { Host, HostGroup, HostIcon, HostIconReorderItem, HostInput } from '#entities/host'
 import type { GroupReorderItem, PageKey } from '#shared/model'
 import type { LocalShell, Session } from '#entities/session'
 import styles from './App.module.scss'
@@ -281,11 +281,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     groups: data.groups,
     proxies: data.proxies,
     credentials: data.credentials,
-  }), [data.credentials, data.groups, data.hosts, data.proxies])
+    hostIcons: data.hostIcons,
+  }), [data.credentials, data.groups, data.hostIcons, data.hosts, data.proxies])
   const hostLauncherData = useMemo<HostLauncherData>(() => ({
-    ...hostManagementData,
+    hosts: data.hosts,
+    groups: data.groups,
+    proxies: data.proxies,
+    credentials: data.credentials,
     hostReachability: data.hostReachability,
-  }), [data.hostReachability, hostManagementData])
+  }), [data.credentials, data.groups, data.hostReachability, data.hosts, data.proxies])
   const forwardManagementData = useMemo<ForwardsPageProps['data']>(() => ({
     hosts: data.hosts,
     forwardProfiles: data.forwardProfiles,
@@ -529,6 +533,24 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const uploadHostIcon = async (file: File): Promise<HostIcon> => {
     try {
       return await actions.uploadHostIcon(file)
+    } catch (actionError) {
+      showActionError(actionError)
+      throw actionError
+    }
+  }
+
+  const renameHostIcon = async (id: string, displayName: string): Promise<HostIcon> => {
+    try {
+      return await actions.renameHostIcon(id, displayName)
+    } catch (actionError) {
+      showActionError(actionError)
+      throw actionError
+    }
+  }
+
+  const reorderHostIcons = async (items: HostIconReorderItem[]): Promise<HostIcon[]> => {
+    try {
+      return await actions.reorderHostIcons(items)
     } catch (actionError) {
       showActionError(actionError)
       throw actionError
@@ -883,6 +905,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
               return true
             }, t('proxies.deleted'))}
             onUploadHostIcon={uploadHostIcon}
+            onRenameHostIcon={renameHostIcon}
+            onReorderHostIcons={reorderHostIcons}
             onDeleteHostIcon={deleteHostIcon}
             getHostIconUrl={(iconId) => gateways.hosts.hostIconFileUrl(iconId)}
           />

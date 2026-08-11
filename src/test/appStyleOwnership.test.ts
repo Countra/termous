@@ -328,10 +328,11 @@ test('主机表单与启动入口显式挂载共享控件 Module', () => {
   assert.match(hostCatalogSource, /customSelectStyles\['select-popup'\]/)
   assert.match(hostCatalogSource, /uiStyles\['search-input'\]/)
 
-  assert.match(hostEditorSource, /styles\['visually-hidden-input'\]/)
+  assert.match(hostEditorSource, /styles\['host-icon-select-popup'\]/)
+  assert.match(hostEditorSource, /styles\['host-icon-select-option'\]/)
   assert.match(hostEditorSource, /customSelectStyles\.select/)
   assert.match(hostEditorSource, /customSelectStyles\['select-popup'\]/)
-  assert.match(hostManagementStyles, /\.visually-hidden-input\s*\{[^}]*clip-path:\s*inset\(50%\);/s)
+  assert.match(hostManagementStyles, /\.host-icon-select-option\s*\{[^}]*align-items:\s*center;/s)
 
   assert.match(hostLauncherSource, /confirmDialogStyles\['modal-root'\]/)
   assert.match(hostLauncherSource, /customSelectStyles\.select/)
@@ -404,11 +405,11 @@ test('失效的管理表单规则离开兼容层，现行布局由共置 Module 
   assert.match(managementWorkspaceStyles, /\.management-panel\s*\{[^}]*border-radius:\s*14px;/s)
 
   assert.match(hostWorkspaceSource, /styles\['workspace-root'\]/)
-  assert.match(hostEditorSource, /className="host-editor-icon-actions"/)
+  assert.match(hostEditorSource, /className="host-icon-inline-manage"/)
   assert.match(hostEditorSource, /className="host-group-editor-control"/)
   assert.match(hostEditorSource, /className="host-group-editor-create"/)
   assert.match(hostManagementStyles, /\.workspace-root:global\(\.hosts-management-workspace\)/)
-  assert.match(hostManagementStyles, /\.host-editor-icon-actions\s*\{/)
+  assert.match(hostManagementStyles, /\.host-icon-inline-manage\.ant-btn/)
   assert.match(hostManagementStyles, /\.host-group-editor-control\s*\{/)
   assert.match(hostManagementStyles, /\.host-group-editor-create\s*\{/)
 })

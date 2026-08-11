@@ -1,5 +1,5 @@
 import { Button, Input, Select, Tag, Tooltip } from 'antd'
-import { ChevronDown, ChevronRight, Filter, FolderCog, Network, Plus, Search, Server, X } from 'lucide-react'
+import { ChevronDown, ChevronRight, Filter, FolderCog, Images, Network, Plus, Search, Server, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -36,6 +36,7 @@ interface HostCatalogProps {
   onCreate: () => void
   onManageGroups: () => void
   onManageProxies: () => void
+  onManageIcons: () => void
 }
 
 const defaultFilters: HostCatalogFilters = { groupId: '', tags: [], authMethods: [] }
@@ -50,6 +51,7 @@ export function HostCatalog({
   onCreate,
   onManageGroups,
   onManageProxies,
+  onManageIcons,
 }: HostCatalogProps) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
@@ -161,6 +163,15 @@ export function HostCatalog({
               >
                 {t('proxies.shortLabel')}
               </Button>
+            </Tooltip>
+            <Tooltip title={t('hosts.iconLibrary.manage')}>
+              <Button
+                className="host-group-manager-trigger host-icon-manager-trigger"
+                aria-label={t('hosts.iconLibrary.manage')}
+                aria-haspopup="dialog"
+                icon={<Images size={16} />}
+                onClick={onManageIcons}
+              />
             </Tooltip>
             <Tooltip title={t('hosts.manageGroups')}>
               <Button
