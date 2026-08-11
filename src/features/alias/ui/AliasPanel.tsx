@@ -41,6 +41,7 @@ import styles from './AliasPanel.module.scss'
 
 export interface AliasPanelProps<TSession extends AliasSessionContext = AliasSessionContext> {
   api: AliasGateway
+  getHostIconUrl: (iconId: string) => string
   session: TSession | null
   sessionIds: readonly string[]
   hosts: readonly Host[]
@@ -61,6 +62,7 @@ const emptyEditorValues: AliasEditorValues = {
 
 export function AliasPanel<TSession extends AliasSessionContext>({
   api,
+  getHostIconUrl,
   session,
   sessionIds,
   hosts,
@@ -491,6 +493,7 @@ export function AliasPanel<TSession extends AliasSessionContext>({
   const syncModal = syncSource ? (
     <AliasSyncModal
       api={api}
+      getHostIconUrl={getHostIconUrl}
       open
       sourceSession={syncSource.session}
       sourceAliases={session?.id === syncSource.session.id && workspace

@@ -47,6 +47,7 @@ import styles from './AliasSyncModal.module.scss'
 
 interface AliasSyncModalProps {
   api: AliasGateway
+  getHostIconUrl: (iconId: string) => string
   open: boolean
   sourceSession: AliasSessionContext
   sourceAliases: readonly ShellAlias[]
@@ -60,6 +61,7 @@ interface AliasSyncModalProps {
 
 export function AliasSyncModal({
   api,
+  getHostIconUrl,
   open,
   sourceSession,
   sourceAliases,
@@ -336,7 +338,7 @@ export function AliasSyncModal({
       >
         <div className={styles['modal-body']}>
           <SourceSummary
-            api={api}
+            getHostIconUrl={getHostIconUrl}
             host={task
               ? task.source.host_id ? hostById.get(task.source.host_id) : undefined
               : sourceHost}
@@ -360,7 +362,11 @@ export function AliasSyncModal({
               <Skeleton active title={{ width: '38%' }} paragraph={{ rows: 7 }} />
             </div>
           ) : task ? (
-            <AliasSyncProgressView task={task} hosts={hostById} api={api} />
+            <AliasSyncProgressView
+              task={task}
+              hosts={hostById}
+              getHostIconUrl={getHostIconUrl}
+            />
           ) : (
             <div className={styles['picker-grid']}>
               <SelectionColumn
@@ -435,7 +441,7 @@ export function AliasSyncModal({
                       return (
                         <SelectableHostRow
                           key={host.id}
-                          api={api}
+                          getHostIconUrl={getHostIconUrl}
                           host={host}
                           reachability={reachability[host.id]}
                           checked={selectedHostIds.includes(host.id)}
@@ -477,14 +483,14 @@ export function AliasSyncModal({
 }
 
 interface SourceSummaryProps {
-  api: AliasGateway
+  getHostIconUrl: (iconId: string) => string
   host?: Host
   snapshot?: AliasSyncTaskSource
   shell?: 'bash' | 'zsh' | 'fish'
   totalAliases: number
 }
 
-function SourceSummary({ api, host, snapshot, shell, totalAliases }: SourceSummaryProps) {
+function SourceSummary({ getHostIconUrl, host, snapshot, shell, totalAliases }: SourceSummaryProps) {
   const { t } = useTranslation()
   const displayName = snapshot?.host_name ?? host?.name ?? t('workbench.aliases.sync.unknownSource')
   const address = snapshot?.address ?? host?.address
@@ -494,7 +500,7 @@ function SourceSummary({ api, host, snapshot, shell, totalAliases }: SourceSumma
     <div className={styles['source-summary']}>
       <HostAvatar
         host={host ?? (displayName ? { name: displayName } : undefined)}
-        getIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+        getIconUrl={getHostIconUrl}
         size={34}
       />
       <span className={styles['source-copy']}>
@@ -582,7 +588,7 @@ function SelectionColumn({
 }
 
 interface SelectableHostRowProps {
-  api: AliasGateway
+  getHostIconUrl: (iconId: string) => string
   host: Host
   reachability?: HostReachability
   checked: boolean
@@ -592,7 +598,7 @@ interface SelectableHostRowProps {
 }
 
 function SelectableHostRow({
-  api,
+  getHostIconUrl,
   host,
   reachability,
   checked,
@@ -621,7 +627,7 @@ function SelectableHostRow({
       >
         <HostAvatar
           host={host}
-          getIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+          getIconUrl={getHostIconUrl}
           size={27}
         />
         <span className={styles['row-copy']}>
@@ -648,10 +654,10 @@ function SelectableHostRow({
 interface AliasSyncProgressViewProps {
   task: AliasSyncTask
   hosts: ReadonlyMap<string, Host>
-  api: AliasGateway
+  getHostIconUrl: (iconId: string) => string
 }
 
-function AliasSyncProgressView({ task, hosts, api }: AliasSyncProgressViewProps) {
+function AliasSyncProgressView({ task, hosts, getHostIconUrl }: AliasSyncProgressViewProps) {
   const { t } = useTranslation()
   const progress = aliasSyncProgress(task)
   const terminal = isAliasSyncTaskTerminal(task.status)
@@ -705,7 +711,7 @@ function AliasSyncProgressView({ task, hosts, api }: AliasSyncProgressViewProps)
             key={target.id || `${target.host_id}-${target.index}`}
             target={target}
             host={hosts.get(target.host_id)}
-            api={api}
+            getHostIconUrl={getHostIconUrl}
           />
         ))}
       </div>
@@ -722,7 +728,15 @@ function ResultMetric({ value, label, tone }: { value: number; label: string; to
   )
 }
 
-function TargetResultRow({ target, host, api }: { target: AliasSyncTarget; host?: Host; api: AliasGateway }) {
+function TargetResultRow({
+  target,
+  host,
+  getHostIconUrl,
+}: {
+  target: AliasSyncTarget
+  host?: Host
+  getHostIconUrl: (iconId: string) => string
+}) {
   const { t } = useTranslation()
   const tone = targetStatusTone(target.status)
   const resultDetails: string[] = []
@@ -764,7 +778,7 @@ function TargetResultRow({ target, host, api }: { target: AliasSyncTarget; host?
       <span className={styles['target-state']} aria-hidden="true">{targetStatusIcon(target.status)}</span>
       <HostAvatar
         host={host ?? (target.host_name ? { name: target.host_name } : undefined)}
-        getIconUrl={(iconId) => api.hostIconFileUrl(iconId)}
+        getIconUrl={getHostIconUrl}
         size={29}
       />
       <span className={styles['target-copy']}>

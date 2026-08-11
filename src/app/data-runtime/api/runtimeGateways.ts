@@ -84,7 +84,7 @@ export function createRuntimeGatewaysFromConfig(
     credentials,
     hostKeys,
     sessions,
-    alias: createAliasGateway(aliasClient, hosts),
+    alias: createAliasGateway(aliasClient),
     observability,
     service,
     docker,
@@ -115,10 +115,8 @@ export async function createRuntimeGateways() {
 
 function createAliasGateway(
   alias: AliasClient,
-  hosts: HostClient,
 ): DomainGateway<AliasClient> & AliasGateway {
   return {
-    hostIconFileUrl: (iconId) => hosts.hostIconFileUrl(iconId),
     sessionAliases: (sessionId, options) => alias.sessionAliases(sessionId, options),
     sessionAlias: (sessionId, aliasId, options) => (
       alias.sessionAlias(sessionId, aliasId, options)

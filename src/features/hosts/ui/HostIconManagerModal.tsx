@@ -48,9 +48,9 @@ export interface HostIconManagerModalProps {
   actionBusy: boolean
   getIconUrl: (iconId: string) => string
   onClose: () => void
-  onUpload: (file: File) => Promise<HostIcon | undefined>
-  onRename: (id: string, displayName: string) => Promise<HostIcon | undefined>
-  onReorder: (items: HostIconReorderItem[]) => Promise<HostIcon[] | undefined>
+  onUpload: (file: File) => Promise<HostIcon>
+  onRename: (id: string, displayName: string) => Promise<HostIcon>
+  onReorder: (items: HostIconReorderItem[]) => Promise<HostIcon[]>
   onDelete: (id: string) => Promise<void>
 }
 
@@ -60,6 +60,11 @@ type DropTarget = {
 }
 
 type Operation = 'upload' | 'reorder' | `rename:${string}` | `delete:${string}`
+
+type ErrorState = {
+  key: string
+  count?: number
+}
 
 const MAX_DISPLAY_NAME_LENGTH = 64
 const SUPPORTED_ICON_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.svg', '.ico']
@@ -82,7 +87,7 @@ export function HostIconManagerModal({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const [operation, setOperation] = useState<Operation | null>(null)
-  const [errorKey, setErrorKey] = useState('')
+  const [error, setError] = useState<ErrorState | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -105,7 +110,7 @@ export function HostIconManagerModal({
       setEditingId(null)
       setEditingName('')
       setOperation(null)
-      setErrorKey('')
+      setError(null)
       setDraggingId(null)
       setDropTarget(null)
       operationInFlightRef.current = false
@@ -121,21 +126,46 @@ export function HostIconManagerModal({
     }
   }, [editingId, orderedIcons])
 
-  const upload = async (file: File) => {
-    const validationError = validateHostIconFile(file)
-    if (validationError) {
-      setErrorKey(validationError)
+  const upload = async (files: File[]) => {
+    if (files.length === 0 || busy || operationInFlightRef.current) return
+    const validFiles: File[] = []
+    const validationErrors: string[] = []
+    files.forEach((file) => {
+      const validationError = validateHostIconFile(file)
+      if (validationError) validationErrors.push(validationError)
+      else validFiles.push(file)
+    })
+    if (validFiles.length === 0) {
+      setError(files.length === 1
+        ? { key: validationErrors[0] ?? 'hosts.iconLibrary.uploadFailed' }
+        : { key: 'hosts.iconLibrary.batchUploadFailed', count: validationErrors.length })
       return
     }
-    if (busy || operationInFlightRef.current) return
     operationInFlightRef.current = true
     setOperation('upload')
-    setErrorKey('')
+    setError(null)
+    let uploadedCount = 0
+    let failedCount = validationErrors.length
     try {
-      const uploaded = await onUpload(file)
-      if (uploaded) setOrderedIcons((current) => upsertHostIcon(current, uploaded))
-    } catch {
-      setErrorKey('hosts.iconLibrary.uploadFailed')
+      for (const file of validFiles) {
+        try {
+          const uploaded = await onUpload(file)
+          setOrderedIcons((current) => upsertHostIcon(current, uploaded))
+          uploadedCount += 1
+        } catch {
+          failedCount += 1
+        }
+      }
+      if (failedCount > 0) {
+        setError(files.length === 1
+          ? { key: 'hosts.iconLibrary.uploadFailed' }
+          : {
+              key: uploadedCount > 0
+                ? 'hosts.iconLibrary.batchUploadPartialFailed'
+                : 'hosts.iconLibrary.batchUploadFailed',
+              count: failedCount,
+            })
+      }
     } finally {
       operationInFlightRef.current = false
       setOperation(null)
@@ -152,15 +182,14 @@ export function HostIconManagerModal({
     ) return
     operationInFlightRef.current = true
     setOperation(`rename:${editingId}`)
-    setErrorKey('')
+    setError(null)
     try {
       const renamed = await onRename(editingId, normalizedEditingName)
-      if (!renamed) return
       setOrderedIcons((current) => upsertHostIcon(current, renamed))
       setEditingId(null)
       setEditingName('')
     } catch {
-      setErrorKey('hosts.iconLibrary.renameFailed')
+      setError({ key: 'hosts.iconLibrary.renameFailed' })
     } finally {
       operationInFlightRef.current = false
       setOperation(null)
@@ -174,16 +203,16 @@ export function HostIconManagerModal({
     const normalizedIcons = nextIcons.map((icon, index) => ({ ...icon, sort_order: index }))
     setOrderedIcons(normalizedIcons)
     setOperation('reorder')
-    setErrorKey('')
+    setError(null)
     try {
       const savedIcons = await onReorder(normalizedIcons.map((icon) => ({
         id: icon.id,
         sort_order: icon.sort_order,
       })))
-      if (savedIcons) setOrderedIcons(sortHostIcons(savedIcons))
+      setOrderedIcons(sortHostIcons(savedIcons))
     } catch {
       setOrderedIcons(previousIcons)
-      setErrorKey('hosts.iconLibrary.reorderFailed')
+      setError({ key: 'hosts.iconLibrary.reorderFailed' })
     } finally {
       operationInFlightRef.current = false
       setOperation(null)
@@ -194,7 +223,7 @@ export function HostIconManagerModal({
     if (isProtected(iconId, hostCounts, protectedIds) || busy || operationInFlightRef.current) return
     operationInFlightRef.current = true
     setOperation(`delete:${iconId}`)
-    setErrorKey('')
+    setError(null)
     try {
       await onDelete(iconId)
       setOrderedIcons((current) => current.filter((icon) => icon.id !== iconId))
@@ -203,7 +232,7 @@ export function HostIconManagerModal({
         setEditingName('')
       }
     } catch {
-      setErrorKey('hosts.iconLibrary.deleteFailed')
+      setError({ key: 'hosts.iconLibrary.deleteFailed' })
     } finally {
       operationInFlightRef.current = false
       setOperation(null)
@@ -265,9 +294,9 @@ export function HostIconManagerModal({
   }
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.currentTarget.files?.[0]
+    const files = Array.from(event.currentTarget.files ?? [])
     event.currentTarget.value = ''
-    if (file) void upload(file)
+    if (files.length > 0) void upload(files)
   }
 
   return (
@@ -302,6 +331,7 @@ export function HostIconManagerModal({
           ref={fileInputRef}
           className={styles['host-icon-manager-file-input']}
           type="file"
+          multiple
           accept={HOST_ICON_ACCEPT}
           aria-label={t('hosts.iconLibrary.add')}
           tabIndex={-1}
@@ -319,14 +349,14 @@ export function HostIconManagerModal({
         </Button>
       </section>
 
-      {errorKey ? (
+      {error ? (
         <Alert
           className={styles['host-icon-manager-alert']}
           type="error"
           showIcon
           closable
-          message={t(errorKey)}
-          onClose={() => setErrorKey('')}
+          message={t(error.key, error.count === undefined ? undefined : { count: error.count })}
+          onClose={() => setError(null)}
         />
       ) : null}
 
@@ -386,6 +416,7 @@ export function HostIconManagerModal({
                   <AntImage
                     src={getIconUrl(icon.id)}
                     alt={icon.display_name}
+                    loading="lazy"
                     classNames={{
                       root: styles['host-icon-manager-preview'],
                       image: styles['host-icon-manager-preview-image'],
@@ -422,7 +453,7 @@ export function HostIconManagerModal({
 
                   <div className={styles['host-icon-manager-actions']}>
                     {editing ? (
-                      <>
+                      <span className={styles['host-icon-manager-edit-actions']}>
                         <Tooltip title={t('app.save')} rootClassName={uiStyles.tooltip}>
                           <Button
                             type="text"
@@ -445,7 +476,7 @@ export function HostIconManagerModal({
                             }}
                           />
                         </Tooltip>
-                      </>
+                      </span>
                     ) : (
                       <>
                         <span className={styles['host-icon-manager-order-actions']}>
@@ -477,7 +508,7 @@ export function HostIconManagerModal({
                             onClick={() => {
                               setEditingId(icon.id)
                               setEditingName(icon.display_name)
-                              setErrorKey('')
+                              setError(null)
                             }}
                           />
                         </Tooltip>

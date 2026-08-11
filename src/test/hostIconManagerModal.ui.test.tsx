@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -82,7 +82,9 @@ vi.mock('antd', () => {
     Empty: Object.assign(({ description }: { description?: ReactNode }) => <div>{description}</div>, {
       PRESENTED_IMAGE_SIMPLE: null,
     }),
-    Image: ({ src, alt }: { src?: string; alt?: string }) => <img src={src} alt={alt} />,
+    Image: ({ src, alt, loading }: { src?: string; alt?: string; loading?: 'eager' | 'lazy' }) => (
+      <img src={src} alt={alt} loading={loading} />
+    ),
     Input,
     Modal: ({ open, title, children }: { open: boolean; title?: ReactNode; children: ReactNode }) => (
       open ? <div role="dialog">{title}{children}</div> : null
@@ -131,9 +133,9 @@ function props(overrides: Partial<React.ComponentProps<typeof HostIconManagerMod
     actionBusy: false,
     getIconUrl: (id: string) => `http://localhost/${id}`,
     onClose: vi.fn(),
-    onUpload: vi.fn<(file: File) => Promise<HostIcon | undefined>>(),
-    onRename: vi.fn<(id: string, name: string) => Promise<HostIcon | undefined>>(),
-    onReorder: vi.fn<(items: HostIconReorderItem[]) => Promise<HostIcon[] | undefined>>(),
+    onUpload: vi.fn<(file: File) => Promise<HostIcon>>(),
+    onRename: vi.fn<(id: string, name: string) => Promise<HostIcon>>(),
+    onReorder: vi.fn<(items: HostIconReorderItem[]) => Promise<HostIcon[]>>(),
     onDelete: vi.fn<(id: string) => Promise<void>>(),
     ...overrides,
   }
@@ -149,6 +151,7 @@ describe('HostIconManagerModal 行为合同', () => {
     const onUpload = vi.fn(async () => existing)
     render(<HostIconManagerModal {...props({ hostIcons: [existing], onUpload })} />)
     const input = screen.getByLabelText('hosts.iconLibrary.add', { selector: 'input' })
+    expect(input).toHaveAttribute('multiple')
 
     fireEvent.change(input, {
       target: { files: [new File(['bad'], 'invalid.txt', { type: 'text/plain' })] },
@@ -163,11 +166,109 @@ describe('HostIconManagerModal 行为合同', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(1)
   })
 
+  it('按选择顺序串行批量上传，并按 ID 合并服务端去重结果', async () => {
+    const existing = hostIcon('a', 0)
+    const uploaded = hostIcon('c', 1)
+    const another = hostIcon('d', 2)
+    let resolveFirst: ((icon: HostIcon) => void) | undefined
+    const onUpload = vi.fn((file: File) => {
+      if (file.name === 'first.png') {
+        return new Promise<HostIcon>((resolve) => {
+          resolveFirst = resolve
+        })
+      }
+      if (file.name === 'duplicate.png') return Promise.resolve(existing)
+      return Promise.resolve(another)
+    })
+    render(<HostIconManagerModal {...props({ hostIcons: [existing], onUpload })} />)
+    const input = screen.getByLabelText('hosts.iconLibrary.add', { selector: 'input' })
+
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(['first'], 'first.png', { type: 'image/png' }),
+          new File(['duplicate'], 'duplicate.png', { type: 'image/png' }),
+          new File(['another'], 'another.png', { type: 'image/png' }),
+        ],
+      },
+    })
+
+    await waitFor(() => expect(onUpload).toHaveBeenCalledTimes(1))
+    expect(onUpload.mock.calls[0]?.[0].name).toBe('first.png')
+    expect(screen.getByRole('button', { name: 'hosts.iconLibrary.add' })).toHaveAttribute(
+      'data-loading',
+      'true',
+    )
+    screen.getAllByRole('button', { name: 'app.edit' }).forEach((button) => {
+      expect(button).toBeDisabled()
+    })
+
+    await act(async () => {
+      resolveFirst?.(uploaded)
+    })
+    await waitFor(() => expect(onUpload).toHaveBeenCalledTimes(3))
+    expect(onUpload.mock.calls.map(([file]) => file.name)).toEqual([
+      'first.png',
+      'duplicate.png',
+      'another.png',
+    ])
+    await waitFor(() => expect(rowIds()).toEqual(['a', 'c', 'd']))
+  })
+
+  it('批量导入跳过非法文件，且单个上传失败不阻断后续文件', async () => {
+    const onUpload = vi.fn(async (file: File) => {
+      if (file.name === 'broken.png') throw new Error('failed')
+      return hostIcon('good', 2)
+    })
+    render(<HostIconManagerModal {...props({ onUpload })} />)
+    const input = screen.getByLabelText('hosts.iconLibrary.add', { selector: 'input' })
+
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(['bad'], 'invalid.txt', { type: 'text/plain' }),
+          new File(['broken'], 'broken.png', { type: 'image/png' }),
+          new File(['good'], 'good.png', { type: 'image/png' }),
+        ],
+      },
+    })
+
+    await waitFor(() => expect(onUpload).toHaveBeenCalledTimes(2))
+    expect(onUpload.mock.calls.map(([file]) => file.name)).toEqual(['broken.png', 'good.png'])
+    await waitFor(() => expect(document.querySelector('[data-icon-id="good"]')).toBeInTheDocument())
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'hosts.iconLibrary.batchUploadPartialFailed:2',
+    )
+  })
+
+  it('批量上传全部失败时完成整个批次并汇总失败数量', async () => {
+    const onUpload = vi.fn(async () => {
+      throw new Error('failed')
+    })
+    render(<HostIconManagerModal {...props({ onUpload })} />)
+    const input = screen.getByLabelText('hosts.iconLibrary.add', { selector: 'input' })
+
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(['first'], 'first.png', { type: 'image/png' }),
+          new File(['second'], 'second.png', { type: 'image/png' }),
+        ],
+      },
+    })
+
+    await waitFor(() => expect(onUpload).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('alert')).toHaveTextContent('hosts.iconLibrary.batchUploadFailed:2')
+    expect(screen.getByRole('button', { name: 'hosts.iconLibrary.add' })).not.toHaveAttribute(
+      'data-loading',
+    )
+  })
+
   it('改名失败时保留输入和编辑状态，成功后使用返回记录更新列表', async () => {
     const user = userEvent.setup()
     const current = hostIcon('a', 0)
     const renamed = { ...current, display_name: 'Production' }
-    const onRename = vi.fn<(id: string, name: string) => Promise<HostIcon | undefined>>()
+    const onRename = vi.fn<(id: string, name: string) => Promise<HostIcon>>()
       .mockRejectedValueOnce(new Error('failed'))
       .mockResolvedValueOnce(renamed)
     render(<HostIconManagerModal {...props({ hostIcons: [current], onRename })} />)
@@ -202,6 +303,20 @@ describe('HostIconManagerModal 行为合同', () => {
     ]))
     await waitFor(() => expect(rowIds()).toEqual(['a', 'b']))
     expect(screen.getByRole('alert')).toHaveTextContent('hosts.iconLibrary.reorderFailed')
+  })
+
+  it('预览延迟加载，排序成功后采用服务端返回的最终顺序', async () => {
+    const user = userEvent.setup()
+    const onReorder = vi.fn(async () => [hostIcon('a', 0), hostIcon('b', 1)])
+    render(<HostIconManagerModal {...props({ onReorder })} />)
+
+    screen.getAllByRole('img').forEach((image) => {
+      expect(image).toHaveAttribute('loading', 'lazy')
+    })
+
+    await user.click(screen.getAllByRole('button', { name: 'app.moveDown' })[0])
+    await waitFor(() => expect(onReorder).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(rowIds()).toEqual(['a', 'b']))
   })
 
   it('同时保护持久化引用和未保存草稿，仅允许删除未使用图标', async () => {

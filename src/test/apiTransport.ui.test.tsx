@@ -242,6 +242,11 @@ describe('领域 API HTTP transport 合同', () => {
     expect(fontUrl.pathname).toBe('/api/v1/terminal-fonts/font%2Fid/file')
     expect(fontUrl.searchParams.get('token')).toBe('token value')
     expect(fontUrl.searchParams.get('sha256')).toBe('sha value')
+
+    const hostIconUrl = new URL(gateways.hosts.hostIconFileUrl('icon/id', 'icon sha'))
+    expect(hostIconUrl.pathname).toBe('/api/v1/host-icons/icon%2Fid/file')
+    expect(hostIconUrl.searchParams.get('token')).toBe('token value')
+    expect(hostIconUrl.searchParams.get('sha256')).toBe('icon sha')
   })
 
   it('所有 transport 错误仍使用公开的 TermousApiError', async () => {

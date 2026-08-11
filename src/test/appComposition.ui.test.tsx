@@ -18,6 +18,7 @@ const testState = vi.hoisted(() => {
     filesPageMounts: 0,
     filesPageUnmounts: 0,
     workbenchForwardsIsArray: false,
+    workbenchHostIconURL: '',
     projectionKeys: {
       workbench: [] as string[],
       workbenchHostView: [] as string[],
@@ -33,6 +34,16 @@ const testState = vi.hoisted(() => {
     data: {
       hosts: [],
       groups: [],
+      hostIcons: [{
+        id: 'icon-a',
+        display_name: 'Icon A',
+        file_name: 'icon-a.png',
+        mime_type: 'image/png',
+        size_bytes: 128,
+        sha256: 'sha-icon-a',
+        sort_order: 0,
+        created_at: '2026-08-11T00:00:00Z',
+      }],
       proxies: [],
       credentials: [],
       sessions: [],
@@ -164,6 +175,7 @@ vi.mock('#widgets/workbench', () => ({
     forwards: unknown[]
     snippetView: Record<string, unknown>
     data?: unknown
+    getHostIconUrl: (iconId: string) => string
     onSnippetUsed?: (snippetId: string) => Promise<void>
   }) => {
     const {
@@ -173,6 +185,7 @@ vi.mock('#widgets/workbench', () => ({
       filesView,
       forwards,
       snippetView,
+      getHostIconUrl,
       onSnippetUsed,
     } = props
     testState.projectionKeys.workbench = [
@@ -188,6 +201,7 @@ vi.mock('#widgets/workbench', () => ({
     testState.projectionKeys.workbenchFilesView = Object.keys(filesView).sort()
     testState.projectionKeys.workbenchSnippetView = Object.keys(snippetView).sort()
     testState.workbenchForwardsIsArray = Array.isArray(forwards)
+    testState.workbenchHostIconURL = getHostIconUrl('icon-a')
     const [snippetUsageState, setSnippetUsageState] = useState('idle')
     useEffect(() => {
       testState.workbenchMounts += 1
@@ -315,7 +329,11 @@ vi.mock('#app/data-runtime', () => ({
   useTermousData: () => ({
     gateways: {
       forwards: {},
-      hosts: {},
+      hosts: {
+        hostIconFileUrl: (iconId: string, sha256?: string) => (
+          `http://127.0.0.1/host-icons/${iconId}?sha256=${sha256 ?? ''}`
+        ),
+      },
       credentials: {},
       hostKeys: {},
       terminal: {},
@@ -364,6 +382,7 @@ describe('应用运行时组合合同', () => {
     testState.filesPageMounts = 0
     testState.filesPageUnmounts = 0
     testState.workbenchForwardsIsArray = false
+    testState.workbenchHostIconURL = ''
     Object.values(testState.projectionKeys).forEach((keys) => keys.splice(0))
     testState.action.mockReset()
     testState.action.mockResolvedValue(undefined)
@@ -426,6 +445,9 @@ describe('应用运行时组合合同', () => {
       'snippets',
     ])
     expect(testState.workbenchForwardsIsArray).toBe(true)
+    expect(testState.workbenchHostIconURL).toBe(
+      'http://127.0.0.1/host-icons/icon-a?sha256=sha-icon-a',
+    )
     expect(testState.projectionKeys.hostLauncher).toEqual([
       'credentials',
       'groups',

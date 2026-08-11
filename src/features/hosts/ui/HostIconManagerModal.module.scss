@@ -170,8 +170,21 @@
 }
 
 .host-icon-manager-row.is-editing {
-  background: color-mix(in srgb, var(--warning) 8%, var(--surface) 92%);
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--warning) 68%, var(--border));
+  z-index: 1;
+  background: color-mix(in srgb, var(--surface-strong) 82%, var(--accent-soft) 18%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 25%, var(--border)),
+    inset 0 -1px 0 color-mix(in srgb, var(--accent) 20%, var(--border));
+}
+
+.host-icon-manager-row.is-editing .host-icon-manager-drag-handle {
+  color: color-mix(in srgb, var(--text-muted) 62%, transparent);
+}
+
+.host-icon-manager-row.is-editing .host-icon-manager-preview {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border-strong));
+  background: var(--surface-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-soft) 50%, transparent);
 }
 
 .host-icon-manager-row.is-dragging {
@@ -258,6 +271,23 @@
   height: 32px;
 }
 
+.host-icon-manager-row.is-editing .host-icon-manager-copy :global(.ant-input) {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border-strong));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-strong) 94%, var(--accent-soft) 6%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 5%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--accent-soft) 38%, transparent);
+}
+
+.host-icon-manager-row.is-editing .host-icon-manager-copy :global(.ant-input:hover),
+.host-icon-manager-row.is-editing .host-icon-manager-copy :global(.ant-input:focus) {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border-strong));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--accent-soft) 58%, transparent);
+}
+
 .host-icon-manager-meta {
   min-width: 78px;
   justify-items: end;
@@ -285,6 +315,32 @@
   width: 30px;
   height: 32px;
   padding: 0;
+}
+
+.host-icon-manager-edit-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 92%, var(--accent-soft) 8%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  padding: 2px;
+}
+
+.host-icon-manager-edit-actions :global(.ant-btn:first-child) {
+  background: color-mix(in srgb, var(--accent-soft) 76%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.host-icon-manager-edit-actions :global(.ant-btn:first-child:not(:disabled):hover) {
+  background: color-mix(in srgb, var(--accent-soft) 92%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.host-icon-manager-edit-actions :global(.ant-btn:last-child:not(:disabled):hover) {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
 }
 
 @media (width <= 680px) {

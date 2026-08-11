@@ -70,5 +70,20 @@ describe('主机实体原子组件样式合同', () => {
     expect(customAvatar).toHaveClass(avatarStyles['host-avatar'], 'host-avatar', 'is-default-icon')
     expect(customAvatar).not.toHaveClass(avatarStyles['has-custom-icon'], 'has-custom-icon')
     expect(screen.queryByRole('img', { name: '测试主机' })).not.toBeInTheDocument()
+
+    view.rerender(
+      <HostAvatar
+        host={{ icon_id: 'host-icon-1', name: '测试主机' }}
+        getIconUrl={(iconId) => `/icons/${iconId}?sha256=next`}
+        decorative={false}
+        loading="lazy"
+      />,
+    )
+
+    expect(screen.getByRole('img', { name: '测试主机' })).toHaveAttribute('loading', 'lazy')
+    expect(screen.getByRole('img', { name: '测试主机' })).toHaveAttribute(
+      'src',
+      '/icons/host-icon-1?sha256=next',
+    )
   })
 })

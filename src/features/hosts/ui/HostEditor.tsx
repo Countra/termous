@@ -218,6 +218,7 @@ export function HostEditor({
                     getIconUrl={getHostIconUrl}
                     size={30}
                     iconSize={15}
+                    loading="lazy"
                   />
                   <span className={styles['host-icon-select-option-copy']}>
                     <strong>{option.data.icon.display_name}</strong>

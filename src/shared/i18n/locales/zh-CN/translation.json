@@ -1260,7 +1260,7 @@
     "icon": {
       "title": "主机图标",
       "hint": "自定义主机在列表、连接弹窗和详情中的标识。",
-      "formats": "支持 PNG、JPEG、SVG、ICO，最大 5 MiB。",
+      "formats": "可批量选择 PNG、JPEG、SVG、ICO，单个文件最大 5 MiB。",
       "upload": "上传图标",
       "remove": "移除",
       "defaultName": "默认主机",
@@ -1285,6 +1285,8 @@
       "deleteTitle": "删除这个图标？",
       "deleteDescription": "删除后无法恢复，但不会影响默认主机图标。",
       "uploadFailed": "图标上传失败",
+      "batchUploadFailed": "批量导入失败，共 {{count}} 个图标未导入",
+      "batchUploadPartialFailed": "其余图标已导入，{{count}} 个图标导入失败",
       "renameFailed": "图标重命名失败",
       "reorderFailed": "图标排序保存失败，已恢复原顺序",
       "deleteFailed": "图标删除失败"

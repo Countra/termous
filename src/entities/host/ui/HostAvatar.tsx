@@ -11,6 +11,7 @@ interface HostAvatarProps {
   iconSize?: number
   decorative?: boolean
   alt?: string
+  loading?: 'eager' | 'lazy'
 }
 
 export function HostAvatar({
@@ -21,15 +22,15 @@ export function HostAvatar({
   iconSize,
   decorative = true,
   alt,
+  loading,
 }: HostAvatarProps) {
   const iconId = host?.icon_id?.trim() ?? ''
-  const [failedIconId, setFailedIconId] = useState('')
-  const src = useMemo(() => {
-    if (!iconId || iconId === failedIconId || !getIconUrl) {
-      return ''
-    }
-    return getIconUrl(iconId)
-  }, [failedIconId, getIconUrl, iconId])
+  const [failedSrc, setFailedSrc] = useState('')
+  const iconSrc = useMemo(
+    () => iconId && getIconUrl ? getIconUrl(iconId) : '',
+    [getIconUrl, iconId],
+  )
+  const src = iconSrc === failedSrc ? '' : iconSrc
   const style = size ? ({ '--host-avatar-size': `${size}px` } as CSSProperties) : undefined
   const label = alt ?? host?.name ?? ''
 
@@ -46,7 +47,8 @@ export function HostAvatar({
           src={src}
           alt={decorative ? '' : label}
           draggable={false}
-          onError={() => setFailedIconId(iconId)}
+          loading={loading}
+          onError={() => setFailedSrc(src)}
         />
       ) : (
         <Server size={iconSize ?? Math.max(14, Math.round((size ?? 30) * 0.52))} aria-hidden="true" />

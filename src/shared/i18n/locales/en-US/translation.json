@@ -1262,7 +1262,7 @@
     "icon": {
       "title": "Host icon",
       "hint": "Customize how this host appears in lists, launchers, and details.",
-      "formats": "PNG, JPEG, SVG, and ICO up to 5 MiB.",
+      "formats": "Select multiple PNG, JPEG, SVG, or ICO files, up to 5 MiB each.",
       "upload": "Upload icon",
       "remove": "Remove",
       "defaultName": "Default host",
@@ -1290,6 +1290,10 @@
       "deleteTitle": "Delete this icon?",
       "deleteDescription": "This cannot be undone. The default host icon is unaffected.",
       "uploadFailed": "Failed to upload the icon",
+      "batchUploadFailed_one": "Batch import failed. {{count}} icon was not imported.",
+      "batchUploadFailed_other": "Batch import failed. {{count}} icons were not imported.",
+      "batchUploadPartialFailed_one": "The remaining icons were imported. {{count}} icon failed.",
+      "batchUploadPartialFailed_other": "The remaining icons were imported. {{count}} icons failed.",
       "renameFailed": "Failed to rename the icon",
       "reorderFailed": "Failed to save icon order. The previous order was restored.",
       "deleteFailed": "Failed to delete the icon"

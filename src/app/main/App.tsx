@@ -108,6 +108,14 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const { gateways, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
+  const hostIconSHAByID = useMemo(
+    () => new Map(data.hostIcons.map((icon) => [icon.id, icon.sha256])),
+    [data.hostIcons],
+  )
+  const getHostIconUrl = useCallback(
+    (iconId: string) => gateways.hosts.hostIconFileUrl(iconId, hostIconSHAByID.get(iconId)),
+    [gateways.hosts, hostIconSHAByID],
+  )
   const createCredentialGateway = useCallback(
     () => Promise.resolve(gateways.credentials),
     [gateways.credentials],
@@ -840,7 +848,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             dockerGateway={gateways.docker}
             firewallGateway={gateways.firewall}
             aliasGateway={gateways.alias}
-            getHostIconUrl={(iconId) => gateways.hosts.hostIconFileUrl(iconId)}
+            getHostIconUrl={getHostIconUrl}
             hostView={hostLauncherData}
             sessionView={workbenchSessionView}
             filesView={workbenchFilesView}
@@ -908,7 +916,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onRenameHostIcon={renameHostIcon}
             onReorderHostIcons={reorderHostIcons}
             onDeleteHostIcon={deleteHostIcon}
-            getHostIconUrl={(iconId) => gateways.hosts.hostIconFileUrl(iconId)}
+            getHostIconUrl={getHostIconUrl}
           />
         ) : null}
 
@@ -929,7 +937,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         {page === 'files' ? (
           <FilesPage
             fileGateway={gateways.files}
-            getHostIconUrl={(iconId) => gateways.hosts.hostIconFileUrl(iconId)}
+            getHostIconUrl={getHostIconUrl}
             data={filesPageData}
             theme={theme}
             activeFileSession={activeFileSession}
@@ -1070,7 +1078,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         onOpenForward={openTemporaryForwardForHost}
         onToggleFavorite={(hostId) => runAction(() => actions.toggleHostFavorite(hostId))}
         onRefreshReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
-        getHostIconUrl={(iconId) => gateways.hosts.hostIconFileUrl(iconId)}
+        getHostIconUrl={getHostIconUrl}
       />
       <HostKeyCoordinator api={gateways.hostKeys} enabled={apiReady && !coreFatal} hosts={data.hosts} />
       <Modal

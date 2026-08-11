@@ -1437,6 +1437,7 @@ export function WorkbenchPage({
           aliases: (
               <AliasPanel
                 api={aliasGateway}
+                getHostIconUrl={getHostIconUrl}
                 session={activeSession}
                 sessionIds={aliasSessionIds}
                 hosts={hostView.hosts}

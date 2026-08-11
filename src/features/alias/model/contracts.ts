@@ -12,7 +12,6 @@ interface AliasRequestOptions {
 }
 
 export interface AliasGateway {
-  hostIconFileUrl(iconId: string): string
   sessionAliases(sessionId: string, options?: AliasRequestOptions): Promise<AliasWorkspace>
   createSessionAlias(
     sessionId: string,

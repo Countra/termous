@@ -49,8 +49,8 @@ export interface HostManagementWorkspaceProps {
   ) => Promise<ConnectionProxy | undefined>
   onDeleteProxy: (id: string) => Promise<boolean | undefined>
   onUploadHostIcon: (file: File) => Promise<HostIcon>
-  onRenameHostIcon: (id: string, displayName: string) => Promise<HostIcon | undefined>
-  onReorderHostIcons: (items: HostIconReorderItem[]) => Promise<HostIcon[] | undefined>
+  onRenameHostIcon: (id: string, displayName: string) => Promise<HostIcon>
+  onReorderHostIcons: (items: HostIconReorderItem[]) => Promise<HostIcon[]>
   onDeleteHostIcon: (id: string) => Promise<void>
   getHostIconUrl: (iconId: string) => string
 }

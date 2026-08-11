@@ -193,8 +193,8 @@ function callbacks() {
     onUpdateProxy: vi.fn(),
     onDeleteProxy: vi.fn(),
     onUploadHostIcon: vi.fn<(file: File) => Promise<HostIcon>>(),
-    onRenameHostIcon: vi.fn<(id: string, displayName: string) => Promise<HostIcon | undefined>>(),
-    onReorderHostIcons: vi.fn<(items: HostIconReorderItem[]) => Promise<HostIcon[] | undefined>>(),
+    onRenameHostIcon: vi.fn<(id: string, displayName: string) => Promise<HostIcon>>(),
+    onReorderHostIcons: vi.fn<(items: HostIconReorderItem[]) => Promise<HostIcon[]>>(),
     onDeleteHostIcon: vi.fn<(id: string) => Promise<void>>().mockResolvedValue(undefined),
     getHostIconUrl: vi.fn((iconId: string) => `http://localhost/${iconId}`),
   }
