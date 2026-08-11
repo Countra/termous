@@ -28,6 +28,7 @@ export interface SettingsPageProps {
   language: AppLanguage
   appearanceSettings: AppearanceSettings
   terminalSettings: TerminalSettings
+  sshSmoothScrollEnabled: boolean
   completionSettings: CompletionSettings
   shortcutSettings: ShortcutSettings
   windowSettings: WindowSettings
@@ -39,6 +40,7 @@ export interface SettingsPageProps {
   onLanguageChange: (language: AppLanguage) => Promise<void>
   onAppearanceSettingsChange: (settings: AppearanceSettings) => Promise<void>
   onTerminalSettingsChange: (settings: TerminalSettings) => Promise<void>
+  onSshSmoothScrollChange: (enabled: boolean) => void
   onCompletionSettingsChange: (settings: CompletionSettings) => Promise<void>
   onShortcutSettingsChange: (patch: ShortcutSettingsPatch) => Promise<void>
   onWindowSettingsChange: (settings: WindowSettings) => Promise<void>
@@ -50,6 +52,7 @@ export function SettingsPage({
   language,
   appearanceSettings,
   terminalSettings,
+  sshSmoothScrollEnabled,
   completionSettings,
   shortcutSettings,
   windowSettings,
@@ -61,6 +64,7 @@ export function SettingsPage({
   onLanguageChange,
   onAppearanceSettingsChange,
   onTerminalSettingsChange,
+  onSshSmoothScrollChange,
   onCompletionSettingsChange,
   onShortcutSettingsChange,
   onWindowSettingsChange,
@@ -116,9 +120,11 @@ export function SettingsPage({
                 <div className={styles['terminal-stack']}>
                   <TerminalStyleSettings
                     value={terminalSettings}
+                    sshSmoothScrollEnabled={sshSmoothScrollEnabled}
                     fonts={terminalFonts}
                     disabled={actionBusy}
                     onChange={onTerminalSettingsChange}
+                    onSshSmoothScrollChange={onSshSmoothScrollChange}
                     onUploadFont={onUploadTerminalFont}
                     onDeleteFont={onDeleteTerminalFont}
                   />

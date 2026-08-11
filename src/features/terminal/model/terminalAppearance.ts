@@ -2,6 +2,9 @@ import type {
   AppTheme as ThemeMode,
   TerminalSettings,
 } from '#common/contracts'
+import type { SessionKind } from '#entities/session'
+
+export const SSH_TERMINAL_SMOOTH_SCROLL_DURATION_MS = 125
 
 export function shouldFitAfterSettingsChange(previous: TerminalSettings, next: TerminalSettings) {
   return (
@@ -10,6 +13,15 @@ export function shouldFitAfterSettingsChange(previous: TerminalSettings, next: T
     previous.line_height !== next.line_height ||
     previous.letter_spacing !== next.letter_spacing
   )
+}
+
+export function terminalSmoothScrollDuration(
+  sessionKind: SessionKind | undefined,
+  enabled: boolean,
+) {
+  return sessionKind === 'ssh' && enabled
+    ? SSH_TERMINAL_SMOOTH_SCROLL_DURATION_MS
+    : 0
 }
 
 export function terminalTheme(settings: TerminalSettings, appTheme: ThemeMode) {

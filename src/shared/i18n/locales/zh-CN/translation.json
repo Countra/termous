@@ -2214,6 +2214,7 @@
     "terminalCursorBlink": "光标闪烁",
     "terminalTheme": "主题",
     "terminalScrollback": "滚动缓冲",
+    "terminalSmoothScroll": "SSH 平滑滚动",
     "terminalPreview": "终端预览",
     "cursorBlock": "块状",
     "cursorBar": "竖线",

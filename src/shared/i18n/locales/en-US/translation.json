@@ -2218,6 +2218,7 @@
     "terminalCursorBlink": "Cursor blink",
     "terminalTheme": "Theme",
     "terminalScrollback": "Scrollback",
+    "terminalSmoothScroll": "Smooth SSH scrolling",
     "terminalPreview": "Terminal preview",
     "cursorBlock": "Block",
     "cursorBar": "Bar",

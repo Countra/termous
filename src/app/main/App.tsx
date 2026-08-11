@@ -69,6 +69,7 @@ import { useRealtimeStatusSubscriptions } from './model/useRealtimeStatusSubscri
 import { useDesktopBridgeRuntime } from './model/useDesktopBridgeRuntime'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
+const SSH_TERMINAL_SMOOTH_SCROLL_STORAGE_KEY = 'termous.ui.terminal.sshSmoothScroll.v1'
 const developmentUpdateSimulation = readDevelopmentUpdateSimulation()
 
 function App() {
@@ -158,6 +159,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [vaultDirty, setVaultDirty] = useState(false)
   const [pendingPage, setPendingPage] = useState<PageKey | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
+  const [sshSmoothScrollEnabled, setSshSmoothScrollEnabled] = usePersistentBooleanState(
+    SSH_TERMINAL_SMOOTH_SCROLL_STORAGE_KEY,
+    false,
+  )
   const [selectedHostId, setSelectedHostId] = useState('')
   const [filesBookmarkManagementIntent, setFilesBookmarkManagementIntent] =
     useState<FilesBookmarkManagementIntent | null>(null)
@@ -784,6 +789,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             sessions={data.sessions}
             theme={theme}
             terminalSettings={data.settings.terminal}
+            sshSmoothScrollEnabled={sshSmoothScrollEnabled}
             completionSettings={data.settings.completion}
             terminalFonts={data.terminalFonts}
             onSessionEvent={actions.updateSession}
@@ -987,6 +993,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             language={data.settings.language}
             appearanceSettings={data.settings.appearance}
             terminalSettings={data.settings.terminal}
+            sshSmoothScrollEnabled={sshSmoothScrollEnabled}
             completionSettings={data.settings.completion}
             shortcutSettings={data.settings.shortcuts}
             windowSettings={data.settings.window}
@@ -998,6 +1005,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
             onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
             onTerminalSettingsChange={saveTerminalSettings}
+            onSshSmoothScrollChange={setSshSmoothScrollEnabled}
             onCompletionSettingsChange={saveCompletionSettings}
             onShortcutSettingsChange={saveShortcutSettings}
             onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}

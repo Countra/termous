@@ -140,17 +140,26 @@ vi.mock('#features/settings', () => ({
     fonts,
     onChange,
     onDeleteFont,
+    onSshSmoothScrollChange,
     onUploadFont,
+    sshSmoothScrollEnabled,
     value,
   }: {
     fonts: Array<{ id: string }>
     onChange: (settings: TerminalSettings) => Promise<void>
     onDeleteFont: (id: string) => Promise<void>
+    onSshSmoothScrollChange: (enabled: boolean) => void
     onUploadFont: (file: File) => Promise<unknown>
+    sshSmoothScrollEnabled: boolean
     value: TerminalSettings
   }) => (
-    <div data-testid="terminal-style" data-font-count={fonts.length}>
+    <div
+      data-testid="terminal-style"
+      data-font-count={fonts.length}
+      data-smooth-scroll={String(sshSmoothScrollEnabled)}
+    >
       <button type="button" onClick={() => void onChange({ ...value, font_size: 14 })}>terminal-change</button>
+      <button type="button" onClick={() => onSshSmoothScrollChange(!sshSmoothScrollEnabled)}>smooth-scroll-change</button>
       <button type="button" onClick={() => void onUploadFont(new File(['font'], 'custom.ttf'))}>terminal-upload</button>
       <button type="button" onClick={() => void onDeleteFont('custom-font')}>terminal-delete</button>
     </div>
@@ -199,6 +208,7 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
     onDeleteTerminalFont: vi.fn(async () => undefined),
     onLanguageChange: vi.fn(async () => undefined),
     onShortcutSettingsChange: vi.fn(async () => undefined),
+    onSshSmoothScrollChange: vi.fn(),
     onTerminalSettingsChange: vi.fn(async () => undefined),
     onUploadTerminalFont: vi.fn(async () => ({
       id: 'uploaded-font',
@@ -213,6 +223,7 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
       language="zh-CN"
       appearanceSettings={{ theme: 'dark' }}
       terminalSettings={terminalSettings}
+      sshSmoothScrollEnabled={false}
       completionSettings={completionSettings}
       shortcutSettings={{ schema_version: 1, overrides: {} }}
       windowSettings={{ close_behavior: 'exit' }}
@@ -265,12 +276,15 @@ describe('设置页面装配合同', () => {
     const handlers = renderSettingsPage()
 
     await user.click(screen.getByRole('tab', { name: 'settings.tabTerminal' }))
+    expect(screen.getByTestId('terminal-style')).toHaveAttribute('data-smooth-scroll', 'false')
     await user.click(screen.getByRole('button', { name: 'terminal-change' }))
+    await user.click(screen.getByRole('button', { name: 'smooth-scroll-change' }))
     await user.click(screen.getByRole('button', { name: 'completion-change' }))
     await user.click(screen.getByRole('button', { name: 'terminal-upload' }))
     await user.click(screen.getByRole('button', { name: 'terminal-delete' }))
 
     expect(handlers.onTerminalSettingsChange).toHaveBeenCalledWith({ ...terminalSettings, font_size: 14 })
+    expect(handlers.onSshSmoothScrollChange).toHaveBeenCalledWith(true)
     expect(handlers.onCompletionSettingsChange).toHaveBeenCalledWith({ ...completionSettings, enabled: false })
     expect(handlers.onUploadTerminalFont).toHaveBeenCalledWith(expect.objectContaining({ name: 'custom.ttf' }))
     expect(handlers.onDeleteTerminalFont).toHaveBeenCalledWith('custom-font')

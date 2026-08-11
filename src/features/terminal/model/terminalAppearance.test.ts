@@ -3,6 +3,8 @@ import test from 'node:test'
 import type { TerminalSettings } from '#common/contracts'
 import {
   shouldFitAfterSettingsChange,
+  SSH_TERMINAL_SMOOTH_SCROLL_DURATION_MS,
+  terminalSmoothScrollDuration,
   terminalTheme,
 } from './terminalAppearance.ts'
 
@@ -35,4 +37,14 @@ test('只有字体度量变化才要求重新适配终端尺寸', () => {
   assert.equal(shouldFitAfterSettingsChange(settings, { ...settings, cursor_blink: false }), false)
   assert.equal(shouldFitAfterSettingsChange(settings, { ...settings, theme_mode: 'dark' }), false)
   assert.equal(shouldFitAfterSettingsChange(settings, { ...settings, scrollback: 10000 }), false)
+})
+
+test('平滑滚动只对显式开启的 SSH 终端生效', () => {
+  assert.equal(
+    terminalSmoothScrollDuration('ssh', true),
+    SSH_TERMINAL_SMOOTH_SCROLL_DURATION_MS,
+  )
+  assert.equal(terminalSmoothScrollDuration('ssh', false), 0)
+  assert.equal(terminalSmoothScrollDuration('local', true), 0)
+  assert.equal(terminalSmoothScrollDuration(undefined, true), 0)
 })

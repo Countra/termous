@@ -15,9 +15,11 @@ import styles from './TerminalStyleSettings.module.scss'
 
 interface TerminalStyleSettingsProps {
   value: TerminalSettings
+  sshSmoothScrollEnabled: boolean
   fonts: TerminalFont[]
   disabled: boolean
   onChange: (value: TerminalSettings) => Promise<void>
+  onSshSmoothScrollChange: (enabled: boolean) => void
   onUploadFont: (file: File) => Promise<TerminalFont>
   onDeleteFont: (id: string) => Promise<void>
 }
@@ -41,7 +43,16 @@ const cursorBlinkClassNames = {
   steady: '',
 } as const
 
-export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUploadFont, onDeleteFont }: TerminalStyleSettingsProps) {
+export function TerminalStyleSettings({
+  value,
+  sshSmoothScrollEnabled,
+  fonts,
+  disabled,
+  onChange,
+  onSshSmoothScrollChange,
+  onUploadFont,
+  onDeleteFont,
+}: TerminalStyleSettingsProps) {
   const { t } = useTranslation()
   const [draft, setDraft] = useState(() => normalizeTerminalSettings(value))
   const [fontBusyId, setFontBusyId] = useState<string | null>(null)
@@ -286,11 +297,23 @@ export function TerminalStyleSettings({ value, fonts, disabled, onChange, onUplo
             />
           </SettingLine>
 
+          <SettingLine label={t('settings.terminalSmoothScroll')}>
+            <Switch
+              aria-label={t('settings.terminalSmoothScroll')}
+              checked={sshSmoothScrollEnabled}
+              disabled={disabled}
+              onChange={(checked) => onSshSmoothScrollChange(checked)}
+            />
+          </SettingLine>
+
           <div className={styles['reset-row']}>
             <Button
               icon={<RotateCcw size={15} aria-hidden="true" />}
               disabled={disabled}
-              onClick={() => commit(defaultTerminalSettings)}
+              onClick={() => {
+                commit(defaultTerminalSettings)
+                onSshSmoothScrollChange(false)
+              }}
             >
               {t('settings.resetTerminal')}
             </Button>

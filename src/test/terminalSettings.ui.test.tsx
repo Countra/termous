@@ -1,3 +1,5 @@
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   defaultTerminalSettings,
@@ -6,6 +8,7 @@ import {
   normalizeTerminalSettings,
   syncImportedFontFaces,
 } from '#entities/settings'
+import { TerminalStyleSettings } from '#features/settings'
 import type { TerminalFont } from '#common/contracts'
 
 const importedFontStyleId = 'termous-imported-terminal-fonts'
@@ -104,5 +107,42 @@ describe('Terminal 字体与配置合同', () => {
 
     load.mockRejectedValueOnce(new Error('字体不可用'))
     await expect(loadTerminalFont('custom-font', fonts)).resolves.toBe(false)
+  })
+
+  it('平滑滚动开关保持受控状态并随终端设置恢复默认', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn(async () => undefined)
+    const onSshSmoothScrollChange = vi.fn()
+    const sharedProps = {
+      value: { ...defaultTerminalSettings, font_size: 16 },
+      sshSmoothScrollEnabled: true,
+      fonts,
+      onChange,
+      onSshSmoothScrollChange,
+      onUploadFont: vi.fn(async () => fonts[1]),
+      onDeleteFont: vi.fn(async () => undefined),
+    }
+    const { rerender } = render(
+      <TerminalStyleSettings {...sharedProps} disabled={false} />,
+    )
+
+    const smoothScrollSwitch = screen.getByRole('switch', {
+      name: 'settings.terminalSmoothScroll',
+    })
+    expect(smoothScrollSwitch).toBeChecked()
+    await user.click(smoothScrollSwitch)
+    expect(onSshSmoothScrollChange).toHaveBeenCalledWith(false)
+
+    rerender(<TerminalStyleSettings {...sharedProps} disabled />)
+    expect(smoothScrollSwitch).toBeDisabled()
+
+    rerender(<TerminalStyleSettings {...sharedProps} disabled={false} />)
+    onSshSmoothScrollChange.mockClear()
+    await user.click(screen.getByRole('button', { name: 'settings.resetTerminal' }))
+
+    expect(onSshSmoothScrollChange).toHaveBeenCalledWith(false)
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith(defaultTerminalSettings)
+    })
   })
 })

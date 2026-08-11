@@ -66,6 +66,7 @@ import {
 } from '../model/terminalCompletionRuntime'
 import {
   shouldFitAfterSettingsChange,
+  terminalSmoothScrollDuration,
   terminalTheme,
 } from '../model/terminalAppearance'
 import {
@@ -103,6 +104,7 @@ interface TerminalRuntimeProviderProps {
   sessions: Session[]
   theme: ThemeMode
   terminalSettings: TerminalSettings
+  sshSmoothScrollEnabled: boolean
   completionSettings: CompletionSettings
   terminalFonts: TerminalFont[]
   children: ReactNode
@@ -124,6 +126,7 @@ export function TerminalRuntimeProvider({
   sessions,
   theme,
   terminalSettings,
+  sshSmoothScrollEnabled,
   completionSettings,
   terminalFonts,
   children,
@@ -137,6 +140,7 @@ export function TerminalRuntimeProvider({
   const apiRef = useRef(api)
   const themeRef = useRef(theme)
   const terminalSettingsRef = useRef(normalizeTerminalSettings(terminalSettings))
+  const sshSmoothScrollEnabledRef = useRef(sshSmoothScrollEnabled)
   const terminalFontsRef = useRef(terminalFonts)
   const onSessionEventRef = useRef(onSessionEvent)
   const tRef = useRef<(key: string) => string>((key) => key)
@@ -186,6 +190,11 @@ export function TerminalRuntimeProvider({
   const completionLayoutListenersRef = useRef(new Map<string, Set<() => void>>())
   const sessionSnapshot = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
   sessionsRef.current = sessionSnapshot
+  sshSmoothScrollEnabledRef.current = sshSmoothScrollEnabled
+  const sessionKindsSignature = useMemo(
+    () => sessions.map((session) => `${session.id}:${session.kind}`).sort().join('|'),
+    [sessions],
+  )
 
   useEffect(() => {
     if (completionShortcutSignatureRef.current === completionShortcutSignature) {
@@ -744,6 +753,15 @@ export function TerminalRuntimeProvider({
     fitAfterFontLoad(settings, terminalFonts)
   }, [fitAfterFontLoad, fitAndResize, terminalFonts])
 
+  useEffect(() => {
+    entriesRef.current.forEach((entry) => {
+      entry.terminal.options.smoothScrollDuration = terminalSmoothScrollDuration(
+        sessionsRef.current.get(entry.sessionId)?.kind,
+        sshSmoothScrollEnabled,
+      )
+    })
+  }, [sessionKindsSignature, sshSmoothScrollEnabled])
+
   const createEntry = useCallback(
     (sessionId: string) => {
       const existingEntry = entriesRef.current.get(sessionId)
@@ -759,7 +777,15 @@ export function TerminalRuntimeProvider({
 
       const fit = new FitAddon()
       const search = new SearchAddon({ highlightLimit: 2000 })
-      const terminal = createTerminal(themeRef.current, terminalSettingsRef.current, terminalFontsRef.current)
+      const terminal = createTerminal(
+        themeRef.current,
+        terminalSettingsRef.current,
+        terminalFontsRef.current,
+        terminalSmoothScrollDuration(
+          sessionsRef.current.get(sessionId)?.kind,
+          sshSmoothScrollEnabledRef.current,
+        ),
+      )
       terminal.loadAddon(fit)
       terminal.loadAddon(search)
       terminal.open(pane)
@@ -1464,7 +1490,12 @@ function isPlainTerminalEnter(event: ShortcutKeyboardEventLike) {
     && !event.metaKey
 }
 
-function createTerminal(theme: ThemeMode, settings: TerminalSettings = defaultTerminalSettings, fonts: TerminalFont[] = []) {
+function createTerminal(
+  theme: ThemeMode,
+  settings: TerminalSettings = defaultTerminalSettings,
+  fonts: TerminalFont[] = [],
+  smoothScrollDuration = 0,
+) {
   const normalizedSettings = normalizeTerminalSettings(settings)
   return new Terminal({
     allowProposedApi: true,
@@ -1475,6 +1506,7 @@ function createTerminal(theme: ThemeMode, settings: TerminalSettings = defaultTe
     letterSpacing: normalizedSettings.letter_spacing,
     lineHeight: normalizedSettings.line_height,
     scrollback: normalizedSettings.scrollback,
+    smoothScrollDuration,
     theme: terminalTheme(normalizedSettings, theme),
   })
 }
