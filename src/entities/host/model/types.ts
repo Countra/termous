@@ -6,11 +6,18 @@ export type HostReachabilityStatus = 'unknown' | 'checking' | 'online' | 'offlin
 
 export interface HostIcon {
   id: string
+  display_name: string
   file_name: string
   mime_type: string
   size_bytes: number
   sha256: string
+  sort_order: number
   created_at: string
+}
+
+export interface HostIconReorderItem {
+  id: string
+  sort_order: number
 }
 
 export interface Host {

@@ -409,9 +409,9 @@ describe('HostManagementWorkspace 行为合同', () => {
     const current = host('host-a', 'a.example.com')
     const handlers = callbacks()
     handlers.onUploadHostIcon
-      .mockResolvedValueOnce({ id: 'icon-discard', file_name: 'discard.png', mime_type: 'image/png', size_bytes: 3, sha256: 'a', created_at: '' })
-      .mockResolvedValueOnce({ id: 'icon-unmount', file_name: 'unmount.png', mime_type: 'image/png', size_bytes: 3, sha256: 'b', created_at: '' })
-      .mockResolvedValueOnce({ id: 'icon-saved', file_name: 'saved.png', mime_type: 'image/png', size_bytes: 3, sha256: 'c', created_at: '' })
+      .mockResolvedValueOnce({ id: 'icon-discard', display_name: 'Discard', file_name: 'discard.png', mime_type: 'image/png', size_bytes: 3, sha256: 'a', sort_order: 0, created_at: '' })
+      .mockResolvedValueOnce({ id: 'icon-unmount', display_name: 'Unmount', file_name: 'unmount.png', mime_type: 'image/png', size_bytes: 3, sha256: 'b', sort_order: 1, created_at: '' })
+      .mockResolvedValueOnce({ id: 'icon-saved', display_name: 'Saved', file_name: 'saved.png', mime_type: 'image/png', size_bytes: 3, sha256: 'c', sort_order: 2, created_at: '' })
     handlers.onSave.mockImplementation(async (_id, input) => ({ ...current, icon_id: input.icon_id }))
     const view = render(
       <HostManagementWorkspace

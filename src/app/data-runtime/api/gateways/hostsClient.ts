@@ -1,6 +1,13 @@
 import type { AppConfig } from '#common/contracts';
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy';
-import type { Host, HostGroup, HostIcon, HostInput, HostReachability } from '#entities/host';
+import type {
+  Host,
+  HostGroup,
+  HostIcon,
+  HostIconReorderItem,
+  HostInput,
+  HostReachability,
+} from '#entities/host';
 import type { GroupReorderItem } from '#shared/model';
 import { TermousApiTransport } from '#shared/api';
 import { normalizeArray } from './responseNormalizers'
@@ -10,7 +17,7 @@ export class HostClient extends TermousApiTransport {
     super(config)
   }
 
-hostIconFileUrl(id: string, sha256?: string) {
+  hostIconFileUrl(id: string, sha256?: string) {
     const url = new URL(`/api/v1/host-icons/${encodeURIComponent(id)}/file`, this.config.apiBaseUrl)
     if (this.config.apiToken) {
       url.searchParams.set('token', this.config.apiToken)
@@ -21,7 +28,7 @@ hostIconFileUrl(id: string, sha256?: string) {
     return url.toString()
   }
 
-uploadHostIcon(file: File) {
+  uploadHostIcon(file: File) {
     const body = new FormData()
     body.append('file', file, file.name)
     return this.request<HostIcon>('/api/v1/host-icons', {
@@ -30,7 +37,25 @@ uploadHostIcon(file: File) {
     })
   }
 
-deleteHostIcon(id: string) {
+  hostIcons() {
+    return this.request<HostIcon[]>('/api/v1/host-icons')
+  }
+
+  renameHostIcon(id: string, displayName: string) {
+    return this.request<HostIcon>(`/api/v1/host-icons/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: { display_name: displayName },
+    })
+  }
+
+  reorderHostIcons(items: HostIconReorderItem[]) {
+    return this.request<HostIcon[]>('/api/v1/host-icons/reorder', {
+      method: 'POST',
+      body: { items },
+    }).then(normalizeArray)
+  }
+
+  deleteHostIcon(id: string) {
     return this.request<void>(`/api/v1/host-icons/${encodeURIComponent(id)}`, { method: 'DELETE' })
   }
 

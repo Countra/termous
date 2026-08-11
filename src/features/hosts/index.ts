@@ -14,6 +14,10 @@ export {
   HostManagementWorkspace,
   type HostManagementWorkspaceProps,
 } from './ui/HostManagementWorkspace.tsx'
+export {
+  HostIconManagerModal,
+  type HostIconManagerModalProps,
+} from './ui/HostIconManagerModal.tsx'
 export { HostLauncherModal, type HostLauncherModalProps } from './ui/HostLauncherModal.tsx'
 export { HostKeyCoordinator, type HostKeyCoordinatorProps } from './ui/HostKeyCoordinator.tsx'
 export { SessionQuickConnect, type SessionQuickConnectProps } from './ui/SessionQuickConnect.tsx'

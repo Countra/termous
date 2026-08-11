@@ -2,7 +2,7 @@ import type {
   Settings,
   TerminalFont,
 } from '#common/contracts'
-import type { HostGroup, HostReachability, HostReachabilityEvent } from '#entities/host'
+import type { HostGroup, HostIcon, HostReachability, HostReachabilityEvent } from '#entities/host'
 import type {
   FileBookmark,
   FileBookmarkGroup,
@@ -33,6 +33,7 @@ const initialSettings: Settings = {
 export const initialData: AppData = {
   hosts: [],
   groups: [],
+  hostIcons: [],
   proxies: [],
   credentials: [],
   sessions: [],
@@ -88,6 +89,26 @@ export function upsertHostGroup(groups: HostGroup[], next: HostGroup) {
   const exists = groups.some((group) => group.id === next.id)
   const merged = exists ? groups.map((group) => (group.id === next.id ? next : group)) : [...groups, next]
   return [...merged].sort(sortHostGroups)
+}
+
+export function upsertHostIcon(icons: HostIcon[], next: HostIcon) {
+  const exists = icons.some((icon) => icon.id === next.id)
+  const merged = exists ? icons.map((icon) => (icon.id === next.id ? next : icon)) : [...icons, next]
+  return sortHostIcons(merged)
+}
+
+export function removeHostIcon(icons: HostIcon[], id: string) {
+  return sortHostIcons(icons.filter((icon) => icon.id !== id)).map((icon, index) => (
+    icon.sort_order === index ? icon : { ...icon, sort_order: index }
+  ))
+}
+
+export function sortHostIcons(icons: HostIcon[]) {
+  return [...icons].sort((left, right) => (
+    left.sort_order - right.sort_order
+    || left.created_at.localeCompare(right.created_at)
+    || left.id.localeCompare(right.id)
+  ))
 }
 
 export function sortHostGroups(left: HostGroup, right: HostGroup) {

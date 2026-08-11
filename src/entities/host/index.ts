@@ -26,6 +26,7 @@ export type {
   Host,
   HostGroup,
   HostIcon,
+  HostIconReorderItem,
   HostInput,
   HostPlatform,
   HostReachability,

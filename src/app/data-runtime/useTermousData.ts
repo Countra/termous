@@ -36,6 +36,7 @@ import {
   sortConnectionProxies,
   sortFileBookmarkGroups,
   sortFileBookmarks,
+  sortHostIcons,
   sortLocalPathMappings,
   type LoadMode,
 } from './model/appDataState'
@@ -216,6 +217,7 @@ export function useTermousData() {
         fileBookmarks,
         localPathMappings,
         groups,
+        hostIcons,
         proxies,
         hosts,
         hostReachability,
@@ -288,6 +290,7 @@ export function useTermousData() {
         return {
           settings: mergedSettings,
           groups: groups ?? [],
+          hostIcons: sortHostIcons(hostIcons ?? []),
           proxies: sortConnectionProxies(proxies ?? []),
           hosts: hosts ?? [],
           credentials: credentials ?? [],

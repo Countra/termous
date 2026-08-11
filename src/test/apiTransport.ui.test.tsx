@@ -183,6 +183,49 @@ describe('领域 API HTTP transport 合同', () => {
     expect(init.headers).toEqual({ 'X-Termous-Token': 'test-token' })
   })
 
+  it('按主机图标库合同列出、改名、排序和删除图标', async () => {
+    const icon = {
+      id: 'icon/id',
+      display_name: 'Production',
+      file_name: 'production.png',
+      mime_type: 'image/png',
+      size_bytes: 128,
+      sha256: 'sha256',
+      sort_order: 0,
+      created_at: '2026-08-11T00:00:00Z',
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify([icon]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...icon, display_name: 'Database' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ ...icon, sort_order: 1 }]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const gateways = createGateways()
+
+    await expect(gateways.hosts.hostIcons()).resolves.toEqual([icon])
+    await expect(gateways.hosts.renameHostIcon('icon/id', 'Database')).resolves.toMatchObject({ display_name: 'Database' })
+    await expect(gateways.hosts.reorderHostIcons([{ id: 'icon/id', sort_order: 1 }])).resolves.toMatchObject([{ sort_order: 1 }])
+    await expect(gateways.hosts.deleteHostIcon('icon/id')).resolves.toBeUndefined()
+
+    const [listUrl, listInit] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit]
+    expect(listUrl.toString()).toBe(`${API_BASE_URL}/api/v1/host-icons`)
+    expect(listInit.method).toBe('GET')
+
+    const [renameUrl, renameInit] = fetchMock.mock.calls[1] as unknown as [URL, RequestInit]
+    expect(renameUrl.toString()).toBe(`${API_BASE_URL}/api/v1/host-icons/icon%2Fid`)
+    expect(renameInit.method).toBe('PATCH')
+    expect(renameInit.body).toBe(JSON.stringify({ display_name: 'Database' }))
+
+    const [reorderUrl, reorderInit] = fetchMock.mock.calls[2] as unknown as [URL, RequestInit]
+    expect(reorderUrl.toString()).toBe(`${API_BASE_URL}/api/v1/host-icons/reorder`)
+    expect(reorderInit.method).toBe('POST')
+    expect(reorderInit.body).toBe(JSON.stringify({ items: [{ id: 'icon/id', sort_order: 1 }] }))
+
+    const [deleteUrl, deleteInit] = fetchMock.mock.calls[3] as unknown as [URL, RequestInit]
+    expect(deleteUrl.toString()).toBe(`${API_BASE_URL}/api/v1/host-icons/icon%2Fid`)
+    expect(deleteInit.method).toBe('DELETE')
+  })
+
   it('保持 WebSocket 与静态资源 URL 的协议、鉴权和编码规则', () => {
     const gateways = createRuntimeGatewaysFromConfig({
       apiBaseUrl: 'https://core.example.test/base?stale=1',

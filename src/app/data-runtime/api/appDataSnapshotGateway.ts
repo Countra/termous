@@ -10,6 +10,7 @@ export function loadAppDataSnapshot(api: AppDataSnapshotGateway) {
     api.fileBookmarks(),
     api.localPathMappings(),
     api.hostGroups(),
+    api.hostIcons(),
     api.connectionProxies(),
     api.hosts(),
     api.hostReachability(),

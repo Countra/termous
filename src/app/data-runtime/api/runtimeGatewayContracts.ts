@@ -36,6 +36,7 @@ import type {
   Host,
   HostGroup,
   HostIcon,
+  HostIconReorderItem,
   HostInput,
   HostReachability,
 } from '#entities/host'
@@ -57,6 +58,7 @@ export interface AppDataSnapshotGateway {
   fileBookmarks: () => Promise<FileBookmark[]>
   localPathMappings: () => Promise<LocalPathMapping[]>
   hostGroups: () => Promise<HostGroup[]>
+  hostIcons: () => Promise<HostIcon[]>
   connectionProxies: () => Promise<ConnectionProxy[]>
   hosts: () => Promise<Host[]>
   hostReachability: () => Promise<HostReachability[]>
@@ -100,6 +102,8 @@ export interface ForwardProfileCommandGateway {
 
 export interface HostCommandGateway {
   uploadHostIcon: (file: File) => Promise<HostIcon>
+  renameHostIcon: (id: string, displayName: string) => Promise<HostIcon>
+  reorderHostIcons: (items: HostIconReorderItem[]) => Promise<HostIcon[]>
   deleteHostIcon: (id: string) => Promise<void>
   createHost: (input: HostInput) => Promise<Host>
   createHostGroup: (name: string) => Promise<HostGroup>

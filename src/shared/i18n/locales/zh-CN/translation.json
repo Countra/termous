@@ -1268,6 +1268,27 @@
       "tooLarge": "图标不能超过 5 MiB",
       "invalidType": "仅支持 PNG、JPEG、SVG 或 ICO 图标"
     },
+    "iconLibrary": {
+      "manage": "管理图标",
+      "title": "主机图标库",
+      "add": "新增图标",
+      "select": "选择图标",
+      "default": "默认图标",
+      "count": "{{count}} 个图标",
+      "list": "主机图标列表",
+      "name": "图标名称",
+      "preview": "预览",
+      "hostCount": "{{count}} 台主机使用",
+      "inUse": "已被 {{count}} 台主机使用，不能删除",
+      "draftInUse": "当前未保存的主机正在使用，不能删除",
+      "empty": "暂无已上传图标",
+      "deleteTitle": "删除这个图标？",
+      "deleteDescription": "删除后无法恢复，但不会影响默认主机图标。",
+      "uploadFailed": "图标上传失败",
+      "renameFailed": "图标重命名失败",
+      "reorderFailed": "图标排序保存失败，已恢复原顺序",
+      "deleteFailed": "图标删除失败"
+    },
     "platform": {
       "label": "平台",
       "linux": "Linux"

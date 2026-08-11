@@ -1270,6 +1270,30 @@
       "tooLarge": "The icon must be 5 MiB or smaller",
       "invalidType": "Only PNG, JPEG, SVG, or ICO icons are supported"
     },
+    "iconLibrary": {
+      "manage": "Manage icons",
+      "title": "Host icon library",
+      "add": "Add icon",
+      "select": "Select icon",
+      "default": "Default icon",
+      "count_one": "{{count}} icon",
+      "count_other": "{{count}} icons",
+      "list": "Host icon list",
+      "name": "Icon name",
+      "preview": "Preview",
+      "hostCount_one": "Used by {{count}} host",
+      "hostCount_other": "Used by {{count}} hosts",
+      "inUse_one": "Used by {{count}} host and cannot be deleted",
+      "inUse_other": "Used by {{count}} hosts and cannot be deleted",
+      "draftInUse": "The current unsaved host is using this icon",
+      "empty": "No uploaded icons",
+      "deleteTitle": "Delete this icon?",
+      "deleteDescription": "This cannot be undone. The default host icon is unaffected.",
+      "uploadFailed": "Failed to upload the icon",
+      "renameFailed": "Failed to rename the icon",
+      "reorderFailed": "Failed to save icon order. The previous order was restored.",
+      "deleteFailed": "Failed to delete the icon"
+    },
     "platform": {
       "label": "Platform",
       "linux": "Linux"

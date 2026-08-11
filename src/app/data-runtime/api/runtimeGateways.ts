@@ -263,6 +263,7 @@ function createAppDataSnapshotGateway(gateways: {
     fileBookmarks: () => gateways.fileCatalog.fileBookmarks(),
     localPathMappings: () => gateways.fileCatalog.localPathMappings(),
     hostGroups: () => gateways.hosts.hostGroups(),
+    hostIcons: () => gateways.hosts.hostIcons(),
     connectionProxies: () => gateways.hosts.connectionProxies(),
     hosts: () => gateways.hosts.hosts(),
     hostReachability: () => gateways.hosts.hostReachability(),

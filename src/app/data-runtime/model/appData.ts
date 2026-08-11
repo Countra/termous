@@ -8,13 +8,14 @@ import type {
   LocalPathMapping,
 } from '#entities/file'
 import type { ForwardInstance, ForwardProfile } from '#entities/forward'
-import type { Host, HostGroup, HostReachability } from '#entities/host'
+import type { Host, HostGroup, HostIcon, HostReachability } from '#entities/host'
 import type { CodeSnippet, CodeSnippetGroup } from '#entities/snippet'
 import type { Session } from './sessionTypes'
 
 export interface AppData {
   hosts: Host[]
   groups: HostGroup[]
+  hostIcons: HostIcon[]
   proxies: ConnectionProxy[]
   credentials: CredentialView[]
   sessions: Session[]

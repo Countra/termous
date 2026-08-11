@@ -1,14 +1,17 @@
 import type { ConnectionProxyInput } from '#entities/connection-proxy'
-import type { HostInput, HostReachabilityEvent } from '#entities/host'
+import type { HostIconReorderItem, HostInput, HostReachabilityEvent } from '#entities/host'
 import type { GroupReorderItem } from '#shared/model'
 import type { HostCommandGateway } from '../api/runtimeGatewayContracts'
 import { hostToInput } from '#entities/host'
 import {
   mergeHostReachabilityEvent,
   mergeHostReachabilityStates,
+  removeHostIcon,
   sortHostGroups,
+  sortHostIcons,
   upsertConnectionProxy,
   upsertHostGroup,
+  upsertHostIcon,
   type LoadMode,
 } from '../model/appDataState'
 import type { SetAppData } from '../model/runtimeTypes'
@@ -24,10 +27,26 @@ interface HostCommandDependencies {
 export function createHostCommands({ api, hosts, load, setData }: HostCommandDependencies) {
   return {
     async uploadHostIcon(file: File) {
-      return api.uploadHostIcon(file)
+      const icon = await api.uploadHostIcon(file)
+      setData((current) => ({ ...current, hostIcons: upsertHostIcon(current.hostIcons, icon) }))
+      return icon
+    },
+    async renameHostIcon(id: string, displayName: string) {
+      const icon = await api.renameHostIcon(id, displayName)
+      setData((current) => ({ ...current, hostIcons: upsertHostIcon(current.hostIcons, icon) }))
+      return icon
+    },
+    async reorderHostIcons(items: HostIconReorderItem[]) {
+      const icons = await api.reorderHostIcons(items)
+      setData((current) => ({ ...current, hostIcons: sortHostIcons(icons) }))
+      return icons
     },
     async deleteHostIcon(id: string) {
       await api.deleteHostIcon(id)
+      setData((current) => ({
+        ...current,
+        hostIcons: removeHostIcon(current.hostIcons, id),
+      }))
     },
     async createHost(input: HostInput) {
       const host = await api.createHost(input)
