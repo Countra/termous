@@ -150,6 +150,7 @@ vi.mock('#features/firewall', () => ({ FirewallPanel: () => null }))
 vi.mock('../widgets/workbench/ui/SessionTabColorPanel', () => ({ SessionTabColorPanel: () => null }))
 vi.mock('#features/docker', () => ({ DockerPanel: () => null }))
 vi.mock('#features/service', () => ({ ServicePanel: () => null }))
+vi.mock('#features/crontab', () => ({ CrontabPanel: () => null }))
 vi.mock('#features/workbench-files', () => ({ WorkbenchFilesPanel: () => null }))
 
 import { WorkbenchPage } from '#widgets/workbench'
@@ -220,6 +221,7 @@ function renderWorkbench(
     fileGateway: {} as never,
     observabilityGateway: {} as never,
     serviceGateway: {} as never,
+    crontabGateway: {} as never,
     dockerGateway: {} as never,
     firewallGateway: {} as never,
     aliasGateway: {} as never,

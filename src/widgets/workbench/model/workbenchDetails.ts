@@ -5,6 +5,7 @@ export type DetailsTabKey =
   | 'monitor'
   | 'processes'
   | 'services'
+  | 'crontab'
   | 'docker'
   | 'firewall'
   | 'forwards'
@@ -17,6 +18,7 @@ export function parseDetailsTabKey(value: unknown): DetailsTabKey {
     value === 'monitor' ||
     value === 'processes' ||
     value === 'services' ||
+    value === 'crontab' ||
     value === 'docker' ||
     value === 'firewall' ||
     value === 'forwards' ||

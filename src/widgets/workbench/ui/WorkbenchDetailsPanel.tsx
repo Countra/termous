@@ -2,6 +2,7 @@ import {
   Activity,
   Boxes,
   Cable,
+  CalendarClock,
   Code2,
   Command,
   Cpu,
@@ -85,6 +86,12 @@ export function WorkbenchDetailsPanel({
           label: t('workbench.detailsTabs.services'),
           icon: <Wrench size={17} aria-hidden="true" />,
           children: panels.services,
+        },
+        {
+          key: 'crontab',
+          label: t('workbench.detailsTabs.crontab'),
+          icon: <CalendarClock size={17} aria-hidden="true" />,
+          children: panels.crontab,
         },
         {
           key: 'docker',

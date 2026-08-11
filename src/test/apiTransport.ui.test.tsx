@@ -226,6 +226,118 @@ describe('领域 API HTTP transport 合同', () => {
     expect(deleteInit.method).toBe('DELETE')
   })
 
+  it('按 Crontab 合同发送结构化读取、原文读取和版本化写请求', async () => {
+    const capability = {
+      status: 'ready',
+      available: true,
+      readable: true,
+      writable: true,
+      username: 'deploy',
+      warnings: [],
+      checked_at: '2026-08-11T00:00:00Z',
+    }
+    const snapshot = {
+      session_id: 'session/id',
+      username: 'deploy',
+      exists: true,
+      revision: 'revision value',
+      jobs: [],
+      unmanaged_line_count: 0,
+      warnings: [],
+      collected_at: '2026-08-11T00:00:01Z',
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(capability), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(snapshot), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...snapshot, content: '' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(snapshot), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(snapshot), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(snapshot), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(snapshot), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const crontab = createGateways().crontab
+
+    await expect(crontab.sessionCrontabCapability('session/id')).resolves.toEqual(capability)
+    await expect(crontab.sessionCrontab('session/id')).resolves.toEqual(snapshot)
+    await expect(crontab.sessionCrontabSource('session/id')).resolves.toEqual({ ...snapshot, content: '' })
+    await expect(crontab.replaceSessionCrontab('session/id', {
+      expected_revision: 'revision value',
+      content: '',
+    })).resolves.toEqual(snapshot)
+    await expect(crontab.createSessionCrontabJob('session/id', {
+      expected_revision: 'revision value',
+      schedule: '0 2 * * *',
+      command: '/usr/bin/true',
+      enabled: true,
+    })).resolves.toEqual(snapshot)
+    await expect(crontab.updateSessionCrontabJob('session/id', 'job/id', {
+      expected_revision: 'revision value',
+      schedule: '@reboot',
+      command: '/usr/bin/startup',
+      enabled: false,
+    })).resolves.toEqual(snapshot)
+    await expect(crontab.deleteSessionCrontabJob('session/id', 'job/id', 'revision value')).resolves.toEqual(snapshot)
+
+    const [capabilityUrl] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit]
+    expect(capabilityUrl.toString()).toBe(`${API_BASE_URL}/api/v1/sessions/session%2Fid/crontab/capability`)
+
+    const [snapshotUrl] = fetchMock.mock.calls[1] as unknown as [URL, RequestInit]
+    expect(snapshotUrl.toString()).toBe(`${API_BASE_URL}/api/v1/sessions/session%2Fid/crontab`)
+
+    const [sourceUrl] = fetchMock.mock.calls[2] as unknown as [URL, RequestInit]
+    expect(sourceUrl.toString()).toBe(`${API_BASE_URL}/api/v1/sessions/session%2Fid/crontab?include_content=true`)
+
+    const [replaceUrl, replaceInit] = fetchMock.mock.calls[3] as unknown as [URL, RequestInit]
+    expect(replaceUrl.toString()).toBe(`${API_BASE_URL}/api/v1/sessions/session%2Fid/crontab`)
+    expect(replaceInit.method).toBe('PUT')
+    expect(replaceInit.body).toBe(JSON.stringify({ expected_revision: 'revision value', content: '' }))
+
+    const [createUrl, createInit] = fetchMock.mock.calls[4] as unknown as [URL, RequestInit]
+    expect(createUrl.toString()).toBe(`${API_BASE_URL}/api/v1/sessions/session%2Fid/crontab/jobs`)
+    expect(createInit.method).toBe('POST')
+    expect(createInit.body).toBe(JSON.stringify({
+      expected_revision: 'revision value',
+      schedule: '0 2 * * *',
+      command: '/usr/bin/true',
+      enabled: true,
+    }))
+
+    const [updateUrl, updateInit] = fetchMock.mock.calls[5] as unknown as [URL, RequestInit]
+    expect(updateUrl.toString()).toBe(`${API_BASE_URL}/api/v1/sessions/session%2Fid/crontab/jobs/job%2Fid`)
+    expect(updateInit.method).toBe('PATCH')
+    expect(updateInit.body).toBe(JSON.stringify({
+      expected_revision: 'revision value',
+      schedule: '@reboot',
+      command: '/usr/bin/startup',
+      enabled: false,
+    }))
+
+    const [deleteUrl, deleteInit] = fetchMock.mock.calls[6] as unknown as [URL, RequestInit]
+    expect(deleteUrl.toString()).toBe(`${API_BASE_URL}/api/v1/sessions/session%2Fid/crontab/jobs/job%2Fid`)
+    expect(deleteInit.method).toBe('DELETE')
+    expect(deleteInit.body).toBe(JSON.stringify({ expected_revision: 'revision value' }))
+  })
+
+  it('为 Crontab 读取和写入保留覆盖后端完整执行链的超时预算', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', createAbortablePendingFetch())
+    const crontab = createGateways().crontab
+
+    const readRequest = crontab.sessionCrontab('session/id')
+    const readAssertion = expect(readRequest).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT' })
+    await vi.advanceTimersByTimeAsync(29_999)
+    expect(vi.mocked(fetch).mock.calls[0]?.[1]?.signal?.aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    await readAssertion
+
+    const writeRequest = crontab.deleteSessionCrontabJob('session/id', 'job/id', 'revision value')
+    const writeAssertion = expect(writeRequest).rejects.toMatchObject({ code: 'REQUEST_TIMEOUT' })
+    await vi.advanceTimersByTimeAsync(44_999)
+    expect(vi.mocked(fetch).mock.calls[1]?.[1]?.signal?.aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    await writeAssertion
+  })
+
   it('保持 WebSocket 与静态资源 URL 的协议、鉴权和编码规则', () => {
     const gateways = createRuntimeGatewaysFromConfig({
       apiBaseUrl: 'https://core.example.test/base?stale=1',

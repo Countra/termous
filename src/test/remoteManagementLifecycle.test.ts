@@ -23,6 +23,10 @@ const dockerPanelSource = readFileSync(
   fileURLToPath(new URL('../features/docker/ui/DockerPanel.tsx', import.meta.url)),
   'utf8',
 )
+const detailsPanelSource = readFileSync(
+  fileURLToPath(new URL('../widgets/workbench/ui/WorkbenchDetailsPanel.tsx', import.meta.url)),
+  'utf8',
+)
 
 test('工作台隐藏时停止远端管理读取和轮询', () => {
   assert.match(
@@ -32,6 +36,10 @@ test('工作台隐藏时停止远端管理读取和轮询', () => {
   assert.match(
     workbenchSource,
     /enabled=\{active && detailsActiveTab === 'docker' && !detailsCollapsed\}/,
+  )
+  assert.match(
+    workbenchSource,
+    /enabled=\{active && detailsActiveTab === 'crontab' && !detailsCollapsed\}/,
   )
   assert.match(
     workbenchSource,
@@ -45,6 +53,15 @@ test('工作台隐藏时停止远端管理读取和轮询', () => {
     firewallSource,
     /if \(!connectedLinux\) \{\s*abortLoad\(\)\s*abortApply\(\)/,
   )
+})
+
+test('定时任务页签固定在服务与 Docker 之间', () => {
+  const servicesIndex = detailsPanelSource.indexOf("key: 'services'")
+  const crontabIndex = detailsPanelSource.indexOf("key: 'crontab'")
+  const dockerIndex = detailsPanelSource.indexOf("key: 'docker'")
+  assert.ok(servicesIndex >= 0)
+  assert.ok(crontabIndex > servicesIndex)
+  assert.ok(dockerIndex > crontabIndex)
 })
 
 test('远端管理失活时关闭 Portal，且防火墙写请求不被只读清理取消', () => {

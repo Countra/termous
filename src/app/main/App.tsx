@@ -845,6 +845,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             fileGateway={gateways.files}
             observabilityGateway={gateways.observability}
             serviceGateway={gateways.service}
+            crontabGateway={gateways.crontab}
             dockerGateway={gateways.docker}
             firewallGateway={gateways.firewall}
             aliasGateway={gateways.alias}

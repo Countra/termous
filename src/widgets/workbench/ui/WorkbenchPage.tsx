@@ -51,6 +51,7 @@ import {
   type ObservabilityGateway,
 } from '#features/observability'
 import { ServicePanel, type ServiceGateway } from '#features/service'
+import { CrontabPanel, type CrontabGateway } from '#features/crontab'
 import {
   WorkbenchFilesPanel,
   type WorkbenchFilesPathNavigationIntent,
@@ -133,6 +134,7 @@ export interface WorkbenchPageProps {
   fileGateway: FileGateway
   observabilityGateway: ObservabilityGateway
   serviceGateway: ServiceGateway
+  crontabGateway: CrontabGateway
   dockerGateway: DockerGateway
   firewallGateway: FirewallGateway
   aliasGateway: AliasGateway
@@ -179,6 +181,7 @@ export function WorkbenchPage({
   fileGateway,
   observabilityGateway,
   serviceGateway,
+  crontabGateway,
   dockerGateway,
   firewallGateway,
   aliasGateway,
@@ -1413,6 +1416,7 @@ export function WorkbenchPage({
           ),
           processes: <ProcessPanel api={observabilityGateway} session={activeSession} enabled={active && detailsActiveTab === 'processes' && !detailsCollapsed} />,
           services: <ServicePanel api={serviceGateway} session={activeSession} enabled={active && detailsActiveTab === 'services' && !detailsCollapsed} />,
+          crontab: <CrontabPanel api={crontabGateway} session={activeSession} enabled={active && detailsActiveTab === 'crontab' && !detailsCollapsed} theme={theme} />,
           docker: <DockerPanel api={dockerGateway} session={activeSession} enabled={active && detailsActiveTab === 'docker' && !detailsCollapsed} />,
           firewall: (
               <FirewallPanel

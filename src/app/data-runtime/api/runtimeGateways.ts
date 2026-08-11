@@ -7,6 +7,7 @@ import { getTermousBridge } from '#shared/bridge'
 import type { AppDataSnapshotGateway } from './runtimeGatewayContracts'
 import { AliasClient } from './gateways/aliasClient'
 import { CredentialClient } from './gateways/credentialsClient'
+import { CrontabClient } from './gateways/crontabClient'
 import { DataPortabilityClient } from './gateways/dataPortabilityClient'
 import { DockerClient } from './gateways/dockerClient'
 import { FileCatalogClient } from './gateways/fileCatalogClient'
@@ -42,6 +43,7 @@ export interface RuntimeGateways {
   readonly alias: DomainGateway<AliasClient> & AliasGateway
   readonly observability: DomainGateway<ObservabilityClient>
   readonly service: DomainGateway<ServiceClient>
+  readonly crontab: DomainGateway<CrontabClient>
   readonly docker: DomainGateway<DockerClient>
   readonly firewall: DomainGateway<FirewallClient>
   readonly fileSessions: DomainGateway<FileSessionClient>
@@ -67,6 +69,7 @@ export function createRuntimeGatewaysFromConfig(
   const aliasClient = new AliasClient(config)
   const observability = new ObservabilityClient(config)
   const service = new ServiceClient(config)
+  const crontab = new CrontabClient(config)
   const docker = new DockerClient(config)
   const firewall = new FirewallClient(config)
   const fileSessions = new FileSessionClient(config)
@@ -87,6 +90,7 @@ export function createRuntimeGatewaysFromConfig(
     alias: createAliasGateway(aliasClient),
     observability,
     service,
+    crontab,
     docker,
     firewall,
     fileSessions,
