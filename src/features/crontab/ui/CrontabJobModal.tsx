@@ -10,6 +10,7 @@ import {
 } from '#shared/ui'
 import {
   buildCrontabExpression,
+  crontabWeekdayOrder,
   createCrontabScheduleDraft,
   hasPlausibleCrontabExpression,
   type CrontabScheduleDraft,
@@ -89,7 +90,7 @@ export function CrontabJobModal({
     }))
   ), [t])
   const weekdayOptions = useMemo(() => (
-    Array.from({ length: 7 }, (_, value) => ({
+    crontabWeekdayOrder.map((value) => ({
       value,
       label: t(`workbench.crontab.editor.weekdays.${value}`),
     }))

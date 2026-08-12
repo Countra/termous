@@ -2,9 +2,14 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   buildCrontabExpression,
+  crontabWeekdayOrder,
   createCrontabScheduleDraft,
   hasPlausibleCrontabExpression,
 } from './schedulePresets.ts'
+
+test('每周计划按星期一到星期日展示', () => {
+  assert.deepEqual(crontabWeekdayOrder, [1, 2, 3, 4, 5, 6, 0])
+})
 
 test('常用计划和 Cron 表达式可稳定往返', () => {
   for (const expression of [
