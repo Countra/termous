@@ -23,6 +23,11 @@ import {
   type TerminalSearchDirection,
   type TerminalSplitWorkspaceHandle,
 } from '#features/terminal'
+import {
+  CommandDispatchDock,
+  isCommandDispatchTaskTerminal,
+  useCommandDispatchRuntime,
+} from '#features/command-dispatch'
 import type { AppTheme as ThemeMode } from '#common/contracts'
 import type { CodeSnippet } from '#entities/snippet'
 import type { ForwardInstance, ForwardStartRequest } from '#entities/forward'
@@ -218,6 +223,11 @@ export function WorkbenchPage({
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
   const { searchActive, clearActiveSearch, focusSession, sendTextToSession } = useTerminalRuntime()
+  const commandDispatchRuntime = useCommandDispatchRuntime()
+  const [commandDockOpen, setCommandDockOpen] = usePersistentBooleanState(
+    'termous.ui.workbench.commandDispatchDockOpen.v1',
+    false,
+  )
   const [detailsCollapsed, setDetailsCollapsed] = usePersistentBooleanState(
     'termous.ui.workbench.detailsCollapsed.v1',
     false,
@@ -523,6 +533,14 @@ export function WorkbenchPage({
   const resolveSessionTitle = useCallback(
     (session: Session) => sessionTabPreferences[session.id]?.title ?? sessionTitle(session, hostView.hosts, t),
     [hostView.hosts, sessionTabPreferences, t],
+  )
+  const jumpToCommandSession = useCallback((sessionId: string) => {
+    onSelectSession(sessionId)
+    window.requestAnimationFrame(() => focusSession(sessionId))
+  }, [focusSession, onSelectSession])
+  const commandTaskActive = Boolean(
+    commandDispatchRuntime.state.task
+    && !isCommandDispatchTaskTerminal(commandDispatchRuntime.state.task.status),
   )
   const updateSessionTabPreference = useCallback(
     (sessionId: string, updater: (preference: SessionTabPreference) => SessionTabPreference) => {
@@ -1266,6 +1284,20 @@ export function WorkbenchPage({
         style={workbenchGridStyle}
       >
         <WorkbenchTerminalPanel
+          commandDock={(
+            <CommandDispatchDock
+              sessions={sessionView.sessions}
+              hosts={hostView.hosts}
+              activeSession={activeSession}
+              terminalSettings={sessionView.terminalSettings}
+              theme={theme}
+              resolveSessionTitle={resolveSessionTitle}
+              onJumpToSession={jumpToCommandSession}
+            />
+          )}
+          commandDockOpen={commandDockOpen}
+          commandTaskActive={commandTaskActive}
+          commandTargetCount={commandDispatchRuntime.state.task?.total_targets ?? 0}
           sessionTabs={(
             <WorkbenchSessionTabs
               sessions={visibleSessions}
@@ -1331,6 +1363,7 @@ export function WorkbenchPage({
           onSearchSession={requestSessionSearch}
           onOpenFilesAtPath={openPathInWorkbenchFiles}
           onCloseSession={closeSessionTab}
+          onToggleCommandDock={() => setCommandDockOpen((current) => !current)}
         />
 
       <WorkbenchDetailsPanel

@@ -1,5 +1,5 @@
 import { App as AntdApp, Button } from 'antd'
-import { CircleAlert, RefreshCw, WifiOff, X } from 'lucide-react'
+import { CircleAlert, LockKeyhole, RefreshCw, WifiOff, X } from 'lucide-react'
 import {
   useCallback,
   useEffect,
@@ -25,6 +25,7 @@ import { resolveTerminalContextPath } from '../model/terminalContextPath'
 import { useSessionCwdState } from '../runtime/terminalCwdContext'
 import {
   useSessionCompletionSnapshot,
+  useSessionInputLock,
   useTerminalRuntime,
 } from '../runtime/terminalRuntimeContext'
 import type { TerminalContextSnapshot } from '../model/terminalContextTarget'
@@ -131,6 +132,7 @@ export function TerminalPaneViewport({
   )
   const completionPopupId = `terminal-completion-${paneId}`
   const completion = useSessionCompletionSnapshot(sessionId)
+  const inputLock = useSessionInputLock(sessionId)
   const cwdState = useSessionCwdState(sessionId)
   const sessionEnded = session?.status === 'disconnected' || session?.status === 'failed'
   const DisconnectIcon = session?.status === 'failed' ? CircleAlert : WifiOff
@@ -140,6 +142,7 @@ export function TerminalPaneViewport({
     && session.status === 'connected'
     && active
     && workspaceActive
+    && !inputLock.locked
     && !searchPanel
     && !contextMenu
     && completion.readiness === 'ready'
@@ -769,6 +772,12 @@ export function TerminalPaneViewport({
           data-shortcut-adapter="xterm"
           ref={paneHostRef}
         />
+        {session && inputLock.locked ? (
+          <div className={styles['input-lock-notice']} role="status">
+            <LockKeyhole size={12} aria-hidden="true" />
+            <span>{t('commandDispatch.terminalInputLocked')}</span>
+          </div>
+        ) : null}
         <div
           className={[styles['empty-state'], emptyState ? styles['has-action'] : ''].filter(Boolean).join(' ')}
           aria-hidden={session ? true : undefined}

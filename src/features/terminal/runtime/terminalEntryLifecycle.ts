@@ -6,6 +6,7 @@ interface TerminalEntryLifecycleOptions {
   stopCompletionStatusReconciliation: (sessionId: string) => void
   disposeCompletionSession: (sessionId: string) => void
   deleteCompletionLayoutListeners: (sessionId: string) => void
+  cancelResizeFrame?: (frame: number) => void
   clearResizeTimer?: (timer: number) => void
 }
 
@@ -15,6 +16,7 @@ export class TerminalEntryLifecycle {
   private readonly stopCompletionStatusReconciliation: TerminalEntryLifecycleOptions['stopCompletionStatusReconciliation']
   private readonly disposeCompletionSession: TerminalEntryLifecycleOptions['disposeCompletionSession']
   private readonly deleteCompletionLayoutListeners: TerminalEntryLifecycleOptions['deleteCompletionLayoutListeners']
+  private readonly cancelResizeFrame: NonNullable<TerminalEntryLifecycleOptions['cancelResizeFrame']>
   private readonly clearResizeTimer: NonNullable<TerminalEntryLifecycleOptions['clearResizeTimer']>
 
   constructor(options: TerminalEntryLifecycleOptions) {
@@ -23,6 +25,7 @@ export class TerminalEntryLifecycle {
     this.stopCompletionStatusReconciliation = options.stopCompletionStatusReconciliation
     this.disposeCompletionSession = options.disposeCompletionSession
     this.deleteCompletionLayoutListeners = options.deleteCompletionLayoutListeners
+    this.cancelResizeFrame = options.cancelResizeFrame ?? ((frame) => window.cancelAnimationFrame(frame))
     this.clearResizeTimer = options.clearResizeTimer ?? ((timer) => window.clearTimeout(timer))
   }
 
@@ -34,7 +37,11 @@ export class TerminalEntryLifecycle {
     this.stopCompletionStatusReconciliation(entry.sessionId)
     this.disposeCompletionSession(entry.sessionId)
     entry.disposed = true
-    if (entry.resizeTimer) {
+    if (entry.resizeFrame !== null) {
+      this.cancelResizeFrame(entry.resizeFrame)
+      entry.resizeFrame = null
+    }
+    if (entry.resizeTimer !== null) {
       this.clearResizeTimer(entry.resizeTimer)
       entry.resizeTimer = null
     }

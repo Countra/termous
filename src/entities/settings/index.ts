@@ -16,3 +16,4 @@ export {
   normalizeCompletionSettings,
   normalizeTerminalSettings,
 } from './model/terminalSettings.ts'
+export { terminalTheme } from './model/terminalTheme.ts'

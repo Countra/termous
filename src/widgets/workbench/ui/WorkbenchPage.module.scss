@@ -28,11 +28,14 @@
 }
 
 .terminal-card {
+  --terminal-command-drawer-height: 262px;
+
+  position: relative;
   display: grid;
   min-width: 0;
   min-height: 0;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 42px auto minmax(0, 1fr) 36px;
+  grid-template-rows: 42px auto minmax(0, 1fr) auto 36px;
   overflow: hidden;
   border: 1px solid var(--terminal-border);
   border-radius: 16px;
@@ -127,7 +130,8 @@
     minmax(74px, 0.65fr)
     minmax(124px, 1.45fr)
     minmax(96px, 1fr)
-    repeat(3, minmax(72px, 0.75fr));
+    repeat(3, minmax(72px, 0.75fr))
+    auto;
   align-items: center;
   justify-content: space-between;
   min-width: 0;
@@ -143,6 +147,82 @@
   box-sizing: border-box;
   font-size: 12px;
   backdrop-filter: blur(18px);
+}
+
+.terminal-command-dock-slot {
+  position: relative;
+  height: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--terminal-frame);
+  pointer-events: none;
+  transition: height 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.terminal-command-dock-slot.is-open {
+  height: var(--terminal-command-drawer-height);
+  pointer-events: auto;
+}
+
+.terminal-command-drawer:global(.ant-drawer) {
+  position: absolute;
+  z-index: 18;
+  inset: 0;
+  overflow: hidden;
+}
+
+.terminal-command-toggle {
+  display: inline-flex;
+  height: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 680;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.terminal-command-toggle:hover,
+.terminal-command-toggle:focus-visible,
+.terminal-command-toggle.is-open {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  color: var(--accent);
+}
+
+.terminal-command-toggle.is-active > svg:first-child {
+  animation: terminal-command-pulse 1.25s ease-in-out infinite;
+}
+
+.terminal-command-toggle strong {
+  display: inline-grid;
+  min-width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes terminal-command-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 .terminal-status-item {
@@ -201,6 +281,38 @@
 @media (width <= 1180px) {
   .terminal-workspace {
     min-height: 680px;
+  }
+}
+
+@media (width <= 999px) {
+  .terminal-card {
+    --terminal-command-drawer-height: 240px;
+  }
+
+  .terminal-statusbar {
+    grid-template-columns:
+      minmax(54px, 0.55fr)
+      minmax(88px, 1.15fr)
+      minmax(72px, 0.8fr)
+      minmax(62px, 0.7fr)
+      auto;
+    gap: 5px;
+    padding-inline: 9px;
+  }
+
+  .terminal-command-toggle span,
+  .terminal-status-item.is-responsive-secondary {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-command-dock-slot {
+    transition: none;
+  }
+
+  .terminal-command-toggle.is-active > svg:first-child {
+    animation: none;
   }
 }
 

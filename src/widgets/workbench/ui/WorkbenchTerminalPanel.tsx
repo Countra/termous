@@ -1,4 +1,5 @@
-import { Cable, SquareTerminal } from 'lucide-react'
+import { Drawer } from 'antd'
+import { Cable, ChevronDown, ChevronUp, SquareTerminal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ComponentProps, ReactNode, RefObject } from 'react'
 import {
@@ -20,6 +21,10 @@ import styles from './WorkbenchPage.module.scss'
 
 interface WorkbenchTerminalPanelProps {
   sessionTabs: ReactNode
+  commandDock: ReactNode
+  commandDockOpen: boolean
+  commandTaskActive: boolean
+  commandTargetCount: number
   sessions: Session[]
   activeSession: Session | null
   workspaceActive: boolean
@@ -53,10 +58,15 @@ interface WorkbenchTerminalPanelProps {
   onSearchSession: (sessionId: string, initialQuery?: string) => void
   onOpenFilesAtPath: (session: Session, path: string) => void
   onCloseSession: (sessionId: string) => Promise<boolean>
+  onToggleCommandDock: () => void
 }
 
 export function WorkbenchTerminalPanel({
   sessionTabs,
+  commandDock,
+  commandDockOpen,
+  commandTaskActive,
+  commandTargetCount,
   sessions,
   activeSession,
   workspaceActive,
@@ -90,6 +100,7 @@ export function WorkbenchTerminalPanel({
   onSearchSession,
   onOpenFilesAtPath,
   onCloseSession,
+  onToggleCommandDock,
 }: WorkbenchTerminalPanelProps) {
   const { t } = useTranslation()
   return (
@@ -160,13 +171,78 @@ export function WorkbenchTerminalPanel({
           onOpenFilesAtPath={onOpenFilesAtPath}
           onCloseSession={(session) => void onCloseSession(session.id)}
         />
+        <div
+          className={[
+            styles['terminal-command-dock-slot'],
+            commandDockOpen ? styles['is-open'] : '',
+          ].filter(Boolean).join(' ')}
+        >
+          <Drawer
+            id="command-dispatch-drawer"
+            rootClassName={styles['terminal-command-drawer']}
+            placement="bottom"
+            size="var(--terminal-command-drawer-height)"
+            open={commandDockOpen}
+            getContainer={false}
+            mask={false}
+            closable={false}
+            keyboard={false}
+            autoFocus={false}
+            focusable={{ trap: false, focusTriggerAfterClose: false }}
+            push={false}
+            destroyOnHidden
+            aria-label={t('commandDispatch.title')}
+            styles={{
+              wrapper: {
+                maxHeight: '100%',
+                background: 'var(--terminal-frame)',
+                boxShadow: 'none',
+                opacity: 1,
+                transitionDuration: '180ms',
+                transitionProperty: 'transform',
+              },
+              section: {
+                borderRadius: 0,
+                background: 'var(--terminal-frame)',
+                boxShadow: 'none',
+              },
+              body: {
+                overflow: 'hidden',
+                background: 'var(--terminal-frame)',
+                padding: 0,
+              },
+            }}
+          >
+            {commandDock}
+          </Drawer>
+        </div>
         <div className={styles['terminal-statusbar']}>
           <StatusItem className={styles['is-session-position']} label={t('workbench.sessionCount')} value={sessionPositionLabel} />
           <StatusItem label={t('workbench.target')} value={targetLabel} />
           <StatusItem label={t('workbench.sessionState')} value={sessionStateLabel} />
           <StatusItem label={t('workbench.startedAt')} value={startedAt} />
-          <StatusItem label={t('workbench.duration')} value={sessionDuration} />
-          <StatusItem label={t('workbench.terminalSize')} value={`${terminalSize.cols} x ${terminalSize.rows}`} />
+          <StatusItem className={styles['is-responsive-secondary']} label={t('workbench.duration')} value={sessionDuration} />
+          <StatusItem className={styles['is-responsive-secondary']} label={t('workbench.terminalSize')} value={`${terminalSize.cols} x ${terminalSize.rows}`} />
+          <button
+            type="button"
+            className={[
+              styles['terminal-command-toggle'],
+              commandDockOpen ? styles['is-open'] : '',
+              commandTaskActive ? styles['is-active'] : '',
+            ].filter(Boolean).join(' ')}
+            aria-expanded={commandDockOpen}
+            aria-controls="command-dispatch-drawer"
+            aria-label={t('commandDispatch.title')}
+            data-command-dispatch-toggle=""
+            onClick={onToggleCommandDock}
+          >
+            <SquareTerminal size={13} aria-hidden="true" />
+            <span>{t('commandDispatch.title')}</span>
+            {commandTargetCount > 0 ? <strong>{commandTargetCount}</strong> : null}
+            {commandDockOpen
+              ? <ChevronDown size={13} aria-hidden="true" />
+              : <ChevronUp size={13} aria-hidden="true" />}
+          </button>
         </div>
       </div>
     </div>

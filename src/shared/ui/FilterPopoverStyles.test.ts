@@ -11,6 +11,7 @@ const consumerSources = [
   '../../features/docker/ui/DockerPanel.tsx',
   '../../features/service/ui/ServicePanel.tsx',
   '../../features/observability/ui/ProcessPanel.tsx',
+  '../../features/command-dispatch/ui/CommandDispatchTargetPicker.tsx',
 ].map((relativePath) => readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), 'utf8'))
 
 test('筛选浮层由共享组件统一约束外框和圆角裁剪', () => {

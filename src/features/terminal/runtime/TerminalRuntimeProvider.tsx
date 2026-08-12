@@ -34,6 +34,7 @@ import {
   defaultTerminalSettings,
   hasEnabledCompletionProvider,
   normalizeTerminalSettings,
+  terminalTheme,
 } from '#entities/settings'
 import {
   useShortcutRuntime,
@@ -67,7 +68,6 @@ import {
 import {
   shouldFitAfterSettingsChange,
   terminalSmoothScrollDuration,
-  terminalTheme,
 } from '../model/terminalAppearance'
 import {
   isPredictableTerminalCompletionText,
@@ -85,7 +85,7 @@ import {
   type TerminalSearchResult,
 } from '../model/terminalSearch'
 import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from '#entities/settings'
-import type { TerminalPromptBoundary } from '../model/terminalProtocol'
+import type { TerminalInputLock, TerminalPromptBoundary } from '../model/terminalProtocol'
 import {
   TerminalTransport,
   type TerminalTransportEvent,
@@ -93,6 +93,7 @@ import {
 } from '../model/terminalTransport'
 
 const terminalTextEncoder = new TextEncoder()
+const unlockedTerminalInputLock: TerminalInputLock = { locked: false }
 const completionShortcutActionIds = [
   'terminal.completion.previous',
   'terminal.completion.next',
@@ -188,6 +189,8 @@ export function TerminalRuntimeProvider({
   const { t } = useTranslation()
   const { message } = AntdApp.useApp()
   const completionLayoutListenersRef = useRef(new Map<string, Set<() => void>>())
+  const inputLockListenersRef = useRef(new Map<string, Set<() => void>>())
+  const detachedInputLocksRef = useRef(new Map<string, TerminalEntry['inputLock']>())
   const sessionSnapshot = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
   sessionsRef.current = sessionSnapshot
   sshSmoothScrollEnabledRef.current = sshSmoothScrollEnabled
@@ -459,16 +462,23 @@ export function TerminalRuntimeProvider({
     entry.transport.sendResize(terminal.cols, terminal.rows)
   }, [getViewportForSession])
 
+  const fitEntryViewport = useCallback((entry: TerminalEntry) => {
+    const viewport = getViewportForSession(entry.sessionId)
+    if (entry.disposed || !viewport?.host) {
+      return false
+    }
+    try {
+      entry.fit.fit()
+    } catch {
+      return false
+    }
+    return true
+  }, [getViewportForSession])
+
   const fitAndResize = useCallback(
     (entry: TerminalEntry, shouldFocus = false) => {
       window.requestAnimationFrame(() => {
-        const viewport = getViewportForSession(entry.sessionId)
-        if (entry.disposed || !viewport?.host) {
-          return
-        }
-        try {
-          entry.fit.fit()
-        } catch {
+        if (!fitEntryViewport(entry)) {
           return
         }
         sendResize(entry)
@@ -477,7 +487,7 @@ export function TerminalRuntimeProvider({
         }
       })
     },
-    [getViewportForSession, sendResize],
+    [fitEntryViewport, sendResize],
   )
 
   const fitAfterFontLoad = useCallback(
@@ -504,6 +514,58 @@ export function TerminalRuntimeProvider({
     return sessionsRef.current.get(entry.sessionId)?.status === 'connected'
   }, [])
 
+  const canAcceptTerminalInput = useCallback((entry: TerminalEntry) => {
+    return isEntryWritable(entry) && !entry.inputLock.locked
+  }, [isEntryWritable])
+
+  const getSessionInputLockSnapshot = useCallback((sessionId: string) => {
+    return entriesRef.current.get(sessionId)?.inputLock
+      ?? detachedInputLocksRef.current.get(sessionId)
+      ?? unlockedTerminalInputLock
+  }, [])
+
+  const subscribeSessionInputLock = useCallback((sessionId: string, listener: () => void) => {
+    const listeners = inputLockListenersRef.current.get(sessionId) ?? new Set<() => void>()
+    listeners.add(listener)
+    inputLockListenersRef.current.set(sessionId, listeners)
+    return () => {
+      const current = inputLockListenersRef.current.get(sessionId)
+      current?.delete(listener)
+      if (current?.size === 0) {
+        inputLockListenersRef.current.delete(sessionId)
+      }
+    }
+  }, [])
+
+  const applySessionInputLock = useCallback((
+    sessionId: string,
+    inputLock: TerminalEntry['inputLock'] | undefined,
+  ) => {
+    const next = inputLock ?? { locked: false }
+    const entry = entriesRef.current.get(sessionId)
+    const current = entry?.inputLock ?? detachedInputLocksRef.current.get(sessionId)
+    if (
+      current?.locked === next.locked
+      && current.owner === next.owner
+      && current.task_id === next.task_id
+      && current.locked_at === next.locked_at
+    ) {
+      return
+    }
+    detachedInputLocksRef.current.set(sessionId, next)
+    if (entry) {
+      entry.inputLock = next
+      entry.terminal.options.disableStdin = next.locked
+      if (next.locked) {
+        entry.container.dataset.terminalInputLocked = 'true'
+        completionRuntime.closeSuggestions(sessionId)
+      } else {
+        delete entry.container.dataset.terminalInputLocked
+      }
+    }
+    inputLockListenersRef.current.get(sessionId)?.forEach((listener) => listener())
+  }, [completionRuntime])
+
   const applyEntrySessionState = useCallback(
     (entry: TerminalEntry) => {
       const ended = isEntryEnded(entry)
@@ -522,7 +584,7 @@ export function TerminalRuntimeProvider({
       return 'missing_session'
     }
     if (
-      !isEntryWritable(entry) ||
+      !canAcceptTerminalInput(entry) ||
       activeSessionIdRef.current !== sessionId ||
       !entry.transport.isLive()
     ) {
@@ -540,7 +602,7 @@ export function TerminalRuntimeProvider({
     } catch {
       return 'failed'
     }
-  }, [completionRuntime, isEntryWritable])
+  }, [canAcceptTerminalInput, completionRuntime])
 
   const sendTextToActive = useCallback(
     (text: string, options?: { execute?: boolean }) => {
@@ -582,6 +644,9 @@ export function TerminalRuntimeProvider({
   )
 
   const pasteEntryText = useCallback((entry: TerminalEntry, text: string) => {
+    if (!canAcceptTerminalInput(entry)) {
+      return false
+    }
     completionRuntime.applyPaste(entry.sessionId, text)
     entry.suppressCompletionInput = true
     try {
@@ -594,11 +659,12 @@ export function TerminalRuntimeProvider({
         entry.suppressCompletionInput = false
       })
     }
-  }, [completionRuntime])
+    return true
+  }, [canAcceptTerminalInput, completionRuntime])
 
   const pasteEntryClipboard = useCallback(
     async (entry: TerminalEntry): Promise<TerminalClipboardAction> => {
-      if (!isEntryWritable(entry) || !entry.transport.isLive()) {
+      if (!canAcceptTerminalInput(entry) || !entry.transport.isLive()) {
         return 'none'
       }
       try {
@@ -610,7 +676,7 @@ export function TerminalRuntimeProvider({
         if (
           entry.disposed
           || entriesRef.current.get(entry.sessionId) !== entry
-          || !isEntryWritable(entry)
+          || !canAcceptTerminalInput(entry)
           || !entry.transport.isLive()
           || activeSessionIdRef.current !== entry.sessionId
           || !viewport?.active
@@ -618,7 +684,9 @@ export function TerminalRuntimeProvider({
         ) {
           return 'none'
         }
-        pasteEntryText(entry, text)
+        if (!pasteEntryText(entry, text)) {
+          return 'none'
+        }
         entry.terminal.focus()
         return 'pasted'
       } catch {
@@ -626,7 +694,7 @@ export function TerminalRuntimeProvider({
         return 'failed'
       }
     },
-    [getViewportForSession, isEntryWritable, notifyClipboardError, pasteEntryText],
+    [canAcceptTerminalInput, getViewportForSession, notifyClipboardError, pasteEntryText],
   )
 
   const pasteSessionClipboard = useCallback(
@@ -688,7 +756,7 @@ export function TerminalRuntimeProvider({
         searchSeed: normalizeTerminalSearchSeed(selectionText),
         target,
         mouseTrackingMode: entry.terminal.modes.mouseTrackingMode,
-        writable,
+        writable: writable && !entry.inputLock.locked,
         disconnected,
       }
     },
@@ -833,6 +901,11 @@ export function TerminalRuntimeProvider({
             currentEntry.completionPromptAnchor = null
             completionRuntime.invalidateSession(sessionId)
           }
+          if (event.type === 'attached') {
+            applySessionInputLock(sessionId, event.message.input_lock)
+          } else if (event.type === 'input_lock') {
+            applySessionInputLock(sessionId, event.message.input_lock)
+          }
           handleTerminalTransportEvent(
             currentEntry,
             event,
@@ -868,12 +941,18 @@ export function TerminalRuntimeProvider({
         container: pane,
         disposables: [],
         lastSize: { cols: 0, rows: 0 },
+        resizeFrame: null,
         resizeTimer: null,
         suppressCompletionInput: false,
+        inputLock: detachedInputLocksRef.current.get(sessionId) ?? { locked: false },
         completionPromptAnchor: null,
         disposed: false,
       }
       entriesRef.current.set(sessionId, entry)
+      entry.terminal.options.disableStdin = entry.inputLock.locked
+      if (entry.inputLock.locked) {
+        entry.container.dataset.terminalInputLocked = 'true'
+      }
       const sendTerminalInput = (
         data: string | Uint8Array,
         trackCompletion: 'user' | 'binary' | 'none' = 'user',
@@ -881,7 +960,7 @@ export function TerminalRuntimeProvider({
         const viewport = getViewportForSession(sessionId)
         if (
           entry.disposed ||
-          !isEntryWritable(entry) ||
+          !canAcceptTerminalInput(entry) ||
           !entry.transport.isLive() ||
           !viewport?.host
         ) {
@@ -918,7 +997,7 @@ export function TerminalRuntimeProvider({
       const handlePasteEvent = (event: ClipboardEvent) => {
         event.preventDefault()
         event.stopPropagation()
-        if (!isEntryWritable(entry)) {
+        if (!canAcceptTerminalInput(entry)) {
           return
         }
         const text = event.clipboardData?.getData('text/plain')
@@ -964,7 +1043,7 @@ export function TerminalRuntimeProvider({
           if (terminal.hasSelection()) {
             scopes.push('terminal.selection')
           }
-          if (isEntryWritable(entry) && entry.transport.isLive()) {
+          if (canAcceptTerminalInput(entry) && entry.transport.isLive()) {
             scopes.push('terminal.writable')
           }
           if (
@@ -990,7 +1069,7 @@ export function TerminalRuntimeProvider({
           shortcutContextId,
           'terminal.paste',
           () => {
-            if (!isEntryWritable(entry) || !entry.transport.isLive()) return 'fallthrough'
+            if (!canAcceptTerminalInput(entry) || !entry.transport.isLive()) return 'fallthrough'
             void pasteEntryClipboard(entry)
             return 'handled'
           },
@@ -1101,7 +1180,7 @@ export function TerminalRuntimeProvider({
         (request) => {
           if (
             entry.disposed ||
-            !isEntryWritable(entry) ||
+            !canAcceptTerminalInput(entry) ||
             !entry.transport.isLive()
           ) {
             return false
@@ -1111,7 +1190,7 @@ export function TerminalRuntimeProvider({
         (requestId) => {
           if (
             entry.disposed ||
-            !isEntryWritable(entry) ||
+            !canAcceptTerminalInput(entry) ||
             !entry.transport.isLive()
           ) {
             return false
@@ -1126,6 +1205,8 @@ export function TerminalRuntimeProvider({
     },
     [
       applyEntrySessionState,
+      applySessionInputLock,
+      canAcceptTerminalInput,
       copyEntrySelection,
       completionRuntime,
       cwdRuntime,
@@ -1133,7 +1214,6 @@ export function TerminalRuntimeProvider({
       fitAndResize,
       getViewportForSession,
       isCompletionInteractionActive,
-      isEntryWritable,
       pasteEntryClipboard,
       pasteEntryText,
       shortcutRuntime,
@@ -1266,7 +1346,7 @@ export function TerminalRuntimeProvider({
     if (
       !entry
       || entry.disposed
-      || !isEntryWritable(entry)
+      || !canAcceptTerminalInput(entry)
       || !entry.transport.isLive()
       || !isCompletionInteractionActive(sessionId)
     ) {
@@ -1285,7 +1365,7 @@ export function TerminalRuntimeProvider({
     }
     entry.terminal.focus()
     return true
-  }, [completionRuntime, isCompletionInteractionActive, isEntryWritable])
+  }, [canAcceptTerminalInput, completionRuntime, isCompletionInteractionActive])
 
   const closeSessionCompletion = useCallback((sessionId: string) => {
     completionRuntime.closeSuggestions(sessionId)
@@ -1356,14 +1436,31 @@ export function TerminalRuntimeProvider({
     if (!entry || entry.disposed) {
       return
     }
-    if (entry.resizeTimer) {
+
+    if (entry.resizeFrame === null) {
+      entry.resizeFrame = window.requestAnimationFrame(() => {
+        entry.resizeFrame = null
+        fitEntryViewport(entry)
+      })
+    }
+
+    if (entry.resizeTimer !== null) {
       window.clearTimeout(entry.resizeTimer)
     }
     entry.resizeTimer = window.setTimeout(() => {
       entry.resizeTimer = null
-      fitAndResize(entry)
+      if (entry.resizeFrame !== null) {
+        window.cancelAnimationFrame(entry.resizeFrame)
+      }
+      entry.resizeFrame = window.requestAnimationFrame(() => {
+        entry.resizeFrame = null
+        if (!fitEntryViewport(entry)) {
+          return
+        }
+        sendResize(entry)
+      })
     }, 120)
-  }, [fitAndResize, getViewportForSession])
+  }, [fitEntryViewport, getViewportForSession, sendResize])
 
   const scheduleActiveResize = useCallback(() => {
     const activeSessionId = activeSessionIdRef.current
@@ -1382,18 +1479,28 @@ export function TerminalRuntimeProvider({
       }
       applyEntrySessionState(entry)
     })
+    for (const sessionId of detachedInputLocksRef.current.keys()) {
+      if (!allowedSessionIds.has(sessionId)) {
+        detachedInputLocksRef.current.delete(sessionId)
+        inputLockListenersRef.current.delete(sessionId)
+      }
+    }
     cwdRuntime.retainSessions(allowedSessionIds)
     syncViewports()
   }, [applyEntrySessionState, cwdRuntime, disposeEntry, sessions, syncViewports])
 
   useEffect(() => {
     const completionLayoutListeners = completionLayoutListenersRef.current
+    const inputLockListeners = inputLockListenersRef.current
+    const detachedInputLocks = detachedInputLocksRef.current
     return () => {
       stopAllCompletionStatusReconciliations()
       disposeAll()
       cwdRuntime.dispose()
       completionRuntime.clear()
       completionLayoutListeners.clear()
+      inputLockListeners.clear()
+      detachedInputLocks.clear()
     }
   }, [api, completionRuntime, cwdRuntime, disposeAll, stopAllCompletionStatusReconciliations])
 
@@ -1416,6 +1523,8 @@ export function TerminalRuntimeProvider({
       focusSession,
       sendTextToSession,
       sendTextToActive,
+      subscribeSessionInputLock,
+      getSessionInputLockSnapshot,
       subscribeSessionCompletion,
       getSessionCompletionSnapshot,
       subscribeSessionCompletionLayout,
@@ -1440,6 +1549,7 @@ export function TerminalRuntimeProvider({
       disposeSession,
       focusActive,
       focusSession,
+      getSessionInputLockSnapshot,
       getSessionCompletionSnapshot,
       moveSessionCompletionSelection,
       pasteSessionClipboard,
@@ -1453,6 +1563,7 @@ export function TerminalRuntimeProvider({
       selectAllSession,
       sendTextToActive,
       sendTextToSession,
+      subscribeSessionInputLock,
       setViewportCompletionActive,
       setViewportCompletionVisible,
       subscribeSessionCompletion,
@@ -1580,6 +1691,7 @@ function handleTerminalTransportEvent(
       onCwdState(event.message.cwd_state)
       return
     case 'prompt_boundary':
+    case 'input_lock':
       return
     case 'request_error':
       entry.container.dataset.transportError = event.code

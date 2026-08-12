@@ -5,7 +5,11 @@ export {
   useSessionCwdTransportState,
 } from './runtime/terminalCwdContext.ts'
 export { TerminalRuntimeProvider } from './runtime/TerminalRuntimeProvider.tsx'
-export { useTerminalRuntime } from './runtime/terminalRuntimeContext.ts'
+export {
+  useSessionInputLock,
+  useTerminalRuntime,
+  type TerminalInputLockSnapshot,
+} from './runtime/terminalRuntimeContext.ts'
 export {
   type SessionCwdRefreshResult,
   type SessionCwdRequestError,
@@ -19,6 +23,7 @@ export {
   type TerminalSearchResult,
 } from './model/terminalSearch.ts'
 export type { TerminalTransportState } from './model/terminalTransport.ts'
+export { decodeTerminalOutputFrame } from './model/terminalProtocol.ts'
 export type { TerminalGateway } from './api/terminalGateway.ts'
 export { ConnectionProgress } from './ui/ConnectionProgress.tsx'
 export { TerminalSearchPanel } from './ui/TerminalSearchPanel.tsx'

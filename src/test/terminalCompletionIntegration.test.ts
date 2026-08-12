@@ -20,6 +20,22 @@ const contextSource = readFileSync(
   'utf8',
 )
 
+test('终端容器变化时即时适配视口并在稳定后上报 PTY 尺寸', () => {
+  const start = providerSource.indexOf('const scheduleSessionResize')
+  const end = providerSource.indexOf('const scheduleActiveResize', start)
+  const resizeSource = providerSource.slice(start, end)
+
+  assert.ok(start >= 0 && end > start)
+  assert.match(resizeSource, /entry\.resizeFrame = window\.requestAnimationFrame/)
+  assert.match(resizeSource, /fitEntryViewport\(entry\)/)
+  assert.match(resizeSource, /entry\.resizeTimer = window\.setTimeout/)
+  assert.match(resizeSource, /sendResize\(entry\)/)
+  assert.ok(
+    resizeSource.indexOf('requestAnimationFrame') < resizeSource.indexOf('setTimeout'),
+    '本地视口适配应先于远端 PTY 尺寸上报',
+  )
+})
+
 test('终端补全通过稳定外部存储订阅且不在渲染期发布设置变化', () => {
   assert.match(contextSource, /useSyncExternalStore\(subscribe, getSnapshot, getSnapshot\)/)
   assert.match(providerSource, /useEffect\(\(\) => \{\s*completionRuntime\.setEnabled\(completionSettings\.enabled\)/)
@@ -74,6 +90,19 @@ test('所有终端输入入口统一更新补全可信状态', () => {
   assert.match(providerSource, /completionRuntime\.startComposition\(sessionId\)/)
   assert.match(providerSource, /completionRuntime\.endComposition\(sessionId\)/)
   assert.match(providerSource, /completionRuntime\.setAlternateScreen\(sessionId, buffer\.type === 'alternate'\)/)
+})
+
+test('权威输入锁统一阻断用户、粘贴、补全与程序化写入但不阻断只读交互', () => {
+  assert.match(providerSource, /const canAcceptTerminalInput = useCallback/)
+  assert.match(providerSource, /isEntryWritable\(entry\) && !entry\.inputLock\.locked/)
+  assert.match(providerSource, /const sendTerminalInput[\s\S]*?!canAcceptTerminalInput\(entry\)/)
+  assert.match(providerSource, /const pasteEntryText[\s\S]*?!canAcceptTerminalInput\(entry\)/)
+  assert.match(providerSource, /const sendTextToSession[\s\S]*?!canAcceptTerminalInput\(entry\)/)
+  assert.match(providerSource, /const acceptSessionCompletion[\s\S]*?!canAcceptTerminalInput\(entry\)/)
+  assert.match(providerSource, /entry\.transport\.sendCwdChange[\s\S]*?entry\.transport\.sendCwdRefresh/)
+  assert.match(providerSource, /entry\.terminal\.options\.disableStdin = next\.locked/)
+  assert.match(providerSource, /case 'input_lock':\s*return/)
+  assert.doesNotMatch(providerSource, /copyEntrySelection[\s\S]{0,120}canAcceptTerminalInput/)
 })
 
 test('缺少提示符时有界对账补全状态并在生命周期变化时停止', () => {

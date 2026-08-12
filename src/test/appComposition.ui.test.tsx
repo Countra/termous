@@ -146,6 +146,12 @@ vi.mock('#features/terminal', () => ({
   ),
 }))
 
+vi.mock('#features/command-dispatch', () => ({
+  CommandDispatchRuntimeProvider: ({ children }: { children: ReactNode }) => (
+    <div data-provider="command-dispatch">{children}</div>
+  ),
+}))
+
 vi.mock('#app/app-shell', () => ({
   AppShell: ({
     children,
@@ -400,6 +406,7 @@ describe('应用运行时组合合同', () => {
       'files-workspace',
       'transfer',
       'terminal',
+      'command-dispatch',
       'app-shell',
     ]
     const actualOrder: string[] = []

@@ -1,11 +1,13 @@
 import type { AppConfig } from '#common/contracts'
 import type { AliasGateway } from '#features/alias'
+import type { CommandDispatchGateway } from '#features/command-dispatch'
 import type { FileGateway } from '#features/files'
 import type { TerminalGateway } from '#features/terminal'
 import type { TermousApiTransport } from '#shared/api'
 import { getTermousBridge } from '#shared/bridge'
 import type { AppDataSnapshotGateway } from './runtimeGatewayContracts'
 import { AliasClient } from './gateways/aliasClient'
+import { CommandDispatchClient } from './gateways/commandDispatchClient'
 import { CredentialClient } from './gateways/credentialsClient'
 import { CrontabClient } from './gateways/crontabClient'
 import { DataPortabilityClient } from './gateways/dataPortabilityClient'
@@ -51,6 +53,7 @@ export interface RuntimeGateways {
   readonly dataPortability: DomainGateway<DataPortabilityClient>
   readonly files: FileGateway
   readonly terminal: TerminalGateway
+  readonly commandDispatch: CommandDispatchGateway
   readonly snapshot: AppDataSnapshotGateway
 }
 
@@ -67,6 +70,7 @@ export function createRuntimeGatewaysFromConfig(
   const hostKeys = new HostKeyClient(config)
   const sessions = new SessionClient(config)
   const aliasClient = new AliasClient(config)
+  const commandDispatch = new CommandDispatchClient(config)
   const observability = new ObservabilityClient(config)
   const service = new ServiceClient(config)
   const crontab = new CrontabClient(config)
@@ -98,6 +102,7 @@ export function createRuntimeGatewaysFromConfig(
     dataPortability,
     files: createFileGateway(fileSessions, fileOperations, transfers, fileCatalog),
     terminal: createTerminalGateway(settings, sessions),
+    commandDispatch,
     snapshot: createAppDataSnapshotGateway({
       settings,
       snippets,

@@ -59,6 +59,10 @@ export type TerminalTransportEvent =
     message: Extract<TerminalServerControlMessage, { type: 'prompt_boundary' }>
   }
   | {
+    type: 'input_lock'
+    message: Extract<TerminalServerControlMessage, { type: 'input_lock' }>
+  }
+  | {
     type: 'request_error'
     scope: TerminalRequestScope
     code: string
@@ -353,6 +357,9 @@ export class TerminalTransport {
         return
       case 'prompt_boundary':
         this.onEvent({ type: 'prompt_boundary', message })
+        return
+      case 'input_lock':
+        this.onEvent({ type: 'input_lock', message })
         return
       case 'request_error':
         this.onEvent({

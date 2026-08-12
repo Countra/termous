@@ -21,10 +21,12 @@ function createEntry(
   sessionId: string,
   events: string[],
   resizeTimer: number | null,
+  resizeFrame: number | null = null,
 ): TerminalEntry {
   return {
     sessionId,
     disposed: false,
+    resizeFrame,
     resizeTimer,
     disposables: [
       { dispose: () => events.push(`${sessionId}:subscription-1`) },
@@ -51,6 +53,10 @@ function createHarness() {
     deleteCompletionLayoutListeners: (sessionId) => {
       events.push(`${sessionId}:listeners-delete`)
     },
+    cancelResizeFrame: (frame) => {
+      const entry = [...entries.values()].find((candidate) => candidate.resizeFrame === frame)
+      events.push(`frame-${frame}:cancel-after-disposed-${String(entry?.disposed)}`)
+    },
     clearResizeTimer: (timer) => {
       const entry = [...entries.values()].find((candidate) => candidate.resizeTimer === timer)
       events.push(`timer-${timer}:clear-after-disposed-${String(entry?.disposed)}`)
@@ -61,7 +67,7 @@ function createHarness() {
 
 test('Entry 资源按原顺序释放且重复调用只执行一次', () => {
   const harness = createHarness()
-  const entry = createEntry('session-1', harness.events, 17)
+  const entry = createEntry('session-1', harness.events, 17, 29)
   harness.entries.set(entry.sessionId, entry)
 
   harness.lifecycle.disposeEntry(entry)
@@ -70,6 +76,7 @@ test('Entry 资源按原顺序释放且重复调用只执行一次', () => {
     'session-1:cwd-disposed',
     'session-1:completion-stop',
     'session-1:completion-dispose',
+    'frame-29:cancel-after-disposed-true',
     'timer-17:clear-after-disposed-true',
     'session-1:subscription-1',
     'session-1:subscription-2',
@@ -80,11 +87,12 @@ test('Entry 资源按原顺序释放且重复调用只执行一次', () => {
     'session-1:listeners-delete',
   ])
   assert.equal(entry.disposed, true)
+  assert.equal(entry.resizeFrame, null)
   assert.equal(entry.resizeTimer, null)
   assert.equal(harness.entries.has(entry.sessionId), false)
 
   harness.lifecycle.disposeEntry(entry)
-  assert.equal(harness.events.length, 11)
+  assert.equal(harness.events.length, 12)
 })
 
 test('按会话释放只处理目标，全部释放按当前 Map 快照清理剩余资源', () => {

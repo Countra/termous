@@ -1,0 +1,630 @@
+.root {
+  display: grid;
+  width: 100%;
+  height: 262px;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: 38px 46px minmax(0, 1fr);
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  background: var(--terminal-frame);
+  color: var(--text-secondary);
+}
+
+.header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  padding: 0 10px;
+}
+
+.title {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 7px;
+  color: color-mix(in srgb, var(--accent) 72%, var(--text-primary));
+}
+
+.mirror-title > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.title strong,
+.mirror-title strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mirror-title small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.segmented {
+  display: inline-flex;
+  height: 26px;
+  flex: 0 0 auto;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-subtle) 68%, transparent);
+  padding: 2px;
+}
+
+.segmented button,
+.target-picker-trigger,
+.interrupt-all,
+.send,
+.mirror-actions button,
+.target-popover-actions button {
+  border: 0;
+  font: inherit;
+}
+
+.segmented button {
+  height: 20px;
+  min-width: 43px;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 650;
+  padding: 0 9px;
+}
+
+.segmented button:hover,
+.segmented button:focus-visible {
+  color: var(--text-primary);
+}
+
+.segmented button.active {
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface-strong));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+  color: color-mix(in srgb, var(--accent) 68%, var(--text-primary));
+}
+
+.target-summary,
+.target-picker-trigger {
+  display: inline-flex;
+  min-width: 0;
+  height: 25px;
+  align-items: center;
+  gap: 5px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.target-summary {
+  padding: 0 7px;
+}
+
+.target-picker-trigger {
+  max-width: 150px;
+  border: 1px solid color-mix(in srgb, var(--accent) 19%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  cursor: pointer;
+  padding: 0 9px;
+}
+
+.target-picker-trigger:hover,
+.target-picker-trigger:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  color: var(--text-primary);
+}
+
+.interrupt-all {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: color-mix(in srgb, var(--danger) 78%, var(--text-primary));
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 9px;
+}
+
+.interrupt-all:disabled,
+.send:disabled,
+.interrupt-target:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.compose {
+  display: grid;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  padding: 7px 10px;
+}
+
+.compose-error {
+  max-width: 190px;
+  overflow: hidden;
+  color: var(--danger);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt {
+  display: inline-grid;
+  width: 22px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent);
+  font-family: var(--terminal-font-family);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.compose input {
+  width: 100%;
+  height: 30px;
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 74%, transparent);
+  border-radius: 7px;
+  outline: 0;
+  background: color-mix(in srgb, var(--terminal-bg) 86%, var(--surface));
+  box-sizing: border-box;
+  color: var(--terminal-fg);
+  font-family: var(--terminal-font-family);
+  font-size: 11px;
+  padding: 0 10px;
+}
+
+.compose input:focus {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 11%, transparent);
+}
+
+.compose input::placeholder {
+  color: color-mix(in srgb, var(--text-muted) 62%, transparent);
+}
+
+.send {
+  display: inline-flex;
+  height: 30px;
+  min-width: 104px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 720;
+  padding: 0 12px;
+}
+
+.send:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+
+.results {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(190px, 0.34fr) minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.result-list {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-subtle) 56%, transparent);
+  padding: 4px;
+  scrollbar-width: thin;
+}
+
+.result-row {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+}
+
+.result-row:hover {
+  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+}
+
+.result-row.active {
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-subtle));
+}
+
+.result-main {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 5px 7px;
+  text-align: left;
+}
+
+.result-main > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.result-main strong,
+.result-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-main strong {
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.result-main small {
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentcolor 10%, transparent);
+}
+
+.status-running,
+.status-interrupting,
+.status-validating {
+  background: var(--accent);
+  animation: command-pulse 1.35s ease-in-out infinite;
+}
+
+.status-succeeded {
+  background: var(--success);
+}
+
+.status-failed,
+.status-rejected,
+.status-disconnected {
+  background: var(--danger);
+}
+
+.status-interrupted,
+.status-uncertain,
+.status-completed-unknown {
+  background: var(--warning);
+}
+
+.status-queued {
+  background: var(--text-muted);
+}
+
+.exit-code {
+  color: var(--text-muted);
+  font-family: var(--terminal-font-family);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.interrupt-target {
+  display: inline-grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  margin-right: 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.interrupt-target:hover,
+.interrupt-target:focus-visible {
+  background: color-mix(in srgb, var(--danger) 11%, transparent);
+  color: var(--danger);
+}
+
+.empty-results,
+.mirror-empty {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.mirror {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: 34px minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--terminal-bg);
+}
+
+.mirror-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  background: color-mix(in srgb, var(--terminal-toolbar) 92%, var(--terminal-bg));
+  padding: 0 9px;
+}
+
+.mirror-title {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 7px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+}
+
+.mirror-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.mirror-actions button {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--accent) 72%, var(--text-secondary));
+  cursor: pointer;
+  font-size: 9px;
+  padding: 0 7px;
+}
+
+.mirror-actions button:hover,
+.mirror-actions button:focus-visible {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--accent);
+}
+
+.mirror-body {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.output-waiting,
+.output-warning {
+  position: absolute;
+  z-index: 3;
+  right: 9px;
+  bottom: 7px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--terminal-toolbar) 94%, transparent);
+  color: var(--text-muted);
+  font-size: 8px;
+  padding: 3px 6px;
+  pointer-events: none;
+}
+
+.output-warning {
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--border));
+  color: var(--warning);
+}
+
+.target-popover {
+  display: grid;
+  width: min(260px, calc(100vw - 48px));
+  gap: 10px;
+  color: var(--text-secondary);
+}
+
+.target-popover-head,
+.target-popover-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.target-popover-head {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.target-popover-head strong {
+  color: var(--accent);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.target-popover-search {
+  width: 100%;
+  height: 34px;
+  border-color: color-mix(in srgb, var(--border-strong) 74%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-subtle) 86%, transparent);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.target-popover-search :global(.ant-input) {
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+}
+
+.target-popover-search :global(.ant-input-prefix),
+.target-popover-search :global(.ant-input-clear-icon) {
+  color: var(--text-muted);
+}
+
+.target-popover-list {
+  display: grid;
+  max-height: 220px;
+  gap: 2px;
+  overflow: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+.target-option {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 7px 8px;
+}
+
+.target-option:hover {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-subtle));
+}
+
+.target-option > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.target-option strong,
+.target-option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target-option strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.target-option small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.target-popover-empty {
+  display: grid;
+  min-height: 70px;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.target-popover-actions {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.target-popover-actions :global(.ant-btn) {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.target-popover-actions :global(.ant-btn):not(:disabled):hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent);
+}
+
+@keyframes command-pulse {
+  0%,
+  100% {
+    opacity: 0.58;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (width <= 999px) {
+  .root {
+    height: 240px;
+    grid-template-rows: 36px 44px minmax(0, 1fr);
+  }
+
+  .title {
+    min-width: 0;
+  }
+
+  .target-summary,
+  .send span {
+    display: none;
+  }
+
+  .send {
+    min-width: 34px;
+    padding: 0 9px;
+  }
+
+  .compose-error {
+    max-width: 118px;
+  }
+
+  .results {
+    grid-template-columns: minmax(154px, 0.32fr) minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-running,
+  .status-interrupting,
+  .status-validating {
+    animation: none;
+  }
+}

@@ -50,6 +50,7 @@ vi.mock('antd', () => {
       }),
     },
     Button,
+    Drawer: ({ children }: { children?: ReactNode }) => <>{children}</>,
     Dropdown: ({ children }: { children?: ReactNode }) => <>{children}</>,
     Input: () => null,
     Modal: () => null,
@@ -118,6 +119,15 @@ vi.mock('#features/terminal', () => ({
     focusSession: vi.fn(),
     searchActive: vi.fn(() => ({ current: 0, total: 0 })),
     sendTextToSession: workbenchMocks.sendTextToSession,
+  }),
+}))
+vi.mock('#features/command-dispatch', () => ({
+  CommandDispatchDock: () => null,
+  isCommandDispatchTaskTerminal: () => true,
+  useCommandDispatchRuntime: () => ({
+    state: {
+      task: null,
+    },
   }),
 }))
 vi.mock('#features/snippets', () => ({

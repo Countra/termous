@@ -27,6 +27,7 @@ import { WorkbenchPage, type WorkbenchPageProps } from '#widgets/workbench'
 import { TransferRuntimeProvider } from '#app/transfer-runtime'
 import { useTermousData } from '#app/data-runtime'
 import { TerminalRuntimeProvider } from '#features/terminal'
+import { CommandDispatchRuntimeProvider } from '#features/command-dispatch'
 import {
   ShortcutRuntimeProvider,
   ShortcutWindowAdapter,
@@ -824,19 +825,20 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             terminalFonts={data.terminalFonts}
             onSessionEvent={actions.updateSession}
           >
-          <AppShell
-            page={page}
-            appVersion={appVersion}
-            windowCloseBehavior={data.settings.window.close_behavior}
-            sidebarCollapsed={sidebarCollapsed}
-            actionBusy={actionBusy}
-            onNavigate={navigateToPage}
-            onOpenConnectionLauncher={openContextualHostLauncher}
-            onOpenLocalTerminal={openLocalTerminalFromTopbar}
-            onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
-            onBeforeClose={shutdownBeforeClose}
-            onCloseError={showActionError}
-          >
+            <CommandDispatchRuntimeProvider api={gateways.commandDispatch}>
+              <AppShell
+                page={page}
+                appVersion={appVersion}
+                windowCloseBehavior={data.settings.window.close_behavior}
+                sidebarCollapsed={sidebarCollapsed}
+                actionBusy={actionBusy}
+                onNavigate={navigateToPage}
+                onOpenConnectionLauncher={openContextualHostLauncher}
+                onOpenLocalTerminal={openLocalTerminalFromTopbar}
+                onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+                onBeforeClose={shutdownBeforeClose}
+                onCloseError={showActionError}
+              >
         <div
           className={`${styles['app-keepalive-page']} ${page === 'workbench' ? styles['is-active'] : styles['is-hidden']}`}
           inert={page !== 'workbench'}
@@ -1046,7 +1048,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onDeleteTerminalFont={deleteTerminalFont}
           />
         ) : null}
-          </AppShell>
+              </AppShell>
+            </CommandDispatchRuntimeProvider>
       <ConfirmDialog
         open={Boolean(pendingPage)}
         title={t('vault.unsavedTitle')}

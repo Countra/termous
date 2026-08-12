@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { TerminalSettings } from '#common/contracts'
+import { terminalTheme } from '#entities/settings'
 import {
   shouldFitAfterSettingsChange,
   SSH_TERMINAL_SMOOTH_SCROLL_DURATION_MS,
   terminalSmoothScrollDuration,
-  terminalTheme,
 } from './terminalAppearance.ts'
 
 const settings: TerminalSettings = {

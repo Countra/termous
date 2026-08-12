@@ -77,6 +77,30 @@
   background: var(--terminal-active-bg);
 }
 
+.input-lock-notice {
+  position: absolute;
+  z-index: 4;
+  top: calc(var(--terminal-canvas-inset-block) + 7px);
+  right: calc(var(--terminal-canvas-inset-inline) + 9px);
+  display: inline-flex;
+  max-width: calc(100% - 42px);
+  height: 24px;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--terminal-toolbar) 94%, transparent);
+  box-shadow: 0 7px 18px rgb(0 0 0 / 22%);
+  color: color-mix(in srgb, var(--warning) 72%, var(--text-primary));
+  font-size: 9px;
+  font-weight: 650;
+  padding: 0 8px;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .empty-state {
   position: absolute;
   inset: var(--terminal-canvas-inset-block) var(--terminal-canvas-inset-inline);

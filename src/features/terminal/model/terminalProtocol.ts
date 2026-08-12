@@ -40,6 +40,14 @@ export interface TerminalPromptBoundary {
   shell: string
   cwd: string
   input_epoch: number
+  exit_code?: number
+}
+
+export interface TerminalInputLock {
+  locked: boolean
+  owner?: 'command_dispatch'
+  task_id?: string
+  locked_at?: string
 }
 
 export type TerminalServerControlMessage =
@@ -48,6 +56,7 @@ export type TerminalServerControlMessage =
     session: Session
     cwd_state: SessionCwdState
     stream: TerminalStreamSnapshot
+    input_lock?: TerminalInputLock
   }
   | {
     type: 'output_gap'
@@ -63,6 +72,10 @@ export type TerminalServerControlMessage =
     cwd_state: SessionCwdState
   }
   | ({ type: 'prompt_boundary' } & TerminalPromptBoundary)
+  | {
+    type: 'input_lock'
+    input_lock: TerminalInputLock
+  }
   | {
     type: 'request_error'
     scope: TerminalRequestScope
@@ -143,6 +156,7 @@ export function decodeTerminalControlMessage(payload: string): TerminalServerCon
         session: decodeSession(message.session),
         cwd_state: decodeCwdState(message.cwd_state),
         stream: decodeStreamSnapshot(message.stream),
+        input_lock: decodeOptionalInputLock(message.input_lock ?? message.input_state),
       }
     case 'output_gap':
       return {
@@ -164,6 +178,12 @@ export function decodeTerminalControlMessage(payload: string): TerminalServerCon
       return {
         type,
         ...decodePromptBoundary(message),
+      }
+    case 'input_lock':
+    case 'input_state':
+      return {
+        type: 'input_lock',
+        input_lock: decodeInputLock(message.input_lock ?? message.input_state),
       }
     case 'request_error':
       return {
@@ -285,6 +305,7 @@ function decodeCwdState(value: unknown): SessionCwdState {
 }
 
 function decodePromptBoundary(message: Record<string, unknown>): TerminalPromptBoundary {
+  const exitCode = optionalSafeInteger(message.exit_code)
   return {
     source_generation: requireNonNegativeSafeInteger(
       message.source_generation,
@@ -301,6 +322,25 @@ function decodePromptBoundary(message: Record<string, unknown>): TerminalPromptB
       message.input_epoch,
       'Terminal prompt input epoch is invalid',
     ),
+    ...(exitCode === undefined ? {} : { exit_code: exitCode }),
+  }
+}
+
+function decodeOptionalInputLock(value: unknown) {
+  return value === undefined ? undefined : decodeInputLock(value)
+}
+
+function decodeInputLock(value: unknown): TerminalInputLock {
+  const state = requireRecord(value, 'Terminal input lock is missing')
+  const ownerValue = state.owner ?? (state.owner_id ? 'command_dispatch' : undefined)
+  if (ownerValue !== undefined && ownerValue !== 'command_dispatch') {
+    throw new TerminalProtocolError('Terminal input lock owner is invalid')
+  }
+  return {
+    locked: requireBoolean(state.locked, 'Terminal input lock state is missing'),
+    owner: ownerValue,
+    task_id: optionalString(state.task_id ?? state.owner_id),
+    locked_at: optionalString(state.locked_at),
   }
 }
 

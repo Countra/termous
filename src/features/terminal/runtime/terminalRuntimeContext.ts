@@ -19,6 +19,7 @@ import type {
   TerminalSearchOptions,
   TerminalSearchResult,
 } from '../model/terminalSearch'
+import type { TerminalInputLock } from '../model/terminalProtocol'
 
 export type {
   TerminalContextPointer,
@@ -38,6 +39,8 @@ export type TerminalCompletionRetryResult = 'succeeded' | 'failed' | 'cancelled'
 export type TerminalClipboardAction = 'copied' | 'pasted' | 'empty' | 'none' | 'failed'
 
 export type TerminalSendResult = 'sent' | 'missing_session' | 'not_ready' | 'failed'
+
+export type TerminalInputLockSnapshot = TerminalInputLock
 
 export interface TerminalViewportOptions {
   viewportId?: string
@@ -90,6 +93,8 @@ export interface TerminalRuntimeContextValue {
   focusSession: (sessionId: string) => boolean
   sendTextToSession: (sessionId: string, text: string, options?: { execute?: boolean }) => TerminalSendResult
   sendTextToActive: (text: string, options?: { execute?: boolean }) => TerminalSendResult
+  subscribeSessionInputLock: (sessionId: string, listener: () => void) => () => void
+  getSessionInputLockSnapshot: (sessionId: string) => TerminalInputLockSnapshot
   subscribeSessionCompletion: (sessionId: string, listener: () => void) => () => void
   getSessionCompletionSnapshot: (sessionId: string) => TerminalCompletionSessionSnapshot
   subscribeSessionCompletionLayout: (sessionId: string, listener: () => void) => () => void
@@ -151,4 +156,24 @@ export function useSessionCompletionSnapshot(sessionId: string | null) {
   )
 
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+const unlockedInputLock: TerminalInputLockSnapshot = { locked: false }
+
+export function useSessionInputLock(sessionId: string | null) {
+  const runtime = useTerminalRuntime()
+  const fallback = unlockedInputLock
+  return useSyncExternalStore(
+    useCallback(
+      (listener: () => void) => (
+        sessionId ? runtime.subscribeSessionInputLock(sessionId, listener) : () => undefined
+      ),
+      [runtime, sessionId],
+    ),
+    useCallback(
+      () => sessionId ? runtime.getSessionInputLockSnapshot(sessionId) : fallback,
+      [fallback, runtime, sessionId],
+    ),
+    () => fallback,
+  )
 }
