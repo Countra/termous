@@ -1437,7 +1437,9 @@ export function TerminalRuntimeProvider({
       return
     }
 
-    if (entry.resizeFrame === null) {
+    // 拖动热路径只更新布局，避免分屏中的多个 xterm 每帧重复测量与重绘。
+    const bottomDrawerResizing = document.body.dataset.termousBottomDrawerResizing === 'true'
+    if (!bottomDrawerResizing && entry.resizeFrame === null) {
       entry.resizeFrame = window.requestAnimationFrame(() => {
         entry.resizeFrame = null
         fitEntryViewport(entry)
@@ -1447,8 +1449,15 @@ export function TerminalRuntimeProvider({
     if (entry.resizeTimer !== null) {
       window.clearTimeout(entry.resizeTimer)
     }
-    entry.resizeTimer = window.setTimeout(() => {
+    const finishResize = () => {
       entry.resizeTimer = null
+      if (entry.disposed) {
+        return
+      }
+      if (document.body.dataset.termousBottomDrawerResizing === 'true') {
+        entry.resizeTimer = window.setTimeout(finishResize, 120)
+        return
+      }
       if (entry.resizeFrame !== null) {
         window.cancelAnimationFrame(entry.resizeFrame)
       }
@@ -1459,7 +1468,8 @@ export function TerminalRuntimeProvider({
         }
         sendResize(entry)
       })
-    }, 120)
+    }
+    entry.resizeTimer = window.setTimeout(finishResize, 120)
   }, [fitEntryViewport, getViewportForSession, sendResize])
 
   const scheduleActiveResize = useCallback(() => {

@@ -39,6 +39,7 @@ import type {
   FileSession,
   FileSessionClosureState,
 } from '#entities/file'
+import { commandDockHeightLimits, parseCommandDockHeight } from '../model/commandDockHeight'
 import type { FileGateway } from '#features/files'
 import {
   buildSnippetTags,
@@ -227,6 +228,11 @@ export function WorkbenchPage({
   const [commandDockOpen, setCommandDockOpen] = usePersistentBooleanState(
     'termous.ui.workbench.commandDispatchDockOpen.v1',
     false,
+  )
+  const [commandDockHeight, setCommandDockHeight] = usePersistentJsonState<number>(
+    'termous.ui.workbench.commandDispatchDockHeight.v1',
+    commandDockHeightLimits.default,
+    parseCommandDockHeight,
   )
   const [detailsCollapsed, setDetailsCollapsed] = usePersistentBooleanState(
     'termous.ui.workbench.detailsCollapsed.v1',
@@ -1296,6 +1302,7 @@ export function WorkbenchPage({
             />
           )}
           commandDockOpen={commandDockOpen}
+          commandDockHeight={commandDockHeight}
           commandTaskActive={commandTaskActive}
           commandTargetCount={commandDispatchRuntime.state.task?.total_targets ?? 0}
           sessionTabs={(
@@ -1363,6 +1370,7 @@ export function WorkbenchPage({
           onSearchSession={requestSessionSearch}
           onOpenFilesAtPath={openPathInWorkbenchFiles}
           onCloseSession={closeSessionTab}
+          onCommandDockHeightChange={setCommandDockHeight}
           onToggleCommandDock={() => setCommandDockOpen((current) => !current)}
         />
 

@@ -17,12 +17,14 @@ import {
 import type { AppTheme as ThemeMode } from '#common/contracts'
 import type { Session } from '#entities/session'
 import type { WorkbenchTerminalSearchState } from '../model/workbenchTerminalTypes'
+import { CommandDockResizeHandle } from './CommandDockResizeHandle'
 import styles from './WorkbenchPage.module.scss'
 
 interface WorkbenchTerminalPanelProps {
   sessionTabs: ReactNode
   commandDock: ReactNode
   commandDockOpen: boolean
+  commandDockHeight: number
   commandTaskActive: boolean
   commandTargetCount: number
   sessions: Session[]
@@ -58,6 +60,7 @@ interface WorkbenchTerminalPanelProps {
   onSearchSession: (sessionId: string, initialQuery?: string) => void
   onOpenFilesAtPath: (session: Session, path: string) => void
   onCloseSession: (sessionId: string) => Promise<boolean>
+  onCommandDockHeightChange: (height: number) => void
   onToggleCommandDock: () => void
 }
 
@@ -65,6 +68,7 @@ export function WorkbenchTerminalPanel({
   sessionTabs,
   commandDock,
   commandDockOpen,
+  commandDockHeight,
   commandTaskActive,
   commandTargetCount,
   sessions,
@@ -100,6 +104,7 @@ export function WorkbenchTerminalPanel({
   onSearchSession,
   onOpenFilesAtPath,
   onCloseSession,
+  onCommandDockHeightChange,
   onToggleCommandDock,
 }: WorkbenchTerminalPanelProps) {
   const { t } = useTranslation()
@@ -177,44 +182,51 @@ export function WorkbenchTerminalPanel({
             commandDockOpen ? styles['is-open'] : '',
           ].filter(Boolean).join(' ')}
         >
-          <Drawer
-            id="command-dispatch-drawer"
-            rootClassName={styles['terminal-command-drawer']}
-            placement="bottom"
-            size="var(--terminal-command-drawer-height)"
+          <CommandDockResizeHandle
             open={commandDockOpen}
-            getContainer={false}
-            mask={false}
-            closable={false}
-            keyboard={false}
-            autoFocus={false}
-            focusable={{ trap: false, focusTriggerAfterClose: false }}
-            push={false}
-            destroyOnHidden
-            aria-label={t('commandDispatch.title')}
-            styles={{
-              wrapper: {
-                maxHeight: '100%',
-                background: 'var(--terminal-frame)',
-                boxShadow: 'none',
-                opacity: 1,
-                transitionDuration: '180ms',
-                transitionProperty: 'transform',
-              },
-              section: {
-                borderRadius: 0,
-                background: 'var(--terminal-frame)',
-                boxShadow: 'none',
-              },
-              body: {
-                overflow: 'hidden',
-                background: 'var(--terminal-frame)',
-                padding: 0,
-              },
-            }}
-          >
-            {commandDock}
-          </Drawer>
+            preferredHeight={commandDockHeight}
+            onHeightChange={onCommandDockHeightChange}
+          />
+          <div className={styles['terminal-command-drawer-viewport']}>
+            <Drawer
+              id="command-dispatch-drawer"
+              rootClassName={styles['terminal-command-drawer']}
+              placement="bottom"
+              size="100%"
+              open={commandDockOpen}
+              getContainer={false}
+              mask={false}
+              closable={false}
+              keyboard={false}
+              autoFocus={false}
+              focusable={{ trap: false, focusTriggerAfterClose: false }}
+              push={false}
+              destroyOnHidden
+              aria-label={t('commandDispatch.title')}
+              styles={{
+                wrapper: {
+                  maxHeight: '100%',
+                  background: 'var(--terminal-frame)',
+                  boxShadow: 'none',
+                  opacity: 1,
+                  transitionDuration: '180ms',
+                  transitionProperty: 'transform',
+                },
+                section: {
+                  borderRadius: 0,
+                  background: 'var(--terminal-frame)',
+                  boxShadow: 'none',
+                },
+                body: {
+                  overflow: 'hidden',
+                  background: 'var(--terminal-frame)',
+                  padding: 0,
+                },
+              }}
+            >
+              {commandDock}
+            </Drawer>
+          </div>
         </div>
         <div className={styles['terminal-statusbar']}>
           <StatusItem className={styles['is-session-position']} label={t('workbench.sessionCount')} value={sessionPositionLabel} />

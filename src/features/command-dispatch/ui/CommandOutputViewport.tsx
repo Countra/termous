@@ -1,7 +1,7 @@
 import '@xterm/xterm/css/xterm.css'
 import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AppTheme, TerminalSettings } from '#common/contracts'
 import {
@@ -28,12 +28,15 @@ export function CommandOutputViewport({
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
+  const resizeFrameRef = useRef<number | null>(null)
+  const resizeTimerRef = useRef<number | null>(null)
   const outputWriterRef = useRef<CommandDispatchOutputWriter | null>(null)
   const terminalSettingsRef = useRef(terminalSettings)
   const appThemeRef = useRef(appTheme)
   terminalSettingsRef.current = terminalSettings
   appThemeRef.current = appTheme
   const output = useCommandDispatchTargetOutput(taskId, sessionId)
+  const outputBackground = commandDispatchOutputTheme(terminalSettings, appTheme).background ?? '#080a0f'
 
   useLayoutEffect(() => {
     const host = hostRef.current
@@ -57,18 +60,52 @@ export function CommandOutputViewport({
     terminalRef.current = terminal
     fitRef.current = fit
     outputWriterRef.current = new CommandDispatchOutputWriter(terminal)
-    const resize = () => {
+    const fitViewport = () => {
       try {
         fit.fit()
       } catch {
         // Dock 折叠动画中的零尺寸由下一次 ResizeObserver 回调恢复。
       }
     }
+    const runResizeFrame = () => {
+      resizeFrameRef.current = null
+      fitViewport()
+    }
+    const requestResizeFrame = () => {
+      if (resizeFrameRef.current === null) {
+        resizeFrameRef.current = window.requestAnimationFrame(runResizeFrame)
+      }
+    }
+    const finishResize = () => {
+      resizeTimerRef.current = null
+      if (document.body.dataset.termousBottomDrawerResizing === 'true') {
+        resizeTimerRef.current = window.setTimeout(finishResize, 120)
+        return
+      }
+      requestResizeFrame()
+    }
+    const resize = () => {
+      // 面板拖动期间暂停昂贵的 xterm fit，松手后由尾随任务统一校准。
+      if (document.body.dataset.termousBottomDrawerResizing !== 'true') {
+        requestResizeFrame()
+      }
+      if (resizeTimerRef.current !== null) {
+        window.clearTimeout(resizeTimerRef.current)
+      }
+      resizeTimerRef.current = window.setTimeout(finishResize, 120)
+    }
     const observer = new ResizeObserver(resize)
     observer.observe(host)
-    const frame = window.requestAnimationFrame(resize)
+    requestResizeFrame()
     return () => {
-      window.cancelAnimationFrame(frame)
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current)
+        resizeFrameRef.current = null
+      }
+      if (resizeTimerRef.current !== null) {
+        window.clearTimeout(resizeTimerRef.current)
+        resizeTimerRef.current = null
+      }
       observer.disconnect()
       outputWriterRef.current?.dispose()
       terminal.dispose()
@@ -103,6 +140,7 @@ export function CommandOutputViewport({
     <div
       ref={hostRef}
       className={styles.root}
+      style={{ '--command-output-background': outputBackground } as CSSProperties}
       data-command-dispatch-output=""
       aria-label={t('commandDispatch.ptyOutput')}
     />

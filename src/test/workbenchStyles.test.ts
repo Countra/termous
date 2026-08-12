@@ -15,7 +15,9 @@ const sessionTabStripSource = readSource('../shared/ui/SessionTabStrip.tsx')
 const workbenchSessionTabsSource = readSource('../widgets/workbench/ui/WorkbenchSessionTabs.tsx')
 const workbenchPageSource = readSource('../widgets/workbench/ui/WorkbenchPage.tsx')
 const workbenchTerminalPanelSource = readSource('../widgets/workbench/ui/WorkbenchTerminalPanel.tsx')
+const commandDispatchDockSource = readSource('../features/command-dispatch/ui/CommandDispatchDock.tsx')
 const commandDispatchDockStyles = readSource('../features/command-dispatch/ui/CommandDispatchDock.module.scss')
+const commandOutputViewportStyles = readSource('../features/command-dispatch/ui/CommandOutputViewport.module.scss')
 
 test('工作台模块保留终端布局与响应式合同', () => {
   assert.match(
@@ -28,7 +30,11 @@ test('工作台模块保留终端布局与响应式合同', () => {
   )
   assert.match(
     pageStyles,
-    /\.terminal-statusbar\s*\{[^}]*repeat\(3, minmax\(72px, 0\.75fr\)\)\s*auto;/s,
+    /\.terminal-statusbar\s*\{[^}]*repeat\(3, minmax\(72px, 0\.75fr\)\)\s*auto;[^}]*padding:\s*0 0 0 12px;/s,
+  )
+  assert.match(
+    pageStyles,
+    /@media \(width <= 999px\)\s*\{[\s\S]*?\.terminal-statusbar\s*\{[^}]*padding:\s*0 0 0 9px;/s,
   )
   assert.match(
     pageStyles,
@@ -100,6 +106,8 @@ test('会话命令台使用内嵌底部抽屉完成展开和折叠', () => {
   assert.match(workbenchTerminalPanelSource, /getContainer=\{false\}/)
   assert.match(workbenchTerminalPanelSource, /mask=\{false\}/)
   assert.match(workbenchTerminalPanelSource, /destroyOnHidden/)
+  assert.match(workbenchTerminalPanelSource, /<CommandDockResizeHandle/)
+  assert.match(workbenchTerminalPanelSource, /size="100%"/)
   assert.doesNotMatch(workbenchTerminalPanelSource, /commandDockOpen \? commandDock : null/)
   assert.match(
     pageStyles,
@@ -107,7 +115,7 @@ test('会话命令台使用内嵌底部抽屉完成展开和折叠', () => {
   )
   assert.match(
     pageStyles,
-    /\.terminal-command-dock-slot\s*\{[^}]*height:\s*0;[^}]*overflow:\s*hidden;[^}]*transition:\s*height 180ms/s,
+    /\.terminal-command-dock-slot\s*\{[^}]*display:\s*grid;[^}]*height:\s*0;[^}]*grid-template-rows:\s*6px minmax\(0, 1fr\);[^}]*overflow:\s*hidden;[^}]*transition:\s*height 180ms/s,
   )
   assert.match(
     pageStyles,
@@ -117,9 +125,33 @@ test('会话命令台使用内嵌底部抽屉完成展开和折叠', () => {
   assert.match(workbenchTerminalPanelSource, /background: 'var\(--terminal-frame\)'/)
   assert.match(workbenchTerminalPanelSource, /transitionDuration: '180ms'/)
   assert.match(workbenchTerminalPanelSource, /transitionProperty: 'transform'/)
+  assert.match(
+    pageStyles,
+    /\.terminal-command-resize-edge\s*\{[^}]*height:\s*6px;[^}]*cursor:\s*ns-resize;[^}]*touch-action:\s*none;/s,
+  )
+  assert.match(commandDispatchDockStyles, /\.root\s*\{[^}]*grid-template-rows:\s*34px 46px minmax\(0, 1fr\);/s)
+  assert.match(commandDispatchDockStyles, /\.title\s*\{[^}]*height:\s*100%;[^}]*align-items:\s*center;/s)
+  assert.match(pageStyles, /\.terminal-command-dock-slot\.is-resizing\s*\{[^}]*transition:\s*none;/s)
+  assert.match(commandDispatchDockStyles, /\.root\s*\{[^}]*height:\s*100%;/s)
+  assert.doesNotMatch(commandDispatchDockStyles, /height:\s*(?:262|240)px;/)
   assert.match(commandDispatchDockStyles, /\.root\s*\{[^}]*background:\s*var\(--terminal-frame\);/s)
   assert.doesNotMatch(
     commandDispatchDockStyles,
     /\.root\s*\{[^}]*background:\s*color-mix\([^}]*var\(--terminal-toolbar\)/s,
+  )
+  assert.match(
+    commandOutputViewportStyles,
+    /\.root :global\(\.xterm\),\s*\.root :global\(\.xterm-screen\),\s*\.root :global\(\.xterm-viewport\)\s*\{[^}]*background-color:\s*var\(--command-output-background, var\(--terminal-bg\)\);/s,
+  )
+  assert.match(commandDispatchDockSource, /data-exit-code-status=\{display\.code === 0 \? 'success' : 'failure'\}/)
+  for (const status of ['success', 'failure', 'unknown']) {
+    assert.match(
+      commandDispatchDockStyles,
+      new RegExp(`\\.exit-code\\[data-exit-code-status='${status}'\\]\\s*\\{`),
+    )
+  }
+  assert.match(
+    commandDispatchDockStyles,
+    /\.exit-code\s*\{[^}]*display:\s*inline-grid;[^}]*place-items:\s*center;[^}]*box-sizing:\s*border-box;[^}]*line-height:\s*18px;[^}]*text-align:\s*center;/s,
   )
 })

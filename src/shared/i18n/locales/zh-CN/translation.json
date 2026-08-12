@@ -2537,6 +2537,7 @@
   },
   "commandDispatch": {
     "title": "会话命令台",
+    "resizeDock": "调整命令台高度",
     "scope": "命令目标范围",
     "scopeValue": {
       "current": "当前",

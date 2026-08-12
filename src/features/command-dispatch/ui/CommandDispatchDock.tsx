@@ -377,12 +377,28 @@ function ExitCode({ target }: { target: CommandDispatchTarget }) {
   const { t } = useTranslation()
   const display = commandDispatchExitCodeDisplay(target)
   if (display?.kind === 'unknown') {
-    return <span className={styles['exit-code']}>{t('commandDispatch.exitCodeUnavailable')}</span>
+    return (
+      <span
+        className={styles['exit-code']}
+        data-exit-code-status="unknown"
+      >
+        <span aria-hidden="true">—</span>
+        <span className={styles['exit-code-a11y']}>
+          {t('commandDispatch.exitCodeUnavailable')}
+        </span>
+      </span>
+    )
   }
   if (display?.kind !== 'known') return null
   return (
-    <span className={styles['exit-code']}>
-      {t('commandDispatch.exitCode', { code: display.code })}
+    <span
+      className={styles['exit-code']}
+      data-exit-code-status={display.code === 0 ? 'success' : 'failure'}
+    >
+      <span aria-hidden="true">{display.code}</span>
+      <span className={styles['exit-code-a11y']}>
+        {t('commandDispatch.exitCode', { code: display.code })}
+      </span>
     </span>
   )
 }

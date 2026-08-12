@@ -2546,6 +2546,7 @@
   },
   "commandDispatch": {
     "title": "Session command console",
+    "resizeDock": "Resize command console",
     "scope": "Command target scope",
     "scopeValue": {
       "current": "Current",

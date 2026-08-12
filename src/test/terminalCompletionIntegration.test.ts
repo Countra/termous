@@ -27,6 +27,9 @@ test('终端容器变化时即时适配视口并在稳定后上报 PTY 尺寸', 
 
   assert.ok(start >= 0 && end > start)
   assert.match(resizeSource, /entry\.resizeFrame = window\.requestAnimationFrame/)
+  assert.match(resizeSource, /document\.body\.dataset\.termousBottomDrawerResizing === 'true'/)
+  assert.match(resizeSource, /!bottomDrawerResizing && entry\.resizeFrame === null/)
+  assert.match(resizeSource, /if \(entry\.disposed\) \{\s*return\s*\}/)
   assert.match(resizeSource, /fitEntryViewport\(entry\)/)
   assert.match(resizeSource, /entry\.resizeTimer = window\.setTimeout/)
   assert.match(resizeSource, /sendResize\(entry\)/)

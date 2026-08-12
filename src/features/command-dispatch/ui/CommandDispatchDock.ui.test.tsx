@@ -6,7 +6,8 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CommandDispatchTargetStatus, CommandDispatchTask } from '#entities/command-dispatch'
 import type { Host } from '#entities/host'
 import type { Session } from '#entities/session'
 
@@ -14,6 +15,7 @@ const runtime = vi.hoisted(() => ({
   start: vi.fn(),
   interruptTask: vi.fn(),
   interruptTarget: vi.fn(),
+  task: null as CommandDispatchTask | null,
 }))
 
 vi.mock('react-i18next', () => ({
@@ -28,7 +30,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('../runtime/commandDispatchContext', () => ({
   useCommandDispatchRuntime: () => ({
     state: {
-      task: null,
+      task: runtime.task,
       recovering: false,
       starting: false,
       interruptingTask: false,
@@ -54,6 +56,10 @@ vi.mock('../runtime/commandDispatchContext', () => ({
 import { CommandDispatchDock } from './CommandDispatchDock'
 
 describe('会话命令台输入与指定目标交互', () => {
+  beforeEach(() => {
+    runtime.task = null
+  })
+
   it('输入上限与多行粘贴约束保持在界面边界', () => {
     renderDock()
     const input = screen.getByLabelText('commandDispatch.commandInput')
@@ -116,6 +122,24 @@ describe('会话命令台输入与指定目标交互', () => {
     await screen.findByLabelText('commandDispatch.searchTargets')
     expect(screen.getAllByText('阿里云-上海')).toHaveLength(1)
     expect(screen.getByText('root@203.0.113.7:22')).toBeInTheDocument()
+  })
+
+  it('退出码徽标区分成功、失败和不可用状态', () => {
+    runtime.task = dispatchTask()
+    const { container } = renderDock(4)
+
+    const badges = container.querySelectorAll<HTMLElement>('[data-exit-code-status]')
+    const [success, failure, unknown] = badges
+    expect(success).toHaveAttribute('data-exit-code-status', 'success')
+    expect(success.querySelector('[aria-hidden="true"]')).toHaveTextContent('0')
+    expect(success).toHaveTextContent('commandDispatch.exitCode:0')
+    expect(failure).toHaveAttribute('data-exit-code-status', 'failure')
+    expect(failure.querySelector('[aria-hidden="true"]')).toHaveTextContent('7')
+    expect(failure).toHaveTextContent('commandDispatch.exitCode:7')
+    expect(unknown).toHaveAttribute('data-exit-code-status', 'unknown')
+    expect(unknown.querySelector('[aria-hidden="true"]')).toHaveTextContent('—')
+    expect(unknown).toHaveTextContent('commandDispatch.exitCodeUnavailable')
+    expect(badges).toHaveLength(3)
   })
 })
 
@@ -183,5 +207,56 @@ function host(
     tags: [],
     favorite: false,
     fingerprint_policy: 'strict',
+  }
+}
+
+function dispatchTask(): CommandDispatchTask {
+  return {
+    id: 'task-1',
+    client_request_id: 'request-1',
+    revision: 1,
+    scope: 'selected',
+    status: 'partial_failed',
+    command: 'example',
+    target_session_ids: ['session-1', 'session-2', 'session-3', 'session-4'],
+    targets: [
+      dispatchTarget('session-1', 'succeeded', true, 0),
+      dispatchTarget('session-2', 'failed', true, 7),
+      dispatchTarget('session-3', 'completed_unknown', false),
+      dispatchTarget('session-4', 'rejected', false),
+    ],
+    total_targets: 4,
+    completed_targets: 4,
+    succeeded_targets: 1,
+    failed_targets: 1,
+    interrupted_targets: 0,
+    rejected_targets: 1,
+    unknown_targets: 1,
+    interruptible: false,
+    created_at: '2026-08-12T00:00:00Z',
+  }
+}
+
+function dispatchTarget(
+  sessionId: string,
+  status: CommandDispatchTargetStatus,
+  exitCodeKnown: boolean,
+  exitCode?: number,
+) {
+  return {
+    session_id: sessionId,
+    index: Number(sessionId.slice(-1)) - 1,
+    status,
+    status_message: status,
+    input_lock: { locked: false },
+    exit_code_known: exitCodeKnown,
+    ...(exitCode === undefined ? {} : { exit_code: exitCode }),
+    output_stream: {
+      epoch: '00000000000000000000000000000000',
+      oldest_offset: '0',
+      next_offset: '0',
+      resume_offset: '0',
+      truncated: false,
+    },
   }
 }

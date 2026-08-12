@@ -4,13 +4,19 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--terminal-bg);
+  background: var(--command-output-background, var(--terminal-bg));
   padding: 8px 10px;
   box-sizing: border-box;
 }
 
 .root :global(.xterm) {
   height: 100%;
+}
+
+.root :global(.xterm),
+.root :global(.xterm-screen),
+.root :global(.xterm-viewport) {
+  background-color: var(--command-output-background, var(--terminal-bg));
 }
 
 .root :global(.xterm-viewport) {

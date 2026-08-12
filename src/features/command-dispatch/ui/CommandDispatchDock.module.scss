@@ -1,12 +1,11 @@
 .root {
   display: grid;
   width: 100%;
-  height: 262px;
+  height: 100%;
   min-width: 0;
   min-height: 0;
-  grid-template-rows: 38px 46px minmax(0, 1fr);
+  grid-template-rows: 34px 46px minmax(0, 1fr);
   overflow: hidden;
-  border-top: 1px solid var(--border);
   background: var(--terminal-frame);
   color: var(--text-secondary);
 }
@@ -22,6 +21,7 @@
 
 .title {
   display: inline-flex;
+  height: 100%;
   min-width: 0;
   flex: 0 1 auto;
   align-items: center;
@@ -343,10 +343,53 @@
 }
 
 .exit-code {
-  color: var(--text-muted);
-  font-family: var(--terminal-font-family);
-  font-size: 8px;
+  display: inline-grid;
+  min-width: 28px;
+  height: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--terminal-frame);
+  color: var(--text-secondary);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-size: 10px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  padding: 0 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.exit-code[data-exit-code-status='success'] {
+  border-color: color-mix(in srgb, var(--success) 34%, var(--border));
+  background: color-mix(in srgb, var(--success) 11%, var(--terminal-frame));
+  color: color-mix(in srgb, var(--success) 78%, var(--text-primary));
+}
+
+.exit-code[data-exit-code-status='failure'] {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--border));
+  background: color-mix(in srgb, var(--danger) 11%, var(--terminal-frame));
+  color: color-mix(in srgb, var(--danger) 78%, var(--text-primary));
+}
+
+.exit-code[data-exit-code-status='unknown'] {
+  border-color: color-mix(in srgb, var(--warning) 32%, var(--border));
+  background: color-mix(in srgb, var(--warning) 9%, var(--terminal-frame));
+  color: color-mix(in srgb, var(--warning) 72%, var(--text-primary));
+}
+
+.exit-code-a11y {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  border: 0;
+  margin: -1px;
+  padding: 0;
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 
@@ -594,7 +637,6 @@
 
 @media (width <= 999px) {
   .root {
-    height: 240px;
     grid-template-rows: 36px 44px minmax(0, 1fr);
   }
 
