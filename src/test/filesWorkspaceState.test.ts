@@ -3,7 +3,7 @@ import test from 'node:test'
 import type {
   RemoteDirectoryListing,
   RemoteFileEntry,
-} from '../types/domain.ts'
+} from '#entities/file'
 import {
   applyFilesWorkspaceSelection,
   beginFilesWorkspaceHistoryNavigation,
@@ -33,7 +33,7 @@ import {
   sortFilesWorkspaceEntries,
   type FilesWorkspaceRuntimeState,
   type RemoteDirectoryViewState,
-} from '../features/files/filesWorkspaceState.ts'
+} from '../widgets/files-workspace/model/filesWorkspaceState.ts'
 
 function entry(
   name: string,

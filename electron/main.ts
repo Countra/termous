@@ -16,6 +16,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
+import type { AppLanguage, AppTheme, DataPortabilityProgress } from '#common/contracts'
 import { AppExitCoordinator } from './appExitCoordinator'
 import { CoreProcessManager } from './coreProcess'
 import { createElectronUpdaterEngine } from './electronUpdaterEngine'
@@ -54,6 +55,15 @@ const BACKUP_SELECTION_TTL_MS = 10 * 60 * 1000
 const SSH_KEY_FILE_MAX_BYTES = 1 << 20
 const SSH_KEY_FILE_NAME_MAX_BYTES = 255
 const SSH_PUBLIC_KEY_SUFFIX = '.pub'
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+if (!hasSingleInstanceLock) {
+  app.exit(0)
+}
+if (hasSingleInstanceLock) {
+  app.on('second-instance', () => {
+    showMainWindow()
+  })
+}
 const coreProcess = new CoreProcessManager()
 const trayController = new TermousTrayController({
   appName: APP_NAME,
@@ -67,8 +77,6 @@ const trayController = new TermousTrayController({
 })
 
 type StartupPhase = 'core' | 'workspace' | 'error'
-type AppTheme = 'dark' | 'light'
-type AppLanguage = 'zh-CN' | 'en-US'
 
 let win: BrowserWindow | null
 let splashWin: BrowserWindow | null = null
@@ -79,7 +87,9 @@ let mainWindowReady = false
 let startupReadyRequested = false
 let startupCompleted = false
 let splashPhase: StartupPhase = 'core'
-let splashStartedAt = 0
+let splashShownAt: number | null = null
+let splashReadyForDisplay = false
+let splashFocusRequested = false
 let startupCompletionTimer: NodeJS.Timeout | null = null
 
 const exitCoordinator = new AppExitCoordinator({
@@ -94,13 +104,6 @@ const exitCoordinator = new AppExitCoordinator({
     })
   },
 })
-
-interface PortabilityProgress {
-  operation: 'export' | 'import'
-  phase: 'selecting' | 'transferring' | 'finalizing' | 'complete'
-  transferred_bytes?: number
-  total_bytes?: number
-}
 
 interface PendingBackupSelection {
   id: string
@@ -270,7 +273,7 @@ app.on('child-process-gone', (_event, details) => {
   })
 })
 
-function emitPortabilityProgress(sender: WebContents, progress: PortabilityProgress) {
+function emitPortabilityProgress(sender: WebContents, progress: DataPortabilityProgress) {
   if (!sender.isDestroyed()) {
     sender.send('portability:progress', progress)
   }
@@ -548,8 +551,10 @@ function createSplashWindow() {
   if (splashWin && !splashWin.isDestroyed()) {
     return
   }
-  splashStartedAt = Date.now()
-  splashWin = new BrowserWindow({
+  splashShownAt = null
+  splashReadyForDisplay = false
+  splashFocusRequested = false
+  const target = new BrowserWindow({
     width: 400,
     height: 236,
     useContentSize: true,
@@ -570,20 +575,40 @@ function createSplashWindow() {
       sandbox: true,
     },
   })
-  splashWin.center()
-  splashWin.once('ready-to-show', () => {
-    if (!startupCompleted) {
-      splashWin?.show()
+  splashWin = target
+  target.center()
+  target.once('ready-to-show', () => {
+    if (splashWin !== target || startupCompleted) {
+      return
+    }
+    splashReadyForDisplay = true
+    showSplashWindow()
+  })
+  target.webContents.once('did-finish-load', () => {
+    if (splashWin === target) {
+      applySplashPhase()
+      if (!splashReadyForDisplay) {
+        splashReadyForDisplay = true
+        showSplashWindow()
+      }
     }
   })
-  splashWin.webContents.once('did-finish-load', applySplashPhase)
-  splashWin.on('closed', () => {
-    splashWin = null
+  target.on('closed', () => {
+    if (splashWin === target) {
+      splashWin = null
+      splashShownAt = null
+      splashReadyForDisplay = false
+      splashFocusRequested = false
+    }
   })
-  void splashWin
+  void target
     .loadFile(path.join(process.env.VITE_PUBLIC, 'startup.html'), { query: { theme: appTheme } })
     .catch(() => {
+      if (splashWin !== target) {
+        return
+      }
       closeSplashWindow()
+      tryCompleteStartup()
     })
 }
 
@@ -602,17 +627,42 @@ function updateSplashPhase(phase: StartupPhase) {
 }
 
 function closeSplashWindow() {
-  if (splashWin && !splashWin.isDestroyed()) {
-    splashWin.destroy()
-  }
-  splashWin = null
-}
-
-function prepareApplicationExit() {
   if (startupCompletionTimer) {
     clearTimeout(startupCompletionTimer)
     startupCompletionTimer = null
   }
+  if (splashWin && !splashWin.isDestroyed()) {
+    splashWin.destroy()
+  }
+  splashWin = null
+  splashShownAt = null
+  splashReadyForDisplay = false
+  splashFocusRequested = false
+}
+
+function showSplashWindow(focus = false) {
+  const target = splashWin
+  if (!target || target.isDestroyed() || startupCompleted) {
+    return
+  }
+  if (focus) {
+    splashFocusRequested = true
+  }
+  if (!splashReadyForDisplay) {
+    return
+  }
+  target.show()
+  if (splashShownAt === null) {
+    splashShownAt = Date.now()
+  }
+  if (splashFocusRequested) {
+    target.focus()
+    splashFocusRequested = false
+  }
+  tryCompleteStartup()
+}
+
+function prepareApplicationExit() {
   closeSplashWindow()
   trayController.destroy()
 }
@@ -655,9 +705,14 @@ function tryCompleteStartup() {
   if (startupCompleted || startupCompletionTimer || !startupReadyRequested || !mainWindowReady) {
     return
   }
-  const remaining = splashWin
-    ? Math.max(0, STARTUP_MIN_VISIBLE_MS - (Date.now() - splashStartedAt))
-    : 0
+  let remaining = 0
+  const target = splashWin
+  if (target && !target.isDestroyed()) {
+    if (splashShownAt === null) {
+      return
+    }
+    remaining = Math.max(0, STARTUP_MIN_VISIBLE_MS - (Date.now() - splashShownAt))
+  }
   startupCompletionTimer = setTimeout(() => {
     startupCompletionTimer = null
     if (!startupReadyRequested || !mainWindowReady) {
@@ -796,8 +851,7 @@ function showMainWindow() {
   }
   if (!startupCompleted) {
     if (splashWin && !splashWin.isDestroyed()) {
-      splashWin.show()
-      splashWin.focus()
+      showSplashWindow(true)
     }
     return
   }
@@ -1319,7 +1373,7 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(async () => {
+async function initializeApplication() {
   app.setName(APP_NAME)
   appTheme = readCachedAppTheme()
   appLanguage = currentUpdateLanguage()
@@ -1371,4 +1425,8 @@ app.whenReady().then(async () => {
   void coreProcess.initialize().then(() => {
     updateSplashPhase(coreProcess.getFatal() ? 'error' : 'workspace')
   })
-})
+}
+
+if (hasSingleInstanceLock) {
+  void app.whenReady().then(initializeApplication)
+}

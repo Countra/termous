@@ -233,7 +233,7 @@ if [[ "$build_phase" == "all" || "$build_phase" == "prepare" ]]; then
   run_step "Go tests" "$core_dir" go test ./...
   run_step "Build Termous Core" "$core_dir" go build \
     -trimpath \
-    -ldflags "-s -w -X termous/backend/internal/buildinfo.Version=$version" \
+    -ldflags "-s -w -X termous/backend/internal/platform/buildinfo.Version=$version" \
     -o "$core_binary" \
     ./cmd/termous-core
 

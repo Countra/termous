@@ -2,10 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type {
   FileSession,
-  ForwardInstance,
-  Session,
-} from '../types/domain.ts'
-import { buildUpdateRuntimeSummary } from '../features/update/updateRuntimeSummary.ts'
+} from '#entities/file'
+import type { ForwardInstance } from '#entities/forward'
+import type { Session } from '#entities/session'
+import { buildUpdateRuntimeSummary } from '../app/update-runtime/updateRuntimeSummary.ts'
 
 test('更新安装影响摘要统计仍会被退出流程中断的远程资源', () => {
   const sessions = [

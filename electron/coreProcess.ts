@@ -4,6 +4,12 @@ import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { createServer } from 'node:net'
 import path from 'node:path'
+import type {
+  AppConfig,
+  CoreFatalEvent,
+  CoreStatus,
+  DataPortabilityRestartResult,
+} from '#common/contracts'
 import { AsyncSingleflight } from './asyncSingleflight'
 import {
   clearObservedChildProcess,
@@ -13,29 +19,14 @@ import {
 
 export type CoreShutdownReason = 'frontend_exit' | 'application_update'
 
-export interface CoreRuntimeConfig {
-  apiBaseUrl: string
-  apiToken: string
-  version: string
-  managed: boolean
-}
-
-export interface CoreFatalEvent {
-  title: string
-  message: string
-  code: string
-}
-
-export interface CoreRestartResult {
-  restarted: boolean
-  requires_manual_restart: boolean
+export type CoreRuntimeConfig = Required<AppConfig>
+export type CoreRestartResult = Omit<DataPortabilityRestartResult, 'config'> & {
   config: CoreRuntimeConfig
 }
+export type { CoreFatalEvent } from '#common/contracts'
 
-interface CoreProcessState {
+type CoreProcessState = Omit<CoreStatus, 'config'> & {
   config: CoreRuntimeConfig
-  fatal: CoreFatalEvent | null
-  pid?: number
 }
 
 interface CoreRuntimeProbe {

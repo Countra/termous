@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { UpdateSnapshot } from '../../electron/updateTypes.ts'
-import { createDevelopmentUpdateSimulation } from '../features/update/developmentUpdateSimulation.ts'
+import type { UpdateSnapshot } from '#common/contracts'
+import { createDevelopmentUpdateSimulation } from '../app/update-simulation/developmentUpdateSimulation.ts'
 import {
   connectDevelopmentUpdateSimulationChannel,
   isDevelopmentUpdateSimulationSnapshot,
-} from '../features/update/developmentUpdateSimulationChannel.ts'
+} from '../app/update-simulation/developmentUpdateSimulationChannel.ts'
 import {
   mergeUpdateWindowBootstrap,
   mergeUpdateWindowSnapshot,
   resolveUpdateWindowPrimaryAction,
-} from '../features/update/updateWindowUiState.ts'
+} from '../entities/update/model/updateWindowUiState.ts'
 
 function browserHarness() {
   const opened: string[] = []

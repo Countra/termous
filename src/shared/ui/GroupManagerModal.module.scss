@@ -1,0 +1,268 @@
+.group-manager-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.group-manager-title-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  color: var(--accent);
+}
+
+.group-manager-title > small {
+  display: inline-grid;
+  min-width: 24px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.group-manager-modal :global(.ant-modal) {
+  --group-manager-modal-bg: #21252e;
+}
+
+:root[data-theme="light"] .group-manager-modal :global(.ant-modal) {
+  --group-manager-modal-bg: #f7f9fc;
+}
+
+.group-manager-modal :global(.ant-modal-container) {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--group-manager-modal-bg) !important;
+  padding: 0;
+}
+
+.group-manager-modal :global(.ant-modal-header) {
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--group-manager-modal-bg) !important;
+  padding: 13px 18px;
+}
+
+.group-manager-modal :global(.ant-modal-close) {
+  top: 9px;
+  right: 9px;
+}
+
+.group-manager-modal :global(.ant-modal-body) {
+  background: var(--group-manager-modal-bg);
+  padding: 0;
+}
+
+.group-manager-create-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 9px;
+  padding: 14px 18px 12px;
+}
+
+.group-manager-create-row :global(.ant-input),
+.group-manager-create-row :global(.ant-btn) {
+  height: 36px;
+}
+
+.group-manager-create-row :global(.ant-btn) {
+  min-width: 104px;
+}
+
+.group-manager-list-shell {
+  margin: 0 18px 18px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.group-manager-list-shell > :global(.ant-empty) {
+  display: flex;
+  min-height: 144px;
+  flex-direction: column;
+  justify-content: center;
+  margin-block: 0;
+}
+
+.group-manager-list {
+  display: block;
+  max-height: min(290px, 45vh);
+  overflow: hidden auto;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 28%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.group-manager-list::-webkit-scrollbar {
+  width: 7px;
+}
+
+.group-manager-list::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+  background-clip: padding-box;
+}
+
+.group-manager-row {
+  position: relative;
+  display: grid;
+  height: 58px;
+  min-height: 58px;
+  max-height: 58px;
+  grid-template-columns: 28px 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  padding: 6px 8px;
+  transition: background-color 140ms ease, opacity 140ms ease;
+}
+
+.group-manager-row:last-child {
+  border-bottom: 0;
+}
+
+.group-manager-row:hover,
+.group-manager-row:focus-within {
+  background: var(--row-hover-bg);
+}
+
+.group-manager-row.is-editing {
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface) 92%);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--warning) 68%, var(--border));
+}
+
+.group-manager-row.is-dragging {
+  opacity: 0.42;
+}
+
+.group-manager-row.is-drop-before::before,
+.group-manager-row.is-drop-after::after {
+  position: absolute;
+  z-index: 2;
+  right: 10px;
+  left: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+  content: '';
+  pointer-events: none;
+}
+
+.group-manager-row.is-drop-before::before {
+  top: -1px;
+}
+
+.group-manager-row.is-drop-after::after {
+  bottom: -1px;
+}
+
+.group-manager-drag-handle:global(.ant-btn) {
+  display: inline-grid;
+  width: 28px;
+  height: 32px;
+  place-items: center;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 0;
+}
+
+.group-manager-drag-handle:global(.ant-btn):active {
+  cursor: grabbing;
+}
+
+.group-manager-row-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.group-manager-row-copy {
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  gap: 3px;
+}
+
+.group-manager-row-copy strong,
+.group-manager-row-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-manager-row-copy strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.group-manager-row-copy small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.group-manager-row-copy :global(.ant-input) {
+  height: 32px;
+}
+
+.group-manager-row-actions,
+.group-manager-order-actions {
+  display: inline-flex;
+  align-items: center;
+}
+
+.group-manager-row-actions {
+  gap: 1px;
+}
+
+.group-manager-order-actions {
+  margin-right: 3px;
+  border-right: 1px solid var(--border);
+  padding-right: 4px;
+}
+
+.group-manager-row-actions :global(.ant-btn) {
+  display: inline-grid;
+  width: 29px;
+  height: 29px;
+  place-items: center;
+  padding: 0;
+}
+
+@media (width <= 620px) {
+  .group-manager-modal :global(.ant-modal) {
+    max-width: calc(100vw - 24px);
+  }
+
+  .group-manager-create-row {
+    padding-inline: 14px;
+  }
+
+  .group-manager-list-shell {
+    margin-inline: 14px;
+  }
+
+  .group-manager-row {
+    grid-template-columns: 26px 30px minmax(0, 1fr) auto;
+    gap: 6px;
+    padding-inline: 6px;
+  }
+
+  .group-manager-order-actions {
+    display: none;
+  }
+}

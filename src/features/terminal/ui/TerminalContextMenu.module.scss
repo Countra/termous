@@ -1,0 +1,77 @@
+.root :global(.ant-dropdown-menu) {
+  width: 188px;
+  min-width: 188px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #1d2128 !important;
+  backdrop-filter: none !important;
+  box-shadow: 0 16px 36px rgb(0 0 0 / 38%);
+}
+
+.root :global(.ant-dropdown-menu-item) {
+  min-height: 35px;
+  border-radius: 7px;
+  padding: 6px 9px !important;
+}
+
+.root :global(.ant-dropdown-menu-item-icon) {
+  display: inline-grid;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  margin-inline-end: 9px !important;
+  color: var(--text-muted);
+}
+
+.root :global(.ant-dropdown-menu-item:hover) :global(.ant-dropdown-menu-item-icon),
+.root :global(.ant-dropdown-menu-item-active) :global(.ant-dropdown-menu-item-icon) {
+  color: var(--accent);
+}
+
+.root :global(.ant-dropdown-menu-item-disabled) :global(.ant-dropdown-menu-item-icon) {
+  color: color-mix(in srgb, var(--text-muted) 56%, transparent);
+}
+
+.root :global(.ant-dropdown-menu-item-divider) {
+  margin: 4px 7px;
+  background: color-mix(in srgb, var(--border) 78%, transparent);
+}
+
+.label {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 20px;
+}
+
+.label > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.label kbd {
+  min-width: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  text-align: right;
+}
+
+.anchor {
+  position: fixed;
+  z-index: 1;
+  display: block;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}

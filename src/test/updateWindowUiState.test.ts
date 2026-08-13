@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { UpdateWindowBootstrap } from '../../electron/updateWindow.ts'
-import type { UpdateSnapshot } from '../../electron/updateTypes.ts'
+import type { UpdateWindowBootstrap, UpdateSnapshot } from '#common/contracts'
 import {
   phaseDescription,
   phaseTitle,
   primaryActionLabel,
   windowCopy,
-} from '../features/update/updateWindowCopy.ts'
+} from '../app/update-surface/updateWindowCopy.ts'
 import {
   calculateUpdateEta,
   canPrepareUpdateInstall,
@@ -20,7 +19,7 @@ import {
   mergeUpdateWindowSnapshot,
   resolveUpdateWindowPrimaryAction,
   resolveUpdateWindowVisiblePrimaryAction,
-} from '../features/update/updateWindowUiState.ts'
+} from '../entities/update/model/updateWindowUiState.ts'
 
 test('下载请求未完成时仍允许取消并阻止其他并发主操作', () => {
   assert.equal(

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { UpdateRuntimeSummary } from '../../electron/updateRuntime.ts'
+import type { UpdateRuntimeSummary } from '#common/contracts'
 import {
   UpdateRuntimeSummaryPublisher,
   runtimeSummarySignature,
   updateRuntimeSummaryRetryDelay,
   type UpdateRuntimeSummaryScheduler,
-} from '../features/update/updateRuntimeSummaryPublisher.ts'
+} from '../app/update-runtime/updateRuntimeSummaryPublisher.ts'
 
 function summary(
   patch: Partial<UpdateRuntimeSummary> = {},

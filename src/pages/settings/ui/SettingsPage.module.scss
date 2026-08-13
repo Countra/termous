@@ -1,0 +1,96 @@
+.page {
+  display: grid;
+  width: 100%;
+  max-width: 980px;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+  overflow: hidden;
+}
+
+.page-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.page-title-row h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 760;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.page-title-row p {
+  margin: 5px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.tabs:global(.ant-tabs) {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tabs :global(.ant-tabs-content-holder),
+.tabs :global(.ant-tabs-body-holder),
+.tabs :global(.ant-tabs-content),
+.tabs :global(.ant-tabs-body),
+.tabs :global(.ant-tabs-tabpane) {
+  min-width: 0;
+  min-height: 0;
+}
+
+.tabs :global(.ant-tabs-content-holder),
+.tabs :global(.ant-tabs-body-holder) {
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.tabs :global(.ant-tabs-content),
+.tabs :global(.ant-tabs-body),
+.tabs :global(.ant-tabs-tabpane) {
+  height: 100%;
+  overflow: hidden;
+}
+
+.tabs :global(.ant-tabs-nav) {
+  flex: 0 0 auto;
+  margin-bottom: 12px;
+}
+
+.tab-scroll {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  padding-bottom: 18px;
+  scrollbar-gutter: stable;
+}
+
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.terminal-stack {
+  display: grid;
+  gap: 12px;
+}
+
+@media (height <= 760px) {
+  .tab-scroll {
+    padding-bottom: 12px;
+  }
+}

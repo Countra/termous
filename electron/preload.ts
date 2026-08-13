@@ -1,16 +1,21 @@
 import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import { fileURLToPath } from 'node:url'
 import type {
+  CoreFatalEvent,
+  DataPortabilityProgress,
+  ExternalUrlOpenResult,
+  FilePickerOptions,
+  TermousBridge,
+  TrayCommand,
   UpdatePreferences,
   UpdatePreferencesPatch,
+  UpdateRuntimeSummary,
+  UpdateRuntimeSummaryRefreshRequest,
+  UpdateRuntimeSummaryReportContext,
   UpdateSnapshot,
-} from './updateManager'
-import type { UpdateRuntimeSummary } from './updateRuntime'
-import type { ExternalUrlOpenResult } from './externalUrl'
+} from '#common/contracts'
 import {
   normalizeRuntimeSummaryRefreshRequest,
-  type UpdateRuntimeSummaryRefreshRequest,
-  type UpdateRuntimeSummaryReportContext,
 } from './updateRuntimeSummaryRefresh'
 
 const droppedFilePathTTL = 5000
@@ -101,7 +106,7 @@ function preventFileDropNavigation(event: DragEvent) {
 window.addEventListener('dragover', preventFileDropNavigation, true)
 window.addEventListener('drop', cacheDroppedFilePaths, true)
 
-contextBridge.exposeInMainWorld('termous', {
+const bridge = {
   getConfig: () => ipcRenderer.invoke('core:get-config'),
   getBuildInfo: () => ipcRenderer.invoke('app:get-build-info'),
   platform: process.platform,
@@ -109,8 +114,8 @@ contextBridge.exposeInMainWorld('termous', {
     status: () => ipcRenderer.invoke('core:status'),
     shutdown: () => ipcRenderer.invoke('core:shutdown') as Promise<boolean>,
     getFatal: () => ipcRenderer.invoke('core:get-fatal'),
-    onFatal: (callback: (event: { title: string; message: string; code: string }) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, fatal: { title: string; message: string; code: string }) => callback(fatal)
+    onFatal: (callback: (event: CoreFatalEvent) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, fatal: CoreFatalEvent) => callback(fatal)
       ipcRenderer.on('core:fatal', listener)
       return () => ipcRenderer.removeListener('core:fatal', listener)
     },
@@ -126,8 +131,11 @@ contextBridge.exposeInMainWorld('termous', {
     selectBackup: () => ipcRenderer.invoke('portability:select-import'),
     inspectBackup: (selectionId: string, password: string) => ipcRenderer.invoke('portability:inspect', selectionId, password),
     restartAfterRestore: () => ipcRenderer.invoke('portability:restart-after-restore'),
-    onProgress: (callback: (progress: unknown) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, progress: unknown) => callback(progress)
+    onProgress: (callback: (progress: DataPortabilityProgress) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        progress: DataPortabilityProgress,
+      ) => callback(progress)
       ipcRenderer.on('portability:progress', listener)
       return () => ipcRenderer.removeListener('portability:progress', listener)
     },
@@ -163,14 +171,14 @@ contextBridge.exposeInMainWorld('termous', {
   },
   tray: {
     updateState: (state: unknown) => ipcRenderer.invoke('tray:update-state', state) as Promise<boolean>,
-    onCommand: (callback: (command: unknown) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, command: unknown) => callback(command)
+    onCommand: (callback: (command: TrayCommand) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, command: TrayCommand) => callback(command)
       ipcRenderer.on('tray:command', listener)
       return () => ipcRenderer.removeListener('tray:command', listener)
     },
   },
   files: {
-    pickPaths: (options?: { mode?: 'files' | 'directories' | 'files-and-directories'; multiple?: boolean }) =>
+    pickPaths: (options?: FilePickerOptions) =>
       ipcRenderer.invoke('files:pick-paths', options) as Promise<string[]>,
     pickFiles: () => ipcRenderer.invoke('files:pick-paths', { mode: 'files', multiple: true }) as Promise<string[]>,
     pickDirectory: () =>
@@ -258,4 +266,6 @@ contextBridge.exposeInMainWorld('termous', {
     saveKeyPair: (input: { suggestedName: string; privateKey: string; publicKey: string }) =>
       ipcRenderer.invoke('ssh-keys:save-key-pair', input),
   },
-})
+} satisfies TermousBridge
+
+contextBridge.exposeInMainWorld('termous', bridge)

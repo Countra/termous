@@ -1,0 +1,202 @@
+/* stylelint-disable property-no-deprecated -- 无障碍隐藏文本继续兼容旧版 Chromium。 */
+.root {
+  position: static;
+}
+
+.workbench-file-inline-error {
+  width: 100%;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--danger) 78%, var(--text-primary));
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.workbench-file-inline-error:hover,
+.workbench-file-inline-error:focus-visible {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface-subtle));
+}
+
+.workbench-file-transfer {
+  position: relative;
+  display: grid;
+  min-height: 50px;
+  gap: 5px;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-subtle) 64%, transparent);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
+}
+
+.workbench-file-transfer-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+  white-space: nowrap;
+}
+
+.workbench-file-transfer.is-failed {
+  border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
+  background: color-mix(in srgb, var(--danger) 6%, var(--surface-subtle));
+}
+
+.workbench-file-transfer-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.workbench-file-transfer-icon {
+  display: inline-grid;
+  width: 27px;
+  height: 27px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-primary));
+}
+
+.workbench-file-transfer.is-failed .workbench-file-transfer-icon {
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-strong));
+  color: color-mix(in srgb, var(--danger) 78%, var(--text-primary));
+}
+
+.workbench-file-transfer-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 1px;
+}
+
+.workbench-file-transfer-copy strong,
+.workbench-file-transfer-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-file-transfer-copy strong {
+  color: var(--text-primary);
+  font-size: 10.5px;
+}
+
+.workbench-file-transfer-copy span {
+  color: var(--text-muted);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.workbench-file-transfer-metrics {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.9fr) auto;
+  gap: 7px;
+  margin: 0;
+  padding: 0 1px;
+}
+
+.workbench-file-transfer-metrics > div {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.workbench-file-transfer-metrics dt,
+.workbench-file-transfer-metrics dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-file-transfer-metrics dt {
+  color: var(--text-muted);
+  font-size: 8.5px;
+  line-height: 1.2;
+}
+
+.workbench-file-transfer-metrics dd {
+  color: var(--text-secondary);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.workbench-file-transfer-metrics .is-speed {
+  text-align: center;
+}
+
+.workbench-file-transfer-metrics .is-progress {
+  text-align: right;
+}
+
+.workbench-file-transfer-progress {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  line-height: 0;
+}
+
+.workbench-file-transfer-progress :global(.ant-progress) {
+  min-width: 0;
+  margin: 0;
+  line-height: 0;
+}
+
+.workbench-file-transfer-progress :global(.ant-progress-outer) {
+  display: block;
+}
+
+.workbench-file-connect {
+  display: grid;
+  min-height: 180px;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 16px;
+  border: 1px dashed color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 13px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.workbench-file-connect > svg {
+  color: color-mix(in srgb, var(--accent) 80%, var(--text-primary));
+}
+
+.workbench-file-connect strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.workbench-file-connect > span {
+  max-width: 240px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.workbench-file-connect :global(.ant-progress) {
+  width: min(210px, 100%);
+}
+
+.workbench-file-transfer {
+  :global(:root[data-theme="light"]) & {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 72%),
+      0 5px 14px rgb(35 48 68 / 4%);
+  }
+}

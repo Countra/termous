@@ -1,0 +1,16 @@
+export type {
+  HostKeyChallenge,
+  HostKeyChallengeReason,
+  HostKeyChallengeSnapshot,
+  HostKeyChallengeState,
+  HostKeyConsumerType,
+  HostKeyDecisionAction,
+  HostKeyEndpoint,
+  HostKeyEndpointRole,
+  HostKeyEvent,
+  HostKeyEventType,
+  HostKeyMaterial,
+  HostKeyObservationContext,
+  HostKeyResolution,
+  HostKeyTrustRecord,
+} from './model/types.ts'

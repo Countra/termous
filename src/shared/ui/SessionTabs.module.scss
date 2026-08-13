@@ -1,0 +1,639 @@
+.session-tabs-shell {
+  --session-tab-rail-bg: color-mix(in srgb, var(--terminal-toolbar) 88%, var(--surface));
+  --session-tab-width: 125px;
+
+  position: relative;
+  display: grid;
+  min-width: 0;
+  height: 36px;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 54%, transparent);
+  border-radius: 8px;
+  background: var(--session-tab-rail-bg);
+  box-sizing: border-box;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 3%),
+    inset 0 -1px 0 rgb(0 0 0 / 16%);
+  gap: 2px;
+  overflow: hidden;
+  padding: 2px;
+}
+
+.session-tabs-shell.has-overflow {
+  grid-template-columns: 24px minmax(0, 1fr) 24px;
+}
+
+.session-tabs-stage {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  height: 30px;
+  align-items: center;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.session-tabs {
+  position: relative;
+  display: block;
+  min-width: 0;
+  height: 30px;
+  flex: 1 1 auto;
+  overflow: auto hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+
+.session-tabs-shell.has-trailing .session-tabs {
+  flex: 0 1 auto;
+}
+
+.session-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.session-tabs.has-left-overflow:not(.has-right-overflow) {
+  mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 100%);
+}
+
+.session-tabs.has-right-overflow:not(.has-left-overflow) {
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent 100%);
+}
+
+.session-tabs.has-left-overflow.has-right-overflow {
+  mask-image: linear-gradient(90deg, transparent 0, #000 18px, #000 calc(100% - 18px), transparent 100%);
+}
+
+.session-tabs-track {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  min-height: 30px;
+  align-items: center;
+  gap: 4px;
+}
+
+.session-tabs-trailing {
+  display: inline-flex;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-left: 3px;
+}
+
+.session-new-tab-button:global(.ant-btn) {
+  display: inline-flex;
+  width: 26px;
+  height: 28px;
+  min-width: 26px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--accent) 74%, var(--text-secondary));
+  box-shadow: none;
+  transform: none;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.session-new-tab-button:global(.ant-btn):hover,
+.session-new-tab-button:global(.ant-btn):focus-visible,
+.session-new-tab-button:global(.ant-btn).is-open {
+  background: color-mix(in srgb, var(--surface-subtle) 86%, transparent);
+  color: color-mix(in srgb, var(--accent) 92%, #fff 8%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+  transform: none;
+}
+
+.session-new-tab-button:global(.ant-btn):active {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  transform: none;
+}
+
+.session-scroll-button:global(.ant-btn) {
+  display: inline-flex;
+  width: 24px;
+  height: 30px;
+  min-width: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text-muted) 72%, transparent);
+  padding: 0;
+  transform: none;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
+}
+
+.session-scroll-button:global(.ant-btn):not(:disabled):hover {
+  background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
+  color: var(--text-secondary);
+}
+
+.session-scroll-button:global(.ant-btn):disabled {
+  opacity: 0.22;
+}
+
+.session-tab-button {
+  --session-tab-accent: var(--accent);
+  --session-tab-surface: color-mix(in srgb, var(--terminal-tab-bg) 48%, transparent);
+
+  position: relative;
+  display: inline-grid;
+  width: var(--session-tab-width);
+  min-width: var(--session-tab-width);
+  max-width: var(--session-tab-width);
+  flex: 0 0 var(--session-tab-width);
+  height: 30px;
+  min-height: 30px;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 34%, transparent);
+  border-radius: 6px;
+  background: var(--session-tab-surface);
+  box-sizing: border-box;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 2.5%),
+    inset 0 -1px 0 rgb(0 0 0 / 10%);
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 1;
+  overflow: hidden;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    color 0.16s ease;
+}
+
+.session-tab-button::after {
+  position: absolute;
+  right: 10px;
+  bottom: 0;
+  left: 10px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--session-tab-accent);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleX(0.58);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.session-tab-button.is-active {
+  --session-tab-surface: color-mix(in srgb, var(--surface-strong) 93%, var(--session-tab-accent) 7%);
+
+  border-color: color-mix(in srgb, var(--session-tab-accent) 18%, var(--border-strong));
+  background: var(--session-tab-surface);
+  color: var(--text-primary);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 5%),
+    inset 0 -1px 0 rgb(0 0 0 / 12%);
+}
+
+.session-tab-button.is-active::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.session-tab-button:not(.is-empty, .is-dragging):hover {
+  --session-tab-surface: color-mix(in srgb, var(--surface-subtle) 82%, var(--terminal-tab-bg));
+
+  border-color: color-mix(in srgb, var(--session-tab-accent) 10%, var(--border-strong));
+  background: var(--session-tab-surface);
+  color: var(--text-primary);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 4%),
+    inset 0 -1px 0 rgb(0 0 0 / 10%);
+}
+
+.session-tab-button.is-active:not(.is-dragging):hover {
+  --session-tab-surface: color-mix(in srgb, var(--surface-strong) 91%, var(--session-tab-accent) 9%);
+
+  border-color: color-mix(in srgb, var(--session-tab-accent) 22%, var(--border-strong));
+  background: var(--session-tab-surface);
+}
+
+.session-tab-button:not(.is-empty):has(.session-tab-main:focus-visible),
+.session-tab-button:not(.is-empty):has(.session-tab-close:focus-visible) {
+  border-color: color-mix(in srgb, var(--session-tab-accent) 34%, var(--border-strong));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--session-tab-accent) 15%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / 4%);
+  outline: none;
+}
+
+.session-tab-button.is-disabled {
+  cursor: default;
+  opacity: 0.56;
+}
+
+.session-tab-button.is-closing,
+.session-tab-button.is-closing:hover {
+  cursor: progress;
+  opacity: 1;
+}
+
+.session-tab-button.is-closing .session-tab-main:global(.ant-btn),
+.session-tab-button.is-closing .session-tab-close {
+  cursor: progress;
+}
+
+.session-tab-main:global(.ant-btn) {
+  display: inline-flex;
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 620;
+  line-height: 1;
+  padding: 0 2px 0 20px;
+  transform: none;
+}
+
+.session-tab-button .session-tab-main:global(.ant-btn.ant-btn-text):hover,
+.session-tab-button .session-tab-main:global(.ant-btn.ant-btn-text):active,
+.session-tab-button .session-tab-main:global(.ant-btn.ant-btn-text):focus {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  transform: none;
+}
+
+.session-tab-main:global(.ant-btn):focus-visible {
+  box-shadow: none;
+}
+
+.session-tab-main:global(.ant-btn):disabled {
+  cursor: default;
+}
+
+.session-tab-button.is-empty {
+  border-color: transparent;
+  background: transparent;
+  grid-template-columns: minmax(0, 1fr);
+  box-shadow: none;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.session-tab-button.is-dragging {
+  --session-tab-surface: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: var(--session-tab-surface);
+  color: var(--text-primary);
+  opacity: 0.82;
+}
+
+.session-tab-content,
+.session-tab-empty-content {
+  display: inline-flex;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.session-tab-empty-content {
+  height: 28px;
+  padding: 0 6px;
+}
+
+.session-tab-leading {
+  position: relative;
+  display: inline-grid;
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  color: color-mix(in srgb, var(--text-secondary) 88%, var(--text-muted));
+  transition: color 0.16s ease;
+}
+
+.session-tab-leading > svg {
+  width: 18px;
+  height: 18px;
+}
+
+.session-tab-button.is-active .session-tab-leading,
+.session-tab-button.is-pinned .session-tab-leading {
+  color: color-mix(in srgb, var(--session-tab-accent) 76%, var(--text-primary));
+}
+
+.session-tab-button.has-accent:not(.is-active) .session-tab-leading {
+  color: color-mix(in srgb, var(--session-tab-accent) 40%, var(--text-secondary));
+}
+
+.session-tab-leading .session-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  box-sizing: border-box;
+  width: 6px;
+  height: 6px;
+  border: 1.5px solid var(--session-tab-surface);
+}
+
+.session-tab-pin {
+  display: inline-grid;
+  width: 14px;
+  min-width: 14px;
+  height: 14px;
+  place-items: center;
+  color: color-mix(in srgb, var(--session-tab-accent) 78%, var(--accent));
+}
+
+.session-tab-close {
+  display: inline-flex;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0.34;
+  padding: 0;
+  transform: none !important;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.session-tab-button:hover .session-tab-close,
+.session-tab-button:has(.session-tab-main:focus-visible) .session-tab-close,
+.session-tab-button:has(.session-tab-close:focus-visible) .session-tab-close,
+.session-tab-button.is-active .session-tab-close {
+  opacity: 0.7;
+}
+
+.session-tab-close:not(:disabled):hover {
+  background: transparent;
+  box-shadow: none;
+  color: color-mix(in srgb, var(--text-primary) 88%, var(--text-secondary));
+  opacity: 0.9;
+  outline: none;
+}
+
+.session-tab-close:not(:disabled):focus-visible {
+  background: transparent;
+  box-shadow: none;
+  color: color-mix(in srgb, var(--session-tab-accent) 58%, var(--text-primary));
+  opacity: 0.9;
+  outline: none;
+}
+
+.session-tab-close:not(:disabled):active {
+  background: transparent;
+  transform: none !important;
+}
+
+.session-tab-button .session-tab-close:disabled {
+  cursor: default;
+  opacity: 0.32;
+  pointer-events: none;
+}
+
+.session-tab-button.is-closing .session-tab-close,
+.session-tab-button.is-closing .session-tab-close:hover,
+.session-tab-button.is-closing .session-tab-close:focus-visible {
+  background: transparent;
+  color: color-mix(in srgb, var(--session-tab-accent) 68%, var(--text-primary));
+  opacity: 1;
+}
+
+.session-tab-closing-spinner {
+  animation: termous-spin 0.78s linear infinite;
+}
+
+.session-tab-label {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  line-height: 20px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-tab-status-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.session-tab-tooltip:global(.termous-tooltip.ant-tooltip) :global(.ant-tooltip-inner),
+.session-tab-tooltip:global(.termous-tooltip.ant-tooltip) :global(.ant-tooltip-container) {
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 18px;
+  box-shadow: 0 8px 22px rgb(5 9 16 / 28%) !important;
+}
+
+.session-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--text-muted);
+  transform-origin: center;
+}
+
+.session-dot.is-connected {
+  background: var(--success);
+}
+
+.session-dot.is-connecting {
+  background: var(--warning);
+}
+
+.session-dot.is-waiting-trust {
+  background: #f59e0b;
+}
+
+.session-dot.is-closing {
+  background: var(--accent);
+}
+
+.session-dot.is-failed {
+  background: var(--danger);
+}
+
+.session-dot.is-disconnected {
+  background: var(--text-muted);
+}
+
+.session-tab-leading .session-dot.is-connecting,
+.session-tab-leading .session-dot.is-waiting-trust {
+  animation: session-tab-status-pulse 1.25s ease-in-out infinite;
+}
+
+@keyframes session-tab-status-pulse {
+  0%,
+  100% {
+    opacity: 0.66;
+    transform: scale(0.88);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes termous-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-tab-leading .session-dot.is-connecting,
+  .session-tab-leading .session-dot.is-waiting-trust,
+  .session-tab-closing-spinner {
+    animation: none;
+  }
+}
+
+.session-tabs-shell {
+  :global(:root[data-theme="light"]) & {
+    --session-tab-rail-bg: #f3f5f8;
+
+    border-color: rgb(30 42 58 / 10%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 82%),
+      inset 0 -1px 0 rgb(30 42 58 / 4%);
+  }
+}
+
+.session-tab-button.is-active {
+  :global(:root[data-theme="light"]) & {
+    --session-tab-surface: color-mix(in srgb, #fff 95%, var(--session-tab-accent) 5%);
+
+    border-color: color-mix(in srgb, var(--session-tab-accent) 16%, rgb(30 42 58 / 14%));
+    background: var(--session-tab-surface);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 94%),
+      inset 0 -1px 0 rgb(30 42 58 / 4%);
+  }
+}
+
+.session-tab-button {
+  :global(:root[data-theme="light"]) & {
+    --session-tab-surface: #edf1f6;
+
+    border-color: rgb(30 42 58 / 6%);
+    background: var(--session-tab-surface);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 72%),
+      inset 0 -1px 0 rgb(30 42 58 / 3%);
+  }
+}
+
+.session-tab-button.is-empty {
+  :global(:root[data-theme="light"]) & {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+.session-tab-button:not(.is-empty, .is-dragging):hover {
+  :global(:root[data-theme="light"]) & {
+    --session-tab-surface: #f7f9fc;
+
+    border-color: color-mix(in srgb, var(--session-tab-accent) 8%, rgb(30 42 58 / 12%));
+    background: var(--session-tab-surface);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 92%),
+      inset 0 -1px 0 rgb(30 42 58 / 4%);
+  }
+}
+
+.session-tab-button.is-active:not(.is-dragging):hover {
+  :global(:root[data-theme="light"]) & {
+    --session-tab-surface: color-mix(in srgb, #fff 93%, var(--session-tab-accent) 7%);
+
+    border-color: color-mix(in srgb, var(--session-tab-accent) 20%, rgb(30 42 58 / 14%));
+    background: var(--session-tab-surface);
+  }
+}
+
+.session-tab-button.is-dragging {
+  :global(:root[data-theme="light"]) & {
+    --session-tab-surface: color-mix(in srgb, var(--accent) 8%, #fff);
+
+    border-color: color-mix(in srgb, var(--accent) 28%, rgb(30 42 58 / 14%));
+    background: var(--session-tab-surface);
+  }
+}
+
+.session-tab-button:not(.is-empty) {
+  :global(:root[data-theme="light"]) &:has(.session-tab-main:focus-visible),
+  :global(:root[data-theme="light"]) &:has(.session-tab-close:focus-visible) {
+    border-color: color-mix(in srgb, var(--session-tab-accent) 30%, rgb(30 42 58 / 16%));
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--session-tab-accent) 10%, transparent),
+      inset 0 1px 0 rgb(255 255 255 / 92%);
+  }
+}
+
+.session-tab-tooltip:global(.termous-tooltip.ant-tooltip) {
+  :global(:root[data-theme="light"]) & :global(.ant-tooltip-inner),
+  :global(:root[data-theme="light"]) & :global(.ant-tooltip-container) {
+    box-shadow: 0 8px 22px rgb(20 32 48 / 12%) !important;
+  }
+}
+
+.session-new-tab-button:global(.ant-btn) {
+  :global(:root[data-theme="light"]) & {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+.session-new-tab-button:global(.ant-btn) {
+  :global(:root[data-theme="light"]) &:hover,
+  :global(:root[data-theme="light"]) &:focus-visible,
+  :global(:root[data-theme="light"]) &.is-open {
+    background: color-mix(in srgb, var(--accent) 10%, #fff);
+    color: color-mix(in srgb, var(--accent) 88%, #1f2937 12%);
+  }
+}

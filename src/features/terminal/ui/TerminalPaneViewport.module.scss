@@ -1,0 +1,330 @@
+.terminal-canvas {
+  min-width: 0;
+  min-height: 0;
+  background:
+    radial-gradient(circle at 18% 0, rgb(97 168 255 / 8%), transparent 30%),
+    var(--terminal-bg);
+  padding: 10px 12px;
+}
+
+:root[data-theme='light'] .terminal-canvas {
+  background:
+    radial-gradient(circle at 18% 0, rgb(31 111 235 / 6%), transparent 30%),
+    var(--terminal-bg);
+}
+
+.frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #080a0f;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--terminal-border) 56%, transparent);
+}
+
+.frame.active {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 54%, var(--terminal-border)),
+    inset 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.frame.drop-target::after {
+  position: absolute;
+  z-index: 8;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent 44%),
+    color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent),
+    inset 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  content: "";
+}
+
+.frame .terminal-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.terminal-canvas {
+  --terminal-active-bg: #080a0f;
+  --terminal-canvas-inset-block: 10px;
+  --terminal-canvas-inset-inline: 12px;
+
+  position: relative;
+  container-type: inline-size;
+  overflow: hidden;
+  background: var(--terminal-active-bg);
+  padding: 0;
+}
+
+.terminal-canvas.terminal-theme-light {
+  --terminal-active-bg: #fbfcfe;
+}
+
+.terminal-canvas.terminal-theme-dark {
+  --terminal-active-bg: #080a0f;
+}
+
+.session-stack {
+  position: absolute;
+  inset: var(--terminal-canvas-inset-block) var(--terminal-canvas-inset-inline);
+  min-width: 0;
+  min-height: 0;
+  background: var(--terminal-active-bg);
+}
+
+.input-lock-notice {
+  position: absolute;
+  z-index: 4;
+  top: calc(var(--terminal-canvas-inset-block) + 7px);
+  right: calc(var(--terminal-canvas-inset-inline) + 9px);
+  display: inline-flex;
+  max-width: calc(100% - 42px);
+  height: 24px;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--terminal-toolbar) 94%, transparent);
+  box-shadow: 0 7px 18px rgb(0 0 0 / 22%);
+  color: color-mix(in srgb, var(--warning) 72%, var(--text-primary));
+  font-size: 9px;
+  font-weight: 650;
+  padding: 0 8px;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-state {
+  position: absolute;
+  inset: var(--terminal-canvas-inset-block) var(--terminal-canvas-inset-inline);
+  display: grid;
+  place-items: center;
+  border: 1px dashed color-mix(in srgb, var(--terminal-border) 72%, transparent);
+  border-radius: 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.empty-state.has-action {
+  pointer-events: auto;
+}
+
+.terminal-canvas.has-session .empty-state {
+  display: none;
+}
+
+.terminal-canvas.session-ended .session-stack {
+  filter: saturate(0.86) brightness(0.78);
+}
+
+.disconnect-overlay {
+  position: absolute;
+  z-index: 5;
+  inset: var(--terminal-canvas-inset-block) var(--terminal-canvas-inset-inline);
+  display: grid;
+  place-items: end center;
+  padding: 0 14px 16px;
+  pointer-events: none;
+}
+
+.disconnect-card {
+  --disconnect-state-color: #79aef4;
+
+  position: relative;
+  display: grid;
+  width: min(680px, 100%);
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 84%, var(--disconnect-state-color) 16%);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-strong) 94%, var(--terminal-active-bg));
+  box-shadow:
+    0 14px 34px rgb(0 0 0 / 26%),
+    inset 0 1px 0 rgb(255 255 255 / 5%);
+  padding: 10px 10px 10px 13px;
+  pointer-events: auto;
+}
+
+.disconnect-card::before {
+  position: absolute;
+  inset: 9px auto 9px 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: var(--disconnect-state-color);
+  content: '';
+  opacity: 0.72;
+}
+
+.disconnect-card.failed {
+  --disconnect-state-color: var(--danger);
+}
+
+.disconnect-icon {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--disconnect-state-color) 30%, var(--border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--disconnect-state-color) 11%, var(--surface-subtle));
+  color: var(--disconnect-state-color);
+}
+
+.disconnect-card.failed .disconnect-icon {
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-subtle));
+}
+
+.disconnect-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.disconnect-copy strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.disconnect-copy span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 560;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.disconnect-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.disconnect-button:global(.ant-btn) {
+  display: inline-flex;
+  width: auto;
+  min-width: 92px;
+  height: 34px;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1;
+  padding: 0 12px;
+  box-shadow: none;
+  transform: none;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.disconnect-button:global(.ant-btn):not(:disabled):hover,
+.disconnect-button:global(.ant-btn):not(:disabled):focus-visible {
+  border-color: color-mix(in srgb, var(--border-strong) 72%, var(--accent) 28%);
+  background: color-mix(in srgb, var(--surface-subtle) 91%, var(--accent) 9%);
+  color: var(--text-primary);
+}
+
+.disconnect-button:global(.ant-btn):not(:disabled):active {
+  background: color-mix(in srgb, var(--surface-subtle) 96%, var(--accent) 4%);
+  transform: none;
+}
+
+.disconnect-button-primary:global(.ant-btn) {
+  --terminal-reconnect-accent: color-mix(in srgb, var(--accent) 88%, #8bc3ff 12%);
+
+  min-width: 104px;
+  border-color: color-mix(in srgb, var(--terminal-reconnect-accent) 38%, var(--border-strong));
+  background: color-mix(in srgb, var(--surface-strong) 82%, var(--terminal-reconnect-accent) 18%);
+  color: var(--terminal-reconnect-accent);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.disconnect-button-primary:global(.ant-btn):not(:disabled):hover,
+.disconnect-button-primary:global(.ant-btn):not(:disabled):focus-visible {
+  border-color: color-mix(in srgb, var(--terminal-reconnect-accent) 56%, var(--border-strong));
+  background: color-mix(in srgb, var(--surface-strong) 74%, var(--terminal-reconnect-accent) 26%);
+  color: color-mix(in srgb, var(--terminal-reconnect-accent) 82%, #fff 18%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    0 0 0 1px color-mix(in srgb, var(--terminal-reconnect-accent) 9%, transparent);
+}
+
+@container (width <= 560px) {
+  .disconnect-card {
+    grid-template-columns: 36px minmax(0, 1fr);
+    row-gap: 9px;
+  }
+
+  .disconnect-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
+
+@container (width <= 360px) {
+  .disconnect-card {
+    grid-template-columns: minmax(0, 1fr);
+    padding-left: 12px;
+  }
+
+  .disconnect-icon {
+    display: none;
+  }
+
+  .disconnect-actions {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .disconnect-button:global(.ant-btn) {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+.frame {
+  :global(:root[data-theme="light"]) & {
+    background: #fbfcfe;
+  }
+}
+
+.terminal-canvas.session-ended .session-stack {
+  :global(:root[data-theme="light"]) & {
+    filter: saturate(0.82) brightness(0.94);
+  }
+}
+
+.disconnect-card {
+  :global(:root[data-theme="light"]) & {
+    box-shadow:
+      0 12px 28px rgb(30 44 64 / 14%),
+      inset 0 1px 0 rgb(255 255 255 / 76%);
+  }
+}

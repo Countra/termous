@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
+import { SHORTCUT_ACTIONS, SHORTCUT_SCOPES } from '#entities/shortcuts'
 
 type TranslationTree = Record<string, unknown>
 
@@ -39,8 +40,182 @@ test('端口转发实时速度文案和格式保持一致', () => {
   assert.equal(translationValue(enUS, 'forwards.speedValue'), '{{value}}/s')
 })
 
+test('主机指纹消费者类型均渲染为双语业务文案', () => {
+  for (const consumer of ['session', 'sftp', 'forward', 'alias_sync']) {
+    const key = `hostKey.consumer.${consumer}`
+    assertBilingualString(key)
+    assert.notEqual(translationValue(zhCN, key), key)
+    assert.notEqual(translationValue(enUS, key), key)
+  }
+  assert.equal(translationValue(zhCN, 'hostKey.consumer.alias_sync'), '别名同步')
+  assert.equal(translationValue(enUS, 'hostKey.consumer.alias_sync'), 'Alias sync')
+})
+
+test('别名同步任务、目标与阶段状态拥有完整双语文案', () => {
+  for (const status of [
+    'queued',
+    'loading_source',
+    'running',
+    'cancelling',
+    'completed',
+    'partial_failed',
+    'failed',
+    'cancelled',
+  ]) {
+    assertBilingualString(`workbench.aliases.sync.taskStatus.${status}`)
+  }
+  for (const status of [
+    'pending',
+    'running',
+    'succeeded',
+    'skipped',
+    'failed',
+    'cancelled',
+    'uncertain',
+  ]) {
+    assertBilingualString(`workbench.aliases.sync.targetStatus.${status}`)
+  }
+  for (const phase of [
+    'resolving',
+    'connecting',
+    'waiting_host_trust',
+    'reading',
+    'merging',
+    'committing',
+  ]) {
+    assertBilingualString(`workbench.aliases.sync.targetPhase.${phase}`)
+  }
+  for (const reason of ['no_changes', 'shell_mismatch']) {
+    assertBilingualString(`workbench.aliases.sync.skipReason.${reason}`)
+  }
+  for (const status of ['applied', 'next_prompt', 'reconnect_required']) {
+    assertBilingualString(`workbench.aliases.sync.applyStatus.${status}`)
+  }
+  for (const error of [
+    'connectionInvalid',
+    'connectionNotFound',
+    'credentialLocked',
+    'sshAuthFailed',
+    'sshConnectFailed',
+    'jumpHostFailed',
+    'hostKeyRejected',
+    'hostKeyExpired',
+    'hostKeyUnavailable',
+  ]) {
+    assertBilingualString(`workbench.aliases.sync.errors.${error}`)
+  }
+})
+
+test('智能补全动态来源和设置文案在中英文资源中完整对应', () => {
+  for (const source of ['native', 'alias', 'snippet', 'history', 'directory', 'other']) {
+    const key = `terminal.completion.sources.${source}`
+    assert.equal(typeof translationValue(zhCN, key), 'string', key)
+    assert.equal(typeof translationValue(enUS, key), 'string', key)
+  }
+  for (const key of [
+    'terminal.completion.label',
+    'terminal.completion.exact',
+    'settings.completionTitle',
+    'settings.completionEnabled',
+    'settings.completionHint',
+    'settings.completionProviders',
+    'settings.completionProvidersHint',
+    'settings.completionProvidersEnabled',
+    'settings.completionProvidersPaused',
+  ]) {
+    assert.equal(typeof translationValue(zhCN, key), 'string', key)
+    assert.equal(typeof translationValue(enUS, key), 'string', key)
+  }
+  for (const source of ['native', 'alias', 'snippet', 'history', 'directory']) {
+    for (const field of ['name', 'description']) {
+      const key = `settings.completionProvider.${source}.${field}`
+      assert.equal(typeof translationValue(zhCN, key), 'string', key)
+      assert.equal(typeof translationValue(enUS, key), 'string', key)
+    }
+  }
+})
+
+test('快捷键动作目录、作用域和管理交互拥有完整双语文案', () => {
+  for (const action of SHORTCUT_ACTIONS) {
+    const actionKey = action.id.replace(/\./g, '_')
+    for (const field of ['name', 'description']) {
+      assertBilingualString(`settings.shortcuts.actions.${actionKey}.${field}`)
+    }
+    assertBilingualString(`settings.shortcuts.groups.${action.group}`)
+  }
+
+  for (const scope of SHORTCUT_SCOPES) {
+    assertBilingualString(`settings.shortcuts.scopes.${scope.replace(/\./g, '_')}`)
+  }
+
+  for (const key of [
+    'settings.tabShortcuts',
+    'settings.shortcuts.title',
+    'settings.shortcuts.description',
+    'settings.shortcuts.searchPlaceholder',
+    'settings.shortcuts.customizedCount',
+    'settings.shortcuts.resetAll',
+    'settings.shortcuts.resetAllTitle',
+    'settings.shortcuts.resetAllDescription',
+    'settings.shortcuts.resetAllConfirm',
+    'settings.shortcuts.resetAllSuccess',
+    'settings.shortcuts.resetAllFailed',
+    'settings.shortcuts.emptySearch',
+    'settings.shortcuts.status.default',
+    'settings.shortcuts.status.custom',
+    'settings.shortcuts.status.unbound',
+    'settings.shortcuts.binding.edit',
+    'settings.shortcuts.binding.add',
+    'settings.shortcuts.binding.remove',
+    'settings.shortcuts.binding.restore',
+    'settings.shortcuts.binding.restoreTitle',
+    'settings.shortcuts.binding.restoreDescription',
+    'settings.shortcuts.binding.restoreConfirm',
+    'settings.shortcuts.binding.restoreSuccess',
+    'settings.shortcuts.binding.restoreFailed',
+    'settings.shortcuts.binding.saveSuccess',
+    'settings.shortcuts.binding.saveFailed',
+    'settings.shortcuts.binding.slot',
+    'settings.shortcuts.binding.none',
+    'settings.shortcuts.recorder.title',
+    'settings.shortcuts.recorder.description',
+    'settings.shortcuts.recorder.listening',
+    'settings.shortcuts.recorder.listeningHint',
+    'settings.shortcuts.recorder.captured',
+    'settings.shortcuts.recorder.replaceHint',
+    'settings.shortcuts.recorder.save',
+    'settings.shortcuts.recorder.cancel',
+    'settings.shortcuts.recorder.clearAll',
+    'settings.shortcuts.recorder.modifierOnly',
+    'settings.shortcuts.recorder.invalidKey',
+    'settings.shortcuts.recorder.duplicate',
+    'settings.shortcuts.recorder.tooMany',
+    'settings.shortcuts.conflict.title',
+    'settings.shortcuts.conflict.description',
+    'settings.shortcuts.conflict.ambiguous',
+    'settings.shortcuts.reserved.title',
+    'settings.shortcuts.reserved.description',
+  ]) {
+    assertBilingualString(key)
+  }
+
+  for (const reason of [
+    'focus_traversal',
+    'dismiss',
+    'context_menu',
+    'diagnostics',
+    'aria_navigation',
+    'file_selection',
+    'terminal_search',
+    'terminal_interrupt',
+    'code_editor',
+  ]) {
+    assertBilingualString(`settings.shortcuts.reserved.${reason}`)
+  }
+})
+
 function readTranslations(locale: string) {
-  const path = join(sourceRoot, 'i18n', 'locales', locale, 'translation.json')
+  const path = join(sourceRoot, 'shared', 'i18n', 'locales', locale, 'translation.json')
   return JSON.parse(readFileSync(path, 'utf8')) as TranslationTree
 }
 
@@ -106,4 +281,9 @@ function translationValue(tree: TranslationTree, key: string) {
     current = (current as TranslationTree)[segment]
   }
   return current
+}
+
+function assertBilingualString(key: string) {
+  assert.equal(typeof translationValue(zhCN, key), 'string', `zh-CN: ${key}`)
+  assert.equal(typeof translationValue(enUS, key), 'string', `en-US: ${key}`)
 }

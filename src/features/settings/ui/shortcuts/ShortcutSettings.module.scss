@@ -1,0 +1,634 @@
+.shortcut-settings-panel {
+  display: grid;
+  min-width: 0;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.shortcut-settings-header {
+  min-width: 0;
+}
+
+.shortcut-settings-heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  padding: 18px 18px 12px;
+}
+
+.shortcut-settings-title {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.shortcut-settings-title > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.shortcut-settings-title > div {
+  min-width: 0;
+}
+
+.shortcut-settings-title h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.shortcut-settings-title p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.shortcut-settings-summary {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.shortcut-settings-summary > span {
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.shortcut-settings-reset:global(.ant-btn) {
+  min-height: 32px;
+  border-color: color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  box-shadow: none;
+}
+
+.shortcut-settings-reset:global(.ant-btn):not(:disabled):hover,
+.shortcut-settings-reset:global(.ant-btn):not(:disabled):focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: var(--surface-strong);
+  color: var(--text-primary);
+}
+
+.shortcut-settings-inline-error {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border-bottom: 1px solid color-mix(in srgb, var(--danger) 34%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  color: var(--danger);
+  padding: 9px 18px;
+  font-size: 12px;
+}
+
+.shortcut-settings-toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 18px 16px;
+}
+
+.shortcut-settings-search:global(.ant-input-affix-wrapper) {
+  width: min(440px, 100%);
+  min-height: 36px;
+  border-color: color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  box-shadow: none;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.shortcut-settings-search:global(.ant-input-affix-wrapper):hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: var(--surface-strong);
+}
+
+.shortcut-settings-search:global(.ant-input-affix-wrapper-focused) {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.shortcut-settings-search :global(.ant-input-prefix) {
+  color: var(--text-muted);
+}
+
+.shortcut-settings-groups {
+  display: grid;
+  min-width: 0;
+}
+
+.shortcut-settings-group + .shortcut-settings-group {
+  border-top: 1px solid var(--border);
+}
+
+.shortcut-settings-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  background: var(--surface-subtle);
+  padding: 0 18px;
+}
+
+.shortcut-settings-group-heading strong {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.shortcut-settings-group-heading span {
+  min-width: 20px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  text-align: right;
+}
+
+.shortcut-settings-list {
+  display: grid;
+}
+
+.shortcut-settings-row {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(210px, 1.35fr) minmax(104px, 0.62fr) minmax(138px, 0.82fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 72px;
+  padding: 10px 12px 10px 18px;
+  transition: background-color 140ms ease;
+}
+
+.shortcut-settings-row + .shortcut-settings-row {
+  border-top: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+}
+
+.shortcut-settings-row:hover,
+.shortcut-settings-row:focus-within {
+  background: color-mix(in srgb, var(--surface-subtle) 68%, var(--surface));
+}
+
+.shortcut-settings-row::before {
+  position: absolute;
+  top: 15px;
+  bottom: 15px;
+  left: 0;
+  width: 2px;
+  background: var(--shortcut-settings-row-accent);
+  content: '';
+}
+
+.shortcut-settings-row-default,
+.shortcut-settings-row-unbound {
+  --shortcut-settings-row-accent: transparent;
+}
+
+.shortcut-settings-row-custom {
+  --shortcut-settings-row-accent: var(--accent);
+}
+
+.shortcut-settings-action-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.shortcut-settings-action-copy strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 730;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcut-settings-action-copy small,
+.shortcut-settings-scope {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.shortcut-settings-action-copy small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.shortcut-settings-row-error {
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.shortcut-settings-row-warning {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 5px;
+  color: var(--warning);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.shortcut-settings-row-warning > svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.shortcut-settings-scope {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcut-settings-bindings {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.shortcut-settings-bindings kbd,
+.shortcut-recorder-binding kbd {
+  display: inline-flex;
+  min-width: 28px;
+  min-height: 25px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--text-muted));
+  border-bottom-color: color-mix(in srgb, var(--border) 62%, var(--text-muted));
+  border-radius: 6px;
+  background: var(--surface-strong);
+  color: var(--text-secondary);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 78%, transparent);
+  padding: 2px 8px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.shortcut-settings-unbound {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.shortcut-settings-status {
+  display: inline-flex;
+  min-width: 48px;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.shortcut-settings-status-default,
+.shortcut-settings-status-unbound {
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.shortcut-settings-status-custom {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--accent);
+}
+
+.shortcut-settings-row-actions {
+  display: flex;
+  min-width: 68px;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.shortcut-settings-row-actions :global(.ant-btn) {
+  color: var(--text-muted);
+}
+
+.shortcut-settings-row-actions :global(.ant-btn):hover {
+  background: var(--surface-strong);
+  color: var(--text-primary);
+}
+
+.shortcut-settings-empty {
+  margin: 0;
+  padding: 56px 18px 64px;
+}
+
+.shortcut-recorder-modal-root {
+  --shortcut-recorder-bg: #1d2028;
+  --shortcut-recorder-control: #252a34;
+  --shortcut-recorder-border: #353b47;
+
+  :global(:root[data-theme='light']) & {
+    --shortcut-recorder-bg: #fff;
+    --shortcut-recorder-control: #f2f4f7;
+    --shortcut-recorder-border: #d9dee7;
+  }
+}
+
+.shortcut-recorder-modal-root :global(.ant-modal-mask) {
+  background: rgb(0 0 0 / 54%);
+}
+
+.shortcut-recorder-modal :global(.ant-modal-content),
+.shortcut-recorder-modal :global(.ant-modal-container) {
+  overflow: hidden;
+  border: 1px solid var(--shortcut-recorder-border);
+  border-radius: 14px;
+  background: var(--shortcut-recorder-bg) !important;
+  box-shadow: 0 22px 62px rgb(0 0 0 / 36%);
+  padding: 0;
+  opacity: 1;
+  backdrop-filter: none;
+}
+
+.shortcut-recorder-modal :global(.ant-modal-header) {
+  margin: 0;
+  border-bottom: 1px solid var(--shortcut-recorder-border);
+  background: var(--shortcut-recorder-bg);
+  padding: 15px 18px 14px;
+}
+
+.shortcut-recorder-modal :global(.ant-modal-title) {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 760;
+  line-height: 1.4;
+  padding-right: 34px;
+}
+
+.shortcut-recorder-modal :global(.ant-modal-close) {
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.shortcut-recorder-modal :global(.ant-modal-close):hover,
+.shortcut-recorder-modal :global(.ant-modal-close):focus-visible {
+  background: var(--shortcut-recorder-control);
+  color: var(--text-primary);
+}
+
+.shortcut-recorder-modal :global(.ant-modal-body) {
+  background: var(--shortcut-recorder-bg);
+  padding: 16px 18px 14px;
+}
+
+.shortcut-recorder-modal :global(.ant-modal-footer) {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+  border-top: 1px solid var(--shortcut-recorder-border);
+  background: var(--shortcut-recorder-bg);
+  padding: 12px 18px 14px;
+}
+
+.shortcut-recorder-modal :global(.ant-modal-footer) :global(.ant-btn) {
+  min-width: 74px;
+  height: 34px;
+  margin: 0;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.shortcut-recorder-modal :global(.ant-modal-footer) :global(.ant-btn-primary):disabled {
+  border-color: var(--shortcut-recorder-border);
+  background: var(--shortcut-recorder-control);
+  color: var(--text-muted);
+}
+
+.shortcut-recorder-body {
+  display: grid;
+  gap: 14px;
+}
+
+.shortcut-recorder-intro {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.shortcut-recorder-bindings {
+  display: grid;
+  border-top: 1px solid var(--shortcut-recorder-border);
+  border-bottom: 1px solid var(--shortcut-recorder-border);
+}
+
+.shortcut-recorder-section-label,
+.shortcut-recorder-binding {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.shortcut-recorder-section-label {
+  min-height: 34px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.shortcut-recorder-section-label small {
+  font-variant-numeric: tabular-nums;
+}
+
+.shortcut-recorder-binding {
+  grid-template-columns: minmax(104px, auto) minmax(0, 1fr) 30px 30px;
+  min-height: 48px;
+  border-top: 1px solid color-mix(in srgb, var(--shortcut-recorder-border) 78%, transparent);
+}
+
+.shortcut-recorder-binding > span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.shortcut-recorder-binding :global(.ant-btn) {
+  width: 28px;
+  height: 28px;
+  color: var(--text-muted);
+}
+
+.shortcut-recorder-binding kbd {
+  border-color: var(--shortcut-recorder-border);
+  background: var(--shortcut-recorder-control);
+}
+
+.shortcut-recorder-empty {
+  border-top: 1px solid color-mix(in srgb, var(--shortcut-recorder-border) 78%, transparent);
+  color: var(--text-muted);
+  padding: 14px 0;
+  font-size: 12px;
+}
+
+.shortcut-recorder-target {
+  display: grid;
+  width: 100%;
+  min-height: 82px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--shortcut-recorder-border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--shortcut-recorder-bg));
+  color: var(--text-primary);
+  padding: 13px 14px;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+
+.shortcut-recorder-target:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.shortcut-recorder-target-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--shortcut-recorder-control));
+  color: var(--accent);
+}
+
+.shortcut-recorder-target > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.shortcut-recorder-target strong {
+  font-size: 13px;
+  font-weight: 740;
+}
+
+.shortcut-recorder-target small,
+.shortcut-recorder-stop,
+.shortcut-recorder-limit,
+.shortcut-recorder-action-context {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.shortcut-recorder-stop {
+  white-space: nowrap;
+}
+
+.shortcut-recorder-add:global(.ant-btn) {
+  min-height: 38px;
+  border-color: var(--shortcut-recorder-border);
+  background: var(--shortcut-recorder-control);
+}
+
+.shortcut-recorder-limit {
+  border: 1px solid var(--shortcut-recorder-border);
+  border-radius: 9px;
+  background: var(--shortcut-recorder-control);
+  padding: 10px 12px;
+  text-align: center;
+}
+
+.shortcut-recorder-problems {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  border-left: 2px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 7%, var(--shortcut-recorder-bg));
+  color: var(--danger);
+  padding: 10px 12px;
+}
+
+.shortcut-recorder-problems > svg {
+  margin-top: 1px;
+}
+
+.shortcut-recorder-problems p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.shortcut-recorder-problems p + p {
+  margin-top: 4px;
+}
+
+@media (width <= 860px) {
+  .shortcut-settings-row {
+    grid-template-columns: minmax(190px, 1fr) minmax(130px, auto) auto auto;
+  }
+
+  .shortcut-settings-scope {
+    display: none;
+  }
+}
+
+@media (width <= 680px) {
+  .shortcut-settings-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .shortcut-settings-search:global(.ant-input-affix-wrapper) {
+    width: 100%;
+  }
+
+  .shortcut-settings-summary {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .shortcut-settings-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+
+  .shortcut-settings-bindings {
+    grid-column: 1;
+  }
+
+  .shortcut-settings-status {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .shortcut-settings-row-actions {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}

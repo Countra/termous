@@ -1,0 +1,196 @@
+import { Button, Form, Input, Modal, Select, Tooltip } from 'antd'
+import { FolderTree, Plus, Save } from 'lucide-react'
+import { useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+import type {
+  FileBookmark,
+  FileBookmarkGroup,
+  FileBookmarkInput,
+} from '#entities/file'
+import { sortBookmarkGroups, suggestBookmarkName } from '#entities/file'
+import { confirmDialogStyles, EditorModeContext, uiStyles } from '#shared/ui'
+import styles from './WorkbenchBookmarksPopover.module.scss'
+
+const scopedClassName = (...classNames: string[]) => classNames
+  .flatMap((className) => [className, styles[className]])
+  .filter(Boolean)
+  .join(' ')
+
+interface WorkbenchBookmarkEditorModalProps {
+  open: boolean
+  currentPath: string
+  bookmark: FileBookmark | null
+  groups: readonly FileBookmarkGroup[]
+  saving: boolean
+  error: string
+  onCancel: () => void
+  onSubmit: (input: FileBookmarkInput) => Promise<void> | void
+}
+
+interface BookmarkCreateFormValue {
+  name: string
+  group_id: string
+}
+
+export function WorkbenchBookmarkEditorModal({
+  open,
+  currentPath,
+  bookmark,
+  groups,
+  saving,
+  error,
+  onCancel,
+  onSubmit,
+}: WorkbenchBookmarkEditorModalProps) {
+  const { t } = useTranslation()
+  const [form] = Form.useForm<BookmarkCreateFormValue>()
+  const watchedName = Form.useWatch('name', form)
+  const groupOptions = useMemo(
+    () => [
+      { value: '', label: t('files.bookmarksUngrouped') },
+      ...[...groups]
+        .sort(sortBookmarkGroups)
+        .map((group) => ({ value: group.id, label: group.name })),
+    ],
+    [groups, t],
+  )
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+    const knownGroupIds = new Set(groups.map((group) => group.id))
+    form.setFieldsValue({
+      name: bookmark?.name ?? suggestBookmarkName(currentPath),
+      group_id: bookmark?.group_id && knownGroupIds.has(bookmark.group_id)
+        ? bookmark.group_id
+        : '',
+    })
+    window.requestAnimationFrame(() => {
+      form.getFieldInstance('name')?.focus?.()
+    })
+  }, [bookmark, currentPath, form, groups, open])
+
+  const editing = Boolean(bookmark)
+
+  return (
+    <Modal
+      open={open}
+      width={420}
+      centered
+      destroyOnHidden
+      keyboard={!saving}
+      mask={{ closable: !saving }}
+      closable={!saving}
+      zIndex={3700}
+      rootClassName={`${confirmDialogStyles['modal-root']} ${scopedClassName('termous-modal-root', 'workbench-bookmark-editor-root')}`}
+      className={scopedClassName('workbench-bookmark-editor-modal')}
+      title={(
+        <EditorModeContext
+          mode={editing ? 'edit' : 'create'}
+          label={t(editing ? 'app.edit' : 'app.add')}
+          title={(
+            <span className={scopedClassName('workbench-bookmark-editor-title')}>
+              {watchedName?.trim() || bookmark?.name || t('files.bookmarks')}
+            </span>
+          )}
+        />
+      )}
+      footer={(
+        <div className={scopedClassName('workbench-bookmark-editor-actions')}>
+          <Button disabled={saving} onClick={onCancel}>
+            {t('app.cancel')}
+          </Button>
+          <Button
+            type="primary"
+            icon={editing
+              ? <Save size={14} aria-hidden="true" />
+              : <Plus size={14} aria-hidden="true" />}
+            loading={saving}
+            onClick={() => form.submit()}
+          >
+            {t(editing ? 'app.save' : 'app.create')}
+          </Button>
+        </div>
+      )}
+      onCancel={onCancel}
+      afterOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          form.resetFields()
+        }
+      }}
+    >
+      <Form<BookmarkCreateFormValue>
+        form={form}
+        layout="vertical"
+        requiredMark={false}
+        className={scopedClassName('workbench-bookmark-editor-form')}
+        onFinish={(values) => void onSubmit({
+          name: values.name.trim(),
+          path: currentPath,
+          group_id: values.group_id,
+        })}
+      >
+        <div className={scopedClassName('workbench-bookmark-editor-path')}>
+          <span className={scopedClassName('workbench-bookmark-editor-path-icon')} aria-hidden="true">
+            <FolderTree size={15} />
+          </span>
+          <span>
+            <small>{t('files.bookmarkPath')}</small>
+            <Tooltip
+              title={currentPath}
+              placement="topLeft"
+              mouseEnterDelay={0.45}
+              zIndex={3800}
+              classNames={{ root: `${uiStyles.tooltip} ${scopedClassName('termous-tooltip', 'workbench-bookmark-editor-tooltip')}` }}
+            >
+              <strong>{currentPath}</strong>
+            </Tooltip>
+          </span>
+        </div>
+
+        <Form.Item
+          name="name"
+          label={t('files.bookmarkName')}
+          validateTrigger="onSubmit"
+          rules={[
+            {
+              required: true,
+              whitespace: true,
+              message: t('files.bookmarkNameRequired'),
+            },
+          ]}
+        >
+          <Input
+            autoComplete="off"
+            placeholder={t('files.bookmarkNamePlaceholder')}
+            disabled={saving}
+          />
+        </Form.Item>
+
+        <Form.Item
+          name="group_id"
+          label={t('files.bookmarkGroup')}
+          initialValue=""
+        >
+          <Select
+            className={scopedClassName('termous-select', 'workbench-bookmark-editor-select')}
+            classNames={{
+              popup: {
+                root: scopedClassName('workbench-bookmark-editor-select-popup'),
+              },
+            }}
+            options={groupOptions}
+            disabled={saving}
+          />
+        </Form.Item>
+
+        {error ? (
+          <div className={scopedClassName('workbench-bookmark-editor-error')} role="alert">
+            {error}
+          </div>
+        ) : null}
+      </Form>
+    </Modal>
+  )
+}

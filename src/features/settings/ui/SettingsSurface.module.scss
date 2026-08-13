@@ -1,0 +1,62 @@
+.surface {
+  margin-top: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 16px;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 720;
+  letter-spacing: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: center;
+  gap: 18px;
+  padding-top: 14px;
+}
+
+.hint {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.segmented:global(.ant-segmented) {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  padding: 3px;
+}
+
+.segmented :global(.ant-segmented-item-label) {
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+
+@media (width <= 1240px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+
+  .segmented:global(.ant-segmented) {
+    overflow-x: auto;
+  }
+}

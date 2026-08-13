@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { retireWebSocket } from '../shared/webSocketLifecycle.ts'
+import { retireWebSocket } from '#shared/websocket'
 
 class FakeWebSocket extends EventTarget {
   readyState = 0

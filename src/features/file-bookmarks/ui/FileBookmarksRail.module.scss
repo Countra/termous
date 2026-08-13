@@ -1,0 +1,442 @@
+.root {
+  display: contents;
+
+  :global {
+    .files-bookmark-rail {
+      display: grid;
+      min-width: 0;
+      height: 46px;
+      grid-template-columns: minmax(0, 1fr) 1px auto auto;
+      align-items: stretch;
+      gap: 6px;
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+      background: color-mix(in srgb, var(--chrome-bg) 94%, var(--surface));
+      color: var(--text-secondary);
+      padding: 0 8px;
+    }
+
+    .files-bookmark-rail-scroller {
+      position: relative;
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .files-bookmark-rail-viewport {
+      height: 100%;
+      min-width: 0;
+      overflow: auto hidden;
+      overscroll-behavior-inline: contain;
+      scroll-padding-inline: 26px;
+      scrollbar-width: none;
+    }
+
+    .files-bookmark-rail-scroller.can-scroll-left:not(.can-scroll-right) .files-bookmark-rail-viewport {
+      mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 100%);
+    }
+
+    .files-bookmark-rail-scroller.can-scroll-right:not(.can-scroll-left) .files-bookmark-rail-viewport {
+      mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 24px), transparent 100%);
+    }
+
+    .files-bookmark-rail-scroller.can-scroll-left.can-scroll-right .files-bookmark-rail-viewport {
+      mask-image: linear-gradient(
+        90deg,
+        transparent 0,
+        #000 24px,
+        #000 calc(100% - 24px),
+        transparent 100%
+      );
+    }
+
+    .files-bookmark-rail-viewport::-webkit-scrollbar {
+      display: none;
+    }
+
+    .files-bookmark-rail-track {
+      display: flex;
+      width: max-content;
+      min-width: 100%;
+      height: 100%;
+      align-items: center;
+      gap: 12px;
+      padding: 2px;
+    }
+
+    .files-bookmark-rail-group {
+      display: grid;
+      height: 40px;
+      flex: 0 0 auto;
+      grid-template-rows: 12px 26px;
+      align-content: center;
+      gap: 2px;
+      padding-right: 12px;
+      border-right: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+    }
+
+    .files-bookmark-rail-group:last-child {
+      padding-right: 0;
+      border-right: 0;
+    }
+
+    .files-bookmark-rail-group-label {
+      display: inline-flex;
+      max-width: 142px;
+      min-width: 0;
+      align-items: center;
+      gap: 5px;
+      color: color-mix(in srgb, var(--text-muted) 88%, transparent);
+      padding: 0 2px;
+      font-size: 9px;
+      font-weight: 650;
+      letter-spacing: 0.025em;
+      line-height: 12px;
+      white-space: nowrap;
+    }
+
+    .files-bookmark-rail-group-label > span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .files-bookmark-rail-group-label > small {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      color: color-mix(in srgb, var(--text-muted) 66%, transparent);
+      font-size: 9px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 560;
+    }
+
+    .files-bookmark-rail-group-label > small::before {
+      margin-right: 5px;
+      color: color-mix(in srgb, var(--border-strong) 72%, transparent);
+      content: "·";
+    }
+
+    .files-bookmark-rail-group-items {
+      display: inline-flex;
+      height: 26px;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .files-bookmark-rail-empty {
+      display: inline-flex;
+      height: 30px;
+      align-items: center;
+      align-self: center;
+      color: var(--text-muted);
+      padding: 0 8px;
+      font-size: 11px;
+    }
+
+    .files-bookmark-rail-scroll,
+    .files-bookmark-current-toggle,
+    .files-bookmark-expand-toggle,
+    .files-bookmark-rail-item {
+      border: 0;
+      color: inherit;
+      font: inherit;
+    }
+
+    .files-bookmark-rail-scroll {
+      position: absolute;
+      top: 50%;
+      z-index: 4;
+      display: grid;
+      width: 24px;
+      height: 32px;
+      transform: translateY(-50%);
+      place-items: center;
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--chrome-bg) 94%, var(--surface));
+      color: color-mix(in srgb, var(--text-muted) 76%, transparent);
+      cursor: pointer;
+      padding: 0;
+      transition:
+        background-color 160ms ease,
+        color 160ms ease,
+        opacity 160ms ease;
+    }
+
+    .files-bookmark-rail-scroll.is-left {
+      left: 0;
+    }
+
+    .files-bookmark-rail-scroll.is-right {
+      right: 0;
+    }
+
+    .files-bookmark-rail-scroll:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
+      color: var(--text-primary);
+    }
+
+    .files-bookmark-rail-scroll:disabled {
+      visibility: hidden;
+      pointer-events: none;
+      opacity: 0;
+    }
+
+    .files-bookmark-rail-item {
+      position: relative;
+      display: inline-flex;
+      width: auto;
+      min-width: 56px;
+      max-width: 132px;
+      height: 26px;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid color-mix(in srgb, var(--border) 34%, transparent);
+      border-radius: 5px;
+      background: color-mix(in srgb, var(--terminal-tab-bg) 42%, transparent);
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 2.5%),
+        inset 0 -1px 0 rgb(0 0 0 / 9%);
+      color: var(--text-secondary);
+      cursor: pointer;
+      overflow: hidden;
+      padding: 0 10px;
+      font-size: 11px;
+      font-weight: 620;
+      white-space: nowrap;
+      transition:
+        background-color 160ms ease,
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        color 160ms ease;
+    }
+
+    .files-bookmark-rail-item::after {
+      position: absolute;
+      right: 10px;
+      bottom: 0;
+      left: 10px;
+      height: 2px;
+      border-radius: 2px 2px 0 0;
+      background: var(--accent);
+      content: "";
+      opacity: 0;
+      pointer-events: none;
+      transform: scaleX(0.58);
+      transition:
+        opacity 160ms ease,
+        transform 160ms ease;
+    }
+
+    .files-bookmark-rail-item > span:not(.files-bookmark-rail-item-loader) {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .files-bookmark-rail-item:hover:not(:disabled, .is-loading) {
+      border-color: color-mix(in srgb, var(--accent) 10%, var(--border-strong));
+      background: color-mix(in srgb, var(--surface-subtle) 82%, var(--terminal-tab-bg));
+      color: var(--text-primary);
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 4%),
+        inset 0 -1px 0 rgb(0 0 0 / 10%);
+    }
+
+    .files-bookmark-rail-item:active:not(:disabled, .is-loading) {
+      background: color-mix(in srgb, var(--surface-strong) 82%, var(--terminal-tab-bg));
+    }
+
+    .files-bookmark-rail-item.is-current {
+      border-color: color-mix(in srgb, var(--accent) 18%, var(--border-strong));
+      background: color-mix(in srgb, var(--surface-strong) 93%, var(--accent) 7%);
+      color: var(--text-primary);
+      box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 5%),
+        inset 0 -1px 0 rgb(0 0 0 / 12%);
+      font-weight: 680;
+    }
+
+    .files-bookmark-rail-item.is-current::after {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+
+    .files-bookmark-rail-item-loader {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      overflow: visible;
+      color: var(--accent);
+      place-items: center;
+      pointer-events: none;
+    }
+
+    .files-bookmark-rail-item.is-loading {
+      cursor: wait;
+    }
+
+    .files-bookmark-rail-item.is-loading > span:not(.files-bookmark-rail-item-loader) {
+      opacity: 0.22;
+    }
+
+    .files-bookmark-rail-item:disabled {
+      cursor: default;
+      opacity: 0.48;
+    }
+
+    .files-bookmark-rail-divider {
+      width: 1px;
+      height: 32px;
+      align-self: center;
+      background: color-mix(in srgb, var(--border) 74%, transparent);
+    }
+
+    .files-bookmark-current-toggle,
+    .files-bookmark-expand-toggle {
+      display: inline-flex;
+      height: 30px;
+      min-width: 34px;
+      align-items: center;
+      align-self: center;
+      justify-content: center;
+      gap: 6px;
+      border-radius: 6px;
+      background: transparent;
+      cursor: pointer;
+      padding: 0 9px;
+      font-size: 11px;
+      font-weight: 680;
+      white-space: nowrap;
+      transition:
+        background-color 160ms ease,
+        box-shadow 160ms ease,
+        color 160ms ease;
+    }
+
+    .files-bookmark-current-tooltip-target {
+      display: inline-flex;
+      align-self: center;
+    }
+
+    .files-bookmark-current-toggle {
+      width: 68px;
+      background: color-mix(in srgb, var(--accent) 7%, transparent);
+      color: color-mix(in srgb, var(--accent) 88%, var(--text-primary));
+    }
+
+    .files-bookmark-current-toggle:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--accent) 13%, transparent);
+      color: var(--accent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+
+    .files-bookmark-expand-toggle:hover {
+      background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
+      color: var(--text-primary);
+    }
+
+    .files-bookmark-current-toggle:active:not(:disabled),
+    .files-bookmark-expand-toggle:active {
+      background: color-mix(in srgb, var(--accent) 11%, transparent);
+    }
+
+    .files-bookmark-current-toggle:disabled {
+      cursor: default;
+      opacity: 0.4;
+    }
+
+    .files-bookmark-current-toggle.is-saved:disabled {
+      background: color-mix(in srgb, var(--accent) 8%, transparent);
+      color: var(--accent);
+      opacity: 0.72;
+    }
+
+    .files-bookmark-expand-toggle.is-expanded {
+      background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+      color: var(--accent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+    }
+
+    .files-bookmark-rail button:focus-visible {
+      z-index: 3;
+      outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+      outline-offset: -2px;
+    }
+
+
+    .files-bookmark-rail .is-spinning {
+      animation: termous-spin 0.82s linear infinite;
+    }
+
+    @media (width <= 1160px) {
+      .files-bookmark-rail-track {
+        gap: 9px;
+      }
+
+      .files-bookmark-rail-group {
+        padding-right: 9px;
+      }
+
+      .files-bookmark-rail-group-label {
+        max-width: 108px;
+      }
+
+      .files-bookmark-rail-item {
+        max-width: 110px;
+      }
+    }
+
+    @media (width <= 999px) {
+      .files-bookmark-rail {
+        padding-inline: 6px;
+      }
+
+      .files-bookmark-rail-group-label {
+        max-width: 88px;
+      }
+
+      .files-bookmark-rail-item {
+        min-width: 52px;
+        max-width: 98px;
+        padding-inline: 8px;
+      }
+    }
+
+    @media (width <= 700px) {
+      .files-bookmark-rail-track {
+        gap: 6px;
+        padding-block: 2px;
+      }
+
+      .files-bookmark-rail-group {
+        height: 40px;
+        padding-right: 6px;
+      }
+
+      .files-bookmark-rail-group-label {
+        max-width: 78px;
+      }
+
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .files-bookmark-rail *,
+      .files-bookmark-rail *::before,
+      .files-bookmark-rail *::after {
+        scroll-behavior: auto !important;
+        transition: none !important;
+      }
+
+      .files-bookmark-rail .is-spinning {
+        animation: none;
+      }
+    }
+  }
+}
+
+/* stylelint-disable-next-line keyframes-name-pattern -- CSS Modules 全局关键帧需要保留运行时稳定名称。 */
+@keyframes :global(termous-spin) {
+  to {
+    transform: rotate(360deg);
+  }
+}

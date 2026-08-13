@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "legacyCssFiles": [
+    "src/base.css",
+    "src/features/example.css"
+  ]
+}

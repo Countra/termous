@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { UpdateSnapshot } from '../../electron/updateTypes.ts'
+import type { UpdateSnapshot } from '#common/contracts'
 import {
   mergeUpdateRuntimeSnapshot,
   resolveGlobalUpdateStatus,
   selectUpdateNotification,
   updateNotificationStorageKey,
-} from '../features/update/updateRuntimeState.ts'
+} from '../entities/update/model/updateRuntimeState.ts'
 
 function snapshot(overrides: Partial<UpdateSnapshot> = {}): UpdateSnapshot {
   return {

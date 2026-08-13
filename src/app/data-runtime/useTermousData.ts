@@ -1,0 +1,503 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { TermousApiError } from '#shared/api'
+import {
+  createRuntimeGateways,
+  createRuntimeGatewaysFromConfig,
+  type RuntimeGateways,
+} from './api/runtimeGateways'
+import type {
+  ForwardEvent,
+  ForwardInstance,
+} from '#entities/forward'
+import { sortCodeSnippetGroups } from '#entities/snippet'
+import { normalizeSettings } from '#features/settings'
+import { changeLanguage } from '#shared/i18n'
+import {
+  cleanupSuppressedFileSessionRecoveryResult,
+  filterSuppressedFileSessions,
+  isFileSessionRecoverySupersededError,
+  runQueuedFileSessionRecoveryOperation,
+  supersedeQueuedFileSessionRecovery,
+  type FileSessionClosureState,
+  filterFileSessionsByActiveSources,
+  reconcileFileSessionSnapshotList,
+} from '#entities/file'
+import {
+  mergeSessionReloadSnapshot,
+  sessionChangedSince,
+} from './model/sessionInventoryState'
+import { canApplyReloadedValue, SerialMutationQueue } from '#shared/async'
+import {
+  bumpSessionRevision,
+  indexHostReachability,
+  initialData,
+  reconcileActiveSession,
+  sessionInventorySignature,
+  sortConnectionProxies,
+  sortFileBookmarkGroups,
+  sortFileBookmarks,
+  sortHostIcons,
+  sortLocalPathMappings,
+  type LoadMode,
+} from './model/appDataState'
+import {
+  reconcileForwardStartCompletions,
+  visibleForwards,
+  type ForwardStartCompletionWaiter,
+} from './model/forwardRuntimeState'
+import { createCredentialCommands } from './commands/credentialCommands'
+import { createFileCatalogCommands } from './commands/fileCatalogCommands'
+import { createFileSessionCommands } from './commands/fileSessionCommands'
+import { createForwardCommands } from './commands/forwardCommands'
+import { createForwardProfileCommands } from './commands/forwardProfileCommands'
+import { createHostCommands } from './commands/hostCommands'
+import { createSessionCommands } from './commands/sessionCommands'
+import { createSettingsCommands } from './commands/settingsCommands'
+import { createSnippetCommands } from './commands/snippetCommands'
+import { loadAppDataSnapshot } from './api/appDataSnapshotGateway'
+import type { AppData } from './model/appData'
+import type { Session } from './model/sessionTypes'
+
+export function useTermousData() {
+  const [gateways, setGateways] = useState(() => createRuntimeGatewaysFromConfig())
+  const [data, setData] = useState<AppData>(initialData)
+  const [initializing, setInitializing] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [apiReady, setApiReady] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [activeSession, setActiveSession] = useState<Session | null>(null)
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null)
+  const [forwardErrorEvent, setForwardErrorEvent] = useState<ForwardEvent | null>(null)
+  const [fileSessionClosures, setFileSessionClosures] = useState<Record<string, FileSessionClosureState>>({})
+  const fileSessionRecoveryCloseEpochsRef = useRef(new Map<string, number>())
+  const fileSessionRecoveryQueuesRef = useRef(new Map<string, Promise<void>>())
+  const suppressedFileSessionIdsRef = useRef(new Map<string, string>())
+  const scheduledFileSessionCleanupIdsRef = useRef(new Set<string>())
+  const sessionEventRevisionsRef = useRef(new Map<string, number>())
+  const fileSessionEventRevisionsRef = useRef(new Map<string, number>())
+  const inventoryEventRevisionsRef = useRef(new Map<string, number>())
+  const inventoryStateSignaturesRef = useRef(new Map<string, string>())
+  const inventoryRequestRevisionsRef = useRef(new Map<string, number>())
+  const forwardEventRevisionsRef = useRef(new Map<string, number>())
+  const forwardEventSnapshotsRef = useRef(new Map<string, ForwardInstance>())
+  const completionSettingsMutationRef = useRef(0)
+  const completionSettingsPendingWritesRef = useRef(0)
+  const completionSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
+  if (!completionSettingsWriteQueueRef.current) {
+    completionSettingsWriteQueueRef.current = new SerialMutationQueue()
+  }
+  const completionSettingsWriteQueue = completionSettingsWriteQueueRef.current
+  const completionSettingsRef = useRef(data.settings.completion)
+  const completionSettingsConfirmedRef = useRef(data.settings.completion)
+  completionSettingsRef.current = data.settings.completion
+  const shortcutSettingsMutationRef = useRef(0)
+  const shortcutSettingsPendingWritesRef = useRef(0)
+  const shortcutSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
+  if (!shortcutSettingsWriteQueueRef.current) {
+    shortcutSettingsWriteQueueRef.current = new SerialMutationQueue()
+  }
+  const shortcutSettingsWriteQueue = shortcutSettingsWriteQueueRef.current
+  const shortcutSettingsRef = useRef(data.settings.shortcuts)
+  const shortcutSettingsConfirmedRef = useRef(data.settings.shortcuts)
+  shortcutSettingsRef.current = data.settings.shortcuts
+  const forwardStartCompletionWaitersRef = useRef(
+    new Map<string, ForwardStartCompletionWaiter>(),
+  )
+  const loadRevisionRef = useRef(0)
+  data.sessions.forEach((session) => {
+    if (!inventoryStateSignaturesRef.current.has(session.id)) {
+      inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
+    }
+  })
+
+  const releaseFileSessionRecoveryEpoch = useCallback((fileSessionId: string) => {
+    fileSessionRecoveryCloseEpochsRef.current.delete(fileSessionId)
+  }, [])
+
+  const supersedeFileSessionRecoveryOperation = useCallback((fileSessionId: string) => {
+    supersedeQueuedFileSessionRecovery(
+      fileSessionRecoveryCloseEpochsRef.current,
+      fileSessionRecoveryQueuesRef.current,
+      fileSessionId,
+    )
+  }, [])
+
+  const scheduleSuppressedFileSessionCleanup = useCallback((
+    runtimeGateways: RuntimeGateways,
+    fileSessionId: string,
+    originalSessionId: string,
+  ) => {
+    if (
+      suppressedFileSessionIdsRef.current.get(fileSessionId) !== originalSessionId
+      || scheduledFileSessionCleanupIdsRef.current.has(fileSessionId)
+    ) {
+      return
+    }
+    scheduledFileSessionCleanupIdsRef.current.add(fileSessionId)
+    const cleanup = runQueuedFileSessionRecoveryOperation(
+      fileSessionRecoveryCloseEpochsRef.current,
+      fileSessionRecoveryQueuesRef.current,
+      originalSessionId,
+      () => cleanupSuppressedFileSessionRecoveryResult(
+        suppressedFileSessionIdsRef.current,
+        fileSessionId,
+        originalSessionId,
+        () => runtimeGateways.fileSessions.deleteFileSession(fileSessionId),
+      ).then((cleaned) => {
+        if (cleaned) {
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, fileSessionId)
+        }
+        return cleaned
+      }),
+      undefined,
+      releaseFileSessionRecoveryEpoch,
+    )
+    void cleanup.catch((error) => {
+      if (!isFileSessionRecoverySupersededError(error)) {
+        console.error('重试清理已抑制的文件会话失败', { fileSessionId, error })
+      }
+    }).finally(() => {
+      scheduledFileSessionCleanupIdsRef.current.delete(fileSessionId)
+    })
+  }, [releaseFileSessionRecoveryEpoch])
+
+  useEffect(() => {
+    const activeSourceSessionIds = new Set(data.sessions.map((session) => session.id))
+    const fileSessionBySource = new Map(
+      data.fileSessions.flatMap((session) => (
+        session.source_session_id ? [[session.source_session_id, session] as const] : []
+      )),
+    )
+    setFileSessionClosures((current) => {
+      const entries = Object.entries(current)
+      const retained = entries.filter(([sourceSessionId, closure]) => {
+        if (!activeSourceSessionIds.has(sourceSessionId)) {
+          return false
+        }
+        const replacement = fileSessionBySource.get(sourceSessionId)
+        return !replacement || replacement.id === closure.session.id
+      })
+      return retained.length === entries.length ? current : Object.fromEntries(retained)
+    })
+  }, [data.fileSessions, data.sessions])
+
+  const loadWithGateways = useCallback(async (
+    runtimeGateways: RuntimeGateways,
+    mode: LoadMode = 'background',
+  ) => {
+    const loadRevision = loadRevisionRef.current + 1
+    loadRevisionRef.current = loadRevision
+    const completionSettingsReloadCheckpoint = {
+      generation: completionSettingsMutationRef.current,
+      hadPendingWrites: completionSettingsPendingWritesRef.current > 0,
+    }
+    const shortcutSettingsReloadCheckpoint = {
+      generation: shortcutSettingsMutationRef.current,
+      hadPendingWrites: shortcutSettingsPendingWritesRef.current > 0,
+    }
+    const sessionRevisionBaseline = new Map(sessionEventRevisionsRef.current)
+    const fileSessionRevisionBaseline = new Map(fileSessionEventRevisionsRef.current)
+    if (mode === 'initial') {
+      setInitializing(true)
+    } else if (mode === 'background') {
+      setRefreshing(true)
+    }
+    setError(null)
+    try {
+      await runtimeGateways.runtime.health()
+      for (const [fileSessionId, originalSessionId] of suppressedFileSessionIdsRef.current) {
+        scheduleSuppressedFileSessionCleanup(runtimeGateways, fileSessionId, originalSessionId)
+      }
+      const [
+        settings,
+        terminalFonts,
+        snippetGroups,
+        snippets,
+        fileBookmarkGroups,
+        fileBookmarks,
+        localPathMappings,
+        groups,
+        hostIcons,
+        proxies,
+        hosts,
+        hostReachability,
+        credentials,
+        sessions,
+        fileSessions,
+        forwardProfiles,
+        forwards,
+      ] = await loadAppDataSnapshot(runtimeGateways.snapshot)
+      if (loadRevision !== loadRevisionRef.current) {
+        return
+      }
+      reconcileForwardStartCompletions(
+        forwardStartCompletionWaitersRef.current,
+        forwardEventSnapshotsRef.current,
+        forwardEventRevisionsRef.current,
+        forwards ?? [],
+      )
+      const reloadedSessions = sessions ?? []
+      const nextSettings = normalizeSettings(settings)
+      const canApplyReloadedCompletion = canApplyReloadedValue(
+        completionSettingsReloadCheckpoint,
+        completionSettingsMutationRef.current,
+        completionSettingsPendingWritesRef.current,
+      )
+      if (canApplyReloadedCompletion) {
+        completionSettingsConfirmedRef.current = nextSettings.completion
+        completionSettingsRef.current = nextSettings.completion
+      }
+      const canApplyReloadedShortcuts = canApplyReloadedValue(
+        shortcutSettingsReloadCheckpoint,
+        shortcutSettingsMutationRef.current,
+        shortcutSettingsPendingWritesRef.current,
+      )
+      if (canApplyReloadedShortcuts) {
+        shortcutSettingsConfirmedRef.current = nextSettings.shortcuts
+        shortcutSettingsRef.current = nextSettings.shortcuts
+      }
+      reloadedSessions.forEach((session) => {
+        if (!sessionChangedSince(
+          session.id,
+          sessionRevisionBaseline,
+          sessionEventRevisionsRef.current,
+        )) {
+          const signature = sessionInventorySignature(session)
+          const previous = inventoryStateSignaturesRef.current.get(session.id)
+          inventoryStateSignaturesRef.current.set(session.id, signature)
+          if (previous !== undefined && previous !== signature) {
+            bumpSessionRevision(inventoryEventRevisionsRef.current, session.id)
+          }
+        }
+      })
+      setData((current) => {
+        const nextSessions = mergeSessionReloadSnapshot(
+          current.sessions,
+          reloadedSessions,
+          sessionRevisionBaseline,
+          sessionEventRevisionsRef.current,
+        )
+        const activeSourceSessionIds = new Set(nextSessions.map((session) => session.id))
+        const mergedSettings = {
+          ...nextSettings,
+          completion: canApplyReloadedCompletion
+            ? nextSettings.completion
+            : current.settings.completion,
+          shortcuts: canApplyReloadedShortcuts
+            ? nextSettings.shortcuts
+            : current.settings.shortcuts,
+        }
+        return {
+          settings: mergedSettings,
+          groups: groups ?? [],
+          hostIcons: sortHostIcons(hostIcons ?? []),
+          proxies: sortConnectionProxies(proxies ?? []),
+          hosts: hosts ?? [],
+          credentials: credentials ?? [],
+          sessions: nextSessions,
+          fileSessions: filterFileSessionsByActiveSources(
+            reconcileFileSessionSnapshotList(
+              current.fileSessions,
+              filterSuppressedFileSessions(
+                fileSessions ?? [],
+                suppressedFileSessionIdsRef.current,
+              ),
+              fileSessionRevisionBaseline,
+              fileSessionEventRevisionsRef.current,
+            ),
+            activeSourceSessionIds,
+          ),
+          forwardProfiles: forwardProfiles ?? [],
+          forwards: visibleForwards(forwards ?? []),
+          snippetGroups: sortCodeSnippetGroups(snippetGroups ?? []),
+          snippets: snippets ?? [],
+          fileBookmarkGroups: sortFileBookmarkGroups(fileBookmarkGroups ?? []),
+          fileBookmarks: sortFileBookmarks(fileBookmarks ?? []),
+          localPathMappings: sortLocalPathMappings(localPathMappings ?? []),
+          terminalFonts: terminalFonts ?? [],
+          hostReachability: indexHostReachability(hostReachability ?? []),
+        }
+      })
+      setActiveSession((current) => {
+        if (current && sessionChangedSince(
+          current.id,
+          sessionRevisionBaseline,
+          sessionEventRevisionsRef.current,
+        )) {
+          return current
+        }
+        return reconcileActiveSession(current, reloadedSessions, mode)
+      })
+      setApiReady(true)
+      setLastUpdatedAt(new Date().toISOString())
+      await changeLanguage(nextSettings.language)
+    } catch (loadError) {
+      if (loadRevision === loadRevisionRef.current) {
+        setApiReady(false)
+        setError(publicMessage(loadError))
+      }
+    } finally {
+      if (loadRevision === loadRevisionRef.current) {
+        setInitializing(false)
+        setRefreshing(false)
+      }
+    }
+  }, [scheduleSuppressedFileSessionCleanup])
+
+  const load = useCallback(
+    (mode: LoadMode = 'background') => loadWithGateways(gateways, mode),
+    [gateways, loadWithGateways],
+  )
+
+  const reloadForwardsWithGateways = useCallback(async (runtimeGateways: RuntimeGateways) => {
+    const forwards = await runtimeGateways.forwards.forwards()
+    reconcileForwardStartCompletions(
+      forwardStartCompletionWaitersRef.current,
+      forwardEventSnapshotsRef.current,
+      forwardEventRevisionsRef.current,
+      forwards ?? [],
+    )
+    setData((current) => ({ ...current, forwards: visibleForwards(forwards ?? []) }))
+    setLastUpdatedAt(new Date().toISOString())
+  }, [])
+
+  const reloadForwards = useCallback(
+    () => reloadForwardsWithGateways(gateways),
+    [gateways, reloadForwardsWithGateways],
+  )
+
+  useEffect(() => () => {
+    const waiters = [...forwardStartCompletionWaitersRef.current.values()]
+    forwardStartCompletionWaitersRef.current.clear()
+    forwardEventSnapshotsRef.current.clear()
+    forwardEventRevisionsRef.current.clear()
+    waiters.forEach((waiter) => {
+      window.clearTimeout(waiter.cleanupTimer)
+      waiter.resolve(null)
+    })
+  }, [])
+
+  useEffect(() => {
+    let disposed = false
+    void createRuntimeGateways()
+      .then((runtimeGateways) => {
+        if (disposed) {
+          return
+        }
+        setGateways(runtimeGateways)
+        void loadWithGateways(runtimeGateways, 'initial')
+      })
+      .catch((runtimeError) => {
+        if (disposed) {
+          return
+        }
+        setApiReady(false)
+        setError(publicMessage(runtimeError))
+        setInitializing(false)
+      })
+    return () => {
+      disposed = true
+    }
+  }, [loadWithGateways])
+
+  const actions = useMemo(
+    () => ({
+      reload: () => load('background'),
+      reloadSilent: () => load('silent'),
+      reloadForwardsSilent: () => reloadForwards(),
+      ...createSettingsCommands({
+        api: gateways.settings,
+        currentSettings: data.settings,
+        setData,
+        completionSettingsMutation: completionSettingsMutationRef,
+        completionSettingsPendingWrites: completionSettingsPendingWritesRef,
+        completionSettingsWriteQueue,
+        completionSettings: completionSettingsRef,
+        confirmedCompletionSettings: completionSettingsConfirmedRef,
+        shortcutSettingsMutation: shortcutSettingsMutationRef,
+        shortcutSettingsPendingWrites: shortcutSettingsPendingWritesRef,
+        shortcutSettingsWriteQueue,
+        shortcutSettings: shortcutSettingsRef,
+        confirmedShortcutSettings: shortcutSettingsConfirmedRef,
+      }),
+      ...createSnippetCommands(gateways.snippets, setData),
+      ...createFileCatalogCommands(gateways.fileCatalog, setData),
+      ...createForwardProfileCommands(gateways.forwards, setData),
+      ...createForwardCommands({
+        api: gateways.forwards,
+        forwards: data.forwards,
+        setData,
+        setForwardErrorEvent,
+        forwardStartCompletionWaiters: forwardStartCompletionWaitersRef.current,
+        forwardEventRevisions: forwardEventRevisionsRef.current,
+        forwardEventSnapshots: forwardEventSnapshotsRef.current,
+      }),
+      ...createHostCommands({ api: gateways.hosts, hosts: data.hosts, load, setData }),
+      ...createCredentialCommands(gateways.credentials, load),
+      ...createSessionCommands({
+        sessionApi: gateways.sessions,
+        fileSessionApi: gateways.fileSessions,
+        forwardApi: gateways.forwards,
+        sessions: data.sessions,
+        fileSessions: data.fileSessions,
+        forwards: data.forwards,
+        setData,
+        setActiveSession,
+        setFileSessionClosures,
+        sessionEventRevisions: sessionEventRevisionsRef.current,
+        fileSessionEventRevisions: fileSessionEventRevisionsRef.current,
+        inventoryRequestRevisions: inventoryRequestRevisionsRef.current,
+        inventoryEventRevisions: inventoryEventRevisionsRef.current,
+        inventoryStateSignatures: inventoryStateSignaturesRef.current,
+        load,
+        supersedeFileSessionRecoveryOperation,
+      }),
+      ...createFileSessionCommands({
+        api: gateways.fileSessions,
+        fileSessions: data.fileSessions,
+        setData,
+        setFileSessionClosures,
+        fileSessionRecoveryCloseEpochs: fileSessionRecoveryCloseEpochsRef.current,
+        fileSessionRecoveryQueues: fileSessionRecoveryQueuesRef.current,
+        suppressedFileSessionIds: suppressedFileSessionIdsRef.current,
+        fileSessionEventRevisions: fileSessionEventRevisionsRef.current,
+        releaseFileSessionRecoveryEpoch,
+        scheduleSuppressedFileSessionCleanup: (fileSessionId, originalSessionId) => {
+          scheduleSuppressedFileSessionCleanup(
+            gateways,
+            fileSessionId,
+            originalSessionId,
+          )
+        },
+        supersedeFileSessionRecoveryOperation,
+      }),
+    }),
+    [
+      gateways,
+      completionSettingsWriteQueue,
+      shortcutSettingsWriteQueue,
+      data.fileSessions,
+      data.forwards,
+      data.hosts,
+      data.settings,
+      data.sessions,
+      load,
+      releaseFileSessionRecoveryEpoch,
+      reloadForwards,
+      scheduleSuppressedFileSessionCleanup,
+      supersedeFileSessionRecoveryOperation,
+    ],
+  )
+
+  return { gateways, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, fileSessionClosures, actions }
+}
+
+function publicMessage(error: unknown) {
+  if (error instanceof TermousApiError) {
+    return error.message
+  }
+  if (error instanceof Error) {
+    return error.message
+  }
+  return '本地 API 不可用'
+}

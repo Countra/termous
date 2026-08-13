@@ -1,0 +1,294 @@
+/* stylelint-disable alpha-value-notation, color-function-alias-notation, color-function-notation, color-hex-length, custom-property-empty-line-before, value-keyword-case -- 迁移阶段保留原有全局样式声明，避免改变计算样式。 */
+
+:root {
+  font-family:
+    "Segoe UI Variable",
+    "Segoe UI",
+    "SF Pro Display",
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+  color: var(--text-primary);
+  background: var(--app-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --radius: 8px;
+  --sidebar-width: 236px;
+  --sidebar-collapsed: 64px;
+  --topbar-height: 46px;
+  --app-bg: #0f1116;
+  --app-bg-elevated: #171a21;
+  --surface: rgba(24, 27, 34, 0.9);
+  --surface-strong: rgba(33, 37, 46, 0.96);
+  --surface-subtle: rgba(255, 255, 255, 0.055);
+  --sidebar-bg: rgba(18, 21, 28, 0.88);
+  --chrome-bg: rgba(22, 25, 32, 0.88);
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text-primary: #f3f5f9;
+  --text-secondary: #aeb7c5;
+  --text-muted: #788293;
+  --accent: #61a8ff;
+  --accent-strong: #2d7df0;
+  --accent-soft: rgba(97, 168, 255, 0.16);
+  --danger: #ff6a63;
+  --success: #36d399;
+  --warning: #f0b84c;
+  --shadow: 0 22px 68px rgba(0, 0, 0, 0.38);
+  --shadow-soft: 0 10px 34px rgba(0, 0, 0, 0.24);
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --terminal-bg: #080a0f;
+  --terminal-frame: #10131a;
+  --terminal-toolbar: rgba(20, 23, 30, 0.94);
+  --terminal-border: rgba(255, 255, 255, 0.14);
+  --terminal-tab-bg: rgba(255, 255, 255, 0.07);
+  --connection-bg: rgba(22, 26, 34, 0.92);
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --metric-bg: rgba(255, 255, 255, 0.045);
+  --nav-active-bg: rgba(255, 255, 255, 0.075);
+  --row-hover-bg: rgba(255, 255, 255, 0.055);
+  --row-active-bg: rgba(97, 168, 255, 0.14);
+  --host-avatar-bg: rgba(255, 255, 255, 0.07);
+  --termous-dropdown-bg: #20242d;
+  --termous-scrollbar-thumb: color-mix(in srgb, var(--text-muted) 26%, transparent);
+  --termous-scrollbar-thumb-hover: color-mix(in srgb, var(--text-muted) 40%, transparent);
+  --termous-scrollbar-track: transparent;
+  --termous-search-bg: color-mix(in srgb, var(--surface-subtle) 54%, transparent);
+  --termous-search-bg-hover: color-mix(in srgb, var(--surface-subtle) 66%, transparent);
+  --termous-search-bg-focus: color-mix(in srgb, var(--surface-subtle) 72%, transparent);
+  --termous-search-border: color-mix(in srgb, var(--border) 46%, transparent);
+  --termous-search-border-hover: color-mix(in srgb, var(--border) 68%, transparent);
+  --termous-search-border-focus: color-mix(in srgb, var(--accent) 22%, var(--border) 78%);
+  --termous-search-underline: color-mix(in srgb, var(--accent) 58%, var(--text-muted) 14%);
+}
+
+:root[data-theme="light"] {
+  --app-bg: #f4f5f7;
+  --app-bg-elevated: #e9edf3;
+  --surface: rgba(255, 255, 255, 0.9);
+  --surface-strong: rgba(255, 255, 255, 0.98);
+  --surface-subtle: rgba(20, 28, 42, 0.055);
+  --sidebar-bg: rgba(248, 250, 253, 0.88);
+  --chrome-bg: rgba(251, 252, 254, 0.88);
+  --border: rgba(30, 42, 58, 0.12);
+  --border-strong: rgba(30, 42, 58, 0.2);
+  --text-primary: #151a22;
+  --text-secondary: #596273;
+  --text-muted: #7b8493;
+  --accent: #1f6feb;
+  --accent-strong: #1759c8;
+  --accent-soft: rgba(31, 111, 235, 0.11);
+  --danger: #c9353f;
+  --success: #12835a;
+  --warning: #9b6306;
+  --shadow: 0 22px 58px rgba(30, 44, 64, 0.16);
+  --shadow-soft: 0 12px 30px rgba(30, 44, 64, 0.1);
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+  --terminal-bg: #fbfcfe;
+  --terminal-frame: #ffffff;
+  --terminal-toolbar: rgba(248, 250, 253, 0.96);
+  --terminal-border: rgba(30, 42, 58, 0.14);
+  --terminal-tab-bg: rgba(20, 28, 42, 0.06);
+  --connection-bg: rgba(248, 250, 253, 0.96);
+  --input-bg: rgba(20, 28, 42, 0.04);
+  --metric-bg: rgba(255, 255, 255, 0.68);
+  --nav-active-bg: rgba(20, 28, 42, 0.07);
+  --row-hover-bg: rgba(20, 28, 42, 0.055);
+  --row-active-bg: rgba(31, 111, 235, 0.1);
+  --host-avatar-bg: rgba(31, 111, 235, 0.08);
+  --termous-dropdown-bg: #fff;
+  --termous-scrollbar-thumb: rgb(58 72 92 / 20%);
+  --termous-scrollbar-thumb-hover: rgb(58 72 92 / 34%);
+  --termous-search-bg: rgb(255 255 255 / 42%);
+  --termous-search-bg-hover: rgb(255 255 255 / 58%);
+  --termous-search-bg-focus: rgb(255 255 255 / 72%);
+  --termous-search-border: rgb(33 45 62 / 8%);
+  --termous-search-border-hover: rgb(33 45 62 / 12%);
+  --termous-search-border-focus: color-mix(in srgb, var(--accent) 18%, rgb(33 45 62 / 14%));
+  --termous-search-underline: color-mix(in srgb, var(--accent) 52%, rgb(33 45 62 / 18%));
+}
+
+* {
+  box-sizing: border-box;
+}
+
+:where(body[data-termous-main-surface='true']),
+:where(body[data-termous-main-surface='true']) * {
+  scrollbar-color: var(--termous-scrollbar-thumb) var(--termous-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+:where(body[data-termous-main-surface='true'])::-webkit-scrollbar,
+:where(body[data-termous-main-surface='true']) *::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+:where(body[data-termous-main-surface='true'])::-webkit-scrollbar-track,
+:where(body[data-termous-main-surface='true']) *::-webkit-scrollbar-track {
+  background: var(--termous-scrollbar-track);
+}
+
+:where(body[data-termous-main-surface='true'])::-webkit-scrollbar-thumb,
+:where(body[data-termous-main-surface='true']) *::-webkit-scrollbar-thumb {
+  min-width: 44px;
+  min-height: 44px;
+  border: 4px solid transparent;
+  border-radius: 999px;
+  background: var(--termous-scrollbar-thumb);
+  background-clip: content-box;
+}
+
+:where(body[data-termous-main-surface='true'])::-webkit-scrollbar-thumb:hover,
+:where(body[data-termous-main-surface='true']) *::-webkit-scrollbar-thumb:hover {
+  background: var(--termous-scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+:where(body[data-termous-main-surface='true'])::-webkit-scrollbar-corner,
+:where(body[data-termous-main-surface='true']) *::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* AntD 虚拟列表使用自绘滚动条，保留拖拽区域的同时收窄可见滑块。 */
+:where(body[data-termous-main-surface='true']) .ant-select-dropdown {
+  --rc-virtual-list-scrollbar-bg: var(--termous-scrollbar-thumb);
+}
+
+:where(body[data-termous-main-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-vertical {
+  width: 9px !important;
+  inset-inline-end: 2px !important;
+}
+
+:where(body[data-termous-main-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-thumb {
+  border-inline: 2px solid transparent;
+  background-clip: content-box !important;
+  transition: background 0.16s ease;
+}
+
+:where(body[data-termous-main-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-thumb:hover,
+:where(body[data-termous-main-surface='true']) .ant-select-dropdown .rc-virtual-list-scrollbar-thumb-moving {
+  --rc-virtual-list-scrollbar-bg: var(--termous-scrollbar-thumb-hover);
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100dvh;
+}
+
+body {
+  overflow: hidden;
+}
+
+@media (width <= 1180px) {
+  body {
+    overflow: auto;
+  }
+}
+
+body[data-termous-bottom-drawer-resizing],
+body[data-termous-bottom-drawer-resizing] * {
+  cursor: ns-resize !important;
+  user-select: none !important;
+}
+
+body[data-panel-resizing='true'] {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body[data-panel-resizing='true'] * {
+  cursor: col-resize !important;
+}
+
+:where(body[data-termous-main-surface='true']) .termous-antd-root {
+  width: 100vw;
+  height: 100dvh;
+}
+
+:where(body[data-termous-main-surface='true']) .ant-input,
+:where(body[data-termous-main-surface='true']) .ant-input-number,
+:where(body[data-termous-main-surface='true']) .ant-input-affix-wrapper {
+  border-color: var(--border) !important;
+  background: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+:where(body[data-termous-main-surface='true']) .ant-input-affix-wrapper .ant-input {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+:where(body[data-termous-main-surface='true']) .ant-input-affix-wrapper .ant-input:focus {
+  box-shadow: none !important;
+}
+
+:where(body[data-termous-main-surface='true']) .ant-input-affix-wrapper .ant-input-suffix,
+:where(body[data-termous-main-surface='true']) .ant-input-affix-wrapper .ant-input-password-icon {
+  color: var(--text-muted);
+}
+
+:where(body[data-termous-main-surface='true']) .ant-input-affix-wrapper:hover .ant-input-password-icon {
+  color: var(--text-secondary);
+}
+
+:where(body[data-termous-main-surface='true']) .ant-input::placeholder,
+:where(body[data-termous-main-surface='true']) .ant-input textarea::placeholder {
+  color: var(--text-muted);
+}
+
+:where(body[data-termous-main-surface='true']) .ant-popover {
+  z-index: 3400;
+}
+
+/* 终端标签拖拽会跨越工作台与 Portal，光标状态必须由 document 统一持有。 */
+body[data-terminal-tab-dragging='true'],
+body[data-terminal-tab-dragging='true'] * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input,
+textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+  padding: 10px 11px;
+}
+
+textarea {
+  min-height: 156px;
+  resize: vertical;
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  line-height: 1.45;
+}
+
+svg {
+  flex: 0 0 auto;
+}

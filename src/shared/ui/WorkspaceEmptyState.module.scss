@@ -1,0 +1,61 @@
+.workbench-empty-state {
+  display: grid;
+  min-height: 180px;
+  align-content: center;
+  justify-items: center;
+  gap: 9px;
+  border: 1px dashed color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 14px;
+  padding: 20px 14px;
+  background: color-mix(in srgb, var(--surface-subtle) 76%, transparent);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.workbench-empty-state-icon {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--accent) 86%, var(--text-primary));
+}
+
+.workbench-empty-state.is-warning {
+  border-color: color-mix(in srgb, #f59e0b 36%, var(--border));
+}
+
+.workbench-empty-state.is-warning .workbench-empty-state-icon {
+  border-color: color-mix(in srgb, #f59e0b 34%, var(--border));
+  background: color-mix(in srgb, #f59e0b 12%, var(--surface-subtle));
+  color: #f6b64f;
+}
+
+.workbench-empty-state.is-danger {
+  border-color: color-mix(in srgb, #ef4444 36%, var(--border));
+}
+
+.workbench-empty-state.is-danger .workbench-empty-state-icon {
+  border-color: color-mix(in srgb, #ef4444 34%, var(--border));
+  background: color-mix(in srgb, #ef4444 11%, var(--surface-subtle));
+  color: #ff6b6b;
+}
+
+.workbench-empty-state strong {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.workbench-empty-state-description {
+  max-width: 260px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.workbench-empty-state-action {
+  display: inline-flex;
+  justify-content: center;
+  margin-top: 3px;
+}

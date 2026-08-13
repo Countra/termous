@@ -1,0 +1,313 @@
+@mixin styles {
+  .files-page {
+    outline: none;
+  }
+
+  .files-main-panel {
+    position: relative;
+  }
+
+  .files-page,
+  .files-table-shell,
+  .files-detail-list {
+    scrollbar-color: var(--termous-scrollbar-thumb) var(--termous-scrollbar-track);
+    scrollbar-width: thin;
+  }
+
+  .files-session-progress {
+    display: grid;
+    width: min(680px, calc(100% - 32px));
+    gap: 13px;
+    align-content: center;
+    margin: min(8vh, 56px) auto;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
+    padding: 16px;
+    text-align: left;
+    box-shadow: var(--shadow-soft), var(--inner-highlight);
+  }
+
+  .files-session-progress-footer {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .files-session-progress-footer small {
+    min-width: 0;
+    overflow: hidden;
+    margin: 0;
+    color: var(--text-muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .files-session-phase-row {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .files-session-progress :global(.connection-phase) {
+    max-width: 128px;
+  }
+
+  .files-session-progress.is-terminal {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .files-session-terminal-icon {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
+    color: var(--danger);
+  }
+
+  .files-session-terminal-icon.is-recovering {
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent);
+  }
+
+  .files-session-terminal-icon.is-recovering svg {
+    animation: termous-spin 0.9s linear infinite;
+  }
+
+  .files-session-terminal-copy {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .files-session-terminal-copy strong {
+    color: var(--text-primary);
+    font-size: 14px;
+  }
+
+  .files-session-terminal-copy span {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .files-table-shell {
+    position: relative;
+    transition:
+      background 0.16s ease,
+      box-shadow 0.16s ease;
+  }
+
+  .files-session-cache-overlay {
+    position: absolute;
+    z-index: 8;
+    top: 18px;
+    left: 50%;
+    display: grid;
+    width: min(620px, calc(100% - 40px));
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid color-mix(in srgb, var(--warning) 34%, var(--border));
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
+    padding: 9px 10px;
+    color: color-mix(in srgb, var(--warning) 78%, var(--text-primary));
+    box-shadow: var(--shadow-soft);
+    backdrop-filter: blur(12px);
+    transform: translateX(-50%);
+  }
+
+  .files-session-cache-overlay.is-recovering {
+    border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+    color: color-mix(in srgb, var(--accent) 78%, var(--text-primary));
+  }
+
+  .files-session-cache-overlay-icon {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 8px;
+    background: color-mix(in srgb, currentcolor 10%, transparent);
+  }
+
+  .files-session-cache-overlay.is-recovering .files-session-cache-overlay-icon svg {
+    animation: termous-spin 0.9s linear infinite;
+  }
+
+  .files-session-cache-overlay-copy {
+    display: grid;
+    min-width: 0;
+    gap: 1px;
+  }
+
+  .files-session-cache-overlay-copy strong,
+  .files-session-cache-overlay-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .files-session-cache-overlay-copy strong {
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 680;
+  }
+
+  .files-session-cache-overlay-copy small {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  .files-session-cache-overlay :global(.ant-btn) {
+    min-width: 88px;
+  }
+
+  .files-table :global(.ant-table) {
+    background: transparent;
+    color: var(--text-primary);
+  }
+
+  .files-table :global(.ant-table-container),
+  .files-table :global(.ant-table-thead) > tr > th,
+  .files-table :global(.ant-table-tbody) > tr > td {
+    border-color: color-mix(in srgb, var(--border) 72%, transparent) !important;
+  }
+
+  .files-table :global(.ant-table-cell) {
+    white-space: nowrap;
+  }
+
+  .files-table-column-resizer {
+    position: absolute;
+    z-index: 3;
+    top: 8px;
+    right: -4px;
+    bottom: 8px;
+    width: 8px;
+    cursor: col-resize;
+  }
+
+  .files-table-column-resizer::after {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 70%, var(--border));
+    content: "";
+    opacity: 0;
+    transition: opacity 0.16s ease;
+  }
+
+  .files-table-column-resizer:hover::after {
+    opacity: 1;
+  }
+
+  .files-table-column-resizer {
+    :global(body[data-files-column-resizing='true']) &::after {
+      opacity: 1;
+    }
+  }
+
+  .file-name-cell {
+    position: relative;
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    gap: 10px;
+    border-radius: 10px;
+    padding: 3px 9px 3px 3px;
+    transition:
+      background 0.18s ease,
+      box-shadow 0.18s ease,
+      color 0.18s ease;
+  }
+
+  .file-kind-icon {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
+    color: var(--text-secondary);
+    transition:
+      background 0.18s ease,
+      box-shadow 0.18s ease,
+      color 0.18s ease,
+      transform 0.18s ease;
+  }
+
+  .file-kind-icon.is-directory {
+    background: color-mix(in srgb, var(--accent) 11%, var(--surface-subtle));
+    color: color-mix(in srgb, var(--accent) 82%, var(--text-secondary));
+  }
+
+  .file-name-copy {
+    display: grid;
+    min-width: 0;
+    max-width: 100%;
+    gap: 2px;
+  }
+
+  .file-name-cell strong,
+  .file-name-cell small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .file-name-cell small {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  .files-icon-button:global(.ant-btn) {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    color: var(--text-secondary);
+  }
+
+  .files-icon-button:global(.ant-btn):hover {
+    background: var(--surface-subtle);
+    color: var(--text-primary);
+  }
+
+  .file-name-tooltip :global(.ant-tooltip-inner) {
+    max-width: min(520px, calc(100vw - 48px));
+    border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--surface-raised) 94%, #000 6%);
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    padding: 8px 10px;
+    box-shadow: 0 16px 36px color-mix(in srgb, #000 28%, transparent);
+  }
+
+}
+
+@keyframes termous-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

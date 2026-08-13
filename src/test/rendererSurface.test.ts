@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
 import {
   loadRendererSurface,
   resolveRendererSurface,
-} from '../app/rendererSurface.ts'
+} from '../app/renderer-entry/rendererSurface.ts'
 
 test('仅显式 update surface 加载独立更新界面', () => {
   assert.equal(resolveRendererSurface('?surface=update'), 'update')
@@ -27,4 +30,72 @@ test('surface 分流只调用目标模块加载器', async () => {
 
   assert.equal(result, 'update')
   assert.deepEqual(calls, ['update'])
+})
+
+test('Renderer 启动入口保持 main 与 update 模块映射', () => {
+  const mainPath = fileURLToPath(new URL('../app/renderer-entry/main.tsx', import.meta.url))
+  const sourceFile = ts.createSourceFile(
+    mainPath,
+    fs.readFileSync(mainPath, 'utf8'),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  )
+  const loaders: Record<string, string> = {}
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isCallExpression(node)
+      && ts.isIdentifier(node.expression)
+      && node.expression.text === 'loadRendererSurface'
+      && node.arguments.length >= 2
+      && ts.isObjectLiteralExpression(node.arguments[1])
+    ) {
+      for (const property of node.arguments[1].properties) {
+        if (
+          !ts.isPropertyAssignment(property)
+          || !ts.isIdentifier(property.name)
+          || !ts.isArrowFunction(property.initializer)
+          || !ts.isCallExpression(property.initializer.body)
+          || property.initializer.body.expression.kind !== ts.SyntaxKind.ImportKeyword
+          || property.initializer.body.arguments.length !== 1
+          || !ts.isStringLiteralLike(property.initializer.body.arguments[0])
+        ) {
+          continue
+        }
+        loaders[property.name.text] = property.initializer.body.arguments[0].text
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+
+  assert.deepEqual(loaders, {
+    main: '#app/main',
+    update: '#app/update-surface',
+  })
+})
+
+test('两个 Surface 仅加载正式共享全局入口', () => {
+  const sharedStyles = fs.readFileSync(
+    fileURLToPath(new URL('../shared/styles/index.ts', import.meta.url)),
+    'utf8',
+  )
+  const mainStylesEntryPath = fileURLToPath(new URL('../shared/main-styles/index.ts', import.meta.url))
+  const workstationStylesPath = fileURLToPath(new URL('../shared/main-styles/workstation.scss', import.meta.url))
+  const mainSurface = fs.readFileSync(
+    fileURLToPath(new URL('../app/main/App.tsx', import.meta.url)),
+    'utf8',
+  )
+  const updateSurface = fs.readFileSync(
+    fileURLToPath(new URL('../app/update-surface/index.ts', import.meta.url)),
+    'utf8',
+  )
+
+  assert.match(sharedStyles, /import '\.\/global\.scss'/)
+  assert.doesNotMatch(sharedStyles, /app\.scss|workstation\.scss/)
+  assert.equal(fs.existsSync(mainStylesEntryPath), false)
+  assert.equal(fs.existsSync(workstationStylesPath), false)
+  assert.doesNotMatch(mainSurface, /#shared\/main-styles/)
+  assert.doesNotMatch(updateSurface, /#shared\/main-styles/)
 })

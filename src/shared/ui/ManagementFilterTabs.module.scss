@@ -1,0 +1,78 @@
+.root:global(.ant-tabs) {
+  min-width: 0;
+}
+
+.root :global(.ant-tabs-nav) {
+  min-height: 40px;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  padding: 3px 5px;
+}
+
+.root :global(.ant-tabs-nav::before) {
+  display: none;
+}
+
+.root :global(.ant-tabs-ink-bar) {
+  height: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.root :global(.ant-tabs-nav-wrap) {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.root :global(.ant-tabs-nav-wrap::-webkit-scrollbar) {
+  display: none;
+}
+
+.root :global(.ant-tabs-nav-list) {
+  min-width: 100%;
+  gap: 2px;
+}
+
+.root :global(.ant-tabs-tab) {
+  min-height: 32px;
+  flex: 1 0 auto;
+  justify-content: center;
+  margin: 0 !important;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.root :global(.ant-tabs-tab-btn) {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+
+.root :global(.ant-tabs-tab:hover) {
+  background: color-mix(in srgb, var(--row-hover-bg) 68%, var(--surface-subtle));
+  color: var(--text-primary);
+}
+
+.root :global(.ant-tabs-tab-active) {
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--surface));
+}
+
+.root :global(.ant-tabs-tab-active .ant-tabs-tab-btn) {
+  color: var(--accent) !important;
+  font-weight: inherit;
+}
+
+.root :global(.ant-tabs-content-holder) {
+  display: none;
+}

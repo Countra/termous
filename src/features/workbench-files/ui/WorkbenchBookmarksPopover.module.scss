@@ -1,0 +1,795 @@
+.root {
+  position: static;
+}
+
+.workbench-bookmarks-trigger:global(.ant-btn) {
+  display: inline-grid;
+  width: 27px;
+  min-width: 27px;
+  height: 27px;
+  flex: 0 0 27px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  box-shadow: none;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.workbench-bookmarks-trigger:global(.ant-btn) :global(.ant-btn-icon) {
+  display: inline-grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  line-height: 0;
+}
+
+.workbench-bookmarks-trigger:global(.ant-btn).is-saved {
+  color: color-mix(in srgb, var(--accent) 76%, var(--text-primary));
+}
+
+.workbench-bookmarks-trigger:global(.ant-btn):hover,
+.workbench-bookmarks-trigger:global(.ant-btn):focus-visible {
+  border-color: color-mix(in srgb, var(--border) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 86%, transparent);
+  color: var(--text-primary);
+}
+
+.workbench-bookmarks-trigger:global(.ant-btn).is-open,
+.workbench-bookmarks-trigger:global(.ant-btn).is-open:hover,
+.workbench-bookmarks-trigger:global(.ant-btn).is-open:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface-subtle));
+  color: var(--accent);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.workbench-bookmarks-popover:global(.ant-popover) {
+  --workbench-bookmarks-bg: #21252e;
+  --workbench-bookmarks-control: #272c36;
+  --workbench-bookmarks-row: #252a34;
+  --workbench-bookmarks-row-hover: #2a303b;
+  --ant-popover-bg: var(--workbench-bookmarks-bg);
+  --antd-arrow-background-color: var(--workbench-bookmarks-bg);
+}
+
+.workbench-bookmarks-popover:global(.ant-popover) :global(.ant-popover-content) {
+  border-radius: 13px;
+  background: var(--workbench-bookmarks-bg) !important;
+  opacity: 1;
+}
+
+.workbench-bookmarks-popover:global(.ant-popover) :global(.ant-popover-container) {
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 76%, transparent);
+  border-radius: 13px;
+  background: var(--workbench-bookmarks-bg) !important;
+  box-shadow:
+    0 18px 46px rgb(0 0 0 / 34%),
+    inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+.workbench-bookmarks-popover:global(.ant-popover) :global(.ant-popover-inner) {
+  border: 0;
+  border-radius: 13px;
+  background: var(--workbench-bookmarks-bg) !important;
+  box-shadow: none;
+  padding: 0;
+}
+
+.workbench-bookmarks-popover:global(.ant-popover) :global(.ant-popover-inner-content) {
+  padding: 0;
+}
+
+.workbench-bookmarks-panel {
+  display: flex;
+  width: min(304px, calc(100vw - 24px));
+  max-height: min(420px, calc(100vh - 88px));
+  min-height: 220px;
+  flex-direction: column;
+  background: var(--workbench-bookmarks-bg);
+  color: var(--text-secondary);
+}
+
+.workbench-bookmarks-header {
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px 7px 12px;
+}
+
+.workbench-bookmarks-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  color: color-mix(in srgb, var(--accent) 72%, var(--text-primary));
+}
+
+.workbench-bookmarks-heading > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.workbench-bookmarks-heading strong,
+.workbench-bookmarks-heading small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-bookmarks-heading strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  line-height: 17px;
+}
+
+.workbench-bookmarks-heading small {
+  color: var(--text-muted);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 13px;
+}
+
+.workbench-bookmarks-current-target {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.workbench-bookmarks-current {
+  display: inline-flex;
+  height: 27px;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--workbench-bookmarks-control);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 680;
+  line-height: 1;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.workbench-bookmarks-current:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-subtle));
+  color: var(--text-primary);
+}
+
+.workbench-bookmarks-current:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  outline-offset: 1px;
+}
+
+.workbench-bookmarks-current.is-saved {
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--accent) 78%, var(--text-primary));
+}
+
+.workbench-bookmarks-current:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.workbench-bookmarks-search-shell {
+  flex: 0 0 auto;
+  padding: 2px 10px 8px;
+}
+
+.workbench-bookmarks-search:global(.ant-input-affix-wrapper) {
+  width: 100%;
+  height: 32px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 9px;
+  background: var(--workbench-bookmarks-control);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
+  color: var(--text-muted);
+  padding-inline: 9px;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.workbench-bookmarks-search:global(.ant-input-affix-wrapper):hover,
+.workbench-bookmarks-search:global(.ant-input-affix-wrapper-focused) {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--surface-subtle) 88%, var(--accent) 2%);
+}
+
+.workbench-bookmarks-search:global(.ant-input-affix-wrapper-focused) {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.workbench-bookmarks-search:global(.ant-input-affix-wrapper) :global(.ant-input) {
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.workbench-bookmarks-search:global(.ant-input-affix-wrapper) :global(.ant-input)::placeholder {
+  color: var(--text-muted);
+}
+
+.workbench-bookmarks-notice {
+  display: flex;
+  min-width: 0;
+  min-height: 30px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  margin: 0 10px 7px;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.workbench-bookmarks-notice svg {
+  flex: 0 0 auto;
+}
+
+.workbench-bookmarks-notice span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-bookmarks-notice.is-offline {
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--warning) 70%, var(--text-primary));
+}
+
+.workbench-bookmarks-notice.is-error {
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface-subtle));
+  color: color-mix(in srgb, var(--danger) 72%, var(--text-primary));
+}
+
+.workbench-bookmarks-list {
+  min-height: 84px;
+  flex: 1 1 auto;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  padding: 0 6px 7px;
+  scrollbar-color:
+    color-mix(in srgb, var(--text-muted) 26%, transparent)
+    transparent;
+  scrollbar-width: thin;
+}
+
+.workbench-bookmarks-group + .workbench-bookmarks-group {
+  margin-top: 3px;
+}
+
+.workbench-bookmarks-group-heading {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  min-width: 0;
+  height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--workbench-bookmarks-bg);
+  color: var(--text-muted);
+  padding: 2px 7px 0;
+  font-size: 9.5px;
+  font-weight: 650;
+  line-height: 20px;
+}
+
+.workbench-bookmarks-group-heading > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-bookmarks-group-heading > small {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--text-muted) 68%, transparent);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.workbench-bookmarks-group-items {
+  display: grid;
+  gap: 2px;
+}
+
+.workbench-bookmarks-item {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px 8px 4px 6px;
+  text-align: left;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.workbench-bookmarks-item:hover:not(:disabled),
+.workbench-bookmarks-item:focus-visible {
+  background: var(--workbench-bookmarks-row-hover);
+  color: var(--text-primary);
+}
+
+.workbench-bookmarks-item:focus-visible {
+  outline: 0;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 34%, var(--border));
+}
+
+.workbench-bookmarks-item.is-current {
+  background: color-mix(in srgb, var(--accent) 9%, var(--workbench-bookmarks-row));
+  color: var(--text-primary);
+}
+
+.workbench-bookmarks-item.is-loading {
+  background: color-mix(in srgb, var(--accent) 7%, var(--workbench-bookmarks-row));
+  color: var(--text-primary);
+}
+
+.workbench-bookmarks-item[aria-disabled="true"]:not(.is-loading) {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.workbench-bookmarks-item-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--workbench-bookmarks-control);
+  color: var(--text-muted);
+}
+
+.workbench-bookmarks-item:hover:not(:disabled) .workbench-bookmarks-item-icon,
+.workbench-bookmarks-item:focus-visible .workbench-bookmarks-item-icon {
+  color: color-mix(in srgb, var(--accent) 74%, var(--text-primary));
+}
+
+.workbench-bookmarks-item.is-current .workbench-bookmarks-item-icon {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.workbench-bookmarks-item-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.workbench-bookmarks-item-copy strong,
+.workbench-bookmarks-item-copy small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-bookmarks-item-copy strong {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 15px;
+}
+
+.workbench-bookmarks-item-copy small {
+  color: var(--text-muted);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 9.5px;
+  line-height: 13px;
+}
+
+.workbench-bookmarks-empty {
+  display: grid;
+  min-height: 118px;
+  place-content: center;
+  justify-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  padding: 16px;
+  text-align: center;
+}
+
+.workbench-bookmarks-empty svg {
+  margin-bottom: 2px;
+  color: color-mix(in srgb, var(--text-muted) 78%, transparent);
+}
+
+.workbench-bookmarks-empty strong {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.workbench-bookmarks-empty span {
+  max-width: 236px;
+  font-size: 9.5px;
+  line-height: 15px;
+}
+
+.workbench-bookmarks-footer {
+  flex: 0 0 auto;
+  border-top: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
+  padding: 6px;
+}
+
+.workbench-bookmarks-manage {
+  display: flex;
+  width: 100%;
+  height: 32px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 650;
+  text-align: left;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.workbench-bookmarks-manage:hover,
+.workbench-bookmarks-manage:focus-visible {
+  background: var(--workbench-bookmarks-row-hover);
+  color: var(--text-primary);
+}
+
+.workbench-bookmarks-manage:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  outline-offset: -1px;
+}
+
+.workbench-bookmarks-manage:disabled {
+  cursor: wait;
+  opacity: 0.52;
+}
+
+.workbench-bookmarks-spinner {
+  animation: workbench-bookmarks-spin 760ms linear infinite;
+}
+
+.workbench-bookmarks-tooltip:global(.ant-tooltip) {
+  z-index: 3500 !important;
+}
+
+.workbench-bookmark-editor-tooltip:global(.ant-tooltip) {
+  z-index: 3800 !important;
+}
+
+.workbench-bookmark-tooltip-copy {
+  display: grid;
+  max-width: 280px;
+  gap: 2px;
+}
+
+.workbench-bookmark-tooltip-copy strong,
+.workbench-bookmark-tooltip-copy span,
+.workbench-bookmark-tooltip-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-bookmark-tooltip-copy strong {
+  color: #fff;
+  font-size: 11px;
+}
+
+.workbench-bookmark-tooltip-copy span {
+  color: rgb(255 255 255 / 82%);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 10px;
+}
+
+.workbench-bookmark-tooltip-copy small {
+  color: rgb(255 255 255 / 58%);
+  font-size: 9px;
+}
+
+.workbench-bookmarks-popover:global(.ant-popover) {
+  :global(:root[data-theme='light']) & {
+    --workbench-bookmarks-bg: #fff;
+    --workbench-bookmarks-control: #f4f6f9;
+    --workbench-bookmarks-row: #f6f8fb;
+    --workbench-bookmarks-row-hover: #f1f5fa;
+  }
+
+  :global(:root[data-theme='light']) & :global(.ant-popover-container) {
+    border-color: rgb(30 42 58 / 13%);
+    box-shadow:
+      0 18px 42px rgb(23 31 45 / 14%),
+      inset 0 1px 0 rgb(255 255 255 / 92%);
+  }
+}
+
+.workbench-bookmark-editor-root {
+  --workbench-bookmark-editor-bg: #1d2028;
+  --workbench-bookmark-editor-control: #252a34;
+  --workbench-bookmark-editor-border: #353b47;
+}
+
+.workbench-bookmark-editor-root :global(.ant-modal-mask) {
+  background: rgb(7 9 13 / 58%);
+}
+
+.workbench-bookmark-editor-modal :global(.ant-modal-content) {
+  overflow: hidden;
+  border: 1px solid var(--workbench-bookmark-editor-border);
+  border-radius: 15px;
+  background: var(--workbench-bookmark-editor-bg);
+  box-shadow:
+    0 28px 72px rgb(0 0 0 / 42%),
+    inset 0 1px 0 rgb(255 255 255 / 6%);
+  padding: 0;
+}
+
+.workbench-bookmark-editor-modal :global(.ant-modal-header) {
+  margin: 0;
+  border-bottom: 1px solid var(--workbench-bookmark-editor-border);
+  background: var(--workbench-bookmark-editor-bg);
+  padding: 16px 56px 14px 20px;
+}
+
+.workbench-bookmark-editor-modal :global(.ant-modal-title) {
+  color: var(--text-primary);
+}
+
+.workbench-bookmark-editor-title {
+  max-width: min(300px, calc(100vw - 130px));
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-bookmark-editor-modal :global(.ant-modal-close) {
+  top: 18px;
+  inset-inline-end: 10px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.workbench-bookmark-editor-modal :global(.ant-modal-close):hover {
+  background: var(--workbench-bookmark-editor-control);
+  color: var(--text-primary);
+}
+
+.workbench-bookmark-editor-modal :global(.ant-modal-body) {
+  background: var(--workbench-bookmark-editor-bg);
+  padding: 18px 20px 4px;
+}
+
+.workbench-bookmark-editor-modal :global(.ant-modal-footer) {
+  margin: 0;
+  border-top: 1px solid var(--workbench-bookmark-editor-border);
+  background: var(--workbench-bookmark-editor-bg);
+  padding: 13px 20px;
+}
+
+.workbench-bookmark-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.workbench-bookmark-editor-actions :global(.ant-btn) {
+  min-width: 76px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+.workbench-bookmark-editor-form :global(.ant-form-item) {
+  margin-bottom: 15px;
+}
+
+.workbench-bookmark-editor-form :global(.ant-form-item-label) {
+  padding-bottom: 6px;
+}
+
+.workbench-bookmark-editor-form :global(.ant-form-item-label) > label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.workbench-bookmark-editor-form :global(.ant-input),
+.workbench-bookmark-editor-select :global(.ant-select-selector) {
+  min-height: 36px;
+  border-color: var(--workbench-bookmark-editor-border) !important;
+  border-radius: 9px !important;
+  background: var(--workbench-bookmark-editor-control) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+.workbench-bookmark-editor-form :global(.ant-input) {
+  padding-inline: 10px;
+  font-size: 12px;
+}
+
+.workbench-bookmark-editor-form :global(.ant-input):hover,
+.workbench-bookmark-editor-form :global(.ant-input):focus,
+.workbench-bookmark-editor-select:hover :global(.ant-select-selector),
+.workbench-bookmark-editor-select:global(.ant-select-focused) :global(.ant-select-selector) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--workbench-bookmark-editor-border)) !important;
+}
+
+.workbench-bookmark-editor-select :global(.ant-select-selection-item) {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.workbench-bookmark-editor-path {
+  display: grid;
+  min-width: 0;
+  min-height: 48px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  background: var(--workbench-bookmark-editor-control);
+  padding: 7px 10px;
+}
+
+.workbench-bookmark-editor-path-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 11%, var(--workbench-bookmark-editor-bg));
+  color: var(--accent);
+}
+
+.workbench-bookmark-editor-path > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.workbench-bookmark-editor-path small {
+  color: var(--text-muted);
+  font-size: 9.5px;
+  line-height: 13px;
+}
+
+.workbench-bookmark-editor-path strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 10.5px;
+  font-weight: 560;
+  line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-bookmark-editor-error {
+  margin: -2px 0 14px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 10%, var(--workbench-bookmark-editor-bg));
+  color: color-mix(in srgb, var(--danger) 76%, var(--text-primary));
+  padding: 8px 10px;
+  font-size: 10.5px;
+  line-height: 16px;
+}
+
+.workbench-bookmark-editor-select-popup:global(.ant-select-dropdown) {
+  --workbench-bookmark-editor-bg: #1d2028;
+  --workbench-bookmark-editor-control: #252a34;
+  --workbench-bookmark-editor-border: #353b47;
+
+  z-index: 3800 !important;
+  border: 1px solid var(--workbench-bookmark-editor-border);
+  border-radius: 10px;
+  background: var(--workbench-bookmark-editor-bg);
+  box-shadow: 0 18px 44px rgb(0 0 0 / 34%);
+  padding: 5px;
+}
+
+.workbench-bookmark-editor-select-popup :global(.ant-select-item) {
+  min-height: 32px;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.workbench-bookmark-editor-select-popup :global(.ant-select-item-option-active:not(.ant-select-item-option-disabled)) {
+  background: var(--workbench-bookmark-editor-control);
+  color: var(--text-primary);
+}
+
+.workbench-bookmark-editor-select-popup :global(.ant-select-item-option-selected:not(.ant-select-item-option-disabled)) {
+  background: color-mix(in srgb, var(--accent) 12%, var(--workbench-bookmark-editor-bg));
+  color: var(--text-primary);
+}
+
+.workbench-bookmark-editor-root {
+  :global(:root[data-theme='light']) & {
+    --workbench-bookmark-editor-bg: #fff;
+    --workbench-bookmark-editor-control: #f4f6f9;
+    --workbench-bookmark-editor-border: #dfe4eb;
+  }
+}
+
+.workbench-bookmark-editor-select-popup:global(.ant-select-dropdown) {
+  :global(:root[data-theme='light']) & {
+    --workbench-bookmark-editor-bg: #fff;
+    --workbench-bookmark-editor-control: #f4f6f9;
+    --workbench-bookmark-editor-border: #dfe4eb;
+  }
+}
+
+.workbench-bookmark-editor-modal {
+  :global(:root[data-theme='light']) & :global(.ant-modal-content) {
+    box-shadow:
+      0 28px 68px rgb(30 44 64 / 19%),
+      inset 0 1px 0 #fff;
+  }
+}
+
+@keyframes workbench-bookmarks-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workbench-bookmarks-trigger:global(.ant-btn),
+  .workbench-bookmarks-current,
+  .workbench-bookmarks-search:global(.ant-input-affix-wrapper),
+  .workbench-bookmarks-item,
+  .workbench-bookmarks-manage {
+    transition: none;
+  }
+
+  .workbench-bookmarks-spinner {
+    animation: none;
+  }
+}

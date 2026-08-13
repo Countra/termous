@@ -5,8 +5,8 @@ import {
   mergeTransferSnapshot,
   transferRefreshRetryDelay,
   TransferSnapshotGate,
-} from '../app/useTransferRuntime.ts'
-import type { TransferTask } from '../types/domain.ts'
+} from '../features/transfers/model/transferRuntime.ts'
+import type { TransferTask } from '#entities/file'
 
 function transfer(overrides: Partial<TransferTask> = {}): TransferTask {
   return {

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { TransferTask } from '../types/domain.ts'
+import { formatBytes, formatDate } from '#shared/format'
+import type { TransferTask } from '#entities/file'
 import {
   formatSeconds,
   transferDisplayName,
-} from '../features/files/fileUtils.ts'
+} from '#entities/file'
 
 function transfer(overrides: Partial<TransferTask> = {}): TransferTask {
   return {
@@ -44,6 +45,17 @@ test('传输时间对缺失和无效值返回占位符', () => {
   assert.equal(formatSeconds(-1), '-')
   assert.equal(formatSeconds(Number.POSITIVE_INFINITY), '-')
   assert.equal(formatSeconds(Number.NaN), '-')
+})
+
+test('文件大小和日期保持既定展示格式', () => {
+  assert.equal(formatBytes(0), '0 B')
+  assert.equal(formatBytes(1536), '1.5 KB')
+  assert.equal(formatBytes(Number.POSITIVE_INFINITY), '0 B')
+  assert.equal(formatDate(), '-')
+  assert.equal(formatDate('invalid'), '-')
+
+  const timestamp = '2026-07-23T00:00:00Z'
+  assert.equal(formatDate(timestamp), new Date(timestamp).toLocaleString())
 })
 
 test('上传传输使用本地源名称且不按远端路径解析', () => {

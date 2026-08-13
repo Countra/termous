@@ -1,0 +1,325 @@
+.update-window-status-panel {
+  display: grid;
+  min-width: 0;
+  min-height: 112px;
+  flex: 0 0 auto;
+  align-content: start;
+  gap: 14px;
+  padding: 16px 0 14px;
+}
+
+.update-window-status-panel.is-compact {
+  min-height: 78px;
+  align-content: center;
+  padding-block: 13px 15px;
+}
+
+.update-window-status-panel.is-title-only {
+  padding-block: 13px 15px;
+}
+
+.update-window-status-panel.is-title-only .update-window-status-heading {
+  align-items: center;
+}
+
+.update-window-status-panel.is-title-only .update-window-status-announcement {
+  gap: 0;
+}
+
+.update-window-status-heading {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.update-window-status-copy {
+  min-width: 0;
+}
+
+.update-window-status-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.update-window-status-announcement {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.update-window-status-title-row h3:global(.ant-typography) {
+  min-width: 0;
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-window-status-announcement > span:global(.ant-typography) {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.update-window-status-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.update-window-status-icon.is-downloaded,
+.update-window-status-icon.is-up-to-date {
+  background: color-mix(in srgb, var(--success) 13%, transparent);
+  color: var(--success);
+}
+
+.update-window-status-panel.has-install-warning .update-window-status-icon.is-downloaded {
+  background: color-mix(in srgb, var(--warning) 13%, transparent);
+  color: var(--warning);
+}
+
+.update-window-status-icon.is-error {
+  background: color-mix(in srgb, var(--danger) 11%, transparent);
+  color: var(--danger);
+}
+
+.update-window-status-icon.is-unsupported {
+  background: color-mix(in srgb, var(--warning) 13%, transparent);
+  color: var(--warning);
+}
+
+.update-window-status-panel.is-unsupported {
+  min-height: 0;
+  padding: 18px 0 20px;
+}
+
+.update-window-unsupported-alert:global(.ant-alert) {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 7%, transparent);
+  padding: 15px 16px;
+}
+
+.update-window-unsupported-alert :global(.ant-alert-icon) {
+  margin-inline-end: 12px;
+  color: var(--warning);
+  font-size: 17px;
+}
+
+.update-window-unsupported-alert :global(.ant-alert-title) {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.update-window-unsupported-alert :global(.ant-alert-description) {
+  max-width: 520px;
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.update-window-status-icon :global(.ant-spin) {
+  color: inherit;
+}
+
+.update-window-status-icon :global(.ant-spin-dot-item) {
+  background-color: currentcolor;
+}
+
+.update-window-progress-percent:global(.ant-typography) {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.update-window-download-progress {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding-left: 50px;
+}
+
+.update-window-progress:global(.ant-progress) {
+  margin: 0;
+  line-height: 1;
+}
+
+.update-window-progress :global(.ant-progress-outer) {
+  display: block;
+}
+
+.update-window-progress :global(.ant-progress-inner) {
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+}
+
+.update-window-progress :global(.ant-progress-bg),
+.update-window-progress :global(.ant-progress-success-bg) {
+  transition: width 0.2s ease-out;
+}
+
+.update-window-progress-metrics:global(.ant-descriptions) {
+  margin: 0;
+  background: transparent;
+  padding: 2px 0 0;
+}
+
+.update-window-progress-metrics :global(.ant-descriptions-view) {
+  background: transparent;
+}
+
+.update-window-progress-metrics :global(.ant-descriptions-row) > th,
+.update-window-progress-metrics :global(.ant-descriptions-row) > td {
+  padding-bottom: 0;
+}
+
+.update-window-progress-metrics :global(.ant-descriptions-item) {
+  padding-inline-end: 18px;
+}
+
+.update-window-progress-metrics :global(.ant-descriptions-row) > td + td {
+  padding-inline-start: 18px;
+}
+
+.update-window-progress-metrics :global(.ant-descriptions-item-label) {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.update-window-progress-metrics :global(.ant-descriptions-item-content) {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-window-progress-metrics :global(.ant-descriptions-item-content) :global(.ant-typography) {
+  overflow: hidden;
+  color: inherit;
+  font: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-window-install-warning:global(.ant-alert),
+.update-window-confirmation-alert:global(.ant-alert) {
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  padding: 9px 11px;
+}
+
+.update-window-install-warning :global(.ant-alert-icon) {
+  color: var(--warning);
+}
+
+.update-window-install-warning :global(.ant-alert-title),
+.update-window-confirmation-alert :global(.ant-alert-title) {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.update-window-confirmation-alert:global(.ant-alert) {
+  margin-left: 50px;
+}
+
+.update-window-confirmation-alert :global(.ant-alert-actions) {
+  margin-inline-start: 10px;
+}
+
+.update-window-confirmation-alert :global(.ant-btn-link) {
+  height: 24px;
+  padding: 0 3px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.update-window-confirmation-status {
+  display: inline-flex;
+  justify-self: start;
+  align-items: center;
+  gap: 8px;
+  margin-left: 50px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+@media (height <= 640px) {
+  .update-window-status-panel {
+    min-height: 96px;
+    gap: 11px;
+    padding-block: 12px 10px;
+  }
+
+  .update-window-status-panel.is-compact {
+    min-height: 70px;
+    padding-block: 10px 12px;
+  }
+
+  .update-window-status-panel.is-title-only {
+    padding-block: 10px 12px;
+  }
+
+  .update-window-status-panel.is-unsupported {
+    padding-block: 14px 16px;
+  }
+
+  .update-window-unsupported-alert:global(.ant-alert) {
+    padding: 13px 14px;
+  }
+}
+
+@media (width <= 660px) {
+  .update-window-download-progress {
+    padding-left: 0;
+  }
+
+  .update-window-install-warning:global(.ant-alert),
+  .update-window-confirmation-alert:global(.ant-alert),
+  .update-window-confirmation-status {
+    margin-left: 0;
+  }
+
+  .update-window-progress-metrics :global(.ant-descriptions-row) > td + td {
+    padding-inline-start: 0;
+  }
+
+  .update-window-progress-metrics :global(.ant-descriptions-item) {
+    padding-inline-end: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-window-progress :global(.ant-progress-bg),
+  .update-window-progress :global(.ant-progress-success-bg) {
+    transition: none;
+  }
+}

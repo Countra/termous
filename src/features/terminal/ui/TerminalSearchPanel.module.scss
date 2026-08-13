@@ -1,0 +1,124 @@
+.panel {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 18;
+  display: flex;
+  width: auto;
+  max-width: calc(100% - 20px);
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 13px;
+  background: #262830;
+  padding: 6px 5px 6px 8px;
+  box-shadow:
+    0 20px 52px rgb(0 0 0 / 40%),
+    inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+
+.input {
+  width: 176px;
+  min-width: 120px;
+  height: 30px;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 8px;
+  background: #32343d;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  padding: 0 10px;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.input:focus {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.input.error {
+  border-color: color-mix(in srgb, var(--danger) 70%, var(--border));
+}
+
+.count {
+  min-width: 52px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.panel.error .count {
+  color: var(--danger);
+}
+
+.button:global(.ant-btn) {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-weight: 750;
+}
+
+.button:global(.ant-btn):hover,
+.button:global(.ant-btn).active {
+  background: #383b45;
+  color: var(--text-primary);
+}
+
+.close:global(.ant-btn) {
+  width: 28px;
+  flex-basis: 28px;
+}
+
+.toggle:global(.ant-btn) {
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.panel {
+  :global(:root[data-theme="light"]) & {
+    border-color: rgb(30 42 58 / 12%);
+    background: #fff !important;
+    box-shadow:
+      0 18px 44px rgb(23 31 45 / 14%),
+      inset 0 1px 0 rgb(255 255 255 / 92%);
+  }
+}
+
+.input {
+  :global(:root[data-theme="light"]) & {
+    border-color: rgb(30 42 58 / 10%);
+    background: #f3f5f8;
+  }
+}
+
+.button:global(.ant-btn) {
+  :global(:root[data-theme="light"]) &:hover,
+  :global(:root[data-theme="light"]) &.active {
+    background: #edf1f6;
+  }
+}
+
+@media (width <= 980px) {
+  .panel {
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+
+  .input {
+    flex: 1 1 auto;
+    width: auto;
+  }
+}

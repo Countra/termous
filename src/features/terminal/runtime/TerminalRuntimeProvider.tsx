@@ -1,0 +1,1823 @@
+import '@xterm/xterm/css/xterm.css'
+
+import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
+import { Terminal } from '@xterm/xterm'
+import { App as AntdApp } from 'antd'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TerminalGateway } from '../api/terminalGateway'
+import { readClipboardText, writeClipboardText } from '../lib/terminalClipboard'
+import { TerminalCompletionStatusReconciler } from './completionStatusReconciler'
+import { TerminalCwdRuntimeProvider } from './TerminalCwdRuntimeProvider'
+import { TerminalEntryLifecycle } from './terminalEntryLifecycle'
+import type {
+  CompletionPromptAnchor,
+  TerminalEntry,
+} from './terminalRuntimeTypes'
+import styles from './TerminalRuntimeProvider.module.scss'
+import type {
+  AppTheme as ThemeMode,
+  CompletionSettings,
+  TerminalFont,
+  TerminalSettings,
+} from '#common/contracts'
+import type { Session, SessionCwdState, SessionStatus } from '#entities/session'
+import {
+  completionProviderSettingsSignature,
+  defaultTerminalSettings,
+  hasEnabledCompletionProvider,
+  normalizeTerminalSettings,
+  terminalTheme,
+} from '#entities/settings'
+import {
+  useShortcutRuntime,
+  type ShortcutKeyboardEventLike,
+  type ShortcutScope,
+} from '#entities/shortcuts'
+import {
+  TerminalRuntimeContext,
+  type TerminalRuntimeContextValue,
+  type TerminalClipboardAction,
+  type TerminalCompletionCursorGeometry,
+  type TerminalSendResult,
+  type TerminalViewportOptions,
+} from './terminalRuntimeContext'
+import {
+  captureTerminalPointerTarget,
+  classifyTerminalContextValue,
+  type TerminalContextPointer,
+  type TerminalContextSelectionRange,
+  type TerminalContextSnapshot,
+} from '../model/terminalContextTarget'
+import {
+  TerminalCwdRuntime,
+  type SessionCwdRequestError,
+} from '../model/terminalCwdRuntime'
+import {
+  TerminalCompletionRuntime,
+  type TerminalCompletionExpectedSelection,
+  type TerminalCompletionQueryExecutor,
+} from '../model/terminalCompletionRuntime'
+import {
+  shouldFitAfterSettingsChange,
+  terminalSmoothScrollDuration,
+} from '../model/terminalAppearance'
+import {
+  isPredictableTerminalCompletionText,
+  predictTerminalCompletionCursor,
+} from '../model/terminalCompletionPosition'
+import { binaryStringToBytes, ensureTerminalEnter } from '../model/terminalInput'
+import { transitionTerminalCompletionActivity } from '../model/terminalCompletionViewport'
+import {
+  createEmptyTerminalSearchResult,
+  isValidTerminalSearchRegex,
+  normalizeTerminalSearchEventResult,
+  normalizeTerminalSearchSeed,
+  type TerminalSearchDirection,
+  type TerminalSearchOptions,
+  type TerminalSearchResult,
+} from '../model/terminalSearch'
+import { fontFamilyFromSetting, loadTerminalFont, syncImportedFontFaces } from '#entities/settings'
+import type { TerminalInputLock, TerminalPromptBoundary } from '../model/terminalProtocol'
+import {
+  TerminalTransport,
+  type TerminalTransportEvent,
+  type TerminalTransportState,
+} from '../model/terminalTransport'
+
+const terminalTextEncoder = new TextEncoder()
+const unlockedTerminalInputLock: TerminalInputLock = { locked: false }
+const completionShortcutActionIds = [
+  'terminal.completion.previous',
+  'terminal.completion.next',
+  'terminal.completion.accept',
+] as const
+
+interface TerminalRuntimeProviderProps {
+  api: TerminalGateway
+  sessions: Session[]
+  theme: ThemeMode
+  terminalSettings: TerminalSettings
+  sshSmoothScrollEnabled: boolean
+  completionSettings: CompletionSettings
+  terminalFonts: TerminalFont[]
+  children: ReactNode
+  onSessionEvent?: (sessionId: string, patch: Partial<Session>) => void
+}
+
+interface ViewportState {
+  viewportId: string
+  sessionId: string | null
+  host: HTMLDivElement | null
+  active: boolean
+  completionActive: boolean
+  completionVisible: boolean
+  onResize?: (cols: number, rows: number) => void
+}
+
+export function TerminalRuntimeProvider({
+  api,
+  sessions,
+  theme,
+  terminalSettings,
+  sshSmoothScrollEnabled,
+  completionSettings,
+  terminalFonts,
+  children,
+  onSessionEvent,
+}: TerminalRuntimeProviderProps) {
+  const entriesRef = useRef(new Map<string, TerminalEntry>())
+  const sessionsRef = useRef(new Map<string, Session>())
+  const parkingHostRef = useRef<HTMLDivElement>(null)
+  const viewportsRef = useRef(new Map<string, ViewportState>())
+  const activeSessionIdRef = useRef<string | null>(null)
+  const apiRef = useRef(api)
+  const themeRef = useRef(theme)
+  const terminalSettingsRef = useRef(normalizeTerminalSettings(terminalSettings))
+  const sshSmoothScrollEnabledRef = useRef(sshSmoothScrollEnabled)
+  const terminalFontsRef = useRef(terminalFonts)
+  const onSessionEventRef = useRef(onSessionEvent)
+  const tRef = useRef<(key: string) => string>((key) => key)
+  const cwdRuntimeRef = useRef<TerminalCwdRuntime | null>(null)
+  if (!cwdRuntimeRef.current) {
+    cwdRuntimeRef.current = new TerminalCwdRuntime()
+  }
+  const cwdRuntime = cwdRuntimeRef.current
+  const completionProvidersSignature = completionProviderSettingsSignature(
+    completionSettings.providers,
+  )
+  const completionProvidersEnabled = hasEnabledCompletionProvider(completionSettings.providers)
+  const completionProvidersSignatureRef = useRef(completionProvidersSignature)
+  const completionQueryExecutor = useCallback<TerminalCompletionQueryExecutor>(
+    (sessionId, query, signal) => (
+      apiRef.current.querySessionCompletions(sessionId, query, { signal })
+    ),
+    [],
+  )
+  const completionRuntimeRef = useRef<TerminalCompletionRuntime | null>(null)
+  if (!completionRuntimeRef.current) {
+    completionRuntimeRef.current = new TerminalCompletionRuntime(completionSettings.enabled, {
+      query: completionProvidersEnabled ? completionQueryExecutor : undefined,
+    })
+  }
+  const completionRuntime = completionRuntimeRef.current
+  const completionStatusReconcilerRef = useRef<TerminalCompletionStatusReconciler | null>(null)
+  if (!completionStatusReconcilerRef.current) {
+    completionStatusReconcilerRef.current = new TerminalCompletionStatusReconciler({
+      completionRuntime,
+      getApi: () => apiRef.current,
+      getEntry: (sessionId) => entriesRef.current.get(sessionId),
+      getSession: (sessionId) => sessionsRef.current.get(sessionId),
+    })
+  }
+  const completionStatusReconciler = completionStatusReconcilerRef.current
+  const {
+    runtime: shortcutRuntime,
+    bindingSignatures: shortcutBindingSignatures,
+  } = useShortcutRuntime()
+  const completionShortcutSignature = completionShortcutActionIds
+    .map((actionId) => shortcutBindingSignatures.get(actionId) ?? '')
+    .join('|')
+  const completionShortcutSignatureRef = useRef(completionShortcutSignature)
+  const { t } = useTranslation()
+  const { message } = AntdApp.useApp()
+  const completionLayoutListenersRef = useRef(new Map<string, Set<() => void>>())
+  const inputLockListenersRef = useRef(new Map<string, Set<() => void>>())
+  const detachedInputLocksRef = useRef(new Map<string, TerminalEntry['inputLock']>())
+  const sessionSnapshot = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
+  sessionsRef.current = sessionSnapshot
+  sshSmoothScrollEnabledRef.current = sshSmoothScrollEnabled
+  const sessionKindsSignature = useMemo(
+    () => sessions.map((session) => `${session.id}:${session.kind}`).sort().join('|'),
+    [sessions],
+  )
+
+  useEffect(() => {
+    if (completionShortcutSignatureRef.current === completionShortcutSignature) {
+      return
+    }
+    completionShortcutSignatureRef.current = completionShortcutSignature
+    entriesRef.current.forEach((entry) => {
+      completionRuntime.closeSuggestions(entry.sessionId)
+    })
+  }, [completionRuntime, completionShortcutSignature])
+
+  const stopCompletionStatusReconciliation = useCallback(
+    (sessionId: string) => completionStatusReconciler.stop(sessionId),
+    [completionStatusReconciler],
+  )
+  const stopAllCompletionStatusReconciliations = useCallback(
+    () => completionStatusReconciler.stopAll(),
+    [completionStatusReconciler],
+  )
+  const startCompletionStatusReconciliation = useCallback(
+    (sessionId: string) => completionStatusReconciler.start(sessionId),
+    [completionStatusReconciler],
+  )
+  const retrySessionCompletion = useCallback(
+    (sessionId: string) => completionStatusReconciler.retry(sessionId),
+    [completionStatusReconciler],
+  )
+
+  useEffect(() => {
+    apiRef.current = api
+    syncImportedFontFaces(api, terminalFontsRef.current)
+  }, [api])
+
+  useEffect(() => {
+    if (completionProvidersSignatureRef.current === completionProvidersSignature) {
+      return
+    }
+    completionProvidersSignatureRef.current = completionProvidersSignature
+    completionRuntime.invalidateProviderConfiguration()
+  }, [completionProvidersSignature, completionRuntime])
+
+  useEffect(() => {
+    completionRuntime.setQueryExecutor(
+      completionProvidersEnabled ? completionQueryExecutor : undefined,
+    )
+  }, [completionProvidersEnabled, completionQueryExecutor, completionRuntime])
+
+  useEffect(() => {
+    completionRuntime.setEnabled(completionSettings.enabled)
+    if (!completionSettings.enabled) {
+      stopAllCompletionStatusReconciliations()
+      return
+    }
+    for (const entry of entriesRef.current.values()) {
+      if (entry.transport.isLive()) {
+        startCompletionStatusReconciliation(entry.sessionId)
+      }
+    }
+  }, [
+    completionRuntime,
+    completionSettings.enabled,
+    startCompletionStatusReconciliation,
+    stopAllCompletionStatusReconciliations,
+  ])
+
+  useEffect(() => {
+    themeRef.current = theme
+    syncTerminalCssVariables(terminalSettingsRef.current, theme, terminalFontsRef.current)
+    entriesRef.current.forEach((entry) => {
+      entry.terminal.options.theme = terminalTheme(terminalSettingsRef.current, theme)
+    })
+  }, [theme])
+
+  useEffect(() => {
+    onSessionEventRef.current = onSessionEvent
+    tRef.current = t
+  }, [onSessionEvent, t])
+
+  const entryLifecycleRef = useRef<TerminalEntryLifecycle | null>(null)
+  if (!entryLifecycleRef.current) {
+    entryLifecycleRef.current = new TerminalEntryLifecycle({
+      getEntries: () => entriesRef.current,
+      applyCwdDisposed: (sessionId) => cwdRuntime.applyTransportState(sessionId, 'disposed'),
+      stopCompletionStatusReconciliation,
+      disposeCompletionSession: (sessionId) => completionRuntime.disposeSession(sessionId),
+      deleteCompletionLayoutListeners: (sessionId) => {
+        completionLayoutListenersRef.current.delete(sessionId)
+      },
+    })
+  }
+  const entryLifecycle = entryLifecycleRef.current
+  const disposeEntry = useCallback(
+    (entry: TerminalEntry) => entryLifecycle.disposeEntry(entry),
+    [entryLifecycle],
+  )
+  const disposeSession = useCallback(
+    (sessionId: string) => entryLifecycle.disposeSession(sessionId),
+    [entryLifecycle],
+  )
+  const disposeAll = useCallback(
+    () => entryLifecycle.disposeAll(),
+    [entryLifecycle],
+  )
+
+  const getViewportForSession = useCallback((sessionId: string) => {
+    const viewports = Array.from(viewportsRef.current.values()).filter((viewport) => (
+      viewport.sessionId === sessionId && Boolean(viewport.host)
+    ))
+    return viewports.find((viewport) => viewport.active) ?? viewports[0] ?? null
+  }, [])
+
+  const isCompletionInteractionActive = useCallback((sessionId: string) => {
+    const viewport = getViewportForSession(sessionId)
+    return Boolean(
+      viewport?.active
+      && viewport.completionActive
+      && viewport.completionVisible
+      && viewport.host?.isConnected
+      && activeSessionIdRef.current === sessionId,
+    )
+  }, [getViewportForSession])
+
+  const setViewportCompletionActive = useCallback((
+    viewportId: string,
+    sessionId: string | null,
+    active: boolean,
+  ) => {
+    const viewport = viewportsRef.current.get(viewportId)
+    if (!viewport) {
+      return
+    }
+    const transition = transitionTerminalCompletionActivity(
+      viewport.sessionId,
+      viewport.completionActive,
+      sessionId,
+      active,
+    )
+    if (!transition.changed) {
+      return
+    }
+    viewport.completionActive = transition.active
+    if (transition.closeSessionId) {
+      completionRuntime.closeSuggestions(transition.closeSessionId)
+    }
+  }, [completionRuntime])
+
+  const setViewportCompletionVisible = useCallback((
+    viewportId: string,
+    sessionId: string | null,
+    visible: boolean,
+  ) => {
+    const viewport = viewportsRef.current.get(viewportId)
+    if (!viewport || viewport.sessionId !== sessionId) {
+      return
+    }
+    viewport.completionVisible = visible
+  }, [])
+
+  const emitCompletionLayout = useCallback((sessionId: string) => {
+    completionLayoutListenersRef.current.get(sessionId)?.forEach((listener) => listener())
+  }, [])
+
+  const subscribeSessionCompletionLayout = useCallback((
+    sessionId: string,
+    listener: () => void,
+  ) => {
+    const listeners = completionLayoutListenersRef.current.get(sessionId) ?? new Set<() => void>()
+    listeners.add(listener)
+    completionLayoutListenersRef.current.set(sessionId, listeners)
+    return () => {
+      const current = completionLayoutListenersRef.current.get(sessionId)
+      current?.delete(listener)
+      if (current?.size === 0) {
+        completionLayoutListenersRef.current.delete(sessionId)
+      }
+    }
+  }, [])
+
+  const captureSessionCompletionCursor = useCallback((
+    sessionId: string,
+  ): TerminalCompletionCursorGeometry | null => {
+    const entry = entriesRef.current.get(sessionId)
+    const viewport = getViewportForSession(sessionId)
+    if (
+      !entry
+      || entry.disposed
+      || !viewport?.active
+      || !viewport.host?.isConnected
+      || entry.terminal.buffer.active.type !== 'normal'
+    ) {
+      return null
+    }
+    const buffer = entry.terminal.buffer.active
+    if (buffer.viewportY !== buffer.baseY) {
+      return null
+    }
+    const screen = entry.container.querySelector('.xterm-screen')
+    if (!(screen instanceof HTMLElement)) {
+      return null
+    }
+    const rect = screen.getBoundingClientRect()
+    if (
+      rect.width <= 0
+      || rect.height <= 0
+      || entry.terminal.cols <= 0
+      || entry.terminal.rows <= 0
+    ) {
+      return null
+    }
+    const completion = completionRuntime.getSnapshot(sessionId)
+    const anchor = entry.completionPromptAnchor
+    const anchorMatchesBoundary = Boolean(
+      anchor
+      && completion.boundary
+      && completion.input.trust === 'trusted'
+      && !completion.input.composing
+      && matchesCompletionPromptAnchor(anchor, completion.boundary),
+    )
+    const prediction = anchorMatchesBoundary && anchor
+      ? predictTerminalCompletionCursor({
+        anchorX: anchor.cursorX,
+        anchorY: anchor.cursorY,
+        columns: entry.terminal.cols,
+        rows: entry.terminal.rows,
+        line: completion.input.line,
+        cursorUtf16: completion.input.cursorUtf16,
+      })
+      : null
+    const inputBeforeCursor = completion.input.line.slice(0, completion.input.cursorUtf16)
+    if (
+      anchorMatchesBoundary
+      && anchor
+      && inputBeforeCursor.length > 0
+      && !isPredictableTerminalCompletionText(inputBeforeCursor)
+      && buffer.cursorX === anchor.cursorX
+      && buffer.cursorY === anchor.cursorY
+    ) {
+      return null
+    }
+    return {
+      screenRect: {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+      },
+      cursorX: prediction?.cursorX ?? buffer.cursorX,
+      cursorY: prediction?.cursorY ?? buffer.cursorY,
+      columns: entry.terminal.cols,
+      rows: entry.terminal.rows,
+    }
+  }, [completionRuntime, getViewportForSession])
+
+  const sendResize = useCallback((entry: TerminalEntry) => {
+    const { terminal, lastSize } = entry
+    if (terminal.cols === lastSize.cols && terminal.rows === lastSize.rows) {
+      return
+    }
+    lastSize.cols = terminal.cols
+    lastSize.rows = terminal.rows
+    getViewportForSession(entry.sessionId)?.onResize?.(terminal.cols, terminal.rows)
+    entry.transport.sendResize(terminal.cols, terminal.rows)
+  }, [getViewportForSession])
+
+  const fitEntryViewport = useCallback((entry: TerminalEntry) => {
+    const viewport = getViewportForSession(entry.sessionId)
+    if (entry.disposed || !viewport?.host) {
+      return false
+    }
+    try {
+      entry.fit.fit()
+    } catch {
+      return false
+    }
+    return true
+  }, [getViewportForSession])
+
+  const fitAndResize = useCallback(
+    (entry: TerminalEntry, shouldFocus = false) => {
+      window.requestAnimationFrame(() => {
+        if (!fitEntryViewport(entry)) {
+          return
+        }
+        sendResize(entry)
+        if (shouldFocus && activeSessionIdRef.current === entry.sessionId) {
+          entry.terminal.focus()
+        }
+      })
+    },
+    [fitEntryViewport, sendResize],
+  )
+
+  const fitAfterFontLoad = useCallback(
+    (settings: TerminalSettings, fonts: TerminalFont[]) => {
+      void loadTerminalFont(settings.font_family, fonts).then(() => {
+        entriesRef.current.forEach((entry) => {
+          fitAndResize(entry)
+        })
+      })
+    },
+    [fitAndResize],
+  )
+
+  const getEntry = useCallback((sessionId?: string) => {
+    const targetSessionId = sessionId ?? activeSessionIdRef.current
+    return targetSessionId ? entriesRef.current.get(targetSessionId) : undefined
+  }, [])
+
+  const isEntryEnded = useCallback((entry: TerminalEntry) => {
+    return isEndedSessionStatus(sessionsRef.current.get(entry.sessionId)?.status)
+  }, [])
+
+  const isEntryWritable = useCallback((entry: TerminalEntry) => {
+    return sessionsRef.current.get(entry.sessionId)?.status === 'connected'
+  }, [])
+
+  const canAcceptTerminalInput = useCallback((entry: TerminalEntry) => {
+    return isEntryWritable(entry) && !entry.inputLock.locked
+  }, [isEntryWritable])
+
+  const getSessionInputLockSnapshot = useCallback((sessionId: string) => {
+    return entriesRef.current.get(sessionId)?.inputLock
+      ?? detachedInputLocksRef.current.get(sessionId)
+      ?? unlockedTerminalInputLock
+  }, [])
+
+  const subscribeSessionInputLock = useCallback((sessionId: string, listener: () => void) => {
+    const listeners = inputLockListenersRef.current.get(sessionId) ?? new Set<() => void>()
+    listeners.add(listener)
+    inputLockListenersRef.current.set(sessionId, listeners)
+    return () => {
+      const current = inputLockListenersRef.current.get(sessionId)
+      current?.delete(listener)
+      if (current?.size === 0) {
+        inputLockListenersRef.current.delete(sessionId)
+      }
+    }
+  }, [])
+
+  const applySessionInputLock = useCallback((
+    sessionId: string,
+    inputLock: TerminalEntry['inputLock'] | undefined,
+  ) => {
+    const next = inputLock ?? { locked: false }
+    const entry = entriesRef.current.get(sessionId)
+    const current = entry?.inputLock ?? detachedInputLocksRef.current.get(sessionId)
+    if (
+      current?.locked === next.locked
+      && current.owner === next.owner
+      && current.task_id === next.task_id
+      && current.locked_at === next.locked_at
+    ) {
+      return
+    }
+    detachedInputLocksRef.current.set(sessionId, next)
+    if (entry) {
+      entry.inputLock = next
+      entry.terminal.options.disableStdin = next.locked
+      if (next.locked) {
+        entry.container.dataset.terminalInputLocked = 'true'
+        completionRuntime.closeSuggestions(sessionId)
+      } else {
+        delete entry.container.dataset.terminalInputLocked
+      }
+    }
+    inputLockListenersRef.current.get(sessionId)?.forEach((listener) => listener())
+  }, [completionRuntime])
+
+  const applyEntrySessionState = useCallback(
+    (entry: TerminalEntry) => {
+      const ended = isEntryEnded(entry)
+      if (ended) {
+        entry.container.dataset.terminalEnded = 'true'
+      } else {
+        delete entry.container.dataset.terminalEnded
+      }
+    },
+    [isEntryEnded],
+  )
+
+  const sendTextToSession = useCallback((sessionId: string, text: string, options?: { execute?: boolean }): TerminalSendResult => {
+    const entry = entriesRef.current.get(sessionId)
+    if (!entry) {
+      return 'missing_session'
+    }
+    if (
+      !canAcceptTerminalInput(entry) ||
+      activeSessionIdRef.current !== sessionId ||
+      !entry.transport.isLive()
+    ) {
+      return 'not_ready'
+    }
+    try {
+      const payload = options?.execute ? ensureTerminalEnter(text) : text
+      if (!entry.transport.sendInput(terminalTextEncoder.encode(payload))) {
+        completionRuntime.markUncertain(sessionId)
+        return 'not_ready'
+      }
+      completionRuntime.applyProgrammaticInput(sessionId, text, options)
+      entry.terminal.focus()
+      return 'sent'
+    } catch {
+      return 'failed'
+    }
+  }, [canAcceptTerminalInput, completionRuntime])
+
+  const sendTextToActive = useCallback(
+    (text: string, options?: { execute?: boolean }) => {
+      const activeSessionId = activeSessionIdRef.current
+      return activeSessionId ? sendTextToSession(activeSessionId, text, options) : 'missing_session'
+    },
+    [sendTextToSession],
+  )
+
+  const notifyClipboardError = useCallback(
+    (translationKey: string) => {
+      void message.error({
+        content: tRef.current(translationKey),
+        duration: 2,
+        className: 'termous-message',
+      })
+    },
+    [message],
+  )
+
+  const copyEntrySelection = useCallback(
+    async (entry: TerminalEntry): Promise<TerminalClipboardAction> => {
+      if (!entry.terminal.hasSelection()) {
+        return 'none'
+      }
+      const selectedText = entry.terminal.getSelection()
+      if (!selectedText) {
+        return 'empty'
+      }
+      try {
+        await writeClipboardText(selectedText)
+        return 'copied'
+      } catch {
+        notifyClipboardError('terminal.copyFailed')
+        return 'failed'
+      }
+    },
+    [notifyClipboardError],
+  )
+
+  const pasteEntryText = useCallback((entry: TerminalEntry, text: string) => {
+    if (!canAcceptTerminalInput(entry)) {
+      return false
+    }
+    completionRuntime.applyPaste(entry.sessionId, text)
+    entry.suppressCompletionInput = true
+    try {
+      entry.terminal.paste(text)
+    } catch {
+      completionRuntime.markUncertain(entry.sessionId)
+      throw new Error('terminal paste failed')
+    } finally {
+      queueMicrotask(() => {
+        entry.suppressCompletionInput = false
+      })
+    }
+    return true
+  }, [canAcceptTerminalInput, completionRuntime])
+
+  const pasteEntryClipboard = useCallback(
+    async (entry: TerminalEntry): Promise<TerminalClipboardAction> => {
+      if (!canAcceptTerminalInput(entry) || !entry.transport.isLive()) {
+        return 'none'
+      }
+      try {
+        const text = await readClipboardText()
+        if (!text) {
+          return 'empty'
+        }
+        const viewport = getViewportForSession(entry.sessionId)
+        if (
+          entry.disposed
+          || entriesRef.current.get(entry.sessionId) !== entry
+          || !canAcceptTerminalInput(entry)
+          || !entry.transport.isLive()
+          || activeSessionIdRef.current !== entry.sessionId
+          || !viewport?.active
+          || !viewport.host?.isConnected
+        ) {
+          return 'none'
+        }
+        if (!pasteEntryText(entry, text)) {
+          return 'none'
+        }
+        entry.terminal.focus()
+        return 'pasted'
+      } catch {
+        notifyClipboardError('terminal.pasteFailed')
+        return 'failed'
+      }
+    },
+    [canAcceptTerminalInput, getViewportForSession, notifyClipboardError, pasteEntryText],
+  )
+
+  const pasteSessionClipboard = useCallback(
+    async (sessionId: string) => {
+      const entry = getEntry(sessionId)
+      return entry ? pasteEntryClipboard(entry) : 'none'
+    },
+    [getEntry, pasteEntryClipboard],
+  )
+
+  const copyText = useCallback(
+    async (text: string): Promise<TerminalClipboardAction> => {
+      if (!text) {
+        return 'empty'
+      }
+      try {
+        await writeClipboardText(text)
+        return 'copied'
+      } catch {
+        notifyClipboardError('terminal.copyFailed')
+        return 'failed'
+      }
+    },
+    [notifyClipboardError],
+  )
+
+  const captureSessionContext = useCallback(
+    (
+      sessionId: string,
+      pointer?: TerminalContextPointer,
+    ): TerminalContextSnapshot | null => {
+      const entry = getEntry(sessionId)
+      if (!entry || entry.disposed) {
+        return null
+      }
+      const session = sessionsRef.current.get(sessionId)
+      const selectionText = entry.terminal.hasSelection()
+        ? entry.terminal.getSelection()
+        : ''
+      const selectionTarget = selectionText
+        ? classifyTerminalContextValue(selectionText, 'selection')
+        : null
+      const target = selectionTarget ?? (
+        selectionText || !pointer
+          ? null
+          : captureTerminalPointerTarget(entry.terminal, pointer)
+      )
+      const writable = Boolean(
+        session?.status === 'connected' && entry.transport.isLive(),
+      )
+      const disconnected = Boolean(
+        isEndedSessionStatus(session?.status)
+        || entry.transportState === 'attach_failed'
+        || entry.transportState === 'ended',
+      )
+      return {
+        sessionId,
+        selectionText,
+        searchSeed: normalizeTerminalSearchSeed(selectionText),
+        target,
+        mouseTrackingMode: entry.terminal.modes.mouseTrackingMode,
+        writable: writable && !entry.inputLock.locked,
+        disconnected,
+      }
+    },
+    [getEntry],
+  )
+
+  const searchActive = useCallback(
+    (
+      term: string,
+      options: TerminalSearchOptions,
+      direction: TerminalSearchDirection,
+      sessionId?: string,
+    ): TerminalSearchResult => {
+      const entry = getEntry(sessionId)
+      if (!entry || !term) {
+        return createEmptyTerminalSearchResult()
+      }
+      return runEntrySearch(entry, term, options, direction, terminalSettingsRef.current, themeRef.current)
+    },
+    [getEntry],
+  )
+
+  const clearActiveSearch = useCallback((sessionId?: string) => {
+    const entry = getEntry(sessionId)
+    if (!entry) {
+      return
+    }
+    entry.search.clearDecorations()
+    entry.terminal.clearSelection()
+    entry.searchResult = createEmptyTerminalSearchResult()
+    entry.searchDecorationKey = ''
+  }, [getEntry])
+
+  useEffect(() => {
+    const nextSettings = normalizeTerminalSettings(terminalSettings)
+    const previousSettings = terminalSettingsRef.current
+    terminalSettingsRef.current = nextSettings
+    const shouldResize = shouldFitAfterSettingsChange(previousSettings, nextSettings)
+    const fonts = terminalFontsRef.current
+    syncImportedFontFaces(apiRef.current, fonts)
+    syncTerminalCssVariables(nextSettings, themeRef.current, fonts)
+    entriesRef.current.forEach((entry) => {
+      applyTerminalSettings(entry.terminal, nextSettings, themeRef.current, fonts)
+      if (shouldResize) {
+        fitAndResize(entry)
+      }
+    })
+    if (shouldResize) {
+      fitAfterFontLoad(nextSettings, fonts)
+    }
+  }, [fitAfterFontLoad, fitAndResize, terminalSettings])
+
+  useEffect(() => {
+    terminalFontsRef.current = terminalFonts
+    syncImportedFontFaces(apiRef.current, terminalFonts)
+    const settings = terminalSettingsRef.current
+    syncTerminalCssVariables(settings, themeRef.current, terminalFonts)
+    entriesRef.current.forEach((entry) => {
+      applyTerminalSettings(entry.terminal, settings, themeRef.current, terminalFonts)
+      fitAndResize(entry)
+    })
+    fitAfterFontLoad(settings, terminalFonts)
+  }, [fitAfterFontLoad, fitAndResize, terminalFonts])
+
+  useEffect(() => {
+    entriesRef.current.forEach((entry) => {
+      entry.terminal.options.smoothScrollDuration = terminalSmoothScrollDuration(
+        sessionsRef.current.get(entry.sessionId)?.kind,
+        sshSmoothScrollEnabled,
+      )
+    })
+  }, [sessionKindsSignature, sshSmoothScrollEnabled])
+
+  const createEntry = useCallback(
+    (sessionId: string) => {
+      const existingEntry = entriesRef.current.get(sessionId)
+      if (existingEntry) {
+        return existingEntry
+      }
+
+      const pane = document.createElement('div')
+      pane.className = styles.pane
+      pane.dataset.sessionId = sessionId
+      pane.dataset.terminalVisibility = 'inactive'
+      ;(parkingHostRef.current ?? document.body).appendChild(pane)
+
+      const fit = new FitAddon()
+      const search = new SearchAddon({ highlightLimit: 2000 })
+      const terminal = createTerminal(
+        themeRef.current,
+        terminalSettingsRef.current,
+        terminalFontsRef.current,
+        terminalSmoothScrollDuration(
+          sessionsRef.current.get(sessionId)?.kind,
+          sshSmoothScrollEnabledRef.current,
+        ),
+      )
+      terminal.loadAddon(fit)
+      terminal.loadAddon(search)
+      terminal.open(pane)
+      const helperInput = pane.querySelector('.xterm-helper-textarea')
+      if (helperInput instanceof HTMLTextAreaElement) {
+        helperInput.name = `terminal-input-${sessionId}`
+      }
+
+      const relaySessionEvent = (targetSessionId: string, patch: Partial<Session>) => {
+        const existing = sessionsRef.current.get(targetSessionId)
+        if (existing) {
+          sessionsRef.current.set(targetSessionId, { ...existing, ...patch })
+        } else if (patch.id) {
+          sessionsRef.current.set(targetSessionId, patch as Session)
+        }
+        onSessionEventRef.current?.(targetSessionId, patch)
+      }
+      const transport = new TerminalTransport({
+        url: apiRef.current.websocketUrl(`/api/v1/sessions/${sessionId}/terminal`),
+        onEvent: (event) => {
+          const currentEntry = entriesRef.current.get(sessionId)
+          if (!currentEntry || currentEntry.disposed) {
+            return
+          }
+          if (event.type === 'transport_state') {
+            completionRuntime.applyTransportState(sessionId, event.state)
+            if (event.state !== 'live') {
+              stopCompletionStatusReconciliation(sessionId)
+              currentEntry.completionPromptAnchor = null
+            }
+          } else if (event.type === 'prompt_boundary') {
+            stopCompletionStatusReconciliation(sessionId)
+            if (completionRuntime.applyPromptBoundary(sessionId, event.message)) {
+              const buffer = currentEntry.terminal.buffer.active
+              currentEntry.completionPromptAnchor = {
+                sourceGeneration: event.message.source_generation,
+                shellId: event.message.shell_id,
+                promptGeneration: event.message.prompt_generation,
+                inputEpoch: event.message.input_epoch,
+                cursorX: buffer.cursorX,
+                cursorY: buffer.cursorY,
+              }
+            }
+          } else if (event.type === 'output_gap') {
+            currentEntry.completionPromptAnchor = null
+            completionRuntime.invalidateSession(sessionId)
+          }
+          if (event.type === 'attached') {
+            applySessionInputLock(sessionId, event.message.input_lock)
+          } else if (event.type === 'input_lock') {
+            applySessionInputLock(sessionId, event.message.input_lock)
+          }
+          handleTerminalTransportEvent(
+            currentEntry,
+            event,
+            relaySessionEvent,
+            (state) => cwdRuntime.applyServerState(sessionId, state),
+            (requestError) => {
+              cwdRuntime.applyRequestError(sessionId, requestError)
+            },
+            (state) => cwdRuntime.applyTransportState(sessionId, state),
+            tRef.current('workbench.terminalOutputGap'),
+          )
+          applyEntrySessionState(currentEntry)
+          if (event.type === 'attached') {
+            startCompletionStatusReconciliation(sessionId)
+          }
+          if (
+            event.type === 'attached' &&
+            activeSessionIdRef.current === sessionId
+          ) {
+            fitAndResize(currentEntry, true)
+          }
+        },
+      })
+      const entry: TerminalEntry = {
+        sessionId,
+        terminal,
+        fit,
+        search,
+        searchResult: createEmptyTerminalSearchResult(),
+        searchDecorationKey: '',
+        transport,
+        transportState: 'idle',
+        container: pane,
+        disposables: [],
+        lastSize: { cols: 0, rows: 0 },
+        resizeFrame: null,
+        resizeTimer: null,
+        suppressCompletionInput: false,
+        inputLock: detachedInputLocksRef.current.get(sessionId) ?? { locked: false },
+        completionPromptAnchor: null,
+        disposed: false,
+      }
+      entriesRef.current.set(sessionId, entry)
+      entry.terminal.options.disableStdin = entry.inputLock.locked
+      if (entry.inputLock.locked) {
+        entry.container.dataset.terminalInputLocked = 'true'
+      }
+      const sendTerminalInput = (
+        data: string | Uint8Array,
+        trackCompletion: 'user' | 'binary' | 'none' = 'user',
+      ) => {
+        const viewport = getViewportForSession(sessionId)
+        if (
+          entry.disposed ||
+          !canAcceptTerminalInput(entry) ||
+          !entry.transport.isLive() ||
+          !viewport?.host
+        ) {
+          completionRuntime.markUncertain(sessionId)
+          return false
+        }
+        const sent = entry.transport.sendInput(
+          typeof data === 'string' ? terminalTextEncoder.encode(data) : data,
+        )
+        if (!sent) {
+          completionRuntime.markUncertain(sessionId)
+          return false
+        }
+        if (trackCompletion === 'binary') {
+          completionRuntime.applyBinaryInput(sessionId)
+        } else if (trackCompletion === 'user' && typeof data === 'string') {
+          completionRuntime.applyUserData(sessionId, data)
+        }
+        return true
+      }
+      const handleCopyEvent = (event: ClipboardEvent) => {
+        if (!terminal.hasSelection()) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        const selectedText = terminal.getSelection()
+        if (selectedText && event.clipboardData) {
+          event.clipboardData.setData('text/plain', selectedText)
+        } else {
+          void copyEntrySelection(entry)
+        }
+      }
+      const handlePasteEvent = (event: ClipboardEvent) => {
+        event.preventDefault()
+        event.stopPropagation()
+        if (!canAcceptTerminalInput(entry)) {
+          return
+        }
+        const text = event.clipboardData?.getData('text/plain')
+        if (text) {
+          pasteEntryText(entry, text)
+          terminal.focus()
+          return
+        }
+        void pasteEntryClipboard(entry)
+      }
+      pane.addEventListener('copy', handleCopyEvent, true)
+      pane.addEventListener('paste', handlePasteEvent, true)
+      const handleCompositionStart = () => {
+        completionRuntime.startComposition(sessionId)
+      }
+      const handleCompositionEnd = () => {
+        completionRuntime.endComposition(sessionId)
+      }
+      helperInput?.addEventListener('compositionstart', handleCompositionStart)
+      helperInput?.addEventListener('compositionend', handleCompositionEnd)
+      entry.disposables.push({
+        dispose: () => {
+          pane.removeEventListener('copy', handleCopyEvent, true)
+          pane.removeEventListener('paste', handlePasteEvent, true)
+          helperInput?.removeEventListener('compositionstart', handleCompositionStart)
+          helperInput?.removeEventListener('compositionend', handleCompositionEnd)
+        },
+      })
+
+      const shortcutContextId = `terminal.session:${sessionId}`
+      const disposeShortcutContext = shortcutRuntime.pushContext({
+        id: shortcutContextId,
+        layer: 'focus',
+        scopes: () => {
+          const viewport = getViewportForSession(sessionId)
+          if (
+            !viewport?.active
+            || activeSessionIdRef.current !== sessionId
+          ) {
+            return []
+          }
+          const scopes: ShortcutScope[] = []
+          if (terminal.hasSelection()) {
+            scopes.push('terminal.selection')
+          }
+          if (canAcceptTerminalInput(entry) && entry.transport.isLive()) {
+            scopes.push('terminal.writable')
+          }
+          if (
+            isCompletionInteractionActive(sessionId)
+            && completionRuntime.getSnapshot(sessionId).items.length > 0
+          ) {
+            scopes.push('terminal.completion.visible')
+          }
+          return scopes
+        },
+      })
+      const disposeShortcutHandlers = [
+        shortcutRuntime.registerHandler(
+          shortcutContextId,
+          'terminal.copy_selection',
+          () => {
+            if (!terminal.hasSelection()) return 'fallthrough'
+            void copyEntrySelection(entry)
+            return 'handled'
+          },
+        ),
+        shortcutRuntime.registerHandler(
+          shortcutContextId,
+          'terminal.paste',
+          () => {
+            if (!canAcceptTerminalInput(entry) || !entry.transport.isLive()) return 'fallthrough'
+            void pasteEntryClipboard(entry)
+            return 'handled'
+          },
+        ),
+        shortcutRuntime.registerHandler(
+          shortcutContextId,
+          'terminal.completion.previous',
+          () => completionRuntime.moveSelection(sessionId, -1) ? 'handled' : 'fallthrough',
+        ),
+        shortcutRuntime.registerHandler(
+          shortcutContextId,
+          'terminal.completion.next',
+          () => completionRuntime.moveSelection(sessionId, 1) ? 'handled' : 'fallthrough',
+        ),
+        shortcutRuntime.registerHandler(
+          shortcutContextId,
+          'terminal.completion.accept',
+          (event) => {
+            const acceptance = completionRuntime.acceptSelection(sessionId)
+            if (!acceptance) {
+              completionRuntime.closeSuggestions(sessionId)
+              return 'handled'
+            }
+            if (acceptance.exact) {
+              return isPlainTerminalEnter(event) ? 'fallthrough' : 'handled'
+            }
+            if (acceptance.text.length > 0) {
+              sendTerminalInput(acceptance.text, 'none')
+            }
+            return 'handled'
+          },
+        ),
+      ]
+      entry.disposables.push({
+        dispose: () => {
+          disposeShortcutHandlers.reverse().forEach((dispose) => dispose())
+          disposeShortcutContext()
+        },
+      })
+
+      terminal.attachCustomKeyEventHandler((event) => {
+        if (event.type === 'keydown' && isCompletionInteractionActive(sessionId)) {
+          if (event.key === 'Escape') {
+            event.preventDefault()
+            event.stopPropagation()
+            completionRuntime.closeSuggestions(sessionId)
+            return false
+          }
+          if (event.key === 'Tab') {
+            completionRuntime.closeSuggestions(sessionId)
+            return true
+          }
+        }
+        const result = shortcutRuntime.dispatch(event, {
+          adapterId: `xterm:${sessionId}`,
+          editable: false,
+        })
+        if (result.result === 'handled' || result.result === 'blocked') {
+          event.preventDefault()
+          event.stopPropagation()
+          return false
+        }
+        return true
+      })
+
+      entry.disposables.push(
+        terminal.onData((data) => {
+          const trackCompletion = entry.suppressCompletionInput ? 'none' : 'user'
+          sendTerminalInput(data, trackCompletion)
+        }),
+        terminal.onBinary((data) => {
+          sendTerminalInput(binaryStringToBytes(data), 'binary')
+        }),
+        terminal.buffer.onBufferChange((buffer) => {
+          if (buffer.type === 'alternate') {
+            entry.completionPromptAnchor = null
+          }
+          completionRuntime.setAlternateScreen(sessionId, buffer.type === 'alternate')
+          emitCompletionLayout(sessionId)
+        }),
+        terminal.onWriteParsed(() => {
+          const completion = completionRuntime.getSnapshot(sessionId)
+          const anchor = entry.completionPromptAnchor
+          const buffer = terminal.buffer.active
+          if (
+            anchor
+            && completion.boundary
+            && completion.input.trust === 'trusted'
+            && completion.input.line.length === 0
+            && buffer.type === 'normal'
+            && matchesCompletionPromptAnchor(anchor, completion.boundary)
+          ) {
+            anchor.cursorX = buffer.cursorX
+            anchor.cursorY = buffer.cursorY
+          }
+          emitCompletionLayout(sessionId)
+        }),
+        terminal.onResize(() => {
+          entry.completionPromptAnchor = null
+          emitCompletionLayout(sessionId)
+        }),
+        terminal.onScroll(() => {
+          emitCompletionLayout(sessionId)
+        }),
+      )
+      const unregisterCwdTransport = cwdRuntime.registerTransport(
+        sessionId,
+        (request) => {
+          if (
+            entry.disposed ||
+            !canAcceptTerminalInput(entry) ||
+            !entry.transport.isLive()
+          ) {
+            return false
+          }
+          return entry.transport.sendCwdChange(request)
+        },
+        (requestId) => {
+          if (
+            entry.disposed ||
+            !canAcceptTerminalInput(entry) ||
+            !entry.transport.isLive()
+          ) {
+            return false
+          }
+          return entry.transport.sendCwdRefresh(requestId)
+        },
+      )
+      entry.disposables.push({ dispose: unregisterCwdTransport })
+      transport.start()
+
+      return entry
+    },
+    [
+      applyEntrySessionState,
+      applySessionInputLock,
+      canAcceptTerminalInput,
+      copyEntrySelection,
+      completionRuntime,
+      cwdRuntime,
+      emitCompletionLayout,
+      fitAndResize,
+      getViewportForSession,
+      isCompletionInteractionActive,
+      pasteEntryClipboard,
+      pasteEntryText,
+      shortcutRuntime,
+      startCompletionStatusReconciliation,
+      stopCompletionStatusReconciliation,
+    ],
+  )
+
+  const moveEntryToHost = useCallback((entry: TerminalEntry, host: HTMLDivElement | null, active: boolean, visible: boolean) => {
+    const targetHost = host ?? parkingHostRef.current
+    if (targetHost && entry.container.parentElement !== targetHost) {
+      targetHost.appendChild(entry.container)
+    }
+    entry.container.dataset.terminalVisibility = !visible ? 'inactive' : active ? 'active' : 'visible'
+  }, [])
+
+  const syncViewports = useCallback(() => {
+    const visibleViewports = new Map<string, ViewportState>()
+    let activeSessionId: string | null = null
+
+    viewportsRef.current.forEach((viewport) => {
+      if (!viewport.sessionId || !viewport.host || visibleViewports.has(viewport.sessionId)) {
+        return
+      }
+      visibleViewports.set(viewport.sessionId, viewport)
+      if (viewport.active) {
+        activeSessionId = viewport.sessionId
+      }
+    })
+
+    activeSessionIdRef.current = activeSessionId ?? visibleViewports.values().next().value?.sessionId ?? null
+
+    entriesRef.current.forEach((entry) => {
+      const viewport = visibleViewports.get(entry.sessionId)
+      moveEntryToHost(entry, viewport?.host ?? null, entry.sessionId === activeSessionIdRef.current, Boolean(viewport?.host))
+    })
+
+    visibleViewports.forEach((viewport, sessionId) => {
+      const entry = entriesRef.current.get(sessionId) ?? createEntry(sessionId)
+      moveEntryToHost(entry, viewport.host, sessionId === activeSessionIdRef.current, true)
+      fitAndResize(entry, sessionId === activeSessionIdRef.current && !isEndedSessionStatus(sessionsRef.current.get(sessionId)?.status))
+    })
+  }, [createEntry, fitAndResize, moveEntryToHost])
+
+  const registerViewport = useCallback(
+    ({ viewportId = 'default', sessionId, host, active = true, onResize }: TerminalViewportOptions) => {
+      const previous = viewportsRef.current.get(viewportId)
+      viewportsRef.current.set(viewportId, {
+        viewportId,
+        sessionId,
+        host,
+        active,
+        completionActive: previous?.sessionId === sessionId
+          ? previous.completionActive
+          : false,
+        completionVisible: previous?.sessionId === sessionId
+          ? previous.completionVisible
+          : false,
+        onResize,
+      })
+      syncViewports()
+      return () => {
+        const current = viewportsRef.current.get(viewportId)
+        if (current?.host === host) {
+          viewportsRef.current.delete(viewportId)
+          if (current.sessionId) {
+            completionRuntime.closeSuggestions(current.sessionId)
+          }
+          syncViewports()
+        }
+      }
+    },
+    [completionRuntime, syncViewports],
+  )
+
+  const focusActive = useCallback(() => {
+    const activeSessionId = activeSessionIdRef.current
+    if (!activeSessionId) {
+      return
+    }
+    const entry = entriesRef.current.get(activeSessionId)
+    if (!entry || isEntryEnded(entry)) {
+      return
+    }
+    entry.terminal.focus()
+  }, [isEntryEnded])
+
+  const focusSession = useCallback((sessionId: string) => {
+    const entry = entriesRef.current.get(sessionId)
+    const viewport = getViewportForSession(sessionId)
+    if (
+      !entry
+      || entry.disposed
+      || !viewport?.active
+      || !viewport.host?.isConnected
+    ) {
+      return false
+    }
+    entry.terminal.focus()
+    return true
+  }, [getViewportForSession])
+
+  const subscribeSessionCompletion = useCallback((sessionId: string, listener: () => void) => (
+    completionRuntime.subscribe(sessionId, listener)
+  ), [completionRuntime])
+
+  const getSessionCompletionSnapshot = useCallback((sessionId: string) => (
+    completionRuntime.getSnapshot(sessionId)
+  ), [completionRuntime])
+
+  const moveSessionCompletionSelection = useCallback((sessionId: string, delta: number) => {
+    if (!isCompletionInteractionActive(sessionId)) {
+      return false
+    }
+    return completionRuntime.moveSelection(sessionId, delta)
+  }, [completionRuntime, isCompletionInteractionActive])
+
+  const selectSessionCompletion = useCallback((sessionId: string, index: number) => {
+    if (!isCompletionInteractionActive(sessionId)) {
+      return false
+    }
+    return completionRuntime.selectIndex(sessionId, index)
+  }, [completionRuntime, isCompletionInteractionActive])
+
+  const acceptSessionCompletion = useCallback((
+    sessionId: string,
+    expected?: TerminalCompletionExpectedSelection,
+  ) => {
+    const entry = entriesRef.current.get(sessionId)
+    if (
+      !entry
+      || entry.disposed
+      || !canAcceptTerminalInput(entry)
+      || !entry.transport.isLive()
+      || !isCompletionInteractionActive(sessionId)
+    ) {
+      return false
+    }
+    const acceptance = completionRuntime.acceptSelection(sessionId, expected)
+    if (!acceptance) {
+      return false
+    }
+    if (
+      acceptance.text.length > 0
+      && !entry.transport.sendInput(terminalTextEncoder.encode(acceptance.text))
+    ) {
+      completionRuntime.markUncertain(sessionId)
+      return false
+    }
+    entry.terminal.focus()
+    return true
+  }, [canAcceptTerminalInput, completionRuntime, isCompletionInteractionActive])
+
+  const closeSessionCompletion = useCallback((sessionId: string) => {
+    completionRuntime.closeSuggestions(sessionId)
+  }, [completionRuntime])
+
+  const selectSessionContextRange = useCallback((
+    sessionId: string,
+    range: TerminalContextSelectionRange,
+    expectedText: string,
+  ) => {
+    const entry = entriesRef.current.get(sessionId)
+    if (
+      !entry
+      || entry.disposed
+      || range.column < 0
+      || range.row < 0
+      || range.length <= 0
+    ) {
+      return false
+    }
+    try {
+      entry.terminal.select(range.column, range.row, range.length)
+      if (entry.terminal.getSelection() !== expectedText) {
+        entry.terminal.clearSelection()
+        return false
+      }
+      return true
+    } catch {
+      entry.terminal.clearSelection()
+      return false
+    }
+  }, [])
+
+  const clearSessionContextSelection = useCallback((sessionId: string) => {
+    const entry = entriesRef.current.get(sessionId)
+    if (
+      !entry
+      || entry.disposed
+      || !entry.terminal.hasSelection()
+    ) {
+      return false
+    }
+    entry.terminal.clearSelection()
+    return true
+  }, [])
+
+  const selectAllSession = useCallback((sessionId: string) => {
+    const entry = entriesRef.current.get(sessionId)
+    const viewport = getViewportForSession(sessionId)
+    if (
+      !entry
+      || entry.disposed
+      || !viewport?.active
+      || !viewport.host?.isConnected
+    ) {
+      return false
+    }
+    entry.terminal.selectAll()
+    return true
+  }, [getViewportForSession])
+
+  const scheduleSessionResize = useCallback((sessionId: string) => {
+    const viewport = getViewportForSession(sessionId)
+    if (!viewport?.host) {
+      return
+    }
+    const entry = entriesRef.current.get(sessionId)
+    if (!entry || entry.disposed) {
+      return
+    }
+
+    // 拖动热路径只更新布局，避免分屏中的多个 xterm 每帧重复测量与重绘。
+    const bottomDrawerResizing = document.body.dataset.termousBottomDrawerResizing === 'true'
+    if (!bottomDrawerResizing && entry.resizeFrame === null) {
+      entry.resizeFrame = window.requestAnimationFrame(() => {
+        entry.resizeFrame = null
+        fitEntryViewport(entry)
+      })
+    }
+
+    if (entry.resizeTimer !== null) {
+      window.clearTimeout(entry.resizeTimer)
+    }
+    const finishResize = () => {
+      entry.resizeTimer = null
+      if (entry.disposed) {
+        return
+      }
+      if (document.body.dataset.termousBottomDrawerResizing === 'true') {
+        entry.resizeTimer = window.setTimeout(finishResize, 120)
+        return
+      }
+      if (entry.resizeFrame !== null) {
+        window.cancelAnimationFrame(entry.resizeFrame)
+      }
+      entry.resizeFrame = window.requestAnimationFrame(() => {
+        entry.resizeFrame = null
+        if (!fitEntryViewport(entry)) {
+          return
+        }
+        sendResize(entry)
+      })
+    }
+    entry.resizeTimer = window.setTimeout(finishResize, 120)
+  }, [fitEntryViewport, getViewportForSession, sendResize])
+
+  const scheduleActiveResize = useCallback(() => {
+    const activeSessionId = activeSessionIdRef.current
+    if (!activeSessionId) {
+      return
+    }
+    scheduleSessionResize(activeSessionId)
+  }, [scheduleSessionResize])
+
+  useEffect(() => {
+    const allowedSessionIds = new Set(sessions.map((session) => session.id))
+    Array.from(entriesRef.current.values()).forEach((entry) => {
+      if (!allowedSessionIds.has(entry.sessionId)) {
+        disposeEntry(entry)
+        return
+      }
+      applyEntrySessionState(entry)
+    })
+    for (const sessionId of detachedInputLocksRef.current.keys()) {
+      if (!allowedSessionIds.has(sessionId)) {
+        detachedInputLocksRef.current.delete(sessionId)
+        inputLockListenersRef.current.delete(sessionId)
+      }
+    }
+    cwdRuntime.retainSessions(allowedSessionIds)
+    syncViewports()
+  }, [applyEntrySessionState, cwdRuntime, disposeEntry, sessions, syncViewports])
+
+  useEffect(() => {
+    const completionLayoutListeners = completionLayoutListenersRef.current
+    const inputLockListeners = inputLockListenersRef.current
+    const detachedInputLocks = detachedInputLocksRef.current
+    return () => {
+      stopAllCompletionStatusReconciliations()
+      disposeAll()
+      cwdRuntime.dispose()
+      completionRuntime.clear()
+      completionLayoutListeners.clear()
+      inputLockListeners.clear()
+      detachedInputLocks.clear()
+    }
+  }, [api, completionRuntime, cwdRuntime, disposeAll, stopAllCompletionStatusReconciliations])
+
+  const value = useMemo<TerminalRuntimeContextValue>(
+    () => ({
+      registerViewport,
+      focusActive,
+      resizeActive: scheduleActiveResize,
+      resizeSession: scheduleSessionResize,
+      disposeSession,
+      disposeAll,
+      searchActive,
+      clearActiveSearch,
+      captureSessionContext,
+      pasteSessionClipboard,
+      copyText,
+      selectSessionContextRange,
+      clearSessionContextSelection,
+      selectAllSession,
+      focusSession,
+      sendTextToSession,
+      sendTextToActive,
+      subscribeSessionInputLock,
+      getSessionInputLockSnapshot,
+      subscribeSessionCompletion,
+      getSessionCompletionSnapshot,
+      subscribeSessionCompletionLayout,
+      captureSessionCompletionCursor,
+      setViewportCompletionActive,
+      setViewportCompletionVisible,
+      moveSessionCompletionSelection,
+      selectSessionCompletion,
+      acceptSessionCompletion,
+      retrySessionCompletion,
+      closeSessionCompletion,
+    }),
+    [
+      acceptSessionCompletion,
+      clearActiveSearch,
+      clearSessionContextSelection,
+      closeSessionCompletion,
+      captureSessionContext,
+      captureSessionCompletionCursor,
+      copyText,
+      disposeAll,
+      disposeSession,
+      focusActive,
+      focusSession,
+      getSessionInputLockSnapshot,
+      getSessionCompletionSnapshot,
+      moveSessionCompletionSelection,
+      pasteSessionClipboard,
+      registerViewport,
+      retrySessionCompletion,
+      scheduleActiveResize,
+      scheduleSessionResize,
+      searchActive,
+      selectSessionCompletion,
+      selectSessionContextRange,
+      selectAllSession,
+      sendTextToActive,
+      sendTextToSession,
+      subscribeSessionInputLock,
+      setViewportCompletionActive,
+      setViewportCompletionVisible,
+      subscribeSessionCompletion,
+      subscribeSessionCompletionLayout,
+    ],
+  )
+
+  return (
+    <TerminalCwdRuntimeProvider runtime={cwdRuntime}>
+      <TerminalRuntimeContext.Provider value={value}>
+        {children}
+        <div className={styles.parking} ref={parkingHostRef} aria-hidden="true" />
+      </TerminalRuntimeContext.Provider>
+    </TerminalCwdRuntimeProvider>
+  )
+}
+
+function matchesCompletionPromptAnchor(
+  anchor: CompletionPromptAnchor,
+  boundary: TerminalPromptBoundary,
+) {
+  return (
+    anchor.sourceGeneration === boundary.source_generation
+    && anchor.shellId === boundary.shell_id
+    && anchor.promptGeneration === boundary.prompt_generation
+    && anchor.inputEpoch === boundary.input_epoch
+  )
+}
+
+function isPlainTerminalEnter(event: ShortcutKeyboardEventLike) {
+  return event.code === 'Enter'
+    && !event.ctrlKey
+    && !event.altKey
+    && !event.shiftKey
+    && !event.metaKey
+}
+
+function createTerminal(
+  theme: ThemeMode,
+  settings: TerminalSettings = defaultTerminalSettings,
+  fonts: TerminalFont[] = [],
+  smoothScrollDuration = 0,
+) {
+  const normalizedSettings = normalizeTerminalSettings(settings)
+  return new Terminal({
+    allowProposedApi: true,
+    cursorBlink: normalizedSettings.cursor_blink,
+    cursorStyle: normalizedSettings.cursor_style,
+    fontFamily: fontFamilyFromSetting(normalizedSettings.font_family, fonts),
+    fontSize: normalizedSettings.font_size,
+    letterSpacing: normalizedSettings.letter_spacing,
+    lineHeight: normalizedSettings.line_height,
+    scrollback: normalizedSettings.scrollback,
+    smoothScrollDuration,
+    theme: terminalTheme(normalizedSettings, theme),
+  })
+}
+
+function applyTerminalSettings(terminal: Terminal, settings: TerminalSettings, appTheme: ThemeMode, fonts: TerminalFont[] = []) {
+  const normalizedSettings = normalizeTerminalSettings(settings)
+  terminal.options.cursorBlink = normalizedSettings.cursor_blink
+  terminal.options.cursorStyle = normalizedSettings.cursor_style
+  terminal.options.fontFamily = fontFamilyFromSetting(normalizedSettings.font_family, fonts)
+  terminal.options.fontSize = normalizedSettings.font_size
+  terminal.options.letterSpacing = normalizedSettings.letter_spacing
+  terminal.options.lineHeight = normalizedSettings.line_height
+  terminal.options.scrollback = normalizedSettings.scrollback
+  terminal.options.theme = terminalTheme(normalizedSettings, appTheme)
+}
+
+function syncTerminalCssVariables(settings: TerminalSettings, appTheme: ThemeMode, fonts: TerminalFont[] = []) {
+  const normalizedSettings = normalizeTerminalSettings(settings)
+  const theme = terminalTheme(normalizedSettings, appTheme)
+  const root = document.documentElement
+  root.style.setProperty('--terminal-font-family', fontFamilyFromSetting(normalizedSettings.font_family, fonts))
+  root.style.setProperty('--terminal-font-size', `${normalizedSettings.font_size}px`)
+  root.style.setProperty('--terminal-line-height', String(normalizedSettings.line_height))
+  root.style.setProperty('--terminal-letter-spacing', `${normalizedSettings.letter_spacing}px`)
+  root.style.setProperty('--terminal-bg', theme.background ?? '#080a0f')
+  root.style.setProperty('--terminal-fg', theme.foreground ?? '#e6ebf4')
+  root.style.setProperty('--terminal-cursor', theme.cursor ?? '#61a8ff')
+  root.style.setProperty('--terminal-selection-bg', theme.selectionBackground ?? '#24476d')
+}
+
+function handleTerminalTransportEvent(
+  entry: TerminalEntry,
+  event: TerminalTransportEvent,
+  onSessionEvent: TerminalRuntimeProviderProps['onSessionEvent'],
+  onCwdState: (state: SessionCwdState) => void,
+  onCwdError: (error: SessionCwdRequestError) => void,
+  onTransportState: (state: TerminalTransportState) => void,
+  outputGapMessage: string,
+) {
+  switch (event.type) {
+    case 'transport_state': {
+      entry.transportState = event.state
+      onTransportState(event.state)
+      entry.container.dataset.transportState = event.state
+      const reconnecting = event.state === 'connecting'
+        || event.state === 'attaching'
+        || event.state === 'retry_wait'
+      if (reconnecting) {
+        entry.container.dataset.terminalTransportReconnecting = 'true'
+      } else {
+        delete entry.container.dataset.terminalTransportReconnecting
+      }
+      return
+    }
+    case 'attached':
+      delete entry.container.dataset.transportError
+      onSessionEvent?.(entry.sessionId, event.message.session)
+      onCwdState(event.message.cwd_state)
+      return
+    case 'output':
+      entry.terminal.write(event.data)
+      return
+    case 'output_gap':
+      entry.container.dataset.outputGapReason = event.reason
+      entry.container.dataset.outputGapMessage = outputGapMessage
+      return
+    case 'session_state':
+      onSessionEvent?.(entry.sessionId, event.message.session)
+      return
+    case 'cwd_state':
+      onCwdState(event.message.cwd_state)
+      return
+    case 'prompt_boundary':
+    case 'input_lock':
+      return
+    case 'request_error':
+      entry.container.dataset.transportError = event.code
+      if (
+        (event.scope === 'cwd_change' || event.scope === 'cwd_refresh')
+        && event.requestId
+      ) {
+        onCwdError({
+          scope: event.scope,
+          request_id: event.requestId,
+          code: event.code,
+          retryable: event.retryable,
+          message: event.message,
+        })
+      }
+      return
+    case 'session_ended': {
+      const patch: Partial<Session> = {
+        ...event.message.session,
+        status_message:
+          event.message.session.status_message || event.message.reason,
+      }
+      if (event.message.exit_code !== undefined) {
+        patch.exit_code = event.message.exit_code
+      }
+      onSessionEvent?.(entry.sessionId, patch)
+      return
+    }
+    case 'protocol_error':
+      entry.container.dataset.transportError = event.error.message
+      return
+  }
+}
+
+function runEntrySearch(
+  entry: TerminalEntry,
+  term: string,
+  options: TerminalSearchOptions,
+  direction: TerminalSearchDirection,
+  settings: TerminalSettings,
+  appTheme: ThemeMode,
+): TerminalSearchResult {
+  if (options.regex && !isValidTerminalSearchRegex(term, options.caseSensitive)) {
+    resetEntrySearch(entry)
+    return { ...createEmptyTerminalSearchResult(), error: 'invalid_regex' }
+  }
+
+  const decorationKey = terminalSearchDecorationKey(settings, appTheme)
+  const searchOptions = {
+    caseSensitive: options.caseSensitive,
+    regex: options.regex,
+    decorations: terminalSearchDecorations(settings, appTheme),
+  }
+  if (entry.searchDecorationKey && entry.searchDecorationKey !== decorationKey) {
+    resetEntrySearch(entry)
+  }
+
+  let nextResult: TerminalSearchResult | null = null
+  const disposable = entry.search.onDidChangeResults((event) => {
+    nextResult = normalizeTerminalSearchEventResult(event.resultIndex, event.resultCount)
+  })
+
+  try {
+    const found = direction === 'previous'
+      ? entry.search.findPrevious(term, searchOptions)
+      : entry.search.findNext(term, searchOptions)
+    entry.searchDecorationKey = decorationKey
+    entry.searchResult = found
+      ? nextResult ?? {
+        found: true,
+        resultIndex: Math.max(entry.searchResult.resultIndex, 0),
+        resultCount: Math.max(entry.searchResult.resultCount, 1),
+      }
+      : createEmptyTerminalSearchResult()
+    return entry.searchResult
+  } catch {
+    resetEntrySearch(entry)
+    return createEmptyTerminalSearchResult()
+  } finally {
+    disposable.dispose()
+  }
+}
+
+function resetEntrySearch(entry: TerminalEntry) {
+  entry.search.clearDecorations()
+  entry.terminal.clearSelection()
+  entry.searchResult = createEmptyTerminalSearchResult()
+  entry.searchDecorationKey = ''
+}
+
+function terminalSearchDecorationKey(settings: TerminalSettings, appTheme: ThemeMode) {
+  return settings.theme_mode === 'follow_app' ? appTheme : settings.theme_mode
+}
+
+function terminalSearchDecorations(settings: TerminalSettings, appTheme: ThemeMode) {
+  const theme = terminalSearchDecorationKey(settings, appTheme)
+  if (theme === 'light') {
+    return {
+      matchBackground: '#f6dfa2',
+      matchBorder: '#d6b461',
+      matchOverviewRuler: '#c79836',
+      activeMatchBackground: '#e8b23d',
+      activeMatchBorder: '#ad7415',
+      activeMatchColorOverviewRuler: '#ad7415',
+    }
+  }
+  return {
+    matchBackground: '#4a3b1e',
+    matchBorder: '#806836',
+    matchOverviewRuler: '#b9842d',
+    activeMatchBackground: '#d9a441',
+    activeMatchBorder: '#f2cc72',
+    activeMatchColorOverviewRuler: '#f2cc72',
+  }
+}
+
+function isEndedSessionStatus(status?: SessionStatus) {
+  return status === 'disconnected' || status === 'failed'
+}

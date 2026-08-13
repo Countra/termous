@@ -1,0 +1,33 @@
+.root {
+  position: static;
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  gap: 8px;
+  border: 1px dashed color-mix(in srgb, var(--border) 75%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-subtle) 42%, transparent);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.card {
+  display: grid;
+  width: 100%;
+  gap: 12px;
+  padding: 18px;
+}
+
+.card > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+:root[data-theme="light"] .root {
+  background: rgb(248 250 253 / 68%);
+}

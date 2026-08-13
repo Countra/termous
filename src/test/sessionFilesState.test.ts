@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type {
   RemoteDirectoryListing,
-  SessionCwdState,
-} from '../types/domain.ts'
+} from '#entities/file'
+import type { SessionCwdState } from '#entities/session'
 import {
   adoptSessionFilesCwdRefreshPending,
   applySessionFilesCwdRefreshDispatch,
@@ -47,7 +47,7 @@ import {
   updateMatchingSessionFilesCwdRefresh,
   updateSessionFilesViewState,
   type SessionFilesViewStateMap,
-} from '../features/workbench/sessionFilesState.ts'
+} from '../features/workbench-files/model/sessionFilesState.ts'
 
 function listing(path: string): RemoteDirectoryListing {
   return {

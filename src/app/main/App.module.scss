@@ -1,0 +1,112 @@
+/* 应用根层样式仅覆盖主界面的 keep-alive 容器与致命错误弹层。 */
+
+.app-keepalive-page,
+.is-active {
+  display: contents;
+}
+
+.app-keepalive-page.is-hidden {
+  display: none;
+}
+
+.core-fatal-modal :global(.ant-modal-content) {
+  --ant-modal-content-bg: var(--surface-strong);
+
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--danger) 26%, var(--border-strong));
+  border-radius: 16px;
+  background: var(--surface-strong);
+  box-shadow:
+    0 28px 72px rgb(0 0 0 / 38%),
+    inset 0 1px 0 rgb(255 255 255 / 7%);
+  padding: 0;
+
+  :global(:root[data-theme="light"]) & {
+    box-shadow:
+      0 24px 58px rgb(30 44 64 / 18%),
+      inset 0 1px 0 rgb(255 255 255 / 82%);
+  }
+}
+
+.core-fatal-dialog {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px 14px;
+  padding: 22px;
+}
+
+.core-fatal-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--danger) 9%, var(--surface-subtle));
+  color: var(--danger);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
+}
+
+.core-fatal-copy {
+  min-width: 0;
+}
+
+.core-fatal-copy h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 1.3;
+}
+
+.core-fatal-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.core-fatal-exit-button:global(.ant-btn) {
+  min-width: 118px;
+  height: 38px;
+  min-height: 38px;
+  border: 1px solid color-mix(in srgb, var(--danger) 74%, var(--border-strong));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 76%, #6f2930 24%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 740;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 13%),
+    0 6px 16px color-mix(in srgb, var(--danger) 18%, transparent);
+  transform: none;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    color 0.16s ease;
+}
+
+.core-fatal-exit-button:global(.ant-btn):not(:disabled):hover,
+.core-fatal-exit-button:global(.ant-btn):not(:disabled):focus-visible {
+  border-color: color-mix(in srgb, var(--danger) 88%, #fff 12%);
+  background: color-mix(in srgb, var(--danger) 84%, #8b3037 16%);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 16%),
+    0 7px 18px color-mix(in srgb, var(--danger) 24%, transparent);
+  transform: none;
+}
+
+.core-fatal-exit-button:global(.ant-btn):not(:disabled):active {
+  background: color-mix(in srgb, var(--danger) 72%, #552027 28%);
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / 18%);
+  transform: none;
+}
+
+.core-fatal-exit-button:global(.ant-btn):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  outline-offset: 3px;
+}

@@ -8,11 +8,11 @@ const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 test('高频端口转发指标使用无 React 状态的顶层详情浮层', () => {
   const source = readFileSync(
-    join(sourceRoot, 'features', 'forwards', 'ForwardRuntimeMetrics.tsx'),
+    join(sourceRoot, 'features', 'forwards', 'ui', 'ForwardRuntimeMetrics.tsx'),
     'utf8',
   )
   const styles = readFileSync(
-    join(sourceRoot, 'features', 'forwards', 'forwarding.css'),
+    join(sourceRoot, 'features', 'forwards', 'ui', 'ForwardManagement.module.scss'),
     'utf8',
   )
 
@@ -33,15 +33,15 @@ test('高频端口转发指标使用无 React 状态的顶层详情浮层', () =
 
 test('隐藏的工作台转发面板会停用实时速度采样', () => {
   const workbench = readFileSync(
-    join(sourceRoot, 'features', 'workbench', 'WorkbenchPage.tsx'),
+    join(sourceRoot, 'widgets', 'workbench', 'ui', 'WorkbenchPage.tsx'),
     'utf8',
   )
   const sessionPanel = readFileSync(
-    join(sourceRoot, 'features', 'forwards', 'ForwardSessionPanel.tsx'),
+    join(sourceRoot, 'features', 'forwards', 'ui', 'ForwardSessionPanel.tsx'),
     'utf8',
   )
   const hook = readFileSync(
-    join(sourceRoot, 'features', 'forwards', 'useForwardThroughput.ts'),
+    join(sourceRoot, 'features', 'forwards', 'model', 'useForwardThroughput.ts'),
     'utf8',
   )
 

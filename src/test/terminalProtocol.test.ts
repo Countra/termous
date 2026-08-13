@@ -7,9 +7,10 @@ import {
   encodeTerminalCwdChange,
   encodeTerminalCwdRefresh,
   encodeTerminalHeartbeatAck,
+  encodeTerminalResize,
   parseTerminalStreamOffset,
   TerminalProtocolError,
-} from '../features/terminal/terminalProtocol.ts'
+} from '../features/terminal/model/terminalProtocol.ts'
 
 const epoch = '00112233445566778899aabbccddeeff'
 
@@ -23,6 +24,22 @@ test('attach 使用服务端流游标恢复且空游标不携带伪字段', () =
     stream_epoch: epoch,
     last_offset: '42',
   })
+})
+
+test('终端尺寸只编码正安全整数', () => {
+  assert.deepEqual(JSON.parse(encodeTerminalResize(120, 36)), {
+    type: 'resize',
+    cols: 120,
+    rows: 36,
+  })
+  for (const [cols, rows] of [
+    [0, 36],
+    [-1, 36],
+    [120, 0],
+    [Number.MAX_SAFE_INTEGER + 1, 36],
+  ]) {
+    assert.throws(() => encodeTerminalResize(cols, rows), TerminalProtocolError)
+  }
 })
 
 test('CWD 请求只编码 operation id、base revision、文件会话和路径', () => {
@@ -82,6 +99,84 @@ test('服务端心跳由客户端使用 heartbeat ack 原样确认', () => {
   )
 })
 
+test('可信提示符边界保留补全所需的全部代际信息', () => {
+  const message = decodeTerminalControlMessage(JSON.stringify({
+    type: 'prompt_boundary',
+    source_generation: 3,
+    shell_id: 'shell-zsh-1',
+    prompt_generation: 12,
+    shell: 'zsh',
+    cwd: '/srv/应用',
+    input_epoch: 21,
+  }))
+
+  assert.deepEqual(message, {
+    type: 'prompt_boundary',
+    source_generation: 3,
+    shell_id: 'shell-zsh-1',
+    prompt_generation: 12,
+    shell: 'zsh',
+    cwd: '/srv/应用',
+    input_epoch: 21,
+  })
+})
+
+test('可信提示符边界接受首个输入代际零值', () => {
+  const message = decodeTerminalControlMessage(JSON.stringify({
+    type: 'prompt_boundary',
+    source_generation: 1,
+    shell_id: 'shell-bash-1',
+    prompt_generation: 1,
+    shell: 'bash',
+    cwd: '/root',
+    input_epoch: 0,
+  }))
+
+  assert.equal(message.type, 'prompt_boundary')
+  if (message.type !== 'prompt_boundary') {
+    assert.fail('首个提示符边界应保持可信消息类型')
+  }
+  assert.equal(message.input_epoch, 0)
+})
+
+test('可信提示符边界保留命令退出码', () => {
+  const message = decodeTerminalControlMessage(JSON.stringify({
+    type: 'prompt_boundary',
+    source_generation: 2,
+    shell_id: 'shell-bash-1',
+    prompt_generation: 9,
+    shell: 'bash',
+    cwd: '/root',
+    input_epoch: 8,
+    exit_code: 127,
+  }))
+  assert.equal(message.type, 'prompt_boundary')
+  if (message.type !== 'prompt_boundary') {
+    assert.fail('提示符边界应保持可信消息类型')
+  }
+  assert.equal(message.exit_code, 127)
+})
+
+test('提示符边界拒绝缺失字段和负代际', () => {
+  assert.throws(() => decodeTerminalControlMessage(JSON.stringify({
+    type: 'prompt_boundary',
+    source_generation: -1,
+    shell_id: 'shell-bash-1',
+    prompt_generation: 1,
+    shell: 'bash',
+    cwd: '/root',
+    input_epoch: 0,
+  })), TerminalProtocolError)
+  assert.throws(() => decodeTerminalControlMessage(JSON.stringify({
+    type: 'prompt_boundary',
+    source_generation: 1,
+    prompt_generation: 1,
+    shell: 'bash',
+    cwd: '/root',
+    input_epoch: 0,
+  })), TerminalProtocolError)
+})
+
 test('attached 统一解码会话、CWD 与流快照', () => {
   const message = decodeTerminalControlMessage(JSON.stringify({
     type: 'attached',
@@ -102,6 +197,68 @@ test('attached 统一解码会话、CWD 与流快照', () => {
   assert.equal(message.cwd_state.state_seq, 3)
   assert.equal(message.cwd_state.refresh_seq, 0)
   assert.equal(message.stream.resume_offset, '20')
+  assert.equal(message.input_lock, undefined)
+})
+
+test('attached 和增量事件接受权威输入锁，旧协议缺失时保持未锁定兼容', () => {
+  const attached = decodeTerminalControlMessage(JSON.stringify({
+    type: 'attached',
+    session: { id: 'session-1', status: 'connected' },
+    cwd_state: { state_seq: 3 },
+    stream: {
+      epoch,
+      oldest_offset: '10',
+      next_offset: '30',
+      resume_offset: '20',
+    },
+    input_lock: {
+      locked: true,
+      owner: 'command_dispatch',
+      task_id: 'task-1',
+      locked_at: '2026-08-12T00:00:00Z',
+    },
+  }))
+  assert.equal(attached.type, 'attached')
+  if (attached.type !== 'attached') {
+    assert.fail('attached 消息应保持统一类型')
+  }
+  assert.deepEqual(attached.input_lock, {
+    locked: true,
+    owner: 'command_dispatch',
+    task_id: 'task-1',
+    locked_at: '2026-08-12T00:00:00Z',
+  })
+
+  assert.deepEqual(decodeTerminalControlMessage(JSON.stringify({
+    type: 'input_lock',
+    input_lock: { locked: false },
+  })), {
+    type: 'input_lock',
+    input_lock: {
+      locked: false,
+      owner: undefined,
+      task_id: undefined,
+      locked_at: undefined,
+    },
+  })
+})
+
+test('兼容 input_state 事件并归一化为 canonical input_lock', () => {
+  assert.deepEqual(decodeTerminalControlMessage(JSON.stringify({
+    type: 'input_state',
+    input_state: {
+      locked: true,
+      owner_id: 'task-compatible',
+    },
+  })), {
+    type: 'input_lock',
+    input_lock: {
+      locked: true,
+      owner: 'command_dispatch',
+      task_id: 'task-compatible',
+      locked_at: undefined,
+    },
+  })
 })
 
 test('旧服务端未发送 refresh sequence 时按零兼容', () => {

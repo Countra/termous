@@ -14,7 +14,7 @@ import type {
   UpdateProgress,
   UpdateReleaseInfo,
   UpdateSnapshot,
-} from './updateTypes.ts'
+} from '#common/contracts'
 
 const releaseNotesLimit = 4_000
 const releaseNameLimit = 160
@@ -761,4 +761,4 @@ export type {
   UpdateReleaseInfo,
   UpdateSnapshot,
   UpdateSupport,
-} from './updateTypes.ts'
+} from '#common/contracts'

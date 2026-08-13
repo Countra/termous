@@ -1,0 +1,267 @@
+.terminal-completion-popup {
+  --completion-bg: #151922;
+  --completion-border: #303846;
+  --completion-row-hover: #1c2430;
+  --completion-row-selected: #203047;
+  --completion-row-border: #3b5f8c;
+  --completion-text: #edf2fa;
+  --completion-text-secondary: #a8b3c3;
+  --completion-text-muted: #778498;
+  --completion-accent: #68abff;
+  --completion-accent-muted: #92c3ff;
+
+  position: absolute;
+  z-index: 16;
+  display: grid;
+  overflow: hidden;
+  grid-template-rows: minmax(0, 1fr);
+  border: 1px solid var(--completion-border);
+  border-radius: 8px;
+  background: var(--completion-bg);
+  color: var(--completion-text);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 30%);
+}
+
+.terminal-completion-popup.has-shortcut-footer {
+  grid-template-rows: minmax(0, 1fr) 29px;
+}
+
+.terminal-completion-options {
+  min-height: 0;
+  overflow: hidden auto;
+  padding: 4px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.terminal-completion-shortcuts {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid var(--completion-border);
+  padding: 0 8px;
+  color: var(--completion-text-muted);
+  font-size: 10px;
+  line-height: 1;
+  user-select: none;
+}
+
+.terminal-completion-shortcut {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.terminal-completion-shortcut kbd {
+  display: inline-flex;
+  box-sizing: border-box;
+  min-width: 19px;
+  height: 17px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--completion-border) 82%, transparent);
+  border-radius: 4px;
+  background: var(--completion-row-hover);
+  padding: 0 4px;
+  color: var(--completion-text-secondary);
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.terminal-completion-popup.terminal-completion-theme-light {
+  --completion-bg: #fff;
+  --completion-border: #d6dce5;
+  --completion-row-hover: #f3f6fa;
+  --completion-row-selected: #e9f2fd;
+  --completion-row-border: #8eb9eb;
+  --completion-text: #172033;
+  --completion-text-secondary: #58667a;
+  --completion-text-muted: #7c899b;
+  --completion-accent: #1769c2;
+  --completion-accent-muted: #2e76c7;
+
+  box-shadow: 0 12px 26px rgb(24 36 52 / 15%);
+}
+
+.terminal-completion-option {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  grid-template-columns: 17px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  padding: 4px 7px;
+  color: var(--completion-text);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 100ms ease,
+    background-color 100ms ease;
+}
+
+.terminal-completion-option:hover {
+  background: var(--completion-row-hover);
+}
+
+.terminal-completion-option.is-selected {
+  border-color: var(--completion-row-border);
+  background: var(--completion-row-selected);
+}
+
+.terminal-completion-option-icon {
+  color: var(--completion-text-muted);
+  transition: color 100ms ease;
+}
+
+.terminal-completion-option:hover .terminal-completion-option-icon,
+.terminal-completion-option.is-selected .terminal-completion-option-icon {
+  color: var(--completion-accent);
+}
+
+.terminal-completion-option-content {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.terminal-completion-option-label,
+.terminal-completion-option-detail,
+.terminal-completion-option-source,
+.terminal-completion-option-exact {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-completion-option-label {
+  color: var(--completion-text);
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 12.5px;
+  font-weight: 650;
+  line-height: 17px;
+}
+
+.terminal-completion-option-entered {
+  color: var(--completion-text-secondary);
+}
+
+.terminal-completion-option-suggestion {
+  color: var(--completion-text);
+}
+
+.terminal-completion-option.is-selected .terminal-completion-option-suggestion {
+  color: var(--completion-accent-muted);
+}
+
+.terminal-completion-option.is-exact .terminal-completion-option-entered {
+  color: var(--completion-text);
+}
+
+.terminal-completion-option-detail {
+  color: var(--completion-text-muted);
+  font-size: 10.5px;
+  line-height: 14px;
+}
+
+.terminal-completion-option-meta {
+  display: grid;
+  min-width: 0;
+  max-width: 70px;
+  justify-items: end;
+  gap: 1px;
+}
+
+.terminal-completion-option-source {
+  max-width: 70px;
+  color: var(--completion-text-muted);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+.terminal-completion-option-exact {
+  display: inline-flex;
+  max-width: 70px;
+  align-items: center;
+  gap: 3px;
+  color: var(--completion-accent);
+  font-size: 9.5px;
+  font-weight: 650;
+  line-height: 14px;
+}
+
+.terminal-completion-option.is-selected .terminal-completion-option-source {
+  color: var(--completion-text-secondary);
+}
+
+.terminal-completion-tooltip-content {
+  display: grid;
+  max-width: 320px;
+  gap: 4px;
+}
+
+.terminal-completion-tooltip-content strong {
+  overflow-wrap: anywhere;
+  font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+  font-size: 12px;
+}
+
+.terminal-completion-tooltip-content span,
+.terminal-completion-tooltip-content small {
+  overflow-wrap: anywhere;
+  color: inherit;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.terminal-completion-tooltip.terminal-completion-theme-dark:global(.ant-tooltip) {
+  --ant-tooltip-bg: #202632;
+  --antd-arrow-background-color: #202632;
+}
+
+.terminal-completion-tooltip.terminal-completion-theme-dark:global(.ant-tooltip) :global(.ant-tooltip-inner),
+.terminal-completion-tooltip.terminal-completion-theme-dark:global(.ant-tooltip) :global(.ant-tooltip-container) {
+  border-color: #353e4d !important;
+  background: #202632 !important;
+  color: #e7edf6 !important;
+}
+
+.terminal-completion-tooltip.terminal-completion-theme-dark:global(.ant-tooltip) :global(.ant-tooltip-arrow)::before {
+  background: #202632 !important;
+}
+
+.terminal-completion-tooltip.terminal-completion-theme-light:global(.ant-tooltip) {
+  --ant-tooltip-bg: #fff;
+  --antd-arrow-background-color: #fff;
+}
+
+.terminal-completion-tooltip.terminal-completion-theme-light:global(.ant-tooltip) :global(.ant-tooltip-inner),
+.terminal-completion-tooltip.terminal-completion-theme-light:global(.ant-tooltip) :global(.ant-tooltip-container) {
+  border-color: #d6dce5 !important;
+  background: #fff !important;
+  color: #172033 !important;
+  box-shadow: 0 12px 26px rgb(24 36 52 / 15%) !important;
+}
+
+.terminal-completion-tooltip.terminal-completion-theme-light:global(.ant-tooltip) :global(.ant-tooltip-arrow)::before {
+  background: #fff !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-completion-option,
+  .terminal-completion-option-icon {
+    transition: none;
+  }
+}

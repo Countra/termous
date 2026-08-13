@@ -1,0 +1,413 @@
+.primary-button,
+.secondary-button,
+.danger-button {
+  border: 0;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease;
+}
+
+.primary-button:active,
+.secondary-button:active,
+.danger-button:active {
+  transform: translateY(1px);
+}
+
+.page-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.page-actions .primary-button,
+.page-actions .secondary-button {
+  min-width: 0;
+}
+
+.page-actions .secondary-button {
+  padding-inline: 10px;
+}
+
+.primary-button,
+.secondary-button,
+.danger-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius);
+  padding: 0 13px;
+  white-space: nowrap;
+}
+
+.primary-button {
+  --main-action-accent: color-mix(in srgb, var(--accent) 86%, #7db8ff 14%);
+  --main-action-bg: color-mix(in srgb, var(--surface-strong) 86%, #18335f 14%);
+  --main-action-bg-hover: color-mix(in srgb, var(--surface-strong) 78%, #1f4a88 22%);
+
+  min-height: 39px;
+  border: 1px solid color-mix(in srgb, var(--main-action-accent) 22%, var(--border-strong));
+  border-radius: 12px;
+  background: var(--main-action-bg);
+  color: var(--main-action-accent);
+  font-weight: 730;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    0 1px 0 rgb(0 0 0 / 18%);
+}
+
+.secondary-button {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-subtle) 84%, transparent);
+  color: var(--text-primary);
+  box-shadow: var(--inner-highlight);
+}
+
+.danger-button {
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger) 13%, transparent);
+  color: var(--danger);
+  box-shadow: var(--inner-highlight);
+}
+
+.secondary-button:hover,
+.danger-button:hover {
+  transform: translateY(-1px);
+}
+
+.primary-button:hover {
+  border-color: color-mix(in srgb, var(--main-action-accent) 38%, var(--border-strong));
+  background: var(--main-action-bg-hover);
+  color: color-mix(in srgb, var(--main-action-accent) 88%, #fff 12%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 9%),
+    0 1px 0 rgb(0 0 0 / 20%),
+    0 0 0 1px color-mix(in srgb, var(--main-action-accent) 10%, transparent);
+  transform: none;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled,
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.primary-button:global(.ant-btn),
+.secondary-button:global(.ant-btn),
+.danger-button:global(.ant-btn) {
+  display: inline-flex;
+  height: 36px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-width: 1px;
+  border-radius: 9px;
+  box-sizing: border-box;
+  font-weight: 650;
+  line-height: 1;
+  padding: 0 13px;
+  transform: none;
+  white-space: nowrap;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    color 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.secondary-button:global(.ant-btn) {
+  border-color: var(--border);
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+}
+
+.danger-button:global(.ant-btn) {
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
+  background: color-mix(in srgb, var(--danger) 9%, transparent);
+  color: var(--danger);
+}
+
+.primary-button:global(.ant-btn):hover,
+.primary-button:global(.ant-btn):active,
+.primary-button:global(.ant-btn):focus-visible,
+.secondary-button:global(.ant-btn):hover,
+.secondary-button:global(.ant-btn):active,
+.secondary-button:global(.ant-btn):focus-visible,
+.danger-button:global(.ant-btn):hover,
+.danger-button:global(.ant-btn):active,
+.danger-button:global(.ant-btn):focus-visible {
+  transform: none;
+}
+
+.secondary-button:global(.ant-btn):not(:disabled, [class~="ant-btn-disabled"]):hover {
+  border-color: color-mix(in srgb, var(--border) 76%, var(--accent) 24%);
+  background: color-mix(in srgb, var(--surface-subtle) 86%, var(--accent) 7%);
+  color: var(--text-primary);
+}
+
+.danger-button:global(.ant-btn):not(:disabled, [class~="ant-btn-disabled"]):hover {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.primary-button:global(.ant-btn) {
+  --main-action-accent: color-mix(in srgb, var(--accent) 86%, #7db8ff 14%);
+  --main-action-bg: color-mix(in srgb, var(--surface-strong) 86%, #18335f 14%);
+  --main-action-bg-hover: color-mix(in srgb, var(--surface-strong) 78%, #1f4a88 22%);
+  --main-action-bg-active: color-mix(in srgb, var(--surface-strong) 92%, #14284b 8%);
+
+  min-width: 104px;
+  height: 39px;
+  min-height: 39px;
+  border: 1px solid color-mix(in srgb, var(--main-action-accent) 22%, var(--border-strong));
+  border-radius: 12px;
+  background: var(--main-action-bg);
+  color: var(--main-action-accent);
+  font-size: 14px;
+  font-weight: 730;
+  padding: 0 16px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    0 1px 0 rgb(0 0 0 / 18%);
+}
+
+.primary-button:global(.ant-btn) :global(.ant-btn-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--main-action-accent);
+}
+
+.primary-button:global(.ant-btn):not(:disabled, [class~="ant-btn-disabled"]):hover {
+  border-color: color-mix(in srgb, var(--main-action-accent) 38%, var(--border-strong));
+  background: var(--main-action-bg-hover);
+  color: color-mix(in srgb, var(--main-action-accent) 88%, #fff 12%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 9%),
+    0 1px 0 rgb(0 0 0 / 20%),
+    0 0 0 1px color-mix(in srgb, var(--main-action-accent) 10%, transparent);
+}
+
+.primary-button:global(.ant-btn):not(:disabled, [class~="ant-btn-disabled"]):hover :global(.ant-btn-icon) {
+  color: color-mix(in srgb, var(--main-action-accent) 88%, #fff 12%);
+}
+
+.primary-button:global(.ant-btn):not(:disabled, [class~="ant-btn-disabled"]):active {
+  background: var(--main-action-bg-active);
+  box-shadow:
+    inset 0 1px 2px rgb(0 0 0 / 22%),
+    0 1px 0 rgb(255 255 255 / 4%);
+}
+
+.primary-button:global(.ant-btn):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--main-action-accent) 50%, transparent);
+  outline-offset: 3px;
+}
+
+.primary-button:global(.ant-btn):disabled,
+.primary-button:global(.ant-btn):global(.ant-btn-disabled) {
+  border-color: color-mix(in srgb, var(--border) 74%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 74%, transparent);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.field {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.field :global(.ant-input),
+.field :global(.ant-input-number) {
+  min-height: 38px;
+}
+
+.field-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.search-input:global(.ant-input-affix-wrapper) {
+  position: relative;
+  isolation: isolate;
+  height: 38px;
+  border: 1px solid var(--termous-search-border) !important;
+  border-radius: 12px;
+  background: var(--termous-search-bg) !important;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 5%),
+    0 1px 2px rgb(0 0 0 / 4%) !important;
+  color: var(--text-primary);
+  padding: 0 12px;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.search-input:global(.ant-input-affix-wrapper)::after {
+  content: "";
+  position: absolute;
+  right: 13px;
+  bottom: 5px;
+  left: 36px;
+  height: 1px;
+  border-radius: 999px;
+  background: var(--termous-search-underline);
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition:
+    opacity 0.16s ease,
+    transform 0.18s ease;
+}
+
+.search-input:global(.ant-input-affix-wrapper):hover {
+  border-color: var(--termous-search-border-hover) !important;
+  background: var(--termous-search-bg-hover) !important;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 5%),
+    0 1px 3px rgb(0 0 0 / 5%) !important;
+}
+
+.search-input:global(.ant-input-affix-wrapper-focused) {
+  border-color: var(--termous-search-border-focus) !important;
+  background: var(--termous-search-bg-focus) !important;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 6%),
+    0 0 0 1px color-mix(in srgb, var(--accent) 5%, transparent) !important;
+}
+
+.search-input:global(.ant-input-affix-wrapper-focused)::after {
+  opacity: 0.62;
+  transform: scaleX(1);
+}
+
+.search-input :global(.ant-input) {
+  position: relative;
+  z-index: 2;
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+.search-input :global(.ant-input)::placeholder {
+  color: color-mix(in srgb, var(--text-muted) 78%, transparent);
+}
+
+.search-input :global(.ant-input-prefix),
+.search-input :global(.ant-input-clear-icon) {
+  position: relative;
+  z-index: 2;
+  color: var(--text-muted);
+  transition:
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.search-input:global(.ant-input-affix-wrapper-focused) :global(.ant-input-prefix) {
+  color: color-mix(in srgb, var(--accent) 62%, var(--text-muted) 38%);
+}
+
+.search-input :global(.ant-input-clear-icon):hover {
+  color: var(--text-primary);
+  transform: scale(1.04);
+}
+
+.search-input {
+  :global(:root[data-theme="light"]) &:global(.ant-input-affix-wrapper) {
+    border-color: var(--termous-search-border) !important;
+    background: var(--termous-search-bg) !important;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 72%),
+      0 1px 2px rgb(20 32 48 / 3%) !important;
+  }
+
+  :global(:root[data-theme="light"]) &:global(.ant-input-affix-wrapper):hover {
+    border-color: var(--termous-search-border-hover) !important;
+    background: var(--termous-search-bg-hover) !important;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 82%),
+      0 2px 6px rgb(20 32 48 / 3%) !important;
+  }
+
+  :global(:root[data-theme="light"]) &:global(.ant-input-affix-wrapper-focused) {
+    border-color: var(--termous-search-border-focus) !important;
+    background: var(--termous-search-bg-focus) !important;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 100%),
+      0 2px 8px rgb(20 32 48 / 4%) !important;
+  }
+}
+
+.tooltip:global(.ant-tooltip) {
+  --ant-tooltip-bg: #222733;
+  --antd-arrow-background-color: #222733;
+}
+
+.tooltip:global(.ant-tooltip) :global(.ant-tooltip-inner),
+.tooltip:global(.ant-tooltip) :global(.ant-tooltip-container) {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent) !important;
+  border-radius: 10px;
+  background: #222733 !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 16px 32px rgb(0 0 0 / 24%) !important;
+}
+
+.tooltip:global(.ant-tooltip) :global(.ant-tooltip-arrow)::before {
+  background: #222733 !important;
+}
+
+.tooltip {
+  :global(:root[data-theme="light"]) &:global(.ant-tooltip) {
+    --ant-tooltip-bg: #fff;
+    --antd-arrow-background-color: #fff;
+  }
+
+  :global(:root[data-theme="light"]) &:global(.ant-tooltip) :global(.ant-tooltip-inner),
+  :global(:root[data-theme="light"]) &:global(.ant-tooltip) :global(.ant-tooltip-container) {
+    border-color: rgb(30 42 58 / 14%) !important;
+    background: #fff !important;
+    box-shadow: 0 16px 32px rgb(20 32 48 / 14%) !important;
+  }
+
+  :global(:root[data-theme="light"]) &:global(.ant-tooltip) :global(.ant-tooltip-arrow)::before {
+    background: #fff !important;
+  }
+}
+
+.is-spinning {
+  animation: shared-ui-spin 0.9s linear infinite;
+}
+
+@keyframes shared-ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.primary-button:global(.ant-btn) {
+  :global(:root[data-theme="light"]) & {
+    --main-action-bg: color-mix(in srgb, #f8fbff 78%, var(--accent) 8%);
+    --main-action-bg-hover: color-mix(in srgb, #eef6ff 78%, var(--accent) 12%);
+    --main-action-bg-active: color-mix(in srgb, #e5f0fb 82%, var(--accent) 8%);
+
+    border-color: color-mix(in srgb, var(--main-action-accent) 20%, rgb(30 42 58 / 14%));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 82%),
+      0 1px 0 rgb(30 44 64 / 6%);
+  }
+}

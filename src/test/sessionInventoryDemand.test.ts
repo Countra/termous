@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { Session } from '../types/domain.ts'
+import type { Session } from '#entities/session'
 import {
   mergeSessionReloadSnapshot,
   shouldApplySessionInventoryResponse,
-} from '../app/sessionInventoryState.ts'
+} from '../app/data-runtime/model/sessionInventoryState.ts'
 import {
   canRetrySessionInventory,
   getAutomaticSessionInventoryDemand,
   getSessionInventoryVisibleScope,
   isSessionInventoryRequestCurrent,
-} from '../features/workbench/sessionInventoryDemand.ts'
+} from '../widgets/workbench/model/sessionInventoryDemand.ts'
 
 function session(overrides: Partial<Session> = {}): Session {
   return {

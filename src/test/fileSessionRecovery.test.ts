@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { FileSession } from '../types/domain.ts'
+import type { FileSession } from '#entities/file'
 import {
   adoptSuppressedFileSessionRecoveryResult,
   cancelFileSessionRecoveryAttempt,
@@ -28,7 +28,7 @@ import {
   supersedeQueuedFileSessionRecovery,
   terminatedFileSessionSnapshot,
   type FileSessionRecoveryAttempt,
-} from '../features/files/fileSessionRecovery.ts'
+} from '#entities/file'
 
 function fileSession(overrides: Partial<FileSession> = {}): FileSession {
   return {

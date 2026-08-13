@@ -1,0 +1,390 @@
+.host-icon-manager-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.host-icon-manager-title-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  color: var(--accent);
+}
+
+.host-icon-manager-title > small {
+  display: inline-grid;
+  min-width: 24px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.host-icon-manager-modal :global(.ant-modal) {
+  max-width: calc(100vw - 32px);
+}
+
+.host-icon-manager-modal :global(.ant-modal-container) {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #21252e !important;
+  padding: 0;
+}
+
+:root[data-theme="light"] .host-icon-manager-modal :global(.ant-modal-container) {
+  background: #fff !important;
+}
+
+.host-icon-manager-modal :global(.ant-modal-header) {
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  background: inherit !important;
+  padding: 13px 18px;
+}
+
+.host-icon-manager-modal :global(.ant-modal-close) {
+  top: 9px;
+  right: 9px;
+}
+
+.host-icon-manager-modal :global(.ant-modal-body) {
+  background: inherit;
+  padding: 0;
+}
+
+.host-icon-manager-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--border);
+  padding: 13px 18px;
+}
+
+.host-icon-manager-toolbar > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.host-icon-manager-toolbar strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.host-icon-manager-toolbar small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-icon-manager-toolbar :global(.ant-btn) {
+  min-width: 108px;
+}
+
+.host-icon-manager-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  margin: -1px;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.host-icon-manager-alert {
+  margin: 12px 18px 0;
+}
+
+.host-icon-manager-list-shell {
+  min-height: 260px;
+  margin: 14px 18px 18px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.host-icon-manager-list-shell > :global(.ant-empty) {
+  display: flex;
+  min-height: 300px;
+  flex-direction: column;
+  justify-content: center;
+  margin-block: 0;
+}
+
+.host-icon-manager-list {
+  height: min(390px, 52vh);
+  min-height: 260px;
+  overflow: hidden auto;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 32%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.host-icon-manager-list::-webkit-scrollbar {
+  width: 7px;
+}
+
+.host-icon-manager-list::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text-muted) 32%, transparent);
+  background-clip: padding-box;
+}
+
+.host-icon-manager-row {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 70px;
+  grid-template-columns: 28px 44px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  padding: 8px;
+  transition: background-color 140ms ease, opacity 140ms ease;
+}
+
+.host-icon-manager-row:last-child {
+  border-bottom: 0;
+}
+
+.host-icon-manager-row:hover,
+.host-icon-manager-row:focus-within {
+  background: var(--row-hover-bg);
+}
+
+.host-icon-manager-row.is-editing {
+  z-index: 1;
+  background: color-mix(in srgb, var(--surface-strong) 82%, var(--accent-soft) 18%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 25%, var(--border)),
+    inset 0 -1px 0 color-mix(in srgb, var(--accent) 20%, var(--border));
+}
+
+.host-icon-manager-row.is-editing .host-icon-manager-drag-handle {
+  color: color-mix(in srgb, var(--text-muted) 62%, transparent);
+}
+
+.host-icon-manager-row.is-editing .host-icon-manager-preview {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border-strong));
+  background: var(--surface-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-soft) 50%, transparent);
+}
+
+.host-icon-manager-row.is-dragging {
+  opacity: 0.42;
+}
+
+.host-icon-manager-row.is-drop-before::before,
+.host-icon-manager-row.is-drop-after::after {
+  position: absolute;
+  z-index: 2;
+  right: 10px;
+  left: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  content: '';
+  pointer-events: none;
+}
+
+.host-icon-manager-row.is-drop-before::before {
+  top: -1px;
+}
+
+.host-icon-manager-row.is-drop-after::after {
+  bottom: -1px;
+}
+
+.host-icon-manager-drag-handle:global(.ant-btn) {
+  display: inline-grid;
+  width: 28px;
+  height: 34px;
+  place-items: center;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 0;
+}
+
+.host-icon-manager-drag-handle:global(.ant-btn):active {
+  cursor: grabbing;
+}
+
+.host-icon-manager-preview {
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.host-icon-manager-preview-image {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+}
+
+.host-icon-manager-copy,
+.host-icon-manager-meta {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.host-icon-manager-copy strong,
+.host-icon-manager-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-icon-manager-copy strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.host-icon-manager-copy small {
+  color: var(--text-muted);
+  font-family: "Cascadia Mono", SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+}
+
+.host-icon-manager-copy :global(.ant-input) {
+  height: 32px;
+}
+
+.host-icon-manager-row.is-editing .host-icon-manager-copy :global(.ant-input) {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border-strong));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-strong) 94%, var(--accent-soft) 6%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 5%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--accent-soft) 38%, transparent);
+}
+
+.host-icon-manager-row.is-editing .host-icon-manager-copy :global(.ant-input:hover),
+.host-icon-manager-row.is-editing .host-icon-manager-copy :global(.ant-input:focus) {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border-strong));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--accent-soft) 58%, transparent);
+}
+
+.host-icon-manager-meta {
+  min-width: 78px;
+  justify-items: end;
+}
+
+.host-icon-manager-meta small {
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.host-icon-manager-actions,
+.host-icon-manager-order-actions {
+  display: inline-flex;
+  align-items: center;
+}
+
+.host-icon-manager-actions {
+  min-width: 142px;
+  justify-content: flex-end;
+  gap: 1px;
+}
+
+.host-icon-manager-actions :global(.ant-btn) {
+  width: 30px;
+  height: 32px;
+  padding: 0;
+}
+
+.host-icon-manager-edit-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-strong) 92%, var(--accent-soft) 8%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+  padding: 2px;
+}
+
+.host-icon-manager-edit-actions :global(.ant-btn:first-child) {
+  background: color-mix(in srgb, var(--accent-soft) 76%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.host-icon-manager-edit-actions :global(.ant-btn:first-child:not(:disabled):hover) {
+  background: color-mix(in srgb, var(--accent-soft) 92%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.host-icon-manager-edit-actions :global(.ant-btn:last-child:not(:disabled):hover) {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+@media (width <= 680px) {
+  .host-icon-manager-row {
+    grid-template-columns: 24px 40px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .host-icon-manager-preview {
+    width: 40px;
+    height: 40px;
+  }
+
+  .host-icon-manager-meta {
+    display: none;
+  }
+
+  .host-icon-manager-actions {
+    min-width: 92px;
+  }
+
+  .host-icon-manager-order-actions {
+    display: none;
+  }
+}
+
+@media (width <= 480px) {
+  .host-icon-manager-toolbar {
+    grid-template-columns: minmax(0, 1fr) 40px;
+  }
+
+  .host-icon-manager-toolbar :global(.ant-btn) {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+  }
+
+  .host-icon-manager-toolbar :global(.ant-btn) > span:last-child {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .host-icon-manager-row {
+    transition: none;
+  }
+}

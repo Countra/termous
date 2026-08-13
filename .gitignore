@@ -13,6 +13,9 @@ dist-ssr
 dist-electron
 release
 build/core/
+/.harness/
+.playwright-cli/
+output/playwright/
 docs-secret/
 _tmp_*
 *.local

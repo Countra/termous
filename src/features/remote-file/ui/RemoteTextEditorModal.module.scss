@@ -1,0 +1,248 @@
+.root {
+  :global {
+    .remote-text-editor-modal.ant-modal {
+      --ant-modal-content-bg: #21252e;
+    }
+
+    .remote-text-editor-modal.ant-modal .ant-modal-content {
+      overflow: hidden;
+      border: 1px solid color-mix(in srgb, var(--border-strong) 82%, transparent);
+      border-radius: 20px;
+      background: var(--ant-modal-content-bg);
+      box-shadow:
+        0 34px 94px rgb(0 0 0 / 44%),
+        inset 0 1px 0 rgb(255 255 255 / 8%);
+      padding: 0 !important;
+    }
+
+    .remote-text-editor-modal.ant-modal .ant-modal-body {
+      padding: 0 !important;
+    }
+
+    .remote-text-editor-modal .ant-modal-close {
+      color: var(--text-muted);
+    }
+
+    .remote-text-editor {
+      --remote-editor-bg: #1e1e1e;
+      --remote-editor-fg: #d4d4d4;
+      --remote-editor-muted: #858585;
+      --remote-editor-active-line: #ffffff0f;
+      --remote-editor-selection: #6199ff2f;
+      --remote-editor-cursor: #5da8ff;
+
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      min-height: min(760px, calc(100vh - 88px));
+      max-height: calc(100vh - 64px);
+      background: var(--ant-modal-content-bg);
+    }
+
+    .remote-text-editor.is-editor-light {
+      --remote-editor-bg: #fff;
+      --remote-editor-fg: #383a42;
+      --remote-editor-muted: #237893;
+      --remote-editor-active-line: #99999926;
+      --remote-editor-selection: #add6ff;
+      --remote-editor-cursor: #2563eb;
+    }
+
+    .remote-text-editor-header,
+    .remote-text-editor-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      border-color: color-mix(in srgb, var(--border) 76%, transparent);
+      padding: 14px 18px;
+    }
+
+    .remote-text-editor-header {
+      border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+      background: var(--ant-modal-content-bg);
+    }
+
+    .remote-text-editor-footer {
+      border-top: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+      background: var(--ant-modal-content-bg);
+    }
+
+    .remote-text-editor-body {
+      position: relative;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr);
+      min-height: 0;
+      padding: 16px;
+      background: var(--ant-modal-content-bg);
+    }
+
+    .remote-text-editor-body.has-connection-alert {
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .remote-text-editor-connection-alert {
+      min-width: 0;
+    }
+
+    .remote-text-editor-operation-toast {
+      position: absolute;
+      z-index: 4;
+      top: 28px;
+      right: 30px;
+      width: min(340px, calc(100% - 60px));
+      pointer-events: none;
+    }
+
+    .remote-text-editor-operation-toast .file-operation-progress {
+      border-color: color-mix(in srgb, var(--accent) 26%, var(--border));
+      background:
+        linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 88%, transparent), color-mix(in srgb, var(--surface) 98%, transparent)),
+        var(--surface);
+      box-shadow:
+        0 18px 42px rgb(0 0 0 / 30%),
+        var(--inner-highlight);
+    }
+
+    .remote-text-editor-frame {
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 34px minmax(0, 1fr);
+      height: 100%;
+      min-height: 360px;
+      border: 1px solid color-mix(in srgb, var(--remote-editor-fg) 12%, transparent);
+      border-radius: 15px;
+      background: var(--remote-editor-bg);
+      box-shadow: inset 0 1px 0 color-mix(in srgb, var(--remote-editor-fg) 6%, transparent);
+    }
+
+    .remote-text-editor-frame.is-placeholder {
+      opacity: 0.9;
+    }
+
+    .remote-text-editor-loading-canvas {
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--remote-editor-fg) 5%, transparent) 1px, transparent 1px),
+        linear-gradient(180deg, color-mix(in srgb, var(--remote-editor-fg) 4%, transparent) 1px, transparent 1px),
+        var(--remote-editor-bg);
+      background-size: 64px 100%, 100% 32px, auto;
+    }
+
+    .remote-text-editor-framebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid color-mix(in srgb, var(--remote-editor-fg) 10%, transparent);
+      background: var(--remote-editor-bg);
+      padding: 0 12px;
+      color: color-mix(in srgb, var(--remote-editor-fg) 62%, transparent);
+      font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .remote-text-editor-framebar span {
+      overflow: hidden;
+      min-width: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .remote-text-editor-codemirror {
+      height: 100%;
+      min-height: 0;
+    }
+
+    .remote-text-editor-codemirror .cm-editor {
+      height: 100%;
+      background: var(--remote-editor-bg);
+      color: var(--remote-editor-fg);
+      font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+      font-size: var(--terminal-font-size, 13px);
+      line-height: var(--terminal-line-height, 1.55);
+      letter-spacing: var(--terminal-letter-spacing, 0);
+    }
+
+    .remote-text-editor-codemirror .cm-scroller {
+      font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+      scrollbar-color: var(--termous-scrollbar-thumb) var(--termous-scrollbar-track);
+      scrollbar-width: thin;
+    }
+
+    .remote-text-editor-codemirror .cm-content {
+      padding: 16px 14px 28px;
+      caret-color: var(--remote-editor-cursor);
+    }
+
+    /* stylelint-disable selector-class-pattern -- CodeMirror 的运行时类名由第三方库定义，必须按原始命名匹配。 */
+    .remote-text-editor-codemirror .cm-cursor,
+    .remote-text-editor-codemirror .cm-dropCursor {
+      border-left: 2px solid var(--remote-editor-cursor) !important;
+    }
+
+    .remote-text-editor-codemirror .cm-content,
+    .remote-text-editor-codemirror .cm-line,
+    .remote-text-editor-codemirror .cm-gutterElement {
+      font-family: var(--terminal-font-family, "JetBrains Mono", Consolas, monospace);
+      font-size: var(--terminal-font-size, 13px);
+      line-height: var(--terminal-line-height, 1.55);
+      letter-spacing: var(--terminal-letter-spacing, 0);
+    }
+
+    .remote-text-editor-codemirror .cm-gutters {
+      border-right: 1px solid color-mix(in srgb, var(--remote-editor-fg) 10%, transparent);
+      background: var(--remote-editor-bg);
+      color: var(--remote-editor-muted);
+    }
+
+    .remote-text-editor-codemirror .cm-lineNumbers .cm-gutterElement {
+      padding: 0 10px 0 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .remote-text-editor-codemirror .cm-activeLine,
+    .remote-text-editor-codemirror .cm-activeLineGutter {
+      background: var(--remote-editor-active-line);
+    }
+
+    .remote-text-editor-codemirror .cm-selectionBackground,
+    .remote-text-editor-codemirror .cm-focused .cm-selectionBackground {
+      background: var(--remote-editor-selection);
+    }
+
+    .remote-text-editor-codemirror .cm-focused {
+      outline: none;
+    }
+    /* stylelint-enable selector-class-pattern */
+
+    .remote-text-editor-state {
+      display: grid;
+      height: 100%;
+      min-height: 360px;
+      place-content: center;
+      justify-items: center;
+      gap: 12px;
+      color: var(--text-muted);
+    }
+
+    .remote-text-editor-state strong {
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 760;
+    }
+
+    .remote-text-editor-state.is-error {
+      color: var(--danger);
+    }
+
+    .remote-text-editor-state .file-operation-progress {
+      width: min(420px, 100%);
+    }
+  }
+}
+
+.root.light {
+  --ant-modal-content-bg: #f7f9fc;
+}

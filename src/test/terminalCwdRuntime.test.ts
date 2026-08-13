@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { SessionCwdState } from '../types/domain.ts'
-import { TerminalCwdRuntime } from '../features/terminal/terminalCwdRuntime.ts'
+import type { SessionCwdState } from '#entities/session'
+import { TerminalCwdRuntime } from '../features/terminal/model/terminalCwdRuntime.ts'
 
 function cwdState(overrides: Partial<SessionCwdState> = {}): SessionCwdState {
   return {

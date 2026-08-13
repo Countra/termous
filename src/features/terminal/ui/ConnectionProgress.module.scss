@@ -1,0 +1,80 @@
+.connection-progress {
+  display: grid;
+  gap: 8px;
+  border-bottom: 0;
+  background: var(--connection-bg);
+  padding: 10px 12px;
+}
+
+.connection-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.connection-progress-head strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.connection-progress-bar {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+}
+
+.connection-progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.22s ease;
+}
+
+.connection-phase-row {
+  display: flex;
+  min-width: 0;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.connection-phase {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.connection-phase span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.connection-phase.is-active {
+  color: var(--warning);
+}
+
+.connection-phase.is-active svg {
+  animation: connection-progress-spin 0.9s linear infinite;
+}
+
+.connection-phase.is-done {
+  color: var(--success);
+}
+
+.connection-phase.is-failed {
+  color: var(--danger);
+}
+
+@keyframes connection-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

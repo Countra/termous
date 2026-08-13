@@ -1,0 +1,326 @@
+.proxy-manager-title {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.proxy-manager-title > svg {
+  color: var(--accent);
+}
+
+.proxy-manager-title > small {
+  display: inline-grid;
+  min-width: 24px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.proxy-manager-modal :global(.ant-modal) {
+  max-width: calc(100vw - 32px);
+}
+
+.proxy-manager-modal :global(.ant-modal-container) {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #21252e !important;
+  padding: 0;
+}
+
+:root[data-theme="light"] .proxy-manager-modal :global(.ant-modal-container) {
+  background: #fff !important;
+}
+
+.proxy-manager-modal :global(.ant-modal-header) {
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  background: inherit !important;
+  padding: 14px 18px;
+}
+
+.proxy-manager-modal :global(.ant-modal-close) {
+  top: 10px;
+  right: 10px;
+}
+
+.proxy-manager-modal :global(.ant-modal-body) {
+  background: inherit;
+  padding: 0;
+}
+
+.proxy-manager-layout {
+  display: grid;
+  height: min(520px, calc(100vh - 160px));
+  min-height: 420px;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(390px, 1.18fr);
+}
+
+.proxy-manager-sidebar,
+.proxy-manager-editor {
+  min-width: 0;
+  min-height: 0;
+}
+
+.proxy-manager-sidebar {
+  display: flex;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-subtle) 32%, transparent);
+  flex-direction: column;
+}
+
+.proxy-manager-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px;
+}
+
+.proxy-manager-search :global(.ant-input-affix-wrapper),
+.proxy-manager-search :global(.ant-btn) {
+  height: 36px;
+}
+
+.proxy-manager-search :global(.ant-btn) {
+  width: 36px;
+  padding: 0;
+}
+
+.proxy-manager-list {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden auto;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 28%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.proxy-manager-list > :global(.ant-empty) {
+  display: flex;
+  height: 100%;
+  min-height: 220px;
+  flex-direction: column;
+  justify-content: center;
+  margin-block: 0;
+}
+
+.proxy-manager-row {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  min-height: 66px;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  padding: 8px 11px;
+  text-align: left;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.proxy-manager-row:not(:disabled) {
+  cursor: pointer;
+}
+
+.proxy-manager-row:not(:disabled):hover,
+.proxy-manager-row:not(:disabled):focus-visible {
+  background: var(--row-hover-bg);
+}
+
+.proxy-manager-row.is-active {
+  background: color-mix(in srgb, var(--accent-soft) 72%, transparent);
+}
+
+.proxy-manager-row.is-active::before {
+  position: absolute;
+  left: 0;
+  width: 2px;
+  height: 42px;
+  border-radius: 0 2px 2px 0;
+  background: var(--accent);
+  content: '';
+}
+
+.proxy-manager-row:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 62%, transparent);
+  outline-offset: -2px;
+}
+
+.proxy-manager-row-icon {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-soft) 58%, transparent);
+  color: var(--accent);
+}
+
+.proxy-manager-row-copy,
+.proxy-manager-row-meta {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.proxy-manager-row-copy strong,
+.proxy-manager-row-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-manager-row-copy strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.proxy-manager-row-copy small {
+  color: var(--text-muted);
+  font-family: "Cascadia Mono", SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+}
+
+.proxy-manager-row-meta {
+  justify-items: end;
+}
+
+.proxy-manager-row-meta em {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.proxy-manager-row-meta small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.proxy-manager-editor {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.proxy-manager-editor-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding: 16px 18px;
+}
+
+.proxy-manager-editor-heading-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.proxy-manager-editor-heading h3,
+.proxy-manager-editor-heading p {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-manager-editor-heading h3 {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.proxy-manager-editor-heading p {
+  margin-left: 11px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.proxy-manager-form {
+  display: flex;
+  max-width: 540px;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 24px;
+}
+
+.proxy-manager-field {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.proxy-manager-field > span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.proxy-manager-field > :global(.ant-input),
+.proxy-manager-field > :global(.ant-select) {
+  width: 100%;
+}
+
+.proxy-manager-field > small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.proxy-manager-field > small.proxy-manager-field-error {
+  color: var(--danger);
+}
+
+.proxy-manager-editor-footer {
+  display: flex;
+  min-height: 62px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding: 12px 18px;
+}
+
+.proxy-manager-editor-footer > :global(.ant-btn):last-child {
+  min-width: 104px;
+}
+
+.proxy-manager-select-popup {
+  min-width: 220px;
+}
+
+@media (width <= 760px) {
+  .proxy-manager-layout {
+    height: min(600px, calc(100vh - 100px));
+    min-height: 0;
+    grid-template-columns: minmax(230px, 0.8fr) minmax(300px, 1.2fr);
+  }
+
+  .proxy-manager-form {
+    padding-inline: 18px;
+  }
+
+  .proxy-manager-row {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .proxy-manager-row-meta {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proxy-manager-row {
+    transition: none;
+  }
+}

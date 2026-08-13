@@ -1,37 +1,26 @@
 import { Menu, Tray, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
 import { existsSync } from 'node:fs'
-import type { UpdateSnapshot } from './updateTypes'
+import type {
+  TrayCommand,
+  TrayMenuLabels,
+  TrayMenuState as TrayMenuContract,
+  TrayRecentHost,
+  UpdateSnapshot,
+} from '#common/contracts'
 
-type TrayLanguage = 'zh-CN' | 'en-US'
+type TrayLanguage = TrayMenuContract['language']
 
-export interface TrayRecentHost {
-  id: string
-  name: string
+export type TrayMenuState = {
+  language?: TrayMenuContract['language']
+  recentHosts?: TrayMenuContract['recentHosts']
+  labels?: Partial<TrayMenuContract['labels']>
 }
 
-export interface TrayMenuLabels {
-  openApp: string
-  connectHost: string
-  recentHosts: string
-  emptyRecentHosts: string
-  forwards: string
-  updateAvailable: string
-  updateDownloading: string
-  updateDownloaded: string
-  quit: string
-}
-
-export interface TrayMenuState {
-  language?: TrayLanguage
-  recentHosts?: TrayRecentHost[]
-  labels?: Partial<TrayMenuLabels>
-}
-
-export type TrayCommand =
-  | { type: 'open-app' }
-  | { type: 'open-host-launcher' }
-  | { type: 'connect-recent-host'; hostId: string }
-  | { type: 'open-forwards' }
+export type {
+  TrayCommand,
+  TrayMenuLabels,
+  TrayRecentHost,
+} from '#common/contracts'
 
 interface TermousTrayControllerOptions {
   appName: string

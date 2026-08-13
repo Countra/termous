@@ -4,7 +4,7 @@ import {
   parseUpdateReleaseNotes,
   resolveUpdateReleaseNotesContent,
   tokenizeUpdateReleaseNoteInline,
-} from '../features/update/updateReleaseNotes.ts'
+} from '../app/update-surface/updateReleaseNotes.ts'
 
 test('更新说明按标题、段落和列表解析', () => {
   const blocks = parseUpdateReleaseNotes([
