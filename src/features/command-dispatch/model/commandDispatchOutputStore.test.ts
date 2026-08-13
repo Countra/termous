@@ -195,6 +195,7 @@ function gateway(): CommandDispatchGateway {
     task: unsupported,
     interruptTask: unsupported,
     interruptTarget: unsupported,
+    latestTasksEventsUrl: () => 'ws://termous.test/tasks/events',
     taskEventsUrl: (taskId) => `ws://termous.test/tasks/${taskId}`,
     targetOutputUrl: (taskId, sessionId, cursor) => (
       `ws://termous.test/tasks/${taskId}/${sessionId}?offset=${cursor?.lastOffset ?? ''}`

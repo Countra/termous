@@ -1,4 +1,9 @@
-export type SessionStatus = 'connecting' | 'connected' | 'disconnected' | 'failed'
+export type SessionStatus =
+  | 'connecting'
+  | 'waiting_host_trust'
+  | 'connected'
+  | 'disconnected'
+  | 'failed'
 
 export type InventoryStatus = 'idle' | 'collecting' | 'ready' | 'failed' | 'unsupported'
 

@@ -13,7 +13,11 @@ export function buildUpdateRuntimeSummary(input: {
   return {
     ssh_sessions: clampRuntimeCount(input.sessions.filter((session) => (
       session.kind === 'ssh'
-      && (session.status === 'connecting' || session.status === 'connected')
+      && (
+        session.status === 'connecting'
+        || session.status === 'waiting_host_trust'
+        || session.status === 'connected'
+      )
     )).length),
     file_sessions: clampRuntimeCount(input.fileSessions.filter((session) => (
       session.status === 'connecting'

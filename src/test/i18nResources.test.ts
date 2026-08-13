@@ -4,6 +4,7 @@ import { extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { SHORTCUT_ACTIONS, SHORTCUT_SCOPES } from '#entities/shortcuts'
+import { mcpScopes } from '#entities/mcp-access'
 
 type TranslationTree = Record<string, unknown>
 
@@ -132,6 +133,18 @@ test('智能补全动态来源和设置文案在中英文资源中完整对应',
       assert.equal(typeof translationValue(zhCN, key), 'string', key)
       assert.equal(typeof translationValue(enUS, key), 'string', key)
     }
+  }
+})
+
+test('MCP 动态权限名称与说明在中英文资源中完整对应', () => {
+  for (const scope of mcpScopes) {
+    const key = scope.replace(':', '_')
+    assertBilingualString(`settings.mcp.scope.${key}`)
+    assertBilingualString(`settings.mcp.scopeDescription.${key}`)
+  }
+  for (const group of ['hosts', 'sessions', 'commands']) {
+    assertBilingualString(`settings.mcp.permissionGroup.${group}`)
+    assertBilingualString(`settings.mcp.permissionGroupHint.${group}`)
   }
 })
 

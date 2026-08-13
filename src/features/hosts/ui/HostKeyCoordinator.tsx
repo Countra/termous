@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Alert, App as AntdApp, Button, Modal, Tag, Typography } from 'antd'
 import { Clock3, Server, ShieldAlert, ShieldCheck, ShieldQuestion, ShieldX } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -23,12 +23,13 @@ export interface HostKeyCoordinatorProps {
   api: HostKeyGateway
   enabled: boolean
   hosts: Host[]
+  onBlockingChange?: (blocking: boolean) => void
 }
 
 const reconnectDelayInitial = 800
 const reconnectDelayMaximum = 5000
 
-export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorProps) {
+export function HostKeyCoordinator({ api, enabled, hosts, onBlockingChange }: HostKeyCoordinatorProps) {
   const { t, i18n } = useTranslation()
   const { notification } = AntdApp.useApp()
   const stateRef = useRef(initialHostKeyCoordinatorState)
@@ -36,6 +37,7 @@ export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorPr
   const reconcileAbortRef = useRef<AbortController | null>(null)
   const [state, setState] = useState(initialHostKeyCoordinatorState)
   const [decisionBusy, setDecisionBusy] = useState(false)
+  const [initialSyncSettled, setInitialSyncSettled] = useState(false)
 
   const applyState = useCallback((action: Parameters<typeof hostKeyCoordinatorReducer>[1]) => {
     setState((current) => {
@@ -57,6 +59,10 @@ export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorPr
       }
       applyState({ type: 'snapshot', snapshot })
     } finally {
+      if (requestSequence === requestSequenceRef.current) {
+        // 首次请求失败时也结束初始化门禁；后续 WS/对账仍会在发现 challenge 后立即抢占。
+        setInitialSyncSettled(true)
+      }
       if (reconcileAbortRef.current === controller) {
         reconcileAbortRef.current = null
       }
@@ -68,10 +74,12 @@ export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorPr
       requestSequenceRef.current += 1
       reconcileAbortRef.current?.abort()
       reconcileAbortRef.current = null
+      setInitialSyncSettled(false)
       applyState({ type: 'clear' })
       return undefined
     }
 
+    setInitialSyncSettled(false)
     let disposed = false
     let socket: WebSocket | null = null
     let reconnectTimer: number | undefined
@@ -128,6 +136,12 @@ export function HostKeyCoordinator({ api, enabled, hosts }: HostKeyCoordinatorPr
 
   const hostNames = useMemo(() => new Map(hosts.map((host) => [host.id, host.name])), [hosts])
   const challenge = state.challenges[0] ?? null
+
+  useLayoutEffect(() => {
+    const waitingForInitialSync = enabled && !state.ready && !initialSyncSettled
+    onBlockingChange?.(waitingForInitialSync || Boolean(challenge))
+    return () => onBlockingChange?.(false)
+  }, [challenge, enabled, initialSyncSettled, onBlockingChange, state.ready])
 
   const decide = async (action: HostKeyDecisionAction) => {
     if (!challenge || decisionBusy) {

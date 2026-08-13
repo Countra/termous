@@ -77,6 +77,10 @@ vi.mock('#entities/shortcuts', () => ({
   useShortcutRuntime: () => ({ platform: childState.platform }),
 }))
 
+vi.mock('#features/mcp-access', () => ({
+  McpSettingsPanel: () => <div data-testid="mcp-settings" />,
+}))
+
 vi.mock('#features/settings', () => ({
   DataPortabilitySettings: ({ appVersion, gateway }: { appVersion: string; gateway: unknown }) => (
     <div
@@ -247,16 +251,17 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
 }
 
 describe('设置页面装配合同', () => {
-  it('保持五个页签及通用设置默认页签和命令委托', async () => {
+  it('保持六个页签及通用设置默认页签和命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsPage()
     const tabs = screen.getAllByRole('tab')
 
-    expect(tabs).toHaveLength(5)
+    expect(tabs).toHaveLength(6)
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'settings.tabGeneral',
       'settings.tabTerminal',
       'settings.tabShortcuts',
+      'settings.tabMcp',
       'settings.tabData',
       'settings.tabUpdates',
     ])
@@ -271,7 +276,7 @@ describe('设置页面装配合同', () => {
     expect(handlers.onWindowSettingsChange).toHaveBeenCalledWith({ close_behavior: 'minimize_to_tray' })
   })
 
-  it('保持终端、快捷键、数据和更新子模块的 Props 与命令委托', async () => {
+  it('保持终端、快捷键、MCP、数据和更新子模块的 Props 与命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsPage()
 
@@ -297,6 +302,9 @@ describe('设置页面装配合同', () => {
       changes: { 'terminal.paste': null },
     })
     expect(handlers.onShortcutSettingsChange).toHaveBeenNthCalledWith(2, { reset_all: true })
+
+    await user.click(screen.getByRole('tab', { name: 'settings.tabMcp' }))
+    expect(screen.getByTestId('mcp-settings')).toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: 'settings.tabData' }))
     expect(screen.getByTestId('data-portability')).toHaveAttribute('data-app-version', '1.2.3')

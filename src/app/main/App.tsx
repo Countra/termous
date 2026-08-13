@@ -28,6 +28,7 @@ import { TransferRuntimeProvider } from '#app/transfer-runtime'
 import { useTermousData } from '#app/data-runtime'
 import { TerminalRuntimeProvider } from '#features/terminal'
 import { CommandDispatchRuntimeProvider } from '#features/command-dispatch'
+import { McpAccessRuntimeProvider, McpApprovalCoordinator } from '#features/mcp-access'
 import {
   ShortcutRuntimeProvider,
   ShortcutWindowAdapter,
@@ -67,6 +68,7 @@ import {
 import { FilesWorkspaceRuntimeProvider } from '#widgets/files-workspace'
 import { useFileSessionCoordinator } from './model/useFileSessionCoordinator'
 import { useRealtimeStatusSubscriptions } from './model/useRealtimeStatusSubscriptions'
+import { useSessionSnapshotSubscription } from './model/useSessionSnapshotSubscription'
 import { useDesktopBridgeRuntime } from './model/useDesktopBridgeRuntime'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
@@ -156,6 +158,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     () => gateways.hosts.hostReachabilityEventsUrl(),
     [gateways.hosts],
   )
+  const sessionEventsUrl = useCallback(
+    () => gateways.sessions.sessionEventsUrl(),
+    [gateways.sessions],
+  )
   useRealtimeStatusSubscriptions({
     enabled: apiReady,
     forwardEventsUrl,
@@ -163,6 +169,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     onForwardEvent: actions.updateForward,
     reloadForwards: actions.reloadForwardsSilent,
     onHostReachabilityEvent: actions.updateHostReachability,
+  })
+  useSessionSnapshotSubscription({
+    enabled: apiReady,
+    eventsUrl: sessionEventsUrl,
+    onSnapshot: actions.applySessionSnapshot,
   })
   const [page, setPage] = useState<PageKey>('workbench')
   const [vaultDirty, setVaultDirty] = useState(false)
@@ -192,6 +203,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
   const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
+  const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
 
   const invalidateFilesBookmarkManagementRequest = useCallback(() => {
     nextFilesBookmarkManagementIntentIdRef.current += 1
@@ -826,19 +838,20 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onSessionEvent={actions.updateSession}
           >
             <CommandDispatchRuntimeProvider api={gateways.commandDispatch}>
-              <AppShell
-                page={page}
-                appVersion={appVersion}
-                windowCloseBehavior={data.settings.window.close_behavior}
-                sidebarCollapsed={sidebarCollapsed}
-                actionBusy={actionBusy}
-                onNavigate={navigateToPage}
-                onOpenConnectionLauncher={openContextualHostLauncher}
-                onOpenLocalTerminal={openLocalTerminalFromTopbar}
-                onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
-                onBeforeClose={shutdownBeforeClose}
-                onCloseError={showActionError}
-              >
+              <McpAccessRuntimeProvider api={gateways.mcpAccess} enabled={apiReady && !coreFatal}>
+                <AppShell
+                  page={page}
+                  appVersion={appVersion}
+                  windowCloseBehavior={data.settings.window.close_behavior}
+                  sidebarCollapsed={sidebarCollapsed}
+                  actionBusy={actionBusy}
+                  onNavigate={navigateToPage}
+                  onOpenConnectionLauncher={openContextualHostLauncher}
+                  onOpenLocalTerminal={openLocalTerminalFromTopbar}
+                  onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+                  onBeforeClose={shutdownBeforeClose}
+                  onCloseError={showActionError}
+                >
         <div
           className={`${styles['app-keepalive-page']} ${page === 'workbench' ? styles['is-active'] : styles['is-hidden']}`}
           inert={page !== 'workbench'}
@@ -1048,7 +1061,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onDeleteTerminalFont={deleteTerminalFont}
           />
         ) : null}
-              </AppShell>
+                </AppShell>
+                <McpApprovalCoordinator blocked={hostKeyApprovalBlocking} />
+              </McpAccessRuntimeProvider>
             </CommandDispatchRuntimeProvider>
       <ConfirmDialog
         open={Boolean(pendingPage)}
@@ -1084,7 +1099,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         onRefreshReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
         getHostIconUrl={getHostIconUrl}
       />
-      <HostKeyCoordinator api={gateways.hostKeys} enabled={apiReady && !coreFatal} hosts={data.hosts} />
+      <HostKeyCoordinator
+        api={gateways.hostKeys}
+        enabled={apiReady && !coreFatal}
+        hosts={data.hosts}
+        onBlockingChange={setHostKeyApprovalBlocking}
+      />
       <Modal
         centered
         width={420}

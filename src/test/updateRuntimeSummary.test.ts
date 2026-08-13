@@ -10,6 +10,7 @@ import { buildUpdateRuntimeSummary } from '../app/update-runtime/updateRuntimeSu
 test('更新安装影响摘要统计仍会被退出流程中断的远程资源', () => {
   const sessions = [
     { kind: 'ssh', status: 'connecting' },
+    { kind: 'ssh', status: 'waiting_host_trust' },
     { kind: 'ssh', status: 'connected' },
     { kind: 'ssh', status: 'failed' },
     { kind: 'local', status: 'connected' },
@@ -34,7 +35,7 @@ test('更新安装影响摘要统计仍会被退出流程中断的远程资源',
     sessions,
     transferSnapshotComplete: true,
   }), {
-    ssh_sessions: 2,
+    ssh_sessions: 3,
     file_sessions: 3,
     forwards: 4,
     transfers: 4,

@@ -37,6 +37,10 @@ deleteSession(id: string) {
     return this.request<void>(`/api/v1/sessions/${id}`, { method: 'DELETE' })
   }
 
+sessionEventsUrl() {
+    return this.websocketUrl('/api/v1/sessions/events')
+  }
+
 refreshSessionInventory(id: string, force = false, options: Pick<RequestOptions, 'signal'> = {}) {
     return this.request<Session>(`/api/v1/sessions/${encodeURIComponent(id)}/inventory/refresh`, {
       method: 'POST',

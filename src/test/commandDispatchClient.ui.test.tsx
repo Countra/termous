@@ -45,4 +45,15 @@ describe('CommandDispatchClient', () => {
     releaseInitial?.()
     await expect(initial).resolves.toBeNull()
   })
+
+  it('全局任务流复用动态 Core 地址并跨任务保持连接', () => {
+    const client = createRuntimeGatewaysFromConfig({
+      apiBaseUrl: 'http://127.0.0.1:49217',
+      apiToken: 'renderer-token',
+    }).commandDispatch
+
+    expect(client.latestTasksEventsUrl()).toBe(
+      'ws://127.0.0.1:49217/api/v1/command-dispatch-tasks/events?token=renderer-token',
+    )
+  })
 })

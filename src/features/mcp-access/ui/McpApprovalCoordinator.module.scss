@@ -1,0 +1,143 @@
+.approval-modal-root :global(.ant-modal-content) {
+  border: 1px solid var(--border-strong);
+  border-radius: 15px;
+  background: var(--surface);
+  padding: 0;
+  box-shadow: var(--shadow);
+}
+
+.dialog {
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  border-bottom: 1px solid var(--border);
+  padding: 20px 22px 17px;
+}
+
+.header h2,
+.header p {
+  margin: 0;
+}
+
+.header h2 {
+  font-size: 17px;
+}
+
+.header p {
+  margin-top: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.client,
+.operation,
+.targets {
+  margin: 16px 22px 0;
+}
+
+.client {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.client strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+}
+
+.operation {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-subtle);
+  padding: 13px 14px;
+}
+
+.operation-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.operation pre {
+  overflow: auto;
+  margin: 11px 0 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--terminal-bg);
+  padding: 10px 11px;
+  color: var(--text-primary);
+  font: 12px/1.55 "Cascadia Code", Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.targets > span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.targets > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding: 15px 22px 18px;
+}
+
+.expiry,
+.actions {
+  display: flex;
+  align-items: center;
+}
+
+.expiry {
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.actions {
+  gap: 8px;
+}
+
+@media (width <= 680px) {
+  .footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions {
+    justify-content: flex-end;
+  }
+}

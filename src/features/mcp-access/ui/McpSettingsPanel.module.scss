@@ -1,0 +1,219 @@
+.stack {
+  display: grid;
+  gap: 12px;
+}
+
+.surface {
+  display: grid;
+  gap: 15px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 16px;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.heading,
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 13px;
+}
+
+.heading h2,
+.heading p,
+.section-header h2,
+.section-header p {
+  margin: 0;
+}
+
+.heading h2,
+.section-header h2 {
+  font-size: 15px;
+}
+
+.heading p,
+.section-header p {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.heading-icon,
+.client-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.heading-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  padding: 4px 9px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.state-pill > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.state-pill.is-enabled {
+  color: var(--success);
+}
+
+.setting-row,
+.endpoint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.setting-row p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.endpoint-row {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  padding: 11px 12px;
+}
+
+.endpoint-row > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.endpoint-row small,
+.endpoint-hint,
+.protocol,
+.client small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.endpoint-row code {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: "Cascadia Code", Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.endpoint-hint {
+  margin: -6px 1px 0;
+  line-height: 1.5;
+}
+
+.protocol {
+  margin: -5px 1px 0;
+}
+
+.section-header {
+  justify-content: space-between;
+}
+
+.client-list {
+  display: grid;
+  gap: 7px;
+}
+
+.client {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-subtle);
+  padding: 11px 12px;
+}
+
+.client.is-muted {
+  opacity: 0.68;
+}
+
+.client-main {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.client-icon {
+  width: 31px;
+  height: 31px;
+  border-radius: 8px;
+}
+
+.client-name,
+.scopes,
+.client-actions {
+  display: flex;
+  align-items: center;
+}
+
+.client-name {
+  gap: 7px;
+}
+
+.scopes {
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0 4px;
+}
+
+.scopes :global(.ant-tag) {
+  margin: 0;
+  font-size: 10px;
+}
+
+.client-actions {
+  flex: 0 0 auto;
+  gap: 3px;
+}
+
+.empty {
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (width <= 1260px) {
+  .client {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .client-actions {
+    justify-content: flex-end;
+  }
+}

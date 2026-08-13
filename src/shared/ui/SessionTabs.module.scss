@@ -483,7 +483,8 @@
   background: var(--warning);
 }
 
-.session-dot.is-waiting-trust {
+.session-dot.is-waiting-trust,
+.session-dot.is-waiting-host-trust {
   background: #f59e0b;
 }
 
@@ -500,7 +501,8 @@
 }
 
 .session-tab-leading .session-dot.is-connecting,
-.session-tab-leading .session-dot.is-waiting-trust {
+.session-tab-leading .session-dot.is-waiting-trust,
+.session-tab-leading .session-dot.is-waiting-host-trust {
   animation: session-tab-status-pulse 1.25s ease-in-out infinite;
 }
 
@@ -526,6 +528,7 @@
 @media (prefers-reduced-motion: reduce) {
   .session-tab-leading .session-dot.is-connecting,
   .session-tab-leading .session-dot.is-waiting-trust,
+  .session-tab-leading .session-dot.is-waiting-host-trust,
   .session-tab-closing-spinner {
     animation: none;
   }

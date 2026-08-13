@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   decodeCommandDispatchOutputControl,
+  decodeCommandDispatchLatestTaskEvent,
   decodeCommandDispatchTask,
   decodeCommandDispatchTaskEvent,
 } from './commandDispatchProtocol.ts'
@@ -16,6 +17,20 @@ test('命令任务协议解码完整任务与单调 revision', () => {
     type: 'command_dispatch_task_snapshot',
     task: taskFixture(4),
   })?.task.id, 'task-1')
+})
+
+test('全局命令任务事件接受首帧空快照与外部任务更新', () => {
+  assert.deepEqual(decodeCommandDispatchLatestTaskEvent({
+    type: 'command_dispatch_latest_snapshot',
+    task: null,
+  }), {
+    type: 'command_dispatch_latest_snapshot',
+    task: null,
+  })
+  assert.equal(decodeCommandDispatchLatestTaskEvent({
+    type: 'command_dispatch_latest_update',
+    task: taskFixture(5),
+  })?.task?.revision, 5)
 })
 
 test('命令输出控制协议拒绝无效游标并接受缺口', () => {

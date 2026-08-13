@@ -9,6 +9,7 @@ import type {
   ForwardEvent,
   ForwardInstance,
 } from '#entities/forward'
+import type { SessionSnapshotEvent } from '#entities/session'
 import { sortCodeSnippetGroups } from '#entities/snippet'
 import { normalizeSettings } from '#features/settings'
 import { changeLanguage } from '#shared/i18n'
@@ -26,6 +27,11 @@ import {
   mergeSessionReloadSnapshot,
   sessionChangedSince,
 } from './model/sessionInventoryState'
+import {
+  affectedSessionIds,
+  decideSessionSnapshot,
+  initialSessionSnapshotCursor,
+} from './model/sessionSnapshotState'
 import { canApplyReloadedValue, SerialMutationQueue } from '#shared/async'
 import {
   bumpSessionRevision,
@@ -74,6 +80,8 @@ export function useTermousData() {
   const suppressedFileSessionIdsRef = useRef(new Map<string, string>())
   const scheduledFileSessionCleanupIdsRef = useRef(new Set<string>())
   const sessionEventRevisionsRef = useRef(new Map<string, number>())
+  const sessionSnapshotCursorRef = useRef(initialSessionSnapshotCursor)
+  const sessionSnapshotSessionsRef = useRef(data.sessions)
   const fileSessionEventRevisionsRef = useRef(new Map<string, number>())
   const inventoryEventRevisionsRef = useRef(new Map<string, number>())
   const inventoryStateSignaturesRef = useRef(new Map<string, string>())
@@ -104,6 +112,7 @@ export function useTermousData() {
     new Map<string, ForwardStartCompletionWaiter>(),
   )
   const loadRevisionRef = useRef(0)
+  sessionSnapshotSessionsRef.current = data.sessions
   data.sessions.forEach((session) => {
     if (!inventoryStateSignaturesRef.current.has(session.id)) {
       inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
@@ -366,6 +375,52 @@ export function useTermousData() {
     [gateways, reloadForwardsWithGateways],
   )
 
+  const applySessionSnapshot = useCallback((
+    event: SessionSnapshotEvent,
+    generation: number,
+  ) => {
+    const decision = decideSessionSnapshot(
+      sessionSnapshotCursorRef.current,
+      event,
+      generation,
+    )
+    sessionSnapshotCursorRef.current = decision.cursor
+    if (!decision.accepted) {
+      return false
+    }
+
+    const previousSessions = sessionSnapshotSessionsRef.current
+    const nextSessions = event.sessions
+    const nextSessionIds = new Set(nextSessions.map((session) => session.id))
+    affectedSessionIds(previousSessions, nextSessions).forEach((sessionId) => {
+      bumpSessionRevision(sessionEventRevisionsRef.current, sessionId)
+      if (!nextSessionIds.has(sessionId)) {
+        inventoryRequestRevisionsRef.current.delete(sessionId)
+        inventoryEventRevisionsRef.current.delete(sessionId)
+        inventoryStateSignaturesRef.current.delete(sessionId)
+      }
+    })
+    nextSessions.forEach((session) => {
+      const signature = sessionInventorySignature(session)
+      if (inventoryStateSignaturesRef.current.get(session.id) !== signature) {
+        inventoryStateSignaturesRef.current.set(session.id, signature)
+        bumpSessionRevision(inventoryEventRevisionsRef.current, session.id)
+      }
+    })
+
+    sessionSnapshotSessionsRef.current = nextSessions
+    setData((current) => ({
+      ...current,
+      sessions: nextSessions,
+      fileSessions: filterFileSessionsByActiveSources(
+        current.fileSessions,
+        nextSessionIds,
+      ),
+    }))
+    setActiveSession((current) => reconcileActiveSession(current, nextSessions, 'initial'))
+    return true
+  }, [])
+
   useEffect(() => () => {
     const waiters = [...forwardStartCompletionWaitersRef.current.values()]
     forwardStartCompletionWaitersRef.current.clear()
@@ -405,6 +460,7 @@ export function useTermousData() {
       reload: () => load('background'),
       reloadSilent: () => load('silent'),
       reloadForwardsSilent: () => reloadForwards(),
+      applySessionSnapshot,
       ...createSettingsCommands({
         api: gateways.settings,
         currentSettings: data.settings,
@@ -474,6 +530,7 @@ export function useTermousData() {
     }),
     [
       gateways,
+      applySessionSnapshot,
       completionSettingsWriteQueue,
       shortcutSettingsWriteQueue,
       data.fileSessions,

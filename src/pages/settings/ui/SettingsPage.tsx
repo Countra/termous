@@ -1,4 +1,4 @@
-import { DatabaseBackup, Keyboard, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
+import { Bot, DatabaseBackup, Keyboard, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
 import { Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type {
@@ -12,6 +12,7 @@ import type {
   WindowSettings,
 } from '#common/contracts'
 import { useShortcutRuntime } from '#entities/shortcuts'
+import { McpSettingsPanel } from '#features/mcp-access'
 import {
   DataPortabilitySettings,
   GeneralSettings,
@@ -153,6 +154,20 @@ export function SettingsPage({
                   onPatchChanges={(changes) => onShortcutSettingsChange({ changes })}
                   onResetAll={() => onShortcutSettingsChange({ reset_all: true })}
                 />
+              </div>
+            ),
+          },
+          {
+            key: 'mcp',
+            label: (
+              <span className={styles['tab-label']}>
+                <Bot size={15} aria-hidden="true" />
+                {t('settings.tabMcp')}
+              </span>
+            ),
+            children: (
+              <div className={styles['tab-scroll']}>
+                <McpSettingsPanel />
               </div>
             ),
           },

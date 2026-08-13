@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   HostKeyChallenge,
@@ -144,6 +144,33 @@ describe('HostKeyCoordinator 行为合同', () => {
     vi.unstubAllGlobals()
   })
 
+  it('初始 Host Key 快照返回前阻塞 MCP 审批，空快照就绪后解除', async () => {
+    let resolveSnapshot: (value: HostKeyChallengeSnapshot) => void = () => undefined
+    const hostKeyChallenges = vi.fn(() => new Promise<HostKeyChallengeSnapshot>((resolve) => {
+      resolveSnapshot = resolve
+    }))
+
+    render(<HostKeyPriorityHarness api={gateway({ hostKeyChallenges })} />)
+
+    expect(screen.queryByTestId('mcp-approval')).not.toBeInTheDocument()
+    await act(async () => {
+      resolveSnapshot(snapshot(0, []))
+      await Promise.resolve()
+    })
+    expect(await screen.findByTestId('mcp-approval')).toBeInTheDocument()
+  })
+
+  it('Host Key 初始同步失败后结束初始化门禁，避免永久阻塞 MCP 审批', async () => {
+    const hostKeyChallenges = vi.fn(async () => {
+      throw new Error('host key snapshot unavailable')
+    })
+
+    render(<HostKeyPriorityHarness api={gateway({ hostKeyChallenges })} />)
+
+    expect(screen.queryByTestId('mcp-approval')).not.toBeInTheDocument()
+    expect(await screen.findByTestId('mcp-approval')).toBeInTheDocument()
+  })
+
   it('连续事件直接应用，revision 缺口和 Core 实例切换重新对账', async () => {
     const first = challenge('first')
     const second = challenge('second', 'core-a', '2026-08-06T12:01:00.000Z')
@@ -277,3 +304,18 @@ describe('HostKeyCoordinator 行为合同', () => {
     expect(hostKeyChallenges).toHaveBeenCalledTimes(1)
   })
 })
+
+function HostKeyPriorityHarness({ api }: { api: HostKeyGateway }) {
+  const [blocked, setBlocked] = useState(false)
+  return (
+    <>
+      <HostKeyCoordinator
+        api={api}
+        enabled
+        hosts={[]}
+        onBlockingChange={setBlocked}
+      />
+      {blocked ? null : <span data-testid="mcp-approval">MCP approval</span>}
+    </>
+  )
+}

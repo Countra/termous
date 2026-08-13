@@ -1,0 +1,237 @@
+.token-modal-root :global(.ant-modal) {
+  max-width: calc(100vw - 32px);
+}
+
+.token-modal-root :global(.ant-modal-container) {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #21252e !important;
+  padding: 0;
+}
+
+:root[data-theme="light"] .token-modal-root :global(.ant-modal-container) {
+  background: #fff !important;
+}
+
+.token-modal-root :global(.ant-modal-header) {
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  background: inherit !important;
+  padding: 13px 17px;
+}
+
+.token-modal-root :global(.ant-modal-body) {
+  overflow: hidden auto;
+  max-height: min(540px, calc(100vh - 176px));
+  background: inherit;
+  padding: 15px 17px 17px;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 30%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.token-modal-root :global(.ant-modal-footer) {
+  margin: 0;
+  border-top: 1px solid var(--border);
+  background: inherit;
+  padding: 11px 17px;
+}
+
+.token-modal-root :global(.ant-modal-footer .ant-btn) {
+  min-width: 124px;
+}
+
+.token-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.token-title > span {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: var(--inner-highlight);
+}
+
+.token-title > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.token-title strong,
+.token-title small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.token-title strong {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.token-title small {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.token-dialog {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 15px;
+}
+
+.token-notice:global(.ant-alert) {
+  min-width: 0;
+  border-color: color-mix(in srgb, var(--warning) 32%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--warning) 9%, var(--surface-subtle));
+}
+
+.credential-section {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.credential-section h3 {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.secret-control {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent-soft) 24%, var(--surface-subtle));
+  box-shadow: var(--inner-highlight);
+}
+
+.secret-control code {
+  min-width: 0;
+  padding: 10px 11px;
+  color: var(--text-primary);
+  font: 11px/1.5 "Cascadia Code", Consolas, monospace;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.secret-control :global(.ant-btn) {
+  height: 100%;
+  min-height: 38px;
+  min-width: 88px;
+  border-inline-start: 1px solid var(--border);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+  color: var(--text-secondary);
+}
+
+.secret-control :global(.ant-btn:not(:disabled)):not(.is-copied):hover {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.config-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.config-heading :global(.ant-btn) {
+  min-width: 88px;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  color: var(--text-secondary);
+}
+
+.secret-control :global(.ant-btn).is-copied,
+.config-heading :global(.ant-btn).is-copied {
+  color: var(--success);
+}
+
+.secret-control :global(.ant-btn:not(:disabled)).is-copied:hover,
+.secret-control :global(.ant-btn:not(:disabled)).is-copied:focus-visible,
+.config-heading :global(.ant-btn:not(:disabled)).is-copied:hover,
+.config-heading :global(.ant-btn:not(:disabled)).is-copied:focus-visible {
+  color: var(--success);
+}
+
+.credential-section pre {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  max-height: min(235px, 34vh);
+  overflow: auto;
+  margin: 0;
+  border: 1px solid var(--terminal-border);
+  border-radius: 9px;
+  background: var(--terminal-bg);
+  padding: 11px 12px;
+  color: var(--text-primary);
+  font: 11px/1.5 "Cascadia Code", Consolas, monospace;
+  overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 34%, transparent) transparent;
+  scrollbar-width: thin;
+  white-space: pre;
+}
+
+.credential-section pre:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  outline-offset: 2px;
+}
+
+.copy-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (width <= 520px) {
+  .token-modal-root :global(.ant-modal-body) {
+    padding: 14px;
+  }
+
+  .token-modal-root :global(.ant-modal-header),
+  .token-modal-root :global(.ant-modal-footer) {
+    padding-inline: 14px;
+  }
+
+  .config-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .config-heading :global(.ant-btn) {
+    align-self: flex-end;
+  }
+
+  .credential-section pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}

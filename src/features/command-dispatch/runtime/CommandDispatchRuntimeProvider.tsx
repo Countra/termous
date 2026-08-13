@@ -23,7 +23,10 @@ import {
   isCommandDispatchTaskTerminal,
   reconcileCommandDispatchTask,
 } from '../model/commandDispatchTaskState'
-import { decodeCommandDispatchTaskEvent } from '../model/commandDispatchProtocol'
+import {
+  decodeCommandDispatchLatestTaskEvent,
+  decodeCommandDispatchTaskEvent,
+} from '../model/commandDispatchProtocol'
 import {
   CommandDispatchRuntimeContext,
   type CommandDispatchRuntimeContextValue,
@@ -55,16 +58,134 @@ export function CommandDispatchRuntimeProvider({
     [api],
   )
 
+  const clearLatestTask = useCallback((expectedGeneration: number, expectedTaskId?: string) => {
+    if (
+      activityGenerationRef.current !== expectedGeneration
+      || (expectedTaskId !== undefined && (taskRef.current?.id ?? '') !== expectedTaskId)
+      || startInFlightRef.current
+    ) {
+      return false
+    }
+    // 权威空快照也属于一次活动代际变化，必须让此前的恢复和对账结果失效。
+    activityGenerationRef.current += 1
+    taskRef.current = null
+    outputStore.retainTask(null)
+    dispatch({ type: 'recover-success', task: null })
+    return true
+  }, [outputStore])
+
   const acceptTask = useCallback((incoming: CommandDispatchTask) => {
-    const task = reconcileCommandDispatchTask(taskRef.current, incoming)
-    if (task === taskRef.current) {
+    const current = taskRef.current
+    if (current && current.id !== incoming.id && compareTaskCreation(incoming, current) < 0) {
+      return current
+    }
+    const task = reconcileCommandDispatchTask(current, incoming)
+    if (task === current) {
       return task
+    }
+    if (current?.id !== task.id) {
+      activityGenerationRef.current += 1
     }
     taskRef.current = task
     outputStore.retainTask(task)
     dispatch({ type: 'snapshot', task })
     return task
   }, [outputStore])
+
+  useEffect(() => {
+    let disposed = false
+    let socket: WebSocket | null = null
+    let reconnectTimer = 0
+    let reconnectDelay = reconnectInitialDelay
+    let reconcileController: AbortController | null = null
+
+    const reconcileLatest = () => {
+      reconcileController?.abort()
+      const controller = new AbortController()
+      reconcileController = controller
+      const requestGeneration = activityGenerationRef.current
+      const requestTaskId = taskRef.current?.id ?? ''
+      void api.latestTask({ fresh: true, signal: controller.signal })
+        .then((task) => {
+          if (
+            !disposed
+            && activityGenerationRef.current === requestGeneration
+            && (taskRef.current?.id ?? '') === requestTaskId
+          ) {
+            if (task) acceptTask(task)
+            else clearLatestTask(requestGeneration, requestTaskId)
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (reconcileController === controller) reconcileController = null
+        })
+    }
+    const scheduleReconnect = () => {
+      if (disposed || reconnectTimer) return
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = 0
+        connect()
+      }, reconnectDelay)
+      reconnectDelay = Math.min(reconnectDelay * 2, reconnectMaximumDelay)
+    }
+    function connect() {
+      if (disposed || socket) return
+      const connectionGeneration = activityGenerationRef.current
+      try {
+        socket = new WebSocket(api.latestTasksEventsUrl())
+      } catch {
+        scheduleReconnect()
+        return
+      }
+      const currentSocket = socket
+      let firstMessage = true
+      currentSocket.addEventListener('open', () => {
+        reconnectDelay = reconnectInitialDelay
+        reconcileLatest()
+      })
+      currentSocket.addEventListener('message', (message: MessageEvent<string>) => {
+        if (disposed || socket !== currentSocket) return
+        const initialMessage = firstMessage
+        firstMessage = false
+        try {
+          const event = decodeCommandDispatchLatestTaskEvent(JSON.parse(String(message.data)))
+          const current = taskRef.current
+          if (
+            initialMessage
+            && connectionGeneration !== activityGenerationRef.current
+            && event?.task
+            && current
+            && event.task.id !== current.id
+            && compareTaskCreation(event.task, current) <= 0
+          ) {
+            return
+          }
+          if (event?.task) {
+            acceptTask(event.task)
+          } else if (event?.type === 'command_dispatch_latest_snapshot') {
+            clearLatestTask(connectionGeneration)
+          } else if (!event) {
+            reconcileLatest()
+          }
+        } catch {
+          reconcileLatest()
+        }
+      })
+      currentSocket.addEventListener('error', () => currentSocket.close())
+      currentSocket.addEventListener('close', () => {
+        if (socket === currentSocket) socket = null
+        scheduleReconnect()
+      })
+    }
+    connect()
+    return () => {
+      disposed = true
+      window.clearTimeout(reconnectTimer)
+      reconcileController?.abort()
+      if (socket) retireWebSocket(socket)
+    }
+  }, [acceptTask, api, clearLatestTask])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -334,6 +455,21 @@ export function CommandDispatchRuntimeProvider({
       {children}
     </CommandDispatchRuntimeContext.Provider>
   )
+}
+
+function compareTaskCreation(left: CommandDispatchTask, right: CommandDispatchTask) {
+  const leftMilliseconds = Date.parse(left.created_at)
+  const rightMilliseconds = Date.parse(right.created_at)
+  if (!Number.isFinite(leftMilliseconds) || !Number.isFinite(rightMilliseconds)) return 0
+  if (leftMilliseconds !== rightMilliseconds) return leftMilliseconds < rightMilliseconds ? -1 : 1
+  const leftNanoseconds = timestampFractionNanoseconds(left.created_at)
+  const rightNanoseconds = timestampFractionNanoseconds(right.created_at)
+  return leftNanoseconds === rightNanoseconds ? 0 : leftNanoseconds < rightNanoseconds ? -1 : 1
+}
+
+function timestampFractionNanoseconds(timestamp: string) {
+  const fraction = /\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/.exec(timestamp)?.[1] ?? ''
+  return Number(`${fraction.slice(0, 9)}000000000`.slice(0, 9))
 }
 
 function commandDispatchRequestError(error: unknown) {

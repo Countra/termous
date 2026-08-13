@@ -34,3 +34,8 @@ export type {
   SessionStatus,
 } from './model/types.ts'
 export { normalizeCompletionItem, normalizeCompletionResult } from './model/completionResult.ts'
+export {
+  decodeSessionSnapshotEvent,
+  SessionSnapshotProtocolError,
+  type SessionSnapshotEvent,
+} from './model/sessionSnapshot.ts'

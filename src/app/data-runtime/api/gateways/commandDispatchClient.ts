@@ -98,6 +98,10 @@ export class CommandDispatchClient extends TermousApiTransport {
     )
   }
 
+  latestTasksEventsUrl() {
+    return this.websocketUrl(`${commandDispatchTasksPath}/events`)
+  }
+
   targetOutputUrl(
     taskId: string,
     sessionId: string,

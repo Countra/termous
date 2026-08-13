@@ -152,6 +152,13 @@ vi.mock('#features/command-dispatch', () => ({
   ),
 }))
 
+vi.mock('#features/mcp-access', () => ({
+  McpAccessRuntimeProvider: ({ children }: { children: ReactNode }) => (
+    <div data-provider="mcp-access">{children}</div>
+  ),
+  McpApprovalCoordinator: () => null,
+}))
+
 vi.mock('#app/app-shell', () => ({
   AppShell: ({
     children,
@@ -351,6 +358,8 @@ vi.mock('#app/data-runtime', () => ({
       firewall: {},
       alias: {},
       dataPortability: {},
+      commandDispatch: {},
+      mcpAccess: {},
     },
     data: testState.data,
     initializing: false,
@@ -407,6 +416,7 @@ describe('应用运行时组合合同', () => {
       'transfer',
       'terminal',
       'command-dispatch',
+      'mcp-access',
       'app-shell',
     ]
     const actualOrder: string[] = []

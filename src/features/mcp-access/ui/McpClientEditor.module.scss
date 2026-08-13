@@ -1,0 +1,413 @@
+.editor-modal-root :global(.ant-modal) {
+  max-width: calc(100vw - 32px);
+}
+
+.editor-modal-root :global(.ant-modal-container) {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #21252e !important;
+  padding: 0;
+}
+
+:root[data-theme="light"] .editor-modal-root :global(.ant-modal-container) {
+  background: #fff !important;
+}
+
+.editor-modal-root :global(.ant-modal-header) {
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  background: inherit !important;
+  padding: 14px 18px;
+}
+
+.editor-modal-root :global(.ant-modal-close) {
+  top: 10px;
+  right: 10px;
+}
+
+.editor-modal-root :global(.ant-modal-body) {
+  overflow: hidden auto;
+  max-height: min(620px, calc(100vh - 188px));
+  background: inherit;
+  padding: 0;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 30%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.editor-modal-root :global(.ant-modal-footer) {
+  margin: 0;
+  border-top: 1px solid var(--border);
+  background: inherit;
+  padding: 12px 18px;
+}
+
+.editor-modal-root :global(.ant-modal-footer .ant-btn) {
+  min-width: 92px;
+}
+
+.editor-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 11px;
+}
+
+.editor-title-icon {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.editor-title strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor {
+  display: grid;
+  gap: 0;
+}
+
+.section {
+  display: grid;
+  gap: 13px;
+  padding: 17px 18px;
+}
+
+.section + .section {
+  border-top: 1px solid var(--border);
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.section-heading h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 720;
+  letter-spacing: 0.01em;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.field > label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.field-hint,
+.field-error {
+  justify-self: end;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.field-error {
+  color: var(--danger);
+}
+
+.permission-summary {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.permission-summary > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+  padding: 4px 9px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: var(--inner-highlight);
+}
+
+.permission-summary > span::before {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  content: "";
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.permission-summary :global(.ant-btn) {
+  height: 26px;
+  border-radius: 7px;
+  padding-inline: 7px;
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.permission-summary :global(.ant-btn:not(:disabled):hover) {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.permission-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.permission-group {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.permission-group + .permission-group {
+  border-top: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  padding-top: 13px;
+}
+
+.permission-group > legend {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.permission-group > legend > span:last-child {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.permission-group legend strong {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.permission-group legend small {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.group-icon {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-soft) 56%, transparent);
+  color: var(--accent);
+  box-shadow: var(--inner-highlight);
+}
+
+.scope-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.scope-option {
+  display: grid;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 76px;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  padding: 7px 9px;
+  cursor: pointer;
+  box-shadow: var(--inner-highlight);
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.scope-option:global(.ant-checkbox-wrapper) {
+  align-items: flex-start;
+}
+
+.scope-option:global(.ant-checkbox-wrapper)::after {
+  display: none;
+}
+
+.scope-option:not(.is-disabled, .is-selected):hover {
+  border-color: var(--border-strong);
+  background: var(--row-hover-bg);
+  transform: translateY(-1px);
+}
+
+.scope-option :global(.ant-checkbox-input:focus-visible + .ant-checkbox-inner) {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.scope-option.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 40%, var(--surface-subtle));
+  box-shadow: var(--inner-highlight);
+}
+
+.scope-option.is-danger.is-selected {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface-subtle));
+  box-shadow: var(--inner-highlight);
+}
+
+.scope-option.is-danger.is-selected :global(.ant-checkbox-inner) {
+  border-color: var(--danger);
+  background: var(--danger);
+}
+
+.scope-option.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.scope-option :global(.ant-checkbox) {
+  margin-top: 1px;
+}
+
+.scope-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.scope-name {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.scope-name strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.scope-name em {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 5px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-style: normal;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.scope-name em.danger-badge {
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+}
+
+.scope-copy > small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.permission-error {
+  margin: -3px 0 0;
+  color: var(--danger);
+  font-size: 10px;
+}
+
+.danger-alert:global(.ant-alert) {
+  margin-top: 1px;
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface-subtle));
+  box-shadow: var(--inner-highlight);
+}
+
+.danger-alert :global(.ant-alert-icon) {
+  color: var(--danger);
+}
+
+.danger-alert :global(.ant-alert-title) {
+  color: var(--text-primary);
+  font-weight: 680;
+}
+
+.danger-alert :global(.ant-alert-description) {
+  color: var(--text-secondary);
+}
+
+@media (width <= 700px) {
+  .editor-modal-root :global(.ant-modal-body) {
+    max-height: calc(100vh - 150px);
+  }
+
+  .scope-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .permission-summary {
+    justify-content: space-between;
+  }
+}
+
+@media (width <= 520px) {
+  .section {
+    padding-inline: 14px;
+  }
+
+  .scope-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .permission-group > legend > span:last-child {
+    display: grid;
+    gap: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scope-option {
+    transition: none;
+  }
+
+  .scope-option:not(.is-disabled, .is-selected):hover {
+    transform: none;
+  }
+}

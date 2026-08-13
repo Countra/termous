@@ -2,6 +2,7 @@ import type { AppConfig } from '#common/contracts'
 import type { AliasGateway } from '#features/alias'
 import type { CommandDispatchGateway } from '#features/command-dispatch'
 import type { FileGateway } from '#features/files'
+import type { McpAccessGateway } from '#features/mcp-access'
 import type { TerminalGateway } from '#features/terminal'
 import type { TermousApiTransport } from '#shared/api'
 import { getTermousBridge } from '#shared/bridge'
@@ -18,6 +19,7 @@ import { FileSessionClient } from './gateways/fileSessionClient'
 import { FirewallClient } from './gateways/firewallClient'
 import { ForwardClient } from './gateways/forwardsClient'
 import { HostKeyClient } from './gateways/hostKeysClient'
+import { McpAccessClient } from './gateways/mcpAccessClient'
 import { HostClient } from './gateways/hostsClient'
 import { ObservabilityClient } from './gateways/observabilityClient'
 import { RuntimeClient } from './gateways/runtimeClient'
@@ -54,6 +56,7 @@ export interface RuntimeGateways {
   readonly files: FileGateway
   readonly terminal: TerminalGateway
   readonly commandDispatch: CommandDispatchGateway
+  readonly mcpAccess: McpAccessGateway
   readonly snapshot: AppDataSnapshotGateway
 }
 
@@ -71,6 +74,7 @@ export function createRuntimeGatewaysFromConfig(
   const sessions = new SessionClient(config)
   const aliasClient = new AliasClient(config)
   const commandDispatch = new CommandDispatchClient(config)
+  const mcpAccess = new McpAccessClient(config)
   const observability = new ObservabilityClient(config)
   const service = new ServiceClient(config)
   const crontab = new CrontabClient(config)
@@ -103,6 +107,7 @@ export function createRuntimeGatewaysFromConfig(
     files: createFileGateway(fileSessions, fileOperations, transfers, fileCatalog),
     terminal: createTerminalGateway(settings, sessions),
     commandDispatch,
+    mcpAccess,
     snapshot: createAppDataSnapshotGateway({
       settings,
       snippets,
