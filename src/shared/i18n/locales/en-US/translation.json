@@ -2429,15 +2429,14 @@
       "clientsHint": "Each client has an independent token and least-privilege scopes.",
       "addClient": "Add client",
       "noClients": "No MCP clients have been added",
-      "revokeClient": "Revoke client",
-      "revokeClientLabel": "Revoke client {{name}}",
-      "revokeTitle": "Revoke this client?",
-      "revokeDescription": "The token for {{name}} will stop working immediately. Revocation cannot be undone.",
-      "revokeConfirm": "Revoke client",
+      "deleteClient": "Delete client",
+      "deleteClientLabel": "Delete client {{name}}",
+      "deleteTitle": "Delete this client?",
+      "deleteDescription": "The token for {{name}} will stop working immediately, and the client record will be deleted. This action cannot be undone.",
+      "deleteConfirm": "Delete client",
       "clientState": {
         "active": "Enabled",
-        "disabled": "Disabled",
-        "revoked": "Revoked"
+        "disabled": "Disabled"
       },
       "scope": {
         "hosts_read": "Read hosts",
@@ -2495,9 +2494,14 @@
       "tokenValue": "Access token",
       "tokenCopied": "Client token copied",
       "clientConfig": "Client configuration",
+      "configFileTab": "Config file",
+      "codexTab": "Codex",
+      "codexImportHint": "Run the copied command directly in CMD or PowerShell. It replaces any existing termous MCP entry and stores the token in plain text in the Codex configuration file.",
       "configCopied": "Client configuration copied",
+      "codexCommandCopied": "Codex import command copied",
       "copyTokenLabel": "Copy client token",
       "copyConfigLabel": "Copy client configuration",
+      "copyCodexCommandLabel": "Copy Codex import command",
       "unknownClient": "Unknown client",
       "destructive": "High-risk operation",
       "approval": {

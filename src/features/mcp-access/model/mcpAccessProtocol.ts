@@ -78,7 +78,6 @@ export function decodeMcpClient(value: unknown): McpClient {
     created_at: requireString(client.created_at, 'MCP 客户端创建时间缺失'),
     updated_at: requireString(client.updated_at, 'MCP 客户端更新时间缺失'),
     last_used_at: optionalString(client.last_used_at),
-    revoked_at: optionalString(client.revoked_at),
   }
 }
 

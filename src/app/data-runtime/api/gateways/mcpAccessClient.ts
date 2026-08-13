@@ -55,11 +55,11 @@ export class McpAccessClient extends TermousApiTransport {
   }
 
   deleteClient(clientId: string, expectedRevision: number, signal?: AbortSignal) {
-    return this.request<unknown>(`${mcpPath}/clients/${encodeURIComponent(clientId)}`, {
+    return this.request<void>(`${mcpPath}/clients/${encodeURIComponent(clientId)}`, {
       method: 'DELETE',
       body: { expected_revision: expectedRevision },
       signal,
-    }).then(decodeMcpClient)
+    })
   }
 
   issueClientToken(clientId: string, expectedRevision: number, signal?: AbortSignal) {

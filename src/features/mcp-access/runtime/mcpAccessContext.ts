@@ -22,7 +22,7 @@ export interface McpAccessRuntimeValue {
   setEnabled(enabled: boolean): Promise<void>
   createClient(input: McpClientInput): Promise<McpClientToken>
   patchClient(clientId: string, patch: McpClientPatch): Promise<void>
-  revokeClient(clientId: string): Promise<void>
+  deleteClient(clientId: string): Promise<void>
   issueToken(clientId: string): Promise<McpClientToken>
   decideApproval(approvalId: string, decision: McpApprovalDecision): Promise<void>
 }

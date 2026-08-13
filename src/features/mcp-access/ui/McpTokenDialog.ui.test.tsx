@@ -37,6 +37,13 @@ const expectedConfig = JSON.stringify({
     },
   },
 }, null, 2)
+const expectedCodexCommand = `powershell.exe -NoProfile -Command "${[
+  "Set-Variable -Name h -Value ([Environment]::GetEnvironmentVariable('CODEX_HOME'))",
+  "if ([string]::IsNullOrWhiteSpace((Get-Variable -Name h -ValueOnly))) { Set-Variable -Name h -Value ([IO.Path]::Combine([Environment]::GetFolderPath('UserProfile'), '.codex')) }",
+  '[void][IO.Directory]::CreateDirectory((Get-Variable -Name h -ValueOnly))',
+  'codex mcp remove termous',
+  `if ((Get-Variable -Name LASTEXITCODE -ValueOnly) -eq 0) { @('', '[mcp_servers.termous]', 'url = ''${endpoint}''', 'tool_timeout_sec = 180', 'http_headers = { Authorization = ''Bearer ${token}'' }') | Add-Content -LiteralPath ([IO.Path]::Combine((Get-Variable -Name h -ValueOnly), 'config.toml')); codex mcp get termous }`,
+].join('; ')}"`
 const originalTermousDescriptor = Object.getOwnPropertyDescriptor(window, 'termous')
 const originalClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
 
@@ -64,6 +71,42 @@ describe('McpTokenDialog', () => {
     await waitFor(() => expect(bridgeWriteText).toHaveBeenNthCalledWith(2, expectedConfig))
     expect(JSON.parse(bridgeWriteText.mock.calls[1]?.[0] ?? '{}')).toEqual(JSON.parse(expectedConfig))
     await waitFor(() => expect(copyConfig).toHaveTextContent('settings.mcp.copied'))
+    expect(navigatorWriteText).not.toHaveBeenCalled()
+  })
+
+  it('通过 Tab 切换并复制包含令牌的 Codex 导入命令', async () => {
+    const user = userEvent.setup()
+    const bridgeWriteText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined)
+    const navigatorWriteText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined)
+    installClipboard(bridgeWriteText, navigatorWriteText)
+    renderDialog()
+
+    const configTab = screen.getByRole('tab', { name: 'settings.mcp.configFileTab' })
+    const codexTab = screen.getByRole('tab', { name: 'settings.mcp.codexTab' })
+    expect(configTab).toHaveAttribute('aria-selected', 'true')
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.copyConfigLabel' }))
+    await waitFor(() => expect(screen.getByRole('button', {
+      name: 'settings.mcp.copyConfigLabel',
+    })).toHaveTextContent('settings.mcp.copied'))
+
+    await user.click(codexTab)
+    expect(codexTab).toHaveAttribute('aria-selected', 'true')
+    const command = screen.getByRole('tabpanel', { name: 'settings.mcp.codexTab' }).querySelector('pre')
+    if (!command) throw new Error('Codex 命令代码区缺失')
+    expect(command.textContent).toBe(expectedCodexCommand)
+    expect(expectedCodexCommand).toContain(token)
+    expect(expectedCodexCommand).toContain(`Bearer ${token}`)
+    expect(expectedCodexCommand).not.toContain('TERMOUS_MCP_TOKEN')
+    expect(expectedCodexCommand).toMatch(/^powershell\.exe -NoProfile -Command /)
+    const copyCodex = screen.getByRole('button', { name: 'settings.mcp.copyCodexCommandLabel' })
+    expect(copyCodex).not.toHaveTextContent('settings.mcp.copied')
+    await user.click(copyCodex)
+
+    await waitFor(() => expect(bridgeWriteText).toHaveBeenNthCalledWith(2, expectedCodexCommand))
+    await waitFor(() => expect(copyCodex).toHaveTextContent('settings.mcp.copied'))
+    await user.click(configTab)
+    expect(screen.getByRole('button', { name: 'settings.mcp.copyConfigLabel' }))
+      .toHaveTextContent('settings.mcp.copied')
     expect(navigatorWriteText).not.toHaveBeenCalled()
   })
 
@@ -98,6 +141,9 @@ describe('McpTokenDialog', () => {
 
     expect(document.body.textContent).toContain(token)
     expect(document.body.textContent).toContain(`Bearer ${token}`)
+    fireEvent.click(screen.getByRole('tab', { name: 'settings.mcp.codexTab' }))
+    expect(screen.getByRole('tabpanel', { name: 'settings.mcp.codexTab' }))
+      .toHaveTextContent('http_headers')
     fireEvent.click(screen.getByRole('button', { name: 'settings.mcp.tokenSaved' }))
 
     expect(document.body.textContent).not.toContain(token)

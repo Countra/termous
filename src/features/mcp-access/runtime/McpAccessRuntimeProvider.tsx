@@ -212,14 +212,12 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
     })
   ), [api, clients, runMutation])
 
-  const revokeClient = useCallback((clientId: string) => runMutation(`client:${clientId}`, async (isCurrent) => {
+  const deleteClient = useCallback((clientId: string) => runMutation(`client:${clientId}`, async (isCurrent) => {
     const currentClient = clients.find((item) => item.id === clientId)
     if (!currentClient) throw new Error('MCP 客户端不存在')
-    const revokedClient = await api.deleteClient(clientId, currentClient.revision)
+    await api.deleteClient(clientId, currentClient.revision)
     if (isCurrent()) {
-      setClients((current) => current.map((item) => (
-        item.id === revokedClient.id ? revokedClient : item
-      )))
+      setClients((current) => current.filter((item) => item.id !== clientId))
     }
   }), [api, clients, runMutation])
 
@@ -262,7 +260,7 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
     setEnabled,
     createClient,
     patchClient,
-    revokeClient,
+    deleteClient,
     issueToken,
     decideApproval,
   }), [
@@ -270,7 +268,7 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
     clients,
     createClient,
     decideApproval,
-    revokeClient,
+    deleteClient,
     errorCode,
     issueToken,
     mutationKey,

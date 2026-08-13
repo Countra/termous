@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, App as AntdApp, Button, Modal } from 'antd'
-import { Check, Clipboard, KeyRound } from 'lucide-react'
+import { Alert, App as AntdApp, Button, Modal, Tabs } from 'antd'
+import { Check, Clipboard, FileJson2, KeyRound, SquareTerminal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { McpClientToken } from '#entities/mcp-access'
 import { getTermousBridge } from '#shared/bridge'
 import { termousNotificationClassName } from '#shared/ui'
 import styles from './McpTokenDialog.module.scss'
 
-type CopyTarget = 'token' | 'config'
+type ConfigTab = 'config' | 'codex'
+type CopyTarget = 'token' | ConfigTab
 
 const initialCopyState: Record<CopyTarget, boolean> = {
   token: false,
   config: false,
+  codex: false,
 }
 
 export function McpTokenDialog({
@@ -26,6 +28,7 @@ export function McpTokenDialog({
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const [closing, setClosing] = useState(false)
+  const [activeConfigTab, setActiveConfigTab] = useState<ConfigTab>('config')
   const [copying, setCopying] = useState<CopyTarget | null>(null)
   const [copied, setCopied] = useState(initialCopyState)
   const [copyAnnouncement, setCopyAnnouncement] = useState('')
@@ -33,15 +36,22 @@ export function McpTokenDialog({
   const operationRef = useRef(0)
   const feedbackTimersRef = useRef<Partial<Record<CopyTarget, number>>>({})
   const visibleResult = closing ? null : result
-  const config = useMemo(() => visibleResult ? JSON.stringify({
-    mcpServers: {
-      termous: {
-        type: 'http',
-        url: endpoint,
-        headers: { Authorization: `Bearer ${visibleResult.token}` },
+  const artifacts = useMemo(() => visibleResult ? {
+    config: JSON.stringify({
+      mcpServers: {
+        termous: {
+          type: 'http',
+          url: endpoint,
+          headers: { Authorization: `Bearer ${visibleResult.token}` },
+        },
       },
-    },
-  }, null, 2) : '', [endpoint, visibleResult])
+    }, null, 2),
+    codex: buildCodexImportCommand(endpoint, visibleResult.token),
+  } : { config: '', codex: '' }, [endpoint, visibleResult])
+
+  useEffect(() => {
+    if (result) setActiveConfigTab('config')
+  }, [result])
 
   useEffect(() => () => {
     operationRef.current += 1
@@ -80,7 +90,9 @@ export function McpTokenDialog({
       if (operation !== operationRef.current) return
       const announcement = target === 'token'
         ? t('settings.mcp.tokenCopied')
-        : t('settings.mcp.configCopied')
+        : target === 'config'
+          ? t('settings.mcp.configCopied')
+          : t('settings.mcp.codexCommandCopied')
       setCopied((current) => ({ ...current, [target]: true }))
       setCopyAnnouncement(announcement)
       const previousTimer = feedbackTimersRef.current[target]
@@ -155,21 +167,73 @@ export function McpTokenDialog({
           </section>
 
           <section className={styles['credential-section']} aria-labelledby="mcp-client-config-title">
-            <header className={styles['config-heading']}>
-              <h3 id="mcp-client-config-title">{t('settings.mcp.clientConfig')}</h3>
-              <Button
-                type="text"
-                className={copied.config ? styles['is-copied'] : ''}
-                icon={copied.config ? <Check size={15} /> : <Clipboard size={15} />}
-                loading={copying === 'config'}
-                disabled={copying !== null && copying !== 'config'}
-                aria-label={t('settings.mcp.copyConfigLabel')}
-                onClick={() => void copy('config', config)}
-              >
-                {copied.config ? t('settings.mcp.copied') : t('app.copy')}
-              </Button>
-            </header>
-            <pre tabIndex={0} aria-labelledby="mcp-client-config-title">{config}</pre>
+            <h3 id="mcp-client-config-title">{t('settings.mcp.clientConfig')}</h3>
+            <Tabs
+              className={styles['config-tabs']}
+              activeKey={activeConfigTab}
+              onChange={(key) => setActiveConfigTab(key as ConfigTab)}
+              items={[
+                {
+                  key: 'config',
+                  label: (
+                    <span className={styles['tab-label']}>
+                      <FileJson2 size={14} aria-hidden="true" />
+                      {t('settings.mcp.configFileTab')}
+                    </span>
+                  ),
+                  children: (
+                    <div className={styles['artifact-panel']}>
+                      <header className={styles['artifact-toolbar']}>
+                        <span>JSON</span>
+                        <Button
+                          type="text"
+                          className={`${styles['config-copy']} ${copied.config ? styles['is-copied'] : ''}`}
+                          icon={copied.config ? <Check size={15} /> : <Clipboard size={15} />}
+                          loading={copying === 'config'}
+                          disabled={copying !== null && copying !== 'config'}
+                          aria-label={t('settings.mcp.copyConfigLabel')}
+                          onClick={() => void copy('config', artifacts.config)}
+                        >
+                          {copied.config ? t('settings.mcp.copied') : t('app.copy')}
+                        </Button>
+                      </header>
+                      <pre tabIndex={0}>{artifacts.config}</pre>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'codex',
+                  label: (
+                    <span className={styles['tab-label']}>
+                      <SquareTerminal size={14} aria-hidden="true" />
+                      {t('settings.mcp.codexTab')}
+                    </span>
+                  ),
+                  children: (
+                    <div className={styles['config-panel']}>
+                      <p>{t('settings.mcp.codexImportHint')}</p>
+                      <div className={styles['artifact-panel']}>
+                        <header className={styles['artifact-toolbar']}>
+                          <span>CMD / PowerShell</span>
+                          <Button
+                            type="text"
+                            className={`${styles['config-copy']} ${copied.codex ? styles['is-copied'] : ''}`}
+                            icon={copied.codex ? <Check size={15} /> : <Clipboard size={15} />}
+                            loading={copying === 'codex'}
+                            disabled={copying !== null && copying !== 'codex'}
+                            aria-label={t('settings.mcp.copyCodexCommandLabel')}
+                            onClick={() => void copy('codex', artifacts.codex)}
+                          >
+                            {copied.codex ? t('settings.mcp.copied') : t('app.copy')}
+                          </Button>
+                        </header>
+                        <pre tabIndex={0}>{artifacts.codex}</pre>
+                      </div>
+                    </div>
+                  ),
+                },
+              ]}
+            />
           </section>
 
           <span className={styles['copy-status']} aria-live="polite" aria-atomic="true">
@@ -188,4 +252,25 @@ async function copyText(value: string) {
     return
   }
   await navigator.clipboard.writeText(value)
+}
+
+function buildCodexImportCommand(endpoint: string, token: string) {
+  const configLines = [
+    '[mcp_servers.termous]',
+    `url = '${endpoint}'`,
+    'tool_timeout_sec = 180',
+    `http_headers = { Authorization = 'Bearer ${token}' }`,
+  ]
+  const script = [
+    "Set-Variable -Name h -Value ([Environment]::GetEnvironmentVariable('CODEX_HOME'))",
+    "if ([string]::IsNullOrWhiteSpace((Get-Variable -Name h -ValueOnly))) { Set-Variable -Name h -Value ([IO.Path]::Combine([Environment]::GetFolderPath('UserProfile'), '.codex')) }",
+    '[void][IO.Directory]::CreateDirectory((Get-Variable -Name h -ValueOnly))',
+    'codex mcp remove termous',
+    `if ((Get-Variable -Name LASTEXITCODE -ValueOnly) -eq 0) { @('', ${configLines.map(quotePowerShell).join(', ')}) | Add-Content -LiteralPath ([IO.Path]::Combine((Get-Variable -Name h -ValueOnly), 'config.toml')); codex mcp get termous }`,
+  ].join('; ')
+  return `powershell.exe -NoProfile -Command "${script}"`
+}
+
+function quotePowerShell(value: string) {
+  return `'${value.replace(/'/g, "''")}'`
 }

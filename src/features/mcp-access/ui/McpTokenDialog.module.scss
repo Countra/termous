@@ -149,56 +149,187 @@
   color: var(--text-primary);
 }
 
-.config-heading {
-  display: flex;
+.config-tabs:global(.ant-tabs) {
   min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 
-.config-heading :global(.ant-btn) {
-  min-width: 88px;
+.config-tabs :global(.ant-tabs-nav) {
+  min-height: 34px;
+  margin: 0 0 8px;
+}
+
+.config-tabs :global(.ant-tabs-nav::before) {
+  display: none;
+}
+
+.config-tabs :global(.ant-tabs-nav-wrap) {
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.config-tabs :global(.ant-tabs-nav-list) {
+  align-items: center;
+  gap: 2px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 72%, var(--border));
+  border-radius: 9px;
+  background: var(--surface-subtle);
+  padding: 3px;
+  box-shadow: var(--inner-highlight);
+}
+
+.config-tabs :global(.ant-tabs-tab) {
+  min-height: 28px;
+  min-width: 108px;
+  justify-content: center;
+  margin: 0 !important;
+  border-radius: 6px;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.config-tabs :global(.ant-tabs-tab-btn) {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  line-height: 1;
+  text-align: center;
+}
+
+.config-tabs :global(.ant-tabs-tab:not(.ant-tabs-tab-active):hover) {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.config-tabs :global(.ant-tabs-tab-active) {
+  background: color-mix(in srgb, var(--accent-soft) 58%, var(--surface-subtle));
+  box-shadow: var(--inner-highlight);
+}
+
+.config-tabs :global(.ant-tabs-tab-active .ant-tabs-tab-btn) {
+  color: var(--accent);
+}
+
+.config-tabs :global(.ant-tabs-tab-btn:focus-visible) {
+  outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  outline-offset: 3px;
+}
+
+.config-tabs :global(.ant-tabs-ink-bar) {
+  display: none;
+}
+
+.config-tabs :global(.ant-tabs-content-holder) {
+  min-width: 0;
+}
+
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.tab-label svg {
   flex: 0 0 auto;
-  border-radius: 7px;
+}
+
+.config-copy:global(.ant-btn) {
+  height: 26px;
+  min-width: 76px;
+  flex: 0 0 auto;
+  border-radius: 6px;
   color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.config-copy:global(.ant-btn:not(:disabled)):not(.is-copied):hover {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.config-panel {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.config-panel p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.artifact-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--terminal-border);
+  border-radius: 9px;
+  background: var(--terminal-bg);
+  box-shadow: var(--inner-highlight);
+}
+
+.artifact-toolbar {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--terminal-border);
+  background: color-mix(in srgb, var(--surface-strong) 64%, var(--terminal-bg));
+  padding: 3px 5px 3px 11px;
+}
+
+.artifact-toolbar > span {
+  color: var(--text-muted);
+  font: 650 9px/1.2 "Cascadia Code", Consolas, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .secret-control :global(.ant-btn).is-copied,
-.config-heading :global(.ant-btn).is-copied {
+.config-copy:global(.ant-btn).is-copied {
   color: var(--success);
 }
 
 .secret-control :global(.ant-btn:not(:disabled)).is-copied:hover,
 .secret-control :global(.ant-btn:not(:disabled)).is-copied:focus-visible,
-.config-heading :global(.ant-btn:not(:disabled)).is-copied:hover,
-.config-heading :global(.ant-btn:not(:disabled)).is-copied:focus-visible {
+.config-copy:global(.ant-btn:not(:disabled)).is-copied:hover,
+.config-copy:global(.ant-btn:not(:disabled)).is-copied:focus-visible {
   color: var(--success);
 }
 
-.credential-section pre {
+.artifact-panel pre {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  max-height: min(235px, 34vh);
+  max-height: min(220px, 31vh);
   overflow: auto;
   margin: 0;
-  border: 1px solid var(--terminal-border);
-  border-radius: 9px;
-  background: var(--terminal-bg);
-  padding: 11px 12px;
+  border: 0;
+  background: transparent;
+  padding: 12px 13px;
   color: var(--text-primary);
-  font: 11px/1.5 "Cascadia Code", Consolas, monospace;
+  font: 11px/1.55 "Cascadia Code", Consolas, monospace;
   overscroll-behavior: contain;
   scrollbar-color: color-mix(in srgb, var(--text-muted) 34%, transparent) transparent;
   scrollbar-width: thin;
   white-space: pre;
 }
 
-.credential-section pre:focus-visible {
+.artifact-panel pre:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .copy-status {
@@ -220,18 +351,23 @@
     padding-inline: 14px;
   }
 
-  .config-heading {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 6px;
+  .config-tabs :global(.ant-tabs-tab) {
+    padding-inline: 8px;
   }
 
-  .config-heading :global(.ant-btn) {
-    align-self: flex-end;
+  .config-copy:global(.ant-btn) {
+    min-width: 72px;
+    padding-inline: 8px;
   }
 
-  .credential-section pre {
+  .artifact-panel pre {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .config-tabs :global(.ant-tabs-tab) {
+    transition: none;
   }
 }

@@ -8,16 +8,10 @@ import { McpAccessRuntimeProvider } from './McpAccessRuntimeProvider'
 describe('McpAccessRuntimeProvider', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('使用 revision 吊销客户端、移除已决定审批且不保存一次性令牌', async () => {
+  it('使用 revision 删除客户端、移除已决定审批且不保存一次性令牌', async () => {
     vi.stubGlobal('WebSocket', FakeWebSocket)
     const initialClient = clientFixture()
     const initialApproval = approvalFixture()
-    const revokedClient = {
-      ...initialClient,
-      enabled: false,
-      revision: 8,
-      revoked_at: '2026-08-13T00:05:00Z',
-    }
     const createdClient = { ...initialClient, id: 'client-2', name: 'New client', revision: 1 }
     let serverClients = [initialClient]
     let serverApprovals = [initialApproval]
@@ -28,8 +22,7 @@ describe('McpAccessRuntimeProvider', () => {
         return { client: createdClient, token: 'tmcp_once' }
       }),
       deleteClient: vi.fn(async () => {
-        serverClients = serverClients.map((client) => client.id === revokedClient.id ? revokedClient : client)
-        return revokedClient
+        serverClients = serverClients.filter((client) => client.id !== initialClient.id)
       }),
       approvals: vi.fn(async () => ({ instance_id: 'instance-1', revision: 10, items: serverApprovals })),
       decideApproval: vi.fn(async () => {
@@ -57,12 +50,10 @@ describe('McpAccessRuntimeProvider', () => {
     expect(token).toBe('tmcp_once')
     expect(JSON.stringify(runtime)).not.toContain('tmcp_once')
 
-    await act(async () => runtime!.revokeClient(initialClient.id))
+    await act(async () => runtime!.deleteClient(initialClient.id))
     expect(gateway.deleteClient).toHaveBeenCalledWith(initialClient.id, initialClient.revision)
-    expect(runtime!.clients.find((client) => client.id === initialClient.id)).toMatchObject({
-      enabled: false,
-      revoked_at: revokedClient.revoked_at,
-    })
+    expect(runtime!.clients.some((client) => client.id === initialClient.id)).toBe(false)
+    expect(runtime!.clients.some((client) => client.id === createdClient.id)).toBe(true)
 
     await act(async () => runtime!.decideApproval(initialApproval.id, 'approve'))
     expect(gateway.decideApproval).toHaveBeenCalledWith(
@@ -99,7 +90,10 @@ describe('McpAccessRuntimeProvider', () => {
       serverClients = serverClients.map((client) => client.id === clientId ? updated : client)
       return updated
     })
-    const gateway = gatewayFixture({ status, clients, updateSettings, createClient, patchClient })
+    const deleteClient: McpAccessGateway['deleteClient'] = vi.fn(async (clientId) => {
+      serverClients = serverClients.filter((client) => client.id !== clientId)
+    })
+    const gateway = gatewayFixture({ status, clients, updateSettings, createClient, patchClient, deleteClient })
     let runtime: McpAccessRuntimeValue | null = null
 
     render(
@@ -142,6 +136,18 @@ describe('McpAccessRuntimeProvider', () => {
       await staleReconcile
     })
     expect(runtime!.clients.find((client) => client.id === 'client-1')?.name).toBe('Edited client')
+
+    const staleBeforeDelete = deferred<McpStatus>()
+    status.mockImplementationOnce(() => staleBeforeDelete.promise)
+    act(() => { staleReconcile = runtime!.reload() })
+    await act(async () => runtime!.deleteClient('client-1'))
+    expect(deleteClient).toHaveBeenCalledWith('client-1', 8)
+    expect(runtime!.clients.some((client) => client.id === 'client-1')).toBe(false)
+    await act(async () => {
+      staleBeforeDelete.resolve({ ...serverStatus })
+      await staleReconcile
+    })
+    expect(runtime!.clients.some((client) => client.id === 'client-1')).toBe(false)
   })
 
   it('运行时切换期间完成的旧写操作会触发当前网关对账', async () => {

@@ -2420,15 +2420,14 @@
       "clientsHint": "每个客户端使用独立令牌和最小权限范围。",
       "addClient": "添加客户端",
       "noClients": "尚未添加 MCP 客户端",
-      "revokeClient": "吊销客户端",
-      "revokeClientLabel": "吊销客户端 {{name}}",
-      "revokeTitle": "吊销此客户端？",
-      "revokeDescription": "{{name}} 的令牌将立即失效，吊销后无法恢复。",
-      "revokeConfirm": "吊销客户端",
+      "deleteClient": "删除客户端",
+      "deleteClientLabel": "删除客户端 {{name}}",
+      "deleteTitle": "删除此客户端？",
+      "deleteDescription": "{{name}} 的令牌将立即失效，客户端记录也会被删除。此操作无法撤销。",
+      "deleteConfirm": "删除客户端",
       "clientState": {
         "active": "已启用",
-        "disabled": "已停用",
-        "revoked": "已吊销"
+        "disabled": "已停用"
       },
       "scope": {
         "hosts_read": "读取主机",
@@ -2486,9 +2485,14 @@
       "tokenValue": "访问令牌",
       "tokenCopied": "客户端令牌已复制",
       "clientConfig": "客户端配置",
+      "configFileTab": "配置文件",
+      "codexTab": "Codex",
+      "codexImportHint": "复制后可直接在 CMD 或 PowerShell 中运行。命令会替换已有的 termous MCP 配置，并将令牌明文写入 Codex 配置文件。",
       "configCopied": "客户端配置已复制",
+      "codexCommandCopied": "Codex 导入命令已复制",
       "copyTokenLabel": "复制客户端令牌",
       "copyConfigLabel": "复制客户端配置",
+      "copyCodexCommandLabel": "复制 Codex 导入命令",
       "unknownClient": "未知客户端",
       "destructive": "高风险操作",
       "approval": {

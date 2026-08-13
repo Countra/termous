@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Alert, App as AntdApp, Button, Switch, Tag, Tooltip } from 'antd'
 import {
   Clipboard,
@@ -30,7 +30,7 @@ export function McpSettingsPanel() {
   const { notification } = AntdApp.useApp()
   const runtime = useMcpAccessRuntime()
   const [editor, setEditor] = useState<ClientEditorIntent | null>(null)
-  const [revokeCandidate, setRevokeCandidate] = useState<McpClient | null>(null)
+  const [deleteCandidate, setDeleteCandidate] = useState<McpClient | null>(null)
   const [tokenResult, setTokenResult] = useState<McpClientToken | null>(null)
   const statusBusy = runtime.mutationKey === 'server'
   const unavailable = runtime.phase === 'degraded'
@@ -67,6 +67,12 @@ export function McpSettingsPanel() {
       notifyFailure()
     }
   }
+
+  useEffect(() => {
+    if (deleteCandidate && !runtime.clients.some((client) => client.id === deleteCandidate.id)) {
+      setDeleteCandidate(null)
+    }
+  }, [deleteCandidate, runtime.clients])
 
   return (
     <div className={styles.stack}>
@@ -162,7 +168,7 @@ export function McpSettingsPanel() {
               onEdit={() => openEdit(client)}
               onIssueToken={() => void issueToken(client)}
               onToggle={(enabled) => void runtime.patchClient(client.id, { enabled }).catch(notifyFailure)}
-              onRevoke={() => setRevokeCandidate(client)}
+              onDelete={() => setDeleteCandidate(client)}
             />
           ))}
         </div>
@@ -178,17 +184,17 @@ export function McpSettingsPanel() {
       />
       <McpTokenDialog result={tokenResult} endpoint={runtime.status?.endpoint ?? ''} onClose={() => setTokenResult(null)} />
       <ConfirmDialog
-        open={Boolean(revokeCandidate)}
-        title={t('settings.mcp.revokeTitle')}
-        description={t('settings.mcp.revokeDescription', { name: revokeCandidate?.name })}
-        confirmLabel={t('settings.mcp.revokeConfirm')}
+        open={Boolean(deleteCandidate)}
+        title={t('settings.mcp.deleteTitle')}
+        description={t('settings.mcp.deleteDescription', { name: deleteCandidate?.name })}
+        confirmLabel={t('settings.mcp.deleteConfirm')}
         danger
-        confirmLoading={Boolean(revokeCandidate && runtime.mutationKey === `client:${revokeCandidate.id}`)}
-        onCancel={() => setRevokeCandidate(null)}
+        confirmLoading={Boolean(deleteCandidate && runtime.mutationKey === `client:${deleteCandidate.id}`)}
+        onCancel={() => setDeleteCandidate(null)}
         onConfirm={() => {
-          if (!revokeCandidate) return
-          void runtime.revokeClient(revokeCandidate.id)
-            .then(() => setRevokeCandidate(null))
+          if (!deleteCandidate) return
+          void runtime.deleteClient(deleteCandidate.id)
+            .then(() => setDeleteCandidate(null))
             .catch(notifyFailure)
         }}
       />
@@ -203,7 +209,7 @@ function ClientRow({
   onEdit,
   onIssueToken,
   onToggle,
-  onRevoke,
+  onDelete,
 }: {
   client: McpClient
   busy: boolean
@@ -211,12 +217,11 @@ function ClientRow({
   onEdit: () => void
   onIssueToken: () => void
   onToggle: (enabled: boolean) => void
-  onRevoke: () => void
+  onDelete: () => void
 }) {
   const { t, i18n } = useTranslation()
-  const revoked = Boolean(client.revoked_at)
-  const active = client.enabled && !revoked
-  const state = revoked ? 'revoked' : active ? 'active' : 'disabled'
+  const active = client.enabled
+  const state = active ? 'active' : 'disabled'
   return (
     <article className={`${styles.client} ${!active ? styles['is-muted'] : ''}`}>
       <div className={styles['client-main']}>
@@ -245,7 +250,7 @@ function ClientRow({
           size="small"
           checked={active}
           loading={busy}
-          disabled={disabled || revoked}
+          disabled={disabled}
           aria-label={t('settings.mcp.clientToggleLabel', { name: client.name })}
           onChange={onToggle}
         />
@@ -253,7 +258,7 @@ function ClientRow({
           <Button
             type="text"
             icon={<Pencil size={15} />}
-            disabled={disabled || revoked}
+            disabled={disabled}
             aria-label={t('settings.mcp.editClientLabel', { name: client.name })}
             onClick={onEdit}
           />
@@ -267,14 +272,14 @@ function ClientRow({
             onClick={onIssueToken}
           />
         </Tooltip>
-        <Tooltip title={t('settings.mcp.revokeClient')}>
+        <Tooltip title={t('settings.mcp.deleteClient')}>
           <Button
             type="text"
             danger
             icon={<Trash2 size={15} />}
-            disabled={disabled || revoked}
-            aria-label={t('settings.mcp.revokeClientLabel', { name: client.name })}
-            onClick={onRevoke}
+            disabled={disabled}
+            aria-label={t('settings.mcp.deleteClientLabel', { name: client.name })}
+            onClick={onDelete}
           />
         </Tooltip>
       </div>

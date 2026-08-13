@@ -10,7 +10,7 @@ describe('McpAccessClient', () => {
       .mockResolvedValueOnce(jsonResponse(statusFixture(5)))
       .mockResolvedValueOnce(jsonResponse({ client: clientFixture(1), token: 'tmcp_once' }))
       .mockResolvedValueOnce(jsonResponse(clientFixture(2)))
-      .mockResolvedValueOnce(jsonResponse({ ...clientFixture(3), revoked_at: '2026-08-13T00:05:00Z' }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(jsonResponse({ client: clientFixture(4), token: 'tmcp_rotated' }))
       .mockResolvedValueOnce(jsonResponse(approvalSnapshotFixture()))
       .mockResolvedValueOnce(jsonResponse({ approval: approvalFixture('dispatching') }))
@@ -29,7 +29,7 @@ describe('McpAccessClient', () => {
       scopes: ['hosts:read'],
       expected_revision: 1,
     })
-    await client.deleteClient('client/1', 2)
+    const deleted = await client.deleteClient('client/1', 2)
     await client.issueClientToken('client/1', 3)
     await client.approvals()
     await client.decideApproval('approval/1', 'approve', 9)
@@ -51,9 +51,11 @@ describe('McpAccessClient', () => {
       body: { name: 'Codex', enabled: false, scopes: ['hosts:read'], expected_revision: 1 },
     })
     expect(requestAt(fetchMock, 4)).toMatchObject({
+      path: '/api/v1/mcp/clients/client%2F1',
       method: 'DELETE',
       body: { expected_revision: 2 },
     })
+    expect(deleted).toBeUndefined()
     expect(requestAt(fetchMock, 5)).toMatchObject({
       path: '/api/v1/mcp/clients/client%2F1/token',
       method: 'POST',

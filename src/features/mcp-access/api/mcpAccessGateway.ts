@@ -16,7 +16,7 @@ export interface McpAccessGateway {
   clients(signal?: AbortSignal): Promise<McpClient[]>
   createClient(input: McpClientInput, signal?: AbortSignal): Promise<McpClientToken>
   patchClient(clientId: string, input: McpClientUpdateInput, signal?: AbortSignal): Promise<McpClient>
-  deleteClient(clientId: string, expectedRevision: number, signal?: AbortSignal): Promise<McpClient>
+  deleteClient(clientId: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   issueClientToken(clientId: string, expectedRevision: number, signal?: AbortSignal): Promise<McpClientToken>
   approvals(signal?: AbortSignal): Promise<McpApprovalSnapshot>
   decideApproval(

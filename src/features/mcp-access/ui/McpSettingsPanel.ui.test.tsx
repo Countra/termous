@@ -8,6 +8,7 @@ const oneTimeToken = 'tmcp_one_time_secret'
 const testState = vi.hoisted(() => ({
   createClient: vi.fn(),
   patchClient: vi.fn(),
+  deleteClient: vi.fn(),
   clients: [] as McpAccessRuntimeValue['clients'],
   mutationKey: '',
 }))
@@ -41,7 +42,7 @@ vi.mock('../runtime/mcpAccessContext', async () => {
       setEnabled: vi.fn(async () => undefined),
       createClient: testState.createClient,
       patchClient: testState.patchClient,
-      revokeClient: vi.fn(async () => undefined),
+      deleteClient: testState.deleteClient,
       issueToken: vi.fn(async () => { throw new Error('unused') }),
       decideApproval: vi.fn(async () => undefined),
     }),
@@ -56,7 +57,9 @@ describe('McpSettingsPanel', () => {
     testState.clients = []
     testState.createClient.mockReset()
     testState.patchClient.mockReset()
+    testState.deleteClient.mockReset()
     testState.patchClient.mockResolvedValue(undefined)
+    testState.deleteClient.mockResolvedValue(undefined)
     testState.createClient.mockResolvedValue({
       client: {
         id: 'client-1',
@@ -136,7 +139,78 @@ describe('McpSettingsPanel', () => {
     expect(screen.getByRole('switch', { name: 'settings.mcp.clientToggleLabel:Codex' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.mcp.editClientLabel:Codex' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.mcp.newTokenLabel:Codex' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.mcp.revokeClientLabel:Codex' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.mcp.deleteClientLabel:Codex' })).toBeInTheDocument()
+  })
+
+  it('确认删除时调用客户端删除操作', async () => {
+    const user = userEvent.setup()
+    testState.clients = [{
+      id: 'client-1',
+      name: 'Codex',
+      enabled: true,
+      scopes: ['hosts:read'],
+      host_access_mode: 'all_saved',
+      token_prefix: 'tmcp_abcd',
+      revision: 1,
+      created_at: '2026-08-13T00:00:00Z',
+      updated_at: '2026-08-13T00:00:00Z',
+    }]
+    render(<AntdApp><McpSettingsPanel /></AntdApp>)
+
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.deleteClientLabel:Codex' }))
+
+    expect(screen.getByText('settings.mcp.deleteDescription:Codex')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.deleteConfirm' }))
+    await waitFor(() => expect(testState.deleteClient).toHaveBeenCalledWith('client-1'))
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveClass('ant-zoom-leave'))
+  })
+
+  it('权威列表已移除客户端时自动关闭过期的删除确认框', async () => {
+    const user = userEvent.setup()
+    testState.clients = [{
+      id: 'client-1',
+      name: 'Codex',
+      enabled: true,
+      scopes: ['hosts:read'],
+      host_access_mode: 'all_saved',
+      token_prefix: 'tmcp_abcd',
+      revision: 1,
+      created_at: '2026-08-13T00:00:00Z',
+      updated_at: '2026-08-13T00:00:00Z',
+    }]
+    const view = render(<AntdApp><McpSettingsPanel /></AntdApp>)
+
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.deleteClientLabel:Codex' }))
+    expect(screen.getByText('settings.mcp.deleteDescription:Codex')).toBeInTheDocument()
+
+    testState.clients = []
+    view.rerender(<AntdApp><McpSettingsPanel /></AntdApp>)
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveClass('ant-zoom-leave'))
+  })
+
+  it('删除失败时保留确认框以便用户重试', async () => {
+    const user = userEvent.setup()
+    testState.clients = [{
+      id: 'client-1',
+      name: 'Codex',
+      enabled: true,
+      scopes: ['hosts:read'],
+      host_access_mode: 'all_saved',
+      token_prefix: 'tmcp_abcd',
+      revision: 1,
+      created_at: '2026-08-13T00:00:00Z',
+      updated_at: '2026-08-13T00:00:00Z',
+    }]
+    testState.deleteClient.mockRejectedValueOnce(new Error('revision conflict'))
+    render(<AntdApp><McpSettingsPanel /></AntdApp>)
+
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.deleteClientLabel:Codex' }))
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.deleteConfirm' }))
+
+    await waitFor(() => expect(testState.deleteClient).toHaveBeenCalledWith('client-1'))
+    expect(screen.getByRole('dialog')).not.toHaveClass('ant-zoom-leave')
+    expect(screen.getByRole('button', { name: 'settings.mcp.deleteConfirm' })).toBeEnabled()
   })
 
   it('编辑客户端仅提交名称和规范化权限，不改变启停状态', async () => {
