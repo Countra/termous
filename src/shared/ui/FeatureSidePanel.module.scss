@@ -83,7 +83,7 @@
 
 .details-rail-tab:global(.ant-btn)::before {
   position: absolute;
-  bottom: -7px;
+  bottom: 4px;
   left: 50%;
   width: 18px;
   height: 3px;
@@ -165,6 +165,12 @@
 .details-tabs :global(.ant-tabs-nav) {
   flex: 0 0 auto;
   margin: 0 0 12px;
+}
+
+.details-tabs :global(.ant-tabs-nav-list) {
+  transition:
+    transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 160ms ease;
 }
 
 .details-tabs :global(.ant-tabs-content-holder),
@@ -282,4 +288,10 @@
 :root[data-theme="light"] .details-tabs-dropdown :global(.ant-dropdown-menu-item:hover),
 :root[data-theme="light"] .details-tabs-dropdown :global(.ant-dropdown-menu-item-active) {
   background: #f1f4f8 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .details-tabs :global(.ant-tabs-nav-list) {
+    transition: none !important;
+  }
 }

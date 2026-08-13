@@ -323,7 +323,10 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
             key={node.id}
             orientation={node.direction}
             className={`${styles.group} ${styles[node.direction]}`}
-            onLayoutChange={(sizes) => {
+            onLayoutChanged={(sizes, meta) => {
+              if (!meta.isUserInteraction) {
+                return
+              }
               updateBranchSizes(
                 node.id,
                 node.children.map((child, index) => Number(sizes[child.id] ?? node.sizes[index] ?? 100 / node.children.length)),
@@ -332,7 +335,11 @@ export const TerminalSplitWorkspace = forwardRef<TerminalSplitWorkspaceHandle, T
           >
             {node.children.map((child, index) => (
               <Fragment key={child.id}>
-                <Panel id={child.id} minSize={panelMinSize} defaultSize={node.sizes[index] ?? 100 / node.children.length}>
+                <Panel
+                  id={child.id}
+                  minSize={`${panelMinSize}%`}
+                  defaultSize={`${node.sizes[index] ?? 100 / node.children.length}%`}
+                >
                   {renderNode(child)}
                 </Panel>
                 {index < node.children.length - 1 ? (

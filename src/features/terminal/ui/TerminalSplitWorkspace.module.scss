@@ -63,12 +63,12 @@
 }
 
 .resize-handle:hover,
-.resize-handle[data-resize-handle-active] {
+.resize-handle[data-separator='active'] {
   background: color-mix(in srgb, var(--accent) 13%, var(--terminal-border));
 }
 
 .resize-handle:hover::after,
-.resize-handle[data-resize-handle-active]::after {
+.resize-handle[data-separator='active']::after {
   background: color-mix(in srgb, var(--accent) 72%, transparent);
 }
 

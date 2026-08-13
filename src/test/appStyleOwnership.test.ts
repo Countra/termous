@@ -178,6 +178,22 @@ test('详情侧栏的折叠轨道与 Tabs Portal 样式由共置 Module 承载',
 
   assert.match(featureSidePanelStyles, /\.details-tabs:global\(\.ant-tabs\)/)
   assert.match(featureSidePanelStyles, /\.details-tabs-dropdown:global\(\.ant-tabs-dropdown\)/)
+  assert.match(
+    featureSidePanelStyles,
+    /\.details-rail-tab:global\(\.ant-btn\)::before\s*\{[^}]*bottom:\s*4px;/s,
+  )
+  assert.match(
+    featureSidePanelStyles,
+    /\.details-tabs :global\(\.ant-tabs-nav-list\)\s*\{[^}]*transform\s+160ms\s+cubic-bezier\(0\.16,\s*1,\s*0\.3,\s*1\)[^}]*opacity\s+160ms\s+ease;/s,
+  )
+  assert.doesNotMatch(
+    featureSidePanelStyles,
+    /\.details-tabs :global\(\.ant-tabs-nav-list\)\s*\{[^}]*opacity\s+160ms\s+ease\s*!important;/s,
+  )
+  assert.match(
+    featureSidePanelStyles,
+    /@media \(prefers-reduced-motion:\s*reduce\)\s*\{\s*\.details-tabs :global\(\.ant-tabs-nav-list\)\s*\{[^}]*transition:\s*none\s*!important;/s,
+  )
 })
 
 test('侧栏框架与折叠控件由共享 Module 承载', () => {

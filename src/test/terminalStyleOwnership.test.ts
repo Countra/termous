@@ -42,11 +42,14 @@ test('终端与会话组件显式加载各自的 SCSS Module', () => {
 test('第三方覆盖和跨 Portal 拖拽状态保留受控边界', () => {
   const contextMenuStyles = readSource('../shared/ui/ContextActionMenu.module.scss')
   const terminalContextMenuStyles = readSource('../features/terminal/ui/TerminalContextMenu.module.scss')
+  const terminalSplitStyles = readSource('../features/terminal/ui/TerminalSplitWorkspace.module.scss')
   const terminalRuntimeStyles = readSource('../features/terminal/runtime/TerminalRuntimeProvider.module.scss')
   const connectionButtonStyles = readSource('../shared/ui/ConnectionActionButton.module.scss')
 
   assert.match(contextMenuStyles, /\.root :global\(\.ant-dropdown-menu\)/)
   assert.match(terminalContextMenuStyles, /\.root :global\(\.ant-dropdown-menu-item\)/)
+  assert.match(terminalSplitStyles, /\.resize-handle\[data-separator=['"]active['"]\]/)
+  assert.doesNotMatch(terminalSplitStyles, /data-resize-handle-active/)
   assert.match(terminalRuntimeStyles, /\.pane :global\(\.xterm\)/)
   assert.match(
     connectionButtonStyles,
