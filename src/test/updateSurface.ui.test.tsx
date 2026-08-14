@@ -101,6 +101,15 @@ describe('独立更新 Surface 合同', () => {
     const view = render(<UpdateWindowRoot />)
 
     expect(await screen.findByRole('heading', { name: '有可用更新' })).toBeVisible()
+    const releaseLink = await screen.findByRole('link', {
+      name: '在 GitHub 查看当前版本: v1.0.0',
+    })
+    expect(releaseLink).toHaveAttribute(
+      'href',
+      'https://github.com/Countra/termous/releases/tag/v1.0.0',
+    )
+    expect(releaseLink).toHaveAttribute('target', '_blank')
+    expect(releaseLink).toHaveAttribute('rel', 'noreferrer')
     await waitFor(() => {
       expect(document.querySelector('[data-update-phase="available"]')).not.toBeNull()
     })

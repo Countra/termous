@@ -137,11 +137,6 @@ export function TerminalCompletionPopup({
               aria-posinset={index + 1}
               aria-setsize={items.length}
               tabIndex={-1}
-              onMouseEnter={() => {
-                if (!selected) {
-                  onSelectedIndexChange(index)
-                }
-              }}
               onMouseDown={(event: MouseEvent<HTMLButtonElement>) => {
                 event.preventDefault()
                 event.stopPropagation()

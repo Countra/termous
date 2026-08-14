@@ -191,8 +191,16 @@ test('关键安装阶段同时拒绝 IPC 和原生窗口关闭', () => {
   assert.equal(target.destroyed, true)
 })
 
-test('窗口拒绝外部导航和新窗口，仅允许可信 update surface', () => {
-  const subject = controller({ devServerURL: 'http://127.0.0.1:5191/' })
+test('窗口拒绝外部导航和内嵌新窗口，仅将当前版本 Release 交给受控外部打开器', () => {
+  const releasePageUrl = 'https://github.com/Countra/termous/releases/tag/v1.0.0'
+  const openedReleasePages: string[] = []
+  const subject = controller({
+    devServerURL: 'http://127.0.0.1:5191/',
+    releasePageUrl,
+    openReleasePage: (url) => {
+      openedReleasePages.push(url)
+    },
+  })
   const target = subject.instance.open() as FakeWindow
   const blocked = { prevented: false, preventDefault() { this.prevented = true } }
   const allowed = { prevented: false, preventDefault() { this.prevented = true } }
@@ -203,6 +211,31 @@ test('窗口拒绝外部导航和新窗口，仅允许可信 update surface', ()
   assert.equal(blocked.prevented, true)
   assert.equal(allowed.prevented, false)
   assert.deepEqual(target.webContents.openHandler?.({ url: 'https://example.com' }), { action: 'deny' })
+  assert.deepEqual(openedReleasePages, [])
+  assert.deepEqual(target.webContents.openHandler?.({ url: releasePageUrl }), { action: 'deny' })
+  assert.deepEqual(openedReleasePages, [releasePageUrl])
+})
+
+test('Release 外部打开器异步失败时交给受控错误处理且不创建窗口', async () => {
+  const releasePageUrl = 'https://github.com/Countra/termous/releases/tag/v1.0.0'
+  const openingError = new Error('release-page-open-failed')
+  const reportedErrors: unknown[] = []
+  const subject = controller({
+    releasePageUrl,
+    openReleasePage: async () => {
+      throw openingError
+    },
+    onError: (error) => {
+      reportedErrors.push(error)
+    },
+  })
+  const target = subject.instance.open() as FakeWindow
+
+  assert.deepEqual(target.webContents.openHandler?.({ url: releasePageUrl }), { action: 'deny' })
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.deepEqual(reportedErrors, [openingError])
+  assert.equal(subject.windows.length, 1)
 })
 
 test('主题和语言通过递增 bootstrap 同步给已加载窗口', () => {

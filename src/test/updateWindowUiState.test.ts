@@ -445,14 +445,15 @@ test('字节、速度 ETA 和长时长使用可读单位', () => {
   }), null)
 })
 
-test('关于窗口文案不暴露更新渠道或更新源', () => {
+test('关于窗口只提供当前版本 Release 入口，不暴露更新渠道或更新源', () => {
   for (const language of ['zh-CN', 'en-US'] as const) {
     const copy = windowCopy(language)
     const visibleCopy = Object.values(copy).join('\n')
     assert.doesNotMatch(
       visibleCopy,
-      /GitHub|Countra\/termous|trusted source|release page|releases\b|更新源|更新渠道|发布页/i,
+      /Countra\/termous|trusted source|release channel|更新源|更新渠道/i,
     )
+    assert.match(copy.githubRelease, /GitHub/)
     assert.doesNotMatch(
       visibleCopy,
       /专注、安全的远程运维工作空间|focused workspace for secure remote operations/i,

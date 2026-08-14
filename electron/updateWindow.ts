@@ -61,8 +61,10 @@ export interface UpdateWindowControllerOptions<TSnapshot> {
   initialTheme: UpdateWindowTheme
   isQuitting?(): boolean
   onError?(error: unknown): void
+  openReleasePage?(url: string): Promise<void> | void
   platform: NodeJS.Platform
   preloadPath: string
+  releasePageUrl?: string
   rendererFilePath: string
   title?: string
 }
@@ -184,7 +186,19 @@ export class UpdateWindowController<TSnapshot = unknown> {
   }
 
   private bindWindow(target: UpdateBrowserWindowLike) {
-    target.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    target.webContents.setWindowOpenHandler(({ url }) => {
+      const openReleasePage = this.options.openReleasePage
+      if (openReleasePage && url === this.options.releasePageUrl) {
+        try {
+          void Promise.resolve(openReleasePage(url)).catch((error) => {
+            this.options.onError?.(error)
+          })
+        } catch (error) {
+          this.options.onError?.(error)
+        }
+      }
+      return { action: 'deny' }
+    })
     const guardNavigation = (event: NavigationEventLike, url: string) => {
       if (!this.isTrustedRendererURL(url)) {
         event.preventDefault()

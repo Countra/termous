@@ -17,6 +17,7 @@ import { Readable } from 'node:stream'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
 import type { AppLanguage, AppTheme, DataPortabilityProgress } from '#common/contracts'
+import { termousReleasePageUrl } from '#common/release-page'
 import { AppExitCoordinator } from './appExitCoordinator'
 import { CoreProcessManager } from './coreProcess'
 import { createElectronUpdaterEngine } from './electronUpdaterEngine'
@@ -1405,6 +1406,15 @@ async function initializeApplication() {
       initialTheme: appTheme,
       initialLanguage: appLanguage,
       getApplicationInfo: readUpdateWindowApplicationInfo,
+      releasePageUrl: termousReleasePageUrl(app.getVersion()) ?? undefined,
+      openReleasePage: async (url) => {
+        const result = await openExternalUrl(url, (target) => shell.openExternal(target))
+        if (!result.ok) {
+          reportElectronProcessEvent('update-release-page-open-failed', {
+            error_code: result.error,
+          })
+        }
+      },
       logger: {
         info: (event, details = {}) => reportElectronProcessEvent(event, details),
         error: (event, details = {}) => reportElectronProcessEvent(event, details),

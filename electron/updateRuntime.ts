@@ -56,6 +56,8 @@ export interface ApplicationUpdateRuntimeOptions {
   initialTheme: UpdateWindowTheme
   initialLanguage: UpdateWindowLanguage
   getApplicationInfo(): Promise<UpdateApplicationInfo>
+  openReleasePage?(url: string): Promise<void> | void
+  releasePageUrl?: string
   logger?: UpdateManagerLogger
 }
 
@@ -131,8 +133,10 @@ export class ApplicationUpdateRuntime {
           message: safeErrorName(error),
         })
       },
+      openReleasePage: options.openReleasePage,
       platform: process.platform,
       preloadPath: options.updatePreloadPath,
+      releasePageUrl: options.releasePageUrl,
       rendererFilePath: options.rendererFilePath,
       title: 'About Termous',
     })
