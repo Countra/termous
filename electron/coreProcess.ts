@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from 'electron'
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { createServer } from 'node:net'
@@ -14,8 +14,13 @@ import { AsyncSingleflight } from './asyncSingleflight'
 import {
   clearObservedChildProcess,
   hasChildProcessExited,
+  stopOwnedChildProcess,
   waitForChildProcessExit,
 } from './childProcessLifecycle'
+import {
+  runManagedCorePortAttempts,
+  spawnManagedCoreProcess,
+} from './coreProcessLaunch'
 
 export type CoreShutdownReason = 'frontend_exit' | 'application_update'
 
@@ -41,6 +46,8 @@ const readyTimeoutMs = 12_000
 const heartbeatIntervalMs = 10_000
 const heartbeatTimeoutMs = 30_000
 const requestTimeoutMs = 5_000
+const failedChildGracefulExitTimeoutMs = 2_000
+const failedChildForceExitTimeoutMs = 2_000
 const coreStartupFailureMessage = '核心服务启动异常，请退出后重新打开 Termous。若问题持续，请重新安装应用。'
 
 export class CoreProcessManager {
@@ -57,6 +64,7 @@ export class CoreProcessManager {
   private lastHeartbeatAt = Date.now()
   private shuttingDown = false
   private readonly shutdownSingleflight = new AsyncSingleflight<boolean>()
+  private readonly restoreRestartSingleflight = new AsyncSingleflight<CoreRestartResult>()
 
   initialize() {
     if (!this.initializePromise) {
@@ -89,36 +97,37 @@ export class CoreProcessManager {
       this.raiseFatal(binaryValidationError)
       return this.config
     }
-    let lastError: unknown = null
     const portStart = this.resolveManagedCorePortStart()
-    for (let offset = 0; offset <= maxPortSwitches; offset += 1) {
-      if (this.shuttingDown) {
-        return this.config
-      }
-      const port = portStart + offset
-      const apiBaseUrl = `http://127.0.0.1:${port}`
-      try {
-        await this.startManagedCore(binaryPath, apiBaseUrl, token)
-        if (this.shuttingDown) {
-          await this.stopChildOnly()
-          return this.config
-        }
-        this.config = { apiBaseUrl, apiToken: token, version: process.env.VITE_TERMOUS_APP_VERSION ?? app.getVersion(), managed: true }
-        this.startHeartbeat()
-        return this.config
-      } catch (error) {
-        lastError = error
-        await this.stopChildOnly()
-        if (this.shuttingDown) {
-          return this.config
-        }
-      }
-    }
-    this.raiseFatal({
-      title: '后端连接异常',
-      message: this.describeStartupError(lastError),
-      code: 'CORE_START_FAILED',
+    const packaged = app.isPackaged
+    const logDirectory = packaged ? app.getPath('logs') : undefined
+    const attempts = await runManagedCorePortAttempts({
+      portStart,
+      maxPortSwitches,
+      isStopping: () => this.shuttingDown,
+      start: async (port) => {
+        const apiBaseUrl = `http://127.0.0.1:${port}`
+        await this.startManagedCore(binaryPath, apiBaseUrl, token, packaged, logDirectory)
+      },
+      stopFailedAttempt: () => this.stopChildOnly(),
     })
+    if (attempts.status === 'cancelled') {
+      return this.config
+    }
+    if (attempts.status === 'failed') {
+      this.raiseFatal({
+        title: '后端连接异常',
+        message: this.describeStartupError(attempts.lastError),
+        code: 'CORE_START_FAILED',
+      })
+      return this.config
+    }
+    const apiBaseUrl = `http://127.0.0.1:${attempts.port}`
+    if (this.shuttingDown) {
+      await this.stopChildOnly()
+      return this.config
+    }
+    this.config = { apiBaseUrl, apiToken: token, version: process.env.VITE_TERMOUS_APP_VERSION ?? app.getVersion(), managed: true }
+    this.startHeartbeat()
     return this.config
   }
 
@@ -169,11 +178,12 @@ export class CoreProcessManager {
       return true
     }
     if (!this.config.managed) {
-      const child = this.child
-      if (!hasChildProcessExited(child)) {
-        child.kill()
+      try {
+        await this.stopChildOnly()
+        return true
+      } catch {
+        return false
       }
-      return this.waitForExit(2_000, child)
     }
     try {
       await this.fetchWithTimeout('/api/v1/runtime/shutdown', {
@@ -198,7 +208,11 @@ export class CoreProcessManager {
     return exited
   }
 
-  async restartAfterRestore(): Promise<CoreRestartResult> {
+  restartAfterRestore(): Promise<CoreRestartResult> {
+    return this.restoreRestartSingleflight.run(() => this.restartAfterRestoreOnce())
+  }
+
+  private async restartAfterRestoreOnce(): Promise<CoreRestartResult> {
     await this.initialize()
     if (!this.config.managed) {
       return { restarted: false, requires_manual_restart: true, config: this.config }
@@ -310,7 +324,13 @@ export class CoreProcessManager {
     return coreStartupFailureMessage
   }
 
-  private async startManagedCore(binaryPath: string, apiBaseUrl: string, token: string) {
+  private async startManagedCore(
+    binaryPath: string,
+    apiBaseUrl: string,
+    token: string,
+    packaged: boolean,
+    logDirectory?: string,
+  ) {
     const addr = new URL(apiBaseUrl)
     const host = addr.hostname || '127.0.0.1'
     const port = addr.port
@@ -322,18 +342,14 @@ export class CoreProcessManager {
       throw new Error('核心服务启动已取消')
     }
     let ready = false
-    const child = spawn(binaryPath, ['--addr', `${host}:${port}`], {
-      cwd: path.dirname(binaryPath),
-      env: {
-        ...process.env,
-        TERMOUS_ADDR: `${host}:${port}`,
-        TERMOUS_API_TOKEN: token,
-        TERMOUS_REQUIRE_HEARTBEAT: '1',
-        TERMOUS_HEARTBEAT_TIMEOUT: '30s',
-        TERMOUS_PARENT_PID: String(process.pid),
-      },
-      windowsHide: true,
-      stdio: 'pipe',
+    const child = spawnManagedCoreProcess({
+      binaryPath,
+      addr: `${host}:${port}`,
+      token,
+      packaged,
+      logDirectory,
+      environment: process.env,
+      parentPid: process.pid,
     })
     this.child = child
     child.once('error', (error) => {
@@ -355,8 +371,6 @@ export class CoreProcessManager {
         })
       }
     })
-    child.stdout.on('data', () => undefined)
-    child.stderr.on('data', () => undefined)
     if (!child.pid) {
       throw new Error('核心服务进程未创建')
     }
@@ -476,11 +490,11 @@ export class CoreProcessManager {
     try {
       this.stopHeartbeat()
       const child = this.child
-      if (child && !hasChildProcessExited(child)) {
-        child.kill()
-        await this.waitForExit(2000, child)
-      }
       if (child) {
+        await stopOwnedChildProcess(child, {
+          gracefulTimeoutMs: failedChildGracefulExitTimeoutMs,
+          forceTimeoutMs: failedChildForceExitTimeoutMs,
+        })
         this.child = clearObservedChildProcess(this.child, child)
       }
     } finally {

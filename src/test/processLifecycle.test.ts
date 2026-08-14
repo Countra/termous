@@ -4,8 +4,10 @@ import test from 'node:test'
 import { AsyncSingleflight } from '../../electron/asyncSingleflight.ts'
 import {
   clearObservedChildProcess,
+  stopOwnedChildProcess,
   waitForChildProcessExit,
   type ChildProcessExitObservable,
+  type ChildProcessTerminationObservable,
 } from '../../electron/childProcessLifecycle.ts'
 
 class FakeChildProcess extends EventEmitter implements ChildProcessExitObservable {
@@ -21,6 +23,23 @@ class FakeChildProcess extends EventEmitter implements ChildProcessExitObservabl
 
   exit(code = 0) {
     this.exitCode = code
+    this.emit('exit')
+  }
+}
+
+class FakeTerminableChildProcess extends FakeChildProcess implements ChildProcessTerminationObservable {
+  pid: number | undefined = 4242
+  readonly killSignals: Array<NodeJS.Signals | number> = []
+  onKill: ((signal: NodeJS.Signals | number) => void) | null = null
+
+  kill(signal: NodeJS.Signals | number = 'SIGTERM') {
+    this.killSignals.push(signal)
+    this.onKill?.(signal)
+    return true
+  }
+
+  exitWithSignal(signal: NodeJS.Signals) {
+    this.signalCode = signal
     this.emit('exit')
   }
 }
@@ -88,6 +107,64 @@ test('旧进程迟到退出时不会清除已经替换的新进程引用', () =>
     clearObservedChildProcess(oldChild, oldChild),
     null,
   )
+})
+
+test('停止托管子进程会先等待优雅退出', async () => {
+  const child = new FakeTerminableChildProcess()
+  child.onKill = (signal) => {
+    if (signal === 'SIGTERM') {
+      child.exitWithSignal('SIGTERM')
+    }
+  }
+
+  await stopOwnedChildProcess(child, {
+    gracefulTimeoutMs: 100,
+    forceTimeoutMs: 100,
+  })
+
+  assert.deepEqual(child.killSignals, ['SIGTERM'])
+  assert.equal(child.listenerCount('exit'), 0)
+})
+
+test('优雅退出超时后强制终止并再次确认退出', async () => {
+  const child = new FakeTerminableChildProcess()
+  child.onKill = (signal) => {
+    if (signal === 'SIGKILL') {
+      child.exitWithSignal('SIGKILL')
+    }
+  }
+
+  await stopOwnedChildProcess(child, {
+    gracefulTimeoutMs: 0,
+    forceTimeoutMs: 100,
+  })
+
+  assert.deepEqual(child.killSignals, ['SIGTERM', 'SIGKILL'])
+  assert.equal(child.listenerCount('exit'), 0)
+})
+
+test('强制终止后仍未退出会抛错并保留失败信号', async () => {
+  const child = new FakeTerminableChildProcess()
+
+  await assert.rejects(stopOwnedChildProcess(child, {
+    gracefulTimeoutMs: 0,
+    forceTimeoutMs: 0,
+  }), /无法终止/)
+
+  assert.deepEqual(child.killSignals, ['SIGTERM', 'SIGKILL'])
+  assert.equal(child.listenerCount('exit'), 0)
+})
+
+test('spawn 未创建系统进程时不发送终止信号', async () => {
+  const child = new FakeTerminableChildProcess()
+  child.pid = undefined
+
+  await stopOwnedChildProcess(child, {
+    gracefulTimeoutMs: 0,
+    forceTimeoutMs: 0,
+  })
+
+  assert.deepEqual(child.killSignals, [])
 })
 
 test('异步 singleflight 复用进行中 Promise 并在终态后释放', async () => {
