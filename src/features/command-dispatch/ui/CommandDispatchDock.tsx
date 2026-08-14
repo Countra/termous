@@ -272,7 +272,11 @@ export function CommandDispatchDock({
       </div>
 
       <div className={styles.results}>
-        <div className={styles['result-list']} role="list" aria-label={t('commandDispatch.results')}>
+        <div
+          className={styles['result-list']}
+          role={task?.targets.length ? 'list' : undefined}
+          aria-label={task?.targets.length ? t('commandDispatch.results') : undefined}
+        >
           {task?.targets.length ? task.targets.map((target) => {
             const terminal = isCommandDispatchTargetTerminal(target.status)
             const interrupting = state.interruptingSessionIds.has(target.session_id)
@@ -314,12 +318,30 @@ export function CommandDispatchDock({
               </div>
             )
           }) : (
-            <div className={styles['empty-results']}>
-              <Radio size={16} aria-hidden="true" />
-              <span>{state.errorMessage
-                || (state.recovering
-                  ? t('commandDispatch.recovering')
-                  : t('commandDispatch.noResults'))}</span>
+            <div
+              className={[
+                styles['empty-state'],
+                styles['empty-results'],
+                state.errorMessage
+                  ? styles['is-error']
+                  : state.recovering
+                    ? styles['is-recovering']
+                    : '',
+              ].filter(Boolean).join(' ')}
+              aria-live="polite"
+              aria-atomic="true"
+              data-command-dispatch-empty="results"
+            >
+              <span className={styles['empty-state-icon']} aria-hidden="true">
+                <Radio size={16} />
+              </span>
+              <span className={styles['empty-state-copy']}>
+                <strong>{t('commandDispatch.results')}</strong>
+                <small>{state.errorMessage
+                  || (state.recovering
+                    ? t('commandDispatch.recovering')
+                    : t('commandDispatch.noResults'))}</small>
+              </span>
             </div>
           )}
         </div>
@@ -362,9 +384,17 @@ export function CommandDispatchDock({
               </div>
             </>
           ) : (
-            <div className={styles['mirror-empty']}>
-              <SquareTerminal size={18} aria-hidden="true" />
-              <span>{t('commandDispatch.mirrorEmpty')}</span>
+            <div
+              className={`${styles['empty-state']} ${styles['mirror-empty']}`}
+              data-command-dispatch-empty="mirror"
+            >
+              <span className={styles['empty-state-icon']} aria-hidden="true">
+                <SquareTerminal size={17} />
+              </span>
+              <span className={styles['empty-state-copy']}>
+                <strong>{t('commandDispatch.ptyOutput')}</strong>
+                <small>{t('commandDispatch.mirrorEmpty')}</small>
+              </span>
             </div>
           )}
         </section>

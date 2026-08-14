@@ -6,6 +6,7 @@ import {
   Pencil,
   Pin,
   PinOff,
+  RefreshCw,
   RotateCcw,
   Search,
   SquareTerminal,
@@ -28,6 +29,7 @@ import styles from './WorkbenchSessionTabs.module.scss'
 export type SessionTabMenuAction =
   | 'search'
   | 'duplicate'
+  | 'restart'
   | 'split'
   | 'rename'
   | 'pin'
@@ -202,7 +204,7 @@ function buildSessionTabMenuItems(
   t: (key: string) => string,
 ) {
   const pinned = Boolean(preference?.pinned)
-  const canDuplicateSession = session.kind === 'ssh' && Boolean(session.host_id)
+  const canManageSshSession = session.kind === 'ssh' && Boolean(session.host_id)
   return [
     {
       key: 'search',
@@ -210,8 +212,13 @@ function buildSessionTabMenuItems(
     },
     {
       key: 'duplicate',
-      disabled: !canDuplicateSession || actionBusy,
+      disabled: !canManageSshSession || actionBusy,
       label: <TerminalTabMenuItem icon={<CopyPlus size={15} />} title={t('terminal.tabMenu.duplicate')} />,
+    },
+    {
+      key: 'restart',
+      disabled: !canManageSshSession || actionBusy,
+      label: <TerminalTabMenuItem icon={<RefreshCw size={15} />} title={t('terminal.tabMenu.restart')} />,
     },
     {
       key: 'split',

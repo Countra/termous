@@ -6,7 +6,7 @@ import {
 } from './terminalContextMenuModel.ts'
 import type { TerminalContextSnapshot } from './terminalContextTarget.ts'
 
-test('普通选区按复制、查找、粘贴和全选排序', () => {
+test('普通选区按复制、查找、粘贴、清屏和全选排序', () => {
   assert.deepEqual(keys(buildTerminalContextMenu(snapshot({
     selectionText: 'needle',
     searchSeed: 'needle',
@@ -15,6 +15,7 @@ test('普通选区按复制、查找、粘贴和全选排序', () => {
     'find_selection',
     'paste',
     '|',
+    'clear',
     'select_all',
   ])
 })
@@ -28,13 +29,15 @@ test('超长或多行选区降级为打开普通查找', () => {
     'find',
     'paste',
     '|',
+    'clear',
     'select_all',
   ])
 })
 
-test('空白区域按粘贴、全选和查找排序', () => {
+test('空白区域按粘贴、清屏、全选和查找排序', () => {
   assert.deepEqual(keys(buildTerminalContextMenu(snapshot())), [
     'paste',
+    'clear',
     'select_all',
     'find',
   ])
@@ -53,6 +56,7 @@ test('URL 与路径使用专用动作且不重复复制动作', () => {
     'copy_link',
     '|',
     'paste',
+    'clear',
     'select_all',
     'find',
   ])
@@ -70,6 +74,7 @@ test('URL 与路径使用专用动作且不重复复制动作', () => {
     'copy_path',
     '|',
     'paste',
+    'clear',
     'select_all',
     'find',
   ])
@@ -119,12 +124,13 @@ test('本地终端路径不展示远程文件管理动作', () => {
     'copy_path',
     '|',
     'paste',
+    'clear',
     'select_all',
     'find',
   ])
 })
 
-test('断线重连始终置顶并禁用粘贴', () => {
+test('断线重连始终置顶、禁用粘贴并保留本地清屏', () => {
   const items = buildTerminalContextMenu(snapshot({
     disconnected: true,
     writable: false,
@@ -133,6 +139,7 @@ test('断线重连始终置顶并禁用粘贴', () => {
   }))
   assert.deepEqual(keys(items).slice(0, 2), ['reconnect', '|'])
   assert.equal(actionItem(items, 'paste')?.disabled, true)
+  assert.equal(actionItem(items, 'clear')?.disabled, false)
 })
 
 function snapshot(overrides: Partial<TerminalContextSnapshot> = {}): TerminalContextSnapshot {

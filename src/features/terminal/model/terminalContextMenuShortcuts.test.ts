@@ -9,6 +9,7 @@ test('终端菜单只为已纳入统一管理的动作映射快捷键', () => {
   assert.equal(terminalContextMenuShortcutAction('find'), 'terminal.search.open')
   assert.equal(terminalContextMenuShortcutAction('paste'), 'terminal.paste')
   assert.equal(terminalContextMenuShortcutAction('select_all'), 'terminal.select_all')
+  assert.equal(terminalContextMenuShortcutAction('clear'), null)
   assert.equal(terminalContextMenuShortcutAction('open_link'), null)
   assert.equal(terminalContextMenuShortcutAction('open_path'), null)
 })

@@ -9,6 +9,7 @@ export type TerminalContextMenuActionKey =
   | 'copy_selection'
   | 'find_selection'
   | 'paste'
+  | 'clear'
   | 'select_all'
   | 'find'
 
@@ -46,6 +47,7 @@ export function buildTerminalContextMenu(
       action('copy_link'),
       separator('after-link'),
       action('paste', !snapshot.writable),
+      action('clear'),
       action('select_all'),
       action('find'),
     )
@@ -60,6 +62,7 @@ export function buildTerminalContextMenu(
       action('copy_path'),
       separator('after-path'),
       action('paste', !snapshot.writable),
+      action('clear'),
       action('select_all'),
       action('find'),
     )
@@ -72,6 +75,7 @@ export function buildTerminalContextMenu(
       action(snapshot.searchSeed ? 'find_selection' : 'find'),
       action('paste', !snapshot.writable),
       separator('after-selection'),
+      action('clear'),
       action('select_all'),
     )
     return items
@@ -79,6 +83,7 @@ export function buildTerminalContextMenu(
 
   items.push(
     action('paste', !snapshot.writable),
+    action('clear'),
     action('select_all'),
     action('find'),
   )

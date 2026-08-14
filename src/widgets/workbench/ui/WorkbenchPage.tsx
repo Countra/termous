@@ -712,6 +712,17 @@ export function WorkbenchPage({
     }
   }, [activeSession?.id, clearActiveSearch, commitTerminalSearch, focusSession])
 
+  const handleTerminalCleared = useCallback((sessionId: string) => {
+    const current = terminalSearchRef.current
+    if (!current.open || current.sessionId !== sessionId) {
+      return
+    }
+    commitTerminalSearch({
+      ...current,
+      result: createEmptyTerminalSearchResult(),
+    })
+  }, [commitTerminalSearch])
+
   const openTerminalSearch = useCallback((sessionId: string, initialQuery = '') => {
     const current = terminalSearchRef.current
     if (current.sessionId && current.sessionId !== sessionId) {
@@ -752,34 +763,6 @@ export function WorkbenchPage({
     },
     [activeSession?.id, onSelectSession, openTerminalSearch],
   )
-  const handleSessionTabMenuAction = useCallback(
-    (action: SessionTabMenuAction, session: Session) => {
-      if (action === 'search') {
-        requestSessionSearch(session.id)
-      } else if (action === 'duplicate') {
-        void duplicateSessionFromMenu(session)
-      } else if (action === 'split') {
-        splitSessionFromMenu(session.id)
-      } else if (action === 'rename') {
-        openRenameSession(session)
-      } else if (action === 'pin') {
-        toggleSessionPinned(session.id)
-      } else if (action === 'color') {
-        setColorSessionId(session.id)
-      } else if (action === 'reset') {
-        resetSessionTabPreference(session.id)
-      }
-    },
-    [
-      duplicateSessionFromMenu,
-      openRenameSession,
-      requestSessionSearch,
-      resetSessionTabPreference,
-      splitSessionFromMenu,
-      toggleSessionPinned,
-    ],
-  )
-
   const openPathInWorkbenchFiles = useCallback((session: Session, path: string) => {
     const normalizedPath = normalizeRemotePosixPath(path)
     if (
@@ -1115,6 +1098,37 @@ export function WorkbenchPage({
     [actionBusy, closeSessionTab, onConnect],
   )
 
+  const handleSessionTabMenuAction = useCallback(
+    (action: SessionTabMenuAction, session: Session) => {
+      if (action === 'search') {
+        requestSessionSearch(session.id)
+      } else if (action === 'duplicate') {
+        void duplicateSessionFromMenu(session)
+      } else if (action === 'restart') {
+        void reconnectSession(session)
+      } else if (action === 'split') {
+        splitSessionFromMenu(session.id)
+      } else if (action === 'rename') {
+        openRenameSession(session)
+      } else if (action === 'pin') {
+        toggleSessionPinned(session.id)
+      } else if (action === 'color') {
+        setColorSessionId(session.id)
+      } else if (action === 'reset') {
+        resetSessionTabPreference(session.id)
+      }
+    },
+    [
+      duplicateSessionFromMenu,
+      openRenameSession,
+      reconnectSession,
+      requestSessionSearch,
+      resetSessionTabPreference,
+      splitSessionFromMenu,
+      toggleSessionPinned,
+    ],
+  )
+
   useEffect(() => {
     if (activeSession) {
       setTerminalSize({ cols: activeSession.pty_cols, rows: activeSession.pty_rows })
@@ -1368,6 +1382,7 @@ export function WorkbenchPage({
           onResize={handleTerminalResize}
           onReconnectSession={reconnectSession}
           onSearchSession={requestSessionSearch}
+          onTerminalCleared={handleTerminalCleared}
           onOpenFilesAtPath={openPathInWorkbenchFiles}
           onCloseSession={closeSessionTab}
           onCommandDockHeightChange={setCommandDockHeight}

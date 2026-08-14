@@ -58,6 +58,7 @@ interface WorkbenchTerminalPanelProps {
   onResize: (cols: number, rows: number) => void
   onReconnectSession: (session: Session) => Promise<void>
   onSearchSession: (sessionId: string, initialQuery?: string) => void
+  onTerminalCleared: (sessionId: string) => void
   onOpenFilesAtPath: (session: Session, path: string) => void
   onCloseSession: (sessionId: string) => Promise<boolean>
   onCommandDockHeightChange: (height: number) => void
@@ -102,6 +103,7 @@ export function WorkbenchTerminalPanel({
   onResize,
   onReconnectSession,
   onSearchSession,
+  onTerminalCleared,
   onOpenFilesAtPath,
   onCloseSession,
   onCommandDockHeightChange,
@@ -173,6 +175,7 @@ export function WorkbenchTerminalPanel({
           onResize={onResize}
           onReconnectSession={(session) => void onReconnectSession(session)}
           onSearchSession={onSearchSession}
+          onTerminalCleared={onTerminalCleared}
           onOpenFilesAtPath={onOpenFilesAtPath}
           onCloseSession={(session) => void onCloseSession(session.id)}
         />

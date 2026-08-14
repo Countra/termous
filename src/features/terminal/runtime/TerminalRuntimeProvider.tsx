@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 import type { TerminalGateway } from '../api/terminalGateway'
 import { readClipboardText, writeClipboardText } from '../lib/terminalClipboard'
 import { TerminalCompletionStatusReconciler } from './completionStatusReconciler'
+import { clearTerminalBuffer } from './terminalBuffer'
 import { TerminalCwdRuntimeProvider } from './TerminalCwdRuntimeProvider'
 import { TerminalEntryLifecycle } from './terminalEntryLifecycle'
 import type {
@@ -784,11 +785,18 @@ export function TerminalRuntimeProvider({
     if (!entry) {
       return
     }
-    entry.search.clearDecorations()
-    entry.terminal.clearSelection()
-    entry.searchResult = createEmptyTerminalSearchResult()
-    entry.searchDecorationKey = ''
+    resetEntrySearch(entry)
   }, [getEntry])
+
+  const clearSessionBuffer = useCallback((sessionId: string) => {
+    const entry = getEntry(sessionId)
+    if (!clearTerminalBuffer(entry)) {
+      return false
+    }
+    completionRuntime.closeSuggestions(sessionId)
+    emitCompletionLayout(sessionId)
+    return true
+  }, [completionRuntime, emitCompletionLayout, getEntry])
 
   useEffect(() => {
     const nextSettings = normalizeTerminalSettings(terminalSettings)
@@ -1529,6 +1537,7 @@ export function TerminalRuntimeProvider({
       copyText,
       selectSessionContextRange,
       clearSessionContextSelection,
+      clearSessionBuffer,
       selectAllSession,
       focusSession,
       sendTextToSession,
@@ -1550,6 +1559,7 @@ export function TerminalRuntimeProvider({
     [
       acceptSessionCompletion,
       clearActiveSearch,
+      clearSessionBuffer,
       clearSessionContextSelection,
       closeSessionCompletion,
       captureSessionContext,
