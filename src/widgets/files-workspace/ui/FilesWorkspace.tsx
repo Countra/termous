@@ -73,7 +73,15 @@ import type {
   RemoteFileEntry,
 } from '#entities/file'
 import type { FileGateway } from '#features/files'
-import { useTransferRuntime } from '#features/transfers'
+import {
+  createUploadWithConflictDecision,
+  FilesBottomDrawer,
+  TransferQueueDock,
+  TransferQueuePanel,
+  UploadConflictDialog,
+  useTransferRuntime,
+  useUploadConflictDecision,
+} from '#features/transfers'
 import {
   buildRemoteFileActionMenu,
   loadRemoteImageViewerModal,
@@ -89,7 +97,6 @@ import {
   parentPath,
 } from '#shared/path'
 import { FileBookmarksRail, FileBookmarksSidebar } from '#features/file-bookmarks'
-import { FilesBottomDrawer, TransferQueueDock, TransferQueuePanel } from '#features/transfers'
 import { FilesSidePanel, type FilesSidePanelMode } from './FilesSidePanel'
 import {
   canRecoverFileSession,
@@ -691,6 +698,8 @@ function FilesWorkspaceContent({
     upsertTransfer,
     removeTransfer,
   } = useTransferRuntime()
+  const uploadConflictDecision = useUploadConflictDecision()
+  const cancelPendingUploadConflict = uploadConflictDecision.cancelPending
   const failPendingTransferOperation = useCallback((id: string, description: string) => {
     updatePendingTransferOperation(id, { status: 'error', description, indeterminate: false })
   }, [updatePendingTransferOperation])
@@ -702,6 +711,14 @@ function FilesWorkspaceContent({
   const activeFileSessionId = activeFileSession?.id ?? ''
   const activeFileSessionIdRef = useRef(activeFileSessionId)
   activeFileSessionIdRef.current = activeFileSessionId
+  useEffect(() => {
+    cancelPendingUploadConflict()
+  }, [
+    activeFileSession?.connection_generation,
+    activeFileSession?.status,
+    activeFileSessionId,
+    cancelPendingUploadConflict,
+  ])
   const activeFileSessionInitialPath = normalizeRemotePath(activeFileSession?.current_path || '/')
   const workspaceViewState = useMemo(
     () => activeFileSessionId
@@ -1279,40 +1296,69 @@ function FilesWorkspaceContent({
       (session) => session.id === fileSessionId,
     )
     const connectionGeneration = fileSession?.connection_generation ?? 0
+    const remoteDir = normalizeRemotePath(targetPath)
+    const isCurrentUploadSession = () => (
+      activeFileSessionIdRef.current === fileSessionId
+      && isCurrentFileListingAvailable(fileSessionId, connectionGeneration)
+    )
     if (
       !fileSessionId
       || paths.length === 0
-      || !isCurrentFileListingAvailable(fileSessionId, connectionGeneration)
+      || !isCurrentUploadSession()
     ) {
       return
     }
-    await runFileAction(async () => {
-      const pendingId = startPendingTransferOperation({
-        hostId: activeFileSession?.host_id ?? '',
-        fileSessionId,
-        title: t('files.fileOperationUploadTitle'),
-        description: t('files.fileOperationTransferGrant'),
-        progress: 0,
-        status: 'running',
-        indeterminate: true,
+
+    try {
+      const task = await createUploadWithConflictDecision({
+        source,
+        paths,
+        targetPath: remoteDir,
+        createGrant: api.createLocalFileGrant,
+        releaseGrant: api.releaseLocalFileGrant,
+        stat: (path) => api.statFileSessionFile(fileSessionId, path),
+        requestPolicy: uploadConflictDecision.requestPolicy,
+        isCurrent: isCurrentUploadSession,
+        createUpload: async (grantId, overwriteItemIds) => {
+          const pendingId = startPendingTransferOperation({
+            hostId: fileSession?.host_id ?? '',
+            fileSessionId,
+            title: t('files.fileOperationUploadTitle'),
+            description: t('files.fileOperationTransferCreate'),
+            progress: 0,
+            status: 'running',
+            indeterminate: true,
+          })
+          try {
+            const nextTask = await api.createFileSessionUploadTransfer(
+              fileSessionId,
+              grantId,
+              remoteDir,
+              'rename',
+              overwriteItemIds,
+            )
+            trackUploadRefreshTask(nextTask)
+            upsertTransfer(nextTask)
+            removePendingTransferOperation(pendingId)
+            return nextTask
+          } catch (actionError) {
+            failPendingTransferOperation(pendingId, t('files.fileOperationTransferFailed'))
+            throw actionError
+          }
+        },
       })
-      try {
-        const grant = await api.createLocalFileGrant(source, paths)
-        updatePendingTransferOperation(pendingId, {
-          description: t('files.fileOperationTransferCreate'),
-          progress: 0,
-          indeterminate: true,
-        })
-        requireCurrentFileListing(fileSessionId, connectionGeneration)
-        const task = await api.createFileSessionUploadTransfer(fileSessionId, grant.id, targetPath, 'rename')
-        trackUploadRefreshTask(task)
-        upsertTransfer(task)
-        removePendingTransferOperation(pendingId)
-      } catch (actionError) {
-        failPendingTransferOperation(pendingId, t('files.fileOperationTransferFailed'))
-        throw actionError
+      if (!task) {
+        return
       }
-    }, t('files.transferCreated'))
+      notification.success({
+        title: t('files.transferCreated'),
+        duration: 3,
+        role: 'status',
+        className: termousNotificationClassName,
+      })
+    } catch (actionError) {
+      notifyError(actionError)
+    }
   }
 
   const downloadPathsToLocalDir = async (
@@ -3819,6 +3865,7 @@ function FilesWorkspaceContent({
           </span>
         </div>
       ) : null}
+      <UploadConflictDialog {...uploadConflictDecision.dialogProps} />
       <RemotePermissionModal
         entry={permissionTarget?.fileSessionId === activeFileSessionId ? permissionTarget.entry : null}
         open={permissionTarget?.fileSessionId === activeFileSessionId}

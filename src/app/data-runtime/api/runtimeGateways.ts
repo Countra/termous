@@ -208,16 +208,19 @@ function createFileGateway(
     cancelFileOperation: (id) => operations.cancelFileOperation(id),
     fileOperationEventsUrl: (fileSessionId) => operations.fileOperationEventsUrl(fileSessionId),
     createLocalFileGrant: (source, paths) => transfers.createLocalFileGrant(source, paths),
+    releaseLocalFileGrant: (id) => transfers.releaseLocalFileGrant(id),
     createFileSessionUploadTransfer: (
       fileSessionId,
       localGrantId,
       remoteDir,
       overwritePolicy,
+      overwriteItemIds,
     ) => transfers.createFileSessionUploadTransfer(
       fileSessionId,
       localGrantId,
       remoteDir,
       overwritePolicy,
+      overwriteItemIds,
     ),
     createFileSessionDownloadTransfer: (
       fileSessionId,

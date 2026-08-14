@@ -81,11 +81,13 @@ export interface FileTransferGateway {
     source: LocalGrantSource,
     paths: string[],
   ) => Promise<LocalFileGrant>
+  releaseLocalFileGrant: (id: string) => Promise<void>
   createFileSessionUploadTransfer: (
     fileSessionId: string,
     localGrantId: string,
     remoteDir: string,
     overwritePolicy?: OverwritePolicy,
+    overwriteItemIds?: string[],
   ) => Promise<TransferTask>
   createFileSessionDownloadTransfer: (
     fileSessionId: string,

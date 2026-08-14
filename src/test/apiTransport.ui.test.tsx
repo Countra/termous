@@ -183,6 +183,36 @@ describe('领域 API HTTP transport 合同', () => {
     expect(init.headers).toEqual({ 'X-Termous-Token': 'test-token' })
   })
 
+  it('文件会话上传仅提交用户确认过的覆盖项并支持释放临时授权', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'transfer-id' }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await createGateways().files.createFileSessionUploadTransfer(
+      'file-session/id',
+      'grant-id',
+      '/srv/releases',
+      'rename',
+      ['item-1'],
+    )
+    await createGateways().files.releaseLocalFileGrant('grant/id')
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit]
+    expect(url.toString()).toBe(`${API_BASE_URL}/api/v1/transfers/upload`)
+    expect(init.method).toBe('POST')
+    expect(init.body).toBe(JSON.stringify({
+      file_session_id: 'file-session/id',
+      local_grant_id: 'grant-id',
+      remote_dir: '/srv/releases',
+      overwrite_policy: 'rename',
+      overwrite_item_ids: ['item-1'],
+    }))
+    const [releaseUrl, releaseInit] = fetchMock.mock.calls[1] as unknown as [URL, RequestInit]
+    expect(releaseUrl.toString()).toBe(`${API_BASE_URL}/api/v1/local-file-grants/grant%2Fid`)
+    expect(releaseInit.method).toBe('DELETE')
+  })
+
   it('按主机图标库合同列出、改名、排序和删除图标', async () => {
     const icon = {
       id: 'icon/id',

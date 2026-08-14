@@ -41,7 +41,12 @@ import {
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import type { FileGateway } from '#features/files'
-import { useTransferRuntime } from '#features/transfers'
+import {
+  createUploadWithConflictDecision,
+  UploadConflictDialog,
+  useTransferRuntime,
+  useUploadConflictDecision,
+} from '#features/transfers'
 import {
   buildRemoteFileActionMenu,
   loadRemoteImageViewerModal,
@@ -173,6 +178,8 @@ function WorkbenchFilesPanelContent({
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
   const runtime = useTransferRuntime()
+  const uploadConflictDecision = useUploadConflictDecision()
+  const cancelPendingUploadConflict = uploadConflictDecision.cancelPending
   const closing = Boolean(session?.id && closingSessionIds.has(session.id))
   const files = useWorkbenchSessionFiles({
     api,
@@ -231,6 +238,14 @@ function WorkbenchFilesPanelContent({
   navigateDirectoryRef.current = files.navigateDirectory
   reconnectFileSessionRef.current = files.reconnect
   consumePathNavigationIntentRef.current = onConsumePathNavigationIntent
+  useEffect(() => {
+    cancelPendingUploadConflict()
+  }, [
+    files.fileSession?.connection_generation,
+    files.fileSession?.id,
+    files.fileSession?.status,
+    cancelPendingUploadConflict,
+  ])
   const followTerminal = Boolean(files.viewState?.followTerminal)
   const cwdPendingPath = files.connected
     ? files.viewState?.pendingTerminalPath || (
@@ -639,19 +654,55 @@ function WorkbenchFilesPanelContent({
   }
 
   const uploadPaths = async (source: LocalGrantSource, paths: string[], targetPath?: string) => {
-    if (!files.fileSession?.id || paths.length === 0) {
+    const requestSession = fileSessionRef.current
+    if (!requestSession?.id || requestSession.status !== 'connected' || paths.length === 0) {
       return
     }
+    const fileSessionId = requestSession.id
+    const connectionGeneration = requestSession.connection_generation ?? 0
     const remoteDir = normalizeRemotePath(targetPath || currentPath)
-    await runAction(async () => {
-      const grant = await api.createLocalFileGrant(source, paths)
-      const task = await api.createFileSessionUploadTransfer(files.fileSession!.id, grant.id, remoteDir, 'rename')
+
+    const isCurrentUploadSession = () => {
+      const currentSession = fileSessionRef.current
+      return currentSession?.id === fileSessionId
+        && currentSession.status === 'connected'
+        && (currentSession.connection_generation ?? 0) === connectionGeneration
+    }
+
+    try {
+      const task = await createUploadWithConflictDecision({
+        source,
+        paths,
+        targetPath: remoteDir,
+        createGrant: api.createLocalFileGrant,
+        releaseGrant: api.releaseLocalFileGrant,
+        stat: (path) => api.statFileSessionFile(fileSessionId, path),
+        requestPolicy: uploadConflictDecision.requestPolicy,
+        isCurrent: isCurrentUploadSession,
+        createUpload: (grantId, overwriteItemIds) => api.createFileSessionUploadTransfer(
+          fileSessionId,
+          grantId,
+          remoteDir,
+          'rename',
+          overwriteItemIds,
+        ),
+      })
+      if (!task) {
+        return
+      }
       uploadRefreshTasksRef.current.set(task.id, {
-        fileSessionId: files.fileSession!.id,
+        fileSessionId,
         targetPath: remoteDir,
       })
       runtime.upsertTransfer(task)
-    }, t('files.transferCreated'))
+      notification.success({
+        title: t('files.transferCreated'),
+        duration: 2,
+        className: termousNotificationClassName,
+      })
+    } catch {
+      notifyFailure()
+    }
   }
 
   const downloadPaths = async (paths: string[]) => {
@@ -1389,6 +1440,7 @@ function WorkbenchFilesPanelContent({
           onActionError={notifyFailure}
         />
       </div>
+      <UploadConflictDialog {...uploadConflictDecision.dialogProps} />
       <RemotePermissionModal
         entry={permissionEntry}
         open={Boolean(permissionEntry)}

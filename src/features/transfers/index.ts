@@ -15,6 +15,21 @@ export type {
 export { FilesBottomDrawer } from './ui/FilesBottomDrawer.tsx'
 export { TransferQueueDock } from './ui/TransferQueueDock.tsx'
 export { TransferQueuePanel } from './ui/TransferQueuePanel.tsx'
+export { UploadConflictDialog } from './ui/UploadConflictDialog.tsx'
+export {
+  createUploadWithConflictDecision,
+  findUploadFileConflicts,
+  preflightUploadFileConflicts,
+  remapConfirmedOverwriteItemIds,
+  useUploadConflictDecision,
+} from './model/uploadConflict.ts'
+export type {
+  UploadConflictWorkflowOptions,
+  UploadConflictDialogProps,
+  UploadConflictPolicy,
+  UploadConflictRequest,
+  UploadFileConflict,
+} from './model/uploadConflict.ts'
 export {
   buildTransferQueueItems,
   isActiveTransferTask,

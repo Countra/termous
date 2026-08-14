@@ -14,11 +14,21 @@ createLocalFileGrant(source: LocalGrantSource, paths: string[]) {
     })
   }
 
+  releaseLocalFileGrant(id: string) {
+    return this.request<void>(`/api/v1/local-file-grants/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  }
+
 transfers() {
     return this.request<TransferTask[]>('/api/v1/transfers')
   }
 
-createUploadTransfer(hostId: string, localGrantId: string, remoteDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+createUploadTransfer(
+  hostId: string,
+  localGrantId: string,
+  remoteDir: string,
+  overwritePolicy: OverwritePolicy = 'rename',
+  overwriteItemIds: string[] = [],
+) {
     return this.request<TransferTask>('/api/v1/transfers/upload', {
       method: 'POST',
       body: {
@@ -26,11 +36,18 @@ createUploadTransfer(hostId: string, localGrantId: string, remoteDir: string, ov
         local_grant_id: localGrantId,
         remote_dir: remoteDir,
         overwrite_policy: overwritePolicy,
+        ...(overwriteItemIds.length > 0 ? { overwrite_item_ids: overwriteItemIds } : {}),
       },
     })
   }
 
-createFileSessionUploadTransfer(fileSessionId: string, localGrantId: string, remoteDir: string, overwritePolicy: OverwritePolicy = 'rename') {
+createFileSessionUploadTransfer(
+  fileSessionId: string,
+  localGrantId: string,
+  remoteDir: string,
+  overwritePolicy: OverwritePolicy = 'rename',
+  overwriteItemIds: string[] = [],
+) {
     return this.request<TransferTask>('/api/v1/transfers/upload', {
       method: 'POST',
       body: {
@@ -38,6 +55,7 @@ createFileSessionUploadTransfer(fileSessionId: string, localGrantId: string, rem
         local_grant_id: localGrantId,
         remote_dir: remoteDir,
         overwrite_policy: overwritePolicy,
+        ...(overwriteItemIds.length > 0 ? { overwrite_item_ids: overwriteItemIds } : {}),
       },
     })
   }

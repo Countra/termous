@@ -53,6 +53,14 @@ test('工作台文件面板保留固定布局、滚动边界和传输条避让',
     transferStyles,
     /\.workbench-file-transfer\s*\{[^}]*min-height:\s*50px;/s,
   )
+  assert.match(
+    transferStyles,
+    /\.workbench-file-transfer\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--accent\) 5%, var\(--app-bg-elevated\)\);/s,
+  )
+  assert.match(
+    transferStyles,
+    /\.workbench-file-transfer\.is-failed\s*\{[^}]*background:\s*color-mix\(in srgb, var\(--danger\) 6%, var\(--app-bg-elevated\)\);/s,
+  )
 })
 
 test('工作台文件控件保留紧凑尺寸与 Popover 滚动上限', () => {
