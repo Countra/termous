@@ -109,6 +109,11 @@ test('工作台文件运行时查询不依赖样式类名', () => {
   assert.doesNotMatch(listSource, /querySelector\('\.workbench-file-transfer'\)/)
 })
 
+test('工作台文件夹行不重复显示类型文字且文件仍显示大小', () => {
+  assert.match(listSource, /\{directory \? null : formatBytes\(entry\.size\)\}/)
+  assert.doesNotMatch(listSource, /directory \? t\('files\.kindName\.directory'\)/)
+})
+
 test('工作台文件样式保持原级联顺序且不覆盖面板定位', () => {
   const panelImport = "import styles from './WorkbenchFilesPanel.module.scss'"
   const controlsImport = "import controlsStyles from './WorkbenchFileControls.module.scss'"

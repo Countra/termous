@@ -539,7 +539,7 @@ export function WorkbenchFileList({
                   <small>{formatDate(entry.modified_at)}</small>
                 </span>
                 <span className={scopedClassName('workbench-file-row-meta')}>
-                  {directory ? t('files.kindName.directory') : formatBytes(entry.size)}
+                  {directory ? null : formatBytes(entry.size)}
                 </span>
                 <span className={scopedClassName('workbench-file-row-disclosure')} aria-hidden="true">
                   {opening
