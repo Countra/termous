@@ -37,6 +37,12 @@ const expectedConfig = JSON.stringify({
     },
   },
 }, null, 2)
+const expectedCodexConfig = [
+  '[mcp_servers.termous]',
+  `url = '${endpoint}'`,
+  'tool_timeout_sec = 180',
+  `http_headers = { Authorization = 'Bearer ${token}' }`,
+].join('\n')
 const expectedCodexCommand = `powershell.exe -NoProfile -Command "${[
   "Set-Variable -Name h -Value ([Environment]::GetEnvironmentVariable('CODEX_HOME'))",
   "if ([string]::IsNullOrWhiteSpace((Get-Variable -Name h -ValueOnly))) { Set-Variable -Name h -Value ([IO.Path]::Combine([Environment]::GetFolderPath('UserProfile'), '.codex')) }",
@@ -74,7 +80,7 @@ describe('McpTokenDialog', () => {
     expect(navigatorWriteText).not.toHaveBeenCalled()
   })
 
-  it('通过 Tab 切换并复制包含令牌的 Codex 导入命令', async () => {
+  it('默认提供跨平台 Codex 配置，并可切换复制 Windows 导入命令', async () => {
     const user = userEvent.setup()
     const bridgeWriteText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined)
     const navigatorWriteText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined)
@@ -84,15 +90,27 @@ describe('McpTokenDialog', () => {
     const configTab = screen.getByRole('tab', { name: 'settings.mcp.configFileTab' })
     const codexTab = screen.getByRole('tab', { name: 'settings.mcp.codexTab' })
     expect(configTab).toHaveAttribute('aria-selected', 'true')
-    await user.click(screen.getByRole('button', { name: 'settings.mcp.copyConfigLabel' }))
-    await waitFor(() => expect(screen.getByRole('button', {
-      name: 'settings.mcp.copyConfigLabel',
-    })).toHaveTextContent('settings.mcp.copied'))
 
     await user.click(codexTab)
     expect(codexTab).toHaveAttribute('aria-selected', 'true')
-    const command = screen.getByRole('tabpanel', { name: 'settings.mcp.codexTab' }).querySelector('pre')
-    if (!command) throw new Error('Codex 命令代码区缺失')
+    const setupMethod = screen.getByRole('radiogroup', { name: 'settings.mcp.codexMethodLabel' })
+    const manualMethod = screen.getByRole('radio', { name: 'settings.mcp.codexManualMethod' })
+    const windowsMethod = screen.getByRole('radio', { name: 'settings.mcp.codexWindowsMethod' })
+    expect(setupMethod).toBeInTheDocument()
+    expect(manualMethod).toBeChecked()
+    expect(windowsMethod).not.toBeChecked()
+    expect(screen.getByText('settings.mcp.codexCrossPlatform')).toBeInTheDocument()
+    expect(screen.getByLabelText('settings.mcp.codexConfigCodeLabel').textContent).toBe(expectedCodexConfig)
+    expect(expectedCodexConfig).not.toContain('type =')
+    const copyCodexConfig = screen.getByRole('button', { name: 'settings.mcp.copyCodexConfigLabel' })
+    await user.click(copyCodexConfig)
+    await waitFor(() => expect(bridgeWriteText).toHaveBeenNthCalledWith(1, expectedCodexConfig))
+    await waitFor(() => expect(copyCodexConfig).toHaveTextContent('settings.mcp.copied'))
+
+    await user.click(screen.getByText('settings.mcp.codexWindowsMethod'))
+    expect(windowsMethod).toBeChecked()
+    expect(screen.getByText('settings.mcp.codexWindowsOnly')).toBeInTheDocument()
+    const command = screen.getByLabelText('settings.mcp.codexCommandCodeLabel')
     expect(command.textContent).toBe(expectedCodexCommand)
     expect(expectedCodexCommand).toContain(token)
     expect(expectedCodexCommand).toContain(`Bearer ${token}`)
@@ -104,9 +122,6 @@ describe('McpTokenDialog', () => {
 
     await waitFor(() => expect(bridgeWriteText).toHaveBeenNthCalledWith(2, expectedCodexCommand))
     await waitFor(() => expect(copyCodex).toHaveTextContent('settings.mcp.copied'))
-    await user.click(configTab)
-    expect(screen.getByRole('button', { name: 'settings.mcp.copyConfigLabel' }))
-      .toHaveTextContent('settings.mcp.copied')
     expect(navigatorWriteText).not.toHaveBeenCalled()
   })
 
@@ -144,6 +159,8 @@ describe('McpTokenDialog', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'settings.mcp.codexTab' }))
     expect(screen.getByRole('tabpanel', { name: 'settings.mcp.codexTab' }))
       .toHaveTextContent('http_headers')
+    fireEvent.click(screen.getByRole('radio', { name: 'settings.mcp.codexWindowsMethod' }))
+    expect(screen.getByLabelText('settings.mcp.codexCommandCodeLabel')).toHaveTextContent('powershell.exe')
     fireEvent.click(screen.getByRole('button', { name: 'settings.mcp.tokenSaved' }))
 
     expect(document.body.textContent).not.toContain(token)

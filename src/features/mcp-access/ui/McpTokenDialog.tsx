@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, App as AntdApp, Button, Modal, Tabs } from 'antd'
-import { Check, Clipboard, FileJson2, KeyRound, SquareTerminal } from 'lucide-react'
+import { Alert, App as AntdApp, Button, Modal, Segmented, Tabs } from 'antd'
+import { Check, Clipboard, FileCode2, FileJson2, KeyRound, Monitor, SquareTerminal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { McpClientToken } from '#entities/mcp-access'
 import { getTermousBridge } from '#shared/bridge'
@@ -8,12 +8,14 @@ import { termousNotificationClassName } from '#shared/ui'
 import styles from './McpTokenDialog.module.scss'
 
 type ConfigTab = 'config' | 'codex'
-type CopyTarget = 'token' | ConfigTab
+type CodexSetupMode = 'manual' | 'windows'
+type CopyTarget = 'token' | 'config' | 'codexConfig' | 'codexCommand'
 
 const initialCopyState: Record<CopyTarget, boolean> = {
   token: false,
   config: false,
-  codex: false,
+  codexConfig: false,
+  codexCommand: false,
 }
 
 export function McpTokenDialog({
@@ -29,6 +31,7 @@ export function McpTokenDialog({
   const { notification } = AntdApp.useApp()
   const [closing, setClosing] = useState(false)
   const [activeConfigTab, setActiveConfigTab] = useState<ConfigTab>('config')
+  const [codexSetupMode, setCodexSetupMode] = useState<CodexSetupMode>('manual')
   const [copying, setCopying] = useState<CopyTarget | null>(null)
   const [copied, setCopied] = useState(initialCopyState)
   const [copyAnnouncement, setCopyAnnouncement] = useState('')
@@ -46,11 +49,37 @@ export function McpTokenDialog({
         },
       },
     }, null, 2),
-    codex: buildCodexImportCommand(endpoint, visibleResult.token),
-  } : { config: '', codex: '' }, [endpoint, visibleResult])
+    codexConfig: buildCodexConfig(endpoint, visibleResult.token),
+    codexCommand: buildCodexImportCommand(endpoint, visibleResult.token),
+  } : { config: '', codexConfig: '', codexCommand: '' }, [endpoint, visibleResult])
+  const codexArtifact = codexSetupMode === 'manual'
+    ? {
+        badge: t('settings.mcp.codexCrossPlatform'),
+        codeLabel: t('settings.mcp.codexConfigCodeLabel'),
+        content: artifacts.codexConfig,
+        copyLabel: t('settings.mcp.copyCodexConfigLabel'),
+        copyTarget: 'codexConfig' as const,
+        format: 'TOML',
+        hint: t('settings.mcp.codexManualHint'),
+        path: '~/.codex/config.toml',
+      }
+    : {
+        badge: t('settings.mcp.codexWindowsOnly'),
+        codeLabel: t('settings.mcp.codexCommandCodeLabel'),
+        content: artifacts.codexCommand,
+        copyLabel: t('settings.mcp.copyCodexCommandLabel'),
+        copyTarget: 'codexCommand' as const,
+        format: 'CMD / PowerShell',
+        hint: t('settings.mcp.codexWindowsHint'),
+        path: '',
+      }
+  const codexArtifactCopied = copied[codexArtifact.copyTarget]
 
   useEffect(() => {
-    if (result) setActiveConfigTab('config')
+    if (result) {
+      setActiveConfigTab('config')
+      setCodexSetupMode('manual')
+    }
   }, [result])
 
   useEffect(() => () => {
@@ -92,7 +121,9 @@ export function McpTokenDialog({
         ? t('settings.mcp.tokenCopied')
         : target === 'config'
           ? t('settings.mcp.configCopied')
-          : t('settings.mcp.codexCommandCopied')
+          : target === 'codexConfig'
+            ? t('settings.mcp.codexConfigCopied')
+            : t('settings.mcp.codexCommandCopied')
       setCopied((current) => ({ ...current, [target]: true }))
       setCopyAnnouncement(announcement)
       const previousTimer = feedbackTimersRef.current[target]
@@ -210,24 +241,68 @@ export function McpTokenDialog({
                     </span>
                   ),
                   children: (
-                    <div className={styles['config-panel']}>
-                      <p>{t('settings.mcp.codexImportHint')}</p>
+                    <div className={styles['codex-panel']}>
+                      <div className={styles['codex-method-heading']}>
+                        <span>{t('settings.mcp.codexMethodLabel')}</span>
+                        <Segmented<CodexSetupMode>
+                          block
+                          size="small"
+                          className={styles['codex-method-switch']}
+                          value={codexSetupMode}
+                          aria-label={t('settings.mcp.codexMethodLabel')}
+                          options={[
+                            {
+                              value: 'manual',
+                              icon: <FileCode2 size={13} aria-hidden="true" />,
+                              label: t('settings.mcp.codexManualMethod'),
+                            },
+                            {
+                              value: 'windows',
+                              icon: <Monitor size={13} aria-hidden="true" />,
+                              label: t('settings.mcp.codexWindowsMethod'),
+                            },
+                          ]}
+                          onChange={setCodexSetupMode}
+                        />
+                      </div>
+
+                      <div className={`${styles['codex-method-note']} ${codexSetupMode === 'windows'
+                        ? styles['is-windows']
+                        : ''}`}>
+                        <span>{codexArtifact.badge}</span>
+                        <p>{codexArtifact.hint}</p>
+                      </div>
+
                       <div className={styles['artifact-panel']}>
                         <header className={styles['artifact-toolbar']}>
-                          <span>CMD / PowerShell</span>
+                          <div className={styles['artifact-label']}>
+                            <span>{codexArtifact.format}</span>
+                            {codexArtifact.path ? <code>{codexArtifact.path}</code> : null}
+                          </div>
                           <Button
                             type="text"
-                            className={`${styles['config-copy']} ${copied.codex ? styles['is-copied'] : ''}`}
-                            icon={copied.codex ? <Check size={15} /> : <Clipboard size={15} />}
-                            loading={copying === 'codex'}
-                            disabled={copying !== null && copying !== 'codex'}
-                            aria-label={t('settings.mcp.copyCodexCommandLabel')}
-                            onClick={() => void copy('codex', artifacts.codex)}
+                            className={`${styles['config-copy']} ${codexArtifactCopied
+                              ? styles['is-copied']
+                              : ''}`}
+                            icon={codexArtifactCopied
+                              ? <Check size={15} />
+                              : <Clipboard size={15} />}
+                            loading={copying === codexArtifact.copyTarget}
+                            disabled={copying !== null && copying !== codexArtifact.copyTarget}
+                            aria-label={codexArtifact.copyLabel}
+                            onClick={() => void copy(codexArtifact.copyTarget, codexArtifact.content)}
                           >
-                            {copied.codex ? t('settings.mcp.copied') : t('app.copy')}
+                            {codexArtifactCopied
+                              ? t('settings.mcp.copied')
+                              : t('app.copy')}
                           </Button>
                         </header>
-                        <pre tabIndex={0}>{artifacts.codex}</pre>
+                        <pre
+                          tabIndex={0}
+                          aria-label={codexArtifact.codeLabel}
+                        >
+                          {codexArtifact.content}
+                        </pre>
                       </div>
                     </div>
                   ),
@@ -255,12 +330,7 @@ async function copyText(value: string) {
 }
 
 function buildCodexImportCommand(endpoint: string, token: string) {
-  const configLines = [
-    '[mcp_servers.termous]',
-    `url = '${endpoint}'`,
-    'tool_timeout_sec = 180',
-    `http_headers = { Authorization = 'Bearer ${token}' }`,
-  ]
+  const configLines = buildCodexConfigLines(endpoint, token)
   const script = [
     "Set-Variable -Name h -Value ([Environment]::GetEnvironmentVariable('CODEX_HOME'))",
     "if ([string]::IsNullOrWhiteSpace((Get-Variable -Name h -ValueOnly))) { Set-Variable -Name h -Value ([IO.Path]::Combine([Environment]::GetFolderPath('UserProfile'), '.codex')) }",
@@ -269,6 +339,19 @@ function buildCodexImportCommand(endpoint: string, token: string) {
     `if ((Get-Variable -Name LASTEXITCODE -ValueOnly) -eq 0) { @('', ${configLines.map(quotePowerShell).join(', ')}) | Add-Content -LiteralPath ([IO.Path]::Combine((Get-Variable -Name h -ValueOnly), 'config.toml')); codex mcp get termous }`,
   ].join('; ')
   return `powershell.exe -NoProfile -Command "${script}"`
+}
+
+function buildCodexConfig(endpoint: string, token: string) {
+  return buildCodexConfigLines(endpoint, token).join('\n')
+}
+
+function buildCodexConfigLines(endpoint: string, token: string) {
+  return [
+    '[mcp_servers.termous]',
+    `url = '${endpoint}'`,
+    'tool_timeout_sec = 180',
+    `http_headers = { Authorization = 'Bearer ${token}' }`,
+  ]
 }
 
 function quotePowerShell(value: string) {

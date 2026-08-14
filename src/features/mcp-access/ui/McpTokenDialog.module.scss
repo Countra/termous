@@ -256,13 +256,119 @@
   color: var(--text-primary);
 }
 
-.config-panel {
+.codex-panel {
   display: grid;
   min-width: 0;
+  gap: 9px;
+}
+
+.codex-method-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.codex-method-heading > span {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.codex-method-switch:global(.ant-segmented) {
+  width: min(100%, 330px);
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 64%, var(--border));
+  border-radius: 9px;
+  background: var(--surface-subtle);
+  padding: 3px;
+  box-shadow: var(--inner-highlight);
+}
+
+.codex-method-switch :global(.ant-segmented-item) {
+  min-width: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.codex-method-switch :global(.ant-segmented-item-label) {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.codex-method-switch :global(.ant-segmented-item-selected),
+.codex-method-switch :global(.ant-segmented-thumb) {
+  background: color-mix(in srgb, var(--accent-soft) 44%, var(--surface));
+  box-shadow: var(--inner-highlight);
+}
+
+.codex-method-switch :global(.ant-segmented-item-selected) {
+  color: var(--accent);
+}
+
+.codex-method-switch :global(.ant-segmented-item:not(.ant-segmented-item-selected):hover) {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.codex-method-switch :global(.ant-segmented-item-input:focus-visible + .ant-segmented-item-label) {
+  outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+.codex-method-switch :global(.ant-segmented-item-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.codex-method-switch :global(.ant-segmented-item-icon + *) {
+  margin-inline-start: 0;
+}
+
+.codex-method-note {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
   gap: 8px;
 }
 
-.config-panel p {
+.codex-method-note > span {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-soft) 40%, transparent);
+  padding: 1px 6px;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 650;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.codex-method-note.is-windows > span {
+  border-color: color-mix(in srgb, var(--warning) 30%, var(--border));
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--warning);
+}
+
+.codex-method-note > p {
   margin: 0;
   color: var(--text-muted);
   font-size: 10px;
@@ -289,11 +395,27 @@
   padding: 3px 5px 3px 11px;
 }
 
-.artifact-toolbar > span {
+.artifact-toolbar > span,
+.artifact-label > span {
   color: var(--text-muted);
   font: 650 9px/1.2 "Cascadia Code", Consolas, monospace;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.artifact-label {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.artifact-label code {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font: 10px/1.2 "Cascadia Code", Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .secret-control :global(.ant-btn).is-copied,
@@ -360,6 +482,21 @@
     padding-inline: 8px;
   }
 
+  .codex-method-heading {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .codex-method-switch:global(.ant-segmented) {
+    width: 100%;
+  }
+
+  .codex-method-switch :global(.ant-segmented-item-label) {
+    padding-inline: 6px;
+  }
+
   .artifact-panel pre {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -367,7 +504,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .config-tabs :global(.ant-tabs-tab) {
+  .config-tabs :global(.ant-tabs-tab),
+  .codex-method-switch :global(.ant-segmented-thumb),
+  .codex-method-switch :global(.ant-segmented-item) {
     transition: none;
   }
 }
