@@ -1,6 +1,6 @@
 import { Maximize2, Minus, Square, X } from 'lucide-react'
 import { Button, Tooltip } from 'antd'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
@@ -20,6 +20,7 @@ export function WindowControls({ closeBehavior, onBeforeClose, onCloseError }: W
   const [confirmClose, setConfirmClose] = useState(false)
   const [closing, setClosing] = useState(false)
   const [hidingToTray, setHidingToTray] = useState(false)
+  const closingRef = useRef(false)
 
   const minimizeToTray = useCallback(async () => {
     flushSync(() => {
@@ -48,15 +49,23 @@ export function WindowControls({ closeBehavior, onBeforeClose, onCloseError }: W
   }, [closeBehavior, minimizeToTray])
 
   const confirmAndClose = useCallback(async () => {
+    if (closingRef.current) {
+      return
+    }
+    closingRef.current = true
     setClosing(true)
     try {
       await onBeforeClose?.()
-      setConfirmClose(false)
       const controls = getTermousBridge()?.windowControls
-      await controls?.confirmClose()
+      try {
+        await controls?.confirmClose()
+      } finally {
+        setConfirmClose(false)
+      }
     } catch (closeError) {
       onCloseError?.(closeError)
     } finally {
+      closingRef.current = false
       setClosing(false)
     }
   }, [onBeforeClose, onCloseError])
