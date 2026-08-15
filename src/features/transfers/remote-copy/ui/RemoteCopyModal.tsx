@@ -1,13 +1,16 @@
-import { Alert, Button, Input, Modal, Skeleton, Tooltip } from 'antd'
+import { Alert, Button, Input, Modal, Segmented, Skeleton, Tooltip } from 'antd'
 import {
   ArrowRightLeft,
   ArrowUp,
   Check,
   ChevronRight,
+  CircleAlert,
   CopyPlus,
   Folder,
+  FolderInput,
   FolderOpen,
   FolderPlus,
+  Network,
   Pencil,
   RefreshCw,
   Replace,
@@ -23,10 +26,13 @@ import { HostAvatar } from '#entities/host'
 import { buildRemotePathBreadcrumbs } from '../model/remoteCopyModel.ts'
 import type {
   RemoteCopyConflictPolicy,
+  RemoteCopyBatchFailure,
+  RemoteCopyMode,
   RemoteCopyModalProps,
   RemoteCopyTargetSession,
 } from '../model/types.ts'
 import { useRemoteCopyController } from '../controller/useRemoteCopyController.ts'
+import { useRemoteCopyBatchController } from '../controller/useRemoteCopyBatchController.ts'
 import chromeStyles from './RemoteCopyModalChrome.module.scss'
 import styles from './RemoteCopyModal.module.scss'
 
@@ -35,13 +41,35 @@ const remoteCopyTooltipZIndex = 3500
 export function RemoteCopyModal(props: RemoteCopyModalProps) {
   const { open, source, hosts, getHostIconUrl, onClose } = props
   const { t } = useTranslation()
-  const controller = useRemoteCopyController(props)
+  const [mode, setMode] = useState<RemoteCopyMode>('single')
+  const sourceIdentity = `${source.fileSessionId}:${source.connectionGeneration}:${source.entries.map((entry) => entry.path).join('\u0000')}`
+  const controller = useRemoteCopyController({
+    ...props,
+    active: open && mode === 'single',
+  })
+  const batchController = useRemoteCopyBatchController({
+    ...props,
+    active: open && mode === 'batch',
+  })
   const sourceHost = hosts.find((host) => host.id === source.hostId)
   const breadcrumbs = useMemo(
     () => buildRemotePathBreadcrumbs(controller.currentPath || controller.pathInput),
     [controller.currentPath, controller.pathInput],
   )
-  const busy = controller.submitting || controller.creatingDirectory
+  const busy = mode === 'single'
+    ? controller.submitting || controller.creatingDirectory
+    : batchController.submitting
+  const conflictPolicy = mode === 'single'
+    ? controller.conflictPolicy
+    : batchController.conflictPolicy
+  const canSubmit = mode === 'single' ? controller.canSubmit : batchController.canSubmit
+  const submitError = mode === 'single' ? controller.submitError : batchController.submitError
+
+  useEffect(() => {
+    if (open) {
+      setMode('single')
+    }
+  }, [open, sourceIdentity])
 
   return (
     <Modal
@@ -71,7 +99,12 @@ export function RemoteCopyModal(props: RemoteCopyModalProps) {
           <span className={chromeStyles['header-copy']}>
             <small>{t('files.remoteCopy.eyebrow')}</small>
             <strong>{t('files.remoteCopy.title')}</strong>
-            <span>{t('files.remoteCopy.description', { count: source.entries.length })}</span>
+            <span>{t(
+              mode === 'batch'
+                ? 'files.remoteCopy.descriptionBatch'
+                : 'files.remoteCopy.description',
+              { count: source.entries.length },
+            )}</span>
           </span>
           <span className={chromeStyles['source-summary']}>
             <small>{t('files.remoteCopy.source')}</small>
@@ -83,7 +116,33 @@ export function RemoteCopyModal(props: RemoteCopyModalProps) {
           </span>
         </header>
 
-        {!controller.sourceValidation.valid ? (
+        <div className={styles['mode-switch']}>
+          <Segmented<RemoteCopyMode>
+            block
+            size="small"
+            className={styles['mode-segmented']}
+            value={mode}
+            disabled={busy}
+            aria-label={t('files.remoteCopy.modeLabel')}
+            options={[
+              {
+                value: 'single',
+                icon: <Server size={13} aria-hidden="true" />,
+                label: t('files.remoteCopy.modeSingle'),
+              },
+              {
+                value: 'batch',
+                icon: <Network size={13} aria-hidden="true" />,
+                label: t('files.remoteCopy.modeBatch'),
+              },
+            ]}
+            onChange={setMode}
+          />
+        </div>
+
+        {!(mode === 'single'
+          ? controller.sourceValidation.valid
+          : batchController.sourceValidation.valid) ? (
           <Alert
             type="warning"
             showIcon
@@ -92,54 +151,104 @@ export function RemoteCopyModal(props: RemoteCopyModalProps) {
           />
         ) : null}
 
-        <div className={styles.workspace}>
-          <TargetSessionPane
-            search={controller.search}
-            targets={controller.visibleTargets}
-            totalTargets={controller.allTargets.length}
-            selectedSessionId={controller.selectedSessionId}
-            getHostIconUrl={getHostIconUrl}
-            disabled={busy}
-            onSearch={controller.setSearch}
-            onSelect={controller.selectTarget}
-          />
-          <DirectoryPane
-            target={controller.selectedTarget}
-            pathInput={controller.pathInput}
-            pathInputValid={controller.pathInputValid}
-            currentPath={controller.currentPath}
-            breadcrumbs={breadcrumbs}
-            status={controller.directory.status}
-            error={controller.directory.error}
-            directories={controller.directory.listing?.entries ?? []}
-            canCreateDirectory={controller.canCreateDirectory}
-            creatingDirectory={controller.creatingDirectory}
-            createDirectoryError={controller.createDirectoryError}
-            disabled={busy}
-            onPathInput={controller.setPathInput}
-            onNavigate={controller.navigate}
-            onParent={() => void controller.navigateParent()}
-            onRefresh={() => void controller.refresh()}
-            onClearCreateDirectoryError={controller.clearCreateDirectoryError}
-            onCreateDirectory={controller.createTargetDirectory}
-          />
+        <div className={`${styles.workspace} ${mode === 'batch' ? styles['is-batch'] : ''}`}>
+          {mode === 'single' ? (
+            <>
+              <TargetSessionPane
+                mode="single"
+                search={controller.search}
+                targets={controller.visibleTargets}
+                totalTargets={controller.allTargets.length}
+                selectedSessionIds={[controller.selectedSessionId]}
+                completedSessionIds={new Set()}
+                completedHostIds={new Set()}
+                failures={[]}
+                getHostIconUrl={getHostIconUrl}
+                disabled={busy}
+                onSearch={controller.setSearch}
+                onSelect={controller.selectTarget}
+              />
+              <DirectoryPane
+                target={controller.selectedTarget}
+                pathInput={controller.pathInput}
+                pathInputValid={controller.pathInputValid}
+                currentPath={controller.currentPath}
+                breadcrumbs={breadcrumbs}
+                status={controller.directory.status}
+                error={controller.directory.error}
+                directories={controller.directory.listing?.entries ?? []}
+                canCreateDirectory={controller.canCreateDirectory}
+                creatingDirectory={controller.creatingDirectory}
+                createDirectoryError={controller.createDirectoryError}
+                disabled={busy}
+                onPathInput={controller.setPathInput}
+                onNavigate={controller.navigate}
+                onParent={() => void controller.navigateParent()}
+                onRefresh={() => void controller.refresh()}
+                onClearCreateDirectoryError={controller.clearCreateDirectoryError}
+                onCreateDirectory={controller.createTargetDirectory}
+              />
+            </>
+          ) : (
+            <>
+              <TargetSessionPane
+                mode="batch"
+                search={batchController.search}
+                targets={batchController.visibleTargets}
+                totalTargets={batchController.allTargets.length}
+                selectedSessionIds={batchController.selectedSessionIds}
+                completedSessionIds={batchController.completedSessionIds}
+                completedHostIds={batchController.completedHostIds}
+                failures={batchController.failures}
+                getHostIconUrl={getHostIconUrl}
+                disabled={busy || batchController.parametersLocked}
+                onSearch={batchController.setSearch}
+                onSelect={batchController.toggleTarget}
+              />
+              <BatchDestinationPane
+                pathInput={batchController.targetDirInput}
+                pathInputValid={batchController.targetDirValid}
+                selectedCount={batchController.selectedTargets.length}
+                disabled={busy || batchController.parametersLocked}
+                onPathInput={batchController.changeTargetDir}
+              />
+            </>
+          )}
         </div>
 
         <ConflictPolicyPicker
-          value={controller.conflictPolicy}
-          disabled={busy}
-          onChange={controller.setConflictPolicy}
+          value={conflictPolicy}
+          disabled={busy || (mode === 'batch' && batchController.parametersLocked)}
+          onChange={mode === 'single'
+            ? controller.setConflictPolicy
+            : batchController.setConflictPolicy}
         />
 
-        {controller.submitError ? (
+        {mode === 'batch' && batchController.selectionError ? (
+          <Alert
+            type="warning"
+            showIcon
+            className={styles.alert}
+            title={t(batchController.selectionError, { count: batchController.targetLimit })}
+          />
+        ) : null}
+
+        {mode === 'batch' && batchController.outcome ? (
+          <BatchOutcomeAlert
+            createdCount={batchController.outcome.createdCount}
+            failures={batchController.outcome.failures}
+          />
+        ) : null}
+
+        {submitError ? (
           <Alert
             type="error"
             showIcon
             className={styles.alert}
             title={t('files.remoteCopy.createFailed')}
-            description={controller.submitError.startsWith('files.')
-              ? t(controller.submitError)
-              : controller.submitError}
+            description={submitError.startsWith('files.')
+              ? t(submitError)
+              : submitError}
           />
         ) : null}
 
@@ -147,13 +256,24 @@ export function RemoteCopyModal(props: RemoteCopyModalProps) {
           <Button disabled={busy} onClick={onClose}>{t('app.cancel')}</Button>
           <Button
             type="primary"
-            danger={controller.conflictPolicy === 'overwrite'}
+            danger={conflictPolicy === 'overwrite'}
             icon={<Send size={14} aria-hidden="true" />}
             loading={busy}
-            disabled={!controller.canSubmit || busy}
-            onClick={() => void controller.submit()}
+            disabled={!canSubmit || busy}
+            onClick={() => void (mode === 'single'
+              ? controller.submit()
+              : batchController.submit())}
           >
-            {t(busy ? 'files.remoteCopy.submitting' : 'files.remoteCopy.submit')}
+            {t(
+              busy
+                ? 'files.remoteCopy.submitting'
+                : mode === 'batch'
+                  ? batchController.outcome
+                    ? 'files.remoteCopy.batchRetry'
+                    : 'files.remoteCopy.batchSubmit'
+                  : 'files.remoteCopy.submit',
+              { count: batchController.selectedTargets.length },
+            )}
           </Button>
         </footer>
       </section>
@@ -162,33 +282,49 @@ export function RemoteCopyModal(props: RemoteCopyModalProps) {
 }
 
 function TargetSessionPane({
+  mode,
   search,
   targets,
   totalTargets,
-  selectedSessionId,
+  selectedSessionIds,
+  completedSessionIds,
+  completedHostIds,
+  failures,
   getHostIconUrl,
   disabled,
   onSearch,
   onSelect,
 }: {
+  mode: RemoteCopyMode
   search: string
   targets: RemoteCopyTargetSession[]
   totalTargets: number
-  selectedSessionId: string
+  selectedSessionIds: readonly string[]
+  completedSessionIds: ReadonlySet<string>
+  completedHostIds: ReadonlySet<string>
+  failures: readonly RemoteCopyBatchFailure[]
   getHostIconUrl: (iconId: string) => string
   disabled: boolean
   onSearch: (value: string) => void
   onSelect: (sessionId: string) => void
 }) {
   const { t } = useTranslation()
+  const selectedIdSet = new Set(selectedSessionIds)
+  const failureBySessionId = new Map(failures.map((failure) => [failure.sessionId, failure]))
   return (
-    <aside className={styles.targets} aria-label={t('files.remoteCopy.targetSession')}>
+    <aside className={styles.targets} aria-label={t(
+      mode === 'batch' ? 'files.remoteCopy.targetHosts' : 'files.remoteCopy.targetSession',
+    )}>
       <div className={styles['pane-heading']}>
         <span>
-          <Server size={14} aria-hidden="true" />
-          {t('files.remoteCopy.targetSession')}
+          {mode === 'batch'
+            ? <Network size={14} aria-hidden="true" />
+            : <Server size={14} aria-hidden="true" />}
+          {t(mode === 'batch' ? 'files.remoteCopy.targetHosts' : 'files.remoteCopy.targetSession')}
         </span>
-        <small>{totalTargets}</small>
+        <small aria-label={t('files.remoteCopy.availableSessions', { count: totalTargets })}>
+          {totalTargets}
+        </small>
       </div>
       <Input
         allowClear
@@ -202,7 +338,9 @@ function TargetSessionPane({
       <div
         className={styles['target-list']}
         role="group"
-        aria-label={t('files.remoteCopy.targetSession')}
+        aria-label={t(mode === 'batch'
+          ? 'files.remoteCopy.targetHosts'
+          : 'files.remoteCopy.targetSession')}
       >
         {targets.length === 0 ? (
           <div className={styles['empty-targets']}>
@@ -210,16 +348,14 @@ function TargetSessionPane({
             <strong>{t('files.remoteCopy.noTargets')}</strong>
           </div>
         ) : targets.map((target) => {
-          const selected = target.session.id === selectedSessionId
-          return (
-            <button
-              type="button"
-              aria-pressed={selected}
-              disabled={disabled}
-              className={`${styles['target-row']} ${selected ? styles['is-selected'] : ''}`}
-              key={target.session.id}
-              onClick={() => onSelect(target.session.id)}
-            >
+          const selected = selectedIdSet.has(target.session.id)
+          const hostCompleted = completedHostIds.has(target.host.id)
+          const completed = completedSessionIds.has(target.session.id)
+            || (mode === 'batch' && hostCompleted)
+          const failure = failureBySessionId.get(target.session.id)
+          const targetDisabled = disabled || hostCompleted || failure?.retryable === false
+          const content = (
+            <>
               <HostAvatar
                 host={target.host}
                 getIconUrl={getHostIconUrl}
@@ -234,14 +370,157 @@ function TargetSessionPane({
                   <small>{t('files.remoteCopy.sessionSuffix', { id: target.shortSessionId })}</small>
                 ) : null}
               </span>
-              <span className={styles['target-check']} aria-hidden="true">
-                {selected ? <Check size={12} strokeWidth={3} /> : null}
+              <span
+                className={`${styles['target-check']} ${mode === 'batch' ? styles['is-multiple'] : ''}`}
+                aria-hidden="true"
+                title={failure?.message}
+              >
+                {failure
+                  ? <CircleAlert size={12} />
+                  : selected || completed
+                    ? <Check size={12} strokeWidth={3} />
+                    : null}
               </span>
+            </>
+          )
+          const rowClassName = [
+            styles['target-row'],
+            selected ? styles['is-selected'] : '',
+            completed ? styles['is-completed'] : '',
+            failure ? styles['has-failure'] : '',
+            targetDisabled ? styles['is-disabled'] : '',
+          ].filter(Boolean).join(' ')
+          if (mode === 'batch') {
+            return (
+              <label
+                className={rowClassName}
+                key={target.session.id}
+                aria-disabled={targetDisabled}
+              >
+                <input
+                  type="checkbox"
+                  className={styles['target-input']}
+                  checked={selected || completed}
+                  disabled={targetDisabled}
+                  onChange={() => onSelect(target.session.id)}
+                />
+                {content}
+              </label>
+            )
+          }
+          return (
+            <button
+              type="button"
+              aria-pressed={selected}
+              disabled={disabled}
+              className={rowClassName}
+              key={target.session.id}
+              onClick={() => onSelect(target.session.id)}
+            >
+              {content}
             </button>
           )
         })}
       </div>
     </aside>
+  )
+}
+
+function BatchDestinationPane({
+  pathInput,
+  pathInputValid,
+  selectedCount,
+  disabled,
+  onPathInput,
+}: {
+  pathInput: string
+  pathInputValid: boolean
+  selectedCount: number
+  disabled: boolean
+  onPathInput: (path: string) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <section className={`${styles.browser} ${styles['batch-destination']}`}>
+      <header className={styles['browser-heading']}>
+        <span className={styles['browser-title']}>
+          <FolderInput size={15} aria-hidden="true" />
+          <span>
+            <strong>{t('files.remoteCopy.batchDirectory')}</strong>
+            <small>{t('files.remoteCopy.batchSelected', { count: selectedCount })}</small>
+          </span>
+        </span>
+      </header>
+      <div className={styles['batch-destination-content']}>
+        <label className={styles['batch-path-field']}>
+          <span>{t('files.remoteCopy.targetDirectory')}</span>
+          <Input
+            autoFocus
+            value={pathInput}
+            disabled={disabled}
+            status={pathInput.length > 0 && !pathInputValid ? 'error' : undefined}
+            prefix={<FolderOpen size={14} aria-hidden="true" />}
+            placeholder={t('files.remoteCopy.batchPathPlaceholder')}
+            aria-label={t('files.remoteCopy.targetDirectory')}
+            spellCheck={false}
+            onChange={(event) => onPathInput(event.target.value)}
+          />
+        </label>
+        {pathInput.length > 0 && !pathInputValid ? (
+          <small className={styles['batch-path-error']} role="alert">
+            {t('files.remoteCopy.batchPathInvalid')}
+          </small>
+        ) : null}
+        <div className={styles['batch-create-hint']}>
+          <FolderPlus size={14} aria-hidden="true" />
+          <span>{t('files.remoteCopy.batchCreateDirectoryHint')}</span>
+        </div>
+        <div className={styles['batch-target-summary']}>
+          <Network size={21} aria-hidden="true" />
+          <span>
+            <strong>{t('files.remoteCopy.batchSelected', { count: selectedCount })}</strong>
+            <small>{t(selectedCount > 0
+              ? 'files.remoteCopy.batchReadyHint'
+              : 'files.remoteCopy.batchSelectHint')}</small>
+          </span>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function BatchOutcomeAlert({
+  createdCount,
+  failures,
+}: {
+  createdCount: number
+  failures: readonly RemoteCopyBatchFailure[]
+}) {
+  const { t } = useTranslation()
+  return (
+    <Alert
+      type={createdCount > 0 ? 'warning' : 'error'}
+      showIcon
+      className={styles.alert}
+      title={t(
+        createdCount > 0
+          ? 'files.remoteCopy.batchPartialTitle'
+          : 'files.remoteCopy.batchFailedTitle',
+        { created: createdCount, failed: failures.length },
+      )}
+      description={(
+        <ul className={styles['batch-failure-list']}>
+          {failures.map((failure) => (
+            <li key={failure.sessionId}>
+              <strong>{failure.hostName}</strong>
+              <span>{failure.message.startsWith('files.')
+                ? t(failure.message)
+                : failure.message}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    />
   )
 }
 

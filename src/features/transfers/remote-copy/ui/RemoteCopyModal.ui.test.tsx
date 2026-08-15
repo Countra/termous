@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
@@ -8,7 +8,9 @@ import type {
   TransferTask,
 } from '#entities/file'
 import type { Host } from '#entities/host'
+import { TermousApiError } from '#shared/api'
 import type {
+  RemoteCopyCreateRequest,
   RemoteCopyDirectoryRequest,
   RemoteCopyModalProps,
 } from '../model/types.ts'
@@ -389,6 +391,61 @@ describe('跨主机传输目标弹窗', () => {
       .toHaveValue('/home/target-a/folder-a')
   })
 
+  it('在单个与批量模式间往返时保留单个主机的目标目录和冲突策略', async () => {
+    const user = userEvent.setup()
+    const props = baseProps()
+    render(<RemoteCopyModal {...props} />)
+    await waitFor(() => expect(props.listDirectories).toHaveBeenCalledTimes(1))
+
+    await user.click(screen.getByText('folder-a'))
+    await waitFor(() => expect(props.listDirectories).toHaveBeenCalledTimes(2))
+    await user.click(screen.getByRole('radio', { name: /files.remoteCopy.policySkip/ }))
+
+    await user.click(screen.getByText('files.remoteCopy.modeBatch'))
+    await user.click(screen.getByText('files.remoteCopy.modeSingle'))
+
+    expect(props.listDirectories).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('radio', { name: /files.remoteCopy.policySkip/ })).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'files.remoteCopy.editPath' }))
+    expect(screen.getByRole('textbox', { name: 'files.remoteCopy.targetDirectory' }))
+      .toHaveValue('/home/target-a/folder-a')
+  })
+
+  it('单个和批量模式统一统计当前有效的 SFTP 会话', async () => {
+    const user = userEvent.setup()
+    const props = baseProps()
+    const view = render(<RemoteCopyModal {...props} />)
+
+    expect(screen.getByLabelText('files.remoteCopy.availableSessions')).toHaveTextContent('3')
+    await user.click(screen.getByText('files.remoteCopy.modeBatch'))
+    const batchTargets = screen.getByRole('complementary', {
+      name: 'files.remoteCopy.targetHosts',
+    })
+    expect(within(batchTargets).getByLabelText('files.remoteCopy.availableSessions'))
+      .toHaveTextContent('3')
+
+    await user.click(within(batchTargets).getAllByRole('checkbox', { name: /目标主机 A/ })[0]!)
+    await user.type(
+      within(batchTargets).getByPlaceholderText('files.remoteCopy.searchSessions'),
+      '目标主机 A',
+    )
+    expect(within(batchTargets).getByLabelText('files.remoteCopy.availableSessions'))
+      .toHaveTextContent('3')
+
+    view.rerender(<RemoteCopyModal
+      {...props}
+      fileSessions={props.fileSessions.map((session) => (
+        session.id === 'target-second-abcdefgh'
+          ? { ...session, status: 'failed' }
+          : session
+      ))}
+    />)
+    expect(screen.getByLabelText('files.remoteCopy.availableSessions')).toHaveTextContent('2')
+
+    await user.click(screen.getByText('files.remoteCopy.modeSingle'))
+    expect(screen.getByLabelText('files.remoteCopy.availableSessions')).toHaveTextContent('2')
+  })
+
   it('目录加载失败后重试原请求路径而不是上次成功目录', async () => {
     const user = userEvent.setup()
     const listDirectories = vi.fn(async (request: RemoteCopyDirectoryRequest) => {
@@ -429,6 +486,7 @@ describe('跨主机传输目标弹窗', () => {
     await user.click(screen.getByRole('radio', { name: /files.remoteCopy.policyOverwrite/ }))
     await user.click(screen.getByRole('button', { name: 'files.remoteCopy.submit' }))
     await waitFor(() => expect(confirmOverwrite).toHaveBeenCalledWith({
+      mode: 'single',
       sourceCount: 1,
       targetHostName: '目标主机 A',
       targetPath: '/home/target-a',
@@ -444,9 +502,12 @@ describe('跨主机传输目标弹窗', () => {
       targetConnectionGeneration: 4,
       sourcePaths: ['/srv/demo.txt'],
       targetDir: '/home/target-a',
+      targetDirMode: 'require_existing',
       overwritePolicy: 'overwrite',
     }))
-    expect(props.onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: 'transfer-1' }))
+    expect(props.onCreated).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'transfer-1' }),
+    ])
     expect(props.onClose).toHaveBeenCalled()
 
     view.unmount()
@@ -552,5 +613,305 @@ describe('跨主机传输目标弹窗', () => {
     await act(async () => resolveCreate(task()))
     expect(props.onCreated).toHaveBeenCalledTimes(1)
     expect(props.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('批量模式使用同一绝对路径且同一主机的会话互斥', async () => {
+    const user = userEvent.setup()
+    const createRemoteCopy = vi.fn(async (request: RemoteCopyCreateRequest) => ({
+      ...task(),
+      id: `transfer-${request.targetFileSessionId}`,
+      target_file_session_id: request.targetFileSessionId,
+      target_connection_generation: request.targetConnectionGeneration,
+      target_path: request.targetDir,
+    }))
+    const props = baseProps({ createRemoteCopy })
+    render(<RemoteCopyModal {...props} />)
+    await waitFor(() => expect(props.listDirectories).toHaveBeenCalledTimes(1))
+
+    await user.click(screen.getByText('files.remoteCopy.modeBatch'))
+    expect(screen.getByText('files.remoteCopy.descriptionBatch')).toBeInTheDocument()
+    const targetACheckboxes = screen.getAllByRole('checkbox', { name: /目标主机 A/ })
+    const targetBCheckbox = screen.getByRole('checkbox', { name: /目标主机 B/ })
+    await user.click(targetACheckboxes[0]!)
+    expect(targetACheckboxes[0]).toBeChecked()
+    await user.click(targetACheckboxes[1]!)
+    expect(targetACheckboxes[0]).not.toBeChecked()
+    expect(targetACheckboxes[1]).toBeChecked()
+    await user.click(targetBCheckbox)
+
+    const targetPath = screen.getByRole('textbox', {
+      name: 'files.remoteCopy.targetDirectory',
+    })
+    await user.type(targetPath, 'relative/path')
+    expect(screen.getByText('files.remoteCopy.batchPathInvalid')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'files.remoteCopy.batchSubmit' })).toBeDisabled()
+    await user.clear(targetPath)
+    await user.type(targetPath, '/srv/shared/inbox')
+    await user.click(screen.getByRole('button', { name: 'files.remoteCopy.batchSubmit' }))
+
+    await waitFor(() => expect(createRemoteCopy).toHaveBeenCalledTimes(2))
+    expect(createRemoteCopy).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      targetFileSessionId: 'target-extra-87654321',
+      targetConnectionGeneration: 5,
+      targetDir: '/srv/shared/inbox',
+      targetDirMode: 'create_if_missing',
+    }))
+    expect(createRemoteCopy).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      targetFileSessionId: 'target-second-abcdefgh',
+      targetConnectionGeneration: 6,
+      targetDir: '/srv/shared/inbox',
+      targetDirMode: 'create_if_missing',
+    }))
+    expect(props.onCreated).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'transfer-target-extra-87654321' }),
+      expect.objectContaining({ id: 'transfer-target-second-abcdefgh' }),
+    ])
+    expect(props.createDirectory).not.toHaveBeenCalled()
+    expect(props.listDirectories).toHaveBeenCalledTimes(1)
+    expect(props.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('批量提交连续触发时每个目标也只创建一次任务', async () => {
+    const user = userEvent.setup()
+    let resolveCreate!: (value: TransferTask) => void
+    const createRemoteCopy = vi.fn(() => new Promise<TransferTask>((resolve) => {
+      resolveCreate = resolve
+    }))
+    const props = baseProps({ createRemoteCopy })
+    render(<RemoteCopyModal {...props} />)
+    await user.click(screen.getByText('files.remoteCopy.modeBatch'))
+    await user.click(screen.getAllByRole('checkbox', { name: /目标主机 A/ })[0]!)
+    await user.type(
+      screen.getByRole('textbox', { name: 'files.remoteCopy.targetDirectory' }),
+      '/srv/deduplicated',
+    )
+    const submit = screen.getByRole('button', { name: 'files.remoteCopy.batchSubmit' })
+
+    await act(async () => {
+      submit.click()
+      submit.click()
+    })
+
+    expect(createRemoteCopy).toHaveBeenCalledTimes(1)
+    await act(async () => resolveCreate(task()))
+    expect(props.onCreated).toHaveBeenCalledTimes(1)
+    expect(props.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('批量创建部分成功时锁定成功目标并只保留失败目标重试', async () => {
+    const user = userEvent.setup()
+    let targetBShouldFail = true
+    const createRemoteCopy = vi.fn(async (request: RemoteCopyCreateRequest) => {
+      if (request.targetFileSessionId === 'target-second-abcdefgh' && targetBShouldFail) {
+        throw new Error('target unavailable')
+      }
+      return {
+        ...task(),
+        id: `transfer-${request.targetFileSessionId}`,
+        target_file_session_id: request.targetFileSessionId,
+        target_path: request.targetDir,
+      }
+    })
+    const props = baseProps({ createRemoteCopy })
+    render(<RemoteCopyModal {...props} />)
+    await user.click(screen.getByText('files.remoteCopy.modeBatch'))
+    const targetA = screen.getAllByRole('checkbox', { name: /目标主机 A/ })[0]!
+    const targetB = screen.getByRole('checkbox', { name: /目标主机 B/ })
+    await user.click(targetA)
+    await user.click(targetB)
+    await user.type(
+      screen.getByRole('textbox', { name: 'files.remoteCopy.targetDirectory' }),
+      '/srv/batch',
+    )
+    await user.click(screen.getByRole('button', { name: 'files.remoteCopy.batchSubmit' }))
+
+    await waitFor(() => expect(screen.getByText('files.remoteCopy.batchPartialTitle')).toBeInTheDocument())
+    expect(screen.getByText('target unavailable')).toBeInTheDocument()
+    expect(props.onCreated).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'transfer-target-first-12345678' }),
+    ])
+    expect(props.onClose).not.toHaveBeenCalled()
+    expect(targetA).toBeDisabled()
+    expect(targetA.closest('label')).toHaveAttribute('aria-disabled', 'true')
+    expect(targetB).toBeChecked()
+    expect(targetB).toBeDisabled()
+    expect(screen.getByRole('textbox', { name: 'files.remoteCopy.targetDirectory' }))
+      .toBeDisabled()
+    expect(screen.getByRole('radio', { name: /files.remoteCopy.policyRename/ }))
+      .toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'files.remoteCopy.batchRetry' }))
+    await waitFor(() => expect(createRemoteCopy).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(screen.getByRole('button', {
+      name: 'files.remoteCopy.batchRetry',
+    })).toBeEnabled())
+    expect(screen.getByText('files.remoteCopy.batchPartialTitle')).toBeInTheDocument()
+    expect(props.onCreated).toHaveBeenCalledTimes(1)
+    expect(props.onClose).not.toHaveBeenCalled()
+
+    targetBShouldFail = false
+    await user.click(screen.getByRole('button', { name: 'files.remoteCopy.batchRetry' }))
+    await waitFor(() => expect(createRemoteCopy).toHaveBeenCalledTimes(4))
+    expect(createRemoteCopy.mock.calls[3]?.[0].targetFileSessionId)
+      .toBe('target-second-abcdefgh')
+    expect(props.onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('批量请求结果不确定时禁止直接重试', async () => {
+    const user = userEvent.setup()
+    const createRemoteCopy = vi.fn(async () => {
+      throw new TermousApiError('请求超时', 'REQUEST_TIMEOUT', 0)
+    })
+    const props = baseProps({ createRemoteCopy })
+    const view = render(<RemoteCopyModal {...props} />)
+    await user.click(screen.getByText('files.remoteCopy.modeBatch'))
+    const target = screen.getByRole('checkbox', { name: /目标主机 B/ })
+    await user.click(target)
+    await user.type(
+      screen.getByRole('textbox', { name: 'files.remoteCopy.targetDirectory' }),
+      '/srv/uncertain',
+    )
+    await user.click(screen.getByRole('button', { name: 'files.remoteCopy.batchSubmit' }))
+
+    await waitFor(() => expect(screen.getByText('files.remoteCopy.batchUncertain')).toBeInTheDocument())
+    expect(createRemoteCopy).toHaveBeenCalledTimes(1)
+    expect(target).not.toBeChecked()
+    expect(target).toBeDisabled()
+    expect(target.closest('label')).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('button', { name: 'files.remoteCopy.batchRetry' })).toBeDisabled()
+    expect(props.onCreated).not.toHaveBeenCalled()
+    expect(props.onClose).not.toHaveBeenCalled()
+
+    view.rerender(<RemoteCopyModal
+      {...props}
+      fileSessions={props.fileSessions.map((session) => (
+        session.id === 'target-second-abcdefgh'
+          ? fileSession('target-second-new-ijklmnop', 'target-b', 7)
+          : session
+      ))}
+    />)
+    const reconnectedTarget = await screen.findByRole('checkbox', { name: /目标主机 B/ })
+    expect(reconnectedTarget).toBeDisabled()
+    expect(reconnectedTarget).not.toBeChecked()
+    expect(screen.getByText('files.remoteCopy.batchUncertain')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'files.remoteCopy.batchRetry' })).toBeDisabled()
+  })
+
+  it('批量重试保留其他主机的不确定结果和已完成主机状态', async () => {
+    const user = userEvent.setup()
+    let retryTargetB = false
+    const createRemoteCopy = vi.fn(async (request: RemoteCopyCreateRequest) => {
+      if (request.targetFileSessionId === 'target-first-12345678') {
+        throw new TermousApiError('请求超时', 'REQUEST_TIMEOUT', 0)
+      }
+      if (!retryTargetB) {
+        throw new Error('target unavailable')
+      }
+      return {
+        ...task(),
+        id: `transfer-${request.targetFileSessionId}`,
+        target_file_session_id: request.targetFileSessionId,
+        target_path: request.targetDir,
+      }
+    })
+    const props = baseProps({ createRemoteCopy })
+    const view = render(<RemoteCopyModal {...props} />)
+    await user.click(screen.getByText('files.remoteCopy.modeBatch'))
+    await user.click(screen.getAllByRole('checkbox', { name: /目标主机 A/ })[0]!)
+    await user.click(screen.getByRole('checkbox', { name: /目标主机 B/ }))
+    await user.type(
+      screen.getByRole('textbox', { name: 'files.remoteCopy.targetDirectory' }),
+      '/srv/mixed-failure',
+    )
+    await user.click(screen.getByRole('button', { name: 'files.remoteCopy.batchSubmit' }))
+
+    await waitFor(() => expect(screen.getByText('files.remoteCopy.batchUncertain')).toBeInTheDocument())
+    expect(screen.getByText('target unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'files.remoteCopy.batchRetry' })).toBeEnabled()
+
+    retryTargetB = true
+    await user.click(screen.getByRole('button', { name: 'files.remoteCopy.batchRetry' }))
+    await waitFor(() => expect(createRemoteCopy).toHaveBeenCalledTimes(3))
+    expect(screen.getByText('files.remoteCopy.batchUncertain')).toBeInTheDocument()
+    expect(screen.queryByText('target unavailable')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'files.remoteCopy.batchRetry' })).toBeDisabled()
+    expect(props.onCreated).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'transfer-target-second-abcdefgh' }),
+    ])
+    expect(props.onClose).not.toHaveBeenCalled()
+
+    view.rerender(<RemoteCopyModal
+      {...props}
+      fileSessions={props.fileSessions.map((session) => (
+        session.id === 'target-second-abcdefgh'
+          ? fileSession('target-second-new-ijklmnop', 'target-b', 7)
+          : session
+      ))}
+    />)
+    const reconnectedCompletedTarget = await screen.findByRole('checkbox', { name: /目标主机 B/ })
+    expect(reconnectedCompletedTarget).toBeChecked()
+    expect(reconnectedCompletedTarget).toBeDisabled()
+  })
+
+  it('批量请求期间来源变化时只登记旧任务且不污染或关闭新弹窗', async () => {
+    const user = userEvent.setup()
+    let resolveCreate!: (value: TransferTask) => void
+    const createRemoteCopy = vi.fn(() => new Promise<TransferTask>((resolve) => {
+      resolveCreate = resolve
+    }))
+    const props = baseProps({ createRemoteCopy })
+    const view = render(<RemoteCopyModal {...props} />)
+    await user.click(screen.getByText('files.remoteCopy.modeBatch'))
+    await user.click(screen.getAllByRole('checkbox', { name: /目标主机 A/ })[0]!)
+    await user.type(
+      screen.getByRole('textbox', { name: 'files.remoteCopy.targetDirectory' }),
+      '/srv/source-change',
+    )
+    await user.click(screen.getByRole('button', { name: 'files.remoteCopy.batchSubmit' }))
+    await waitFor(() => expect(createRemoteCopy).toHaveBeenCalledTimes(1))
+
+    view.rerender(<RemoteCopyModal
+      {...props}
+      source={{
+        ...props.source,
+        fileSessionId: 'source-session-new',
+        connectionGeneration: 4,
+        entries: [entry('next.txt', '/srv/next.txt')],
+      }}
+    />)
+    await waitFor(() => expect(screen.getByText('files.remoteCopy.modeSingle')).toBeInTheDocument())
+    await act(async () => resolveCreate({ ...task(), id: 'transfer-from-old-source' }))
+
+    expect(props.onCreated).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'transfer-from-old-source' }),
+    ])
+    expect(props.onClose).not.toHaveBeenCalled()
+    expect(screen.queryByText('files.remoteCopy.batchPartialTitle')).not.toBeInTheDocument()
+  })
+
+  it('批量覆盖只确认一次并冻结全部目标', async () => {
+    const user = userEvent.setup()
+    const confirmOverwrite = vi.fn(async () => false)
+    const createRemoteCopy = vi.fn(async () => task())
+    const props = baseProps({ confirmOverwrite, createRemoteCopy })
+    render(<RemoteCopyModal {...props} />)
+    await user.click(screen.getByText('files.remoteCopy.modeBatch'))
+    await user.click(screen.getAllByRole('checkbox', { name: /目标主机 A/ })[0]!)
+    await user.click(screen.getByRole('checkbox', { name: /目标主机 B/ }))
+    await user.type(
+      screen.getByRole('textbox', { name: 'files.remoteCopy.targetDirectory' }),
+      '/srv/overwrite',
+    )
+    await user.click(screen.getByRole('radio', { name: /files.remoteCopy.policyOverwrite/ }))
+    await user.click(screen.getByRole('button', { name: 'files.remoteCopy.batchSubmit' }))
+
+    await waitFor(() => expect(confirmOverwrite).toHaveBeenCalledTimes(1))
+    expect(confirmOverwrite).toHaveBeenCalledWith({
+      mode: 'batch',
+      sourceCount: 1,
+      targetCount: 2,
+      targetPath: '/srv/overwrite',
+    })
+    expect(createRemoteCopy).not.toHaveBeenCalled()
   })
 })

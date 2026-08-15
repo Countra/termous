@@ -749,6 +749,7 @@ function FilesWorkspaceContent({
     target_connection_generation: request.targetConnectionGeneration,
     source_paths: request.sourcePaths,
     target_dir: request.targetDir,
+    target_dir_mode: request.targetDirMode,
     overwrite_policy: request.overwritePolicy,
   }), [api])
   const confirmRemoteCopyOverwrite = useCallback((
@@ -763,9 +764,13 @@ function FilesWorkspaceContent({
     }
     modal.confirm({
       title: t('files.remoteCopy.overwriteConfirmTitle'),
-      content: t('files.remoteCopy.overwriteConfirmDescription', {
+      content: t(confirmation.mode === 'batch'
+        ? 'files.remoteCopy.overwriteConfirmBatchDescription'
+        : 'files.remoteCopy.overwriteConfirmDescription', {
         count: confirmation.sourceCount,
-        host: confirmation.targetHostName,
+        ...(confirmation.mode === 'single'
+          ? { host: confirmation.targetHostName }
+          : { targets: confirmation.targetCount }),
         path: confirmation.targetPath,
       }),
       okText: t('files.remoteCopy.overwriteConfirmAction'),
@@ -778,14 +783,16 @@ function FilesWorkspaceContent({
       afterClose: () => finish(false),
     })
   }), [modal, t])
-  const handleRemoteCopyCreated = useCallback((task: TransferTask) => {
-    if (task.target_file_session_id) {
-      trackWorkspaceUploadRefreshTask(task.id, {
-        fileSessionId: task.target_file_session_id,
-        targetPath: normalizeRemotePath(task.target_path || '/'),
-      })
+  const handleRemoteCopyCreated = useCallback((tasks: TransferTask[]) => {
+    for (const task of tasks) {
+      if (task.target_file_session_id) {
+        trackWorkspaceUploadRefreshTask(task.id, {
+          fileSessionId: task.target_file_session_id,
+          targetPath: normalizeRemotePath(task.target_path || '/'),
+        })
+      }
+      upsertTransfer(task)
     }
-    upsertTransfer(task)
     lastTransferTriggerRef.current = transferToggleRef.current
     openSessionTransfers()
     notification.success({

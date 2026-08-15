@@ -2,10 +2,12 @@ import type { FileSession, RemoteFileEntry } from '#entities/file'
 import type { Host } from '#entities/host'
 import { normalizeRemotePosixPath } from '#shared/path'
 import type {
+  RemoteCopyBatchFailure,
   RemoteCopyBreadcrumb,
   RemoteCopySourceValidation,
   RemoteCopyTargetSession,
 } from './types.ts'
+import { remoteCopyBatchTargetLimit } from './types.ts'
 
 export function filterRemoteCopyTargetSessions(
   hosts: readonly Host[],
@@ -73,6 +75,81 @@ export function validateRemoteCopySource(
 
 export function normalizeRemoteCopyDirectory(path: string, fallback = '/') {
   return normalizeRemotePosixPath(path) ?? normalizeRemotePosixPath(fallback) ?? '/'
+}
+
+export function normalizeRemoteCopyBatchDirectory(path: string) {
+  return normalizeRemotePosixPath(path)
+}
+
+export function reconcileRemoteCopyBatchSelection(
+  selectedSessionIds: readonly string[],
+  targets: readonly RemoteCopyTargetSession[],
+) {
+  const targetBySessionId = new Map(targets.map((target) => [target.session.id, target]))
+  const selectedHostIds = new Set<string>()
+  const result: string[] = []
+  for (const sessionId of selectedSessionIds) {
+    const target = targetBySessionId.get(sessionId)
+    if (
+      !target
+      || selectedHostIds.has(target.host.id)
+      || result.length >= remoteCopyBatchTargetLimit
+    ) {
+      continue
+    }
+    selectedHostIds.add(target.host.id)
+    result.push(sessionId)
+  }
+  return result
+}
+
+export function toggleRemoteCopyBatchTarget(
+  selectedSessionIds: readonly string[],
+  targetSessionId: string,
+  targets: readonly RemoteCopyTargetSession[],
+) {
+  const current = reconcileRemoteCopyBatchSelection(selectedSessionIds, targets)
+  if (current.includes(targetSessionId)) {
+    return { sessionIds: current.filter((sessionId) => sessionId !== targetSessionId), limitReached: false }
+  }
+
+  const targetBySessionId = new Map(targets.map((target) => [target.session.id, target]))
+  const target = targetBySessionId.get(targetSessionId)
+  if (!target) {
+    return { sessionIds: current, limitReached: false }
+  }
+  const sameHostSessionId = current.find(
+    (sessionId) => targetBySessionId.get(sessionId)?.host.id === target.host.id,
+  )
+  if (!sameHostSessionId && current.length >= remoteCopyBatchTargetLimit) {
+    return { sessionIds: current, limitReached: true }
+  }
+  return {
+    sessionIds: [
+      ...current.filter((sessionId) => sessionId !== sameHostSessionId),
+      targetSessionId,
+    ],
+    limitReached: false,
+  }
+}
+
+export function rebindRemoteCopyBatchFailures(
+  failures: readonly RemoteCopyBatchFailure[],
+  targets: readonly RemoteCopyTargetSession[],
+) {
+  const targetBySessionId = new Map(targets.map((target) => [target.session.id, target]))
+  return failures.map((failure) => {
+    const target = targetBySessionId.get(failure.sessionId)
+      ?? targets.find((candidate) => candidate.host.id === failure.hostId)
+    if (!target) {
+      return failure
+    }
+    return {
+      ...failure,
+      sessionId: target.session.id,
+      hostName: target.host.name,
+    }
+  })
 }
 
 export function normalizeRemoteCopyFolderName(value: string) {

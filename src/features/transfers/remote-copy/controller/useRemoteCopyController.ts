@@ -25,6 +25,10 @@ interface RemoteCopyDirectoryState {
   error: string
 }
 
+interface UseRemoteCopyControllerOptions extends RemoteCopyModalProps {
+  active: boolean
+}
+
 const emptyDirectoryState: RemoteCopyDirectoryState = {
   status: 'idle',
   fileSessionId: '',
@@ -34,7 +38,7 @@ const emptyDirectoryState: RemoteCopyDirectoryState = {
   error: '',
 }
 
-export function useRemoteCopyController(props: RemoteCopyModalProps) {
+export function useRemoteCopyController({ active, ...props }: UseRemoteCopyControllerOptions) {
   const {
     open,
     source,
@@ -70,6 +74,7 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
   const submittingRef = useRef(false)
   const mountedRef = useRef(false)
   const openRef = useRef(open)
+  const activeRef = useRef(active)
   const allTargetsRef = useRef(allTargets)
   const selectedTargetRef = useRef<RemoteCopyTargetSession | null>(null)
   const sourceIdentity = JSON.stringify({
@@ -80,6 +85,7 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
   })
   const sourceIdentityRef = useRef(sourceIdentity)
   openRef.current = open
+  activeRef.current = active
 
   const selectedTarget = useMemo(
     () => allTargets.find((candidate) => candidate.session.id === selectedSessionId) ?? null,
@@ -240,12 +246,26 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
       setDirectory(emptyDirectoryState)
       return
     }
+    if (!active) {
+      return
+    }
+    if (
+      directory.fileSessionId === target.session.id
+      && directory.connectionGeneration === target.session.connection_generation
+      && directory.status !== 'idle'
+    ) {
+      return
+    }
     const initialPath = normalizeRemoteCopyDirectory(target.session.current_path)
     setPathInput(initialPath)
     setSubmitError('')
     void loadDirectory(target, initialPath)
   }, [
     cancelBrowse,
+    active,
+    directory.connectionGeneration,
+    directory.fileSessionId,
+    directory.status,
     loadDirectory,
     open,
     selectedTargetGeneration,
@@ -255,18 +275,18 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
   useEffect(() => cancelBrowse, [cancelBrowse])
 
   const selectTarget = useCallback((sessionId: string) => {
-    if (submittingRef.current || creatingDirectoryRef.current) {
+    if (!activeRef.current || submittingRef.current || creatingDirectoryRef.current) {
       return
     }
     setSelectedSessionId(sessionId)
   }, [])
 
   const navigate = useCallback((path: string) => {
-    if (!selectedTarget || submittingRef.current || creatingDirectoryRef.current) {
+    if (!active || !selectedTarget || submittingRef.current || creatingDirectoryRef.current) {
       return Promise.resolve(false)
     }
     return loadDirectory(selectedTarget, path)
-  }, [loadDirectory, selectedTarget])
+  }, [active, loadDirectory, selectedTarget])
 
   const clearCreateDirectoryError = useCallback(() => {
     setCreateDirectoryError('')
@@ -279,7 +299,8 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
       return false
     }
     if (
-      creatingDirectoryRef.current
+      !active
+      || creatingDirectoryRef.current
       || submittingRef.current
       || !selectedTarget
       || directory.status !== 'ready'
@@ -314,7 +335,7 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
         connectionGeneration: frozenTarget.session.connection_generation,
         path: targetPath,
       })
-      if (!mountedRef.current || !openRef.current) {
+      if (!mountedRef.current || !openRef.current || !activeRef.current) {
         return true
       }
       const latestTarget = allTargetsRef.current.find(
@@ -330,7 +351,7 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
       }
       return true
     } catch (error) {
-      if (mountedRef.current && openRef.current) {
+      if (mountedRef.current && openRef.current && activeRef.current) {
         setCreateDirectoryError(error instanceof Error ? error.message : String(error))
       }
       return false
@@ -341,6 +362,7 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
       }
     }
   }, [
+    active,
     createDirectory,
     currentPath,
     directory.connectionGeneration,
@@ -353,7 +375,8 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
 
   const submit = useCallback(async () => {
     if (
-      submittingRef.current
+      !active
+      || submittingRef.current
       || creatingDirectoryRef.current
       || !selectedTarget
       || !sourceValidation.valid
@@ -375,6 +398,7 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
     try {
       if (frozenPolicy === 'overwrite') {
         const confirmed = await confirmOverwrite({
+          mode: 'single',
           sourceCount: source.entries.length,
           targetHostName: selectedTarget.host.name,
           targetPath: currentPath,
@@ -383,7 +407,7 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
           return false
         }
       }
-      if (!mountedRef.current || !openRef.current) {
+      if (!mountedRef.current || !openRef.current || !activeRef.current) {
         return false
       }
       const currentTarget = allTargetsRef.current.find(
@@ -404,13 +428,21 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
         targetConnectionGeneration: frozenTargetGeneration,
         sourcePaths: source.entries.map((entry) => entry.path),
         targetDir: currentPath,
+        targetDirMode: 'require_existing',
         overwritePolicy: frozenPolicy,
       })
-      onCreated(task)
-      onClose()
+      onCreated([task])
+      if (
+        mountedRef.current
+        && openRef.current
+        && activeRef.current
+        && sourceIdentityRef.current === frozenSourceIdentity
+      ) {
+        onClose()
+      }
       return true
     } catch (error) {
-      if (mountedRef.current && openRef.current) {
+      if (mountedRef.current && openRef.current && activeRef.current) {
         setSubmitError(error instanceof Error ? error.message : String(error))
       }
       return false
@@ -421,6 +453,7 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
       }
     }
   }, [
+    active,
     conflictPolicy,
     confirmOverwrite,
     createRemoteCopy,
@@ -462,7 +495,8 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
     clearCreateDirectoryError,
     createTargetDirectory,
     canCreateDirectory: Boolean(
-      selectedTarget
+      active
+      && selectedTarget
       && directory.status === 'ready'
       && directory.fileSessionId === selectedTarget.session.id
       && directory.connectionGeneration === selectedTarget.session.connection_generation
@@ -477,7 +511,8 @@ export function useRemoteCopyController(props: RemoteCopyModalProps) {
     submitting,
     submitError,
     canSubmit: Boolean(
-      selectedTarget
+      active
+      && selectedTarget
       && sourceValidation.valid
       && directory.status === 'ready'
       && directory.fileSessionId === selectedTarget.session.id

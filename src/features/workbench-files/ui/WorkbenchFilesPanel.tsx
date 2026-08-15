@@ -218,6 +218,7 @@ function WorkbenchFilesPanelContent({
     target_connection_generation: request.targetConnectionGeneration,
     source_paths: request.sourcePaths,
     target_dir: request.targetDir,
+    target_dir_mode: request.targetDirMode,
     overwrite_policy: request.overwritePolicy,
   }), [api])
   const confirmRemoteCopyOverwrite = useCallback((
@@ -232,9 +233,13 @@ function WorkbenchFilesPanelContent({
     }
     modal.confirm({
       title: t('files.remoteCopy.overwriteConfirmTitle'),
-      content: t('files.remoteCopy.overwriteConfirmDescription', {
+      content: t(confirmation.mode === 'batch'
+        ? 'files.remoteCopy.overwriteConfirmBatchDescription'
+        : 'files.remoteCopy.overwriteConfirmDescription', {
         count: confirmation.sourceCount,
-        host: confirmation.targetHostName,
+        ...(confirmation.mode === 'single'
+          ? { host: confirmation.targetHostName }
+          : { targets: confirmation.targetCount }),
         path: confirmation.targetPath,
       }),
       okText: t('files.remoteCopy.overwriteConfirmAction'),
@@ -291,14 +296,16 @@ function WorkbenchFilesPanelContent({
   const remoteCopyRefreshTasksRef = useRef(new Map<string, TrackedUploadRefresh>())
   const completedUploadPathsRef = useRef(new Map<string, Map<string, number>>())
   const completedDirectoryRefreshesRef = useRef(new Set<string>())
-  const handleRemoteCopyCreated = useCallback((task: TransferTask) => {
-    if (task.target_file_session_id) {
-      remoteCopyRefreshTasksRef.current.set(task.id, {
-        fileSessionId: task.target_file_session_id,
-        targetPath: normalizeRemotePath(task.target_path || '/'),
-      })
+  const handleRemoteCopyCreated = useCallback((tasks: TransferTask[]) => {
+    for (const task of tasks) {
+      if (task.target_file_session_id) {
+        remoteCopyRefreshTasksRef.current.set(task.id, {
+          fileSessionId: task.target_file_session_id,
+          targetPath: normalizeRemotePath(task.target_path || '/'),
+        })
+      }
+      runtime.upsertTransfer(task)
     }
-    runtime.upsertTransfer(task)
     notification.success({
       title: t('files.transferCreated'),
       duration: 2,

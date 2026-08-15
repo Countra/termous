@@ -240,6 +240,7 @@ describe('领域 API HTTP transport 合同', () => {
       target_connection_generation: 11,
       source_paths: ['/srv/a.txt', '/srv/folder'],
       target_dir: '/srv/target path',
+      target_dir_mode: 'create_if_missing',
       overwrite_policy: 'skip',
     })
 
@@ -262,6 +263,7 @@ describe('领域 API HTTP transport 合同', () => {
       target_connection_generation: 11,
       source_paths: ['/srv/a.txt', '/srv/folder'],
       target_dir: '/srv/target path',
+      target_dir_mode: 'create_if_missing',
       overwrite_policy: 'skip',
     }))
   })

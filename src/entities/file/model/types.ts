@@ -220,8 +220,11 @@ export interface RemoteCopyTransferInput {
   target_connection_generation: number
   source_paths: string[]
   target_dir: string
+  target_dir_mode: RemoteCopyTargetDirMode
   overwrite_policy: Exclude<OverwritePolicy, 'ask'>
 }
+
+export type RemoteCopyTargetDirMode = 'require_existing' | 'create_if_missing'
 
 export interface LocalGrantItem {
   id: string

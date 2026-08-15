@@ -23,22 +23,29 @@ export { RemoteCopyModal } from './remote-copy/ui/RemoteCopyModal.tsx'
 export {
   buildRemotePathBreadcrumbs,
   filterRemoteCopyTargetSessions,
+  normalizeRemoteCopyBatchDirectory,
   normalizeRemoteCopyDirectory,
   normalizeRemoteCopyFolderName,
+  reconcileRemoteCopyBatchSelection,
   remoteCopyParentPath,
+  toggleRemoteCopyBatchTarget,
   validateRemoteCopySource,
 } from './remote-copy/model/remoteCopyModel.ts'
 export type {
+  RemoteCopyBatchFailure,
+  RemoteCopyBatchOutcome,
   RemoteCopyConflictPolicy,
   RemoteCopyCreateDirectory,
   RemoteCopyCreateDirectoryRequest,
   RemoteCopyCreateRequest,
   RemoteCopyDirectoryRequest,
   RemoteCopyModalProps,
+  RemoteCopyMode,
   RemoteCopyOverwriteConfirmation,
   RemoteCopySourceSnapshot,
   RemoteCopyTargetSession,
 } from './remote-copy/model/types.ts'
+export { remoteCopyBatchTargetLimit } from './remote-copy/model/types.ts'
 export { UploadConflictDialog } from './ui/UploadConflictDialog.tsx'
 export {
   createUploadWithConflictDecision,

@@ -5,11 +5,19 @@ import type { Host } from '#entities/host'
 import {
   buildRemotePathBreadcrumbs,
   filterRemoteCopyTargetSessions,
+  normalizeRemoteCopyBatchDirectory,
   normalizeRemoteCopyDirectory,
   normalizeRemoteCopyFolderName,
+  rebindRemoteCopyBatchFailures,
+  reconcileRemoteCopyBatchSelection,
   remoteCopyParentPath,
+  toggleRemoteCopyBatchTarget,
   validateRemoteCopySource,
 } from './remoteCopyModel.ts'
+import {
+  remoteCopyBatchTargetLimit,
+  type RemoteCopyBatchFailure,
+} from './types.ts'
 
 function host(id: string, name: string): Host {
   return {
@@ -78,6 +86,68 @@ test('路径模型严格使用远端绝对 POSIX 路径', () => {
     { label: 'srv', path: '/srv' },
     { label: 'incoming', path: '/srv/incoming' },
   ])
+})
+
+test('批量目标目录只接受显式的绝对 POSIX 路径', () => {
+  assert.equal(normalizeRemoteCopyBatchDirectory('/srv//releases/../incoming'), '/srv/incoming')
+  assert.equal(normalizeRemoteCopyBatchDirectory('relative/path'), null)
+  assert.equal(normalizeRemoteCopyBatchDirectory('~/incoming'), null)
+  assert.equal(normalizeRemoteCopyBatchDirectory(''), null)
+})
+
+test('批量目标选择按主机互斥、清理失效会话并限制为十六台', () => {
+  const hosts = [host('source', '源主机')]
+  const sessions = [session('source-session', 'source')]
+  for (let index = 0; index < remoteCopyBatchTargetLimit + 1; index += 1) {
+    const hostId = `target-${index}`
+    hosts.push(host(hostId, `目标 ${index}`))
+    sessions.push(session(`session-${index}`, hostId))
+  }
+  sessions.push(session('session-0-new', 'target-0', { connection_generation: 2 }))
+  const targets = filterRemoteCopyTargetSessions(hosts, sessions, 'source')
+
+  const replaced = toggleRemoteCopyBatchTarget(['session-0'], 'session-0-new', targets)
+  assert.deepEqual(replaced, { sessionIds: ['session-0-new'], limitReached: false })
+
+  const fullSelection = Array.from(
+    { length: remoteCopyBatchTargetLimit },
+    (_, index) => `session-${index}`,
+  )
+  const limited = toggleRemoteCopyBatchTarget(
+    fullSelection,
+    `session-${remoteCopyBatchTargetLimit}`,
+    targets,
+  )
+  assert.deepEqual(limited, { sessionIds: fullSelection, limitReached: true })
+  assert.deepEqual(
+    reconcileRemoteCopyBatchSelection(
+      ['missing', 'session-0', 'session-0-new', ...fullSelection.slice(1)],
+      targets,
+    ),
+    fullSelection,
+  )
+})
+
+test('批量失败状态按主机绑定到重连后的最新会话', () => {
+  const hosts = [host('source', '源主机'), host('target', '目标主机')]
+  const targets = filterRemoteCopyTargetSessions(hosts, [
+    session('source-session', 'source'),
+    session('target-session-new', 'target', { connection_generation: 2 }),
+  ], 'source')
+  const failure: RemoteCopyBatchFailure = {
+    sessionId: 'target-session-old',
+    hostId: 'target',
+    hostName: '旧名称',
+    message: 'files.remoteCopy.batchUncertain',
+    retryable: false,
+  }
+
+  assert.deepEqual(rebindRemoteCopyBatchFailures([failure], targets), [{
+    ...failure,
+    sessionId: 'target-session-new',
+    hostName: '目标主机',
+  }])
+  assert.deepEqual(rebindRemoteCopyBatchFailures([failure], []), [failure])
 })
 
 test('新建目录名称只能是安全的单一 POSIX 路径段', () => {

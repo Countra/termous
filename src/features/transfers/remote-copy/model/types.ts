@@ -2,11 +2,15 @@ import type {
   FileSession,
   RemoteDirectoryListing,
   RemoteFileEntry,
+  RemoteCopyTargetDirMode,
   TransferTask,
 } from '#entities/file'
 import type { Host } from '#entities/host'
 
 export type RemoteCopyConflictPolicy = 'rename' | 'skip' | 'overwrite'
+export type RemoteCopyMode = 'single' | 'batch'
+
+export const remoteCopyBatchTargetLimit = 16
 
 export interface RemoteCopySourceSnapshot {
   hostId: string
@@ -43,6 +47,7 @@ export interface RemoteCopyCreateRequest {
   targetConnectionGeneration: number
   sourcePaths: string[]
   targetDir: string
+  targetDirMode: RemoteCopyTargetDirMode
   overwritePolicy: RemoteCopyConflictPolicy
 }
 
@@ -50,10 +55,31 @@ export type RemoteCopyCreate = (
   request: RemoteCopyCreateRequest,
 ) => Promise<TransferTask>
 
-export interface RemoteCopyOverwriteConfirmation {
-  sourceCount: number
-  targetHostName: string
-  targetPath: string
+export type RemoteCopyOverwriteConfirmation =
+  | {
+      mode: 'single'
+      sourceCount: number
+      targetHostName: string
+      targetPath: string
+    }
+  | {
+      mode: 'batch'
+      sourceCount: number
+      targetCount: number
+      targetPath: string
+    }
+
+export interface RemoteCopyBatchFailure {
+  sessionId: string
+  hostId: string
+  hostName: string
+  message: string
+  retryable: boolean
+}
+
+export interface RemoteCopyBatchOutcome {
+  createdCount: number
+  failures: RemoteCopyBatchFailure[]
 }
 
 export interface RemoteCopyTargetSession {
@@ -75,7 +101,7 @@ export interface RemoteCopyModalProps {
   confirmOverwrite: (
     confirmation: RemoteCopyOverwriteConfirmation,
   ) => Promise<boolean>
-  onCreated: (task: TransferTask) => void
+  onCreated: (tasks: TransferTask[]) => void
   onClose: () => void
 }
 

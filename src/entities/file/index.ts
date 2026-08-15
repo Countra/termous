@@ -26,6 +26,7 @@ export type {
   RemoteFileKind,
   RemoteImageFile,
   RemoteCopyTransferInput,
+  RemoteCopyTargetDirMode,
   RemoteTextEncoding,
   RemoteTextFile,
   RemoteTextLineEnding,
