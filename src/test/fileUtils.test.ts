@@ -4,6 +4,7 @@ import { formatBytes, formatDate } from '#shared/format'
 import type { TransferTask } from '#entities/file'
 import {
   formatSeconds,
+  isTransferRelatedToFileSession,
   transferDisplayName,
 } from '#entities/file'
 
@@ -88,4 +89,18 @@ test('异常传输路径返回占位符而不会中断渲染', () => {
   assert.equal(transferDisplayName(transfer({
     source_paths: ['\u0000invalid'],
   })), '-')
+})
+
+test('传输任务同时兼容旧文件会话与跨主机源目标关联', () => {
+  const task = transfer({
+    type: 'remote_copy',
+    file_session_id: 'legacy-source',
+    source_file_session_id: 'source-session',
+    target_file_session_id: 'target-session',
+  })
+
+  assert.equal(isTransferRelatedToFileSession(task, 'legacy-source'), true)
+  assert.equal(isTransferRelatedToFileSession(task, 'source-session'), true)
+  assert.equal(isTransferRelatedToFileSession(task, 'target-session'), true)
+  assert.equal(isTransferRelatedToFileSession(task, 'unrelated-session'), false)
 })

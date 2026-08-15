@@ -1,9 +1,13 @@
-import type { TransferTask } from '#entities/file'
+import {
+  isTransferRelatedToFileSession,
+  type TransferTask,
+} from '#entities/file'
 
 export interface WorkbenchTransferSummary {
   tasks: TransferTask[]
   activeCount: number
   failedCount: number
+  indeterminate: boolean
   progress: number
   speed: number
   activeTransferredBytes: number
@@ -11,12 +15,102 @@ export interface WorkbenchTransferSummary {
   eta?: number
 }
 
+export interface TrackedTransferRefresh {
+  fileSessionId: string
+  targetPath: string
+}
+
+type CompletedTransferPaths = Map<string, Map<string, number>>
+
+const completedTransferPathLimit = 200
+
+export function shouldRetainTransferAfterCancel(task: TransferTask) {
+  return task.type === 'remote_copy'
+    && (task.status === 'queued' || task.status === 'running')
+}
+
+export function consumeCompletedTransferPath(
+  completedPathsByFileSession: CompletedTransferPaths,
+  fileSessionId: string,
+  path: string,
+) {
+  const completedPaths = completedPathsByFileSession.get(fileSessionId)
+  if (completedPaths?.delete(path) !== true) {
+    return false
+  }
+  if (completedPaths.size === 0) {
+    completedPathsByFileSession.delete(fileSessionId)
+  }
+  return true
+}
+
+export function trackCompletedTransferPath(
+  completedPathsByFileSession: CompletedTransferPaths,
+  fileSessionId: string,
+  path: string,
+  refreshesInFlight?: ReadonlySet<string>,
+) {
+  const completedPaths = completedPathsByFileSession.get(fileSessionId) ?? new Map<string, number>()
+  completedPaths.set(path, (completedPaths.get(path) ?? 0) + 1)
+  completedPathsByFileSession.set(fileSessionId, completedPaths)
+  pruneCompletedTransferPaths(completedPathsByFileSession, refreshesInFlight)
+}
+
+export async function refreshCompletedTransferPath(
+  completedPathsByFileSession: CompletedTransferPaths,
+  refreshesInFlight: Set<string>,
+  fileSessionId: string,
+  path: string,
+  loadDirectory: (path: string) => Promise<boolean>,
+) {
+  const refreshKey = completedTransferPathKey(fileSessionId, path)
+  let trackedVersion = completedPathsByFileSession.get(fileSessionId)?.get(path)
+  if (
+    refreshesInFlight.has(refreshKey)
+    || trackedVersion === undefined
+  ) {
+    return false
+  }
+
+  refreshesInFlight.add(refreshKey)
+  try {
+    while (trackedVersion !== undefined) {
+      const refreshed = await loadDirectory(path)
+      if (!refreshed) {
+        return false
+      }
+      const latestVersion = completedPathsByFileSession.get(fileSessionId)?.get(path)
+      if (latestVersion === trackedVersion) {
+        consumeCompletedTransferPath(completedPathsByFileSession, fileSessionId, path)
+        return true
+      }
+      trackedVersion = latestVersion
+    }
+    return true
+  } finally {
+    refreshesInFlight.delete(refreshKey)
+  }
+}
+
+export function hasPendingTransferForDirectory(
+  pendingTargets: Iterable<TrackedTransferRefresh>,
+  fileSessionId: string,
+  targetPath: string,
+) {
+  for (const pending of pendingTargets) {
+    if (pending.fileSessionId === fileSessionId && pending.targetPath === targetPath) {
+      return true
+    }
+  }
+  return false
+}
+
 export function summarizeWorkbenchTransfers(
   transfers: TransferTask[],
   fileSessionId?: string,
 ): WorkbenchTransferSummary {
   const tasks = fileSessionId
-    ? transfers.filter((task) => task.file_session_id === fileSessionId)
+    ? transfers.filter((task) => isTransferRelatedToFileSession(task, fileSessionId))
     : []
   const active = tasks.filter((task) => task.status === 'queued' || task.status === 'running')
   const failedCount = tasks.filter((task) => task.status === 'failed').length
@@ -41,6 +135,9 @@ export function summarizeWorkbenchTransfers(
     tasks,
     activeCount: active.length,
     failedCount,
+    indeterminate: active.some((task) => (
+      task.type === 'remote_copy' && task.phase === 'scanning'
+    )),
     progress: Math.round(progress),
     speed: active.reduce((sum, task) => sum + transferSpeed(task), 0),
     activeTransferredBytes,
@@ -68,4 +165,37 @@ function transferSpeed(task: TransferTask) {
 
 function nonNegative(value: number) {
   return Number.isFinite(value) ? Math.max(0, value) : 0
+}
+
+function pruneCompletedTransferPaths(
+  completedPathsByFileSession: CompletedTransferPaths,
+  refreshesInFlight?: ReadonlySet<string>,
+) {
+  let pathCount = 0
+  completedPathsByFileSession.forEach((paths) => {
+    pathCount += paths.size
+  })
+  if (pathCount <= completedTransferPathLimit) {
+    return
+  }
+
+  for (const [fileSessionId, paths] of completedPathsByFileSession) {
+    for (const path of paths.keys()) {
+      if (pathCount <= completedTransferPathLimit) {
+        return
+      }
+      if (refreshesInFlight?.has(completedTransferPathKey(fileSessionId, path))) {
+        continue
+      }
+      paths.delete(path)
+      pathCount -= 1
+    }
+    if (paths.size === 0) {
+      completedPathsByFileSession.delete(fileSessionId)
+    }
+  }
+}
+
+function completedTransferPathKey(fileSessionId: string, path: string) {
+  return `${fileSessionId}\u0000${path}`
 }

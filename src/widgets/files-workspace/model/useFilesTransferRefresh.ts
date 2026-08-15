@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TransferTask } from '#entities/file'
 import type { LocalDownloadRefreshRequest } from '#features/local-download'
+import type { RemoteCopyRefreshEvent } from '#features/transfers'
 import { normalizeRemotePath } from '#shared/path'
 import type { FilesDirectoryLoadOptions } from './useFilesDirectoryController'
 import type { FilesWorkspaceRuntimeValue } from './useFilesWorkspaceRuntime'
@@ -13,6 +14,8 @@ interface FilesTransferRefreshActiveDirectory {
 
 interface UseFilesTransferRefreshOptions {
   transfers: readonly TransferTask[]
+  remoteCopyRefreshVersion: number
+  consumeRemoteCopyRefreshEvents: () => RemoteCopyRefreshEvent[]
   activeDirectory: FilesTransferRefreshActiveDirectory | null
   loadDirectory: (
     path: string,
@@ -32,6 +35,8 @@ interface DownloadRefreshTarget {
 
 export function useFilesTransferRefresh({
   transfers,
+  remoteCopyRefreshVersion,
+  consumeRemoteCopyRefreshEvents,
   activeDirectory,
   loadDirectory,
   trackWorkspaceUploadRefreshTask,
@@ -46,13 +51,11 @@ export function useFilesTransferRefresh({
   >([])
 
   const trackUploadRefreshTask = useCallback((task: TransferTask) => {
-    if (!isUploadTransfer(task) || !task.file_session_id) {
+    const target = remoteDirectoryRefreshTarget(task)
+    if (!target) {
       return
     }
-    trackWorkspaceUploadRefreshTask(task.id, {
-      fileSessionId: task.file_session_id,
-      targetPath: normalizeRemotePath(task.target_path || '/'),
-    })
+    trackWorkspaceUploadRefreshTask(task.id, target)
   }, [trackWorkspaceUploadRefreshTask])
 
   const trackDownloadRefreshTask = useCallback((
@@ -69,14 +72,24 @@ export function useFilesTransferRefresh({
   }, [])
 
   useEffect(() => {
-    const transferIds = new Set(transfers.map((task) => task.id))
-    pruneUploadRefreshTasks(transferIds)
     const completedTargets = new Map<
       string,
       { fileSessionId: string; targetPath: string }
     >()
+    consumeRemoteCopyRefreshEvents().forEach((event) => {
+      const target = {
+        fileSessionId: event.targetFileSessionId,
+        targetPath: normalizeRemotePath(event.targetPath),
+      }
+      completedTargets.set(
+        `${target.fileSessionId}\u0000${target.targetPath}`,
+        target,
+      )
+    })
+    const transferIds = new Set(transfers.map((task) => task.id))
+    pruneUploadRefreshTasks(transferIds)
     transfers.forEach((task) => {
-      if (!isUploadTransfer(task) || !task.file_session_id) {
+      if (!remoteDirectoryRefreshTarget(task)) {
         return
       }
       if (isFilesTransferActive(task)) {
@@ -86,7 +99,13 @@ export function useFilesTransferRefresh({
         return
       }
       const target = consumeUploadRefreshTask(task.id)
-      if (task.status === 'completed' && target) {
+      if (
+        (
+          task.status === 'completed'
+          || (task.type === 'remote_copy' && task.partial === true)
+        )
+        && target
+      ) {
         completedTargets.set(
           `${target.fileSessionId}\u0000${target.targetPath}`,
           target,
@@ -112,11 +131,13 @@ export function useFilesTransferRefresh({
     })
   }, [
     activeDirectory,
+    consumeRemoteCopyRefreshEvents,
     consumeUploadRefreshTask,
     hasUploadRefreshTask,
     loadDirectory,
     markDirectoryDirty,
     pruneUploadRefreshTasks,
+    remoteCopyRefreshVersion,
     trackUploadRefreshTask,
     transfers,
   ])
@@ -191,6 +212,21 @@ function isUploadTransfer(task: TransferTask) {
 
 function isDownloadTransfer(task: TransferTask) {
   return task.type.startsWith('download')
+}
+
+function remoteDirectoryRefreshTarget(task: TransferTask) {
+  const fileSessionId = task.type === 'remote_copy'
+    ? task.target_file_session_id
+    : isUploadTransfer(task)
+      ? task.file_session_id
+      : undefined
+  if (!fileSessionId) {
+    return null
+  }
+  return {
+    fileSessionId,
+    targetPath: normalizeRemotePath(task.target_path || '/'),
+  }
 }
 
 function isTransferTerminal(task: TransferTask) {

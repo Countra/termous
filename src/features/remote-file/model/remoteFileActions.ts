@@ -3,6 +3,7 @@ import type { RemoteFileEntry } from '#entities/file'
 export type RemoteFileActionKey =
   | 'openFile'
   | 'download'
+  | 'sendToHost'
   | 'copy'
   | 'cut'
   | 'permissions'
@@ -18,11 +19,37 @@ export interface RemoteFileActionDescriptor {
 export interface RemoteFileActionHandlers {
   openFile: (entry: RemoteFileEntry) => void
   download: (entry: RemoteFileEntry) => void
+  sendToHost: (entry: RemoteFileEntry) => void
   copy: (entry: RemoteFileEntry) => void
   cut: (entry: RemoteFileEntry) => void
   permissions: (entry: RemoteFileEntry) => void
   rename: (entry: RemoteFileEntry) => void
   delete: (entry: RemoteFileEntry) => void
+}
+
+export interface RemoteFileActionSelectionSnapshot {
+  paths: string[]
+  entries: RemoteFileEntry[]
+}
+
+export function snapshotRemoteFileActionSelection(
+  clickedEntry: RemoteFileEntry,
+  selectedPaths: readonly string[],
+  entries: readonly RemoteFileEntry[],
+): RemoteFileActionSelectionSnapshot | null {
+  const paths = selectedPaths.includes(clickedEntry.path)
+    ? [...selectedPaths]
+    : [clickedEntry.path]
+  const entriesByPath = new Map(entries.map((entry) => [entry.path, entry]))
+  const snapshots: RemoteFileEntry[] = []
+  for (const path of paths) {
+    const entry = entriesByPath.get(path)
+    if (!entry) {
+      return null
+    }
+    snapshots.push({ ...entry })
+  }
+  return { paths, entries: snapshots }
 }
 
 export function remoteFileActionDescriptors(entry: RemoteFileEntry): RemoteFileActionDescriptor[] {
@@ -32,6 +59,7 @@ export function remoteFileActionDescriptors(entry: RemoteFileEntry): RemoteFileA
   }
   actions.push(
     { key: 'download' },
+    { key: 'sendToHost' },
     { key: 'copy' },
     { key: 'cut' },
     { key: 'permissions' },
@@ -56,6 +84,7 @@ export function runRemoteFileAction(
 function isRemoteFileActionKey(value: string): value is RemoteFileActionKey {
   return value === 'openFile'
     || value === 'download'
+    || value === 'sendToHost'
     || value === 'copy'
     || value === 'cut'
     || value === 'permissions'

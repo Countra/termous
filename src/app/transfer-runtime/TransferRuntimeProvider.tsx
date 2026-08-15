@@ -6,13 +6,17 @@ import {
 } from 'react'
 import {
   TransferRuntimeContext,
+  limitRemoteCopyRefreshEvents,
   mergeTransferSnapshot,
   mergeTransferUpdate,
+  shouldRefreshRemoteCopyTarget,
   sortTransfers,
   transferRefreshRetryDelay,
   TransferSnapshotGate,
   type TransferRuntimeApi,
   type TransferRuntimeValue,
+  type RemoteCopyRefreshConsumer,
+  type RemoteCopyRefreshEvent,
 } from '#features/transfers'
 
 type TransferTask = TransferRuntimeValue['transfers'][number]
@@ -75,6 +79,14 @@ class SharedTransferRuntime {
   private eventEpoch = 0
   private readonly taskEventEpochs = new Map<string, number>()
   private readonly snapshotGate = new TransferSnapshotGate()
+  private remoteCopyRefreshSequence = 0
+  private remoteCopyRefreshEvents: RemoteCopyRefreshEvent[] = []
+  private readonly remoteCopyRefreshTaskIds = new Set<string>()
+  private readonly baselineRemoteCopyTaskIds = new Set<string>()
+  private readonly remoteCopyRefreshCursors = new Map<RemoteCopyRefreshConsumer, number>([
+    ['files-workspace', 0],
+    ['workbench-files', 0],
+  ])
   private snapshot: TransferRuntimeValue
 
   constructor(private readonly api: TransferRuntimeApi) {
@@ -141,6 +153,7 @@ class SharedTransferRuntime {
     if (!this.snapshotGate.isCurrent(request)) {
       return
     }
+    const establishingBaseline = !this.initialized
     this.initialized = this.connected
     this.refreshFailureCount = 0
     const remoteTransfers = nextTransfers ?? []
@@ -160,7 +173,21 @@ class SharedTransferRuntime {
         this.taskEventEpochs.delete(id)
       }
     }
+    const previousById = new Map(this.transfers.map((task) => [task.id, task]))
     this.transfers = mergeTransferSnapshot(this.transfers, snapshot, preserveCurrentIds)
+    this.transfers.forEach((task) => {
+      const previous = previousById.get(task.id)
+      if (previous && isActiveTransfer(previous)) {
+        this.registerRemoteCopyRefresh(task)
+      } else if (shouldRefreshRemoteCopyTarget(task)) {
+        if (establishingBaseline) {
+          this.baselineRemoteCopyTaskIds.add(task.id)
+        } else if (!this.baselineRemoteCopyTaskIds.has(task.id)) {
+          this.registerRemoteCopyRefresh(task)
+        }
+      }
+    })
+    this.pruneRemoteCopyRefreshTaskIds()
     this.publish()
   }
 
@@ -177,6 +204,10 @@ class SharedTransferRuntime {
   }
 
   upsertTransfer = (task: TransferTask) => {
+    this.applyTransferUpdate(task, 'local')
+  }
+
+  private applyTransferUpdate(task: TransferTask, source: 'local' | 'event') {
     if (this.removedTransferEpochs.has(task.id)) {
       return
     }
@@ -184,12 +215,32 @@ class SharedTransferRuntime {
     this.taskEventEpochs.set(task.id, this.eventEpoch)
     const current = this.transfers.find((item) => item.id === task.id)
     const nextTask = current ? mergeTransferUpdate(current, task) : task
+    const currentWasActive = Boolean(current && isActiveTransfer(current))
+    const registerRefresh = () => {
+      if (!shouldRefreshRemoteCopyTarget(nextTask)) {
+        return false
+      }
+      if (
+        source === 'local'
+        || currentWasActive
+        || (this.initialized && !this.baselineRemoteCopyTaskIds.has(nextTask.id))
+      ) {
+        return this.registerRemoteCopyRefresh(nextTask)
+      }
+      this.baselineRemoteCopyTaskIds.add(nextTask.id)
+      return false
+    }
     if (nextTask === current) {
+      if (registerRefresh()) {
+        this.publish()
+      }
       return
     }
     this.transfers = sortTransfers(current
       ? this.transfers.map((item) => (item.id === task.id ? nextTask : item))
       : [nextTask, ...this.transfers])
+    registerRefresh()
+    this.pruneRemoteCopyRefreshTaskIds()
     this.publish()
   }
 
@@ -198,7 +249,61 @@ class SharedTransferRuntime {
     this.taskEventEpochs.set(id, this.eventEpoch)
     this.removedTransferEpochs.set(id, this.eventEpoch)
     this.transfers = this.transfers.filter((task) => task.id !== id)
+    this.remoteCopyRefreshTaskIds.delete(id)
+    this.baselineRemoteCopyTaskIds.delete(id)
     this.publish()
+  }
+
+  consumeRemoteCopyRefreshEvents = (consumer: RemoteCopyRefreshConsumer) => {
+    const cursor = this.remoteCopyRefreshCursors.get(consumer) ?? 0
+    const events = this.remoteCopyRefreshEvents.filter((event) => event.sequence > cursor)
+    this.remoteCopyRefreshCursors.set(consumer, this.remoteCopyRefreshSequence)
+    this.pruneConsumedRemoteCopyRefreshEvents()
+    return events
+  }
+
+  private registerRemoteCopyRefresh(task: TransferTask) {
+    if (
+      !shouldRefreshRemoteCopyTarget(task)
+      || !task.target_file_session_id
+      || this.remoteCopyRefreshTaskIds.has(task.id)
+    ) {
+      return false
+    }
+    this.remoteCopyRefreshSequence += 1
+    this.baselineRemoteCopyTaskIds.delete(task.id)
+    this.remoteCopyRefreshTaskIds.add(task.id)
+    this.remoteCopyRefreshEvents = limitRemoteCopyRefreshEvents([
+      ...this.remoteCopyRefreshEvents,
+      {
+        sequence: this.remoteCopyRefreshSequence,
+        taskId: task.id,
+        targetFileSessionId: task.target_file_session_id,
+        targetPath: task.target_path || '/',
+      },
+    ])
+    return true
+  }
+
+  private pruneConsumedRemoteCopyRefreshEvents() {
+    const consumedSequence = Math.min(...this.remoteCopyRefreshCursors.values())
+    this.remoteCopyRefreshEvents = this.remoteCopyRefreshEvents.filter(
+      (event) => event.sequence > consumedSequence,
+    )
+  }
+
+  private pruneRemoteCopyRefreshTaskIds() {
+    const transferIds = new Set(this.transfers.map((task) => task.id))
+    this.remoteCopyRefreshTaskIds.forEach((taskId) => {
+      if (!transferIds.has(taskId)) {
+        this.remoteCopyRefreshTaskIds.delete(taskId)
+      }
+    })
+    this.baselineRemoteCopyTaskIds.forEach((taskId) => {
+      if (!transferIds.has(taskId)) {
+        this.baselineRemoteCopyTaskIds.delete(taskId)
+      }
+    })
   }
 
   private connect() {
@@ -219,7 +324,7 @@ class SharedTransferRuntime {
       try {
         const message = JSON.parse(String(event.data)) as TransferEventMessage
         if (message.type === 'transfer_update' && message.task) {
-          this.upsertTransfer(message.task)
+          this.applyTransferUpdate(message.task, 'event')
         }
       } catch {
         socket.close()
@@ -266,9 +371,11 @@ class SharedTransferRuntime {
       activeTransfers: this.transfers.filter((task) => task.status === 'queued' || task.status === 'running'),
       connected: this.connected,
       initialized: this.initialized,
+      remoteCopyRefreshVersion: this.remoteCopyRefreshSequence,
       refresh: this.refresh,
       upsertTransfer: this.upsertTransfer,
       removeTransfer: this.removeTransfer,
+      consumeRemoteCopyRefreshEvents: this.consumeRemoteCopyRefreshEvents,
     }
   }
 
@@ -276,4 +383,8 @@ class SharedTransferRuntime {
     this.snapshot = this.buildSnapshot()
     this.listeners.forEach((listener) => listener())
   }
+}
+
+function isActiveTransfer(task: TransferTask) {
+  return task.status === 'queued' || task.status === 'running'
 }

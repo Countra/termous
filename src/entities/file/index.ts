@@ -25,6 +25,7 @@ export type {
   RemoteFileEntry,
   RemoteFileKind,
   RemoteImageFile,
+  RemoteCopyTransferInput,
   RemoteTextEncoding,
   RemoteTextFile,
   RemoteTextLineEnding,
@@ -32,6 +33,8 @@ export type {
   RemoteTextSaveResult,
   SftpExtendedAttribute,
   TransferStatus,
+  TransferFailureSide,
+  TransferPhase,
   TransferTask,
   TransferType,
 } from './model/types.ts'
@@ -102,6 +105,7 @@ export type {
 export {
   fileSortValue,
   formatSeconds,
+  isTransferRelatedToFileSession,
   transferDisplayName,
   transferProgress,
   transferStatusClass,

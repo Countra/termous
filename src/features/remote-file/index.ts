@@ -1,7 +1,14 @@
 export { buildRemoteFileActionMenu } from './ui/RemoteFileActionMenu.tsx'
 export { RemotePermissionModal } from './ui/RemotePermissionModal.tsx'
-export { runRemoteFileAction } from './model/remoteFileActions.ts'
-export type { RemoteFileActionHandlers, RemoteFileActionKey } from './model/remoteFileActions.ts'
+export {
+  runRemoteFileAction,
+  snapshotRemoteFileActionSelection,
+} from './model/remoteFileActions.ts'
+export type {
+  RemoteFileActionHandlers,
+  RemoteFileActionKey,
+  RemoteFileActionSelectionSnapshot,
+} from './model/remoteFileActions.ts'
 export type { FileOperationGateway } from './model/fileOperationGateway.ts'
 
 export const loadRemoteTextEditorModal = () => import('./ui/RemoteTextEditorModal.tsx')

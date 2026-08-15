@@ -2,6 +2,16 @@ import { createContext, useContext } from 'react'
 import type { TransferTask } from '#entities/file'
 
 const transferHistoryLimit = 200
+const remoteCopyRefreshHistoryLimit = 200
+
+export type RemoteCopyRefreshConsumer = 'files-workspace' | 'workbench-files'
+
+export interface RemoteCopyRefreshEvent {
+  sequence: number
+  taskId: string
+  targetFileSessionId: string
+  targetPath: string
+}
 
 export interface TransferRuntimeApi {
   transfers: () => Promise<TransferTask[]>
@@ -13,9 +23,13 @@ export interface TransferRuntimeValue {
   activeTransfers: TransferTask[]
   connected: boolean
   initialized: boolean
+  remoteCopyRefreshVersion: number
   refresh: () => Promise<void>
   upsertTransfer: (task: TransferTask) => void
   removeTransfer: (id: string) => void
+  consumeRemoteCopyRefreshEvents: (
+    consumer: RemoteCopyRefreshConsumer,
+  ) => RemoteCopyRefreshEvent[]
 }
 
 export const TransferRuntimeContext = createContext<TransferRuntimeValue | null>(null)
@@ -121,6 +135,22 @@ export function sortTransfers(transfers: TransferTask[]) {
     }
   }
   return [...activeTransfers, ...historyTransfers]
+}
+
+export function shouldRefreshRemoteCopyTarget(task: TransferTask) {
+  return task.type === 'remote_copy'
+    && Boolean(task.target_file_session_id)
+    && (
+      task.status === 'completed'
+      || (
+        (task.status === 'failed' || task.status === 'cancelled')
+        && task.partial === true
+      )
+    )
+}
+
+export function limitRemoteCopyRefreshEvents(events: RemoteCopyRefreshEvent[]) {
+  return events.slice(-remoteCopyRefreshHistoryLimit)
 }
 
 function isActiveTransfer(task: TransferTask) {

@@ -1,5 +1,5 @@
 import type { MenuProps } from 'antd'
-import { Copy, Download, Eye, Pencil, Scissors, ShieldCheck, Trash2 } from 'lucide-react'
+import { Copy, Download, Eye, Pencil, Scissors, Send, ShieldCheck, Trash2 } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import type { ReactNode } from 'react'
 import type { RemoteFileEntry } from '#entities/file'
@@ -11,6 +11,7 @@ import {
 const icons: Record<RemoteFileActionKey, ReactNode> = {
   openFile: <Eye size={14} />,
   download: <Download size={14} />,
+  sendToHost: <Send size={14} />,
   copy: <Copy size={14} />,
   cut: <Scissors size={14} />,
   permissions: <ShieldCheck size={14} />,
@@ -21,6 +22,7 @@ const icons: Record<RemoteFileActionKey, ReactNode> = {
 const translationKeys: Record<RemoteFileActionKey, string> = {
   openFile: 'files.openFile',
   download: 'files.download',
+  sendToHost: 'files.remoteCopy.action',
   copy: 'files.copy',
   cut: 'files.cut',
   permissions: 'files.editPermissions',

@@ -32,6 +32,23 @@ export interface TransferQueueSummary {
   clearable: number
 }
 
+export interface RemoteCopyHostRoute {
+  sourceHostId?: string
+  targetHostId?: string
+}
+
+export function resolveRemoteCopyHostRoute(
+  task: TransferTask,
+): RemoteCopyHostRoute | null {
+  if (task.type !== 'remote_copy') {
+    return null
+  }
+  return {
+    sourceHostId: task.source_host_id || task.host_id || undefined,
+    targetHostId: task.target_host_id || undefined,
+  }
+}
+
 export function limitPendingFileOperations(
   operations: readonly PendingFileOperation[],
   historyLimit = pendingTransferHistoryLimit,

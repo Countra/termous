@@ -1415,6 +1415,7 @@ export function WorkbenchPage({
           files: (
               <WorkbenchFilesPanel
                 api={fileGateway}
+                getHostIconUrl={getHostIconUrl}
                 data={workbenchFilesData}
                 fileSessionClosures={fileSessionClosures}
                 session={activeSession}

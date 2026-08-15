@@ -71,14 +71,22 @@ import type {
   LocalPathMappingInput,
   LocalPathMappingReorderItem,
   RemoteFileEntry,
+  TransferTask,
 } from '#entities/file'
 import type { FileGateway } from '#features/files'
 import {
   createUploadWithConflictDecision,
   FilesBottomDrawer,
+  RemoteCopyModal,
   TransferQueueDock,
   TransferQueuePanel,
   UploadConflictDialog,
+  validateRemoteCopySource,
+  type RemoteCopyCreateRequest,
+  type RemoteCopyCreateDirectoryRequest,
+  type RemoteCopyDirectoryRequest,
+  type RemoteCopyOverwriteConfirmation,
+  type RemoteCopySourceSnapshot,
   useTransferRuntime,
   useUploadConflictDecision,
 } from '#features/transfers'
@@ -88,6 +96,7 @@ import {
   loadRemoteTextEditorModal,
   RemotePermissionModal,
   runRemoteFileAction,
+  snapshotRemoteFileActionSelection,
   type RemoteFileActionHandlers,
 } from '#features/remote-file'
 import { formatBytes, formatDate } from '#shared/format'
@@ -104,6 +113,7 @@ import {
   fileSessionRecoveryOutcome,
   fileSessionRecoveryRequestMethod,
   findFileSessionRecoveryAttempt,
+  isTransferRelatedToFileSession,
   isFileSessionRecoverySupersededError,
   isTerminatedFileSession,
   shouldCreateFileSessionAfterReconnect,
@@ -420,6 +430,7 @@ function FilesWorkspaceContent({
     canScrollRight: false,
   })
   const [fileContextMenu, setFileContextMenu] = useState<FileContextMenuState | null>(null)
+  const [remoteCopySource, setRemoteCopySource] = useState<RemoteCopySourceSnapshot | null>(null)
   const [localDownloadOperationActive, setLocalDownloadOperationActive] = useState(false)
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionTarget, setPermissionTarget] = useState<SessionBoundRemoteEntry | null>(null)
@@ -548,6 +559,19 @@ function FilesWorkspaceContent({
     pendingPanelFocusRestoreRef.current = 'transfers'
     setAuxiliarySurface('none')
   }, [])
+  const openSessionTransfers = useCallback(() => {
+    if (localDownloadOperationSourcesRef.current.size > 0) {
+      return
+    }
+    setTransferScope('session')
+    setAuxiliarySurface('transfers')
+    if (
+      sidePanelModeRef.current === 'bookmarks'
+      || window.innerWidth < 1280
+    ) {
+      updateSidePanelMode('none')
+    }
+  }, [updateSidePanelMode])
 
   useEffect(() => {
     const target = pendingPanelFocusRestoreRef.current
@@ -694,10 +718,83 @@ function FilesWorkspaceContent({
   const {
     transfers,
     connected: transferEventsConnected,
+    remoteCopyRefreshVersion,
     refresh: refreshTransfers,
     upsertTransfer,
     removeTransfer,
+    consumeRemoteCopyRefreshEvents,
   } = useTransferRuntime()
+  const consumeFilesRemoteCopyRefreshEvents = useCallback(
+    () => consumeRemoteCopyRefreshEvents('files-workspace'),
+    [consumeRemoteCopyRefreshEvents],
+  )
+  const listRemoteCopyDirectories = useCallback(({
+    fileSessionId,
+    path,
+    rememberPath,
+    signal,
+  }: RemoteCopyDirectoryRequest) => (
+    api.listFileSessionFiles(fileSessionId, path, { rememberPath, signal })
+  ), [api])
+  const createRemoteCopyDirectory = useCallback(({
+    fileSessionId,
+    path,
+  }: RemoteCopyCreateDirectoryRequest) => (
+    api.mkdirFileSessionFile(fileSessionId, path)
+  ), [api])
+  const createRemoteCopyTransfer = useCallback((request: RemoteCopyCreateRequest) => api.createRemoteCopyTransfer({
+    source_file_session_id: request.sourceFileSessionId,
+    source_connection_generation: request.sourceConnectionGeneration,
+    target_file_session_id: request.targetFileSessionId,
+    target_connection_generation: request.targetConnectionGeneration,
+    source_paths: request.sourcePaths,
+    target_dir: request.targetDir,
+    overwrite_policy: request.overwritePolicy,
+  }), [api])
+  const confirmRemoteCopyOverwrite = useCallback((
+    confirmation: RemoteCopyOverwriteConfirmation,
+  ) => new Promise<boolean>((resolve) => {
+    let settled = false
+    const finish = (confirmed: boolean) => {
+      if (!settled) {
+        settled = true
+        resolve(confirmed)
+      }
+    }
+    modal.confirm({
+      title: t('files.remoteCopy.overwriteConfirmTitle'),
+      content: t('files.remoteCopy.overwriteConfirmDescription', {
+        count: confirmation.sourceCount,
+        host: confirmation.targetHostName,
+        path: confirmation.targetPath,
+      }),
+      okText: t('files.remoteCopy.overwriteConfirmAction'),
+      cancelText: t('app.cancel'),
+      okButtonProps: { danger: true },
+      className: `${confirmDialogStyles.modal} confirm-modal`,
+      rootClassName: `${confirmDialogStyles['modal-root']} termous-modal-root`,
+      onOk: () => finish(true),
+      onCancel: () => finish(false),
+      afterClose: () => finish(false),
+    })
+  }), [modal, t])
+  const handleRemoteCopyCreated = useCallback((task: TransferTask) => {
+    if (task.target_file_session_id) {
+      trackWorkspaceUploadRefreshTask(task.id, {
+        fileSessionId: task.target_file_session_id,
+        targetPath: normalizeRemotePath(task.target_path || '/'),
+      })
+    }
+    upsertTransfer(task)
+    lastTransferTriggerRef.current = transferToggleRef.current
+    openSessionTransfers()
+    notification.success({
+      title: t('files.transferCreated'),
+      duration: 3,
+      role: 'status',
+      className: termousNotificationClassName,
+    })
+  }, [notification, openSessionTransfers, t, trackWorkspaceUploadRefreshTask, upsertTransfer])
   const uploadConflictDecision = useUploadConflictDecision()
   const cancelPendingUploadConflict = uploadConflictDecision.cancelPending
   const failPendingTransferOperation = useCallback((id: string, description: string) => {
@@ -1022,6 +1119,8 @@ function FilesWorkspaceContent({
     trackDownloadRefreshTask,
   } = useFilesTransferRefresh({
     transfers,
+    remoteCopyRefreshVersion,
+    consumeRemoteCopyRefreshEvents: consumeFilesRemoteCopyRefreshEvents,
     activeDirectory: transferRefreshActiveDirectory,
     loadDirectory,
     trackWorkspaceUploadRefreshTask,
@@ -1996,6 +2095,23 @@ function FilesWorkspaceContent({
   }, [data.fileSessions])
 
   useEffect(() => {
+    if (!remoteCopySource) {
+      return
+    }
+    const sourceSession = data.fileSessions.find(
+      (session) => session.id === remoteCopySource.fileSessionId,
+    )
+    if (
+      sourceSession?.status !== 'connected'
+      || sourceSession.host_id !== remoteCopySource.hostId
+      || (sourceSession.connection_generation ?? 0) !== remoteCopySource.connectionGeneration
+      || closingFileSessionIdsRef.current.has(remoteCopySource.fileSessionId)
+    ) {
+      setRemoteCopySource(null)
+    }
+  }, [data.fileSessions, remoteCopySource])
+
+  useEffect(() => {
     if (
       downloadDestinationRequest
       && (
@@ -2092,9 +2208,44 @@ function FilesWorkspaceContent({
       }
       return
     }
+    const openRemoteCopy = () => {
+      if (!activeFileSession) {
+        return
+      }
+      const snapshot = snapshotRemoteFileActionSelection(
+        entry,
+        selectedPaths,
+        entries,
+      )
+      if (!snapshot) {
+        notification.error({
+          title: t('files.operationFailed'),
+          duration: 4,
+          role: 'alert',
+          className: termousNotificationClassName,
+        })
+        return
+      }
+      if (!validateRemoteCopySource(snapshot.entries).valid) {
+        notification.warning({
+          title: t('files.remoteCopy.unsupportedSelection'),
+          duration: 4,
+          role: 'alert',
+          className: termousNotificationClassName,
+        })
+        return
+      }
+      setRemoteCopySource({
+        hostId: activeFileSession.host_id,
+        fileSessionId: activeFileSession.id,
+        connectionGeneration: activeFileSession.connection_generation ?? 0,
+        entries: snapshot.entries,
+      })
+    }
     const handlers: RemoteFileActionHandlers = {
       openFile: openFileEntry,
       download: () => void downloadPaths(actionPaths),
+      sendToHost: openRemoteCopy,
       copy: () => {
         if (activeFileSession) {
           setRemoteClipboard({
@@ -2723,7 +2874,7 @@ function FilesWorkspaceContent({
     () => transferScope === 'all'
       ? transfers
       : activeFileSessionId
-        ? transfers.filter((task) => task.file_session_id === activeFileSessionId)
+        ? transfers.filter((task) => isTransferRelatedToFileSession(task, activeFileSessionId))
         : [],
     [activeFileSessionId, transferScope, transfers],
   )
@@ -2749,7 +2900,7 @@ function FilesWorkspaceContent({
       return 0
     }
     return transfers.filter((task) => (
-      task.file_session_id === activeFileSessionId && isFilesTransferActive(task)
+      isTransferRelatedToFileSession(task, activeFileSessionId) && isFilesTransferActive(task)
     )).length + pendingTransferOperations.filter((operation) => (
       operation.fileSessionId === activeFileSessionId && operation.status === 'running'
     )).length
@@ -3330,14 +3481,7 @@ function FilesWorkspaceContent({
                     if (transfersOpen && transferScope === 'session') {
                       closeTransfers()
                     } else {
-                       setTransferScope('session')
-                       setAuxiliarySurface('transfers')
-                       if (
-                         sidePanelModeRef.current === 'bookmarks'
-                         || window.innerWidth < 1280
-                       ) {
-                         updateSidePanelMode('none')
-                       }
+                      openSessionTransfers()
                     }
                   }}
                 >
@@ -3866,6 +4010,21 @@ function FilesWorkspaceContent({
         </div>
       ) : null}
       <UploadConflictDialog {...uploadConflictDecision.dialogProps} />
+      {remoteCopySource ? (
+        <RemoteCopyModal
+          open
+          source={remoteCopySource}
+          hosts={data.hosts}
+          fileSessions={data.fileSessions}
+          getHostIconUrl={getHostIconUrl}
+          listDirectories={listRemoteCopyDirectories}
+          createDirectory={createRemoteCopyDirectory}
+          createRemoteCopy={createRemoteCopyTransfer}
+          confirmOverwrite={confirmRemoteCopyOverwrite}
+          onCreated={handleRemoteCopyCreated}
+          onClose={() => setRemoteCopySource(null)}
+        />
+      ) : null}
       <RemotePermissionModal
         entry={permissionTarget?.fileSessionId === activeFileSessionId ? permissionTarget.entry : null}
         open={permissionTarget?.fileSessionId === activeFileSessionId}

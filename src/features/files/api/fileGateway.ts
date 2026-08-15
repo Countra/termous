@@ -5,6 +5,7 @@ import type {
   LocalGrantSource,
   LocalTreeEntry,
   OverwritePolicy,
+  RemoteCopyTransferInput,
   RemoteDirectoryListing,
   RemoteFileEntry,
   RemoteTextSaveRequest,
@@ -17,7 +18,7 @@ export interface FileSessionGateway {
   listFileSessionFiles: (
     fileSessionId: string,
     path: string,
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; rememberPath?: boolean },
   ) => Promise<RemoteDirectoryListing>
   statFileSessionFile: (
     fileSessionId: string,
@@ -96,6 +97,7 @@ export interface FileTransferGateway {
     overwritePolicy?: OverwritePolicy,
     signal?: AbortSignal,
   ) => Promise<TransferTask>
+  createRemoteCopyTransfer: (input: RemoteCopyTransferInput) => Promise<TransferTask>
   retryTransfer: (id: string) => Promise<TransferTask>
   deleteTransfer: (id: string) => Promise<void>
 }

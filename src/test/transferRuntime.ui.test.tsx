@@ -1,6 +1,8 @@
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useEffect } from 'react'
 import { TransferRuntimeProvider } from '#app/transfer-runtime'
+import type { TransferTask } from '#entities/file'
 import {
   useTransferRuntime,
   type TransferRuntimeApi,
@@ -23,6 +25,12 @@ class FakeWebSocket extends EventTarget {
     this.dispatchEvent(new Event('open'))
   }
 
+  message(data: unknown) {
+    this.dispatchEvent(new MessageEvent('message', {
+      data: JSON.stringify(data),
+    }))
+  }
+
   close() {
     this.closeCalls += 1
     this.dispatchEvent(new Event('close'))
@@ -35,6 +43,39 @@ function deferred<T>() {
     resolve = nextResolve
   })
   return { promise, resolve }
+}
+
+function remoteCopyTask(
+  status: TransferTask['status'] = 'completed',
+  patch: Partial<TransferTask> = {},
+): TransferTask {
+  return {
+    id: 'remote-copy-fast',
+    host_id: 'source-host',
+    file_session_id: 'source-session',
+    source_host_id: 'source-host',
+    target_host_id: 'target-host',
+    source_file_session_id: 'source-session',
+    target_file_session_id: 'target-session',
+    type: 'remote_copy',
+    status,
+    source_paths: ['/source/file.txt'],
+    target_path: '/target',
+    total_bytes: 1,
+    transferred_bytes: status === 'completed' ? 1 : 0,
+    remaining_bytes: status === 'completed' ? 0 : 1,
+    total_files: 1,
+    completed_files: status === 'completed' ? 1 : 0,
+    progress_percent: status === 'completed' ? 100 : 0,
+    speed_bytes_per_sec: 0,
+    average_speed_bytes_per_sec: 0,
+    elapsed_seconds: 0,
+    cancellable: status === 'queued' || status === 'running',
+    retryable: false,
+    overwrite_policy: 'rename',
+    created_at: '2026-08-15T00:00:00Z',
+    ...patch,
+  }
 }
 
 describe('Transfer Runtime Provider', () => {
@@ -121,5 +162,125 @@ describe('Transfer Runtime Provider', () => {
     })
 
     expect(FakeWebSocket.instances[0].closeCalls).toBe(1)
+  })
+
+  it('极快完成的跨主机复制会由两个 Surface 各自消费一次刷新事件', async () => {
+    const api = {
+      transfers: vi.fn(async () => []),
+      transferEventsUrl: () => 'ws://127.0.0.1/api/v1/transfers/events',
+    } satisfies TransferRuntimeApi
+    const refreshed = {
+      files: vi.fn(),
+      workbench: vi.fn(),
+    }
+    let latestRuntime: TransferRuntimeValue | undefined
+
+    function Probe({ surface }: { surface: 'files-workspace' | 'workbench-files' }) {
+      const runtime = useTransferRuntime()
+      latestRuntime = runtime
+      const consumeRemoteCopyRefreshEvents = runtime.consumeRemoteCopyRefreshEvents
+      const remoteCopyRefreshVersion = runtime.remoteCopyRefreshVersion
+      useEffect(() => {
+        consumeRemoteCopyRefreshEvents(surface).forEach((event) => {
+          refreshed[surface === 'files-workspace' ? 'files' : 'workbench'](event)
+        })
+      }, [consumeRemoteCopyRefreshEvents, remoteCopyRefreshVersion, surface])
+      return null
+    }
+
+    render(
+      <TransferRuntimeProvider api={api}>
+        <Probe surface="files-workspace" />
+        <Probe surface="workbench-files" />
+      </TransferRuntimeProvider>,
+    )
+    await act(async () => Promise.resolve())
+
+    const completed = remoteCopyTask()
+    act(() => latestRuntime?.upsertTransfer(completed))
+
+    expect(refreshed.files).toHaveBeenCalledTimes(1)
+    expect(refreshed.workbench).toHaveBeenCalledTimes(1)
+    expect(refreshed.files).toHaveBeenCalledWith(expect.objectContaining({
+      taskId: completed.id,
+      targetFileSessionId: 'target-session',
+      targetPath: '/target',
+    }))
+
+    act(() => latestRuntime?.upsertTransfer({ ...completed }))
+
+    expect(refreshed.files).toHaveBeenCalledTimes(1)
+    expect(refreshed.workbench).toHaveBeenCalledTimes(1)
+  })
+
+  it('首轮 WebSocket 历史终态只建立基线，初始化后的新终态才触发刷新', async () => {
+    const historical = remoteCopyTask('completed', { id: 'remote-copy-history' })
+    const initialTransfers = deferred<TransferTask[]>()
+    const api = {
+      transfers: vi.fn(() => initialTransfers.promise),
+      transferEventsUrl: () => 'ws://127.0.0.1/api/v1/transfers/events',
+    } satisfies TransferRuntimeApi
+    const filesRefresh = vi.fn()
+    const workbenchRefresh = vi.fn()
+
+    function Probe({ surface }: { surface: 'files-workspace' | 'workbench-files' }) {
+      const runtime = useTransferRuntime()
+      const consumeRemoteCopyRefreshEvents = runtime.consumeRemoteCopyRefreshEvents
+      const remoteCopyRefreshVersion = runtime.remoteCopyRefreshVersion
+      useEffect(() => {
+        consumeRemoteCopyRefreshEvents(surface).forEach((event) => {
+          if (surface === 'files-workspace') {
+            filesRefresh(event)
+          } else {
+            workbenchRefresh(event)
+          }
+        })
+      }, [consumeRemoteCopyRefreshEvents, remoteCopyRefreshVersion, surface])
+      return null
+    }
+
+    render(
+      <TransferRuntimeProvider api={api}>
+        <Probe surface="files-workspace" />
+        <Probe surface="workbench-files" />
+      </TransferRuntimeProvider>,
+    )
+
+    await act(async () => {
+      FakeWebSocket.instances[0].open()
+      FakeWebSocket.instances[0].message({
+        type: 'transfer_update',
+        task: historical,
+      })
+    })
+    expect(filesRefresh).not.toHaveBeenCalled()
+    expect(workbenchRefresh).not.toHaveBeenCalled()
+
+    await act(async () => {
+      initialTransfers.resolve([historical])
+      await initialTransfers.promise
+    })
+    await act(async () => {
+      FakeWebSocket.instances[0].message({
+        type: 'transfer_update',
+        task: historical,
+      })
+    })
+    expect(filesRefresh).not.toHaveBeenCalled()
+    expect(workbenchRefresh).not.toHaveBeenCalled()
+
+    const completed = remoteCopyTask('completed', { id: 'remote-copy-new' })
+    await act(async () => {
+      FakeWebSocket.instances[0].message({
+        type: 'transfer_update',
+        task: completed,
+      })
+    })
+
+    expect(filesRefresh).toHaveBeenCalledTimes(1)
+    expect(workbenchRefresh).toHaveBeenCalledTimes(1)
+    expect(filesRefresh).toHaveBeenCalledWith(expect.objectContaining({
+      taskId: completed.id,
+    }))
   })
 })

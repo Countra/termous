@@ -4,6 +4,7 @@ import type { TransferTask } from '#entities/file'
 import {
   buildTransferQueueItems,
   limitPendingFileOperations,
+  resolveRemoteCopyHostRoute,
   summarizeTransferQueue,
   type PendingFileOperation,
 } from './transferQueueState.ts'
@@ -85,6 +86,46 @@ test('筛选不会把已取消任务误归为失败', () => {
     ['failed'],
   )
   assert.equal(buildTransferQueueItems(transfers, [], 'all').length, 2)
+})
+
+test('部分完成属性不会改变跨主机复制的真实终态筛选', () => {
+  const transfers = [
+    transfer({ id: 'partial-failed', type: 'remote_copy', status: 'failed', partial: true }),
+    transfer({ id: 'partial-cancelled', type: 'remote_copy', status: 'cancelled', partial: true }),
+  ]
+
+  assert.deepEqual(
+    buildTransferQueueItems(transfers, [], 'failed').map((item) => (
+      item.kind === 'task' ? item.task.id : item.operation.id
+    )),
+    ['partial-failed'],
+  )
+  assert.deepEqual(
+    buildTransferQueueItems(transfers, [], 'all').map((item) => (
+      item.kind === 'task' ? item.task.id : item.operation.id
+    )),
+    ['partial-failed', 'partial-cancelled'],
+  )
+})
+
+test('跨主机复制路由优先使用显式源主机并兼容旧 host_id', () => {
+  assert.deepEqual(resolveRemoteCopyHostRoute(transfer({
+    type: 'remote_copy',
+    host_id: 'legacy-source',
+    source_host_id: 'source-host',
+    target_host_id: 'target-host',
+  })), {
+    sourceHostId: 'source-host',
+    targetHostId: 'target-host',
+  })
+  assert.deepEqual(resolveRemoteCopyHostRoute(transfer({
+    type: 'remote_copy',
+    host_id: 'legacy-source',
+  })), {
+    sourceHostId: 'legacy-source',
+    targetHostId: undefined,
+  })
+  assert.equal(resolveRemoteCopyHostRoute(transfer()), null)
 })
 
 test('全部视图按进行中、失败、其他终态稳定排列', () => {

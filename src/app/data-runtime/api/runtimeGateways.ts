@@ -235,6 +235,7 @@ function createFileGateway(
       overwritePolicy,
       signal,
     ),
+    createRemoteCopyTransfer: (input) => transfers.createRemoteCopyTransfer(input),
     retryTransfer: (id) => transfers.retryTransfer(id),
     deleteTransfer: (id) => transfers.deleteTransfer(id),
     localPathMappingChildren: (id, path, signal) => (

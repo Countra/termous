@@ -12,6 +12,10 @@ export type TransferType =
 
 export type TransferStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
+export type TransferPhase = 'scanning' | 'transferring' | 'finalizing'
+
+export type TransferFailureSide = 'source' | 'target'
+
 export type LocalGrantSource = 'picker' | 'drop' | 'clipboard'
 
 export interface RemoteFileEntry {
@@ -173,8 +177,16 @@ export interface TransferTask {
   id: string
   host_id: string
   file_session_id?: string
+  source_host_id?: string
+  source_file_session_id?: string
+  source_connection_generation?: number
+  target_host_id?: string
+  target_file_session_id?: string
+  target_connection_generation?: number
   type: TransferType
   status: TransferStatus
+  phase?: TransferPhase
+  failure_side?: TransferFailureSide
   source_paths: string[]
   target_path: string
   local_directory_path?: string
@@ -192,11 +204,23 @@ export interface TransferTask {
   cancellable: boolean
   retryable: boolean
   overwrite_policy: OverwritePolicy
+  partial?: boolean
+  skipped_items?: number
   created_at: string
   started_at?: string
   finished_at?: string
   error_code?: string
   error_message?: string
+}
+
+export interface RemoteCopyTransferInput {
+  source_file_session_id: string
+  source_connection_generation: number
+  target_file_session_id: string
+  target_connection_generation: number
+  source_paths: string[]
+  target_dir: string
+  overwrite_policy: Exclude<OverwritePolicy, 'ask'>
 }
 
 export interface LocalGrantItem {

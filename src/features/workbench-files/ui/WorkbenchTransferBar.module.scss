@@ -161,6 +161,33 @@
   display: block;
 }
 
+.workbench-file-transfer-progress.is-indeterminate {
+  position: relative;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line-soft);
+}
+
+.workbench-file-transfer-progress.is-indeterminate > span {
+  position: absolute;
+  width: 38%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: workbench-transfer-scan 1.15s ease-in-out infinite;
+}
+
+@keyframes workbench-transfer-scan {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(290%);
+  }
+}
+
 .workbench-file-connect {
   display: grid;
   min-height: 180px;

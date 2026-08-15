@@ -7,6 +7,7 @@ import {
 } from 'antd'
 import {
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   CircleStop,
   Copy,
@@ -31,6 +32,7 @@ import {
   isActiveTransferTask,
   isClearablePendingOperation,
   isClearableTransferTask,
+  resolveRemoteCopyHostRoute,
   summarizeTransferQueue,
   type PendingFileOperation,
   type TransferQueueFilter,
@@ -98,6 +100,7 @@ export function TransferQueuePanel({
     (total, task) => total + Math.max(0, task.speed_bytes_per_sec || task.average_speed_bytes_per_sec),
     0,
   )
+  const activeProgressIndeterminate = activeTasks.some(isTransferProgressIndeterminate)
   const aggregateProgress = activeTotalBytes > 0
     ? Math.min(100, Math.max(0, Math.round((activeTransferredBytes / activeTotalBytes) * 100)))
     : 0
@@ -210,7 +213,7 @@ export function TransferQueuePanel({
               <span>{t('files.activeTransferCount', { count: summary.active })}</span>
               {activeTasks.length > 0 ? (
                 <>
-                  <b>{aggregateProgress}%</b>
+                  {!activeProgressIndeterminate ? <b>{aggregateProgress}%</b> : null}
                   <b>{t('files.transferSpeed', { value: formatBytes(activeSpeed) })}</b>
                 </>
               ) : null}
@@ -270,10 +273,11 @@ export function TransferQueuePanel({
                 onDismiss={onDismissPending}
               />
             ) : (
-              <TransferRow
+              <TransferTaskRow
                 key={item.task.id}
                 task={item.task}
-                hostLabel={showHostContext ? hostNames[item.task.host_id] : undefined}
+                hostNames={hostNames}
+                showHostContext={showHostContext}
                 actionBusy={pendingActionIds.has(item.task.id)}
                 onCancel={onCancel}
                 onDelete={onDelete}
@@ -284,6 +288,45 @@ export function TransferQueuePanel({
         )}
       </div>
     </section>
+  )
+}
+
+function TransferTaskRow({
+  task,
+  hostNames,
+  showHostContext,
+  ...actions
+}: {
+  task: TransferTask
+  hostNames: Readonly<Record<string, string>>
+  showHostContext: boolean
+  actionBusy: boolean
+  onCancel: (id: string) => Promise<void>
+  onDelete: (id: string, options?: { silent?: boolean }) => Promise<boolean>
+  onRetry: (id: string) => Promise<void>
+}) {
+  const route = resolveRemoteCopyHostRoute(task)
+  const sourceHostLabel = route?.sourceHostId
+    ? hostNames[route.sourceHostId] || route.sourceHostId
+    : undefined
+  const targetHostLabel = route?.targetHostId
+    ? hostNames[route.targetHostId] || route.targetHostId
+    : undefined
+
+  return (
+    <TransferRow
+      task={task}
+      hostLabel={route
+        ? undefined
+        : showHostContext
+          ? hostNames[task.host_id]
+          : undefined}
+      remoteRoute={route ? {
+        source: sourceHostLabel || '-',
+        target: targetHostLabel || '-',
+      } : undefined}
+      {...actions}
+    />
   )
 }
 
@@ -395,6 +438,7 @@ function TransferPreparationRow({
 function TransferRow({
   task,
   hostLabel,
+  remoteRoute,
   actionBusy,
   onCancel,
   onDelete,
@@ -402,6 +446,10 @@ function TransferRow({
 }: {
   task: TransferTask
   hostLabel?: string
+  remoteRoute?: {
+    source: string
+    target: string
+  }
   actionBusy: boolean
   onCancel: (id: string) => Promise<void>
   onDelete: (id: string, options?: { silent?: boolean }) => Promise<boolean>
@@ -420,6 +468,16 @@ function TransferRow({
   const completedFiles = Math.max(0, Math.min(totalFiles, task.completed_files || 0))
   const Icon = isUpload ? UploadCloud : isDownload ? DownloadCloud : Copy
   const isActive = isActiveTransferTask(task)
+  const phaseLabel = task.type === 'remote_copy'
+    && task.status !== 'completed'
+    && task.phase
+    ? t(remoteCopyPhaseKeys[task.phase])
+    : null
+  const indeterminate = isTransferProgressIndeterminate(task)
+  const skippedItems = Math.max(0, Math.floor(task.skipped_items || 0))
+  const routeLabel = remoteRoute
+    ? t('files.remoteCopy.route', remoteRoute)
+    : null
 
   const openLocalDirectory = async () => {
     const filesBridge = getTermousBridge()?.files
@@ -494,9 +552,9 @@ function TransferRow({
       disabled={actionBusy || contextMenuItems.length === 0}
     >
       <article
-        className={`transfer-row ${transferStatusClass(task.status)} ${canDelete ? 'is-history' : ''}`}
+        className={`transfer-row ${transferStatusClass(task.status)} ${canDelete ? 'is-history' : ''} ${remoteRoute ? 'is-remote-copy' : ''}`}
         role="listitem"
-        aria-label={`${currentName}: ${t(`files.transferStatus.${task.status}`)}`}
+        aria-label={`${currentName}: ${routeLabel ? `${routeLabel}; ` : ''}${t(`files.transferStatus.${task.status}`)}`}
       >
         <span className="transfer-kind-icon">
           <Icon size={17} aria-hidden="true" />
@@ -507,6 +565,19 @@ function TransferRow({
               <strong>{currentName}</strong>
             </Tooltip>
           </div>
+          {remoteRoute && routeLabel ? (
+            <Tooltip title={routeLabel}>
+              <span className="transfer-remote-route" aria-label={routeLabel}>
+                <span className={task.failure_side === 'source' ? 'is-failure-side' : undefined}>
+                  {remoteRoute.source}
+                </span>
+                <ArrowRight size={12} aria-hidden="true" />
+                <span className={task.failure_side === 'target' ? 'is-failure-side' : undefined}>
+                  {remoteRoute.target}
+                </span>
+              </span>
+            </Tooltip>
+          ) : null}
           <Tooltip title={task.target_path}>
             <span className="transfer-subline">
               <span>{t(`files.transferType.${task.type}`)} · {task.target_path}</span>
@@ -527,20 +598,27 @@ function TransferRow({
             <span className="transfer-state-label">
               <i aria-hidden="true" />
               {t(`files.transferStatus.${task.status}`)}
+              {phaseLabel ? <em className="transfer-phase-label">{phaseLabel}</em> : null}
             </span>
-            {isActive || task.status === 'completed' ? <b>{progress}%</b> : null}
+            {(isActive || task.status === 'completed') && !indeterminate ? <b>{progress}%</b> : null}
           </div>
           <div
-            className={`transfer-progress-line ${task.status === 'queued' ? 'is-indeterminate' : ''}`}
+            className={`transfer-progress-line ${indeterminate ? 'is-indeterminate' : ''}`}
             role="progressbar"
             aria-label={`${currentName}: ${t(`files.transferStatus.${task.status}`)}`}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuenow={task.status === 'queued' ? undefined : progress}
+            aria-valuenow={indeterminate ? undefined : progress}
           >
-            <span style={task.status === 'queued' ? undefined : { width: `${progress}%` }} />
+            <span style={indeterminate ? undefined : { width: `${progress}%` }} />
           </div>
           <div className="transfer-meta-line">
+            {task.type === 'remote_copy' && task.partial ? (
+              <span className="transfer-partial-note">{t('files.remoteCopy.partial')}</span>
+            ) : null}
+            {task.type === 'remote_copy' && skippedItems > 0 ? (
+              <span>{t('files.remoteCopy.skippedItems', { count: skippedItems })}</span>
+            ) : null}
             {task.status === 'running' || task.status === 'queued' ? (
               <>
                 <span>{t('files.transferBytes', {
@@ -618,6 +696,17 @@ function TransferRow({
       </article>
     </ContextActionMenu>
   )
+}
+
+const remoteCopyPhaseKeys = {
+  scanning: 'files.remoteCopy.phaseScanning',
+  transferring: 'files.remoteCopy.phaseTransferring',
+  finalizing: 'files.remoteCopy.phaseFinalizing',
+} as const
+
+function isTransferProgressIndeterminate(task: TransferTask) {
+  return task.status === 'queued'
+    || (task.type === 'remote_copy' && task.status === 'running' && task.phase === 'scanning')
 }
 
 function transferMenuItem(

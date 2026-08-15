@@ -8,6 +8,10 @@ import { formatBytes, formatDate } from '#shared/format'
 import { uiStyles } from '#shared/ui'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import { isLocalFileDrag } from '../model/workbenchFileDrag'
+import {
+  resolveWorkbenchFileSelection,
+  type WorkbenchFileSelectionModifiers,
+} from '../model/workbenchFileSelection'
 import styles from './WorkbenchFileList.module.scss'
 
 const scopedClassName = (className: string) => `${className} ${styles[className]}`
@@ -25,7 +29,7 @@ interface WorkbenchFileListProps {
   uploading: boolean
   listRef: RefObject<HTMLDivElement | null>
   menuFor: (entry: RemoteFileEntry) => MenuProps
-  onSelect: (entry: RemoteFileEntry) => void
+  onSelectPaths: (paths: string[]) => void
   onOpen: (entry: RemoteFileEntry) => Promise<boolean>
   onScroll: () => void
   onUploadDrop: (targetPath: string, event: DragEvent<HTMLDivElement>) => void
@@ -54,7 +58,7 @@ export function WorkbenchFileList({
   uploading,
   listRef,
   menuFor,
-  onSelect,
+  onSelectPaths,
   onOpen,
   onScroll,
   onUploadDrop,
@@ -69,6 +73,7 @@ export function WorkbenchFileList({
   const [nameTooltip, setNameTooltip] = useState<FileNameTooltipState | null>(null)
   const rowRefs = useRef(new Map<string, HTMLDivElement>())
   const nameRefs = useRef(new Map<string, HTMLElement>())
+  const selectionAnchorPathRef = useRef<string | null>(null)
   const pendingDirectoryFocusPathRef = useRef<string | null>(null)
   const focusFrameRef = useRef<number | null>(null)
   const tooltipTimerRef = useRef<number | null>(null)
@@ -76,14 +81,32 @@ export function WorkbenchFileList({
     () => `${listingPath}\u0000${entries.map((entry) => entry.path).join('\u0000')}`,
     [entries, listingPath],
   )
+  const orderedPaths = useMemo(() => entries.map((entry) => entry.path), [entries])
+  const entryPathSet = useMemo(() => new Set(orderedPaths), [orderedPaths])
+  const selectedPathSet = useMemo(() => new Set(selectedPaths), [selectedPaths])
   const uploadTarget = entries.find((entry) => entry.kind === 'directory' && entry.path === uploadTargetPath)
-  const tabbablePath = entries.some((entry) => entry.path === focusedPath)
+  const tabbablePath = entryPathSet.has(focusedPath ?? '')
     ? focusedPath
-    : selectedPaths.find((path) => entries.some((entry) => entry.path === path)) ?? entries[0]?.path ?? null
+    : selectedPaths.find((path) => entryPathSet.has(path)) ?? entries[0]?.path ?? null
   const acceptsLocalFiles = (event: DragEvent<HTMLDivElement>) => (
     isLocalFileDrag(Array.from(event.dataTransfer.types))
   )
   const interactionLocked = interactionDisabled || navigationPending || initialPlaceholder
+
+  const selectEntry = (
+    entry: RemoteFileEntry,
+    modifiers: WorkbenchFileSelectionModifiers = {},
+  ) => {
+    const selection = resolveWorkbenchFileSelection(
+      orderedPaths,
+      selectedPaths,
+      selectionAnchorPathRef.current,
+      entry.path,
+      modifiers,
+    )
+    selectionAnchorPathRef.current = selection.anchorPath
+    onSelectPaths(selection.selectedPaths)
+  }
 
   const focusEntry = (index: number) => {
     const entry = entries[index]
@@ -91,7 +114,7 @@ export function WorkbenchFileList({
       return
     }
     setFocusedPath(entry.path)
-    onSelect(entry)
+    selectEntry(entry)
     if (focusFrameRef.current !== null) {
       window.cancelAnimationFrame(focusFrameRef.current)
     }
@@ -167,7 +190,7 @@ export function WorkbenchFileList({
     interactionLocked,
     entries,
     focusedPath,
-    selectedPaths,
+    selectedPathSet,
     activateEntry,
     hideNameTooltip,
   })
@@ -175,7 +198,7 @@ export function WorkbenchFileList({
     interactionLocked,
     entries,
     focusedPath,
-    selectedPaths,
+    selectedPathSet,
     activateEntry,
     hideNameTooltip,
   }
@@ -204,7 +227,7 @@ export function WorkbenchFileList({
         const current = shortcutStateRef.current
         if (current.interactionLocked) return 'fallthrough'
         const entry = current.entries.find((candidate) => candidate.path === current.focusedPath)
-          ?? current.entries.find((candidate) => current.selectedPaths.includes(candidate.path))
+          ?? current.entries.find((candidate) => current.selectedPathSet.has(candidate.path))
           ?? current.entries[0]
           ?? null
         if (!entry) return 'fallthrough'
@@ -294,6 +317,7 @@ export function WorkbenchFileList({
         ].filter(Boolean).join(' ')}
         data-shortcut-adapter="workbench-files"
         role="listbox"
+        aria-multiselectable="true"
         tabIndex={interactionLocked || entries.length === 0 ? 0 : -1}
         aria-label={t('workbench.files.remoteFiles')}
         aria-busy={loading || initialPending || navigationPending}
@@ -362,7 +386,7 @@ export function WorkbenchFileList({
         </div>
       ) : (
         entries.map((entry, index) => {
-          const selected = selectedPaths.includes(entry.path)
+          const selected = selectedPathSet.has(entry.path)
           const menu = menuFor(entry)
           const directory = entry.kind === 'directory'
           const opening = navigationPending && directory && entry.path === pendingPath
@@ -407,12 +431,17 @@ export function WorkbenchFileList({
                     if (event.detail > 1) {
                       return
                     }
+                    if (event.ctrlKey || event.metaKey || event.shiftKey) {
+                      setFocusedPath(entry.path)
+                      selectEntry(entry, event)
+                      return
+                    }
                     hideNameTooltip()
                     activateEntry(entry)
                     return
                   }
                   setFocusedPath(entry.path)
-                  onSelect(entry)
+                  selectEntry(entry, event)
                 }}
                 onDoubleClick={() => {
                   if (interactionLocked || directory) {
@@ -427,7 +456,9 @@ export function WorkbenchFileList({
                   }
                   hideNameTooltip()
                   setFocusedPath(entry.path)
-                  onSelect(entry)
+                  if (!selected) {
+                    selectEntry(entry, { contextMenu: true })
+                  }
                 }}
                 onFocus={() => setFocusedPath(entry.path)}
                 onKeyDown={(event) => {
@@ -450,8 +481,11 @@ export function WorkbenchFileList({
                     if (result.result === 'handled' || result.result === 'blocked') {
                       event.preventDefault()
                       event.stopPropagation()
+                      return
                     }
-                    return
+                    if (event.key !== ' ') {
+                      return
+                    }
                   }
                   switch (event.key) {
                     case 'ArrowDown':
@@ -472,7 +506,7 @@ export function WorkbenchFileList({
                       break
                     case ' ':
                       event.preventDefault()
-                      onSelect(entry)
+                      selectEntry(entry, event)
                       break
                     default: {
                       const result = shortcutRuntime.dispatch(event.nativeEvent, {

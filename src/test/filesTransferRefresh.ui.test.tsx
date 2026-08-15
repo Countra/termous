@@ -1,6 +1,7 @@
 import { act, render, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { TransferTask } from '#entities/file'
+import type { RemoteCopyRefreshEvent } from '#features/transfers'
 import { FilesWorkspaceRuntimeProvider } from '#widgets/files-workspace'
 import { useFilesTransferRefresh } from '../widgets/files-workspace/model/useFilesTransferRefresh'
 import {
@@ -47,6 +48,7 @@ function transferTask(
 
 function createRefreshHarness(events: string[] = []) {
   const uploadTargets = new Map<string, FilesWorkspaceUploadRefreshTarget>()
+  const remoteCopyRefreshEvents: RemoteCopyRefreshEvent[] = []
   const loadDirectory = vi.fn(async (path: string) => {
     events.push(`load:${path}`)
     return true
@@ -73,14 +75,17 @@ function createRefreshHarness(events: string[] = []) {
   const markDirectoryDirty = vi.fn((fileSessionId: string, path: string) => {
     events.push(`dirty:${fileSessionId}:${path}`)
   })
+  const consumeRemoteCopyRefreshEvents = vi.fn(() => remoteCopyRefreshEvents.splice(0))
 
   return {
+    consumeRemoteCopyRefreshEvents,
     consumeUploadRefreshTask,
     hasUploadRefreshTask,
     loadDirectory,
     markDirectoryDirty,
     pruneUploadRefreshTasks,
     trackWorkspaceUploadRefreshTask,
+    remoteCopyRefreshEvents,
     uploadTargets,
   }
 }
@@ -98,6 +103,7 @@ function renderRefreshHook(
     ...renderHook(
       ({ currentTransfers, currentDirectory }) => useFilesTransferRefresh({
         transfers: currentTransfers,
+        remoteCopyRefreshVersion: harness.remoteCopyRefreshEvents.length,
         activeDirectory: currentDirectory,
         ...harness,
       }),
@@ -225,6 +231,166 @@ describe('文件传输刷新协调器合同', () => {
       })
 
       expect(view.harness.consumeUploadRefreshTask).toHaveBeenCalledWith(running.id)
+      expect(view.harness.markDirectoryDirty).not.toHaveBeenCalled()
+      expect(view.harness.loadDirectory).not.toHaveBeenCalled()
+    },
+  )
+
+  it('跨主机复制只跟踪目标文件会话并在完成后刷新目标目录', () => {
+    const running = transferTask('remote-copy-a', 'remote_copy', 'running', {
+      file_session_id: 'source-session',
+      source_file_session_id: 'source-session',
+      target_file_session_id: 'target-session',
+      target_path: '/target-copy',
+    })
+    const view = renderRefreshHook([running], {
+      fileSessionId: 'target-session',
+      path: '/target-copy',
+      connected: true,
+    })
+
+    expect(view.harness.uploadTargets.get(running.id)).toEqual({
+      fileSessionId: 'target-session',
+      targetPath: '/target-copy',
+    })
+
+    view.rerender({
+      currentTransfers: [{ ...running, status: 'completed' }],
+      currentDirectory: {
+        fileSessionId: 'target-session',
+        path: '/target-copy',
+        connected: true,
+      },
+    })
+
+    expect(view.harness.markDirectoryDirty).toHaveBeenCalledWith(
+      'target-session',
+      '/target-copy',
+    )
+    expect(view.harness.markDirectoryDirty).not.toHaveBeenCalledWith(
+      'source-session',
+      '/target-copy',
+    )
+    expect(view.harness.loadDirectory).toHaveBeenCalledWith('/target-copy', {
+      kind: 'refresh',
+      quiet: true,
+    })
+  })
+
+  it('跨主机复制创建后首次观测即完成时仍刷新目标目录', () => {
+    const completed = transferTask('remote-copy-fast', 'remote_copy', 'completed', {
+      file_session_id: 'source-session',
+      source_file_session_id: 'source-session',
+      target_file_session_id: 'target-session',
+      target_path: '/target-copy',
+    })
+    const view = renderRefreshHook([], {
+      fileSessionId: 'target-session',
+      path: '/target-copy',
+      connected: true,
+    })
+
+    act(() => view.result.current.trackUploadRefreshTask(completed))
+    view.rerender({
+      currentTransfers: [completed],
+      currentDirectory: {
+        fileSessionId: 'target-session',
+        path: '/target-copy',
+        connected: true,
+      },
+    })
+
+    expect(view.harness.markDirectoryDirty).toHaveBeenCalledWith(
+      'target-session',
+      '/target-copy',
+    )
+    expect(view.harness.loadDirectory).toHaveBeenCalledWith('/target-copy', {
+      kind: 'refresh',
+      quiet: true,
+    })
+  })
+
+  it('其他 Surface 已删除极快完成的跨主机复制任务时仍刷新目标目录', () => {
+    const completed = transferTask('remote-copy-cross-surface', 'remote_copy', 'completed', {
+      file_session_id: 'source-session',
+      source_file_session_id: 'source-session',
+      target_file_session_id: 'target-session',
+      target_path: '/target-copy',
+    })
+    const harness = createRefreshHarness()
+    harness.remoteCopyRefreshEvents.push({
+      sequence: 1,
+      taskId: completed.id,
+      targetFileSessionId: 'target-session',
+      targetPath: '/target-copy',
+    })
+
+    renderRefreshHook([], {
+      fileSessionId: 'target-session',
+      path: '/target-copy',
+      connected: true,
+    }, harness)
+
+    expect(harness.consumeRemoteCopyRefreshEvents).toHaveBeenCalledTimes(1)
+    expect(harness.markDirectoryDirty).toHaveBeenCalledWith(
+      'target-session',
+      '/target-copy',
+    )
+    expect(harness.loadDirectory).toHaveBeenCalledWith('/target-copy', {
+      kind: 'refresh',
+      quiet: true,
+    })
+  })
+
+  it.each(['failed', 'cancelled'] as const)(
+    '跨主机复制 %s 且已部分提交时仍刷新目标目录',
+    (status) => {
+      const running = transferTask('remote-copy-partial', 'remote_copy', 'running', {
+        file_session_id: 'source-session',
+        source_file_session_id: 'source-session',
+        target_file_session_id: 'target-session',
+      })
+      const view = renderRefreshHook([running], {
+        fileSessionId: 'target-session',
+        path: '/target',
+        connected: true,
+      })
+
+      view.rerender({
+        currentTransfers: [{ ...running, status, partial: true }],
+        currentDirectory: {
+          fileSessionId: 'target-session',
+          path: '/target',
+          connected: true,
+        },
+      })
+
+      expect(view.harness.markDirectoryDirty).toHaveBeenCalledWith(
+        'target-session',
+        '/target',
+      )
+      expect(view.harness.loadDirectory).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it.each(['failed', 'cancelled'] as const)(
+    '跨主机复制 %s 且未提交目标内容时不刷新目录',
+    (status) => {
+      const running = transferTask('remote-copy-empty', 'remote_copy', 'running', {
+        source_file_session_id: 'source-session',
+        target_file_session_id: 'target-session',
+      })
+      const view = renderRefreshHook([running])
+
+      view.rerender({
+        currentTransfers: [{ ...running, status, partial: false }],
+        currentDirectory: {
+          fileSessionId: 'target-session',
+          path: '/target',
+          connected: true,
+        },
+      })
+
       expect(view.harness.markDirectoryDirty).not.toHaveBeenCalled()
       expect(view.harness.loadDirectory).not.toHaveBeenCalled()
     },
@@ -360,6 +526,8 @@ function PersistentUploadProbe({ transfers, onRefresh }: PersistentUploadProbePr
   const runtime = useFilesWorkspaceRuntime()
   useFilesTransferRefresh({
     transfers,
+    remoteCopyRefreshVersion: 0,
+    consumeRemoteCopyRefreshEvents: () => [],
     activeDirectory: {
       fileSessionId: 'file-session-a',
       path: '/target',

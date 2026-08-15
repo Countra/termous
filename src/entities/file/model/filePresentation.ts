@@ -83,3 +83,12 @@ export function transferProgress(task: TransferTask) {
   }
   return Math.max(0, Math.min(100, Math.round(task.progress_percent || 0)))
 }
+
+export function isTransferRelatedToFileSession(
+  task: TransferTask,
+  fileSessionId: string,
+) {
+  return task.file_session_id === fileSessionId
+    || task.source_file_session_id === fileSessionId
+    || task.target_file_session_id === fileSessionId
+}

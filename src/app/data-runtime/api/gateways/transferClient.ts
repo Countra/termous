@@ -1,5 +1,5 @@
 import type { AppConfig } from '#common/contracts';
-import type { LocalFileGrant, LocalGrantSource, OverwritePolicy, TransferTask } from '#entities/file';
+import type { LocalFileGrant, LocalGrantSource, OverwritePolicy, RemoteCopyTransferInput, TransferTask } from '#entities/file';
 import { TermousApiTransport } from '#shared/api';
 
 export class TransferClient extends TermousApiTransport {
@@ -72,7 +72,7 @@ createDownloadTransfer(hostId: string, remotePaths: string[], localDir: string, 
     })
   }
 
-createFileSessionDownloadTransfer(
+  createFileSessionDownloadTransfer(
     fileSessionId: string,
     remotePaths: string[],
     localDir: string,
@@ -91,7 +91,14 @@ createFileSessionDownloadTransfer(
     })
   }
 
-retryTransfer(id: string) {
+  createRemoteCopyTransfer(input: RemoteCopyTransferInput) {
+    return this.request<TransferTask>('/api/v1/transfers/remote-copy', {
+      method: 'POST',
+      body: input,
+    })
+  }
+
+  retryTransfer(id: string) {
     return this.request<TransferTask>(`/api/v1/transfers/${encodeURIComponent(id)}/retry`, { method: 'POST' })
   }
 

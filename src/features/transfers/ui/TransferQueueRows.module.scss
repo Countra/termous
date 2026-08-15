@@ -32,6 +32,10 @@
       background: var(--transfer-row-hover);
     }
 
+    .transfer-row.is-remote-copy {
+      min-height: 82px;
+    }
+
     .transfer-kind-icon {
       display: grid;
       width: 30px;
@@ -130,6 +134,34 @@
       content: "";
     }
 
+    .transfer-remote-route {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 6px;
+      overflow: hidden;
+      color: var(--text-secondary);
+      font-size: 10px;
+      font-weight: 650;
+      line-height: 1.35;
+      white-space: nowrap;
+    }
+
+    .transfer-remote-route > span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .transfer-remote-route > svg {
+      flex: 0 0 auto;
+      color: var(--text-muted);
+    }
+
+    .transfer-remote-route > .is-failure-side {
+      color: var(--danger);
+    }
+
     .transfer-error {
       display: flex;
       min-width: 0;
@@ -192,6 +224,18 @@
       flex: 0 0 auto;
       border-radius: 50%;
       background: var(--text-muted);
+    }
+
+    .transfer-phase-label {
+      overflow: hidden;
+      border-left: 1px solid var(--line-soft);
+      margin-left: 1px;
+      color: var(--text-secondary);
+      font-size: 10px;
+      font-style: normal;
+      font-weight: 620;
+      padding-left: 7px;
+      text-overflow: ellipsis;
     }
 
     .transfer-row.is-running .transfer-state-label > i,
@@ -270,6 +314,11 @@
       margin: 0 7px;
       color: color-mix(in srgb, var(--text-muted) 42%, transparent);
       content: "·";
+    }
+
+    .transfer-meta-line > .transfer-partial-note {
+      color: var(--warning);
+      font-weight: 650;
     }
 
     .transfer-actions {

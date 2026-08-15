@@ -9,6 +9,10 @@ interface RequestOptions {
   signal?: AbortSignal
 }
 
+interface FileSessionListOptions extends Pick<RequestOptions, 'signal'> {
+  rememberPath?: boolean
+}
+
 export class FileSessionClient extends TermousApiTransport {
   constructor(config: Partial<AppConfig> = {}) {
     super(config)
@@ -56,9 +60,12 @@ listFiles(hostId: string, path: string) {
 listFileSessionFiles(
     fileSessionId: string,
     path: string,
-    options: Pick<RequestOptions, 'signal'> = {},
+    options: FileSessionListOptions = {},
   ) {
     const query = new URLSearchParams({ path })
+    if (options.rememberPath === false) {
+      query.set('remember_path', 'false')
+    }
     return this.request<RemoteDirectoryListing>(`/api/v1/file-sessions/${encodeURIComponent(fileSessionId)}/files?${query.toString()}`, {
       signal: options.signal,
     })
