@@ -48,6 +48,7 @@ function fileSession(
   return {
     id,
     host_id: `host-${id}`,
+    origin: 'app',
     status: 'connected',
     phase: 'ready',
     current_path: '/',
@@ -171,6 +172,34 @@ describe('文件会话状态同步合同', () => {
     }))
 
     expect(onUpdateFileSession).not.toHaveBeenCalled()
+    expect(socket.closeCalls).toBe(1)
+  })
+
+  it('单会话事件为旧 Core 回填 app 来源并拒绝未知来源', () => {
+    const gateway = createGateway()
+    const onUpdateFileSession = vi.fn()
+    renderHook(() => useFileSessionStatusSync({
+      gateway,
+      fileSessions: [fileSession('first')],
+      closingFileSessionIds: new Set(),
+      onUpdateFileSession,
+    }))
+    const socket = FakeWebSocket.instances[0]!
+    socket.open()
+    const legacySession = { ...fileSession('first') } as Partial<FileSession>
+    delete legacySession.origin
+
+    socket.receive(JSON.stringify({ type: 'updated', session: legacySession }))
+    expect(onUpdateFileSession).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'first',
+      origin: 'app',
+    }))
+
+    socket.receive(JSON.stringify({
+      type: 'updated',
+      session: { ...legacySession, origin: 'external' },
+    }))
+    expect(onUpdateFileSession).toHaveBeenCalledTimes(1)
     expect(socket.closeCalls).toBe(1)
   })
 

@@ -40,7 +40,6 @@ import {
   useMemo,
   useRef,
   useState,
-  startTransition,
   type DragEvent,
   type HTMLAttributes,
   type KeyboardEvent,
@@ -139,6 +138,7 @@ import {
 } from '../model/useFilesTransferRefresh'
 import { useFileSessionStatusSync } from '../model/useFileSessionStatusSync'
 import { useFilesWorkspaceDragController } from './useFilesWorkspaceDragController'
+import { FileSessionTab } from './FileSessionTab'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import {
   applyFilesWorkspaceSelection,
@@ -3048,31 +3048,17 @@ function FilesWorkspaceContent({
                 const label = host?.name ?? shortId(fileSession.id)
                 const sessionClosing = closingFileSessionIdSet.has(fileSession.id)
                 return (
-                  <SessionTabButton
+                  <FileSessionTab
                     key={fileSession.id}
-                    active={fileSession.id === activeFileSessionId}
-                    role="tab"
-                    aria-selected={fileSession.id === activeFileSessionId}
-                    data-session-tab-id={fileSession.id}
-                    onClick={() => {
-                      if (!sessionClosing) {
-                        startTransition(() => onSelectFileSession(fileSession.id))
-                      }
-                    }}
-                    onMouseDown={(event) => {
-                      if (event.button === 1) {
-                        event.preventDefault()
-                      }
-                    }}
-                    onAuxClick={(event) => closeFileSessionFromTab(event, fileSession.id)}
-                    icon={<Folder size={18} />}
+                    fileSession={fileSession}
+                    host={host}
+                    getHostIconUrl={getHostIconUrl}
                     label={label}
-                    status={fileSession.status}
-                    statusLabel={t(`files.sessionStatus.${fileSession.status}`)}
+                    active={fileSession.id === activeFileSessionId}
                     closing={sessionClosing}
-                    closingLabel={t('files.sessionStatus.closing')}
-                    closeLabel={`${t('app.close')} ${label}`}
-                    onClose={() => closeFileSessionTab(fileSession.id)}
+                    onSelect={onSelectFileSession}
+                    onAuxClose={closeFileSessionFromTab}
+                    onClose={closeFileSessionTab}
                   />
                 )
               })

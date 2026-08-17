@@ -1,6 +1,12 @@
-import type { Session, SessionKind, SessionStatus } from './types.ts'
+import type {
+  Session,
+  SessionKind,
+  SessionOrigin,
+  SessionStatus,
+} from './types.ts'
 
 const sessionKinds = new Set<SessionKind>(['ssh', 'local'])
+const sessionOrigins = new Set<SessionOrigin>(['app', 'mcp'])
 const sessionStatuses = new Set<SessionStatus>([
   'connecting',
   'waiting_host_trust',
@@ -58,7 +64,28 @@ function decodeSession(value: unknown): Session {
   requireString(session.started_at, '会话开始时间缺失')
   requireNonNegativeInteger(session.pty_cols, '会话终端列数无效')
   requireNonNegativeInteger(session.pty_rows, '会话终端行数无效')
-  return session as unknown as Session
+  return {
+    ...session,
+    origin: normalizeSessionOrigin(session.origin),
+  } as unknown as Session
+}
+
+export function normalizeSessionResponse(value: unknown): Session {
+  return decodeSession(value)
+}
+
+export function normalizeSessionResponseList(value: unknown): Session[] {
+  return requireArray(value, '会话清单无效').map(decodeSession)
+}
+
+export function normalizeSessionOrigin(value: unknown): SessionOrigin {
+  if (value === undefined) {
+    return 'app'
+  }
+  if (!sessionOrigins.has(value as SessionOrigin)) {
+    throw new SessionSnapshotProtocolError('会话来源无效')
+  }
+  return value as SessionOrigin
 }
 
 function requireRecord(value: unknown, message: string): Record<string, unknown> {

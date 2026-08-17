@@ -1,0 +1,85 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createRuntimeGatewaysFromConfig } from '#app/data-runtime'
+
+const apiBaseUrl = 'http://127.0.0.1:8122'
+
+const legacySession = {
+  id: 'session-a',
+  kind: 'ssh',
+  host_id: 'host-a',
+  status: 'connected',
+  started_at: '2026-08-17T00:00:00Z',
+  pty_cols: 120,
+  pty_rows: 32,
+}
+
+const legacyFileSession = {
+  id: 'file-session-a',
+  host_id: 'host-a',
+  status: 'connected',
+  phase: 'ready',
+  current_path: '/',
+  started_at: '2026-08-17T00:00:00Z',
+  connection_generation: 1,
+  state_seq: 1,
+}
+
+function gateways() {
+  return createRuntimeGatewaysFromConfig({
+    apiBaseUrl,
+    apiToken: 'test-token',
+    version: '1.0.0-test',
+  })
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+describe('会话来源 REST 兼容合同', () => {
+  it('SSH 与 SFTP 的 list/create/get/reconnect 为旧 Core 回填 app 来源', async () => {
+    const responseBodies: unknown[] = [
+      [legacySession],
+      legacySession,
+      legacySession,
+      [legacyFileSession],
+      legacyFileSession,
+      legacyFileSession,
+      legacyFileSession,
+    ]
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      JSON.stringify(responseBodies.shift()),
+      { status: 200 },
+    )))
+    const runtime = gateways()
+
+    await expect(runtime.sessions.sessions()).resolves.toEqual([
+      expect.objectContaining({ origin: 'app' }),
+    ])
+    await expect(runtime.sessions.createSession('host-a', 120, 32)).resolves
+      .toEqual(expect.objectContaining({ origin: 'app' }))
+    await expect(runtime.sessions.refreshSessionInventory('session-a')).resolves
+      .toEqual(expect.objectContaining({ origin: 'app' }))
+    await expect(runtime.fileSessions.fileSessions()).resolves.toEqual([
+      expect.objectContaining({ origin: 'app' }),
+    ])
+    await expect(runtime.fileSessions.createFileSession('host-a')).resolves
+      .toEqual(expect.objectContaining({ origin: 'app' }))
+    await expect(runtime.fileSessions.getFileSession('file-session-a')).resolves
+      .toEqual(expect.objectContaining({ origin: 'app' }))
+    await expect(runtime.fileSessions.reconnectFileSession('file-session-a')).resolves
+      .toEqual(expect.objectContaining({ origin: 'app' }))
+  })
+
+  it('REST 拒绝未知来源并公开全局文件会话事件地址', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([
+      { ...legacyFileSession, origin: 'external' },
+    ]), { status: 200 })))
+    const runtime = gateways()
+
+    await expect(runtime.fileSessions.fileSessions()).rejects.toThrow(/文件会话来源/)
+    expect(runtime.fileSessions.fileSessionSnapshotsUrl()).toBe(
+      'ws://127.0.0.1:8122/api/v1/file-sessions/events?token=test-token',
+    )
+  })
+})

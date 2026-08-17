@@ -47,6 +47,11 @@ const snapshot = {
   }],
 }
 
+const normalizedSnapshot = {
+  ...snapshot,
+  sessions: [{ ...snapshot.sessions[0], origin: 'app' }],
+}
+
 beforeEach(() => {
   FakeWebSocket.instances = []
   FakeWebSocket.constructorFailures = 0
@@ -70,7 +75,7 @@ test('全局会话快照连接校验消息并隔离旧连接的迟到帧', async
   const firstSocket = FakeWebSocket.instances[0]
   firstSocket.receive('{invalid')
   firstSocket.receive(JSON.stringify(snapshot))
-  expect(onSnapshot).toHaveBeenLastCalledWith(snapshot, 1)
+  expect(onSnapshot).toHaveBeenLastCalledWith(normalizedSnapshot, 1)
 
   firstSocket.disconnect()
   await act(async () => vi.advanceTimersByTime(1_200))
@@ -80,7 +85,7 @@ test('全局会话快照连接校验消息并隔离旧连接的迟到帧', async
   firstSocket.receive(JSON.stringify({ ...snapshot, revision: 99 }))
   expect(onSnapshot).toHaveBeenCalledTimes(1)
   secondSocket.receive(JSON.stringify({ ...snapshot, revision: 2 }))
-  expect(onSnapshot).toHaveBeenLastCalledWith({ ...snapshot, revision: 2 }, 2)
+  expect(onSnapshot).toHaveBeenLastCalledWith({ ...normalizedSnapshot, revision: 2 }, 2)
 
   view.unmount()
   vi.runAllTimers()
@@ -112,5 +117,5 @@ test('WebSocket 构造失败时保持订阅并在延迟后重连', async () => {
   expect(FakeWebSocket.instances).toHaveLength(1)
 
   FakeWebSocket.instances[0]?.receive(JSON.stringify(snapshot))
-  expect(onSnapshot).toHaveBeenCalledWith(snapshot, 2)
+  expect(onSnapshot).toHaveBeenCalledWith(normalizedSnapshot, 2)
 })

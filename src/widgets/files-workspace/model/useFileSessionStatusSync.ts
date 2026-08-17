@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import {
   isTerminatedFileSession,
+  normalizeFileSessionResponse,
   terminatedFileSessionSnapshot,
   type FileSession,
 } from '#entities/file'
@@ -13,7 +14,7 @@ import {
 
 interface FileSessionEventMessage {
   type: string
-  session: FileSession
+  session: unknown
 }
 
 interface UseFileSessionStatusSyncOptions {
@@ -76,7 +77,9 @@ export function useFileSessionStatusSync({
       const subscription = subscribeFileSessionEvents({
         createSocket: () => new WebSocket(gateway.fileSessionEventsUrl(fileSessionId)),
         getSnapshot: async () => {
-          const snapshot = await gateway.getFileSession(fileSessionId)
+          const snapshot = normalizeFileSessionResponse(
+            await gateway.getFileSession(fileSessionId),
+          )
           if (snapshot.id !== fileSessionId) {
             throw new Error('file session snapshot identity mismatch')
           }
@@ -88,16 +91,17 @@ export function useFileSessionStatusSync({
           if (!message.session) {
             return false
           }
-          if (message.session.id !== fileSessionId) {
+          const session = normalizeFileSessionResponse(message.session)
+          if (session.id !== fileSessionId) {
             throw new Error('file session event identity mismatch')
           }
           if (message.type === 'closed') {
             onUpdateFileSessionRef.current(
-              terminatedFileSessionSnapshot(message.session),
+              terminatedFileSessionSnapshot(session),
             )
             return 'stop'
           }
-          onUpdateFileSessionRef.current(message.session)
+          onUpdateFileSessionRef.current(session)
           return true
         },
         onSnapshotError: (error) => {

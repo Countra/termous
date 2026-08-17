@@ -10,6 +10,7 @@ export type {
   FileOperationTask,
   FileOperationType,
   FileSession,
+  FileSessionOrigin,
   FileSessionPhase,
   FileSessionStatus,
   LocalFileGrant,
@@ -40,13 +41,18 @@ export type {
   TransferType,
 } from './model/types.ts'
 export {
+  decodeFileSessionSnapshotEvent,
   filterFileSessionsByActiveSources,
   isOlderFileSessionSnapshot,
   mergeFileSessionSnapshot,
+  normalizeFileSessionResponse,
+  normalizeFileSessionResponseList,
   reconcileFileSessionSnapshotList,
   replaceFileSessionSnapshot,
   upsertFileSessionSnapshot,
+  FileSessionSnapshotProtocolError,
 } from './model/fileSessionSnapshot.ts'
+export type { FileSessionSnapshotEvent } from './model/fileSessionSnapshot.ts'
 export {
   adoptSuppressedFileSessionRecoveryResult,
   beginFileSessionRecoveryOperation,
@@ -59,6 +65,7 @@ export {
   fileSessionRecoveryOutcome,
   fileSessionRecoveryRequestMethod,
   filterSuppressedFileSessions,
+  releaseConfirmedFileSessionCloseSuppressions,
   findFileSessionRecoveryAttempt,
   includeActiveFileSessionClosure,
   isFileSessionRecoveryOperationCurrent,

@@ -1,5 +1,15 @@
 import type { AppConfig } from '#common/contracts';
-import type { FileSession, OverwritePolicy, RemoteDirectoryListing, RemoteFileEntry, RemoteTextFile, RemoteTextSaveRequest, RemoteTextSaveResult } from '#entities/file';
+import {
+  normalizeFileSessionResponse,
+  normalizeFileSessionResponseList,
+  type FileSession,
+  type OverwritePolicy,
+  type RemoteDirectoryListing,
+  type RemoteFileEntry,
+  type RemoteTextFile,
+  type RemoteTextSaveRequest,
+  type RemoteTextSaveResult,
+} from '#entities/file';
 import { TermousApiTransport } from '#shared/api';
 
 interface RequestOptions {
@@ -20,6 +30,7 @@ export class FileSessionClient extends TermousApiTransport {
 
 fileSessions() {
     return this.request<FileSession[]>('/api/v1/file-sessions')
+      .then(normalizeFileSessionResponseList)
   }
 
 createFileSession(hostId: string, sourceSessionId = '', initialPath = '') {
@@ -33,19 +44,25 @@ createFileSession(hostId: string, sourceSessionId = '', initialPath = '') {
     return this.request<FileSession>('/api/v1/file-sessions', {
       method: 'POST',
       body,
-    })
+    }).then(normalizeFileSessionResponse)
   }
 
-getFileSession(id: string) {
+  getFileSession(id: string) {
     return this.request<FileSession>(`/api/v1/file-sessions/${encodeURIComponent(id)}`)
+      .then(normalizeFileSessionResponse)
   }
 
 deleteFileSession(id: string) {
     return this.request<void>(`/api/v1/file-sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
   }
 
-reconnectFileSession(id: string) {
+  reconnectFileSession(id: string) {
     return this.request<FileSession>(`/api/v1/file-sessions/${encodeURIComponent(id)}/reconnect`, { method: 'POST' })
+      .then(normalizeFileSessionResponse)
+  }
+
+  fileSessionSnapshotsUrl() {
+    return this.websocketUrl('/api/v1/file-sessions/events')
   }
 
 fileSessionEventsUrl(id: string) {

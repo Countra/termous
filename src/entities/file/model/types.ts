@@ -143,6 +143,8 @@ export interface FileOperationTask {
 
 export type FileSessionStatus = 'connecting' | 'connected' | 'waiting_trust' | 'disconnected' | 'failed'
 
+export type FileSessionOrigin = 'app' | 'mcp'
+
 export type FileSessionPhase =
   | 'queued'
   | 'resolving_auth'
@@ -157,6 +159,7 @@ export type FileSessionPhase =
 export interface FileSession {
   id: string
   host_id: string
+  origin: FileSessionOrigin
   source_session_id?: string
   status: FileSessionStatus
   status_message?: string

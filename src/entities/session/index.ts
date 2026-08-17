@@ -30,12 +30,16 @@ export type {
   SessionCwdSource,
   SessionCwdState,
   SessionKind,
+  SessionOrigin,
   SessionPhase,
   SessionStatus,
 } from './model/types.ts'
 export { normalizeCompletionItem, normalizeCompletionResult } from './model/completionResult.ts'
 export {
   decodeSessionSnapshotEvent,
+  normalizeSessionOrigin,
+  normalizeSessionResponse,
+  normalizeSessionResponseList,
   SessionSnapshotProtocolError,
   type SessionSnapshotEvent,
 } from './model/sessionSnapshot.ts'

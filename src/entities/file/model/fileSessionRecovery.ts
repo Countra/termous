@@ -186,6 +186,18 @@ export function filterSuppressedFileSessions(
   return sessions.filter((session) => !suppressedBySessionId.has(session.id))
 }
 
+export function releaseConfirmedFileSessionCloseSuppressions(
+  closeSuppressedSessionIds: Set<string>,
+  authoritativeSessions: FileSession[],
+) {
+  const authoritativeIds = new Set(authoritativeSessions.map((session) => session.id))
+  closeSuppressedSessionIds.forEach((sessionId) => {
+    if (!authoritativeIds.has(sessionId)) {
+      closeSuppressedSessionIds.delete(sessionId)
+    }
+  })
+}
+
 export function suppressFileSessionRecoveryResult(
   suppressedBySessionId: Map<string, string>,
   fileSessionId: string,

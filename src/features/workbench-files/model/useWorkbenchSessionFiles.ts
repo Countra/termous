@@ -6,6 +6,7 @@ import { normalizeRemotePath, normalizeRemotePosixPath } from '#shared/path'
 import { retireWebSocket } from '#shared/websocket'
 import { fileSortValue } from '#entities/file'
 import {
+  normalizeFileSessionResponse,
   resolveFileSessionClosure,
   terminatedFileSessionSnapshot,
   type FileSessionClosureState,
@@ -84,7 +85,7 @@ import {
 
 interface FileSessionEventMessage {
   type: string
-  session?: FileSession
+  session?: unknown
 }
 
 interface FileListScrollPosition {
@@ -689,26 +690,29 @@ export function useWorkbenchSessionFiles({
         }
         try {
           const message = JSON.parse(String(event.data)) as FileSessionEventMessage
+          const eventSession = message.session
+            ? normalizeFileSessionResponse(message.session)
+            : null
           if (
             sourceAvailable()
-            && message.session?.id === fileSession.id
-            && message.session.source_session_id === requestedSourceSessionId
-            && message.session.host_id === requestedSourceHostId
+            && eventSession?.id === fileSession.id
+            && eventSession.source_session_id === requestedSourceSessionId
+            && eventSession.host_id === requestedSourceHostId
           ) {
             if (message.type === 'closed') {
               terminalMessageReceived = true
               markFileSessionRecoveryRequired(
-                terminatedFileSessionSnapshot(message.session),
+                terminatedFileSessionSnapshot(eventSession),
                 true,
               )
               retireWebSocket(nextSocket)
             } else if (
-              message.session.status === 'disconnected'
-              || message.session.status === 'failed'
+              eventSession.status === 'disconnected'
+              || eventSession.status === 'failed'
             ) {
-              applyDisconnectedFileSession(message.session)
+              applyDisconnectedFileSession(eventSession)
             } else {
-              updateFileSession(message.session)
+              updateFileSession(eventSession)
             }
           }
         } catch {

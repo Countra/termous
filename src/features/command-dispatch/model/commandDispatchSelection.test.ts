@@ -101,6 +101,7 @@ function createSession(
   return {
     id,
     kind,
+    origin: 'app',
     status,
     started_at: '2026-08-12T00:00:00Z',
     pty_cols: 120,

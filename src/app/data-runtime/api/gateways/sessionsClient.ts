@@ -1,5 +1,13 @@
 import type { AppConfig } from '#common/contracts';
-import type { CompletionQuery, CompletionResult, CompletionStatus, LocalShell, Session } from '#entities/session';
+import {
+  normalizeSessionResponse,
+  normalizeSessionResponseList,
+  type CompletionQuery,
+  type CompletionResult,
+  type CompletionStatus,
+  type LocalShell,
+  type Session,
+} from '#entities/session';
 import { TermousApiTransport } from '#shared/api';
 import { normalizeCompletionResult } from '#entities/session';
 
@@ -15,22 +23,23 @@ export class SessionClient extends TermousApiTransport {
     super(config)
   }
 
-sessions() {
+  sessions() {
     return this.request<Session[]>('/api/v1/sessions')
+      .then(normalizeSessionResponseList)
   }
 
 createSession(hostId: string, cols: number, rows: number) {
     return this.request<Session>('/api/v1/sessions', {
       method: 'POST',
       body: { host_id: hostId, cols, rows },
-    })
+    }).then(normalizeSessionResponse)
   }
 
 createLocalSession(shell: LocalShell, cols: number, rows: number) {
     return this.request<Session>('/api/v1/sessions', {
       method: 'POST',
       body: { kind: 'local', local_shell: shell, cols, rows },
-    })
+    }).then(normalizeSessionResponse)
   }
 
 deleteSession(id: string) {
@@ -46,7 +55,7 @@ refreshSessionInventory(id: string, force = false, options: Pick<RequestOptions,
       method: 'POST',
       body: { force },
       signal: options.signal,
-    })
+    }).then(normalizeSessionResponse)
   }
 
 sessionCompletionStatus(id: string, options: Pick<RequestOptions, 'signal'> = {}) {

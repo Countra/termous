@@ -198,6 +198,24 @@ test('attached 统一解码会话、CWD 与流快照', () => {
   assert.equal(message.cwd_state.refresh_seq, 0)
   assert.equal(message.stream.resume_offset, '20')
   assert.equal(message.input_lock, undefined)
+  assert.equal(message.session.origin, 'app')
+})
+
+test('终端会话事件兼容缺失来源并拒绝未知来源', () => {
+  const mcpMessage = decodeTerminalControlMessage(JSON.stringify({
+    type: 'session_state',
+    session: { id: 'session-mcp', status: 'connected', origin: 'mcp' },
+  }))
+  assert.equal(mcpMessage.type, 'session_state')
+  if (mcpMessage.type !== 'session_state') {
+    assert.fail('会话状态消息应保持统一类型')
+  }
+  assert.equal(mcpMessage.session.origin, 'mcp')
+
+  assert.throws(() => decodeTerminalControlMessage(JSON.stringify({
+    type: 'session_state',
+    session: { id: 'session-invalid', status: 'connected', origin: 'external' },
+  })), TerminalProtocolError)
 })
 
 test('attached 和增量事件接受权威输入锁，旧协议缺失时保持未锁定兼容', () => {

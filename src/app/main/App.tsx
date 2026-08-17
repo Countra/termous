@@ -69,6 +69,7 @@ import { FilesWorkspaceRuntimeProvider } from '#widgets/files-workspace'
 import { useFileSessionCoordinator } from './model/useFileSessionCoordinator'
 import { useRealtimeStatusSubscriptions } from './model/useRealtimeStatusSubscriptions'
 import { useSessionSnapshotSubscription } from './model/useSessionSnapshotSubscription'
+import { useFileSessionSnapshotSubscription } from './model/useFileSessionSnapshotSubscription'
 import { useDesktopBridgeRuntime } from './model/useDesktopBridgeRuntime'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
@@ -162,6 +163,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     () => gateways.sessions.sessionEventsUrl(),
     [gateways.sessions],
   )
+  const fileSessionEventsUrl = useCallback(
+    () => gateways.fileSessions.fileSessionSnapshotsUrl(),
+    [gateways.fileSessions],
+  )
   useRealtimeStatusSubscriptions({
     enabled: apiReady,
     forwardEventsUrl,
@@ -174,6 +179,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     enabled: apiReady,
     eventsUrl: sessionEventsUrl,
     onSnapshot: actions.applySessionSnapshot,
+  })
+  useFileSessionSnapshotSubscription({
+    enabled: apiReady,
+    eventsUrl: fileSessionEventsUrl,
+    onSnapshot: actions.applyFileSessionSnapshot,
   })
   const [page, setPage] = useState<PageKey>('workbench')
   const [vaultDirty, setVaultDirty] = useState(false)

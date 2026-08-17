@@ -34,6 +34,7 @@ function fileSession(overrides: Partial<FileSession> = {}): FileSession {
   return {
     id: 'fs-1',
     host_id: 'host-1',
+    origin: 'app',
     source_session_id: 'ssh-1',
     status: 'disconnected',
     phase: 'disconnected',

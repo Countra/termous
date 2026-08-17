@@ -39,6 +39,9 @@
     "retry": "Retry",
     "copy": "Copy"
   },
+  "sessionOrigin": {
+    "mcp": "Created by MCP"
+  },
   "nav": {
     "workbench": "Workbench",
     "hosts": "Hosts",

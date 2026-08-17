@@ -308,11 +308,27 @@ test('生产 TypeScript 不再直接使用旧通知样式字面量', () => {
 test('主机头像样式由 Host Module 承载，旧全局选择器保持清零', () => {
   const hostAvatarSource = source('../entities/host/ui/HostAvatar.tsx')
   const hostAvatarStyles = source('../entities/host/ui/HostAvatar.module.scss')
+  const sessionTabStyles = source('../shared/ui/SessionTabs.module.scss')
 
   assert.match(hostAvatarSource, /styles\['has-custom-icon'\]/)
   assert.match(hostAvatarStyles, /\.host-avatar\.host-avatar\s*\{[^}]*--host-avatar-size:\s*30px;[^}]*display:\s*inline-grid;/s)
   assert.match(hostAvatarStyles, /\.host-avatar\.has-custom-icon\s*\{/)
-
+  assert.match(
+    hostAvatarStyles,
+    /\.host-avatar\.is-compact\s*\{[^}]*--host-avatar-border:\s*0;[^}]*--host-avatar-bg-local:\s*transparent;[^}]*overflow:\s*visible;/s,
+  )
+  assert.match(
+    hostAvatarStyles,
+    /\.host-avatar\.is-compact img\s*\{[^}]*width:\s*calc\(var\(--host-avatar-size\) - 2px\);[^}]*height:\s*calc\(var\(--host-avatar-size\) - 2px\);[^}]*object-fit:\s*contain;/s,
+  )
+  assert.match(
+    sessionTabStyles,
+    /\.session-tab-leading\s*\{[^}]*isolation:\s*isolate;[^}]*overflow:\s*visible;/s,
+  )
+  assert.match(
+    sessionTabStyles,
+    /\.session-tab-leading \.session-dot\s*\{[^}]*z-index:\s*1;[^}]*border:\s*1\.5px solid var\(--session-tab-surface\);/s,
+  )
   for (const selector of [
     /^\.host-stack(?:\s|,|\{)/m,
     /^\.host-filter-(?:panel|primary-row|meta|clear|tags)(?:\s|\.|\{)/m,

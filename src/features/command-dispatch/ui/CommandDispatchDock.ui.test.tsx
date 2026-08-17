@@ -196,6 +196,7 @@ function session(id: string, hostId: string): Session {
     id,
     host_id: hostId,
     kind: 'ssh',
+    origin: 'app',
     status: 'connected',
     started_at: '2026-08-12T00:00:00Z',
     pty_cols: 120,

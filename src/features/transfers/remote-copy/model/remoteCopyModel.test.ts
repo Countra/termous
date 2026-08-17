@@ -44,6 +44,7 @@ function session(
   return {
     id,
     host_id: hostId,
+    origin: 'app',
     status: 'connected',
     current_path: '/home/tester',
     started_at: '2026-08-15T00:00:00Z',

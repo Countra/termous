@@ -88,6 +88,8 @@ export type SessionPhase =
 
 export type SessionKind = 'ssh' | 'local'
 
+export type SessionOrigin = 'app' | 'mcp'
+
 export type LocalShell = 'powershell' | 'cmd'
 
 export type CompletionProviderStatus =
@@ -208,6 +210,7 @@ export interface LinuxNetworkInfo {
 export interface Session {
   id: string
   kind: SessionKind
+  origin: SessionOrigin
   host_id?: string
   jump_host_id?: string
   proxy_id?: string

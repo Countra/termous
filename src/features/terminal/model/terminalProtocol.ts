@@ -1,7 +1,8 @@
-import type {
-  Session,
-  SessionCwdChangeRequest,
-  SessionCwdState,
+import {
+  normalizeSessionOrigin,
+  type Session,
+  type SessionCwdChangeRequest,
+  type SessionCwdState,
 } from '#entities/session'
 
 const terminalOutputFrameType = 0x01
@@ -286,7 +287,14 @@ function decodeSession(value: unknown): Session {
   const session = requireRecord(value, 'Terminal session snapshot is missing')
   requireString(session.id, 'Terminal session id is missing')
   requireString(session.status, 'Terminal session status is missing')
-  return session as unknown as Session
+  try {
+    return {
+      ...session,
+      origin: normalizeSessionOrigin(session.origin),
+    } as unknown as Session
+  } catch {
+    throw new TerminalProtocolError('Terminal session origin is invalid')
+  }
 }
 
 function decodeCwdState(value: unknown): SessionCwdState {

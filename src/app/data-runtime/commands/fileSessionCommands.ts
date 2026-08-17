@@ -24,6 +24,7 @@ interface FileSessionCommandDependencies {
   fileSessionRecoveryCloseEpochs: Map<string, number>
   fileSessionRecoveryQueues: Map<string, Promise<void>>
   suppressedFileSessionIds: Map<string, string>
+  closeSuppressedFileSessionIds: Set<string>
   fileSessionEventRevisions: Map<string, number>
   releaseFileSessionRecoveryEpoch: (fileSessionId: string) => void
   scheduleSuppressedFileSessionCleanup: (
@@ -41,6 +42,7 @@ export function createFileSessionCommands({
   fileSessionRecoveryCloseEpochs,
   fileSessionRecoveryQueues,
   suppressedFileSessionIds,
+  closeSuppressedFileSessionIds,
   fileSessionEventRevisions,
   releaseFileSessionRecoveryEpoch,
   scheduleSuppressedFileSessionCleanup,
@@ -141,6 +143,7 @@ export function createFileSessionCommands({
     },
     async closeFileSession(fileSessionId: string) {
       supersedeFileSessionRecoveryOperation(fileSessionId)
+      closeSuppressedFileSessionIds.add(fileSessionId)
       const closingFileSession = fileSessions.find((session) => session.id === fileSessionId)
       const sourceSessionId = closingFileSession?.source_session_id ?? ''
       if (closingFileSession && sourceSessionId) {
@@ -157,6 +160,7 @@ export function createFileSessionCommands({
         await api.deleteFileSession(fileSessionId)
       } catch (error) {
         if (!(error instanceof TermousApiError && error.code === 'SFTP_FILE_SESSION_NOT_FOUND')) {
+          closeSuppressedFileSessionIds.delete(fileSessionId)
           if (sourceSessionId) {
             setFileSessionClosures((current) => removeMatchingFileSessionClosure(
               current,
@@ -219,7 +223,10 @@ export function createFileSessionCommands({
       supersedeFileSessionRecoveryOperation(fileSessionId)
     },
     updateFileSession(fileSession: FileSession) {
-      if (suppressedFileSessionIds.has(fileSession.id)) {
+      if (
+        suppressedFileSessionIds.has(fileSession.id)
+        || closeSuppressedFileSessionIds.has(fileSession.id)
+      ) {
         return
       }
       bumpSessionRevision(fileSessionEventRevisions, fileSession.id)

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { SquareTerminal } from 'lucide-react'
 import { AuthMethodBadge } from '../entities/host/ui/AuthMethodBadge'
 import authStyles from '../entities/host/ui/AuthMethodBadge.module.scss'
 import { HostAvatar } from '../entities/host/ui/HostAvatar'
@@ -85,5 +86,25 @@ describe('主机实体原子组件样式合同', () => {
       'src',
       '/icons/host-icon-1?sha256=next',
     )
+  })
+
+  it('紧凑主机图标加载失败时使用调用方提供的会话类型图标', () => {
+    const view = render(
+      <HostAvatar
+        host={{ icon_id: 'host-icon-broken', name: '测试主机' }}
+        getIconUrl={(iconId) => `/icons/${iconId}`}
+        size={18}
+        compact
+        fallbackIcon={<SquareTerminal data-testid="session-fallback-icon" />}
+      />,
+    )
+
+    const image = view.container.querySelector('img')
+    expect(image).not.toBeNull()
+    const avatar = image!.parentElement
+    expect(avatar).toHaveClass(avatarStyles['is-compact'])
+
+    fireEvent.error(image!)
+    expect(screen.getByTestId('session-fallback-icon')).toBeInTheDocument()
   })
 })

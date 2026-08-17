@@ -251,6 +251,7 @@
 }
 
 .session-tab-main:global(.ant-btn) {
+  position: relative;
   display: inline-flex;
   width: 100%;
   min-width: 0;
@@ -331,6 +332,8 @@
   height: 18px;
   place-items: center;
   color: color-mix(in srgb, var(--text-secondary) 88%, var(--text-muted));
+  isolation: isolate;
+  overflow: visible;
   transition: color 0.16s ease;
 }
 
@@ -348,10 +351,58 @@
   color: color-mix(in srgb, var(--session-tab-accent) 40%, var(--text-secondary));
 }
 
+.session-tab-source-indicator {
+  --session-tab-source-indicator-color: color-mix(in srgb, var(--accent) 58%, var(--text-muted));
+  --session-tab-source-indicator-opacity: 0.72;
+
+  position: absolute;
+  top: 50%;
+  inset-inline-start: 5px;
+  display: grid;
+  width: 14px;
+  height: 18px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--session-tab-source-indicator-color);
+  box-sizing: border-box;
+  opacity: var(--session-tab-source-indicator-opacity);
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition:
+    color 0.16s ease,
+    opacity 0.16s ease;
+
+  :global(:root[data-theme="light"]) & {
+    --session-tab-source-indicator-color: color-mix(in srgb, var(--accent) 70%, var(--text-secondary));
+    --session-tab-source-indicator-opacity: 0.82;
+  }
+}
+
+.session-tab-source-indicator > svg {
+  width: 12px;
+  height: 12px;
+}
+
+.session-tab-button:not(.is-empty, .is-dragging, .is-active, .is-closing, .is-disabled):hover .session-tab-source-indicator {
+  color: color-mix(in srgb, var(--accent) 76%, var(--text-secondary));
+  opacity: 0.88;
+}
+
+.session-tab-button.is-active .session-tab-source-indicator {
+  color: color-mix(in srgb, var(--accent) 92%, var(--text-primary));
+  opacity: 1;
+}
+
+.session-tab-button.is-closing .session-tab-source-indicator {
+  opacity: 0.55;
+}
+
 .session-tab-leading .session-dot {
   position: absolute;
   right: -1px;
   bottom: -1px;
+  z-index: 1;
   box-sizing: border-box;
   width: 6px;
   height: 6px;

@@ -28,3 +28,19 @@
   --host-avatar-border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
   --host-avatar-bg-local: color-mix(in srgb, var(--surface-elevated) 82%, transparent);
 }
+
+.host-avatar.is-compact {
+  --host-avatar-radius: 3px;
+  --host-avatar-border: 0;
+  --host-avatar-bg-local: transparent;
+  --host-avatar-color: inherit;
+
+  overflow: visible;
+}
+
+.host-avatar.is-compact img {
+  width: calc(var(--host-avatar-size) - 2px);
+  height: calc(var(--host-avatar-size) - 2px);
+  border-radius: 3px;
+  object-fit: contain;
+}

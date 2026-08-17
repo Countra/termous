@@ -16,10 +16,12 @@ import { changeLanguage } from '#shared/i18n'
 import {
   cleanupSuppressedFileSessionRecoveryResult,
   filterSuppressedFileSessions,
+  releaseConfirmedFileSessionCloseSuppressions,
   isFileSessionRecoverySupersededError,
   runQueuedFileSessionRecoveryOperation,
   supersedeQueuedFileSessionRecovery,
   type FileSessionClosureState,
+  type FileSessionSnapshotEvent,
   filterFileSessionsByActiveSources,
   reconcileFileSessionSnapshotList,
 } from '#entities/file'
@@ -32,6 +34,12 @@ import {
   decideSessionSnapshot,
   initialSessionSnapshotCursor,
 } from './model/sessionSnapshotState'
+import {
+  affectedFileSessionIds,
+  decideFileSessionSnapshot,
+  initialFileSessionSnapshotCursor,
+  reconcileVisibleAuthoritativeFileSessionSnapshot,
+} from './model/fileSessionSnapshotState'
 import { canApplyReloadedValue, SerialMutationQueue } from '#shared/async'
 import {
   bumpSessionRevision,
@@ -78,11 +86,16 @@ export function useTermousData() {
   const fileSessionRecoveryCloseEpochsRef = useRef(new Map<string, number>())
   const fileSessionRecoveryQueuesRef = useRef(new Map<string, Promise<void>>())
   const suppressedFileSessionIdsRef = useRef(new Map<string, string>())
+  const closeSuppressedFileSessionIdsRef = useRef(new Set<string>())
   const scheduledFileSessionCleanupIdsRef = useRef(new Set<string>())
   const sessionEventRevisionsRef = useRef(new Map<string, number>())
   const sessionSnapshotCursorRef = useRef(initialSessionSnapshotCursor)
   const sessionSnapshotSessionsRef = useRef(data.sessions)
   const fileSessionEventRevisionsRef = useRef(new Map<string, number>())
+  const fileSessionSnapshotCursorRef = useRef(initialFileSessionSnapshotCursor)
+  const fileSessionSnapshotRevisionBaselineRef = useRef(new Map<string, number>())
+  const fileSessionSnapshotKnownIdsRef = useRef(new Set<string>())
+  const fileSessionSnapshotSessionsRef = useRef(data.fileSessions)
   const inventoryEventRevisionsRef = useRef(new Map<string, number>())
   const inventoryStateSignaturesRef = useRef(new Map<string, string>())
   const inventoryRequestRevisionsRef = useRef(new Map<string, number>())
@@ -113,6 +126,7 @@ export function useTermousData() {
   )
   const loadRevisionRef = useRef(0)
   sessionSnapshotSessionsRef.current = data.sessions
+  fileSessionSnapshotSessionsRef.current = data.fileSessions
   data.sessions.forEach((session) => {
     if (!inventoryStateSignaturesRef.current.has(session.id)) {
       inventoryStateSignaturesRef.current.set(session.id, sessionInventorySignature(session))
@@ -421,6 +435,85 @@ export function useTermousData() {
     return true
   }, [])
 
+  const applyFileSessionSnapshot = useCallback((
+    event: FileSessionSnapshotEvent,
+    generation: number,
+  ) => {
+    const previousCursor = fileSessionSnapshotCursorRef.current
+    const decision = decideFileSessionSnapshot(
+      previousCursor,
+      event,
+      generation,
+    )
+    fileSessionSnapshotCursorRef.current = decision.cursor
+    if (!decision.accepted) {
+      return false
+    }
+    const instanceChanged = previousCursor.instanceId !== null
+      && previousCursor.instanceId !== event.instance_id
+    if (instanceChanged) {
+      fileSessionSnapshotKnownIdsRef.current.clear()
+      fileSessionSnapshotRevisionBaselineRef.current.clear()
+    }
+
+    const previousSessions = fileSessionSnapshotSessionsRef.current
+    const visibleSessions = filterSuppressedFileSessions(
+      event.sessions,
+      suppressedFileSessionIdsRef.current,
+    )
+    releaseConfirmedFileSessionCloseSuppressions(
+      closeSuppressedFileSessionIdsRef.current,
+      event.sessions,
+    )
+    const revisionBaseline = new Map(fileSessionSnapshotRevisionBaselineRef.current)
+    const latestRevisions = new Map(fileSessionEventRevisionsRef.current)
+    const bumpedSessionIds = new Set(affectedFileSessionIds(
+      previousSessions,
+      visibleSessions,
+    ))
+    bumpedSessionIds.forEach((sessionId) => {
+      bumpSessionRevision(fileSessionEventRevisionsRef.current, sessionId)
+    })
+    setData((current) => {
+      const nextSessions = reconcileVisibleAuthoritativeFileSessionSnapshot(
+        current.fileSessions,
+        visibleSessions,
+        new Set(current.sessions.map((session) => session.id)),
+        revisionBaseline,
+        latestRevisions,
+        fileSessionSnapshotKnownIdsRef.current,
+        instanceChanged,
+        closeSuppressedFileSessionIdsRef.current,
+      )
+      const activeSourceSessionIds = new Set(
+        current.sessions.map((session) => session.id),
+      )
+      visibleSessions.forEach((session) => {
+        if (!session.source_session_id || activeSourceSessionIds.has(session.source_session_id)) {
+          fileSessionSnapshotKnownIdsRef.current.add(session.id)
+        }
+      })
+      affectedFileSessionIds(current.fileSessions, nextSessions).forEach((sessionId) => {
+        if (!bumpedSessionIds.has(sessionId)) {
+          bumpedSessionIds.add(sessionId)
+          bumpSessionRevision(fileSessionEventRevisionsRef.current, sessionId)
+          if (fileSessionSnapshotCursorRef.current === decision.cursor) {
+            fileSessionSnapshotRevisionBaselineRef.current.set(
+              sessionId,
+              fileSessionEventRevisionsRef.current.get(sessionId) ?? 0,
+            )
+          }
+        }
+      })
+      fileSessionSnapshotSessionsRef.current = nextSessions
+      return { ...current, fileSessions: nextSessions }
+    })
+    fileSessionSnapshotRevisionBaselineRef.current = new Map(
+      fileSessionEventRevisionsRef.current,
+    )
+    return true
+  }, [])
+
   useEffect(() => () => {
     const waiters = [...forwardStartCompletionWaitersRef.current.values()]
     forwardStartCompletionWaitersRef.current.clear()
@@ -461,6 +554,7 @@ export function useTermousData() {
       reloadSilent: () => load('silent'),
       reloadForwardsSilent: () => reloadForwards(),
       applySessionSnapshot,
+      applyFileSessionSnapshot,
       ...createSettingsCommands({
         api: gateways.settings,
         currentSettings: data.settings,
@@ -516,6 +610,7 @@ export function useTermousData() {
         fileSessionRecoveryCloseEpochs: fileSessionRecoveryCloseEpochsRef.current,
         fileSessionRecoveryQueues: fileSessionRecoveryQueuesRef.current,
         suppressedFileSessionIds: suppressedFileSessionIdsRef.current,
+        closeSuppressedFileSessionIds: closeSuppressedFileSessionIdsRef.current,
         fileSessionEventRevisions: fileSessionEventRevisionsRef.current,
         releaseFileSessionRecoveryEpoch,
         scheduleSuppressedFileSessionCleanup: (fileSessionId, originalSessionId) => {
@@ -531,6 +626,7 @@ export function useTermousData() {
     [
       gateways,
       applySessionSnapshot,
+      applyFileSessionSnapshot,
       completionSettingsWriteQueue,
       shortcutSettingsWriteQueue,
       data.fileSessions,

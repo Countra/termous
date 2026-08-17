@@ -39,6 +39,9 @@
     "retry": "重试",
     "copy": "复制"
   },
+  "sessionOrigin": {
+    "mcp": "MCP 创建的会话"
+  },
   "nav": {
     "workbench": "工作站",
     "hosts": "主机",

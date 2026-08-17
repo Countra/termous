@@ -22,12 +22,25 @@ test('会话清单协议只接受 canonical 完整快照', () => {
 
   assert.equal(event.instance_id, 'core-a')
   assert.equal(event.sessions[0]?.id, 'session-a')
+  assert.equal(event.sessions[0]?.origin, 'app')
   assert.equal(decodeSessionSnapshotEvent({
     type: 'session_snapshot',
     instance_id: 'core-a',
     revision: 4,
     sessions: [{ ...session, status: 'waiting_host_trust' }],
   }).sessions[0]?.status, 'waiting_host_trust')
+  assert.equal(decodeSessionSnapshotEvent({
+    type: 'session_snapshot',
+    instance_id: 'core-a',
+    revision: 5,
+    sessions: [{ ...session, origin: 'mcp' }],
+  }).sessions[0]?.origin, 'mcp')
+  assert.throws(() => decodeSessionSnapshotEvent({
+    type: 'session_snapshot',
+    instance_id: 'core-a',
+    revision: 6,
+    sessions: [{ ...session, origin: 'external' }],
+  }), /会话来源/)
   assert.throws(() => decodeSessionSnapshotEvent({
     type: 'snapshot',
     instance_id: 'core-a',
@@ -97,6 +110,7 @@ function sessionFixture(id: string): Session {
   return {
     id,
     kind: 'ssh',
+    origin: 'app',
     host_id: `host-${id}`,
     status: 'connected',
     started_at: '2026-08-13T08:00:00Z',

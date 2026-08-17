@@ -49,6 +49,7 @@ function fileSession(
   return {
     id,
     host_id: hostId,
+    origin: 'app',
     status: 'connected',
     current_path: `/home/${hostId}`,
     started_at: `2026-08-15T00:00:0${generation}Z`,

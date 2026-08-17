@@ -12,6 +12,7 @@ function fileSession(overrides: Partial<FileSession> = {}): FileSession {
   return {
     id: 'file-session-1',
     host_id: 'host-1',
+    origin: 'app',
     source_session_id: 'session-1',
     status: 'connected',
     phase: 'ready',
@@ -52,6 +53,7 @@ test('文件会话关闭在服务端确认前保持 closing，成功后再进入
   const state = createStateHarness([closing])
   const request = deferred<void>()
   const revisions = new Map<string, number>()
+  const closeSuppressions = new Set<string>()
   const supersedeRecovery = vi.fn()
   const commands = createFileSessionCommands({
     api: {
@@ -65,6 +67,7 @@ test('文件会话关闭在服务端确认前保持 closing，成功后再进入
     fileSessionRecoveryCloseEpochs: new Map(),
     fileSessionRecoveryQueues: new Map(),
     suppressedFileSessionIds: new Map(),
+    closeSuppressedFileSessionIds: closeSuppressions,
     fileSessionEventRevisions: revisions,
     releaseFileSessionRecoveryEpoch: vi.fn(),
     scheduleSuppressedFileSessionCleanup: vi.fn(),
@@ -74,11 +77,14 @@ test('文件会话关闭在服务端确认前保持 closing，成功后再进入
   const mutation = commands.closeFileSession(closing.id)
 
   expect(supersedeRecovery).toHaveBeenCalledWith(closing.id)
+  expect(closeSuppressions.has(closing.id)).toBe(true)
   expect(revisions.get(closing.id)).toBe(1)
   expect(state.closures()[closing.source_session_id as string]).toEqual({
     session: closing,
     phase: 'closing',
   })
+  expect(state.data().fileSessions).toEqual([closing])
+  commands.updateFileSession({ ...closing, current_path: '/stale-frame' })
   expect(state.data().fileSessions).toEqual([closing])
 
   request.resolve()
@@ -90,6 +96,7 @@ test('文件会话关闭在服务端确认前保持 closing，成功后再进入
     phase: 'closed',
   })
   expect(state.data().fileSessions).toEqual([])
+  expect(closeSuppressions.has(closing.id)).toBe(true)
 })
 
 test('文件会话关闭失败时撤销 closing 标记并保留实时快照', async () => {
@@ -97,6 +104,7 @@ test('文件会话关闭失败时撤销 closing 标记并保留实时快照', as
   const state = createStateHarness([closing])
   const deleteError = new Error('delete failed')
   const revisions = new Map<string, number>()
+  const closeSuppressions = new Set<string>()
   const commands = createFileSessionCommands({
     api: {
       createFileSession: vi.fn(),
@@ -109,6 +117,7 @@ test('文件会话关闭失败时撤销 closing 标记并保留实时快照', as
     fileSessionRecoveryCloseEpochs: new Map(),
     fileSessionRecoveryQueues: new Map(),
     suppressedFileSessionIds: new Map(),
+    closeSuppressedFileSessionIds: closeSuppressions,
     fileSessionEventRevisions: revisions,
     releaseFileSessionRecoveryEpoch: vi.fn(),
     scheduleSuppressedFileSessionCleanup: vi.fn(),
@@ -119,6 +128,7 @@ test('文件会话关闭失败时撤销 closing 标记并保留实时快照', as
   expect(revisions.get(closing.id)).toBe(1)
   expect(state.closures()).toEqual({})
   expect(state.data().fileSessions).toEqual([closing])
+  expect(closeSuppressions.has(closing.id)).toBe(false)
 })
 
 test('显式关闭覆盖恢复创建后，补偿删除失败会保留抑制并登记后台重试', async () => {
@@ -144,6 +154,7 @@ test('显式关闭覆盖恢复创建后，补偿删除失败会保留抑制并�
     fileSessionRecoveryCloseEpochs: closeEpochs,
     fileSessionRecoveryQueues: queues,
     suppressedFileSessionIds: suppressed,
+    closeSuppressedFileSessionIds: new Set(),
     fileSessionEventRevisions: revisions,
     releaseFileSessionRecoveryEpoch: (id) => closeEpochs.delete(id),
     scheduleSuppressedFileSessionCleanup: scheduleCleanup,

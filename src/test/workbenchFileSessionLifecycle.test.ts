@@ -42,6 +42,7 @@ function fileSession(overrides: Partial<FileSession> = {}): FileSession {
   return {
     id: 'fs-1',
     host_id: 'host-1',
+    origin: 'app',
     source_session_id: 'session-1',
     status: 'connecting',
     phase: 'queued',
@@ -57,6 +58,7 @@ function sourceSession(overrides: Partial<Session> = {}): Session {
     id: 'session-1',
     host_id: 'host-1',
     kind: 'ssh',
+    origin: 'app',
     status: 'connected',
     phase: 'ready',
     pty_cols: 120,
