@@ -48,6 +48,7 @@ export function McpSettingsPanel() {
       if (editor.client) {
         await runtime.patchClient(editor.client.id, {
           name: value.name,
+          approval_bypass: value.approval_bypass,
           scopes: value.scopes,
         })
       } else {
@@ -230,6 +231,9 @@ function ClientRow({
           <div className={styles['client-name']}>
             <strong>{client.name}</strong>
             <Tag color={active ? 'success' : 'default'}>{t(`settings.mcp.clientState.${state}`)}</Tag>
+            {client.approval_bypass ? (
+              <Tag color="error">{t('settings.mcp.approvalBypass')}</Tag>
+            ) : null}
           </div>
           <div className={styles.scopes}>
             {client.scopes.map((scope) => (

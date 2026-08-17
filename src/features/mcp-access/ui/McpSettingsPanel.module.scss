@@ -179,7 +179,12 @@
 }
 
 .client-name {
+  flex-wrap: wrap;
   gap: 7px;
+}
+
+.client-name :global(.ant-tag) {
+  margin: 0;
 }
 
 .scopes {

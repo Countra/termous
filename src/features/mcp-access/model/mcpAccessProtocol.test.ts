@@ -17,6 +17,13 @@ test('MCP 管理协议解码 canonical 状态、客户端和一次性令牌', ()
   const clients = decodeMcpClients([clientFixture()])
   assert.equal(clients[0]?.host_access_mode, 'all_saved')
   assert.equal(clients[0]?.token_prefix, 'tmcp_abcd')
+  assert.equal(clients[0]?.approval_bypass, false)
+
+  const trustedClients = decodeMcpClients([{
+    ...clientFixture(),
+    approval_bypass: true,
+  }])
+  assert.equal(trustedClients[0]?.approval_bypass, true)
 
   const credential = decodeMcpClientToken({ client: clientFixture(), token: 'tmcp_secret' })
   assert.equal(credential.token, 'tmcp_secret')
@@ -92,6 +99,10 @@ test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', ()
     ...statusFixture(),
     enabled: false,
   }), /不一致/)
+  assert.throws(() => decodeMcpClients([{
+    ...clientFixture(),
+    approval_bypass: 'yes',
+  }]), /审批策略/)
   assert.throws(() => decodeMcpClients([{ ...clientFixture(), scopes: ['hosts:admin'] }]), /未知权限/)
   assert.throws(() => decodeMcpApprovalSnapshot({
     instance_id: 'instance-1',

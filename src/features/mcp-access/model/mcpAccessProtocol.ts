@@ -79,6 +79,9 @@ export function decodeMcpClient(value: unknown): McpClient {
     id: requireString(client.id, 'MCP 客户端 ID 缺失'),
     name: requireString(client.name, 'MCP 客户端名称缺失'),
     enabled: requireBoolean(client.enabled, 'MCP 客户端启用状态无效'),
+    approval_bypass: client.approval_bypass === undefined
+      ? false
+      : requireBoolean(client.approval_bypass, 'MCP 客户端审批策略无效'),
     scopes: decodeScopes(client.scopes),
     host_access_mode: client.host_access_mode,
     token_prefix: requireString(client.token_prefix, 'MCP 客户端令牌标识缺失'),

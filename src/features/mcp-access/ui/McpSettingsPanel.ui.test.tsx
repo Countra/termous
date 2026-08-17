@@ -65,6 +65,7 @@ describe('McpSettingsPanel', () => {
         id: 'client-1',
         name: 'Codex',
         enabled: true,
+        approval_bypass: false,
         scopes: ['hosts:read', 'sessions:read'],
         host_access_mode: 'all_saved',
         token_prefix: 'tmcp_abcd',
@@ -105,6 +106,7 @@ describe('McpSettingsPanel', () => {
     expect(await screen.findByText(oneTimeToken)).toBeInTheDocument()
     expect(testState.createClient).toHaveBeenCalledWith({
       name: 'Codex',
+      approval_bypass: false,
       scopes: ['hosts:read', 'sessions:read'],
     })
     expect(screen.getByRole('button', { name: 'settings.mcp.copyTokenLabel' })).toBeInTheDocument()
@@ -127,6 +129,7 @@ describe('McpSettingsPanel', () => {
       id: 'client-1',
       name: 'Codex',
       enabled: true,
+      approval_bypass: true,
       scopes: ['hosts:read'],
       host_access_mode: 'all_saved',
       token_prefix: 'tmcp_abcd',
@@ -140,6 +143,7 @@ describe('McpSettingsPanel', () => {
     expect(screen.getByRole('button', { name: 'settings.mcp.editClientLabel:Codex' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.mcp.newTokenLabel:Codex' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.mcp.deleteClientLabel:Codex' })).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approvalBypass')).toBeInTheDocument()
   })
 
   it('确认删除时调用客户端删除操作', async () => {
@@ -148,6 +152,7 @@ describe('McpSettingsPanel', () => {
       id: 'client-1',
       name: 'Codex',
       enabled: true,
+      approval_bypass: false,
       scopes: ['hosts:read'],
       host_access_mode: 'all_saved',
       token_prefix: 'tmcp_abcd',
@@ -171,6 +176,7 @@ describe('McpSettingsPanel', () => {
       id: 'client-1',
       name: 'Codex',
       enabled: true,
+      approval_bypass: false,
       scopes: ['hosts:read'],
       host_access_mode: 'all_saved',
       token_prefix: 'tmcp_abcd',
@@ -195,6 +201,7 @@ describe('McpSettingsPanel', () => {
       id: 'client-1',
       name: 'Codex',
       enabled: true,
+      approval_bypass: false,
       scopes: ['hosts:read'],
       host_access_mode: 'all_saved',
       token_prefix: 'tmcp_abcd',
@@ -219,6 +226,7 @@ describe('McpSettingsPanel', () => {
       id: 'client-1',
       name: 'Codex',
       enabled: true,
+      approval_bypass: true,
       scopes: ['commands:read', 'hosts:read'],
       host_access_mode: 'all_saved',
       token_prefix: 'tmcp_abcd',
@@ -229,6 +237,7 @@ describe('McpSettingsPanel', () => {
     render(<AntdApp><McpSettingsPanel /></AntdApp>)
 
     await user.click(screen.getByRole('button', { name: 'settings.mcp.editClientLabel:Codex' }))
+    expect(screen.getByRole('switch', { name: 'settings.mcp.approvalBypass' })).toBeChecked()
     const input = screen.getByRole('textbox', { name: 'settings.mcp.clientName' })
     await user.clear(input)
     await user.type(input, '  Codex Desktop  ')
@@ -237,6 +246,7 @@ describe('McpSettingsPanel', () => {
 
     await waitFor(() => expect(testState.patchClient).toHaveBeenCalledWith('client-1', {
       name: 'Codex Desktop',
+      approval_bypass: true,
       scopes: ['hosts:read', 'sessions:read', 'commands:read'],
     }))
     expect(testState.createClient).not.toHaveBeenCalled()

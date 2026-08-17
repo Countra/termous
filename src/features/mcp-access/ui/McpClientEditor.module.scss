@@ -345,6 +345,84 @@
   -webkit-line-clamp: 2;
 }
 
+.approval-bypass {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+  padding: 10px 12px;
+  box-shadow: var(--inner-highlight);
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.approval-bypass.is-enabled {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface-subtle));
+}
+
+.approval-bypass-icon {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  color: var(--text-secondary);
+}
+
+.approval-bypass.is-enabled .approval-bypass-icon {
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  color: var(--danger);
+}
+
+.approval-bypass-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.approval-bypass-title {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.approval-bypass-title strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.approval-bypass-title em {
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  padding: 1px 5px;
+  color: var(--danger);
+  font-size: 9px;
+  font-style: normal;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.approval-bypass-copy > small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.approval-bypass.is-enabled :global(.ant-switch.ant-switch-checked) {
+  background: var(--danger);
+}
+
 .permission-error {
   margin: -3px 0 0;
   color: var(--danger);
@@ -405,10 +483,24 @@
     display: grid;
     gap: 2px;
   }
+
+  .approval-bypass {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    padding-inline: 9px;
+  }
+
+  .approval-bypass-icon {
+    width: 30px;
+    height: 30px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .scope-option {
+    transition: none;
+  }
+
+  .approval-bypass {
     transition: none;
   }
 

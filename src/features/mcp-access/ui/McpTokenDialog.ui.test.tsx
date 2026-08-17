@@ -19,6 +19,7 @@ const result: McpClientToken = {
     id: 'client-1',
     name: 'Codex',
     enabled: true,
+    approval_bypass: false,
     scopes: ['hosts:read', 'sessions:read'],
     host_access_mode: 'all_saved',
     token_prefix: 'tmcp_client-1',

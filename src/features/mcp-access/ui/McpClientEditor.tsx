@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Checkbox, Input, Modal } from 'antd'
+import { Alert, Button, Checkbox, Input, Modal, Switch } from 'antd'
 import {
   FolderKey,
   KeyRound,
   RotateCcw,
   Server,
   ShieldAlert,
+  ShieldCheck,
   TerminalSquare,
   type LucideIcon,
 } from 'lucide-react'
@@ -26,6 +27,7 @@ import styles from './McpClientEditor.module.scss'
 
 export interface McpClientEditorValue {
   name: string
+  approval_bypass: boolean
   scopes: McpScope[]
 }
 
@@ -78,6 +80,7 @@ export function McpClientEditor({
   const { t } = useTranslation()
   const [name, setName] = useState('')
   const [scopes, setScopes] = useState<McpScope[]>([...defaultMcpScopes])
+  const [approvalBypass, setApprovalBypass] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const loading = busy || submitting
   const locked = disabled || loading
@@ -91,6 +94,7 @@ export function McpClientEditor({
     if (!open) return
     setName(client?.name ?? '')
     setScopes(client ? normalizeScopes(client.scopes) : [...defaultMcpScopes])
+    setApprovalBypass(client?.approval_bypass ?? false)
     setSubmitting(false)
   }, [client, open])
 
@@ -108,6 +112,7 @@ export function McpClientEditor({
     try {
       await onSubmit({
         name: name.trim(),
+        approval_bypass: approvalBypass,
         scopes: normalizeScopes(scopes),
       })
     } finally {
@@ -185,7 +190,10 @@ export function McpClientEditor({
                 size="small"
                 icon={<RotateCcw size={13} />}
                 disabled={locked}
-                onClick={() => setScopes([...defaultMcpScopes])}
+                onClick={() => {
+                  setScopes([...defaultMcpScopes])
+                  setApprovalBypass(false)
+                }}
               >
                 {t('settings.mcp.restoreReadOnly')}
               </Button>
@@ -229,7 +237,13 @@ export function McpClientEditor({
                             <span className={styles['scope-name']}>
                               <strong>{t(`settings.mcp.scope.${scope.replace(':', '_')}`)}</strong>
                               {danger ? <em className={styles['danger-badge']}>{t('settings.mcp.highRisk')}</em> : null}
-                              {approval ? <em>{t('settings.mcp.approvalRequired')}</em> : null}
+                              {approval ? (
+                                <em className={approvalBypass ? styles['danger-badge'] : undefined}>
+                                  {t(approvalBypass
+                                    ? 'settings.mcp.approvalBypassed'
+                                    : 'settings.mcp.approvalRequired')}
+                                </em>
+                              ) : null}
                               {defaultScope ? <em>{t('settings.mcp.defaultPermission')}</em> : null}
                             </span>
                             <small>{t(`settings.mcp.scopeDescription.${scope.replace(':', '_')}`)}</small>
@@ -243,8 +257,40 @@ export function McpClientEditor({
             })}
           </div>
 
+          <div className={`${styles['approval-bypass']} ${approvalBypass ? styles['is-enabled'] : ''}`}>
+            <span className={styles['approval-bypass-icon']} aria-hidden="true">
+              <ShieldCheck size={17} />
+            </span>
+            <span className={styles['approval-bypass-copy']}>
+              <span className={styles['approval-bypass-title']}>
+                <strong>{t('settings.mcp.approvalBypass')}</strong>
+                <em>{t('settings.mcp.highRisk')}</em>
+              </span>
+              <small id="mcp-approval-bypass-description">
+                {t('settings.mcp.approvalBypassHint')}
+              </small>
+            </span>
+            <Switch
+              checked={approvalBypass}
+              disabled={locked}
+              aria-label={t('settings.mcp.approvalBypass')}
+              aria-describedby="mcp-approval-bypass-description"
+              onChange={setApprovalBypass}
+            />
+          </div>
+
           {scopes.length === 0 ? (
             <p className={styles['permission-error']} role="status">{t('settings.mcp.permissionsEmpty')}</p>
+          ) : null}
+          {approvalBypass ? (
+            <Alert
+              className={styles['danger-alert']}
+              type="warning"
+              showIcon
+              icon={<ShieldAlert size={17} />}
+              title={t('settings.mcp.approvalBypassTitle')}
+              description={t('settings.mcp.approvalBypassDescription')}
+            />
           ) : null}
           {destructive ? (
             <Alert

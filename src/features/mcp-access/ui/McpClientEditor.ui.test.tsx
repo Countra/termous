@@ -20,6 +20,7 @@ const client: McpClient = {
   id: 'client-1',
   name: 'Codex',
   enabled: true,
+  approval_bypass: false,
   scopes: ['hosts:probe', 'commands:interrupt'],
   host_access_mode: 'all_saved',
   token_prefix: 'tmcp_abcd',
@@ -39,7 +40,11 @@ function renderEditor({
   busy?: boolean
   disabled?: boolean
   onCancel?: () => void
-  onSubmit?: (value: { name: string; scopes: McpClient['scopes'] }) => Promise<void>
+  onSubmit?: (value: {
+    name: string
+    approval_bypass: boolean
+    scopes: McpClient['scopes']
+  }) => Promise<void>
 } = {}) {
   return {
     onCancel,
@@ -81,6 +86,7 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('sftp_write')).not.toBeChecked()
     expect(scopeCheckbox('sftp_transfer')).not.toBeChecked()
     expect(scopeCheckbox('sftp_cancel')).not.toBeChecked()
+    expect(approvalBypassSwitch()).not.toBeChecked()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.hosts/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.sessions/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.commands/ })).toBeInTheDocument()
@@ -102,13 +108,33 @@ describe('McpClientEditor', () => {
     await user.type(screen.getByRole('textbox', { name: 'settings.mcp.clientName' }), '  Codex Desktop  ')
     await user.click(scopeCheckbox('sessions_read'))
     await user.click(scopeCheckbox('sftp_transfer'))
+    await user.click(approvalBypassSwitch())
     await user.click(screen.getByRole('button', { name: 'app.save' }))
 
     expect(onSubmit).toHaveBeenCalledTimes(1)
     expect(onSubmit).toHaveBeenCalledWith({
       name: 'Codex Desktop',
+      approval_bypass: true,
       scopes: ['hosts:probe', 'sessions:read', 'commands:interrupt', 'sftp:transfer'],
     })
+  })
+
+  it('无需审批默认关闭，开启后更新敏感权限提示并显示高风险警告', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+
+    expect(approvalBypassSwitch()).not.toBeChecked()
+    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(3)
+    expect(screen.queryByText('settings.mcp.approvalBypassDescription')).not.toBeInTheDocument()
+
+    await user.click(approvalBypassSwitch())
+
+    expect(approvalBypassSwitch()).toBeChecked()
+    expect(screen.queryByText('settings.mcp.approvalRequired')).not.toBeInTheDocument()
+    expect(screen.getAllByText('settings.mcp.approvalBypassed')).toHaveLength(3)
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('settings.mcp.approvalBypassTitle')
+    expect(alert).toHaveTextContent('settings.mcp.approvalBypassDescription')
   })
 
   it('权限可以独立移除，空权限时显示校验并禁止保存', async () => {
@@ -126,7 +152,7 @@ describe('McpClientEditor', () => {
     const user = userEvent.setup()
     renderEditor()
 
-    expect(screen.getByText('settings.mcp.highRisk')).toBeInTheDocument()
+    expect(screen.getAllByText('settings.mcp.highRisk')).toHaveLength(2)
     expect(screen.queryByText('settings.mcp.closeScopeDescription')).not.toBeInTheDocument()
     await user.click(scopeCheckbox('sessions_close'))
     const alert = screen.getByRole('alert')
@@ -138,7 +164,11 @@ describe('McpClientEditor', () => {
 
   it('恢复默认只读不会自动保留其他授权', async () => {
     const user = userEvent.setup()
-    renderEditor({ editingClient: client })
+    renderEditor({
+      editingClient: { ...client, approval_bypass: true },
+    })
+
+    expect(approvalBypassSwitch()).toBeChecked()
 
     await user.click(screen.getByRole('button', { name: 'settings.mcp.restoreReadOnly' }))
 
@@ -146,6 +176,7 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('sessions_read')).toBeChecked()
     expect(scopeCheckbox('hosts_probe')).not.toBeChecked()
     expect(scopeCheckbox('commands_interrupt')).not.toBeChecked()
+    expect(approvalBypassSwitch()).not.toBeChecked()
   })
 
   it('保存期间锁定字段、权限与退出操作', () => {
@@ -153,6 +184,7 @@ describe('McpClientEditor', () => {
 
     expect(screen.getByRole('textbox', { name: 'settings.mcp.clientName' })).toBeDisabled()
     for (const checkbox of screen.getAllByRole('checkbox')) expect(checkbox).toBeDisabled()
+    expect(approvalBypassSwitch()).toBeDisabled()
     expect(screen.getByRole('button', { name: 'app.cancel' })).toBeDisabled()
     expect(screen.getByRole('button', { name: /app\.save$/ })).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
@@ -163,6 +195,7 @@ describe('McpClientEditor', () => {
 
     expect(screen.getByRole('textbox', { name: 'settings.mcp.clientName' })).toBeDisabled()
     for (const checkbox of screen.getAllByRole('checkbox')) expect(checkbox).toBeDisabled()
+    expect(approvalBypassSwitch()).toBeDisabled()
     expect(screen.getByRole('button', { name: 'settings.mcp.restoreReadOnly' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'app.cancel' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
@@ -172,4 +205,8 @@ describe('McpClientEditor', () => {
 
 function scopeCheckbox(scopeKey: string) {
   return screen.getByRole('checkbox', { name: new RegExp(`settings\\.mcp\\.scope\\.${scopeKey}`) })
+}
+
+function approvalBypassSwitch() {
+  return screen.getByRole('switch', { name: 'settings.mcp.approvalBypass' })
 }

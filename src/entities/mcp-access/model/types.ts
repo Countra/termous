@@ -65,6 +65,7 @@ export interface McpClient {
   id: string
   name: string
   enabled: boolean
+  approval_bypass: boolean
   scopes: McpScope[]
   host_access_mode: 'all_saved'
   token_prefix: string
@@ -76,18 +77,21 @@ export interface McpClient {
 
 export interface McpClientInput {
   name: string
+  approval_bypass: boolean
   scopes: McpScope[]
 }
 
 export interface McpClientPatch {
   name?: string
   enabled?: boolean
+  approval_bypass?: boolean
   scopes?: McpScope[]
 }
 
 export interface McpClientUpdateInput {
   name: string
   enabled: boolean
+  approval_bypass: boolean
   scopes: McpScope[]
   expected_revision: number
 }

@@ -22,10 +22,15 @@ describe('McpAccessClient', () => {
 
     await client.status()
     await client.updateSettings({ enabled: true, expected_revision: 4 })
-    await client.createClient({ name: 'Codex', scopes: ['hosts:read', 'sessions:read'] })
+    await client.createClient({
+      name: 'Codex',
+      approval_bypass: true,
+      scopes: ['hosts:read', 'sessions:read'],
+    })
     await client.patchClient('client/1', {
       name: 'Codex',
       enabled: false,
+      approval_bypass: false,
       scopes: ['hosts:read'],
       expected_revision: 1,
     })
@@ -43,12 +48,18 @@ describe('McpAccessClient', () => {
     expect(requestAt(fetchMock, 2)).toMatchObject({
       path: '/api/v1/mcp/clients',
       method: 'POST',
-      body: { name: 'Codex', scopes: ['hosts:read', 'sessions:read'] },
+      body: { name: 'Codex', approval_bypass: true, scopes: ['hosts:read', 'sessions:read'] },
     })
     expect(requestAt(fetchMock, 3)).toMatchObject({
       path: '/api/v1/mcp/clients/client%2F1',
       method: 'PATCH',
-      body: { name: 'Codex', enabled: false, scopes: ['hosts:read'], expected_revision: 1 },
+      body: {
+        name: 'Codex',
+        enabled: false,
+        approval_bypass: false,
+        scopes: ['hosts:read'],
+        expected_revision: 1,
+      },
     })
     expect(requestAt(fetchMock, 4)).toMatchObject({
       path: '/api/v1/mcp/clients/client%2F1',

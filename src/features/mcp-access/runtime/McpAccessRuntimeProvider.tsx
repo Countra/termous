@@ -203,6 +203,7 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
       const client = await api.patchClient(clientId, {
         name: patch.name ?? currentClient.name,
         enabled: patch.enabled ?? currentClient.enabled,
+        approval_bypass: patch.approval_bypass ?? currentClient.approval_bypass,
         scopes: patch.scopes ?? currentClient.scopes,
         expected_revision: currentClient.revision,
       })

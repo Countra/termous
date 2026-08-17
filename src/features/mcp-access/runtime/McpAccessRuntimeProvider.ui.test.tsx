@@ -44,6 +44,7 @@ describe('McpAccessRuntimeProvider', () => {
     await act(async () => {
       token = (await runtime!.createClient({
         name: 'New client',
+        approval_bypass: false,
         scopes: ['hosts:read', 'sessions:read'],
       })).token
     })
@@ -67,7 +68,7 @@ describe('McpAccessRuntimeProvider', () => {
   it('管理写操作会淘汰在途旧快照并以最新权威状态收口', async () => {
     vi.stubGlobal('WebSocket', FakeWebSocket)
     let serverStatus = statusFixture()
-    let serverClients = [clientFixture()]
+    let serverClients = [{ ...clientFixture(), approval_bypass: true }]
     const status = vi.fn(async () => ({ ...serverStatus }))
     const clients = vi.fn(async () => serverClients.map((client) => ({ ...client, scopes: [...client.scopes] })))
     const updateSettings: McpAccessGateway['updateSettings'] = vi.fn(async (input) => {
@@ -118,7 +119,11 @@ describe('McpAccessRuntimeProvider', () => {
     const staleBeforeCreate = deferred<McpStatus>()
     status.mockImplementationOnce(() => staleBeforeCreate.promise)
     act(() => { staleReconcile = runtime!.reload() })
-    await act(async () => runtime!.createClient({ name: 'New client', scopes: ['hosts:read'] }))
+    await act(async () => runtime!.createClient({
+      name: 'New client',
+      approval_bypass: true,
+      scopes: ['hosts:read'],
+    }))
     await waitFor(() => expect(runtime!.clients.some((client) => client.id === 'client-2')).toBe(true))
     await act(async () => {
       staleBeforeCreate.resolve({ ...serverStatus })
@@ -131,6 +136,13 @@ describe('McpAccessRuntimeProvider', () => {
     act(() => { staleReconcile = runtime!.reload() })
     await act(async () => runtime!.patchClient('client-1', { name: 'Edited client' }))
     await waitFor(() => expect(runtime!.clients.find((client) => client.id === 'client-1')?.name).toBe('Edited client'))
+    expect(patchClient).toHaveBeenCalledWith('client-1', {
+      name: 'Edited client',
+      enabled: true,
+      approval_bypass: true,
+      scopes: ['hosts:read', 'sessions:read'],
+      expected_revision: 7,
+    })
     await act(async () => {
       staleBeforePatch.resolve({ ...serverStatus })
       await staleReconcile
@@ -243,6 +255,7 @@ function clientFixture(): McpClient {
     id: 'client-1',
     name: 'Codex',
     enabled: true,
+    approval_bypass: false,
     scopes: ['hosts:read', 'sessions:read'],
     host_access_mode: 'all_saved',
     token_prefix: 'tmcp_abcd',
