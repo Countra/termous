@@ -2487,7 +2487,7 @@
     "tabMcp": "MCP",
     "mcp": {
       "title": "MCP 访问",
-      "description": "允许受控的外部 MCP 客户端访问已保存主机和 SSH 会话。",
+      "description": "允许受控的外部 MCP 客户端访问已保存主机、SSH 会话和 SFTP 文件。",
       "state": {
         "disabled": "未启用",
         "enabled": "已启用"
@@ -2520,7 +2520,13 @@
         "sessions_close": "关闭 SSH 会话",
         "commands_execute": "执行命令",
         "commands_read": "读取命令结果",
-        "commands_interrupt": "中断命令"
+        "commands_interrupt": "中断命令",
+        "sftp_read": "读取 SFTP 文件",
+        "sftp_connect": "连接 SFTP 会话",
+        "sftp_close": "关闭 SFTP 会话",
+        "sftp_write": "修改 SFTP 文件",
+        "sftp_transfer": "启动文件传输",
+        "sftp_cancel": "取消文件传输"
       },
       "scopeDescription": {
         "hosts_read": "查看已保存主机的脱敏连接信息和缓存可达性。",
@@ -2530,17 +2536,25 @@
         "sessions_close": "直接关闭任意当前 SSH 会话，不再请求确认。",
         "commands_execute": "向 SSH 会话发送命令；每次仍需在 Termous 中批准。",
         "commands_read": "读取该客户端创建的任务、输出和退出码。",
-        "commands_interrupt": "请求中断该客户端创建的命令任务。"
+        "commands_interrupt": "请求中断该客户端创建的命令任务。",
+        "sftp_read": "列出目录、查看文件信息并读取受限文本内容。",
+        "sftp_connect": "使用已保存主机创建由该客户端管理的 SFTP 会话。",
+        "sftp_close": "关闭由该客户端创建的 SFTP 会话。",
+        "sftp_write": "保存文本、新建目录、重命名或修改权限；每次操作都需在 Termous 中批准。",
+        "sftp_transfer": "启动上传、下载或跨主机复制；每次传输都需在 Termous 中批准。",
+        "sftp_cancel": "取消该客户端创建的文件传输任务。"
       },
       "permissionGroup": {
         "hosts": "主机与发现",
         "sessions": "SSH 会话",
-        "commands": "会话命令台"
+        "commands": "会话命令台",
+        "sftp": "SFTP 文件"
       },
       "permissionGroupHint": {
         "hosts": "查看已保存主机与网络可达性",
         "sessions": "查看或控制 Termous 中的 SSH 连接",
-        "commands": "执行经批准的命令并读取结果"
+        "commands": "执行经批准的命令并读取结果",
+        "sftp": "连接远程文件系统并执行受控文件操作"
       },
       "lastUsed": "最近使用 {{time}}",
       "neverUsed": "尚未使用",
@@ -2593,6 +2607,30 @@
         "description": "外部客户端正在请求执行需要人工批准的操作。",
         "client": "请求客户端",
         "command": "待执行命令",
+        "sftpAction": {
+          "saveText": "保存远程文本",
+          "mkdir": "新建远程文件夹",
+          "rename": "重命名远程项目",
+          "chmod": "修改远程权限",
+          "upload": "上传本机文件",
+          "download": "下载远程文件",
+          "remoteCopy": "跨主机复制文件",
+          "other": "SFTP 文件操作"
+        },
+        "remotePath": "远程路径",
+        "remotePaths": "远程源路径",
+        "remoteTarget": "远程目标",
+        "localPaths": "本机源路径",
+        "localTarget": "本机目标",
+        "overwritePolicy": "冲突处理",
+        "overwrite": {
+          "rename": "自动重命名",
+          "skip": "跳过",
+          "overwrite": "覆盖"
+        },
+        "mode": "权限",
+        "itemCount": "项目",
+        "totalBytes": "总大小",
         "targets": "{{count}} 个目标",
         "expiresIn": "{{time}} 后过期",
         "expired": "请求已过期，正在刷新",

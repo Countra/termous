@@ -93,6 +93,84 @@
   overflow-wrap: anywhere;
 }
 
+.host-route {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.host-route span:not(:nth-child(2)) {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-group {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.path-group > span {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.path-list {
+  display: grid;
+  overflow: auto;
+  max-height: 92px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--terminal-bg);
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 32%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.path-list code {
+  padding: 7px 9px;
+  color: var(--text-primary);
+  font: 11px/1.45 "Cascadia Code", Consolas, monospace;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.path-list code + code {
+  border-top: 1px solid var(--border);
+}
+
+.operation-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.operation-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 4px 7px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.operation-meta strong {
+  color: var(--text-secondary);
+  font-weight: 650;
+}
+
 .targets > span {
   color: var(--text-muted);
   font-size: 11px;

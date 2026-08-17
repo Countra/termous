@@ -82,6 +82,57 @@ describe('McpApprovalCoordinator', () => {
     expect(screen.getByRole('button', { name: 'settings.mcp.approval.reject' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'settings.mcp.approval.allowOnce' })).toBeDisabled()
   })
+
+  it('在现有审批弹窗中展示 SFTP 上传路径、目标和冲突策略', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'sftp',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'upload',
+        file_session_id: 'file-session-1',
+        host_name: '测试主机',
+        remote_paths: [],
+        remote_target: '/srv/releases',
+        local_paths: ['C:\\work\\release.zip'],
+        overwrite_policy: 'rename',
+        item_count: 1,
+        total_bytes: 2048,
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.approval.sftpAction.upload')).toBeInTheDocument()
+    expect(screen.getByText('测试主机')).toBeInTheDocument()
+    expect(screen.getByText('C:\\work\\release.zip')).toBeInTheDocument()
+    expect(screen.getByText('/srv/releases')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.overwrite.rename')).toBeInTheDocument()
+    expect(screen.getByText('2.0 KB')).toBeInTheDocument()
+    expect(screen.queryByText('settings.mcp.approval.command')).not.toBeInTheDocument()
+  })
+
+  it('将 SFTP 文本保存目标标记为远程路径而不是源路径', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'sftp',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'save_text',
+        file_session_id: 'file-session-1',
+        remote_paths: ['/srv/config.ini'],
+        local_paths: [],
+        item_count: 1,
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.approval.remotePath')).toBeInTheDocument()
+    expect(screen.queryByText('settings.mcp.approval.remotePaths')).not.toBeInTheDocument()
+  })
 })
 
 function approvalFixture(expiresAt: string): McpApproval {
@@ -91,6 +142,7 @@ function approvalFixture(expiresAt: string): McpApproval {
     client_id: 'client-1',
     client_name: 'Codex',
     client_request_id: 'request-1',
+    kind: 'command',
     command: 'uname -s',
     session_ids: ['session-1'],
     targets: [],

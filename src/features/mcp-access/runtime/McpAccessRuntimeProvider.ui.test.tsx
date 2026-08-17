@@ -259,6 +259,7 @@ function approvalFixture(): McpApproval {
     client_id: 'client-1',
     client_name: 'Codex',
     client_request_id: 'request-1',
+    kind: 'command',
     command: 'uname -s',
     session_ids: ['session-1'],
     targets: [{

@@ -60,7 +60,7 @@ function renderEditor({
 }
 
 describe('McpClientEditor', () => {
-  it('新建客户端保持精简信息层级，并完整展示三个权限组', () => {
+  it('新建客户端保持精简信息层级，并完整展示四个权限组', () => {
     renderEditor()
 
     expect(screen.queryByText('settings.mcp.editorCreateHint')).not.toBeInTheDocument()
@@ -75,11 +75,18 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('commands_execute')).not.toBeChecked()
     expect(scopeCheckbox('commands_read')).not.toBeChecked()
     expect(scopeCheckbox('commands_interrupt')).not.toBeChecked()
+    expect(scopeCheckbox('sftp_read')).not.toBeChecked()
+    expect(scopeCheckbox('sftp_connect')).not.toBeChecked()
+    expect(scopeCheckbox('sftp_close')).not.toBeChecked()
+    expect(scopeCheckbox('sftp_write')).not.toBeChecked()
+    expect(scopeCheckbox('sftp_transfer')).not.toBeChecked()
+    expect(scopeCheckbox('sftp_cancel')).not.toBeChecked()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.hosts/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.sessions/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.commands/ })).toBeInTheDocument()
-    expect(screen.getByText('settings.mcp.approvalRequired')).toBeInTheDocument()
-    expect(screen.getByText('settings.mcp.selectedPermissions:2/8')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.sftp/ })).toBeInTheDocument()
+    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(3)
+    expect(screen.getByText('settings.mcp.selectedPermissions:2/14')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.mcp.restoreReadOnly' })).toBeEnabled()
   })
 
@@ -94,12 +101,13 @@ describe('McpClientEditor', () => {
     await user.clear(screen.getByRole('textbox', { name: 'settings.mcp.clientName' }))
     await user.type(screen.getByRole('textbox', { name: 'settings.mcp.clientName' }), '  Codex Desktop  ')
     await user.click(scopeCheckbox('sessions_read'))
+    await user.click(scopeCheckbox('sftp_transfer'))
     await user.click(screen.getByRole('button', { name: 'app.save' }))
 
     expect(onSubmit).toHaveBeenCalledTimes(1)
     expect(onSubmit).toHaveBeenCalledWith({
       name: 'Codex Desktop',
-      scopes: ['hosts:probe', 'sessions:read', 'commands:interrupt'],
+      scopes: ['hosts:probe', 'sessions:read', 'commands:interrupt', 'sftp:transfer'],
     })
   })
 

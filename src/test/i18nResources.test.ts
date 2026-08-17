@@ -142,7 +142,7 @@ test('MCP 动态权限名称与说明在中英文资源中完整对应', () => {
     assertBilingualString(`settings.mcp.scope.${key}`)
     assertBilingualString(`settings.mcp.scopeDescription.${key}`)
   }
-  for (const group of ['hosts', 'sessions', 'commands']) {
+  for (const group of ['hosts', 'sessions', 'commands', 'sftp']) {
     assertBilingualString(`settings.mcp.permissionGroup.${group}`)
     assertBilingualString(`settings.mcp.permissionGroupHint.${group}`)
   }

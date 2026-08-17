@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Modal } from 'antd'
 import {
+  FolderKey,
   KeyRound,
   RotateCcw,
   Server,
@@ -38,7 +39,7 @@ interface McpClientEditorProps {
 }
 
 interface PermissionGroup {
-  key: 'hosts' | 'sessions' | 'commands'
+  key: 'hosts' | 'sessions' | 'commands' | 'sftp'
   icon: LucideIcon
   scopes: readonly McpScope[]
 }
@@ -58,6 +59,11 @@ const permissionGroups: readonly PermissionGroup[] = [
     key: 'commands',
     icon: TerminalSquare,
     scopes: ['commands:execute', 'commands:read', 'commands:interrupt'],
+  },
+  {
+    key: 'sftp',
+    icon: FolderKey,
+    scopes: ['sftp:read', 'sftp:connect', 'sftp:close', 'sftp:write', 'sftp:transfer', 'sftp:cancel'],
   },
 ]
 
@@ -203,6 +209,8 @@ export function McpClientEditor({
                       const checked = selected.has(scope)
                       const danger = scope === 'sessions:close'
                       const approval = scope === 'commands:execute'
+                        || scope === 'sftp:write'
+                        || scope === 'sftp:transfer'
                       const defaultScope = defaultMcpScopes.includes(scope)
                       return (
                         <Checkbox

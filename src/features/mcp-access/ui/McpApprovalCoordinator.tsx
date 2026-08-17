@@ -1,7 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { App as AntdApp, Button, Modal, Tag } from 'antd'
-import { Clock3, ServerCog, ShieldCheck, ShieldX, TerminalSquare } from 'lucide-react'
+import {
+  Clock3,
+  FileDown,
+  FilePenLine,
+  FileUp,
+  FolderInput,
+  FolderPlus,
+  PencilLine,
+  ServerCog,
+  ShieldCheck,
+  ShieldX,
+  TerminalSquare,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import type { McpApprovalOperation } from '#entities/mcp-access'
+import { formatBytes } from '#shared/format'
 import { termousNotificationClassName } from '#shared/ui'
 import { useMcpAccessRuntime } from '../runtime/mcpAccessContext'
 import styles from './McpApprovalCoordinator.module.scss'
@@ -85,13 +101,17 @@ export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinat
             <strong>{approval.client_name || approval.client_id || t('settings.mcp.unknownClient')}</strong>
           </div>
 
-          <div className={styles.operation}>
-            <div className={styles['operation-title']}>
-              <TerminalSquare size={16} aria-hidden="true" />
-              <strong>{t('settings.mcp.approval.command')}</strong>
+          {approval.kind === 'sftp' && approval.operation ? (
+            <SftpApprovalOperation operation={approval.operation} />
+          ) : (
+            <div className={styles.operation}>
+              <div className={styles['operation-title']}>
+                <TerminalSquare size={16} aria-hidden="true" />
+                <strong>{t('settings.mcp.approval.command')}</strong>
+              </div>
+              <pre>{approval.command}</pre>
             </div>
-            <pre>{approval.command}</pre>
-          </div>
+          )}
 
           {approval.targets.length > 0 ? (
             <div className={styles.targets}>
@@ -138,6 +158,104 @@ export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinat
       ) : null}
     </Modal>
   )
+}
+
+function SftpApprovalOperation({ operation }: { operation: McpApprovalOperation }) {
+  const { t } = useTranslation()
+  const Icon = sftpActionIcons[operation.action] ?? Wrench
+  const actionKey = sftpActionKeys[operation.action] ?? 'settings.mcp.approval.sftpAction.other'
+  const sourceHost = operation.host_name || operation.file_session_id
+  const targetHost = operation.target_host_name || operation.target_file_session_id
+  const remotePathsLabel = operation.action === 'save_text' || operation.action === 'chmod'
+    ? 'settings.mcp.approval.remotePath'
+    : 'settings.mcp.approval.remotePaths'
+
+  return (
+    <div className={styles.operation}>
+      <div className={styles['operation-title']}>
+        <Icon size={16} aria-hidden="true" />
+        <strong>{t(actionKey)}</strong>
+      </div>
+
+      {sourceHost || targetHost ? (
+        <div className={styles['host-route']}>
+          {sourceHost ? <span>{sourceHost}</span> : null}
+          {sourceHost && targetHost ? <span aria-hidden="true">→</span> : null}
+          {targetHost ? <span>{targetHost}</span> : null}
+        </div>
+      ) : null}
+
+      <ApprovalPaths label={t(remotePathsLabel)} paths={operation.remote_paths} />
+      <ApprovalPaths label={t('settings.mcp.approval.remoteTarget')} paths={toPathList(operation.remote_target)} />
+      <ApprovalPaths label={t('settings.mcp.approval.localPaths')} paths={operation.local_paths} />
+      <ApprovalPaths label={t('settings.mcp.approval.localTarget')} paths={toPathList(operation.local_target)} />
+
+      {operation.overwrite_policy || operation.mode || operation.item_count !== undefined || operation.total_bytes !== undefined ? (
+        <div className={styles['operation-meta']}>
+          {operation.overwrite_policy ? (
+            <span>
+              {t('settings.mcp.approval.overwritePolicy')}
+              <strong>{t(`settings.mcp.approval.overwrite.${operation.overwrite_policy}`)}</strong>
+            </span>
+          ) : null}
+          {operation.mode ? (
+            <span>
+              {t('settings.mcp.approval.mode')}
+              <strong>{operation.mode}</strong>
+            </span>
+          ) : null}
+          {operation.item_count !== undefined ? (
+            <span>
+              {t('settings.mcp.approval.itemCount')}
+              <strong>{operation.item_count}</strong>
+            </span>
+          ) : null}
+          {operation.total_bytes !== undefined ? (
+            <span>
+              {t('settings.mcp.approval.totalBytes')}
+              <strong>{formatBytes(operation.total_bytes)}</strong>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ApprovalPaths({ label, paths }: { label: string; paths: string[] }) {
+  if (paths.length === 0) return null
+  return (
+    <div className={styles['path-group']}>
+      <span>{label}</span>
+      <div className={styles['path-list']}>
+        {paths.map((path, index) => <code key={`${index}:${path}`}>{path}</code>)}
+      </div>
+    </div>
+  )
+}
+
+const sftpActionKeys: Record<string, string> = {
+  save_text: 'settings.mcp.approval.sftpAction.saveText',
+  mkdir: 'settings.mcp.approval.sftpAction.mkdir',
+  rename: 'settings.mcp.approval.sftpAction.rename',
+  chmod: 'settings.mcp.approval.sftpAction.chmod',
+  upload: 'settings.mcp.approval.sftpAction.upload',
+  download: 'settings.mcp.approval.sftpAction.download',
+  remote_copy: 'settings.mcp.approval.sftpAction.remoteCopy',
+}
+
+const sftpActionIcons: Record<string, LucideIcon> = {
+  save_text: FilePenLine,
+  mkdir: FolderPlus,
+  rename: PencilLine,
+  chmod: ShieldCheck,
+  upload: FileUp,
+  download: FileDown,
+  remote_copy: FolderInput,
+}
+
+function toPathList(path?: string) {
+  return path ? [path] : []
 }
 
 function formatCountdown(totalSeconds: number) {

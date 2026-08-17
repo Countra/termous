@@ -3,6 +3,8 @@ import {
   type McpApproval,
   type McpApprovalDecisionResult,
   type McpApprovalEvent,
+  type McpApprovalKind,
+  type McpApprovalOperation,
   type McpApprovalSnapshot,
   type McpApprovalState,
   type McpClient,
@@ -33,6 +35,12 @@ const approvalStates = new Set<McpApprovalState>([
 const approvalEventTypes = new Set<McpApprovalEvent['type']>([
   'mcp_approval_snapshot',
   'mcp_approval_update',
+])
+const approvalKinds = new Set<McpApprovalKind>(['command', 'sftp'])
+const overwritePolicies = new Set<McpApprovalOperation['overwrite_policy']>([
+  'rename',
+  'skip',
+  'overwrite',
 ])
 
 export function decodeMcpStatus(value: unknown): McpStatus {
@@ -121,16 +129,30 @@ export function decodeMcpApproval(value: unknown): McpApproval {
   if (!approvalStates.has(state as McpApprovalState)) {
     throw new McpAccessProtocolError('MCP 审批请求状态无效')
   }
-  return {
+  const kind = optionalString(approval.kind) ?? 'command'
+  if (!approvalKinds.has(kind as McpApprovalKind)) {
+    throw new McpAccessProtocolError('MCP 审批请求类型无效')
+  }
+  const normalizedKind = kind as McpApprovalKind
+  const operation = approval.operation === undefined
+    ? undefined
+    : decodeMcpApprovalOperation(approval.operation)
+  if (normalizedKind === 'sftp' && !operation) {
+    throw new McpAccessProtocolError('MCP SFTP 审批操作缺失')
+  }
+  const common = {
     id: requireString(approval.id, 'MCP 审批请求 ID 缺失'),
     revision: requireNonNegativeInteger(approval.revision, 'MCP 审批请求修订号无效'),
     client_id: requireString(approval.client_id, 'MCP 审批客户端 ID 缺失'),
     client_name: requireString(approval.client_name, 'MCP 审批客户端名称缺失'),
     client_request_id: requireString(approval.client_request_id, 'MCP 审批请求标识缺失'),
-    command: requireString(approval.command, 'MCP 审批命令缺失'),
-    session_ids: requireArray(approval.session_ids, 'MCP 审批会话列表无效')
+    session_ids: (normalizedKind === 'command'
+      ? requireArray(approval.session_ids, 'MCP 审批会话列表无效')
+      : optionalArray(approval.session_ids, 'MCP 审批会话列表无效'))
       .map((sessionId) => requireString(sessionId, 'MCP 审批会话 ID 无效')),
-    targets: requireArray(approval.targets, 'MCP 审批目标列表无效').map((targetValue) => {
+    targets: (normalizedKind === 'command'
+      ? requireArray(approval.targets, 'MCP 审批目标列表无效')
+      : optionalArray(approval.targets, 'MCP 审批目标列表无效')).map((targetValue) => {
       const target = requireRecord(targetValue, 'MCP 审批目标无效')
       return {
         id: requireString(target.id, 'MCP 审批目标 ID 缺失'),
@@ -156,6 +178,42 @@ export function decodeMcpApproval(value: unknown): McpApproval {
     created_at: requireString(approval.created_at, 'MCP 审批请求创建时间缺失'),
     updated_at: requireString(approval.updated_at, 'MCP 审批请求更新时间缺失'),
     expires_at: requireString(approval.expires_at, 'MCP 审批请求过期时间缺失'),
+  }
+  if (normalizedKind === 'sftp') {
+    return {
+      ...common,
+      kind: 'sftp',
+      command: optionalString(approval.command) ?? '',
+      operation: operation!,
+    }
+  }
+  return {
+    ...common,
+    kind: 'command',
+    command: requireString(approval.command, 'MCP 审批命令缺失'),
+  }
+}
+
+function decodeMcpApprovalOperation(value: unknown): McpApprovalOperation {
+  const operation = requireRecord(value, 'MCP SFTP 审批操作无效')
+  const overwritePolicy = optionalString(operation.overwrite_policy)
+  if (overwritePolicy && !overwritePolicies.has(overwritePolicy as McpApprovalOperation['overwrite_policy'])) {
+    throw new McpAccessProtocolError('MCP SFTP 审批冲突策略无效')
+  }
+  return {
+    action: requireString(operation.action, 'MCP SFTP 审批操作类型缺失'),
+    file_session_id: optionalString(operation.file_session_id),
+    target_file_session_id: optionalString(operation.target_file_session_id),
+    host_name: optionalString(operation.host_name),
+    target_host_name: optionalString(operation.target_host_name),
+    remote_paths: optionalStringArray(operation.remote_paths, 'MCP SFTP 审批远程路径无效'),
+    remote_target: optionalString(operation.remote_target),
+    local_paths: optionalStringArray(operation.local_paths, 'MCP SFTP 审批本机路径无效'),
+    local_target: optionalString(operation.local_target),
+    overwrite_policy: overwritePolicy as McpApprovalOperation['overwrite_policy'],
+    mode: optionalString(operation.mode),
+    item_count: optionalNonNegativeInteger(operation.item_count, 'MCP SFTP 审批项目数无效'),
+    total_bytes: optionalNonNegativeInteger(operation.total_bytes, 'MCP SFTP 审批字节数无效'),
   }
 }
 
@@ -184,6 +242,14 @@ function requireArray(value: unknown, message: string): unknown[] {
   return value
 }
 
+function optionalArray(value: unknown, message: string): unknown[] {
+  return value === undefined || value === null ? [] : requireArray(value, message)
+}
+
+function optionalStringArray(value: unknown, message: string) {
+  return optionalArray(value, message).map((item) => requireString(item, message))
+}
+
 function requireString(value: unknown, message: string) {
   if (typeof value !== 'string' || value.length === 0) throw new McpAccessProtocolError(message)
   return value
@@ -201,4 +267,10 @@ function requireBoolean(value: unknown, message: string) {
 function requireNonNegativeInteger(value: unknown, message: string) {
   if (!Number.isSafeInteger(value) || Number(value) < 0) throw new McpAccessProtocolError(message)
   return Number(value)
+}
+
+function optionalNonNegativeInteger(value: unknown, message: string) {
+  return value === undefined || value === null
+    ? undefined
+    : requireNonNegativeInteger(value, message)
 }

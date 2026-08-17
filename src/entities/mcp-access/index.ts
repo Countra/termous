@@ -5,6 +5,8 @@ export {
   type McpApprovalDecision,
   type McpApprovalDecisionResult,
   type McpApprovalEvent,
+  type McpApprovalKind,
+  type McpApprovalOperation,
   type McpApprovalSnapshot,
   type McpApprovalState,
   type McpApprovalTarget,

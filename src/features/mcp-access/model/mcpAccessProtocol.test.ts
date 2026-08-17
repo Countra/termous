@@ -33,6 +33,7 @@ test('MCP 审批协议使用完整快照事件并保留调度冲突状态', () =
     snapshot: approvalSnapshotFixture('pending'),
   })
   assert.equal(event.snapshot.revision, 12)
+  assert.equal(event.snapshot.items[0]?.kind, 'command')
   assert.equal(event.snapshot.items[0]?.command, 'uname -s')
 
   const result = decodeMcpApprovalDecisionResult({
@@ -40,6 +41,41 @@ test('MCP 审批协议使用完整快照事件并保留调度冲突状态', () =
     task: { id: 'task-1' },
   })
   assert.equal(result.approval.state, 'dispatching')
+})
+
+test('MCP 审批协议解码 SFTP 操作摘要并容忍可选展示字段', () => {
+  const snapshot = decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 13,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'sftp',
+      command: undefined,
+      session_ids: undefined,
+      targets: undefined,
+      operation: {
+        action: 'upload',
+        file_session_id: 'file-session-1',
+        host_name: '测试主机',
+        local_paths: ['C:\\work\\release.zip'],
+        remote_target: '/srv/releases',
+        overwrite_policy: 'rename',
+        item_count: 1,
+        total_bytes: 2048,
+        future_field: 'ignored',
+      },
+    }],
+  })
+
+  const approval = snapshot.items[0]
+  assert.equal(approval?.kind, 'sftp')
+  assert.equal(approval?.command, '')
+  assert.deepEqual(approval?.session_ids, [])
+  assert.deepEqual(approval?.targets, [])
+  assert.deepEqual(approval?.operation?.remote_paths, [])
+  assert.deepEqual(approval?.operation?.local_paths, ['C:\\work\\release.zip'])
+  assert.equal(approval?.operation?.remote_target, '/srv/releases')
+  assert.equal(approval?.operation?.total_bytes, 2048)
 })
 
 test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', () => {
@@ -66,6 +102,15 @@ test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', ()
     type: 'snapshot',
     snapshot: approvalSnapshotFixture('pending'),
   }), /事件类型/)
+  assert.throws(() => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 12,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'sftp',
+      operation: { action: 'download', overwrite_policy: 'ask' },
+    }],
+  }), /冲突策略/)
 })
 
 function statusFixture() {

@@ -7,6 +7,12 @@ export const mcpScopes = [
   'commands:execute',
   'commands:read',
   'commands:interrupt',
+  'sftp:read',
+  'sftp:connect',
+  'sftp:close',
+  'sftp:write',
+  'sftp:transfer',
+  'sftp:cancel',
 ] as const
 
 export type McpScope = (typeof mcpScopes)[number]
@@ -23,6 +29,23 @@ export type McpApprovalState =
   | 'cancelled'
   | 'dispatch_conflict'
 export type McpApprovalDecision = 'approve' | 'reject'
+export type McpApprovalKind = 'command' | 'sftp'
+
+export interface McpApprovalOperation {
+  action: string
+  file_session_id?: string
+  target_file_session_id?: string
+  host_name?: string
+  target_host_name?: string
+  remote_paths: string[]
+  remote_target?: string
+  local_paths: string[]
+  local_target?: string
+  overwrite_policy?: 'rename' | 'skip' | 'overwrite'
+  mode?: string
+  item_count?: number
+  total_bytes?: number
+}
 
 export interface McpStatus {
   instance_id: string
@@ -88,13 +111,12 @@ export interface McpApprovalTarget {
   owned_by_client: boolean
 }
 
-export interface McpApproval {
+interface McpApprovalBase {
   id: string
   revision: number
   client_id: string
   client_name: string
   client_request_id: string
-  command: string
   session_ids: string[]
   targets: McpApprovalTarget[]
   state: McpApprovalState
@@ -105,6 +127,20 @@ export interface McpApproval {
   updated_at: string
   expires_at: string
 }
+
+export interface McpCommandApproval extends McpApprovalBase {
+  kind: 'command'
+  command: string
+  operation?: never
+}
+
+export interface McpSFTPApproval extends McpApprovalBase {
+  kind: 'sftp'
+  command: string
+  operation: McpApprovalOperation
+}
+
+export type McpApproval = McpCommandApproval | McpSFTPApproval
 
 export interface McpApprovalSnapshot {
   instance_id: string

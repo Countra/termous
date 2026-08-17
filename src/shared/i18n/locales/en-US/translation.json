@@ -2509,7 +2509,7 @@
     "tabMcp": "MCP",
     "mcp": {
       "title": "MCP access",
-      "description": "Allow approved external MCP clients to access saved hosts and SSH sessions.",
+      "description": "Allow approved external MCP clients to access saved hosts, SSH sessions, and SFTP files.",
       "state": {
         "disabled": "Disabled",
         "enabled": "Enabled"
@@ -2542,7 +2542,13 @@
         "sessions_close": "Close SSH sessions",
         "commands_execute": "Execute commands",
         "commands_read": "Read command results",
-        "commands_interrupt": "Interrupt commands"
+        "commands_interrupt": "Interrupt commands",
+        "sftp_read": "Read SFTP files",
+        "sftp_connect": "Connect SFTP sessions",
+        "sftp_close": "Close SFTP sessions",
+        "sftp_write": "Modify SFTP files",
+        "sftp_transfer": "Start file transfers",
+        "sftp_cancel": "Cancel file transfers"
       },
       "scopeDescription": {
         "hosts_read": "View redacted connection details and cached reachability for saved hosts.",
@@ -2552,17 +2558,25 @@
         "sessions_close": "Directly close any current SSH session without another confirmation.",
         "commands_execute": "Send commands to SSH sessions; every request still requires approval in Termous.",
         "commands_read": "Read tasks, output, and exit codes created by this client.",
-        "commands_interrupt": "Request interruption of command tasks created by this client."
+        "commands_interrupt": "Request interruption of command tasks created by this client.",
+        "sftp_read": "List directories, inspect files, and read size-limited text content.",
+        "sftp_connect": "Create SFTP sessions owned and managed by this client from saved hosts.",
+        "sftp_close": "Close SFTP sessions created by this client.",
+        "sftp_write": "Save text, create directories, rename entries, or change permissions; each operation requires approval in Termous.",
+        "sftp_transfer": "Start uploads, downloads, or cross-host copies; each transfer requires approval in Termous.",
+        "sftp_cancel": "Cancel file transfer tasks created by this client."
       },
       "permissionGroup": {
         "hosts": "Hosts and discovery",
         "sessions": "SSH sessions",
-        "commands": "Session command console"
+        "commands": "Session command console",
+        "sftp": "SFTP files"
       },
       "permissionGroupHint": {
         "hosts": "View saved hosts and network reachability",
         "sessions": "View or control SSH connections in Termous",
-        "commands": "Run approved commands and read their results"
+        "commands": "Run approved commands and read their results",
+        "sftp": "Connect to remote filesystems and perform controlled file operations"
       },
       "lastUsed": "Last used {{time}}",
       "neverUsed": "Never used",
@@ -2615,6 +2629,30 @@
         "description": "An external client is requesting an operation that requires your approval.",
         "client": "Requesting client",
         "command": "Command to run",
+        "sftpAction": {
+          "saveText": "Save remote text",
+          "mkdir": "Create remote folder",
+          "rename": "Rename remote entry",
+          "chmod": "Change remote permissions",
+          "upload": "Upload local files",
+          "download": "Download remote files",
+          "remoteCopy": "Copy files between hosts",
+          "other": "SFTP file operation"
+        },
+        "remotePath": "Remote path",
+        "remotePaths": "Remote source paths",
+        "remoteTarget": "Remote destination",
+        "localPaths": "Local source paths",
+        "localTarget": "Local destination",
+        "overwritePolicy": "Conflict handling",
+        "overwrite": {
+          "rename": "Rename automatically",
+          "skip": "Skip",
+          "overwrite": "Overwrite"
+        },
+        "mode": "Permissions",
+        "itemCount": "Items",
+        "totalBytes": "Total size",
         "targets": "{{count}} targets",
         "expiresIn": "Expires in {{time}}",
         "expired": "Request expired; refreshing",
