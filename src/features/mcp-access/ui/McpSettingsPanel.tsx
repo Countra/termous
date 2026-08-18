@@ -15,7 +15,7 @@ import {
   type McpClientToken,
 } from '#entities/mcp-access'
 import { getTermousBridge } from '#shared/bridge'
-import { ConfirmDialog, termousNotificationClassName } from '#shared/ui'
+import { ConfirmDialog, termousNotificationClassName, uiStyles } from '#shared/ui'
 import { useMcpAccessRuntime } from '../runtime/mcpAccessContext'
 import { McpClientEditor, type McpClientEditorValue } from './McpClientEditor'
 import { McpTokenDialog } from './McpTokenDialog'
@@ -24,6 +24,8 @@ import styles from './McpSettingsPanel.module.scss'
 interface ClientEditorIntent {
   client: McpClient | null
 }
+
+const clientScopePreviewLimit = 5
 
 export function McpSettingsPanel() {
   const { t } = useTranslation()
@@ -223,6 +225,28 @@ function ClientRow({
   const { t, i18n } = useTranslation()
   const active = client.enabled
   const state = active ? 'active' : 'disabled'
+  const scopeItems = client.scopes.map((scope) => ({
+    scope,
+    label: t(`settings.mcp.scope.${scope.replace(':', '_')}`),
+  }))
+  const visibleScopeItems = scopeItems.slice(0, clientScopePreviewLimit)
+  const hiddenScopeCount = scopeItems.length - visibleScopeItems.length
+  const scopePreview = (
+    <div
+      className={`${styles.scopes} ${hiddenScopeCount > 0 ? styles['is-truncated'] : ''}`}
+      role="group"
+      aria-label={`${t('settings.mcp.permissions')}: ${scopeItems.map((item) => item.label).join(', ')}`}
+    >
+      {visibleScopeItems.map(({ scope, label }) => (
+        <Tag key={scope} color={scope === 'sessions:close' ? 'error' : undefined}>
+          {label}
+        </Tag>
+      ))}
+      {hiddenScopeCount > 0 ? (
+        <Tag className={styles['scope-overflow']}>+{hiddenScopeCount}</Tag>
+      ) : null}
+    </div>
+  )
   return (
     <article className={`${styles.client} ${!active ? styles['is-muted'] : ''}`}>
       <div className={styles['client-main']}>
@@ -235,13 +259,33 @@ function ClientRow({
               <Tag color="error">{t('settings.mcp.approvalBypass')}</Tag>
             ) : null}
           </div>
-          <div className={styles.scopes}>
-            {client.scopes.map((scope) => (
-              <Tag key={scope} color={scope === 'sessions:close' ? 'error' : undefined}>
-                {t(`settings.mcp.scope.${scope.replace(':', '_')}`)}
-              </Tag>
-            ))}
-          </div>
+          {hiddenScopeCount > 0 ? (
+            <Tooltip
+              title={(
+                <span className={styles['scope-list-tooltip-content']}>
+                  <strong>{t('settings.mcp.permissions')}</strong>
+                  <span className={styles['scope-list-tooltip-items']}>
+                    {scopeItems.map(({ scope, label }) => (
+                      <span
+                        key={scope}
+                        className={scope === 'sessions:close' ? styles['is-danger'] : undefined}
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </span>
+                </span>
+              )}
+              placement="topLeft"
+              mouseEnterDelay={0.35}
+              destroyOnHidden
+              classNames={{
+                root: `${uiStyles.tooltip} termous-tooltip ${styles['scope-list-tooltip']}`,
+              }}
+            >
+              {scopePreview}
+            </Tooltip>
+          ) : scopePreview}
           <small>
             {client.last_used_at
               ? t('settings.mcp.lastUsed', { time: formatDate(client.last_used_at, i18n.resolvedLanguage ?? i18n.language) })

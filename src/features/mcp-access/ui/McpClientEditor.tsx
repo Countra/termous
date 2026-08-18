@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Checkbox, Input, Modal, Switch } from 'antd'
+import { Alert, Button, Checkbox, Input, Modal, Switch, Tooltip } from 'antd'
 import {
   FolderKey,
   KeyRound,
@@ -17,7 +17,7 @@ import {
   type McpClient,
   type McpScope,
 } from '#entities/mcp-access'
-import { EditorModeContext } from '#shared/ui'
+import { EditorModeContext, uiStyles } from '#shared/ui'
 import {
   isValidMcpClientName,
   maximumMcpClientNameBytes,
@@ -214,6 +214,9 @@ export function McpClientEditor({
                   </legend>
                   <div className={styles['scope-grid']}>
                     {group.scopes.map((scope) => {
+                      const scopeKey = scope.replace(':', '_')
+                      const scopeName = t(`settings.mcp.scope.${scopeKey}`)
+                      const scopeDescription = t(`settings.mcp.scopeDescription.${scopeKey}`)
                       const checked = selected.has(scope)
                       const danger = scope === 'sessions:close'
                       const approval = scope === 'commands:execute'
@@ -235,7 +238,7 @@ export function McpClientEditor({
                         >
                           <span className={styles['scope-copy']}>
                             <span className={styles['scope-name']}>
-                              <strong>{t(`settings.mcp.scope.${scope.replace(':', '_')}`)}</strong>
+                              <strong>{scopeName}</strong>
                               {danger ? <em className={styles['danger-badge']}>{t('settings.mcp.highRisk')}</em> : null}
                               {approval ? (
                                 <em className={approvalBypass ? styles['danger-badge'] : undefined}>
@@ -246,7 +249,22 @@ export function McpClientEditor({
                               ) : null}
                               {defaultScope ? <em>{t('settings.mcp.defaultPermission')}</em> : null}
                             </span>
-                            <small>{t(`settings.mcp.scopeDescription.${scope.replace(':', '_')}`)}</small>
+                            <Tooltip
+                              title={(
+                                <span className={styles['scope-tooltip-content']}>
+                                  <strong>{scopeName}</strong>
+                                  <span>{scopeDescription}</span>
+                                </span>
+                              )}
+                              placement="top"
+                              mouseEnterDelay={0.35}
+                              destroyOnHidden
+                              classNames={{
+                                root: `${uiStyles.tooltip} termous-tooltip ${styles['scope-description-tooltip']}`,
+                              }}
+                            >
+                              <small>{scopeDescription}</small>
+                            </Tooltip>
                           </span>
                         </Checkbox>
                       )

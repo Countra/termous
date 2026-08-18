@@ -345,6 +345,38 @@
   -webkit-line-clamp: 2;
 }
 
+.scope-description-tooltip:global(.ant-tooltip) {
+  max-width: min(360px, calc(100vw - 32px));
+}
+
+.scope-description-tooltip :global(.ant-tooltip-inner) {
+  padding: 9px 11px;
+}
+
+.scope-tooltip-content {
+  display: grid;
+  max-width: min(336px, calc(100vw - 56px));
+  gap: 4px;
+}
+
+.scope-tooltip-content strong,
+.scope-tooltip-content span {
+  overflow-wrap: anywhere;
+}
+
+.scope-tooltip-content strong {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.scope-tooltip-content span {
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
 .approval-bypass {
   display: grid;
   min-width: 0;

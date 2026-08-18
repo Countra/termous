@@ -96,6 +96,21 @@ describe('McpClientEditor', () => {
     expect(screen.getByRole('button', { name: 'settings.mcp.restoreReadOnly' })).toBeEnabled()
   })
 
+  it('悬停权限说明时展示权限名称与完整说明', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+
+    const trigger = screen.getByText('settings.mcp.scopeDescription.sftp_transfer')
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+
+    await user.hover(trigger)
+
+    const tooltip = await screen.findByRole('tooltip')
+    expect(tooltip).toHaveTextContent('settings.mcp.scope.sftp_transfer')
+    expect(tooltip).toHaveTextContent('settings.mcp.scopeDescription.sftp_transfer')
+    expect(trigger).toHaveAttribute('aria-describedby', tooltip.id)
+  })
+
   it('编辑时回填权限，提交名称与规范顺序的精确权限集合', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn(async () => undefined)

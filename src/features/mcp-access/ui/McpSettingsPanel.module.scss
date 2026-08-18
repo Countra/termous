@@ -189,13 +189,68 @@
 
 .scopes {
   flex-wrap: wrap;
+  width: fit-content;
+  max-width: 100%;
   gap: 4px;
   margin: 6px 0 4px;
+}
+
+.scopes.is-truncated {
+  cursor: help;
 }
 
 .scopes :global(.ant-tag) {
   margin: 0;
   font-size: 10px;
+}
+
+.scope-overflow:global(.ant-tag) {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.scope-list-tooltip:global(.ant-tooltip) {
+  max-width: min(420px, calc(100vw - 32px));
+}
+
+.scope-list-tooltip :global(.ant-tooltip-inner) {
+  padding: 10px 11px;
+}
+
+.scope-list-tooltip-content {
+  display: grid;
+  max-width: min(396px, calc(100vw - 56px));
+  gap: 7px;
+}
+
+.scope-list-tooltip-content > strong {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.scope-list-tooltip-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.scope-list-tooltip-items > span {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
+  padding: 2px 6px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.scope-list-tooltip-items > span.is-danger {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  color: var(--danger);
 }
 
 .client-actions {
