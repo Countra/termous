@@ -7,6 +7,8 @@ import {
   Cpu,
   FolderKey,
   KeyRound,
+  ListChecks,
+  ListX,
   RotateCcw,
   Server,
   ServerCog,
@@ -63,6 +65,14 @@ export function McpScopeSelector({
     else next.delete(scope)
     onScopesChange(normalizeMcpScopes(next))
   }
+  const toggleScopeGroup = (groupScopes: readonly McpScope[], checked: boolean) => {
+    const next = new Set(scopes)
+    for (const scope of groupScopes) {
+      if (checked) next.add(scope)
+      else next.delete(scope)
+    }
+    onScopesChange(normalizeMcpScopes(next))
+  }
 
   return (
     <section className={styles.section} aria-labelledby="mcp-client-permissions-title">
@@ -90,13 +100,57 @@ export function McpScopeSelector({
       <div className={styles['permission-groups']}>
         {mcpScopeGroups.map((group) => {
           const Icon = permissionGroupIcons[group.key]
+          const groupName = t(`settings.mcp.permissionGroup.${group.key}`)
+          const groupTitleId = `mcp-permission-group-${group.key}-title`
+          const groupHintId = `mcp-permission-group-${group.key}-hint`
+          const selectedCount = group.scopes.reduce(
+            (count, scope) => count + (selected.has(scope) ? 1 : 0),
+            0,
+          )
+          const allSelected = selectedCount === group.scopes.length
+          const partiallySelected = selectedCount > 0 && !allSelected
+          const groupActionLabel = allSelected
+            ? t('settings.mcp.clearGroupPermissions')
+            : t('settings.mcp.selectGroupPermissions')
+          const groupToggleLabel = t('settings.mcp.groupPermissionsToggleLabel', { group: groupName })
+          const groupSelectionState = allSelected ? 'all' : partiallySelected ? 'partial' : 'none'
+          const GroupActionIcon = allSelected ? ListX : ListChecks
           return (
-            <fieldset key={group.key} className={styles['permission-group']} disabled={disabled}>
+            <fieldset
+              key={group.key}
+              className={styles['permission-group']}
+              disabled={disabled}
+              aria-labelledby={groupTitleId}
+              aria-describedby={groupHintId}
+            >
               <legend>
                 <span className={styles['group-icon']} aria-hidden="true"><Icon size={15} /></span>
-                <span>
-                  <strong>{t(`settings.mcp.permissionGroup.${group.key}`)}</strong>
-                  <small>{t(`settings.mcp.permissionGroupHint.${group.key}`)}</small>
+                <span className={styles['group-copy']}>
+                  <strong id={groupTitleId}>{groupName}</strong>
+                  <small id={groupHintId}>{t(`settings.mcp.permissionGroupHint.${group.key}`)}</small>
+                </span>
+                <span className={styles['group-selection']}>
+                  <span className={styles['group-selection-count']} aria-hidden="true">
+                    {selectedCount}<span>/</span>{group.scopes.length}
+                  </span>
+                  <Tooltip
+                    title={groupActionLabel}
+                    mouseEnterDelay={0.35}
+                    destroyOnHidden
+                    classNames={{ root: `${uiStyles.tooltip} termous-tooltip` }}
+                  >
+                    <Button
+                      type="text"
+                      size="small"
+                      disabled={disabled}
+                      className={styles['group-toggle']}
+                      data-selection-state={groupSelectionState}
+                      aria-label={groupToggleLabel}
+                      aria-pressed={partiallySelected ? 'mixed' : allSelected}
+                      icon={<GroupActionIcon size={14} strokeWidth={1.9} aria-hidden="true" />}
+                      onClick={() => toggleScopeGroup(group.scopes, !allSelected)}
+                    />
+                  </Tooltip>
                 </span>
               </legend>
               <div className={styles['scope-grid']}>

@@ -1,5 +1,5 @@
 import { App as AntdApp } from 'antd'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { McpClient } from '#entities/mcp-access'
@@ -7,9 +7,12 @@ import { McpClientEditor } from './McpClientEditor'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, values?: { count?: number; total?: number }) => {
+    t: (key: string, values?: { count?: number; total?: number; group?: string }) => {
       if (values?.count !== undefined && values.total !== undefined) {
         return `${key}:${values.count}/${values.total}`
+      }
+      if (values?.group !== undefined) {
+        return `${key}:${values.group}`
       }
       return key
     },
@@ -125,6 +128,89 @@ describe('McpClientEditor', () => {
     expect(trigger).toHaveAttribute('aria-describedby', tooltip.id)
   })
 
+  it('分组选择支持半选补齐和全部清空，且不影响其他权限组', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+
+    const hosts = permissionGroup('hosts')
+    expect(hosts).toHaveAccessibleName('settings.mcp.permissionGroup.hosts')
+    expect(hosts).toHaveAccessibleDescription('settings.mcp.permissionGroupHint.hosts')
+
+    const selectHosts = groupToggle('hosts')
+    expect(selectHosts).toHaveAttribute('aria-pressed', 'mixed')
+    await user.click(selectHosts)
+
+    expect(scopeCheckbox('hosts_read')).toBeChecked()
+    expect(scopeCheckbox('hosts_probe')).toBeChecked()
+    expect(scopeCheckbox('sessions_read')).toBeChecked()
+    expect(screen.getByText('settings.mcp.selectedPermissions:3/23')).toBeInTheDocument()
+
+    const clearHosts = groupToggle('hosts')
+    expect(clearHosts).toHaveAccessibleName(
+      'settings.mcp.groupPermissionsToggleLabel:settings.mcp.permissionGroup.hosts',
+    )
+    expect(clearHosts).toHaveAttribute('aria-pressed', 'true')
+    await user.click(clearHosts)
+
+    expect(scopeCheckbox('hosts_read')).not.toBeChecked()
+    expect(scopeCheckbox('hosts_probe')).not.toBeChecked()
+    expect(scopeCheckbox('sessions_read')).toBeChecked()
+    expect(screen.getByText('settings.mcp.selectedPermissions:1/23')).toBeInTheDocument()
+    expect(groupToggle('hosts')).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('会话分组批量选择和清空同步高风险提示', async () => {
+    const user = userEvent.setup()
+    renderEditor()
+
+    expect(groupToggle('sessions')).toHaveAttribute('aria-pressed', 'mixed')
+    await user.click(groupToggle('sessions'))
+
+    expect(scopeCheckbox('sessions_read')).toBeChecked()
+    expect(scopeCheckbox('sessions_connect')).toBeChecked()
+    expect(scopeCheckbox('sessions_close')).toBeChecked()
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.mcp.closeScopeDescription')
+
+    await user.click(groupToggle('sessions'))
+
+    expect(scopeCheckbox('sessions_read')).not.toBeChecked()
+    expect(scopeCheckbox('sessions_connect')).not.toBeChecked()
+    expect(scopeCheckbox('sessions_close')).not.toBeChecked()
+    expect(screen.queryByText('settings.mcp.closeScopeDescription')).not.toBeInTheDocument()
+  })
+
+  it('分组全选保持权限规范顺序且不联动无需审批', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn(async () => undefined)
+    renderEditor({
+      editingClient: { ...client, approval_bypass: true },
+      onSubmit,
+    })
+
+    await user.click(groupToggle('sftp'))
+
+    expect(approvalBypassSwitch()).toBeChecked()
+    for (const scope of ['read', 'connect', 'close', 'write', 'transfer', 'cancel']) {
+      expect(scopeCheckbox(`sftp_${scope}`)).toBeChecked()
+    }
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      name: 'Codex',
+      approval_bypass: true,
+      scopes: [
+        'hosts:probe',
+        'commands:interrupt',
+        'sftp:read',
+        'sftp:connect',
+        'sftp:close',
+        'sftp:write',
+        'sftp:transfer',
+        'sftp:cancel',
+      ],
+    })
+  })
+
   it('编辑时回填权限，提交名称与规范顺序的精确权限集合', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn(async () => undefined)
@@ -214,6 +300,7 @@ describe('McpClientEditor', () => {
 
     expect(screen.getByRole('textbox', { name: 'settings.mcp.clientName' })).toBeDisabled()
     for (const checkbox of screen.getAllByRole('checkbox')) expect(checkbox).toBeDisabled()
+    expect(groupToggle('hosts')).toBeDisabled()
     expect(approvalBypassSwitch()).toBeDisabled()
     expect(screen.getByRole('button', { name: 'app.cancel' })).toBeDisabled()
     expect(screen.getByRole('button', { name: /app\.save$/ })).toBeDisabled()
@@ -225,6 +312,7 @@ describe('McpClientEditor', () => {
 
     expect(screen.getByRole('textbox', { name: 'settings.mcp.clientName' })).toBeDisabled()
     for (const checkbox of screen.getAllByRole('checkbox')) expect(checkbox).toBeDisabled()
+    expect(groupToggle('hosts')).toBeDisabled()
     expect(approvalBypassSwitch()).toBeDisabled()
     expect(screen.getByRole('button', { name: 'settings.mcp.restoreReadOnly' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'app.cancel' })).toBeDisabled()
@@ -235,6 +323,16 @@ describe('McpClientEditor', () => {
 
 function scopeCheckbox(scopeKey: string) {
   return screen.getByRole('checkbox', { name: new RegExp(`settings\\.mcp\\.scope\\.${scopeKey}`) })
+}
+
+function permissionGroup(groupKey: string) {
+  return screen.getByRole('group', { name: `settings.mcp.permissionGroup.${groupKey}` })
+}
+
+function groupToggle(groupKey: string) {
+  return within(permissionGroup(groupKey)).getByRole('button', {
+    name: `settings.mcp.groupPermissionsToggleLabel:settings.mcp.permissionGroup.${groupKey}`,
+  })
 }
 
 function approvalBypassSwitch() {

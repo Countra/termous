@@ -186,15 +186,16 @@
 }
 
 .permission-group > legend {
-  display: flex;
+  display: grid;
   width: 100%;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
   padding: 0;
 }
 
-.permission-group > legend > span:last-child {
+.group-copy {
   display: flex;
   min-width: 0;
   align-items: baseline;
@@ -227,6 +228,71 @@
   background: color-mix(in srgb, var(--accent-soft) 56%, transparent);
   color: var(--accent);
   box-shadow: var(--inner-highlight);
+}
+
+.group-selection {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.group-selection-count {
+  min-width: 27px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.group-selection-count > span {
+  margin-inline: 2px;
+  color: color-mix(in srgb, var(--text-muted) 62%, transparent);
+}
+
+.group-toggle:global(.ant-btn) {
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  padding: 0;
+  color: var(--text-muted);
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.group-toggle:global(.ant-btn) :global(.ant-btn-icon) {
+  display: inline-grid;
+  place-items: center;
+}
+
+.group-toggle:global(.ant-btn[data-selection-state="partial"]) {
+  color: var(--text-secondary);
+}
+
+.group-toggle:global(.ant-btn[data-selection-state="all"]) {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 42%, transparent);
+  color: var(--accent);
+}
+
+.group-toggle:global(.ant-btn:disabled) {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.45;
+}
+
+.group-toggle:global(.ant-btn:not(:disabled):hover) {
+  border-color: var(--border-strong);
+  background: var(--row-hover-bg);
+  color: var(--accent);
+}
+
+.group-toggle:global(.ant-btn:focus-visible) {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .scope-grid {
@@ -511,7 +577,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .permission-group > legend > span:last-child {
+  .group-copy {
     display: grid;
     gap: 2px;
   }
@@ -529,6 +595,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .scope-option {
+    transition: none;
+  }
+
+  .group-toggle:global(.ant-btn) {
     transition: none;
   }
 
