@@ -1,4 +1,9 @@
-export type { McpAccessGateway } from './api/mcpAccessGateway.ts'
+export type {
+  McpAccessGateway,
+  McpApprovalGateway,
+  McpClientGateway,
+  McpServerGateway,
+} from './api/mcpAccessGateway.ts'
 export {
   McpAccessProtocolError,
   decodeMcpApproval,

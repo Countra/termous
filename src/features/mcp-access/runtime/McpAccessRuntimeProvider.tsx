@@ -12,6 +12,11 @@ import type {
 import { retireWebSocket } from '#shared/websocket'
 import type { McpAccessGateway } from '../api/mcpAccessGateway'
 import { decodeMcpApprovalEvent } from '../model/mcpAccessProtocol'
+import {
+  emptyApprovalSnapshot,
+  mergeApprovalDecision,
+  mergeApprovalSnapshot,
+} from './approvalSnapshots'
 import { McpAccessRuntimeContext, type McpAccessRuntimePhase } from './mcpAccessContext'
 
 interface McpAccessRuntimeProviderProps {
@@ -30,7 +35,7 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
   const [approvals, setApprovals] = useState<McpApproval[]>([])
   const [mutationKey, setMutationKey] = useState('')
   const [errorCode, setErrorCode] = useState('')
-  const approvalSnapshotRef = useRef<McpApprovalSnapshot>({ instance_id: '', revision: 0, items: [] })
+  const approvalSnapshotRef = useRef<McpApprovalSnapshot>(emptyApprovalSnapshot())
   const requestGenerationRef = useRef(0)
   const reconcileAbortRef = useRef<AbortController | null>(null)
   const mutationKeyRef = useRef('')
@@ -38,11 +43,8 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
 
   const applyApprovalSnapshot = useCallback((snapshot: McpApprovalSnapshot) => {
     const current = approvalSnapshotRef.current
-    if (current.instance_id === snapshot.instance_id && snapshot.revision <= current.revision) return
-    const next = {
-      ...snapshot,
-      items: sortPendingApprovals(snapshot.items),
-    }
+    const next = mergeApprovalSnapshot(current, snapshot)
+    if (next === current) return
     approvalSnapshotRef.current = next
     setApprovals(next.items)
   }, [])
@@ -84,7 +86,7 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
       requestGenerationRef.current += 1
       reconcileAbortRef.current?.abort()
       reconcileAbortRef.current = null
-      approvalSnapshotRef.current = { instance_id: '', revision: 0, items: [] }
+      approvalSnapshotRef.current = emptyApprovalSnapshot()
       setPhase('idle')
       setStatus(null)
       setClients([])
@@ -239,12 +241,7 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
       const result = await api.decideApproval(approvalId, decision, approval.revision)
       if (!isCurrent()) return
       const current = approvalSnapshotRef.current
-      const next = {
-        ...current,
-        items: result.approval.state === 'pending'
-          ? current.items.map((item) => item.id === approvalId ? result.approval : item)
-          : current.items.filter((item) => item.id !== approvalId),
-      }
+      const next = mergeApprovalDecision(current, result.approval)
       approvalSnapshotRef.current = next
       setApprovals(next.items)
     })
@@ -281,12 +278,6 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
   ])
 
   return <McpAccessRuntimeContext.Provider value={value}>{children}</McpAccessRuntimeContext.Provider>
-}
-
-function sortPendingApprovals(approvals: McpApproval[]) {
-  return [...approvals]
-    .filter((approval) => approval.state === 'pending')
-    .sort((left, right) => Date.parse(left.created_at) - Date.parse(right.created_at) || left.id.localeCompare(right.id))
 }
 
 function runtimeErrorCode(error: unknown) {
