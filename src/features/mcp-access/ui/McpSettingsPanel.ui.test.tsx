@@ -9,6 +9,7 @@ const testState = vi.hoisted(() => ({
   createClient: vi.fn(),
   patchClient: vi.fn(),
   deleteClient: vi.fn(),
+  issueToken: vi.fn(),
   clients: [] as McpAccessRuntimeValue['clients'],
   mutationKey: '',
 }))
@@ -43,7 +44,7 @@ vi.mock('../runtime/mcpAccessContext', async () => {
       createClient: testState.createClient,
       patchClient: testState.patchClient,
       deleteClient: testState.deleteClient,
-      issueToken: vi.fn(async () => { throw new Error('unused') }),
+      issueToken: testState.issueToken,
       decideApproval: vi.fn(async () => undefined),
     }),
   }
@@ -58,6 +59,7 @@ describe('McpSettingsPanel', () => {
     testState.createClient.mockReset()
     testState.patchClient.mockReset()
     testState.deleteClient.mockReset()
+    testState.issueToken.mockReset()
     testState.patchClient.mockResolvedValue(undefined)
     testState.deleteClient.mockResolvedValue(undefined)
     testState.createClient.mockResolvedValue({
@@ -72,6 +74,21 @@ describe('McpSettingsPanel', () => {
         revision: 1,
         created_at: '2026-08-13T00:00:00Z',
         updated_at: '2026-08-13T00:00:00Z',
+      },
+      token: oneTimeToken,
+    })
+    testState.issueToken.mockResolvedValue({
+      client: {
+        id: 'client-1',
+        name: 'Codex',
+        enabled: true,
+        approval_bypass: false,
+        scopes: ['hosts:read', 'sessions:read'],
+        host_access_mode: 'all_saved',
+        token_prefix: 'tmcp_rotated',
+        revision: 2,
+        created_at: '2026-08-13T00:00:00Z',
+        updated_at: '2026-08-13T00:01:00Z',
       },
       token: oneTimeToken,
     })
@@ -144,6 +161,95 @@ describe('McpSettingsPanel', () => {
     expect(screen.getByRole('button', { name: 'settings.mcp.newTokenLabel:Codex' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.mcp.deleteClientLabel:Codex' })).toBeInTheDocument()
     expect(screen.getByText('settings.mcp.approvalBypass')).toBeInTheDocument()
+  })
+
+  it('重新生成令牌前要求二次确认，取消时不调用接口', async () => {
+    const user = userEvent.setup()
+    testState.clients = [{
+      id: 'client-1',
+      name: 'Codex',
+      enabled: true,
+      approval_bypass: false,
+      scopes: ['hosts:read'],
+      host_access_mode: 'all_saved',
+      token_prefix: 'tmcp_abcd',
+      revision: 1,
+      created_at: '2026-08-13T00:00:00Z',
+      updated_at: '2026-08-13T00:00:00Z',
+    }]
+    const view = render(<AntdApp><McpSettingsPanel /></AntdApp>)
+
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.newTokenLabel:Codex' }))
+
+    expect(screen.getByText('settings.mcp.newTokenConfirmDescription:Codex')).toBeInTheDocument()
+    expect(testState.issueToken).not.toHaveBeenCalled()
+    testState.clients = testState.clients.map((client) => ({
+      ...client,
+      name: 'Codex Desktop',
+      revision: 2,
+    }))
+    view.rerender(<AntdApp><McpSettingsPanel /></AntdApp>)
+    expect(screen.getByText('settings.mcp.newTokenConfirmDescription:Codex Desktop')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'app.cancel' }))
+
+    expect(testState.issueToken).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveClass('ant-zoom-leave'))
+  })
+
+  it('确认后重新生成令牌并展示一次性结果', async () => {
+    const user = userEvent.setup()
+    testState.clients = [{
+      id: 'client-1',
+      name: 'Codex',
+      enabled: true,
+      approval_bypass: false,
+      scopes: ['hosts:read'],
+      host_access_mode: 'all_saved',
+      token_prefix: 'tmcp_abcd',
+      revision: 1,
+      created_at: '2026-08-13T00:00:00Z',
+      updated_at: '2026-08-13T00:00:00Z',
+    }]
+    render(<AntdApp><McpSettingsPanel /></AntdApp>)
+
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.newTokenLabel:Codex' }))
+    expect(testState.issueToken).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.newTokenConfirm' }))
+
+    await waitFor(() => expect(testState.issueToken).toHaveBeenCalledWith('client-1'))
+    expect(await screen.findByText(oneTimeToken)).toBeInTheDocument()
+  })
+
+  it('令牌重新生成失败时保留确认框以便重试', async () => {
+    const user = userEvent.setup()
+    testState.clients = [{
+      id: 'client-1',
+      name: 'Codex',
+      enabled: true,
+      approval_bypass: false,
+      scopes: ['hosts:read'],
+      host_access_mode: 'all_saved',
+      token_prefix: 'tmcp_abcd',
+      revision: 1,
+      created_at: '2026-08-13T00:00:00Z',
+      updated_at: '2026-08-13T00:00:00Z',
+    }]
+    testState.issueToken.mockRejectedValueOnce(new Error('revision conflict'))
+    render(<AntdApp><McpSettingsPanel /></AntdApp>)
+
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.newTokenLabel:Codex' }))
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.newTokenConfirm' }))
+
+    await waitFor(() => expect(testState.issueToken).toHaveBeenCalledWith('client-1'))
+    expect(screen.getByText('settings.mcp.newTokenConfirmDescription:Codex')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.mcp.newTokenConfirm' })).toBeEnabled()
+    expect(screen.queryByText(oneTimeToken)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'settings.mcp.newTokenConfirm' }))
+
+    await waitFor(() => expect(testState.issueToken).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText(oneTimeToken)).toBeInTheDocument()
   })
 
   it('客户端权限未超过展示上限时保持完整展示', () => {

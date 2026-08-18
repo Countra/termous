@@ -25,7 +25,11 @@ export function McpClientManagement({ runtime, onFailure }: McpClientManagementP
   const { t } = useTranslation()
   const [editor, setEditor] = useState<ClientEditorIntent | null>(null)
   const [deleteCandidate, setDeleteCandidate] = useState<McpClient | null>(null)
+  const [tokenCandidateId, setTokenCandidateId] = useState<string | null>(null)
   const [tokenResult, setTokenResult] = useState<McpClientToken | null>(null)
+  const tokenCandidate = tokenCandidateId
+    ? runtime.clients.find((client) => client.id === tokenCandidateId && client.enabled) ?? null
+    : null
 
   const openCreate = () => setEditor({ client: null })
   const openEdit = (client: McpClient) => setEditor({ client })
@@ -48,9 +52,12 @@ export function McpClientManagement({ runtime, onFailure }: McpClientManagementP
     }
   }
 
-  const issueToken = async (client: McpClient) => {
+  const issueToken = async () => {
+    if (!tokenCandidateId) return
     try {
-      setTokenResult(await runtime.issueToken(client.id))
+      const issued = await runtime.issueToken(tokenCandidateId)
+      setTokenCandidateId(null)
+      setTokenResult(issued)
     } catch {
       onFailure()
     }
@@ -60,7 +67,12 @@ export function McpClientManagement({ runtime, onFailure }: McpClientManagementP
     if (deleteCandidate && !runtime.clients.some((client) => client.id === deleteCandidate.id)) {
       setDeleteCandidate(null)
     }
-  }, [deleteCandidate, runtime.clients])
+    if (tokenCandidateId && !runtime.clients.some((client) => (
+      client.id === tokenCandidateId && client.enabled
+    ))) {
+      setTokenCandidateId(null)
+    }
+  }, [deleteCandidate, runtime.clients, tokenCandidateId])
 
   return (
     <>
@@ -90,7 +102,7 @@ export function McpClientManagement({ runtime, onFailure }: McpClientManagementP
               busy={runtime.mutationKey.startsWith(`client:${client.id}`)}
               disabled={Boolean(runtime.mutationKey)}
               onEdit={() => openEdit(client)}
-              onIssueToken={() => void issueToken(client)}
+              onIssueToken={() => setTokenCandidateId(client.id)}
               onToggle={(enabled) => void runtime.patchClient(client.id, { enabled }).catch(onFailure)}
               onDelete={() => setDeleteCandidate(client)}
             />
@@ -107,6 +119,16 @@ export function McpClientManagement({ runtime, onFailure }: McpClientManagementP
         onSubmit={saveEditor}
       />
       <McpTokenDialog result={tokenResult} endpoint={runtime.status?.endpoint ?? ''} onClose={() => setTokenResult(null)} />
+      <ConfirmDialog
+        open={Boolean(tokenCandidate)}
+        title={t('settings.mcp.newTokenConfirmTitle')}
+        description={t('settings.mcp.newTokenConfirmDescription', { name: tokenCandidate?.name })}
+        confirmLabel={t('settings.mcp.newTokenConfirm')}
+        danger
+        confirmLoading={Boolean(tokenCandidateId && runtime.mutationKey === `client:${tokenCandidateId}:token`)}
+        onCancel={() => setTokenCandidateId(null)}
+        onConfirm={() => void issueToken()}
+      />
       <ConfirmDialog
         open={Boolean(deleteCandidate)}
         title={t('settings.mcp.deleteTitle')}
