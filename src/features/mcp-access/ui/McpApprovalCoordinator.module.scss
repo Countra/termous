@@ -82,6 +82,7 @@
 
 .operation pre {
   overflow: auto;
+  max-height: 180px;
   margin: 11px 0 0;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -91,6 +92,37 @@
   font: 12px/1.55 "Cascadia Code", Consolas, monospace;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.detail-group,
+.command-group {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.detail-group > span,
+.command-group > span {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.detail-group > strong,
+.detail-group > code {
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+
+.detail-group > code {
+  font-family: "Cascadia Code", Consolas, monospace;
+}
+
+.command-group pre {
+  margin-top: 0;
 }
 
 .host-route {

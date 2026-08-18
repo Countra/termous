@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { McpApproval } from '#entities/mcp-access'
+import type { McpApproval, McpApprovalOperation } from '#entities/mcp-access'
 
 const testState = vi.hoisted(() => ({
   approvals: [] as McpApproval[],
@@ -12,7 +12,11 @@ const testState = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, values?: { time?: string }) => values?.time ? `${key}:${values.time}` : key,
+    t: (key: string, values?: { time?: string; count?: number }) => {
+      if (values?.time) return `${key}:${values.time}`
+      if (values?.count !== undefined) return `${key}:${values.count}`
+      return key
+    },
   }),
 }))
 
@@ -132,6 +136,85 @@ describe('McpApprovalCoordinator', () => {
 
     expect(screen.getByText('settings.mcp.approval.remotePath')).toBeInTheDocument()
     expect(screen.queryByText('settings.mcp.approval.remotePaths')).not.toBeInTheDocument()
+  })
+
+  it('在同一审批弹窗中展示远程运维资源、参数和显式停用状态', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'remoteops',
+      command: '',
+      operation: {
+        domain: 'crontab',
+        action: 'update',
+        resource_id: 'job-1',
+        resource_name: '备份任务',
+        schedule: '0 2 * * *',
+        command: '/usr/local/bin/backup --daily',
+        enabled: false,
+        remote_paths: [],
+        local_paths: [],
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText(/settings\.mcp\.approval\.remoteOpsDomain\.crontab/)).toHaveTextContent(
+      'settings.mcp.approval.remoteOpsAction.update',
+    )
+    expect(screen.getByText('备份任务 · job-1')).toBeInTheDocument()
+    expect(screen.getByText('0 2 * * *')).toBeInTheDocument()
+    expect(screen.getByText('/usr/local/bin/backup --daily')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.disabled')).toBeInTheDocument()
+    expect(screen.queryByText('settings.mcp.approval.command')).not.toBeInTheDocument()
+  })
+
+  it.each<{
+    name: string
+    operation: McpApprovalOperation
+    headline: RegExp
+    details: string[]
+  }>([
+    {
+      name: '进程终止',
+      operation: {
+        domain: 'processes', action: 'terminate', resource_id: '1234', resource_name: 'nginx',
+        signal: 'kill', remote_paths: [], local_paths: [],
+      },
+      headline: /remoteOpsDomain\.processes.*remoteOpsAction\.terminate/,
+      details: ['nginx · 1234', 'kill'],
+    },
+    {
+      name: 'Docker 重启',
+      operation: {
+        domain: 'docker', action: 'restart', resource_id: 'container-123', resource_name: 'api',
+        timeout_seconds: 1, remote_paths: [], local_paths: [],
+      },
+      headline: /remoteOpsDomain\.docker.*remoteOpsAction\.restart/,
+      details: ['api · container-123', 'settings.mcp.approval.timeoutSeconds:1'],
+    },
+    {
+      name: 'systemd 屏蔽',
+      operation: {
+        domain: 'services', action: 'mask', resource_id: 'nginx.service',
+        remote_paths: [], local_paths: [],
+      },
+      headline: /remoteOpsDomain\.services.*remoteOpsAction\.mask/,
+      details: ['nginx.service'],
+    },
+  ])('展示$name审批摘要', ({ operation, headline, details }) => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'remoteops',
+      command: '',
+      operation,
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText(headline)).toBeInTheDocument()
+    for (const detail of details) {
+      expect(screen.getByText(detail)).toBeInTheDocument()
+    }
   })
 })
 

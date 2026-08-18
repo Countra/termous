@@ -85,6 +85,36 @@ test('MCP 审批协议解码 SFTP 操作摘要并容忍可选展示字段', () =
   assert.equal(approval?.operation?.total_bytes, 2048)
 })
 
+test('MCP 审批协议解码远程运维操作并保留显式 false', () => {
+  const snapshot = decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 14,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'remoteops',
+      command: undefined,
+      operation: {
+        domain: 'crontab',
+        action: 'update',
+        resource_id: 'job-1',
+        resource_name: '备份任务',
+        schedule: '0 2 * * *',
+        command: '/usr/local/bin/backup --daily',
+        enabled: false,
+      },
+    }],
+  })
+
+  const approval = snapshot.items[0]
+  assert.equal(approval?.kind, 'remoteops')
+  assert.equal(approval?.command, '')
+  assert.equal(approval?.operation?.domain, 'crontab')
+  assert.equal(approval?.operation?.enabled, false)
+  assert.equal(approval?.operation?.command, '/usr/local/bin/backup --daily')
+  assert.deepEqual(approval?.session_ids, ['session-1'])
+  assert.equal(approval?.targets[0]?.host_name, '测试主机')
+})
+
 test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', () => {
   assert.throws(() => decodeMcpStatus({
     ...statusFixture(),
@@ -122,6 +152,33 @@ test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', ()
       operation: { action: 'download', overwrite_policy: 'ask' },
     }],
   }), /冲突策略/)
+  assert.throws(() => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 12,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'remoteops',
+      operation: undefined,
+    }],
+  }), /远程运维审批操作缺失/)
+  assert.throws(() => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 12,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'remoteops',
+      operation: { action: 'update', enabled: 'false' },
+    }],
+  }), /审批领域缺失/)
+  assert.throws(() => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 12,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'remoteops',
+      operation: { domain: 'crontab', action: 'update', enabled: 'false' },
+    }],
+  }), /启用状态无效/)
 })
 
 function statusFixture() {

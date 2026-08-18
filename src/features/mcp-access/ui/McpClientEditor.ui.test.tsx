@@ -65,7 +65,7 @@ function renderEditor({
 }
 
 describe('McpClientEditor', () => {
-  it('新建客户端保持精简信息层级，并完整展示四个权限组', () => {
+  it('新建客户端保持精简信息层级，并按领域展示权限组', () => {
     renderEditor()
 
     expect(screen.queryByText('settings.mcp.editorCreateHint')).not.toBeInTheDocument()
@@ -86,13 +86,27 @@ describe('McpClientEditor', () => {
     expect(scopeCheckbox('sftp_write')).not.toBeChecked()
     expect(scopeCheckbox('sftp_transfer')).not.toBeChecked()
     expect(scopeCheckbox('sftp_cancel')).not.toBeChecked()
+    expect(scopeCheckbox('system_read')).not.toBeChecked()
+    expect(scopeCheckbox('processes_read')).not.toBeChecked()
+    expect(scopeCheckbox('processes_terminate')).not.toBeChecked()
+    expect(scopeCheckbox('services_read')).not.toBeChecked()
+    expect(scopeCheckbox('services_manage')).not.toBeChecked()
+    expect(scopeCheckbox('docker_read')).not.toBeChecked()
+    expect(scopeCheckbox('docker_manage')).not.toBeChecked()
+    expect(scopeCheckbox('crontab_read')).not.toBeChecked()
+    expect(scopeCheckbox('crontab_write')).not.toBeChecked()
     expect(approvalBypassSwitch()).not.toBeChecked()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.hosts/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.sessions/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.commands/ })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.sftp/ })).toBeInTheDocument()
-    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(3)
-    expect(screen.getByText('settings.mcp.selectedPermissions:2/14')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.system/ })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.processes/ })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.services/ })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.docker/ })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /settings\.mcp\.permissionGroup\.crontab/ })).toBeInTheDocument()
+    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(7)
+    expect(screen.getByText('settings.mcp.selectedPermissions:2/23')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'settings.mcp.restoreReadOnly' })).toBeEnabled()
   })
 
@@ -123,6 +137,7 @@ describe('McpClientEditor', () => {
     await user.type(screen.getByRole('textbox', { name: 'settings.mcp.clientName' }), '  Codex Desktop  ')
     await user.click(scopeCheckbox('sessions_read'))
     await user.click(scopeCheckbox('sftp_transfer'))
+    await user.click(scopeCheckbox('docker_manage'))
     await user.click(approvalBypassSwitch())
     await user.click(screen.getByRole('button', { name: 'app.save' }))
 
@@ -130,7 +145,7 @@ describe('McpClientEditor', () => {
     expect(onSubmit).toHaveBeenCalledWith({
       name: 'Codex Desktop',
       approval_bypass: true,
-      scopes: ['hosts:probe', 'sessions:read', 'commands:interrupt', 'sftp:transfer'],
+      scopes: ['hosts:probe', 'sessions:read', 'commands:interrupt', 'sftp:transfer', 'docker:manage'],
     })
   })
 
@@ -139,14 +154,14 @@ describe('McpClientEditor', () => {
     renderEditor()
 
     expect(approvalBypassSwitch()).not.toBeChecked()
-    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(3)
+    expect(screen.getAllByText('settings.mcp.approvalRequired')).toHaveLength(7)
     expect(screen.queryByText('settings.mcp.approvalBypassDescription')).not.toBeInTheDocument()
 
     await user.click(approvalBypassSwitch())
 
     expect(approvalBypassSwitch()).toBeChecked()
     expect(screen.queryByText('settings.mcp.approvalRequired')).not.toBeInTheDocument()
-    expect(screen.getAllByText('settings.mcp.approvalBypassed')).toHaveLength(3)
+    expect(screen.getAllByText('settings.mcp.approvalBypassed')).toHaveLength(7)
     const alert = screen.getByRole('alert')
     expect(alert).toHaveTextContent('settings.mcp.approvalBypassTitle')
     expect(alert).toHaveTextContent('settings.mcp.approvalBypassDescription')

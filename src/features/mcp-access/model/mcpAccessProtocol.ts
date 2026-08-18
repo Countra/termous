@@ -36,7 +36,7 @@ const approvalEventTypes = new Set<McpApprovalEvent['type']>([
   'mcp_approval_snapshot',
   'mcp_approval_update',
 ])
-const approvalKinds = new Set<McpApprovalKind>(['command', 'sftp'])
+const approvalKinds = new Set<McpApprovalKind>(['command', 'sftp', 'remoteops'])
 const overwritePolicies = new Set<McpApprovalOperation['overwrite_policy']>([
   'rename',
   'skip',
@@ -139,9 +139,11 @@ export function decodeMcpApproval(value: unknown): McpApproval {
   const normalizedKind = kind as McpApprovalKind
   const operation = approval.operation === undefined
     ? undefined
-    : decodeMcpApprovalOperation(approval.operation)
-  if (normalizedKind === 'sftp' && !operation) {
-    throw new McpAccessProtocolError('MCP SFTP 审批操作缺失')
+    : decodeMcpApprovalOperation(approval.operation, normalizedKind)
+  if (normalizedKind !== 'command' && !operation) {
+    throw new McpAccessProtocolError(
+      normalizedKind === 'sftp' ? 'MCP SFTP 审批操作缺失' : 'MCP 远程运维审批操作缺失',
+    )
   }
   const common = {
     id: requireString(approval.id, 'MCP 审批请求 ID 缺失'),
@@ -149,13 +151,13 @@ export function decodeMcpApproval(value: unknown): McpApproval {
     client_id: requireString(approval.client_id, 'MCP 审批客户端 ID 缺失'),
     client_name: requireString(approval.client_name, 'MCP 审批客户端名称缺失'),
     client_request_id: requireString(approval.client_request_id, 'MCP 审批请求标识缺失'),
-    session_ids: (normalizedKind === 'command'
-      ? requireArray(approval.session_ids, 'MCP 审批会话列表无效')
-      : optionalArray(approval.session_ids, 'MCP 审批会话列表无效'))
+    session_ids: (normalizedKind === 'sftp'
+      ? optionalArray(approval.session_ids, 'MCP 审批会话列表无效')
+      : requireArray(approval.session_ids, 'MCP 审批会话列表无效'))
       .map((sessionId) => requireString(sessionId, 'MCP 审批会话 ID 无效')),
-    targets: (normalizedKind === 'command'
-      ? requireArray(approval.targets, 'MCP 审批目标列表无效')
-      : optionalArray(approval.targets, 'MCP 审批目标列表无效')).map((targetValue) => {
+    targets: (normalizedKind === 'sftp'
+      ? optionalArray(approval.targets, 'MCP 审批目标列表无效')
+      : requireArray(approval.targets, 'MCP 审批目标列表无效')).map((targetValue) => {
       const target = requireRecord(targetValue, 'MCP 审批目标无效')
       return {
         id: requireString(target.id, 'MCP 审批目标 ID 缺失'),
@@ -190,6 +192,14 @@ export function decodeMcpApproval(value: unknown): McpApproval {
       operation: operation!,
     }
   }
+  if (normalizedKind === 'remoteops') {
+    return {
+      ...common,
+      kind: 'remoteops',
+      command: optionalString(approval.command) ?? '',
+      operation: operation!,
+    }
+  }
   return {
     ...common,
     kind: 'command',
@@ -197,14 +207,24 @@ export function decodeMcpApproval(value: unknown): McpApproval {
   }
 }
 
-function decodeMcpApprovalOperation(value: unknown): McpApprovalOperation {
-  const operation = requireRecord(value, 'MCP SFTP 审批操作无效')
+function decodeMcpApprovalOperation(value: unknown, kind: McpApprovalKind): McpApprovalOperation {
+  const operation = requireRecord(value, 'MCP 审批操作无效')
   const overwritePolicy = optionalString(operation.overwrite_policy)
   if (overwritePolicy && !overwritePolicies.has(overwritePolicy as McpApprovalOperation['overwrite_policy'])) {
     throw new McpAccessProtocolError('MCP SFTP 审批冲突策略无效')
   }
   return {
-    action: requireString(operation.action, 'MCP SFTP 审批操作类型缺失'),
+    action: requireString(operation.action, 'MCP 审批操作类型缺失'),
+    domain: kind === 'remoteops'
+      ? requireString(operation.domain, 'MCP 远程运维审批领域缺失')
+      : optionalString(operation.domain),
+    resource_id: optionalString(operation.resource_id),
+    resource_name: optionalString(operation.resource_name),
+    signal: optionalString(operation.signal),
+    timeout_seconds: optionalNonNegativeInteger(operation.timeout_seconds, 'MCP 审批超时时间无效'),
+    schedule: optionalString(operation.schedule),
+    command: optionalString(operation.command),
+    enabled: optionalBoolean(operation.enabled, 'MCP 审批启用状态无效'),
     file_session_id: optionalString(operation.file_session_id),
     target_file_session_id: optionalString(operation.target_file_session_id),
     host_name: optionalString(operation.host_name),
@@ -265,6 +285,10 @@ function optionalString(value: unknown) {
 function requireBoolean(value: unknown, message: string) {
   if (typeof value !== 'boolean') throw new McpAccessProtocolError(message)
   return value
+}
+
+function optionalBoolean(value: unknown, message: string) {
+  return value === undefined || value === null ? undefined : requireBoolean(value, message)
 }
 
 function requireNonNegativeInteger(value: unknown, message: string) {

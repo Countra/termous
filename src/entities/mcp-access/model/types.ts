@@ -13,11 +13,30 @@ export const mcpScopes = [
   'sftp:write',
   'sftp:transfer',
   'sftp:cancel',
+  'system:read',
+  'processes:read',
+  'processes:terminate',
+  'services:read',
+  'services:manage',
+  'docker:read',
+  'docker:manage',
+  'crontab:read',
+  'crontab:write',
 ] as const
 
 export type McpScope = (typeof mcpScopes)[number]
 
 export const defaultMcpScopes: McpScope[] = ['hosts:read', 'sessions:read']
+
+export const approvalRequiredScopes: readonly McpScope[] = [
+  'commands:execute',
+  'sftp:write',
+  'sftp:transfer',
+  'processes:terminate',
+  'services:manage',
+  'docker:manage',
+  'crontab:write',
+]
 
 export type McpServerState = 'enabled' | 'disabled'
 export type McpApprovalState =
@@ -29,10 +48,18 @@ export type McpApprovalState =
   | 'cancelled'
   | 'dispatch_conflict'
 export type McpApprovalDecision = 'approve' | 'reject'
-export type McpApprovalKind = 'command' | 'sftp'
+export type McpApprovalKind = 'command' | 'sftp' | 'remoteops'
 
 export interface McpApprovalOperation {
   action: string
+  domain?: string
+  resource_id?: string
+  resource_name?: string
+  signal?: string
+  timeout_seconds?: number
+  schedule?: string
+  command?: string
+  enabled?: boolean
   file_session_id?: string
   target_file_session_id?: string
   host_name?: string
@@ -144,7 +171,13 @@ export interface McpSFTPApproval extends McpApprovalBase {
   operation: McpApprovalOperation
 }
 
-export type McpApproval = McpCommandApproval | McpSFTPApproval
+export interface McpRemoteOpsApproval extends McpApprovalBase {
+  kind: 'remoteops'
+  command: string
+  operation: McpApprovalOperation
+}
+
+export type McpApproval = McpCommandApproval | McpSFTPApproval | McpRemoteOpsApproval
 
 export interface McpApprovalSnapshot {
   instance_id: string

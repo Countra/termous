@@ -1,4 +1,5 @@
 export {
+  approvalRequiredScopes,
   defaultMcpScopes,
   mcpScopes,
   type McpApproval,
@@ -15,6 +16,7 @@ export {
   type McpClientPatch,
   type McpClientToken,
   type McpClientUpdateInput,
+  type McpRemoteOpsApproval,
   type McpScope,
   type McpServerState,
   type McpSettingsInput,

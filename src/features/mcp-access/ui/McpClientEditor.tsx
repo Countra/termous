@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Modal, Switch, Tooltip } from 'antd'
 import {
+  Activity,
+  CalendarClock,
+  Container,
+  Cpu,
   FolderKey,
   KeyRound,
   RotateCcw,
   Server,
+  ServerCog,
   ShieldAlert,
   ShieldCheck,
   TerminalSquare,
@@ -12,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import {
+  approvalRequiredScopes,
   defaultMcpScopes,
   mcpScopes,
   type McpClient,
@@ -41,7 +47,7 @@ interface McpClientEditorProps {
 }
 
 interface PermissionGroup {
-  key: 'hosts' | 'sessions' | 'commands' | 'sftp'
+  key: 'hosts' | 'sessions' | 'commands' | 'sftp' | 'system' | 'processes' | 'services' | 'docker' | 'crontab'
   icon: LucideIcon
   scopes: readonly McpScope[]
 }
@@ -66,6 +72,31 @@ const permissionGroups: readonly PermissionGroup[] = [
     key: 'sftp',
     icon: FolderKey,
     scopes: ['sftp:read', 'sftp:connect', 'sftp:close', 'sftp:write', 'sftp:transfer', 'sftp:cancel'],
+  },
+  {
+    key: 'system',
+    icon: Cpu,
+    scopes: ['system:read'],
+  },
+  {
+    key: 'processes',
+    icon: Activity,
+    scopes: ['processes:read', 'processes:terminate'],
+  },
+  {
+    key: 'services',
+    icon: ServerCog,
+    scopes: ['services:read', 'services:manage'],
+  },
+  {
+    key: 'docker',
+    icon: Container,
+    scopes: ['docker:read', 'docker:manage'],
+  },
+  {
+    key: 'crontab',
+    icon: CalendarClock,
+    scopes: ['crontab:read', 'crontab:write'],
   },
 ]
 
@@ -219,9 +250,7 @@ export function McpClientEditor({
                       const scopeDescription = t(`settings.mcp.scopeDescription.${scopeKey}`)
                       const checked = selected.has(scope)
                       const danger = scope === 'sessions:close'
-                      const approval = scope === 'commands:execute'
-                        || scope === 'sftp:write'
-                        || scope === 'sftp:transfer'
+                      const approval = approvalRequiredScopes.includes(scope)
                       const defaultScope = defaultMcpScopes.includes(scope)
                       return (
                         <Checkbox
