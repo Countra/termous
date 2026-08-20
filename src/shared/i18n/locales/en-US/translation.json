@@ -2512,7 +2512,7 @@
     "tabMcp": "MCP",
     "mcp": {
       "title": "MCP access",
-      "description": "Allow approved external MCP clients to access saved hosts, SSH sessions, SFTP files, and remote operations.",
+      "description": "Allow approved external MCP clients to access saved hosts, SSH sessions, SFTP files, port forwarding, code snippets, and remote operations.",
       "state": {
         "disabled": "Disabled",
         "enabled": "Enabled"
@@ -2560,7 +2560,11 @@
         "docker_read": "Read Docker",
         "docker_manage": "Manage Docker",
         "crontab_read": "Read scheduled tasks",
-        "crontab_write": "Modify scheduled tasks"
+        "crontab_write": "Modify scheduled tasks",
+        "forwarding_read": "Read port forwarding",
+        "forwarding_manage": "Manage port forwarding",
+        "snippets_read": "Read code snippets",
+        "snippets_write": "Manage code snippets"
       },
       "scopeDescription": {
         "hosts_read": "View redacted connection details and cached reachability for saved hosts.",
@@ -2585,7 +2589,11 @@
         "docker_read": "Detect Docker support and read containers, state, statistics, and logs.",
         "docker_manage": "Start, stop, restart, pause, or unpause containers; by default, every request requires approval.",
         "crontab_read": "Read Crontab capabilities and structured jobs for the current SSH user.",
-        "crontab_write": "Create, update, or delete Crontab jobs for the current SSH user; by default, every request requires approval."
+        "crontab_write": "Create, update, or delete Crontab jobs for the current SSH user; by default, every request requires approval.",
+        "forwarding_read": "View port-forwarding profiles and current runtime state.",
+        "forwarding_manage": "Start or stop port-forwarding instances; by default, every request requires approval.",
+        "snippets_read": "View code snippet groups and snippet contents.",
+        "snippets_write": "Create, update, delete, or reorder code snippets and groups; by default, every request requires approval."
       },
       "permissionGroup": {
         "hosts": "Hosts and discovery",
@@ -2596,7 +2604,9 @@
         "processes": "Process management",
         "services": "System services",
         "docker": "Docker containers",
-        "crontab": "Scheduled tasks"
+        "crontab": "Scheduled tasks",
+        "forwarding": "Port forwarding",
+        "snippets": "Code snippets"
       },
       "permissionGroupHint": {
         "hosts": "View saved hosts and network reachability",
@@ -2607,7 +2617,9 @@
         "processes": "Inspect processes and perform controlled termination",
         "services": "Inspect and manage systemd services",
         "docker": "Inspect and manage Docker containers",
-        "crontab": "Inspect and manage scheduled tasks for the current user"
+        "crontab": "Inspect and manage scheduled tasks for the current user",
+        "forwarding": "Inspect and manage SSH port forwarding",
+        "snippets": "View and maintain shared code snippets"
       },
       "lastUsed": "Last used {{time}}",
       "neverUsed": "Never used",
@@ -2634,9 +2646,9 @@
       "approvalBypassed": "No approval",
       "highRisk": "High risk",
       "approvalBypass": "Skip approvals",
-      "approvalBypassHint": "Skip per-operation confirmation for sensitive command, SFTP, and remote operations; access remains limited to the scopes granted above, and Host Key confirmation is never skipped.",
+      "approvalBypassHint": "Skip per-operation confirmation for sensitive command, SFTP, remote-operation, port-forwarding, and snippet changes; access remains limited to the scopes granted above, and Host Key confirmation is never skipped.",
       "approvalBypassTitle": "This client will run sensitive operations directly",
-      "approvalBypassDescription": "Approved command execution, SFTP writes, file transfers, and remote-operation mutations will no longer show a confirmation. This option grants no additional scopes, and Host Key confirmation still appears; enable it only for fully trusted clients.",
+      "approvalBypassDescription": "Approved command execution, SFTP writes, file transfers, remote operations, port forwarding, and snippet changes will no longer show a confirmation. This option grants no additional scopes, and Host Key confirmation still appears; enable it only for fully trusted clients.",
       "permissionsEmpty": "Select at least one permission.",
       "closeScopeTitle": "This permission can close SSH sessions",
       "closeScopeDescription": "The client can directly close any current SSH session without another confirmation. Grant this only to trusted clients.",
@@ -2707,6 +2719,58 @@
           "delete": "Delete",
           "other": "Run operation"
         },
+        "forwardingAction": {
+          "start": "Start port forwarding",
+          "stop": "Stop port forwarding",
+          "other": "Manage port forwarding"
+        },
+        "snippetAction": {
+          "groupCreate": "Create snippet group",
+          "groupUpdate": "Update snippet group",
+          "groupDelete": "Delete snippet group",
+          "groupsReorder": "Reorder snippet groups",
+          "create": "Create code snippet",
+          "update": "Update code snippet",
+          "delete": "Delete code snippet",
+          "other": "Manage code snippets"
+        },
+        "forwardingProfile": "Forwarding profile",
+        "host": "Host",
+        "forwardingMode": "Forwarding mode",
+        "forwardingModeValue": {
+          "local": "Local forwarding",
+          "remote": "Remote forwarding",
+          "dynamic": "Dynamic forwarding",
+          "other": "Other mode"
+        },
+        "forwardingDirection": "Network direction",
+        "forwardingDirectionValue": {
+          "local": "Listen locally, then connect to the remote target through SSH",
+          "remote": "Listen remotely, then connect to the local target through SSH",
+          "dynamic": "Listen locally with SOCKS5, then connect to remote targets through SSH"
+        },
+        "forwardingLifecycle": "Runtime scope",
+        "forwardingLifecycleValue": {
+          "session": "Current session",
+          "backgroundOnce": "Independent runtime",
+          "backgroundProfile": "Profile runtime",
+          "other": "Other scope"
+        },
+        "bindAddress": "Bind address",
+        "targetAddress": "Target address",
+        "snippet": "Code snippet",
+        "snippetGroup": "Snippet group",
+        "currentSnippetGroup": "Current group",
+        "newSnippetGroupName": "New group name",
+        "shell": "Shell",
+        "tags": "Tags",
+        "snippetDescription": "Description",
+        "snippetCommand": "Snippet command",
+        "itemCount": "Item count",
+        "itemCountValue_one": "{{count}} item",
+        "itemCountValue_other": "{{count}} items",
+        "impact": "Impact",
+        "snippetGroupDeleteImpact": "Only the group is deleted. Its snippets move to Ungrouped and are preserved.",
         "resource": "Resource",
         "signal": "Signal",
         "timeout": "Timeout",
@@ -2730,7 +2794,6 @@
           "overwrite": "Overwrite"
         },
         "mode": "Permissions",
-        "itemCount": "Items",
         "totalBytes": "Total size",
         "targets": "{{count}} targets",
         "expiresIn": "Expires in {{time}}",

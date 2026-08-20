@@ -2490,7 +2490,7 @@
     "tabMcp": "MCP",
     "mcp": {
       "title": "MCP 访问",
-      "description": "允许受控的外部 MCP 客户端访问已保存主机、SSH 会话、SFTP 文件和远程运维能力。",
+      "description": "允许受控的外部 MCP 客户端访问已保存主机、SSH 会话、SFTP 文件、端口转发、代码片段和远程运维能力。",
       "state": {
         "disabled": "未启用",
         "enabled": "已启用"
@@ -2538,7 +2538,11 @@
         "docker_read": "读取 Docker",
         "docker_manage": "管理 Docker",
         "crontab_read": "读取定时任务",
-        "crontab_write": "修改定时任务"
+        "crontab_write": "修改定时任务",
+        "forwarding_read": "读取端口转发",
+        "forwarding_manage": "管理端口转发",
+        "snippets_read": "读取代码片段",
+        "snippets_write": "管理代码片段"
       },
       "scopeDescription": {
         "hosts_read": "查看已保存主机的脱敏连接信息和缓存可达性。",
@@ -2563,7 +2567,11 @@
         "docker_read": "检测 Docker 能力并读取容器、状态、统计和日志。",
         "docker_manage": "启动、停止、重启、暂停或恢复容器；默认需逐次批准。",
         "crontab_read": "读取当前 SSH 用户的 Crontab 能力和结构化任务。",
-        "crontab_write": "新增、更新或删除当前 SSH 用户的 Crontab 任务；默认需逐次批准。"
+        "crontab_write": "新增、更新或删除当前 SSH 用户的 Crontab 任务；默认需逐次批准。",
+        "forwarding_read": "查看端口转发配置和当前运行状态。",
+        "forwarding_manage": "启动或停止端口转发实例；默认需逐次批准。",
+        "snippets_read": "查看代码片段分组和片段内容。",
+        "snippets_write": "新增、修改、删除或调整代码片段及分组顺序；默认需逐次批准。"
       },
       "permissionGroup": {
         "hosts": "主机与发现",
@@ -2574,7 +2582,9 @@
         "processes": "进程管理",
         "services": "系统服务",
         "docker": "Docker 容器",
-        "crontab": "定时任务"
+        "crontab": "定时任务",
+        "forwarding": "端口转发",
+        "snippets": "代码片段"
       },
       "permissionGroupHint": {
         "hosts": "查看已保存主机与网络可达性",
@@ -2585,7 +2595,9 @@
         "processes": "查看进程并执行受控终止操作",
         "services": "查看和管理 systemd 服务",
         "docker": "查看和管理 Docker 容器",
-        "crontab": "查看和管理当前用户的定时任务"
+        "crontab": "查看和管理当前用户的定时任务",
+        "forwarding": "查看和管理 SSH 端口转发",
+        "snippets": "查看和维护共享代码片段"
       },
       "lastUsed": "最近使用 {{time}}",
       "neverUsed": "尚未使用",
@@ -2612,9 +2624,9 @@
       "approvalBypassed": "无需确认",
       "highRisk": "高风险",
       "approvalBypass": "无需审批",
-      "approvalBypassHint": "跳过命令、SFTP 和远程运维敏感操作的逐次确认；仍然只能使用上方已授予的权限，且不会跳过主机密钥确认。",
+      "approvalBypassHint": "跳过命令、SFTP、远程运维、端口转发和代码片段敏感操作的逐次确认；仍然只能使用上方已授予的权限，且不会跳过主机密钥确认。",
       "approvalBypassTitle": "该客户端将直接执行敏感操作",
-      "approvalBypassDescription": "启用后，已授权的命令执行、SFTP 写入、文件传输和远程运维写操作不会再显示审批确认。此选项不会授予其他权限，主机密钥确认仍会照常显示；请仅为完全可信的客户端开启。",
+      "approvalBypassDescription": "启用后，已授权的命令执行、SFTP 写入、文件传输、远程运维、端口转发和代码片段写操作不会再显示审批确认。此选项不会授予其他权限，主机密钥确认仍会照常显示；请仅为完全可信的客户端开启。",
       "permissionsEmpty": "至少选择一项权限。",
       "closeScopeTitle": "此权限可以关闭 SSH 会话",
       "closeScopeDescription": "启用后，客户端可直接关闭任意当前 SSH 会话，不会再次请求确认。请仅授予可信客户端。",
@@ -2685,6 +2697,57 @@
           "delete": "删除",
           "other": "执行操作"
         },
+        "forwardingAction": {
+          "start": "启动端口转发",
+          "stop": "停止端口转发",
+          "other": "管理端口转发"
+        },
+        "snippetAction": {
+          "groupCreate": "新建代码片段分组",
+          "groupUpdate": "修改代码片段分组",
+          "groupDelete": "删除代码片段分组",
+          "groupsReorder": "调整代码片段分组顺序",
+          "create": "新建代码片段",
+          "update": "修改代码片段",
+          "delete": "删除代码片段",
+          "other": "管理代码片段"
+        },
+        "forwardingProfile": "转发配置",
+        "host": "主机",
+        "forwardingMode": "转发模式",
+        "forwardingModeValue": {
+          "local": "本地转发",
+          "remote": "远程转发",
+          "dynamic": "动态转发",
+          "other": "其他模式"
+        },
+        "forwardingDirection": "网络方向",
+        "forwardingDirectionValue": {
+          "local": "本机监听，经 SSH 连接到远端目标",
+          "remote": "远端监听，经 SSH 连接到本机目标",
+          "dynamic": "本机 SOCKS5 监听，经 SSH 连接到远端目标"
+        },
+        "forwardingLifecycle": "运行方式",
+        "forwardingLifecycleValue": {
+          "session": "当前会话",
+          "backgroundOnce": "独立运行",
+          "backgroundProfile": "配置独立运行",
+          "other": "其他方式"
+        },
+        "bindAddress": "监听地址",
+        "targetAddress": "目标地址",
+        "snippet": "代码片段",
+        "snippetGroup": "所属分组",
+        "currentSnippetGroup": "当前分组",
+        "newSnippetGroupName": "新分组名称",
+        "shell": "Shell",
+        "tags": "标签",
+        "snippetDescription": "说明",
+        "snippetCommand": "片段命令",
+        "itemCount": "项目数量",
+        "itemCountValue": "{{count}} 项",
+        "impact": "影响范围",
+        "snippetGroupDeleteImpact": "只删除分组，组内片段会移到未分组，不会被删除。",
         "resource": "操作对象",
         "signal": "信号",
         "timeout": "超时",
@@ -2708,7 +2771,6 @@
           "overwrite": "覆盖"
         },
         "mode": "权限",
-        "itemCount": "项目",
         "totalBytes": "总大小",
         "targets": "{{count}} 个目标",
         "expiresIn": "{{time}} 后过期",

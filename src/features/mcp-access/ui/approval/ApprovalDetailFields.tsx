@@ -45,3 +45,12 @@ export function ApprovalValue({ label, value, code = false }: { label: string; v
 export function ApprovalScrollableCode({ value }: { value: string }) {
   return <pre>{value}</pre>
 }
+
+export function ApprovalScrollableValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className={styles['command-group']}>
+      <span>{label}</span>
+      <ApprovalScrollableCode value={value} />
+    </div>
+  )
+}

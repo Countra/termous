@@ -22,6 +22,10 @@ export const mcpScopes = [
   'docker:manage',
   'crontab:read',
   'crontab:write',
+  'forwarding:read',
+  'forwarding:manage',
+  'snippets:read',
+  'snippets:write',
 ] as const
 
 export type McpScope = (typeof mcpScopes)[number]
@@ -36,4 +40,6 @@ export const approvalRequiredScopes: readonly McpScope[] = [
   'services:manage',
   'docker:manage',
   'crontab:write',
+  'forwarding:manage',
+  'snippets:write',
 ]

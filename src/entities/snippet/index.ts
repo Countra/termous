@@ -18,5 +18,6 @@ export type {
   CodeSnippetGroup,
   CodeSnippetGroupInput,
   CodeSnippetInput,
+  SnippetChangedEvent,
   SnippetShell,
 } from './model/types.ts'

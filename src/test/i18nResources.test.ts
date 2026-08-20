@@ -152,6 +152,8 @@ test('MCP 动态权限名称与说明在中英文资源中完整对应', () => {
     'services',
     'docker',
     'crontab',
+    'forwarding',
+    'snippets',
   ]) {
     assertBilingualString(`settings.mcp.permissionGroup.${group}`)
     assertBilingualString(`settings.mcp.permissionGroupHint.${group}`)

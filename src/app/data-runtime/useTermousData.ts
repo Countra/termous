@@ -40,6 +40,15 @@ import {
   initialFileSessionSnapshotCursor,
   reconcileVisibleAuthoritativeFileSessionSnapshot,
 } from './model/fileSessionSnapshotState'
+import {
+  beginSnippetReload,
+  canApplySnippetReload,
+  initialSnippetRuntimeCursor,
+  recoverFailedSnippetReload,
+  resetSnippetEventRevision,
+  snippetStateChangedSince,
+  type SnippetReloadCheckpoint,
+} from './model/snippetRuntimeState'
 import { canApplyReloadedValue, SerialMutationQueue } from '#shared/async'
 import {
   bumpSessionRevision,
@@ -101,6 +110,12 @@ export function useTermousData() {
   const inventoryRequestRevisionsRef = useRef(new Map<string, number>())
   const forwardEventRevisionsRef = useRef(new Map<string, number>())
   const forwardEventSnapshotsRef = useRef(new Map<string, ForwardInstance>())
+  const snippetRuntimeCursorRef = useRef(initialSnippetRuntimeCursor)
+  const snippetReloadPendingRef = useRef<{
+    gateways: RuntimeGateways
+    checkpoint: SnippetReloadCheckpoint
+  } | null>(null)
+  const snippetReloadLoopRef = useRef<Promise<void> | null>(null)
   const completionSettingsMutationRef = useRef(0)
   const completionSettingsPendingWritesRef = useRef(0)
   const completionSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
@@ -220,6 +235,7 @@ export function useTermousData() {
     }
     const sessionRevisionBaseline = new Map(sessionEventRevisionsRef.current)
     const fileSessionRevisionBaseline = new Map(fileSessionEventRevisionsRef.current)
+    const snippetGenerationBaseline = snippetRuntimeCursorRef.current.generation
     if (mode === 'initial') {
       setInitializing(true)
     } else if (mode === 'background') {
@@ -301,6 +317,10 @@ export function useTermousData() {
           sessionEventRevisionsRef.current,
         )
         const activeSourceSessionIds = new Set(nextSessions.map((session) => session.id))
+        const canApplyReloadedSnippets = !snippetStateChangedSince(
+          snippetRuntimeCursorRef.current,
+          snippetGenerationBaseline,
+        )
         const mergedSettings = {
           ...nextSettings,
           completion: canApplyReloadedCompletion
@@ -332,8 +352,10 @@ export function useTermousData() {
           ),
           forwardProfiles: forwardProfiles ?? [],
           forwards: visibleForwards(forwards ?? []),
-          snippetGroups: sortCodeSnippetGroups(snippetGroups ?? []),
-          snippets: snippets ?? [],
+          snippetGroups: canApplyReloadedSnippets
+            ? sortCodeSnippetGroups(snippetGroups ?? [])
+            : current.snippetGroups,
+          snippets: canApplyReloadedSnippets ? snippets ?? [] : current.snippets,
           fileBookmarkGroups: sortFileBookmarkGroups(fileBookmarkGroups ?? []),
           fileBookmarks: sortFileBookmarks(fileBookmarks ?? []),
           localPathMappings: sortLocalPathMappings(localPathMappings ?? []),
@@ -388,6 +410,70 @@ export function useTermousData() {
     () => reloadForwardsWithGateways(gateways),
     [gateways, reloadForwardsWithGateways],
   )
+
+  const reloadSnippetsWithGateways = useCallback(async (
+    runtimeGateways: RuntimeGateways,
+    eventRevision: number | null = null,
+  ) => {
+    const decision = beginSnippetReload(snippetRuntimeCursorRef.current, eventRevision)
+    snippetRuntimeCursorRef.current = decision.cursor
+    if (!decision.checkpoint) {
+      return
+    }
+    snippetReloadPendingRef.current = {
+      gateways: runtimeGateways,
+      checkpoint: decision.checkpoint,
+    }
+    if (!snippetReloadLoopRef.current) {
+      const drain = async () => {
+        while (snippetReloadPendingRef.current) {
+          const request = snippetReloadPendingRef.current
+          snippetReloadPendingRef.current = null
+          try {
+            const [snippetGroups, snippets] = await Promise.all([
+              request.gateways.snippets.codeSnippetGroups(),
+              request.gateways.snippets.codeSnippets(),
+            ])
+            if (canApplySnippetReload(snippetRuntimeCursorRef.current, request.checkpoint)) {
+              setData((current) => ({
+                ...current,
+                snippetGroups: sortCodeSnippetGroups(snippetGroups ?? []),
+                snippets: snippets ?? [],
+              }))
+              setLastUpdatedAt(new Date().toISOString())
+            }
+          } catch (reloadError) {
+            if (!snippetReloadPendingRef.current) {
+              snippetRuntimeCursorRef.current = recoverFailedSnippetReload(
+                snippetRuntimeCursorRef.current,
+                request.checkpoint,
+              )
+              throw reloadError
+            }
+          }
+        }
+      }
+      const loop = drain().finally(() => {
+        if (snippetReloadLoopRef.current === loop) {
+          snippetReloadLoopRef.current = null
+        }
+      })
+      snippetReloadLoopRef.current = loop
+    }
+    await snippetReloadLoopRef.current
+  }, [])
+
+  const reloadSnippets = useCallback(
+    (eventRevision?: number) => reloadSnippetsWithGateways(gateways, eventRevision ?? null),
+    [gateways, reloadSnippetsWithGateways],
+  )
+
+  const resetSnippetEventCursor = useCallback(() => {
+    snippetRuntimeCursorRef.current = resetSnippetEventRevision(
+      snippetRuntimeCursorRef.current,
+    )
+    snippetReloadPendingRef.current = null
+  }, [])
 
   const applySessionSnapshot = useCallback((
     event: SessionSnapshotEvent,
@@ -553,6 +639,8 @@ export function useTermousData() {
       reload: () => load('background'),
       reloadSilent: () => load('silent'),
       reloadForwardsSilent: () => reloadForwards(),
+      reloadSnippetsSilent: (eventRevision?: number) => reloadSnippets(eventRevision),
+      resetSnippetEventCursor,
       applySessionSnapshot,
       applyFileSessionSnapshot,
       ...createSettingsCommands({
@@ -637,6 +725,8 @@ export function useTermousData() {
       load,
       releaseFileSessionRecoveryEpoch,
       reloadForwards,
+      reloadSnippets,
+      resetSnippetEventCursor,
       scheduleSuppressedFileSessionCleanup,
       supersedeFileSessionRecoveryOperation,
     ],

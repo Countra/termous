@@ -115,6 +115,61 @@ test('MCP 审批协议解码远程运维操作并保留显式 false', () => {
   assert.equal(approval?.targets[0]?.host_name, '测试主机')
 })
 
+test('MCP 审批协议解码端口转发和代码片段操作摘要', () => {
+  const snapshot = decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 15,
+    items: [
+      {
+        ...approvalFixture('pending'),
+        kind: 'forwarding',
+        command: undefined,
+        session_ids: undefined,
+        targets: undefined,
+        operation: {
+          action: 'start',
+          resource_id: 'profile-1',
+          resource_name: '数据库隧道',
+          mode: 'local',
+          lifecycle: 'background_profile',
+          bind_address: '127.0.0.1:15432',
+          target_address: 'db.internal:5432',
+        },
+      },
+      {
+        ...approvalFixture('pending'),
+        kind: 'snippet',
+        command: undefined,
+        session_ids: undefined,
+        targets: undefined,
+        operation: {
+          action: 'update',
+          resource_id: 'snippet-1',
+          resource_name: '查看端口',
+          group_name: '诊断',
+          shell: 'bash',
+          description: '查看监听端口',
+          tags: ['network', 'diagnostics'],
+          command: 'ss -lntp',
+        },
+      },
+    ],
+  })
+
+  const forwarding = snapshot.items[0]
+  assert.equal(forwarding?.kind, 'forwarding')
+  assert.deepEqual(forwarding?.session_ids, [])
+  assert.equal(forwarding?.operation?.lifecycle, 'background_profile')
+  assert.equal(forwarding?.operation?.bind_address, '127.0.0.1:15432')
+
+  const snippet = snapshot.items[1]
+  assert.equal(snippet?.kind, 'snippet')
+  assert.deepEqual(snippet?.targets, [])
+  assert.equal(snippet?.operation?.group_name, '诊断')
+  assert.deepEqual(snippet?.operation?.tags, ['network', 'diagnostics'])
+  assert.equal(snippet?.operation?.command, 'ss -lntp')
+})
+
 test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', () => {
   assert.throws(() => decodeMcpStatus({
     ...statusFixture(),
@@ -179,6 +234,15 @@ test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', ()
       operation: { domain: 'crontab', action: 'update', enabled: 'false' },
     }],
   }), /启用状态无效/)
+  assert.throws(() => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 12,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'snippet',
+      operation: { action: 'update', tags: ['valid', 1] },
+    }],
+  }), /标签无效/)
 })
 
 function statusFixture() {

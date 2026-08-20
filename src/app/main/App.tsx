@@ -159,6 +159,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     () => gateways.hosts.hostReachabilityEventsUrl(),
     [gateways.hosts],
   )
+  const snippetEventsUrl = useCallback(
+    () => gateways.snippets.snippetEventsUrl(),
+    [gateways.snippets],
+  )
   const sessionEventsUrl = useCallback(
     () => gateways.sessions.sessionEventsUrl(),
     [gateways.sessions],
@@ -171,8 +175,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     enabled: apiReady,
     forwardEventsUrl,
     hostReachabilityEventsUrl,
+    snippetEventsUrl,
     onForwardEvent: actions.updateForward,
     reloadForwards: actions.reloadForwardsSilent,
+    reloadSnippets: actions.reloadSnippetsSilent,
+    resetSnippetEventCursor: actions.resetSnippetEventCursor,
     onHostReachabilityEvent: actions.updateHostReachability,
   })
   useSessionSnapshotSubscription({

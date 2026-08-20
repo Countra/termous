@@ -37,3 +37,8 @@ export interface CodeSnippetGroupInput {
   name: string
   sort_order?: number
 }
+
+export interface SnippetChangedEvent {
+  type: 'changed'
+  revision: number
+}

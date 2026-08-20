@@ -168,6 +168,233 @@ describe('McpApprovalCoordinator', () => {
     expect(screen.queryByText('settings.mcp.approval.command')).not.toBeInTheDocument()
   })
 
+  it('在同一审批弹窗中展示端口转发模式、运行方式和路由', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'forwarding',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'start',
+        resource_id: 'profile-1',
+        resource_name: '数据库隧道',
+        host_name: '测试2',
+        mode: 'local',
+        lifecycle: 'background_profile',
+        bind_address: '127.0.0.1:15432',
+        target_address: 'db.internal:5432',
+        remote_paths: [],
+        local_paths: [],
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.approval.forwardingAction.start')).toBeInTheDocument()
+    expect(screen.getByText('数据库隧道')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.host')).toBeInTheDocument()
+    expect(screen.getByText('测试2')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.forwardingModeValue.local')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.forwardingLifecycleValue.backgroundProfile')).toBeInTheDocument()
+    expect(screen.getByText('127.0.0.1:15432')).toBeInTheDocument()
+    expect(screen.getByText('db.internal:5432')).toBeInTheDocument()
+  })
+
+  it('停止端口转发时将操作对象标记为运行实例而不是转发配置', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'forwarding',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'stop',
+        resource_id: 'forward-1',
+        resource_name: '临时转发',
+        mode: 'local',
+        lifecycle: 'background_once',
+        bind_address: '127.0.0.1:18080',
+        target_address: '127.0.0.1:8080',
+        remote_paths: [],
+        local_paths: [],
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.approval.forwardingAction.stop')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.resource')).toBeInTheDocument()
+    expect(screen.getByText('临时转发')).toBeInTheDocument()
+    expect(screen.queryByText('settings.mcp.approval.forwardingProfile')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      mode: 'remote',
+      direction: 'settings.mcp.approval.forwardingDirectionValue.remote',
+      bindAddress: '0.0.0.0:18081',
+      targetAddress: '127.0.0.1:8081',
+    },
+    {
+      mode: 'dynamic',
+      direction: 'settings.mcp.approval.forwardingDirectionValue.dynamic',
+      bindAddress: '127.0.0.1:1080',
+      targetAddress: '',
+    },
+  ])('展示 $mode 端口转发的网络方向', ({ mode, direction, bindAddress, targetAddress }) => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'forwarding',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'start',
+        mode,
+        lifecycle: 'session',
+        bind_address: bindAddress,
+        target_address: targetAddress,
+        remote_paths: [],
+        local_paths: [],
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText(`settings.mcp.approval.forwardingModeValue.${mode}`)).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.forwardingDirection')).toBeInTheDocument()
+    expect(screen.getByText(direction)).toBeInTheDocument()
+    expect(screen.getByText(bindAddress)).toBeInTheDocument()
+    if (targetAddress) {
+      expect(screen.getByText(targetAddress)).toBeInTheDocument()
+    } else {
+      expect(screen.queryByText('settings.mcp.approval.targetAddress')).not.toBeInTheDocument()
+    }
+  })
+
+  it('在同一审批弹窗中展示代码片段内容和归属信息', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'snippet',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'update',
+        resource_id: 'snippet-1',
+        resource_name: '查看端口',
+        group_name: '诊断',
+        shell: 'bash',
+        description: '查看监听端口',
+        tags: ['network', 'diagnostics'],
+        command: 'ss -lntp',
+        remote_paths: [],
+        local_paths: [],
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.approval.snippetAction.update')).toBeInTheDocument()
+    expect(screen.getByText('查看端口')).toBeInTheDocument()
+    expect(screen.getByText('诊断')).toBeInTheDocument()
+    expect(screen.getByText('bash')).toBeInTheDocument()
+    expect(screen.getByText('network, diagnostics')).toBeInTheDocument()
+    expect(screen.getByText('查看监听端口')).toBeInTheDocument()
+    expect(screen.getByText('ss -lntp')).toBeInTheDocument()
+  })
+
+  it('删除代码片段分组时展示分组标签和保留片段的影响说明', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'snippet',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'group_delete',
+        resource_id: 'group-1',
+        group_name: '临时诊断',
+        remote_paths: [],
+        local_paths: [],
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.approval.snippetAction.groupDelete')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.snippetGroup')).toBeInTheDocument()
+    expect(screen.getByText('临时诊断')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.impact')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.snippetGroupDeleteImpact')).toBeInTheDocument()
+    expect(screen.queryByText('settings.mcp.approval.snippet')).not.toBeInTheDocument()
+  })
+
+  it('修改代码片段分组名称时同时展示当前名称和新名称', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'snippet',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'group_update',
+        resource_id: 'group-1',
+        resource_name: '旧分组',
+        group_name: '新分组',
+        remote_paths: [],
+        local_paths: [],
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.approval.currentSnippetGroup')).toBeInTheDocument()
+    expect(screen.getByText('旧分组')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.newSnippetGroupName')).toBeInTheDocument()
+    expect(screen.getByText('新分组')).toBeInTheDocument()
+  })
+
+  it('分组名称未变化时只展示一次分组信息', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'snippet',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'group_update',
+        resource_id: 'group-1',
+        resource_name: '诊断',
+        group_name: '诊断',
+        remote_paths: [],
+        local_paths: [],
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.approval.snippetGroup')).toBeInTheDocument()
+    expect(screen.getByText('诊断')).toBeInTheDocument()
+    expect(screen.queryByText('settings.mcp.approval.currentSnippetGroup')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.mcp.approval.newSnippetGroupName')).not.toBeInTheDocument()
+  })
+
+  it('调整代码片段分组顺序时展示完整项目数量', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'snippet',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'groups_reorder',
+        item_count: 4,
+        remote_paths: [],
+        local_paths: [],
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.approval.snippetAction.groupsReorder')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.itemCount')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.itemCountValue:4')).toBeInTheDocument()
+  })
+
   it.each<{
     name: string
     operation: McpApprovalOperation

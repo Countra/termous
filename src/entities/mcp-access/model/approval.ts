@@ -8,7 +8,7 @@ export type McpApprovalState =
   | 'dispatch_conflict'
 
 export type McpApprovalDecision = 'approve' | 'reject'
-export type McpApprovalKind = 'command' | 'sftp' | 'remoteops'
+export type McpApprovalKind = 'command' | 'sftp' | 'remoteops' | 'forwarding' | 'snippet'
 
 export interface McpApprovalOperation {
   action: string
@@ -30,6 +30,13 @@ export interface McpApprovalOperation {
   local_target?: string
   overwrite_policy?: 'rename' | 'skip' | 'overwrite'
   mode?: string
+  lifecycle?: string
+  bind_address?: string
+  target_address?: string
+  group_name?: string
+  shell?: string
+  description?: string
+  tags?: string[]
   item_count?: number
   total_bytes?: number
 }
@@ -83,7 +90,24 @@ export interface McpRemoteOpsApproval extends McpApprovalBase {
   operation: McpApprovalOperation
 }
 
-export type McpApproval = McpCommandApproval | McpSFTPApproval | McpRemoteOpsApproval
+export interface McpForwardingApproval extends McpApprovalBase {
+  kind: 'forwarding'
+  command: string
+  operation: McpApprovalOperation
+}
+
+export interface McpSnippetApproval extends McpApprovalBase {
+  kind: 'snippet'
+  command: string
+  operation: McpApprovalOperation
+}
+
+export type McpApproval =
+  | McpCommandApproval
+  | McpSFTPApproval
+  | McpRemoteOpsApproval
+  | McpForwardingApproval
+  | McpSnippetApproval
 
 export interface McpApprovalSnapshot {
   instance_id: string

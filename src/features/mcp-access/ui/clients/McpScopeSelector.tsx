@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Alert, Button, Checkbox, Switch, Tooltip } from 'antd'
 import {
   Activity,
+  Braces,
   CalendarClock,
   Container,
   Cpu,
@@ -9,6 +10,7 @@ import {
   KeyRound,
   ListChecks,
   ListX,
+  Network,
   RotateCcw,
   Server,
   ServerCog,
@@ -47,6 +49,8 @@ const permissionGroupIcons: Record<McpScopeGroupKey, LucideIcon> = {
   services: ServerCog,
   docker: Container,
   crontab: CalendarClock,
+  forwarding: Network,
+  snippets: Braces,
 }
 
 export function McpScopeSelector({

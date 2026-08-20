@@ -15,6 +15,8 @@ export type McpScopeGroupKey =
   | 'services'
   | 'docker'
   | 'crontab'
+  | 'forwarding'
+  | 'snippets'
 
 export interface McpScopeGroup {
   key: McpScopeGroupKey
@@ -41,6 +43,8 @@ export const mcpScopeGroups: readonly McpScopeGroup[] = [
   { key: 'services', scopes: ['services:read', 'services:manage'] },
   { key: 'docker', scopes: ['docker:read', 'docker:manage'] },
   { key: 'crontab', scopes: ['crontab:read', 'crontab:write'] },
+  { key: 'forwarding', scopes: ['forwarding:read', 'forwarding:manage'] },
+  { key: 'snippets', scopes: ['snippets:read', 'snippets:write'] },
 ]
 
 const groupByScope = new Map(
