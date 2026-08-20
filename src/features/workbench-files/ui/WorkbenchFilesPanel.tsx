@@ -40,6 +40,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
+import { writeClipboardText } from '#shared/clipboard'
 import type { FileGateway } from '#features/files'
 import {
   createUploadWithConflictDecision,
@@ -56,6 +57,7 @@ import {
 } from '#features/transfers'
 import {
   buildRemoteFileActionMenu,
+  formatRemoteFilePathsForClipboard,
   loadRemoteImageViewerModal,
   loadRemoteTextEditorModal,
   runRemoteFileAction,
@@ -974,6 +976,9 @@ function WorkbenchFilesPanelContent({
     onClick: ({ key, domEvent }) => {
       domEvent.stopPropagation()
       const selectedPaths = files.viewState?.selectedPaths ?? []
+      const actionPaths = selectedPaths.includes(entry.path)
+        ? [...selectedPaths]
+        : [entry.path]
       if (!selectedPaths.includes(entry.path)) {
         files.setSelectedPaths([entry.path])
       }
@@ -1025,6 +1030,10 @@ function WorkbenchFilesPanelContent({
             setRemoteClipboard({ mode: 'cut', hostId: files.fileSession.host_id, paths: [target.path] })
           }
         },
+        copyAbsolutePath: () => void runAction(
+          () => writeClipboardText(formatRemoteFilePathsForClipboard(actionPaths)),
+          t('files.absolutePathCopied', { count: actionPaths.length }),
+        ),
         permissions: setPermissionEntry,
         rename: renameEntry,
         delete: deleteEntry,

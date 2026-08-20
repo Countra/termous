@@ -50,6 +50,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
+import { writeClipboardText } from '#shared/clipboard'
 import { SessionQuickConnect } from '#features/hosts'
 import { confirmDialogStyles, EmptyState, SessionTabButton, SessionTabStrip, uiStyles, termousNotificationClassName } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
@@ -91,6 +92,7 @@ import {
 } from '#features/transfers'
 import {
   buildRemoteFileActionMenu,
+  formatRemoteFilePathsForClipboard,
   loadRemoteImageViewerModal,
   loadRemoteTextEditorModal,
   RemotePermissionModal,
@@ -2198,7 +2200,7 @@ function FilesWorkspaceContent({
       return
     }
     const actionPaths = selectedPaths.includes(entry.path)
-      ? selectedPaths
+      ? [...selectedPaths]
       : [entry.path]
     if (!selectedPaths.includes(entry.path)) {
       selectEntry(entry, { contextMenu: true })
@@ -2275,6 +2277,10 @@ function FilesWorkspaceContent({
           })
         }
       },
+      copyAbsolutePath: () => void runFileAction(
+        () => writeClipboardText(formatRemoteFilePathsForClipboard(actionPaths)),
+        t('files.absolutePathCopied', { count: actionPaths.length }),
+      ),
       permissions: openPermissions,
       rename: openRename,
       delete: () => confirmDelete(actionPaths),

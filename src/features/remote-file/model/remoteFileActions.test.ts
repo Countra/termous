@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  formatRemoteFilePathsForClipboard,
   remoteFileActionDescriptors,
   runRemoteFileAction,
   snapshotRemoteFileActionSelection,
@@ -26,11 +27,11 @@ const fileEntry: RemoteFileEntry = {
 test('文件操作菜单仅对普通文件提供打开入口', () => {
   assert.deepEqual(
     remoteFileActionDescriptors(fileEntry).map((item) => item.key),
-    ['openFile', 'download', 'sendToHost', 'copy', 'cut', 'permissions', 'rename', 'delete'],
+    ['openFile', 'download', 'sendToHost', 'copy', 'cut', 'copyAbsolutePath', 'permissions', 'rename', 'delete'],
   )
   assert.deepEqual(
     remoteFileActionDescriptors(directoryEntry).map((item) => item.key),
-    ['download', 'sendToHost', 'copy', 'cut', 'permissions', 'rename', 'delete'],
+    ['download', 'sendToHost', 'copy', 'cut', 'copyAbsolutePath', 'permissions', 'rename', 'delete'],
   )
 })
 
@@ -43,14 +44,16 @@ test('共享分发器只执行已知文件动作', () => {
     sendToHost: handler,
     copy: handler,
     cut: handler,
+    copyAbsolutePath: handler,
     permissions: handler,
     rename: handler,
     delete: handler,
   }
 
   assert.equal(runRemoteFileAction(fileEntry, 'download', handlers), true)
+  assert.equal(runRemoteFileAction(fileEntry, 'copyAbsolutePath', handlers), true)
   assert.equal(runRemoteFileAction(fileEntry, 'unknown', handlers), false)
-  assert.deepEqual(calls, ['/config/app.conf'])
+  assert.deepEqual(calls, ['/config/app.conf', '/config/app.conf'])
 })
 
 test('发送到其他主机动作只调用对应处理器', () => {
@@ -62,6 +65,7 @@ test('发送到其他主机动作只调用对应处理器', () => {
     sendToHost: (entry) => calls.push(entry.path),
     copy: ignored,
     cut: ignored,
+    copyAbsolutePath: ignored,
     permissions: ignored,
     rename: ignored,
     delete: ignored,
@@ -97,5 +101,12 @@ test('右键点击未选条目时只冻结点击项且拒绝陈旧选择', () =>
   assert.equal(
     snapshotRemoteFileActionSelection(fileEntry, [fileEntry.path, '/missing'], [fileEntry]),
     null,
+  )
+})
+
+test('复制绝对路径时按选择顺序逐行保留原始路径', () => {
+  assert.equal(
+    formatRemoteFilePathsForClipboard(['/srv/应用 配置', '/var/log/app.log']),
+    '/srv/应用 配置\n/var/log/app.log',
   )
 })

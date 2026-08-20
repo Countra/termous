@@ -6,6 +6,7 @@ export type RemoteFileActionKey =
   | 'sendToHost'
   | 'copy'
   | 'cut'
+  | 'copyAbsolutePath'
   | 'permissions'
   | 'rename'
   | 'delete'
@@ -22,6 +23,7 @@ export interface RemoteFileActionHandlers {
   sendToHost: (entry: RemoteFileEntry) => void
   copy: (entry: RemoteFileEntry) => void
   cut: (entry: RemoteFileEntry) => void
+  copyAbsolutePath: (entry: RemoteFileEntry) => void
   permissions: (entry: RemoteFileEntry) => void
   rename: (entry: RemoteFileEntry) => void
   delete: (entry: RemoteFileEntry) => void
@@ -30,6 +32,10 @@ export interface RemoteFileActionHandlers {
 export interface RemoteFileActionSelectionSnapshot {
   paths: string[]
   entries: RemoteFileEntry[]
+}
+
+export function formatRemoteFilePathsForClipboard(paths: readonly string[]) {
+  return paths.join('\n')
 }
 
 export function snapshotRemoteFileActionSelection(
@@ -62,6 +68,7 @@ export function remoteFileActionDescriptors(entry: RemoteFileEntry): RemoteFileA
     { key: 'sendToHost' },
     { key: 'copy' },
     { key: 'cut' },
+    { key: 'copyAbsolutePath' },
     { key: 'permissions' },
     { key: 'rename' },
     { key: 'delete', danger: true, dividerBefore: true },
@@ -87,6 +94,7 @@ function isRemoteFileActionKey(value: string): value is RemoteFileActionKey {
     || value === 'sendToHost'
     || value === 'copy'
     || value === 'cut'
+    || value === 'copyAbsolutePath'
     || value === 'permissions'
     || value === 'rename'
     || value === 'delete'

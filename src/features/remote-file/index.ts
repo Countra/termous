@@ -1,6 +1,7 @@
 export { buildRemoteFileActionMenu } from './ui/RemoteFileActionMenu.tsx'
 export { RemotePermissionModal } from './ui/RemotePermissionModal.tsx'
 export {
+  formatRemoteFilePathsForClipboard,
   runRemoteFileAction,
   snapshotRemoteFileActionSelection,
 } from './model/remoteFileActions.ts'
