@@ -57,9 +57,59 @@ jobs:
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
       sha: ${{ steps.core.outputs.sha }}
 
     steps:
+      - name: Resolve platform matrix
+        id: matrix
+        shell: bash
+        env:
+          FRONTEND_BRANCH: ${{ github.ref_name }}
+        run: |
+          matrix="$(
+            jq -cn --arg branch "$FRONTEND_BRANCH" '
+              {
+                include: (
+                  [
+                    {
+                      platform: "windows",
+                      target_os: "win32",
+                      arch: "x64",
+                      runner: "windows-latest"
+                    },
+                    {
+                      platform: "linux",
+                      target_os: "linux",
+                      arch: "x64",
+                      runner: "ubuntu-24.04"
+                    }
+                  ] + (
+                    if $branch == "main" then
+                      [
+                        {
+                          platform: "macos",
+                          target_os: "darwin",
+                          arch: "x64",
+                          runner: "macos-15-intel"
+                        },
+                        {
+                          platform: "macos",
+                          target_os: "darwin",
+                          arch: "arm64",
+                          runner: "macos-15"
+                        }
+                      ]
+                    else
+                      []
+                    end
+                  )
+                )
+              }
+            '
+          )"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
       - name: Resolve matching branch or main
         id: core
         shell: bash
@@ -149,24 +199,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - platform: windows
-            target_os: win32
-            arch: x64
-            runner: windows-latest
-          - platform: linux
-            target_os: linux
-            arch: x64
-            runner: ubuntu-24.04
-          - platform: macos
-            target_os: darwin
-            arch: x64
-            runner: macos-15-intel
-          - platform: macos
-            target_os: darwin
-            arch: arm64
-            runner: macos-15
+      matrix: ${{ fromJSON(needs.resolve-core.outputs.matrix) }}
     env:
       TERMOUS_ARCH: ${{ matrix.arch }}
       TERMOUS_CORE_DIR: ${{ github.workspace }}/backend

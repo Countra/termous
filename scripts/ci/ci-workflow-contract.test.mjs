@@ -54,6 +54,19 @@ function normalizeBuildStep(step) {
   return normalized;
 }
 
+function matrixEntryPattern(entry) {
+  const escape = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  return new RegExp(
+    [
+      `platform:\\s+"${escape(entry.platform)}",`,
+      `target_os:\\s+"${escape(entry.target_os)}",`,
+      `arch:\\s+"${escape(entry.arch)}",`,
+      `runner:\\s+"${escape(entry.runner)}"`,
+    ].join("\\s+"),
+    "u",
+  );
+}
+
 test("全部前端分支 push 都会触发 CI", async () => {
   const { workflow } = await loadWorkflow();
   assert.deepEqual(workflow.on.push.branches, ["**"]);
@@ -100,6 +113,7 @@ test("Core 优先使用前端同名分支并在缺失时回退 main", async () =
     "GraphQL 错误必须在分支回退前失败",
   );
   assert.deepEqual(resolver.outputs, {
+    matrix: "${{ steps.matrix.outputs.matrix }}",
     sha: "${{ steps.core.outputs.sha }}",
   });
 
@@ -116,7 +130,7 @@ test("Core 优先使用前端同名分支并在缺失时回退 main", async () =
   assert.equal(coreCheckout.with["persist-credentials"], false);
 });
 
-test("提交构建复用 Release 的四平台打包路径", async () => {
+test("提交构建按分支选择平台并复用 Release 打包路径", async () => {
   const { workflow } = await loadWorkflow();
   const { workflow: releaseWorkflow } = await loadWorkflow(
     releaseWorkflowUrl,
@@ -126,7 +140,30 @@ test("提交构建复用 Release 的四平台打包路径", async () => {
   const releaseBuild = releaseWorkflow.jobs.build;
 
   assert.equal(build.needs, "resolve-core");
-  assert.deepEqual(build.strategy, releaseBuild.strategy);
+  assert.deepEqual(build.strategy, {
+    "fail-fast": releaseBuild.strategy["fail-fast"],
+    matrix: "${{ fromJSON(needs.resolve-core.outputs.matrix) }}",
+  });
+
+  const matrixStep = stepsFor(workflow, "resolve-core").find(
+    ({ name }) => name === "Resolve platform matrix",
+  );
+  assert.ok(matrixStep);
+  assert.equal(matrixStep.env.FRONTEND_BRANCH, "${{ github.ref_name }}");
+  const branchGate = matrixStep.run.indexOf('if $branch == "main" then');
+  assert.ok(branchGate >= 0, "macOS 矩阵必须由 main 分支条件控制");
+  for (const entry of releaseBuild.strategy.matrix.include) {
+    const match = matrixEntryPattern(entry).exec(matrixStep.run);
+    assert.ok(match, `提交构建缺少 ${entry.platform}-${entry.arch} 平台配置`);
+    if (entry.platform === "macos") {
+      assert.ok(match.index > branchGate, `${entry.arch} macOS 必须仅加入 main 矩阵`);
+    } else {
+      assert.ok(match.index < branchGate, `${entry.platform} 必须在所有分支构建`);
+    }
+  }
+  assert.match(matrixStep.run, /else\s+\[\]\s+end/u);
+  assert.match(matrixStep.run, /echo "matrix=\$matrix" >> "\$GITHUB_OUTPUT"/u);
+
   for (const name of [
     "TERMOUS_ARCH",
     "TERMOUS_CORE_DIR",
