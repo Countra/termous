@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react'
-import type { TransferTask } from '#entities/file'
+import { resolveTransferOrigin, type TransferTask } from '#entities/file'
 
-const transferHistoryLimit = 200
+const transferHistoryLimitPerOrigin = 200
 const remoteCopyRefreshHistoryLimit = 200
 
 export type RemoteCopyRefreshConsumer = 'files-workspace' | 'workbench-files'
@@ -125,13 +125,16 @@ export function sortTransfers(transfers: TransferTask[]) {
 
   const activeTransfers: TransferTask[] = []
   const historyTransfers: TransferTask[] = []
+  const historyCounts = { app: 0, mcp: 0 }
   for (const task of sorted) {
     if (isActiveTransfer(task)) {
       activeTransfers.push(task)
       continue
     }
-    if (historyTransfers.length < transferHistoryLimit) {
+    const origin = resolveTransferOrigin(task)
+    if (historyCounts[origin] < transferHistoryLimitPerOrigin) {
       historyTransfers.push(task)
+      historyCounts[origin] += 1
     }
   }
   return [...activeTransfers, ...historyTransfers]

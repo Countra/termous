@@ -8,6 +8,7 @@ import {
 import {
   AlertTriangle,
   ArrowRight,
+  Bot,
   CheckCircle2,
   CircleStop,
   Copy,
@@ -39,6 +40,7 @@ import {
 } from '../model/transferQueueState'
 import {
   formatSeconds,
+  resolveTransferOrigin,
   transferDisplayName,
   transferProgress,
   transferStatusClass,
@@ -478,6 +480,9 @@ function TransferRow({
   const routeLabel = remoteRoute
     ? t('files.remoteCopy.route', remoteRoute)
     : null
+  const originLabel = resolveTransferOrigin(task) === 'mcp'
+    ? t('files.transferOrigin.mcp')
+    : null
 
   const openLocalDirectory = async () => {
     const filesBridge = getTermousBridge()?.files
@@ -554,13 +559,21 @@ function TransferRow({
       <article
         className={`transfer-row ${transferStatusClass(task.status)} ${canDelete ? 'is-history' : ''} ${remoteRoute ? 'is-remote-copy' : ''}`}
         role="listitem"
-        aria-label={`${currentName}: ${routeLabel ? `${routeLabel}; ` : ''}${t(`files.transferStatus.${task.status}`)}`}
+        aria-label={`${currentName}: ${originLabel ? `${originLabel}; ` : ''}${routeLabel ? `${routeLabel}; ` : ''}${t(`files.transferStatus.${task.status}`)}`}
+        data-transfer-origin={originLabel ? 'mcp' : undefined}
       >
         <span className="transfer-kind-icon">
           <Icon size={17} aria-hidden="true" />
         </span>
         <div className="transfer-copy">
           <div className="transfer-title-line">
+            {originLabel ? (
+              <Tooltip title={originLabel}>
+                <span className="transfer-origin-indicator" role="img" aria-label={originLabel}>
+                  <Bot size={12} strokeWidth={2} aria-hidden="true" />
+                </span>
+              </Tooltip>
+            ) : null}
             <Tooltip title={currentName}>
               <strong>{currentName}</strong>
             </Tooltip>

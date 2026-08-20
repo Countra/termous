@@ -37,6 +37,7 @@ export type {
   TransferStatus,
   TransferFailureSide,
   TransferPhase,
+  TransferOrigin,
   TransferTask,
   TransferType,
 } from './model/types.ts'
@@ -114,6 +115,7 @@ export {
   fileSortValue,
   formatSeconds,
   isTransferRelatedToFileSession,
+  resolveTransferOrigin,
   transferDisplayName,
   transferProgress,
   transferStatusClass,

@@ -40,14 +40,20 @@ function transferTask(type: TransferTask['type']): TransferTask {
   }
 }
 
-function renderTransferBar(type: TransferTask['type']) {
-  const task = transferTask(type)
+function renderTransferBar(
+  type: TransferTask['type'],
+  overrides: Partial<TransferTask> = {},
+  additionalTasks: TransferTask[] = [],
+) {
+  const task = { ...transferTask(type), ...overrides }
   const refresh = vi.fn(async () => undefined)
   const removeTransfer = vi.fn()
   const deleteTransfer = vi.fn(async () => undefined)
   const runtime: TransferRuntimeValue = {
-    transfers: [task],
-    activeTransfers: [task],
+    transfers: [task, ...additionalTasks],
+    activeTransfers: [task, ...additionalTasks].filter((item) => (
+      item.status === 'queued' || item.status === 'running'
+    )),
     connected: true,
     initialized: true,
     remoteCopyRefreshVersion: 0,
@@ -95,5 +101,30 @@ describe('工作台传输条取消行为', () => {
     await waitFor(() => expect(actions.deleteTransfer).toHaveBeenCalledWith('transfer-1'))
     expect(actions.refresh).not.toHaveBeenCalled()
     expect(actions.removeTransfer).toHaveBeenCalledWith('transfer-1')
+  })
+
+  it('MCP 托管任务显示来源标识并保留取消入口', () => {
+    renderTransferBar('download_file', { origin: 'mcp' })
+
+    expect(screen.getByRole('img', { name: 'files.transferOrigin.mcp' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'files.cancelTransfer' })).toBeEnabled()
+    expect(document.querySelector('[data-workbench-file-transfer]')).toHaveAttribute(
+      'data-transfer-origin',
+      'mcp',
+    )
+  })
+
+  it('聚合多个活动任务时只要包含 MCP 任务就显示来源标识', () => {
+    renderTransferBar('upload_file', {}, [{
+      ...transferTask('download_file'),
+      id: 'transfer-mcp',
+      origin: 'mcp',
+    }])
+
+    expect(screen.getByRole('img', { name: 'files.transferOrigin.mcp' })).toBeInTheDocument()
+    expect(document.querySelector('[data-workbench-file-transfer]')).toHaveAttribute(
+      'data-transfer-origin',
+      'mcp',
+    )
   })
 })

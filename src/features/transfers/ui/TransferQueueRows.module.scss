@@ -77,13 +77,16 @@
     }
 
     .transfer-title-line {
-      display: block;
+      display: flex;
       min-width: 0;
+      align-items: center;
+      gap: 5px;
     }
 
     .transfer-title-line strong {
       display: block;
       min-width: 0;
+      flex: 0 1 auto;
       overflow: hidden;
       color: var(--text-primary);
       font-size: 12px;
@@ -145,6 +148,30 @@
       font-weight: 650;
       line-height: 1.35;
       white-space: nowrap;
+    }
+
+    .transfer-origin-indicator {
+      display: inline-grid;
+      width: 14px;
+      height: 14px;
+      flex: 0 0 14px;
+      place-items: center;
+      color: color-mix(in srgb, var(--accent) 55%, var(--text-muted));
+      opacity: 0.82;
+      transition:
+        color 0.15s ease,
+        opacity 0.15s ease;
+    }
+
+    .transfer-origin-indicator > svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .transfer-row:hover .transfer-origin-indicator,
+    .transfer-row:focus-within .transfer-origin-indicator {
+      color: color-mix(in srgb, var(--accent) 72%, var(--text-secondary));
+      opacity: 1;
     }
 
     .transfer-remote-route > span {

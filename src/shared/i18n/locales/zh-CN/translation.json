@@ -1976,6 +1976,9 @@
       "disconnected": "断开"
     },
     "transfers": "传输列表",
+    "transferOrigin": {
+      "mcp": "MCP 托管的传输"
+    },
     "transferScope": "传输范围",
     "transferFilter": "筛选传输任务",
     "transferAll": "全部",

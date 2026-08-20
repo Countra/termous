@@ -1,5 +1,6 @@
 import { App as AntdApp } from 'antd'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { TransferTask } from '#entities/file'
 
@@ -143,5 +144,50 @@ describe('跨主机传输队列展示合同', () => {
 
     expect(screen.getByText('files.transferStatus.completed')).toBeInTheDocument()
     expect(screen.queryByText('files.remoteCopy.phaseFinalizing')).not.toBeInTheDocument()
+  })
+
+  it('MCP 托管任务显示低干扰来源标识并保留人工取消操作', async () => {
+    const user = userEvent.setup()
+    const onCancel = vi.fn(async () => undefined)
+    render(
+      <AntdApp>
+        <TransferQueuePanel
+          transfers={[{
+            ...remoteCopyTask(),
+            origin: 'mcp',
+            status: 'running',
+            failure_side: undefined,
+            cancellable: true,
+          }]}
+          onCancel={onCancel}
+          onDelete={vi.fn().mockResolvedValue(true)}
+          onRetry={vi.fn()}
+        />
+      </AntdApp>,
+    )
+
+    const row = screen.getByRole('listitem')
+    expect(row).toHaveAttribute('data-transfer-origin', 'mcp')
+    expect(screen.getByRole('img', { name: 'files.transferOrigin.mcp' })
+      .querySelector('.lucide-bot')).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'files.cancelTransfer' }))
+    expect(onCancel).toHaveBeenCalledWith('remote-copy-1')
+  })
+
+  it('缺少来源的旧任务按应用任务处理且不显示 MCP 标识', () => {
+    render(
+      <AntdApp>
+        <TransferQueuePanel
+          transfers={[remoteCopyTask()]}
+          onCancel={vi.fn()}
+          onDelete={vi.fn().mockResolvedValue(true)}
+          onRetry={vi.fn()}
+        />
+      </AntdApp>,
+    )
+
+    expect(screen.getByRole('listitem')).not.toHaveAttribute('data-transfer-origin')
+    expect(screen.queryByRole('img', { name: 'files.transferOrigin.mcp' })).not.toBeInTheDocument()
   })
 })

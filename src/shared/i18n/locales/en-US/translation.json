@@ -1998,6 +1998,9 @@
       "disconnected": "Closed"
     },
     "transfers": "Transfers",
+    "transferOrigin": {
+      "mcp": "MCP-managed transfer"
+    },
     "transferScope": "Transfer scope",
     "transferFilter": "Filter transfer tasks",
     "transferAll": "All",

@@ -57,6 +57,7 @@
 }
 
 .workbench-file-transfer-icon {
+  position: relative;
   display: inline-grid;
   width: 27px;
   height: 27px;
@@ -65,6 +66,20 @@
   border-radius: 8px;
   background: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
   color: color-mix(in srgb, var(--accent) 82%, var(--text-primary));
+}
+
+.workbench-file-transfer-origin {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: inline-grid;
+  width: 13px;
+  height: 13px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 50%;
+  background: var(--app-bg-elevated);
+  color: color-mix(in srgb, var(--accent) 62%, var(--text-muted));
 }
 
 .workbench-file-transfer.is-failed .workbench-file-transfer-icon {

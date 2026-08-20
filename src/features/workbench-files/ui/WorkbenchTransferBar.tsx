@@ -1,6 +1,7 @@
 import { Button, Progress, Tooltip } from 'antd'
-import { Copy, DownloadCloud, RotateCcw, UploadCloud, X } from 'lucide-react'
+import { Bot, Copy, DownloadCloud, RotateCcw, UploadCloud, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { resolveTransferOrigin } from '#entities/file'
 import type { FileTransferGateway } from '#features/files'
 import { useTransferRuntime } from '#features/transfers'
 import { formatBytes } from '#shared/format'
@@ -32,6 +33,14 @@ export function WorkbenchTransferBar({
   const upload = task?.type.startsWith('upload')
   const download = task?.type.startsWith('download')
   const TransferIcon = upload ? UploadCloud : download ? DownloadCloud : Copy
+  const containsMcpTransfer = task
+    ? active
+      ? summary.tasks.some((item) => (
+        (item.status === 'queued' || item.status === 'running')
+        && resolveTransferOrigin(item) === 'mcp'
+      ))
+      : resolveTransferOrigin(task) === 'mcp'
+    : false
 
   const retry = async () => {
     if (!task?.retryable) {
@@ -99,6 +108,7 @@ export function WorkbenchTransferBar({
       ].filter(Boolean).join(' ')}
       data-workbench-file-transfer
       data-state={active ? 'active' : 'failed'}
+      data-transfer-origin={containsMcpTransfer ? 'mcp' : undefined}
     >
       <span
         className={scopedClassName('workbench-file-transfer-announcement')}
@@ -108,7 +118,20 @@ export function WorkbenchTransferBar({
         {title}
       </span>
       <div className={scopedClassName('workbench-file-transfer-main')}>
-        <span className={scopedClassName('workbench-file-transfer-icon')} aria-hidden="true"><TransferIcon size={15} /></span>
+        <span className={scopedClassName('workbench-file-transfer-icon')}>
+          <TransferIcon size={15} aria-hidden="true" />
+          {containsMcpTransfer ? (
+            <Tooltip title={t('files.transferOrigin.mcp')}>
+              <span
+                className={styles['workbench-file-transfer-origin']}
+                role="img"
+                aria-label={t('files.transferOrigin.mcp')}
+              >
+                <Bot size={9} strokeWidth={2.2} aria-hidden="true" />
+              </span>
+            </Tooltip>
+          ) : null}
+        </span>
         <div className={scopedClassName('workbench-file-transfer-copy')}>
           <strong>{title}</strong>
           <span>{description}</span>

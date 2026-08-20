@@ -12,6 +12,8 @@ export type TransferType =
 
 export type TransferStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
+export type TransferOrigin = 'app' | 'mcp'
+
 export type TransferPhase = 'scanning' | 'transferring' | 'finalizing'
 
 export type TransferFailureSide = 'source' | 'target'
@@ -178,6 +180,7 @@ export interface FileSession {
 
 export interface TransferTask {
   id: string
+  origin?: TransferOrigin
   host_id: string
   file_session_id?: string
   source_host_id?: string
