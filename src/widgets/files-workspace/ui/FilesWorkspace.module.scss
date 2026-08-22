@@ -423,6 +423,8 @@
   flex: 0 0 44px;
   align-items: center;
   justify-content: space-between;
+  container-name: files-command-bar;
+  container-type: inline-size;
   gap: 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   background: color-mix(in srgb, var(--surface) 94%, transparent);

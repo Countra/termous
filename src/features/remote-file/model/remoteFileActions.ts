@@ -9,6 +9,7 @@ export type RemoteFileActionKey =
   | 'copyAbsolutePath'
   | 'permissions'
   | 'rename'
+  | 'advancedRename'
   | 'delete'
 
 export interface RemoteFileActionDescriptor {
@@ -26,6 +27,7 @@ export interface RemoteFileActionHandlers {
   copyAbsolutePath: (entry: RemoteFileEntry) => void
   permissions: (entry: RemoteFileEntry) => void
   rename: (entry: RemoteFileEntry) => void
+  advancedRename: (entry: RemoteFileEntry) => void
   delete: (entry: RemoteFileEntry) => void
 }
 
@@ -69,10 +71,13 @@ export function remoteFileActionDescriptors(entry: RemoteFileEntry): RemoteFileA
     { key: 'copy' },
     { key: 'cut' },
     { key: 'copyAbsolutePath' },
-    { key: 'permissions' },
     { key: 'rename' },
-    { key: 'delete', danger: true, dividerBefore: true },
   )
+  if (entry.kind === 'file' || entry.kind === 'directory' || entry.kind === 'symlink') {
+    actions.push({ key: 'advancedRename' })
+  }
+  actions.push({ key: 'permissions' })
+  actions.push({ key: 'delete', danger: true, dividerBefore: true })
   return actions
 }
 
@@ -97,5 +102,6 @@ function isRemoteFileActionKey(value: string): value is RemoteFileActionKey {
     || value === 'copyAbsolutePath'
     || value === 'permissions'
     || value === 'rename'
+    || value === 'advancedRename'
     || value === 'delete'
 }

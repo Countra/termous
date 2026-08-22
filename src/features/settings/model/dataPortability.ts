@@ -21,6 +21,7 @@ export const portabilityDatasets: DataPortabilityDatasetKey[] = [
   'file_bookmark_groups',
   'file_bookmarks',
   'local_path_mappings',
+  'file_rename_presets',
   'forward_profiles',
   'firewall_disabled_rules',
 ]

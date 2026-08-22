@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { SHORTCUT_ACTIONS, SHORTCUT_SCOPES } from '#entities/shortcuts'
 import { mcpScopes } from '#entities/mcp-access'
+import { portabilityDatasets } from '../features/settings/model/dataPortability.ts'
 
 type TranslationTree = Record<string, unknown>
 
@@ -157,6 +158,12 @@ test('MCP 动态权限名称与说明在中英文资源中完整对应', () => {
   ]) {
     assertBilingualString(`settings.mcp.permissionGroup.${group}`)
     assertBilingualString(`settings.mcp.permissionGroupHint.${group}`)
+  }
+})
+
+test('选择性备份恢复数据集拥有完整双语文案', () => {
+  for (const dataset of portabilityDatasets) {
+    assertBilingualString(`settings.data.datasets.${dataset}`)
   }
 })
 

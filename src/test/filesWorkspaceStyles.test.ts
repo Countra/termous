@@ -140,3 +140,35 @@ test('文件工作区行为使用稳定数据标记而不读取内部样式类�
   assert.doesNotMatch(workspaceSource, /target\.closest\('\.ant-dropdown'\)/)
   assert.doesNotMatch(workspaceSource, /classList\.(?:add|remove)\('is-files-column-resizing'\)/)
 })
+
+test('文件选择操作仅在工具栏空间不足时收进更多菜单', () => {
+  assert.match(
+    workspaceStyles,
+    /\.files-selection-more:global\(\.ant-btn\)\s*\{\s*display:\s*none;/,
+  )
+  assert.match(
+    workspaceStyles,
+    /\.files-command-bar\s*\{[\s\S]*?container-name:\s*files-command-bar;[\s\S]*?container-type:\s*inline-size;/,
+  )
+  assert.match(
+    panelStyles,
+    /@container files-command-bar \(width <= 680px\)[\s\S]*?\.files-command-button\.is-low-priority\s*\{\s*display:\s*none;[\s\S]*?\.files-selection-more:global\(\.ant-btn\)\s*\{\s*display:\s*inline-flex;/,
+  )
+
+  const commandBarStart = workspaceSource.indexOf("styles['files-command-bar']")
+  const commandBarEnd = workspaceSource.indexOf("styles['files-command-secondary']", commandBarStart)
+  const commandBarSource = workspaceSource.slice(commandBarStart, commandBarEnd)
+  const orderedActions = [
+    "t('files.copy')",
+    "t('files.cut')",
+    "t('files.rename')",
+    "t('files.advancedRename.action')",
+    "t('files.editPermissions')",
+  ]
+  let previousIndex = -1
+  for (const action of orderedActions) {
+    const actionIndex = commandBarSource.indexOf(action)
+    assert.ok(actionIndex > previousIndex, `${action} 应按预期顺序出现在文件选择操作栏`)
+    previousIndex = actionIndex
+  }
+})

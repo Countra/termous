@@ -1743,6 +1743,236 @@
     "paste": "粘贴",
     "actions": "更多操作",
     "rename": "重命名",
+    "advancedRename": {
+      "action": "批量重命名",
+      "title": "高级批量重命名",
+      "eyebrow": "规则链",
+      "description": "为选中的 {{count}} 个项目组合规则，并在执行前核对最终名称。",
+      "unsupportedSelection": "特殊文件不支持高级重命名，请仅选择文件、文件夹或符号链接。",
+      "selectionLimit": "一次最多处理 {{limit}} 个项目，请减少选择后重试。",
+      "directory": "当前目录",
+      "insertField": "插入字段",
+      "execute": "重命名 {{count}} 项",
+      "executing": "正在执行重命名",
+      "cancelling": "正在取消并回滚",
+      "progressItems": "已处理 {{completed}} / {{total}} 项",
+      "executeFailed": "批量重命名未完成",
+      "cancelFailed": "取消任务失败",
+      "partialTitle": "部分项目可能已发生变化",
+      "partialDescription": "已重命名 {{renamed}} 项，已回滚 {{rolled_back}} 项，失败 {{failed}} 项。请刷新目录后核对。",
+      "uncertainDescription": "有 {{uncertain}} 项的最终状态无法确认。请刷新目录并逐项核对后再继续操作。",
+      "unsavedTitle": "放弃未保存的修改？",
+      "unsavedDescription": "当前规则或本次重命名设置尚未保存，继续后这些修改将丢失。",
+      "discard": "放弃修改",
+      "switchPresetTitle": "切换到其他预设？",
+      "mobilePane": "高级重命名编辑区域",
+      "preset": {
+        "toolbarLabel": "规则预设",
+        "select": "选择已保存的规则预设",
+        "newDraft": "新建空白草稿",
+        "saveAs": "另存为预设",
+        "update": "更新当前预设",
+        "delete": "删除预设",
+        "modified": "已修改",
+        "name": "预设名称",
+        "description": "用途说明",
+        "nameRequired": "请输入预设名称",
+        "deleteTitle": "删除规则预设？",
+        "deleteDescription": "预设“{{name}}”将被永久删除，不会影响已完成的重命名。",
+        "failed": "预设操作失败",
+        "ruleCount": "{{count}} 条规则"
+      },
+      "rules": {
+        "title": "重命名规则",
+        "add": "添加规则",
+        "empty": "添加一条规则以生成新名称",
+        "enabled": "启用规则",
+        "moveUp": "上移规则",
+        "moveDown": "下移规则",
+        "duplicate": "复制规则"
+      },
+      "ruleKind": {
+        "template": "名称模板",
+        "insert": "插入文本",
+        "replace": "查找与替换",
+        "regex": "正则表达式",
+        "slice": "截取字符",
+        "case": "大小写转换",
+        "cleanup": "清理名称",
+        "sequence": "添加序号",
+        "extension": "扩展名处理"
+      },
+      "ruleDescription": {
+        "template": "使用文件字段和变量构造完整名称",
+        "insert": "在名称开头、末尾或指定位置插入内容",
+        "replace": "按普通文本查找并替换名称内容",
+        "regex": "使用 RE2 模式和捕获组批量替换",
+        "slice": "按 Unicode 字符位置保留或删除范围",
+        "case": "转换完整名称、主名或扩展名大小写",
+        "cleanup": "修剪空白并统一名称分隔符",
+        "sequence": "按排序结果插入递增编号",
+        "extension": "设置、移除或转换扩展名大小写"
+      },
+      "fields": {
+        "template": "模板",
+        "text": "插入内容",
+        "position": "位置",
+        "index": "字符位置",
+        "target": "处理范围",
+        "matchMode": "匹配方式",
+        "search": "查找内容或正则表达式",
+        "replacement": "替换为",
+        "regex": "使用正则表达式",
+        "replaceAll": "替换全部匹配",
+        "caseSensitive": "区分大小写",
+        "mode": "处理方式",
+        "start": "起始值",
+        "length": "长度",
+        "fromEnd": "从末尾向前计数",
+        "trimWhitespace": "移除首尾空白",
+        "separator": "统一分隔符",
+        "collapseSeparator": "合并连续分隔符",
+        "step": "递增步长",
+        "width": "补零位数",
+        "extension": "新扩展名"
+      },
+      "matchMode": {
+        "literal": "普通文本",
+        "contains": "包含文本",
+        "regex": "正则表达式"
+      },
+      "regex": {
+        "hint": "使用 Core 的 RE2 语法；替换内容支持 $1 和 ${name} 捕获组，不支持 lookaround 或模式内反向引用。",
+        "conditionHint": "名称条件使用 RE2 匹配原始完整名称；表达式错误会在规则和预览中标出。",
+        "captureNumber": "第一个数字捕获组",
+        "captureName": "命名捕获组"
+      },
+      "target": {
+        "name": "完整名称",
+        "stem": "不含扩展名的名称",
+        "extension": "扩展名"
+      },
+      "position": {
+        "prefix": "开头",
+        "suffix": "末尾",
+        "index": "指定位置"
+      },
+      "sliceMode": {
+        "remove": "删除范围",
+        "keep": "仅保留范围"
+      },
+      "caseMode": {
+        "lower": "全部小写",
+        "upper": "全部大写",
+        "title": "单词首字母大写"
+      },
+      "extensionMode": {
+        "set": "设置扩展名",
+        "remove": "移除扩展名",
+        "lower": "扩展名小写",
+        "upper": "扩展名大写"
+      },
+      "condition": {
+        "title": "仅在满足条件时应用",
+        "kinds": "项目类型",
+        "name": "原始名称匹配",
+        "extensions": "扩展名（逗号分隔）"
+      },
+      "order": {
+        "by": "序号排序依据",
+        "direction": "排序方向",
+        "selection": "选择顺序",
+        "name": "名称",
+        "modified": "修改时间",
+        "size": "大小",
+        "kind": "类型",
+        "asc": "升序",
+        "desc": "降序"
+      },
+      "variables": {
+        "title": "自定义变量",
+        "add": "添加变量",
+        "empty": "保存通用预设时，可将经常变化的内容定义为变量。",
+        "defaultLabel": "变量 {{index}}",
+        "name": "变量名",
+        "label": "显示名称",
+        "description": "变量用途说明（可选）",
+        "value": "本次使用的值",
+        "defaultValue": "预设默认值",
+        "required": "必填变量",
+        "invalidName": "变量名必须以字母开头，且只能包含字母、数字和下划线。",
+        "duplicateName": "变量名不能重复。",
+        "invalidSummary": "有 {{count}} 个变量定义需要修正，预览、执行和预设保存已暂停。",
+        "requiredMissing": "请填写该必填变量的本次值。",
+        "requiredMissingSummary": "还有 {{count}} 个必填变量未填写，暂时无法执行重命名。"
+      },
+      "placeholders": {
+        "original": "原始完整名称",
+        "name": "当前规则处理后的名称",
+        "stem": "不含扩展名的名称",
+        "extension": "扩展名（不含点号）",
+        "parent": "父目录名称",
+        "kind": "项目类型",
+        "size": "文件大小",
+        "modified": "修改日期",
+        "index": "按排序生成的三位序号"
+      },
+      "preview": {
+        "title": "结果预览",
+        "visible": "显示 {{count}} / {{total}} 项",
+        "search": "搜索原名称、结果或路径",
+        "filterAll": "全部状态",
+        "filterChanged": "仅看变化",
+        "filterIssues": "仅看问题",
+        "original": "原名称",
+        "final": "最终名称",
+        "state": "状态",
+        "list": "重命名结果列表",
+        "empty": "没有符合当前筛选条件的项目",
+        "loading": "正在重新计算预览…",
+        "includeItem": "包含 {{name}}",
+        "finalName": "{{name}} 的最终名称",
+        "resetOverride": "恢复规则生成的名称"
+      },
+      "result": {
+        "title": "重命名结果",
+        "description": "返回规则前请核对每个受影响的路径；状态不确定的项目需要人工确认。",
+        "total": "共 {{count}} 条结果",
+        "source": "来源路径",
+        "target": "目标路径",
+        "state": "结果",
+        "list": "批量重命名执行结果",
+        "continueEditing": "返回规则",
+        "status": {
+          "renamed": "已重命名",
+          "unchanged": "未变化",
+          "excluded": "已排除",
+          "failed": "失败",
+          "rolled_back": "已回滚",
+          "uncertain": "状态不确定"
+        },
+        "summary": {
+          "renamed": "已重命名 {{count}} 项",
+          "rolledBack": "已回滚 {{count}} 项",
+          "failed": "失败 {{count}} 项",
+          "uncertain": "不确定 {{count}} 项"
+        }
+      },
+      "status": {
+        "ready": "可执行",
+        "unchanged": "无变化",
+        "excluded": "已排除",
+        "invalid": "名称无效",
+        "conflict": "名称冲突",
+        "missing": "项目不存在"
+      },
+      "summary": {
+        "changed": "将更改 {{count}} 项",
+        "unchanged": "不变 {{count}} 项",
+        "excluded": "排除 {{count}} 项",
+        "blocked": "阻塞 {{count}} 项"
+      }
+    },
     "name": "名称",
     "path": "路径",
     "kind": "类型",
@@ -2915,6 +3145,7 @@
         "file_bookmark_groups": "书签分组",
         "file_bookmarks": "文件书签",
         "local_path_mappings": "本地目录映射",
+        "file_rename_presets": "文件重命名预设",
         "forward_profiles": "端口转发配置",
         "firewall_disabled_rules": "防火墙禁用规则"
       }

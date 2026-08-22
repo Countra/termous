@@ -1752,6 +1752,236 @@
     "paste": "Paste",
     "actions": "More actions",
     "rename": "Rename",
+    "advancedRename": {
+      "action": "Batch rename",
+      "title": "Advanced batch rename",
+      "eyebrow": "Rule chain",
+      "description": "Combine rules for {{count}} selected items and verify every final name before applying.",
+      "unsupportedSelection": "Special file entries cannot be batch renamed. Select only files, folders, or symbolic links.",
+      "selectionLimit": "You can rename up to {{limit}} items at a time. Reduce the selection and try again.",
+      "directory": "Current directory",
+      "insertField": "Insert field",
+      "execute": "Rename {{count}} items",
+      "executing": "Applying rename plan",
+      "cancelling": "Cancelling and rolling back",
+      "progressItems": "Processed {{completed}} / {{total}} items",
+      "executeFailed": "Batch rename did not complete",
+      "cancelFailed": "Failed to cancel task",
+      "partialTitle": "Some items may have changed",
+      "partialDescription": "Renamed {{renamed}}, rolled back {{rolled_back}}, and failed {{failed}} items. Refresh the directory and verify the results.",
+      "uncertainDescription": "The final state of {{uncertain}} items could not be confirmed. Refresh the directory and verify each item before continuing.",
+      "unsavedTitle": "Discard unsaved changes?",
+      "unsavedDescription": "The current rules or one-time rename settings are unsaved. Continuing will discard those changes.",
+      "discard": "Discard changes",
+      "switchPresetTitle": "Switch to another preset?",
+      "mobilePane": "Advanced rename workspace",
+      "preset": {
+        "toolbarLabel": "Rule presets",
+        "select": "Select a saved rule preset",
+        "newDraft": "Create blank draft",
+        "saveAs": "Save as preset",
+        "update": "Update current preset",
+        "delete": "Delete preset",
+        "modified": "Modified",
+        "name": "Preset name",
+        "description": "Usage notes",
+        "nameRequired": "Enter a preset name",
+        "deleteTitle": "Delete rule preset?",
+        "deleteDescription": "Preset “{{name}}” will be permanently deleted. Completed renames are not affected.",
+        "failed": "Preset operation failed",
+        "ruleCount": "{{count}} rules"
+      },
+      "rules": {
+        "title": "Rename rules",
+        "add": "Add rule",
+        "empty": "Add a rule to generate new names",
+        "enabled": "Enable rule",
+        "moveUp": "Move rule up",
+        "moveDown": "Move rule down",
+        "duplicate": "Duplicate rule"
+      },
+      "ruleKind": {
+        "template": "Name template",
+        "insert": "Insert text",
+        "replace": "Find and replace",
+        "regex": "Regular expression",
+        "slice": "Slice characters",
+        "case": "Change case",
+        "cleanup": "Clean up name",
+        "sequence": "Add sequence",
+        "extension": "Edit extension"
+      },
+      "ruleDescription": {
+        "template": "Build a complete name from file fields and variables",
+        "insert": "Insert content at the beginning, end, or a character position",
+        "replace": "Find and replace literal text in a name",
+        "regex": "Use an RE2 pattern and capture groups for replacement",
+        "slice": "Keep or remove a range by Unicode character position",
+        "case": "Change case for the full name, stem, or extension",
+        "cleanup": "Trim whitespace and normalize name separators",
+        "sequence": "Insert incrementing numbers using the selected order",
+        "extension": "Set, remove, or change the case of an extension"
+      },
+      "fields": {
+        "template": "Template",
+        "text": "Text to insert",
+        "position": "Position",
+        "index": "Character position",
+        "target": "Apply to",
+        "matchMode": "Match mode",
+        "search": "Text or regular expression",
+        "replacement": "Replace with",
+        "regex": "Use regular expression",
+        "replaceAll": "Replace all matches",
+        "caseSensitive": "Case sensitive",
+        "mode": "Mode",
+        "start": "Start value",
+        "length": "Length",
+        "fromEnd": "Count backward from end",
+        "trimWhitespace": "Trim surrounding whitespace",
+        "separator": "Normalize separator",
+        "collapseSeparator": "Collapse repeated separators",
+        "step": "Increment",
+        "width": "Zero-padding width",
+        "extension": "New extension"
+      },
+      "matchMode": {
+        "literal": "Literal text",
+        "contains": "Contains text",
+        "regex": "Regular expression"
+      },
+      "regex": {
+        "hint": "Uses Core RE2 syntax. Replacement supports $1 and ${name} capture groups; lookaround and pattern backreferences are not supported.",
+        "conditionHint": "The RE2 condition matches the original full name. Invalid patterns are identified in the rule and preview.",
+        "captureNumber": "First numbered capture group",
+        "captureName": "Named capture group"
+      },
+      "target": {
+        "name": "Full name",
+        "stem": "Name without extension",
+        "extension": "Extension"
+      },
+      "position": {
+        "prefix": "Beginning",
+        "suffix": "End",
+        "index": "Specific position"
+      },
+      "sliceMode": {
+        "remove": "Remove range",
+        "keep": "Keep range only"
+      },
+      "caseMode": {
+        "lower": "Lowercase",
+        "upper": "Uppercase",
+        "title": "Title case"
+      },
+      "extensionMode": {
+        "set": "Set extension",
+        "remove": "Remove extension",
+        "lower": "Lowercase extension",
+        "upper": "Uppercase extension"
+      },
+      "condition": {
+        "title": "Apply only when conditions match",
+        "kinds": "Item kinds",
+        "name": "Original name match",
+        "extensions": "Extensions (comma separated)"
+      },
+      "order": {
+        "by": "Sequence order",
+        "direction": "Sort direction",
+        "selection": "Selection order",
+        "name": "Name",
+        "modified": "Modified time",
+        "size": "Size",
+        "kind": "Kind",
+        "asc": "Ascending",
+        "desc": "Descending"
+      },
+      "variables": {
+        "title": "Custom variables",
+        "add": "Add variable",
+        "empty": "Define frequently changed values as variables when saving reusable presets.",
+        "defaultLabel": "Variable {{index}}",
+        "name": "Variable name",
+        "label": "Display label",
+        "description": "Variable purpose (optional)",
+        "value": "Value for this run",
+        "defaultValue": "Preset default value",
+        "required": "Required variable",
+        "invalidName": "Start the variable name with a letter and use only letters, numbers, and underscores.",
+        "duplicateName": "Variable names must be unique.",
+        "invalidSummary": "Fix {{count}} variable definitions before previewing, running, or saving this preset.",
+        "requiredMissing": "Enter a value for this required variable.",
+        "requiredMissingSummary": "Required variables still empty: {{count}}. Fill them before running the rename."
+      },
+      "placeholders": {
+        "original": "Original full name",
+        "name": "Name after previous rules",
+        "stem": "Name without extension",
+        "extension": "Extension without the dot",
+        "parent": "Parent directory name",
+        "kind": "Item kind",
+        "size": "File size",
+        "modified": "Modified date",
+        "index": "Three-digit index from sort order"
+      },
+      "preview": {
+        "title": "Result preview",
+        "visible": "Showing {{count}} / {{total}} items",
+        "search": "Search original name, result, or path",
+        "filterAll": "All statuses",
+        "filterChanged": "Changes only",
+        "filterIssues": "Issues only",
+        "original": "Original",
+        "final": "Final name",
+        "state": "Status",
+        "list": "Rename result list",
+        "empty": "No items match the current filters",
+        "loading": "Recalculating preview…",
+        "includeItem": "Include {{name}}",
+        "finalName": "Final name for {{name}}",
+        "resetOverride": "Restore the rule-generated name"
+      },
+      "result": {
+        "title": "Rename result",
+        "description": "Review every affected path before returning to the rules. Uncertain items require manual verification.",
+        "total": "{{count}} result items",
+        "source": "Source path",
+        "target": "Target path",
+        "state": "Result",
+        "list": "Batch rename execution results",
+        "continueEditing": "Return to rules",
+        "status": {
+          "renamed": "Renamed",
+          "unchanged": "Unchanged",
+          "excluded": "Excluded",
+          "failed": "Failed",
+          "rolled_back": "Rolled back",
+          "uncertain": "Uncertain"
+        },
+        "summary": {
+          "renamed": "{{count}} renamed",
+          "rolledBack": "{{count}} rolled back",
+          "failed": "{{count}} failed",
+          "uncertain": "{{count}} uncertain"
+        }
+      },
+      "status": {
+        "ready": "Ready",
+        "unchanged": "Unchanged",
+        "excluded": "Excluded",
+        "invalid": "Invalid name",
+        "conflict": "Name conflict",
+        "missing": "Item missing"
+      },
+      "summary": {
+        "changed": "{{count}} to rename",
+        "unchanged": "{{count}} unchanged",
+        "excluded": "{{count}} excluded",
+        "blocked": "{{count}} blocked"
+      }
+    },
     "name": "Name",
     "path": "Path",
     "kind": "Kind",
@@ -2938,6 +3168,7 @@
         "file_bookmark_groups": "Bookmark groups",
         "file_bookmarks": "File bookmarks",
         "local_path_mappings": "Local folder mappings",
+        "file_rename_presets": "File rename presets",
         "forward_profiles": "Port forwarding profiles",
         "firewall_disabled_rules": "Disabled firewall rules"
       }

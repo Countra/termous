@@ -1,4 +1,5 @@
 export type {
+  AdvancedRenameGateway,
   FileGateway,
   FileOperationGateway,
   FileSessionGateway,

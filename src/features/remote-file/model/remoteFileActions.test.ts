@@ -24,14 +24,36 @@ const fileEntry: RemoteFileEntry = {
   kind: 'file',
 }
 
+const symlinkEntry: RemoteFileEntry = {
+  ...fileEntry,
+  name: 'app-link',
+  path: '/config/app-link',
+  kind: 'symlink',
+}
+
+const otherEntry: RemoteFileEntry = {
+  ...fileEntry,
+  name: 'app.sock',
+  path: '/config/app.sock',
+  kind: 'other',
+}
+
 test('文件操作菜单仅对普通文件提供打开入口', () => {
   assert.deepEqual(
     remoteFileActionDescriptors(fileEntry).map((item) => item.key),
-    ['openFile', 'download', 'sendToHost', 'copy', 'cut', 'copyAbsolutePath', 'permissions', 'rename', 'delete'],
+    ['openFile', 'download', 'sendToHost', 'copy', 'cut', 'copyAbsolutePath', 'rename', 'advancedRename', 'permissions', 'delete'],
   )
   assert.deepEqual(
     remoteFileActionDescriptors(directoryEntry).map((item) => item.key),
-    ['download', 'sendToHost', 'copy', 'cut', 'copyAbsolutePath', 'permissions', 'rename', 'delete'],
+    ['download', 'sendToHost', 'copy', 'cut', 'copyAbsolutePath', 'rename', 'advancedRename', 'permissions', 'delete'],
+  )
+  assert.deepEqual(
+    remoteFileActionDescriptors(symlinkEntry).map((item) => item.key),
+    ['download', 'sendToHost', 'copy', 'cut', 'copyAbsolutePath', 'rename', 'advancedRename', 'permissions', 'delete'],
+  )
+  assert.deepEqual(
+    remoteFileActionDescriptors(otherEntry).map((item) => item.key),
+    ['download', 'sendToHost', 'copy', 'cut', 'copyAbsolutePath', 'rename', 'permissions', 'delete'],
   )
 })
 
@@ -47,6 +69,7 @@ test('共享分发器只执行已知文件动作', () => {
     copyAbsolutePath: handler,
     permissions: handler,
     rename: handler,
+    advancedRename: handler,
     delete: handler,
   }
 
@@ -68,6 +91,7 @@ test('发送到其他主机动作只调用对应处理器', () => {
     copyAbsolutePath: ignored,
     permissions: ignored,
     rename: ignored,
+    advancedRename: ignored,
     delete: ignored,
   }
 

@@ -11,9 +11,20 @@ export type {
   RemoteFileActionSelectionSnapshot,
 } from './model/remoteFileActions.ts'
 export type { FileOperationGateway } from './model/fileOperationGateway.ts'
+export type {
+  AdvancedRenameSourceSnapshot,
+} from './advanced-rename/model/types.ts'
+export {
+  advancedRenameSourceLimit,
+  isAdvancedRenameSourceSessionCurrent,
+  validateAdvancedRenameSource,
+} from './advanced-rename/model/advancedRenameModel.ts'
 
 export const loadRemoteTextEditorModal = () => import('./ui/RemoteTextEditorModal.tsx')
   .then((module) => ({ default: module.RemoteTextEditorModal }))
 
 export const loadRemoteImageViewerModal = () => import('./ui/RemoteImageViewerModal.tsx')
   .then((module) => ({ default: module.RemoteImageViewerModal }))
+
+export const loadAdvancedRenameModal = () => import('./advanced-rename/ui/AdvancedRenameModal.tsx')
+  .then((module) => ({ default: module.AdvancedRenameModal }))

@@ -19,6 +19,7 @@ import {
   FolderDown,
   FolderPlus,
   Info,
+  ListRestart,
   MoreHorizontal,
   PanelRight,
   Pencil,
@@ -91,13 +92,18 @@ import {
   useUploadConflictDecision,
 } from '#features/transfers'
 import {
+  advancedRenameSourceLimit,
   buildRemoteFileActionMenu,
   formatRemoteFilePathsForClipboard,
+  isAdvancedRenameSourceSessionCurrent,
+  loadAdvancedRenameModal,
   loadRemoteImageViewerModal,
   loadRemoteTextEditorModal,
   RemotePermissionModal,
   runRemoteFileAction,
   snapshotRemoteFileActionSelection,
+  validateAdvancedRenameSource,
+  type AdvancedRenameSourceSnapshot,
   type RemoteFileActionHandlers,
 } from '#features/remote-file'
 import { formatBytes, formatDate } from '#shared/format'
@@ -163,6 +169,7 @@ import styles from './FilesWorkspace.module.scss'
 
 const RemoteTextEditorModal = lazy(loadRemoteTextEditorModal)
 const RemoteImageViewerModal = lazy(loadRemoteImageViewerModal)
+const AdvancedRenameModal = lazy(loadAdvancedRenameModal)
 
 export interface FilesWorkspaceData {
   hosts: Host[]
@@ -433,6 +440,7 @@ function FilesWorkspaceContent({
   })
   const [fileContextMenu, setFileContextMenu] = useState<FileContextMenuState | null>(null)
   const [remoteCopySource, setRemoteCopySource] = useState<RemoteCopySourceSnapshot | null>(null)
+  const [advancedRenameSource, setAdvancedRenameSource] = useState<AdvancedRenameSourceSnapshot | null>(null)
   const [localDownloadOperationActive, setLocalDownloadOperationActive] = useState(false)
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [permissionTarget, setPermissionTarget] = useState<SessionBoundRemoteEntry | null>(null)
@@ -1059,6 +1067,7 @@ function FilesWorkspaceContent({
       setPermissionTarget(null)
       setTextEditorTarget(null)
       setImageViewerTarget(null)
+      setAdvancedRenameSource(null)
       return
     }
     const previousSession = lastActiveFileSessionRef.current
@@ -1081,6 +1090,7 @@ function FilesWorkspaceContent({
       setFileContextMenu(null)
       setPermissionTarget(null)
       setImageViewerTarget(null)
+      setAdvancedRenameSource(null)
       if (fileSessionChanged) {
         setTextEditorTarget(null)
       }
@@ -1778,6 +1788,40 @@ function FilesWorkspaceContent({
     })
   }
 
+  const openAdvancedRename = (entry = selectedEntries[0]) => {
+    if (!entry || !fileActionsEnabled || !activeFileSession || !workspaceViewState.listing) {
+      return
+    }
+    const snapshot = snapshotRemoteFileActionSelection(entry, selectedPaths, entries)
+    if (!snapshot) {
+      notification.error({
+        title: t('files.operationFailed'),
+        duration: 4,
+        role: 'alert',
+        className: termousNotificationClassName,
+      })
+      return
+    }
+    const sourceValidation = validateAdvancedRenameSource(snapshot.entries)
+    if (!sourceValidation.valid) {
+      notification.warning({
+        title: sourceValidation.reason === 'too_many'
+          ? t('files.advancedRename.selectionLimit', { limit: advancedRenameSourceLimit })
+          : t('files.advancedRename.unsupportedSelection'),
+        duration: 4,
+        role: 'alert',
+        className: termousNotificationClassName,
+      })
+      return
+    }
+    setAdvancedRenameSource({
+      fileSessionId: activeFileSession.id,
+      connectionGeneration: activeFileSession.connection_generation ?? 0,
+      directory: normalizeRemotePath(workspaceViewState.listing.path || currentPath),
+      entries: snapshot.entries,
+    })
+  }
+
   const openPermissions = (entry = selectedEntries[0]) => {
     if (!entry || !fileActionsEnabled || !activeFileSessionId) {
       return
@@ -2067,6 +2111,7 @@ function FilesWorkspaceContent({
       setFileContextMenu(null)
       setPermissionTarget(null)
       setDownloadDestinationRequest(null)
+      setAdvancedRenameSource(null)
       updateActiveWorkspaceView((current) => (
         current.focusedPath === null
         && current.selectedPaths.length === 0
@@ -2148,7 +2193,21 @@ function FilesWorkspaceContent({
     setFileContextMenu(null)
     setImageViewerTarget(null)
     setPermissionTarget(null)
+    setAdvancedRenameSource(null)
   }, [activeFileSessionClosing])
+
+  useEffect(() => {
+    if (
+      advancedRenameSource
+      && !isAdvancedRenameSourceSessionCurrent(
+        advancedRenameSource,
+        activeFileSession,
+        activeFileSessionClosing,
+      )
+    ) {
+      setAdvancedRenameSource(null)
+    }
+  }, [activeFileSession, activeFileSessionClosing, advancedRenameSource])
 
   const orderedEntryPaths = useMemo(
     () => entries.map((entry) => entry.path),
@@ -2283,6 +2342,7 @@ function FilesWorkspaceContent({
       ),
       permissions: openPermissions,
       rename: openRename,
+      advancedRename: openAdvancedRename,
       delete: () => confirmDelete(actionPaths),
     }
     runRemoteFileAction(entry, key, handlers)
@@ -2969,6 +3029,12 @@ function FilesWorkspaceContent({
   const selectionMoreActions: MenuProps = {
     items: [
       {
+        key: 'advanced-rename',
+        icon: <ListRestart size={14} aria-hidden="true" />,
+        label: t('files.advancedRename.action'),
+        disabled: !fileActionsEnabled || selectedPaths.length === 0,
+      },
+      {
         key: 'permissions',
         icon: <ShieldCheck size={14} aria-hidden="true" />,
         label: t('files.editPermissions'),
@@ -2976,7 +3042,9 @@ function FilesWorkspaceContent({
       },
     ],
     onClick: ({ key }) => {
-      if (key === 'permissions') {
+      if (key === 'advanced-rename') {
+        openAdvancedRename()
+      } else if (key === 'permissions') {
         openPermissions()
       }
     },
@@ -3354,6 +3422,15 @@ function FilesWorkspaceContent({
                   onClick={() => openRename()}
                 >
                   {t('files.rename')}
+                </Button>
+                <Button
+                  type="text"
+                  className={`${styles['files-command-button']} ${styles['is-low-priority']}`}
+                  disabled={!fileActionsEnabled}
+                  icon={<ListRestart size={15} aria-hidden="true" />}
+                  onClick={() => openAdvancedRename()}
+                >
+                  {t('files.advancedRename.action')}
                 </Button>
                 <Button
                   type="text"
@@ -4023,6 +4100,39 @@ function FilesWorkspaceContent({
           onCreated={handleRemoteCopyCreated}
           onClose={() => setRemoteCopySource(null)}
         />
+      ) : null}
+      {advancedRenameSource ? (
+        <Suspense fallback={null}>
+          <AdvancedRenameModal
+            api={api}
+            open
+            source={advancedRenameSource}
+            onClose={() => setAdvancedRenameSource(null)}
+            onCompleted={() => {
+              const source = advancedRenameSource
+              setAdvancedRenameSource(null)
+              if (
+                activeFileSession?.id === source.fileSessionId
+                && (activeFileSession.connection_generation ?? 0) === source.connectionGeneration
+                && normalizeRemotePath(currentPath) === source.directory
+              ) {
+                setSelectedPaths([])
+                void loadDirectory(source.directory, { kind: 'refresh' })
+              }
+            }}
+            onDirectoryRefresh={() => {
+              const source = advancedRenameSource
+              if (
+                activeFileSession?.id === source.fileSessionId
+                && (activeFileSession.connection_generation ?? 0) === source.connectionGeneration
+                && normalizeRemotePath(currentPath) === source.directory
+              ) {
+                return loadDirectory(source.directory, { kind: 'refresh' }).then(() => undefined)
+              }
+              return undefined
+            }}
+          />
+        </Suspense>
       ) : null}
       <RemotePermissionModal
         entry={permissionTarget?.fileSessionId === activeFileSessionId ? permissionTarget.entry : null}

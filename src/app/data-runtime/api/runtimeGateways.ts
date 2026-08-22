@@ -15,6 +15,7 @@ import { DataPortabilityClient } from './gateways/dataPortabilityClient'
 import { DockerClient } from './gateways/dockerClient'
 import { FileCatalogClient } from './gateways/fileCatalogClient'
 import { FileOperationClient } from './gateways/fileOperationClient'
+import { FileRenameClient } from './gateways/fileRenameClient'
 import { FileSessionClient } from './gateways/fileSessionClient'
 import { FirewallClient } from './gateways/firewallClient'
 import { ForwardClient } from './gateways/forwardsClient'
@@ -82,6 +83,7 @@ export function createRuntimeGatewaysFromConfig(
   const firewall = new FirewallClient(config)
   const fileSessions = new FileSessionClient(config)
   const fileOperations = new FileOperationClient(config)
+  const fileRename = new FileRenameClient(config)
   const transfers = new TransferClient(config)
   const dataPortability = new DataPortabilityClient(config)
 
@@ -104,7 +106,7 @@ export function createRuntimeGatewaysFromConfig(
     fileSessions,
     transfers,
     dataPortability,
-    files: createFileGateway(fileSessions, fileOperations, transfers, fileCatalog),
+    files: createFileGateway(fileSessions, fileOperations, transfers, fileCatalog, fileRename),
     terminal: createTerminalGateway(settings, sessions),
     commandDispatch,
     mcpAccess,
@@ -165,6 +167,7 @@ function createFileGateway(
   operations: FileOperationClient,
   transfers: TransferClient,
   catalog: FileCatalogClient,
+  rename: FileRenameClient,
 ): FileGateway {
   return {
     getFileSession: (id) => sessions.getFileSession(id),
@@ -242,6 +245,20 @@ function createFileGateway(
       catalog.localPathMappingChildren(id, path, signal)
     ),
     localPathMappingStat: (id, path, signal) => catalog.localPathMappingStat(id, path, signal),
+    fileRenamePresets: () => rename.fileRenamePresets(),
+    createFileRenamePreset: (input) => rename.createFileRenamePreset(input),
+    updateFileRenamePreset: (id, expectedUpdatedAt, input) => (
+      rename.updateFileRenamePreset(id, expectedUpdatedAt, input)
+    ),
+    deleteFileRenamePreset: (id, expectedUpdatedAt) => (
+      rename.deleteFileRenamePreset(id, expectedUpdatedAt)
+    ),
+    previewFileSessionBatchRename: (fileSessionId, input, signal) => (
+      rename.previewFileSessionBatchRename(fileSessionId, input, signal)
+    ),
+    createFileSessionBatchRename: (fileSessionId, input) => (
+      rename.createFileSessionBatchRename(fileSessionId, input)
+    ),
   }
 }
 

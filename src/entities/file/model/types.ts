@@ -99,7 +99,7 @@ export interface RemoteImageFile {
   loaded_at: string
 }
 
-export type FileOperationType = 'read_text' | 'save_text' | 'read_image'
+export type FileOperationType = 'read_text' | 'save_text' | 'read_image' | 'batch_rename'
 
 export type FileOperationStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
 
@@ -112,6 +112,9 @@ export type FileOperationPhase =
   | 'write_temp'
   | 'replace'
   | 'reload'
+  | 'prepare'
+  | 'rename'
+  | 'rollback'
   | 'done'
 
 export interface FileOperationTask {
@@ -141,6 +144,10 @@ export interface FileOperationTask {
   finished_at?: string
   error_code?: string
   error_message?: string
+  total_items?: number
+  completed_items?: number
+  rolled_back_items?: number
+  partial?: boolean
 }
 
 export type FileSessionStatus = 'connecting' | 'connected' | 'waiting_trust' | 'disconnected' | 'failed'

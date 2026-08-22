@@ -56,12 +56,17 @@ import {
   useUploadConflictDecision,
 } from '#features/transfers'
 import {
+  advancedRenameSourceLimit,
   buildRemoteFileActionMenu,
   formatRemoteFilePathsForClipboard,
+  isAdvancedRenameSourceSessionCurrent,
+  loadAdvancedRenameModal,
   loadRemoteImageViewerModal,
   loadRemoteTextEditorModal,
   runRemoteFileAction,
   snapshotRemoteFileActionSelection,
+  validateAdvancedRenameSource,
+  type AdvancedRenameSourceSnapshot,
   type RemoteFileActionHandlers,
   RemotePermissionModal,
 } from '#features/remote-file'
@@ -112,6 +117,7 @@ import transferStyles from './WorkbenchTransferBar.module.scss'
 
 const RemoteTextEditorModal = lazy(loadRemoteTextEditorModal)
 const RemoteImageViewerModal = lazy(loadRemoteImageViewerModal)
+const AdvancedRenameModal = lazy(loadAdvancedRenameModal)
 const imagePattern = /\.(?:png|jpe?g|gif|webp|bmp|svg)$/i
 const panelClassName = (className: string) => [className, styles[className]].filter(Boolean).join(' ')
 const controlsClassName = (className: string) => [panelClassName(className), controlsStyles[className]].filter(Boolean).join(' ')
@@ -279,6 +285,7 @@ function WorkbenchFilesPanelContent({
   const [pathInput, setPathInput] = useState('/')
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [remoteCopySource, setRemoteCopySource] = useState<RemoteCopySourceSnapshot | null>(null)
+  const [advancedRenameSource, setAdvancedRenameSource] = useState<AdvancedRenameSourceSnapshot | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [textEditorPath, setTextEditorPath] = useState<string | null>(null)
@@ -347,6 +354,14 @@ function WorkbenchFilesPanelContent({
       setRemoteCopySource(null)
     }
   }, [data.fileSessions, remoteCopySource])
+  useEffect(() => {
+    if (!advancedRenameSource) {
+      return
+    }
+    if (!isAdvancedRenameSourceSessionCurrent(advancedRenameSource, files.fileSession, closing)) {
+      setAdvancedRenameSource(null)
+    }
+  }, [advancedRenameSource, closing, files.fileSession])
   useEffect(() => {
     cancelPendingUploadConflict()
   }, [
@@ -1016,6 +1031,39 @@ function WorkbenchFilesPanelContent({
           entries: snapshot.entries,
         })
       }
+      const openAdvancedRename = () => {
+        if (closing || !files.connected || !files.fileSession || !files.viewState?.listing) {
+          return
+        }
+        const snapshot = snapshotRemoteFileActionSelection(entry, selectedPaths, files.entries)
+        if (!snapshot) {
+          notification.error({
+            title: t('files.operationFailed'),
+            duration: 4,
+            role: 'alert',
+            className: termousNotificationClassName,
+          })
+          return
+        }
+        const sourceValidation = validateAdvancedRenameSource(snapshot.entries)
+        if (!sourceValidation.valid) {
+          notification.warning({
+            title: sourceValidation.reason === 'too_many'
+              ? t('files.advancedRename.selectionLimit', { limit: advancedRenameSourceLimit })
+              : t('files.advancedRename.unsupportedSelection'),
+            duration: 4,
+            role: 'alert',
+            className: termousNotificationClassName,
+          })
+          return
+        }
+        setAdvancedRenameSource({
+          fileSessionId: files.fileSession.id,
+          connectionGeneration: files.fileSession.connection_generation ?? 0,
+          directory: normalizeRemotePath(files.viewState.listing.path || currentPath),
+          entries: snapshot.entries,
+        })
+      }
       const handlers: RemoteFileActionHandlers = {
         openFile: (target) => void openEntry(target),
         download: (target) => void downloadPaths([target.path]),
@@ -1036,6 +1084,7 @@ function WorkbenchFilesPanelContent({
         ),
         permissions: setPermissionEntry,
         rename: renameEntry,
+        advancedRename: openAdvancedRename,
         delete: deleteEntry,
       }
       runRemoteFileAction(entry, String(key), handlers)
@@ -1659,6 +1708,39 @@ function WorkbenchFilesPanelContent({
           onCreated={handleRemoteCopyCreated}
           onClose={() => setRemoteCopySource(null)}
         />
+      ) : null}
+      {advancedRenameSource ? (
+        <Suspense fallback={null}>
+          <AdvancedRenameModal
+            api={api}
+            open
+            source={advancedRenameSource}
+            onClose={() => setAdvancedRenameSource(null)}
+            onCompleted={() => {
+              const source = advancedRenameSource
+              setAdvancedRenameSource(null)
+              if (
+                files.fileSession?.id === source.fileSessionId
+                && (files.fileSession.connection_generation ?? 0) === source.connectionGeneration
+                && normalizeRemotePath(currentPath) === source.directory
+              ) {
+                files.setSelectedPaths([])
+                void files.loadDirectory(source.directory)
+              }
+            }}
+            onDirectoryRefresh={() => {
+              const source = advancedRenameSource
+              if (
+                files.fileSession?.id === source.fileSessionId
+                && (files.fileSession.connection_generation ?? 0) === source.connectionGeneration
+                && normalizeRemotePath(currentPath) === source.directory
+              ) {
+                return files.loadDirectory(source.directory).then(() => undefined)
+              }
+              return undefined
+            }}
+          />
+        </Suspense>
       ) : null}
       <RemotePermissionModal
         entry={permissionEntry}
