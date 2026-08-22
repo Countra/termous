@@ -8,6 +8,7 @@ export {
   type McpApprovalEvent,
   type McpApprovalKind,
   type McpApprovalOperation,
+  type McpApprovalRenameMapping,
   type McpApprovalSnapshot,
   type McpApprovalState,
   type McpApprovalTarget,

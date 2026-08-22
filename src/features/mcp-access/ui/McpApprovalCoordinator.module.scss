@@ -179,6 +179,59 @@
   border-top: 1px solid var(--border);
 }
 
+.rename-map {
+  display: grid;
+  overflow: auto;
+  max-height: 200px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--terminal-bg);
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 32%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.rename-map:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.rename-map-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 7px 10px;
+  transition: background-color 120ms ease;
+}
+
+.rename-map-row + .rename-map-row {
+  border-top: 1px solid var(--border);
+}
+
+.rename-map-row code {
+  min-width: 0;
+  color: var(--text-primary);
+  font: 11px/1.45 "Cascadia Code", Consolas, monospace;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.rename-map-row:hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+.rename-map-arrow {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
 .operation-meta {
   display: flex;
   flex-wrap: wrap;
@@ -242,6 +295,17 @@
 }
 
 @media (width <= 680px) {
+  .rename-map-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+    padding-block: 9px;
+  }
+
+  .rename-map-arrow {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+
   .footer {
     align-items: stretch;
     flex-direction: column;

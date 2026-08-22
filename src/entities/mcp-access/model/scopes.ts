@@ -11,6 +11,7 @@ export const mcpScopes = [
   'sftp:connect',
   'sftp:close',
   'sftp:write',
+  'sftp:batch_rename',
   'sftp:transfer',
   'sftp:cancel',
   'system:read',
@@ -35,6 +36,7 @@ export const defaultMcpScopes: McpScope[] = ['hosts:read', 'sessions:read']
 export const approvalRequiredScopes: readonly McpScope[] = [
   'commands:execute',
   'sftp:write',
+  'sftp:batch_rename',
   'sftp:transfer',
   'processes:terminate',
   'services:manage',

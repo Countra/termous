@@ -81,8 +81,84 @@ test('MCP 审批协议解码 SFTP 操作摘要并容忍可选展示字段', () =
   assert.deepEqual(approval?.targets, [])
   assert.deepEqual(approval?.operation?.remote_paths, [])
   assert.deepEqual(approval?.operation?.local_paths, ['C:\\work\\release.zip'])
+  assert.deepEqual(approval?.operation?.rename_mappings, [])
   assert.equal(approval?.operation?.remote_target, '/srv/releases')
   assert.equal(approval?.operation?.total_bytes, 2048)
+})
+
+test('MCP 审批协议接受批量重命名映射数量上限', () => {
+  const renameMappings = Array.from({ length: 500 }, (_, index) => ({
+    source_name: `source-${index}`,
+    target_name: `target-${index}`,
+  }))
+  const snapshot = decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 14,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'sftp',
+      operation: {
+        action: 'batch_rename',
+        item_count: 500,
+        rule_count: 32,
+        rename_mappings: renameMappings,
+      },
+    }],
+  })
+
+  assert.equal(snapshot.items[0]?.operation?.rename_mappings.length, 500)
+  assert.equal(snapshot.items[0]?.operation?.rule_count, 32)
+})
+
+test('MCP 审批协议接受批量重命名终态清空敏感映射', () => {
+  const snapshot = decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 15,
+    items: [{
+      ...approvalFixture('approved'),
+      kind: 'sftp',
+      operation: {
+        action: 'batch_rename',
+        item_count: 2,
+        rule_count: 1,
+      },
+    }],
+  })
+
+  assert.deepEqual(snapshot.items[0]?.operation?.rename_mappings, [])
+})
+
+test('MCP 审批协议解码 SFTP 批量重命名映射', () => {
+  const snapshot = decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 14,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'sftp',
+      command: undefined,
+      session_ids: undefined,
+      targets: undefined,
+      operation: {
+        action: 'batch_rename',
+        file_session_id: 'file-session-1',
+        host_name: '测试主机',
+        item_count: 2,
+        rule_count: 3,
+        rename_mappings: [
+          { source_name: 'a.txt', target_name: 'release-a.txt' },
+          { source_name: 'b.txt', target_name: 'release-b.txt' },
+        ],
+      },
+    }],
+  })
+
+  const approval = snapshot.items[0]
+  assert.equal(approval?.kind, 'sftp')
+  assert.equal(approval?.operation?.rule_count, 3)
+  assert.deepEqual(approval?.operation?.rename_mappings, [
+    { source_name: 'a.txt', target_name: 'release-a.txt' },
+    { source_name: 'b.txt', target_name: 'release-b.txt' },
+  ])
 })
 
 test('MCP 审批协议解码远程运维操作并保留显式 false', () => {
@@ -243,6 +319,71 @@ test('MCP 管理协议拒绝旧别名、未知权限和非 canonical 事件', ()
       operation: { action: 'update', tags: ['valid', 1] },
     }],
   }), /标签无效/)
+  assert.throws(() => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 12,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'sftp',
+      operation: {
+        action: 'batch_rename',
+        item_count: 1,
+        rename_mappings: [{ source_name: 'a.txt' }],
+      },
+    }],
+  }), /新名称缺失/)
+  assert.throws(() => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 12,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'sftp',
+      operation: {
+        action: 'batch_rename',
+        item_count: 1,
+        rule_count: 33,
+        rename_mappings: [{ source_name: 'a.txt', target_name: 'b.txt' }],
+      },
+    }],
+  }), /规则数超出限制/)
+  assert.throws(() => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 12,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'sftp',
+      operation: {
+        action: 'batch_rename',
+        item_count: 501,
+        rename_mappings: Array.from({ length: 501 }, (_, index) => ({
+          source_name: `source-${index}`,
+          target_name: `target-${index}`,
+        })),
+      },
+    }],
+  }), /映射数量超出限制/)
+  assert.throws(() => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 12,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'sftp',
+      operation: { action: 'batch_rename', item_count: 1 },
+    }],
+  }), /映射缺失/)
+  assert.throws(() => decodeMcpApprovalSnapshot({
+    instance_id: 'instance-1',
+    revision: 12,
+    items: [{
+      ...approvalFixture('pending'),
+      kind: 'sftp',
+      operation: {
+        action: 'batch_rename',
+        item_count: 2,
+        rename_mappings: [{ source_name: 'a.txt', target_name: 'b.txt' }],
+      },
+    }],
+  }), /映射数量与项目数不一致/)
 })
 
 function statusFixture() {

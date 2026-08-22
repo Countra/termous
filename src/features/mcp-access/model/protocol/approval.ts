@@ -46,6 +46,8 @@ const overwritePolicies = new Set<McpApprovalOperation['overwrite_policy']>([
   'skip',
   'overwrite',
 ])
+const maxBatchRenameMappings = 500
+const maxBatchRenameRules = 32
 
 export function decodeMcpApprovalSnapshot(value: unknown): McpApprovalSnapshot {
   const snapshot = requireRecord(value, 'MCP 审批快照缺失')
@@ -86,7 +88,7 @@ export function decodeMcpApproval(value: unknown): McpApproval {
   const normalizedKind = kind as McpApprovalKind
   const operation = approval.operation === undefined
     ? undefined
-    : decodeMcpApprovalOperation(approval.operation, normalizedKind)
+    : decodeMcpApprovalOperation(approval.operation, normalizedKind, state as McpApprovalState)
   if (normalizedKind !== 'command' && !operation) {
     throw new McpAccessProtocolError(approvalOperationMissingMessage[normalizedKind])
   }
@@ -169,14 +171,40 @@ export function decodeMcpApproval(value: unknown): McpApproval {
   }
 }
 
-function decodeMcpApprovalOperation(value: unknown, kind: McpApprovalKind): McpApprovalOperation {
+function decodeMcpApprovalOperation(
+  value: unknown,
+  kind: McpApprovalKind,
+  state: McpApprovalState,
+): McpApprovalOperation {
   const operation = requireRecord(value, 'MCP 审批操作无效')
+  const action = requireString(operation.action, 'MCP 审批操作类型缺失')
   const overwritePolicy = optionalString(operation.overwrite_policy)
   if (overwritePolicy && !overwritePolicies.has(overwritePolicy as McpApprovalOperation['overwrite_policy'])) {
     throw new McpAccessProtocolError('MCP SFTP 审批冲突策略无效')
   }
+  const ruleCount = optionalNonNegativeInteger(operation.rule_count, 'MCP SFTP 批量重命名规则数无效')
+  if (ruleCount !== undefined && ruleCount > maxBatchRenameRules) {
+    throw new McpAccessProtocolError('MCP SFTP 批量重命名规则数超出限制')
+  }
+  const renameMappings = optionalArray(operation.rename_mappings, 'MCP SFTP 批量重命名映射无效')
+  if (renameMappings.length > maxBatchRenameMappings) {
+    throw new McpAccessProtocolError('MCP SFTP 批量重命名映射数量超出限制')
+  }
+  const itemCount = optionalNonNegativeInteger(operation.item_count, 'MCP SFTP 审批项目数无效')
+  const awaitingBatchRenameDecision = kind === 'sftp'
+    && action === 'batch_rename'
+    && (state === 'pending' || state === 'dispatching')
+  if (awaitingBatchRenameDecision && (itemCount === undefined || itemCount === 0)) {
+    throw new McpAccessProtocolError('MCP SFTP 批量重命名项目数缺失')
+  }
+  if (awaitingBatchRenameDecision && renameMappings.length === 0) {
+    throw new McpAccessProtocolError('MCP SFTP 批量重命名映射缺失')
+  }
+  if (awaitingBatchRenameDecision && renameMappings.length !== itemCount) {
+    throw new McpAccessProtocolError('MCP SFTP 批量重命名映射数量与项目数不一致')
+  }
   return {
-    action: requireString(operation.action, 'MCP 审批操作类型缺失'),
+    action,
     domain: kind === 'remoteops'
       ? requireString(operation.domain, 'MCP 远程运维审批领域缺失')
       : optionalString(operation.domain),
@@ -204,8 +232,16 @@ function decodeMcpApprovalOperation(value: unknown, kind: McpApprovalKind): McpA
     shell: optionalString(operation.shell),
     description: optionalString(operation.description),
     tags: optionalStringArray(operation.tags, 'MCP 代码片段审批标签无效'),
-    item_count: optionalNonNegativeInteger(operation.item_count, 'MCP SFTP 审批项目数无效'),
+    item_count: itemCount,
     total_bytes: optionalNonNegativeInteger(operation.total_bytes, 'MCP SFTP 审批字节数无效'),
+    rule_count: ruleCount,
+    rename_mappings: renameMappings.map((mappingValue) => {
+      const mapping = requireRecord(mappingValue, 'MCP SFTP 批量重命名映射项无效')
+      return {
+        source_name: requireString(mapping.source_name, 'MCP SFTP 批量重命名原名称缺失'),
+        target_name: requireString(mapping.target_name, 'MCP SFTP 批量重命名新名称缺失'),
+      }
+    }),
   }
 }
 

@@ -12,9 +12,12 @@ const testState = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, values?: { time?: string; count?: number }) => {
+    t: (key: string, values?: { time?: string; count?: number; source?: string; target?: string }) => {
       if (values?.time) return `${key}:${values.time}`
       if (values?.count !== undefined) return `${key}:${values.count}`
+      if (values?.source !== undefined && values.target !== undefined) {
+        return `${key}:${values.source}->${values.target}`
+      }
       return key
     },
   }),
@@ -100,6 +103,7 @@ describe('McpApprovalCoordinator', () => {
         remote_paths: [],
         remote_target: '/srv/releases',
         local_paths: ['C:\\work\\release.zip'],
+        rename_mappings: [],
         overwrite_policy: 'rename',
         item_count: 1,
         total_bytes: 2048,
@@ -128,6 +132,7 @@ describe('McpApprovalCoordinator', () => {
         file_session_id: 'file-session-1',
         remote_paths: ['/srv/config.ini'],
         local_paths: [],
+        rename_mappings: [],
         item_count: 1,
       },
     }]
@@ -136,6 +141,98 @@ describe('McpApprovalCoordinator', () => {
 
     expect(screen.getByText('settings.mcp.approval.remotePath')).toBeInTheDocument()
     expect(screen.queryByText('settings.mcp.approval.remotePaths')).not.toBeInTheDocument()
+  })
+
+  it('在现有审批弹窗中逐项展示 SFTP 批量重命名映射', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'sftp',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'batch_rename',
+        file_session_id: 'file-session-1',
+        host_name: '测试主机',
+        remote_target: '/work',
+        remote_paths: [],
+        local_paths: [],
+        item_count: 2,
+        rule_count: 3,
+        rename_mappings: [
+          { source_name: 'a.txt', target_name: 'release-a.txt' },
+          { source_name: 'b.txt', target_name: 'release-b.txt' },
+        ],
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.approval.sftpAction.batchRename')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.renameMappings')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.remoteDirectory')).toBeInTheDocument()
+    expect(screen.getByText('/work')).toBeInTheDocument()
+    expect(screen.getByText('a.txt')).toBeInTheDocument()
+    expect(screen.getByText('release-a.txt')).toBeInTheDocument()
+    expect(screen.getByText('b.txt')).toBeInTheDocument()
+    expect(screen.getByText('release-b.txt')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.approval.ruleCount')).toBeInTheDocument()
+    expect(screen.getByText('3')).toBeInTheDocument()
+  })
+
+  it('批量重命名未携带规则数时展示零条规则', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'sftp',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'batch_rename',
+        file_session_id: 'file-session-1',
+        remote_target: '/work',
+        remote_paths: [],
+        local_paths: [],
+        item_count: 1,
+        rename_mappings: [{ source_name: 'a.txt', target_name: 'manual-a.txt' }],
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.approval.ruleCount')).toBeInTheDocument()
+    expect(screen.getByText('0')).toBeInTheDocument()
+  })
+
+  it('完整展示并支持键盘浏览 500 项批量重命名映射', () => {
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      kind: 'sftp',
+      command: '',
+      session_ids: [],
+      operation: {
+        action: 'batch_rename',
+        file_session_id: 'file-session-1',
+        remote_target: '/work',
+        remote_paths: [],
+        local_paths: [],
+        item_count: 500,
+        rule_count: 1,
+        rename_mappings: Array.from({ length: 500 }, (_, index) => ({
+          source_name: `source-${index}.txt`,
+          target_name: `target-${index}.txt`,
+        })),
+      },
+    }]
+
+    render(<McpApprovalCoordinator />)
+
+    const mappingList = screen.getByRole('list', { name: 'settings.mcp.approval.renameMappings' })
+    expect(mappingList).toHaveAttribute('tabindex', '0')
+    expect(screen.getAllByRole('listitem')).toHaveLength(500)
+    expect(screen.getByRole('listitem', {
+      name: 'settings.mcp.approval.renameMapping:source-499.txt->target-499.txt',
+    })).toBeInTheDocument()
+    mappingList.focus()
+    expect(mappingList).toHaveFocus()
   })
 
   it('在同一审批弹窗中展示远程运维资源、参数和显式停用状态', () => {
@@ -153,6 +250,7 @@ describe('McpApprovalCoordinator', () => {
         enabled: false,
         remote_paths: [],
         local_paths: [],
+        rename_mappings: [],
       },
     }]
 
@@ -185,6 +283,7 @@ describe('McpApprovalCoordinator', () => {
         target_address: 'db.internal:5432',
         remote_paths: [],
         local_paths: [],
+        rename_mappings: [],
       },
     }]
 
@@ -216,6 +315,7 @@ describe('McpApprovalCoordinator', () => {
         target_address: '127.0.0.1:8080',
         remote_paths: [],
         local_paths: [],
+        rename_mappings: [],
       },
     }]
 
@@ -254,6 +354,7 @@ describe('McpApprovalCoordinator', () => {
         target_address: targetAddress,
         remote_paths: [],
         local_paths: [],
+        rename_mappings: [],
       },
     }]
 
@@ -287,6 +388,7 @@ describe('McpApprovalCoordinator', () => {
         command: 'ss -lntp',
         remote_paths: [],
         local_paths: [],
+        rename_mappings: [],
       },
     }]
 
@@ -313,6 +415,7 @@ describe('McpApprovalCoordinator', () => {
         group_name: '临时诊断',
         remote_paths: [],
         local_paths: [],
+        rename_mappings: [],
       },
     }]
 
@@ -339,6 +442,7 @@ describe('McpApprovalCoordinator', () => {
         group_name: '新分组',
         remote_paths: [],
         local_paths: [],
+        rename_mappings: [],
       },
     }]
 
@@ -363,6 +467,7 @@ describe('McpApprovalCoordinator', () => {
         group_name: '诊断',
         remote_paths: [],
         local_paths: [],
+        rename_mappings: [],
       },
     }]
 
@@ -385,6 +490,7 @@ describe('McpApprovalCoordinator', () => {
         item_count: 4,
         remote_paths: [],
         local_paths: [],
+        rename_mappings: [],
       },
     }]
 
@@ -405,7 +511,7 @@ describe('McpApprovalCoordinator', () => {
       name: '进程终止',
       operation: {
         domain: 'processes', action: 'terminate', resource_id: '1234', resource_name: 'nginx',
-        signal: 'kill', remote_paths: [], local_paths: [],
+        signal: 'kill', remote_paths: [], local_paths: [], rename_mappings: [],
       },
       headline: /remoteOpsDomain\.processes.*remoteOpsAction\.terminate/,
       details: ['nginx · 1234', 'kill'],
@@ -414,7 +520,7 @@ describe('McpApprovalCoordinator', () => {
       name: 'Docker 重启',
       operation: {
         domain: 'docker', action: 'restart', resource_id: 'container-123', resource_name: 'api',
-        timeout_seconds: 1, remote_paths: [], local_paths: [],
+        timeout_seconds: 1, remote_paths: [], local_paths: [], rename_mappings: [],
       },
       headline: /remoteOpsDomain\.docker.*remoteOpsAction\.restart/,
       details: ['api · container-123', 'settings.mcp.approval.timeoutSeconds:1'],
@@ -423,7 +529,7 @@ describe('McpApprovalCoordinator', () => {
       name: 'systemd 屏蔽',
       operation: {
         domain: 'services', action: 'mask', resource_id: 'nginx.service',
-        remote_paths: [], local_paths: [],
+        remote_paths: [], local_paths: [], rename_mappings: [],
       },
       headline: /remoteOpsDomain\.services.*remoteOpsAction\.mask/,
       details: ['nginx.service'],

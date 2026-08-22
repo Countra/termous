@@ -10,6 +10,11 @@ export type McpApprovalState =
 export type McpApprovalDecision = 'approve' | 'reject'
 export type McpApprovalKind = 'command' | 'sftp' | 'remoteops' | 'forwarding' | 'snippet'
 
+export interface McpApprovalRenameMapping {
+  source_name: string
+  target_name: string
+}
+
 export interface McpApprovalOperation {
   action: string
   domain?: string
@@ -39,6 +44,8 @@ export interface McpApprovalOperation {
   tags?: string[]
   item_count?: number
   total_bytes?: number
+  rule_count?: number
+  rename_mappings: McpApprovalRenameMapping[]
 }
 
 export interface McpApprovalTarget {

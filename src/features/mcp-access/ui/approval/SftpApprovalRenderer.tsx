@@ -4,6 +4,7 @@ import {
   FileUp,
   FolderInput,
   FolderPlus,
+  ListRestart,
   PencilLine,
   ShieldCheck,
   Wrench,
@@ -12,18 +13,30 @@ import {
 import { useTranslation } from 'react-i18next'
 import type { McpApprovalOperation } from '#entities/mcp-access'
 import { formatBytes } from '#shared/format'
-import { ApprovalPaths } from './ApprovalDetailFields'
+import { ApprovalPaths, ApprovalRenameMappings } from './ApprovalDetailFields'
 import styles from '../McpApprovalCoordinator.module.scss'
 
 export function SftpApprovalRenderer({ operation }: { operation: McpApprovalOperation }) {
   const { t } = useTranslation()
   const Icon = sftpActionIcons[operation.action] ?? Wrench
   const actionKey = sftpActionKeys[operation.action] ?? 'settings.mcp.approval.sftpAction.other'
+  const isBatchRename = operation.action === 'batch_rename'
   const sourceHost = operation.host_name || operation.file_session_id
   const targetHost = operation.target_host_name || operation.target_file_session_id
   const remotePathsLabel = operation.action === 'save_text' || operation.action === 'chmod'
     ? 'settings.mcp.approval.remotePath'
     : 'settings.mcp.approval.remotePaths'
+  const remoteTargetLabel = isBatchRename
+    ? 'settings.mcp.approval.remoteDirectory'
+    : 'settings.mcp.approval.remoteTarget'
+  const hasOperationMeta = Boolean(
+    operation.overwrite_policy
+    || operation.mode
+    || operation.item_count !== undefined
+    || operation.total_bytes !== undefined
+    || operation.rule_count !== undefined
+    || isBatchRename,
+  )
 
   return (
     <div className={styles.operation}>
@@ -41,11 +54,15 @@ export function SftpApprovalRenderer({ operation }: { operation: McpApprovalOper
       ) : null}
 
       <ApprovalPaths label={t(remotePathsLabel)} paths={operation.remote_paths} />
-      <ApprovalPaths label={t('settings.mcp.approval.remoteTarget')} paths={toPathList(operation.remote_target)} />
+      <ApprovalPaths label={t(remoteTargetLabel)} paths={toPathList(operation.remote_target)} />
       <ApprovalPaths label={t('settings.mcp.approval.localPaths')} paths={operation.local_paths} />
       <ApprovalPaths label={t('settings.mcp.approval.localTarget')} paths={toPathList(operation.local_target)} />
+      <ApprovalRenameMappings
+        label={t('settings.mcp.approval.renameMappings')}
+        mappings={operation.rename_mappings}
+      />
 
-      {operation.overwrite_policy || operation.mode || operation.item_count !== undefined || operation.total_bytes !== undefined ? (
+      {hasOperationMeta ? (
         <div className={styles['operation-meta']}>
           {operation.overwrite_policy ? (
             <span>
@@ -63,6 +80,12 @@ export function SftpApprovalRenderer({ operation }: { operation: McpApprovalOper
             <span>
               {t('settings.mcp.approval.itemCount')}
               <strong>{operation.item_count}</strong>
+            </span>
+          ) : null}
+          {operation.rule_count !== undefined || isBatchRename ? (
+            <span>
+              {t('settings.mcp.approval.ruleCount')}
+              <strong>{operation.rule_count ?? 0}</strong>
             </span>
           ) : null}
           {operation.total_bytes !== undefined ? (
@@ -85,6 +108,7 @@ const sftpActionKeys: Record<string, string> = {
   upload: 'settings.mcp.approval.sftpAction.upload',
   download: 'settings.mcp.approval.sftpAction.download',
   remote_copy: 'settings.mcp.approval.sftpAction.remoteCopy',
+  batch_rename: 'settings.mcp.approval.sftpAction.batchRename',
 }
 
 const sftpActionIcons: Record<string, LucideIcon> = {
@@ -95,6 +119,7 @@ const sftpActionIcons: Record<string, LucideIcon> = {
   upload: FileUp,
   download: FileDown,
   remote_copy: FolderInput,
+  batch_rename: ListRestart,
 }
 
 function toPathList(path?: string) {
