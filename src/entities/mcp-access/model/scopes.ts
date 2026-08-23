@@ -12,6 +12,7 @@ export const mcpScopes = [
   'sftp:close',
   'sftp:write',
   'sftp:batch_rename',
+  'sftp:file_search',
   'sftp:transfer',
   'sftp:cancel',
   'system:read',

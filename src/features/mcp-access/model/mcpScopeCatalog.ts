@@ -45,6 +45,7 @@ export const mcpScopeGroups: readonly McpScopeGroup[] = [
       'sftp:close',
       'sftp:write',
       'sftp:batch_rename',
+      'sftp:file_search',
       'sftp:transfer',
       'sftp:cancel',
     ],
