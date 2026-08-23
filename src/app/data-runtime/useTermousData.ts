@@ -64,8 +64,8 @@ import {
   type LoadMode,
 } from './model/appDataState'
 import {
+  reconcileForwardReloadSnapshot,
   reconcileForwardStartCompletions,
-  visibleForwards,
   type ForwardStartCompletionWaiter,
 } from './model/forwardRuntimeState'
 import { createCredentialCommands } from './commands/credentialCommands'
@@ -108,6 +108,7 @@ export function useTermousData() {
   const inventoryEventRevisionsRef = useRef(new Map<string, number>())
   const inventoryStateSignaturesRef = useRef(new Map<string, string>())
   const inventoryRequestRevisionsRef = useRef(new Map<string, number>())
+  const forwardReloadChangeTrackersRef = useRef(new Set<Set<string>>())
   const forwardEventRevisionsRef = useRef(new Map<string, number>())
   const forwardEventSnapshotsRef = useRef(new Map<string, ForwardInstance>())
   const snippetRuntimeCursorRef = useRef(initialSnippetRuntimeCursor)
@@ -126,6 +127,16 @@ export function useTermousData() {
   const completionSettingsRef = useRef(data.settings.completion)
   const completionSettingsConfirmedRef = useRef(data.settings.completion)
   completionSettingsRef.current = data.settings.completion
+  const connectionSettingsMutationRef = useRef(0)
+  const connectionSettingsPendingWritesRef = useRef(0)
+  const connectionSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
+  if (!connectionSettingsWriteQueueRef.current) {
+    connectionSettingsWriteQueueRef.current = new SerialMutationQueue()
+  }
+  const connectionSettingsWriteQueue = connectionSettingsWriteQueueRef.current
+  const connectionSettingsRef = useRef(data.settings.connection)
+  const connectionSettingsConfirmedRef = useRef(data.settings.connection)
+  connectionSettingsRef.current = data.settings.connection
   const shortcutSettingsMutationRef = useRef(0)
   const shortcutSettingsPendingWritesRef = useRef(0)
   const shortcutSettingsWriteQueueRef = useRef<SerialMutationQueue | null>(null)
@@ -225,9 +236,15 @@ export function useTermousData() {
   ) => {
     const loadRevision = loadRevisionRef.current + 1
     loadRevisionRef.current = loadRevision
+    const changedForwardIds = new Set<string>()
+    forwardReloadChangeTrackersRef.current.add(changedForwardIds)
     const completionSettingsReloadCheckpoint = {
       generation: completionSettingsMutationRef.current,
       hadPendingWrites: completionSettingsPendingWritesRef.current > 0,
+    }
+    const connectionSettingsReloadCheckpoint = {
+      generation: connectionSettingsMutationRef.current,
+      hadPendingWrites: connectionSettingsPendingWritesRef.current > 0,
     }
     const shortcutSettingsReloadCheckpoint = {
       generation: shortcutSettingsMutationRef.current,
@@ -286,6 +303,15 @@ export function useTermousData() {
         completionSettingsConfirmedRef.current = nextSettings.completion
         completionSettingsRef.current = nextSettings.completion
       }
+      const canApplyReloadedConnection = canApplyReloadedValue(
+        connectionSettingsReloadCheckpoint,
+        connectionSettingsMutationRef.current,
+        connectionSettingsPendingWritesRef.current,
+      )
+      if (canApplyReloadedConnection) {
+        connectionSettingsConfirmedRef.current = nextSettings.connection
+        connectionSettingsRef.current = nextSettings.connection
+      }
       const canApplyReloadedShortcuts = canApplyReloadedValue(
         shortcutSettingsReloadCheckpoint,
         shortcutSettingsMutationRef.current,
@@ -326,6 +352,9 @@ export function useTermousData() {
           completion: canApplyReloadedCompletion
             ? nextSettings.completion
             : current.settings.completion,
+          connection: canApplyReloadedConnection
+            ? nextSettings.connection
+            : current.settings.connection,
           shortcuts: canApplyReloadedShortcuts
             ? nextSettings.shortcuts
             : current.settings.shortcuts,
@@ -351,7 +380,11 @@ export function useTermousData() {
             activeSourceSessionIds,
           ),
           forwardProfiles: forwardProfiles ?? [],
-          forwards: visibleForwards(forwards ?? []),
+          forwards: reconcileForwardReloadSnapshot(
+            current.forwards,
+            forwards ?? [],
+            changedForwardIds,
+          ),
           snippetGroups: canApplyReloadedSnippets
             ? sortCodeSnippetGroups(snippetGroups ?? [])
             : current.snippetGroups,
@@ -382,6 +415,7 @@ export function useTermousData() {
         setError(publicMessage(loadError))
       }
     } finally {
+      forwardReloadChangeTrackersRef.current.delete(changedForwardIds)
       if (loadRevision === loadRevisionRef.current) {
         setInitializing(false)
         setRefreshing(false)
@@ -395,15 +429,28 @@ export function useTermousData() {
   )
 
   const reloadForwardsWithGateways = useCallback(async (runtimeGateways: RuntimeGateways) => {
-    const forwards = await runtimeGateways.forwards.forwards()
-    reconcileForwardStartCompletions(
-      forwardStartCompletionWaitersRef.current,
-      forwardEventSnapshotsRef.current,
-      forwardEventRevisionsRef.current,
-      forwards ?? [],
-    )
-    setData((current) => ({ ...current, forwards: visibleForwards(forwards ?? []) }))
-    setLastUpdatedAt(new Date().toISOString())
+    const changedForwardIds = new Set<string>()
+    forwardReloadChangeTrackersRef.current.add(changedForwardIds)
+    try {
+      const forwards = await runtimeGateways.forwards.forwards()
+      reconcileForwardStartCompletions(
+        forwardStartCompletionWaitersRef.current,
+        forwardEventSnapshotsRef.current,
+        forwardEventRevisionsRef.current,
+        forwards ?? [],
+      )
+      setData((current) => ({
+        ...current,
+        forwards: reconcileForwardReloadSnapshot(
+          current.forwards,
+          forwards ?? [],
+          changedForwardIds,
+        ),
+      }))
+      setLastUpdatedAt(new Date().toISOString())
+    } finally {
+      forwardReloadChangeTrackersRef.current.delete(changedForwardIds)
+    }
   }, [])
 
   const reloadForwards = useCallback(
@@ -652,6 +699,11 @@ export function useTermousData() {
         completionSettingsWriteQueue,
         completionSettings: completionSettingsRef,
         confirmedCompletionSettings: completionSettingsConfirmedRef,
+        connectionSettingsMutation: connectionSettingsMutationRef,
+        connectionSettingsPendingWrites: connectionSettingsPendingWritesRef,
+        connectionSettingsWriteQueue,
+        connectionSettings: connectionSettingsRef,
+        confirmedConnectionSettings: connectionSettingsConfirmedRef,
         shortcutSettingsMutation: shortcutSettingsMutationRef,
         shortcutSettingsPendingWrites: shortcutSettingsPendingWritesRef,
         shortcutSettingsWriteQueue,
@@ -666,6 +718,7 @@ export function useTermousData() {
         forwards: data.forwards,
         setData,
         setForwardErrorEvent,
+        forwardReloadChangeTrackers: forwardReloadChangeTrackersRef.current,
         forwardStartCompletionWaiters: forwardStartCompletionWaitersRef.current,
         forwardEventRevisions: forwardEventRevisionsRef.current,
         forwardEventSnapshots: forwardEventSnapshotsRef.current,
@@ -716,6 +769,7 @@ export function useTermousData() {
       applySessionSnapshot,
       applyFileSessionSnapshot,
       completionSettingsWriteQueue,
+      connectionSettingsWriteQueue,
       shortcutSettingsWriteQueue,
       data.fileSessions,
       data.forwards,

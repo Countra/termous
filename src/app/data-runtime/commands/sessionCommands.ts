@@ -151,6 +151,7 @@ export function createSessionCommands({
         forward.status === 'starting' ||
         forward.status === 'waiting_host_trust' ||
         forward.status === 'running' ||
+        forward.status === 'reconnecting' ||
         forward.status === 'stopping'
       ))
       fileSessionsToClose.forEach((fileSession) => {

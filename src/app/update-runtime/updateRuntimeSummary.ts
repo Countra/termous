@@ -28,6 +28,7 @@ export function buildUpdateRuntimeSummary(input: {
       forward.status === 'starting'
       || forward.status === 'waiting_host_trust'
       || forward.status === 'running'
+      || forward.status === 'reconnecting'
       || forward.status === 'stopping'
     )).length),
     transfers: clampRuntimeCount(input.activeTransferCount),

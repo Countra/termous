@@ -1,6 +1,7 @@
 import type {
   AppearanceSettings,
   CompletionSettings,
+  ConnectionSettings,
   Settings,
   ShortcutSettingsPatch,
   TerminalFont,
@@ -124,6 +125,7 @@ export interface SettingsCommandGateway {
   updateAppearanceSettings: (appearance: AppearanceSettings) => Promise<Settings>
   updateTerminalSettings: (terminal: TerminalSettings) => Promise<Settings>
   updateCompletionSettings: (completion: CompletionSettings) => Promise<Settings>
+  updateConnectionSettings: (connection: ConnectionSettings) => Promise<Settings>
   updateShortcutSettings: (patch: ShortcutSettingsPatch) => Promise<Settings>
   updateWindowSettings: (windowSettings: WindowSettings) => Promise<Settings>
   terminalFonts: () => Promise<TerminalFont[]>

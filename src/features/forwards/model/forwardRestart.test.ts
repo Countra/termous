@@ -176,6 +176,7 @@ test('启动响应与事件竞态时采用最新事件快照', () => {
 test('等待主机信任和停止过程不是启动终态', () => {
   assert.equal(isForwardStartSettledStatus('starting'), false)
   assert.equal(isForwardStartSettledStatus('waiting_host_trust'), false)
+  assert.equal(isForwardStartSettledStatus('reconnecting'), false)
   assert.equal(isForwardStartSettledStatus('stopping'), false)
   assert.equal(isForwardStartSettledStatus('running'), true)
   assert.equal(isForwardStartSettledStatus('stopped'), true)
@@ -205,6 +206,10 @@ test('运行实例允许重启和停止，过渡状态只允许停止或全部�
     stop: true,
   })
   assert.deepEqual(forwardRuntimeActionAvailability('waiting_host_trust'), {
+    restart: false,
+    stop: true,
+  })
+  assert.deepEqual(forwardRuntimeActionAvailability('reconnecting'), {
     restart: false,
     stop: true,
   })

@@ -45,6 +45,11 @@ export interface CompletionSettings {
   providers: CompletionProviderSettings
 }
 
+export interface ConnectionSettings {
+  ssh_keepalive_enabled: boolean
+  forward_auto_reconnect_enabled: boolean
+}
+
 export type ShortcutModifier = 'primary' | 'control' | 'alt' | 'shift' | 'meta'
 
 export interface ShortcutChord {
@@ -82,6 +87,7 @@ export interface Settings {
   appearance: AppearanceSettings
   terminal: TerminalSettings
   completion: CompletionSettings
+  connection: ConnectionSettings
   shortcuts: ShortcutSettings
   window: WindowSettings
 }

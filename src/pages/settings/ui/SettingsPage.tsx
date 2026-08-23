@@ -1,10 +1,11 @@
-import { Bot, DatabaseBackup, Keyboard, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
+import { Bot, DatabaseBackup, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
 import { Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type {
   AppLanguage,
   AppearanceSettings,
   CompletionSettings,
+  ConnectionSettings,
   ShortcutSettings,
   ShortcutSettingsPatch,
   TerminalFont,
@@ -15,6 +16,7 @@ import { useShortcutRuntime } from '#entities/shortcuts'
 import { McpSettingsPanel } from '#features/mcp-access'
 import {
   DataPortabilitySettings,
+  ConnectionSettings as ConnectionSettingsPanel,
   GeneralSettings,
   ShortcutSettingsPanel,
   TerminalCompletionSettings,
@@ -31,6 +33,7 @@ export interface SettingsPageProps {
   terminalSettings: TerminalSettings
   sshSmoothScrollEnabled: boolean
   completionSettings: CompletionSettings
+  connectionSettings: ConnectionSettings
   shortcutSettings: ShortcutSettings
   windowSettings: WindowSettings
   terminalFonts: TerminalFont[]
@@ -43,6 +46,7 @@ export interface SettingsPageProps {
   onTerminalSettingsChange: (settings: TerminalSettings) => Promise<void>
   onSshSmoothScrollChange: (enabled: boolean) => void
   onCompletionSettingsChange: (settings: CompletionSettings) => Promise<void>
+  onConnectionSettingsChange: (settings: ConnectionSettings) => Promise<void>
   onShortcutSettingsChange: (patch: ShortcutSettingsPatch) => Promise<void>
   onWindowSettingsChange: (settings: WindowSettings) => Promise<void>
   onUploadTerminalFont: (file: File) => Promise<TerminalFont>
@@ -55,6 +59,7 @@ export function SettingsPage({
   terminalSettings,
   sshSmoothScrollEnabled,
   completionSettings,
+  connectionSettings,
   shortcutSettings,
   windowSettings,
   terminalFonts,
@@ -67,6 +72,7 @@ export function SettingsPage({
   onTerminalSettingsChange,
   onSshSmoothScrollChange,
   onCompletionSettingsChange,
+  onConnectionSettingsChange,
   onShortcutSettingsChange,
   onWindowSettingsChange,
   onUploadTerminalFont,
@@ -135,6 +141,24 @@ export function SettingsPage({
                     onChange={onCompletionSettingsChange}
                   />
                 </div>
+              </div>
+            ),
+          },
+          {
+            key: 'connection',
+            label: (
+              <span className={styles['tab-label']}>
+                <Network size={15} aria-hidden="true" />
+                {t('settings.tabConnection')}
+              </span>
+            ),
+            children: (
+              <div className={styles['tab-scroll']}>
+                <ConnectionSettingsPanel
+                  value={connectionSettings}
+                  disabled={actionBusy}
+                  onChange={onConnectionSettingsChange}
+                />
               </div>
             ),
           },

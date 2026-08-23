@@ -17,6 +17,7 @@ build/core/
 .playwright-cli/
 output/playwright/
 docs-secret/
+/docs/secret/
 _tmp_*
 *.local
 

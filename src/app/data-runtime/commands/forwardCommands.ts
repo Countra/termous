@@ -25,6 +25,7 @@ interface ForwardCommandDependencies {
   forwards: ForwardInstance[]
   setData: SetAppData
   setForwardErrorEvent: SetRuntimeState<ForwardEvent | null>
+  forwardReloadChangeTrackers: Set<Set<string>>
   forwardStartCompletionWaiters: Map<string, ForwardStartCompletionWaiter>
   forwardEventRevisions: Map<string, number>
   forwardEventSnapshots: Map<string, ForwardInstance>
@@ -35,6 +36,7 @@ export function createForwardCommands({
   forwards,
   setData,
   setForwardErrorEvent,
+  forwardReloadChangeTrackers,
   forwardStartCompletionWaiters,
   forwardEventRevisions,
   forwardEventSnapshots,
@@ -195,6 +197,9 @@ export function createForwardCommands({
       }))
     },
     updateForward(event: ForwardEvent) {
+      for (const changedForwardIds of forwardReloadChangeTrackers) {
+        changedForwardIds.add(event.forward.id)
+      }
       if (forwardStartCompletionWaiters.has(event.forward.id)) {
         bumpSessionRevision(forwardEventRevisions, event.forward.id)
       }

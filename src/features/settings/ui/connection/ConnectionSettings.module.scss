@@ -1,0 +1,75 @@
+.rows {
+  display: grid;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  padding: 15px 2px;
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--accent) 82%, var(--text-primary));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-subtle));
+}
+
+.copy {
+  min-width: 0;
+}
+
+.copy strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 1.35;
+}
+
+.copy p,
+.note {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.note {
+  border-top: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  padding: 12px 2px 0 43px;
+}
+
+@media (width <= 560px) {
+  .row {
+    grid-template-columns: 28px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .row :global(.ant-switch) {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: 2px;
+  }
+
+  .note {
+    padding-left: 0;
+  }
+}

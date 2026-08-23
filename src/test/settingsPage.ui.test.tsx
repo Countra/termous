@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type {
   AppearanceSettings,
   CompletionSettings,
+  ConnectionSettings,
   TerminalSettings,
   WindowSettings,
 } from '#common/contracts'
@@ -90,6 +91,20 @@ vi.mock('#features/settings', () => ({
         childState.dataPortabilityGateway = gateway
       }}
     />
+  ),
+  ConnectionSettings: ({
+    onChange,
+    value,
+  }: {
+    onChange: (settings: ConnectionSettings) => Promise<void>
+    value: ConnectionSettings
+  }) => (
+    <button
+      type="button"
+      onClick={() => void onChange({ ...value, ssh_keepalive_enabled: !value.ssh_keepalive_enabled })}
+    >
+      connection-change
+    </button>
   ),
   GeneralSettings: ({
     onAppearanceSettingsChange,
@@ -209,6 +224,7 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
     },
     onAppearanceSettingsChange: vi.fn(async () => undefined),
     onCompletionSettingsChange: vi.fn(async () => undefined),
+    onConnectionSettingsChange: vi.fn(async () => undefined),
     onDeleteTerminalFont: vi.fn(async () => undefined),
     onLanguageChange: vi.fn(async () => undefined),
     onShortcutSettingsChange: vi.fn(async () => undefined),
@@ -229,6 +245,10 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
       terminalSettings={terminalSettings}
       sshSmoothScrollEnabled={false}
       completionSettings={completionSettings}
+      connectionSettings={{
+        ssh_keepalive_enabled: false,
+        forward_auto_reconnect_enabled: false,
+      }}
       shortcutSettings={{ schema_version: 1, overrides: {} }}
       windowSettings={{ close_behavior: 'exit' }}
       terminalFonts={[]}
@@ -251,15 +271,16 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
 }
 
 describe('设置页面装配合同', () => {
-  it('保持六个页签及通用设置默认页签和命令委托', async () => {
+  it('保持七个页签及通用设置默认页签和命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsPage()
     const tabs = screen.getAllByRole('tab')
 
-    expect(tabs).toHaveLength(6)
+    expect(tabs).toHaveLength(7)
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'settings.tabGeneral',
       'settings.tabTerminal',
+      'settings.tabConnection',
       'settings.tabShortcuts',
       'settings.tabMcp',
       'settings.tabData',
@@ -276,7 +297,7 @@ describe('设置页面装配合同', () => {
     expect(handlers.onWindowSettingsChange).toHaveBeenCalledWith({ close_behavior: 'minimize_to_tray' })
   })
 
-  it('保持终端、快捷键、MCP、数据和更新子模块的 Props 与命令委托', async () => {
+  it('保持终端、连接、快捷键、MCP、数据和更新子模块的 Props 与命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsPage()
 
@@ -293,6 +314,13 @@ describe('设置页面装配合同', () => {
     expect(handlers.onCompletionSettingsChange).toHaveBeenCalledWith({ ...completionSettings, enabled: false })
     expect(handlers.onUploadTerminalFont).toHaveBeenCalledWith(expect.objectContaining({ name: 'custom.ttf' }))
     expect(handlers.onDeleteTerminalFont).toHaveBeenCalledWith('custom-font')
+
+    await user.click(screen.getByRole('tab', { name: 'settings.tabConnection' }))
+    await user.click(screen.getByRole('button', { name: 'connection-change' }))
+    expect(handlers.onConnectionSettingsChange).toHaveBeenCalledWith({
+      ssh_keepalive_enabled: true,
+      forward_auto_reconnect_enabled: false,
+    })
 
     await user.click(screen.getByRole('tab', { name: 'settings.tabShortcuts' }))
     expect(screen.getByTestId('shortcut-settings')).toHaveAttribute('data-platform', 'darwin')

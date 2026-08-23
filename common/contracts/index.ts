@@ -14,6 +14,7 @@ export type {
 } from './application'
 export type {
   AppearanceSettings,
+  ConnectionSettings,
   CompletionProviderId,
   CompletionProviderSettings,
   CompletionSettings,

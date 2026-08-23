@@ -48,11 +48,12 @@ const defaultSessionForwardForm: SessionForwardForm = {
 
 const forwardStatusPriority: Record<ForwardInstance['status'], number> = {
   running: 0,
-  starting: 1,
-  waiting_host_trust: 2,
-  stopping: 3,
-  failed: 4,
-  stopped: 5,
+  reconnecting: 1,
+  starting: 2,
+  waiting_host_trust: 3,
+  stopping: 4,
+  failed: 5,
+  stopped: 6,
 }
 
 export function ForwardSessionPanel({

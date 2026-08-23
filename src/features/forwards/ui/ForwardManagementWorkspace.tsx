@@ -74,7 +74,7 @@ const defaultForm: ForwardFormState = {
   target_port: 80,
 }
 
-const activeStatuses = new Set(['starting', 'waiting_host_trust', 'running', 'stopping'])
+const activeStatuses = new Set(['starting', 'waiting_host_trust', 'running', 'reconnecting', 'stopping'])
 
 export function ForwardManagementWorkspace({
   data,
@@ -480,7 +480,8 @@ function ForwardProfileRow({
   onDelete: () => void
 }) {
   const { t } = useTranslation()
-  const startHint = running ? t('forwards.running') : t('forwards.start')
+  const runtimeStatus = running?.status === 'running' ? 'connected' : 'connecting'
+  const startHint = running ? t(`forwards.status.${running.status}`) : t('forwards.start')
   const secondary = [host?.name ?? t('fields.none'), profile.description].filter(Boolean).join(' · ')
 
   return (
@@ -497,7 +498,7 @@ function ForwardProfileRow({
           </Tooltip>
         </div>
         <div className={scopedClassName('forwarding-row-actions')}>
-          {running ? <StatusBadge status="connected" label={t('forwards.running')} /> : null}
+          {running ? <StatusBadge status={runtimeStatus} label={t(`forwards.status.${running.status}`)} /> : null}
           <Tooltip
             title={startHint}
             mouseEnterDelay={0.3}

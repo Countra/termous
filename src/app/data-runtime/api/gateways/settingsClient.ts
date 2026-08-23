@@ -1,4 +1,4 @@
-import type { AppConfig, AppLanguage, AppearanceSettings, CompletionSettings, Settings, ShortcutSettingsPatch, TerminalFont, TerminalSettings, WindowSettings } from '#common/contracts';
+import type { AppConfig, AppLanguage, AppearanceSettings, CompletionSettings, ConnectionSettings, Settings, ShortcutSettingsPatch, TerminalFont, TerminalSettings, WindowSettings } from '#common/contracts';
 import { TermousApiTransport } from '#shared/api';
 
 type Language = AppLanguage
@@ -44,10 +44,17 @@ updateTerminalSettings(terminal: TerminalSettings) {
     })
   }
 
-updateCompletionSettings(completion: CompletionSettings) {
+  updateCompletionSettings(completion: CompletionSettings) {
     return this.request<Settings>('/api/v1/settings/completion', {
       method: 'PATCH',
       body: completion,
+    })
+  }
+
+  updateConnectionSettings(connection: ConnectionSettings) {
+    return this.request<Settings>('/api/v1/settings/connection', {
+      method: 'PATCH',
+      body: connection,
     })
   }
 

@@ -25,6 +25,7 @@ test('更新安装影响摘要统计仍会被退出流程中断的远程资源',
     { status: 'starting' },
     { status: 'waiting_host_trust' },
     { status: 'running' },
+    { status: 'reconnecting' },
     { status: 'stopping' },
   ] as ForwardInstance[]
 
@@ -37,7 +38,7 @@ test('更新安装影响摘要统计仍会被退出流程中断的远程资源',
   }), {
     ssh_sessions: 3,
     file_sessions: 3,
-    forwards: 4,
+    forwards: 5,
     transfers: 4,
     transfers_complete: true,
   })

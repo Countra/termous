@@ -91,6 +91,7 @@ export function forwardRuntimeActionAvailability(status: ForwardStatus) {
     restart: status === 'running',
     stop: status === 'starting'
       || status === 'waiting_host_trust'
-      || status === 'running',
+      || status === 'running'
+      || status === 'reconnecting',
   }
 }

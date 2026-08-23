@@ -12,6 +12,7 @@ import type {
 import {
   defaultAppearanceSettings,
   defaultCompletionSettings,
+  defaultConnectionSettings,
   defaultShortcutSettings,
   defaultTerminalSettings,
   defaultWindowSettings,
@@ -26,6 +27,7 @@ const initialSettings: Settings = {
   appearance: defaultAppearanceSettings,
   terminal: defaultTerminalSettings,
   completion: defaultCompletionSettings,
+  connection: defaultConnectionSettings,
   shortcuts: defaultShortcutSettings,
   window: defaultWindowSettings,
 }

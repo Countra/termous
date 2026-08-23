@@ -649,6 +649,16 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
+  const saveConnectionSettings = async (
+    connectionSettings: Parameters<typeof actions.setConnectionSettings>[0],
+  ) => {
+    try {
+      await actions.setConnectionSettings(connectionSettings)
+    } catch (actionError) {
+      showActionError(actionError)
+    }
+  }
+
   const saveShortcutSettings = async (
     patch: Parameters<typeof actions.updateShortcutSettings>[0],
   ) => {
@@ -1065,6 +1075,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             terminalSettings={data.settings.terminal}
             sshSmoothScrollEnabled={sshSmoothScrollEnabled}
             completionSettings={data.settings.completion}
+            connectionSettings={data.settings.connection}
             shortcutSettings={data.settings.shortcuts}
             windowSettings={data.settings.window}
             terminalFonts={data.terminalFonts}
@@ -1077,6 +1088,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onTerminalSettingsChange={saveTerminalSettings}
             onSshSmoothScrollChange={setSshSmoothScrollEnabled}
             onCompletionSettingsChange={saveCompletionSettings}
+            onConnectionSettingsChange={saveConnectionSettings}
             onShortcutSettingsChange={saveShortcutSettings}
             onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
             onUploadTerminalFont={uploadTerminalFont}
@@ -1220,8 +1232,9 @@ function notifyForwardError(
   }
   if (shouldNotifyForwardFailure(event) && !failedRef.current.has(event.forward.id)) {
     failedRef.current.add(event.forward.id)
+    const recoveryFailed = (event.forward.reconnect_max_attempts ?? 0) > 0
     notification.error({
-      title: t('forwards.startFailed'),
+      title: t(recoveryFailed ? 'forwards.reconnectFailed' : 'forwards.startFailed'),
       description: event.message || event.forward.last_error || event.forward.status_message || t('app.error'),
       duration: 6,
       role: 'alert',
