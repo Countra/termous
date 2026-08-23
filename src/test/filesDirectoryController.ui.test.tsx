@@ -326,6 +326,94 @@ describe('文件目录请求控制器合同', () => {
     expect(committed).toHaveBeenCalledTimes(1)
   })
 
+  it('同一轮渲染内连续请求时旧请求不能清理新请求', async () => {
+    const session = fileSession()
+    const requests: Array<ReturnType<typeof deferred<RemoteDirectoryListing>>> = []
+    const gateway = {
+      listFileSessionFiles: vi.fn(() => {
+        const request = deferred<RemoteDirectoryListing>()
+        requests.push(request)
+        return request.promise
+      }),
+    }
+    const committed = vi.fn()
+    const capture = captureHarness()
+    render(
+      <DirectoryHarness
+        gateway={gateway}
+        activeFileSession={session}
+        fileSessions={[session]}
+        initialStates={cachedDirectoryState(session)}
+        onController={capture.onController}
+        onRuntime={capture.onRuntime}
+        onActiveDirectoryCommitted={committed}
+      />,
+    )
+    const current = await waitForHarness(capture)
+    let first!: Promise<boolean>
+    let second!: Promise<boolean>
+    act(() => {
+      first = current.controller.loadDirectory('/first')
+      second = current.controller.loadDirectory('/second')
+    })
+    expect(gateway.listFileSessionFiles).toHaveBeenCalledTimes(2)
+
+    let firstResult = true
+    await act(async () => {
+      requests[0]!.resolve(directoryListing('/first'))
+      firstResult = await first
+    })
+    expect(firstResult).toBe(false)
+
+    let secondResult = false
+    await act(async () => {
+      requests[1]!.resolve(directoryListing('/second'))
+      secondResult = await second
+    })
+    expect(secondResult).toBe(true)
+    expect(capture.current.runtime!.states[session.id]?.committedPath).toBe('/second')
+    expect(committed).toHaveBeenCalledTimes(1)
+  })
+
+  it('调用方取消定位后目录结果不能迟到提交', async () => {
+    const session = fileSession()
+    const request = deferred<RemoteDirectoryListing>()
+    const gateway = {
+      listFileSessionFiles: vi.fn(() => request.promise),
+    }
+    const committed = vi.fn()
+    const capture = captureHarness()
+    render(
+      <DirectoryHarness
+        gateway={gateway}
+        activeFileSession={session}
+        fileSessions={[session]}
+        initialStates={cachedDirectoryState(session)}
+        onController={capture.onController}
+        onRuntime={capture.onRuntime}
+        onActiveDirectoryCommitted={committed}
+      />,
+    )
+    const current = await waitForHarness(capture)
+    const abortController = new AbortController()
+    let resultPromise!: Promise<boolean>
+    act(() => {
+      resultPromise = current.controller.loadDirectory('/target', {
+        signal: abortController.signal,
+      })
+    })
+    abortController.abort()
+
+    let result = true
+    await act(async () => {
+      request.resolve(directoryListing('/target'))
+      result = await resultPromise
+    })
+    expect(result).toBe(false)
+    expect(capture.current.runtime!.states[session.id]?.committedPath).toBe('/')
+    expect(committed).not.toHaveBeenCalled()
+  })
+
   it.each([
     {
       name: '连接代次变化',

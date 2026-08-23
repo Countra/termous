@@ -1,0 +1,396 @@
+.filters-popover:global(.ant-popover) {
+  z-index: 3520;
+}
+
+.panel {
+  display: grid;
+  width: min(430px, calc(100vw - 32px));
+  max-height: min(500px, calc(100dvh - 196px));
+  gap: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  padding: 1px;
+  scrollbar-gutter: stable;
+}
+
+.header {
+  position: sticky;
+  z-index: 2;
+  top: -1px;
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: var(--termous-filter-popover-bg);
+  padding: 0 2px 8px;
+}
+
+.header > span,
+.section > header {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.header > span {
+  color: var(--text-primary);
+}
+
+.header strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.header :global(.ant-btn) {
+  display: inline-flex;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--text-muted);
+  padding: 0;
+}
+
+.section {
+  display: grid;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding: 13px 2px;
+}
+
+.section:last-child {
+  border-bottom: 0;
+  padding-bottom: 2px;
+}
+
+.section > header {
+  color: var(--text-muted);
+}
+
+.section > header svg {
+  color: var(--accent);
+}
+
+.section > header strong {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 720;
+}
+
+.field-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.range-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.field > span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field :global(.ant-input),
+.field :global(.ant-input-number),
+.field :global(.ant-select) {
+  width: 100%;
+}
+
+.field :global(.ant-input),
+.field :global(.ant-input-number),
+.field :global(.ant-select-selector) {
+  min-height: 32px;
+  border-color: var(--border) !important;
+  border-radius: 7px !important;
+  background: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+  font-size: 10px;
+}
+
+.field :global(.ant-input-number-input) {
+  height: 30px;
+  font-size: 10px;
+}
+
+.size-control:global(.ant-space-compact) {
+  width: 100%;
+  height: 32px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--input-bg);
+}
+
+.size-control:global(.ant-space-compact)[data-status="error"] {
+  border-color: color-mix(in srgb, var(--danger) 78%, var(--border));
+}
+
+.size-control:global(.ant-space-compact)[data-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.size-control .size-number:global(.ant-input-number) {
+  width: auto;
+  min-width: 0;
+  min-height: 30px;
+  flex: 1 1 auto;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.size-unit:global(.ant-space-addon) {
+  width: 44px;
+  height: 30px;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-inline-start: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  padding: 0;
+}
+
+.field :global(.ant-select-multiple .ant-select-selection-item) {
+  max-width: 110px;
+  border-color: var(--border);
+  border-radius: 4px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 9px;
+}
+
+.tag-input:global(.ant-select-multiple) :global(.ant-select-selector) {
+  cursor: text;
+  padding-inline: 6px !important;
+}
+
+.tag-input:global(.ant-select-multiple) :global(.ant-select-selection-overflow) {
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.tag-input:global(.ant-select-multiple) :global(.ant-select-selection-item) {
+  height: 22px;
+  align-items: center;
+  margin: 0;
+  padding: 0 4px 0 7px;
+  line-height: 20px;
+}
+
+.tag-input :global(.ant-select-selection-item-content) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tag-input :global(.ant-select-selection-item-remove) {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--text-muted);
+  margin-inline-start: 2px;
+}
+
+.tag-input :global(.ant-select-selection-item-remove:hover) {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.tag-input :global(.ant-select-selection-search) {
+  min-width: 48px;
+  margin-inline-start: 2px;
+}
+
+.tag-input :global(.ant-select-selection-placeholder) {
+  inset-inline: 9px auto !important;
+}
+
+.tag-input:global(.ant-select-focused) :global(.ant-select-selector) {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent) !important;
+}
+
+.select-popup:global(.ant-select-dropdown) {
+  z-index: 3530;
+}
+
+.segmented:global(.ant-segmented) {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-subtle);
+  padding: 3px;
+}
+
+.segmented :global(.ant-segmented-item-label) {
+  display: flex;
+  min-height: 27px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 8px;
+  font-size: 10px;
+}
+
+.segmented :global(.ant-segmented-item-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.segmented :global(.ant-segmented-item-icon + *) {
+  margin-inline-start: 0;
+}
+
+.segmented :global(.ant-segmented-item-selected),
+.segmented :global(.ant-segmented-thumb) {
+  background: color-mix(in srgb, var(--accent-soft) 38%, var(--surface));
+  box-shadow: var(--inner-highlight);
+}
+
+.toggle-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-subtle);
+  cursor: pointer;
+  padding: 7px 9px;
+}
+
+.toggle-icon {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.toggle-row > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.toggle-row strong {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.toggle-row small,
+.hint {
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.hint.is-error {
+  color: var(--danger);
+}
+
+.trigger:global(.ant-btn) {
+  display: inline-flex;
+  width: 142px;
+  min-width: 142px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-color: var(--border);
+  border-radius: 7px;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  padding: 0 9px;
+  font-size: 10px;
+}
+
+.trigger:global(.ant-btn):not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 24%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.trigger.has-error:global(.ant-btn) {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+  color: var(--danger);
+}
+
+.trigger i {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+  color: var(--accent);
+  font-size: 9px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+}
+
+.trigger i.is-error {
+  background: color-mix(in srgb, var(--danger) 13%, var(--surface));
+  color: var(--danger);
+}
+
+@media (width <= 700px) {
+  .panel {
+    width: min(390px, calc(100vw - 52px));
+    max-height: min(460px, calc(100dvh - 180px));
+  }
+
+  .field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .trigger:global(.ant-btn) {
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
+  }
+
+  .trigger-label,
+  .trigger i {
+    display: none;
+  }
+}

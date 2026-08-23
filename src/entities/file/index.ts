@@ -72,6 +72,23 @@ export type {
   FileRenamePreset,
   FileRenamePresetInput,
 } from './model/advancedRenameTypes.ts'
+export type {
+  FileNameSearchCapability,
+  FileNameSearchCapabilityStatus,
+  FileNameSearchCaseMode,
+  FileNameSearchEntryType,
+  FileNameSearchHiddenMode,
+  FileNameSearchIgnoreMode,
+  FileNameSearchInstallPlan,
+  FileNameSearchInstallCommand,
+  FileNameSearchInstallPrivilege,
+  FileNameSearchMatchMode,
+  FileNameSearchMatchTarget,
+  FileNameSearchInstallRequest,
+  FileNameSearchRequest,
+  FileNameSearchResult,
+  FileNameSearchResultItem,
+} from './model/fileNameSearchTypes.ts'
 export {
   decodeFileSessionSnapshotEvent,
   filterFileSessionsByActiveSources,

@@ -11,6 +11,7 @@ import {
   selectFileSessionNavigationTarget,
 } from '#entities/file'
 import { isForwardRestartCompleted } from '#features/forwards'
+import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { SettingsPage } from '#pages/settings'
 import { snippetToInput } from '#entities/snippet'
@@ -856,7 +857,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           >
             <CommandDispatchRuntimeProvider api={gateways.commandDispatch}>
               <McpAccessRuntimeProvider api={gateways.mcpAccess} enabled={apiReady && !coreFatal}>
-                <AppShell
+                <GlobalFileSearchRuntimeProvider
+                  api={gateways.files}
+                  fileSessions={data.fileSessions}
+                >
+                  <AppShell
                   page={page}
                   appVersion={appVersion}
                   windowCloseBehavior={data.settings.window.close_behavior}
@@ -1078,8 +1083,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             onDeleteTerminalFont={deleteTerminalFont}
           />
         ) : null}
-                </AppShell>
-                <McpApprovalCoordinator blocked={hostKeyApprovalBlocking} />
+                  </AppShell>
+                  <McpApprovalCoordinator blocked={hostKeyApprovalBlocking} />
+                </GlobalFileSearchRuntimeProvider>
               </McpAccessRuntimeProvider>
             </CommandDispatchRuntimeProvider>
       <ConfirmDialog

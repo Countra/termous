@@ -16,6 +16,7 @@ import { DockerClient } from './gateways/dockerClient'
 import { FileCatalogClient } from './gateways/fileCatalogClient'
 import { FileOperationClient } from './gateways/fileOperationClient'
 import { FileRenameClient } from './gateways/fileRenameClient'
+import { FileSearchClient } from './gateways/fileSearchClient'
 import { FileSessionClient } from './gateways/fileSessionClient'
 import { FirewallClient } from './gateways/firewallClient'
 import { ForwardClient } from './gateways/forwardsClient'
@@ -84,6 +85,7 @@ export function createRuntimeGatewaysFromConfig(
   const fileSessions = new FileSessionClient(config)
   const fileOperations = new FileOperationClient(config)
   const fileRename = new FileRenameClient(config)
+  const fileSearch = new FileSearchClient(config)
   const transfers = new TransferClient(config)
   const dataPortability = new DataPortabilityClient(config)
 
@@ -106,7 +108,14 @@ export function createRuntimeGatewaysFromConfig(
     fileSessions,
     transfers,
     dataPortability,
-    files: createFileGateway(fileSessions, fileOperations, transfers, fileCatalog, fileRename),
+    files: createFileGateway(
+      fileSessions,
+      fileOperations,
+      transfers,
+      fileCatalog,
+      fileRename,
+      fileSearch,
+    ),
     terminal: createTerminalGateway(settings, sessions),
     commandDispatch,
     mcpAccess,
@@ -168,6 +177,7 @@ function createFileGateway(
   transfers: TransferClient,
   catalog: FileCatalogClient,
   rename: FileRenameClient,
+  search: FileSearchClient,
 ): FileGateway {
   return {
     getFileSession: (id) => sessions.getFileSession(id),
@@ -258,6 +268,15 @@ function createFileGateway(
     ),
     createFileSessionBatchRename: (fileSessionId, input) => (
       rename.createFileSessionBatchRename(fileSessionId, input)
+    ),
+    fileNameSearchCapability: (fileSessionId, connectionGeneration, signal) => (
+      search.fileNameSearchCapability(fileSessionId, connectionGeneration, signal)
+    ),
+    searchFileSessionNames: (fileSessionId, input, signal) => (
+      search.searchFileSessionNames(fileSessionId, input, signal)
+    ),
+    installFileNameSearch: (fileSessionId, input, signal) => (
+      search.installFileNameSearch(fileSessionId, input, signal)
     ),
   }
 }

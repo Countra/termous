@@ -5,6 +5,10 @@ import type {
   FileOperationTask,
   FileRenamePreset,
   FileRenamePresetInput,
+  FileNameSearchCapability,
+  FileNameSearchInstallRequest,
+  FileNameSearchRequest,
+  FileNameSearchResult,
   FileSession,
   LocalFileGrant,
   LocalGrantSource,
@@ -35,6 +39,24 @@ export interface AdvancedRenameGateway {
     fileSessionId: string,
     input: AdvancedRenameExecuteInput,
   ) => Promise<FileOperationTask>
+}
+
+export interface FileNameSearchGateway {
+  fileNameSearchCapability: (
+    fileSessionId: string,
+    connectionGeneration: number,
+    signal?: AbortSignal,
+  ) => Promise<FileNameSearchCapability>
+  searchFileSessionNames: (
+    fileSessionId: string,
+    input: FileNameSearchRequest,
+    signal?: AbortSignal,
+  ) => Promise<FileNameSearchResult>
+  installFileNameSearch: (
+    fileSessionId: string,
+    input: FileNameSearchInstallRequest,
+    signal?: AbortSignal,
+  ) => Promise<FileNameSearchCapability>
 }
 
 export interface FileSessionGateway {
@@ -145,5 +167,6 @@ export type FileGateway = FileSessionGateway
   & FileTransferGateway
   & LocalPathMappingGateway
   & AdvancedRenameGateway
+  & FileNameSearchGateway
 
 export type LocalDownloadGateway = LocalPathMappingGateway

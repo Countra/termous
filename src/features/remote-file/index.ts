@@ -14,6 +14,18 @@ export type { FileOperationGateway } from './model/fileOperationGateway.ts'
 export type {
   AdvancedRenameSourceSnapshot,
 } from './advanced-rename/model/types.ts'
+export type {
+  GlobalFileSearchAdvancedFilters,
+  GlobalFileSearchOpenRequest,
+  GlobalFileSearchReveal,
+  GlobalFileSearchRevealResult,
+  GlobalFileSearchRuntimeValue,
+  GlobalFileSearchSource,
+} from './global-search/model/types.ts'
+export {
+  GlobalFileSearchRuntimeProvider,
+} from './global-search/runtime/GlobalFileSearchRuntimeProvider.tsx'
+export { useGlobalFileSearchRuntime } from './global-search/runtime/useGlobalFileSearchRuntime.ts'
 export {
   advancedRenameSourceLimit,
   isAdvancedRenameSourceSessionCurrent,

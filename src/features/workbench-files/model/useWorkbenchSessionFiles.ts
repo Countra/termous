@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { FileGateway } from '#features/files'
 import type { Session, SessionCwdState } from '#entities/session'
-import type { FileSession, RemoteFileEntry } from '#entities/file'
+import type { FileSession, RemoteDirectoryListing, RemoteFileEntry } from '#entities/file'
 import { normalizeRemotePath, normalizeRemotePosixPath } from '#shared/path'
 import { retireWebSocket } from '#shared/websocket'
 import { fileSortValue } from '#entities/file'
@@ -117,6 +117,12 @@ interface UseWorkbenchSessionFilesOptions {
 interface WorkbenchSessionFilesData {
   fileSessions: FileSession[]
   sessions: Session[]
+}
+
+interface WorkbenchDirectoryLoadOptions {
+  signal?: AbortSignal
+  onCommitted?: (listing: RemoteDirectoryListing) => void
+  onError?: (description: string) => void
 }
 
 export function useWorkbenchSessionFiles({
@@ -830,7 +836,10 @@ export function useWorkbenchSessionFiles({
     ))
   }, [fileSession, recoveryState.phase, sourceSessionId, updateRecoveryState])
 
-  const loadDirectory = useCallback(async (targetPath: string) => {
+  const loadDirectory = useCallback(async (
+    targetPath: string,
+    options: WorkbenchDirectoryLoadOptions = {},
+  ) => {
     if (
       !sourceSessionId
       || !sourceHostId
@@ -854,6 +863,9 @@ export function useWorkbenchSessionFiles({
       })
       return false
     }
+    if (options.signal?.aborted) {
+      return false
+    }
     const requestedFileSessionId = fileSessionId
     const requestedConnectionGeneration = fileSession?.connection_generation ?? 0
     const sourceStillAvailable = () => canUseSourceFileSession(
@@ -874,6 +886,8 @@ export function useWorkbenchSessionFiles({
     const sequence = (directoryRequestSequencesRef.current.get(sourceSessionId) ?? 0) + 1
     directoryRequestSequencesRef.current.set(sourceSessionId, sequence)
     const controller = new AbortController()
+    const abortFromCaller = () => controller.abort()
+    options.signal?.addEventListener('abort', abortFromCaller, { once: true })
     const previousController = directoryRequestControllersRef.current.get(sourceSessionId)
     directoryRequestControllersRef.current.set(sourceSessionId, controller)
     previousController?.abort()
@@ -903,6 +917,10 @@ export function useWorkbenchSessionFiles({
       if (directoryRequestControllersRef.current.get(sourceSessionId) !== controller) {
         return false
       }
+      if (controller.signal.aborted) {
+        suspendStaleRequest()
+        return false
+      }
       const sourceAvailable = sourceStillAvailable()
       if (!sourceAvailable || !fileSessionStillCurrent()) {
         if (!sourceAvailable) {
@@ -917,9 +935,14 @@ export function useWorkbenchSessionFiles({
         initialPath: normalized,
         update: (state) => completeDirectoryRequest(state, sequence, listing),
       })
+      options.onCommitted?.(listing)
       return true
     } catch (error) {
       if (directoryRequestControllersRef.current.get(sourceSessionId) !== controller) {
+        return false
+      }
+      if (controller.signal.aborted) {
+        suspendStaleRequest()
         return false
       }
       const sourceAvailable = sourceStillAvailable()
@@ -937,8 +960,10 @@ export function useWorkbenchSessionFiles({
         initialPath: normalized,
         update: (state) => failDirectoryRequest(state, sequence, message, normalized),
       })
+      options.onError?.(message)
       return false
     } finally {
+      options.signal?.removeEventListener('abort', abortFromCaller)
       if (directoryRequestControllersRef.current.get(sourceSessionId) === controller) {
         directoryRequestControllersRef.current.delete(sourceSessionId)
       }

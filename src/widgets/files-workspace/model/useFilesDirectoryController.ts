@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import type { FileSession } from '#entities/file'
+import type { FileSession, RemoteDirectoryListing } from '#entities/file'
 import type { FileSessionGateway } from '#features/files'
 import { normalizeRemotePosixPath } from '#shared/path'
 import {
@@ -32,8 +32,11 @@ export interface FilesDirectoryLoadOptions {
   kind?: 'navigate' | 'refresh'
   historyMode?: FilesWorkspaceHistoryMode
   historyIndex?: number
+  revealPath?: string
+  signal?: AbortSignal
   quiet?: boolean
   onError?: (description: string) => void
+  onCommitted?: (listing: RemoteDirectoryListing) => void
 }
 
 interface UseFilesDirectoryControllerOptions {
@@ -85,6 +88,7 @@ export function useFilesDirectoryController({
     controller: AbortController
     connectionGeneration: number
   }>())
+  const requestSequencesRef = useRef(new Map<string, number>())
   const lastAutomaticLoadKeyRef = useRef('')
 
   const loadDirectory = useCallback(
@@ -110,27 +114,43 @@ export function useFilesDirectoryController({
         onInvalidPath()
         return false
       }
+      if (options.signal?.aborted) {
+        return false
+      }
 
       const currentState = getFilesWorkspaceSessionState(
         workspaceStatesRef.current,
         requestSession.id,
         requestSession.current_path || '/',
       )
+      const latestRequestSequence = Math.max(
+        currentState.requestSequence,
+        requestSequencesRef.current.get(requestSession.id) ?? 0,
+      )
+      const sequencedState = latestRequestSequence === currentState.requestSequence
+        ? currentState
+        : { ...currentState, requestSequence: latestRequestSequence }
       const request = options.historyMode === 'traverse'
         ? beginFilesWorkspaceHistoryNavigation(
-            currentState,
-            options.historyIndex ?? currentState.historyIndex,
+            sequencedState,
+            options.historyIndex ?? sequencedState.historyIndex,
           )
         : options.kind === 'refresh'
-          ? beginFilesWorkspaceRefresh(currentState)
-          : beginFilesWorkspaceNavigation(currentState, normalized, {
+          ? beginFilesWorkspaceRefresh(sequencedState, {
+              revealPath: options.revealPath,
+            })
+          : beginFilesWorkspaceNavigation(sequencedState, normalized, {
               historyMode: options.historyMode,
+              revealPath: options.revealPath,
             })
       if (!request) {
         return false
       }
+      requestSequencesRef.current.set(requestSession.id, request.requestSequence)
 
       const controller = new AbortController()
+      const abortFromCaller = () => controller.abort()
+      options.signal?.addEventListener('abort', abortFromCaller, { once: true })
       requestControllersRef.current.get(requestSession.id)?.controller.abort()
       requestControllersRef.current.set(requestSession.id, {
         controller,
@@ -142,6 +162,12 @@ export function useFilesDirectoryController({
         () => request.state,
       )
       const cancelRequestState = () => {
+        if (
+          requestControllersRef.current.get(requestSession.id)?.controller
+            !== controller
+        ) {
+          return
+        }
         updateExistingSession(
           requestSession.id,
           (latest) => (
@@ -168,7 +194,7 @@ export function useFilesDirectoryController({
             === (requestSession.connection_generation ?? 0)
           && !closingFileSessionIdsRef.current.has(requestSession.id)
         )
-        if (!isCurrentRequest || !isCurrentGeneration) {
+        if (controller.signal.aborted || !isCurrentRequest || !isCurrentGeneration) {
           cancelRequestState()
           return false
         }
@@ -189,6 +215,7 @@ export function useFilesDirectoryController({
         )) {
           clearDirectoryDirty(requestSession.id, normalized)
           onActiveDirectoryCommitted()
+          options.onCommitted?.(listing)
           return true
         }
         return false
@@ -239,6 +266,7 @@ export function useFilesDirectoryController({
         onDirectoryReadFailed(description)
         return false
       } finally {
+        options.signal?.removeEventListener('abort', abortFromCaller)
         if (
           requestControllersRef.current.get(requestSession.id)?.controller
             === controller
@@ -276,6 +304,7 @@ export function useFilesDirectoryController({
         )
       })
       requestControllersRef.current.clear()
+      requestSequencesRef.current.clear()
     },
     [updateExistingSession],
   )
@@ -361,6 +390,11 @@ export function useFilesDirectoryController({
 
   useEffect(() => {
     const fileSessionsById = new Map(fileSessions.map((session) => [session.id, session]))
+    requestSequencesRef.current.forEach((_sequence, fileSessionId) => {
+      if (!fileSessionsById.has(fileSessionId)) {
+        requestSequencesRef.current.delete(fileSessionId)
+      }
+    })
     requestControllersRef.current.forEach((request, fileSessionId) => {
       const fileSession = fileSessionsById.get(fileSessionId)
       if (

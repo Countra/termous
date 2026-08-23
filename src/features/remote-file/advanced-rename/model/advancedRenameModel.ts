@@ -12,6 +12,7 @@ import type {
   FileSession,
   RemoteFileEntry,
 } from '#entities/file'
+import { calculateFixedVirtualWindow } from '#shared/model'
 
 export const defaultAdvancedRenameOrder: AdvancedRenameOrder = {
   by: 'selection',
@@ -109,22 +110,13 @@ export function advancedRenameVirtualWindow(
   rowHeight = 38,
   overscan = 5,
 ): AdvancedRenameVirtualWindow {
-  const safeTotal = Math.max(0, Math.trunc(totalItems))
-  const safeRowHeight = Math.max(1, rowHeight)
-  const safeViewportHeight = Math.max(safeRowHeight, viewportHeight)
-  const firstVisible = Math.min(
-    safeTotal,
-    Math.floor(Math.max(0, scrollTop) / safeRowHeight),
+  return calculateFixedVirtualWindow(
+    totalItems,
+    scrollTop,
+    viewportHeight,
+    rowHeight,
+    overscan,
   )
-  const visibleCount = Math.ceil(safeViewportHeight / safeRowHeight)
-  const start = Math.min(safeTotal, Math.max(0, firstVisible - overscan))
-  const end = Math.min(safeTotal, firstVisible + visibleCount + overscan)
-  return {
-    start,
-    end,
-    offset: start * safeRowHeight,
-    totalHeight: safeTotal * safeRowHeight,
-  }
 }
 
 export function createAdvancedRenameRule(choice: AdvancedRenameRuleChoice): AdvancedRenameRule {

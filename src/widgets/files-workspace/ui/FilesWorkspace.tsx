@@ -18,6 +18,7 @@ import {
   Folder,
   FolderDown,
   FolderPlus,
+  FolderSearch2,
   Info,
   ListRestart,
   MoreHorizontal,
@@ -102,14 +103,18 @@ import {
   RemotePermissionModal,
   runRemoteFileAction,
   snapshotRemoteFileActionSelection,
+  useGlobalFileSearchRuntime,
   validateAdvancedRenameSource,
   type AdvancedRenameSourceSnapshot,
+  type GlobalFileSearchRevealResult,
+  type GlobalFileSearchSource,
   type RemoteFileActionHandlers,
 } from '#features/remote-file'
 import { formatBytes, formatDate } from '#shared/format'
 import {
   joinPath,
   normalizeRemotePath,
+  normalizeRemotePosixPath,
   parentPath,
 } from '#shared/path'
 import { FileBookmarksRail, FileBookmarksSidebar } from '#features/file-bookmarks'
@@ -378,6 +383,8 @@ function FilesWorkspaceContent({
   const { runtime: shortcutRuntime } = useShortcutRuntime()
   const filesShortcutInstanceId = useId()
   const filesShortcutContextId = `files.page:${filesShortcutInstanceId}`
+  const globalFileSearchOwnerId = `${filesShortcutContextId}:global-search`
+  const globalFileSearchRuntime = useGlobalFileSearchRuntime()
   const { modal, notification } = AntdApp.useApp()
   const screens = Grid.useBreakpoint()
   const filesPageRef = useRef<HTMLElement>(null)
@@ -390,6 +397,13 @@ function FilesWorkspaceContent({
     id: string
     connectionGeneration: number
   } | null>(null)
+  const pendingSearchRevealRef = useRef<{
+    attemptId: number
+    fileSessionId: string
+    connectionGeneration: number
+    path: string
+  } | null>(null)
+  const searchRevealSequenceRef = useRef(0)
   const fileSessionRecoveryAttemptsRef = useRef(new Map<string, FileSessionRecoveryAttempt>())
   const fileSessionsRef = useRef(data.fileSessions)
   const localPathMappingsRef = useRef(data.localPathMappings)
@@ -1068,6 +1082,8 @@ function FilesWorkspaceContent({
       setTextEditorTarget(null)
       setImageViewerTarget(null)
       setAdvancedRenameSource(null)
+      globalFileSearchRuntime.closeSearch(globalFileSearchOwnerId)
+      pendingSearchRevealRef.current = null
       return
     }
     const previousSession = lastActiveFileSessionRef.current
@@ -1091,17 +1107,39 @@ function FilesWorkspaceContent({
       setPermissionTarget(null)
       setImageViewerTarget(null)
       setAdvancedRenameSource(null)
+      globalFileSearchRuntime.closeSearch(globalFileSearchOwnerId)
+      pendingSearchRevealRef.current = null
       if (fileSessionChanged) {
         setTextEditorTarget(null)
       }
     }
-  }, [activeFileSession])
+  }, [activeFileSession, globalFileSearchOwnerId, globalFileSearchRuntime])
 
   useEffect(() => {
     if (!editingPath) {
       setPathInput(currentPath)
     }
   }, [activeFileSessionId, currentPath, editingPath])
+
+  useEffect(() => {
+    if (
+      activeFileSession?.status === 'connected'
+      && !activeFileSessionClosing
+    ) {
+      return
+    }
+    globalFileSearchRuntime.closeSearch(globalFileSearchOwnerId)
+    pendingSearchRevealRef.current = null
+  }, [
+    activeFileSession?.status,
+    activeFileSessionClosing,
+    globalFileSearchOwnerId,
+    globalFileSearchRuntime,
+  ])
+
+  useEffect(() => () => {
+    globalFileSearchRuntime.closeSearch(globalFileSearchOwnerId)
+  }, [globalFileSearchOwnerId, globalFileSearchRuntime])
 
   useEffect(() => {
     const fileSessionIds = new Set(data.fileSessions.map((session) => session.id))
@@ -2586,6 +2624,103 @@ function FilesWorkspaceContent({
     window.requestAnimationFrame(focusRenderedRow)
   }, [findFileRow])
 
+  const revealGlobalFileSearchResult = useCallback(async (
+    source: GlobalFileSearchSource,
+    path: string,
+    signal: AbortSignal,
+  ): Promise<GlobalFileSearchRevealResult> => {
+    const normalizedPath = normalizeRemotePosixPath(path)
+    if (!normalizedPath || signal.aborted) {
+      return { status: 'cancelled' }
+    }
+    const requestSession = fileSessionsRef.current.find(
+      (session) => session.id === source.fileSessionId,
+    )
+    if (
+      activeFileSessionIdRef.current !== source.fileSessionId
+      || requestSession?.status !== 'connected'
+      || (requestSession.connection_generation ?? 0) !== source.connectionGeneration
+      || closingFileSessionIdsRef.current.has(source.fileSessionId)
+    ) {
+      return { status: 'cancelled' }
+    }
+
+    searchRevealSequenceRef.current += 1
+    const attemptId = searchRevealSequenceRef.current
+    pendingSearchRevealRef.current = {
+      attemptId,
+      fileSessionId: source.fileSessionId,
+      connectionGeneration: source.connectionGeneration,
+      path: normalizedPath,
+    }
+    let targetPresent = false
+    let loadError = ''
+    const directory = parentPath(normalizedPath)
+    const latestWorkspaceState = getFilesWorkspaceSessionState(
+      workspaceStatesRef.current,
+      requestSession.id,
+      requestSession.current_path || '/',
+    )
+    const loaded = await loadDirectory(directory, {
+      kind: normalizeRemotePath(latestWorkspaceState.committedPath) === directory
+        ? 'refresh'
+        : 'navigate',
+      revealPath: normalizedPath,
+      signal,
+      quiet: true,
+      onError: (description) => {
+        loadError = description
+      },
+      onCommitted: (listing) => {
+        targetPresent = listing.entries.some((candidate) => (
+          normalizeRemotePosixPath(candidate.path) === normalizedPath
+        ))
+      },
+    })
+    const currentAttempt = pendingSearchRevealRef.current?.attemptId === attemptId
+    if (signal.aborted || !currentAttempt) {
+      if (currentAttempt) {
+        pendingSearchRevealRef.current = null
+      }
+      return { status: 'cancelled' }
+    }
+    if (!loaded) {
+      pendingSearchRevealRef.current = null
+      return loadError
+        ? { status: 'failed', description: loadError }
+        : { status: 'cancelled' }
+    }
+    if (!targetPresent) {
+      pendingSearchRevealRef.current = null
+      return { status: 'missing' }
+    }
+    return { status: 'revealed' }
+  }, [loadDirectory])
+
+  useEffect(() => {
+    const pending = pendingSearchRevealRef.current
+    if (
+      !pending
+      || pending.fileSessionId !== activeFileSessionId
+      || pending.connectionGeneration !== activeFileSessionConnectionGeneration
+      || workspaceViewState.focusedPath !== pending.path
+    ) {
+      return
+    }
+    const index = entries.findIndex((entry) => entry.path === pending.path)
+    if (index < 0) {
+      return
+    }
+    pendingSearchRevealRef.current = null
+    focusFileRow(pending.path, index)
+  }, [
+    activeFileSessionConnectionGeneration,
+    activeFileSessionId,
+    entries,
+    focusFileRow,
+    workspaceViewState.focusedPath,
+  ])
+
   const filesShortcutStateRef = useRef({
     fileActionsEnabled,
     entries,
@@ -3317,6 +3452,33 @@ function FilesWorkspaceContent({
                       disabled={navigationDisabled}
                       icon={<Pencil size={14} aria-hidden="true" />}
                       onClick={beginPathEdit}
+                    />
+                  </Tooltip>
+                  <Tooltip title={t('files.globalSearch.action')}>
+                    <Button
+                      type="text"
+                      className={styles['files-path-action']}
+                      aria-label={t('files.globalSearch.action')}
+                      disabled={!fileSessionConnected}
+                      icon={<FolderSearch2 size={14} aria-hidden="true" />}
+                      onClick={() => {
+                        if (!activeFileSession) {
+                          return
+                        }
+                        const source: GlobalFileSearchSource = {
+                          fileSessionId: activeFileSession.id,
+                          connectionGeneration: activeFileSession.connection_generation ?? 0,
+                          hostName: activeFileSessionHost?.name ?? shortId(activeFileSession.id),
+                          currentPath,
+                        }
+                        globalFileSearchRuntime.openSearch({
+                          ownerId: globalFileSearchOwnerId,
+                          source,
+                          onReveal: (path, signal) => (
+                            revealGlobalFileSearchResult(source, path, signal)
+                          ),
+                        })
+                      }}
                     />
                   </Tooltip>
                 </>

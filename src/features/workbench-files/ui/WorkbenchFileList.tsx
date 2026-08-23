@@ -1,6 +1,6 @@
 import { Button, Dropdown, type MenuProps } from 'antd'
 import { ChevronRight, File, FileQuestion, Folder, Link2, LoaderCircle, UploadCloud } from 'lucide-react'
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import type { RemoteFileEntry } from '#entities/file'
@@ -27,6 +27,7 @@ interface WorkbenchFileListProps {
   interactionDisabled?: boolean
   pendingPath: string
   uploading: boolean
+  revealPath?: string | null
   listRef: RefObject<HTMLDivElement | null>
   menuFor: (entry: RemoteFileEntry) => MenuProps
   onSelectPaths: (paths: string[]) => void
@@ -34,6 +35,7 @@ interface WorkbenchFileListProps {
   onScroll: () => void
   onUploadDrop: (targetPath: string, event: DragEvent<HTMLDivElement>) => void
   onUploadFiles: () => void
+  onRevealSettled?: (path: string) => void
 }
 
 interface FileNameTooltipState {
@@ -56,6 +58,7 @@ export function WorkbenchFileList({
   interactionDisabled = false,
   pendingPath,
   uploading,
+  revealPath = null,
   listRef,
   menuFor,
   onSelectPaths,
@@ -63,6 +66,7 @@ export function WorkbenchFileList({
   onScroll,
   onUploadDrop,
   onUploadFiles,
+  onRevealSettled,
 }: WorkbenchFileListProps) {
   const { t } = useTranslation()
   const { runtime: shortcutRuntime } = useShortcutRuntime()
@@ -75,6 +79,7 @@ export function WorkbenchFileList({
   const nameRefs = useRef(new Map<string, HTMLElement>())
   const selectionAnchorPathRef = useRef<string | null>(null)
   const pendingDirectoryFocusPathRef = useRef<string | null>(null)
+  const completedRevealPathRef = useRef<string | null>(null)
   const focusFrameRef = useRef<number | null>(null)
   const tooltipTimerRef = useRef<number | null>(null)
   const tooltipListingRevision = useMemo(
@@ -108,19 +113,13 @@ export function WorkbenchFileList({
     onSelectPaths(selection.selectedPaths)
   }
 
-  const focusEntry = (index: number) => {
-    const entry = entries[index]
-    if (!entry) {
-      return
-    }
-    setFocusedPath(entry.path)
-    selectEntry(entry)
+  const focusPath = useCallback((path: string) => {
     if (focusFrameRef.current !== null) {
       window.cancelAnimationFrame(focusFrameRef.current)
     }
     focusFrameRef.current = window.requestAnimationFrame(() => {
       focusFrameRef.current = null
-      const row = rowRefs.current.get(entry.path)
+      const row = rowRefs.current.get(path)
       const list = listRef.current
       if (!row || !list) {
         return
@@ -141,7 +140,36 @@ export function WorkbenchFileList({
         list.scrollTop += rowRect.bottom - visibleBottom
       }
     })
+  }, [listRef])
+
+  const focusEntry = (index: number) => {
+    const entry = entries[index]
+    if (!entry) {
+      return
+    }
+    setFocusedPath(entry.path)
+    selectEntry(entry)
+    focusPath(entry.path)
   }
+
+  useLayoutEffect(() => {
+    if (!revealPath) {
+      completedRevealPathRef.current = null
+      return
+    }
+    if (
+      completedRevealPathRef.current === revealPath
+      || !entryPathSet.has(revealPath)
+    ) {
+      return
+    }
+    completedRevealPathRef.current = revealPath
+    selectionAnchorPathRef.current = revealPath
+    setFocusedPath(revealPath)
+    onSelectPaths([revealPath])
+    focusPath(revealPath)
+    onRevealSettled?.(revealPath)
+  }, [entryPathSet, focusPath, onRevealSettled, onSelectPaths, revealPath])
 
   const activateEntry = (entry: RemoteFileEntry) => {
     if (entry.kind === 'directory') {

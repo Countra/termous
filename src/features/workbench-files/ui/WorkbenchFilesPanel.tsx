@@ -21,6 +21,7 @@ import {
   FolderOpen,
   FolderPlus,
   FolderRoot,
+  FolderSearch2,
   LoaderCircle,
   MoreHorizontal,
   PencilLine,
@@ -33,6 +34,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type DragEvent,
@@ -65,8 +67,11 @@ import {
   loadRemoteTextEditorModal,
   runRemoteFileAction,
   snapshotRemoteFileActionSelection,
+  useGlobalFileSearchRuntime,
   validateAdvancedRenameSource,
   type AdvancedRenameSourceSnapshot,
+  type GlobalFileSearchRevealResult,
+  type GlobalFileSearchSource,
   type RemoteFileActionHandlers,
   RemotePermissionModal,
 } from '#features/remote-file'
@@ -82,7 +87,7 @@ import type {
   RemoteFileEntry,
   TransferTask,
 } from '#entities/file'
-import { joinPath, normalizeRemotePath, parentPath } from '#shared/path'
+import { joinPath, normalizeRemotePath, normalizeRemotePosixPath, parentPath } from '#shared/path'
 import type { FileSessionClosureState } from '#entities/file'
 import { confirmDialogStyles, uiStyles, WorkspaceEmptyState as WorkbenchEmptyState, termousNotificationClassName } from '#shared/ui'
 import { WorkbenchBookmarksPopover } from './WorkbenchBookmarksPopover'
@@ -201,6 +206,9 @@ function WorkbenchFilesPanelContent({
 }: WorkbenchFilesPanelProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
+  const globalFileSearchRuntime = useGlobalFileSearchRuntime()
+  const globalFileSearchInstanceId = useId()
+  const globalFileSearchOwnerId = `workbench.files:${globalFileSearchInstanceId}`
   const runtime = useTransferRuntime()
   const runtimeTransfers = runtime.transfers
   const remoteCopyRefreshVersion = runtime.remoteCopyRefreshVersion
@@ -286,6 +294,7 @@ function WorkbenchFilesPanelContent({
   const [remoteClipboard, setRemoteClipboard] = useState<RemoteClipboard | null>(null)
   const [remoteCopySource, setRemoteCopySource] = useState<RemoteCopySourceSnapshot | null>(null)
   const [advancedRenameSource, setAdvancedRenameSource] = useState<AdvancedRenameSourceSnapshot | null>(null)
+  const [globalFileSearchRevealPath, setGlobalFileSearchRevealPath] = useState<string | null>(null)
   const [permissionEntry, setPermissionEntry] = useState<RemoteFileEntry | null>(null)
   const [permissionSaving, setPermissionSaving] = useState(false)
   const [textEditorPath, setTextEditorPath] = useState<string | null>(null)
@@ -420,6 +429,101 @@ function WorkbenchFilesPanelContent({
   const pathInputId = `workbench-remote-path-${files.sourceSessionId || 'inactive'}`
   const pathErrorId = `${pathInputId}-error`
   const loadDirectory = files.loadDirectory
+  const globalFileSearchContextRef = useRef({
+    enabled,
+    closing,
+    fileSession: files.fileSession,
+    loadDirectory: files.loadDirectory,
+    setFollowTerminal: files.setFollowTerminal,
+  })
+  globalFileSearchContextRef.current = {
+    enabled,
+    closing,
+    fileSession: files.fileSession,
+    loadDirectory: files.loadDirectory,
+    setFollowTerminal: files.setFollowTerminal,
+  }
+
+  const revealGlobalFileSearchResult = useCallback(async (
+    source: GlobalFileSearchSource,
+    path: string,
+    signal: AbortSignal,
+  ): Promise<GlobalFileSearchRevealResult> => {
+    const normalizedPath = normalizeRemotePosixPath(path)
+    const context = globalFileSearchContextRef.current
+    if (
+      !normalizedPath
+      || signal.aborted
+      || !context.enabled
+      || context.closing
+      || context.fileSession?.id !== source.fileSessionId
+      || context.fileSession.status !== 'connected'
+      || (context.fileSession.connection_generation ?? 0) !== source.connectionGeneration
+    ) {
+      return { status: 'cancelled' }
+    }
+
+    let targetPresent = false
+    let loadError = ''
+    const loaded = await context.loadDirectory(parentPath(normalizedPath), {
+      signal,
+      onCommitted: (listing) => {
+        targetPresent = listing.entries.some((entry) => (
+          normalizeRemotePosixPath(entry.path) === normalizedPath
+        ))
+      },
+      onError: (description) => {
+        loadError = description
+      },
+    })
+    const latest = globalFileSearchContextRef.current
+    if (
+      signal.aborted
+      || !latest.enabled
+      || latest.closing
+      || latest.fileSession?.id !== source.fileSessionId
+      || latest.fileSession.status !== 'connected'
+      || (latest.fileSession.connection_generation ?? 0) !== source.connectionGeneration
+    ) {
+      return { status: 'cancelled' }
+    }
+    if (!loaded) {
+      return loadError
+        ? { status: 'failed', description: loadError }
+        : { status: 'cancelled' }
+    }
+    if (!targetPresent) {
+      return { status: 'missing' }
+    }
+    latest.setFollowTerminal(false)
+    setGlobalFileSearchRevealPath(normalizedPath)
+    return { status: 'revealed' }
+  }, [])
+
+  const settleGlobalFileSearchReveal = useCallback((path: string) => {
+    setGlobalFileSearchRevealPath((current) => current === path ? null : current)
+  }, [])
+
+  useEffect(() => {
+    setGlobalFileSearchRevealPath(null)
+  }, [fileSessionConnectionGeneration, fileSessionId])
+
+  useEffect(() => {
+    if (!enabled || closing || !files.connected) {
+      globalFileSearchRuntime.closeSearch(globalFileSearchOwnerId)
+      setGlobalFileSearchRevealPath(null)
+    }
+  }, [
+    closing,
+    enabled,
+    files.connected,
+    globalFileSearchOwnerId,
+    globalFileSearchRuntime,
+  ])
+
+  useEffect(() => () => {
+    globalFileSearchRuntime.closeSearch(globalFileSearchOwnerId)
+  }, [globalFileSearchOwnerId, globalFileSearchRuntime])
   const syncMessage = syncStatusMessage(
     syncStatus,
     files.viewState?.syncError ?? '',
@@ -1308,6 +1412,33 @@ function WorkbenchFilesPanelContent({
                 onClick={() => void files.loadDirectory(currentPath)}
               />
             </Tooltip>
+            <Tooltip title={t('files.globalSearch.action')}>
+              <Button
+                type="text"
+                className={panelClassName('workbench-files-icon-button')}
+                aria-label={t('files.globalSearch.action')}
+                icon={<FolderSearch2 size={14} aria-hidden="true" />}
+                disabled={directoryNavigationLocked}
+                onClick={() => {
+                  if (!files.fileSession) {
+                    return
+                  }
+                  const source: GlobalFileSearchSource = {
+                    fileSessionId: files.fileSession.id,
+                    connectionGeneration: files.fileSession.connection_generation ?? 0,
+                    hostName: sessionHost?.name ?? files.fileSession.host_id,
+                    currentPath,
+                  }
+                  globalFileSearchRuntime.openSearch({
+                    ownerId: globalFileSearchOwnerId,
+                    source,
+                    onReveal: (path, signal) => (
+                      revealGlobalFileSearchResult(source, path, signal)
+                    ),
+                  })
+                }}
+              />
+            </Tooltip>
             <Tooltip title={t('workbench.manageFiles')}>
               <Button
                 type="text"
@@ -1685,6 +1816,8 @@ function WorkbenchFilesPanelContent({
         onUploadDrop={(target, event) => void uploadDrop(target, event)}
         onUploadFiles={() => void uploadPickedFiles()}
         uploading={uploadPicking}
+        revealPath={globalFileSearchRevealPath}
+        onRevealSettled={settleGlobalFileSearchReveal}
       />
       <div className={panelClassName('workbench-file-transfer-overlay')}>
         <WorkbenchTransferBar

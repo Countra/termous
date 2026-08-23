@@ -7,6 +7,7 @@ export { contextActionMenuPopupClassName } from './contextActionMenuStyles'
 export { CustomSelect } from './CustomSelect'
 export type { SelectOption } from './CustomSelect'
 export { default as customSelectStyles } from './CustomSelect.module.scss'
+export { DateTimePicker, type DateTimePickerProps } from './DateTimePicker'
 export { EmptyState } from './EmptyState'
 export {
   EditorModeContext,
