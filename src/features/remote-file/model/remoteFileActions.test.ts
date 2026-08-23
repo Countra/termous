@@ -57,6 +57,13 @@ test('文件操作菜单仅对普通文件提供打开入口', () => {
   )
 })
 
+test('工作站文件菜单可以关闭仅适合批量选择的高级重命名入口', () => {
+  assert.deepEqual(
+    remoteFileActionDescriptors(fileEntry, { includeAdvancedRename: false }).map((item) => item.key),
+    ['openFile', 'download', 'sendToHost', 'copy', 'cut', 'copyAbsolutePath', 'rename', 'permissions', 'delete'],
+  )
+})
+
 test('共享分发器只执行已知文件动作', () => {
   const calls: string[] = []
   const handler = (entry: RemoteFileEntry) => calls.push(entry.path)

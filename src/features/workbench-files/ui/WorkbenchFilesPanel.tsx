@@ -1091,7 +1091,7 @@ function WorkbenchFilesPanelContent({
   })
 
   const menuFor = (entry: RemoteFileEntry): MenuProps => ({
-    items: buildRemoteFileActionMenu(entry, t),
+    items: buildRemoteFileActionMenu(entry, t, { includeAdvancedRename: false }),
     onClick: ({ key, domEvent }) => {
       domEvent.stopPropagation()
       const selectedPaths = files.viewState?.selectedPaths ?? []

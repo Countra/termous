@@ -18,6 +18,10 @@ export interface RemoteFileActionDescriptor {
   dividerBefore?: boolean
 }
 
+export interface RemoteFileActionOptions {
+  includeAdvancedRename?: boolean
+}
+
 export interface RemoteFileActionHandlers {
   openFile: (entry: RemoteFileEntry) => void
   download: (entry: RemoteFileEntry) => void
@@ -60,7 +64,10 @@ export function snapshotRemoteFileActionSelection(
   return { paths, entries: snapshots }
 }
 
-export function remoteFileActionDescriptors(entry: RemoteFileEntry): RemoteFileActionDescriptor[] {
+export function remoteFileActionDescriptors(
+  entry: RemoteFileEntry,
+  options: RemoteFileActionOptions = {},
+): RemoteFileActionDescriptor[] {
   const actions: RemoteFileActionDescriptor[] = []
   if (entry.kind === 'file') {
     actions.push({ key: 'openFile' })
@@ -73,7 +80,10 @@ export function remoteFileActionDescriptors(entry: RemoteFileEntry): RemoteFileA
     { key: 'copyAbsolutePath' },
     { key: 'rename' },
   )
-  if (entry.kind === 'file' || entry.kind === 'directory' || entry.kind === 'symlink') {
+  if (
+    options.includeAdvancedRename !== false
+    && (entry.kind === 'file' || entry.kind === 'directory' || entry.kind === 'symlink')
+  ) {
     actions.push({ key: 'advancedRename' })
   }
   actions.push({ key: 'permissions' })

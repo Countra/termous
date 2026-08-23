@@ -6,6 +6,7 @@ import type { RemoteFileEntry } from '#entities/file'
 import {
   remoteFileActionDescriptors,
   type RemoteFileActionKey,
+  type RemoteFileActionOptions,
 } from '../model/remoteFileActions'
 
 const icons: Record<RemoteFileActionKey, ReactNode> = {
@@ -37,8 +38,9 @@ const translationKeys: Record<RemoteFileActionKey, string> = {
 export function buildRemoteFileActionMenu(
   entry: RemoteFileEntry,
   t: TFunction,
+  options: RemoteFileActionOptions = {},
 ): MenuProps['items'] {
-  return remoteFileActionDescriptors(entry).flatMap((action) => {
+  return remoteFileActionDescriptors(entry, options).flatMap((action) => {
     const item: NonNullable<MenuProps['items']>[number] = {
       key: action.key,
       danger: action.danger,
