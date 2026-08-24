@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { FeatureSidePanel } from '../shared/ui/FeatureSidePanel'
@@ -90,6 +91,7 @@ describe('FeatureSidePanel 样式与常驻合同', () => {
     const panel = view.container.querySelector('aside')
     const resizeEdge = panel?.querySelector('[aria-hidden="true"]')
     const toggle = screen.getByRole('button', { name: '收起' })
+    const toggleZone = toggle.parentElement
 
     expect(panel).toHaveClass(
       styles['details-panel'],
@@ -103,6 +105,10 @@ describe('FeatureSidePanel 样式与常驻合同', () => {
     expect(toggle).toHaveClass(
       sidePanelStyles['panel-side-toggle'],
       sidePanelStyles['panel-side-toggle-right'],
+    )
+    expect(toggleZone).toHaveClass(
+      sidePanelStyles['panel-toggle-zone'],
+      sidePanelStyles['panel-toggle-zone-right'],
     )
     expect(panel).not.toHaveClass('details-panel', 'is-resizing')
     expect(resizeEdge).not.toHaveClass('details-resize-edge')
@@ -179,5 +185,27 @@ describe('FeatureSidePanel 样式与常驻合同', () => {
     expect(onActiveKeyChange.mock.invocationCallOrder[0]).toBeLessThan(
       onCollapsedChange.mock.invocationCallOrder[0],
     )
+  })
+
+  it.each([
+    { collapsed: false, label: '收起', next: true },
+    { collapsed: true, label: '展开', next: false },
+  ])('折叠按钮通过鼠标和键盘保持可操作：$label', async ({ collapsed, label, next }) => {
+    const user = userEvent.setup()
+    const onCollapsedChange = vi.fn()
+    render(
+      <FeatureSidePanel
+        {...baseProps}
+        collapsed={collapsed}
+        onCollapsedChange={onCollapsedChange}
+      />,
+    )
+
+    const toggle = screen.getByRole('button', { name: label })
+    await user.tab()
+    expect(toggle).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    expect(onCollapsedChange).toHaveBeenCalledWith(next)
   })
 })

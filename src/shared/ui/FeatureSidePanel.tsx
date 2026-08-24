@@ -70,15 +70,17 @@ export function FeatureSidePanel<Key extends string>({
           onPointerDown={onResizePointerDown}
         />
       ) : null}
-      <Tooltip title={collapsed ? expandLabel : collapseLabel}>
-        <Button
-          type="text"
-          className={`${sidePanelStyles['panel-side-toggle']} ${sidePanelStyles['panel-side-toggle-right']}`}
-          onClick={() => onCollapsedChange(!collapsed)}
-          aria-label={collapsed ? expandLabel : collapseLabel}
-          icon={collapsed ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
-        />
-      </Tooltip>
+      <div className={`${sidePanelStyles['panel-toggle-zone']} ${sidePanelStyles['panel-toggle-zone-right']}`}>
+        <Tooltip title={collapsed ? expandLabel : collapseLabel}>
+          <Button
+            type="text"
+            className={`${sidePanelStyles['panel-side-toggle']} ${sidePanelStyles['panel-side-toggle-right']}`}
+            onClick={() => onCollapsedChange(!collapsed)}
+            aria-label={collapsed ? expandLabel : collapseLabel}
+            icon={collapsed ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
+          />
+        </Tooltip>
+      </div>
       {collapsed ? (
         <div className={`${styles['details-collapsed-rail']} details-collapsed-rail`} aria-label={ariaLabel}>
           {tabs.map((item) => (

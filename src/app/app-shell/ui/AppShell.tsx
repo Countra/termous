@@ -34,7 +34,6 @@ export interface AppShellProps {
   actionBusy: boolean
   onNavigate: (page: PageKey) => void
   onOpenConnectionLauncher: () => void
-  onOpenHostLauncher?: () => void
   onOpenLocalTerminal: (shell: LocalShell) => void
   onToggleSidebar: () => void
   onBeforeClose?: () => Promise<void>
@@ -64,7 +63,6 @@ export function AppShell({
   actionBusy,
   onNavigate,
   onOpenConnectionLauncher,
-  onOpenHostLauncher,
   onOpenLocalTerminal,
   onToggleSidebar,
   onBeforeClose,
@@ -94,7 +92,7 @@ export function AppShell({
 
   const handleConnectionMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'host') {
-      (onOpenHostLauncher ?? onOpenConnectionLauncher)()
+      onOpenConnectionLauncher()
       return
     }
     if (key === 'powershell' || key === 'cmd') {

@@ -16,10 +16,9 @@ vi.mock('#features/update', () => ({
   BrandVersionControl: () => null,
 }))
 
-test('远程桌面页主连接按钮与主机连接菜单使用各自入口', async () => {
+test('远程桌面页主连接按钮与主机连接菜单共用主机入口', async () => {
   const user = userEvent.setup()
   const onOpenConnectionLauncher = vi.fn()
-  const onOpenHostLauncher = vi.fn()
   render(
     <AntdApp>
       <AppShell
@@ -30,7 +29,6 @@ test('远程桌面页主连接按钮与主机连接菜单使用各自入口', as
         actionBusy={false}
         onNavigate={vi.fn()}
         onOpenConnectionLauncher={onOpenConnectionLauncher}
-        onOpenHostLauncher={onOpenHostLauncher}
         onOpenLocalTerminal={vi.fn()}
         onToggleSidebar={vi.fn()}
       >
@@ -42,10 +40,8 @@ test('远程桌面页主连接按钮与主机连接菜单使用各自入口', as
   const connectButtons = screen.getAllByRole('button', { name: 'app.connect' })
   await user.click(connectButtons[0])
   expect(onOpenConnectionLauncher).toHaveBeenCalledTimes(1)
-  expect(onOpenHostLauncher).not.toHaveBeenCalled()
 
   await user.click(connectButtons[1])
   await user.click(await screen.findByText('workbench.hostLauncher.kicker'))
-  expect(onOpenHostLauncher).toHaveBeenCalledTimes(1)
-  expect(onOpenConnectionLauncher).toHaveBeenCalledTimes(1)
+  expect(onOpenConnectionLauncher).toHaveBeenCalledTimes(2)
 })

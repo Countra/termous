@@ -890,10 +890,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       sidebarCollapsed={sidebarCollapsed}
                       actionBusy={actionBusy}
                       onNavigate={navigateToPage}
-                      onOpenConnectionLauncher={page === 'remote-desktop'
-                        ? () => setRemoteDesktopLauncherOpen(true)
-                        : openContextualHostLauncher}
-                      onOpenHostLauncher={openContextualHostLauncher}
+                      onOpenConnectionLauncher={openContextualHostLauncher}
                       onOpenLocalTerminal={openLocalTerminalFromTopbar}
                       onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
                       onBeforeClose={shutdownBeforeClose}

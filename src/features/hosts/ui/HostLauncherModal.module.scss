@@ -10,12 +10,21 @@
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   border-radius: 18px;
   padding: 0;
-  background:
-    radial-gradient(circle at 78% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 34%),
-    var(--surface);
+  background: var(--surface-strong);
   box-shadow:
     0 32px 90px rgb(0 0 0 / 38%),
     inset 0 1px 0 rgb(255 255 255 / 7%);
+}
+
+.host-launcher-modal .ant-modal-header {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  padding: 0;
+  white-space: nowrap;
 }
 
 .host-launcher-modal .ant-modal-close {
@@ -39,7 +48,7 @@
   gap: 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   padding: 0 42px 0 12px;
-  background: color-mix(in srgb, var(--surface-base) 42%, transparent);
+  background: transparent;
   color: var(--text-primary);
 }
 
@@ -68,7 +77,7 @@
 }
 
 .host-launcher-title-refresh.ant-btn:not(:disabled):hover {
-  background: color-mix(in srgb, var(--surface-elevated) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 86%, transparent);
   color: var(--text-primary);
 }
 
@@ -78,6 +87,10 @@
   grid-template-columns: minmax(300px, 345px) minmax(0, 1fr);
 }
 
+.host-launcher-body.is-empty {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .host-launcher-sidebar {
   display: grid;
   min-height: 0;
@@ -85,9 +98,7 @@
   gap: 10px;
   border-right: 1px solid var(--border);
   padding: 12px 10px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-base) 74%, transparent), color-mix(in srgb, var(--surface) 98%, transparent)),
-    var(--surface);
+  background: transparent;
 }
 
 .host-launcher-search-row {
@@ -107,13 +118,13 @@
   height: 34px;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 11px;
-  background: color-mix(in srgb, var(--surface-elevated) 84%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 84%, transparent);
   color: var(--text-secondary);
 }
 
 .host-launcher-icon-button.ant-btn:not(:disabled):hover {
   border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
-  background: color-mix(in srgb, var(--surface-elevated) 96%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 96%, transparent);
   color: var(--text-primary);
 }
 
@@ -123,7 +134,7 @@
 
 .host-launcher-filter-trigger.ant-btn.is-active {
   border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface-elevated));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-strong));
   color: var(--accent);
 }
 
@@ -160,6 +171,7 @@
   right: 0;
   left: 0;
   z-index: 80;
+  max-height: min(520px, calc(100dvh - 180px));
   animation: host-launcher-filter-in 0.12s ease-out;
 }
 
@@ -170,6 +182,7 @@
   --host-filter-panel-border: rgb(255 255 255 / 9%);
 
   box-sizing: border-box;
+  max-height: inherit;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 18px;
@@ -194,7 +207,10 @@
   display: grid;
   box-sizing: border-box;
   width: 100%;
+  max-height: inherit;
   gap: 12px;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
   padding: 14px;
   background: var(--host-filter-panel-bg);
 }
@@ -349,7 +365,7 @@
 }
 
 .host-launcher-filter .ant-segmented-item-selected {
-  background: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 92%, transparent);
   color: var(--text-primary);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 7%);
 }
@@ -365,8 +381,24 @@
 
 .host-launcher-empty {
   display: grid;
-  min-height: 220px;
+  min-height: 0;
+  flex: 1 1 auto;
   place-items: center;
+  color: var(--text-secondary);
+  overflow: auto;
+  padding: 18px 14px;
+  text-align: center;
+}
+
+.host-launcher-empty-copy {
+  display: grid;
+  max-width: 230px;
+}
+
+.host-launcher-empty-copy strong {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .host-launcher-group {
@@ -431,7 +463,7 @@
   border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
   border-radius: 9px;
   padding: 8px;
-  background: color-mix(in srgb, var(--surface-elevated) 34%, transparent);
+  background: color-mix(in srgb, var(--surface-strong) 34%, transparent);
   color: var(--text-secondary);
   text-align: left;
   cursor: pointer;
@@ -456,7 +488,7 @@
   width: 8px;
   height: 8px;
   box-shadow:
-    0 0 0 2px var(--surface-elevated),
+    0 0 0 2px var(--surface-strong),
     0 0 0 5px color-mix(in srgb, currentcolor 8%, transparent);
 }
 
@@ -470,7 +502,7 @@
   border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--accent) 24%, transparent), transparent 82%),
-    color-mix(in srgb, var(--accent) 12%, var(--surface-elevated));
+    color-mix(in srgb, var(--accent) 12%, var(--surface-strong));
   color: var(--text-primary);
   box-shadow: none;
 }
@@ -532,9 +564,7 @@
   gap: 14px;
   overflow: auto;
   padding: 22px 24px 24px;
-  background:
-    radial-gradient(circle at 64% 8%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 34%),
-    color-mix(in srgb, var(--surface) 96%, transparent);
+  background: transparent;
 }
 
 .host-launcher-overview-title {
@@ -557,7 +587,7 @@
   padding: 14px;
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--surface-subtle) 60%, transparent), transparent 82%),
-    color-mix(in srgb, var(--surface-elevated) 58%, transparent);
+    color-mix(in srgb, var(--surface-strong) 58%, transparent);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
 }
 
@@ -872,12 +902,82 @@
   gap: 8px;
 }
 
+.host-launcher-onboarding,
 .host-launcher-detail-empty {
   display: grid;
-  min-height: 100%;
-  align-content: center;
-  justify-items: center;
-  gap: 16px;
+  min-height: 0;
+  place-items: center;
+  overflow: auto;
+  padding: 28px clamp(20px, 6vw, 64px);
+  text-align: center;
+}
+
+.host-launcher-onboarding {
+  margin: 16px;
+}
+
+.host-launcher-detail-empty {
+  grid-row: 1 / -1;
+}
+
+.host-launcher-onboarding-copy,
+.host-launcher-detail-empty-copy {
+  display: grid;
+  max-width: 420px;
+  gap: 7px;
+}
+
+.host-launcher-onboarding-copy h2,
+.host-launcher-onboarding-copy p,
+.host-launcher-detail-empty-copy h3,
+.host-launcher-detail-empty-copy p {
+  margin: 0;
+}
+
+.host-launcher-onboarding-copy h2,
+.host-launcher-detail-empty-copy h3 {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.host-launcher-onboarding-copy p,
+.host-launcher-detail-empty-copy p {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.host-launcher-empty,
+.host-launcher-onboarding,
+.host-launcher-detail-empty {
+  border: 1px dashed color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 12px;
+  background: var(--surface-subtle);
+  box-sizing: border-box;
+}
+
+.host-launcher-empty .ant-empty,
+.host-launcher-onboarding .ant-empty,
+.host-launcher-detail-empty .ant-empty {
+  margin: 0;
+}
+
+.host-launcher-empty .ant-empty-image,
+.host-launcher-onboarding .ant-empty-image,
+.host-launcher-detail-empty .ant-empty-image {
+  height: 44px;
+  margin-bottom: 7px;
+  opacity: 0.68;
+}
+
+.host-launcher-onboarding .connection-action-button.ant-btn,
+.host-launcher-detail-empty .ant-btn {
+  min-width: 140px;
+  height: 34px;
+  min-height: 34px;
+  border-radius: 8px;
+  font-size: 12px;
 }
 
   }
@@ -914,13 +1014,35 @@
     max-height: 260px;
   }
 
+  .host-launcher-empty {
+    min-height: 150px;
+    padding: 18px 14px;
+  }
+
   .host-launcher-detail {
     overflow: visible;
     padding: 18px 18px 22px;
   }
 
+  .host-launcher-detail-empty {
+    min-height: 300px;
+    padding: 28px 20px;
+  }
+
+  .host-launcher-onboarding {
+    min-height: 0;
+    padding: 28px 20px;
+  }
+
   .host-launcher-shortcuts {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (width <= 560px) {
+  .host-launcher-detail-grid,
+  .host-launcher-shortcuts {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

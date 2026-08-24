@@ -208,6 +208,9 @@ test('侧栏框架与折叠控件由共享 Module 承载', () => {
     'resize-edge',
     'resize-edge-left',
     'resize-edge-right',
+    'panel-toggle-zone',
+    'panel-toggle-zone-left',
+    'panel-toggle-zone-right',
     'panel-side-toggle',
     'panel-side-toggle-left',
     'panel-side-toggle-right',
@@ -217,6 +220,34 @@ test('侧栏框架与折叠控件由共享 Module 承载', () => {
 
   assert.match(publicEntry, /default as sidePanelStyles.*SidePanelControls\.module\.scss/)
   assert.match(featureSidePanelSource, /import sidePanelStyles from '\.\/SidePanelControls\.module\.scss'/)
+  assert.match(
+    controlsStyles,
+    /\.panel-side-toggle:global\(\.ant-btn\)\s*\{[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/s,
+  )
+  assert.match(
+    controlsStyles,
+    /\.panel-toggle-zone\s*\{[^}]*width:\s*10px;/s,
+  )
+  assert.match(
+    controlsStyles,
+    /\.panel-toggle-zone:hover \.panel-side-toggle:global\(\.ant-btn\)[^{]*\{[^}]*opacity:\s*1;[^}]*pointer-events:\s*auto;/s,
+  )
+  assert.match(
+    controlsStyles,
+    /\.panel-side-toggle:global\(\.ant-btn\):focus-visible\s*\{[^}]*opacity:\s*1;[^}]*pointer-events:\s*auto;/s,
+  )
+  assert.match(
+    controlsStyles,
+    /@media \(hover:\s*none\), \(pointer:\s*coarse\)\s*\{[\s\S]*?\.panel-side-toggle:global\(\.ant-btn\)\s*\{[^}]*opacity:\s*1;/,
+  )
+  assert.match(
+    controlsStyles,
+    /@media \(hover:\s*none\), \(pointer:\s*coarse\)\s*\{[\s\S]*?\.panel-toggle-zone\s*\{[^}]*width:\s*32px;[^}]*\}[\s\S]*?\.panel-side-toggle:global\(\.ant-btn\)\s*\{[^}]*width:\s*32px;[^}]*height:\s*44px;/,
+  )
+  assert.match(
+    controlsStyles,
+    /\.panel\.is-resizing \.panel-side-toggle:global\(\.ant-btn\)\s*\{[^}]*opacity:\s*0;[^}]*pointer-events:\s*none;/s,
+  )
 
   assert.match(globalStyles, /^body\[data-panel-resizing='true'\]\s*\{/m)
   assert.doesNotMatch(globalStyles, /^\.(?:context-panel|details-panel)(?=[\s.,:{])/m)
@@ -225,6 +256,14 @@ test('侧栏框架与折叠控件由共享 Module 承载', () => {
   assert.doesNotMatch(globalStyles, /^\.host-context-panel\.is-(?:content-collapsed|resizing)\b/m)
   assert.doesNotMatch(globalStyles, /^\.host-context-panel\.is-collapsed \.panel-heading\b/m)
   assert.doesNotMatch(globalStyles, /^\.panel-heading(?:\s|\{)/m)
+
+  for (const relativePath of [
+    '../shared/ui/SidePanelControls.module.scss',
+    '../features/hosts/ui/HostLauncherModal.module.scss',
+    '../features/remote-desktop/ui/RemoteDesktopLauncher.module.scss',
+  ]) {
+    assert.doesNotMatch(source(relativePath), /var\(--surface-(?:base|elevated|hover)\b/)
+  }
 })
 
 test('主窗口全局规则通过 Surface 标记隔离，通知使用显式 Module class', () => {

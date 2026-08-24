@@ -1,14 +1,29 @@
-import { App as AntdApp, Button, Input, InputNumber, Modal, Segmented, Switch } from 'antd'
-import { Cable, MonitorPlay, Pencil, Plus, Save, Search, Trash2 } from 'lucide-react'
+import { App as AntdApp, Empty, Modal } from 'antd'
+import { MonitorPlay, Plus } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
-  RemoteDesktopDisplayMode,
   RemoteDesktopProfile,
   RemoteDesktopProfileInput,
 } from '#entities/remote-desktop'
 import type { Host } from '#entities/host'
-import { confirmDialogStyles, CustomSelect, uiStyles } from '#shared/ui'
+import {
+  confirmDialogStyles,
+  ConnectionActionButton,
+  termousNotificationClassName,
+} from '#shared/ui'
+import {
+  createRemoteDesktopProfileDraft,
+  hasRemoteDesktopProfileDraftErrors,
+  normalizeRemoteDesktopProfileDraft,
+  remoteDesktopProfileDraftsEqual,
+  remoteDesktopProfileToDraft,
+  validateRemoteDesktopProfileDraft,
+  type RemoteDesktopProfileDraft,
+} from '../model/remoteDesktopProfileDraft'
+import { RemoteDesktopProfileCatalog } from './RemoteDesktopProfileCatalog'
+import { RemoteDesktopProfileEditor } from './RemoteDesktopProfileEditor'
+import { RemoteDesktopProfileOverview } from './RemoteDesktopProfileOverview'
 import styles from './RemoteDesktopLauncher.module.scss'
 
 interface RemoteDesktopLauncherProps {
@@ -23,27 +38,14 @@ interface RemoteDesktopLauncherProps {
   onConnect: (profileId: string) => Promise<void>
 }
 
-const defaultDraft: RemoteDesktopProfileInput = {
-  name: '',
-  description: '',
-  protocol: 'vnc',
-  transport: 'ssh_tunnel',
-  ssh_host_id: '',
-  vnc: {
-    loopback_host: '127.0.0.1',
-    port: 5900,
-    shared: true,
-    default_view_only: false,
-    default_display_mode: 'fit',
-  },
-}
-
 type LauncherIntent =
   | { type: 'close' }
   | { type: 'new' }
   | { type: 'select'; profileId: string }
   | { type: 'connect'; profileId: string }
   | { type: 'cancel_edit' }
+
+type PendingAction = 'save' | 'save_connect' | 'connect' | 'delete' | null
 
 export function RemoteDesktopLauncher({
   open,
@@ -60,32 +62,14 @@ export function RemoteDesktopLauncher({
   const { modal, notification } = AntdApp.useApp()
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState('')
-  const [draft, setDraft] = useState<RemoteDesktopProfileInput>(defaultDraft)
-  const [baseline, setBaseline] = useState<RemoteDesktopProfileInput>(defaultDraft)
+  const [draft, setDraft] = useState<RemoteDesktopProfileDraft>(() => createRemoteDesktopProfileDraft())
+  const [baseline, setBaseline] = useState<RemoteDesktopProfileDraft>(() => createRemoteDesktopProfileDraft())
   const [editing, setEditing] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
+  const [submitted, setSubmitted] = useState(false)
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null)
   const confirmationOpenRef = useRef(false)
   const pendingIntentRef = useRef<LauncherIntent | null>(null)
-  const selected = profiles.find((profile) => profile.id === selectedId) ?? null
-  const dirty = editing && !profileInputsEqual(draft, baseline)
-
-  useEffect(() => {
-    if (!open) {
-      return
-    }
-    if (!editing && (!selectedId || !profiles.some((profile) => profile.id === selectedId))) {
-      setSelectedId(profiles[0]?.id ?? '')
-    }
-  }, [editing, open, profiles, selectedId])
-
-  useEffect(() => {
-    if (!editing && selected) {
-      const next = profileToInput(selected)
-      setDraft(next)
-      setBaseline(next)
-    }
-  }, [editing, selected])
-
   const visibleProfiles = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase()
     return profiles.filter((profile) => (
@@ -95,23 +79,72 @@ export function RemoteDesktopLauncher({
       || hosts.find((host) => host.id === profile.ssh_host_id)?.name.toLocaleLowerCase().includes(normalized)
     ))
   }, [hosts, profiles, query])
+  const editingProfile = editingProfileId
+    ? profiles.find((profile) => profile.id === editingProfileId) ?? null
+    : null
+  const selected = editing
+    ? editingProfile
+    : visibleProfiles.find((profile) => profile.id === selectedId) ?? visibleProfiles[0] ?? null
+  const availableHostIds = useMemo(() => new Set(hosts.map((host) => host.id)), [hosts])
+  const errors = useMemo(
+    () => validateRemoteDesktopProfileDraft(draft, availableHostIds),
+    [availableHostIds, draft],
+  )
+  const dirty = editing && !remoteDesktopProfileDraftsEqual(draft, baseline)
+  const operationBusy = pendingAction !== null
+  const busy = actionBusy || operationBusy
 
-  const save = async (connectAfterSave: boolean) => {
-    const validation = validateDraft(draft)
-    if (validation) {
-      notification.warning({ title: t('remoteDesktop.profileInvalid'), description: t(`remoteDesktop.${validation}`) })
+  useEffect(() => {
+    if (!open || editing) {
       return
     }
-    setBusy(true)
-    try {
-      const saved = editing && selected
-        ? await onUpdate(selected.id, normalizedDraft(draft))
-        : await onCreate(normalizedDraft(draft))
-      const savedInput = profileToInput(saved)
-      setSelectedId(saved.id)
-      setDraft(savedInput)
-      setBaseline(savedInput)
+    if (!selectedId || !visibleProfiles.some((profile) => profile.id === selectedId)) {
+      setSelectedId(visibleProfiles[0]?.id ?? '')
+    }
+  }, [editing, open, selectedId, visibleProfiles])
+
+  useEffect(() => {
+    if (editing && editingProfileId && !editingProfile) {
       setEditing(false)
+      setEditingProfileId(null)
+      setSubmitted(false)
+    }
+  }, [editing, editingProfile, editingProfileId])
+
+  useEffect(() => {
+    if (!editing && selected) {
+      const next = remoteDesktopProfileToDraft(selected)
+      setDraft(next)
+      setBaseline(next)
+      setSubmitted(false)
+    }
+  }, [editing, selected])
+
+  const save = async (connectAfterSave: boolean) => {
+    setSubmitted(true)
+    if (hasRemoteDesktopProfileDraftErrors(errors) || busy) {
+      if (!busy) {
+        notification.warning({
+          title: t('remoteDesktop.profileInvalid'),
+          description: t('remoteDesktop.profileInvalidHint'),
+          className: termousNotificationClassName,
+        })
+      }
+      return
+    }
+    setPendingAction(connectAfterSave ? 'save_connect' : 'save')
+    try {
+      const input = normalizeRemoteDesktopProfileDraft(draft)
+      const saved = editingProfileId
+        ? await onUpdate(editingProfileId, input)
+        : await onCreate(input)
+      const savedDraft = remoteDesktopProfileToDraft(saved)
+      setSelectedId(saved.id)
+      setDraft(savedDraft)
+      setBaseline(savedDraft)
+      setEditing(false)
+      setEditingProfileId(null)
+      setSubmitted(false)
       if (connectAfterSave) {
         try {
           await onConnect(saved.id)
@@ -119,74 +152,95 @@ export function RemoteDesktopLauncher({
         } catch (error) {
           notification.error({
             title: t('remoteDesktop.connectFailed'),
-            description: error instanceof Error ? error.message : t('app.error'),
+            description: publicError(error, t('app.error')),
+            className: termousNotificationClassName,
           })
         }
       }
     } catch (error) {
       notification.error({
         title: t('remoteDesktop.profileSaveFailed'),
-        description: error instanceof Error ? error.message : t('app.error'),
+        description: publicError(error, t('app.error')),
+        className: termousNotificationClassName,
       })
     } finally {
-      setBusy(false)
+      setPendingAction(null)
     }
   }
 
-  const remove = () => {
-    if (!selected) {
+  const deleteProfile = async (profileId: string) => {
+    if (!profiles.some((profile) => profile.id === profileId) || busy) {
       return
     }
-    modal.confirm({
-      title: t('remoteDesktop.deleteProfileTitle'),
-      content: t('remoteDesktop.deleteProfileDescription', { name: selected.name }),
-      okText: t('app.delete'),
-      cancelText: t('app.cancel'),
-      okButtonProps: { danger: true },
-      centered: true,
-      async onOk() {
-        try {
-          await onDelete(selected.id)
-          setSelectedId('')
-          setEditing(false)
-        } catch (error) {
-          notification.error({
-            title: t('remoteDesktop.profileDeleteFailed'),
-            description: error instanceof Error ? error.message : t('app.error'),
-          })
-          throw error
-        }
-      },
-    })
+    setPendingAction('delete')
+    try {
+      await onDelete(profileId)
+      const remaining = visibleProfiles.filter((profile) => profile.id !== profileId)
+      setSelectedId(remaining[0]?.id ?? '')
+      setEditing(false)
+      setEditingProfileId(null)
+      setSubmitted(false)
+    } catch (error) {
+      notification.error({
+        title: t('remoteDesktop.profileDeleteFailed'),
+        description: publicError(error, t('app.error')),
+        className: termousNotificationClassName,
+      })
+    } finally {
+      setPendingAction(null)
+    }
   }
 
   const startNew = () => {
-    const next = createDefaultDraft(hosts[0]?.id ?? '')
-    setSelectedId('')
+    const next = createRemoteDesktopProfileDraft(hosts[0]?.id ?? '')
     setDraft(next)
     setBaseline(next)
     setEditing(true)
+    setEditingProfileId(null)
+    setSubmitted(false)
+  }
+
+  const startEdit = () => {
+    if (!selected) {
+      return
+    }
+    const next = remoteDesktopProfileToDraft(selected)
+    setDraft(next)
+    setBaseline(next)
+    setEditing(true)
+    setEditingProfileId(selected.id)
+    setSubmitted(false)
   }
 
   const connectProfile = async (profileId: string) => {
-    setBusy(true)
+    const profile = profiles.find((item) => item.id === profileId)
+    if (busy || !profile || !availableHostIds.has(profile.ssh_host_id)) {
+      return
+    }
+    setSelectedId(profileId)
+    setEditing(false)
+    setEditingProfileId(null)
+    setSubmitted(false)
+    setPendingAction('connect')
     try {
       await onConnect(profileId)
-      setEditing(false)
       onClose()
     } catch (error) {
       notification.error({
         title: t('remoteDesktop.connectFailed'),
-        description: error instanceof Error ? error.message : t('app.error'),
+        description: publicError(error, t('app.error')),
+        className: termousNotificationClassName,
       })
     } finally {
-      setBusy(false)
+      setPendingAction(null)
     }
   }
 
   const applyIntent = async (intent: LauncherIntent) => {
     if (intent.type === 'close') {
       setEditing(false)
+      setEditingProfileId(null)
+      setSubmitted(false)
       onClose()
       return
     }
@@ -197,24 +251,28 @@ export function RemoteDesktopLauncher({
     if (intent.type === 'select') {
       setSelectedId(intent.profileId)
       setEditing(false)
+      setEditingProfileId(null)
+      setSubmitted(false)
       return
     }
     if (intent.type === 'connect') {
       await connectProfile(intent.profileId)
       return
     }
+    setEditing(false)
+    setEditingProfileId(null)
+    setSubmitted(false)
     if (selected) {
-      const next = profileToInput(selected)
+      const next = remoteDesktopProfileToDraft(selected)
       setDraft(next)
       setBaseline(next)
-      setEditing(false)
-      return
     }
-    setEditing(false)
-    onClose()
   }
 
   const requestIntent = (intent: LauncherIntent) => {
+    if (busy) {
+      return
+    }
     if (!dirty) {
       void applyIntent(intent)
       return
@@ -228,7 +286,7 @@ export function RemoteDesktopLauncher({
     modal.confirm({
       centered: true,
       className: confirmDialogStyles.modal,
-      rootClassName: confirmDialogStyles['modal-wrap'],
+      rootClassName: confirmDialogStyles['modal-root'],
       title: t('remoteDesktop.discardDraftTitle'),
       content: t('remoteDesktop.discardDraftDescription'),
       okText: t('remoteDesktop.discardDraft'),
@@ -236,7 +294,9 @@ export function RemoteDesktopLauncher({
       okButtonProps: { danger: true },
       onOk: () => {
         const pendingIntent = pendingIntentRef.current
-        return pendingIntent ? applyIntent(pendingIntent) : undefined
+        if (pendingIntent) {
+          void applyIntent(pendingIntent)
+        }
       },
       afterClose: () => {
         confirmationOpenRef.current = false
@@ -245,228 +305,127 @@ export function RemoteDesktopLauncher({
     })
   }
 
-  const formDisabled = busy || actionBusy || !editing
+  const editorOnly = profiles.length === 0 && editing
+  const showOnboarding = profiles.length === 0 && !editing
+  const selectedHost = selected
+    ? hosts.find((host) => host.id === selected.ssh_host_id)
+    : undefined
+
   return (
     <Modal
       open={open}
       centered
-      width={860}
-      title={null}
+      width={960}
+      title={(
+        <span className={styles['modal-title']}>
+          <MonitorPlay size={16} aria-hidden="true" />
+          <span>{t('remoteDesktop.launcherTitle')}</span>
+          <small aria-hidden="true">{profiles.length}</small>
+        </span>
+      )}
       footer={null}
       destroyOnHidden
-      mask={{ closable: !busy && !actionBusy }}
-      keyboard={!busy && !actionBusy}
-      onCancel={busy || actionBusy ? undefined : () => requestIntent({ type: 'close' })}
-      className={styles.modal}
+      closable={!busy}
+      mask={{ closable: !busy }}
+      keyboard={!busy}
+      className={`${styles.modal} termous-modal`}
+      rootClassName={`${confirmDialogStyles['modal-root']} ${styles['modal-root']}`}
+      onCancel={busy ? undefined : () => requestIntent({ type: 'close' })}
     >
       <section className={styles.launcher}>
-        <header className={styles.header}>
-          <span className={styles['header-icon']}><MonitorPlay size={20} /></span>
-          <div>
-            <h2>{t('remoteDesktop.launcherTitle')}</h2>
-            <p>{t('remoteDesktop.launcherDescription')}</p>
-          </div>
-        </header>
-        <div className={styles.body}>
-          <aside className={styles.catalog}>
-            <Input
-              allowClear
-              value={query}
-              prefix={<Search size={15} />}
-              placeholder={t('remoteDesktop.searchProfiles')}
-              className={uiStyles['search-input']}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            <div className={styles.list} role="listbox" aria-label={t('remoteDesktop.profiles')}>
-              {visibleProfiles.map((profile) => {
-                const host = hosts.find((item) => item.id === profile.ssh_host_id)
-                return (
-                  <button
-                    key={profile.id}
-                    type="button"
-                    role="option"
-                    aria-selected={profile.id === selected?.id}
-                    disabled={busy || actionBusy}
-                    className={`${styles.item} ${profile.id === selected?.id ? styles['is-active'] : ''}`}
-                    onClick={() => requestIntent({ type: 'select', profileId: profile.id })}
-                    onDoubleClick={() => requestIntent({ type: 'connect', profileId: profile.id })}
-                  >
-                    <span className={styles['item-icon']}><MonitorPlay size={16} /></span>
-                    <span className={styles['item-copy']}>
-                      <strong>{profile.name}</strong>
-                      <small>{host?.name ?? t('fields.none')} · {profile.vnc.loopback_host}:{profile.vnc.port}</small>
-                    </span>
-                  </button>
-                )
-              })}
-              {visibleProfiles.length === 0 ? <p className={styles.empty}>{t('remoteDesktop.noProfiles')}</p> : null}
-            </div>
-            <Button
-              className={uiStyles['secondary-button']}
-              icon={<Plus size={15} />}
-              disabled={busy || actionBusy}
-              onClick={() => requestIntent({ type: 'new' })}
-            >
-              {t('remoteDesktop.newProfile')}
-            </Button>
-          </aside>
-          <main className={styles.editor}>
-            <div className={styles['editor-heading']}>
-              <div>
-                <small>{t('remoteDesktop.vncOverSsh')}</small>
-                <h3>{editing ? (selected ? t('remoteDesktop.editProfile') : t('remoteDesktop.newProfile')) : selected?.name ?? t('remoteDesktop.profileDetail')}</h3>
-              </div>
-              {selected && !editing ? (
-                <Button
-                  type="text"
-                  icon={<Pencil size={15} />}
-                  disabled={busy || actionBusy}
-                  onClick={() => {
-                    const next = profileToInput(selected)
-                    setDraft(next)
-                    setBaseline(next)
-                    setEditing(true)
-                  }}
-                >
-                  {t('app.edit')}
-                </Button>
-              ) : null}
-            </div>
-            <div className={styles.form}>
-              <label className={uiStyles.field}>
-                <span className={uiStyles['field-label']}>{t('remoteDesktop.profileName')}</span>
-                <Input value={draft.name} disabled={formDisabled} maxLength={80} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
-              </label>
-              <CustomSelect
-                label={t('remoteDesktop.sshHost')}
-                value={draft.ssh_host_id}
-                disabled={formDisabled}
-                options={hosts.map((host) => ({ value: host.id, label: host.name, description: `${host.username}@${host.address}` }))}
-                onChange={(ssh_host_id) => setDraft((current) => ({ ...current, ssh_host_id }))}
-              />
-              <label className={`${uiStyles.field} ${styles['field-wide']}`}>
-                <span className={uiStyles['field-label']}>{t('remoteDesktop.description')}</span>
-                <Input value={draft.description} disabled={formDisabled} maxLength={240} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} />
-              </label>
-              <CustomSelect
-                label={t('remoteDesktop.loopbackHost')}
-                value={draft.vnc.loopback_host}
-                disabled={formDisabled}
-                options={[
-                  { value: '127.0.0.1', label: '127.0.0.1', description: t('remoteDesktop.ipv4Loopback') },
-                  { value: '::1', label: '::1', description: t('remoteDesktop.ipv6Loopback') },
-                ]}
-                onChange={(loopback_host) => setDraft((current) => ({
-                  ...current,
-                  vnc: { ...current.vnc, loopback_host: loopback_host as '127.0.0.1' | '::1' },
-                }))}
-              />
-              <label className={uiStyles.field}>
-                <span className={uiStyles['field-label']}>{t('remoteDesktop.port')}</span>
-                <InputNumber
-                  min={1}
-                  max={65535}
-                  value={draft.vnc.port}
-                  disabled={formDisabled}
-                  onChange={(port) => setDraft((current) => ({ ...current, vnc: { ...current.vnc, port: port ?? 5900 } }))}
-                />
-              </label>
-              <div className={`${styles.option} ${styles['field-wide']}`}>
-                <span>
-                  <strong>{t('remoteDesktop.displayMode')}</strong>
-                  <small>{t('remoteDesktop.displayModeHint')}</small>
-                </span>
-                <Segmented<RemoteDesktopDisplayMode>
-                  value={draft.vnc.default_display_mode}
-                  disabled={formDisabled}
-                  options={[
-                    { value: 'fit', label: t('remoteDesktop.display.fit') },
-                    { value: 'resize', label: t('remoteDesktop.display.resize') },
-                    { value: 'actual', label: t('remoteDesktop.display.actual') },
-                  ]}
-                  onChange={(default_display_mode) => setDraft((current) => ({
-                    ...current,
-                    vnc: { ...current.vnc, default_display_mode },
-                  }))}
-                />
-              </div>
-              <div className={styles.option}>
-                <span><strong>{t('remoteDesktop.shared')}</strong><small>{t('remoteDesktop.sharedHint')}</small></span>
-                <Switch checked={draft.vnc.shared} disabled={formDisabled} onChange={(shared) => setDraft((current) => ({ ...current, vnc: { ...current.vnc, shared } }))} />
-              </div>
-              <div className={styles.option}>
-                <span><strong>{t('remoteDesktop.viewOnly')}</strong><small>{t('remoteDesktop.viewOnlyHint')}</small></span>
-                <Switch checked={draft.vnc.default_view_only} disabled={formDisabled} onChange={(default_view_only) => setDraft((current) => ({ ...current, vnc: { ...current.vnc, default_view_only } }))} />
-              </div>
-            </div>
-            <footer className={styles.footer}>
-              <div>
-                {selected ? <Button danger type="text" icon={<Trash2 size={15} />} disabled={busy || actionBusy} onClick={remove}>{t('app.delete')}</Button> : null}
-              </div>
-              <div>
-                {editing ? (
-                  <>
-                    <Button disabled={busy || actionBusy} onClick={() => requestIntent({ type: 'cancel_edit' })}>{t('app.cancel')}</Button>
-                    <Button className={uiStyles['secondary-button']} icon={<Save size={15} />} disabled={actionBusy} loading={busy} onClick={() => void save(false)}>{t('app.save')}</Button>
-                    <Button type="primary" icon={<Cable size={16} />} disabled={actionBusy} loading={busy} onClick={() => void save(true)}>{t('remoteDesktop.saveAndConnect')}</Button>
-                  </>
-                ) : (
-                  <Button type="primary" icon={<Cable size={16} />} disabled={!selected || actionBusy} loading={busy} onClick={() => selected && requestIntent({ type: 'connect', profileId: selected.id })}>{t('app.connect')}</Button>
+        <div className={`${styles.body} ${showOnboarding ? styles['is-empty'] : ''} ${editorOnly ? styles['is-editor-only'] : ''}`}>
+          {showOnboarding ? (
+            <main className={styles.onboarding}>
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={(
+                  <div className={styles['onboarding-copy']}>
+                    <h2>{t('remoteDesktop.emptyProfilesTitle')}</h2>
+                    <p>{t(hosts.length === 0
+                      ? 'remoteDesktop.emptyProfilesNoHostsDescription'
+                      : 'remoteDesktop.emptyProfilesDescription')}</p>
+                  </div>
                 )}
-              </div>
-            </footer>
-          </main>
+              >
+                <ConnectionActionButton
+                  icon={<Plus size={16} />}
+                  disabled={busy || hosts.length === 0}
+                  onClick={() => requestIntent({ type: 'new' })}
+                >
+                  {t('remoteDesktop.newProfile')}
+                </ConnectionActionButton>
+              </Empty>
+            </main>
+          ) : (
+            <>
+              {!editorOnly ? (
+                <RemoteDesktopProfileCatalog
+                  profiles={visibleProfiles}
+                  hosts={hosts}
+                  query={query}
+                  selectedId={editing && editingProfileId === null ? '' : selected?.id ?? ''}
+                  disabled={busy}
+                  onQueryChange={setQuery}
+                  onSelect={(profileId) => requestIntent({ type: 'select', profileId })}
+                  onConnect={(profileId) => requestIntent({ type: 'connect', profileId })}
+                  onCreate={() => requestIntent({ type: 'new' })}
+                />
+              ) : null}
+              {editing ? (
+                <RemoteDesktopProfileEditor
+                  key={editingProfileId ?? 'create'}
+                  mode={editingProfileId ? 'edit' : 'create'}
+                  profileName={editingProfile?.name}
+                  draft={draft}
+                  errors={errors}
+                  submitted={submitted}
+                  hosts={hosts}
+                  disabled={busy}
+                  saving={pendingAction === 'save'}
+                  savingAndConnecting={pendingAction === 'save_connect'}
+                  deleting={pendingAction === 'delete'}
+                  onChange={setDraft}
+                  onCancel={() => requestIntent({ type: 'cancel_edit' })}
+                  onSave={() => void save(false)}
+                  onSaveAndConnect={() => void save(true)}
+                  onDelete={editingProfileId ? () => deleteProfile(editingProfileId) : undefined}
+                />
+              ) : selected ? (
+                <RemoteDesktopProfileOverview
+                  profile={selected}
+                  host={selectedHost}
+                  disabled={busy}
+                  connecting={pendingAction === 'connect' || pendingAction === 'save_connect'}
+                  deleting={pendingAction === 'delete'}
+                  onEdit={startEdit}
+                  onDelete={() => deleteProfile(selected.id)}
+                  onConnect={() => void connectProfile(selected.id)}
+                />
+              ) : (
+                <main className={styles['selection-empty']}>
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={(
+                      <div className={styles['selection-empty-copy']}>
+                        <h2>{t('remoteDesktop.noProfiles')}</h2>
+                        <p>{t('remoteDesktop.noProfilesHint')}</p>
+                      </div>
+                    )}
+                  />
+                </main>
+              )}
+            </>
+          )}
         </div>
       </section>
     </Modal>
   )
 }
 
-function profileToInput(profile: RemoteDesktopProfile): RemoteDesktopProfileInput {
-  return {
-    name: profile.name,
-    description: profile.description,
-    protocol: 'vnc',
-    transport: 'ssh_tunnel',
-    ssh_host_id: profile.ssh_host_id,
-    vnc: { ...profile.vnc },
+function publicError(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) {
+    return error.message
   }
-}
-
-function createDefaultDraft(sshHostId: string): RemoteDesktopProfileInput {
-  return {
-    ...defaultDraft,
-    ssh_host_id: sshHostId,
-    vnc: { ...defaultDraft.vnc },
-  }
-}
-
-function profileInputsEqual(left: RemoteDesktopProfileInput, right: RemoteDesktopProfileInput) {
-  return (
-    left.name === right.name
-    && left.description === right.description
-    && left.protocol === right.protocol
-    && left.transport === right.transport
-    && left.ssh_host_id === right.ssh_host_id
-    && left.vnc.loopback_host === right.vnc.loopback_host
-    && left.vnc.port === right.vnc.port
-    && left.vnc.shared === right.vnc.shared
-    && left.vnc.default_view_only === right.vnc.default_view_only
-    && left.vnc.default_display_mode === right.vnc.default_display_mode
-  )
-}
-
-function normalizedDraft(input: RemoteDesktopProfileInput): RemoteDesktopProfileInput {
-  return {
-    ...input,
-    name: input.name.trim(),
-    description: input.description.trim(),
-  }
-}
-
-function validateDraft(input: RemoteDesktopProfileInput) {
-  if (!input.name.trim()) return 'validationName'
-  if (!input.ssh_host_id) return 'validationHost'
-  if (!Number.isSafeInteger(input.vnc.port) || input.vnc.port < 1 || input.vnc.port > 65535) return 'validationPort'
-  return ''
+  const message = String(error)
+  return message && message !== '[object Object]' ? message : fallback
 }

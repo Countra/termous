@@ -1,18 +1,33 @@
 import { App as AntdApp } from 'antd'
-import { fireEvent, render, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { RemoteDesktopSession } from '#entities/remote-desktop'
-import { VncCredentialDialog } from './RemoteDesktopWorkspace'
+import {
+  RemoteDesktopWorkspace,
+  VncCredentialDialog,
+} from './RemoteDesktopWorkspace'
 
 const runtimeMock = vi.hoisted(() => ({
   value: {
+    sessions: [] as RemoteDesktopSession[],
+    activeSessionId: null as string | null,
     viewerStates: {} as Record<string, {
       connection: string
       credentialTypes: Array<'username' | 'password' | 'target'>
     }>,
-    submitCredentials: vi.fn(),
+    focusViewer: vi.fn(),
+    createSession: vi.fn(async () => undefined),
     closeSession: vi.fn(async () => undefined),
+    selectSession: vi.fn(),
+    setDisplayMode: vi.fn(),
+    setViewOnly: vi.fn(),
+    sendClipboard: vi.fn(),
+    sendCtrlAltDel: vi.fn(),
+    reconnectSession: vi.fn(async () => undefined),
+    submitCredentials: vi.fn(),
+    approveServer: vi.fn(),
+    rejectServer: vi.fn(async () => undefined),
   },
 }))
 
@@ -27,10 +42,57 @@ vi.mock('react-i18next', () => ({
 }))
 
 afterEach(() => {
+  runtimeMock.value.sessions = []
+  runtimeMock.value.activeSessionId = null
   runtimeMock.value.viewerStates = {}
-  runtimeMock.value.submitCredentials.mockReset()
+  runtimeMock.value.focusViewer.mockReset()
+  runtimeMock.value.createSession.mockReset()
+  runtimeMock.value.createSession.mockResolvedValue(undefined)
   runtimeMock.value.closeSession.mockReset()
   runtimeMock.value.closeSession.mockResolvedValue(undefined)
+  runtimeMock.value.selectSession.mockReset()
+  runtimeMock.value.setDisplayMode.mockReset()
+  runtimeMock.value.setViewOnly.mockReset()
+  runtimeMock.value.sendClipboard.mockReset()
+  runtimeMock.value.sendCtrlAltDel.mockReset()
+  runtimeMock.value.reconnectSession.mockReset()
+  runtimeMock.value.reconnectSession.mockResolvedValue(undefined)
+  runtimeMock.value.submitCredentials.mockReset()
+  runtimeMock.value.approveServer.mockReset()
+  runtimeMock.value.rejectServer.mockReset()
+  runtimeMock.value.rejectServer.mockResolvedValue(undefined)
+})
+
+test('无远程桌面会话时显示空标签和两个初始连接入口', async () => {
+  const user = userEvent.setup()
+  const onLauncherOpenChange = vi.fn()
+  render(
+    <AntdApp>
+      <RemoteDesktopWorkspace
+        profiles={[]}
+        hosts={[]}
+        actionBusy={false}
+        launcherOpen={false}
+        onLauncherOpenChange={onLauncherOpenChange}
+        onCreateProfile={vi.fn()}
+        onUpdateProfile={vi.fn()}
+        onDeleteProfile={vi.fn()}
+      />
+    </AntdApp>,
+  )
+
+  const tablist = screen.getByRole('tablist', { name: 'remoteDesktop.sessions' })
+  expect(within(tablist).getByRole('status')).toHaveTextContent('remoteDesktop.noSession')
+  expect(screen.getByText('remoteDesktop.emptyTitle')).toBeVisible()
+  expect(screen.getByText('remoteDesktop.emptyDescription')).toBeVisible()
+  const openButtons = screen.getAllByRole('button', { name: 'remoteDesktop.newConnection' })
+  expect(openButtons).toHaveLength(2)
+
+  await user.click(openButtons[0]!)
+  await user.click(openButtons[1]!)
+
+  expect(onLauncherOpenChange).toHaveBeenNthCalledWith(1, true)
+  expect(onLauncherOpenChange).toHaveBeenNthCalledWith(2, true)
 })
 
 test('VNC 凭据弹窗断开失败时显示错误且不产生未处理拒绝', async () => {

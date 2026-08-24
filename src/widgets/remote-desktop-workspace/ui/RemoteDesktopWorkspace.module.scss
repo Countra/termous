@@ -73,11 +73,22 @@
 
 .tabs {
   display: flex;
+  min-height: 42px;
   min-width: 0;
+  max-width: 100%;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  overflow: hidden;
   border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
-  padding: 3px 8px;
+  background: var(--terminal-toolbar);
+  box-sizing: border-box;
+  padding: 0 12px;
+}
+
+.session-tabs {
+  display: flex;
+  min-width: 0;
 }
 
 .toolbar {
@@ -331,10 +342,41 @@
   min-height: 0;
   grid-row: 2 / -1;
   place-content: center;
-  justify-items: center;
-  background: color-mix(in srgb, var(--surface) 92%, var(--surface-subtle));
-  gap: 18px;
-  padding: 32px;
+  background: var(--surface);
+  padding: clamp(28px, 6cqi, 72px);
+}
+
+.empty-state:global(.workbench-empty-state) {
+  width: min(100%, 420px);
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 10px;
+  padding: 18px;
+}
+
+.empty-state :global(.workbench-empty-state-icon) {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 1px;
+}
+
+.empty-state :global(.workbench-empty-state-description) {
+  max-width: 340px;
+  color: var(--text-muted);
+}
+
+.empty-state :global(.workbench-empty-state-action) {
+  margin-top: 3px;
+}
+
+.empty-action:global(.connection-action-button.ant-btn) {
+  min-width: 146px;
+  height: 36px;
+  min-height: 36px;
+  border-radius: 10px;
+  font-size: 13px;
 }
 
 .dialog-hint {

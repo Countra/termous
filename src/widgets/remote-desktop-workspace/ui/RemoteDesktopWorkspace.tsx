@@ -39,10 +39,11 @@ import type {
 import type { Host } from '#entities/host'
 import { readClipboardText, writeClipboardText } from '#shared/clipboard'
 import {
-  EmptyState,
+  ConnectionActionButton,
   SessionNewTabButton,
   SessionTabButton,
   SessionTabStrip,
+  WorkspaceEmptyState,
   termousNotificationClassName,
   contextActionMenuPopupClassName,
   uiStyles,
@@ -204,6 +205,7 @@ export function RemoteDesktopWorkspace({
             contentKey={runtime.sessions.map((session) => `${session.id}:${session.status}`).join('|')}
             scrollLeftLabel={t('remoteDesktop.scrollTabsLeft')}
             scrollRightLabel={t('remoteDesktop.scrollTabsRight')}
+            tabsClassName={styles['session-tabs']}
             trailing={(
               <SessionNewTabButton
                 label={t('remoteDesktop.newConnection')}
@@ -211,21 +213,29 @@ export function RemoteDesktopWorkspace({
               />
             )}
           >
-            {runtime.sessions.map((session) => (
+            {runtime.sessions.length === 0 ? (
               <SessionTabButton
-                key={session.id}
-                data-session-tab-id={session.id}
-                active={session.id === activeSession?.id}
-                icon={<MonitorPlay size={16} />}
-                label={session.profile_name}
-                status={tabStatus(session)}
-                statusLabel={t(`remoteDesktop.status.${session.status}`)}
-                closeLabel={t('remoteDesktop.disconnect')}
-                tooltipTitle={`${session.profile_name} · ${session.ssh_host_name}`}
-                onClick={() => runtime.selectSession(session.id)}
-                onClose={() => closeSession(session)}
+                empty
+                icon={<MonitorPlay size={18} />}
+                label={t('remoteDesktop.noSession')}
               />
-            ))}
+            ) : runtime.sessions.map((session) => (
+                <SessionTabButton
+                  key={session.id}
+                  data-session-tab-id={session.id}
+                  active={session.id === activeSession?.id}
+                  role="tab"
+                  aria-selected={session.id === activeSession?.id}
+                  icon={<MonitorPlay size={16} />}
+                  label={session.profile_name}
+                  status={tabStatus(session)}
+                  statusLabel={t(`remoteDesktop.status.${session.status}`)}
+                  closeLabel={t('remoteDesktop.disconnect')}
+                  tooltipTitle={`${session.profile_name} · ${session.ssh_host_name}`}
+                  onClick={() => runtime.selectSession(session.id)}
+                  onClose={() => closeSession(session)}
+                />
+              ))}
           </SessionTabStrip>
         </header>
         {activeSession ? (
@@ -255,12 +265,23 @@ export function RemoteDesktopWorkspace({
           <RemoteDesktopStatusBar session={activeSession} viewerState={viewerState} />
         </>
       ) : (
-        <div className={styles['empty-workspace']}>
-          <EmptyState title={t('remoteDesktop.emptyTitle')} description={t('remoteDesktop.emptyDescription')} />
-          <Button type="primary" icon={<Plus size={16} />} onClick={() => onLauncherOpenChange(true)}>
-            {t('remoteDesktop.newConnection')}
-          </Button>
-        </div>
+        <main className={styles['empty-workspace']}>
+          <WorkspaceEmptyState
+            className={styles['empty-state']}
+            icon={<MonitorPlay size={20} aria-hidden="true" />}
+            title={t('remoteDesktop.emptyTitle')}
+            description={t('remoteDesktop.emptyDescription')}
+            action={(
+              <ConnectionActionButton
+                className={styles['empty-action']}
+                icon={<Plus size={16} />}
+                onClick={() => onLauncherOpenChange(true)}
+              >
+                {t('remoteDesktop.newConnection')}
+              </ConnectionActionButton>
+            )}
+          />
+        </main>
       )}
 
       <RemoteDesktopLauncher

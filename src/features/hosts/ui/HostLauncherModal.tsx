@@ -1,4 +1,4 @@
-import { Button, Input, Modal, Segmented, Select, Tag, Tooltip } from 'antd'
+import { Button, Empty, Input, Modal, Segmented, Select, Tag, Tooltip } from 'antd'
 import {
   Activity,
   Cable,
@@ -33,7 +33,6 @@ import {
   confirmDialogStyles,
   ConnectionActionButton,
   customSelectStyles,
-  EmptyState,
   uiStyles,
 } from '#shared/ui'
 import {
@@ -120,11 +119,23 @@ export function HostLauncherModal({
       : groupHosts(filteredHosts, data.groups, t('hosts.ungrouped')),
     [data.groups, filter, filteredHosts, t],
   )
+  const hasHosts = data.hosts.length > 0
   const selectedHost = filteredHosts.find((host) => host.id === selectedHostId) ?? filteredHosts[0]
   const selectedHostCredential = selectedHost?.credential_id ? credentialsById.get(selectedHost.credential_id) : ''
   const selectedJumpHost = selectedHost?.jump_host_id ? hostsById.get(selectedHost.jump_host_id) : undefined
   const selectedProxy = selectedHost?.proxy_id ? proxiesById.get(selectedHost.proxy_id) : undefined
   const selectedReachability = selectedHost ? data.hostReachability[selectedHost.id] : undefined
+  const renderedHostIds = useMemo(
+    () => groupedHosts.flatMap((group) => (
+      filter === 'recent' || !collapsedGroupIds.has(group.id)
+        ? group.hosts.map((host) => host.id)
+        : []
+    )),
+    [collapsedGroupIds, filter, groupedHosts],
+  )
+  const focusableHostId = selectedHost && renderedHostIds.includes(selectedHost.id)
+    ? selectedHost.id
+    : renderedHostIds[0]
   const activeAdvancedFilterCount = [
     platformFilter !== 'all',
     groupFilter !== 'all',
@@ -234,32 +245,60 @@ export function HostLauncherModal({
     onClose()
   }
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') {
-      if (filterOpen) {
-        event.preventDefault()
-        setFilterOpen(false)
-        return
-      }
-      onClose()
-      return
-    }
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      void runSelectedPrimaryAction()
-      return
-    }
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+  const handleLauncherKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape' || !filterOpen) {
       return
     }
     event.preventDefault()
-    if (filteredHosts.length === 0) {
+    event.stopPropagation()
+    setFilterOpen(false)
+  }
+
+  const handleHostListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const eventTarget = event.target
+    if (!(eventTarget instanceof Element)) {
       return
     }
-    const currentIndex = Math.max(0, filteredHosts.findIndex((host) => host.id === selectedHost?.id))
-    const delta = event.key === 'ArrowDown' ? 1 : -1
-    const nextIndex = (currentIndex + delta + filteredHosts.length) % filteredHosts.length
-    onSelectHost(filteredHosts[nextIndex].id)
+    const currentOption = eventTarget.closest<HTMLButtonElement>('[role="option"]')
+    if (!currentOption) {
+      return
+    }
+    if (event.key === 'Enter') {
+      const hostId = currentOption.dataset.hostId
+      if (!hostId) {
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      void runHostAction(actionPlan.primary, hostId)
+      return
+    }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+      return
+    }
+    const options = Array.from(
+      event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]:not(:disabled)'),
+    )
+    if (options.length === 0) {
+      return
+    }
+    const currentIndex = options.indexOf(currentOption)
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? options.length - 1
+        : event.key === 'ArrowDown'
+          ? (currentIndex + 1) % options.length
+          : (currentIndex - 1 + options.length) % options.length
+    const nextOption = options[nextIndex]
+    if (!nextOption) {
+      return
+    }
+    event.preventDefault()
+    nextOption.focus()
+    if (nextOption.dataset.hostId) {
+      onSelectHost(nextOption.dataset.hostId)
+    }
   }
 
   const toggleTag = (tag: string, checked: boolean) => {
@@ -277,6 +316,13 @@ export function HostLauncherModal({
     setGroupFilter('all')
     setAuthFilter('all')
     setSelectedTags([])
+  }
+
+  const clearAllFilters = () => {
+    setQuery('')
+    setFilter('all')
+    clearAdvancedFilters()
+    setFilterOpen(false)
   }
 
   const toggleGroupCollapse = (groupId: string) => {
@@ -380,40 +426,45 @@ export function HostLauncherModal({
     </div>
   )
 
+  const launcherTitle = intent === 'files'
+    ? t('files.openFileSession')
+    : t('workbench.hostLauncher.kicker')
+
   return (
     <Modal
       centered
       open={open}
       width={960}
       footer={null}
-      title={null}
+      title={launcherTitle}
+      keyboard={!filterOpen}
       onCancel={onClose}
       className="host-launcher-modal termous-modal"
       rootClassName={`${confirmDialogStyles['modal-root']} host-launcher-modal-root ${styles['host-launcher-scope']}`}
     >
-      <section className="host-launcher" tabIndex={-1} onKeyDown={handleKeyDown}>
+      <section className="host-launcher" tabIndex={-1} onKeyDown={handleLauncherKeyDown}>
         <header className="host-launcher-titlebar">
-          <span className="host-launcher-title">
+          <span className="host-launcher-title" aria-hidden="true">
             {intent === 'files'
               ? <FolderOpen size={15} aria-hidden="true" />
               : <Cable size={15} aria-hidden="true" />}
-            {intent === 'files'
-              ? t('files.openFileSession')
-              : t('workbench.hostLauncher.kicker')}
+            {launcherTitle}
           </span>
-          <Tooltip title={t('workbench.hostLauncher.refreshReachability')}>
-            <Button
-              type="text"
-              className="host-launcher-title-refresh"
-              aria-label={t('workbench.hostLauncher.refreshReachability')}
-              loading={refreshingReachability}
-              icon={<RefreshCcw size={15} />}
-              onClick={() => void onRefreshReachability(hostIds, true)}
-            />
-          </Tooltip>
+          {hasHosts ? (
+            <Tooltip title={t('workbench.hostLauncher.refreshReachability')}>
+              <Button
+                type="text"
+                className="host-launcher-title-refresh"
+                aria-label={t('workbench.hostLauncher.refreshReachability')}
+                loading={refreshingReachability}
+                icon={<RefreshCcw size={15} />}
+                onClick={() => void onRefreshReachability(hostIds, true)}
+              />
+            </Tooltip>
+          ) : null}
         </header>
-        <div className="host-launcher-body">
-          <aside className="host-launcher-sidebar">
+        <div className={`host-launcher-body ${hasHosts ? '' : 'is-empty'}`}>
+          {hasHosts ? <aside className="host-launcher-sidebar">
             <div className="host-launcher-filter-region" ref={filterAnchorRef}>
               <div className="host-launcher-search-row">
                 <Input
@@ -458,12 +509,21 @@ export function HostLauncherModal({
                 { value: 'online', label: t('workbench.hostLauncher.filters.online') },
               ]}
             />
-            <div className="host-launcher-list" role="listbox" aria-label={t('workbench.hostLauncher.hostList')}>
+            <div
+              className="host-launcher-list"
+              role={filteredHosts.length === 0 ? 'status' : 'listbox'}
+              aria-label={filteredHosts.length === 0 ? undefined : t('workbench.hostLauncher.hostList')}
+              onKeyDown={handleHostListKeyDown}
+            >
               {filteredHosts.length === 0 ? (
                 <div className="host-launcher-empty">
-                  <EmptyState
-                    title={data.hosts.length === 0 ? t('app.empty') : t('hosts.noFilterResults')}
-                    description={data.hosts.length === 0 ? t('workbench.hostLauncher.emptyHint') : t('hosts.noFilterResultsHint')}
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={(
+                      <span className="host-launcher-empty-copy">
+                        <strong>{t('hosts.filterResult', { count: 0, total: data.hosts.length })}</strong>
+                      </span>
+                    )}
                   />
                 </div>
               ) : (
@@ -495,7 +555,9 @@ export function HostLauncherModal({
                               type="button"
                               className={`host-launcher-row ${host.id === selectedHost?.id ? 'is-active' : ''}`}
                               role="option"
+                              data-host-id={host.id}
                               aria-selected={host.id === selectedHost?.id}
+                              tabIndex={host.id === focusableHostId ? 0 : -1}
                               onClick={() => onSelectHost(host.id)}
                               onDoubleClick={() => void runHostAction(actionPlan.primary, host.id)}
                             >
@@ -526,9 +588,9 @@ export function HostLauncherModal({
             <Button className={`${uiStyles['secondary-button']} secondary-button host-launcher-create-button`} icon={<Plus size={15} />} onClick={() => void runLauncherAction(onCreateHost)}>
               {t('hosts.addHost')}
             </Button>
-          </aside>
+          </aside> : null}
 
-          <main className="host-launcher-detail">
+          {hasHosts ? <main className="host-launcher-detail">
             {selectedHost ? (
               <>
                 <h3 className="host-launcher-overview-title">{t('workbench.hostLauncher.overview')}</h3>
@@ -625,18 +687,38 @@ export function HostLauncherModal({
               </>
             ) : (
               <div className="host-launcher-detail-empty">
-                <EmptyState
-                  title={data.hosts.length === 0 ? t('app.empty') : t('hosts.noFilterResults')}
-                  description={data.hosts.length === 0 ? t('workbench.hostLauncher.emptyHint') : t('hosts.noFilterResultsHint')}
-                />
-                {data.hosts.length === 0 ? (
-                  <ConnectionActionButton icon={<Plus size={16} />} onClick={() => void runLauncherAction(onCreateHost)}>
-                    {t('hosts.addHost')}
-                  </ConnectionActionButton>
-                ) : null}
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={(
+                    <div className="host-launcher-detail-empty-copy">
+                      <h3>{t('hosts.noFilterResults')}</h3>
+                      <p>{t('hosts.noFilterResultsHint')}</p>
+                    </div>
+                  )}
+                >
+                  <Button className={`${uiStyles['secondary-button']} secondary-button`} onClick={clearAllFilters}>
+                    {t('workbench.hostLauncher.filters.resetAll')}
+                  </Button>
+                </Empty>
               </div>
             )}
-          </main>
+          </main> : (
+            <main className="host-launcher-onboarding">
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={(
+                  <div className="host-launcher-onboarding-copy">
+                    <h2>{t('workbench.hostLauncher.emptyTitle')}</h2>
+                    <p>{t('workbench.hostLauncher.emptyDescription')}</p>
+                  </div>
+                )}
+              >
+                <ConnectionActionButton icon={<Plus size={16} />} onClick={() => void runLauncherAction(onCreateHost)}>
+                  {t('hosts.addHost')}
+                </ConnectionActionButton>
+              </Empty>
+            </main>
+          )}
         </div>
       </section>
     </Modal>
