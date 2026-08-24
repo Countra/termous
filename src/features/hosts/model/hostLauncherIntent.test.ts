@@ -24,6 +24,7 @@ test('文件启动场景将文件管理提升为主动作', () => {
 test('只有文件功能页默认使用文件启动场景', () => {
   const expectedIntents = {
     workbench: 'terminal',
+    'remote-desktop': 'terminal',
     hosts: 'terminal',
     vault: 'terminal',
     files: 'files',

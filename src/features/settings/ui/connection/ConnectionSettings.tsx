@@ -1,5 +1,5 @@
 import { Switch } from 'antd'
-import { Activity, RotateCw } from 'lucide-react'
+import { Activity, MonitorPlay, RotateCw } from 'lucide-react'
 import { useId, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ConnectionSettings as ConnectionSettingsValue } from '#common/contracts'
@@ -29,6 +29,14 @@ export function ConnectionSettings({ value, disabled, onChange }: ConnectionSett
           checked={value.ssh_keepalive_enabled}
           disabled={disabled}
           onChange={(checked) => void onChange({ ...value, ssh_keepalive_enabled: checked })}
+        />
+        <SettingRow
+          icon={<MonitorPlay size={15} aria-hidden="true" />}
+          title={t('settings.remoteDesktopAutoReconnect')}
+          hint={t('settings.remoteDesktopAutoReconnectHint')}
+          checked={value.remote_desktop_auto_reconnect_enabled}
+          disabled={disabled}
+          onChange={(checked) => void onChange({ ...value, remote_desktop_auto_reconnect_enabled: checked })}
         />
         <SettingRow
           icon={<RotateCw size={15} aria-hidden="true" />}

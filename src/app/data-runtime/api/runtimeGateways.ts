@@ -3,6 +3,7 @@ import type { AliasGateway } from '#features/alias'
 import type { CommandDispatchGateway } from '#features/command-dispatch'
 import type { FileGateway } from '#features/files'
 import type { McpAccessGateway } from '#features/mcp-access'
+import { RemoteDesktopClient, type RemoteDesktopGateway } from '#features/remote-desktop'
 import type { TerminalGateway } from '#features/terminal'
 import type { TermousApiTransport } from '#shared/api'
 import { getTermousBridge } from '#shared/bridge'
@@ -59,6 +60,7 @@ export interface RuntimeGateways {
   readonly terminal: TerminalGateway
   readonly commandDispatch: CommandDispatchGateway
   readonly mcpAccess: McpAccessGateway
+  readonly remoteDesktop: RemoteDesktopGateway
   readonly snapshot: AppDataSnapshotGateway
 }
 
@@ -88,6 +90,7 @@ export function createRuntimeGatewaysFromConfig(
   const fileSearch = new FileSearchClient(config)
   const transfers = new TransferClient(config)
   const dataPortability = new DataPortabilityClient(config)
+  const remoteDesktop = new RemoteDesktopClient(config)
 
   return {
     runtime,
@@ -119,6 +122,7 @@ export function createRuntimeGatewaysFromConfig(
     terminal: createTerminalGateway(settings, sessions),
     commandDispatch,
     mcpAccess,
+    remoteDesktop,
     snapshot: createAppDataSnapshotGateway({
       settings,
       snippets,
@@ -128,6 +132,7 @@ export function createRuntimeGatewaysFromConfig(
       credentials,
       sessions,
       fileSessions,
+      remoteDesktop,
     }),
   }
 }
@@ -305,6 +310,7 @@ function createAppDataSnapshotGateway(gateways: {
   credentials: CredentialClient
   sessions: SessionClient
   fileSessions: FileSessionClient
+  remoteDesktop: RemoteDesktopClient
 }): AppDataSnapshotGateway {
   return {
     settings: () => gateways.settings.settings(),
@@ -324,5 +330,7 @@ function createAppDataSnapshotGateway(gateways: {
     fileSessions: () => gateways.fileSessions.fileSessions(),
     forwardProfiles: () => gateways.forwards.forwardProfiles(),
     forwards: () => gateways.forwards.forwards(),
+    remoteDesktopProfiles: () => gateways.remoteDesktop.remoteDesktopProfiles(),
+    remoteDesktopSessions: () => gateways.remoteDesktop.remoteDesktopSessions(),
   }
 }

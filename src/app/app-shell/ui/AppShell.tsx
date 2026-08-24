@@ -5,6 +5,7 @@ import {
   FolderTree,
   Monitor,
   MonitorCog,
+  MonitorPlay,
   PanelLeftClose,
   PanelLeftOpen,
   PlugZap,
@@ -33,6 +34,7 @@ export interface AppShellProps {
   actionBusy: boolean
   onNavigate: (page: PageKey) => void
   onOpenConnectionLauncher: () => void
+  onOpenHostLauncher?: () => void
   onOpenLocalTerminal: (shell: LocalShell) => void
   onToggleSidebar: () => void
   onBeforeClose?: () => Promise<void>
@@ -42,6 +44,7 @@ export interface AppShellProps {
 
 const navItems = [
   { key: 'workbench' as const, icon: TerminalSquare },
+  { key: 'remote-desktop' as const, icon: MonitorPlay },
   { key: 'hosts' as const, icon: Server },
   { key: 'vault' as const, icon: DatabaseZap },
   { key: 'files' as const, icon: FolderTree },
@@ -61,6 +64,7 @@ export function AppShell({
   actionBusy,
   onNavigate,
   onOpenConnectionLauncher,
+  onOpenHostLauncher,
   onOpenLocalTerminal,
   onToggleSidebar,
   onBeforeClose,
@@ -90,7 +94,7 @@ export function AppShell({
 
   const handleConnectionMenuClick: MenuProps['onClick'] = ({ key }) => {
     if (key === 'host') {
-      onOpenConnectionLauncher()
+      (onOpenHostLauncher ?? onOpenConnectionLauncher)()
       return
     }
     if (key === 'powershell' || key === 'cmd') {

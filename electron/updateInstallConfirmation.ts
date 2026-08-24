@@ -184,6 +184,7 @@ export function normalizeRuntimeSummary(value: unknown): UpdateRuntimeSummary {
     : {}
   return {
     ssh_sessions: normalizeCount(record.ssh_sessions),
+    remote_desktop_sessions: normalizeCount(record.remote_desktop_sessions),
     file_sessions: normalizeCount(record.file_sessions),
     forwards: normalizeCount(record.forwards),
     transfers: normalizeCount(record.transfers),
@@ -200,6 +201,7 @@ function normalizeCount(value: unknown) {
 function emptyRuntimeSummary(): UpdateRuntimeSummary {
   return {
     ssh_sessions: 0,
+    remote_desktop_sessions: 0,
     file_sessions: 0,
     forwards: 0,
     transfers: 0,
@@ -226,6 +228,7 @@ function runtimeSummariesEqual(
 ) {
   return (
     left.ssh_sessions === right.ssh_sessions
+    && left.remote_desktop_sessions === right.remote_desktop_sessions
     && left.file_sessions === right.file_sessions
     && left.forwards === right.forwards
     && left.transfers === right.transfers

@@ -13,6 +13,7 @@ function summary(
 ): UpdateRuntimeSummary {
   return {
     ssh_sessions: 0,
+    remote_desktop_sessions: 0,
     file_sessions: 0,
     forwards: 0,
     transfers: 0,

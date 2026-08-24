@@ -34,9 +34,11 @@ test('更新安装影响摘要统计仍会被退出流程中断的远程资源',
     fileSessions,
     forwards,
     sessions,
+    remoteDesktopCount: 2,
     transferSnapshotComplete: true,
   }), {
     ssh_sessions: 3,
+    remote_desktop_sessions: 2,
     file_sessions: 3,
     forwards: 5,
     transfers: 4,
@@ -50,6 +52,7 @@ test('更新安装影响摘要限制异常的传输数量', () => {
     fileSessions: [],
     forwards: [],
     sessions: [],
+    remoteDesktopCount: 0,
     transferSnapshotComplete: false,
   })
   assert.equal(summary.transfers, 0)

@@ -3,6 +3,7 @@ import type { ConnectionSettings } from '#common/contracts'
 export const defaultConnectionSettings: ConnectionSettings = {
   ssh_keepalive_enabled: false,
   forward_auto_reconnect_enabled: false,
+  remote_desktop_auto_reconnect_enabled: true,
 }
 
 export function normalizeConnectionSettings(
@@ -15,6 +16,9 @@ export function normalizeConnectionSettings(
     forward_auto_reconnect_enabled: typeof settings?.forward_auto_reconnect_enabled === 'boolean'
       ? settings.forward_auto_reconnect_enabled
       : defaultConnectionSettings.forward_auto_reconnect_enabled,
+    remote_desktop_auto_reconnect_enabled: typeof settings?.remote_desktop_auto_reconnect_enabled === 'boolean'
+      ? settings.remote_desktop_auto_reconnect_enabled
+      : defaultConnectionSettings.remote_desktop_auto_reconnect_enabled,
   }
 }
 
@@ -24,4 +28,5 @@ export function connectionSettingsEqual(
 ) {
   return left.ssh_keepalive_enabled === right.ssh_keepalive_enabled
     && left.forward_auto_reconnect_enabled === right.forward_auto_reconnect_enabled
+    && left.remote_desktop_auto_reconnect_enabled === right.remote_desktop_auto_reconnect_enabled
 }

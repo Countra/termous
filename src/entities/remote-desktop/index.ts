@@ -1,0 +1,16 @@
+export type {
+  RemoteDesktopAttachTicket,
+  RemoteDesktopDisplayMode,
+  RemoteDesktopProfile,
+  RemoteDesktopProfileInput,
+  RemoteDesktopProtocol,
+  RemoteDesktopSession,
+  RemoteDesktopSessionEvent,
+  RemoteDesktopSessionPhase,
+  RemoteDesktopSessionStatus,
+  RemoteDesktopTelemetryEvent,
+  RemoteDesktopTransport,
+  VncCredentials,
+  VncCredentialType,
+  VncProfileSettings,
+} from './model/types.ts'

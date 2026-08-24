@@ -1,0 +1,28 @@
+.parking {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.surface {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--remote-desktop-canvas-bg, #090c11);
+  contain: layout paint;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: none;
+  user-select: none;
+}
+
+.surface > :global(div) {
+  width: 100%;
+  height: 100%;
+}

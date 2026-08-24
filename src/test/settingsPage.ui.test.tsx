@@ -248,6 +248,7 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
       connectionSettings={{
         ssh_keepalive_enabled: false,
         forward_auto_reconnect_enabled: false,
+        remote_desktop_auto_reconnect_enabled: true,
       }}
       shortcutSettings={{ schema_version: 1, overrides: {} }}
       windowSettings={{ close_behavior: 'exit' }}
@@ -320,6 +321,7 @@ describe('设置页面装配合同', () => {
     expect(handlers.onConnectionSettingsChange).toHaveBeenCalledWith({
       ssh_keepalive_enabled: true,
       forward_auto_reconnect_enabled: false,
+      remote_desktop_auto_reconnect_enabled: true,
     })
 
     await user.click(screen.getByRole('tab', { name: 'settings.tabShortcuts' }))

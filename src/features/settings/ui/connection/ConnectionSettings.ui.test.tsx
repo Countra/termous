@@ -11,6 +11,7 @@ vi.mock('react-i18next', () => ({
 const settings: ConnectionSettingsValue = {
   ssh_keepalive_enabled: false,
   forward_auto_reconnect_enabled: false,
+  remote_desktop_auto_reconnect_enabled: true,
 }
 
 test('连接可靠性开关分别提交完整设置', async () => {
@@ -24,6 +25,7 @@ test('连接可靠性开关分别提交完整设置', async () => {
   expect(onChange).toHaveBeenLastCalledWith({
     ssh_keepalive_enabled: true,
     forward_auto_reconnect_enabled: false,
+    remote_desktop_auto_reconnect_enabled: true,
   })
 
   const keepaliveEnabled = { ...settings, ssh_keepalive_enabled: true }
@@ -34,6 +36,18 @@ test('连接可靠性开关分别提交完整设置', async () => {
   expect(onChange).toHaveBeenLastCalledWith({
     ssh_keepalive_enabled: true,
     forward_auto_reconnect_enabled: true,
+    remote_desktop_auto_reconnect_enabled: true,
+  })
+
+  const forwardsEnabled = { ...keepaliveEnabled, forward_auto_reconnect_enabled: true }
+  rerender(
+    <ConnectionSettings value={forwardsEnabled} disabled={false} onChange={onChange} />,
+  )
+  await user.click(screen.getByRole('switch', { name: 'settings.remoteDesktopAutoReconnect' }))
+  expect(onChange).toHaveBeenLastCalledWith({
+    ssh_keepalive_enabled: true,
+    forward_auto_reconnect_enabled: true,
+    remote_desktop_auto_reconnect_enabled: false,
   })
 })
 
@@ -42,6 +56,7 @@ test('全局操作繁忙时禁用连接可靠性开关', () => {
 
   expect(screen.getByRole('switch', { name: 'settings.sshKeepalive' })).toBeDisabled()
   expect(screen.getByRole('switch', { name: 'settings.forwardAutoReconnect' })).toBeDisabled()
+  expect(screen.getByRole('switch', { name: 'settings.remoteDesktopAutoReconnect' })).toBeDisabled()
 })
 
 test('连接可靠性开关关联各自的行为说明', () => {
@@ -51,4 +66,6 @@ test('连接可靠性开关关联各自的行为说明', () => {
     .toHaveAccessibleDescription('settings.sshKeepaliveHint')
   expect(screen.getByRole('switch', { name: 'settings.forwardAutoReconnect' }))
     .toHaveAccessibleDescription('settings.forwardAutoReconnectHint')
+  expect(screen.getByRole('switch', { name: 'settings.remoteDesktopAutoReconnect' }))
+    .toHaveAccessibleDescription('settings.remoteDesktopAutoReconnectHint')
 })

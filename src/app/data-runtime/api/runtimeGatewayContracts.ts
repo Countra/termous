@@ -42,6 +42,7 @@ import type {
   HostReachability,
 } from '#entities/host'
 import type { LocalShell, Session } from '#entities/session'
+import type { RemoteDesktopProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import type {
   CodeSnippet,
   CodeSnippetGroup,
@@ -68,6 +69,8 @@ export interface AppDataSnapshotGateway {
   fileSessions: () => Promise<FileSession[]>
   forwardProfiles: () => Promise<ForwardProfile[]>
   forwards: () => Promise<ForwardInstance[]>
+  remoteDesktopProfiles: () => Promise<RemoteDesktopProfile[]>
+  remoteDesktopSessions: () => Promise<RemoteDesktopSession[]>
 }
 
 export interface CredentialCommandGateway {

@@ -50,6 +50,8 @@ const testState = vi.hoisted(() => {
       fileSessions: [],
       forwardProfiles: [],
       forwards: [],
+      remoteDesktopProfiles: [],
+      remoteDesktopSessions: [],
       snippetGroups: [],
       snippets: [],
       fileBookmarkGroups: [],
@@ -157,6 +159,12 @@ vi.mock('#features/mcp-access', () => ({
     <div data-provider="mcp-access">{children}</div>
   ),
   McpApprovalCoordinator: () => null,
+}))
+
+vi.mock('#features/remote-desktop', () => ({
+  RemoteDesktopRuntimeProvider: ({ children }: { children: ReactNode }) => (
+    <div data-provider="remote-desktop">{children}</div>
+  ),
 }))
 
 vi.mock('#app/app-shell', () => ({
@@ -360,6 +368,7 @@ vi.mock('#app/data-runtime', () => ({
       dataPortability: {},
       commandDispatch: {},
       mcpAccess: {},
+      remoteDesktop: {},
     },
     data: testState.data,
     initializing: false,
@@ -417,6 +426,7 @@ describe('应用运行时组合合同', () => {
       'terminal',
       'command-dispatch',
       'mcp-access',
+      'remote-desktop',
       'app-shell',
     ]
     const actualOrder: string[] = []

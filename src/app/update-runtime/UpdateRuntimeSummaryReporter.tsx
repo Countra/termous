@@ -12,6 +12,7 @@ interface UpdateRuntimeSummaryReporterProps {
   fileSessions: FileSession[]
   forwards: ForwardInstance[]
   sessions: Session[]
+  remoteDesktopCount: number
 }
 
 export function UpdateRuntimeSummaryReporter({
@@ -19,6 +20,7 @@ export function UpdateRuntimeSummaryReporter({
   fileSessions,
   forwards,
   sessions,
+  remoteDesktopCount,
 }: UpdateRuntimeSummaryReporterProps) {
   const { activeTransfers, initialized } = useTransferRuntime()
   const publisherRef = useRef<UpdateRuntimeSummaryPublisher | null>(null)
@@ -29,8 +31,9 @@ export function UpdateRuntimeSummaryReporter({
     fileSessions,
     forwards,
     sessions,
+    remoteDesktopCount,
     transferSnapshotComplete: apiReady && initialized,
-  }), [activeTransfers.length, apiReady, fileSessions, forwards, initialized, sessions])
+  }), [activeTransfers.length, apiReady, fileSessions, forwards, initialized, remoteDesktopCount, sessions])
   const summaryRef = useRef(summary)
   summaryRef.current = summary
   const bridge = getTermousBridge()?.updates

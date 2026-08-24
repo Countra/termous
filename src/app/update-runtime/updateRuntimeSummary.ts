@@ -8,6 +8,7 @@ export function buildUpdateRuntimeSummary(input: {
   fileSessions: FileSession[]
   forwards: ForwardInstance[]
   sessions: Session[]
+  remoteDesktopCount: number
   transferSnapshotComplete: boolean
 }): UpdateRuntimeSummary {
   return {
@@ -19,6 +20,7 @@ export function buildUpdateRuntimeSummary(input: {
         || session.status === 'connected'
       )
     )).length),
+    remote_desktop_sessions: clampRuntimeCount(input.remoteDesktopCount),
     file_sessions: clampRuntimeCount(input.fileSessions.filter((session) => (
       session.status === 'connecting'
       || session.status === 'connected'

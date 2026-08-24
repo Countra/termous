@@ -25,6 +25,29 @@
   ],
   "extraFiles": [
     {
+      "from": "THIRD_PARTY_NOTICES.txt",
+      "to": "THIRD_PARTY_NOTICES.txt"
+    },
+    {
+      "from": "node_modules/@novnc/novnc/LICENSE.txt",
+      "to": "licenses/noVNC-LICENSE.txt"
+    },
+    {
+      "from": "node_modules/@novnc/novnc/AUTHORS",
+      "to": "licenses/noVNC-AUTHORS.txt"
+    },
+    {
+      "from": "node_modules/@novnc/novnc/docs",
+      "to": "licenses/noVNC",
+      "filter": [
+        "LICENSE*"
+      ]
+    },
+    {
+      "from": "node_modules/@novnc/novnc/vendor/pako/LICENSE",
+      "to": "licenses/noVNC-pako-LICENSE.txt"
+    },
+    {
       "from": "build/core",
       "to": ".",
       "filter": [

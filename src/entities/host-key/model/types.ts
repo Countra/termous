@@ -3,7 +3,7 @@ export interface HostKeyEndpoint {
   port: number
 }
 
-export type HostKeyConsumerType = 'session' | 'sftp' | 'forward' | 'alias_sync'
+export type HostKeyConsumerType = 'session' | 'sftp' | 'forward' | 'alias_sync' | 'remote_desktop'
 export type HostKeyEndpointRole = 'target' | 'jump'
 export type HostKeyChallengeReason = 'unknown' | 'changed'
 export type HostKeyChallengeState = 'pending' | 'trusted' | 'replaced' | 'rejected' | 'expired' | 'cancelled'

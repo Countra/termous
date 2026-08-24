@@ -39,6 +39,7 @@ function downloadedSnapshot(
 function markSummaryReady(authority: UpdateInstallConfirmationAuthority) {
   authority.updateSummary({
     ssh_sessions: 0,
+    remote_desktop_sessions: 0,
     file_sessions: 0,
     forwards: 0,
     transfers: 0,
@@ -53,6 +54,7 @@ test('确认令牌绑定下载状态、代际和活动摘要且只能使用一�
   })
   authority.updateSummary({
     ssh_sessions: 2,
+    remote_desktop_sessions: 1,
     file_sessions: 3,
     forwards: 4,
     transfers: 5,
@@ -64,6 +66,7 @@ test('确认令牌绑定下载状态、代际和活动摘要且只能使用一�
   assert.equal(confirmation.confirmation_token, 'confirmation-token')
   assert.deepEqual(confirmation.summary, {
     ssh_sessions: 2,
+    remote_desktop_sessions: 1,
     file_sessions: 3,
     forwards: 4,
     transfers: 5,
@@ -89,6 +92,7 @@ test('活动摘要变化会使旧确认失效并要求重新确认', () => {
   const snapshot = downloadedSnapshot()
   authority.updateSummary({
     ssh_sessions: 0,
+    remote_desktop_sessions: 0,
     file_sessions: 0,
     forwards: 0,
     transfers: 0,
@@ -98,6 +102,7 @@ test('活动摘要变化会使旧确认失效并要求重新确认', () => {
 
   authority.updateSummary({
     ssh_sessions: 1,
+    remote_desktop_sessions: 0,
     file_sessions: 0,
     forwards: 0,
     transfers: 0,
@@ -125,6 +130,7 @@ test('活动摘要未完成对账时拒绝签发安装确认', () => {
   assert.throws(() => authority.issue(snapshot), /update_install_not_ready/)
   authority.updateSummary({
     ssh_sessions: 1,
+    remote_desktop_sessions: 0,
     file_sessions: 0,
     forwards: 0,
     transfers: 0,
@@ -288,11 +294,13 @@ test('安装准备或安装器启动失败后可重新签发安装确认', () =>
 test('活动摘要仅接受有限的非负安全整数', () => {
   assert.deepEqual(normalizeRuntimeSummary({
     ssh_sessions: -1,
+    remote_desktop_sessions: 2,
     file_sessions: Number.POSITIVE_INFINITY,
     forwards: 100_001,
     transfers: 7,
   }), {
     ssh_sessions: 0,
+    remote_desktop_sessions: 2,
     file_sessions: 0,
     forwards: 100_000,
     transfers: 7,

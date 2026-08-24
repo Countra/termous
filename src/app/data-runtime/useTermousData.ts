@@ -73,6 +73,7 @@ import { createFileCatalogCommands } from './commands/fileCatalogCommands'
 import { createFileSessionCommands } from './commands/fileSessionCommands'
 import { createForwardCommands } from './commands/forwardCommands'
 import { createForwardProfileCommands } from './commands/forwardProfileCommands'
+import { createRemoteDesktopProfileCommands } from './commands/remoteDesktopProfileCommands'
 import { createHostCommands } from './commands/hostCommands'
 import { createSessionCommands } from './commands/sessionCommands'
 import { createSettingsCommands } from './commands/settingsCommands'
@@ -282,6 +283,8 @@ export function useTermousData() {
         fileSessions,
         forwardProfiles,
         forwards,
+        remoteDesktopProfiles,
+        remoteDesktopSessions,
       ] = await loadAppDataSnapshot(runtimeGateways.snapshot)
       if (loadRevision !== loadRevisionRef.current) {
         return
@@ -385,6 +388,8 @@ export function useTermousData() {
             forwards ?? [],
             changedForwardIds,
           ),
+          remoteDesktopProfiles: remoteDesktopProfiles ?? [],
+          remoteDesktopSessions: remoteDesktopSessions ?? [],
           snippetGroups: canApplyReloadedSnippets
             ? sortCodeSnippetGroups(snippetGroups ?? [])
             : current.snippetGroups,
@@ -713,6 +718,7 @@ export function useTermousData() {
       ...createSnippetCommands(gateways.snippets, setData),
       ...createFileCatalogCommands(gateways.fileCatalog, setData),
       ...createForwardProfileCommands(gateways.forwards, setData),
+      ...createRemoteDesktopProfileCommands(gateways.remoteDesktop, setData),
       ...createForwardCommands({
         api: gateways.forwards,
         forwards: data.forwards,

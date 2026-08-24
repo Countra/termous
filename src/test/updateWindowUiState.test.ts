@@ -336,6 +336,7 @@ test('安装确认在已下载和可重试安装错误状态保持有效', () =>
     summary_revision: 1,
     summary: {
       ssh_sessions: 1,
+      remote_desktop_sessions: 0,
       file_sessions: 0,
       forwards: 0,
       transfers: 0,
@@ -385,6 +386,7 @@ test('安装动作保持简洁，活动连接由状态区单独警告', () => {
     summary_revision: 1,
     summary: {
       ssh_sessions: 1,
+      remote_desktop_sessions: 0,
       file_sessions: 0,
       forwards: 0,
       transfers: 0,
@@ -405,6 +407,7 @@ test('安装动作保持简洁，活动连接由状态区单独警告', () => {
   assert.equal(hasUpdateInstallInterruption(confirmation.summary), true)
   assert.equal(hasUpdateInstallInterruption({
     ssh_sessions: 0,
+    remote_desktop_sessions: 0,
     file_sessions: 0,
     forwards: 0,
     transfers: 0,
@@ -412,6 +415,15 @@ test('安装动作保持简洁，活动连接由状态区单独警告', () => {
   }), false)
   assert.equal(hasUpdateInstallInterruption({
     ssh_sessions: 0,
+    remote_desktop_sessions: 1,
+    file_sessions: 0,
+    forwards: 0,
+    transfers: 0,
+    transfers_complete: true,
+  }), true)
+  assert.equal(hasUpdateInstallInterruption({
+    ssh_sessions: 0,
+    remote_desktop_sessions: 0,
     file_sessions: 0,
     forwards: 0,
     transfers: 0,

@@ -42,6 +42,8 @@ export const initialData: AppData = {
   fileSessions: [],
   forwardProfiles: [],
   forwards: [],
+  remoteDesktopProfiles: [],
+  remoteDesktopSessions: [],
   snippetGroups: [],
   snippets: [],
   fileBookmarkGroups: [],

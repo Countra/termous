@@ -84,6 +84,7 @@ test('连接设置提交失败时恢复最近一次已确认的状态', async ()
   const connection = {
     ssh_keepalive_enabled: true,
     forward_auto_reconnect_enabled: false,
+    remote_desktop_auto_reconnect_enabled: true,
   }
   const mutation = harness.commands.setConnectionSettings(connection)
 
@@ -98,10 +99,12 @@ test('较早的连接设置失败不会回退较新的乐观写入', async () =>
   const connectionA: ConnectionSettings = {
     ssh_keepalive_enabled: true,
     forward_auto_reconnect_enabled: false,
+    remote_desktop_auto_reconnect_enabled: true,
   }
   const connectionB: ConnectionSettings = {
     ssh_keepalive_enabled: true,
     forward_auto_reconnect_enabled: true,
+    remote_desktop_auto_reconnect_enabled: true,
   }
   let calls = 0
   const harness = createHarness({
@@ -128,10 +131,12 @@ test('最新连接设置失败时回退到最近一次服务端确认值', async
   const connectionA: ConnectionSettings = {
     ssh_keepalive_enabled: true,
     forward_auto_reconnect_enabled: false,
+    remote_desktop_auto_reconnect_enabled: true,
   }
   const connectionB: ConnectionSettings = {
     ssh_keepalive_enabled: true,
     forward_auto_reconnect_enabled: true,
+    remote_desktop_auto_reconnect_enabled: true,
   }
   let calls = 0
   const harness = createHarness({

@@ -44,6 +44,8 @@ describe('主机图标数据合同', () => {
       fileSessions: [],
       forwardProfiles: [],
       forwards: [],
+      remoteDesktopProfiles: [],
+      remoteDesktopSessions: [],
     }
     const gateway = Object.fromEntries(Object.entries(values).map(([key, value]) => [
       key,

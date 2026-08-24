@@ -13,6 +13,7 @@ import {
 import { isForwardRestartCompleted } from '#features/forwards'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
+import { RemoteDesktopPage } from '#pages/remote-desktop'
 import { SettingsPage } from '#pages/settings'
 import { snippetToInput } from '#entities/snippet'
 import { SnippetsPage, type SnippetsPageProps } from '#pages/snippets'
@@ -28,6 +29,7 @@ import { WorkbenchPage, type WorkbenchPageProps } from '#widgets/workbench'
 import { TransferRuntimeProvider } from '#app/transfer-runtime'
 import { useTermousData } from '#app/data-runtime'
 import { TerminalRuntimeProvider } from '#features/terminal'
+import { RemoteDesktopRuntimeProvider } from '#features/remote-desktop'
 import { CommandDispatchRuntimeProvider } from '#features/command-dispatch'
 import { McpAccessRuntimeProvider, McpApprovalCoordinator } from '#features/mcp-access'
 import {
@@ -222,6 +224,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
   const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
+  const [remoteDesktopLauncherOpen, setRemoteDesktopLauncherOpen] = useState(false)
+  const [activeRemoteDesktopCount, setActiveRemoteDesktopCount] = useState(0)
 
   const invalidateFilesBookmarkManagementRequest = useCallback(() => {
     nextFilesBookmarkManagementIntentIdRef.current += 1
@@ -854,6 +858,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             sessions={data.sessions}
             fileSessions={data.fileSessions}
             forwards={data.forwards}
+            remoteDesktopCount={activeRemoteDesktopCount}
           />
           <TerminalRuntimeProvider
             api={gateways.terminal}
@@ -871,231 +876,255 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                   api={gateways.files}
                   fileSessions={data.fileSessions}
                 >
-                  <AppShell
-                  page={page}
-                  appVersion={appVersion}
-                  windowCloseBehavior={data.settings.window.close_behavior}
-                  sidebarCollapsed={sidebarCollapsed}
-                  actionBusy={actionBusy}
-                  onNavigate={navigateToPage}
-                  onOpenConnectionLauncher={openContextualHostLauncher}
-                  onOpenLocalTerminal={openLocalTerminalFromTopbar}
-                  onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
-                  onBeforeClose={shutdownBeforeClose}
-                  onCloseError={showActionError}
-                >
-        <div
-          className={`${styles['app-keepalive-page']} ${page === 'workbench' ? styles['is-active'] : styles['is-hidden']}`}
-          inert={page !== 'workbench'}
-        >
-          <WorkbenchPage
-            fileGateway={gateways.files}
-            observabilityGateway={gateways.observability}
-            serviceGateway={gateways.service}
-            crontabGateway={gateways.crontab}
-            dockerGateway={gateways.docker}
-            firewallGateway={gateways.firewall}
-            aliasGateway={gateways.alias}
-            getHostIconUrl={getHostIconUrl}
-            hostView={hostLauncherData}
-            sessionView={workbenchSessionView}
-            filesView={workbenchFilesView}
-            forwards={data.forwards}
-            snippetView={snippetManagementData}
-            fileSessionClosures={fileSessionClosures}
-            theme={theme}
-            active={page === 'workbench'}
-            selectedHostId={selectedHostIdStable}
-            activeSession={activeSession}
-            actionBusy={actionBusy}
-            onOpenConnectionLauncher={openTerminalSessionLauncher}
-            onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
-            onSelectSession={actions.selectSession}
-            onDisconnect={async (sessionId) => (
-              await runAction(async () => {
-                await actions.disconnect(sessionId)
-                return true
-              })
-            ) === true}
-            onRefreshInventory={actions.refreshSessionInventory}
-            onOpenFiles={openFilesFromSession}
-            onManageBookmarks={openFileBookmarksFromSession}
-            onConnectFileSession={actions.connectFileSession}
-            onReconnectFileSession={actions.reconnectFileSession}
-            onUpdateFileSession={actions.updateFileSession}
-            onCreateFileBookmark={actions.createFileBookmark}
-            onUpdateFileBookmark={actions.updateFileBookmark}
-            onSnippetUsed={(snippetId) => runAction(
-              () => actions.markCodeSnippetUsed(snippetId).then(() => undefined),
-            ).then(() => undefined)}
-            onToggleSnippetFavorite={toggleCodeSnippetFavorite}
-            onStartForward={(input) => actions.startForward(input)}
-            onRestartForward={restartForward}
-            onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
-          />
-        </div>
+                  <RemoteDesktopRuntimeProvider
+                    api={gateways.remoteDesktop}
+                    enabled={apiReady && !coreFatal}
+                    profiles={data.remoteDesktopProfiles}
+                    initialSessions={data.remoteDesktopSessions}
+                    onSessionCountChange={setActiveRemoteDesktopCount}
+                  >
+                    <AppShell
+                      page={page}
+                      appVersion={appVersion}
+                      windowCloseBehavior={data.settings.window.close_behavior}
+                      sidebarCollapsed={sidebarCollapsed}
+                      actionBusy={actionBusy}
+                      onNavigate={navigateToPage}
+                      onOpenConnectionLauncher={page === 'remote-desktop'
+                        ? () => setRemoteDesktopLauncherOpen(true)
+                        : openContextualHostLauncher}
+                      onOpenHostLauncher={openContextualHostLauncher}
+                      onOpenLocalTerminal={openLocalTerminalFromTopbar}
+                      onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+                      onBeforeClose={shutdownBeforeClose}
+                      onCloseError={showActionError}
+                    >
+                      <div
+                        className={`${styles['app-keepalive-page']} ${page === 'workbench' ? styles['is-active'] : styles['is-hidden']}`}
+                        inert={page !== 'workbench'}
+                      >
+                        <WorkbenchPage
+                          fileGateway={gateways.files}
+                          observabilityGateway={gateways.observability}
+                          serviceGateway={gateways.service}
+                          crontabGateway={gateways.crontab}
+                          dockerGateway={gateways.docker}
+                          firewallGateway={gateways.firewall}
+                          aliasGateway={gateways.alias}
+                          getHostIconUrl={getHostIconUrl}
+                          hostView={hostLauncherData}
+                          sessionView={workbenchSessionView}
+                          filesView={workbenchFilesView}
+                          forwards={data.forwards}
+                          snippetView={snippetManagementData}
+                          fileSessionClosures={fileSessionClosures}
+                          theme={theme}
+                          active={page === 'workbench'}
+                          selectedHostId={selectedHostIdStable}
+                          activeSession={activeSession}
+                          actionBusy={actionBusy}
+                          onOpenConnectionLauncher={openTerminalSessionLauncher}
+                          onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
+                          onSelectSession={actions.selectSession}
+                          onDisconnect={async (sessionId) => (
+                            await runAction(async () => {
+                              await actions.disconnect(sessionId)
+                              return true
+                            })
+                          ) === true}
+                          onRefreshInventory={actions.refreshSessionInventory}
+                          onOpenFiles={openFilesFromSession}
+                          onManageBookmarks={openFileBookmarksFromSession}
+                          onConnectFileSession={actions.connectFileSession}
+                          onReconnectFileSession={actions.reconnectFileSession}
+                          onUpdateFileSession={actions.updateFileSession}
+                          onCreateFileBookmark={actions.createFileBookmark}
+                          onUpdateFileBookmark={actions.updateFileBookmark}
+                          onSnippetUsed={(snippetId) => runAction(
+                            () => actions.markCodeSnippetUsed(snippetId).then(() => undefined),
+                          ).then(() => undefined)}
+                          onToggleSnippetFavorite={toggleCodeSnippetFavorite}
+                          onStartForward={(input) => actions.startForward(input)}
+                          onRestartForward={restartForward}
+                          onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
+                        />
+                      </div>
 
-        {page === 'hosts' ? (
-          <HostsPage
-            data={hostManagementData}
-            selectedHostId={selectedHostIdStable}
-            createIntentKey={hostCreateIntentKey}
-            actionBusy={actionBusy}
-            onSelectHost={setSelectedHostId}
-            onSave={saveHost}
-            onDelete={(id) => runAction(async () => {
-              await actions.deleteHost(id)
-              return true
-            })}
-            onCreateGroup={createHostGroup}
-            onRenameGroup={renameHostGroup}
-            onDeleteGroup={(id) => runAction(
-              () => actions.deleteHostGroup(id),
-              t('hosts.groupDeleted'),
-            ).then(() => undefined)}
-            onReorderGroups={reorderHostGroups}
-            onCreateProxy={createConnectionProxy}
-            onUpdateProxy={updateConnectionProxy}
-            onDeleteProxy={(id) => runAction(async () => {
-              await actions.deleteConnectionProxy(id)
-              return true
-            }, t('proxies.deleted'))}
-            onUploadHostIcon={uploadHostIcon}
-            onRenameHostIcon={renameHostIcon}
-            onReorderHostIcons={reorderHostIcons}
-            onDeleteHostIcon={deleteHostIcon}
-            getHostIconUrl={getHostIconUrl}
-          />
-        ) : null}
+                      {page === 'hosts' ? (
+                        <HostsPage
+                          data={hostManagementData}
+                          selectedHostId={selectedHostIdStable}
+                          createIntentKey={hostCreateIntentKey}
+                          actionBusy={actionBusy}
+                          onSelectHost={setSelectedHostId}
+                          onSave={saveHost}
+                          onDelete={(id) => runAction(async () => {
+                            await actions.deleteHost(id)
+                            return true
+                          })}
+                          onCreateGroup={createHostGroup}
+                          onRenameGroup={renameHostGroup}
+                          onDeleteGroup={(id) => runAction(
+                            () => actions.deleteHostGroup(id),
+                            t('hosts.groupDeleted'),
+                          ).then(() => undefined)}
+                          onReorderGroups={reorderHostGroups}
+                          onCreateProxy={createConnectionProxy}
+                          onUpdateProxy={updateConnectionProxy}
+                          onDeleteProxy={(id) => runAction(async () => {
+                            await actions.deleteConnectionProxy(id)
+                            return true
+                          }, t('proxies.deleted'))}
+                          onUploadHostIcon={uploadHostIcon}
+                          onRenameHostIcon={renameHostIcon}
+                          onReorderHostIcons={reorderHostIcons}
+                          onDeleteHostIcon={deleteHostIcon}
+                          getHostIconUrl={getHostIconUrl}
+                        />
+                      ) : null}
 
-        {page === 'vault' ? (
-          <VaultPage
-            credentials={data.credentials}
-            actionBusy={actionBusy}
-            onSave={saveCredential}
-            onDelete={(id) => runAction(async () => {
-              await actions.deleteCredential(id)
-              return true
-            })}
-            onDirtyChange={setVaultDirty}
-            createGateway={createCredentialGateway}
-          />
-        ) : null}
+                      {page === 'vault' ? (
+                        <VaultPage
+                          credentials={data.credentials}
+                          actionBusy={actionBusy}
+                          onSave={saveCredential}
+                          onDelete={(id) => runAction(async () => {
+                            await actions.deleteCredential(id)
+                            return true
+                          })}
+                          onDirtyChange={setVaultDirty}
+                          createGateway={createCredentialGateway}
+                        />
+                      ) : null}
 
-        {page === 'files' ? (
-          <FilesPage
-            fileGateway={gateways.files}
-            getHostIconUrl={getHostIconUrl}
-            data={filesPageData}
-            theme={theme}
-            activeFileSession={activeFileSession}
-            closingFileSessionIds={closingFileSessionIds}
-            bookmarkManagementIntent={filesBookmarkManagementIntent}
-            onConsumeBookmarkManagementIntent={(requestId) => {
-              setFilesBookmarkManagementIntent((current) => (
-                consumeFilesBookmarkManagementIntent(current, requestId)
-              ))
-            }}
-            onOpenFileSession={openFilesForHost}
-            onOpenFileSessionLauncher={openFileSessionLauncher}
-            onConnectFileSession={async (
-              hostId,
-              sourceSessionId,
-              initialPath,
-              replacedFileSessionId,
-            ) => {
-              invalidateFilesBookmarkManagementRequest()
-              const fileSession = await connectAndActivateFileSession(
-                hostId,
-                sourceSessionId,
-                initialPath,
-                replacedFileSessionId,
-              )
-              return fileSession
-            }}
-            onSelectFileSession={(fileSessionId) => {
-              invalidateFilesBookmarkManagementRequest()
-              activateFileSession(fileSessionId)
-            }}
-            onCloseFileSession={closeFileSession}
-            onReconnectFileSession={actions.reconnectFileSession}
-            onUpdateFileSession={actions.updateFileSession}
-            onCreateFileBookmark={actions.createFileBookmark}
-            onUpdateFileBookmark={actions.updateFileBookmark}
-            onDeleteFileBookmark={actions.deleteFileBookmark}
-            onReorderFileBookmarks={actions.reorderFileBookmarks}
-            onCreateFileBookmarkGroup={actions.createFileBookmarkGroup}
-            onUpdateFileBookmarkGroup={actions.updateFileBookmarkGroup}
-            onDeleteFileBookmarkGroup={actions.deleteFileBookmarkGroup}
-            onReorderFileBookmarkGroups={actions.reorderFileBookmarkGroups}
-            onCreateLocalPathMapping={actions.createLocalPathMapping}
-            onUpdateLocalPathMapping={actions.updateLocalPathMapping}
-            onDeleteLocalPathMapping={actions.deleteLocalPathMapping}
-            onReorderLocalPathMappings={actions.reorderLocalPathMappings}
-          />
-        ) : null}
+                      {page === 'files' ? (
+                        <FilesPage
+                          fileGateway={gateways.files}
+                          getHostIconUrl={getHostIconUrl}
+                          data={filesPageData}
+                          theme={theme}
+                          activeFileSession={activeFileSession}
+                          closingFileSessionIds={closingFileSessionIds}
+                          bookmarkManagementIntent={filesBookmarkManagementIntent}
+                          onConsumeBookmarkManagementIntent={(requestId) => {
+                            setFilesBookmarkManagementIntent((current) => (
+                              consumeFilesBookmarkManagementIntent(current, requestId)
+                            ))
+                          }}
+                          onOpenFileSession={openFilesForHost}
+                          onOpenFileSessionLauncher={openFileSessionLauncher}
+                          onConnectFileSession={async (
+                            hostId,
+                            sourceSessionId,
+                            initialPath,
+                            replacedFileSessionId,
+                          ) => {
+                            invalidateFilesBookmarkManagementRequest()
+                            const fileSession = await connectAndActivateFileSession(
+                              hostId,
+                              sourceSessionId,
+                              initialPath,
+                              replacedFileSessionId,
+                            )
+                            return fileSession
+                          }}
+                          onSelectFileSession={(fileSessionId) => {
+                            invalidateFilesBookmarkManagementRequest()
+                            activateFileSession(fileSessionId)
+                          }}
+                          onCloseFileSession={closeFileSession}
+                          onReconnectFileSession={actions.reconnectFileSession}
+                          onUpdateFileSession={actions.updateFileSession}
+                          onCreateFileBookmark={actions.createFileBookmark}
+                          onUpdateFileBookmark={actions.updateFileBookmark}
+                          onDeleteFileBookmark={actions.deleteFileBookmark}
+                          onReorderFileBookmarks={actions.reorderFileBookmarks}
+                          onCreateFileBookmarkGroup={actions.createFileBookmarkGroup}
+                          onUpdateFileBookmarkGroup={actions.updateFileBookmarkGroup}
+                          onDeleteFileBookmarkGroup={actions.deleteFileBookmarkGroup}
+                          onReorderFileBookmarkGroups={actions.reorderFileBookmarkGroups}
+                          onCreateLocalPathMapping={actions.createLocalPathMapping}
+                          onUpdateLocalPathMapping={actions.updateLocalPathMapping}
+                          onDeleteLocalPathMapping={actions.deleteLocalPathMapping}
+                          onReorderLocalPathMappings={actions.reorderLocalPathMappings}
+                        />
+                      ) : null}
 
-        {page === 'forwards' ? (
-          <ForwardsPage
-            data={forwardManagementData}
-            actionBusy={actionBusy}
-            temporaryIntent={forwardTemporaryIntent}
-            onCreateProfile={(input) => actions.createForwardProfile(input)}
-            onUpdateProfile={(id, input) => actions.updateForwardProfile(id, input)}
-            onDeleteProfile={(id) => runAction(() => actions.deleteForwardProfile(id))}
-            onStartForward={(input) => actions.startForward(input)}
-            onRestartForward={restartForward}
-            onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
-          />
-        ) : null}
+                      {page === 'forwards' ? (
+                        <ForwardsPage
+                          data={forwardManagementData}
+                          actionBusy={actionBusy}
+                          temporaryIntent={forwardTemporaryIntent}
+                          onCreateProfile={(input) => actions.createForwardProfile(input)}
+                          onUpdateProfile={(id, input) => actions.updateForwardProfile(id, input)}
+                          onDeleteProfile={(id) => runAction(() => actions.deleteForwardProfile(id))}
+                          onStartForward={(input) => actions.startForward(input)}
+                          onRestartForward={restartForward}
+                          onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
+                        />
+                      ) : null}
 
-        {page === 'snippets' ? (
-          <SnippetsPage
-            data={snippetManagementData}
-            actionBusy={actionBusy}
-            onSave={saveCodeSnippet}
-            onDelete={(id) => runAction(async () => {
-              await actions.deleteCodeSnippet(id)
-              return true
-            })}
-            onCreateGroup={createCodeSnippetGroup}
-            onRenameGroup={renameCodeSnippetGroup}
-            onDeleteGroup={(id) => runAction(
-              () => actions.deleteCodeSnippetGroup(id),
-              t('snippets.groupDeleted'),
-            )}
-            onReorderGroups={reorderCodeSnippetGroups}
-          />
-        ) : null}
+                      {page === 'snippets' ? (
+                        <SnippetsPage
+                          data={snippetManagementData}
+                          actionBusy={actionBusy}
+                          onSave={saveCodeSnippet}
+                          onDelete={(id) => runAction(async () => {
+                            await actions.deleteCodeSnippet(id)
+                            return true
+                          })}
+                          onCreateGroup={createCodeSnippetGroup}
+                          onRenameGroup={renameCodeSnippetGroup}
+                          onDeleteGroup={(id) => runAction(
+                            () => actions.deleteCodeSnippetGroup(id),
+                            t('snippets.groupDeleted'),
+                          )}
+                          onReorderGroups={reorderCodeSnippetGroups}
+                        />
+                      ) : null}
 
-        {page === 'settings' ? (
-          <SettingsPage
-            language={data.settings.language}
-            appearanceSettings={data.settings.appearance}
-            terminalSettings={data.settings.terminal}
-            sshSmoothScrollEnabled={sshSmoothScrollEnabled}
-            completionSettings={data.settings.completion}
-            connectionSettings={data.settings.connection}
-            shortcutSettings={data.settings.shortcuts}
-            windowSettings={data.settings.window}
-            terminalFonts={data.terminalFonts}
-            appVersion={appVersion}
-            dataPortabilityGateway={gateways.dataPortability}
-            updatePreferencesRuntime={updatePreferencesRuntime}
-            actionBusy={actionBusy}
-            onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
-            onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
-            onTerminalSettingsChange={saveTerminalSettings}
-            onSshSmoothScrollChange={setSshSmoothScrollEnabled}
-            onCompletionSettingsChange={saveCompletionSettings}
-            onConnectionSettingsChange={saveConnectionSettings}
-            onShortcutSettingsChange={saveShortcutSettings}
-            onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
-            onUploadTerminalFont={uploadTerminalFont}
-            onDeleteTerminalFont={deleteTerminalFont}
-          />
-        ) : null}
-                  </AppShell>
+                      {page === 'settings' ? (
+                        <SettingsPage
+                          language={data.settings.language}
+                          appearanceSettings={data.settings.appearance}
+                          terminalSettings={data.settings.terminal}
+                          sshSmoothScrollEnabled={sshSmoothScrollEnabled}
+                          completionSettings={data.settings.completion}
+                          connectionSettings={data.settings.connection}
+                          shortcutSettings={data.settings.shortcuts}
+                          windowSettings={data.settings.window}
+                          terminalFonts={data.terminalFonts}
+                          appVersion={appVersion}
+                          dataPortabilityGateway={gateways.dataPortability}
+                          updatePreferencesRuntime={updatePreferencesRuntime}
+                          actionBusy={actionBusy}
+                          onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}
+                          onAppearanceSettingsChange={(appearance) => runAction(() => actions.setAppearanceSettings(appearance))}
+                          onTerminalSettingsChange={saveTerminalSettings}
+                          onSshSmoothScrollChange={setSshSmoothScrollEnabled}
+                          onCompletionSettingsChange={saveCompletionSettings}
+                          onConnectionSettingsChange={saveConnectionSettings}
+                          onShortcutSettingsChange={saveShortcutSettings}
+                          onWindowSettingsChange={(windowSettings) => runAction(() => actions.setWindowSettings(windowSettings))}
+                          onUploadTerminalFont={uploadTerminalFont}
+                          onDeleteTerminalFont={deleteTerminalFont}
+                        />
+                      ) : null}
+
+                      {page === 'remote-desktop' ? (
+                        <RemoteDesktopPage
+                          profiles={data.remoteDesktopProfiles}
+                          hosts={data.hosts}
+                          actionBusy={actionBusy}
+                          launcherOpen={remoteDesktopLauncherOpen}
+                          onLauncherOpenChange={setRemoteDesktopLauncherOpen}
+                          onCreateProfile={actions.createRemoteDesktopProfile}
+                          onUpdateProfile={actions.updateRemoteDesktopProfile}
+                          onDeleteProfile={actions.deleteRemoteDesktopProfile}
+                        />
+                      ) : null}
+                    </AppShell>
+                  </RemoteDesktopRuntimeProvider>
                   <McpApprovalCoordinator blocked={hostKeyApprovalBlocking} />
                 </GlobalFileSearchRuntimeProvider>
               </McpAccessRuntimeProvider>

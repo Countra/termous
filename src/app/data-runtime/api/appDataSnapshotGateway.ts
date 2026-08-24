@@ -19,5 +19,7 @@ export function loadAppDataSnapshot(api: AppDataSnapshotGateway) {
     api.fileSessions(),
     api.forwardProfiles(),
     api.forwards(),
+    api.remoteDesktopProfiles(),
+    api.remoteDesktopSessions(),
   ])
 }

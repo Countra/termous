@@ -18,11 +18,13 @@ test('连接可靠性开关的显式值不会被兼容默认值覆盖', () => {
     connection: {
       ssh_keepalive_enabled: true,
       forward_auto_reconnect_enabled: true,
+      remote_desktop_auto_reconnect_enabled: false,
     },
   })
 
   assert.deepEqual(settings.connection, {
     ssh_keepalive_enabled: true,
     forward_auto_reconnect_enabled: true,
+    remote_desktop_auto_reconnect_enabled: false,
   })
 })

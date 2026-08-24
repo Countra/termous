@@ -9,6 +9,7 @@ import type {
 } from '#entities/file'
 import type { ForwardInstance, ForwardProfile } from '#entities/forward'
 import type { Host, HostGroup, HostIcon, HostReachability } from '#entities/host'
+import type { RemoteDesktopProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import type { CodeSnippet, CodeSnippetGroup } from '#entities/snippet'
 import type { Session } from './sessionTypes'
 
@@ -22,6 +23,8 @@ export interface AppData {
   fileSessions: FileSession[]
   forwardProfiles: ForwardProfile[]
   forwards: ForwardInstance[]
+  remoteDesktopProfiles: RemoteDesktopProfile[]
+  remoteDesktopSessions: RemoteDesktopSession[]
   snippetGroups: CodeSnippetGroup[]
   snippets: CodeSnippet[]
   fileBookmarkGroups: FileBookmarkGroup[]
