@@ -231,6 +231,31 @@ describe('HostKeyCoordinator 行为合同', () => {
     expect(hostKeyChallenges).toHaveBeenCalledTimes(3)
   })
 
+  it('Host Key 事件兼容可选 SSH Profile 身份', async () => {
+    const current = challenge('profile-context')
+    current.contexts = [{
+      consumer_type: 'session',
+      consumer_id: 'session-profile-context',
+      host_id: 'host-profile-context',
+      ssh_profile_id: 'ssh-profile-context',
+      role: 'target',
+    }]
+    const api = gateway({ hostKeyChallenges: vi.fn(async () => snapshot(0, [])) })
+
+    render(<HostKeyCoordinator api={api} enabled hosts={[]} />)
+    await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1))
+    await act(async () => {
+      FakeWebSocket.instances[0].message({
+        instance_id: 'core-a',
+        snapshot_revision: 1,
+        type: 'challenge_upsert',
+        challenge: current,
+      })
+    })
+
+    expect(await screen.findByText('SHA256:profile-context')).toBeInTheDocument()
+  })
+
   it.each([
     ['HOST_KEY_CHALLENGE_STALE', 409],
     ['HOST_KEY_CHALLENGE_EXPIRED', 409],

@@ -323,6 +323,11 @@ function parseHostKeyEvent(value: string): HostKeyEvent | null {
     if (!event || typeof event.instance_id !== 'string' || !Number.isSafeInteger(event.snapshot_revision)) {
       return null
     }
+    if (event.challenge?.contexts.some((context) => (
+      context.ssh_profile_id !== undefined && typeof context.ssh_profile_id !== 'string'
+    ))) {
+      return null
+    }
     return event
   } catch {
     return null
@@ -339,7 +344,7 @@ function isReconciliationError(error: unknown) {
 }
 
 function contextKey(context: HostKeyObservationContext) {
-  return `${context.consumer_type}:${context.consumer_id}:${context.role}:${context.host_id ?? ''}`
+  return `${context.consumer_type}:${context.consumer_id}:${context.role}:${context.host_id ?? ''}:${context.ssh_profile_id ?? ''}`
 }
 
 function formatEndpoint(challenge: HostKeyChallenge) {

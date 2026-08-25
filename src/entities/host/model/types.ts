@@ -54,6 +54,7 @@ export interface HostGroup {
 
 export interface HostReachability {
   host_id: string
+  ssh_profile_id: string
   address: string
   status: HostReachabilityStatus
   latency_ms?: number

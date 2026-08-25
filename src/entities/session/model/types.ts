@@ -212,7 +212,9 @@ export interface Session {
   kind: SessionKind
   origin: SessionOrigin
   host_id?: string
+  ssh_profile_id?: string
   jump_host_id?: string
+  jump_ssh_profile_id?: string
   proxy_id?: string
   status: SessionStatus
   status_message?: string

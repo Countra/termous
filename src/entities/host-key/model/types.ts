@@ -14,6 +14,7 @@ export interface HostKeyObservationContext {
   consumer_type: HostKeyConsumerType
   consumer_id: string
   host_id?: string
+  ssh_profile_id?: string
   role: HostKeyEndpointRole
 }
 
