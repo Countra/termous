@@ -255,9 +255,20 @@ vi.mock('#widgets/workbench', () => ({
 }))
 
 vi.mock('#pages/hosts', () => ({
-  HostsPage: ({ data }: { data: Record<string, unknown> }) => {
+  HostsPage: ({
+    data,
+    onDirtyChange,
+  }: {
+    data: Record<string, unknown>
+    onDirtyChange: (dirty: boolean) => void
+  }) => {
     testState.projectionKeys.hosts = Object.keys(data).sort()
-    return <div data-testid="hosts-page">Hosts</div>
+    return (
+      <div data-testid="hosts-page">
+        Hosts
+        <button type="button" onClick={() => onDirtyChange(true)}>hosts-dirty</button>
+      </div>
+    )
   },
 }))
 
@@ -585,6 +596,26 @@ describe('应用运行时组合合同', () => {
     await user.click(screen.getByRole('button', { name: 'confirm-continue' }))
     expect(screen.queryByTestId('vault-page')).not.toBeInTheDocument()
     expect(screen.getByTestId('hosts-page')).toBeInTheDocument()
+  })
+
+  it('主机管理脏状态拦截离页导航，并复用统一确认流程', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+    await user.click(screen.getByRole('button', { name: 'hosts-dirty' }))
+    await user.click(screen.getByRole('button', { name: 'files' }))
+    expect(screen.getByTestId('hosts-page')).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveTextContent('hosts.unsavedTitle')
+
+    await user.click(screen.getByRole('button', { name: 'confirm-cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('hosts-page')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'files' }))
+    await user.click(screen.getByRole('button', { name: 'confirm-continue' }))
+    expect(screen.queryByTestId('hosts-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('files-page')).toBeInTheDocument()
   })
 
   it('片段使用次数上报失败不会阻断已完成的工作台回调', async () => {

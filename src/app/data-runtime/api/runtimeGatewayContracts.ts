@@ -10,6 +10,10 @@ import type {
 } from '#common/contracts'
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
 import type {
+  FileAccessProfile,
+  FileAccessProfileMetadataInput,
+} from '#entities/file-access-profile'
+import type {
   CredentialInput,
   CredentialView,
   PrivateKeyCredentialBundleInput,
@@ -41,8 +45,24 @@ import type {
   HostInput,
   HostReachability,
 } from '#entities/host'
+import type {
+  HostAccessCatalog,
+  HostAsset,
+  HostAssetInput,
+} from '#entities/host-asset'
 import type { LocalShell, Session } from '#entities/session'
-import type { RemoteDesktopProfile, RemoteDesktopSession } from '#entities/remote-desktop'
+import type {
+  RemoteDesktopAccessProfile,
+  RemoteDesktopAccessProfileInput,
+  RemoteDesktopProfile,
+  RemoteDesktopSession,
+} from '#entities/remote-desktop'
+import type {
+  ProvisionedSSHAccessProfile,
+  SSHAccessProfile,
+  SSHAccessProfileInput,
+  SSHAccessProfileReferences,
+} from '#entities/ssh-access-profile'
 import type {
   CodeSnippet,
   CodeSnippetGroup,
@@ -120,6 +140,57 @@ export interface HostCommandGateway {
   updateHost: (id: string, input: HostInput) => Promise<Host>
   deleteHost: (id: string) => Promise<void>
   refreshHostReachability: (hostIds?: string[], force?: boolean) => Promise<HostReachability[]>
+  hostAssets: () => Promise<HostAsset[]>
+  hostAsset: (id: string) => Promise<HostAsset>
+  updateHostAsset: (
+    id: string,
+    expectedUpdatedAt: string,
+    input: HostAssetInput,
+  ) => Promise<HostAsset>
+  hostAccessCatalog: (hostId: string) => Promise<HostAccessCatalog>
+  sshAccessProfiles: (hostId?: string) => Promise<SSHAccessProfile[]>
+  sshAccessProfile: (id: string) => Promise<SSHAccessProfile>
+  createSSHAccessProfile: (
+    hostId: string,
+    input: SSHAccessProfileInput,
+  ) => Promise<ProvisionedSSHAccessProfile>
+  updateSSHAccessProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+    input: SSHAccessProfileInput,
+  ) => Promise<SSHAccessProfile>
+  deleteSSHAccessProfile: (id: string, expectedUpdatedAt: string) => Promise<void>
+  setDefaultSSHAccessProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+  ) => Promise<SSHAccessProfile>
+  inspectSSHAccessProfileReferences: (id: string) => Promise<SSHAccessProfileReferences>
+  fileAccessProfiles: (hostId?: string) => Promise<FileAccessProfile[]>
+  fileAccessProfile: (id: string) => Promise<FileAccessProfile>
+  updateFileAccessProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+    input: FileAccessProfileMetadataInput,
+  ) => Promise<FileAccessProfile>
+  setDefaultFileAccessProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+  ) => Promise<FileAccessProfile>
+  remoteDesktopAccessProfiles: (hostId?: string) => Promise<RemoteDesktopAccessProfile[]>
+  remoteDesktopAccessProfile: (id: string) => Promise<RemoteDesktopAccessProfile>
+  createRemoteDesktopAccessProfile: (
+    input: RemoteDesktopAccessProfileInput,
+  ) => Promise<RemoteDesktopAccessProfile>
+  updateRemoteDesktopAccessProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+    input: RemoteDesktopAccessProfileInput,
+  ) => Promise<RemoteDesktopAccessProfile>
+  deleteRemoteDesktopAccessProfile: (id: string, expectedUpdatedAt: string) => Promise<void>
+  setDefaultRemoteDesktopAccessProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+  ) => Promise<RemoteDesktopAccessProfile>
 }
 
 export interface SettingsCommandGateway {

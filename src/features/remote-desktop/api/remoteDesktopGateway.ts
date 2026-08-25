@@ -8,8 +8,12 @@ import type {
 export interface RemoteDesktopGateway {
   remoteDesktopProfiles: () => Promise<RemoteDesktopProfile[]>
   createRemoteDesktopProfile: (input: RemoteDesktopProfileInput) => Promise<RemoteDesktopProfile>
-  updateRemoteDesktopProfile: (id: string, input: RemoteDesktopProfileInput) => Promise<RemoteDesktopProfile>
-  deleteRemoteDesktopProfile: (id: string) => Promise<void>
+  updateRemoteDesktopProfile: (
+    id: string,
+    expectedUpdatedAt: string,
+    input: RemoteDesktopProfileInput,
+  ) => Promise<RemoteDesktopProfile>
+  deleteRemoteDesktopProfile: (id: string, expectedUpdatedAt: string) => Promise<void>
   remoteDesktopSessions: () => Promise<RemoteDesktopSession[]>
   createRemoteDesktopSession: (profileId: string) => Promise<RemoteDesktopSession>
   deleteRemoteDesktopSession: (id: string) => Promise<void>

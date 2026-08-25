@@ -24,16 +24,21 @@ export class RemoteDesktopClient extends TermousApiTransport implements RemoteDe
     })
   }
 
-  updateRemoteDesktopProfile(id: string, input: RemoteDesktopProfileInput) {
+  updateRemoteDesktopProfile(
+    id: string,
+    expectedUpdatedAt: string,
+    input: RemoteDesktopProfileInput,
+  ) {
     return this.request<RemoteDesktopProfile>(
       `/api/v1/remote-desktop-profiles/${encodeURIComponent(id)}`,
-      { method: 'PATCH', body: input },
+      { method: 'PATCH', body: { ...input, expected_updated_at: expectedUpdatedAt } },
     )
   }
 
-  deleteRemoteDesktopProfile(id: string) {
+  deleteRemoteDesktopProfile(id: string, expectedUpdatedAt: string) {
     return this.request<void>(`/api/v1/remote-desktop-profiles/${encodeURIComponent(id)}`, {
       method: 'DELETE',
+      body: { expected_updated_at: expectedUpdatedAt },
     })
   }
 

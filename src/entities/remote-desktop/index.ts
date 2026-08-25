@@ -1,5 +1,7 @@
 export type {
   RemoteDesktopAttachTicket,
+  RemoteDesktopAccessProfile,
+  RemoteDesktopAccessProfileInput,
   RemoteDesktopDisplayMode,
   RemoteDesktopProfile,
   RemoteDesktopProfileInput,
@@ -14,3 +16,8 @@ export type {
   VncCredentialType,
   VncProfileSettings,
 } from './model/types.ts'
+export {
+  remoteDesktopAccessProfileToInput,
+  selectDefaultRemoteDesktopAccessProfile,
+  sortRemoteDesktopAccessProfiles,
+} from './model/accessProfile.ts'

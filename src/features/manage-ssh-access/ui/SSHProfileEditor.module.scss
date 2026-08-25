@@ -1,0 +1,118 @@
+.form {
+  min-width: 0;
+}
+
+.section {
+  padding: 18px 20px 20px;
+}
+
+.section + .section {
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.section-heading {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 14px;
+}
+
+.section-heading strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.section-heading small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 6px;
+}
+
+.field > span:first-child,
+.field :global(.field-label) {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.field :global(.ant-input-number) {
+  width: 100%;
+}
+
+.field :global(.ant-input),
+.field :global(.ant-input-number),
+.field :global(.ant-select-selector) {
+  min-height: 36px;
+  border-color: var(--border) !important;
+  background: var(--input-bg) !important;
+  box-shadow: none !important;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.auth-methods:global(.ant-radio-group) {
+  display: grid;
+  max-width: 360px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-subtle);
+  padding: 3px;
+}
+
+.auth-methods :global(.ant-radio-button-wrapper) {
+  display: inline-flex;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: var(--text-secondary);
+  font-size: 11px;
+  box-shadow: none !important;
+}
+
+.auth-methods :global(.ant-radio-button-wrapper::before) {
+  display: none;
+}
+
+.auth-methods :global(.ant-radio-button-wrapper-checked) {
+  background: color-mix(in srgb, var(--accent-soft) 58%, var(--surface)) !important;
+  color: var(--accent) !important;
+}
+
+@media (width <= 580px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wide {
+    grid-column: auto;
+  }
+}

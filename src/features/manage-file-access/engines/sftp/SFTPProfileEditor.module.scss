@@ -1,0 +1,106 @@
+.form {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
+  padding: 20px;
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.field > span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.field :global(.ant-input) {
+  min-height: 36px;
+  border-color: var(--border);
+  background: var(--input-bg);
+  box-shadow: none;
+}
+
+.field > small {
+  color: var(--danger);
+  font-size: 10px;
+}
+
+.binding {
+  display: grid;
+  min-width: 0;
+  min-height: 58px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-block: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  padding-block: 10px;
+}
+
+.binding-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-soft) 44%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.binding-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.binding-copy strong,
+.binding-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.binding-copy strong {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.binding-copy small {
+  color: var(--text-muted);
+  font-family: var(--terminal-font-family);
+  font-size: 10px;
+}
+
+.locked {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  padding-inline: 7px;
+  font-size: 10px;
+}
+
+.hint {
+  margin: -8px 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+@media (width <= 520px) {
+  .binding {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .locked {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

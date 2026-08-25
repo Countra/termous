@@ -1,8 +1,16 @@
 import type { ConnectionProxyInput } from '#entities/connection-proxy'
-import type { HostIconReorderItem, HostInput, HostReachabilityEvent } from '#entities/host'
+import type { FileAccessProfileMetadataInput } from '#entities/file-access-profile'
+import type { HostAssetInput } from '#entities/host-asset'
+import type {
+  Host,
+  HostIconReorderItem,
+  HostInput,
+  HostReachabilityEvent,
+} from '#entities/host'
+import type { RemoteDesktopAccessProfileInput } from '#entities/remote-desktop'
+import type { SSHAccessProfileInput } from '#entities/ssh-access-profile'
 import type { GroupReorderItem } from '#shared/model'
 import type { HostCommandGateway } from '../api/runtimeGatewayContracts'
-import { hostToInput } from '#entities/host'
 import {
   mergeHostReachabilityEvent,
   mergeHostReachabilityStates,
@@ -109,15 +117,96 @@ export function createHostCommands({ api, hosts, load, setData }: HostCommandDep
       if (!host) {
         return
       }
-      const nextHost = await api.updateHost(host.id, { ...hostToInput(host), favorite: !host.favorite })
-      setData((current) => ({
-        ...current,
-        hosts: current.hosts.map((item) => (item.id === nextHost.id ? nextHost : item)),
-      }))
+      if (!host.updated_at) {
+        throw new Error('主机资产不存在或缺少版本信息')
+      }
+      await api.updateHostAsset(
+        host.id,
+        host.updated_at,
+        { ...legacyHostToAssetInput(host), favorite: !host.favorite },
+      )
+      await load('silent')
     },
     async deleteHost(id: string) {
       await api.deleteHost(id)
       await load('silent')
+    },
+    hostAssets: () => api.hostAssets(),
+    hostAsset: (id: string) => api.hostAsset(id),
+    hostAccessCatalog: (hostId: string) => api.hostAccessCatalog(hostId),
+    sshAccessProfiles: (hostId?: string) => api.sshAccessProfiles(hostId),
+    sshAccessProfile: (id: string) => api.sshAccessProfile(id),
+    inspectSSHAccessProfileReferences: (id: string) => (
+      api.inspectSSHAccessProfileReferences(id)
+    ),
+    fileAccessProfiles: (hostId?: string) => api.fileAccessProfiles(hostId),
+    fileAccessProfile: (id: string) => api.fileAccessProfile(id),
+    remoteDesktopAccessProfiles: (hostId?: string) => api.remoteDesktopAccessProfiles(hostId),
+    remoteDesktopAccessProfile: (id: string) => api.remoteDesktopAccessProfile(id),
+    async updateHostAsset(id: string, expectedUpdatedAt: string, input: HostAssetInput) {
+      const asset = await api.updateHostAsset(id, expectedUpdatedAt, input)
+      await load('silent')
+      return asset
+    },
+    async createSSHAccessProfile(hostId: string, input: SSHAccessProfileInput) {
+      const provisioned = await api.createSSHAccessProfile(hostId, input)
+      await load('silent')
+      return provisioned
+    },
+    async updateSSHAccessProfile(
+      id: string,
+      expectedUpdatedAt: string,
+      input: SSHAccessProfileInput,
+    ) {
+      const profile = await api.updateSSHAccessProfile(id, expectedUpdatedAt, input)
+      await load('silent')
+      return profile
+    },
+    async deleteSSHAccessProfile(id: string, expectedUpdatedAt: string) {
+      await api.deleteSSHAccessProfile(id, expectedUpdatedAt)
+      await load('silent')
+    },
+    async setDefaultSSHAccessProfile(id: string, expectedUpdatedAt: string) {
+      const profile = await api.setDefaultSSHAccessProfile(id, expectedUpdatedAt)
+      await load('silent')
+      return profile
+    },
+    async updateFileAccessProfile(
+      id: string,
+      expectedUpdatedAt: string,
+      input: FileAccessProfileMetadataInput,
+    ) {
+      const profile = await api.updateFileAccessProfile(id, expectedUpdatedAt, input)
+      await load('silent')
+      return profile
+    },
+    async setDefaultFileAccessProfile(id: string, expectedUpdatedAt: string) {
+      const profile = await api.setDefaultFileAccessProfile(id, expectedUpdatedAt)
+      await load('silent')
+      return profile
+    },
+    async createRemoteDesktopAccessProfile(input: RemoteDesktopAccessProfileInput) {
+      const profile = await api.createRemoteDesktopAccessProfile(input)
+      await load('silent')
+      return profile
+    },
+    async updateRemoteDesktopAccessProfile(
+      id: string,
+      expectedUpdatedAt: string,
+      input: RemoteDesktopAccessProfileInput,
+    ) {
+      const profile = await api.updateRemoteDesktopAccessProfile(id, expectedUpdatedAt, input)
+      await load('silent')
+      return profile
+    },
+    async deleteRemoteDesktopAccessProfile(id: string, expectedUpdatedAt: string) {
+      await api.deleteRemoteDesktopAccessProfile(id, expectedUpdatedAt)
+      await load('silent')
+    },
+    async setDefaultRemoteDesktopAccessProfile(id: string, expectedUpdatedAt: string) {
+      const profile = await api.setDefaultRemoteDesktopAccessProfile(id, expectedUpdatedAt)
+      await load('silent')
+      return profile
     },
     async refreshHostReachability(hostIds: string[] = [], force = false) {
       const states = await api.refreshHostReachability(hostIds, force)
@@ -132,5 +221,17 @@ export function createHostCommands({ api, hosts, load, setData }: HostCommandDep
         hostReachability: mergeHostReachabilityEvent(current.hostReachability, event),
       }))
     },
+  }
+}
+
+function legacyHostToAssetInput(host: Host): HostAssetInput {
+  return {
+    name: host.name,
+    platform: host.platform,
+    icon_id: host.icon_id ?? '',
+    group_id: host.group_id,
+    tags: [...(host.tags ?? [])],
+    favorite: host.favorite,
+    note: host.note ?? '',
   }
 }

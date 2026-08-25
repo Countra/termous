@@ -11,6 +11,7 @@ import type {
   ConnectionProxy,
   ConnectionProxyInput,
 } from '#entities/connection-proxy'
+import type { HostAccessManagementGateway } from '#features/host-access'
 import {
   createBlankHostInput,
   hostInputsEqual,
@@ -24,6 +25,7 @@ import {
   type HostInput,
 } from '#entities/host'
 import { HostCatalog } from './HostCatalog'
+import { HostAccessWorkspace } from './HostAccessWorkspace'
 import { HostEditor } from './HostEditor'
 import { HostIconManagerModal } from './HostIconManagerModal'
 import { ProxyManagerModal } from './ProxyManagerModal'
@@ -35,6 +37,7 @@ export interface HostManagementWorkspaceProps {
   selectedHostId: string
   createIntentKey?: number
   actionBusy: boolean
+  accessGateway?: HostAccessManagementGateway
   onSelectHost: (hostId: string) => void
   onSave: (id: string | null, input: HostInput) => Promise<Host | undefined>
   onDelete: (id: string) => Promise<boolean | undefined>
@@ -53,6 +56,7 @@ export interface HostManagementWorkspaceProps {
   onReorderHostIcons: (items: HostIconReorderItem[]) => Promise<HostIcon[]>
   onDeleteHostIcon: (id: string) => Promise<void>
   getHostIconUrl: (iconId: string) => string
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 type HostIntent =
@@ -65,6 +69,7 @@ export function HostManagementWorkspace({
   selectedHostId,
   createIntentKey = 0,
   actionBusy,
+  accessGateway,
   onSelectHost,
   onSave,
   onDelete,
@@ -80,6 +85,7 @@ export function HostManagementWorkspace({
   onReorderHostIcons,
   onDeleteHostIcon,
   getHostIconUrl,
+  onDirtyChange,
 }: HostManagementWorkspaceProps) {
   const { t } = useTranslation()
   const initialHost = data.hosts.find((host) => host.id === selectedHostId)
@@ -93,9 +99,13 @@ export function HostManagementWorkspace({
   const [iconManagerOpen, setIconManagerOpen] = useState(false)
   const [pendingIntent, setPendingIntent] = useState<HostIntent | null>(null)
   const [saveInFlight, setSaveInFlight] = useState(false)
+  const [accessDirty, setAccessDirty] = useState(false)
+  const [accessProtectedIconId, setAccessProtectedIconId] = useState('')
+  const [accessWorkspaceRevision, setAccessWorkspaceRevision] = useState(0)
   const lastCreateIntentRef = useRef(0)
   const ignoredExternalSelectionRef = useRef('')
-  const dirty = useMemo(() => !hostInputsEqual(draft, baseline), [baseline, draft])
+  const legacyDirty = useMemo(() => !hostInputsEqual(draft, baseline), [baseline, draft])
+  const dirty = legacyDirty || accessDirty
   const editingHost = useMemo(() => data.hosts.find((host) => host.id === editingId), [data.hosts, editingId])
   const groupItemCounts = useMemo(() => data.hosts.reduce<Record<string, number>>((counts, host) => {
     if (host.group_id) counts[host.group_id] = (counts[host.group_id] ?? 0) + 1
@@ -120,6 +130,14 @@ export function HostManagementWorkspace({
     return next
   }, [data.proxies, draft, t, validCredentialIds])
 
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
+
+  useEffect(() => () => {
+    onDirtyChange?.(false)
+  }, [onDirtyChange])
+
   const loadHost = useCallback((hostId: string, updateParent = true) => {
     const host = data.hosts.find((item) => item.id === hostId)
     if (!host) {
@@ -130,6 +148,8 @@ export function HostManagementWorkspace({
     setDraft(input)
     setBaseline(input)
     setActiveView('editor')
+    setAccessDirty(false)
+    setAccessProtectedIconId('')
     ignoredExternalSelectionRef.current = ''
     if (updateParent && selectedHostId !== host.id) {
       onSelectHost(host.id)
@@ -143,6 +163,8 @@ export function HostManagementWorkspace({
     setDraft(input)
     setBaseline(input)
     setActiveView('editor')
+    setAccessDirty(false)
+    setAccessProtectedIconId('')
   }, [selectedHostId])
 
   const applyIntent = useCallback((intent: HostIntent) => {
@@ -156,7 +178,12 @@ export function HostManagementWorkspace({
     }
     setDraft(baseline)
     setActiveView('catalog')
-  }, [baseline, loadHost, startCreate])
+    if (accessDirty) {
+      setAccessWorkspaceRevision((current) => current + 1)
+      setAccessDirty(false)
+      setAccessProtectedIconId('')
+    }
+  }, [accessDirty, baseline, loadHost, startCreate])
 
   const requestIntent = useCallback((intent: HostIntent) => {
     if (intent.type === 'select' && intent.hostId === editingId) {
@@ -193,7 +220,7 @@ export function HostManagementWorkspace({
   }, [createIntentKey, requestIntent])
 
   useEffect(() => {
-    if (!editingHost || dirty) {
+    if (!editingHost || legacyDirty) {
       return
     }
     const next = normalizeHostInput(hostToInput(editingHost))
@@ -201,7 +228,7 @@ export function HostManagementWorkspace({
       setDraft(next)
       setBaseline(next)
     }
-  }, [baseline, dirty, editingHost])
+  }, [baseline, editingHost, legacyDirty])
 
   const save = async () => {
     setSaveInFlight(true)
@@ -222,12 +249,12 @@ export function HostManagementWorkspace({
 
   const removeCurrentHost = async () => {
     if (!editingId) {
-      return
+      return false
     }
     const currentIndex = data.hosts.findIndex((host) => host.id === editingId)
     const removed = await onDelete(editingId)
     if (!removed) {
-      return
+      return false
     }
     const remaining = data.hosts.filter((host) => host.id !== editingId)
     const next = remaining[Math.min(currentIndex, remaining.length - 1)]
@@ -239,8 +266,11 @@ export function HostManagementWorkspace({
       setDraft(empty)
       setBaseline(empty)
       setActiveView('catalog')
+      setAccessDirty(false)
+      setAccessProtectedIconId('')
       onSelectHost('')
     }
+    return true
   }
 
   const cancelPendingIntent = () => {
@@ -259,7 +289,24 @@ export function HostManagementWorkspace({
         catalogLabel={t('hosts.list')}
         editorLabel={t('hosts.editor')}
         catalog={<HostCatalog hosts={data.hosts} groups={data.groups} selectedHostId={editingId} actionBusy={actionBusy} getHostIconUrl={getHostIconUrl} onSelect={(hostId) => requestIntent({ type: 'select', hostId })} onCreate={() => requestIntent({ type: 'create' })} onManageGroups={() => setGroupManagerOpen(true)} onManageProxies={() => setProxyManagerOpen(true)} onManageIcons={() => setIconManagerOpen(true)} />}
-        editor={<HostEditor key={editingId ?? 'new'} data={data} editingHost={editingHost} draft={draft} dirty={dirty} errors={errors} actionBusy={actionBusy} getHostIconUrl={getHostIconUrl} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} onBack={() => requestIntent({ type: 'back' })} onSave={() => void save()} onDelete={() => void removeCurrentHost()} onDiscard={() => setDraft(baseline)} onCreateGroup={onCreateGroup} onManageProxies={() => setProxyManagerOpen(true)} onManageIcons={() => setIconManagerOpen(true)} />}
+        editor={editingHost && accessGateway ? (
+          <HostAccessWorkspace
+            key={`${editingHost.id}:${accessWorkspaceRevision}`}
+            host={editingHost}
+            data={data}
+            gateway={accessGateway}
+            actionBusy={actionBusy}
+            getHostIconUrl={getHostIconUrl}
+            onBack={() => requestIntent({ type: 'back' })}
+            onDeleteHost={removeCurrentHost}
+            onCreateGroup={onCreateGroup}
+            onManageIcons={() => setIconManagerOpen(true)}
+            onDirtyChange={setAccessDirty}
+            onProtectedIconIdChange={setAccessProtectedIconId}
+          />
+        ) : (
+          <HostEditor key={editingId ?? 'new'} data={data} editingHost={editingHost} draft={draft} dirty={legacyDirty} errors={errors} actionBusy={actionBusy} getHostIconUrl={getHostIconUrl} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} onBack={() => requestIntent({ type: 'back' })} onSave={() => void save()} onDelete={() => void removeCurrentHost()} onDiscard={() => setDraft(baseline)} onCreateGroup={onCreateGroup} onManageProxies={() => setProxyManagerOpen(true)} onManageIcons={() => setIconManagerOpen(true)} />
+        )}
       />
       <GroupManagerModal
         open={groupManagerOpen}
@@ -305,7 +352,9 @@ export function HostManagementWorkspace({
         open={iconManagerOpen}
         hostIcons={data.hostIcons}
         hosts={data.hosts}
-        protectedIconIds={dirty && draft.icon_id ? [draft.icon_id] : []}
+        protectedIconIds={editingHost && accessGateway
+          ? (accessProtectedIconId ? [accessProtectedIconId] : [])
+          : (legacyDirty && draft.icon_id ? [draft.icon_id] : [])}
         actionBusy={actionBusy}
         getIconUrl={getHostIconUrl}
         onClose={() => setIconManagerOpen(false)}

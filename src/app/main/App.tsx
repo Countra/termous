@@ -11,6 +11,7 @@ import {
   selectFileSessionNavigationTarget,
 } from '#entities/file'
 import { isForwardRestartCompleted } from '#features/forwards'
+import type { HostAccessManagementGateway } from '#features/host-access'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
@@ -197,6 +198,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   })
   const [page, setPage] = useState<PageKey>('workbench')
   const [vaultDirty, setVaultDirty] = useState(false)
+  const [hostsDirty, setHostsDirty] = useState(false)
   const [pendingPage, setPendingPage] = useState<PageKey | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = usePersistentBooleanState('termous.ui.sidebarCollapsed.v1', false)
   const [sshSmoothScrollEnabled, setSshSmoothScrollEnabled] = usePersistentBooleanState(
@@ -237,13 +239,13 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     if (nextPage === page) {
       return
     }
-    if (page === 'vault' && vaultDirty) {
+    if ((page === 'vault' && vaultDirty) || (page === 'hosts' && hostsDirty)) {
       setPendingPage(nextPage)
       return
     }
     invalidateFilesBookmarkManagementRequest()
     setPage(nextPage)
-  }, [invalidateFilesBookmarkManagementRequest, page, vaultDirty])
+  }, [hostsDirty, invalidateFilesBookmarkManagementRequest, page, vaultDirty])
 
   useEffect(() => {
     if (page !== 'files') {
@@ -326,6 +328,24 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     credentials: data.credentials,
     hostIcons: data.hostIcons,
   }), [data.credentials, data.groups, data.hostIcons, data.hosts, data.proxies])
+  const hostAccessActionsRef = useRef(actions)
+  hostAccessActionsRef.current = actions
+  const hostAccessGateway = useMemo<HostAccessManagementGateway>(() => ({
+    loadCatalog: (hostId) => hostAccessActionsRef.current.hostAccessCatalog(hostId),
+    listSSHProfiles: () => hostAccessActionsRef.current.sshAccessProfiles(),
+    updateHostAsset: (...input) => hostAccessActionsRef.current.updateHostAsset(...input),
+    createSSHProfile: (...input) => hostAccessActionsRef.current.createSSHAccessProfile(...input),
+    updateSSHProfile: (...input) => hostAccessActionsRef.current.updateSSHAccessProfile(...input),
+    deleteSSHProfile: (...input) => hostAccessActionsRef.current.deleteSSHAccessProfile(...input),
+    setDefaultSSHProfile: (...input) => hostAccessActionsRef.current.setDefaultSSHAccessProfile(...input),
+    inspectSSHProfileReferences: (id) => hostAccessActionsRef.current.inspectSSHAccessProfileReferences(id),
+    updateFileProfile: (...input) => hostAccessActionsRef.current.updateFileAccessProfile(...input),
+    setDefaultFileProfile: (...input) => hostAccessActionsRef.current.setDefaultFileAccessProfile(...input),
+    createRemoteDesktopProfile: (input) => hostAccessActionsRef.current.createRemoteDesktopAccessProfile(input),
+    updateRemoteDesktopProfile: (...input) => hostAccessActionsRef.current.updateRemoteDesktopAccessProfile(...input),
+    deleteRemoteDesktopProfile: (...input) => hostAccessActionsRef.current.deleteRemoteDesktopAccessProfile(...input),
+    setDefaultRemoteDesktopProfile: (...input) => hostAccessActionsRef.current.setDefaultRemoteDesktopAccessProfile(...input),
+  }), [])
   const hostLauncherData = useMemo<HostLauncherData>(() => ({
     hosts: data.hosts,
     groups: data.groups,
@@ -953,6 +973,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           selectedHostId={selectedHostIdStable}
                           createIntentKey={hostCreateIntentKey}
                           actionBusy={actionBusy}
+                          accessGateway={hostAccessGateway}
                           onSelectHost={setSelectedHostId}
                           onSave={saveHost}
                           onDelete={(id) => runAction(async () => {
@@ -977,6 +998,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onReorderHostIcons={reorderHostIcons}
                           onDeleteHostIcon={deleteHostIcon}
                           getHostIconUrl={getHostIconUrl}
+                          onDirtyChange={setHostsDirty}
                         />
                       ) : null}
 
@@ -1128,16 +1150,20 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             </CommandDispatchRuntimeProvider>
       <ConfirmDialog
         open={Boolean(pendingPage)}
-        title={t('vault.unsavedTitle')}
-        description={t('vault.unsavedDescription')}
-        confirmLabel={t('vault.discardAndContinue')}
+        title={t(page === 'hosts' ? 'hosts.unsavedTitle' : 'vault.unsavedTitle')}
+        description={t(page === 'hosts' ? 'hosts.leaveUnsavedDescription' : 'vault.unsavedDescription')}
+        confirmLabel={t(page === 'hosts' ? 'hosts.discardAndContinue' : 'vault.discardAndContinue')}
         cancelLabel={t('app.cancel')}
         danger
         onCancel={() => setPendingPage(null)}
         onConfirm={() => {
           const nextPage = pendingPage
           setPendingPage(null)
-          setVaultDirty(false)
+          if (page === 'hosts') {
+            setHostsDirty(false)
+          } else if (page === 'vault') {
+            setVaultDirty(false)
+          }
           if (nextPage) {
             setPage(nextPage)
           }

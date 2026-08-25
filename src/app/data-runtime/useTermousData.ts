@@ -718,7 +718,12 @@ export function useTermousData() {
       ...createSnippetCommands(gateways.snippets, setData),
       ...createFileCatalogCommands(gateways.fileCatalog, setData),
       ...createForwardProfileCommands(gateways.forwards, setData),
-      ...createRemoteDesktopProfileCommands(gateways.remoteDesktop, setData),
+      ...createRemoteDesktopProfileCommands(
+        gateways.remoteDesktop,
+        data.remoteDesktopProfiles,
+        setData,
+        load,
+      ),
       ...createForwardCommands({
         api: gateways.forwards,
         forwards: data.forwards,
@@ -780,6 +785,7 @@ export function useTermousData() {
       data.fileSessions,
       data.forwards,
       data.hosts,
+      data.remoteDesktopProfiles,
       data.settings,
       data.sessions,
       load,

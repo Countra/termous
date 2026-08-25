@@ -35,16 +35,26 @@ export interface VncProfileSettings {
   default_display_mode: RemoteDesktopDisplayMode
 }
 
-export interface RemoteDesktopProfile {
+interface RemoteDesktopProfileBase {
   id: string
   name: string
   description: string
   protocol: RemoteDesktopProtocol
-  transport: RemoteDesktopTransport
-  ssh_host_id: string
   vnc: VncProfileSettings
   created_at: string
   updated_at: string
+}
+
+export interface RemoteDesktopProfile extends RemoteDesktopProfileBase {
+  transport: RemoteDesktopTransport
+  ssh_host_id: string
+  host_id?: string
+  route?: RemoteDesktopTransport
+  route_config_version?: 1
+  ssh_profile_id?: string
+  protocol_config_version?: 1
+  is_default?: boolean
+  sort_order?: number
 }
 
 export interface RemoteDesktopProfileInput {
@@ -53,6 +63,30 @@ export interface RemoteDesktopProfileInput {
   protocol: RemoteDesktopProtocol
   transport: RemoteDesktopTransport
   ssh_host_id: string
+  vnc: VncProfileSettings
+}
+
+export interface RemoteDesktopAccessProfile extends RemoteDesktopProfileBase {
+  host_id: string
+  route: RemoteDesktopTransport
+  route_config_version: 1
+  ssh_profile_id: string
+  protocol_config_version: 1
+  is_default: boolean
+  sort_order: number
+  transport?: RemoteDesktopTransport
+  ssh_host_id?: string
+}
+
+export interface RemoteDesktopAccessProfileInput {
+  host_id: string
+  name: string
+  description: string
+  route: RemoteDesktopTransport
+  route_config_version: 1
+  ssh_profile_id: string
+  protocol: RemoteDesktopProtocol
+  protocol_config_version: 1
   vnc: VncProfileSettings
 }
 
