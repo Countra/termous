@@ -41,6 +41,7 @@ const testState = vi.hoisted(() => {
     },
     data: {
       hosts: [],
+      hostAssets: [],
       groups: [],
       hostIcons: [{
         id: 'icon-a',
@@ -568,8 +569,8 @@ describe('应用运行时组合合同', () => {
       'credentials',
       'fileAccessProfiles',
       'groups',
+      'hostAssets',
       'hostReachability',
-      'hosts',
       'proxies',
       'remoteDesktopProfiles',
       'sshAccessProfiles',
@@ -579,11 +580,15 @@ describe('应用运行时组合合同', () => {
     expect(testState.projectionKeys.hosts).toEqual([
       'credentials',
       'fileSessions',
+      'forwards',
       'groups',
+      'hostAssets',
       'hostIcons',
       'hosts',
       'proxies',
+      'remoteDesktopSessions',
       'sessions',
+      'sshAccessProfiles',
     ])
 
     await user.click(screen.getByRole('button', { name: 'files' }))

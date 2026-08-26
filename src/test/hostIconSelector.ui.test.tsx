@@ -55,11 +55,15 @@ function editorProps(overrides: Partial<ComponentProps<typeof HostEditor>> = {})
   return {
     data: {
       hosts: [],
+      hostAssets: [],
+      sshAccessProfiles: [],
       groups: [],
       proxies: [],
       credentials: [passwordCredential],
       sessions: [],
       fileSessions: [],
+      forwards: [],
+      remoteDesktopSessions: [],
       hostIcons: [
         hostIcon('icon-production', 'Production Icon', 'server-custom.svg', 0),
         hostIcon('icon-development', 'Development Icon', 'development.png', 1),

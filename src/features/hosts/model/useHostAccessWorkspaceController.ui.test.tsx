@@ -1,25 +1,20 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { Host } from '#entities/host'
-import type { HostAccessCatalog } from '#entities/host-asset'
+import type { HostAccessCatalog, HostAsset } from '#entities/host-asset'
 import type { HostAccessManagementGateway } from '#features/host-access'
 import { TermousApiError } from '#shared/api'
 import { useHostAccessWorkspaceController } from './useHostAccessWorkspaceController.ts'
 
-function legacyHost(id: string, name = id): Host {
+function legacyHost(id: string, name = id): HostAsset {
   return {
     id,
     name,
     platform: 'linux',
     group_id: '',
-    address: `${id}.example.com`,
-    port: 22,
-    username: 'root',
-    auth_method: 'password',
-    credential_id: 'cred-password',
     tags: [],
     favorite: false,
-    fingerprint_policy: 'confirm_on_change',
+    created_at: '2026-08-25T00:00:00Z',
+    updated_at: '2026-08-25T00:00:00Z',
   }
 }
 
@@ -120,7 +115,7 @@ function ControllerHarness({
   api,
   openAccessIntentKey = 0,
 }: {
-  host: Host
+  host: HostAsset
   api: HostAccessManagementGateway
   openAccessIntentKey?: number
 }) {
@@ -348,6 +343,7 @@ describe('主机访问方式 Controller', () => {
     await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
 
     fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
+    await waitFor(() => expect(screen.getByTestId('asset-name')).toHaveTextContent('Local draft'))
     view.rerender(
       <ControllerHarness
         host={legacyHost('host-a')}

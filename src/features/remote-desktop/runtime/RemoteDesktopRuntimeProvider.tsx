@@ -41,6 +41,7 @@ interface RemoteDesktopRuntimeProviderProps {
   initialSessions: RemoteDesktopSession[]
   children: ReactNode
   onSessionCountChange?: (count: number) => void
+  onSessionsChange?: (sessions: RemoteDesktopSession[]) => void
 }
 
 export function RemoteDesktopRuntimeProvider({
@@ -50,6 +51,7 @@ export function RemoteDesktopRuntimeProvider({
   initialSessions,
   children,
   onSessionCountChange,
+  onSessionsChange,
 }: RemoteDesktopRuntimeProviderProps) {
   const [sessions, setSessions] = useState<RemoteDesktopSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
@@ -208,7 +210,8 @@ export function RemoteDesktopRuntimeProvider({
 
   useEffect(() => {
     onSessionCountChange?.(sessions.filter(isActiveSession).length)
-  }, [onSessionCountChange, sessions])
+    onSessionsChange?.(sessions)
+  }, [onSessionCountChange, onSessionsChange, sessions])
 
   const createSession = useCallback(async (profileId: string) => {
     const session = await apiRef.current.createRemoteDesktopSession(profileId)

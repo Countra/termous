@@ -1695,9 +1695,9 @@
         "connection": "Connection",
         "connectionHint": "The endpoint, identity, and route belong only to this SSH profile.",
         "authHint": "The credential belongs to this SSH profile and is not copied into its companion SFTP profile.",
-        "deleteBlockedTitle": "This SSH profile is still referenced",
-        "deleteBlocked": "Remove these references first: {{forwards}} forwarding profiles, {{desktops}} remote desktop routes, and {{jumps}} jump dependencies. The SSH profile has {{files}} companion SFTP profile(s), with {{terminals}} active terminal session(s) and {{fileSessions}} active file session(s).",
-        "deleteDescription": "This deletes the SSH profile and {{files}} companion SFTP profile(s). {{terminals}} terminal session(s) and {{fileSessions}} file session(s) are still active; existing connections keep their startup snapshots, but this profile can no longer start new connections."
+        "deleteBlockedTitle": "This SSH profile is still in use",
+        "deleteBlocked": "Remove persistent dependencies and stop active connections first: {{forwards}} forwarding profiles, {{desktops}} remote desktop routes, {{jumps}} jump dependencies, {{terminals}} terminal sessions, {{fileSessions}} file sessions, {{backgroundForwards}} background forwards, and {{remoteDesktopSessions}} remote desktop sessions. Its {{files}} companion SFTP profile(s) are handled with the SSH profile.",
+        "deleteDescription": "This deletes the SSH profile and its {{files}} companion SFTP profile(s). Termous rechecks persistent dependencies and active connections before deletion."
       },
       "file": {
         "title": "File access",
@@ -1720,7 +1720,9 @@
         "sshRoute": "SSH route",
         "routeHint": "The VNC profile belongs to the host asset and selects one exact SSH profile as its transport route.",
         "endpointHint": "The first release accepts remote loopback targets only and does not expose arbitrary TCP destinations.",
-        "deleteDescription": "This deletes the VNC access profile. Running remote desktop sessions continue using their startup snapshot."
+        "deleteBlockedTitle": "This remote desktop profile is still in use",
+        "deleteBlocked": "Close the {{sessions}} remote desktop session(s) using this profile before deleting it. Sessions retained after a failure must also be closed.",
+        "deleteDescription": "This deletes the VNC access profile. Termous rechecks remote desktop sessions that have not been closed before deletion."
       },
       "errors": {
         "required": "This field is required",

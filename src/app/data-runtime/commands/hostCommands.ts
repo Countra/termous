@@ -1,8 +1,10 @@
 import type { ConnectionProxyInput } from '#entities/connection-proxy'
 import type { FileAccessProfileMetadataInput } from '#entities/file-access-profile'
-import type { HostAssetInput } from '#entities/host-asset'
+import {
+  hostAssetToInput,
+  type HostAssetInput,
+} from '#entities/host-asset'
 import type {
-  Host,
   HostIconReorderItem,
   HostInput,
   HostReachabilityEvent,
@@ -27,12 +29,12 @@ import type { AppData } from '../model/appData'
 
 interface HostCommandDependencies {
   api: HostCommandGateway
-  hosts: AppData['hosts']
+  hostAssets: AppData['hostAssets']
   load: (mode?: LoadMode) => Promise<void>
   setData: SetAppData
 }
 
-export function createHostCommands({ api, hosts, load, setData }: HostCommandDependencies) {
+export function createHostCommands({ api, hostAssets, load, setData }: HostCommandDependencies) {
   return {
     async uploadHostIcon(file: File) {
       const icon = await api.uploadHostIcon(file)
@@ -73,11 +75,7 @@ export function createHostCommands({ api, hosts, load, setData }: HostCommandDep
     },
     async deleteHostGroup(id: string) {
       await api.deleteHostGroup(id)
-      setData((current) => ({
-        ...current,
-        groups: current.groups.filter((group) => group.id !== id),
-        hosts: current.hosts.map((host) => (host.group_id === id ? { ...host, group_id: '' } : host)),
-      }))
+      await load('silent')
     },
     async reorderHostGroups(items: GroupReorderItem[]) {
       const groups = await api.reorderHostGroups(items)
@@ -113,17 +111,14 @@ export function createHostCommands({ api, hosts, load, setData }: HostCommandDep
       return host
     },
     async toggleHostFavorite(hostId: string) {
-      const host = hosts.find((item) => item.id === hostId)
-      if (!host) {
+      const asset = hostAssets.find((item) => item.id === hostId)
+      if (!asset) {
         return
       }
-      if (!host.updated_at) {
-        throw new Error('主机资产不存在或缺少版本信息')
-      }
       await api.updateHostAsset(
-        host.id,
-        host.updated_at,
-        { ...legacyHostToAssetInput(host), favorite: !host.favorite },
+        asset.id,
+        asset.updated_at,
+        { ...hostAssetToInput(asset), favorite: !asset.favorite },
       )
       await load('silent')
     },
@@ -221,17 +216,5 @@ export function createHostCommands({ api, hosts, load, setData }: HostCommandDep
         hostReachability: mergeHostReachabilityEvent(current.hostReachability, event),
       }))
     },
-  }
-}
-
-function legacyHostToAssetInput(host: Host): HostAssetInput {
-  return {
-    name: host.name,
-    platform: host.platform,
-    icon_id: host.icon_id ?? '',
-    group_id: host.group_id,
-    tags: [...(host.tags ?? [])],
-    favorite: host.favorite,
-    note: host.note ?? '',
   }
 }

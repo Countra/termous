@@ -6,7 +6,6 @@ import {
   AuthMethodBadge,
   HostAvatar,
   type AuthMethod,
-  type Host,
   type HostGroup,
 } from '#entities/host'
 import styles from './HostManagement.module.scss'
@@ -19,15 +18,17 @@ import {
   uiStyles,
 } from '#shared/ui'
 import {
-  buildHostTagOptions,
-  filterHosts,
-  groupHosts,
-  hostTagKey,
-  type HostCatalogFilters,
-} from '#entities/host'
+  buildHostDirectoryTagOptions,
+  filterHostDirectoryCatalog,
+  formatSSHProfileEndpoint,
+  groupHostDirectoryItems,
+  hostDirectoryTagKey,
+  type HostDirectoryCatalogFilters,
+  type HostDirectoryItem,
+} from '../model/hostDirectory.ts'
 
 interface HostCatalogProps {
-  hosts: Host[]
+  items: HostDirectoryItem[]
   groups: HostGroup[]
   selectedHostId: string | null
   actionBusy: boolean
@@ -39,10 +40,10 @@ interface HostCatalogProps {
   onManageIcons: () => void
 }
 
-const defaultFilters: HostCatalogFilters = { groupId: '', tags: [], authMethods: [] }
+const defaultFilters: HostDirectoryCatalogFilters = { groupId: '', tags: [], authMethods: [] }
 
 export function HostCatalog({
-  hosts,
+  items,
   groups,
   selectedHostId,
   actionBusy,
@@ -55,16 +56,22 @@ export function HostCatalog({
 }: HostCatalogProps) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
-  const [filters, setFilters] = useState<HostCatalogFilters>(defaultFilters)
+  const [filters, setFilters] = useState<HostDirectoryCatalogFilters>(defaultFilters)
 
   useEffect(() => {
     if (!filters.groupId || groups.some((group) => group.id === filters.groupId)) return
     setFilters((current) => ({ ...current, groupId: '' }))
   }, [filters.groupId, groups])
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set())
-  const tags = useMemo(() => buildHostTagOptions(hosts), [hosts])
-  const filteredHosts = useMemo(() => filterHosts(hosts, groups, query, filters), [filters, groups, hosts, query])
-  const sections = useMemo(() => groupHosts(filteredHosts, groups, t('hosts.ungrouped')), [filteredHosts, groups, t])
+  const tags = useMemo(() => buildHostDirectoryTagOptions(items), [items])
+  const filteredItems = useMemo(
+    () => filterHostDirectoryCatalog(items, groups, query, filters),
+    [filters, groups, items, query],
+  )
+  const sections = useMemo(
+    () => groupHostDirectoryItems(filteredItems, groups, t('hosts.ungrouped')),
+    [filteredItems, groups, t],
+  )
   const activeFilterCount = Number(Boolean(filters.groupId)) + filters.tags.length + filters.authMethods.length
   const hasFilters = Boolean(query.trim()) || activeFilterCount > 0
 
@@ -127,12 +134,12 @@ export function HostCatalog({
             {tags.map((tag) => (
               <Tag.CheckableTag
                 key={tag.key}
-                checked={filters.tags.some((value) => hostTagKey(value) === tag.key)}
+                checked={filters.tags.some((value) => hostDirectoryTagKey(value) === tag.key)}
                 onChange={(checked) => setFilters((current) => ({
                   ...current,
                   tags: checked
                     ? [...current.tags, tag.label]
-                    : current.tags.filter((value) => hostTagKey(value) !== tag.key),
+                    : current.tags.filter((value) => hostDirectoryTagKey(value) !== tag.key),
                 }))}
               >
                 {tag.label}<small>{tag.count}</small>
@@ -151,7 +158,7 @@ export function HostCatalog({
       header={(
         <div className="host-panel-heading">
           <span className="host-panel-heading-icon"><Server size={18} aria-hidden="true" /></span>
-          <div><h2>{t('hosts.list')}</h2><span className="host-panel-heading-meta">{t('hosts.hostCount', { count: hosts.length })}</span></div>
+          <div><h2>{t('hosts.list')}</h2><span className="host-panel-heading-meta">{t('hosts.hostCount', { count: items.length })}</span></div>
           <div className="host-panel-heading-actions">
             <Tooltip title={t('proxies.manage')}>
               <Button
@@ -184,7 +191,7 @@ export function HostCatalog({
           </div>
         </div>
       )}
-      footer={<span className="host-catalog-result">{t('hosts.filterResult', { count: filteredHosts.length, total: hosts.length })}</span>}
+      footer={<span className="host-catalog-result">{t('hosts.filterResult', { count: filteredItems.length, total: items.length })}</span>}
     >
       <div className="host-catalog-toolbar">
         <div className="host-catalog-search-row">
@@ -215,18 +222,18 @@ export function HostCatalog({
         ) : null}
       </div>
       <div className="host-catalog-list">
-        {hosts.length === 0 ? <EmptyState title={t('hosts.empty')} description={t('hosts.emptyHint')} /> : null}
-        {hosts.length > 0 && filteredHosts.length === 0 ? <EmptyState title={t('hosts.noFilterResults')} description={t('hosts.noFilterResultsHint')} /> : null}
+        {items.length === 0 ? <EmptyState title={t('hosts.empty')} description={t('hosts.emptyHint')} /> : null}
+        {items.length > 0 && filteredItems.length === 0 ? <EmptyState title={t('hosts.noFilterResults')} description={t('hosts.noFilterResultsHint')} /> : null}
         {sections.map((section) => {
           const collapsed = collapsedGroups.has(section.id)
           return (
             <section className="host-group-section" key={section.id || 'ungrouped'}>
               <button type="button" className="host-group-heading" onClick={() => toggleGroup(section.id)} aria-expanded={!collapsed}>
                 {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                <span>{section.name}</span><small>{section.hosts.length}</small>
+                <span>{section.name}</span><small>{section.items.length}</small>
               </button>
-              {!collapsed ? section.hosts.map((host) => (
-                <HostCatalogRow key={host.id} host={host} active={host.id === selectedHostId} getHostIconUrl={getHostIconUrl} onSelect={onSelect} />
+              {!collapsed ? section.items.map((item) => (
+                <HostCatalogRow key={item.id} item={item} active={item.id === selectedHostId} getHostIconUrl={getHostIconUrl} onSelect={onSelect} />
               )) : null}
             </section>
           )
@@ -236,16 +243,18 @@ export function HostCatalog({
   )
 }
 
-function HostCatalogRow({ host, active, getHostIconUrl, onSelect }: { host: Host; active: boolean; getHostIconUrl: (id: string) => string; onSelect: (id: string) => void }) {
-  const tags = host.tags ?? []
+function HostCatalogRow({ item, active, getHostIconUrl, onSelect }: { item: HostDirectoryItem; active: boolean; getHostIconUrl: (id: string) => string; onSelect: (id: string) => void }) {
+  const { t } = useTranslation()
+  const { defaultSSHProfile: ssh } = item
+  const tags = item.tags ?? []
   return (
-    <button type="button" className={`host-catalog-row ${active ? `is-active ${styles['is-active']}` : ''}`} aria-pressed={active} onClick={() => onSelect(host.id)}>
-      <HostAvatar host={host} getIconUrl={getHostIconUrl} size={34} iconSize={17} />
+    <button type="button" className={`host-catalog-row ${active ? `is-active ${styles['is-active']}` : ''}`} aria-pressed={active} onClick={() => onSelect(item.id)}>
+      <HostAvatar host={item} getIconUrl={getHostIconUrl} size={34} iconSize={17} />
       <span className="host-catalog-row-copy">
-        <Tooltip title={host.name}><strong>{host.name}</strong></Tooltip>
-        <span><small>{host.username}@{host.address}:{host.port}</small>{tags[0] ? <Tooltip title={tags.join(', ')}><em>{tags[0]}{tags.length > 1 ? ` +${tags.length - 1}` : ''}</em></Tooltip> : null}</span>
+        <Tooltip title={item.name}><strong>{item.name}</strong></Tooltip>
+        <span><small>{ssh ? formatSSHProfileEndpoint(ssh) : t('hosts.access.ssh.empty')}</small>{tags[0] ? <Tooltip title={tags.join(', ')}><em>{tags[0]}{tags.length > 1 ? ` +${tags.length - 1}` : ''}</em></Tooltip> : null}</span>
       </span>
-      <AuthMethodBadge method={host.auth_method} compact />
+      {ssh ? <AuthMethodBadge method={ssh.auth_method} compact /> : null}
     </button>
   )
 }

@@ -12,12 +12,15 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { HostAvatar, type Host } from '#entities/host'
+import { HostAvatar } from '#entities/host'
+import type { HostAsset } from '#entities/host-asset'
 import { projectFileAccessProfile } from '#entities/file-access-profile'
 import {
   AccessProfileCatalog,
   AccessProfileEditorShell,
+  countRemoteDesktopProfileRuntimeUsage,
   countSSHProfileRuntimeUsage,
+  mergeSSHProfileRuntimeUsage,
   type HostAccessWorkspaceGateway,
   useSSHProfileReachability,
 } from '#features/host-access'
@@ -38,7 +41,7 @@ import { HostAssetForm } from './HostAssetForm.tsx'
 import styles from './HostAccessWorkspace.module.scss'
 
 interface HostAccessWorkspaceProps {
-  host: Host
+  host: HostAsset
   data: HostManagementData
   gateway: HostAccessWorkspaceGateway
   openAccessIntentKey?: number
@@ -421,10 +424,24 @@ function renderDialogs(
   t: (key: string, options?: Record<string, unknown>) => string,
 ) {
   const deleteTarget = controller.deleteTarget
-  const blocking = deleteTarget?.kind === 'ssh' && deleteTarget.references.blocking_total > 0
   const runtimeUsage = deleteTarget?.kind === 'ssh'
-    ? countSSHProfileRuntimeUsage(deleteTarget.profileId, data.sessions, data.fileSessions)
+    ? mergeSSHProfileRuntimeUsage(
+      deleteTarget.references,
+      countSSHProfileRuntimeUsage(
+        deleteTarget.profileId,
+        data.sessions,
+        data.fileSessions,
+        data.forwards,
+        data.remoteDesktopSessions,
+      ),
+    )
     : null
+  const remoteDesktopRuntimeUsage = deleteTarget?.kind === 'remote_desktop'
+    ? countRemoteDesktopProfileRuntimeUsage(deleteTarget.profileId, data.remoteDesktopSessions)
+    : 0
+  const blocking = deleteTarget?.kind === 'ssh'
+    ? deleteTarget.references.blocking_total > 0 || (runtimeUsage?.total ?? 0) > 0
+    : remoteDesktopRuntimeUsage > 0
   const deleteDescription = deleteTarget?.kind === 'ssh'
     ? t(blocking ? 'hosts.access.ssh.deleteBlocked' : 'hosts.access.ssh.deleteDescription', {
       files: deleteTarget.references.companion_files,
@@ -433,8 +450,15 @@ function renderDialogs(
       jumps: deleteTarget.references.jump_profile_consumers,
       terminals: runtimeUsage?.terminalSessions ?? 0,
       fileSessions: runtimeUsage?.fileSessions ?? 0,
+      backgroundForwards: runtimeUsage?.backgroundForwards ?? 0,
+      remoteDesktopSessions: runtimeUsage?.remoteDesktopSessions ?? 0,
     })
-    : t('hosts.access.desktop.deleteDescription')
+    : t(blocking ? 'hosts.access.desktop.deleteBlocked' : 'hosts.access.desktop.deleteDescription', {
+      sessions: remoteDesktopRuntimeUsage,
+    })
+  const blockingTitle = deleteTarget?.kind === 'remote_desktop'
+    ? 'hosts.access.desktop.deleteBlockedTitle'
+    : 'hosts.access.ssh.deleteBlockedTitle'
   return (
     <>
       <ConfirmDialog
@@ -448,14 +472,20 @@ function renderDialogs(
       />
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title={t(blocking ? 'hosts.access.ssh.deleteBlockedTitle' : 'hosts.access.deleteProfileTitle')}
+        title={t(blocking ? blockingTitle : 'hosts.access.deleteProfileTitle')}
         description={controller.mutationError || deleteDescription}
         confirmLabel={t(blocking ? 'app.confirm' : 'app.delete')}
         danger={!blocking}
         showCancelButton={!blocking}
         confirmLoading={controller.operationBusy}
         onCancel={() => controller.setDeleteTarget(null)}
-        onConfirm={() => void controller.confirmDeleteProfile()}
+        onConfirm={() => {
+          if (blocking) {
+            controller.setDeleteTarget(null)
+            return
+          }
+          void controller.confirmDeleteProfile()
+        }}
       />
     </>
   )

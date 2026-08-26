@@ -27,6 +27,8 @@ interface ViewerEntry {
   acceptedFingerprint: string
   blockedAttachGeneration: number | null
   connectedGeneration: number | null
+  automaticCredentialGeneration: number | null
+  savedCredentialRejected: boolean
 }
 
 interface RemoteDesktopViewerLifecycleOptions {
@@ -103,10 +105,12 @@ export class RemoteDesktopViewerLifecycle {
       if (!hasSameDriverIdentity(previous, session)) {
         entry.credentials = null
         entry.acceptedFingerprint = ''
+        entry.savedCredentialRejected = false
       }
       entry.connectionGeneration = session.connection_generation
       entry.blockedAttachGeneration = null
       entry.connectedGeneration = null
+      entry.automaticCredentialGeneration = null
     }
     for (const session of nextSessions) {
       if (!acceptsTelemetry(session.status)) {
@@ -125,6 +129,7 @@ export class RemoteDesktopViewerLifecycle {
       entry.credentials = null
       entry.targetAuth.clear()
       entry.acceptedFingerprint = ''
+      entry.automaticCredentialGeneration = null
       entry.blockedAttachGeneration = session.connection_generation
       entry.connectedGeneration = null
     }
@@ -184,6 +189,8 @@ export class RemoteDesktopViewerLifecycle {
         acceptedFingerprint: '',
         blockedAttachGeneration: null,
         connectedGeneration: null,
+        automaticCredentialGeneration: null,
+        savedCredentialRejected: false,
       }
       this.entries.set(sessionId, entry)
     }
@@ -220,6 +227,7 @@ export class RemoteDesktopViewerLifecycle {
     if (clearCredentials) {
       entry.credentials = null
       entry.acceptedFingerprint = ''
+      entry.savedCredentialRejected = false
     }
     entry.container.remove()
     this.entries.delete(sessionId)
@@ -245,6 +253,7 @@ export class RemoteDesktopViewerLifecycle {
     entry.targetAuth.clear()
     entry.blockedAttachGeneration = generation
     entry.connectedGeneration = null
+    entry.automaticCredentialGeneration = null
   }
 
   setDisplayMode(sessionId: string, mode: RemoteDesktopDisplayMode) {
@@ -269,6 +278,7 @@ export class RemoteDesktopViewerLifecycle {
       return false
     }
     entry.credentials = { ...credentials }
+    entry.automaticCredentialGeneration = null
     entry.viewer.sendCredentials(credentials)
     return true
   }
@@ -291,6 +301,7 @@ export class RemoteDesktopViewerLifecycle {
     entry.credentials = null
     entry.targetAuth.clear()
     entry.acceptedFingerprint = ''
+    entry.automaticCredentialGeneration = null
     entry.blockedAttachGeneration = entry.connectionGeneration
     entry.viewer?.dispose()
     entry.viewer = null
@@ -334,7 +345,7 @@ export class RemoteDesktopViewerLifecycle {
     }
     const state = this.options.viewerState(entry.sessionId)
       ?? driver.initialViewerState(latestSession, profile)
-    entry.targetAuth.reset(ticket.credential_ticket)
+    entry.targetAuth.reset(entry.savedCredentialRejected ? '' : ticket.credential_ticket)
     let viewer: RemoteDesktopViewerHandle | null = null
     viewer = await driver.createViewer({
       target: entry.container,
@@ -348,6 +359,7 @@ export class RemoteDesktopViewerLifecycle {
           if (viewer && this.isCurrentViewer(entry, expectedGeneration, viewer)) {
             entry.connectedGeneration = expectedGeneration
             entry.blockedAttachGeneration = null
+            entry.automaticCredentialGeneration = null
             this.options.commitViewerState(entry.sessionId, {
               connection: 'connected',
               errorCode: '',
@@ -360,6 +372,7 @@ export class RemoteDesktopViewerLifecycle {
           }
           const connected = entry.connectedGeneration === expectedGeneration
           entry.targetAuth.clear()
+          entry.automaticCredentialGeneration = null
           viewer.dispose()
           entry.viewer = null
           if (!connected) {
@@ -387,6 +400,7 @@ export class RemoteDesktopViewerLifecycle {
               viewer && this.isCurrentViewer(entry, expectedGeneration, viewer),
             ),
             submit: (credentials) => {
+              entry.automaticCredentialGeneration = expectedGeneration
               this.options.commitViewerState(entry.sessionId, {
                 connection: 'connecting',
                 credentialFields: [],
@@ -403,6 +417,11 @@ export class RemoteDesktopViewerLifecycle {
           }
           entry.credentials = null
           entry.targetAuth.clear()
+          if (entry.automaticCredentialGeneration === expectedGeneration) {
+            // 保存凭据被服务端拒绝后，本会话后续重连改由用户手工认证，避免重复提交错误秘密。
+            entry.savedCredentialRejected = true
+          }
+          entry.automaticCredentialGeneration = null
           entry.blockedAttachGeneration = expectedGeneration
           viewer.dispose()
           entry.viewer = null

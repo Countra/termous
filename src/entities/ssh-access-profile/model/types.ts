@@ -57,6 +57,11 @@ export interface SSHAccessProfileReferences {
   forward_profiles: number
   remote_desktop_routes: number
   jump_profile_consumers: number
+  active_terminal_sessions: number
+  active_file_sessions: number
+  active_background_forwards: number
+  active_remote_desktop_sessions: number
+  active_total: number
   total: number
   blocking_total: number
 }

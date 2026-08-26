@@ -6,13 +6,13 @@ import {
   normalizeFileAccessProfileMetadataInput,
   validateFileAccessProfileMetadataInput,
 } from '#entities/file-access-profile'
-import type { Host } from '#entities/host'
 import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
 import {
   hostAssetInputsEqual,
   hostAssetToInput,
   normalizeHostAssetInput,
   validateHostAssetInput,
+  type HostAsset,
   type HostAssetInput,
 } from '#entities/host-asset'
 import {
@@ -59,7 +59,7 @@ export type ProfileDeleteTarget =
 
 interface ControllerOptions {
   hostId: string
-  fallbackHost: Host
+  fallbackHost: HostAsset
   gateway: HostAccessManagementGateway
   t: (key: string, options?: Record<string, unknown>) => string
   openAccessIntentKey?: number
@@ -79,7 +79,7 @@ export function useHostAccessWorkspaceController({
   const catalogState = useHostAccessCatalog(hostId, gateway)
   const reloadCatalog = catalogState.reload
   const [view, setView] = useState<HostDetailView>('asset')
-  const initialAssetDraft = useMemo(() => fallbackHostAssetInput(fallbackHost), [fallbackHost])
+  const initialAssetDraft = useMemo(() => hostAssetToInput(fallbackHost), [fallbackHost])
   const [assetDraft, setAssetDraft] = useState<HostAssetInput>(initialAssetDraft)
   const [assetBaseline, setAssetBaseline] = useState<HostAssetInput>(initialAssetDraft)
   const appliedAssetRevisionRef = useRef('')
@@ -514,18 +514,6 @@ export function useHostAccessWorkspaceController({
     setDefaultProfile,
     requestDeleteSSH,
     confirmDeleteProfile,
-  }
-}
-
-function fallbackHostAssetInput(host: Host): HostAssetInput {
-  return {
-    name: host.name,
-    platform: host.platform,
-    icon_id: host.icon_id ?? '',
-    group_id: host.group_id,
-    tags: [...host.tags],
-    favorite: host.favorite,
-    note: host.note ?? '',
   }
 }
 

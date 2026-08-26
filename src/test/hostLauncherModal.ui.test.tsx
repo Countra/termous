@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FileAccessProfile } from '#entities/file-access-profile'
 import type { Host } from '#entities/host'
+import type { HostAsset } from '#entities/host-asset'
 import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import type { HostLauncherData } from '#features/hosts'
@@ -86,7 +87,7 @@ function host(id: string, name: string): Host {
 
 function data(hosts: Host[]): HostLauncherData {
   return {
-    hosts,
+    hostAssets: hosts.map(toHostAsset),
     groups: [],
     proxies: [],
     credentials: [{
@@ -101,6 +102,22 @@ function data(hosts: Host[]): HostLauncherData {
     sshAccessProfiles: hosts.map(sshProfile),
     fileAccessProfiles: hosts.map(fileProfile),
     remoteDesktopProfiles: hosts.map(remoteDesktopProfile),
+  }
+}
+
+function toHostAsset(host: Host): HostAsset {
+  return {
+    id: host.id,
+    name: host.name,
+    platform: host.platform,
+    icon_id: host.icon_id,
+    group_id: host.group_id,
+    tags: [...host.tags],
+    favorite: host.favorite,
+    note: host.note,
+    last_accessed_at: host.last_connected_at,
+    created_at: host.created_at ?? '2026-08-26T00:00:00Z',
+    updated_at: host.updated_at ?? '2026-08-26T00:00:00Z',
   }
 }
 
@@ -176,6 +193,44 @@ function deferred<T>() {
 describe('HostLauncherModal 行为合同', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('无 SSH 的主机资产仍可管理且不会伪造连接信息', async () => {
+    const assetOnly = toHostAsset(host('asset-only', 'Asset only'))
+    const onManageHostAccess = vi.fn()
+    const onRefreshReachability = vi.fn().mockResolvedValue(undefined)
+    render(
+      <HostLauncherModal
+        open
+        instanceKey={1}
+        data={{ ...data([]), hostAssets: [assetOnly] }}
+        selectedHostId={assetOnly.id}
+        actionBusy={false}
+        onClose={vi.fn()}
+        onSelectHost={vi.fn()}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
+        onCreateHost={vi.fn()}
+        onEditHost={vi.fn()}
+        onManageHostAccess={onManageHostAccess}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenForward={vi.fn()}
+        onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
+        onRefreshReachability={onRefreshReachability}
+        getHostIconUrl={vi.fn(() => '')}
+      />,
+    )
+
+    expect(screen.getByRole('option', { name: /Asset only/ })).toBeInTheDocument()
+    expect(screen.getAllByText('hosts.access.ssh.empty').length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'app.connect' })).toBeDisabled()
+    expect(screen.queryByText('auth')).not.toBeInTheDocument()
+    expect(onRefreshReachability).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'workbench.hostLauncher.profiles.manage',
+    }))
+    expect(onManageHostAccess).toHaveBeenCalledWith(assetOnly.id)
   })
 
   it('空主机状态使用专用引导且只保留一个新增入口', async () => {

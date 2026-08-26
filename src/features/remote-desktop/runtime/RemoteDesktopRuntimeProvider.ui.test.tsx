@@ -27,6 +27,28 @@ afterEach(() => {
   MockWebSocket.instances.length = 0
 })
 
+test('向外同步事件流维护的权威会话列表', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const onSessionsChange = vi.fn()
+
+  render(
+    <RemoteDesktopRuntimeProvider
+      api={remoteDesktopGateway(session, vi.fn())}
+      enabled
+      profiles={[]}
+      initialSessions={[session]}
+      onSessionsChange={onSessionsChange}
+    >
+      <div />
+    </RemoteDesktopRuntimeProvider>,
+  )
+
+  await waitFor(() => expect(onSessionsChange).toHaveBeenCalledWith([session]))
+  act(() => MockWebSocket.instances[0].emit({ type: 'removed', session }))
+  await waitFor(() => expect(onSessionsChange).toHaveBeenLastCalledWith([]))
+})
+
 test('目标握手前失败后同一代际的状态刷新不会重复申请 Ticket', async () => {
   vi.stubGlobal('WebSocket', MockWebSocket)
   const session = remoteDesktopSession()
@@ -267,6 +289,68 @@ test('目标认证读取失败时回退手工认证且不重复消费票据', as
   act(() => requestCredentials?.(['password']))
   expect(api.consumeRemoteDesktopTargetAuth).toHaveBeenCalledTimes(1)
   expect(adapter.sendCredentials).not.toHaveBeenCalled()
+})
+
+test('保存密码被拒绝后重连改用手工认证且不再重复消费保存凭据', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const adapters = [viewerAdapter(), viewerAdapter()]
+  const adapterEvents: Array<{
+    onConnected: () => void
+    onCredentialsRequired: (types: string[]) => void
+    onSecurityFailure: (error: { code: 'security_failure' }) => void
+  }> = []
+  adapterCreate.mockImplementation(async (options: {
+    events: {
+      onConnected: () => void
+      onCredentialsRequired: (types: string[]) => void
+      onSecurityFailure: (error: { code: 'security_failure' }) => void
+    }
+  }) => {
+    adapterEvents.push(options.events)
+    return adapters[adapterEvents.length - 1]
+  })
+  const api = remoteDesktopGateway(session, vi.fn(async (_id: string, generation: number) => ({
+    ticket: `ticket-${generation}`,
+    credential_ticket: `credential-ticket-${generation}`,
+    expires_at: '2026-08-23T12:00:30Z',
+    connection_generation: generation,
+    stream_path: '/api/v1/remote-desktop-stream',
+  })))
+  api.consumeRemoteDesktopTargetAuth = vi.fn(async () => ({ password: 'saved-password' }))
+
+  const view = render(
+    <RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}>
+      <ViewerCredentialHarness />
+    </RemoteDesktopRuntimeProvider>,
+  )
+  await waitFor(() => expect(adapterEvents).toHaveLength(1))
+  act(() => adapterEvents[0]?.onCredentialsRequired(['password']))
+  await waitFor(() => expect(adapters[0]?.sendCredentials).toHaveBeenCalledWith({
+    password: 'saved-password',
+  }))
+
+  act(() => adapterEvents[0]?.onSecurityFailure({ code: 'security_failure' }))
+  expect(view.getByTestId('viewer-credentials')).toHaveTextContent('security_failed:0')
+  act(() => MockWebSocket.instances[0].emit({
+    type: 'upsert',
+    session: {
+      ...session,
+      connection_generation: 2,
+      updated_at: '2026-08-23T12:00:02Z',
+    },
+  }))
+  await waitFor(() => expect(adapterEvents).toHaveLength(2))
+
+  act(() => adapterEvents[1]?.onCredentialsRequired(['password']))
+  await waitFor(() => expect(view.getByTestId('viewer-credentials')).toHaveTextContent(
+    'credentials_required:1',
+  ))
+  expect(api.consumeRemoteDesktopTargetAuth).toHaveBeenCalledTimes(1)
+  fireEvent.click(view.getByTestId('submit-manual-credentials'))
+  expect(adapters[1]?.sendCredentials).toHaveBeenCalledWith({ password: 'manual-password' })
+  act(() => adapterEvents[1]?.onConnected())
+  expect(view.getByTestId('viewer-credentials')).toHaveTextContent('connected:0')
 })
 
 test('reattach_wait 先于 noVNC 断开回调时仍会重新附加 Viewer', async () => {
@@ -856,6 +940,11 @@ function ViewerCredentialHarness() {
       <output data-testid="viewer-credentials">
         {state ? `${state.connection}:${state.credentialFields.length}` : 'missing'}
       </output>
+      <button
+        data-testid="submit-manual-credentials"
+        type="button"
+        onClick={() => runtime.submitCredentials(session.id, { password: 'manual-password' })}
+      />
     </>
   )
 }

@@ -324,6 +324,7 @@ function createAppDataSnapshotGateway(gateways: {
     hostIcons: () => gateways.hosts.hostIcons(),
     connectionProxies: () => gateways.hosts.connectionProxies(),
     hosts: () => gateways.hosts.hosts(),
+    hostAssets: () => gateways.hosts.hostAssets(),
     hostReachability: () => gateways.hosts.hostReachability(),
     credentials: () => gateways.credentials.credentials(),
     sessions: () => gateways.sessions.sessions(),

@@ -167,7 +167,7 @@ function createLauncherProps(): Omit<HostLauncherModalProps, 'onOpenRemoteDeskto
 
 function emptyLauncherData(): HostLauncherData {
   return {
-    hosts: [],
+    hostAssets: [],
     groups: [],
     proxies: [],
     credentials: [],

@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Host, HostIcon, HostIconReorderItem, HostInput } from '#entities/host'
+import type { HostAsset } from '#entities/host-asset'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import type { HostManagementData } from '#features/hosts'
 
 vi.mock('react-i18next', () => ({
@@ -15,20 +17,20 @@ vi.mock('../features/hosts/ui/ProxyManagerModal', () => ({
 
 vi.mock('../features/hosts/ui/HostCatalog', () => ({
   HostCatalog: ({
-    hosts,
+    items,
     selectedHostId,
     onSelect,
     onCreate,
     onManageIcons,
   }: {
-    hosts: Host[]
+    items: Array<{ id: string }>
     selectedHostId: string | null
     onSelect: (hostId: string) => void
     onCreate: () => void
     onManageIcons: () => void
   }) => (
     <section data-testid="host-catalog" data-selected-id={selectedHostId ?? ''}>
-      {hosts.map((host) => (
+      {items.map((host) => (
         <button key={host.id} type="button" onClick={() => onSelect(host.id)}>
           select-{host.id}
         </button>
@@ -166,11 +168,15 @@ function hostIcon(id = 'icon-library'): HostIcon {
 function data(hosts: Host[], hostIcons: HostIcon[] = []): HostManagementData {
   return {
     hosts,
+    hostAssets: hosts.map(toHostAsset),
+    sshAccessProfiles: hosts.map(toSSHProfile),
     groups: [],
     proxies: [],
     hostIcons,
     sessions: [],
     fileSessions: [],
+    forwards: [],
+    remoteDesktopSessions: [],
     credentials: [{
       id: 'credential-password',
       name: 'Password',
@@ -179,6 +185,39 @@ function data(hosts: Host[], hostIcons: HostIcon[] = []): HostManagementData {
       metadata: {},
       bound_host_count: hosts.length,
     }],
+  }
+}
+
+function toHostAsset(host: Host): HostAsset {
+  return {
+    id: host.id,
+    name: host.name,
+    platform: host.platform,
+    icon_id: host.icon_id,
+    group_id: host.group_id,
+    tags: [...host.tags],
+    favorite: host.favorite,
+    note: host.note,
+    created_at: host.created_at ?? '2026-08-26T00:00:00Z',
+    updated_at: host.updated_at ?? '2026-08-26T00:00:00Z',
+  }
+}
+
+function toSSHProfile(host: Host): SSHAccessProfile {
+  return {
+    id: `${host.id}-ssh`,
+    host_id: host.id,
+    name: 'Primary SSH',
+    address: host.address,
+    port: host.port,
+    username: host.username,
+    auth_method: host.auth_method,
+    credential_id: host.credential_id,
+    fingerprint_policy: host.fingerprint_policy,
+    is_default: true,
+    sort_order: 0,
+    created_at: '2026-08-26T00:00:00Z',
+    updated_at: '2026-08-26T00:00:00Z',
   }
 }
 

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Host } from '#entities/host'
+import type { HostAsset } from '#entities/host-asset'
 import type { HostAccessWorkspaceGateway } from '#features/host-access'
 import { HostManagementWorkspace } from './HostManagementWorkspace.tsx'
 
@@ -13,7 +14,7 @@ vi.mock('./HostAccessWorkspace', async () => {
       onBack,
       onDirtyChange,
     }: {
-      host: Host
+      host: HostAsset
       openAccessIntentKey?: number
       onBack: () => void
       onDirtyChange: (dirty: boolean) => void
@@ -61,6 +62,21 @@ const secondHost: Host = {
   address: 'host-b.example.com',
 }
 
+function assetFromHost(source: Host): HostAsset {
+  return {
+    id: source.id,
+    name: source.name,
+    platform: source.platform,
+    icon_id: source.icon_id,
+    group_id: source.group_id,
+    tags: [...source.tags],
+    favorite: source.favorite,
+    note: source.note,
+    created_at: '2026-08-26T00:00:00Z',
+    updated_at: '2026-08-26T00:00:00Z',
+  }
+}
+
 const accessGateway: HostAccessWorkspaceGateway = {
   loadCatalog: vi.fn(),
   listSSHProfiles: vi.fn(),
@@ -84,17 +100,63 @@ const accessGateway: HostAccessWorkspaceGateway = {
 }
 
 describe('主机管理工作区', () => {
-  it('确认放弃访问草稿后重置隐藏编辑器状态', () => {
+  it('旧主机投影为空时仍可选择和管理纯资产', () => {
+    const asset = assetFromHost(host)
     render(
       <HostManagementWorkspace
         data={{
-          hosts: [host],
+          hosts: [],
+          hostAssets: [asset],
+          sshAccessProfiles: [],
           groups: [],
           proxies: [],
           credentials: [],
           hostIcons: [],
           sessions: [],
           fileSessions: [],
+          forwards: [],
+          remoteDesktopSessions: [],
+        }}
+        selectedHostId={asset.id}
+        actionBusy={false}
+        accessGateway={accessGateway}
+        onSelectHost={vi.fn()}
+        onSave={vi.fn()}
+        onDelete={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+        onReorderGroups={vi.fn()}
+        onCreateProxy={vi.fn()}
+        onUpdateProxy={vi.fn()}
+        onDeleteProxy={vi.fn()}
+        onUploadHostIcon={vi.fn()}
+        onRenameHostIcon={vi.fn()}
+        onReorderHostIcons={vi.fn()}
+        onDeleteHostIcon={vi.fn()}
+        getHostIconUrl={() => ''}
+      />,
+    )
+
+    expect(screen.getByTestId('access-draft')).toHaveTextContent(asset.name)
+    expect(screen.getByText('hosts.access.ssh.empty')).toBeInTheDocument()
+  })
+
+  it('确认放弃访问草稿后重置隐藏编辑器状态', () => {
+    render(
+      <HostManagementWorkspace
+        data={{
+          hosts: [host],
+          hostAssets: [assetFromHost(host)],
+          sshAccessProfiles: [],
+          groups: [],
+          proxies: [],
+          credentials: [],
+          hostIcons: [],
+          sessions: [],
+          fileSessions: [],
+          forwards: [],
+          remoteDesktopSessions: [],
         }}
         selectedHostId={host.id}
         actionBusy={false}
@@ -134,12 +196,16 @@ describe('主机管理工作区', () => {
     const props = {
       data: {
         hosts: [host, secondHost],
+        hostAssets: [assetFromHost(host), assetFromHost(secondHost)],
+        sshAccessProfiles: [],
         groups: [],
         proxies: [],
         credentials: [],
         hostIcons: [],
         sessions: [],
         fileSessions: [],
+        forwards: [],
+        remoteDesktopSessions: [],
       },
       actionBusy: false,
       accessGateway,

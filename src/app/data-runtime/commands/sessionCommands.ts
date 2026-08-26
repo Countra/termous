@@ -8,11 +8,11 @@ import type {
 } from '../api/runtimeGatewayContracts'
 import {
   bumpSessionRevision,
-  markHostRecentlyConnected,
   sessionInventorySignature,
   upsertSession,
   type LoadMode,
 } from '../model/appDataState'
+import { markHostRecentlyConnected } from '../model/hostRecentState.ts'
 import { shouldApplySessionInventoryResponse } from '../model/sessionInventoryState'
 import type { LocalShell, Session } from '../model/sessionTypes'
 import type { SetAppData, SetRuntimeState } from '../model/runtimeTypes'
@@ -207,6 +207,7 @@ export function createSessionCommands({
         ...current,
         ...markHostRecentlyConnected(
           current.hosts,
+          current.hostAssets,
           current.sessions,
           sessionId,
           patch,

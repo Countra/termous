@@ -389,6 +389,7 @@ test('主机表单与启动入口显式挂载共享控件 Module', () => {
   const hostCatalogSource = source('../features/hosts/ui/HostCatalog.tsx')
   const hostEditorSource = source('../features/hosts/ui/HostEditor.tsx')
   const hostLauncherSource = source('../features/hosts/ui/HostLauncherModal.tsx')
+  const hostLauncherFiltersSource = source('../features/hosts/ui/HostLauncherAdvancedFilters.tsx')
   const proxyManagerSource = source('../features/hosts/ui/ProxyManagerModal.tsx')
   const quickConnectSource = source('../features/hosts/ui/SessionQuickConnect.tsx')
   const hostManagementStyles = source('../features/hosts/ui/HostManagement.module.scss')
@@ -405,8 +406,8 @@ test('主机表单与启动入口显式挂载共享控件 Module', () => {
   assert.match(hostManagementStyles, /\.host-icon-select-option\s*\{[^}]*align-items:\s*center;/s)
 
   assert.match(hostLauncherSource, /confirmDialogStyles\['modal-root'\]/)
-  assert.match(hostLauncherSource, /customSelectStyles\.select/)
-  assert.match(hostLauncherSource, /customSelectStyles\['select-popup'\]/)
+  assert.match(hostLauncherFiltersSource, /customSelectStyles\.select/)
+  assert.match(hostLauncherFiltersSource, /customSelectStyles\['select-popup'\]/)
   assert.match(hostLauncherSource, /uiStyles\['search-input'\]/)
   assert.match(hostLauncherStyles, /@keyframes :global\(host-launcher-filter-in\)/)
   assert.match(hostLauncherStyles, /@keyframes :global\(termous-reachability-pulse\)/)

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { Host, HostGroup, HostReachability } from '#entities/host'
+import type { AuthMethod, HostGroup, HostReachability } from '#entities/host'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
+import type { HostDirectoryItem } from './hostDirectory.ts'
 import {
   buildGroupFilterOptions,
   buildTagOptions,
@@ -82,10 +84,10 @@ test('在线筛选同时保留 online 和 checking 状态', () => {
 
 test('排序兼容无效时间且不改写输入顺序和对象', () => {
   const source = [
-    host({ id: 'invalid', name: 'Zulu', last_connected_at: 'not-a-date' }),
-    host({ id: 'older', name: 'Beta', last_connected_at: '2026-08-24T00:00:00Z' }),
-    host({ id: 'favorite', name: 'Omega', favorite: true, last_connected_at: '2026-08-20T00:00:00Z' }),
-    host({ id: 'newer', name: 'Alpha', last_connected_at: '2026-08-25T00:00:00Z' }),
+    host({ id: 'invalid', name: 'Zulu', last_accessed_at: 'not-a-date' }),
+    host({ id: 'older', name: 'Beta', last_accessed_at: '2026-08-24T00:00:00Z' }),
+    host({ id: 'favorite', name: 'Omega', favorite: true, last_accessed_at: '2026-08-20T00:00:00Z' }),
+    host({ id: 'newer', name: 'Alpha', last_accessed_at: '2026-08-25T00:00:00Z' }),
   ]
   const snapshot = structuredClone(source)
 
@@ -165,21 +167,53 @@ test('日期格式化对缺失和无效值使用 fallback', () => {
   assert.notEqual(formatDateTime('2026-08-26T12:00:00Z', 'none'), 'none')
 })
 
-function host(patch: Partial<Host> = {}): Host {
+type DirectoryHostPatch = Partial<Omit<HostDirectoryItem, 'defaultSSHProfile'>> & {
+  address?: string
+  port?: number
+  username?: string
+  auth_method?: AuthMethod
+  credential_id?: string
+  defaultSSHProfile?: SSHAccessProfile | null
+}
+
+function host(patch: DirectoryHostPatch = {}): HostDirectoryItem {
+  const {
+    address = '192.0.2.10',
+    port = 22,
+    username = 'root',
+    auth_method = 'password',
+    credential_id = 'credential',
+    defaultSSHProfile,
+    ...assetPatch
+  } = patch
+  const id = assetPatch.id ?? 'host'
+  const ssh = defaultSSHProfile === undefined ? {
+    id: `ssh-${id}`,
+    host_id: id,
+    name: 'Primary SSH',
+    address,
+    port,
+    username,
+    auth_method,
+    credential_id,
+    fingerprint_policy: 'confirm_on_change',
+    is_default: true,
+    sort_order: 0,
+    created_at: '2026-08-26T00:00:00Z',
+    updated_at: '2026-08-26T00:00:00Z',
+  } satisfies SSHAccessProfile : defaultSSHProfile
   return {
-    id: 'host',
+    id,
     name: 'Host',
     platform: 'linux',
     group_id: '',
-    address: '192.0.2.10',
-    port: 22,
-    username: 'root',
-    auth_method: 'password',
-    credential_id: 'credential',
     tags: [],
     favorite: false,
-    fingerprint_policy: 'confirm_on_change',
-    ...patch,
+    created_at: '2026-08-26T00:00:00Z',
+    updated_at: '2026-08-26T00:00:00Z',
+    ...assetPatch,
+    defaultSSHProfile: ssh,
+    defaultSSHResolution: ssh ? 'resolved' : 'missing',
   }
 }
 

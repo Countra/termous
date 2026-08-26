@@ -13,6 +13,7 @@ export function loadAppDataSnapshot(api: AppDataSnapshotGateway) {
     api.hostIcons(),
     api.connectionProxies(),
     api.hosts(),
+    api.hostAssets(),
     api.hostReachability(),
     api.credentials(),
     api.sessions(),

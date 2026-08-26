@@ -236,6 +236,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [actionBusy, setActionBusy] = useState(false)
   const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
   const [activeRemoteDesktopCount, setActiveRemoteDesktopCount] = useState(0)
+  const [remoteDesktopRuntimeSessions, setRemoteDesktopRuntimeSessions] = useState(
+    data.remoteDesktopSessions,
+  )
 
   const invalidateFilesBookmarkManagementRequest = useCallback(() => {
     nextFilesBookmarkManagementIntentIdRef.current += 1
@@ -262,10 +265,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }, [invalidateFilesBookmarkManagementRequest, page])
 
   useEffect(() => {
-    if (!selectedHostId && data.hosts[0]) {
-      setSelectedHostId(data.hosts[0].id)
+    const firstHostId = data.hostAssets[0]?.id ?? data.hosts[0]?.id
+    if (!selectedHostId && firstHostId) {
+      setSelectedHostId(firstHostId)
     }
-  }, [data.hosts, selectedHostId])
+  }, [data.hostAssets, data.hosts, selectedHostId])
 
   useEffect(() => {
     const preventFileDropNavigation = (event: globalThis.DragEvent) => {
@@ -291,12 +295,19 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     notifyForwardError(forwardErrorEvent, notification, t, notifiedForwardFailuresRef, notifiedForwardRuntimeErrorsRef)
   }, [forwardErrorEvent, notification, t])
 
-  const selectedHostIdStable = useMemo(() => {
+  const selectedLegacyHostIdStable = useMemo(() => {
     if (data.hosts.some((host) => host.id === selectedHostId)) {
       return selectedHostId
     }
     return data.hosts[0]?.id ?? ''
   }, [data.hosts, selectedHostId])
+
+  const selectedHostAssetIdStable = useMemo(() => {
+    if (data.hostAssets.some((host) => host.id === selectedHostId)) {
+      return selectedHostId
+    }
+    return data.hostAssets[0]?.id ?? ''
+  }, [data.hostAssets, selectedHostId])
 
   const trayRecentHosts = useMemo(
     () =>
@@ -331,20 +342,28 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
   const hostManagementData = useMemo<HostsPageProps['data']>(() => ({
     hosts: data.hosts,
+    hostAssets: data.hostAssets,
+    sshAccessProfiles: data.sshAccessProfiles,
     groups: data.groups,
     proxies: data.proxies,
     credentials: data.credentials,
     hostIcons: data.hostIcons,
     sessions: data.sessions,
     fileSessions: data.fileSessions,
+    forwards: data.forwards,
+    remoteDesktopSessions: remoteDesktopRuntimeSessions,
   }), [
     data.credentials,
     data.fileSessions,
+    data.forwards,
     data.groups,
+    data.hostAssets,
     data.hostIcons,
     data.hosts,
     data.proxies,
     data.sessions,
+    data.sshAccessProfiles,
+    remoteDesktopRuntimeSessions,
   ])
   const hostAccessActionsRef = useRef(actions)
   hostAccessActionsRef.current = actions
@@ -380,15 +399,23 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     sshAccessProfiles: data.sshAccessProfiles,
   }), [data.credentials, data.groups, data.hostReachability, data.hosts, data.proxies, data.sshAccessProfiles])
   const hostLauncherData = useMemo<HostLauncherData>(() => ({
-    ...workbenchHostView,
+    hostAssets: data.hostAssets,
+    groups: data.groups,
+    proxies: data.proxies,
+    credentials: data.credentials,
+    hostReachability: data.hostReachability,
     sshAccessProfiles: data.sshAccessProfiles,
     fileAccessProfiles: data.fileAccessProfiles,
     remoteDesktopProfiles: data.remoteDesktopProfiles,
   }), [
+    data.credentials,
     data.fileAccessProfiles,
+    data.groups,
+    data.hostAssets,
+    data.hostReachability,
+    data.proxies,
     data.remoteDesktopProfiles,
     data.sshAccessProfiles,
-    workbenchHostView,
   ])
   const forwardManagementData = useMemo<ForwardsPageProps['data']>(() => ({
     hosts: data.hosts,
@@ -1017,6 +1044,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                     profiles={data.remoteDesktopProfiles}
                     initialSessions={data.remoteDesktopSessions}
                     onSessionCountChange={setActiveRemoteDesktopCount}
+                    onSessionsChange={setRemoteDesktopRuntimeSessions}
                   >
                     <AppShell
                       page={page}
@@ -1052,7 +1080,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           fileSessionClosures={fileSessionClosures}
                           theme={theme}
                           active={page === 'workbench'}
-                          selectedHostId={selectedHostIdStable}
+                          selectedHostId={selectedLegacyHostIdStable}
                           activeSession={activeSession}
                           actionBusy={actionBusy}
                           onOpenConnectionLauncher={openTerminalSessionLauncher}
@@ -1088,7 +1116,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       {page === 'hosts' ? (
                         <HostsPage
                           data={hostManagementData}
-                          selectedHostId={selectedHostIdStable}
+                          selectedHostId={selectedHostAssetIdStable}
                           createIntentKey={hostCreateIntentKey}
                           accessIntent={hostAccessIntent}
                           onAccessIntentHandled={(key) => {
@@ -1254,7 +1282,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       instanceKey={hostLauncherState.instanceKey}
                       intent={hostLauncherState.intent}
                       data={hostLauncherData}
-                      selectedHostId={selectedHostIdStable}
+                      selectedHostId={selectedHostAssetIdStable}
                       actionBusy={actionBusy}
                       onClose={closeHostLauncher}
                       onSelectHost={setSelectedHostId}

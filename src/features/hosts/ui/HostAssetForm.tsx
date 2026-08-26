@@ -4,13 +4,16 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   HostAvatar,
-  buildHostTagOptions,
   normalizeGroupName,
   normalizeHostTags,
 } from '#entities/host'
 import type { HostAssetInput } from '#entities/host-asset'
 import { customSelectStyles } from '#shared/ui'
 import type { HostManagementData } from '../model/types.ts'
+import {
+  buildHostDirectoryItems,
+  buildHostDirectoryTagOptions,
+} from '../model/hostDirectory.ts'
 import styles from './HostManagement.module.scss'
 
 interface HostAssetFormProps {
@@ -50,8 +53,10 @@ export function HostAssetForm({
   const [groupDraft, setGroupDraft] = useState('')
   const [creatingGroup, setCreatingGroup] = useState(false)
   const tagOptions = useMemo(
-    () => buildHostTagOptions(data.hosts).map((option) => ({ value: option.label, label: option.label })),
-    [data.hosts],
+    () => buildHostDirectoryTagOptions(
+      buildHostDirectoryItems(data.hostAssets, data.sshAccessProfiles),
+    ).map((option) => ({ value: option.label, label: option.label })),
+    [data.hostAssets, data.sshAccessProfiles],
   )
   const hostIconOptions = useMemo<HostIconOption[]>(
     () => data.hostIcons.map((icon) => ({

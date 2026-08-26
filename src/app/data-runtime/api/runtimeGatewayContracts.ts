@@ -83,6 +83,7 @@ export interface AppDataSnapshotGateway {
   hostIcons: () => Promise<HostIcon[]>
   connectionProxies: () => Promise<ConnectionProxy[]>
   hosts: () => Promise<Host[]>
+  hostAssets: () => Promise<HostAsset[]>
   hostReachability: () => Promise<HostReachability[]>
   credentials: () => Promise<CredentialView[]>
   sessions: () => Promise<Session[]>

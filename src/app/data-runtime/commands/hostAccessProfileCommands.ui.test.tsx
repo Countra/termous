@@ -10,6 +10,7 @@ const UPDATED_AT = '2026-08-25T10:00:00Z'
 
 test('收藏切换只通过版本化资产接口写入非连接字段', async () => {
   const host = legacyHost()
+  const sourceAsset = hostAsset()
   const asset = hostAsset({ favorite: true, updated_at: '2026-08-25T10:00:01Z' })
   const api = {
     updateHost: vi.fn(),
@@ -18,7 +19,7 @@ test('收藏切换只通过版本化资产接口写入非连接字段', async ()
   const load = vi.fn(async () => undefined)
   const commands = createHostCommands({
     api: api as unknown as HostCommandGateway,
-    hosts: [host],
+    hostAssets: [sourceAsset],
     load,
     setData: vi.fn() as unknown as SetAppData,
   })
@@ -39,7 +40,7 @@ test('收藏切换只通过版本化资产接口写入非连接字段', async ()
   expect(load).toHaveBeenCalledWith('silent')
 })
 
-test('收藏切换缺少版本或 CAS 失败时不刷新也不回退到旧接口', async () => {
+test('收藏切换找不到资产或 CAS 失败时不刷新也不回退到旧接口', async () => {
   const updateError = new Error('asset conflict')
   const api = {
     updateHost: vi.fn(),
@@ -48,26 +49,41 @@ test('收藏切换缺少版本或 CAS 失败时不刷新也不回退到旧接口
     }),
   }
   const load = vi.fn(async () => undefined)
-  const missingVersionCommands = createHostCommands({
+  const missingAssetCommands = createHostCommands({
     api: api as unknown as HostCommandGateway,
-    hosts: [{ ...legacyHost(), updated_at: undefined }],
+    hostAssets: [],
     load,
     setData: vi.fn() as unknown as SetAppData,
   })
 
-  await expect(missingVersionCommands.toggleHostFavorite('hst_a'))
-    .rejects.toThrow('主机资产不存在或缺少版本信息')
+  await expect(missingAssetCommands.toggleHostFavorite('hst_a')).resolves.toBeUndefined()
   expect(api.updateHostAsset).not.toHaveBeenCalled()
 
   const conflictCommands = createHostCommands({
     api: api as unknown as HostCommandGateway,
-    hosts: [legacyHost()],
+    hostAssets: [hostAsset()],
     load,
     setData: vi.fn() as unknown as SetAppData,
   })
   await expect(conflictCommands.toggleHostFavorite('hst_a')).rejects.toBe(updateError)
   expect(api.updateHost).not.toHaveBeenCalled()
   expect(load).not.toHaveBeenCalled()
+})
+
+test('删除主机分组后通过权威快照刷新资产版本', async () => {
+  const api = { deleteHostGroup: vi.fn().mockResolvedValue(undefined) }
+  const load = vi.fn().mockResolvedValue(undefined)
+  const commands = createHostCommands({
+    api: api as unknown as HostCommandGateway,
+    hostAssets: [hostAsset()],
+    load,
+    setData: vi.fn() as unknown as SetAppData,
+  })
+
+  await commands.deleteHostGroup('grp_a')
+
+  expect(api.deleteHostGroup).toHaveBeenCalledWith('grp_a')
+  expect(load).toHaveBeenCalledWith('silent')
 })
 
 test('Profile 只读查询直接透传，写入成功后才触发静默对账', async () => {
@@ -89,7 +105,7 @@ test('Profile 只读查询直接透传，写入成功后才触发静默对账', 
   const load = vi.fn(async () => undefined)
   const commands = createHostCommands({
     api: api as unknown as HostCommandGateway,
-    hosts: [],
+    hostAssets: [],
     load,
     setData: vi.fn() as unknown as SetAppData,
   })

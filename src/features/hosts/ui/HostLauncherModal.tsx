@@ -1,35 +1,17 @@
-import { Button, Empty, Input, Modal, Segmented, Select, Tag, Tooltip } from 'antd'
+import { Button, Input, Modal, Segmented, Tooltip } from 'antd'
 import {
-  Activity,
   Cable,
-  ChevronDown,
-  ChevronRight,
-  Clock3,
-  Edit3,
   FolderOpen,
-  Globe2,
-  KeyRound,
   ListFilter,
   MonitorPlay,
-  Network,
   Plus,
   RefreshCcw,
   Search,
-  Server,
-  Star,
-  Tags,
-  UserRound,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  AuthMethodBadge,
-  HostAvatar,
-} from '#entities/host'
-import {
   confirmDialogStyles,
-  ConnectionActionButton,
-  customSelectStyles,
   uiStyles,
 } from '#shared/ui'
 import {
@@ -41,7 +23,6 @@ import {
   buildGroupFilterOptions,
   buildTagOptions,
   filterHosts,
-  formatDateTime,
   groupHosts,
   tagKey,
   type LauncherAuthFilter,
@@ -53,19 +34,14 @@ import {
   buildHostLauncherProfileMenu,
   type HostLauncherProfileMenuItem,
 } from '../model/hostLauncherProfiles.ts'
-import type { HostLauncherData } from '../model/types.ts'
 import {
-  DetailItem,
-  HostReachabilityDot,
-  HostReachabilityPill,
-  LatencyValue,
-} from './HostLauncherDetailParts.tsx'
-import { HostLauncherProfileAction } from './HostLauncherProfileAction.tsx'
+  buildHostDirectoryItems,
+} from '../model/hostDirectory.ts'
+import type { HostLauncherData } from '../model/types.ts'
+import { HostLauncherAdvancedFilters } from './HostLauncherAdvancedFilters.tsx'
+import { HostLauncherDetail } from './HostLauncherDetail.tsx'
+import { HostLauncherHostList } from './HostLauncherHostList.tsx'
 import styles from './HostLauncherModal.module.scss'
-
-const renderHostLauncherFilterPopup = (content: ReactNode) => (
-  <div data-host-launcher-filter-popup>{content}</div>
-)
 
 export interface HostLauncherModalProps {
   open: boolean
@@ -126,16 +102,20 @@ export function HostLauncherModal({
   const refreshReachabilityRef = useRef(onRefreshReachability)
   const autoRefreshOpenRef = useRef(false)
   const filterAnchorRef = useRef<HTMLDivElement>(null)
+  const directoryItems = useMemo(
+    () => buildHostDirectoryItems(data.hostAssets, data.sshAccessProfiles),
+    [data.hostAssets, data.sshAccessProfiles],
+  )
   const groupsById = useMemo(() => new Map(data.groups.map((group) => [group.id, group.name])), [data.groups])
-  const credentialsById = useMemo(() => new Map(data.credentials.map((credential) => [credential.id, credential.name])), [data.credentials])
-  const hostsById = useMemo(() => new Map(data.hosts.map((host) => [host.id, host])), [data.hosts])
-  const proxiesById = useMemo(() => new Map(data.proxies.map((proxy) => [proxy.id, proxy])), [data.proxies])
-  const hostIds = useMemo(() => data.hosts.map((host) => host.id), [data.hosts])
-  const availableTags = useMemo(() => buildTagOptions(data.hosts), [data.hosts])
-  const groupOptions = useMemo(() => buildGroupFilterOptions(data.hosts, data.groups, t('hosts.ungrouped'), t('workbench.hostLauncher.filters.allGroups')), [data.groups, data.hosts, t])
+  const hostIds = useMemo(
+    () => directoryItems.filter((host) => host.defaultSSHProfile).map((host) => host.id),
+    [directoryItems],
+  )
+  const availableTags = useMemo(() => buildTagOptions(directoryItems), [directoryItems])
+  const groupOptions = useMemo(() => buildGroupFilterOptions(directoryItems, data.groups, t('hosts.ungrouped'), t('workbench.hostLauncher.filters.allGroups')), [data.groups, directoryItems, t])
   const filteredHosts = useMemo(
-    () => filterHosts(data.hosts, groupsById, data.hostReachability, query, filter, platformFilter, groupFilter, authFilter, selectedTags),
-    [authFilter, data.hostReachability, data.hosts, filter, groupFilter, groupsById, platformFilter, query, selectedTags],
+    () => filterHosts(directoryItems, groupsById, data.hostReachability, query, filter, platformFilter, groupFilter, authFilter, selectedTags),
+    [authFilter, data.hostReachability, directoryItems, filter, groupFilter, groupsById, platformFilter, query, selectedTags],
   )
   const groupedHosts = useMemo(
     () => filter === 'recent'
@@ -143,12 +123,8 @@ export function HostLauncherModal({
       : groupHosts(filteredHosts, data.groups, t('hosts.ungrouped')),
     [data.groups, filter, filteredHosts, t],
   )
-  const hasHosts = data.hosts.length > 0
+  const hasHosts = directoryItems.length > 0
   const selectedHost = filteredHosts.find((host) => host.id === selectedHostId) ?? filteredHosts[0]
-  const selectedHostCredential = selectedHost?.credential_id ? credentialsById.get(selectedHost.credential_id) : ''
-  const selectedJumpHost = selectedHost?.jump_host_id ? hostsById.get(selectedHost.jump_host_id) : undefined
-  const selectedProxy = selectedHost?.proxy_id ? proxiesById.get(selectedHost.proxy_id) : undefined
-  const selectedReachability = selectedHost ? data.hostReachability[selectedHost.id] : undefined
   const renderedHostIds = useMemo(
     () => groupedHosts.flatMap((group) => (
       filter === 'recent' || !collapsedGroupIds.has(group.id)
@@ -271,6 +247,12 @@ export function HostLauncherModal({
     if (!targetIntent) return null
     const menu = buildHostLauncherProfileMenu(data, hostId, targetIntent)
     return menu.defaultResolution === 'resolved' ? menu.defaultItem : null
+  }
+
+  const canRunHostAction = (actionId: HostLauncherActionId, hostId: string) => {
+    if (actionId === 'editHost') return true
+    if (actionId === 'openForward') return Boolean(resolveDefaultProfile('connect', hostId))
+    return Boolean(resolveDefaultProfile(actionId, hostId))
   }
 
   const executeHostAction = async (
@@ -452,95 +434,6 @@ export function HostLauncherModal({
     })
   }
 
-  const filterPanel = (
-    <div className="host-launcher-filter-shell">
-      <div className="host-launcher-filter-panel">
-        <div className="host-launcher-filter-panel-head">
-          <div>
-            <span className="host-launcher-filter-panel-icon">
-              <ListFilter size={15} aria-hidden="true" />
-            </span>
-            <span>{t('workbench.hostLauncher.filters.advanced')}</span>
-          </div>
-          <Button
-            type="text"
-            size="small"
-            className="host-launcher-filter-clear"
-            disabled={activeAdvancedFilterCount === 0}
-            onClick={clearAdvancedFilters}
-          >
-            {t('hosts.clearFilters')}
-          </Button>
-        </div>
-        <div className="host-launcher-filter-grid">
-          <label className="host-launcher-filter-field">
-            <span>{t('hosts.platform.label')}</span>
-            <Select
-              value={platformFilter}
-              className={customSelectStyles.select}
-              popupRender={renderHostLauncherFilterPopup}
-              classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
-              optionLabelProp="label"
-              onChange={(value) => setPlatformFilter(value as LauncherPlatformFilter)}
-              options={[
-                { value: 'all', label: t('workbench.hostLauncher.platformAll') },
-                { value: 'linux', label: t('hosts.platform.linux') },
-              ]}
-            />
-          </label>
-          <label className="host-launcher-filter-field">
-            <span>{t('hosts.group')}</span>
-            <Select
-              value={groupFilter}
-              className={customSelectStyles.select}
-              popupRender={renderHostLauncherFilterPopup}
-              classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
-              optionLabelProp="label"
-              onChange={(value) => setGroupFilter(value as LauncherGroupFilter)}
-              options={groupOptions}
-            />
-          </label>
-          <label className="host-launcher-filter-field">
-            <span>{t('hosts.authMethod')}</span>
-            <Select
-              value={authFilter}
-              className={customSelectStyles.select}
-              popupRender={renderHostLauncherFilterPopup}
-              classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
-              optionLabelProp="label"
-              onChange={(value) => setAuthFilter(value as LauncherAuthFilter)}
-              options={[
-                { value: 'all', label: t('workbench.hostLauncher.filters.allAuthMethods') },
-                { value: 'password', label: t('hosts.auth.password') },
-                { value: 'private_key', label: t('hosts.auth.private_key') },
-              ]}
-            />
-          </label>
-        </div>
-        <div className="host-launcher-filter-tags">
-          <span>{t('hosts.tags')}</span>
-          {availableTags.length > 0 ? (
-            <div className="host-launcher-filter-tag-list">
-              {availableTags.map((tag) => (
-                <Tag.CheckableTag
-                  key={tag.key}
-                  className="host-filter-chip"
-                  checked={selectedTags.some((item) => tagKey(item) === tag.key)}
-                  onChange={(checked) => toggleTag(tag.label, checked)}
-                >
-                  <span>{tag.label}</span>
-                  <small>{tag.count}</small>
-                </Tag.CheckableTag>
-              ))}
-            </div>
-          ) : (
-            <small>{t('fields.none')}</small>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-
   const launcherTitle = intent === 'files'
     ? t('files.openFileSession')
     : intent === 'remote_desktop'
@@ -576,6 +469,7 @@ export function HostLauncherModal({
                 className="host-launcher-title-refresh"
                 aria-label={t('workbench.hostLauncher.refreshReachability')}
                 loading={refreshingReachability}
+                disabled={hostIds.length === 0}
                 icon={<RefreshCcw size={15} />}
                 onClick={() => void onRefreshReachability(hostIds, true)}
               />
@@ -612,7 +506,20 @@ export function HostLauncherModal({
               </div>
               {filterOpen ? (
                 <div className="host-launcher-filter-floating" role="dialog" aria-label={t('workbench.hostLauncher.filters.advanced')}>
-                  {filterPanel}
+                  <HostLauncherAdvancedFilters
+                    activeFilterCount={activeAdvancedFilterCount}
+                    platformFilter={platformFilter}
+                    groupFilter={groupFilter}
+                    authFilter={authFilter}
+                    selectedTags={selectedTags}
+                    groupOptions={groupOptions}
+                    availableTags={availableTags}
+                    onClear={clearAdvancedFilters}
+                    onPlatformChange={setPlatformFilter}
+                    onGroupChange={setGroupFilter}
+                    onAuthChange={setAuthFilter}
+                    onToggleTag={toggleTag}
+                  />
                 </div>
               ) : null}
             </div>
@@ -628,256 +535,51 @@ export function HostLauncherModal({
                 { value: 'online', label: t('workbench.hostLauncher.filters.online') },
               ]}
             />
-            <div
-              className="host-launcher-list"
-              role={filteredHosts.length === 0 ? 'status' : 'listbox'}
-              aria-label={filteredHosts.length === 0 ? undefined : t('workbench.hostLauncher.hostList')}
+            <HostLauncherHostList
+              filter={filter}
+              groups={groupedHosts}
+              filteredCount={filteredHosts.length}
+              totalCount={directoryItems.length}
+              collapsedGroupIds={collapsedGroupIds}
+              selectedHostId={selectedHost?.id}
+              focusableHostId={focusableHostId}
+              hostReachability={data.hostReachability}
+              getHostIconUrl={getHostIconUrl}
               onKeyDown={handleHostListKeyDown}
-            >
-              {filteredHosts.length === 0 ? (
-                <div className="host-launcher-empty">
-                  <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description={(
-                      <span className="host-launcher-empty-copy">
-                        <strong>{t('hosts.filterResult', { count: 0, total: data.hosts.length })}</strong>
-                      </span>
-                    )}
-                  />
-                </div>
-              ) : (
-                groupedHosts.map((group) => {
-                  const flat = filter === 'recent'
-                  const collapsed = !flat && collapsedGroupIds.has(group.id)
-                  const GroupIcon = collapsed ? ChevronRight : ChevronDown
-                  return (
-                    <section className={`host-launcher-group ${flat ? 'is-flat' : ''} ${collapsed ? 'is-collapsed' : ''}`} key={group.id}>
-                      {!flat ? (
-                        <button
-                          type="button"
-                          className="host-launcher-group-title"
-                          aria-expanded={!collapsed}
-                          onClick={() => toggleGroupCollapse(group.id)}
-                        >
-                          <span>
-                            <GroupIcon size={14} aria-hidden="true" />
-                            {group.name}
-                          </span>
-                          <small>{group.hosts.length}</small>
-                        </button>
-                      ) : null}
-                      {flat || !collapsed ? (
-                        <div className="host-launcher-group-tree">
-                          {group.hosts.map((host) => (
-                            <button
-                              key={host.id}
-                              type="button"
-                              className={`host-launcher-row ${host.id === selectedHost?.id ? 'is-active' : ''}`}
-                              role="option"
-                              data-host-id={host.id}
-                              aria-selected={host.id === selectedHost?.id}
-                              tabIndex={host.id === focusableHostId ? 0 : -1}
-                              onClick={() => onSelectHost(host.id)}
-                              onDoubleClick={() => void runHostAction(actionPlan.primary, host.id)}
-                            >
-                              <span className="host-launcher-row-avatar-wrap">
-                                <HostAvatar host={host} getIconUrl={getHostIconUrl} className="host-launcher-row-avatar" size={30} iconSize={15} />
-                                <HostReachabilityDot state={data.hostReachability[host.id]} usesProxy={Boolean(host.proxy_id)} />
-                              </span>
-                              <span className="host-launcher-row-copy">
-                                <strong>
-                                  {host.name}
-                                  {host.favorite ? <Star size={12} aria-label={t('workbench.hostLauncher.favorite')} /> : null}
-                                </strong>
-                                <small>{host.address}</small>
-                              </span>
-                              <span className="host-launcher-row-meta">
-                                <AuthMethodBadge method={host.auth_method} compact />
-                                <small>{host.username}</small>
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                    </section>
-                  )
-                })
-              )}
-            </div>
+              onToggleGroup={toggleGroupCollapse}
+              onSelectHost={onSelectHost}
+              onRunPrimary={(hostId) => void runHostAction(actionPlan.primary, hostId)}
+            />
             <Button className={`${uiStyles['secondary-button']} secondary-button host-launcher-create-button`} icon={<Plus size={15} />} onClick={() => void runLauncherAction(onCreateHost)}>
               {t('hosts.addHost')}
             </Button>
           </aside> : null}
 
-          {hasHosts ? <main className="host-launcher-detail">
-            {selectedHost ? (
-              <>
-                <h3 className="host-launcher-overview-title">{t('workbench.hostLauncher.overview')}</h3>
-                <div className="host-launcher-hero">
-                  <HostAvatar
-                    host={selectedHost}
-                    getIconUrl={getHostIconUrl}
-                    className={`host-launcher-hero-icon is-${selectedReachability?.status ?? 'unknown'}`}
-                    size={58}
-                    iconSize={34}
-                  />
-                  <div className="host-launcher-hero-copy">
-                    <div className="host-launcher-hero-title">
-                      <h4>{selectedHost.name}</h4>
-                      <HostReachabilityPill state={selectedReachability} usesProxy={Boolean(selectedHost.proxy_id)} />
-                      <Tooltip title={selectedHost.favorite ? t('workbench.hostLauncher.unfavorite') : t('workbench.hostLauncher.favorite')}>
-                        <Button
-                          type="text"
-                          className={`host-launcher-favorite ${selectedHost.favorite ? 'is-active' : ''}`}
-                          aria-label={selectedHost.favorite ? t('workbench.hostLauncher.unfavorite') : t('workbench.hostLauncher.favorite')}
-                          icon={<Star size={16} fill={selectedHost.favorite ? 'currentColor' : 'none'} />}
-                          disabled={hostActionBusy}
-                          onClick={() => void onToggleFavorite(selectedHost.id)}
-                        />
-                      </Tooltip>
-                    </div>
-                    <div className="host-launcher-hero-meta">
-                      <span>{selectedHost.address}:{selectedHost.port}</span>
-                    </div>
-                  </div>
-                </div>
-                <dl className="host-launcher-detail-grid">
-                  <DetailItem icon={<Globe2 size={14} />} label={t('hosts.address')} value={`${selectedHost.address}:${selectedHost.port}`} />
-                  <DetailItem icon={<Server size={14} />} label={t('hosts.platform.label')} value={t('hosts.platform.linux')} />
-                  <DetailItem
-                    icon={<KeyRound size={14} />}
-                    label={t('workbench.credential')}
-                    value={selectedHostCredential || t('fields.none')}
-                  />
-                  <DetailItem
-                    icon={<Tags size={14} />}
-                    label={t('hosts.tags')}
-                    value={selectedHost.tags.length > 0 ? (
-                      <span className="host-launcher-inline-tags">
-                        {selectedHost.tags.map((tag) => (
-                          <span key={tagKey(tag)}>{tag}</span>
-                        ))}
-                      </span>
-                    ) : t('fields.none')}
-                  />
-                  <DetailItem
-                    icon={<Activity size={14} />}
-                    label={t('workbench.hostLauncher.latency')}
-                    value={<LatencyValue state={selectedReachability} />}
-                  />
-                  <DetailItem icon={<UserRound size={14} />} label={t('hosts.note')} value={selectedHost.note || t('fields.none')} />
-                  <DetailItem icon={<Clock3 size={14} />} label={t('workbench.hostLauncher.lastChecked')} value={formatDateTime(selectedReachability?.checked_at, t('fields.none'))} />
-                  <DetailItem icon={<Network size={14} />} label={t('workbench.jumpHost')} value={selectedJumpHost?.name ?? t('fields.none')} />
-                  <DetailItem
-                    icon={<Cable size={14} />}
-                    label={t('hosts.proxy')}
-                    value={selectedProxy
-                      ? `${selectedProxy.name} · ${t(`proxies.types.${selectedProxy.type === 'http_connect' ? 'httpConnect' : 'socks5'}`)}`
-                      : t('hosts.noProxy')}
-                  />
-                </dl>
-                <div className="host-launcher-shortcut-section">
-                  <span>{t('workbench.hostLauncher.quickActions')}</span>
-                  <div className="host-launcher-shortcuts">
-                    {actionPlan.shortcuts.map((actionId) => (
-                      <Button
-                        key={actionId}
-                        className={`${uiStyles['secondary-button']} secondary-button`}
-                        icon={hostLauncherActionIcon(actionId, 15)}
-                        loading={pendingHostAction === actionId}
-                        disabled={hostActionBusy}
-                        onClick={() => void runHostAction(actionId, selectedHost.id)}
-                      >
-                        {hostLauncherActionLabel(actionId, t)}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                <HostLauncherProfileAction
-                  menu={selectedProfileMenu}
-                  busy={hostActionBusy}
-                  pendingProfileId={pendingProfileId}
-                  onManage={() => void runLauncherAction(() => onManageHostAccess(selectedHost.id))}
-                  onRun={(profile) => void runHostAction(
-                    profile.actionId,
-                    selectedHost.id,
-                    profile,
-                  )}
-                />
-              </>
-            ) : (
-              <div className="host-launcher-detail-empty">
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description={(
-                    <div className="host-launcher-detail-empty-copy">
-                      <h3>{t('hosts.noFilterResults')}</h3>
-                      <p>{t('hosts.noFilterResultsHint')}</p>
-                    </div>
-                  )}
-                >
-                  <Button className={`${uiStyles['secondary-button']} secondary-button`} onClick={clearAllFilters}>
-                    {t('workbench.hostLauncher.filters.resetAll')}
-                  </Button>
-                </Empty>
-              </div>
-            )}
-          </main> : (
-            <main className="host-launcher-onboarding">
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={(
-                  <div className="host-launcher-onboarding-copy">
-                    <h2>{t('workbench.hostLauncher.emptyTitle')}</h2>
-                    <p>{t('workbench.hostLauncher.emptyDescription')}</p>
-                  </div>
-                )}
-              >
-                <ConnectionActionButton icon={<Plus size={16} />} onClick={() => void runLauncherAction(onCreateHost)}>
-                  {t('hosts.addHost')}
-                </ConnectionActionButton>
-              </Empty>
-            </main>
-          )}
+          <HostLauncherDetail
+            hasHosts={hasHosts}
+            selectedHost={selectedHost}
+            data={data}
+            actionPlan={actionPlan}
+            profileMenu={selectedProfileMenu}
+            busy={hostActionBusy}
+            pendingHostAction={pendingHostAction}
+            pendingProfileId={pendingProfileId}
+            getHostIconUrl={getHostIconUrl}
+            canRunAction={canRunHostAction}
+            onRunAction={(actionId, hostId, profile) => {
+              void runHostAction(actionId, hostId, profile)
+            }}
+            onManageAccess={(hostId) => {
+              void runLauncherAction(() => onManageHostAccess(hostId))
+            }}
+            onToggleFavorite={onToggleFavorite}
+            onClearFilters={clearAllFilters}
+            onCreateHost={() => void runLauncherAction(onCreateHost)}
+          />
         </div>
       </section>
     </Modal>
   )
-}
-
-function hostLauncherActionLabel(
-  actionId: HostLauncherActionId,
-  t: ReturnType<typeof useTranslation>['t'],
-) {
-  if (actionId === 'connect') {
-    return t('app.connect')
-  }
-  if (actionId === 'openFiles') {
-    return t('workbench.hostLauncher.openFiles')
-  }
-  if (actionId === 'openRemoteDesktop') {
-    return t('workbench.hostLauncher.openRemoteDesktop')
-  }
-  if (actionId === 'editHost') {
-    return t('workbench.hostLauncher.editHost')
-  }
-  return t('workbench.hostLauncher.openForward')
-}
-
-function hostLauncherActionIcon(actionId: HostLauncherActionId, size: number) {
-  if (actionId === 'connect') {
-    return <Cable size={size} />
-  }
-  if (actionId === 'openFiles') {
-    return <FolderOpen size={size} />
-  }
-  if (actionId === 'openRemoteDesktop') {
-    return <MonitorPlay size={size} />
-  }
-  if (actionId === 'editHost') {
-    return <Edit3 size={size} />
-  }
-  return <Network size={size} />
 }
 
 function launcherIntentForAction(

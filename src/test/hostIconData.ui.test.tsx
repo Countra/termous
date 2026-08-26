@@ -24,7 +24,7 @@ function hostIcon(id: string, displayName: string, sortOrder: number): HostIcon 
 }
 
 describe('主机图标数据合同', () => {
-  it('应用快照包含独立的主机图标列表', async () => {
+  it('应用快照同时保留旧主机投影、规范资产和独立图标列表', async () => {
     const calls: string[] = []
     const values = {
       settings: { language: 'zh-CN' },
@@ -38,6 +38,16 @@ describe('主机图标数据合同', () => {
       hostIcons: [hostIcon('icon-a', 'Alpha', 0)],
       connectionProxies: [],
       hosts: [],
+      hostAssets: [{
+        id: 'host-asset',
+        name: 'Asset only',
+        platform: 'linux' as const,
+        group_id: '',
+        tags: [],
+        favorite: false,
+        created_at: '2026-08-26T00:00:00Z',
+        updated_at: '2026-08-26T00:00:00Z',
+      }],
       hostReachability: [],
       credentials: [],
       sessions: [],
@@ -61,6 +71,8 @@ describe('主机图标数据合同', () => {
 
     expect(calls).toContain('hostIcons')
     expect(snapshot[8]).toEqual([hostIcon('icon-a', 'Alpha', 0)])
+    expect(snapshot[10]).toEqual([])
+    expect(snapshot[11]).toEqual(values.hostAssets)
   })
 
   it('上传按 ID upsert，改名、排序和删除使用后端确认结果更新状态', async () => {
@@ -85,7 +97,7 @@ describe('主机图标数据合同', () => {
     }
     const commands = createHostCommands({
       api,
-      hosts: [],
+      hostAssets: [],
       load: vi.fn(),
       setData,
     })
@@ -120,7 +132,7 @@ describe('主机图标数据合同', () => {
     const setData = (update: SetStateAction<AppData>) => {
       data = typeof update === 'function' ? update(data) : update
     }
-    const commands = createHostCommands({ api, hosts: [], load: vi.fn(), setData })
+    const commands = createHostCommands({ api, hostAssets: [], load: vi.fn(), setData })
 
     await expect(commands.renameHostIcon(icon.id, 'Changed')).rejects.toThrow('rename failed')
     await expect(commands.reorderHostIcons([{ id: icon.id, sort_order: 2 }])).rejects.toThrow('reorder failed')

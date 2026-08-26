@@ -59,12 +59,16 @@ function hostEditorProps(): ComponentProps<typeof HostEditor> {
   return {
     data: {
       hosts: [existingHost],
+      hostAssets: [],
+      sshAccessProfiles: [],
       groups: [],
       proxies: [],
       credentials: [passwordCredential],
       hostIcons: [],
       sessions: [],
       fileSessions: [],
+      forwards: [],
+      remoteDesktopSessions: [],
     },
     draft: hostDraft,
     dirty: false,

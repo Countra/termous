@@ -1,8 +1,10 @@
-import type { Host, HostGroup, HostReachability } from '#entities/host'
+import type { AuthMethod, HostGroup, HostReachability } from '#entities/host'
+import type { HostAsset } from '#entities/host-asset'
+import type { HostDirectoryItem } from './hostDirectory.ts'
 
 export type LauncherFilter = 'all' | 'recent' | 'online' | 'favorite'
-export type LauncherPlatformFilter = 'all' | Host['platform']
-export type LauncherAuthFilter = 'all' | Host['auth_method']
+export type LauncherPlatformFilter = 'all' | HostAsset['platform']
+export type LauncherAuthFilter = 'all' | AuthMethod
 export type LauncherGroupFilter = 'all' | '__ungrouped' | string
 export type HostLauncherTranslate = (
   key: string,
@@ -12,7 +14,7 @@ export type HostLauncherTranslate = (
 export interface HostLauncherGroup {
   id: string
   name: string
-  hosts: Host[]
+  hosts: HostDirectoryItem[]
   order: number
 }
 
@@ -25,7 +27,7 @@ export interface HostLauncherTagOption {
 export type LatencyLevel = 'unknown' | 'low' | 'medium' | 'high'
 
 export function filterHosts(
-  hosts: Host[],
+  hosts: HostDirectoryItem[],
   groupsById: Map<string, string>,
   reachabilityByHostId: Record<string, HostReachability>,
   query: string,
@@ -38,7 +40,11 @@ export function filterHosts(
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
   const selectedTagKeys = selectedTags.map(tagKey)
   const filtered = hosts.filter((host) => {
-    const reachability = reachabilityByHostId[host.id]
+    const candidateReachability = reachabilityByHostId[host.id]
+    const reachability = host.defaultSSHProfile
+      && candidateReachability?.ssh_profile_id === host.defaultSSHProfile.id
+      ? candidateReachability
+      : undefined
     const reachabilityStatus = reachability?.status ?? 'unknown'
     if (platformFilter !== 'all' && host.platform !== platformFilter) {
       return false
@@ -46,13 +52,14 @@ export function filterHosts(
     if (groupFilter !== 'all' && (host.group_id || '__ungrouped') !== groupFilter) {
       return false
     }
-    if (authFilter !== 'all' && host.auth_method !== authFilter) {
+    const ssh = host.defaultSSHProfile
+    if (authFilter !== 'all' && ssh?.auth_method !== authFilter) {
       return false
     }
     if (filter === 'online' && reachabilityStatus !== 'online' && reachabilityStatus !== 'checking') {
       return false
     }
-    if (filter === 'recent' && timestamp(host.last_connected_at) <= 0) {
+    if (filter === 'recent' && timestamp(host.last_accessed_at) <= 0) {
       return false
     }
     if (filter === 'favorite' && !host.favorite) {
@@ -68,9 +75,10 @@ export function filterHosts(
     }
     const searchable = [
       host.name,
-      host.address,
-      host.username,
-      String(host.port),
+      ssh?.name ?? '',
+      ssh?.address ?? '',
+      ssh?.username ?? '',
+      ssh ? String(ssh.port) : '',
       host.note ?? '',
       groupsById.get(host.group_id) ?? '',
       hostTags.join(' '),
@@ -78,7 +86,7 @@ export function filterHosts(
     return tokens.every((token) => searchable.includes(token))
   })
   return filtered.sort((left, right) => {
-    const recentDelta = timestamp(right.last_connected_at) - timestamp(left.last_connected_at)
+    const recentDelta = timestamp(right.last_accessed_at) - timestamp(left.last_accessed_at)
     if (filter === 'recent') {
       return recentDelta || left.name.localeCompare(right.name)
     }
@@ -93,7 +101,7 @@ export function filterHosts(
 }
 
 export function groupHosts(
-  hosts: Host[],
+  hosts: HostDirectoryItem[],
   groups: HostGroup[],
   fallbackGroupName: string,
 ) {
@@ -121,7 +129,7 @@ export function groupHosts(
 }
 
 export function buildGroupFilterOptions(
-  hosts: Host[],
+  hosts: HostDirectoryItem[],
   groups: HostGroup[],
   fallbackGroupName: string,
   allLabel: string,
@@ -136,7 +144,7 @@ export function buildGroupFilterOptions(
   return options
 }
 
-export function buildTagOptions(hosts: Host[]) {
+export function buildTagOptions(hosts: HostDirectoryItem[]) {
   const map = new Map<string, HostLauncherTagOption>()
   for (const host of hosts) {
     const seen = new Set<string>()

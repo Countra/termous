@@ -79,8 +79,8 @@ export function HostEditor({
     [data.hosts, editingHost?.id],
   )
   const tagOptions = useMemo(
-    () => Array.from(new Set(data.hosts.flatMap((host) => host.tags ?? []))).map((tag) => ({ value: tag, label: tag })),
-    [data.hosts],
+    () => Array.from(new Set(data.hostAssets.flatMap((host) => host.tags ?? []))).map((tag) => ({ value: tag, label: tag })),
+    [data.hostAssets],
   )
   const hostIconOptions = useMemo<HostIconOption[]>(
     () => data.hostIcons.map((icon) => ({

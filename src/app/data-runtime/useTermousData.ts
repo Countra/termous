@@ -11,6 +11,7 @@ import type {
 } from '#entities/forward'
 import type { SessionSnapshotEvent } from '#entities/session'
 import { sortCodeSnippetGroups } from '#entities/snippet'
+import { sortHostAssets } from '#entities/host-asset'
 import { normalizeSettings } from '#features/settings'
 import { changeLanguage } from '#shared/i18n'
 import {
@@ -79,6 +80,7 @@ import { createSessionCommands } from './commands/sessionCommands'
 import { createSettingsCommands } from './commands/settingsCommands'
 import { createSnippetCommands } from './commands/snippetCommands'
 import { loadAppDataSnapshot } from './api/appDataSnapshotGateway'
+import { reconcileHostRecentTimestamps } from './model/hostRecentState.ts'
 import type { AppData } from './model/appData'
 import type { Session } from './model/sessionTypes'
 
@@ -277,6 +279,7 @@ export function useTermousData() {
         hostIcons,
         proxies,
         hosts,
+        hostAssets,
         hostReachability,
         credentials,
         sessions,
@@ -364,12 +367,19 @@ export function useTermousData() {
             ? nextSettings.shortcuts
             : current.settings.shortcuts,
         }
+        const recentHosts = reconcileHostRecentTimestamps(
+          current.hosts,
+          hosts ?? [],
+          current.hostAssets,
+          sortHostAssets(hostAssets ?? []),
+        )
         return {
           settings: mergedSettings,
           groups: groups ?? [],
           hostIcons: sortHostIcons(hostIcons ?? []),
           proxies: sortConnectionProxies(proxies ?? []),
-          hosts: hosts ?? [],
+          hosts: recentHosts.hosts,
+          hostAssets: recentHosts.hostAssets,
           credentials: credentials ?? [],
           sessions: nextSessions,
           fileSessions: filterFileSessionsByActiveSources(
@@ -738,7 +748,7 @@ export function useTermousData() {
         forwardEventRevisions: forwardEventRevisionsRef.current,
         forwardEventSnapshots: forwardEventSnapshotsRef.current,
       }),
-      ...createHostCommands({ api: gateways.hosts, hosts: data.hosts, load, setData }),
+      ...createHostCommands({ api: gateways.hosts, hostAssets: data.hostAssets, load, setData }),
       ...createCredentialCommands(gateways.credentials, load),
       ...createSessionCommands({
         sessionApi: gateways.sessions,
@@ -788,7 +798,7 @@ export function useTermousData() {
       shortcutSettingsWriteQueue,
       data.fileSessions,
       data.forwards,
-      data.hosts,
+      data.hostAssets,
       data.remoteDesktopProfiles,
       data.settings,
       data.sessions,
