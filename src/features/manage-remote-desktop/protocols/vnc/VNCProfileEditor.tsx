@@ -9,6 +9,11 @@ import type {
   VNCAccessProfileDraft,
   VNCAccessProfileDraftErrors,
 } from '../../model/vncAccessProfileDraft.ts'
+import type {
+  VNCTargetAuthDraft,
+  VNCTargetAuthDraftError,
+} from '../../model/vncTargetAuthDraft.ts'
+import { VNCTargetAuthSection } from './VNCTargetAuthSection.tsx'
 import styles from './VNCProfileEditor.module.scss'
 
 interface VNCProfileEditorProps {
@@ -17,7 +22,11 @@ interface VNCProfileEditorProps {
   submitted: boolean
   disabled: boolean
   sshProfiles: SSHAccessProfile[]
+  hasSavedTargetAuth: boolean
+  targetAuthDraft: VNCTargetAuthDraft
+  targetAuthError?: VNCTargetAuthDraftError
   onChange: (draft: VNCAccessProfileDraft) => void
+  onTargetAuthChange: (draft: VNCTargetAuthDraft) => void
 }
 
 export function VNCProfileEditor({
@@ -26,7 +35,11 @@ export function VNCProfileEditor({
   submitted,
   disabled,
   sshProfiles,
+  hasSavedTargetAuth,
+  targetAuthDraft,
+  targetAuthError,
   onChange,
+  onTargetAuthChange,
 }: VNCProfileEditorProps) {
   const { t } = useTranslation()
   const visibleErrors = submitted ? errors : {}
@@ -164,6 +177,14 @@ export function VNCProfileEditor({
           </label>
         </div>
       </section>
+
+      <VNCTargetAuthSection
+        hasSavedAuth={hasSavedTargetAuth}
+        draft={targetAuthDraft}
+        error={targetAuthError}
+        disabled={disabled}
+        onChange={onTargetAuthChange}
+      />
     </div>
   )
 }

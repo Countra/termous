@@ -281,6 +281,7 @@ export function useTermousData() {
         credentials,
         sessions,
         fileSessions,
+        sshAccessProfiles,
         fileAccessProfiles,
         forwardProfiles,
         forwards,
@@ -383,6 +384,7 @@ export function useTermousData() {
             ),
             activeSourceSessionIds,
           ),
+          sshAccessProfiles: sshAccessProfiles ?? [],
           fileAccessProfiles: fileAccessProfiles ?? [],
           forwardProfiles: forwardProfiles ?? [],
           forwards: reconcileForwardReloadSnapshot(

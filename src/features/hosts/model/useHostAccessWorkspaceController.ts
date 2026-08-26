@@ -7,6 +7,7 @@ import {
   validateFileAccessProfileMetadataInput,
 } from '#entities/file-access-profile'
 import type { Host } from '#entities/host'
+import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
 import {
   hostAssetInputsEqual,
   hostAssetToInput,
@@ -30,11 +31,17 @@ import {
   useHostAccessCatalog,
 } from '#features/host-access'
 import {
+  createVNCTargetAuthDraft,
   createVNCAccessProfileDraft,
+  isVNCTargetAuthDraftDirty,
   normalizeVNCAccessProfileDraft,
+  persistVNCProfile,
+  validateVNCTargetAuthDraft,
   validateVNCAccessProfileDraft,
+  VNCTargetAuthPersistenceError,
   vncAccessProfileDraftsEqual,
   vncAccessProfileToDraft,
+  type VNCTargetAuthDraft,
   type VNCAccessProfileDraft,
 } from '#features/manage-remote-desktop'
 
@@ -81,6 +88,10 @@ export function useHostAccessWorkspaceController({
   const [fileBaseline, setFileBaseline] = useState<FileAccessProfileMetadataInput>({ name: '' })
   const [vncDraft, setVNCDraft] = useState<VNCAccessProfileDraft>(() => createVNCAccessProfileDraft())
   const [vncBaseline, setVNCBaseline] = useState<VNCAccessProfileDraft>(() => createVNCAccessProfileDraft())
+  const [vncTargetAuthDraft, setVNCTargetAuthDraft] = useState<VNCTargetAuthDraft>(
+    createVNCTargetAuthDraft,
+  )
+  const [vncPersistedProfile, setVNCPersistedProfile] = useState<RemoteDesktopAccessProfile | null>(null)
   const [profileSubmitted, setProfileSubmitted] = useState(false)
   const [operationBusy, setOperationBusy] = useState(false)
   const operationBusyRef = useRef(false)
@@ -97,7 +108,8 @@ export function useHostAccessWorkspaceController({
     if (editor.kind === 'ssh') return !sshAccessProfileDraftsEqual(sshDraft, sshBaseline)
     if (editor.kind === 'file') return !fileAccessProfileMetadataInputsEqual(fileDraft, fileBaseline)
     return !vncAccessProfileDraftsEqual(vncDraft, vncBaseline)
-  }, [editor, fileBaseline, fileDraft, sshBaseline, sshDraft, vncBaseline, vncDraft])
+      || isVNCTargetAuthDraftDirty(vncTargetAuthDraft)
+  }, [editor, fileBaseline, fileDraft, sshBaseline, sshDraft, vncBaseline, vncDraft, vncTargetAuthDraft])
   const dirty = assetDirty || profileDirty
   const assetValidationVisible = assetSubmitted || assetDirty
   const profileValidationVisible = profileSubmitted || profileDirty
@@ -113,6 +125,10 @@ export function useHostAccessWorkspaceController({
     vncDraft,
     new Set(catalogState.catalog?.ssh.map((profile) => profile.id) ?? []),
   ), [catalogState.catalog?.ssh, vncDraft])
+  const vncTargetAuthError = useMemo(
+    () => validateVNCTargetAuthDraft(vncTargetAuthDraft),
+    [vncTargetAuthDraft],
+  )
   const assetErrors = useMemo(() => validateHostAssetInput(assetDraft), [assetDraft])
 
   useEffect(() => {
@@ -133,6 +149,15 @@ export function useHostAccessWorkspaceController({
     onProtectedIconIdChange?.(assetDirty ? assetDraft.icon_id : '')
   }, [assetDirty, assetDraft.icon_id, onProtectedIconIdChange])
 
+  useEffect(() => {
+    if (editor?.kind !== 'remote_desktop' || editor.mode !== 'edit') return
+    const source = catalogState.catalog?.remote_desktops.find(
+      (profile) => profile.id === editor.profileId,
+    )
+    if (!source || !isProfileRevisionNewer(source, vncPersistedProfile)) return
+    setVNCPersistedProfile(source)
+  }, [catalogState.catalog?.remote_desktops, editor, vncPersistedProfile])
+
   const toPublicError = useCallback((error: unknown) => {
     if (error instanceof TermousApiError && error.status === 409) {
       return t('hosts.access.conflict')
@@ -145,6 +170,8 @@ export function useHostAccessWorkspaceController({
     if (!catalog) return
     setMutationError('')
     setProfileSubmitted(false)
+    setVNCTargetAuthDraft(createVNCTargetAuthDraft())
+    setVNCPersistedProfile(null)
     if (intent.kind === 'ssh') {
       const source = intent.mode === 'edit'
         ? catalog.ssh.find((profile) => profile.id === intent.profileId)
@@ -176,6 +203,7 @@ export function useHostAccessWorkspaceController({
         : createVNCAccessProfileDraft(defaultSSH?.id ?? '')
       setVNCDraft(next)
       setVNCBaseline(next)
+      setVNCPersistedProfile(source ?? null)
     }
     setView('access')
     setEditor(intent)
@@ -184,7 +212,10 @@ export function useHostAccessWorkspaceController({
   const discardProfile = useCallback(() => {
     if (editor?.kind === 'ssh') setSSHDraft(sshBaseline)
     else if (editor?.kind === 'file') setFileDraft(fileBaseline)
-    else if (editor?.kind === 'remote_desktop') setVNCDraft(vncBaseline)
+    else if (editor?.kind === 'remote_desktop') {
+      setVNCDraft(vncBaseline)
+      setVNCTargetAuthDraft(createVNCTargetAuthDraft())
+    }
     setProfileSubmitted(false)
     setMutationError('')
   }, [editor, fileBaseline, sshBaseline, vncBaseline])
@@ -197,6 +228,8 @@ export function useHostAccessWorkspaceController({
       applyEditor(navigation.intent)
     } else {
       setEditor(null)
+      setVNCTargetAuthDraft(createVNCTargetAuthDraft())
+      setVNCPersistedProfile(null)
       setProfileSubmitted(false)
       setMutationError('')
     }
@@ -243,6 +276,14 @@ export function useHostAccessWorkspaceController({
       setOperationBusy(false)
     }
   }, [reloadCatalog, toPublicError])
+
+  const acceptPersistedVNCProfile = useCallback((profile: RemoteDesktopAccessProfile) => {
+    const savedDraft = vncAccessProfileToDraft(profile)
+    setVNCDraft(savedDraft)
+    setVNCBaseline(savedDraft)
+    setVNCPersistedProfile(profile)
+    setEditor({ kind: 'remote_desktop', mode: 'edit', profileId: profile.id })
+  }, [])
 
   const saveAsset = useCallback(async () => {
     const catalog = catalogState.catalog
@@ -299,20 +340,49 @@ export function useHostAccessWorkspaceController({
       })
       return
     }
-    if (Object.values(vncErrors).some(Boolean)) return
+    if (Object.values(vncErrors).some(Boolean) || vncTargetAuthError) return
     await execute(async () => {
       const input = normalizeVNCAccessProfileDraft(hostId, vncDraft)
-      if (editor.mode === 'create') {
-        await gateway.createRemoteDesktopProfile(input)
-      } else {
-        const source = catalog.remote_desktops.find((profile) => profile.id === editor.profileId)
-        if (!source) throw new Error(t('hosts.access.errors.profileMissing'))
-        await gateway.updateRemoteDesktopProfile(source.id, source.updated_at, input)
+      const metadataDirty = !vncAccessProfileDraftsEqual(vncDraft, vncBaseline)
+      const existingProfile = editor.mode === 'create'
+        ? null
+        : vncPersistedProfile
+          ?? catalog.remote_desktops.find((profile) => profile.id === editor.profileId)
+          ?? null
+      if (editor.mode === 'edit' && !existingProfile) {
+        throw new Error(t('hosts.access.errors.profileMissing'))
       }
+      try {
+        const result = await persistVNCProfile({
+          input,
+          existingProfile,
+          metadataDirty,
+          targetAuthDraft: vncTargetAuthDraft,
+          gateway,
+          beforeTargetAuth: async () => { await catalogState.reload() },
+        })
+        acceptPersistedVNCProfile(result.profile)
+      } catch (error) {
+        if (!(error instanceof VNCTargetAuthPersistenceError)) throw error
+        acceptPersistedVNCProfile(error.profile)
+        if (error.cause instanceof TermousApiError && error.cause.status === 409) {
+          await catalogState.reload()
+        }
+        if (error.metadataSaved) {
+          throw Object.assign(
+            new Error(t('remoteDesktop.targetAuth.profileSavedCredentialFailed', {
+              error: toPublicError(error.cause),
+            })),
+            { cause: error },
+          )
+        }
+        throw error.cause
+      }
+      setVNCTargetAuthDraft(createVNCTargetAuthDraft())
       setEditor(null)
       await catalogState.reload()
     })
-  }, [catalogState, editor, execute, fileDraft, fileErrors, gateway, hostId, sshDraft, sshErrors, t, vncDraft, vncErrors])
+  }, [acceptPersistedVNCProfile, catalogState, editor, execute, fileDraft, fileErrors, gateway, hostId, sshDraft, sshErrors, t, toPublicError, vncBaseline, vncDraft, vncErrors, vncPersistedProfile, vncTargetAuthDraft, vncTargetAuthError])
 
   const setDefaultProfile = useCallback(async (kind: 'ssh' | 'file' | 'remote_desktop', profileId: string) => {
     const catalog = catalogState.catalog
@@ -374,8 +444,8 @@ export function useHostAccessWorkspaceController({
         || Object.values(sshErrors).some(Boolean)
     }
     if (editor.kind === 'file') return Object.values(fileErrors).some(Boolean)
-    return Object.values(vncErrors).some(Boolean)
-  }, [editor, fileErrors, profileDirty, sshDraft.name, sshErrors, vncErrors])
+    return Object.values(vncErrors).some(Boolean) || Boolean(vncTargetAuthError)
+  }, [editor, fileErrors, profileDirty, sshDraft.name, sshErrors, vncErrors, vncTargetAuthError])
 
   return {
     ...catalogState,
@@ -392,6 +462,9 @@ export function useHostAccessWorkspaceController({
     fileErrors,
     vncDraft,
     vncErrors,
+    vncTargetAuthDraft,
+    vncTargetAuthError,
+    vncHasSavedTargetAuth: Boolean(vncPersistedProfile?.target_auth),
     profileDirty,
     profileValidationVisible,
     profileSubmitted,
@@ -404,6 +477,7 @@ export function useHostAccessWorkspaceController({
     setSSHDraft,
     setFileDraft,
     setVNCDraft,
+    setVNCTargetAuthDraft,
     setMutationError,
     setDeleteTarget: (target: ProfileDeleteTarget | null) => {
       if (target) setMutationError('')
@@ -446,4 +520,16 @@ function isStaleOrAppliedAssetRevision(candidate: string, applied: string) {
   const candidateTime = Date.parse(candidate)
   const appliedTime = Date.parse(applied)
   return Number.isFinite(candidateTime) && Number.isFinite(appliedTime) && candidateTime < appliedTime
+}
+
+function isProfileRevisionNewer(
+  candidate: RemoteDesktopAccessProfile,
+  current: RemoteDesktopAccessProfile | null,
+) {
+  if (!current || candidate.id !== current.id) return true
+  if (candidate.updated_at === current.updated_at) return false
+  const candidateTime = Date.parse(candidate.updated_at)
+  const currentTime = Date.parse(current.updated_at)
+  return !Number.isFinite(currentTime)
+    || (Number.isFinite(candidateTime) && candidateTime > currentTime)
 }

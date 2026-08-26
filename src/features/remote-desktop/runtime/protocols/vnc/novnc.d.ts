@@ -1,3 +1,4 @@
+// 仅声明当前 VNC Driver 使用的 noVNC 窄接口。
 declare module '@novnc/novnc' {
   interface RFBChannel {
     binaryType: BinaryType

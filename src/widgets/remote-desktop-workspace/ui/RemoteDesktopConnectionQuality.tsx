@@ -1,7 +1,7 @@
 import { Popover } from 'antd'
 import { Activity, ArrowDown, ArrowUp, Timer } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useVncConnectionMetrics } from '#features/remote-desktop'
+import { useRemoteDesktopConnectionMetrics } from '#features/remote-desktop'
 import {
   formatBytes,
   formatDuration,
@@ -19,7 +19,7 @@ export function RemoteDesktopConnectionQuality({
   connected: boolean
 }) {
   const { t } = useTranslation()
-  const metrics = useVncConnectionMetrics(sessionId)
+  const metrics = useRemoteDesktopConnectionMetrics(sessionId)
   if (!connected || metrics.connectedAt === null) {
     return null
   }

@@ -1,8 +1,8 @@
 import type { AppConfig } from '#common/contracts'
 import type {
   RemoteDesktopAttachTicket,
-  RemoteDesktopProfile,
-  RemoteDesktopProfileInput,
+  RemoteDesktopAccessProfile,
+  RemoteDesktopAccessProfileInput,
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
 import { TermousApiTransport } from '#shared/api'
@@ -14,11 +14,11 @@ export class RemoteDesktopClient extends TermousApiTransport implements RemoteDe
   }
 
   remoteDesktopProfiles() {
-    return this.request<RemoteDesktopProfile[]>('/api/v1/remote-desktop-profiles')
+    return this.request<RemoteDesktopAccessProfile[]>('/api/v1/remote-desktop-profiles')
   }
 
-  createRemoteDesktopProfile(input: RemoteDesktopProfileInput) {
-    return this.request<RemoteDesktopProfile>('/api/v1/remote-desktop-profiles', {
+  createRemoteDesktopProfile(input: RemoteDesktopAccessProfileInput) {
+    return this.request<RemoteDesktopAccessProfile>('/api/v1/remote-desktop-profiles', {
       method: 'POST',
       body: input,
     })
@@ -27,9 +27,9 @@ export class RemoteDesktopClient extends TermousApiTransport implements RemoteDe
   updateRemoteDesktopProfile(
     id: string,
     expectedUpdatedAt: string,
-    input: RemoteDesktopProfileInput,
+    input: RemoteDesktopAccessProfileInput,
   ) {
-    return this.request<RemoteDesktopProfile>(
+    return this.request<RemoteDesktopAccessProfile>(
       `/api/v1/remote-desktop-profiles/${encodeURIComponent(id)}`,
       { method: 'PATCH', body: { ...input, expected_updated_at: expectedUpdatedAt } },
     )
@@ -40,6 +40,26 @@ export class RemoteDesktopClient extends TermousApiTransport implements RemoteDe
       method: 'DELETE',
       body: { expected_updated_at: expectedUpdatedAt },
     })
+  }
+
+  saveRemoteDesktopTargetAuth(id: string, expectedUpdatedAt: string, password: string) {
+    return this.request<RemoteDesktopAccessProfile>(
+      `/api/v1/remote-desktop-profiles/${encodeURIComponent(id)}/credentials/target-auth`,
+      {
+        method: 'PUT',
+        body: { expected_updated_at: expectedUpdatedAt, password },
+      },
+    )
+  }
+
+  deleteRemoteDesktopTargetAuth(id: string, expectedUpdatedAt: string) {
+    return this.request<RemoteDesktopAccessProfile>(
+      `/api/v1/remote-desktop-profiles/${encodeURIComponent(id)}/credentials/target-auth`,
+      {
+        method: 'DELETE',
+        body: { expected_updated_at: expectedUpdatedAt },
+      },
+    )
   }
 
   remoteDesktopSessions() {
@@ -75,6 +95,23 @@ export class RemoteDesktopClient extends TermousApiTransport implements RemoteDe
       {
         method: 'POST',
         body: { expected_connection_generation: expectedConnectionGeneration },
+      },
+    )
+  }
+
+  consumeRemoteDesktopTargetAuth(
+    id: string,
+    expectedConnectionGeneration: number,
+    credentialTicket: string,
+  ) {
+    return this.request<{ password: string }>(
+      `/api/v1/remote-desktop-sessions/${encodeURIComponent(id)}/credentials/target-auth`,
+      {
+        method: 'POST',
+        body: {
+          expected_connection_generation: expectedConnectionGeneration,
+          credential_ticket: credentialTicket,
+        },
       },
     )
   }

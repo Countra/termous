@@ -15,6 +15,12 @@ import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { RemoteDesktopDisplayMode } from '#entities/remote-desktop'
 import type { Host } from '#entities/host'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
+import {
+  VNCTargetAuthSection,
+  type VNCTargetAuthDraft,
+  type VNCTargetAuthDraftError,
+} from '#features/manage-remote-desktop'
 import {
   ConnectionActionButton,
   CustomSelect,
@@ -35,11 +41,16 @@ interface RemoteDesktopProfileEditorProps {
   errors: RemoteDesktopProfileDraftErrors
   submitted: boolean
   hosts: Host[]
+  sshProfiles: SSHAccessProfile[]
+  hasSavedTargetAuth: boolean
+  targetAuthDraft: VNCTargetAuthDraft
+  targetAuthError?: VNCTargetAuthDraftError
   disabled: boolean
   saving: boolean
   savingAndConnecting: boolean
   deleting: boolean
   onChange: (next: RemoteDesktopProfileDraft) => void
+  onTargetAuthChange: (draft: VNCTargetAuthDraft) => void
   onCancel: () => void
   onSave: () => void
   onSaveAndConnect: () => void
@@ -53,11 +64,16 @@ export function RemoteDesktopProfileEditor({
   errors,
   submitted,
   hosts,
+  sshProfiles,
+  hasSavedTargetAuth,
+  targetAuthDraft,
+  targetAuthError,
   disabled,
   saving,
   savingAndConnecting,
   deleting,
   onChange,
+  onTargetAuthChange,
   onCancel,
   onSave,
   onSaveAndConnect,
@@ -65,7 +81,8 @@ export function RemoteDesktopProfileEditor({
 }: RemoteDesktopProfileEditorProps) {
   const { t } = useTranslation()
   const nameError = submitted ? errors.name : undefined
-  const hostError = submitted ? errors.ssh_host_id : undefined
+  const hostError = submitted ? errors.host_id : undefined
+  const sshProfileError = submitted ? errors.ssh_profile_id : undefined
   const portError = submitted ? errors.port : undefined
   const title = draft.name.trim()
     || profileName
@@ -107,16 +124,30 @@ export function RemoteDesktopProfileEditor({
             <div className={`${styles.field} ${hostError ? styles['is-error'] : ''}`}>
               <CustomSelect
                 label={t('remoteDesktop.sshHost')}
-                value={draft.ssh_host_id}
+                value={draft.host_id}
                 disabled={disabled || hosts.length === 0}
                 options={hosts.map((host) => ({
                   value: host.id,
                   label: host.name,
                   description: `${host.username}@${host.address}:${host.port}`,
                 }))}
-                onChange={(ssh_host_id) => onChange({ ...draft, ssh_host_id })}
+                onChange={(host_id) => onChange({ ...draft, host_id, ssh_profile_id: '' })}
               />
               {hostError ? <small className={styles['field-error']} role="alert">{t(`remoteDesktop.${hostError}`)}</small> : null}
+            </div>
+            <div className={`${styles.field} ${sshProfileError ? styles['is-error'] : ''}`}>
+              <CustomSelect
+                label={t('hosts.access.desktop.sshRoute')}
+                value={draft.ssh_profile_id}
+                disabled={disabled || sshProfiles.length === 0}
+                options={sshProfiles.map((profile) => ({
+                  value: profile.id,
+                  label: profile.name || `${profile.username}@${profile.address}`,
+                  description: `${profile.username}@${profile.address}:${profile.port}`,
+                }))}
+                onChange={(ssh_profile_id) => onChange({ ...draft, ssh_profile_id })}
+              />
+              {sshProfileError ? <small className={styles['field-error']} role="alert">{t('remoteDesktop.validationHost')}</small> : null}
             </div>
             <label className={`${styles.field} ${styles['is-wide']}`}>
               <span className={styles['field-label']}>{t('remoteDesktop.description')}</span>
@@ -225,6 +256,14 @@ export function RemoteDesktopProfileEditor({
             </div>
           </div>
         </ProfileEditorSection>
+
+        <VNCTargetAuthSection
+          hasSavedAuth={hasSavedTargetAuth}
+          draft={targetAuthDraft}
+          error={targetAuthError}
+          disabled={disabled}
+          onChange={onTargetAuthChange}
+        />
       </div>
 
       <footer className={styles.footer}>

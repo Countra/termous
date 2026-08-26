@@ -1,30 +1,30 @@
 import { expect, test, vi } from 'vitest'
-import { emptyVncConnectionMetrics } from '../model/viewerTypes.ts'
-import { VncConnectionMetricsStore } from './vncConnectionMetricsStore.tsx'
+import { emptyRemoteDesktopConnectionMetrics } from './viewerContracts.ts'
+import { RemoteDesktopConnectionMetricsStore } from './connectionMetricsStore.tsx'
 
 test('连接指标按会话隔离发布并支持重置', () => {
-  const store = new VncConnectionMetricsStore()
+  const store = new RemoteDesktopConnectionMetricsStore()
   const firstListener = vi.fn()
   const secondListener = vi.fn()
   const unsubscribeFirst = store.subscribe('rds_first', firstListener)
   store.subscribe('rds_second', secondListener)
-  const metrics = { ...emptyVncConnectionMetrics, sampledAt: 10, receivedBytes: 2048 }
+  const metrics = { ...emptyRemoteDesktopConnectionMetrics, sampledAt: 10, receivedBytes: 2048 }
 
   store.activateGeneration('rds_first', 1)
   store.publish('rds_first', 1, metrics)
   expect(store.snapshot('rds_first')).toEqual(metrics)
-  expect(store.snapshot('rds_second')).toBe(emptyVncConnectionMetrics)
+  expect(store.snapshot('rds_second')).toBe(emptyRemoteDesktopConnectionMetrics)
   expect(firstListener).toHaveBeenCalledTimes(1)
   expect(secondListener).not.toHaveBeenCalled()
 
   store.reset('rds_first')
-  expect(store.snapshot('rds_first')).toBe(emptyVncConnectionMetrics)
+  expect(store.snapshot('rds_first')).toBe(emptyRemoteDesktopConnectionMetrics)
   expect(firstListener).toHaveBeenCalledTimes(2)
   unsubscribeFirst()
 })
 
 test('VNC 传输采样与 SSH 延迟按 generation 合并且拒绝迟到数据', () => {
-  const store = new VncConnectionMetricsStore()
+  const store = new RemoteDesktopConnectionMetricsStore()
   store.activateGeneration('rds_test', 1)
   store.publishSshRtt('rds_test', 1, 22.4, 1_000)
   store.publish('rds_test', 1, {
@@ -56,7 +56,7 @@ test('VNC 传输采样与 SSH 延迟按 generation 合并且拒绝迟到数据',
     bufferedAmount: 0,
     outboundMeasured: true,
   })
-  expect(store.snapshot('rds_test')).toBe(emptyVncConnectionMetrics)
+  expect(store.snapshot('rds_test')).toBe(emptyRemoteDesktopConnectionMetrics)
 
   store.publishSshRtt('rds_test', 2, 18, 3_000)
   store.publishSshRtt('rds_test', 2, 45, 2_500)

@@ -1,17 +1,18 @@
 import type {
   RemoteDesktopDisplayMode,
-  VncCredentials,
-  VncCredentialType,
 } from '#entities/remote-desktop'
 import type {
-  VncTransportMetricsSnapshot,
-  VncViewerCapabilities,
-  VncViewerErrorCode,
-} from '../../model/viewerTypes.ts'
+  RemoteDesktopTransportMetricsSnapshot,
+  RemoteDesktopViewerCapabilities,
+  RemoteDesktopViewerErrorCode,
+} from '../../core/viewerContracts.ts'
 import { VncTransportMetrics } from './vncTransportMetrics.ts'
 
+export type VncCredentialType = 'username' | 'password' | 'target'
+export type VncCredentials = Partial<Record<VncCredentialType, string>>
+
 export interface VncViewerAdapterError {
-  code: VncViewerErrorCode
+  code: RemoteDesktopViewerErrorCode
   detail?: string
 }
 
@@ -23,8 +24,8 @@ export interface VncViewerAdapterEvents {
   onServerVerification: (verification: { type: string; fingerprint: string }) => void
   onClipboard: (text: string) => void
   onDesktopName: (name: string) => void
-  onCapabilities: (capabilities: VncViewerCapabilities) => void
-  onMetrics: (metrics: VncTransportMetricsSnapshot) => void
+  onCapabilities: (capabilities: RemoteDesktopViewerCapabilities) => void
+  onMetrics: (metrics: RemoteDesktopTransportMetricsSnapshot) => void
 }
 
 interface NoVncEventMap {
@@ -65,7 +66,7 @@ export class VncViewerAdapter {
   }
 
   static async create(options: CreateVncViewerAdapterOptions) {
-    const { default: RFB } = await import('@novnc/novnc')
+    const { default: RFB } = await prepareVncViewerAdapter()
     const transportMetrics = new VncTransportMetrics(options.url, options.events.onMetrics)
     let rfb: InstanceType<typeof RFB>
     try {
@@ -216,6 +217,13 @@ export class VncViewerAdapter {
     this.rfb.addEventListener(name, listener)
     this.listeners.push([name, listener])
   }
+}
+
+let noVncModulePromise: Promise<typeof import('@novnc/novnc')> | null = null
+
+export function prepareVncViewerAdapter() {
+  noVncModulePromise ??= import('@novnc/novnc')
+  return noVncModulePromise
 }
 
 function isCredentialType(value: string): value is VncCredentialType {

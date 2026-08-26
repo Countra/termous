@@ -2,13 +2,13 @@ import { Button, Empty, Input } from 'antd'
 import { MonitorPlay, Plus, Search } from 'lucide-react'
 import type { KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { RemoteDesktopProfile } from '#entities/remote-desktop'
+import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
 import type { Host } from '#entities/host'
 import { uiStyles } from '#shared/ui'
 import styles from './RemoteDesktopLauncher.module.scss'
 
 interface RemoteDesktopProfileCatalogProps {
-  profiles: RemoteDesktopProfile[]
+  profiles: RemoteDesktopAccessProfile[]
   hosts: Host[]
   query: string
   selectedId: string
@@ -95,7 +95,7 @@ export function RemoteDesktopProfileCatalog({
             </Empty>
           </div>
         ) : profiles.map((profile) => {
-          const host = hosts.find((item) => item.id === profile.ssh_host_id)
+          const host = hosts.find((item) => item.id === profile.host_id)
           const endpoint = `${profile.vnc.loopback_host}:${profile.vnc.port}`
           return (
             <button

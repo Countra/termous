@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { VncViewerAdapter, type VncViewerAdapterEvents } from './noVncAdapter'
+import { VncViewerAdapter, type VncViewerAdapterEvents } from './noVncAdapter.ts'
 
 interface FakeRfbInstance extends EventTarget {
   background: string

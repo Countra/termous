@@ -1,19 +1,22 @@
 import { expect, test, vi } from 'vitest'
 import type {
-  RemoteDesktopProfile,
-  RemoteDesktopProfileInput,
+  RemoteDesktopAccessProfile,
+  RemoteDesktopAccessProfileInput,
 } from '#entities/remote-desktop'
 import type { RemoteDesktopGateway } from '#features/remote-desktop'
 import { TermousApiError } from '#shared/api'
 import { initialData } from '../model/appDataState'
 import { createRemoteDesktopProfileCommands } from './remoteDesktopProfileCommands'
 
-const input: RemoteDesktopProfileInput = {
+const input: RemoteDesktopAccessProfileInput = {
+  host_id: 'hst_test',
   name: 'Desktop B',
   description: '',
+  route: 'ssh_tunnel',
+  route_config_version: 1,
+  ssh_profile_id: 'ssh_test',
   protocol: 'vnc',
-  transport: 'ssh_tunnel',
-  ssh_host_id: 'hst_test',
+  protocol_config_version: 1,
   vnc: {
     loopback_host: '127.0.0.1',
     port: 5900,
@@ -31,9 +34,11 @@ test('配置创建和更新按 ID 合并并保持稳定排序', async () => {
     createRemoteDesktopProfile: vi.fn(async () => profileB),
     updateRemoteDesktopProfile: vi.fn(async () => profileA),
     deleteRemoteDesktopProfile: vi.fn(async () => undefined),
+    saveRemoteDesktopTargetAuth: vi.fn(),
+    deleteRemoteDesktopTargetAuth: vi.fn(),
   }
   const commands = createRemoteDesktopProfileCommands(
-    api as Pick<RemoteDesktopGateway, 'createRemoteDesktopProfile' | 'updateRemoteDesktopProfile' | 'deleteRemoteDesktopProfile'>,
+    api as Pick<RemoteDesktopGateway, 'createRemoteDesktopProfile' | 'updateRemoteDesktopProfile' | 'deleteRemoteDesktopProfile' | 'saveRemoteDesktopTargetAuth' | 'deleteRemoteDesktopTargetAuth'>,
     [profileA, profileB],
     (next) => {
       data = typeof next === 'function' ? next(data) : next
@@ -65,9 +70,11 @@ test('配置缺少版本时在发起写请求前失败', async () => {
     createRemoteDesktopProfile: vi.fn(),
     updateRemoteDesktopProfile: vi.fn(),
     deleteRemoteDesktopProfile: vi.fn(),
+    saveRemoteDesktopTargetAuth: vi.fn(),
+    deleteRemoteDesktopTargetAuth: vi.fn(),
   }
   const commands = createRemoteDesktopProfileCommands(
-    api as Pick<RemoteDesktopGateway, 'createRemoteDesktopProfile' | 'updateRemoteDesktopProfile' | 'deleteRemoteDesktopProfile'>,
+    api as Pick<RemoteDesktopGateway, 'createRemoteDesktopProfile' | 'updateRemoteDesktopProfile' | 'deleteRemoteDesktopProfile' | 'saveRemoteDesktopTargetAuth' | 'deleteRemoteDesktopTargetAuth'>,
     [],
     vi.fn(),
     vi.fn(),
@@ -94,11 +101,13 @@ test('CAS 冲突后刷新权威配置并允许使用新版本重试', async () =
     deleteRemoteDesktopProfile: vi.fn()
       .mockRejectedValueOnce(conflict)
       .mockResolvedValueOnce(undefined),
+    saveRemoteDesktopTargetAuth: vi.fn(),
+    deleteRemoteDesktopTargetAuth: vi.fn(),
   }
   const load = vi.fn().mockResolvedValue(undefined)
   const setData = vi.fn()
   const staleCommands = createRemoteDesktopProfileCommands(
-    api as Pick<RemoteDesktopGateway, 'createRemoteDesktopProfile' | 'updateRemoteDesktopProfile' | 'deleteRemoteDesktopProfile'>,
+    api as Pick<RemoteDesktopGateway, 'createRemoteDesktopProfile' | 'updateRemoteDesktopProfile' | 'deleteRemoteDesktopProfile' | 'saveRemoteDesktopTargetAuth' | 'deleteRemoteDesktopTargetAuth'>,
     [stale],
     setData,
     load,
@@ -111,7 +120,7 @@ test('CAS 冲突后刷新权威配置并允许使用新版本重试', async () =
   expect(load).toHaveBeenNthCalledWith(2, 'silent')
 
   const currentCommands = createRemoteDesktopProfileCommands(
-    api as Pick<RemoteDesktopGateway, 'createRemoteDesktopProfile' | 'updateRemoteDesktopProfile' | 'deleteRemoteDesktopProfile'>,
+    api as Pick<RemoteDesktopGateway, 'createRemoteDesktopProfile' | 'updateRemoteDesktopProfile' | 'deleteRemoteDesktopProfile' | 'saveRemoteDesktopTargetAuth' | 'deleteRemoteDesktopTargetAuth'>,
     [current],
     setData,
     load,
@@ -122,15 +131,64 @@ test('CAS 冲突后刷新权威配置并允许使用新版本重试', async () =
   expect(api.deleteRemoteDesktopProfile).toHaveBeenLastCalledWith(current.id, current.updated_at)
 })
 
-function profile(id: string, name: string): RemoteDesktopProfile {
+test('目标凭据命令使用显式 CAS 版本并合并完整 Profile', async () => {
+  const source = profile('rdp_a', 'Desktop A')
+  const withAuth = {
+    ...source,
+    target_auth: { credential_id: 'cred_vnc', updated_at: '2026-08-23T12:00:01Z' },
+    updated_at: '2026-08-23T12:00:01Z',
+  }
+  const withoutAuth = {
+    ...withAuth,
+    target_auth: null,
+    updated_at: '2026-08-23T12:00:02Z',
+  }
+  let data = { ...initialData, remoteDesktopProfiles: [source] }
+  const api = {
+    createRemoteDesktopProfile: vi.fn(),
+    updateRemoteDesktopProfile: vi.fn(),
+    deleteRemoteDesktopProfile: vi.fn(),
+    saveRemoteDesktopTargetAuth: vi.fn(async () => withAuth),
+    deleteRemoteDesktopTargetAuth: vi.fn(async () => withoutAuth),
+  }
+  const commands = createRemoteDesktopProfileCommands(
+    api,
+    [source],
+    (next) => { data = typeof next === 'function' ? next(data) : next },
+    vi.fn(),
+  )
+
+  await commands.saveRemoteDesktopTargetAuth(source.id, source.updated_at, 'secret')
+  expect(api.saveRemoteDesktopTargetAuth).toHaveBeenCalledWith(
+    source.id,
+    source.updated_at,
+    'secret',
+  )
+  expect(data.remoteDesktopProfiles[0]).toEqual(withAuth)
+
+  await commands.deleteRemoteDesktopTargetAuth(withAuth.id, withAuth.updated_at)
+  expect(api.deleteRemoteDesktopTargetAuth).toHaveBeenCalledWith(
+    withAuth.id,
+    withAuth.updated_at,
+  )
+  expect(data.remoteDesktopProfiles[0]).toEqual(withoutAuth)
+})
+
+function profile(id: string, name: string): RemoteDesktopAccessProfile {
   return {
     id,
+    host_id: 'hst_test',
     name,
     description: '',
+    route: 'ssh_tunnel',
+    route_config_version: 1,
+    ssh_profile_id: 'ssh_test',
     protocol: 'vnc',
-    transport: 'ssh_tunnel',
-    ssh_host_id: 'hst_test',
+    protocol_config_version: 1,
     vnc: { ...input.vnc },
+    is_default: id === 'rdp_a',
+    sort_order: id === 'rdp_a' ? 0 : 1,
+    target_auth: null,
     created_at: '2026-08-23T12:00:00Z',
     updated_at: '2026-08-23T12:00:00Z',
   }

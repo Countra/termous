@@ -55,7 +55,6 @@ import type { LocalShell, Session } from '#entities/session'
 import type {
   RemoteDesktopAccessProfile,
   RemoteDesktopAccessProfileInput,
-  RemoteDesktopProfile,
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
 import type {
@@ -88,10 +87,11 @@ export interface AppDataSnapshotGateway {
   credentials: () => Promise<CredentialView[]>
   sessions: () => Promise<Session[]>
   fileSessions: () => Promise<FileSession[]>
+  sshAccessProfiles: () => Promise<SSHAccessProfile[]>
   fileAccessProfiles: () => Promise<FileAccessProfile[]>
   forwardProfiles: () => Promise<ForwardProfile[]>
   forwards: () => Promise<ForwardInstance[]>
-  remoteDesktopProfiles: () => Promise<RemoteDesktopProfile[]>
+  remoteDesktopProfiles: () => Promise<RemoteDesktopAccessProfile[]>
   remoteDesktopSessions: () => Promise<RemoteDesktopSession[]>
 }
 

@@ -308,6 +308,7 @@ function remoteProfile(id: string, sortOrder: number): RemoteDesktopAccessProfil
     },
     is_default: sortOrder === 0,
     sort_order: sortOrder,
+    target_auth: null,
     created_at: UPDATED_AT,
     updated_at: UPDATED_AT,
   }

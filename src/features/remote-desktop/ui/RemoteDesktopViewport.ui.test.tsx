@@ -3,7 +3,7 @@ import { expect, test, vi } from 'vitest'
 import {
   RemoteDesktopRuntimeContext,
   type RemoteDesktopRuntimeValue,
-} from '../runtime/remoteDesktopRuntimeContext'
+} from '../runtime/core/remoteDesktopRuntimeContext'
 import { RemoteDesktopViewport } from './RemoteDesktopViewport'
 
 test('运行态更新不会重复迁移 Viewer 容器', () => {

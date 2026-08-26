@@ -1,9 +1,12 @@
 export { RemoteDesktopClient } from './api/RemoteDesktopClient.ts'
 export type { RemoteDesktopGateway } from './api/remoteDesktopGateway.ts'
 export { RemoteDesktopRuntimeProvider } from './runtime/RemoteDesktopRuntimeProvider.tsx'
-export { useRemoteDesktopRuntime } from './runtime/remoteDesktopRuntimeContext.ts'
-export type { VncViewerState } from './runtime/remoteDesktopRuntimeContext.ts'
-export { useVncConnectionMetrics } from './runtime/vncConnectionMetricsStore.tsx'
-export type { VncConnectionMetrics } from './model/viewerTypes.ts'
+export { useRemoteDesktopRuntime } from './runtime/core/remoteDesktopRuntimeContext.ts'
+export { useRemoteDesktopConnectionMetrics } from './runtime/core/connectionMetricsStore.tsx'
+export type {
+  RemoteDesktopConnectionMetrics,
+  RemoteDesktopCredentials,
+  RemoteDesktopViewerState,
+} from './runtime/core/viewerContracts.ts'
 export { RemoteDesktopLauncher } from './ui/RemoteDesktopLauncher.tsx'
 export { RemoteDesktopViewport } from './ui/RemoteDesktopViewport.tsx'

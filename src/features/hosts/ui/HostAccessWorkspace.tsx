@@ -178,7 +178,13 @@ export function HostAccessWorkspace({
             submitted={controller.profileValidationVisible}
             disabled={busy}
             sshProfiles={catalog.ssh}
+            hasSavedTargetAuth={controller.vncHasSavedTargetAuth}
+            targetAuthDraft={controller.vncTargetAuthDraft}
+            targetAuthError={controller.profileValidationVisible
+              ? controller.vncTargetAuthError
+              : undefined}
             onChange={controller.setVNCDraft}
+            onTargetAuthChange={controller.setVNCTargetAuthDraft}
           />
         </AccessProfileEditorShell>
         {renderDialogs(controller, t)}

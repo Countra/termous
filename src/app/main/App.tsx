@@ -348,6 +348,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     createRemoteDesktopProfile: (input) => hostAccessActionsRef.current.createRemoteDesktopAccessProfile(input),
     updateRemoteDesktopProfile: (...input) => hostAccessActionsRef.current.updateRemoteDesktopAccessProfile(...input),
     deleteRemoteDesktopProfile: (...input) => hostAccessActionsRef.current.deleteRemoteDesktopAccessProfile(...input),
+    saveRemoteDesktopTargetAuth: (...input) => hostAccessActionsRef.current.saveRemoteDesktopTargetAuth(...input),
+    deleteRemoteDesktopTargetAuth: (...input) => hostAccessActionsRef.current.deleteRemoteDesktopTargetAuth(...input),
     setDefaultRemoteDesktopProfile: (...input) => hostAccessActionsRef.current.setDefaultRemoteDesktopAccessProfile(...input),
   }), [])
   const hostLauncherData = useMemo<HostLauncherData>(() => ({
@@ -1175,12 +1177,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         <RemoteDesktopPage
                           profiles={data.remoteDesktopProfiles}
                           hosts={data.hosts}
+                          sshProfiles={data.sshAccessProfiles}
                           actionBusy={actionBusy}
                           launcherOpen={remoteDesktopLauncherOpen}
                           onLauncherOpenChange={setRemoteDesktopLauncherOpen}
                           onCreateProfile={actions.createRemoteDesktopProfile}
                           onUpdateProfile={actions.updateRemoteDesktopProfile}
                           onDeleteProfile={actions.deleteRemoteDesktopProfile}
+                          onSaveTargetAuth={actions.saveRemoteDesktopTargetAuth}
+                          onDeleteTargetAuth={actions.deleteRemoteDesktopTargetAuth}
                         />
                       ) : null}
                     </AppShell>

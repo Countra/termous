@@ -52,6 +52,15 @@ export interface HostAccessManagementGateway {
     input: RemoteDesktopAccessProfileInput,
   ) => Promise<RemoteDesktopAccessProfile>
   deleteRemoteDesktopProfile: (id: string, expectedUpdatedAt: string) => Promise<void>
+  saveRemoteDesktopTargetAuth: (
+    id: string,
+    expectedUpdatedAt: string,
+    password: string,
+  ) => Promise<RemoteDesktopAccessProfile>
+  deleteRemoteDesktopTargetAuth: (
+    id: string,
+    expectedUpdatedAt: string,
+  ) => Promise<RemoteDesktopAccessProfile>
   setDefaultRemoteDesktopProfile: (
     id: string,
     expectedUpdatedAt: string,

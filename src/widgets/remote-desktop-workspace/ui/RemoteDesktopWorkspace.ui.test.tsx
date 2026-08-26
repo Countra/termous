@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { RemoteDesktopSession } from '#entities/remote-desktop'
 import {
+  RemoteDesktopCredentialDialog,
   RemoteDesktopWorkspace,
-  VncCredentialDialog,
 } from './RemoteDesktopWorkspace'
 
 const runtimeMock = vi.hoisted(() => ({
@@ -14,7 +14,11 @@ const runtimeMock = vi.hoisted(() => ({
     activeSessionId: null as string | null,
     viewerStates: {} as Record<string, {
       connection: string
-      credentialTypes: Array<'username' | 'password' | 'target'>
+      credentialFields: Array<{
+        id: string
+        kind: 'text' | 'secret'
+        required: boolean
+      }>
     }>,
     focusViewer: vi.fn(),
     createSession: vi.fn(async () => undefined),
@@ -71,12 +75,15 @@ test('无远程桌面会话时显示空标签和两个初始连接入口', async
       <RemoteDesktopWorkspace
         profiles={[]}
         hosts={[]}
+        sshProfiles={[]}
         actionBusy={false}
         launcherOpen={false}
         onLauncherOpenChange={onLauncherOpenChange}
         onCreateProfile={vi.fn()}
         onUpdateProfile={vi.fn()}
         onDeleteProfile={vi.fn()}
+        onSaveTargetAuth={vi.fn()}
+        onDeleteTargetAuth={vi.fn()}
       />
     </AntdApp>,
   )
@@ -95,17 +102,20 @@ test('无远程桌面会话时显示空标签和两个初始连接入口', async
   expect(onLauncherOpenChange).toHaveBeenNthCalledWith(2, true)
 })
 
-test('VNC 凭据弹窗断开失败时显示错误且不产生未处理拒绝', async () => {
+test('远程桌面凭据弹窗断开失败时显示错误且不产生未处理拒绝', async () => {
   const user = userEvent.setup()
   const session = remoteDesktopSession('rds_close_failure')
   runtimeMock.value.viewerStates = {
-    [session.id]: { connection: 'credentials_required', credentialTypes: ['password'] },
+    [session.id]: {
+      connection: 'credentials_required',
+      credentialFields: [{ id: 'password', kind: 'secret', required: true }],
+    },
   }
   runtimeMock.value.closeSession.mockRejectedValueOnce(new Error('close failed'))
 
   render(
     <AntdApp>
-      <VncCredentialDialog session={session} />
+      <RemoteDesktopCredentialDialog session={session} />
     </AntdApp>,
   )
 
@@ -118,16 +128,22 @@ test('VNC 凭据弹窗断开失败时显示错误且不产生未处理拒绝', a
   })
 })
 
-test('切换到另一远程桌面会话时清空未提交的 VNC 凭据', async () => {
+test('切换到另一远程桌面会话时清空未提交的认证材料', async () => {
   const first = remoteDesktopSession('rds_first')
   const second = remoteDesktopSession('rds_second')
   runtimeMock.value.viewerStates = {
-    [first.id]: { connection: 'credentials_required', credentialTypes: ['password'] },
-    [second.id]: { connection: 'credentials_required', credentialTypes: ['password'] },
+    [first.id]: {
+      connection: 'credentials_required',
+      credentialFields: [{ id: 'password', kind: 'secret', required: true }],
+    },
+    [second.id]: {
+      connection: 'credentials_required',
+      credentialFields: [{ id: 'password', kind: 'secret', required: true }],
+    },
   }
   const tree = (session: RemoteDesktopSession) => (
     <AntdApp>
-      <VncCredentialDialog session={session} />
+      <RemoteDesktopCredentialDialog session={session} />
     </AntdApp>
   )
   const view = render(tree(first))
@@ -167,9 +183,14 @@ function remoteDesktopSession(id: string): RemoteDesktopSession {
     id,
     profile_id: `profile_${id}`,
     profile_name: id,
+    host_id: 'hst_test',
+    ssh_profile_id: 'ssh_test',
     ssh_host_id: 'hst_test',
     ssh_host_name: 'Test host',
+    route: 'ssh_tunnel',
+    route_config_version: 1,
     protocol: 'vnc',
+    protocol_config_version: 1,
     vnc: {
       loopback_host: '127.0.0.1',
       port: 5900,

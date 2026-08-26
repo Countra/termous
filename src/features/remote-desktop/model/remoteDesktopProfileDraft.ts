@@ -1,10 +1,10 @@
 import type {
-  RemoteDesktopProfile,
-  RemoteDesktopProfileInput,
+  RemoteDesktopAccessProfile,
+  RemoteDesktopAccessProfileInput,
   VncProfileSettings,
 } from '#entities/remote-desktop'
 
-export interface RemoteDesktopProfileDraft extends Omit<RemoteDesktopProfileInput, 'vnc'> {
+export interface RemoteDesktopProfileDraft extends Omit<RemoteDesktopAccessProfileInput, 'vnc'> {
   vnc: Omit<VncProfileSettings, 'port'> & {
     port: number | null
   }
@@ -12,16 +12,20 @@ export interface RemoteDesktopProfileDraft extends Omit<RemoteDesktopProfileInpu
 
 export interface RemoteDesktopProfileDraftErrors {
   name?: 'validationName'
-  ssh_host_id?: 'validationHost'
+  host_id?: 'validationHost'
+  ssh_profile_id?: 'validationHost'
   port?: 'validationPort'
 }
 
 const defaultDraft: RemoteDesktopProfileDraft = {
   name: '',
   description: '',
+  host_id: '',
+  route: 'ssh_tunnel',
+  route_config_version: 1,
+  ssh_profile_id: '',
   protocol: 'vnc',
-  transport: 'ssh_tunnel',
-  ssh_host_id: '',
+  protocol_config_version: 1,
   vnc: {
     loopback_host: '127.0.0.1',
     port: 5900,
@@ -31,30 +35,37 @@ const defaultDraft: RemoteDesktopProfileDraft = {
   },
 }
 
-export function createRemoteDesktopProfileDraft(sshHostId = ''): RemoteDesktopProfileDraft {
+export function createRemoteDesktopProfileDraft(
+  hostId = '',
+  sshProfileId = '',
+): RemoteDesktopProfileDraft {
   return {
     ...defaultDraft,
-    ssh_host_id: sshHostId,
+    host_id: hostId,
+    ssh_profile_id: sshProfileId,
     vnc: { ...defaultDraft.vnc },
   }
 }
 
 export function remoteDesktopProfileToDraft(
-  profile: RemoteDesktopProfile,
+  profile: RemoteDesktopAccessProfile,
 ): RemoteDesktopProfileDraft {
   return {
     name: profile.name,
     description: profile.description,
+    host_id: profile.host_id,
+    route: profile.route,
+    route_config_version: profile.route_config_version,
+    ssh_profile_id: profile.ssh_profile_id,
     protocol: 'vnc',
-    transport: 'ssh_tunnel',
-    ssh_host_id: profile.ssh_host_id,
+    protocol_config_version: profile.protocol_config_version,
     vnc: { ...profile.vnc },
   }
 }
 
 export function normalizeRemoteDesktopProfileDraft(
   draft: RemoteDesktopProfileDraft,
-): RemoteDesktopProfileInput {
+): RemoteDesktopAccessProfileInput {
   return {
     ...draft,
     name: draft.name.trim(),
@@ -69,13 +80,20 @@ export function normalizeRemoteDesktopProfileDraft(
 export function validateRemoteDesktopProfileDraft(
   draft: RemoteDesktopProfileDraft,
   availableHostIds?: ReadonlySet<string>,
+  availableSSHProfileIds?: ReadonlySet<string>,
 ): RemoteDesktopProfileDraftErrors {
   const errors: RemoteDesktopProfileDraftErrors = {}
   if (!draft.name.trim()) {
     errors.name = 'validationName'
   }
-  if (!draft.ssh_host_id || (availableHostIds && !availableHostIds.has(draft.ssh_host_id))) {
-    errors.ssh_host_id = 'validationHost'
+  if (!draft.host_id || (availableHostIds && !availableHostIds.has(draft.host_id))) {
+    errors.host_id = 'validationHost'
+  }
+  if (
+    !draft.ssh_profile_id
+    || (availableSSHProfileIds && !availableSSHProfileIds.has(draft.ssh_profile_id))
+  ) {
+    errors.ssh_profile_id = 'validationHost'
   }
   if (
     !Number.isSafeInteger(draft.vnc.port)
@@ -94,9 +112,12 @@ export function remoteDesktopProfileDraftsEqual(
   return (
     left.name === right.name
     && left.description === right.description
+    && left.host_id === right.host_id
+    && left.route === right.route
+    && left.route_config_version === right.route_config_version
+    && left.ssh_profile_id === right.ssh_profile_id
     && left.protocol === right.protocol
-    && left.transport === right.transport
-    && left.ssh_host_id === right.ssh_host_id
+    && left.protocol_config_version === right.protocol_config_version
     && left.vnc.loopback_host === right.vnc.loopback_host
     && left.vnc.port === right.vnc.port
     && left.vnc.shared === right.vnc.shared

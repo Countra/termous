@@ -1,6 +1,6 @@
 import type {
-  RemoteDesktopProfile,
-  RemoteDesktopProfileInput,
+  RemoteDesktopAccessProfile,
+  RemoteDesktopAccessProfileInput,
 } from '#entities/remote-desktop'
 import type { RemoteDesktopGateway } from '#features/remote-desktop'
 import { TermousApiError } from '#shared/api'
@@ -10,14 +10,18 @@ import type { SetAppData } from '../model/runtimeTypes.ts'
 export function createRemoteDesktopProfileCommands(
   api: Pick<
     RemoteDesktopGateway,
-    'createRemoteDesktopProfile' | 'updateRemoteDesktopProfile' | 'deleteRemoteDesktopProfile'
+    | 'createRemoteDesktopProfile'
+    | 'updateRemoteDesktopProfile'
+    | 'deleteRemoteDesktopProfile'
+    | 'saveRemoteDesktopTargetAuth'
+    | 'deleteRemoteDesktopTargetAuth'
   >,
-  profiles: RemoteDesktopProfile[],
+  profiles: RemoteDesktopAccessProfile[],
   setData: SetAppData,
   load: (mode?: LoadMode) => Promise<void>,
 ) {
   return {
-    async createRemoteDesktopProfile(input: RemoteDesktopProfileInput) {
+    async createRemoteDesktopProfile(input: RemoteDesktopAccessProfileInput) {
       const profile = await api.createRemoteDesktopProfile(input)
       setData((current) => ({
         ...current,
@@ -25,7 +29,7 @@ export function createRemoteDesktopProfileCommands(
       }))
       return profile
     },
-    async updateRemoteDesktopProfile(id: string, input: RemoteDesktopProfileInput) {
+    async updateRemoteDesktopProfile(id: string, input: RemoteDesktopAccessProfileInput) {
       const profile = await reconcileConflict(
         () => api.updateRemoteDesktopProfile(id, profileVersion(profiles, id), input),
         load,
@@ -45,6 +49,32 @@ export function createRemoteDesktopProfileCommands(
         ...current,
         remoteDesktopProfiles: current.remoteDesktopProfiles.filter((profile) => profile.id !== id),
       }))
+    },
+    async saveRemoteDesktopTargetAuth(
+      id: string,
+      expectedUpdatedAt: string,
+      password: string,
+    ) {
+      const profile = await reconcileConflict(
+        () => api.saveRemoteDesktopTargetAuth(id, expectedUpdatedAt, password),
+        load,
+      )
+      setData((current) => ({
+        ...current,
+        remoteDesktopProfiles: upsertProfile(current.remoteDesktopProfiles, profile),
+      }))
+      return profile
+    },
+    async deleteRemoteDesktopTargetAuth(id: string, expectedUpdatedAt: string) {
+      const profile = await reconcileConflict(
+        () => api.deleteRemoteDesktopTargetAuth(id, expectedUpdatedAt),
+        load,
+      )
+      setData((current) => ({
+        ...current,
+        remoteDesktopProfiles: upsertProfile(current.remoteDesktopProfiles, profile),
+      }))
+      return profile
     },
   }
 }
@@ -67,7 +97,7 @@ async function reconcileConflict<T>(
   }
 }
 
-function profileVersion(profiles: RemoteDesktopProfile[], id: string) {
+function profileVersion(profiles: RemoteDesktopAccessProfile[], id: string) {
   const updatedAt = profiles.find((profile) => profile.id === id)?.updated_at
   if (!updatedAt) {
     throw new Error('远程桌面配置不存在或缺少版本信息')

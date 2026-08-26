@@ -10,7 +10,8 @@ import type {
 import type { ForwardInstance, ForwardProfile } from '#entities/forward'
 import type { FileAccessProfile } from '#entities/file-access-profile'
 import type { Host, HostGroup, HostIcon, HostReachability } from '#entities/host'
-import type { RemoteDesktopProfile, RemoteDesktopSession } from '#entities/remote-desktop'
+import type { RemoteDesktopAccessProfile, RemoteDesktopSession } from '#entities/remote-desktop'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import type { CodeSnippet, CodeSnippetGroup } from '#entities/snippet'
 import type { Session } from './sessionTypes'
 
@@ -22,10 +23,11 @@ export interface AppData {
   credentials: CredentialView[]
   sessions: Session[]
   fileSessions: FileSession[]
+  sshAccessProfiles: SSHAccessProfile[]
   fileAccessProfiles: FileAccessProfile[]
   forwardProfiles: ForwardProfile[]
   forwards: ForwardInstance[]
-  remoteDesktopProfiles: RemoteDesktopProfile[]
+  remoteDesktopProfiles: RemoteDesktopAccessProfile[]
   remoteDesktopSessions: RemoteDesktopSession[]
   snippetGroups: CodeSnippetGroup[]
   snippets: CodeSnippet[]

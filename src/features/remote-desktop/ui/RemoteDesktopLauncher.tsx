@@ -3,10 +3,22 @@ import { MonitorPlay, Plus } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
-  RemoteDesktopProfile,
-  RemoteDesktopProfileInput,
+  RemoteDesktopAccessProfile,
+  RemoteDesktopAccessProfileInput,
 } from '#entities/remote-desktop'
 import type { Host } from '#entities/host'
+import {
+  selectDefaultSSHAccessProfile,
+  type SSHAccessProfile,
+} from '#entities/ssh-access-profile'
+import {
+  createVNCTargetAuthDraft,
+  isVNCTargetAuthDraftDirty,
+  persistVNCProfile,
+  validateVNCTargetAuthDraft,
+  VNCTargetAuthPersistenceError,
+  type VNCTargetAuthDraft,
+} from '#features/manage-remote-desktop'
 import {
   confirmDialogStyles,
   ConnectionActionButton,
@@ -28,13 +40,26 @@ import styles from './RemoteDesktopLauncher.module.scss'
 
 interface RemoteDesktopLauncherProps {
   open: boolean
-  profiles: RemoteDesktopProfile[]
+  profiles: RemoteDesktopAccessProfile[]
   hosts: Host[]
+  sshProfiles: SSHAccessProfile[]
   actionBusy: boolean
   onClose: () => void
-  onCreate: (input: RemoteDesktopProfileInput) => Promise<RemoteDesktopProfile>
-  onUpdate: (id: string, input: RemoteDesktopProfileInput) => Promise<RemoteDesktopProfile>
+  onCreate: (input: RemoteDesktopAccessProfileInput) => Promise<RemoteDesktopAccessProfile>
+  onUpdate: (
+    id: string,
+    input: RemoteDesktopAccessProfileInput,
+  ) => Promise<RemoteDesktopAccessProfile>
   onDelete: (id: string) => Promise<void>
+  onSaveTargetAuth: (
+    id: string,
+    expectedUpdatedAt: string,
+    password: string,
+  ) => Promise<RemoteDesktopAccessProfile>
+  onDeleteTargetAuth: (
+    id: string,
+    expectedUpdatedAt: string,
+  ) => Promise<RemoteDesktopAccessProfile>
   onConnect: (profileId: string) => Promise<void>
 }
 
@@ -51,11 +76,14 @@ export function RemoteDesktopLauncher({
   open,
   profiles,
   hosts,
+  sshProfiles,
   actionBusy,
   onClose,
   onCreate,
   onUpdate,
   onDelete,
+  onSaveTargetAuth,
+  onDeleteTargetAuth,
   onConnect,
 }: RemoteDesktopLauncherProps) {
   const { t } = useTranslation()
@@ -66,6 +94,11 @@ export function RemoteDesktopLauncher({
   const [baseline, setBaseline] = useState<RemoteDesktopProfileDraft>(() => createRemoteDesktopProfileDraft())
   const [editing, setEditing] = useState(false)
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
+  const [persistedProfile, setPersistedProfile] = useState<RemoteDesktopAccessProfile | null>(null)
+  const [locallyCreatedProfileId, setLocallyCreatedProfileId] = useState<string | null>(null)
+  const [targetAuthDraft, setTargetAuthDraft] = useState<VNCTargetAuthDraft>(
+    createVNCTargetAuthDraft,
+  )
   const [submitted, setSubmitted] = useState(false)
   const [pendingAction, setPendingAction] = useState<PendingAction>(null)
   const confirmationOpenRef = useRef(false)
@@ -76,23 +109,45 @@ export function RemoteDesktopLauncher({
       !normalized
       || profile.name.toLocaleLowerCase().includes(normalized)
       || profile.description.toLocaleLowerCase().includes(normalized)
-      || hosts.find((host) => host.id === profile.ssh_host_id)?.name.toLocaleLowerCase().includes(normalized)
+      || hosts.find((host) => host.id === profile.host_id)?.name.toLocaleLowerCase().includes(normalized)
     ))
   }, [hosts, profiles, query])
   const editingProfile = editingProfileId
-    ? profiles.find((profile) => profile.id === editingProfileId) ?? null
+    ? profiles.find((profile) => profile.id === editingProfileId)
+      ?? (
+        locallyCreatedProfileId === editingProfileId && persistedProfile?.id === editingProfileId
+          ? persistedProfile
+          : null
+      )
     : null
   const selected = editing
     ? editingProfile
     : visibleProfiles.find((profile) => profile.id === selectedId) ?? visibleProfiles[0] ?? null
   const availableHostIds = useMemo(() => new Set(hosts.map((host) => host.id)), [hosts])
+  const availableSSHProfileIds = useMemo(() => new Set(
+    sshProfiles
+      .filter((profile) => profile.host_id === draft.host_id)
+      .map((profile) => profile.id),
+  ), [draft.host_id, sshProfiles])
   const errors = useMemo(
-    () => validateRemoteDesktopProfileDraft(draft, availableHostIds),
-    [availableHostIds, draft],
+    () => validateRemoteDesktopProfileDraft(draft, availableHostIds, availableSSHProfileIds),
+    [availableHostIds, availableSSHProfileIds, draft],
   )
-  const dirty = editing && !remoteDesktopProfileDraftsEqual(draft, baseline)
+  const metadataDirty = editing && !remoteDesktopProfileDraftsEqual(draft, baseline)
+  const targetAuthError = validateVNCTargetAuthDraft(targetAuthDraft)
+  const dirty = editing && (metadataDirty || isVNCTargetAuthDraftDirty(targetAuthDraft))
   const operationBusy = pendingAction !== null
   const busy = actionBusy || operationBusy
+
+  const acceptPersistedProfile = (profile: RemoteDesktopAccessProfile) => {
+    const savedDraft = remoteDesktopProfileToDraft(profile)
+    setSelectedId(profile.id)
+    setDraft(savedDraft)
+    setBaseline(savedDraft)
+    setPersistedProfile(profile)
+    if (!editingProfileId) setLocallyCreatedProfileId(profile.id)
+    setEditingProfileId(profile.id)
+  }
 
   useEffect(() => {
     if (!open || editing) {
@@ -112,17 +167,30 @@ export function RemoteDesktopLauncher({
   }, [editing, editingProfile, editingProfileId])
 
   useEffect(() => {
+    if (!editing || !editingProfileId) return
+    const source = profiles.find((profile) => profile.id === editingProfileId)
+    if (source && isProfileRevisionNewer(source, persistedProfile)) {
+      setPersistedProfile(source)
+    }
+    if (source && locallyCreatedProfileId === source.id) {
+      setLocallyCreatedProfileId(null)
+    }
+  }, [editing, editingProfileId, locallyCreatedProfileId, persistedProfile, profiles])
+
+  useEffect(() => {
     if (!editing && selected) {
       const next = remoteDesktopProfileToDraft(selected)
       setDraft(next)
       setBaseline(next)
+      setPersistedProfile(selected)
+      setTargetAuthDraft(createVNCTargetAuthDraft())
       setSubmitted(false)
     }
   }, [editing, selected])
 
   const save = async (connectAfterSave: boolean) => {
     setSubmitted(true)
-    if (hasRemoteDesktopProfileDraftErrors(errors) || busy) {
+    if (hasRemoteDesktopProfileDraftErrors(errors) || targetAuthError || busy) {
       if (!busy) {
         notification.warning({
           title: t('remoteDesktop.profileInvalid'),
@@ -135,13 +203,45 @@ export function RemoteDesktopLauncher({
     setPendingAction(connectAfterSave ? 'save_connect' : 'save')
     try {
       const input = normalizeRemoteDesktopProfileDraft(draft)
-      const saved = editingProfileId
-        ? await onUpdate(editingProfileId, input)
-        : await onCreate(input)
-      const savedDraft = remoteDesktopProfileToDraft(saved)
-      setSelectedId(saved.id)
-      setDraft(savedDraft)
-      setBaseline(savedDraft)
+      const existingProfile = editingProfileId
+        ? persistedProfile ?? profiles.find((profile) => profile.id === editingProfileId) ?? null
+        : null
+      if (editingProfileId && !existingProfile) {
+        throw new Error(t('hosts.access.errors.profileMissing'))
+      }
+      let saved: RemoteDesktopAccessProfile
+      try {
+        const result = await persistVNCProfile({
+          input,
+          existingProfile,
+          metadataDirty,
+          targetAuthDraft,
+          gateway: {
+            createRemoteDesktopProfile: onCreate,
+            updateRemoteDesktopProfile: (id, _expectedUpdatedAt, nextInput) => (
+              onUpdate(id, nextInput)
+            ),
+            saveRemoteDesktopTargetAuth: onSaveTargetAuth,
+            deleteRemoteDesktopTargetAuth: onDeleteTargetAuth,
+          },
+        })
+        saved = result.profile
+      } catch (error) {
+        if (!(error instanceof VNCTargetAuthPersistenceError)) throw error
+        acceptPersistedProfile(error.profile)
+        notification.error({
+          title: t('remoteDesktop.targetAuth.saveFailed'),
+          description: error.metadataSaved
+            ? t('remoteDesktop.targetAuth.profileSavedCredentialFailed', {
+              error: publicError(error.cause, t('app.error')),
+            })
+            : publicError(error.cause, t('app.error')),
+          className: termousNotificationClassName,
+        })
+        return
+      }
+      acceptPersistedProfile(saved)
+      setTargetAuthDraft(createVNCTargetAuthDraft())
       setEditing(false)
       setEditingProfileId(null)
       setSubmitted(false)
@@ -179,6 +279,9 @@ export function RemoteDesktopLauncher({
       setSelectedId(remaining[0]?.id ?? '')
       setEditing(false)
       setEditingProfileId(null)
+      setPersistedProfile(null)
+      setLocallyCreatedProfileId(null)
+      setTargetAuthDraft(createVNCTargetAuthDraft())
       setSubmitted(false)
     } catch (error) {
       notification.error({
@@ -192,11 +295,18 @@ export function RemoteDesktopLauncher({
   }
 
   const startNew = () => {
-    const next = createRemoteDesktopProfileDraft(hosts[0]?.id ?? '')
+    const hostId = hosts[0]?.id ?? ''
+    const next = createRemoteDesktopProfileDraft(
+      hostId,
+      selectDefaultSSHAccessProfile(sshProfiles, hostId)?.id ?? '',
+    )
     setDraft(next)
     setBaseline(next)
     setEditing(true)
     setEditingProfileId(null)
+    setPersistedProfile(null)
+    setLocallyCreatedProfileId(null)
+    setTargetAuthDraft(createVNCTargetAuthDraft())
     setSubmitted(false)
   }
 
@@ -209,17 +319,30 @@ export function RemoteDesktopLauncher({
     setBaseline(next)
     setEditing(true)
     setEditingProfileId(selected.id)
+    setPersistedProfile(selected)
+    setLocallyCreatedProfileId(null)
+    setTargetAuthDraft(createVNCTargetAuthDraft())
     setSubmitted(false)
   }
 
   const connectProfile = async (profileId: string) => {
     const profile = profiles.find((item) => item.id === profileId)
-    if (busy || !profile || !availableHostIds.has(profile.ssh_host_id)) {
+    if (
+      busy
+      || !profile
+      || !availableHostIds.has(profile.host_id)
+      || !sshProfiles.some((sshProfile) => (
+        sshProfile.id === profile.ssh_profile_id && sshProfile.host_id === profile.host_id
+      ))
+    ) {
       return
     }
     setSelectedId(profileId)
     setEditing(false)
     setEditingProfileId(null)
+    setPersistedProfile(null)
+    setLocallyCreatedProfileId(null)
+    setTargetAuthDraft(createVNCTargetAuthDraft())
     setSubmitted(false)
     setPendingAction('connect')
     try {
@@ -240,6 +363,9 @@ export function RemoteDesktopLauncher({
     if (intent.type === 'close') {
       setEditing(false)
       setEditingProfileId(null)
+      setPersistedProfile(null)
+      setLocallyCreatedProfileId(null)
+      setTargetAuthDraft(createVNCTargetAuthDraft())
       setSubmitted(false)
       onClose()
       return
@@ -252,6 +378,9 @@ export function RemoteDesktopLauncher({
       setSelectedId(intent.profileId)
       setEditing(false)
       setEditingProfileId(null)
+      setPersistedProfile(null)
+      setLocallyCreatedProfileId(null)
+      setTargetAuthDraft(createVNCTargetAuthDraft())
       setSubmitted(false)
       return
     }
@@ -261,6 +390,9 @@ export function RemoteDesktopLauncher({
     }
     setEditing(false)
     setEditingProfileId(null)
+    setPersistedProfile(null)
+    setLocallyCreatedProfileId(null)
+    setTargetAuthDraft(createVNCTargetAuthDraft())
     setSubmitted(false)
     if (selected) {
       const next = remoteDesktopProfileToDraft(selected)
@@ -308,7 +440,12 @@ export function RemoteDesktopLauncher({
   const editorOnly = profiles.length === 0 && editing
   const showOnboarding = profiles.length === 0 && !editing
   const selectedHost = selected
-    ? hosts.find((host) => host.id === selected.ssh_host_id)
+    ? hosts.find((host) => host.id === selected.host_id)
+    : undefined
+  const selectedSSHProfile = selected
+    ? sshProfiles.find((profile) => (
+        profile.id === selected.ssh_profile_id && profile.host_id === selected.host_id
+      ))
     : undefined
 
   return (
@@ -380,11 +517,16 @@ export function RemoteDesktopLauncher({
                   errors={errors}
                   submitted={submitted}
                   hosts={hosts}
+                  sshProfiles={sshProfiles.filter((profile) => profile.host_id === draft.host_id)}
+                  hasSavedTargetAuth={Boolean(persistedProfile?.target_auth)}
+                  targetAuthDraft={targetAuthDraft}
+                  targetAuthError={submitted ? targetAuthError : undefined}
                   disabled={busy}
                   saving={pendingAction === 'save'}
                   savingAndConnecting={pendingAction === 'save_connect'}
                   deleting={pendingAction === 'delete'}
                   onChange={setDraft}
+                  onTargetAuthChange={setTargetAuthDraft}
                   onCancel={() => requestIntent({ type: 'cancel_edit' })}
                   onSave={() => void save(false)}
                   onSaveAndConnect={() => void save(true)}
@@ -394,6 +536,7 @@ export function RemoteDesktopLauncher({
                 <RemoteDesktopProfileOverview
                   profile={selected}
                   host={selectedHost}
+                  sshProfile={selectedSSHProfile}
                   disabled={busy}
                   connecting={pendingAction === 'connect' || pendingAction === 'save_connect'}
                   deleting={pendingAction === 'delete'}
@@ -428,4 +571,16 @@ function publicError(error: unknown, fallback: string) {
   }
   const message = String(error)
   return message && message !== '[object Object]' ? message : fallback
+}
+
+function isProfileRevisionNewer(
+  candidate: RemoteDesktopAccessProfile,
+  current: RemoteDesktopAccessProfile | null,
+) {
+  if (!current || candidate.id !== current.id) return true
+  if (candidate.updated_at === current.updated_at) return false
+  const candidateTime = Date.parse(candidate.updated_at)
+  const currentTime = Date.parse(current.updated_at)
+  return !Number.isFinite(currentTime)
+    || (Number.isFinite(candidateTime) && candidateTime > currentTime)
 }

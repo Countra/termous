@@ -1,19 +1,30 @@
 import type {
   RemoteDesktopAttachTicket,
-  RemoteDesktopProfile,
-  RemoteDesktopProfileInput,
+  RemoteDesktopAccessProfile,
+  RemoteDesktopAccessProfileInput,
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
 
 export interface RemoteDesktopGateway {
-  remoteDesktopProfiles: () => Promise<RemoteDesktopProfile[]>
-  createRemoteDesktopProfile: (input: RemoteDesktopProfileInput) => Promise<RemoteDesktopProfile>
+  remoteDesktopProfiles: () => Promise<RemoteDesktopAccessProfile[]>
+  createRemoteDesktopProfile: (
+    input: RemoteDesktopAccessProfileInput,
+  ) => Promise<RemoteDesktopAccessProfile>
   updateRemoteDesktopProfile: (
     id: string,
     expectedUpdatedAt: string,
-    input: RemoteDesktopProfileInput,
-  ) => Promise<RemoteDesktopProfile>
+    input: RemoteDesktopAccessProfileInput,
+  ) => Promise<RemoteDesktopAccessProfile>
   deleteRemoteDesktopProfile: (id: string, expectedUpdatedAt: string) => Promise<void>
+  saveRemoteDesktopTargetAuth: (
+    id: string,
+    expectedUpdatedAt: string,
+    password: string,
+  ) => Promise<RemoteDesktopAccessProfile>
+  deleteRemoteDesktopTargetAuth: (
+    id: string,
+    expectedUpdatedAt: string,
+  ) => Promise<RemoteDesktopAccessProfile>
   remoteDesktopSessions: () => Promise<RemoteDesktopSession[]>
   createRemoteDesktopSession: (profileId: string) => Promise<RemoteDesktopSession>
   deleteRemoteDesktopSession: (id: string) => Promise<void>
@@ -25,6 +36,11 @@ export interface RemoteDesktopGateway {
     id: string,
     expectedConnectionGeneration: number,
   ) => Promise<RemoteDesktopAttachTicket>
+  consumeRemoteDesktopTargetAuth: (
+    id: string,
+    expectedConnectionGeneration: number,
+    credentialTicket: string,
+  ) => Promise<{ password: string }>
   remoteDesktopSessionEventsUrl: () => string
   remoteDesktopStreamUrl: (ticket: RemoteDesktopAttachTicket) => string
 }

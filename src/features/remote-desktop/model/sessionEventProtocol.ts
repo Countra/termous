@@ -89,9 +89,14 @@ function isRemoteDesktopSession(value: unknown): value is RemoteDesktopSession {
   return isNonEmptyString(value.id)
     && isNonEmptyString(value.profile_id)
     && isNonEmptyString(value.profile_name)
+    && isNonEmptyString(value.host_id)
+    && isNonEmptyString(value.ssh_profile_id)
     && isNonEmptyString(value.ssh_host_id)
     && isNonEmptyString(value.ssh_host_name)
+    && value.route === 'ssh_tunnel'
+    && isConfigVersion(value.route_config_version)
     && value.protocol === 'vnc'
+    && isConfigVersion(value.protocol_config_version)
     && (vnc.loopback_host === '127.0.0.1' || vnc.loopback_host === '::1')
     && isPort(vnc.port)
     && typeof vnc.shared === 'boolean'
@@ -140,6 +145,10 @@ function isOptionalNonNegativeSafeInteger(value: unknown): value is number | und
 }
 
 function isPort(value: unknown): value is number {
+  return isPositiveSafeInteger(value) && value <= 65_535
+}
+
+function isConfigVersion(value: unknown): value is number {
   return isPositiveSafeInteger(value) && value <= 65_535
 }
 

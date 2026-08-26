@@ -65,6 +65,8 @@ const accessGateway: HostAccessManagementGateway = {
   createRemoteDesktopProfile: vi.fn(),
   updateRemoteDesktopProfile: vi.fn(),
   deleteRemoteDesktopProfile: vi.fn(),
+  saveRemoteDesktopTargetAuth: vi.fn(),
+  deleteRemoteDesktopTargetAuth: vi.fn(),
   setDefaultRemoteDesktopProfile: vi.fn(),
 }
 

@@ -68,6 +68,32 @@ function catalog(id: string, overrides: Partial<HostAccessCatalog> = {}): HostAc
   }
 }
 
+function remoteDesktopProfile(hostId: string) {
+  return {
+    id: `rdp-${hostId}`,
+    host_id: hostId,
+    name: 'Desktop',
+    description: '',
+    route: 'ssh_tunnel' as const,
+    route_config_version: 1 as const,
+    ssh_profile_id: `ssh-${hostId}`,
+    protocol: 'vnc' as const,
+    protocol_config_version: 1 as const,
+    vnc: {
+      loopback_host: '127.0.0.1' as const,
+      port: 5901,
+      shared: true,
+      default_view_only: false,
+      default_display_mode: 'fit' as const,
+    },
+    is_default: true,
+    sort_order: 0,
+    target_auth: null,
+    created_at: '2026-08-25T00:00:00Z',
+    updated_at: '2026-08-25T00:00:00Z',
+  }
+}
+
 function gateway(initial: HostAccessCatalog): HostAccessManagementGateway {
   return {
     loadCatalog: vi.fn().mockResolvedValue(initial),
@@ -83,6 +109,8 @@ function gateway(initial: HostAccessCatalog): HostAccessManagementGateway {
     createRemoteDesktopProfile: vi.fn(),
     updateRemoteDesktopProfile: vi.fn(),
     deleteRemoteDesktopProfile: vi.fn(),
+    saveRemoteDesktopTargetAuth: vi.fn(),
+    deleteRemoteDesktopTargetAuth: vi.fn(),
     setDefaultRemoteDesktopProfile: vi.fn(),
   }
 }
@@ -106,6 +134,8 @@ function ControllerHarness({ host, api }: { host: Host; api: HostAccessManagemen
       <output data-testid="catalog-error">{controller.error?.message ?? ''}</output>
       <output data-testid="file-count">{controller.catalog?.files.length ?? 0}</output>
       <output data-testid="default-ssh">{controller.catalog?.ssh.find((profile) => profile.is_default)?.id ?? ''}</output>
+      <output data-testid="vnc-name">{controller.vncDraft.name}</output>
+      <output data-testid="vnc-target-auth-mutation">{controller.vncTargetAuthDraft.mutation}</output>
       <button type="button" onClick={() => controller.setAssetDraft({ ...controller.assetDraft, name: 'Local draft' })}>edit-asset</button>
       <button type="button" onClick={() => controller.setAssetDraft({ ...controller.assetDraft, name: '' })}>invalidate-asset</button>
       <button type="button" onClick={() => void controller.saveAsset()}>save-asset</button>
@@ -136,6 +166,25 @@ function ControllerHarness({ host, api }: { host: Host; api: HostAccessManagemen
       </button>
       <button type="button" onClick={() => void controller.saveProfile()}>save-profile</button>
       <button type="button" onClick={() => void controller.setDefaultProfile('ssh', 'ssh-secondary')}>default-secondary</button>
+      <button
+        type="button"
+        onClick={() => controller.requestEditor({
+          kind: 'remote_desktop',
+          mode: 'edit',
+          profileId: `rdp-${host.id}`,
+        })}
+      >
+        edit-vnc
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          controller.setVNCDraft({ ...controller.vncDraft, name: 'Updated desktop' })
+          controller.setVNCTargetAuthDraft({ mutation: 'replace', password: 'secret' })
+        }}
+      >
+        fill-vnc-auth
+      </button>
     </div>
   )
 }
@@ -194,8 +243,8 @@ describe('主机访问方式 Controller', () => {
 
     await waitFor(() => expect(api.updateHostAsset).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(api.loadCatalog).toHaveBeenCalledTimes(2))
-    expect(screen.getByTestId('asset-name')).toHaveTextContent('Local draft')
-    expect(screen.getByTestId('error')).toHaveTextContent('hosts.access.conflict')
+    await waitFor(() => expect(screen.getByTestId('asset-name')).toHaveTextContent('Local draft'))
+    await waitFor(() => expect(screen.getByTestId('error')).toHaveTextContent('hosts.access.conflict'))
 
     fireEvent.click(screen.getByRole('button', { name: 'save-asset' }))
 
@@ -332,5 +381,38 @@ describe('主机访问方式 Controller', () => {
       secondary.updated_at,
     ))
     await waitFor(() => expect(screen.getByTestId('default-ssh')).toHaveTextContent('ssh-secondary'))
+  })
+
+  it('VNC 元数据成功而凭据失败时保留新基线和秘密草稿', async () => {
+    const desktop = remoteDesktopProfile('host-a')
+    const initial = catalog('host-a', { remote_desktops: [desktop] })
+    const updated = {
+      ...desktop,
+      name: 'Updated desktop',
+      updated_at: '2026-08-25T00:00:01Z',
+    }
+    const api = gateway(initial)
+    vi.mocked(api.loadCatalog)
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValue({ ...initial, remote_desktops: [updated] })
+    vi.mocked(api.updateRemoteDesktopProfile).mockResolvedValue(updated)
+    vi.mocked(api.saveRemoteDesktopTargetAuth).mockRejectedValue(new Error('vault unavailable'))
+    render(<ControllerHarness host={legacyHost('host-a')} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'edit-vnc' }))
+    fireEvent.click(screen.getByRole('button', { name: 'fill-vnc-auth' }))
+    fireEvent.click(screen.getByRole('button', { name: 'save-profile' }))
+
+    await waitFor(() => expect(api.saveRemoteDesktopTargetAuth).toHaveBeenCalledWith(
+      desktop.id,
+      updated.updated_at,
+      'secret',
+    ))
+    expect(screen.getByTestId('vnc-name')).toHaveTextContent('Updated desktop')
+    expect(screen.getByTestId('vnc-target-auth-mutation')).toHaveTextContent('replace')
+    expect(screen.getByTestId('error')).toHaveTextContent(
+      'remoteDesktop.targetAuth.profileSavedCredentialFailed',
+    )
   })
 })

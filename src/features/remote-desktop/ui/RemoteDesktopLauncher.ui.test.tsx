@@ -3,10 +3,11 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import type {
-  RemoteDesktopProfile,
-  RemoteDesktopProfileInput,
+  RemoteDesktopAccessProfile,
+  RemoteDesktopAccessProfileInput,
 } from '#entities/remote-desktop'
 import type { Host } from '#entities/host'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import { RemoteDesktopLauncher } from './RemoteDesktopLauncher'
 
 vi.mock('react-i18next', () => ({
@@ -52,7 +53,7 @@ test('已有 Profile 但关联 Host 不可用时禁止新建和双击连接', as
 
 test('创建态默认选择首个 Host 并提交规范化输入', async () => {
   const user = userEvent.setup()
-  const onCreate = vi.fn(async (input: RemoteDesktopProfileInput) => profileFromInput('rdp_created', input))
+  const onCreate = vi.fn(async (input: RemoteDesktopAccessProfileInput) => profileFromInput('rdp_created', input))
   renderLauncher({
     profiles: [],
     hosts: [host('hst_first', 'First host'), host('hst_second', 'Second host')],
@@ -67,11 +68,14 @@ test('创建态默认选择首个 Host 并提交规范化输入', async () => {
 
   await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1))
   expect(onCreate).toHaveBeenCalledWith({
+    host_id: 'hst_first',
     name: 'Production desktop',
     description: '',
+    route: 'ssh_tunnel',
+    route_config_version: 1,
+    ssh_profile_id: 'ssh_hst_first',
     protocol: 'vnc',
-    transport: 'ssh_tunnel',
-    ssh_host_id: 'hst_first',
+    protocol_config_version: 1,
     vnc: {
       loopback_host: '127.0.0.1',
       port: 5900,
@@ -99,6 +103,115 @@ test('已有 Profile 在概览和编辑态之间切换', async () => {
 
   expect(document.querySelector('[data-profile-view="overview"]')).not.toBeNull()
   expect(document.querySelector('#remote-desktop-profile-name')).toBeNull()
+})
+
+test('仅保存 VNC 密码时不重复更新 Profile 元数据', async () => {
+  const user = userEvent.setup()
+  const onUpdate = vi.fn(async (id: string, input: RemoteDesktopAccessProfileInput) => profileFromInput(id, input))
+  const onSaveTargetAuth = vi.fn(async (id: string) => ({
+    ...profile(id, 'Profile A'),
+    target_auth: { credential_id: 'cred_vnc', updated_at: '2026-08-23T12:00:01Z' },
+    updated_at: '2026-08-23T12:00:01Z',
+  }))
+  renderLauncher({ onUpdate, onSaveTargetAuth })
+
+  await user.click(screen.getByRole('button', { name: 'app.edit' }))
+  await user.click(screen.getByRole('button', { name: 'remoteDesktop.targetAuth.add' }))
+  await user.type(screen.getByPlaceholderText('remoteDesktop.targetAuth.passwordPlaceholder'), 'secret')
+  await user.click(screen.getByRole('button', { name: 'app.save' }))
+
+  await waitFor(() => expect(onSaveTargetAuth).toHaveBeenCalledWith(
+    'rdp_a',
+    '2026-08-23T12:00:00Z',
+    'secret',
+  ))
+  expect(onUpdate).not.toHaveBeenCalled()
+})
+
+test('元数据成功但密码写入失败时保留新基线和密码草稿', async () => {
+  const user = userEvent.setup()
+  const updated = {
+    ...profile('rdp_a', 'Updated desktop'),
+    updated_at: '2026-08-23T12:00:01Z',
+  }
+  const onUpdate = vi.fn(async () => updated)
+  const onSaveTargetAuth = vi.fn(async () => { throw new Error('vault unavailable') })
+  renderLauncher({ onUpdate, onSaveTargetAuth })
+
+  await user.click(screen.getByRole('button', { name: 'app.edit' }))
+  const name = screen.getByDisplayValue('Profile A')
+  await user.clear(name)
+  await user.type(name, 'Updated desktop')
+  await user.click(screen.getByRole('button', { name: 'remoteDesktop.targetAuth.add' }))
+  const password = screen.getByPlaceholderText('remoteDesktop.targetAuth.passwordPlaceholder')
+  await user.type(password, 'secret')
+  await user.click(screen.getByRole('button', { name: 'app.save' }))
+
+  await waitFor(() => expect(onSaveTargetAuth).toHaveBeenCalledWith(
+    updated.id,
+    updated.updated_at,
+    'secret',
+  ))
+  expect(document.querySelector('[data-profile-view="edit"]')).not.toBeNull()
+  expect(screen.getByDisplayValue('Updated desktop')).toBeInTheDocument()
+  expect(screen.getByDisplayValue('secret')).toBeInTheDocument()
+  expect(await screen.findByText('remoteDesktop.targetAuth.profileSavedCredentialFailed')).toBeInTheDocument()
+})
+
+test('新建 Profile 成功但密码写入失败时在父级列表同步前保留编辑态', async () => {
+  const user = userEvent.setup()
+  const onCreate = vi.fn(async (input: RemoteDesktopAccessProfileInput) => (
+    profileFromInput('rdp_created', input)
+  ))
+  const onSaveTargetAuth = vi.fn(async () => { throw new Error('vault unavailable') })
+  renderLauncher({ profiles: [], onCreate, onSaveTargetAuth })
+
+  await user.click(screen.getByRole('button', { name: 'remoteDesktop.newProfile' }))
+  const nameInput = document.querySelector<HTMLInputElement>('#remote-desktop-profile-name')
+  expect(nameInput).not.toBeNull()
+  await user.type(nameInput!, 'Created desktop')
+  await user.click(screen.getByRole('button', { name: 'remoteDesktop.targetAuth.add' }))
+  await user.type(
+    screen.getByPlaceholderText('remoteDesktop.targetAuth.passwordPlaceholder'),
+    'secret',
+  )
+  await user.click(screen.getByRole('button', { name: 'app.save' }))
+
+  await waitFor(() => expect(onSaveTargetAuth).toHaveBeenCalledWith(
+    'rdp_created',
+    '2026-08-23T12:00:00Z',
+    'secret',
+  ))
+  expect(document.querySelector('[data-profile-view="edit"]')).not.toBeNull()
+  expect(screen.getByDisplayValue('Created desktop')).toBeInTheDocument()
+  expect(screen.getByDisplayValue('secret')).toBeInTheDocument()
+})
+
+test('本地新建 Profile 同步后若被外部删除则退出编辑态', async () => {
+  const user = userEvent.setup()
+  const created = profile('rdp_created', 'Created desktop')
+  const onCreate = vi.fn(async () => created)
+  const onSaveTargetAuth = vi.fn(async () => { throw new Error('vault unavailable') })
+  const options = { profiles: [] as RemoteDesktopAccessProfile[], onCreate, onSaveTargetAuth }
+  const view = renderLauncher(options)
+
+  await user.click(screen.getByRole('button', { name: 'remoteDesktop.newProfile' }))
+  const nameInput = document.querySelector<HTMLInputElement>('#remote-desktop-profile-name')
+  expect(nameInput).not.toBeNull()
+  await user.type(nameInput!, created.name)
+  await user.click(screen.getByRole('button', { name: 'remoteDesktop.targetAuth.add' }))
+  await user.type(
+    screen.getByPlaceholderText('remoteDesktop.targetAuth.passwordPlaceholder'),
+    'secret',
+  )
+  await user.click(screen.getByRole('button', { name: 'app.save' }))
+  await waitFor(() => expect(onSaveTargetAuth).toHaveBeenCalledTimes(1))
+
+  view.rerender(launcher({ ...options, profiles: [created] }))
+  await waitFor(() => expect(document.querySelector('[data-profile-view="edit"]')).not.toBeNull())
+  view.rerender(launcher(options))
+
+  await waitFor(() => expect(document.querySelector('[data-profile-view="edit"]')).toBeNull())
 })
 
 test('从编辑态切换到新建态后重新聚焦名称输入框', async () => {
@@ -133,7 +246,7 @@ test('保存并连接等待期间在概览中持续展示连接加载状态', as
 
 test('无效编辑草稿显示内联错误且不会提交', async () => {
   const user = userEvent.setup()
-  const onUpdate = vi.fn(async (id: string, input: RemoteDesktopProfileInput) => profileFromInput(id, input))
+  const onUpdate = vi.fn(async (id: string, input: RemoteDesktopAccessProfileInput) => profileFromInput(id, input))
   renderLauncher({ hosts: [], onUpdate })
 
   await user.click(screen.getByRole('button', { name: 'app.edit' }))
@@ -146,14 +259,17 @@ test('无效编辑草稿显示内联错误且不会提交', async () => {
   await user.click(screen.getByRole('button', { name: 'app.save' }))
 
   expect(await screen.findByText('remoteDesktop.validationName')).toHaveAttribute('role', 'alert')
-  expect(screen.getByText('remoteDesktop.validationHost')).toHaveAttribute('role', 'alert')
+  expect(screen.getAllByText('remoteDesktop.validationHost')).toHaveLength(2)
+  for (const error of screen.getAllByText('remoteDesktop.validationHost')) {
+    expect(error).toHaveAttribute('role', 'alert')
+  }
   expect(screen.getByText('remoteDesktop.validationPort')).toHaveAttribute('role', 'alert')
   expect(onUpdate).not.toHaveBeenCalled()
 })
 
 test('过滤列表后编辑的是当前可见 Profile', async () => {
   const user = userEvent.setup()
-  const onUpdate = vi.fn(async (id: string, input: RemoteDesktopProfileInput) => profileFromInput(id, input))
+  const onUpdate = vi.fn(async (id: string, input: RemoteDesktopAccessProfileInput) => profileFromInput(id, input))
   renderLauncher({
     profiles: [profile('rdp_a', 'Profile A'), profile('rdp_b', 'Profile B')],
     onUpdate,
@@ -261,13 +377,26 @@ test('全局操作进行中时禁止关闭 Launcher 和触发配置操作', asyn
 })
 
 interface LauncherOptions {
-  profiles?: RemoteDesktopProfile[]
+  profiles?: RemoteDesktopAccessProfile[]
   hosts?: Host[]
+  sshProfiles?: SSHAccessProfile[]
   actionBusy?: boolean
   onClose?: () => void
-  onCreate?: (input: RemoteDesktopProfileInput) => Promise<RemoteDesktopProfile>
-  onUpdate?: (id: string, input: RemoteDesktopProfileInput) => Promise<RemoteDesktopProfile>
+  onCreate?: (input: RemoteDesktopAccessProfileInput) => Promise<RemoteDesktopAccessProfile>
+  onUpdate?: (
+    id: string,
+    input: RemoteDesktopAccessProfileInput,
+  ) => Promise<RemoteDesktopAccessProfile>
   onDelete?: (id: string) => Promise<void>
+  onSaveTargetAuth?: (
+    id: string,
+    expectedUpdatedAt: string,
+    password: string,
+  ) => Promise<RemoteDesktopAccessProfile>
+  onDeleteTargetAuth?: (
+    id: string,
+    expectedUpdatedAt: string,
+  ) => Promise<RemoteDesktopAccessProfile>
   onConnect?: (profileId: string) => Promise<void>
 }
 
@@ -276,31 +405,43 @@ function renderLauncher(options: LauncherOptions = {}) {
 }
 
 function launcher(options: LauncherOptions = {}) {
+  const hosts = options.hosts ?? [host()]
+  const sshProfiles = options.sshProfiles ?? hosts.map((item) => sshProfile(item.id))
   return (
     <AntdApp>
       <RemoteDesktopLauncher
         open
         profiles={options.profiles ?? [profile('rdp_a', 'Profile A')]}
-        hosts={options.hosts ?? [host()]}
+        hosts={hosts}
+        sshProfiles={sshProfiles}
         actionBusy={options.actionBusy ?? false}
         onClose={options.onClose ?? vi.fn()}
         onCreate={options.onCreate ?? vi.fn(async (input) => profileFromInput('rdp_created', input))}
         onUpdate={options.onUpdate ?? vi.fn(async (id, input) => profileFromInput(id, input))}
         onDelete={options.onDelete ?? vi.fn(async () => undefined)}
+        onSaveTargetAuth={options.onSaveTargetAuth ?? vi.fn(async (id) => profile(id, 'Profile A'))}
+        onDeleteTargetAuth={options.onDeleteTargetAuth ?? vi.fn(async (id) => profile(id, 'Profile A'))}
         onConnect={options.onConnect ?? vi.fn(async () => undefined)}
       />
     </AntdApp>
   )
 }
 
-function profile(id: string, name: string, hostId = 'hst_test'): RemoteDesktopProfile {
+function profile(
+  id: string,
+  name: string,
+  hostId = 'hst_test',
+): RemoteDesktopAccessProfile {
   return {
     id,
+    host_id: hostId,
     name,
     description: '',
+    route: 'ssh_tunnel',
+    route_config_version: 1,
+    ssh_profile_id: `ssh_${hostId}`,
     protocol: 'vnc',
-    transport: 'ssh_tunnel',
-    ssh_host_id: hostId,
+    protocol_config_version: 1,
     vnc: {
       loopback_host: '127.0.0.1',
       port: 5900,
@@ -308,15 +449,42 @@ function profile(id: string, name: string, hostId = 'hst_test'): RemoteDesktopPr
       default_view_only: false,
       default_display_mode: 'fit',
     },
+    is_default: id === 'rdp_a',
+    sort_order: id === 'rdp_a' ? 0 : 1,
+    target_auth: null,
     created_at: '2026-08-23T12:00:00Z',
     updated_at: '2026-08-23T12:00:00Z',
   }
 }
 
-function profileFromInput(id: string, input: RemoteDesktopProfileInput): RemoteDesktopProfile {
+function profileFromInput(
+  id: string,
+  input: RemoteDesktopAccessProfileInput,
+): RemoteDesktopAccessProfile {
   return {
     id,
     ...input,
+    is_default: true,
+    sort_order: 0,
+    target_auth: null,
+    created_at: '2026-08-23T12:00:00Z',
+    updated_at: '2026-08-23T12:00:00Z',
+  }
+}
+
+function sshProfile(hostId = 'hst_test'): SSHAccessProfile {
+  return {
+    id: `ssh_${hostId}`,
+    host_id: hostId,
+    name: 'SSH',
+    address: '127.0.0.1',
+    port: 22,
+    username: 'tester',
+    auth_method: 'password',
+    credential_id: 'cred_test',
+    fingerprint_policy: 'ask',
+    is_default: true,
+    sort_order: 0,
     created_at: '2026-08-23T12:00:00Z',
     updated_at: '2026-08-23T12:00:00Z',
   }

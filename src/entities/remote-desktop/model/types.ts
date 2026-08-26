@@ -1,6 +1,6 @@
 export type RemoteDesktopProtocol = 'vnc'
 
-export type RemoteDesktopTransport = 'ssh_tunnel'
+export type RemoteDesktopRoute = 'ssh_tunnel'
 
 export type RemoteDesktopDisplayMode = 'fit' | 'resize' | 'actual'
 
@@ -35,68 +35,60 @@ export interface VncProfileSettings {
   default_display_mode: RemoteDesktopDisplayMode
 }
 
-interface RemoteDesktopProfileBase {
+export interface RemoteDesktopTargetAuthSummary {
+  credential_id: string
+  updated_at: string
+}
+
+interface RemoteDesktopAccessProfileBase {
   id: string
+  host_id: string
   name: string
   description: string
-  protocol: RemoteDesktopProtocol
-  vnc: VncProfileSettings
+  is_default: boolean
+  sort_order: number
+  target_auth: RemoteDesktopTargetAuthSummary | null
   created_at: string
   updated_at: string
 }
 
-export interface RemoteDesktopProfile extends RemoteDesktopProfileBase {
-  transport: RemoteDesktopTransport
-  ssh_host_id: string
-  host_id?: string
-  route?: RemoteDesktopTransport
-  route_config_version?: 1
-  ssh_profile_id?: string
-  protocol_config_version?: 1
-  is_default?: boolean
-  sort_order?: number
-}
-
-export interface RemoteDesktopProfileInput {
-  name: string
-  description: string
-  protocol: RemoteDesktopProtocol
-  transport: RemoteDesktopTransport
-  ssh_host_id: string
-  vnc: VncProfileSettings
-}
-
-export interface RemoteDesktopAccessProfile extends RemoteDesktopProfileBase {
-  host_id: string
-  route: RemoteDesktopTransport
+export interface VncRemoteDesktopAccessProfile extends RemoteDesktopAccessProfileBase {
+  route: 'ssh_tunnel'
   route_config_version: 1
   ssh_profile_id: string
-  protocol_config_version: 1
-  is_default: boolean
-  sort_order: number
-  transport?: RemoteDesktopTransport
-  ssh_host_id?: string
-}
-
-export interface RemoteDesktopAccessProfileInput {
-  host_id: string
-  name: string
-  description: string
-  route: RemoteDesktopTransport
-  route_config_version: 1
-  ssh_profile_id: string
-  protocol: RemoteDesktopProtocol
+  protocol: 'vnc'
   protocol_config_version: 1
   vnc: VncProfileSettings
 }
+
+export type RemoteDesktopAccessProfile = VncRemoteDesktopAccessProfile
+
+export interface VncRemoteDesktopAccessProfileInput {
+  host_id: string
+  name: string
+  description: string
+  route: 'ssh_tunnel'
+  route_config_version: 1
+  ssh_profile_id: string
+  protocol: 'vnc'
+  protocol_config_version: 1
+  vnc: VncProfileSettings
+}
+
+export type RemoteDesktopAccessProfileInput = VncRemoteDesktopAccessProfileInput
 
 export interface RemoteDesktopSession {
   id: string
   profile_id: string
   profile_name: string
+  host_id: string
+  ssh_profile_id: string
   ssh_host_id: string
   ssh_host_name: string
+  route: RemoteDesktopRoute
+  route_config_version: number
   protocol: RemoteDesktopProtocol
+  protocol_config_version: number
   vnc: VncProfileSettings
   status: RemoteDesktopSessionStatus
   phase: RemoteDesktopSessionPhase
@@ -115,6 +107,7 @@ export interface RemoteDesktopSession {
 
 export interface RemoteDesktopAttachTicket {
   ticket: string
+  credential_ticket: string
   expires_at: string
   connection_generation: number
   stream_path: string
@@ -142,7 +135,3 @@ export interface RemoteDesktopTelemetryEvent {
   ssh_rtt_ms: number
   sampled_at: string
 }
-
-export type VncCredentialType = 'username' | 'password' | 'target'
-
-export type VncCredentials = Partial<Record<VncCredentialType, string>>

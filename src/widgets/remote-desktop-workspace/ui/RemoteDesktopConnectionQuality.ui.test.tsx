@@ -24,7 +24,7 @@ const metricsMock = vi.hoisted(() => ({
 }))
 
 vi.mock('#features/remote-desktop', () => ({
-  useVncConnectionMetrics: () => metricsMock.value,
+  useRemoteDesktopConnectionMetrics: () => metricsMock.value,
 }))
 
 vi.mock('react-i18next', () => ({

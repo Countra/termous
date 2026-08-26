@@ -1,0 +1,126 @@
+.section {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(170px, 0.62fr) minmax(300px, 1.38fr);
+  align-items: start;
+  gap: 18px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  padding: 18px 20px 20px;
+}
+
+.heading {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+}
+
+.icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent-soft) 58%, transparent);
+  color: var(--accent);
+}
+
+.copy,
+.status-copy > span,
+.editor label {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.copy strong,
+.status-copy strong,
+.editor label > span {
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.copy small,
+.status-copy small,
+.editor label > small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.control {
+  min-width: 0;
+}
+
+.status {
+  display: grid;
+  min-height: 48px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-copy {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.status-copy > svg {
+  margin-top: 1px;
+  color: var(--success);
+}
+
+.is-removing .status-copy > svg {
+  color: var(--warning);
+}
+
+.actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.editor {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.editor :global(.ant-input-affix-wrapper) {
+  min-height: 36px;
+  border-color: var(--border);
+  background: var(--input-bg);
+  box-shadow: none;
+}
+
+.editor :global(.ant-input-prefix) {
+  color: var(--text-muted);
+}
+
+.error {
+  color: var(--danger) !important;
+}
+
+@media (width <= 680px) {
+  .section,
+  .status,
+  .editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+
+  .editor > button {
+    justify-self: start;
+  }
+}

@@ -1,21 +1,29 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
-import type { RemoteDesktopAttachTicket, RemoteDesktopSession } from '#entities/remote-desktop'
+import type {
+  RemoteDesktopAccessProfile,
+  RemoteDesktopAttachTicket,
+  RemoteDesktopSession,
+} from '#entities/remote-desktop'
 import type { RemoteDesktopGateway } from '../api/remoteDesktopGateway'
 import { RemoteDesktopViewport } from '../ui/RemoteDesktopViewport'
+import { useRemoteDesktopConnectionMetrics } from './core/connectionMetricsStore'
+import { useRemoteDesktopRuntime } from './core/remoteDesktopRuntimeContext'
+import { RemoteDesktopTargetAuthController } from './core/targetAuthController.ts'
 import { RemoteDesktopRuntimeProvider } from './RemoteDesktopRuntimeProvider'
-import { useRemoteDesktopRuntime } from './remoteDesktopRuntimeContext'
-import { useVncConnectionMetrics } from './vncConnectionMetricsStore'
 
 const adapterCreate = vi.hoisted(() => vi.fn())
+const adapterPrepare = vi.hoisted(() => vi.fn())
 
-vi.mock('./adapters/noVncAdapter.ts', () => ({
+vi.mock('./protocols/vnc/noVncAdapter.ts', () => ({
+  prepareVncViewerAdapter: adapterPrepare,
   VncViewerAdapter: { create: adapterCreate },
 }))
 
 afterEach(() => {
   vi.unstubAllGlobals()
   adapterCreate.mockReset()
+  adapterPrepare.mockReset()
   MockWebSocket.instances.length = 0
 })
 
@@ -24,6 +32,7 @@ test('目标握手前失败后同一代际的状态刷新不会重复申请 Tick
   const session = remoteDesktopSession()
   const ticket = vi.fn(async (_id: string, generation: number) => ({
     ticket: `ticket-${generation}`,
+    credential_ticket: '',
     expires_at: '2026-08-23T12:00:30Z',
     connection_generation: generation,
     stream_path: '/api/v1/remote-desktop-stream',
@@ -75,11 +84,197 @@ test('目标握手前失败后同一代际的状态刷新不会重复申请 Tick
   await waitFor(() => expect(ticket).toHaveBeenCalledTimes(2))
 })
 
+test('协议模块准备完成前不会申请短时 Ticket', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const prepared = deferred<void>()
+  const ticket = vi.fn(async () => ({
+    ticket: 'ticket-1',
+    credential_ticket: '',
+    expires_at: '2026-08-23T12:00:30Z',
+    connection_generation: 1,
+    stream_path: '/api/v1/remote-desktop-stream',
+  }))
+  adapterPrepare.mockReturnValue(prepared.promise)
+  adapterCreate.mockResolvedValue(viewerAdapter())
+
+  render(
+    <RemoteDesktopRuntimeProvider
+      api={remoteDesktopGateway(session, ticket)}
+      enabled
+      profiles={[]}
+      initialSessions={[session]}
+    >
+      <ViewerHarness />
+    </RemoteDesktopRuntimeProvider>,
+  )
+
+  await waitFor(() => expect(adapterPrepare).toHaveBeenCalledTimes(1))
+  expect(ticket).not.toHaveBeenCalled()
+  prepared.resolve()
+  await waitFor(() => expect(ticket).toHaveBeenCalledWith(session.id, 1))
+})
+
+test('Viewer 创建失败后立即清理已申请的目标认证票据', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const clear = vi.spyOn(RemoteDesktopTargetAuthController.prototype, 'clear')
+  adapterCreate.mockRejectedValue(new Error('viewer create failed'))
+
+  const view = render(
+    <RemoteDesktopRuntimeProvider
+      api={remoteDesktopGateway(session, vi.fn(async () => ({
+        ticket: 'ticket-1',
+        credential_ticket: 'credential-ticket-1',
+        expires_at: '2026-08-23T12:00:30Z',
+        connection_generation: 1,
+        stream_path: '/api/v1/remote-desktop-stream',
+      })))}
+      enabled
+      profiles={[]}
+      initialSessions={[session]}
+    >
+      <ViewerAttachHarness />
+    </RemoteDesktopRuntimeProvider>,
+  )
+
+  await waitFor(() => expect(view.getByTestId('viewer-error')).toHaveTextContent('attach_failed'))
+  expect(clear).toHaveBeenCalledTimes(2)
+})
+
+test('Profile 编辑或缺失后既有 Session 仍按固化 Driver 快照重建 Viewer', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const profile = remoteDesktopProfile()
+  const ticket = vi.fn(async (_id: string, generation: number) => ({
+    ticket: `ticket-${generation}`,
+    credential_ticket: '',
+    expires_at: '2026-08-23T12:00:30Z',
+    connection_generation: generation,
+    stream_path: '/api/v1/remote-desktop-stream',
+  }))
+  adapterCreate.mockResolvedValue(viewerAdapter())
+  const api = remoteDesktopGateway(session, ticket)
+  const view = render(
+    <RemoteDesktopRuntimeProvider api={api} enabled profiles={[profile]} initialSessions={[session]}>
+      <ViewerHarness />
+    </RemoteDesktopRuntimeProvider>,
+  )
+
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledTimes(1))
+  view.rerender(
+    <RemoteDesktopRuntimeProvider
+      api={api}
+      enabled
+      profiles={[{ ...profile, name: 'Edited profile' }]}
+      initialSessions={[session]}
+    >
+      <ViewerHarness />
+    </RemoteDesktopRuntimeProvider>,
+  )
+  expect(adapterCreate).toHaveBeenCalledTimes(1)
+
+  view.rerender(
+    <RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}>
+      <ViewerHarness />
+    </RemoteDesktopRuntimeProvider>,
+  )
+  act(() => MockWebSocket.instances[0].emit({
+    type: 'upsert',
+    session: {
+      ...session,
+      connection_generation: 2,
+      updated_at: '2026-08-23T12:00:02Z',
+    },
+  }))
+
+  await waitFor(() => expect(ticket).toHaveBeenCalledWith(session.id, 2))
+  await waitFor(() => expect(adapterCreate).toHaveBeenCalledTimes(2))
+})
+
+test('VNC 仅在 password-only 挑战时消费目标认证票据并自动提交', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const adapter = viewerAdapter()
+  let requestCredentials: ((types: string[]) => void) | undefined
+  adapterCreate.mockImplementation(async (options: {
+    events: { onCredentialsRequired: (types: string[]) => void }
+  }) => {
+    requestCredentials = options.events.onCredentialsRequired
+    return adapter
+  })
+  const api = remoteDesktopGateway(session, vi.fn(async () => ({
+    ticket: 'ticket-1',
+    credential_ticket: 'credential-ticket-1',
+    expires_at: '2026-08-23T12:00:30Z',
+    connection_generation: 1,
+    stream_path: '/api/v1/remote-desktop-stream',
+  })))
+  api.consumeRemoteDesktopTargetAuth = vi.fn(async () => ({ password: 'saved-password' }))
+
+  const view = render(
+    <RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}>
+      <ViewerCredentialHarness />
+    </RemoteDesktopRuntimeProvider>,
+  )
+  await waitFor(() => expect(requestCredentials).toBeTypeOf('function'))
+  act(() => requestCredentials?.(['password']))
+
+  await waitFor(() => expect(api.consumeRemoteDesktopTargetAuth).toHaveBeenCalledWith(
+    session.id,
+    1,
+    'credential-ticket-1',
+  ))
+  await waitFor(() => expect(adapter.sendCredentials).toHaveBeenCalledWith({
+    password: 'saved-password',
+  }))
+  expect(view.getByTestId('viewer-credentials')).toHaveTextContent('connecting:0')
+})
+
+test('目标认证读取失败时回退手工认证且不重复消费票据', async () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const session = remoteDesktopSession()
+  const adapter = viewerAdapter()
+  let requestCredentials: ((types: string[]) => void) | undefined
+  adapterCreate.mockImplementation(async (options: {
+    events: { onCredentialsRequired: (types: string[]) => void }
+  }) => {
+    requestCredentials = options.events.onCredentialsRequired
+    return adapter
+  })
+  const api = remoteDesktopGateway(session, vi.fn(async () => ({
+    ticket: 'ticket-1',
+    credential_ticket: 'credential-ticket-1',
+    expires_at: '2026-08-23T12:00:30Z',
+    connection_generation: 1,
+    stream_path: '/api/v1/remote-desktop-stream',
+  })))
+  api.consumeRemoteDesktopTargetAuth = vi.fn(async () => {
+    throw new Error('credential unavailable')
+  })
+
+  const view = render(
+    <RemoteDesktopRuntimeProvider api={api} enabled profiles={[]} initialSessions={[session]}>
+      <ViewerCredentialHarness />
+    </RemoteDesktopRuntimeProvider>,
+  )
+  await waitFor(() => expect(requestCredentials).toBeTypeOf('function'))
+  act(() => requestCredentials?.(['password']))
+
+  await waitFor(() => expect(view.getByTestId('viewer-credentials')).toHaveTextContent(
+    'credentials_required:1',
+  ))
+  act(() => requestCredentials?.(['password']))
+  expect(api.consumeRemoteDesktopTargetAuth).toHaveBeenCalledTimes(1)
+  expect(adapter.sendCredentials).not.toHaveBeenCalled()
+})
+
 test('reattach_wait 先于 noVNC 断开回调时仍会重新附加 Viewer', async () => {
   vi.stubGlobal('WebSocket', MockWebSocket)
   const session = remoteDesktopSession()
   const ticket = vi.fn(async (_id: string, generation: number) => ({
     ticket: `ticket-${generation}`,
+    credential_ticket: '',
     expires_at: '2026-08-23T12:00:30Z',
     connection_generation: generation,
     stream_path: '/api/v1/remote-desktop-stream',
@@ -178,6 +373,7 @@ test('旧 generation 的 Ticket 迟到失败不会清除新 generation 的附加
   await act(async () => {
     secondTicket.resolve({
       ticket: 'ticket-2',
+      credential_ticket: '',
       expires_at: '2026-08-23T12:00:30Z',
       connection_generation: 2,
       stream_path: '/api/v1/remote-desktop-stream',
@@ -192,6 +388,7 @@ test('事件流重连后的 snapshot 会迁移 Viewer generation 并重新附加
   const session = remoteDesktopSession()
   const ticket = vi.fn(async (_id: string, generation: number) => ({
     ticket: `ticket-${generation}`,
+    credential_ticket: '',
     expires_at: '2026-08-23T12:00:30Z',
     connection_generation: generation,
     stream_path: '/api/v1/remote-desktop-stream',
@@ -236,6 +433,7 @@ test('telemetry 仅更新当前会话 generation 并在重连状态清空', asyn
     <RemoteDesktopRuntimeProvider
       api={remoteDesktopGateway(session, vi.fn(async () => ({
         ticket: 'ticket-1',
+        credential_ticket: '',
         expires_at: '2026-08-23T12:00:30Z',
         connection_generation: 1,
         stream_path: '/api/v1/remote-desktop-stream',
@@ -286,6 +484,7 @@ test('迟到的 GET 不会覆盖事件流已经推进的 Viewer generation', asy
   let resolveSnapshot!: (sessions: RemoteDesktopSession[]) => void
   const api = remoteDesktopGateway(session, vi.fn(async (_id: string, generation: number) => ({
     ticket: `ticket-${generation}`,
+    credential_ticket: '',
     expires_at: '2026-08-23T12:00:30Z',
     connection_generation: generation,
     stream_path: '/api/v1/remote-desktop-stream',
@@ -336,6 +535,7 @@ test('迟到的 GET 不会复活事件流已经删除的会话', async () => {
   let resolveSnapshot!: (sessions: RemoteDesktopSession[]) => void
   const api = remoteDesktopGateway(session, vi.fn(async () => ({
     ticket: 'ticket-1',
+    credential_ticket: '',
     expires_at: '2026-08-23T12:00:30Z',
     connection_generation: 1,
     stream_path: '/api/v1/remote-desktop-stream',
@@ -387,6 +587,7 @@ test('创建响应迟于 ready 事件时不会把会话回退到 connecting', as
   const creation = deferred<RemoteDesktopSession>()
   const ticket = vi.fn(async (_id: string, generation: number) => ({
     ticket: `ticket-${generation}`,
+    credential_ticket: '',
     expires_at: '2026-08-23T12:00:30Z',
     connection_generation: generation,
     stream_path: '/api/v1/remote-desktop-stream',
@@ -423,6 +624,7 @@ test('手工重连响应迟于新代际事件时不会覆盖 ready', async () =>
   const reconnection = deferred<RemoteDesktopSession>()
   const ticket = vi.fn(async (_id: string, generation: number) => ({
     ticket: `ticket-${generation}`,
+    credential_ticket: '',
     expires_at: '2026-08-23T12:00:30Z',
     connection_generation: generation,
     stream_path: '/api/v1/remote-desktop-stream',
@@ -471,6 +673,7 @@ test('会话进入最终失败时释放 Viewer 并阻断同 generation 迟到附
   const session = remoteDesktopSession()
   const ticket = vi.fn(async (_id: string, generation: number) => ({
     ticket: `ticket-${generation}`,
+    credential_ticket: '',
     expires_at: '2026-08-23T12:00:30Z',
     connection_generation: generation,
     stream_path: '/api/v1/remote-desktop-stream',
@@ -514,6 +717,7 @@ test('同一会话手工重连时保留已确认的完全相同服务器指纹',
   const session = remoteDesktopSession()
   const ticket = vi.fn(async (_id: string, generation: number) => ({
     ticket: `ticket-${generation}`,
+    credential_ticket: '',
     expires_at: '2026-08-23T12:00:30Z',
     connection_generation: generation,
     stream_path: '/api/v1/remote-desktop-stream',
@@ -575,6 +779,7 @@ test('关闭请求失败时保留现有 Viewer 和会话', async () => {
   adapterCreate.mockResolvedValue(adapter)
   const api = remoteDesktopGateway(session, vi.fn(async () => ({
     ticket: 'ticket-1',
+    credential_ticket: '',
     expires_at: '2026-08-23T12:00:30Z',
     connection_generation: 1,
     stream_path: '/api/v1/remote-desktop-stream',
@@ -609,7 +814,7 @@ function ViewerHarness() {
 }
 
 function MetricsHarness({ sessionId }: { sessionId: string }) {
-  const metrics = useVncConnectionMetrics(sessionId)
+  const metrics = useRemoteDesktopConnectionMetrics(sessionId)
   return <output data-testid="ssh-rtt">{metrics.sshRttMs ?? '--'}</output>
 }
 
@@ -640,6 +845,21 @@ function ViewerAttachHarness() {
   )
 }
 
+function ViewerCredentialHarness() {
+  const runtime = useRemoteDesktopRuntime()
+  const session = runtime.sessions[0]
+  if (!session) return null
+  const state = runtime.viewerStates[session.id]
+  return (
+    <>
+      <RemoteDesktopViewport sessionId={session.id} />
+      <output data-testid="viewer-credentials">
+        {state ? `${state.connection}:${state.credentialFields.length}` : 'missing'}
+      </output>
+    </>
+  )
+}
+
 function SessionMutationHarness() {
   const runtime = useRemoteDesktopRuntime()
   const session = runtime.sessions[0]
@@ -666,11 +886,14 @@ function remoteDesktopGateway(
     createRemoteDesktopProfile: vi.fn(),
     updateRemoteDesktopProfile: vi.fn(),
     deleteRemoteDesktopProfile: vi.fn(),
+    saveRemoteDesktopTargetAuth: vi.fn(),
+    deleteRemoteDesktopTargetAuth: vi.fn(),
     remoteDesktopSessions: vi.fn(async () => [session]),
     createRemoteDesktopSession: vi.fn(),
     deleteRemoteDesktopSession: vi.fn(async () => undefined),
     reconnectRemoteDesktopSession: vi.fn(),
     createRemoteDesktopAttachTicket,
+    consumeRemoteDesktopTargetAuth: vi.fn(async () => ({ password: '' })),
     remoteDesktopSessionEventsUrl: () => 'ws://127.0.0.1:1729/api/v1/remote-desktop-sessions/events',
     remoteDesktopStreamUrl: (value) => `ws://127.0.0.1:1729${value.stream_path}?ticket=${value.ticket}`,
   }
@@ -681,9 +904,14 @@ function remoteDesktopSession(): RemoteDesktopSession {
     id: 'rds_test',
     profile_id: 'rdp_test',
     profile_name: 'Test desktop',
+    host_id: 'hst_test',
+    ssh_profile_id: 'ssh_test',
     ssh_host_id: 'hst_test',
     ssh_host_name: 'Test host',
+    route: 'ssh_tunnel',
+    route_config_version: 1,
     protocol: 'vnc',
+    protocol_config_version: 1,
     vnc: {
       loopback_host: '127.0.0.1',
       port: 5900,
@@ -703,13 +931,44 @@ function remoteDesktopSession(): RemoteDesktopSession {
   }
 }
 
+function remoteDesktopProfile(): RemoteDesktopAccessProfile {
+  return {
+    id: 'rdp_test',
+    host_id: 'hst_test',
+    name: 'Test desktop',
+    description: '',
+    route: 'ssh_tunnel',
+    route_config_version: 1,
+    ssh_profile_id: 'ssh_test',
+    protocol: 'vnc',
+    protocol_config_version: 1,
+    vnc: {
+      loopback_host: '127.0.0.1',
+      port: 5900,
+      shared: true,
+      default_view_only: false,
+      default_display_mode: 'fit',
+    },
+    is_default: true,
+    sort_order: 0,
+    target_auth: null,
+    created_at: '2026-08-23T12:00:00Z',
+    updated_at: '2026-08-23T12:00:00Z',
+  }
+}
+
 function viewerAdapter() {
   return {
     dispose: vi.fn(),
+    setDisplayMode: vi.fn(),
+    setViewOnly: vi.fn(),
     setViewportActive: vi.fn(),
     approveServer: vi.fn(),
     focus: vi.fn(),
     blur: vi.fn(),
+    sendCredentials: vi.fn(),
+    sendCtrlAltDel: vi.fn(),
+    sendClipboard: vi.fn(),
   }
 }
 

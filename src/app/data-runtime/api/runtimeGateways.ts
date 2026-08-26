@@ -328,10 +328,11 @@ function createAppDataSnapshotGateway(gateways: {
     credentials: () => gateways.credentials.credentials(),
     sessions: () => gateways.sessions.sessions(),
     fileSessions: () => gateways.fileSessions.fileSessions(),
+    sshAccessProfiles: () => gateways.hosts.sshAccessProfiles(),
     fileAccessProfiles: () => gateways.hosts.fileAccessProfiles(),
     forwardProfiles: () => gateways.forwards.forwardProfiles(),
     forwards: () => gateways.forwards.forwards(),
-    remoteDesktopProfiles: () => gateways.remoteDesktop.remoteDesktopProfiles(),
+    remoteDesktopProfiles: () => gateways.hosts.remoteDesktopAccessProfiles(),
     remoteDesktopSessions: () => gateways.remoteDesktop.remoteDesktopSessions(),
   }
 }

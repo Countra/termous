@@ -2,9 +2,6 @@ import {
   App as AntdApp,
   Button,
   Dropdown,
-  Form,
-  Input,
-  Modal,
   Segmented,
   Switch,
   Tooltip,
@@ -27,16 +24,16 @@ import {
   Scan,
   Unplug,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
+  RemoteDesktopAccessProfile,
+  RemoteDesktopAccessProfileInput,
   RemoteDesktopDisplayMode,
-  RemoteDesktopProfile,
-  RemoteDesktopProfileInput,
   RemoteDesktopSession,
-  VncCredentials,
 } from '#entities/remote-desktop'
 import type { Host } from '#entities/host'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import { readClipboardText, writeClipboardText } from '#shared/clipboard'
 import {
   ConnectionActionButton,
@@ -51,33 +48,57 @@ import {
 import {
   RemoteDesktopLauncher,
   RemoteDesktopViewport,
-  type VncViewerState,
+  type RemoteDesktopViewerState,
   useRemoteDesktopRuntime,
 } from '#features/remote-desktop'
 import { useRemoteDesktopFullscreen } from '../model/useRemoteDesktopFullscreen.ts'
 import { RemoteDesktopConnectionQuality } from './RemoteDesktopConnectionQuality.tsx'
+import {
+  RemoteDesktopCredentialDialog,
+  RemoteDesktopServerVerificationDialog,
+} from './RemoteDesktopSecurityDialogs.tsx'
 import styles from './RemoteDesktopWorkspace.module.scss'
 
+export { RemoteDesktopCredentialDialog } from './RemoteDesktopSecurityDialogs.tsx'
+
 export interface RemoteDesktopWorkspaceProps {
-  profiles: RemoteDesktopProfile[]
+  profiles: RemoteDesktopAccessProfile[]
   hosts: Host[]
+  sshProfiles: SSHAccessProfile[]
   actionBusy: boolean
   launcherOpen: boolean
   onLauncherOpenChange: (open: boolean) => void
-  onCreateProfile: (input: RemoteDesktopProfileInput) => Promise<RemoteDesktopProfile>
-  onUpdateProfile: (id: string, input: RemoteDesktopProfileInput) => Promise<RemoteDesktopProfile>
+  onCreateProfile: (
+    input: RemoteDesktopAccessProfileInput,
+  ) => Promise<RemoteDesktopAccessProfile>
+  onUpdateProfile: (
+    id: string,
+    input: RemoteDesktopAccessProfileInput,
+  ) => Promise<RemoteDesktopAccessProfile>
   onDeleteProfile: (id: string) => Promise<void>
+  onSaveTargetAuth: (
+    id: string,
+    expectedUpdatedAt: string,
+    password: string,
+  ) => Promise<RemoteDesktopAccessProfile>
+  onDeleteTargetAuth: (
+    id: string,
+    expectedUpdatedAt: string,
+  ) => Promise<RemoteDesktopAccessProfile>
 }
 
 export function RemoteDesktopWorkspace({
   profiles,
   hosts,
+  sshProfiles,
   actionBusy,
   launcherOpen,
   onLauncherOpenChange,
   onCreateProfile,
   onUpdateProfile,
   onDeleteProfile,
+  onSaveTargetAuth,
+  onDeleteTargetAuth,
 }: RemoteDesktopWorkspaceProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -288,18 +309,21 @@ export function RemoteDesktopWorkspace({
         open={launcherOpen}
         profiles={profiles}
         hosts={hosts}
+        sshProfiles={sshProfiles}
         actionBusy={actionBusy}
         onClose={() => onLauncherOpenChange(false)}
         onCreate={onCreateProfile}
         onUpdate={onUpdateProfile}
         onDelete={onDeleteProfile}
+        onSaveTargetAuth={onSaveTargetAuth}
+        onDeleteTargetAuth={onDeleteTargetAuth}
         onConnect={connectProfile}
       />
       {activeSession && viewerState ? (
-        <VncCredentialDialog session={activeSession} />
+        <RemoteDesktopCredentialDialog session={activeSession} />
       ) : null}
       {activeSession && viewerState?.verification ? (
-        <VncServerVerificationDialog session={activeSession} />
+        <RemoteDesktopServerVerificationDialog session={activeSession} />
       ) : null}
     </section>
   )
@@ -321,7 +345,7 @@ function RemoteDesktopToolbar({
   onDisconnect,
 }: {
   session: RemoteDesktopSession
-  viewerState: VncViewerState | undefined
+  viewerState: RemoteDesktopViewerState | undefined
   fullscreen: boolean
   fullscreenPinned: boolean
   onToggleFullscreenPin: () => void
@@ -336,7 +360,7 @@ function RemoteDesktopToolbar({
 }) {
   const { t } = useTranslation()
   const connected = viewerState?.connection === 'connected'
-  const viewOnly = viewerState?.viewOnly ?? session.vnc.default_view_only
+  const viewOnly = viewerState?.viewOnly ?? false
   const compactItems: MenuProps['items'] = [
     { key: 'send-clipboard', icon: <ClipboardPaste size={15} />, label: t('remoteDesktop.sendClipboard'), disabled: !connected || viewOnly },
     { key: 'receive-clipboard', icon: <ClipboardCopy size={15} />, label: t('remoteDesktop.receiveClipboard'), disabled: !viewerState?.remoteClipboard },
@@ -357,7 +381,7 @@ function RemoteDesktopToolbar({
     <div className={styles.toolbar}>
       <Segmented<RemoteDesktopDisplayMode>
         size="small"
-        value={viewerState?.displayMode ?? session.vnc.default_display_mode}
+        value={viewerState?.displayMode ?? 'fit'}
         options={[
           { value: 'fit', label: <span className={styles['mode-option']}><Scaling size={14} />{t('remoteDesktop.display.fit')}</span> },
           { value: 'resize', label: <span className={styles['mode-option']}><Scan size={14} />{t('remoteDesktop.display.resize')}</span> },
@@ -448,7 +472,7 @@ function ToolbarButton({
   )
 }
 
-function ViewerOverlay({ session, viewerState }: { session: RemoteDesktopSession; viewerState: VncViewerState | undefined }) {
+function ViewerOverlay({ session, viewerState }: { session: RemoteDesktopSession; viewerState: RemoteDesktopViewerState | undefined }) {
   const { t } = useTranslation()
   if (viewerState?.connection === 'connected') return null
   const busy = viewerState
@@ -469,7 +493,7 @@ function ViewerOverlay({ session, viewerState }: { session: RemoteDesktopSession
   )
 }
 
-function RemoteDesktopStatusBar({ session, viewerState }: { session: RemoteDesktopSession; viewerState: VncViewerState | undefined }) {
+function RemoteDesktopStatusBar({ session, viewerState }: { session: RemoteDesktopSession; viewerState: RemoteDesktopViewerState | undefined }) {
   const { t } = useTranslation()
   const reconnectAttempt = session.reconnect_attempt ?? 0
   const reconnectMaxAttempts = session.reconnect_max_attempts ?? 0
@@ -479,7 +503,9 @@ function RemoteDesktopStatusBar({ session, viewerState }: { session: RemoteDeskt
         <span className={`${styles.dot} ${styles[`is-${tabStatus(session).replace('_', '-')}`]}`} />
         <strong>{t(`remoteDesktop.status.${session.status}`)}</strong>
         <span className={styles['status-host']}>{session.ssh_host_name}</span>
-        <span className={styles['status-target']}>VNC · {session.vnc.loopback_host}:{session.vnc.port}</span>
+        {viewerState?.targetLabel ? (
+          <span className={styles['status-target']}>{viewerState.targetLabel}</span>
+        ) : null}
         {viewerState?.desktopName ? <span className={styles['desktop-name']}>{viewerState.desktopName}</span> : null}
         {session.status === 'reconnecting' && reconnectAttempt > 0 && reconnectMaxAttempts > 0 ? (
           <span className={styles['reconnect-progress']}>
@@ -492,110 +518,6 @@ function RemoteDesktopStatusBar({ session, viewerState }: { session: RemoteDeskt
         connected={viewerState?.connection === 'connected'}
       />
     </footer>
-  )
-}
-
-export function VncCredentialDialog({ session }: { session: RemoteDesktopSession }) {
-  const { t } = useTranslation()
-  const { notification } = AntdApp.useApp()
-  const runtime = useRemoteDesktopRuntime()
-  const state = runtime.viewerStates[session.id]
-  const [values, setValues] = useState<VncCredentials>({})
-  const open = state?.connection === 'credentials_required'
-  const credentialTypesKey = state?.credentialTypes.join('|') ?? ''
-  const missingRequiredValue = state?.credentialTypes.some((type) => !(values[type] ?? '').length) ?? true
-
-  useEffect(() => {
-    setValues({})
-  }, [credentialTypesKey, open, session.id])
-
-  const submit = () => {
-    if (!state || missingRequiredValue) {
-      return
-    }
-    const credentials = Object.fromEntries(
-      state.credentialTypes.map((type) => [type, values[type] ?? '']),
-    ) as VncCredentials
-    runtime.submitCredentials(session.id, credentials)
-    setValues({})
-  }
-
-  return (
-    <Modal
-      open={open}
-      centered
-      width={440}
-      title={t('remoteDesktop.credentialsTitle')}
-      okText={t('app.connect')}
-      cancelText={t('remoteDesktop.disconnect')}
-      okButtonProps={{ disabled: missingRequiredValue }}
-      onOk={submit}
-      onCancel={() => {
-        void runtime.closeSession(session.id).catch((error) => {
-          notification.error({
-            title: t('remoteDesktop.disconnectFailed'),
-            description: publicError(error),
-            className: termousNotificationClassName,
-          })
-        })
-      }}
-      afterClose={() => setValues({})}
-      destroyOnHidden
-    >
-      <p className={styles['dialog-hint']}>{t('remoteDesktop.credentialsHint')}</p>
-      <Form layout="vertical">
-        {state?.credentialTypes.map((type) => (
-          <Form.Item key={type} label={t(`remoteDesktop.credentials.${type}`)} required>
-            <Input
-              autoComplete="off"
-              type={type === 'password' ? 'password' : 'text'}
-              value={values[type] ?? ''}
-              onChange={(event) => setValues((current) => ({ ...current, [type]: event.target.value }))}
-              onPressEnter={() => {
-                if (!missingRequiredValue) submit()
-              }}
-            />
-          </Form.Item>
-        ))}
-      </Form>
-    </Modal>
-  )
-}
-
-function VncServerVerificationDialog({ session }: { session: RemoteDesktopSession }) {
-  const { t } = useTranslation()
-  const { notification } = AntdApp.useApp()
-  const runtime = useRemoteDesktopRuntime()
-  const verification = runtime.viewerStates[session.id]?.verification
-  return (
-    <Modal
-      open={Boolean(verification)}
-      centered
-      width={520}
-      title={t('remoteDesktop.verifyServerTitle')}
-      okText={t('remoteDesktop.trustAndContinue')}
-      cancelText={t('remoteDesktop.rejectServer')}
-      okButtonProps={{ danger: false }}
-      cancelButtonProps={{ danger: true }}
-      onOk={() => runtime.approveServer(session.id)}
-      onCancel={() => {
-        void runtime.rejectServer(session.id).catch((error) => {
-          notification.error({
-            title: t('remoteDesktop.disconnectFailed'),
-            description: publicError(error),
-            className: termousNotificationClassName,
-          })
-        })
-      }}
-      closable={false}
-      mask={{ closable: false }}
-    >
-      <p className={styles['dialog-hint']}>{t('remoteDesktop.verifyServerHint')}</p>
-      <dl className={styles.fingerprint}>
-        <div><dt>{t('remoteDesktop.verificationType')}</dt><dd>{verification?.type}</dd></div>
-        <div><dt>{t('hostKey.fingerprint')}</dt><dd>{verification?.fingerprint}</dd></div>
-      </dl>
-    </Modal>
   )
 }
 

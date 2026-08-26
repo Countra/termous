@@ -9,11 +9,12 @@ import type { RemoteDesktopAccessProfile } from './types.ts'
 
 test('远程桌面精确 Profile 输入不回传兼容别名和持久化字段', () => {
   const source = profile('rdp_b', 1, true)
-  const input = remoteDesktopAccessProfileToInput({
+  const legacySource = {
     ...source,
     transport: 'ssh_tunnel',
     ssh_host_id: 'hst_1',
-  })
+  }
+  const input = remoteDesktopAccessProfileToInput(legacySource)
   assert.equal('transport' in input, false)
   assert.equal('ssh_host_id' in input, false)
   assert.equal(input.ssh_profile_id, 'ssh_1')
@@ -47,6 +48,7 @@ function profile(id: string, sortOrder: number, isDefault: boolean): RemoteDeskt
     },
     is_default: isDefault,
     sort_order: sortOrder,
+    target_auth: null,
     created_at: '2026-08-25T00:00:00Z',
     updated_at: '2026-08-25T00:00:00Z',
   }

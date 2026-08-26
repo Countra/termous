@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useRemoteDesktopRuntime } from '../runtime/remoteDesktopRuntimeContext.ts'
+import { useRemoteDesktopRuntime } from '../runtime/core/remoteDesktopRuntimeContext.ts'
 import styles from './RemoteDesktopViewport.module.scss'
 
 export function RemoteDesktopViewport({ sessionId }: { sessionId: string }) {

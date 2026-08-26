@@ -5,15 +5,15 @@ import {
   useSyncExternalStore,
 } from 'react'
 import {
-  emptyVncConnectionMetrics,
-  type VncConnectionMetrics,
-  type VncTransportMetricsSnapshot,
-} from '../model/viewerTypes.ts'
+  emptyRemoteDesktopConnectionMetrics,
+  type RemoteDesktopConnectionMetrics,
+  type RemoteDesktopTransportMetricsSnapshot,
+} from './viewerContracts.ts'
 
 type MetricsListener = () => void
 
-export class VncConnectionMetricsStore {
-  private readonly snapshots = new Map<string, VncConnectionMetrics>()
+export class RemoteDesktopConnectionMetricsStore {
+  private readonly snapshots = new Map<string, RemoteDesktopConnectionMetrics>()
   private readonly generations = new Map<string, number>()
   private readonly listeners = new Map<string, Set<MetricsListener>>()
 
@@ -25,7 +25,7 @@ export class VncConnectionMetricsStore {
     this.reset(sessionId)
   }
 
-  publish(sessionId: string, generation: number, metrics: VncTransportMetricsSnapshot) {
+  publish(sessionId: string, generation: number, metrics: RemoteDesktopTransportMetricsSnapshot) {
     if (this.generations.get(sessionId) !== generation) {
       return
     }
@@ -75,7 +75,7 @@ export class VncConnectionMetricsStore {
   }
 
   snapshot = (sessionId: string) => (
-    this.snapshots.get(sessionId) ?? emptyVncConnectionMetrics
+    this.snapshots.get(sessionId) ?? emptyRemoteDesktopConnectionMetrics
   )
 
   subscribe = (sessionId: string, listener: MetricsListener) => {
@@ -100,12 +100,12 @@ export class VncConnectionMetricsStore {
   }
 }
 
-export const VncConnectionMetricsContext = createContext<VncConnectionMetricsStore | null>(null)
+export const RemoteDesktopConnectionMetricsContext = createContext<RemoteDesktopConnectionMetricsStore | null>(null)
 
-export function useVncConnectionMetrics(sessionId: string) {
-  const store = useContext(VncConnectionMetricsContext)
+export function useRemoteDesktopConnectionMetrics(sessionId: string) {
+  const store = useContext(RemoteDesktopConnectionMetricsContext)
   if (!store) {
-    throw new Error('VncConnectionMetricsContext is required')
+    throw new Error('RemoteDesktopConnectionMetricsContext is required')
   }
   const subscribe = useCallback(
     (listener: MetricsListener) => store.subscribe(sessionId, listener),

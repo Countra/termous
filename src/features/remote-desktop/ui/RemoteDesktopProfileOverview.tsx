@@ -13,14 +13,16 @@ import {
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { RemoteDesktopProfile } from '#entities/remote-desktop'
+import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
 import type { Host } from '#entities/host'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import { ConnectionActionButton, termousPopconfirmProps, uiStyles } from '#shared/ui'
 import styles from './RemoteDesktopLauncher.module.scss'
 
 interface RemoteDesktopProfileOverviewProps {
-  profile: RemoteDesktopProfile
+  profile: RemoteDesktopAccessProfile
   host?: Host
+  sshProfile?: SSHAccessProfile
   disabled: boolean
   connecting: boolean
   deleting: boolean
@@ -32,6 +34,7 @@ interface RemoteDesktopProfileOverviewProps {
 export function RemoteDesktopProfileOverview({
   profile,
   host,
+  sshProfile,
   disabled,
   connecting,
   deleting,
@@ -51,12 +54,12 @@ export function RemoteDesktopProfileOverview({
         <div className={styles['overview-title']}>
           <span>{t('remoteDesktop.profileDetail')}</span>
           <h2>{profile.name}</h2>
-          <small>{host ? `${host.username}@${host.address}:${host.port}` : t('remoteDesktop.hostUnavailable')}</small>
+          <small>{sshProfile ? `${sshProfile.username}@${sshProfile.address}:${sshProfile.port}` : t('remoteDesktop.hostUnavailable')}</small>
         </div>
       </header>
 
       <div className={styles['overview-body']}>
-        {!host ? (
+        {!host || !sshProfile ? (
           <div className={styles['host-warning']} role="status">
             <Server size={16} aria-hidden="true" />
             <span>{t('remoteDesktop.hostUnavailableHint')}</span>
@@ -64,6 +67,7 @@ export function RemoteDesktopProfileOverview({
         ) : null}
         <dl className={styles['overview-grid']}>
           <OverviewItem icon={<Server size={16} />} label={t('remoteDesktop.sshHost')} value={host?.name ?? t('fields.none')} />
+          <OverviewItem icon={<Server size={16} />} label={t('hosts.access.desktop.sshRoute')} value={sshProfile?.name ?? t('fields.none')} />
           <OverviewItem icon={<Network size={16} />} label={t('remoteDesktop.vncEndpoint')} value={endpoint} mono />
           <OverviewItem icon={<Scaling size={16} />} label={t('remoteDesktop.displayMode')} value={t(`remoteDesktop.display.${profile.vnc.default_display_mode}`)} />
           <OverviewItem icon={<Users size={16} />} label={t('remoteDesktop.shared')} value={t(profile.vnc.shared ? 'remoteDesktop.enabled' : 'remoteDesktop.disabled')} />
@@ -105,7 +109,7 @@ export function RemoteDesktopProfileOverview({
           <ConnectionActionButton
             icon={<Cable size={16} />}
             loading={connecting}
-            disabled={disabled || !host}
+            disabled={disabled || !host || !sshProfile}
             onClick={onConnect}
           >
             {t('app.connect')}

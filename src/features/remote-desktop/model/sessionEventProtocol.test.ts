@@ -6,9 +6,14 @@ const validSession = {
   id: 'rds_test',
   profile_id: 'rdp_test',
   profile_name: '测试桌面',
+  host_id: 'host_test',
+  ssh_profile_id: 'ssh_test',
   ssh_host_id: 'host_test',
   ssh_host_name: '测试主机',
+  route: 'ssh_tunnel',
+  route_config_version: 1,
   protocol: 'vnc',
+  protocol_config_version: 1,
   vnc: {
     loopback_host: '127.0.0.1',
     port: 5901,
@@ -107,9 +112,14 @@ test('upsert 拒绝字段缺失、枚举越界和无效 VNC 目标', () => {
     { type: 'upsert', session: validSession },
   )
   const invalidSessions = [
+    { ...validSession, host_id: '' },
+    { ...validSession, ssh_profile_id: '' },
     { ...validSession, updated_at: 'not-a-time' },
     { ...validSession, status: 'unknown' },
     { ...validSession, viewer_attached: 'false' },
+    { ...validSession, route: 'unknown' },
+    { ...validSession, route_config_version: 0 },
+    { ...validSession, protocol_config_version: 65_536 },
     { ...validSession, vnc: { ...validSession.vnc, loopback_host: '10.0.0.2' } },
     { ...validSession, vnc: { ...validSession.vnc, port: 65_536 } },
   ]

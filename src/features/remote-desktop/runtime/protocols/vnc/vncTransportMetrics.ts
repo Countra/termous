@@ -1,4 +1,4 @@
-import type { VncTransportMetricsSnapshot } from '../../model/viewerTypes.ts'
+import type { RemoteDesktopTransportMetricsSnapshot } from '../../core/viewerContracts.ts'
 
 const sampleIntervalMs = 1000
 
@@ -17,7 +17,7 @@ export class VncTransportMetrics {
 
   constructor(
     url: string,
-    private readonly onMetrics: (metrics: VncTransportMetricsSnapshot) => void,
+    private readonly onMetrics: (metrics: RemoteDesktopTransportMetricsSnapshot) => void,
   ) {
     this.channel = new WebSocket(url, ['binary'])
     this.channel.addEventListener('message', this.handleMessage)
