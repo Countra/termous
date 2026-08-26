@@ -16,6 +16,11 @@ const legacySession = {
 const legacyFileSession = {
   id: 'file-session-a',
   host_id: 'host-a',
+  file_access_profile_id: 'file-profile-a',
+  ssh_profile_id: 'ssh-profile-a',
+  engine: 'sftp',
+  namespace: 'posix',
+  capabilities: ['browse'],
   status: 'connected',
   phase: 'ready',
   current_path: '/',
@@ -63,12 +68,58 @@ describe('会话来源 REST 兼容合同', () => {
     await expect(runtime.fileSessions.fileSessions()).resolves.toEqual([
       expect.objectContaining({ origin: 'app' }),
     ])
-    await expect(runtime.fileSessions.createFileSession('host-a')).resolves
+    await expect(runtime.fileSessions.createFileSession({ hostId: 'host-a' })).resolves
       .toEqual(expect.objectContaining({ origin: 'app' }))
     await expect(runtime.fileSessions.getFileSession('file-session-a')).resolves
       .toEqual(expect.objectContaining({ origin: 'app' }))
     await expect(runtime.fileSessions.reconnectFileSession('file-session-a')).resolves
       .toEqual(expect.objectContaining({ origin: 'app' }))
+  })
+
+  it('精确 File Profile 创建请求不携带 host_id', async () => {
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify(legacyFileSession),
+      { status: 200 },
+    ))
+    vi.stubGlobal('fetch', fetchMock)
+    const runtime = gateways()
+
+    await runtime.fileSessions.createFileSession({
+      fileAccessProfileId: 'file-profile-a',
+      sourceSessionId: 'session-a',
+      initialPath: '/srv',
+    })
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit]
+    expect(JSON.parse(String(init.body))).toEqual({
+      file_access_profile_id: 'file-profile-a',
+      source_session_id: 'session-a',
+      initial_path: '/srv',
+    })
+  })
+
+  it('兼容 Host 默认项创建请求只携带 host_id', async () => {
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify(legacyFileSession),
+      { status: 200 },
+    ))
+    vi.stubGlobal('fetch', fetchMock)
+    const runtime = gateways()
+
+    await runtime.fileSessions.createFileSession({ hostId: 'host-a' })
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit]
+    expect(JSON.parse(String(init.body))).toEqual({ host_id: 'host-a' })
+  })
+
+  it('文件会话创建在运行时拒绝缺失或冲突的目标选择器', () => {
+    const runtime = gateways()
+    expect(() => runtime.fileSessions.createFileSession({} as never))
+      .toThrow('文件连接必须且只能指定一种目标')
+    expect(() => runtime.fileSessions.createFileSession({
+      hostId: 'host-a',
+      fileAccessProfileId: 'file-profile-a',
+    } as never)).toThrow('文件连接必须且只能指定一种目标')
   })
 
   it('REST 拒绝未知来源并公开全局文件会话事件地址', async () => {

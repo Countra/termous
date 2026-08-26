@@ -163,7 +163,12 @@ test('显式关闭覆盖恢复创建后，补偿删除失败会保留抑制并�
     },
   })
 
-  const recovery = commands.connectFileSession('host-1', 'session-1', '/', replaced.id)
+  const recovery = commands.connectFileSession({
+    fileAccessProfileId: 'file-profile-1',
+    sourceSessionId: 'session-1',
+    initialPath: '/',
+    replacedFileSessionId: replaced.id,
+  })
   await Promise.resolve()
   supersedeQueuedFileSessionRecovery(closeEpochs, queues, replaced.id)
   createRequest.resolve(orphan)

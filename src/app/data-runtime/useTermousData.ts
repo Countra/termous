@@ -281,6 +281,7 @@ export function useTermousData() {
         credentials,
         sessions,
         fileSessions,
+        fileAccessProfiles,
         forwardProfiles,
         forwards,
         remoteDesktopProfiles,
@@ -382,6 +383,7 @@ export function useTermousData() {
             ),
             activeSourceSessionIds,
           ),
+          fileAccessProfiles: fileAccessProfiles ?? [],
           forwardProfiles: forwardProfiles ?? [],
           forwards: reconcileForwardReloadSnapshot(
             current.forwards,

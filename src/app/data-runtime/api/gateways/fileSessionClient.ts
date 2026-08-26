@@ -3,6 +3,7 @@ import {
   normalizeFileSessionResponse,
   normalizeFileSessionResponseList,
   type FileSession,
+  type FileSessionCreateInput,
   type OverwritePolicy,
   type RemoteDirectoryListing,
   type RemoteFileEntry,
@@ -33,13 +34,31 @@ fileSessions() {
       .then(normalizeFileSessionResponseList)
   }
 
-createFileSession(hostId: string, sourceSessionId = '', initialPath = '') {
-    const body: { host_id: string; source_session_id?: string; initial_path?: string } = { host_id: hostId }
-    if (sourceSessionId) {
-      body.source_session_id = sourceSessionId
+createFileSession(input: FileSessionCreateInput) {
+    const body: {
+      host_id?: string
+      file_access_profile_id?: string
+      source_session_id?: string
+      initial_path?: string
+    } = {}
+    const hasFileAccessProfile = input.fileAccessProfileId !== undefined
+    const hasHost = input.hostId !== undefined
+    if (hasFileAccessProfile === hasHost) {
+      throw new TypeError('文件连接必须且只能指定一种目标')
     }
-    if (initialPath) {
-      body.initial_path = initialPath
+    if (hasFileAccessProfile) {
+      body.file_access_profile_id = requireConnectionTargetID(
+        input.fileAccessProfileId,
+        '文件访问 Profile ID 无效',
+      )
+    } else {
+      body.host_id = requireConnectionTargetID(input.hostId, '主机 ID 无效')
+    }
+    if (input.sourceSessionId) {
+      body.source_session_id = input.sourceSessionId
+    }
+    if (input.initialPath) {
+      body.initial_path = input.initialPath
     }
     return this.request<FileSession>('/api/v1/file-sessions', {
       method: 'POST',
@@ -192,4 +211,11 @@ moveFiles(hostId: string, sourcePaths: string[], targetDir: string, overwritePol
       body: { source_paths: sourcePaths, target_dir: targetDir, overwrite_policy: overwritePolicy },
     })
   }
+}
+
+function requireConnectionTargetID(value: string, message: string) {
+  if (!value || value.trim() !== value) {
+    throw new TypeError(message)
+  }
+  return value
 }

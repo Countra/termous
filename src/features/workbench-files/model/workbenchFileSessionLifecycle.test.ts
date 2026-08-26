@@ -3,11 +3,13 @@ import test from 'node:test'
 import type { Session } from '#entities/session'
 import type { FileSession } from '#entities/file'
 import {
+  shouldNotifyFileSessionRecoveryFailure,
+} from './workbenchFileSessionLifecycle.ts'
+import {
   buildSourceSessionContexts,
   canApplyCreatedFileSession,
   isCurrentSourceSession,
-  shouldNotifyFileSessionRecoveryFailure,
-} from './workbenchFileSessionLifecycle.ts'
+} from './workbenchFileSessionIdentity.ts'
 
 function sshSession(overrides: Partial<Session> = {}): Session {
   return {
@@ -15,6 +17,7 @@ function sshSession(overrides: Partial<Session> = {}): Session {
     kind: 'ssh',
     origin: 'app',
     host_id: 'host-1',
+    ssh_profile_id: 'ssh-1',
     status: 'connected',
     started_at: '2026-07-18T00:00:00Z',
     pty_cols: 120,
@@ -27,6 +30,11 @@ function fileSession(overrides: Partial<FileSession> = {}): FileSession {
   return {
     id: 'file-session-1',
     host_id: 'host-1',
+    file_access_profile_id: 'file-1',
+    ssh_profile_id: 'ssh-1',
+    engine: 'sftp',
+    namespace: 'posix',
+    capabilities: ['browse'],
     origin: 'app',
     source_session_id: 'session-1',
     status: 'connected',
@@ -40,7 +48,14 @@ test('CWD 更新期间仍接受同一活动 source 的文件会话创建响应',
   const contexts = buildSourceSessionContexts([sshSession()])
 
   assert.equal(
-    canApplyCreatedFileSession(fileSession(), contexts, 'session-1', 'host-1'),
+    canApplyCreatedFileSession(
+      fileSession(),
+      contexts,
+      'session-1',
+      'host-1',
+      'file-1',
+      'ssh-1',
+    ),
     true,
   )
 })
@@ -53,9 +68,9 @@ test('source 断开、移除或 host 改变后拒绝旧创建响应', () => {
     sshSession({ host_id: 'host-2' }),
   ])
 
-  assert.equal(isCurrentSourceSession(disconnected, 'session-1', 'host-1'), false)
-  assert.equal(isCurrentSourceSession(new Map(), 'session-1', 'host-1'), false)
-  assert.equal(isCurrentSourceSession(changedHost, 'session-1', 'host-1'), false)
+  assert.equal(isCurrentSourceSession(disconnected, 'session-1', 'host-1', 'ssh-1'), false)
+  assert.equal(isCurrentSourceSession(new Map(), 'session-1', 'host-1', 'ssh-1'), false)
+  assert.equal(isCurrentSourceSession(changedHost, 'session-1', 'host-1', 'ssh-1'), false)
 })
 
 test('响应的 source 或 host 不匹配时拒绝写入前端状态', () => {
@@ -67,6 +82,8 @@ test('响应的 source 或 host 不匹配时拒绝写入前端状态', () => {
       contexts,
       'session-1',
       'host-1',
+      'file-1',
+      'ssh-1',
     ),
     false,
   )
@@ -76,6 +93,8 @@ test('响应的 source 或 host 不匹配时拒绝写入前端状态', () => {
       contexts,
       'session-1',
       'host-1',
+      'file-1',
+      'ssh-1',
     ),
     false,
   )

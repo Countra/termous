@@ -10,6 +10,10 @@ import {
   selectFileSessionForNavigation,
   selectFileSessionNavigationTarget,
 } from '#entities/file'
+import {
+  selectCompanionSFTPFileAccessProfile,
+  selectDefaultFileAccessProfile,
+} from '#entities/file-access-profile'
 import { isForwardRestartCompleted } from '#features/forwards'
 import type { HostAccessManagementGateway } from '#features/host-access'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
@@ -370,9 +374,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     fileBookmarkGroups: data.fileBookmarkGroups,
     fileBookmarks: data.fileBookmarks,
     fileSessions: data.fileSessions,
+    fileAccessProfiles: data.fileAccessProfiles,
   }), [
     data.fileBookmarkGroups,
     data.fileBookmarks,
+    data.fileAccessProfiles,
     data.fileSessions,
   ])
 
@@ -639,7 +645,20 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }
 
   const openFilesFromSession = async (session: Session) => {
-    if (session.kind !== 'ssh' || session.status !== 'connected' || !session.host_id) {
+    if (
+      session.kind !== 'ssh'
+      || session.status !== 'connected'
+      || !session.host_id
+      || !session.ssh_profile_id
+    ) {
+      return
+    }
+    const fileProfile = selectCompanionSFTPFileAccessProfile(
+      data.fileAccessProfiles,
+      session.host_id,
+      session.ssh_profile_id,
+    )
+    if (!fileProfile) {
       return
     }
     invalidateFilesBookmarkManagementRequest()
@@ -650,13 +669,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       fileSessionClosures,
       session.host_id,
       session.id,
+      fileProfile.id,
+      session.ssh_profile_id,
     )
     if (existing) {
       activateFileSession(existing.id)
       return
     }
     try {
-      const fileSession = await actions.connectFileSession(session.host_id, session.id)
+      const fileSession = await actions.connectFileSession({
+        fileAccessProfileId: fileProfile.id,
+        sourceSessionId: session.id,
+      })
       activateFileSession(fileSession.id)
     } catch (actionError) {
       showActionError(actionError)
@@ -695,7 +719,20 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   }
 
   const openFileBookmarksFromSession = async (session: Session) => {
-    if (session.kind !== 'ssh' || session.status !== 'connected' || !session.host_id) {
+    if (
+      session.kind !== 'ssh'
+      || session.status !== 'connected'
+      || !session.host_id
+      || !session.ssh_profile_id
+    ) {
+      return
+    }
+    const fileProfile = selectCompanionSFTPFileAccessProfile(
+      data.fileAccessProfiles,
+      session.host_id,
+      session.ssh_profile_id,
+    )
+    if (!fileProfile) {
       return
     }
     nextFilesBookmarkManagementIntentIdRef.current += 1
@@ -714,10 +751,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       fileSessionClosures,
       session.host_id,
       session.id,
+      fileProfile.id,
+      session.ssh_profile_id,
     )
     try {
       const fileSession = existing
-        ?? await actions.connectFileSession(session.host_id, session.id)
+        ?? await actions.connectFileSession({
+          fileAccessProfileId: fileProfile.id,
+          sourceSessionId: session.id,
+        })
       if (!canCommitFilesBookmarkManagementRequest(
         request,
         filesBookmarkManagementRequestRef.current,
@@ -759,7 +801,16 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     invalidateFilesBookmarkManagementRequest()
     setSelectedHostId(hostId)
     setPage('files')
-    const existing = selectFileSessionForNavigation(data.fileSessions, hostId)
+    const fileProfile = selectDefaultFileAccessProfile(data.fileAccessProfiles, hostId)
+    if (!fileProfile) {
+      return
+    }
+    const existing = selectFileSessionForNavigation(
+      data.fileSessions,
+      hostId,
+      '',
+      fileProfile.id,
+    )
     if (existing) {
       activateFileSession(existing.id)
       if (
@@ -773,7 +824,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     try {
       const fileSession = existing
         ? await actions.reconnectFileSession(existing.id)
-        : await actions.connectFileSession(hostId)
+        : await actions.connectFileSession({ fileAccessProfileId: fileProfile.id })
       activateFileSession(fileSession.id)
     } catch (actionError) {
       showActionError(actionError)
@@ -1032,19 +1083,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           }}
                           onOpenFileSession={openFilesForHost}
                           onOpenFileSessionLauncher={openFileSessionLauncher}
-                          onConnectFileSession={async (
-                            hostId,
-                            sourceSessionId,
-                            initialPath,
-                            replacedFileSessionId,
-                          ) => {
+                          onConnectFileSession={async (input) => {
                             invalidateFilesBookmarkManagementRequest()
-                            const fileSession = await connectAndActivateFileSession(
-                              hostId,
-                              sourceSessionId,
-                              initialPath,
-                              replacedFileSessionId,
-                            )
+                            const fileSession = await connectAndActivateFileSession(input)
                             return fileSession
                           }}
                           onSelectFileSession={(fileSessionId) => {

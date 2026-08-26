@@ -31,6 +31,11 @@ class FakeWebSocket {
 const legacyFileSession = {
   id: 'file-session-a',
   host_id: 'host-a',
+  file_access_profile_id: 'file-profile-a',
+  ssh_profile_id: 'ssh-profile-a',
+  engine: 'sftp',
+  namespace: 'posix',
+  capabilities: ['browse'],
   status: 'connected',
   phase: 'ready',
   current_path: '/',

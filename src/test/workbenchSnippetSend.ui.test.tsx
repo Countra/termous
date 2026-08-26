@@ -214,6 +214,7 @@ function workbenchViews(snippets: CodeSnippet[]): WorkbenchViewProps {
       fileBookmarkGroups: [],
       fileBookmarks: [],
       fileSessions: [],
+      fileAccessProfiles: [],
     },
     forwards: [],
     snippetView: {

@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   fileAccessProfileMetadataInputsEqual,
   normalizeFileAccessProfileMetadataInput,
+  selectCompanionSFTPFileAccessProfile,
   selectDefaultFileAccessProfile,
   sortFileAccessProfiles,
   validateFileAccessProfileMetadataInput,
@@ -23,14 +24,40 @@ test('文件 Profile 默认项与顺序使用强类型 SFTP 投影', () => {
   assert.equal(selectDefaultFileAccessProfile([first, second], 'hst_1')?.sftp.ssh_profile_id, 'ssh_b')
 })
 
-function profile(id: string, sortOrder: number, isDefault: boolean): FileAccessProfile {
+test('伴生 SFTP 仅在主机和 SSH Profile 唯一匹配时返回', () => {
+  const primary = profile('file-primary', 0, true, 'ssh-primary')
+  const secondary = profile('file-secondary', 1, false, 'ssh-secondary')
+  assert.equal(
+    selectCompanionSFTPFileAccessProfile(
+      [primary, secondary],
+      'hst_1',
+      'ssh-primary',
+    ),
+    primary,
+  )
+  assert.equal(
+    selectCompanionSFTPFileAccessProfile(
+      [primary, { ...primary, id: 'file-duplicate' }],
+      'hst_1',
+      'ssh-primary',
+    ),
+    undefined,
+  )
+})
+
+function profile(
+  id: string,
+  sortOrder: number,
+  isDefault: boolean,
+  sshProfileId = id === 'file_b' ? 'ssh_b' : 'ssh_a',
+): FileAccessProfile {
   return {
     id,
     host_id: 'hst_1',
     name: id,
     engine: 'sftp',
     engine_config_version: 1,
-    sftp: { ssh_profile_id: id === 'file_b' ? 'ssh_b' : 'ssh_a' },
+    sftp: { ssh_profile_id: sshProfileId },
     is_default: isDefault,
     sort_order: sortOrder,
     created_at: '2026-08-25T00:00:00Z',

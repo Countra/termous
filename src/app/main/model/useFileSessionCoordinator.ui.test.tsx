@@ -1,6 +1,10 @@
 import { act, renderHook } from '@testing-library/react'
 import { expect, test, vi, type Mock } from 'vitest'
-import type { FileSession, FileSessionClosureState } from '#entities/file'
+import type {
+  FileSession,
+  FileSessionClosureState,
+  FileSessionConnectInput,
+} from '#entities/file'
 import { useFileSessionCoordinator } from './useFileSessionCoordinator'
 
 function fileSession(id: string, overrides: Partial<FileSession> = {}): FileSession {
@@ -26,12 +30,7 @@ function deferred<T>() {
   return { promise, reject, resolve }
 }
 
-type ConnectFileSession = (
-  hostId: string,
-  sourceSessionId?: string,
-  initialPath?: string,
-  replacedFileSessionId?: string,
-) => Promise<FileSession>
+type ConnectFileSession = (input: FileSessionConnectInput) => Promise<FileSession>
 
 type CloseFileSession = (fileSessionId: string) => Promise<void>
 type FileSessionIdCallback = (fileSessionId: string) => void
@@ -78,12 +77,10 @@ test('替换连接完成时不抢回用户已经切换的文件标签', async ()
   })
 
   await act(async () => undefined)
-  const connecting = harness.result.current.connectAndActivateFileSession(
-    replaced.host_id,
-    undefined,
-    undefined,
-    replaced.id,
-  )
+  const connecting = harness.result.current.connectAndActivateFileSession({
+    hostId: replaced.host_id,
+    replacedFileSessionId: replaced.id,
+  })
   act(() => harness.result.current.activateFileSession(selected.id))
   await act(async () => request.resolve(replacement))
   await connecting

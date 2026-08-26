@@ -154,6 +154,30 @@ export type FileSessionStatus = 'connecting' | 'connected' | 'waiting_trust' | '
 
 export type FileSessionOrigin = 'app' | 'mcp'
 
+export type FileAccessCapability =
+  | 'browse'
+  | 'content_read'
+  | 'content_write'
+  | 'entry_mutate'
+  | 'permission_edit'
+  | 'transfer'
+  | 'batch_rename'
+  | 'name_search'
+
+interface FileSessionCreateOptions {
+  sourceSessionId?: string
+  initialPath?: string
+}
+
+export type FileSessionCreateInput = FileSessionCreateOptions & (
+  | { fileAccessProfileId: string; hostId?: never }
+  | { hostId: string; fileAccessProfileId?: never }
+)
+
+export type FileSessionConnectInput = FileSessionCreateInput & {
+  replacedFileSessionId?: string
+}
+
 export type FileSessionPhase =
   | 'queued'
   | 'resolving_auth'
@@ -168,6 +192,11 @@ export type FileSessionPhase =
 export interface FileSession {
   id: string
   host_id: string
+  file_access_profile_id?: string
+  ssh_profile_id?: string
+  engine?: string
+  namespace?: string
+  capabilities?: FileAccessCapability[]
   origin: FileSessionOrigin
   source_session_id?: string
   status: FileSessionStatus

@@ -160,11 +160,15 @@ test('断线和恢复换 ID 时复用最后目录缓存，但不串用无关会�
   const original = fileSession({
     id: 'fs-old',
     source_session_id: 'ssh-source',
+    file_access_profile_id: 'file-profile-1',
+    ssh_profile_id: 'ssh-profile-1',
   })
   const owner = fileSessionDirectoryCacheOwner(original)
   const replacement = fileSession({
     id: 'fs-new',
     source_session_id: 'ssh-source',
+    file_access_profile_id: 'file-profile-1',
+    ssh_profile_id: 'ssh-profile-1',
     status: 'connecting',
     phase: 'dialing',
   })
@@ -174,6 +178,18 @@ test('断线和恢复换 ID 时复用最后目录缓存，但不串用无关会�
   assert.equal(canReuseFileSessionDirectoryCache(owner, fileSession({
     id: 'fs-other',
     source_session_id: 'ssh-other',
+  }), new Map()), false)
+  assert.equal(canReuseFileSessionDirectoryCache(owner, fileSession({
+    id: 'fs-other-profile',
+    source_session_id: 'ssh-source',
+    file_access_profile_id: 'file-profile-2',
+    ssh_profile_id: 'ssh-profile-1',
+  }), new Map()), false)
+  assert.equal(canReuseFileSessionDirectoryCache(owner, fileSession({
+    id: 'fs-other-route',
+    source_session_id: 'ssh-source',
+    file_access_profile_id: 'file-profile-1',
+    ssh_profile_id: 'ssh-profile-2',
   }), new Map()), false)
 })
 
@@ -262,6 +278,31 @@ test('导航优先选择健康会话，但只有失效会话时仍保留给用�
     disconnected,
   )
   assert.equal(selectFileSessionForNavigation([], 'host-1'), undefined)
+})
+
+test('独立 Files 入口只按文件 Profile 选会话，不依赖 Engine 私有路由', () => {
+  const expected = fileSession({
+    id: 'fs-default-profile',
+    file_access_profile_id: 'file-default',
+    ssh_profile_id: 'ssh-route-a',
+    status: 'connected',
+  })
+  const otherProfile = fileSession({
+    id: 'fs-other-profile',
+    file_access_profile_id: 'file-other',
+    ssh_profile_id: 'ssh-route-b',
+    status: 'connected',
+  })
+
+  assert.equal(
+    selectFileSessionForNavigation(
+      [otherProfile, expected],
+      'host-1',
+      '',
+      'file-default',
+    ),
+    expected,
+  )
 })
 
 test('从 SSH 会话进入文件页时只选择相同 source，不被同主机健康会话替代', () => {

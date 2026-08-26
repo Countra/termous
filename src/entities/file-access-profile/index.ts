@@ -2,6 +2,7 @@ export {
   fileAccessProfileMetadataInputsEqual,
   fileAccessProfileToMetadataInput,
   normalizeFileAccessProfileMetadataInput,
+  selectCompanionSFTPFileAccessProfile,
   selectDefaultFileAccessProfile,
   sortFileAccessProfiles,
   validateFileAccessProfileMetadataInput,

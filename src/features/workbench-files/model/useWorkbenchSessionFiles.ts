@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { FileGateway } from '#features/files'
 import type { Session, SessionCwdState } from '#entities/session'
-import type { FileSession, RemoteDirectoryListing, RemoteFileEntry } from '#entities/file'
+import type {
+  FileSession,
+  FileSessionConnectInput,
+  RemoteDirectoryListing,
+  RemoteFileEntry,
+} from '#entities/file'
+import type { FileAccessProfile } from '#entities/file-access-profile'
 import { normalizeRemotePath, normalizeRemotePosixPath } from '#shared/path'
 import { retireWebSocket } from '#shared/websocket'
 import { fileSortValue } from '#entities/file'
 import {
-  normalizeFileSessionResponse,
+  normalizeFileSessionEventResponse,
   resolveFileSessionClosure,
   terminatedFileSessionSnapshot,
   type FileSessionClosureState,
@@ -56,12 +62,9 @@ import {
 } from './sessionFilesState'
 import {
   beginFileSessionRecovery,
-  buildSourceSessionContexts,
   cancelSupersededFileSessionRecovery,
   canRetryFileSessionRecovery,
   canCompleteFileSessionRecovery,
-  canApplyCreatedFileSession,
-  canUseSourceFileSession,
   completeFileSessionRecovery,
   failFileSessionRecovery,
   fileSessionRecoveryMethod,
@@ -82,6 +85,17 @@ import {
   waitForFileSessionRecovery,
   type FileSessionRecoveryState,
 } from './workbenchFileSessionLifecycle'
+import {
+  buildSourceSessionContexts,
+  canApplyCreatedFileSession,
+  canUseSourceFileSession,
+  fileSessionMatchesWorkbenchSource,
+  selectWorkbenchCompanionFileProfile,
+  selectWorkbenchCompanionFileProfileForSource,
+  selectWorkbenchFileSession,
+  selectWorkbenchFileSessionClosure,
+  workbenchFileSessionKey,
+} from './workbenchFileSessionIdentity'
 
 interface FileSessionEventMessage {
   type: string
@@ -104,18 +118,14 @@ interface UseWorkbenchSessionFilesOptions {
   activeSession: Session | null
   enabled: boolean
   closingSessionIds: ReadonlySet<string>
-  onConnectFileSession: (
-    hostId: string,
-    sourceSessionId?: string,
-    initialPath?: string,
-    replacedFileSessionId?: string,
-  ) => Promise<FileSession>
+  onConnectFileSession: (input: FileSessionConnectInput) => Promise<FileSession>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
 }
 
 interface WorkbenchSessionFilesData {
   fileSessions: FileSession[]
+  fileAccessProfiles: FileAccessProfile[]
   sessions: Session[]
 }
 
@@ -141,6 +151,12 @@ export function useWorkbenchSessionFiles({
   const sourceSessionStatus = activeSession?.kind === 'ssh' ? activeSession.status : null
   const sourceSessionEndedAt = activeSession?.kind === 'ssh' ? activeSession.ended_at : undefined
   const sourceHostId = activeSession?.kind === 'ssh' ? activeSession.host_id : null
+  const sourceSSHProfileId = activeSession?.kind === 'ssh' ? activeSession.ssh_profile_id : null
+  const sourceFileProfile = useMemo(
+    () => selectWorkbenchCompanionFileProfile(data.fileAccessProfiles, activeSession),
+    [activeSession, data.fileAccessProfiles],
+  )
+  const sourceFileProfileId = sourceFileProfile?.id ?? ''
   const cwdState = useSessionCwdState(sourceSessionId)
   const cwdRequestError = useSessionCwdRequestError(sourceSessionId, 'cwd_change')
   const cwdRefreshError = useSessionCwdRequestError(sourceSessionId, 'cwd_refresh')
@@ -154,6 +170,7 @@ export function useWorkbenchSessionFiles({
   const observedClosingSessionIdsRef = useRef<ReadonlySet<string>>(new Set())
   const sourceSessionContextsRef = useRef(buildSourceSessionContexts(data.sessions))
   const fileSessionsRef = useRef(data.fileSessions)
+  const fileAccessProfilesRef = useRef(data.fileAccessProfiles)
   const onUpdateFileSessionRef = useRef(onUpdateFileSession)
   const sessionOverridesRef = useRef(sessionOverrides)
   const currentFileSessionsRef = useRef(new Map<string, FileSession>())
@@ -173,6 +190,7 @@ export function useWorkbenchSessionFiles({
 
   sourceSessionContextsRef.current = buildSourceSessionContexts(data.sessions)
   fileSessionsRef.current = data.fileSessions
+  fileAccessProfilesRef.current = data.fileAccessProfiles
   viewStatesRef.current = viewStates
   onUpdateFileSessionRef.current = onUpdateFileSession
   sessionOverridesRef.current = sessionOverrides
@@ -183,11 +201,14 @@ export function useWorkbenchSessionFiles({
   const sourceSessionAvailable = Boolean(
     sourceSessionId
     && sourceHostId
+    && sourceSSHProfileId
+    && sourceFileProfileId
     && canUseSourceFileSession(
       sourceSessionContextsRef.current,
       sourceSessionId,
       sourceHostId,
       closingSessionIds,
+      sourceSSHProfileId,
     )
   )
 
@@ -274,18 +295,52 @@ export function useWorkbenchSessionFiles({
   }, [closingSessionIds])
 
   const fileSession = useMemo(() => {
-    if (!sourceSessionId) {
+    if (
+      !sourceSessionId
+      || !sourceHostId
+      || !sourceFileProfileId
+      || !sourceSSHProfileId
+    ) {
       return null
     }
-    const override = sessionOverrides[sourceSessionId]
-    const persisted = data.fileSessions.find((session) => session.source_session_id === sourceSessionId)
+    const overrideCandidate = sessionOverrides[sourceSessionId]
+    const override = fileSessionMatchesWorkbenchSource(
+      overrideCandidate,
+      sourceSessionId,
+      sourceHostId,
+      sourceFileProfileId,
+      sourceSSHProfileId,
+    ) ? overrideCandidate : undefined
+    const persisted = selectWorkbenchFileSession(
+      data.fileSessions,
+      sourceSessionId,
+      sourceHostId,
+      sourceFileProfileId,
+      sourceSSHProfileId,
+    )
+    const matchingClosure = selectWorkbenchFileSessionClosure(
+      fileSessionClosures,
+      sourceSessionId,
+      sourceHostId,
+      sourceFileProfileId,
+      sourceSSHProfileId,
+    )
     return resolveSourceFileSessionWithClosure(
       sourceSessionAvailable,
       override,
       persisted,
-      fileSessionClosures[sourceSessionId],
+      matchingClosure,
     )
-  }, [data.fileSessions, fileSessionClosures, sessionOverrides, sourceSessionAvailable, sourceSessionId])
+  }, [
+    data.fileSessions,
+    fileSessionClosures,
+    sessionOverrides,
+    sourceFileProfileId,
+    sourceHostId,
+    sourceSessionAvailable,
+    sourceSessionId,
+    sourceSSHProfileId,
+  ])
   const fileSessionId = fileSession?.id ?? ''
   const fileSessionStatus = fileSession?.status ?? null
   const cwdPendingOperation = sessionFilesPendingOperationForFileSession(
@@ -338,10 +393,10 @@ export function useWorkbenchSessionFiles({
   }, [sourceSessionId])
 
   useLayoutEffect(() => {
-    if (!sourceSessionId || !fileSessionId) {
+    if (!sourceSessionId || !fileSession) {
       return
     }
-    const fileSessionKey = `${fileSessionId}:${fileSession?.connection_generation ?? 0}`
+    const fileSessionKey = workbenchFileSessionKey(fileSession)
     const previousFileSessionKey = observedFileSessionKeysRef.current.get(sourceSessionId)
     observedFileSessionKeysRef.current.set(sourceSessionId, fileSessionKey)
     if (!previousFileSessionKey || previousFileSessionKey === fileSessionKey) {
@@ -388,8 +443,11 @@ export function useWorkbenchSessionFiles({
     cwdRequestError?.request_id,
     cwdRuntime,
     cwdState,
+    fileSession,
     fileSession?.connection_generation,
     fileSession?.current_path,
+    fileSession?.file_access_profile_id,
+    fileSession?.ssh_profile_id,
     fileSessionId,
     initialPath,
     sourceSessionAvailable,
@@ -434,14 +492,14 @@ export function useWorkbenchSessionFiles({
   }, [initialPath, sourceSessionAvailable, sourceSessionId])
 
   useLayoutEffect(() => {
-    if (!sourceSessionId || !fileSessionId) {
+    if (!sourceSessionId || !fileSession) {
       return
     }
     if (fileSessionStatus === 'connected') {
       suspendedFileSessionKeysRef.current.delete(sourceSessionId)
       return
     }
-    const suspensionKey = `${fileSessionId}:${fileSession?.connection_generation ?? 0}`
+    const suspensionKey = workbenchFileSessionKey(fileSession)
     if (suspendedFileSessionKeysRef.current.get(sourceSessionId) === suspensionKey) {
       return
     }
@@ -460,8 +518,11 @@ export function useWorkbenchSessionFiles({
       fileSession?.current_path || '/',
     )
   }, [
+    fileSession,
     fileSession?.connection_generation,
     fileSession?.current_path,
+    fileSession?.file_access_profile_id,
+    fileSession?.ssh_profile_id,
     fileSessionId,
     fileSessionStatus,
     sourceSessionId,
@@ -492,13 +553,26 @@ export function useWorkbenchSessionFiles({
     resetProgress = false,
     allowSessionChange = false,
   ) => {
+    const sourceContext = session.source_session_id
+      ? sourceSessionContextsRef.current.get(session.source_session_id)
+      : undefined
+    const companion = selectWorkbenchCompanionFileProfileForSource(
+      fileAccessProfilesRef.current,
+      session.host_id,
+      sourceContext?.sshProfileId ?? '',
+    )
     if (
       !session.source_session_id
+      || !sourceContext
+      || !companion
+      || session.file_access_profile_id !== companion.id
+      || session.ssh_profile_id !== sourceContext.sshProfileId
       || !canUseSourceFileSession(
         sourceSessionContextsRef.current,
         session.source_session_id,
         session.host_id,
         closingSessionIdsRef.current,
+        sourceContext.sshProfileId,
       )
     ) {
       return null
@@ -507,7 +581,13 @@ export function useWorkbenchSessionFiles({
     const previous = selectCurrentFileSessionSnapshot(
       currentFileSessionsRef.current.get(sourceID),
       sessionOverridesRef.current[sourceID],
-      fileSessionsRef.current.find((item) => item.source_session_id === sourceID),
+      selectWorkbenchFileSession(
+        fileSessionsRef.current,
+        sourceID,
+        session.host_id,
+        companion.id,
+        sourceContext.sshProfileId,
+      ),
     )
     const result = resolveFileSessionUpdate(
       previous,
@@ -540,7 +620,11 @@ export function useWorkbenchSessionFiles({
     const current = selectCurrentFileSessionSnapshot(
       currentFileSessionsRef.current.get(requestedSourceSessionId),
       sessionOverridesRef.current[requestedSourceSessionId],
-      fileSessionsRef.current.find((item) => item.source_session_id === requestedSourceSessionId),
+      fileSessionsRef.current.find((item) => (
+        item.source_session_id === requestedSourceSessionId
+        && item.file_access_profile_id === session.file_access_profile_id
+        && item.ssh_profile_id === session.ssh_profile_id
+      )),
     )
     if (current && current.id !== session.id) {
       return
@@ -572,10 +656,36 @@ export function useWorkbenchSessionFiles({
     requestedSourceSessionId: string,
     requestedFileSessionId: string,
   ) => {
+    const authoritative = currentFileSessionsRef.current.get(requestedSourceSessionId)
+    if (
+      !authoritative
+      || authoritative.id !== requestedFileSessionId
+      || !authoritative.file_access_profile_id
+      || !authoritative.ssh_profile_id
+    ) {
+      return
+    }
+    const overrideCandidate = sessionOverridesRef.current[requestedSourceSessionId]
+    const override = overrideCandidate?.id === requestedFileSessionId
+      && fileSessionMatchesWorkbenchSource(
+        overrideCandidate,
+        requestedSourceSessionId,
+        authoritative.host_id,
+        authoritative.file_access_profile_id,
+        authoritative.ssh_profile_id,
+      ) ? overrideCandidate : undefined
+    const persisted = selectWorkbenchFileSession(
+      fileSessionsRef.current,
+      requestedSourceSessionId,
+      authoritative.host_id,
+      authoritative.file_access_profile_id,
+      authoritative.ssh_profile_id,
+      requestedFileSessionId,
+    )
     const current = selectCurrentFileSessionSnapshot(
-      currentFileSessionsRef.current.get(requestedSourceSessionId),
-      sessionOverridesRef.current[requestedSourceSessionId],
-      fileSessionsRef.current.find((item) => item.source_session_id === requestedSourceSessionId),
+      authoritative,
+      override,
+      persisted,
     )
     if (!current || current.id !== requestedFileSessionId) {
       return
@@ -598,6 +708,8 @@ export function useWorkbenchSessionFiles({
       !sourceSessionId ||
       sourceSessionStatus !== 'connected' ||
       !sourceHostId ||
+      !sourceFileProfileId ||
+      !sourceSSHProfileId ||
       fileSession ||
       createFailureSessionIdsRef.current.has(sourceSessionId) ||
       creatingSessionsRef.current.has(sourceSessionId)
@@ -605,13 +717,15 @@ export function useWorkbenchSessionFiles({
       return
     }
     const requestedSourceSessionId = sourceSessionId
+    const requestedFileProfileId = sourceFileProfileId
+    const requestedSSHProfileId = sourceSSHProfileId
     const requestedInitialPath = cwdState?.confirmed_path || '/'
     creatingSessionsRef.current.add(requestedSourceSessionId)
-    void onConnectFileSession(
-      sourceHostId,
-      requestedSourceSessionId,
-      requestedInitialPath,
-    ).then((created) => {
+    void onConnectFileSession({
+      fileAccessProfileId: requestedFileProfileId,
+      sourceSessionId: requestedSourceSessionId,
+      initialPath: requestedInitialPath,
+    }).then((created) => {
       if (
         !mountedRef.current ||
         !canUseSourceFileSession(
@@ -619,12 +733,15 @@ export function useWorkbenchSessionFiles({
           requestedSourceSessionId,
           sourceHostId,
           closingSessionIdsRef.current,
+          requestedSSHProfileId,
         ) ||
         !canApplyCreatedFileSession(
           created,
           sourceSessionContextsRef.current,
           requestedSourceSessionId,
           sourceHostId,
+          requestedFileProfileId,
+          requestedSSHProfileId,
         )
       ) {
         return
@@ -639,6 +756,7 @@ export function useWorkbenchSessionFiles({
           requestedSourceSessionId,
           sourceHostId,
           closingSessionIdsRef.current,
+          requestedSSHProfileId,
         )
       ) {
         return
@@ -654,9 +772,11 @@ export function useWorkbenchSessionFiles({
     enabled,
     fileSession,
     sourceHostId,
+    sourceFileProfileId,
     sourceSessionAvailable,
     sourceSessionId,
     sourceSessionStatus,
+    sourceSSHProfileId,
     onConnectFileSession,
     updateFileSession,
     updateView,
@@ -667,6 +787,7 @@ export function useWorkbenchSessionFiles({
       !enabled
       || !sourceSessionId
       || !sourceHostId
+      || !sourceSSHProfileId
       || !fileSession?.id
       || !maintainFileSessionEventStream
     ) {
@@ -674,11 +795,13 @@ export function useWorkbenchSessionFiles({
     }
     const requestedSourceSessionId = sourceSessionId
     const requestedSourceHostId = sourceHostId
+    const requestedSourceSSHProfileId = sourceSSHProfileId
     const sourceAvailable = () => canUseSourceFileSession(
       sourceSessionContextsRef.current,
       requestedSourceSessionId,
       requestedSourceHostId,
       closingSessionIdsRef.current,
+      requestedSourceSSHProfileId,
     )
     let disposed = false
     let terminalMessageReceived = false
@@ -697,13 +820,15 @@ export function useWorkbenchSessionFiles({
         try {
           const message = JSON.parse(String(event.data)) as FileSessionEventMessage
           const eventSession = message.session
-            ? normalizeFileSessionResponse(message.session)
+            ? normalizeFileSessionEventResponse(message.session)
             : null
           if (
             sourceAvailable()
             && eventSession?.id === fileSession.id
             && eventSession.source_session_id === requestedSourceSessionId
             && eventSession.host_id === requestedSourceHostId
+            && eventSession.file_access_profile_id === fileSession.file_access_profile_id
+            && eventSession.ssh_profile_id === requestedSourceSSHProfileId
           ) {
             if (message.type === 'closed') {
               terminalMessageReceived = true
@@ -763,13 +888,14 @@ export function useWorkbenchSessionFiles({
         retireWebSocket(socket)
       }
     }
-  }, [api, applyDisconnectedFileSession, enabled, fileSession?.id, maintainFileSessionEventStream, markFileSessionMissing, markFileSessionRecoveryRequired, sourceHostId, sourceSessionId, updateFileSession])
+  }, [api, applyDisconnectedFileSession, enabled, fileSession?.file_access_profile_id, fileSession?.id, maintainFileSessionEventStream, markFileSessionMissing, markFileSessionRecoveryRequired, sourceHostId, sourceSessionId, sourceSSHProfileId, updateFileSession])
 
   useEffect(() => {
     if (
       !sourceSessionAvailable ||
       !sourceSessionId ||
       !sourceHostId ||
+      !sourceSSHProfileId ||
       !fileSession ||
       fileSession.status === 'connected' ||
       fileSession.status === 'disconnected' ||
@@ -779,11 +905,13 @@ export function useWorkbenchSessionFiles({
     }
     const requestedSourceSessionId = sourceSessionId
     const requestedSourceHostId = sourceHostId
+    const requestedSourceSSHProfileId = sourceSSHProfileId
     const sourceAvailable = () => canUseSourceFileSession(
       sourceSessionContextsRef.current,
       requestedSourceSessionId,
       requestedSourceHostId,
       closingSessionIdsRef.current,
+      requestedSourceSSHProfileId,
     )
     let disposed = false
     const refreshSession = async () => {
@@ -798,6 +926,8 @@ export function useWorkbenchSessionFiles({
           && next.id === fileSession.id
           && next.source_session_id === requestedSourceSessionId
           && next.host_id === requestedSourceHostId
+          && next.file_access_profile_id === fileSession.file_access_profile_id
+          && next.ssh_profile_id === requestedSourceSSHProfileId
         ) {
           updateFileSession(next)
         }
@@ -816,7 +946,7 @@ export function useWorkbenchSessionFiles({
       disposed = true
       window.clearInterval(timer)
     }
-  }, [api, fileSession, markFileSessionMissing, sourceHostId, sourceSessionAvailable, sourceSessionId, updateFileSession])
+  }, [api, fileSession, markFileSessionMissing, sourceHostId, sourceSessionAvailable, sourceSessionId, sourceSSHProfileId, updateFileSession])
 
   useEffect(() => {
     if (!sourceSessionId || !fileSession) {
@@ -843,11 +973,14 @@ export function useWorkbenchSessionFiles({
     if (
       !sourceSessionId
       || !sourceHostId
+      || !sourceSSHProfileId
+      || !sourceFileProfileId
       || !canUseSourceFileSession(
         sourceSessionContextsRef.current,
         sourceSessionId,
         sourceHostId,
         closingSessionIdsRef.current,
+        sourceSSHProfileId,
       )
       || !fileSessionId
       || fileSessionStatus !== 'connected'
@@ -873,12 +1006,15 @@ export function useWorkbenchSessionFiles({
       sourceSessionId,
       sourceHostId,
       closingSessionIdsRef.current,
+      sourceSSHProfileId,
     )
     const fileSessionStillCurrent = () => {
       const currentFileSession = currentFileSessionsRef.current.get(sourceSessionId)
       return Boolean(
         currentFileSession
         && currentFileSession.id === requestedFileSessionId
+        && currentFileSession.file_access_profile_id === sourceFileProfileId
+        && currentFileSession.ssh_profile_id === sourceSSHProfileId
         && (currentFileSession.connection_generation ?? 0) === requestedConnectionGeneration
         && currentFileSession.status === 'connected'
       )
@@ -973,8 +1109,10 @@ export function useWorkbenchSessionFiles({
     fileSession?.connection_generation,
     fileSessionId,
     fileSessionStatus,
+    sourceFileProfileId,
     sourceHostId,
     sourceSessionId,
+    sourceSSHProfileId,
     updateView,
   ])
 
@@ -1524,11 +1662,14 @@ export function useWorkbenchSessionFiles({
     if (
       !sourceSessionId
       || !sourceHostId
+      || !sourceSSHProfileId
+      || !sourceFileProfileId
       || !canUseSourceFileSession(
         sourceSessionContextsRef.current,
         sourceSessionId,
         sourceHostId,
         closingSessionIdsRef.current,
+        sourceSSHProfileId,
       )
       || !fileSessionId
       || fileSessionStatus !== 'connected'
@@ -1624,7 +1765,7 @@ export function useWorkbenchSessionFiles({
       syncError: '',
     }), normalized)
     return true
-  }, [cwdRequestError, cwdRuntime, cwdState, cwdTransportState, fileSessionId, fileSessionStatus, loadDirectory, sourceHostId, sourceSessionId, updateView, viewState])
+  }, [cwdRequestError, cwdRuntime, cwdState, cwdTransportState, fileSessionId, fileSessionStatus, loadDirectory, sourceFileProfileId, sourceHostId, sourceSessionId, sourceSSHProfileId, updateView, viewState])
 
   const setFollowTerminal = useCallback((followTerminal: boolean) => {
     const startsRefresh = followTerminal && !viewState?.followTerminal
@@ -1805,17 +1946,22 @@ export function useWorkbenchSessionFiles({
     if (
       !sourceSessionId
       || !sourceHostId
+      || !sourceSSHProfileId
+      || !sourceFileProfileId
       || !canUseSourceFileSession(
         sourceSessionContextsRef.current,
         sourceSessionId,
         sourceHostId,
         closingSessionIdsRef.current,
+        sourceSSHProfileId,
       )
     ) {
       return Promise.resolve()
     }
     const requestedSourceSessionId = sourceSessionId
     const requestedSourceHostId = sourceHostId
+    const requestedSourceSSHProfileId = sourceSSHProfileId
+    const requestedFileProfileId = sourceFileProfileId
     const requestedFileSession = fileSession
     return runSingleFileSessionRecovery(
       recoveryPromisesRef.current,
@@ -1848,20 +1994,24 @@ export function useWorkbenchSessionFiles({
                   ? markFileSessionRecoveryTerminated(current, requestedFileSession.id)
                   : current
               ))
-              next = await onConnectFileSession(
-                requestedSourceHostId,
-                requestedSourceSessionId,
-                viewState?.listing?.path || requestedFileSession.current_path || initialPath,
-                requestedFileSession.id,
-              )
+              next = await onConnectFileSession({
+                fileAccessProfileId: requestedFileProfileId,
+                sourceSessionId: requestedSourceSessionId,
+                initialPath: viewState?.listing?.path
+                  || requestedFileSession.current_path
+                  || initialPath,
+                replacedFileSessionId: requestedFileSession.id,
+              })
             }
           } else {
-            next = await onConnectFileSession(
-              requestedSourceHostId,
-              requestedSourceSessionId,
-              viewState?.listing?.path || requestedFileSession?.current_path || initialPath,
-              requestedFileSession?.id,
-            )
+            next = await onConnectFileSession({
+              fileAccessProfileId: requestedFileProfileId,
+              sourceSessionId: requestedSourceSessionId,
+              initialPath: viewState?.listing?.path
+                || requestedFileSession?.current_path
+                || initialPath,
+              replacedFileSessionId: requestedFileSession?.id,
+            })
           }
           if (
             !mountedRef.current
@@ -1870,12 +2020,15 @@ export function useWorkbenchSessionFiles({
               requestedSourceSessionId,
               requestedSourceHostId,
               closingSessionIdsRef.current,
+              requestedSourceSSHProfileId,
             )
             || !canApplyCreatedFileSession(
               next,
               sourceSessionContextsRef.current,
               requestedSourceSessionId,
               requestedSourceHostId,
+              requestedFileProfileId,
+              requestedSourceSSHProfileId,
             )
             || recoveryStatesRef.current[requestedSourceSessionId]?.transaction !== started.transaction
           ) {
@@ -1893,13 +2046,23 @@ export function useWorkbenchSessionFiles({
           ))
         } catch (error) {
           if (shouldSilentlyCancelFileSessionRecovery(error)) {
-            const closure = fileSessionClosuresRef.current[requestedSourceSessionId]
+            const closure = selectWorkbenchFileSessionClosure(
+              fileSessionClosuresRef.current,
+              requestedSourceSessionId,
+              requestedSourceHostId,
+              requestedFileProfileId,
+              requestedSourceSSHProfileId,
+            )
             const authoritative = resolveFileSessionClosure(
               selectCurrentFileSessionSnapshot(
                 currentFileSessionsRef.current.get(requestedSourceSessionId),
                 sessionOverridesRef.current[requestedSourceSessionId],
-                fileSessionsRef.current.find(
-                  (item) => item.source_session_id === requestedSourceSessionId,
+                selectWorkbenchFileSession(
+                  fileSessionsRef.current,
+                  requestedSourceSessionId,
+                  requestedSourceHostId,
+                  requestedFileProfileId,
+                  requestedSourceSSHProfileId,
                 ),
               ) ?? null,
               closure,
@@ -1919,6 +2082,7 @@ export function useWorkbenchSessionFiles({
             requestedSourceSessionId,
             requestedSourceHostId,
             closingSessionIdsRef.current,
+            requestedSourceSSHProfileId,
           )) {
             return
           }
@@ -1930,7 +2094,7 @@ export function useWorkbenchSessionFiles({
         }
       },
     )
-  }, [fileSession, initialPath, onConnectFileSession, onReconnectFileSession, sourceHostId, sourceSessionId, updateFileSession, updateRecoveryState, updateView, viewState?.listing?.path])
+  }, [fileSession, initialPath, onConnectFileSession, onReconnectFileSession, sourceFileProfileId, sourceHostId, sourceSessionId, sourceSSHProfileId, updateFileSession, updateRecoveryState, updateView, viewState?.listing?.path])
 
   const entries = useMemo(
     () => [...(viewState?.listing?.entries ?? [])].sort((left, right) => {

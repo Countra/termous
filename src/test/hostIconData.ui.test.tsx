@@ -42,6 +42,7 @@ describe('主机图标数据合同', () => {
       credentials: [],
       sessions: [],
       fileSessions: [],
+      fileAccessProfiles: [],
       forwardProfiles: [],
       forwards: [],
       remoteDesktopProfiles: [],

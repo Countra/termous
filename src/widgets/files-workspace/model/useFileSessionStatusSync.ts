@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import {
   isTerminatedFileSession,
-  normalizeFileSessionResponse,
+  normalizeFileSessionEventResponse,
   terminatedFileSessionSnapshot,
   type FileSession,
 } from '#entities/file'
@@ -77,9 +77,7 @@ export function useFileSessionStatusSync({
       const subscription = subscribeFileSessionEvents({
         createSocket: () => new WebSocket(gateway.fileSessionEventsUrl(fileSessionId)),
         getSnapshot: async () => {
-          const snapshot = normalizeFileSessionResponse(
-            await gateway.getFileSession(fileSessionId),
-          )
+          const snapshot = await gateway.getFileSession(fileSessionId)
           if (snapshot.id !== fileSessionId) {
             throw new Error('file session snapshot identity mismatch')
           }
@@ -91,7 +89,7 @@ export function useFileSessionStatusSync({
           if (!message.session) {
             return false
           }
-          const session = normalizeFileSessionResponse(message.session)
+          const session = normalizeFileSessionEventResponse(message.session)
           if (session.id !== fileSessionId) {
             throw new Error('file session event identity mismatch')
           }

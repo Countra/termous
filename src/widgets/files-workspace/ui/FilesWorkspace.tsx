@@ -67,6 +67,7 @@ import type {
   FileBookmarkInput,
   FileBookmarkReorderItem,
   FileSession,
+  FileSessionConnectInput,
   FileSessionPhase,
   LocalGrantSource,
   LocalPathMapping,
@@ -203,12 +204,7 @@ export interface FilesWorkspaceProps {
   onConsumeBookmarkManagementIntent: (requestId: number) => void
   onOpenFileSession: (hostId: string) => Promise<void>
   onOpenFileSessionLauncher: () => void
-  onConnectFileSession: (
-    hostId: string,
-    sourceSessionId?: string,
-    initialPath?: string,
-    replacedFileSessionId?: string,
-  ) => Promise<FileSession>
+  onConnectFileSession: (input: FileSessionConnectInput) => Promise<FileSession>
   onSelectFileSession: (fileSessionId: string) => void
   onCloseFileSession: (fileSessionId: string) => Promise<void>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
@@ -1352,6 +1348,10 @@ function FilesWorkspaceContent({
     if (findFileSessionRecoveryAttempt(fileSessionRecoveryAttemptsRef.current, session.id)) {
       return
     }
+    if (!session.file_access_profile_id) {
+      notifyFileSessionRecoveryFailure(session.id, 'FILE_ACCESS_PROFILE_NOT_FOUND')
+      return
+    }
     const attempt: FileSessionRecoveryAttempt = {
       originalSessionId: session.id,
       targetSessionId: session.id,
@@ -1370,20 +1370,20 @@ function FilesWorkspaceContent({
           if (!shouldCreateFileSessionAfterReconnect(error)) {
             throw error
           }
-          recovered = await onConnectFileSession(
-            session.host_id,
-            session.source_session_id ?? '',
-            normalizeRemotePath(currentPath || session.current_path || '/'),
-            session.id,
-          )
+          recovered = await onConnectFileSession({
+            fileAccessProfileId: session.file_access_profile_id,
+            sourceSessionId: session.source_session_id,
+            initialPath: normalizeRemotePath(currentPath || session.current_path || '/'),
+            replacedFileSessionId: session.id,
+          })
         }
       } else {
-        recovered = await onConnectFileSession(
-          session.host_id,
-          session.source_session_id ?? '',
-          normalizeRemotePath(currentPath || session.current_path || '/'),
-          session.id,
-        )
+        recovered = await onConnectFileSession({
+          fileAccessProfileId: session.file_access_profile_id,
+          sourceSessionId: session.source_session_id,
+          initialPath: normalizeRemotePath(currentPath || session.current_path || '/'),
+          replacedFileSessionId: session.id,
+        })
       }
       adoptDirectoryStateForRecoveredSession(session.id, recovered)
       attempt.targetSessionId = recovered.id

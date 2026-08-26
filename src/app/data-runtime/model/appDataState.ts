@@ -40,6 +40,7 @@ export const initialData: AppData = {
   credentials: [],
   sessions: [],
   fileSessions: [],
+  fileAccessProfiles: [],
   forwardProfiles: [],
   forwards: [],
   remoteDesktopProfiles: [],

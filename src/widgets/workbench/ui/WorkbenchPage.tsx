@@ -37,6 +37,7 @@ import type {
   FileBookmark,
   FileBookmarkInput,
   FileSession,
+  FileSessionConnectInput,
   FileSessionClosureState,
 } from '#entities/file'
 import { commandDockHeightLimits, parseCommandDockHeight } from '../model/commandDockHeight'
@@ -163,12 +164,7 @@ export interface WorkbenchPageProps {
   onRefreshInventory: (sessionId: string, force: boolean, signal?: AbortSignal) => Promise<Session>
   onOpenFiles: (session: Session) => Promise<void>
   onManageBookmarks: (session: Session) => Promise<void>
-  onConnectFileSession: (
-    hostId: string,
-    sourceSessionId?: string,
-    initialPath?: string,
-    replacedFileSessionId?: string,
-  ) => Promise<FileSession>
+  onConnectFileSession: (input: FileSessionConnectInput) => Promise<FileSession>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
   onCreateFileBookmark: (input: FileBookmarkInput) => Promise<FileBookmark>
@@ -388,9 +384,11 @@ export function WorkbenchPage({
     fileBookmarkGroups: filesView.fileBookmarkGroups,
     fileBookmarks: filesView.fileBookmarks,
     fileSessions: filesView.fileSessions,
+    fileAccessProfiles: filesView.fileAccessProfiles,
   }), [
     filesView.fileBookmarkGroups,
     filesView.fileBookmarks,
+    filesView.fileAccessProfiles,
     filesView.fileSessions,
     hostView.hosts,
     sessionView.sessions,

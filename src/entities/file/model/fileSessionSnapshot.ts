@@ -1,5 +1,6 @@
 import type {
   FileSession,
+  FileAccessCapability,
   FileSessionOrigin,
   FileSessionStatus,
 } from './types.ts'
@@ -11,6 +12,16 @@ const fileSessionStatuses = new Set<FileSessionStatus>([
   'waiting_trust',
   'disconnected',
   'failed',
+])
+const fileAccessCapabilities = new Set<FileAccessCapability>([
+  'browse',
+  'content_read',
+  'content_write',
+  'entry_mutate',
+  'permission_edit',
+  'transfer',
+  'batch_rename',
+  'name_search',
 ])
 
 export interface FileSessionSnapshotEvent {
@@ -53,8 +64,13 @@ export function normalizeFileSessionResponse(value: unknown): FileSession {
   return decodeFileSession(value)
 }
 
+export function normalizeFileSessionEventResponse(value: unknown): FileSession {
+  return decodeFileSession(value)
+}
+
 export function normalizeFileSessionResponseList(value: unknown): FileSession[] {
-  return requireArray(value, '文件会话清单无效').map(decodeFileSession)
+  return requireArray(value, '文件会话清单无效')
+    .map(decodeFileSession)
 }
 
 function decodeFileSession(value: unknown): FileSession {
@@ -72,10 +88,46 @@ function decodeFileSession(value: unknown): FileSession {
     '文件会话连接代际无效',
   )
   requireOptionalNonNegativeInteger(session.state_seq, '文件会话状态序号无效')
+  const identity = decodeFileSessionAccessIdentity(session)
   return {
     ...session,
+    ...identity,
     origin: decodeFileSessionOrigin(session.origin),
   } as unknown as FileSession
+}
+
+function decodeFileSessionAccessIdentity(session: Record<string, unknown>): Pick<
+  FileSession,
+  'file_access_profile_id' | 'ssh_profile_id' | 'engine' | 'namespace' | 'capabilities'
+> {
+  const engine = requireString(session.engine, '文件会话引擎缺失')
+  if (engine !== 'sftp') {
+    throw new FileSessionSnapshotProtocolError('文件会话引擎无效')
+  }
+  return {
+    file_access_profile_id: requireString(
+      session.file_access_profile_id,
+      '文件访问 Profile ID 缺失',
+    ),
+    ssh_profile_id: requireString(session.ssh_profile_id, 'SSH Profile ID 缺失'),
+    engine,
+    namespace: requireString(session.namespace, '文件会话命名空间缺失'),
+    capabilities: decodeFileAccessCapabilities(session.capabilities),
+  }
+}
+
+function decodeFileAccessCapabilities(value: unknown): FileAccessCapability[] {
+  const capabilities = requireArray(value, '文件会话能力集合无效').map((item) => {
+    const capability = requireString(item, '文件会话能力无效') as FileAccessCapability
+    if (!fileAccessCapabilities.has(capability)) {
+      throw new FileSessionSnapshotProtocolError('文件会话能力无效')
+    }
+    return capability
+  })
+  if (new Set(capabilities).size !== capabilities.length) {
+    throw new FileSessionSnapshotProtocolError('文件会话能力包含重复项')
+  }
+  return [...capabilities].sort()
 }
 
 function decodeFileSessionOrigin(value: unknown): FileSessionOrigin {

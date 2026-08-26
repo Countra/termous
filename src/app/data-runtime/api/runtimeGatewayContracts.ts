@@ -27,6 +27,7 @@ import type {
   FileBookmarkInput,
   FileBookmarkReorderItem,
   FileSession,
+  FileSessionCreateInput,
   LocalPathMapping,
   LocalPathMappingInput,
   LocalPathMappingReorderItem,
@@ -87,6 +88,7 @@ export interface AppDataSnapshotGateway {
   credentials: () => Promise<CredentialView[]>
   sessions: () => Promise<Session[]>
   fileSessions: () => Promise<FileSession[]>
+  fileAccessProfiles: () => Promise<FileAccessProfile[]>
   forwardProfiles: () => Promise<ForwardProfile[]>
   forwards: () => Promise<ForwardInstance[]>
   remoteDesktopProfiles: () => Promise<RemoteDesktopProfile[]>
@@ -240,11 +242,7 @@ export interface SessionCommandGateway {
 }
 
 export interface FileSessionCommandGateway {
-  createFileSession: (
-    hostId: string,
-    sourceSessionId?: string,
-    initialPath?: string,
-  ) => Promise<FileSession>
+  createFileSession: (input: FileSessionCreateInput) => Promise<FileSession>
   deleteFileSession: (id: string) => Promise<void>
   reconnectFileSession: (id: string) => Promise<FileSession>
 }

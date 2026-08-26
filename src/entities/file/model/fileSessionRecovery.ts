@@ -18,6 +18,8 @@ export interface FileSessionDirectoryCacheOwner {
   fileSessionId: string
   hostId: string
   sourceSessionId: string
+  fileAccessProfileId: string
+  sshProfileId: string
 }
 
 export interface FileSessionRecoveryOperation {
@@ -243,6 +245,8 @@ export function selectFileSessionForNavigation(
   sessions: FileSession[],
   hostId: string,
   sourceSessionId = '',
+  fileAccessProfileId = '',
+  sshProfileId = '',
 ) {
   let selected: FileSession | undefined
   let selectedPriority = Number.POSITIVE_INFINITY
@@ -250,6 +254,8 @@ export function selectFileSessionForNavigation(
     if (
       session.host_id !== hostId
       || (sourceSessionId && session.source_session_id !== sourceSessionId)
+      || (fileAccessProfileId && session.file_access_profile_id !== fileAccessProfileId)
+      || (sshProfileId && session.ssh_profile_id !== sshProfileId)
     ) {
       continue
     }
@@ -267,9 +273,23 @@ export function selectFileSessionNavigationTarget(
   closures: Readonly<Record<string, FileSessionClosureState>>,
   hostId: string,
   sourceSessionId: string,
+  fileAccessProfileId = '',
+  sshProfileId = '',
 ) {
-  return selectFileSessionForNavigation(sessions, hostId, sourceSessionId)
-    ?? resolveFileSessionClosure(null, closures[sourceSessionId])
+  const closure = closures[sourceSessionId]
+  const matchingClosure = closure
+    && closure.session.host_id === hostId
+    && (!fileAccessProfileId || closure.session.file_access_profile_id === fileAccessProfileId)
+    && (!sshProfileId || closure.session.ssh_profile_id === sshProfileId)
+      ? closure
+      : undefined
+  return selectFileSessionForNavigation(
+    sessions,
+    hostId,
+    sourceSessionId,
+    fileAccessProfileId,
+    sshProfileId,
+  ) ?? resolveFileSessionClosure(null, matchingClosure)
 }
 
 export function includeActiveFileSessionClosure(
@@ -377,6 +397,8 @@ export function fileSessionDirectoryCacheOwner(
     fileSessionId: session.id,
     hostId: session.host_id,
     sourceSessionId: session.source_session_id ?? '',
+    fileAccessProfileId: session.file_access_profile_id ?? '',
+    sshProfileId: session.ssh_profile_id ?? '',
   }
 }
 
@@ -385,6 +407,13 @@ export function canReuseFileSessionDirectoryCache(
   session: FileSession,
   attempts: ReadonlyMap<string, FileSessionRecoveryAttempt>,
 ) {
+  const identityMatches = owner.hostId === session.host_id
+    && owner.sourceSessionId === (session.source_session_id ?? '')
+    && owner.fileAccessProfileId === (session.file_access_profile_id ?? '')
+    && owner.sshProfileId === (session.ssh_profile_id ?? '')
+  if (!identityMatches) {
+    return false
+  }
   if (owner.fileSessionId === session.id) {
     return true
   }
@@ -398,7 +427,6 @@ export function canReuseFileSessionDirectoryCache(
   }
   return Boolean(
     owner.sourceSessionId
-    && owner.hostId === session.host_id
     && owner.sourceSessionId === session.source_session_id,
   )
 }

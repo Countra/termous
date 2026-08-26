@@ -328,6 +328,7 @@ function createAppDataSnapshotGateway(gateways: {
     credentials: () => gateways.credentials.credentials(),
     sessions: () => gateways.sessions.sessions(),
     fileSessions: () => gateways.fileSessions.fileSessions(),
+    fileAccessProfiles: () => gateways.hosts.fileAccessProfiles(),
     forwardProfiles: () => gateways.forwards.forwardProfiles(),
     forwards: () => gateways.forwards.forwards(),
     remoteDesktopProfiles: () => gateways.remoteDesktop.remoteDesktopProfiles(),

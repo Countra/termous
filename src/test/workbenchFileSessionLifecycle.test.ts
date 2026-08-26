@@ -11,11 +11,9 @@ import {
 } from '#entities/file'
 import {
   beginFileSessionRecovery,
-  buildSourceSessionContexts,
   cancelSupersededFileSessionRecovery,
   canRetryFileSessionRecovery,
   canCompleteFileSessionRecovery,
-  canUseSourceFileSession,
   failFileSessionRecovery,
   fileSessionRecoveryMethod,
   fileSessionRecoveryPresentationKind,
@@ -36,12 +34,21 @@ import {
   shouldSilentlyCancelFileSessionRecovery,
   waitForFileSessionRecovery,
 } from '../features/workbench-files/model/workbenchFileSessionLifecycle.ts'
+import {
+  buildSourceSessionContexts,
+  canUseSourceFileSession,
+} from '../features/workbench-files/model/workbenchFileSessionIdentity.ts'
 import { FileSessionRecoverySupersededError } from '#entities/file'
 
 function fileSession(overrides: Partial<FileSession> = {}): FileSession {
   return {
     id: 'fs-1',
     host_id: 'host-1',
+    file_access_profile_id: 'file-1',
+    ssh_profile_id: 'ssh-1',
+    engine: 'sftp',
+    namespace: 'posix',
+    capabilities: ['browse'],
     origin: 'app',
     source_session_id: 'session-1',
     status: 'connecting',
@@ -57,6 +64,7 @@ function sourceSession(overrides: Partial<Session> = {}): Session {
   return {
     id: 'session-1',
     host_id: 'host-1',
+    ssh_profile_id: 'ssh-1',
     kind: 'ssh',
     origin: 'app',
     status: 'connected',
@@ -115,12 +123,12 @@ test('源会话权威状态阻止删除成功后的旧文件会话复活并允�
   const noClosingSessions = new Set<string>()
   const closingSourceA = new Set(['session-1'])
 
-  assert.equal(canUseSourceFileSession(activeContexts, 'session-1', 'host-1', noClosingSessions), true)
+  assert.equal(canUseSourceFileSession(activeContexts, 'session-1', 'host-1', noClosingSessions, 'ssh-1'), true)
   assert.equal(resolveSourceFileSession(true, override, undefined), override)
 
-  assert.equal(canUseSourceFileSession(activeContexts, 'session-1', 'host-1', closingSourceA), false)
-  assert.equal(canUseSourceFileSession(activeContexts, 'session-1', 'host-1', noClosingSessions), true)
-  assert.equal(canUseSourceFileSession(removedContexts, 'session-1', 'host-1', noClosingSessions), false)
+  assert.equal(canUseSourceFileSession(activeContexts, 'session-1', 'host-1', closingSourceA, 'ssh-1'), false)
+  assert.equal(canUseSourceFileSession(activeContexts, 'session-1', 'host-1', noClosingSessions, 'ssh-1'), true)
+  assert.equal(canUseSourceFileSession(removedContexts, 'session-1', 'host-1', noClosingSessions, 'ssh-1'), false)
   assert.equal(resolveSourceFileSession(false, override, override), null)
 })
 
@@ -193,20 +201,20 @@ test('跨页面关闭新文件会话时不会被旧 ID 的工作站快照覆盖'
 test('异步文件请求按所属 source 校验，不受活动远程或本地页签切换干扰', () => {
   const contexts = buildSourceSessionContexts([
     sourceSession(),
-    sourceSession({ id: 'session-2', host_id: 'host-2' }),
+    sourceSession({ id: 'session-2', host_id: 'host-2', ssh_profile_id: 'ssh-2' }),
   ])
   const noClosingSessions = new Set<string>()
   const closingSourceA = new Set(['session-1'])
   const closingSourceB = new Set(['session-2'])
 
   // 切换到 B 或本地页签不会让仍存活的 A 响应失效。
-  assert.equal(canUseSourceFileSession(contexts, 'session-1', 'host-1', noClosingSessions), true)
-  assert.equal(canUseSourceFileSession(contexts, 'session-1', 'host-1', closingSourceB), true)
+  assert.equal(canUseSourceFileSession(contexts, 'session-1', 'host-1', noClosingSessions, 'ssh-1'), true)
+  assert.equal(canUseSourceFileSession(contexts, 'session-1', 'host-1', closingSourceB, 'ssh-1'), true)
 
   // 后台关闭 A 只阻断 A；删除失败移除 closing 后，同一 source 可以恢复。
-  assert.equal(canUseSourceFileSession(contexts, 'session-1', 'host-1', closingSourceA), false)
-  assert.equal(canUseSourceFileSession(contexts, 'session-2', 'host-2', closingSourceA), true)
-  assert.equal(canUseSourceFileSession(contexts, 'session-1', 'host-1', noClosingSessions), true)
+  assert.equal(canUseSourceFileSession(contexts, 'session-1', 'host-1', closingSourceA, 'ssh-1'), false)
+  assert.equal(canUseSourceFileSession(contexts, 'session-2', 'host-2', closingSourceA, 'ssh-2'), true)
+  assert.equal(canUseSourceFileSession(contexts, 'session-1', 'host-1', noClosingSessions, 'ssh-1'), true)
 })
 
 test('文件会话进入终止态或不存在时停止事件流', () => {

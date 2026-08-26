@@ -8,6 +8,7 @@ import {
   upsertFileSessionSnapshot,
   type FileSession,
   type FileSessionClosureState,
+  type FileSessionConnectInput,
 } from '#entities/file'
 import type { FileSessionCommandGateway } from '../api/runtimeGatewayContracts'
 import {
@@ -49,18 +50,23 @@ export function createFileSessionCommands({
   supersedeFileSessionRecoveryOperation,
 }: FileSessionCommandDependencies) {
   return {
-    async connectFileSession(
-      hostId: string,
-      sourceSessionId = '',
-      initialPath = '',
-      replacedFileSessionId = '',
-    ) {
+    async connectFileSession(input: FileSessionConnectInput) {
+      const replacedFileSessionId = input.replacedFileSessionId ?? ''
       if (replacedFileSessionId) {
         bumpSessionRevision(fileSessionEventRevisions, replacedFileSessionId)
       }
-      const createFileSession = () => (
-        api.createFileSession(hostId, sourceSessionId, initialPath)
-      )
+      const createInput = input.fileAccessProfileId !== undefined
+        ? {
+            fileAccessProfileId: input.fileAccessProfileId,
+            sourceSessionId: input.sourceSessionId,
+            initialPath: input.initialPath,
+          }
+        : {
+            hostId: input.hostId,
+            sourceSessionId: input.sourceSessionId,
+            initialPath: input.initialPath,
+          }
+      const createFileSession = () => api.createFileSession(createInput)
       const fileSession = replacedFileSessionId
         ? await runQueuedFileSessionRecoveryOperation(
             fileSessionRecoveryCloseEpochs,

@@ -8,6 +8,7 @@ import type {
   LocalPathMapping,
 } from '#entities/file'
 import type { ForwardInstance, ForwardProfile } from '#entities/forward'
+import type { FileAccessProfile } from '#entities/file-access-profile'
 import type { Host, HostGroup, HostIcon, HostReachability } from '#entities/host'
 import type { RemoteDesktopProfile, RemoteDesktopSession } from '#entities/remote-desktop'
 import type { CodeSnippet, CodeSnippetGroup } from '#entities/snippet'
@@ -21,6 +22,7 @@ export interface AppData {
   credentials: CredentialView[]
   sessions: Session[]
   fileSessions: FileSession[]
+  fileAccessProfiles: FileAccessProfile[]
   forwardProfiles: ForwardProfile[]
   forwards: ForwardInstance[]
   remoteDesktopProfiles: RemoteDesktopProfile[]

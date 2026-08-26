@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   decodeFileSessionSnapshotEvent,
   filterSuppressedFileSessions,
+  normalizeFileSessionEventResponse,
   normalizeFileSessionResponse,
   normalizeFileSessionResponseList,
   releaseConfirmedFileSessionCloseSuppressions,
@@ -16,21 +17,35 @@ import {
   reconcileVisibleAuthoritativeFileSessionSnapshot,
 } from '../app/data-runtime/model/fileSessionSnapshotState.ts'
 
-test('文件会话清单解码来源并兼容旧 Core', () => {
+test('文件会话 HTTP 与 WebSocket 合同都要求完整访问身份', () => {
   const legacy = fileSession('legacy')
-  const withoutOrigin = { ...legacy } as Partial<FileSession>
-  delete withoutOrigin.origin
+  const strictWithoutOrigin = { ...legacy } as Partial<FileSession>
+  delete strictWithoutOrigin.origin
+  const legacyEventSession = { ...strictWithoutOrigin }
+  delete legacyEventSession.file_access_profile_id
+  delete legacyEventSession.ssh_profile_id
+  delete legacyEventSession.engine
+  delete legacyEventSession.namespace
+  delete legacyEventSession.capabilities
   const event = decodeFileSessionSnapshotEvent({
     type: 'file_session_snapshot',
     instance_id: 'file-sessions-a',
     revision: 4,
-    sessions: [withoutOrigin, fileSession('mcp', { origin: 'mcp' })],
+    sessions: [strictWithoutOrigin, fileSession('mcp', { origin: 'mcp' })],
   })
 
   assert.equal(event.sessions[0]?.origin, 'app')
   assert.equal(event.sessions[1]?.origin, 'mcp')
-  assert.equal(normalizeFileSessionResponse(withoutOrigin).origin, 'app')
-  assert.equal(normalizeFileSessionResponseList([withoutOrigin])[0]?.origin, 'app')
+  assert.equal(normalizeFileSessionResponse(strictWithoutOrigin).origin, 'app')
+  assert.equal(normalizeFileSessionResponseList([strictWithoutOrigin])[0]?.origin, 'app')
+  assert.throws(() => normalizeFileSessionResponse(legacyEventSession), /文件会话引擎缺失/)
+  assert.throws(() => normalizeFileSessionEventResponse(legacyEventSession), /文件会话引擎缺失/)
+  assert.throws(() => decodeFileSessionSnapshotEvent({
+    type: 'file_session_snapshot',
+    instance_id: 'file-sessions-a',
+    revision: 5,
+    sessions: [legacyEventSession],
+  }), /文件会话引擎缺失/)
   assert.throws(() => decodeFileSessionSnapshotEvent({
     type: 'file_session_snapshot',
     instance_id: 'file-sessions-a',
@@ -291,6 +306,11 @@ function fileSession(
   return {
     id,
     host_id: `host-${id}`,
+    file_access_profile_id: `file-profile-${id}`,
+    ssh_profile_id: `ssh-profile-${id}`,
+    engine: 'sftp',
+    namespace: 'posix',
+    capabilities: ['browse'],
     origin: 'app',
     status: 'connected',
     phase: 'ready',

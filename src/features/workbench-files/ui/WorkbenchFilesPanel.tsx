@@ -77,12 +77,14 @@ import {
 } from '#features/remote-file'
 import type { AppTheme as ThemeMode, TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
+import type { FileAccessProfile } from '#entities/file-access-profile'
 import type { Session } from '#entities/session'
 import type {
   FileBookmark,
   FileBookmarkGroup,
   FileBookmarkInput,
   FileSession,
+  FileSessionConnectInput,
   LocalGrantSource,
   RemoteFileEntry,
   TransferTask,
@@ -148,12 +150,7 @@ interface WorkbenchFilesPanelProps {
   ) => Promise<FileBookmark>
   pathNavigationIntent: WorkbenchFilesPathNavigationIntent | null
   onConsumePathNavigationIntent: (requestId: number) => void
-  onConnectFileSession: (
-    hostId: string,
-    sourceSessionId?: string,
-    initialPath?: string,
-    replacedFileSessionId?: string,
-  ) => Promise<FileSession>
+  onConnectFileSession: (input: FileSessionConnectInput) => Promise<FileSession>
   onReconnectSession: (session: Session) => Promise<void>
   onReconnectFileSession: (fileSessionId: string) => Promise<FileSession>
   onUpdateFileSession: (fileSession: FileSession) => void
@@ -161,6 +158,7 @@ interface WorkbenchFilesPanelProps {
 
 interface WorkbenchFilesData {
   hosts: Host[]
+  fileAccessProfiles: FileAccessProfile[]
   fileBookmarkGroups: FileBookmarkGroup[]
   fileBookmarks: FileBookmark[]
   fileSessions: FileSession[]

@@ -54,3 +54,19 @@ export function selectDefaultFileAccessProfile(
   const defaults = profiles.filter((profile) => profile.host_id === hostId && profile.is_default)
   return defaults.length === 1 ? defaults[0] : undefined
 }
+
+export function selectCompanionSFTPFileAccessProfile(
+  profiles: FileAccessProfile[],
+  hostId: string,
+  sshProfileId: string,
+) {
+  if (!hostId || !sshProfileId) {
+    return undefined
+  }
+  const matches = profiles.filter((profile) => (
+    profile.host_id === hostId
+    && profile.engine === 'sftp'
+    && profile.sftp.ssh_profile_id === sshProfileId
+  ))
+  return matches.length === 1 ? matches[0] : undefined
+}

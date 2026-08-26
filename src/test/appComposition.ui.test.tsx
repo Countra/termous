@@ -474,6 +474,7 @@ describe('应用运行时组合合同', () => {
       'terminalSettings',
     ])
     expect(testState.projectionKeys.workbenchFilesView).toEqual([
+      'fileAccessProfiles',
       'fileBookmarkGroups',
       'fileBookmarks',
       'fileSessions',

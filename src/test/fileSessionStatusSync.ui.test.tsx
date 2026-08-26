@@ -48,6 +48,11 @@ function fileSession(
   return {
     id,
     host_id: `host-${id}`,
+    file_access_profile_id: `file-profile-${id}`,
+    ssh_profile_id: `ssh-profile-${id}`,
+    engine: 'sftp',
+    namespace: 'posix',
+    capabilities: ['browse'],
     origin: 'app',
     status: 'connected',
     phase: 'ready',
