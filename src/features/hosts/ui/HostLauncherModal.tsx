@@ -10,6 +10,7 @@ import {
   Globe2,
   KeyRound,
   ListFilter,
+  MonitorPlay,
   Network,
   Plus,
   RefreshCcw,
@@ -18,16 +19,12 @@ import {
   Star,
   Tags,
   UserRound,
-  WifiOff,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   AuthMethodBadge,
   HostAvatar,
-  type Host,
-  type HostGroup,
-  type HostReachability,
 } from '#entities/host'
 import {
   confirmDialogStyles,
@@ -40,13 +37,31 @@ import {
   type HostLauncherActionId,
   type HostLauncherIntent,
 } from '../model/hostLauncherIntent.ts'
+import {
+  buildGroupFilterOptions,
+  buildTagOptions,
+  filterHosts,
+  formatDateTime,
+  groupHosts,
+  tagKey,
+  type LauncherAuthFilter,
+  type LauncherFilter,
+  type LauncherGroupFilter,
+  type LauncherPlatformFilter,
+} from '../model/hostLauncherListModel.ts'
+import {
+  buildHostLauncherProfileMenu,
+  type HostLauncherProfileMenuItem,
+} from '../model/hostLauncherProfiles.ts'
 import type { HostLauncherData } from '../model/types.ts'
+import {
+  DetailItem,
+  HostReachabilityDot,
+  HostReachabilityPill,
+  LatencyValue,
+} from './HostLauncherDetailParts.tsx'
+import { HostLauncherProfileAction } from './HostLauncherProfileAction.tsx'
 import styles from './HostLauncherModal.module.scss'
-
-type LauncherFilter = 'all' | 'recent' | 'online' | 'favorite'
-type LauncherPlatformFilter = 'all' | Host['platform']
-type LauncherAuthFilter = 'all' | Host['auth_method']
-type LauncherGroupFilter = 'all' | '__ungrouped' | string
 
 const renderHostLauncherFilterPopup = (content: ReactNode) => (
   <div data-host-launcher-filter-popup>{content}</div>
@@ -54,16 +69,19 @@ const renderHostLauncherFilterPopup = (content: ReactNode) => (
 
 export interface HostLauncherModalProps {
   open: boolean
+  instanceKey: number
   intent?: HostLauncherIntent
   data: HostLauncherData
   selectedHostId: string
   actionBusy: boolean
   onClose: () => void
   onSelectHost: (hostId: string) => void
-  onConnect: (hostId: string) => Promise<void>
+  onConnectSSHProfile: (profileId: string) => Promise<void>
   onCreateHost: () => void
   onEditHost: (hostId: string) => void
-  onOpenFiles: (hostId: string) => Promise<void>
+  onManageHostAccess: (hostId: string) => void
+  onOpenFileProfile: (profileId: string, hostId: string) => Promise<void>
+  onOpenRemoteDesktopProfile: (profileId: string) => Promise<void>
   onOpenForward: (hostId: string) => void
   onToggleFavorite: (hostId: string) => Promise<void>
   onRefreshReachability: (hostIds?: string[], force?: boolean) => Promise<void>
@@ -72,16 +90,19 @@ export interface HostLauncherModalProps {
 
 export function HostLauncherModal({
   open,
+  instanceKey,
   intent = 'terminal',
   data,
   selectedHostId,
   actionBusy,
   onClose,
   onSelectHost,
-  onConnect,
+  onConnectSSHProfile,
   onCreateHost,
   onEditHost,
-  onOpenFiles,
+  onManageHostAccess,
+  onOpenFileProfile,
+  onOpenRemoteDesktopProfile,
   onOpenForward,
   onToggleFavorite,
   onRefreshReachability,
@@ -98,7 +119,10 @@ export function HostLauncherModal({
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(() => new Set())
   const [refreshingReachability, setRefreshingReachability] = useState(false)
   const [pendingHostAction, setPendingHostAction] = useState<HostLauncherActionId | null>(null)
+  const [pendingProfileId, setPendingProfileId] = useState<string | null>(null)
   const pendingHostActionRef = useRef<HostLauncherActionId | null>(null)
+  const openGenerationRef = useRef(0)
+  const launcherOpenRef = useRef(false)
   const refreshReachabilityRef = useRef(onRefreshReachability)
   const autoRefreshOpenRef = useRef(false)
   const filterAnchorRef = useRef<HTMLDivElement>(null)
@@ -144,6 +168,46 @@ export function HostLauncherModal({
   ].filter(Boolean).length
   const actionPlan = hostLauncherActionPlan(intent)
   const hostActionBusy = actionBusy || pendingHostAction !== null
+  const selectedProfileMenu = useMemo(
+    () => buildHostLauncherProfileMenu({
+      sshAccessProfiles: data.sshAccessProfiles,
+      fileAccessProfiles: data.fileAccessProfiles,
+      remoteDesktopProfiles: data.remoteDesktopProfiles,
+    }, selectedHost?.id ?? '', intent),
+    [
+      data.fileAccessProfiles,
+      data.remoteDesktopProfiles,
+      data.sshAccessProfiles,
+      intent,
+      selectedHost?.id,
+    ],
+  )
+
+  const invalidateOpenGeneration = () => {
+    launcherOpenRef.current = false
+    openGenerationRef.current += 1
+    pendingHostActionRef.current = null
+    setPendingHostAction(null)
+    setPendingProfileId(null)
+  }
+
+  const closeLauncher = () => {
+    invalidateOpenGeneration()
+    onClose()
+  }
+
+  useEffect(() => {
+    openGenerationRef.current += 1
+    launcherOpenRef.current = open
+    pendingHostActionRef.current = null
+    setPendingHostAction(null)
+    setPendingProfileId(null)
+    autoRefreshOpenRef.current = false
+    return () => {
+      launcherOpenRef.current = false
+      openGenerationRef.current += 1
+    }
+  }, [instanceKey, open])
 
   useEffect(() => {
     refreshReachabilityRef.current = onRefreshReachability
@@ -182,7 +246,7 @@ export function HostLauncherModal({
     return () => {
       disposed = true
     }
-  }, [hostIds, open])
+  }, [hostIds, instanceKey, open])
 
   useEffect(() => {
     if (!filterOpen) {
@@ -202,13 +266,30 @@ export function HostLauncherModal({
     return () => window.removeEventListener('pointerdown', handlePointerDown, true)
   }, [filterOpen])
 
-  const executeHostAction = async (actionId: HostLauncherActionId, hostId: string) => {
+  const resolveDefaultProfile = (actionId: HostLauncherActionId, hostId: string) => {
+    const targetIntent = launcherIntentForAction(actionId)
+    if (!targetIntent) return null
+    const menu = buildHostLauncherProfileMenu(data, hostId, targetIntent)
+    return menu.defaultResolution === 'resolved' ? menu.defaultItem : null
+  }
+
+  const executeHostAction = async (
+    actionId: HostLauncherActionId,
+    hostId: string,
+    profile: HostLauncherProfileMenuItem | null,
+  ) => {
     if (actionId === 'connect') {
-      await onConnect(hostId)
+      if (profile?.intent === 'terminal') await onConnectSSHProfile(profile.profileId)
       return
     }
     if (actionId === 'openFiles') {
-      await onOpenFiles(hostId)
+      if (profile?.intent === 'files') await onOpenFileProfile(profile.profileId, hostId)
+      return
+    }
+    if (actionId === 'openRemoteDesktop') {
+      if (profile?.intent === 'remote_desktop') {
+        await onOpenRemoteDesktopProfile(profile.profileId)
+      }
       return
     }
     if (actionId === 'editHost') {
@@ -218,31 +299,65 @@ export function HostLauncherModal({
     onOpenForward(hostId)
   }
 
-  const runHostAction = async (actionId: HostLauncherActionId, hostId: string) => {
+  const runHostAction = async (
+    actionId: HostLauncherActionId,
+    hostId: string,
+    requestedProfile?: HostLauncherProfileMenuItem,
+  ) => {
     if (!hostId || actionBusy || pendingHostActionRef.current !== null) {
+      return
+    }
+    const targetIntent = launcherIntentForAction(actionId)
+    const profile = targetIntent
+      ? requestedProfile ?? resolveDefaultProfile(actionId, hostId)
+      : null
+    if (
+      targetIntent
+      && (
+        !profile
+        || profile.hostId !== hostId
+        || profile.intent !== targetIntent
+        || profile.availability !== 'ready'
+      )
+    ) {
       return
     }
     pendingHostActionRef.current = actionId
     setPendingHostAction(actionId)
+    setPendingProfileId(profile?.profileId ?? null)
+    const openGeneration = openGenerationRef.current
     try {
-      await executeHostAction(actionId, hostId)
-      onClose()
+      await executeHostAction(actionId, hostId, profile)
+      if (
+        launcherOpenRef.current
+        && openGenerationRef.current === openGeneration
+      ) {
+        closeLauncher()
+      }
+    } catch {
+      // 错误提示由应用层动作适配器统一处理，此处只终止本次关闭流程。
     } finally {
-      pendingHostActionRef.current = null
-      setPendingHostAction(null)
+      if (openGenerationRef.current === openGeneration) {
+        pendingHostActionRef.current = null
+        setPendingHostAction(null)
+        setPendingProfileId(null)
+      }
     }
-  }
-
-  const runSelectedPrimaryAction = () => {
-    if (!selectedHost) {
-      return
-    }
-    return runHostAction(actionPlan.primary, selectedHost.id)
   }
 
   const runLauncherAction = async (action: () => void | Promise<void>) => {
-    await action()
-    onClose()
+    const openGeneration = openGenerationRef.current
+    try {
+      await action()
+      if (
+        launcherOpenRef.current
+        && openGenerationRef.current === openGeneration
+      ) {
+        closeLauncher()
+      }
+    } catch {
+      // Launcher 外层负责呈现动作错误，弹窗保持当前状态供用户继续处理。
+    }
   }
 
   const handleLauncherKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -428,7 +543,9 @@ export function HostLauncherModal({
 
   const launcherTitle = intent === 'files'
     ? t('files.openFileSession')
-    : t('workbench.hostLauncher.kicker')
+    : intent === 'remote_desktop'
+      ? t('remoteDesktop.newConnection')
+      : t('workbench.hostLauncher.kicker')
 
   return (
     <Modal
@@ -438,7 +555,7 @@ export function HostLauncherModal({
       footer={null}
       title={launcherTitle}
       keyboard={!filterOpen}
-      onCancel={onClose}
+      onCancel={closeLauncher}
       className="host-launcher-modal termous-modal"
       rootClassName={`${confirmDialogStyles['modal-root']} host-launcher-modal-root ${styles['host-launcher-scope']}`}
     >
@@ -447,7 +564,9 @@ export function HostLauncherModal({
           <span className="host-launcher-title" aria-hidden="true">
             {intent === 'files'
               ? <FolderOpen size={15} aria-hidden="true" />
-              : <Cable size={15} aria-hidden="true" />}
+              : intent === 'remote_desktop'
+                ? <MonitorPlay size={15} aria-hidden="true" />
+                : <Cable size={15} aria-hidden="true" />}
             {launcherTitle}
           </span>
           {hasHosts ? (
@@ -674,16 +793,17 @@ export function HostLauncherModal({
                     ))}
                   </div>
                 </div>
-                <ConnectionActionButton
-                  block
-                  size="large"
-                  icon={hostLauncherActionIcon(actionPlan.primary, 17)}
-                  loading={pendingHostAction === actionPlan.primary}
-                  disabled={hostActionBusy}
-                  onClick={() => void runSelectedPrimaryAction()}
-                >
-                  {hostLauncherActionLabel(actionPlan.primary, t)}
-                </ConnectionActionButton>
+                <HostLauncherProfileAction
+                  menu={selectedProfileMenu}
+                  busy={hostActionBusy}
+                  pendingProfileId={pendingProfileId}
+                  onManage={() => void runLauncherAction(() => onManageHostAccess(selectedHost.id))}
+                  onRun={(profile) => void runHostAction(
+                    profile.actionId,
+                    selectedHost.id,
+                    profile,
+                  )}
+                />
               </>
             ) : (
               <div className="host-launcher-detail-empty">
@@ -735,6 +855,9 @@ function hostLauncherActionLabel(
   if (actionId === 'openFiles') {
     return t('workbench.hostLauncher.openFiles')
   }
+  if (actionId === 'openRemoteDesktop') {
+    return t('workbench.hostLauncher.openRemoteDesktop')
+  }
   if (actionId === 'editHost') {
     return t('workbench.hostLauncher.editHost')
   }
@@ -748,277 +871,20 @@ function hostLauncherActionIcon(actionId: HostLauncherActionId, size: number) {
   if (actionId === 'openFiles') {
     return <FolderOpen size={size} />
   }
+  if (actionId === 'openRemoteDesktop') {
+    return <MonitorPlay size={size} />
+  }
   if (actionId === 'editHost') {
     return <Edit3 size={size} />
   }
   return <Network size={size} />
 }
 
-function DetailItem({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
-  return (
-    <div className="host-launcher-detail-item">
-      <span className="host-launcher-detail-icon">
-        {icon}
-      </span>
-      <div className="host-launcher-detail-copy">
-        <dt>{label}</dt>
-        <dd>{value}</dd>
-      </div>
-    </div>
-  )
-}
-
-function HostReachabilityDot({ state, usesProxy = false }: { state?: HostReachability; usesProxy?: boolean }) {
-  const { t } = useTranslation()
-  const status = state?.status ?? 'unknown'
-  return (
-    <Tooltip title={reachabilityTooltip(state, t, usesProxy)}>
-      <span className={`host-reachability-dot is-${status}`} aria-label={reachabilityTooltip(state, t, usesProxy)} />
-    </Tooltip>
-  )
-}
-
-function HostReachabilityPill({ state, usesProxy = false }: { state?: HostReachability; usesProxy?: boolean }) {
-  const { t } = useTranslation()
-  const status = state?.status ?? 'unknown'
-  const Icon = status === 'online' ? Activity : status === 'checking' ? RefreshCcw : status === 'offline' ? WifiOff : Globe2
-  return (
-    <Tooltip title={reachabilityTooltip(state, t, usesProxy)}>
-      <span className={`host-reachability-pill is-${status}`}>
-        <Icon size={13} aria-hidden="true" />
-        <span>{t(`workbench.hostLauncher.reachability.${status}`)}</span>
-      </span>
-    </Tooltip>
-  )
-}
-
-function LatencyValue({ state }: { state?: HostReachability }) {
-  const { t } = useTranslation()
-  const level = latencyLevel(state)
-  const label = latencySignalLabel(state, t)
-
-  return (
-    <Tooltip title={label}>
-      <span className="host-latency-value" aria-label={label}>
-        <span className={`host-latency-signal is-${level}`} aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </span>
-        <span>{formatReachabilityLatency(state, t)}</span>
-      </span>
-    </Tooltip>
-  )
-}
-
-function filterHosts(
-  hosts: Host[],
-  groupsById: Map<string, string>,
-  reachabilityByHostId: Record<string, HostReachability>,
-  query: string,
-  filter: LauncherFilter,
-  platformFilter: LauncherPlatformFilter,
-  groupFilter: LauncherGroupFilter,
-  authFilter: LauncherAuthFilter,
-  selectedTags: string[],
-) {
-  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  const selectedTagKeys = selectedTags.map(tagKey)
-  const filtered = hosts.filter((host) => {
-    const reachability = reachabilityByHostId[host.id]
-    const reachabilityStatus = reachability?.status ?? 'unknown'
-    if (platformFilter !== 'all' && host.platform !== platformFilter) {
-      return false
-    }
-    if (groupFilter !== 'all' && (host.group_id || '__ungrouped') !== groupFilter) {
-      return false
-    }
-    if (authFilter !== 'all' && host.auth_method !== authFilter) {
-      return false
-    }
-    if (filter === 'online' && reachabilityStatus !== 'online' && reachabilityStatus !== 'checking') {
-      return false
-    }
-    if (filter === 'recent' && timestamp(host.last_connected_at) <= 0) {
-      return false
-    }
-    if (filter === 'favorite' && !host.favorite) {
-      return false
-    }
-    const hostTags = host.tags ?? []
-    const hostTagKeys = new Set(hostTags.map(tagKey))
-    if (selectedTagKeys.length > 0 && !selectedTagKeys.every((tag) => hostTagKeys.has(tag))) {
-      return false
-    }
-    if (tokens.length === 0) {
-      return true
-    }
-    const searchable = [
-      host.name,
-      host.address,
-      host.username,
-      String(host.port),
-      host.note ?? '',
-      groupsById.get(host.group_id) ?? '',
-      hostTags.join(' '),
-    ].join(' ').toLowerCase()
-    return tokens.every((token) => searchable.includes(token))
-  })
-  return filtered.sort((left, right) => {
-    const recentDelta = timestamp(right.last_connected_at) - timestamp(left.last_connected_at)
-    if (filter === 'recent') {
-      return recentDelta || left.name.localeCompare(right.name)
-    }
-    if (left.favorite !== right.favorite) {
-      return left.favorite ? -1 : 1
-    }
-    if (recentDelta !== 0) {
-      return recentDelta
-    }
-    return left.name.localeCompare(right.name)
-  })
-}
-
-function groupHosts(hosts: Host[], groups: HostGroup[], fallbackGroupName: string) {
-  const groupNames = new Map(groups.map((group) => [group.id, group.name]))
-  const buckets = new Map<string, { id: string; name: string; hosts: Host[]; order: number }>()
-  for (const host of hosts) {
-    const id = host.group_id || '__ungrouped'
-    if (!buckets.has(id)) {
-      const groupIndex = groups.findIndex((group) => group.id === host.group_id)
-      buckets.set(id, {
-        id,
-        name: groupNames.get(host.group_id) || fallbackGroupName,
-        hosts: [],
-        order: groupIndex >= 0 ? groupIndex : Number.MAX_SAFE_INTEGER,
-      })
-    }
-    buckets.get(id)?.hosts.push(host)
-  }
-  return Array.from(buckets.values()).sort((left, right) => {
-    if (left.order !== right.order) {
-      return left.order - right.order
-    }
-    return left.name.localeCompare(right.name)
-  })
-}
-
-function buildGroupFilterOptions(hosts: Host[], groups: HostGroup[], fallbackGroupName: string, allLabel: string) {
-  const options = [
-    { value: 'all', label: allLabel },
-    ...groups.map((group) => ({ value: group.id, label: group.name })),
-  ]
-  if (hosts.some((host) => !host.group_id)) {
-    options.push({ value: '__ungrouped', label: fallbackGroupName })
-  }
-  return options
-}
-
-function buildTagOptions(hosts: Host[]) {
-  const map = new Map<string, { key: string; label: string; count: number }>()
-  for (const host of hosts) {
-    const seen = new Set<string>()
-    for (const rawTag of host.tags ?? []) {
-      const label = rawTag.trim()
-      const key = tagKey(label)
-      if (!label || seen.has(key)) {
-        continue
-      }
-      seen.add(key)
-      const existing = map.get(key)
-      if (existing) {
-        existing.count += 1
-      } else {
-        map.set(key, { key, label, count: 1 })
-      }
-    }
-  }
-  return Array.from(map.values()).sort((left, right) => left.label.localeCompare(right.label))
-}
-
-function tagKey(value: string) {
-  return value.trim().toLowerCase()
-}
-
-function timestamp(value?: string) {
-  if (!value) {
-    return 0
-  }
-  const time = new Date(value).getTime()
-  return Number.isNaN(time) ? 0 : time
-}
-
-function formatDateTime(value: string | undefined, fallback: string) {
-  if (!value) {
-    return fallback
-  }
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return fallback
-  }
-  return date.toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-}
-
-function reachabilityTooltip(
-  state: HostReachability | undefined,
-  t: (key: string, options?: Record<string, string | number>) => string,
-  usesProxy = false,
-) {
-  const status = state?.status ?? 'unknown'
-  let label: string
-  if (status === 'online' && state?.latency_ms !== undefined) {
-    label = t('workbench.hostLauncher.reachabilityTooltip.online', { latency: state.latency_ms })
-  } else if ((status === 'offline' || status === 'unavailable') && state?.error_message) {
-    label = state.error_message
-  } else {
-    label = t(`workbench.hostLauncher.reachabilityTooltip.${status}`)
-  }
-  return usesProxy
-    ? `${label} · ${t('proxies.reachabilityDirectHint')}`
-    : label
-}
-
-function formatReachabilityLatency(
-  state: HostReachability | undefined,
-  t: (key: string, options?: Record<string, string | number>) => string,
-) {
-  if (!state || state.status === 'unknown') {
-    return t('fields.none')
-  }
-  if (state.status === 'checking') {
-    return t('workbench.hostLauncher.reachability.checking')
-  }
-  if (state.status !== 'online' || state.latency_ms === undefined) {
-    return t('workbench.hostLauncher.reachability.offline')
-  }
-  return t('workbench.hostLauncher.latencyValue', { latency: state.latency_ms })
-}
-
-type LatencyLevel = 'unknown' | 'low' | 'medium' | 'high'
-
-function latencyLevel(state: HostReachability | undefined): LatencyLevel {
-  if (!state || state.status !== 'online' || state.latency_ms === undefined) {
-    return 'unknown'
-  }
-  if (state.latency_ms <= 80) {
-    return 'low'
-  }
-  if (state.latency_ms <= 180) {
-    return 'medium'
-  }
-  return 'high'
-}
-
-function latencySignalLabel(
-  state: HostReachability | undefined,
-  t: (key: string, options?: Record<string, string | number>) => string,
-) {
-  const level = latencyLevel(state)
-  if (level === 'unknown') {
-    return t('workbench.hostLauncher.latencyLevels.unknown')
-  }
-  return t('workbench.hostLauncher.latencyLevels.value', {
-    level: t(`workbench.hostLauncher.latencyLevels.${level}`),
-    latency: state?.latency_ms ?? 0,
-  })
+function launcherIntentForAction(
+  actionId: HostLauncherActionId,
+): HostLauncherIntent | null {
+  if (actionId === 'connect') return 'terminal'
+  if (actionId === 'openFiles') return 'files'
+  if (actionId === 'openRemoteDesktop') return 'remote_desktop'
+  return null
 }

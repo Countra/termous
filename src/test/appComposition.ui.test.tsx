@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,6 +19,14 @@ const testState = vi.hoisted(() => {
     filesPageUnmounts: 0,
     workbenchForwardsIsArray: false,
     workbenchHostIconURL: '',
+    hostAccessIntent: null as { key: number; hostId: string } | null,
+    onAccessIntentHandled: null as ((key: number) => void) | null,
+    onManageHostAccess: null as ((hostId: string) => void) | null,
+    launcherOpen: false,
+    launcherIntent: 'terminal',
+    onLauncherClose: null as (() => void) | null,
+    onConnectSSHProfile: null as ((profileId: string) => Promise<void>) | null,
+    onOpenFileProfile: null as ((profileId: string, hostId: string) => Promise<void>) | null,
     projectionKeys: {
       workbench: [] as string[],
       workbenchHostView: [] as string[],
@@ -48,9 +56,11 @@ const testState = vi.hoisted(() => {
       credentials: [],
       sessions: [],
       fileSessions: [],
+      sshAccessProfiles: [] as Array<Record<string, unknown>>,
+      fileAccessProfiles: [] as Array<Record<string, unknown>>,
       forwardProfiles: [],
       forwards: [],
-      remoteDesktopProfiles: [],
+      remoteDesktopProfiles: [] as Array<Record<string, unknown>>,
       remoteDesktopSessions: [],
       snippetGroups: [],
       snippets: [],
@@ -165,23 +175,28 @@ vi.mock('#features/remote-desktop', () => ({
   RemoteDesktopRuntimeProvider: ({ children }: { children: ReactNode }) => (
     <div data-provider="remote-desktop">{children}</div>
   ),
+  useRemoteDesktopRuntime: () => ({ createSession: vi.fn() }),
 }))
 
 vi.mock('#app/app-shell', () => ({
   AppShell: ({
     children,
     onNavigate,
+    onOpenConnectionLauncher,
   }: {
     children: ReactNode
-    onNavigate: (page: 'workbench' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets') => void
+    onNavigate: (page: 'workbench' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets' | 'remote-desktop') => void
+    onOpenConnectionLauncher: () => void
   }) => (
     <div data-provider="app-shell">
+      <button type="button" onClick={onOpenConnectionLauncher}>global-connect</button>
       <button type="button" onClick={() => onNavigate('workbench')}>workbench</button>
       <button type="button" onClick={() => onNavigate('hosts')}>hosts</button>
       <button type="button" onClick={() => onNavigate('vault')}>vault</button>
       <button type="button" onClick={() => onNavigate('files')}>files</button>
       <button type="button" onClick={() => onNavigate('forwards')}>forwards</button>
       <button type="button" onClick={() => onNavigate('snippets')}>snippets</button>
+      <button type="button" onClick={() => onNavigate('remote-desktop')}>remote-desktop</button>
       {children}
     </div>
   ),
@@ -258,11 +273,17 @@ vi.mock('#pages/hosts', () => ({
   HostsPage: ({
     data,
     onDirtyChange,
+    accessIntent,
+    onAccessIntentHandled,
   }: {
     data: Record<string, unknown>
     onDirtyChange: (dirty: boolean) => void
+    accessIntent?: { key: number; hostId: string } | null
+    onAccessIntentHandled?: (key: number) => void
   }) => {
     testState.projectionKeys.hosts = Object.keys(data).sort()
+    testState.hostAccessIntent = accessIntent ?? null
+    testState.onAccessIntentHandled = onAccessIntentHandled ?? null
     return (
       <div data-testid="hosts-page">
         Hosts
@@ -273,7 +294,13 @@ vi.mock('#pages/hosts', () => ({
 }))
 
 vi.mock('#pages/files', () => ({
-  FilesPage: ({ data }: { data: Record<string, unknown> }) => {
+  FilesPage: ({
+    data,
+    onOpenFileSessionLauncher,
+  }: {
+    data: Record<string, unknown>
+    onOpenFileSessionLauncher: () => void
+  }) => {
     testState.projectionKeys.files = Object.keys(data).sort()
     useEffect(() => {
       testState.filesPageMounts += 1
@@ -281,10 +308,27 @@ vi.mock('#pages/files', () => ({
         testState.filesPageUnmounts += 1
       }
     }, [])
-    return <div data-testid="files-page">Files</div>
+    return (
+      <div data-testid="files-page">
+        Files
+        <button type="button" onClick={onOpenFileSessionLauncher}>files-connect</button>
+      </div>
+    )
   },
   canCommitFilesBookmarkManagementRequest: () => false,
   consumeFilesBookmarkManagementIntent: () => null,
+}))
+vi.mock('#pages/remote-desktop', () => ({
+  RemoteDesktopPage: ({
+    onOpenConnectionLauncher,
+  }: {
+    onOpenConnectionLauncher: () => void
+  }) => (
+    <div data-testid="remote-desktop-page">
+      Remote Desktop
+      <button type="button" onClick={onOpenConnectionLauncher}>remote-desktop-connect</button>
+    </div>
+  ),
 }))
 vi.mock('#pages/forwards', () => ({
   ForwardsPage: ({ data }: { data: Record<string, unknown> }) => {
@@ -307,12 +351,33 @@ vi.mock('#pages/vault', () => ({
   ),
 }))
 vi.mock('#features/hosts', () => ({
-  HostLauncherModal: ({ data }: { data: Record<string, unknown> }) => {
+  HostLauncherModal: ({
+    data,
+    onManageHostAccess,
+    open,
+    intent,
+    onClose,
+    onConnectSSHProfile,
+    onOpenFileProfile,
+  }: {
+    data: Record<string, unknown>
+    onManageHostAccess: (hostId: string) => void
+    open: boolean
+    intent: string
+    onClose: () => void
+    onConnectSSHProfile: (profileId: string) => Promise<void>
+    onOpenFileProfile: (profileId: string, hostId: string) => Promise<void>
+  }) => {
     testState.projectionKeys.hostLauncher = Object.keys(data).sort()
+    testState.onManageHostAccess = onManageHostAccess
+    testState.launcherOpen = open
+    testState.launcherIntent = intent
+    testState.onLauncherClose = onClose
+    testState.onConnectSSHProfile = onConnectSSHProfile
+    testState.onOpenFileProfile = onOpenFileProfile
     return null
   },
   HostKeyCoordinator: () => null,
-  hostLauncherIntentForPage: (page: string) => page === 'files' ? 'files' : 'terminal',
 }))
 vi.mock('#shared/ui', () => ({
   termousNotificationClassName: 'termous-notification',
@@ -418,6 +483,17 @@ describe('应用运行时组合合同', () => {
     testState.filesPageUnmounts = 0
     testState.workbenchForwardsIsArray = false
     testState.workbenchHostIconURL = ''
+    testState.hostAccessIntent = null
+    testState.onAccessIntentHandled = null
+    testState.onManageHostAccess = null
+    testState.launcherOpen = false
+    testState.launcherIntent = 'terminal'
+    testState.onLauncherClose = null
+    testState.onConnectSSHProfile = null
+    testState.onOpenFileProfile = null
+    testState.data.sshAccessProfiles.splice(0)
+    testState.data.fileAccessProfiles.splice(0)
+    testState.data.remoteDesktopProfiles.splice(0)
     Object.values(testState.projectionKeys).forEach((keys) => keys.splice(0))
     testState.action.mockReset()
     testState.action.mockResolvedValue(undefined)
@@ -489,10 +565,13 @@ describe('应用运行时组合合同', () => {
     )
     expect(testState.projectionKeys.hostLauncher).toEqual([
       'credentials',
+      'fileAccessProfiles',
       'groups',
       'hostReachability',
       'hosts',
       'proxies',
+      'remoteDesktopProfiles',
+      'sshAccessProfiles',
     ])
 
     await user.click(screen.getByRole('button', { name: 'hosts' }))
@@ -513,6 +592,69 @@ describe('应用运行时组合合同', () => {
 
     await user.click(screen.getByRole('button', { name: 'snippets' }))
     expect(testState.projectionKeys.snippets).toEqual(['snippetGroups', 'snippets'])
+  })
+
+  it('全局连接固定使用终端场景，页面入口使用自己的访问场景', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'files' }))
+    await user.click(screen.getByRole('button', { name: 'files-connect' }))
+    expect(testState.launcherOpen).toBe(true)
+    expect(testState.launcherIntent).toBe('files')
+
+    await user.click(screen.getByRole('button', { name: 'global-connect' }))
+    expect(testState.launcherIntent).toBe('files')
+
+    await act(async () => testState.onLauncherClose?.())
+    await user.click(screen.getByRole('button', { name: 'global-connect' }))
+    expect(testState.launcherOpen).toBe(true)
+    expect(testState.launcherIntent).toBe('terminal')
+
+    await act(async () => testState.onLauncherClose?.())
+    await user.click(screen.getByRole('button', { name: 'remote-desktop' }))
+    await user.click(screen.getByRole('button', { name: 'remote-desktop-connect' }))
+    expect(testState.launcherOpen).toBe(true)
+    expect(testState.launcherIntent).toBe('remote_desktop')
+  })
+
+  it('Launcher 连接失败会保留拒绝语义并交给统一错误提示', async () => {
+    const user = userEvent.setup()
+    const connectError = new Error('connect failed')
+    testState.action.mockRejectedValueOnce(connectError)
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'global-connect' }))
+    await expect(testState.onConnectSSHProfile?.('ssh-a')).rejects.toBe(connectError)
+
+    expect(testState.launcherOpen).toBe(true)
+    expect(testState.notifications.error).toHaveBeenCalledTimes(1)
+  })
+
+  it('文件 Profile 连接失败继续拒绝且不误判为打开成功', async () => {
+    const user = userEvent.setup()
+    const connectError = new Error('file connect failed')
+    testState.data.fileAccessProfiles.push({
+      id: 'file-a',
+      host_id: 'host-a',
+      name: 'Primary files',
+      engine: 'sftp',
+      engine_config_version: 1,
+      sftp: { ssh_profile_id: 'ssh-a' },
+      is_default: true,
+      sort_order: 0,
+      created_at: '2026-08-26T00:00:00Z',
+      updated_at: '2026-08-26T00:00:00Z',
+    })
+    testState.action.mockRejectedValueOnce(connectError)
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'files' }))
+    await user.click(screen.getByRole('button', { name: 'files-connect' }))
+    await expect(testState.onOpenFileProfile?.('file-a', 'host-a')).rejects.toBe(connectError)
+
+    expect(testState.launcherOpen).toBe(true)
+    expect(testState.notifications.error).toHaveBeenCalledTimes(1)
   })
 
   it('切换页面时保留 Workbench，并通过 inert 与 active 停用', async () => {
@@ -597,6 +739,24 @@ describe('应用运行时组合合同', () => {
     await user.click(screen.getByRole('button', { name: 'confirm-continue' }))
     expect(screen.queryByTestId('vault-page')).not.toBeInTheDocument()
     expect(screen.getByTestId('hosts-page')).toBeInTheDocument()
+  })
+
+  it('连续打开同一主机访问方式时使用单调递增的一次性意图', async () => {
+    render(<App />)
+
+    await act(async () => testState.onManageHostAccess?.('host-a'))
+    await waitFor(() => expect(testState.hostAccessIntent).toEqual({
+      key: 1,
+      hostId: 'host-a',
+    }))
+    await act(async () => testState.onAccessIntentHandled?.(1))
+    await waitFor(() => expect(testState.hostAccessIntent).toBeNull())
+
+    await act(async () => testState.onManageHostAccess?.('host-a'))
+    await waitFor(() => expect(testState.hostAccessIntent).toEqual({
+      key: 2,
+      hostId: 'host-a',
+    }))
   })
 
   it('主机管理脏状态拦截离页导航，并复用统一确认流程', async () => {

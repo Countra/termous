@@ -25,8 +25,6 @@ import { SnippetsPage, type SnippetsPageProps } from '#pages/snippets'
 import { VaultPage } from '#pages/vault'
 import {
   HostKeyCoordinator,
-  HostLauncherModal,
-  hostLauncherIntentForPage,
   type HostLauncherData,
   type HostLauncherIntent,
 } from '#features/hosts'
@@ -79,6 +77,7 @@ import { useRealtimeStatusSubscriptions } from './model/useRealtimeStatusSubscri
 import { useSessionSnapshotSubscription } from './model/useSessionSnapshotSubscription'
 import { useFileSessionSnapshotSubscription } from './model/useFileSessionSnapshotSubscription'
 import { useDesktopBridgeRuntime } from './model/useDesktopBridgeRuntime'
+import { ConnectionLauncherRuntimeBridge } from './ConnectionLauncherRuntimeBridge.tsx'
 
 const APP_THEME_STORAGE_KEY = 'termous.ui.theme.v1'
 const SSH_TERMINAL_SMOOTH_SCROLL_STORAGE_KEY = 'termous.ui.terminal.sshSmoothScroll.v1'
@@ -221,16 +220,22 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   sessionsRef.current = data.sessions
   const [hostLauncherState, setHostLauncherState] = useState<{
     open: boolean
+    instanceKey: number
     intent: HostLauncherIntent
   }>({
     open: false,
+    instanceKey: 0,
     intent: 'terminal',
   })
   const [hostCreateIntentKey, setHostCreateIntentKey] = useState(0)
+  const [hostAccessIntent, setHostAccessIntent] = useState<{
+    key: number
+    hostId: string
+  } | null>(null)
+  const nextHostAccessIntentKeyRef = useRef(0)
   const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
   const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
-  const [remoteDesktopLauncherOpen, setRemoteDesktopLauncherOpen] = useState(false)
   const [activeRemoteDesktopCount, setActiveRemoteDesktopCount] = useState(0)
 
   const invalidateFilesBookmarkManagementRequest = useCallback(() => {
@@ -352,13 +357,24 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     deleteRemoteDesktopTargetAuth: (...input) => hostAccessActionsRef.current.deleteRemoteDesktopTargetAuth(...input),
     setDefaultRemoteDesktopProfile: (...input) => hostAccessActionsRef.current.setDefaultRemoteDesktopAccessProfile(...input),
   }), [])
-  const hostLauncherData = useMemo<HostLauncherData>(() => ({
+  const workbenchHostView = useMemo<WorkbenchPageProps['hostView']>(() => ({
     hosts: data.hosts,
     groups: data.groups,
     proxies: data.proxies,
     credentials: data.credentials,
     hostReachability: data.hostReachability,
   }), [data.credentials, data.groups, data.hostReachability, data.hosts, data.proxies])
+  const hostLauncherData = useMemo<HostLauncherData>(() => ({
+    ...workbenchHostView,
+    sshAccessProfiles: data.sshAccessProfiles,
+    fileAccessProfiles: data.fileAccessProfiles,
+    remoteDesktopProfiles: data.remoteDesktopProfiles,
+  }), [
+    data.fileAccessProfiles,
+    data.remoteDesktopProfiles,
+    data.sshAccessProfiles,
+    workbenchHostView,
+  ])
   const forwardManagementData = useMemo<ForwardsPageProps['data']>(() => ({
     hosts: data.hosts,
     forwardProfiles: data.forwardProfiles,
@@ -448,6 +464,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
       setActionBusy(false)
     }
   }, [notification, t])
+
+  const runLauncherAction = useCallback(async <T,>(task: () => Promise<T>): Promise<T> => {
+    setActionBusy(true)
+    try {
+      return await task()
+    } catch (actionError) {
+      showActionError(actionError)
+      throw actionError
+    } finally {
+      setActionBusy(false)
+    }
+  }, [showActionError])
 
   const restartForward = useCallback(async (id: string) => {
     const restart = await runAction(() => actions.restartForward(id))
@@ -799,38 +827,63 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     setPage('hosts')
   }
 
-  const openFilesForHost = async (hostId: string) => {
-    invalidateFilesBookmarkManagementRequest()
+  const openHostAccess = (hostId: string) => {
+    nextHostAccessIntentKeyRef.current += 1
     setSelectedHostId(hostId)
-    setPage('files')
-    const fileProfile = selectDefaultFileAccessProfile(data.fileAccessProfiles, hostId)
-    if (!fileProfile) {
-      return
-    }
-    const existing = selectFileSessionForNavigation(
-      data.fileSessions,
+    setHostAccessIntent({
+      key: nextHostAccessIntentKeyRef.current,
       hostId,
-      '',
-      fileProfile.id,
-    )
-    if (existing) {
-      activateFileSession(existing.id)
-      if (
+    })
+    setPage('hosts')
+  }
+
+  const openFilesForProfile = async (
+    fileProfileId: string,
+    hostId: string,
+    rethrowError = false,
+  ) => {
+    const fileProfile = data.fileAccessProfiles.find((profile) => (
+      profile.id === fileProfileId && profile.host_id === hostId
+    ))
+    try {
+      if (!fileProfile) {
+        throw new Error(t('workbench.hostLauncher.profiles.selectionMissing'))
+      }
+      const existing = selectFileSessionForNavigation(
+        data.fileSessions,
+        hostId,
+        '',
+        fileProfile.id,
+      )
+      const fileSession = existing && (
         existing.status === 'connected'
         || existing.status === 'connecting'
         || existing.status === 'waiting_trust'
-      ) {
-        return
-      }
-    }
-    try {
-      const fileSession = existing
-        ? await actions.reconnectFileSession(existing.id)
-        : await actions.connectFileSession({ fileAccessProfileId: fileProfile.id })
+      )
+        ? existing
+        : existing
+          ? await actions.reconnectFileSession(existing.id)
+          : await actions.connectFileSession({ fileAccessProfileId: fileProfile.id })
+      invalidateFilesBookmarkManagementRequest()
+      setSelectedHostId(hostId)
+      setPage('files')
       activateFileSession(fileSession.id)
     } catch (actionError) {
       showActionError(actionError)
+      if (rethrowError) {
+        throw actionError
+      }
     }
+  }
+
+  const openFilesForHost = async (hostId: string) => {
+    const fileProfile = selectDefaultFileAccessProfile(data.fileAccessProfiles, hostId)
+    if (!fileProfile) {
+      setSelectedHostId(hostId)
+      setPage('files')
+      return
+    }
+    await openFilesForProfile(fileProfile.id, hostId)
   }
 
   const openTemporaryForwardForHost = (hostId: string) => {
@@ -843,13 +896,16 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     if (actionBusy) {
       return
     }
-    setHostLauncherState({ open: true, intent })
+    setHostLauncherState((current) => (
+      current.open
+        ? current
+        : {
+            open: true,
+            instanceKey: current.instanceKey + 1,
+            intent,
+          }
+    ))
   }, [actionBusy])
-
-  const openContextualHostLauncher = useCallback(
-    () => openHostLauncher(hostLauncherIntentForPage(page)),
-    [openHostLauncher, page],
-  )
 
   const openFileSessionLauncher = useCallback(
     () => openHostLauncher('files'),
@@ -865,9 +921,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     setHostLauncherState((current) => ({ ...current, open: false }))
   }, [])
 
-  const connectHostFromLauncher = (hostId: string) =>
-    runAction(async () => {
-      await actions.connect(hostId)
+  const connectSSHProfileFromLauncher = (profileId: string) =>
+    runLauncherAction(async () => {
+      await actions.connectSSHProfile(profileId)
       setPage('workbench')
     })
 
@@ -920,7 +976,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
           if (actionBusy) {
             return 'blocked'
           }
-          openContextualHostLauncher()
+          openTerminalSessionLauncher()
           return 'handled'
         },
       }} />
@@ -963,7 +1019,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       sidebarCollapsed={sidebarCollapsed}
                       actionBusy={actionBusy}
                       onNavigate={navigateToPage}
-                      onOpenConnectionLauncher={openContextualHostLauncher}
+                      onOpenConnectionLauncher={openTerminalSessionLauncher}
                       onOpenLocalTerminal={openLocalTerminalFromTopbar}
                       onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
                       onBeforeClose={shutdownBeforeClose}
@@ -982,7 +1038,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           firewallGateway={gateways.firewall}
                           aliasGateway={gateways.alias}
                           getHostIconUrl={getHostIconUrl}
-                          hostView={hostLauncherData}
+                          hostView={workbenchHostView}
                           sessionView={workbenchSessionView}
                           filesView={workbenchFilesView}
                           forwards={data.forwards}
@@ -1025,6 +1081,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           data={hostManagementData}
                           selectedHostId={selectedHostIdStable}
                           createIntentKey={hostCreateIntentKey}
+                          accessIntent={hostAccessIntent}
+                          onAccessIntentHandled={(key) => {
+                            setHostAccessIntent((current) => (
+                              current?.key === key ? null : current
+                            ))
+                          }}
                           actionBusy={actionBusy}
                           accessGateway={hostAccessGateway}
                           onSelectHost={setSelectedHostId}
@@ -1175,20 +1237,33 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
                       {page === 'remote-desktop' ? (
                         <RemoteDesktopPage
-                          profiles={data.remoteDesktopProfiles}
-                          hosts={data.hosts}
-                          sshProfiles={data.sshAccessProfiles}
-                          actionBusy={actionBusy}
-                          launcherOpen={remoteDesktopLauncherOpen}
-                          onLauncherOpenChange={setRemoteDesktopLauncherOpen}
-                          onCreateProfile={actions.createRemoteDesktopProfile}
-                          onUpdateProfile={actions.updateRemoteDesktopProfile}
-                          onDeleteProfile={actions.deleteRemoteDesktopProfile}
-                          onSaveTargetAuth={actions.saveRemoteDesktopTargetAuth}
-                          onDeleteTargetAuth={actions.deleteRemoteDesktopTargetAuth}
+                          onOpenConnectionLauncher={() => openHostLauncher('remote_desktop')}
                         />
                       ) : null}
                     </AppShell>
+                    <ConnectionLauncherRuntimeBridge
+                      open={hostLauncherState.open}
+                      instanceKey={hostLauncherState.instanceKey}
+                      intent={hostLauncherState.intent}
+                      data={hostLauncherData}
+                      selectedHostId={selectedHostIdStable}
+                      actionBusy={actionBusy}
+                      onClose={closeHostLauncher}
+                      onSelectHost={setSelectedHostId}
+                      onConnectSSHProfile={connectSSHProfileFromLauncher}
+                      onCreateHost={openHostCreate}
+                      onEditHost={openHostEdit}
+                      onManageHostAccess={openHostAccess}
+                      onOpenFileProfile={(profileId, hostId) => (
+                        openFilesForProfile(profileId, hostId, true)
+                      )}
+                      onOpenForward={openTemporaryForwardForHost}
+                      onToggleFavorite={(hostId) => runAction(() => actions.toggleHostFavorite(hostId))}
+                      onRefreshReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
+                      getHostIconUrl={getHostIconUrl}
+                      onRemoteDesktopConnected={() => setPage('remote-desktop')}
+                      onRemoteDesktopConnectionError={showActionError}
+                    />
                   </RemoteDesktopRuntimeProvider>
                   <McpApprovalCoordinator blocked={hostKeyApprovalBlocking} />
                 </GlobalFileSearchRuntimeProvider>
@@ -1214,23 +1289,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             setPage(nextPage)
           }
         }}
-      />
-      <HostLauncherModal
-        open={hostLauncherState.open}
-        intent={hostLauncherState.intent}
-        data={hostLauncherData}
-        selectedHostId={selectedHostIdStable}
-        actionBusy={actionBusy}
-        onClose={closeHostLauncher}
-        onSelectHost={setSelectedHostId}
-        onConnect={connectHostFromLauncher}
-        onCreateHost={openHostCreate}
-        onEditHost={openHostEdit}
-        onOpenFiles={openFilesForHost}
-        onOpenForward={openTemporaryForwardForHost}
-        onToggleFavorite={(hostId) => runAction(() => actions.toggleHostFavorite(hostId))}
-        onRefreshReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
-        getHostIconUrl={getHostIconUrl}
       />
       <HostKeyCoordinator
         api={gateways.hostKeys}

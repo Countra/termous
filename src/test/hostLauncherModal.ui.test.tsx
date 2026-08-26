@@ -1,7 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { FileAccessProfile } from '#entities/file-access-profile'
 import type { Host } from '#entities/host'
+import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import type { HostLauncherData } from '#features/hosts'
 
 vi.mock('react-i18next', () => ({
@@ -12,11 +15,12 @@ vi.mock('antd', async (importOriginal) => {
   const original = await importOriginal<typeof import('antd')>()
   return {
     ...original,
-    Modal: ({ open, children, title, keyboard }: {
+    Modal: ({ open, children, title, keyboard, onCancel }: {
       open: boolean
       children: ReactNode
       title?: ReactNode
       keyboard?: boolean
+      onCancel?: () => void
     }) => (
       open ? (
         <div
@@ -24,6 +28,7 @@ vi.mock('antd', async (importOriginal) => {
           aria-label={typeof title === 'string' ? title : undefined}
           data-keyboard={String(keyboard)}
         >
+          <button type="button" aria-label="modal-close" onClick={onCancel} />
           {children}
         </div>
       ) : null
@@ -93,15 +98,79 @@ function data(hosts: Host[]): HostLauncherData {
       bound_host_count: hosts.length,
     }],
     hostReachability: {},
+    sshAccessProfiles: hosts.map(sshProfile),
+    fileAccessProfiles: hosts.map(fileProfile),
+    remoteDesktopProfiles: hosts.map(remoteDesktopProfile),
+  }
+}
+
+function sshProfile(host: Host): SSHAccessProfile {
+  return {
+    id: `${host.id}-ssh`,
+    host_id: host.id,
+    name: 'Primary SSH',
+    address: host.address,
+    port: host.port,
+    username: host.username,
+    auth_method: host.auth_method,
+    credential_id: host.credential_id,
+    fingerprint_policy: host.fingerprint_policy,
+    is_default: true,
+    sort_order: 0,
+    created_at: '2026-08-26T00:00:00Z',
+    updated_at: '2026-08-26T00:00:00Z',
+  }
+}
+
+function fileProfile(host: Host): FileAccessProfile {
+  return {
+    id: `${host.id}-file`,
+    host_id: host.id,
+    name: 'Primary files',
+    engine: 'sftp',
+    engine_config_version: 1,
+    sftp: { ssh_profile_id: `${host.id}-ssh` },
+    is_default: true,
+    sort_order: 0,
+    created_at: '2026-08-26T00:00:00Z',
+    updated_at: '2026-08-26T00:00:00Z',
+  }
+}
+
+function remoteDesktopProfile(host: Host): RemoteDesktopAccessProfile {
+  return {
+    id: `${host.id}-desktop`,
+    host_id: host.id,
+    name: 'Primary desktop',
+    description: '',
+    route: 'ssh_tunnel',
+    route_config_version: 1,
+    ssh_profile_id: `${host.id}-ssh`,
+    protocol: 'vnc',
+    protocol_config_version: 1,
+    vnc: {
+      loopback_host: '127.0.0.1',
+      port: 5901,
+      shared: true,
+      default_view_only: false,
+      default_display_mode: 'fit',
+    },
+    is_default: true,
+    sort_order: 0,
+    target_auth: null,
+    created_at: '2026-08-26T00:00:00Z',
+    updated_at: '2026-08-26T00:00:00Z',
   }
 }
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
-  const promise = new Promise<T>((nextResolve) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((nextResolve, nextReject) => {
     resolve = nextResolve
+    reject = nextReject
   })
-  return { promise, resolve }
+  return { promise, reject, resolve }
 }
 
 describe('HostLauncherModal 行为合同', () => {
@@ -115,15 +184,18 @@ describe('HostLauncherModal 行为合同', () => {
     render(
       <HostLauncherModal
         open
+        instanceKey={1}
         data={data([])}
         selectedHostId=""
         actionBusy={false}
         onClose={onClose}
         onSelectHost={vi.fn()}
-        onConnect={vi.fn().mockResolvedValue(undefined)}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
         onCreateHost={onCreateHost}
         onEditHost={vi.fn()}
-        onOpenFiles={vi.fn().mockResolvedValue(undefined)}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
         onOpenForward={vi.fn()}
         onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
         onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
@@ -148,15 +220,18 @@ describe('HostLauncherModal 行为合同', () => {
     render(
       <HostLauncherModal
         open
+        instanceKey={1}
         data={data([current])}
         selectedHostId={current.id}
         actionBusy={false}
         onClose={vi.fn()}
         onSelectHost={vi.fn()}
-        onConnect={vi.fn().mockResolvedValue(undefined)}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
         onCreateHost={vi.fn()}
         onEditHost={vi.fn()}
-        onOpenFiles={vi.fn().mockResolvedValue(undefined)}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
         onOpenForward={vi.fn()}
         onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
         onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
@@ -168,6 +243,42 @@ describe('HostLauncherModal 行为合同', () => {
     expect(screen.getByRole('dialog', { name: 'workbench.hostLauncher.kicker' })).toBeInTheDocument()
   })
 
+  it('默认 Profile 缺失时管理入口独立打开访问方式', async () => {
+    const current = host('host-a', 'Alpha')
+    const onClose = vi.fn()
+    const onEditHost = vi.fn()
+    const onManageHostAccess = vi.fn()
+    render(
+      <HostLauncherModal
+        open
+        instanceKey={1}
+        data={{ ...data([current]), sshAccessProfiles: [] }}
+        selectedHostId={current.id}
+        actionBusy={false}
+        onClose={onClose}
+        onSelectHost={vi.fn()}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
+        onCreateHost={vi.fn()}
+        onEditHost={onEditHost}
+        onManageHostAccess={onManageHostAccess}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenForward={vi.fn()}
+        onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
+        onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
+        getHostIconUrl={vi.fn(() => '')}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'workbench.hostLauncher.profiles.manage',
+    }))
+
+    expect(onManageHostAccess).toHaveBeenCalledWith(current.id)
+    expect(onEditHost).not.toHaveBeenCalled()
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+  })
+
   it('搜索框键盘事件不会误触连接，列表方向键只导航实际选项', async () => {
     const hosts = [host('host-a', 'Alpha'), host('host-b', 'Beta')]
     const onSelectHost = vi.fn()
@@ -176,15 +287,18 @@ describe('HostLauncherModal 行为合同', () => {
     render(
       <HostLauncherModal
         open
+        instanceKey={1}
         data={data(hosts)}
         selectedHostId={hosts[0]!.id}
         actionBusy={false}
         onClose={onClose}
         onSelectHost={onSelectHost}
-        onConnect={onConnect}
+        onConnectSSHProfile={onConnect}
         onCreateHost={vi.fn()}
         onEditHost={vi.fn()}
-        onOpenFiles={vi.fn().mockResolvedValue(undefined)}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
         onOpenForward={vi.fn()}
         onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
         onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
@@ -205,7 +319,7 @@ describe('HostLauncherModal 行为合同', () => {
     expect(beta).toHaveFocus()
 
     fireEvent.keyDown(beta, { key: 'Enter' })
-    await waitFor(() => expect(onConnect).toHaveBeenCalledWith('host-b'))
+    await waitFor(() => expect(onConnect).toHaveBeenCalledWith('host-b-ssh'))
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
@@ -222,15 +336,18 @@ describe('HostLauncherModal 行为合同', () => {
     render(
       <HostLauncherModal
         open
+        instanceKey={1}
         data={launcherData}
         selectedHostId={alpha.id}
         actionBusy={false}
         onClose={vi.fn()}
         onSelectHost={vi.fn()}
-        onConnect={vi.fn().mockResolvedValue(undefined)}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
         onCreateHost={vi.fn()}
         onEditHost={vi.fn()}
-        onOpenFiles={vi.fn().mockResolvedValue(undefined)}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
         onOpenForward={vi.fn()}
         onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
         onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
@@ -250,15 +367,18 @@ describe('HostLauncherModal 行为合同', () => {
     render(
       <HostLauncherModal
         open
+        instanceKey={1}
         data={data([current])}
         selectedHostId={current.id}
         actionBusy={false}
         onClose={onClose}
         onSelectHost={vi.fn()}
-        onConnect={vi.fn().mockResolvedValue(undefined)}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
         onCreateHost={vi.fn()}
         onEditHost={vi.fn()}
-        onOpenFiles={vi.fn().mockResolvedValue(undefined)}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
         onOpenForward={vi.fn()}
         onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
         onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
@@ -281,15 +401,18 @@ describe('HostLauncherModal 行为合同', () => {
     render(
       <HostLauncherModal
         open
+        instanceKey={1}
         data={data([current])}
         selectedHostId={current.id}
         actionBusy={false}
         onClose={vi.fn()}
         onSelectHost={vi.fn()}
-        onConnect={vi.fn().mockResolvedValue(undefined)}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
         onCreateHost={vi.fn()}
         onEditHost={vi.fn()}
-        onOpenFiles={vi.fn().mockResolvedValue(undefined)}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
         onOpenForward={vi.fn()}
         onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
         onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
@@ -318,15 +441,18 @@ describe('HostLauncherModal 行为合同', () => {
     const onRefreshReachability = vi.fn().mockResolvedValue(undefined)
     const props = {
       open: true,
+      instanceKey: 1,
       data: data(hosts),
       selectedHostId: 'missing-host',
       actionBusy: false,
       onClose: vi.fn(),
       onSelectHost,
-      onConnect: vi.fn().mockResolvedValue(undefined),
+      onConnectSSHProfile: vi.fn().mockResolvedValue(undefined),
       onCreateHost: vi.fn(),
       onEditHost: vi.fn(),
-      onOpenFiles: vi.fn().mockResolvedValue(undefined),
+      onManageHostAccess: vi.fn(),
+      onOpenFileProfile: vi.fn().mockResolvedValue(undefined),
+      onOpenRemoteDesktopProfile: vi.fn().mockResolvedValue(undefined),
       onOpenForward: vi.fn(),
       onToggleFavorite: vi.fn().mockResolvedValue(undefined),
       onRefreshReachability,
@@ -341,7 +467,14 @@ describe('HostLauncherModal 行为合同', () => {
     view.rerender(<HostLauncherModal {...props} selectedHostId="host-a" />)
     expect(onRefreshReachability).toHaveBeenCalledTimes(1)
     view.rerender(<HostLauncherModal {...props} open={false} selectedHostId="host-a" />)
-    view.rerender(<HostLauncherModal {...props} open selectedHostId="host-a" />)
+    view.rerender(
+      <HostLauncherModal
+        {...props}
+        open
+        instanceKey={props.instanceKey + 1}
+        selectedHostId="host-a"
+      />,
+    )
     await waitFor(() => expect(onRefreshReachability).toHaveBeenCalledTimes(2))
   })
 
@@ -353,15 +486,18 @@ describe('HostLauncherModal 行为合同', () => {
     render(
       <HostLauncherModal
         open
+        instanceKey={1}
         data={data([current])}
         selectedHostId={current.id}
         actionBusy={false}
         onClose={onClose}
         onSelectHost={vi.fn()}
-        onConnect={onConnect}
+        onConnectSSHProfile={onConnect}
         onCreateHost={vi.fn()}
         onEditHost={vi.fn()}
-        onOpenFiles={vi.fn().mockResolvedValue(undefined)}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
         onOpenForward={vi.fn()}
         onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
         onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
@@ -379,20 +515,105 @@ describe('HostLauncherModal 行为合同', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
   })
 
+  it('关闭重开后旧动作完成不会关闭新的 Launcher', async () => {
+    const current = host('host-a', 'Alpha')
+    const pending = deferred<void>()
+    const onClose = vi.fn()
+    const props = {
+      open: true,
+      instanceKey: 1,
+      data: data([current]),
+      selectedHostId: current.id,
+      actionBusy: false,
+      onClose,
+      onSelectHost: vi.fn(),
+      onConnectSSHProfile: vi.fn(() => pending.promise),
+      onCreateHost: vi.fn(),
+      onEditHost: vi.fn(),
+      onManageHostAccess: vi.fn(),
+      onOpenFileProfile: vi.fn().mockResolvedValue(undefined),
+      onOpenRemoteDesktopProfile: vi.fn().mockResolvedValue(undefined),
+      onOpenForward: vi.fn(),
+      onToggleFavorite: vi.fn().mockResolvedValue(undefined),
+      onRefreshReachability: vi.fn().mockResolvedValue(undefined),
+      getHostIconUrl: vi.fn(() => ''),
+    }
+    const view = render(<HostLauncherModal {...props} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'app.connect' }))
+    fireEvent.click(screen.getByRole('button', { name: 'modal-close' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+
+    view.rerender(
+      <HostLauncherModal
+        {...props}
+        open
+        instanceKey={props.instanceKey + 1}
+        intent="files"
+      />,
+    )
+    pending.resolve()
+
+    await waitFor(() => expect(screen.getByRole('dialog', {
+      name: 'files.openFileSession',
+    })).toBeInTheDocument())
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('动作拒绝后保持 Launcher 并释放忙碌状态', async () => {
+    const current = host('host-a', 'Alpha')
+    const pending = deferred<void>()
+    const onClose = vi.fn()
+    render(
+      <HostLauncherModal
+        open
+        instanceKey={1}
+        data={data([current])}
+        selectedHostId={current.id}
+        actionBusy={false}
+        onClose={onClose}
+        onSelectHost={vi.fn()}
+        onConnectSSHProfile={vi.fn(() => pending.promise)}
+        onCreateHost={vi.fn()}
+        onEditHost={vi.fn()}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenForward={vi.fn()}
+        onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
+        onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
+        getHostIconUrl={vi.fn(() => '')}
+      />,
+    )
+
+    const connect = await screen.findByRole('button', { name: 'app.connect' })
+    fireEvent.click(connect)
+    await act(async () => pending.reject(new Error('connection failed')))
+
+    await waitFor(() => expect(connect).not.toBeDisabled())
+    expect(screen.getByRole('dialog', {
+      name: 'workbench.hostLauncher.kicker',
+    })).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('高级筛选只保留自身 Select 浮层的指针交互', async () => {
     const current = host('host-a', 'Alpha')
     render(
       <HostLauncherModal
         open
+        instanceKey={1}
         data={data([current])}
         selectedHostId={current.id}
         actionBusy={false}
         onClose={vi.fn()}
         onSelectHost={vi.fn()}
-        onConnect={vi.fn().mockResolvedValue(undefined)}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
         onCreateHost={vi.fn()}
         onEditHost={vi.fn()}
-        onOpenFiles={vi.fn().mockResolvedValue(undefined)}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
         onOpenForward={vi.fn()}
         onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
         onRefreshReachability={vi.fn().mockResolvedValue(undefined)}

@@ -395,7 +395,32 @@
       "quickActions": "快捷操作",
       "editHost": "编辑主机",
       "openFiles": "文件管理",
+      "openRemoteDesktop": "远程桌面",
       "openForward": "端口转发",
+      "profiles": {
+        "context": {
+          "terminal": "默认终端连接",
+          "files": "默认文件访问",
+          "remote_desktop": "默认远程桌面"
+        },
+        "more": {
+          "terminal": "选择其他终端连接",
+          "files": "选择其他文件访问",
+          "remote_desktop": "选择其他远程桌面"
+        },
+        "status": {
+          "empty": "尚未配置",
+          "missing": "未设置默认项",
+          "ambiguous": "默认项存在冲突",
+          "unavailable": "连接路由不可用"
+        },
+        "manage": "管理访问方式",
+        "manageHint": "请在主机管理中完善访问方式",
+        "selectionMissing": "所选访问方式已不存在，请刷新后重试",
+        "routeMissing": "关联的 SSH 路由不可用",
+        "fileDetail": "经 {{route}} 访问",
+        "desktopDetail": "{{endpoint}} · 经 {{route}}"
+      },
       "filters": {
         "all": "全部",
         "online": "在线",

@@ -115,12 +115,21 @@ function gateway(initial: HostAccessCatalog): HostAccessManagementGateway {
   }
 }
 
-function ControllerHarness({ host, api }: { host: Host; api: HostAccessManagementGateway }) {
+function ControllerHarness({
+  host,
+  api,
+  openAccessIntentKey = 0,
+}: {
+  host: Host
+  api: HostAccessManagementGateway
+  openAccessIntentKey?: number
+}) {
   const controller = useHostAccessWorkspaceController({
     hostId: host.id,
     fallbackHost: host,
     gateway: api,
     t: (key) => key,
+    openAccessIntentKey,
   })
   return (
     <div>
@@ -326,6 +335,40 @@ describe('主机访问方式 Controller', () => {
     fireEvent.click(screen.getByRole('button', { name: 'confirm-navigation' }))
     expect(screen.getByTestId('view')).toHaveTextContent('access')
     expect(screen.getByTestId('asset-name')).toHaveTextContent('host-a')
+  })
+
+  it('外部访问视图意图复用脏草稿确认且同一 key 只消费一次', async () => {
+    const api = gateway(catalog('host-a'))
+    const view = render(
+      <ControllerHarness host={legacyHost('host-a')} api={api} />,
+    )
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
+    view.rerender(
+      <ControllerHarness
+        host={legacyHost('host-a')}
+        api={api}
+        openAccessIntentKey={1}
+      />,
+    )
+
+    expect(screen.getByTestId('view')).toHaveTextContent('asset')
+    expect(screen.getByTestId('pending')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'confirm-navigation' }))
+    expect(screen.getByTestId('view')).toHaveTextContent('access')
+    expect(screen.getByTestId('asset-name')).toHaveTextContent('host-a')
+
+    view.rerender(
+      <ControllerHarness
+        host={legacyHost('host-a')}
+        api={api}
+        openAccessIntentKey={1}
+      />,
+    )
+    expect(screen.getByTestId('view')).toHaveTextContent('access')
+    expect(screen.getByTestId('pending')).toHaveTextContent('false')
   })
 
   it('创建 SSH 后重载权威 Catalog 并展示伴生 SFTP', async () => {

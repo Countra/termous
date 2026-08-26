@@ -10,7 +10,7 @@ import {
   Save,
   Trash2,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostAvatar, type Host } from '#entities/host'
 import {
@@ -38,6 +38,8 @@ interface HostAccessWorkspaceProps {
   host: Host
   data: HostManagementData
   gateway: HostAccessManagementGateway
+  openAccessIntentKey?: number
+  onAccessIntentHandled?: (key: number) => void
   actionBusy: boolean
   getHostIconUrl: (iconId: string) => string
   onBack: () => void
@@ -52,6 +54,8 @@ export function HostAccessWorkspace({
   host,
   data,
   gateway,
+  openAccessIntentKey = 0,
+  onAccessIntentHandled,
   actionBusy,
   getHostIconUrl,
   onBack,
@@ -63,14 +67,28 @@ export function HostAccessWorkspace({
 }: HostAccessWorkspaceProps) {
   const { t } = useTranslation()
   const [deleteHostConfirmOpen, setDeleteHostConfirmOpen] = useState(false)
+  const handledAccessIntentKeyRef = useRef(0)
   const controller = useHostAccessWorkspaceController({
     hostId: host.id,
     fallbackHost: host,
     gateway,
     t,
+    openAccessIntentKey,
     onDirtyChange,
     onProtectedIconIdChange,
   })
+
+  useEffect(() => {
+    if (
+      openAccessIntentKey <= 0
+      || handledAccessIntentKeyRef.current === openAccessIntentKey
+    ) {
+      return
+    }
+    handledAccessIntentKeyRef.current = openAccessIntentKey
+    onAccessIntentHandled?.(openAccessIntentKey)
+  }, [onAccessIntentHandled, openAccessIntentKey])
+
   const busy = actionBusy || controller.operationBusy
   const catalog = controller.catalog
   const overviewError = controller.mutationError || controller.error?.message

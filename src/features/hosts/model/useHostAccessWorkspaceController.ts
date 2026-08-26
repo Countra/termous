@@ -61,6 +61,7 @@ interface ControllerOptions {
   fallbackHost: Host
   gateway: HostAccessManagementGateway
   t: (key: string, options?: Record<string, unknown>) => string
+  openAccessIntentKey?: number
   onDirtyChange?: (dirty: boolean) => void
   onProtectedIconIdChange?: (iconId: string) => void
 }
@@ -70,6 +71,7 @@ export function useHostAccessWorkspaceController({
   fallbackHost,
   gateway,
   t,
+  openAccessIntentKey = 0,
   onDirtyChange,
   onProtectedIconIdChange,
 }: ControllerOptions) {
@@ -98,6 +100,7 @@ export function useHostAccessWorkspaceController({
   const [mutationError, setMutationError] = useState('')
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ProfileDeleteTarget | null>(null)
+  const consumedAccessIntentKeyRef = useRef(0)
 
   const assetDirty = useMemo(
     () => !hostAssetInputsEqual(assetDraft, assetBaseline),
@@ -243,6 +246,17 @@ export function useHostAccessWorkspaceController({
     }
     applyNavigation(navigation)
   }, [applyNavigation, assetDirty, editor, profileDirty, view])
+
+  useEffect(() => {
+    if (
+      openAccessIntentKey <= 0
+      || consumedAccessIntentKeyRef.current === openAccessIntentKey
+    ) {
+      return
+    }
+    consumedAccessIntentKeyRef.current = openAccessIntentKey
+    requestNavigation({ type: 'view', view: 'access' })
+  }, [openAccessIntentKey, requestNavigation])
 
   const confirmPendingNavigation = useCallback(() => {
     const navigation = pendingNavigation

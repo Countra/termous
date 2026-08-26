@@ -27,13 +27,9 @@ import {
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type {
-  RemoteDesktopAccessProfile,
-  RemoteDesktopAccessProfileInput,
   RemoteDesktopDisplayMode,
   RemoteDesktopSession,
 } from '#entities/remote-desktop'
-import type { Host } from '#entities/host'
-import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import { readClipboardText, writeClipboardText } from '#shared/clipboard'
 import {
   ConnectionActionButton,
@@ -46,7 +42,6 @@ import {
   uiStyles,
 } from '#shared/ui'
 import {
-  RemoteDesktopLauncher,
   RemoteDesktopViewport,
   type RemoteDesktopViewerState,
   useRemoteDesktopRuntime,
@@ -62,43 +57,11 @@ import styles from './RemoteDesktopWorkspace.module.scss'
 export { RemoteDesktopCredentialDialog } from './RemoteDesktopSecurityDialogs.tsx'
 
 export interface RemoteDesktopWorkspaceProps {
-  profiles: RemoteDesktopAccessProfile[]
-  hosts: Host[]
-  sshProfiles: SSHAccessProfile[]
-  actionBusy: boolean
-  launcherOpen: boolean
-  onLauncherOpenChange: (open: boolean) => void
-  onCreateProfile: (
-    input: RemoteDesktopAccessProfileInput,
-  ) => Promise<RemoteDesktopAccessProfile>
-  onUpdateProfile: (
-    id: string,
-    input: RemoteDesktopAccessProfileInput,
-  ) => Promise<RemoteDesktopAccessProfile>
-  onDeleteProfile: (id: string) => Promise<void>
-  onSaveTargetAuth: (
-    id: string,
-    expectedUpdatedAt: string,
-    password: string,
-  ) => Promise<RemoteDesktopAccessProfile>
-  onDeleteTargetAuth: (
-    id: string,
-    expectedUpdatedAt: string,
-  ) => Promise<RemoteDesktopAccessProfile>
+  onOpenConnectionLauncher: () => void
 }
 
 export function RemoteDesktopWorkspace({
-  profiles,
-  hosts,
-  sshProfiles,
-  actionBusy,
-  launcherOpen,
-  onLauncherOpenChange,
-  onCreateProfile,
-  onUpdateProfile,
-  onDeleteProfile,
-  onSaveTargetAuth,
-  onDeleteTargetAuth,
+  onOpenConnectionLauncher,
 }: RemoteDesktopWorkspaceProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -114,10 +77,6 @@ export function RemoteDesktopWorkspace({
     }
     wasFullscreenRef.current = fullscreen.isFullscreen
   }, [activeSession, fullscreen.isFullscreen, runtime])
-
-  const connectProfile = async (profileId: string) => {
-    await runtime.createSession(profileId)
-  }
 
   const closeSession = (session: RemoteDesktopSession) => {
     modal.confirm({
@@ -230,7 +189,7 @@ export function RemoteDesktopWorkspace({
             trailing={(
               <SessionNewTabButton
                 label={t('remoteDesktop.newConnection')}
-                onClick={() => onLauncherOpenChange(true)}
+                onClick={onOpenConnectionLauncher}
               />
             )}
           >
@@ -296,7 +255,7 @@ export function RemoteDesktopWorkspace({
               <ConnectionActionButton
                 className={styles['empty-action']}
                 icon={<Plus size={16} />}
-                onClick={() => onLauncherOpenChange(true)}
+                onClick={onOpenConnectionLauncher}
               >
                 {t('remoteDesktop.newConnection')}
               </ConnectionActionButton>
@@ -305,20 +264,6 @@ export function RemoteDesktopWorkspace({
         </main>
       )}
 
-      <RemoteDesktopLauncher
-        open={launcherOpen}
-        profiles={profiles}
-        hosts={hosts}
-        sshProfiles={sshProfiles}
-        actionBusy={actionBusy}
-        onClose={() => onLauncherOpenChange(false)}
-        onCreate={onCreateProfile}
-        onUpdate={onUpdateProfile}
-        onDelete={onDeleteProfile}
-        onSaveTargetAuth={onSaveTargetAuth}
-        onDeleteTargetAuth={onDeleteTargetAuth}
-        onConnect={connectProfile}
-      />
       {activeSession && viewerState ? (
         <RemoteDesktopCredentialDialog session={activeSession} />
       ) : null}

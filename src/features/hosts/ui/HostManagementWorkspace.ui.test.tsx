@@ -9,10 +9,12 @@ vi.mock('./HostAccessWorkspace', async () => {
   return {
     HostAccessWorkspace: ({
       host,
+      openAccessIntentKey,
       onBack,
       onDirtyChange,
     }: {
       host: Host
+      openAccessIntentKey?: number
       onBack: () => void
       onDirtyChange: (dirty: boolean) => void
     }) => {
@@ -20,6 +22,7 @@ vi.mock('./HostAccessWorkspace', async () => {
       return (
         <div>
           <output data-testid="access-draft">{draft}</output>
+          <output data-testid="access-intent">{`${host.id}:${openAccessIntentKey ?? 0}`}</output>
           <button
             type="button"
             onClick={() => {
@@ -49,6 +52,13 @@ const host: Host = {
   tags: [],
   favorite: false,
   fingerprint_policy: 'confirm_on_change',
+}
+
+const secondHost: Host = {
+  ...host,
+  id: 'host-b',
+  name: '备用主机',
+  address: 'host-b.example.com',
 }
 
 const accessGateway: HostAccessManagementGateway = {
@@ -105,5 +115,79 @@ describe('主机管理工作区', () => {
     expect(screen.getByTestId('access-draft')).toHaveTextContent('测试主机')
     fireEvent.click(screen.getByRole('button', { name: /测试主机/ }))
     expect(screen.getByTestId('access-draft')).toHaveTextContent('测试主机')
+  })
+
+  it('跨主机访问意图只在目标主机确认加载后消费', () => {
+    const onSelectHost = vi.fn()
+    const onAccessIntentHandled = vi.fn()
+    const props = {
+      data: {
+        hosts: [host, secondHost],
+        groups: [],
+        proxies: [],
+        credentials: [],
+        hostIcons: [],
+      },
+      actionBusy: false,
+      accessGateway,
+      onSelectHost,
+      onAccessIntentHandled,
+      onSave: vi.fn(),
+      onDelete: vi.fn(),
+      onCreateGroup: vi.fn(),
+      onRenameGroup: vi.fn(),
+      onDeleteGroup: vi.fn(),
+      onReorderGroups: vi.fn(),
+      onCreateProxy: vi.fn(),
+      onUpdateProxy: vi.fn(),
+      onDeleteProxy: vi.fn(),
+      onUploadHostIcon: vi.fn(),
+      onRenameHostIcon: vi.fn(),
+      onReorderHostIcons: vi.fn(),
+      onDeleteHostIcon: vi.fn(),
+      getHostIconUrl: () => '',
+    }
+    const view = render(
+      <HostManagementWorkspace
+        {...props}
+        selectedHostId={host.id}
+        accessIntent={{ key: 1, hostId: host.id }}
+      />,
+    )
+
+    expect(screen.getByTestId('access-intent')).toHaveTextContent('host-a:1')
+    fireEvent.click(screen.getByRole('button', { name: '修改访问草稿' }))
+
+    view.rerender(
+      <HostManagementWorkspace
+        {...props}
+        selectedHostId={secondHost.id}
+        accessIntent={{ key: 2, hostId: secondHost.id }}
+      />,
+    )
+
+    expect(screen.getByTestId('access-intent')).toHaveTextContent('host-a:0')
+    fireEvent.click(screen.getByRole('button', { name: 'app.cancel' }))
+    expect(onAccessIntentHandled).toHaveBeenCalledWith(2)
+    expect(screen.getByTestId('access-intent')).toHaveTextContent('host-a:0')
+
+    view.rerender(
+      <HostManagementWorkspace
+        {...props}
+        selectedHostId={host.id}
+        accessIntent={null}
+      />,
+    )
+    view.rerender(
+      <HostManagementWorkspace
+        {...props}
+        selectedHostId={secondHost.id}
+        accessIntent={{ key: 3, hostId: secondHost.id }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'hosts.discardAndContinue' }))
+    expect(screen.getByTestId('access-intent')).toHaveTextContent('host-b:3')
+    expect(screen.getByTestId('access-draft')).toHaveTextContent('备用主机')
   })
 })

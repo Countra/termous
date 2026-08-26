@@ -98,6 +98,45 @@ describe('会话来源 REST 兼容合同', () => {
     })
   })
 
+  it('SSH 会话兼容 Host 默认项并支持精确 SSH Profile 请求', async () => {
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify(legacySession),
+      { status: 201 },
+    ))
+    vi.stubGlobal('fetch', fetchMock)
+    const runtime = gateways()
+
+    await runtime.sessions.createSession('host-a', 120, 32)
+    await runtime.sessions.createSSHSession({ sshProfileId: 'ssh-profile-a' }, 100, 40)
+
+    const [, hostInit] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit]
+    expect(JSON.parse(String(hostInit.body))).toEqual({
+      host_id: 'host-a',
+      cols: 120,
+      rows: 32,
+    })
+    const [, profileInit] = fetchMock.mock.calls[1] as unknown as [URL, RequestInit]
+    expect(JSON.parse(String(profileInit.body))).toEqual({
+      ssh_profile_id: 'ssh-profile-a',
+      cols: 100,
+      rows: 40,
+    })
+  })
+
+  it('SSH 会话创建在运行时拒绝缺失、冲突或未规范化的目标', () => {
+    const runtime = gateways()
+    expect(() => runtime.sessions.createSSHSession({} as never, 120, 32))
+      .toThrow('SSH 连接必须且只能指定一种目标')
+    expect(() => runtime.sessions.createSSHSession({
+      hostId: 'host-a',
+      sshProfileId: 'ssh-profile-a',
+    } as never, 120, 32)).toThrow('SSH 连接必须且只能指定一种目标')
+    expect(() => runtime.sessions.createSSHSession({ hostId: ' host-a ' }, 120, 32))
+      .toThrow('主机 ID 无效')
+    expect(() => runtime.sessions.createSSHSession({ sshProfileId: '' }, 120, 32))
+      .toThrow('SSH Profile ID 无效')
+  })
+
   it('兼容 Host 默认项创建请求只携带 host_id', async () => {
     const fetchMock = vi.fn(async () => new Response(
       JSON.stringify(legacyFileSession),

@@ -67,6 +67,56 @@ function deferred<T>() {
   return { promise, reject, resolve }
 }
 
+test('精确 SSH Profile 连接复用会话提交逻辑且不回退 Host 默认项', async () => {
+  const connected = session({
+    id: 'session-profile',
+    ssh_profile_id: 'ssh-profile-2',
+  })
+  let data = structuredClone(initialData)
+  let activeSession: Session | null = null
+  const createSSHSession = vi.fn(async () => connected)
+  const load = vi.fn(async () => undefined)
+  const sessionRevisions = new Map<string, number>()
+  const inventorySignatures = new Map<string, string>()
+  const commands = createSessionCommands({
+    sessionApi: {
+      createSession: vi.fn(),
+      createSSHSession,
+      createLocalSession: vi.fn(),
+      deleteSession: vi.fn(),
+      refreshSessionInventory: vi.fn(),
+    },
+    fileSessionApi: { deleteFileSession: vi.fn() },
+    forwardApi: { stopForward: vi.fn() },
+    sessions: [],
+    fileSessions: [],
+    forwards: [],
+    setData: (update) => {
+      data = typeof update === 'function' ? update(data) : update
+    },
+    setActiveSession: (update) => {
+      activeSession = typeof update === 'function' ? update(activeSession) : update
+    },
+    setFileSessionClosures: vi.fn(),
+    sessionEventRevisions: sessionRevisions,
+    fileSessionEventRevisions: new Map(),
+    inventoryRequestRevisions: new Map(),
+    inventoryEventRevisions: new Map(),
+    inventoryStateSignatures: inventorySignatures,
+    load,
+    supersedeFileSessionRecoveryOperation: vi.fn(),
+  })
+
+  await expect(commands.connectSSHProfile('ssh-profile-2', 100, 40)).resolves.toBe(connected)
+
+  expect(createSSHSession).toHaveBeenCalledWith({ sshProfileId: 'ssh-profile-2' }, 100, 40)
+  expect(sessionRevisions.get(connected.id)).toBe(1)
+  expect(inventorySignatures.get(connected.id)).toBe(sessionInventorySignature(connected))
+  expect(activeSession).toBe(connected)
+  expect(data.sessions).toEqual([connected])
+  expect(load).toHaveBeenCalledWith('silent')
+})
+
 test('会话删除成功后才清理 inventory、关联文件会话和活动会话，并触发静默刷新', async () => {
   const closing = session()
   const fallback = session({ id: 'session-2', host_id: 'host-2' })
@@ -94,6 +144,7 @@ test('会话删除成功后才清理 inventory、关联文件会话和活动会�
   const commands = createSessionCommands({
     sessionApi: {
       createSession: vi.fn(),
+      createSSHSession: vi.fn(),
       createLocalSession: vi.fn(),
       deleteSession: () => request.promise,
       refreshSessionInventory: vi.fn(),
@@ -163,6 +214,7 @@ test('会话删除失败时不提前清理本地状态和 revision', async () =>
   const commands = createSessionCommands({
     sessionApi: {
       createSession: vi.fn(),
+      createSSHSession: vi.fn(),
       createLocalSession: vi.fn(),
       deleteSession: async () => { throw deleteError },
       refreshSessionInventory: vi.fn(),
@@ -207,6 +259,7 @@ test('较新的 inventory 事件使失败请求稳定转换为 REQUEST_SUPERSEDE
   const commands = createSessionCommands({
     sessionApi: {
       createSession: vi.fn(),
+      createSSHSession: vi.fn(),
       createLocalSession: vi.fn(),
       deleteSession: vi.fn(),
       refreshSessionInventory: () => request.promise,
@@ -258,6 +311,7 @@ test('全部断开任一资源失败时保留本地快照且不触发静默刷�
   const commands = createSessionCommands({
     sessionApi: {
       createSession: vi.fn(),
+      createSSHSession: vi.fn(),
       createLocalSession: vi.fn(),
       deleteSession: async () => { throw deleteError },
       refreshSessionInventory: vi.fn(),

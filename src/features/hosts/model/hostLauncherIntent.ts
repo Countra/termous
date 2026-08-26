@@ -1,12 +1,15 @@
-import type { PageKey } from '#shared/model'
+export type HostLauncherIntent = 'terminal' | 'files' | 'remote_desktop'
 
-export type HostLauncherIntent = 'terminal' | 'files'
-
-export type HostLauncherActionId = 'connect' | 'editHost' | 'openFiles' | 'openForward'
+export type HostLauncherActionId =
+  | 'connect'
+  | 'editHost'
+  | 'openFiles'
+  | 'openForward'
+  | 'openRemoteDesktop'
 
 export interface HostLauncherActionPlan {
-  primary: 'connect' | 'openFiles'
-  shortcuts: readonly ['editHost', 'openFiles' | 'connect', 'openForward']
+  primary: 'connect' | 'openFiles' | 'openRemoteDesktop'
+  shortcuts: readonly [HostLauncherActionId, HostLauncherActionId, HostLauncherActionId]
 }
 
 const terminalActionPlan: HostLauncherActionPlan = {
@@ -19,10 +22,13 @@ const filesActionPlan: HostLauncherActionPlan = {
   shortcuts: ['editHost', 'connect', 'openForward'],
 }
 
-export function hostLauncherActionPlan(intent: HostLauncherIntent): HostLauncherActionPlan {
-  return intent === 'files' ? filesActionPlan : terminalActionPlan
+const remoteDesktopActionPlan: HostLauncherActionPlan = {
+  primary: 'openRemoteDesktop',
+  shortcuts: ['editHost', 'connect', 'openFiles'],
 }
 
-export function hostLauncherIntentForPage(page: PageKey): HostLauncherIntent {
-  return page === 'files' ? 'files' : 'terminal'
+export function hostLauncherActionPlan(intent: HostLauncherIntent): HostLauncherActionPlan {
+  if (intent === 'files') return filesActionPlan
+  if (intent === 'remote_desktop') return remoteDesktopActionPlan
+  return terminalActionPlan
 }

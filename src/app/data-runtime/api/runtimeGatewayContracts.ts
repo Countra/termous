@@ -230,8 +230,17 @@ export interface ForwardCommandGateway extends ForwardRuntimeGateway {
   stopForward: (id: string) => Promise<void>
 }
 
+export type SSHSessionCreateInput =
+  | { hostId: string; sshProfileId?: never }
+  | { hostId?: never; sshProfileId: string }
+
 export interface SessionCommandGateway {
   createSession: (hostId: string, cols: number, rows: number) => Promise<Session>
+  createSSHSession: (
+    input: SSHSessionCreateInput,
+    cols: number,
+    rows: number,
+  ) => Promise<Session>
   createLocalSession: (shell: LocalShell, cols: number, rows: number) => Promise<Session>
   deleteSession: (id: string) => Promise<void>
   refreshSessionInventory: (

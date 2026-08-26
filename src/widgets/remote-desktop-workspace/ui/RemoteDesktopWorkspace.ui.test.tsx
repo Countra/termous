@@ -36,7 +36,6 @@ const runtimeMock = vi.hoisted(() => ({
 }))
 
 vi.mock('#features/remote-desktop', () => ({
-  RemoteDesktopLauncher: () => null,
   RemoteDesktopViewport: () => null,
   useRemoteDesktopRuntime: () => runtimeMock.value,
 }))
@@ -67,23 +66,13 @@ afterEach(() => {
   runtimeMock.value.rejectServer.mockResolvedValue(undefined)
 })
 
-test('无远程桌面会话时显示空标签和两个初始连接入口', async () => {
+test('无远程桌面会话时两个入口都打开统一连接器', async () => {
   const user = userEvent.setup()
-  const onLauncherOpenChange = vi.fn()
+  const onOpenConnectionLauncher = vi.fn()
   render(
     <AntdApp>
       <RemoteDesktopWorkspace
-        profiles={[]}
-        hosts={[]}
-        sshProfiles={[]}
-        actionBusy={false}
-        launcherOpen={false}
-        onLauncherOpenChange={onLauncherOpenChange}
-        onCreateProfile={vi.fn()}
-        onUpdateProfile={vi.fn()}
-        onDeleteProfile={vi.fn()}
-        onSaveTargetAuth={vi.fn()}
-        onDeleteTargetAuth={vi.fn()}
+        onOpenConnectionLauncher={onOpenConnectionLauncher}
       />
     </AntdApp>,
   )
@@ -98,8 +87,7 @@ test('无远程桌面会话时显示空标签和两个初始连接入口', async
   await user.click(openButtons[0]!)
   await user.click(openButtons[1]!)
 
-  expect(onLauncherOpenChange).toHaveBeenNthCalledWith(1, true)
-  expect(onLauncherOpenChange).toHaveBeenNthCalledWith(2, true)
+  expect(onOpenConnectionLauncher).toHaveBeenCalledTimes(2)
 })
 
 test('远程桌面凭据弹窗断开失败时显示错误且不产生未处理拒绝', async () => {

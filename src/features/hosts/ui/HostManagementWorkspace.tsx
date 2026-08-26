@@ -36,6 +36,8 @@ export interface HostManagementWorkspaceProps {
   data: HostManagementData
   selectedHostId: string
   createIntentKey?: number
+  accessIntent?: HostAccessIntent | null
+  onAccessIntentHandled?: (key: number) => void
   actionBusy: boolean
   accessGateway?: HostAccessManagementGateway
   onSelectHost: (hostId: string) => void
@@ -59,6 +61,11 @@ export interface HostManagementWorkspaceProps {
   onDirtyChange?: (dirty: boolean) => void
 }
 
+export interface HostAccessIntent {
+  key: number
+  hostId: string
+}
+
 type HostIntent =
   | { type: 'select'; hostId: string; external?: boolean }
   | { type: 'create' }
@@ -68,6 +75,8 @@ export function HostManagementWorkspace({
   data,
   selectedHostId,
   createIntentKey = 0,
+  accessIntent = null,
+  onAccessIntentHandled,
   actionBusy,
   accessGateway,
   onSelectHost,
@@ -277,6 +286,9 @@ export function HostManagementWorkspace({
     if (pendingIntent?.type === 'select' && pendingIntent.external) {
       ignoredExternalSelectionRef.current = pendingIntent.hostId
       onSelectHost(editingId ?? '')
+      if (accessIntent?.hostId === pendingIntent.hostId) {
+        onAccessIntentHandled?.(accessIntent.key)
+      }
     }
     setPendingIntent(null)
   }
@@ -295,6 +307,10 @@ export function HostManagementWorkspace({
             host={editingHost}
             data={data}
             gateway={accessGateway}
+            openAccessIntentKey={
+              accessIntent?.hostId === editingHost.id ? accessIntent.key : 0
+            }
+            onAccessIntentHandled={onAccessIntentHandled}
             actionBusy={actionBusy}
             getHostIconUrl={getHostIconUrl}
             onBack={() => requestIntent({ type: 'back' })}

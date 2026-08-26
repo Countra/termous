@@ -1,17 +1,28 @@
 export type { HostKeyGateway } from './api/hostKeyGateway.ts'
 export {
   hostLauncherActionPlan,
-  hostLauncherIntentForPage,
   type HostLauncherActionId,
   type HostLauncherActionPlan,
   type HostLauncherIntent,
 } from './model/hostLauncherIntent.ts'
+export {
+  buildHostLauncherProfileMenu,
+  selectUniqueDefaultHostLauncherProfile,
+  type HostLauncherDefaultResolution,
+  type HostLauncherProfileAvailability,
+  type HostLauncherProfileMenu,
+  type HostLauncherProfileMenuItem,
+  type HostLauncherProfileRouteInfo,
+  type HostLauncherProfileTechnology,
+} from './model/hostLauncherProfiles.ts'
 export type {
   HostLauncherData,
+  HostLauncherProfileData,
   HostManagementData,
 } from './model/types.ts'
 export {
   HostManagementWorkspace,
+  type HostAccessIntent,
   type HostManagementWorkspaceProps,
 } from './ui/HostManagementWorkspace.tsx'
 export {

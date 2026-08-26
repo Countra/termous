@@ -54,15 +54,23 @@ export function createSessionCommands({
   load,
   supersedeFileSessionRecoveryOperation,
 }: SessionCommandDependencies) {
+  const commitConnectedSession = (session: Session) => {
+    bumpSessionRevision(sessionEventRevisions, session.id)
+    inventoryStateSignatures.set(session.id, sessionInventorySignature(session))
+    setActiveSession(session)
+    setData((current) => ({ ...current, sessions: upsertSession(current.sessions, session) }))
+    void load('silent')
+    return session
+  }
+
   return {
     async connect(hostId: string, cols = 120, rows = 32) {
       const session = await sessionApi.createSession(hostId, cols, rows)
-      bumpSessionRevision(sessionEventRevisions, session.id)
-      inventoryStateSignatures.set(session.id, sessionInventorySignature(session))
-      setActiveSession(session)
-      setData((current) => ({ ...current, sessions: upsertSession(current.sessions, session) }))
-      void load('silent')
-      return session
+      return commitConnectedSession(session)
+    },
+    async connectSSHProfile(sshProfileId: string, cols = 120, rows = 32) {
+      const session = await sessionApi.createSSHSession({ sshProfileId }, cols, rows)
+      return commitConnectedSession(session)
     },
     async openLocalTerminal(shell: LocalShell, cols = 120, rows = 32) {
       const session = await sessionApi.createLocalSession(shell, cols, rows)
