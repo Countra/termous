@@ -162,6 +162,24 @@ vi.mock('#features/docker', () => ({ DockerPanel: () => null }))
 vi.mock('#features/service', () => ({ ServicePanel: () => null }))
 vi.mock('#features/crontab', () => ({ CrontabPanel: () => null }))
 vi.mock('#features/workbench-files', () => ({ WorkbenchFilesPanel: () => null }))
+vi.mock('../widgets/workbench/ui/WorkbenchSessionTabs', () => ({
+  WorkbenchSessionTabs: ({
+    sessions,
+    onMenuAction,
+  }: {
+    sessions: Session[]
+    onMenuAction: (action: 'duplicate' | 'restart', session: Session) => void
+  }) => (
+    <>
+      <button type="button" onClick={() => sessions[0] && onMenuAction('duplicate', sessions[0])}>
+        duplicate-session
+      </button>
+      <button type="button" onClick={() => sessions[0] && onMenuAction('restart', sessions[0])}>
+        restart-session
+      </button>
+    </>
+  ),
+}))
 
 import { WorkbenchPage } from '#widgets/workbench'
 
@@ -170,6 +188,7 @@ const activeSession = {
   kind: 'ssh',
   status: 'connected',
   host_id: 'host-a',
+  ssh_profile_id: 'ssh-profile-a',
   pty_cols: 120,
   pty_rows: 32,
 } as Session
@@ -203,6 +222,7 @@ function workbenchViews(snippets: CodeSnippet[]): WorkbenchViewProps {
       proxies: [],
       credentials: [],
       hostReachability: {},
+      sshAccessProfiles: [],
     },
     sessionView: {
       sessions: [activeSession],
@@ -246,6 +266,7 @@ function renderWorkbench(
     actionBusy: false,
     onOpenConnectionLauncher: vi.fn(),
     onConnect: vi.fn(async () => undefined),
+    onConnectSSHProfile: vi.fn(async () => undefined),
     onSelectSession: vi.fn(),
     onDisconnect: vi.fn(async () => true),
     onRefreshInventory: vi.fn(async () => activeSession),
@@ -278,6 +299,24 @@ describe('工作台命令片段发送门禁', () => {
     workbenchMocks.terminalSplitMounts = 0
     workbenchMocks.terminalSplitUnmounts = 0
     workbenchMocks.sendTextToSession.mockReturnValue('sent')
+  })
+
+  it('复制和重连严格复用会话的 SSH Profile', async () => {
+    const user = userEvent.setup()
+    const onConnect = vi.fn(async () => undefined)
+    const onConnectSSHProfile = vi.fn(async () => undefined)
+    const onDisconnect = vi.fn(async () => true)
+    renderWorkbench([], { onConnect, onConnectSSHProfile, onDisconnect })
+
+    await user.click(screen.getByRole('button', { name: 'duplicate-session' }))
+    await waitFor(() => expect(onConnectSSHProfile).toHaveBeenCalledWith('ssh-profile-a'))
+    expect(onConnect).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'restart-session' }))
+    await waitFor(() => expect(onDisconnect).toHaveBeenCalledWith('session-a'))
+    await waitFor(() => expect(onConnectSSHProfile).toHaveBeenCalledTimes(2))
+    expect(onConnectSSHProfile).toHaveBeenLastCalledWith('ssh-profile-a')
+    expect(onConnect).not.toHaveBeenCalled()
   })
 
   it('插入高风险命令不会请求确认，并且不会执行命令', async () => {

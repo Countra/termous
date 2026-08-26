@@ -5,20 +5,33 @@ import {
   MonitorPlay,
   Pencil,
   Plus,
+  RefreshCw,
   Star,
   Trash2,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { FileAccessProfile } from '#entities/file-access-profile'
+import {
+  projectFileAccessProfile,
+  type FileAccessProfile,
+} from '#entities/file-access-profile'
 import type { HostAccessCatalog } from '#entities/host-asset'
-import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
+import type { HostReachability } from '#entities/host'
+import {
+  projectRemoteDesktopAccessProfile,
+  type RemoteDesktopAccessProfile,
+} from '#entities/remote-desktop'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
+import type { SSHProfileReachabilityIndex } from '../model/sshProfileReachability.ts'
 import styles from './HostAccess.module.scss'
 
 interface AccessProfileCatalogProps {
   catalog: HostAccessCatalog
   busy: boolean
+  sshReachability: SSHProfileReachabilityIndex
+  refreshingSSHProfileIds: ReadonlySet<string>
+  reachabilityError?: string
+  onRefreshSSHReachability: (profileId: string) => void
   onCreateSSH: () => void
   onEditSSH: (profile: SSHAccessProfile) => void
   onDeleteSSH: (profile: SSHAccessProfile) => void
@@ -34,6 +47,10 @@ interface AccessProfileCatalogProps {
 export function AccessProfileCatalog({
   catalog,
   busy,
+  sshReachability,
+  refreshingSSHProfileIds,
+  reachabilityError,
+  onRefreshSSHReachability,
   onCreateSSH,
   onEditSSH,
   onDeleteSSH,
@@ -68,7 +85,11 @@ export function AccessProfileCatalog({
             detail={`${profile.username}@${profile.address}:${profile.port}`}
             isDefault={profile.is_default}
             busy={busy}
+            reachability={sshReachability[profile.id]}
+            reachabilityError={reachabilityError}
+            refreshingReachability={refreshingSSHProfileIds.has(profile.id)}
             deleteDisabled={profile.is_default && catalog.ssh.length > 1}
+            onRefreshReachability={() => onRefreshSSHReachability(profile.id)}
             onEdit={() => onEditSSH(profile)}
             onDelete={() => onDeleteSSH(profile)}
             onSetDefault={() => onSetDefaultSSH(profile)}
@@ -84,12 +105,13 @@ export function AccessProfileCatalog({
         {catalog.files.length === 0 ? (
           <ProfileEmpty label={t('hosts.access.file.empty')} />
         ) : catalog.files.map((profile) => {
-          const ssh = sshById.get(profile.sftp.ssh_profile_id)
+          const projection = projectFileAccessProfile(profile)
+          const ssh = sshById.get(projection.routeDependency.profileId)
           return (
             <AccessProfileRow
               key={profile.id}
               name={profile.name}
-              type="SFTP"
+              type={projection.technology.label}
               detail={ssh
                 ? t('hosts.access.file.boundTo', { name: ssh.name || ssh.address })
                 : t('hosts.access.file.missingSSH')}
@@ -113,13 +135,14 @@ export function AccessProfileCatalog({
         {catalog.remote_desktops.length === 0 ? (
           <ProfileEmpty label={t('hosts.access.desktop.empty')} />
         ) : catalog.remote_desktops.map((profile) => {
-          const ssh = sshById.get(profile.ssh_profile_id)
+          const projection = projectRemoteDesktopAccessProfile(profile)
+          const ssh = sshById.get(projection.routeDependency.profileId)
           return (
             <AccessProfileRow
               key={profile.id}
               name={profile.name}
-              type="VNC"
-              detail={`${profile.vnc.loopback_host}:${profile.vnc.port} · ${ssh?.name || t('hosts.access.file.missingSSH')}`}
+              type={projection.technology.label}
+              detail={`${projection.endpoint} · ${ssh?.name || t('hosts.access.file.missingSSH')}`}
               isDefault={profile.is_default}
               busy={busy}
               deleteDisabled={profile.is_default && catalog.remote_desktops.length > 1}
@@ -184,6 +207,10 @@ function AccessProfileRow({
   onEdit,
   onDelete,
   onSetDefault,
+  reachability,
+  reachabilityError,
+  refreshingReachability = false,
+  onRefreshReachability,
 }: {
   name: string
   type: string
@@ -194,6 +221,10 @@ function AccessProfileRow({
   onEdit: () => void
   onDelete?: () => void
   onSetDefault: () => void
+  reachability?: HostReachability
+  reachabilityError?: string
+  refreshingReachability?: boolean
+  onRefreshReachability?: () => void
 }) {
   const { t } = useTranslation()
   return (
@@ -206,7 +237,23 @@ function AccessProfileRow({
         </span>
         <small>{detail}</small>
       </span>
+      {onRefreshReachability ? (
+        <ProfileReachability state={reachability} error={reachabilityError} />
+      ) : null}
       <span className={styles['row-actions']}>
+        {onRefreshReachability ? (
+          <Tooltip title={t('hosts.access.reachability.refresh', { name })}>
+            <Button
+              type="text"
+              size="small"
+              loading={refreshingReachability}
+              icon={<RefreshCw size={13} />}
+              aria-label={t('hosts.access.reachability.refresh', { name })}
+              disabled={busy || refreshingReachability}
+              onClick={onRefreshReachability}
+            />
+          </Tooltip>
+        ) : null}
         {!isDefault ? (
           <Tooltip title={t('hosts.access.setDefault')}>
             <Button
@@ -246,6 +293,29 @@ function AccessProfileRow({
         ) : null}
       </span>
     </div>
+  )
+}
+
+function ProfileReachability({
+  state,
+  error,
+}: {
+  state?: HostReachability
+  error?: string
+}) {
+  const { t } = useTranslation()
+  const status = state?.status ?? 'unknown'
+  const label = status === 'online' && state?.latency_ms !== undefined
+    ? t('hosts.access.reachability.onlineLatency', { latency: state.latency_ms })
+    : t(`hosts.access.reachability.${status}`)
+  const detail = state?.error_message || error || t('hosts.access.reachability.directHint')
+  return (
+    <Tooltip title={`${label} · ${detail}`}>
+      <span className={styles['row-reachability']} data-status={status}>
+        <i aria-hidden="true" />
+        {label}
+      </span>
+    </Tooltip>
   )
 }
 

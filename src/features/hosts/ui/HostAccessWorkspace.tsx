@@ -13,10 +13,13 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostAvatar, type Host } from '#entities/host'
+import { projectFileAccessProfile } from '#entities/file-access-profile'
 import {
   AccessProfileCatalog,
   AccessProfileEditorShell,
-  type HostAccessManagementGateway,
+  countSSHProfileRuntimeUsage,
+  type HostAccessWorkspaceGateway,
+  useSSHProfileReachability,
 } from '#features/host-access'
 import { SFTPProfileEditor } from '#features/manage-file-access'
 import { VNCProfileEditor } from '#features/manage-remote-desktop'
@@ -37,7 +40,7 @@ import styles from './HostAccessWorkspace.module.scss'
 interface HostAccessWorkspaceProps {
   host: Host
   data: HostManagementData
-  gateway: HostAccessManagementGateway
+  gateway: HostAccessWorkspaceGateway
   openAccessIntentKey?: number
   onAccessIntentHandled?: (key: number) => void
   actionBusy: boolean
@@ -77,6 +80,10 @@ export function HostAccessWorkspace({
     onDirtyChange,
     onProtectedIconIdChange,
   })
+  const profileReachability = useSSHProfileReachability(
+    gateway,
+    controller.view === 'access' && controller.editor === null,
+  )
 
   useEffect(() => {
     if (
@@ -130,14 +137,15 @@ export function HostAccessWorkspace({
               onChange={controller.setSSHDraft}
             />
           </AccessProfileEditorShell>
-          {renderDialogs(controller, t)}
+          {renderDialogs(controller, data, t)}
         </>
       )
     }
     if (editor.kind === 'file') {
       const profile = catalog.files.find((item) => item.id === editor.profileId)
+      const projection = profile ? projectFileAccessProfile(profile) : undefined
       const sshProfile = profile
-        ? catalog.ssh.find((item) => item.id === profile.sftp.ssh_profile_id)
+        ? catalog.ssh.find((item) => item.id === projection?.routeDependency.profileId)
         : undefined
       return (
         <>
@@ -164,7 +172,7 @@ export function HostAccessWorkspace({
               onChange={controller.setFileDraft}
             />
           </AccessProfileEditorShell>
-          {renderDialogs(controller, t)}
+          {renderDialogs(controller, data, t)}
         </>
       )
     }
@@ -205,7 +213,7 @@ export function HostAccessWorkspace({
             onTargetAuthChange={controller.setVNCTargetAuthDraft}
           />
         </AccessProfileEditorShell>
-        {renderDialogs(controller, t)}
+        {renderDialogs(controller, data, t)}
       </>
     )
   }
@@ -299,7 +307,17 @@ export function HostAccessWorkspace({
             ) : undefined}
           />
         ) : null}
-        {renderOverviewBody({ controller, catalog, data, busy, getHostIconUrl, onCreateGroup, onManageIcons, t })}
+        {renderOverviewBody({
+          controller,
+          catalog,
+          data,
+          busy,
+          profileReachability,
+          getHostIconUrl,
+          onCreateGroup,
+          onManageIcons,
+          t,
+        })}
       </ManagementPanel>
       <ConfirmDialog
         open={deleteHostConfirmOpen}
@@ -315,7 +333,7 @@ export function HostAccessWorkspace({
           })
         }}
       />
-      {renderDialogs(controller, t)}
+      {renderDialogs(controller, data, t)}
     </>
   )
 }
@@ -325,6 +343,7 @@ function renderOverviewBody({
   catalog,
   data,
   busy,
+  profileReachability,
   getHostIconUrl,
   onCreateGroup,
   onManageIcons,
@@ -334,6 +353,7 @@ function renderOverviewBody({
   catalog: ReturnType<typeof useHostAccessWorkspaceController>['catalog']
   data: HostManagementData
   busy: boolean
+  profileReachability: ReturnType<typeof useSSHProfileReachability>
   getHostIconUrl: (iconId: string) => string
   onCreateGroup: (name: string) => Promise<{ id: string; name: string }>
   onManageIcons: () => void
@@ -377,6 +397,10 @@ function renderOverviewBody({
     <AccessProfileCatalog
       catalog={catalog}
       busy={busy}
+      sshReachability={profileReachability.states}
+      reachabilityError={profileReachability.error?.message}
+      refreshingSSHProfileIds={profileReachability.pendingProfileIds}
+      onRefreshSSHReachability={(profileId) => void profileReachability.refresh(profileId)}
       onCreateSSH={() => controller.requestEditor({ kind: 'ssh', mode: 'create' })}
       onEditSSH={(profile) => controller.requestEditor({ kind: 'ssh', mode: 'edit', profileId: profile.id })}
       onDeleteSSH={(profile) => void controller.requestDeleteSSH(profile.id)}
@@ -393,16 +417,22 @@ function renderOverviewBody({
 
 function renderDialogs(
   controller: ReturnType<typeof useHostAccessWorkspaceController>,
+  data: HostManagementData,
   t: (key: string, options?: Record<string, unknown>) => string,
 ) {
   const deleteTarget = controller.deleteTarget
   const blocking = deleteTarget?.kind === 'ssh' && deleteTarget.references.blocking_total > 0
+  const runtimeUsage = deleteTarget?.kind === 'ssh'
+    ? countSSHProfileRuntimeUsage(deleteTarget.profileId, data.sessions, data.fileSessions)
+    : null
   const deleteDescription = deleteTarget?.kind === 'ssh'
     ? t(blocking ? 'hosts.access.ssh.deleteBlocked' : 'hosts.access.ssh.deleteDescription', {
       files: deleteTarget.references.companion_files,
       forwards: deleteTarget.references.forward_profiles,
       desktops: deleteTarget.references.remote_desktop_routes,
       jumps: deleteTarget.references.jump_profile_consumers,
+      terminals: runtimeUsage?.terminalSessions ?? 0,
+      fileSessions: runtimeUsage?.fileSessions ?? 0,
     })
     : t('hosts.access.desktop.deleteDescription')
   return (

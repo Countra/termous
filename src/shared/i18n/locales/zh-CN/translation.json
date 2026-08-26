@@ -338,7 +338,9 @@
     "openCmd": "CMD",
     "connectionOverview": {
       "emptyTitle": "暂无连接主机",
-      "emptyHint": "连接 SSH 主机会话后，这里会显示当前连接的主机详情。"
+      "emptyHint": "连接 SSH 主机会话后，这里会显示当前连接的主机详情。",
+      "profileUnavailable": "SSH 配置不可用",
+      "profileUnavailableHint": "当前会话引用的 SSH 配置已不存在，无法展示或重新连接。"
     },
     "sessionState": "会话状态",
     "noSession": "暂无会话",
@@ -1667,6 +1669,16 @@
       "deleteHostTitle": "删除这台主机？",
       "deleteHostDescription": "将删除“{{name}}”。存在访问配置或运行中会话时，系统会阻止删除并说明引用关系。",
       "deleteProfileTitle": "删除这个访问配置？",
+      "reachability": {
+        "unknown": "未检测",
+        "checking": "检测中",
+        "online": "在线",
+        "onlineLatency": "在线 · {{latency}} ms",
+        "offline": "离线",
+        "unavailable": "不可检测",
+        "refresh": "刷新 {{name}} 的在线状态",
+        "directHint": "基于当前 SSH 地址进行直连 ICMP 检测"
+      },
       "ssh": {
         "title": "SSH 终端",
         "add": "新增 SSH",
@@ -1677,8 +1689,8 @@
         "connectionHint": "地址、身份与选路只属于当前 SSH 配置。",
         "authHint": "凭据仅用于当前 SSH 配置，不会复制到伴生 SFTP。",
         "deleteBlockedTitle": "当前 SSH 配置仍被引用",
-        "deleteBlocked": "请先解除引用：端口转发 {{forwards}} 项、远程桌面路由 {{desktops}} 项、跳板依赖 {{jumps}} 项。伴生 SFTP 共 {{files}} 项，会随 SSH 一并处理。",
-        "deleteDescription": "将删除此 SSH 配置及 {{files}} 项伴生 SFTP。当前引用：端口转发 {{forwards}} 项、远程桌面路由 {{desktops}} 项、跳板依赖 {{jumps}} 项。"
+        "deleteBlocked": "请先解除引用：端口转发 {{forwards}} 项、远程桌面路由 {{desktops}} 项、跳板依赖 {{jumps}} 项。伴生 SFTP 共 {{files}} 项。当前还有 {{terminals}} 个终端会话和 {{fileSessions}} 个文件会话正在使用此配置。",
+        "deleteDescription": "将删除此 SSH 配置及 {{files}} 项伴生 SFTP。当前还有 {{terminals}} 个终端会话和 {{fileSessions}} 个文件会话；已有连接继续使用启动时快照，但不能再通过此配置发起新连接。"
       },
       "file": {
         "title": "文件访问",
@@ -2813,6 +2825,7 @@
     "basicInfo": "基本信息",
     "endpointSettings": "端点设置",
     "host": "主机",
+    "sshProfile": "SSH 配置",
     "name": "名称",
     "namePlaceholder": "例如 Web 控制台",
     "description": "说明",
@@ -2866,6 +2879,7 @@
     "validation": {
       "name": "请输入端口转发名称",
       "host": "请选择主机",
+      "sshProfile": "请选择 SSH 配置",
       "bindPort": "监听端口必须在 1 到 65535 之间",
       "targetHost": "请输入目标地址",
       "targetPort": "目标端口必须在 1 到 65535 之间"

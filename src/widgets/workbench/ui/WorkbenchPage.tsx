@@ -159,6 +159,7 @@ export interface WorkbenchPageProps {
   actionBusy: boolean
   onOpenConnectionLauncher: () => void
   onConnect: (hostId: string) => Promise<void>
+  onConnectSSHProfile: (sshProfileId: string) => Promise<void>
   onSelectSession: (sessionId: string) => void
   onDisconnect: (sessionId: string) => Promise<boolean>
   onRefreshInventory: (sessionId: string, force: boolean, signal?: AbortSignal) => Promise<Session>
@@ -201,6 +202,7 @@ export function WorkbenchPage({
   actionBusy,
   onOpenConnectionLauncher,
   onConnect,
+  onConnectSSHProfile,
   onSelectSession,
   onDisconnect,
   onRefreshInventory,
@@ -344,6 +346,9 @@ export function WorkbenchPage({
     setTerminalSize({ cols, rows })
   }, [])
   const sessionHost = activeSession?.host_id ? hostView.hosts.find((host) => host.id === activeSession.host_id) : undefined
+  const sessionSSHProfile = activeSession?.ssh_profile_id
+    ? hostView.sshAccessProfiles.find((profile) => profile.id === activeSession.ssh_profile_id)
+    : undefined
   const visibleSessions = useMemo(
     () => sortSessionsForTabs(sessionView.sessions, sessionTabPreferences),
     [sessionTabPreferences, sessionView.sessions],
@@ -370,7 +375,9 @@ export function WorkbenchPage({
     activeSession?.kind === 'local'
       ? t('workbench.localTerminal')
       : sessionHost
-        ? `${sessionHost.username}@${sessionHost.address}:${sessionHost.port}`
+        ? sessionSSHProfile
+          ? `${sessionSSHProfile.username}@${sessionSSHProfile.address}:${sessionSSHProfile.port}`
+          : t('workbench.connectionOverview.profileUnavailable')
         : t('workbench.noHost')
   const startedAt = activeSession?.started_at ? formatWorkbenchTime(activeSession.started_at) : t('fields.none')
   const sessionDuration = formatSessionDuration(activeSession, durationNow, t('fields.none'))
@@ -656,12 +663,12 @@ export function WorkbenchPage({
 
   const duplicateSessionFromMenu = useCallback(
     async (session: Session) => {
-      if (actionBusy || session.kind !== 'ssh' || !session.host_id) {
+      if (actionBusy || session.kind !== 'ssh' || !session.ssh_profile_id) {
         return
       }
-      await onConnect(session.host_id)
+      await onConnectSSHProfile(session.ssh_profile_id)
     },
-    [actionBusy, onConnect],
+    [actionBusy, onConnectSSHProfile],
   )
   const connectQuickHost = useCallback(
     async (hostId: string) => {
@@ -1072,28 +1079,28 @@ export function WorkbenchPage({
   )
 
   const reconnectActiveSession = useCallback(async () => {
-    if (!activeSession?.host_id || actionBusy) {
+    if (!activeSession?.ssh_profile_id || actionBusy) {
       return
     }
     const previousSessionId = activeSession.id
-    const hostId = activeSession.host_id
+    const sshProfileId = activeSession.ssh_profile_id
     if (!await closeSessionTab(previousSessionId)) {
       return
     }
-    await onConnect(hostId)
-  }, [actionBusy, activeSession?.host_id, activeSession?.id, closeSessionTab, onConnect])
+    await onConnectSSHProfile(sshProfileId)
+  }, [actionBusy, activeSession?.id, activeSession?.ssh_profile_id, closeSessionTab, onConnectSSHProfile])
 
   const reconnectSession = useCallback(
     async (session: Session) => {
-      if (!session.host_id || actionBusy) {
+      if (!session.ssh_profile_id || actionBusy) {
         return
       }
       if (!await closeSessionTab(session.id)) {
         return
       }
-      await onConnect(session.host_id)
+      await onConnectSSHProfile(session.ssh_profile_id)
     },
-    [actionBusy, closeSessionTab, onConnect],
+    [actionBusy, closeSessionTab, onConnectSSHProfile],
   )
 
   const handleSessionTabMenuAction = useCallback(
@@ -1484,7 +1491,7 @@ export function WorkbenchPage({
           forwards: (
               <ForwardSessionPanel
                 session={activeSession}
-                host={sessionHost}
+                sshProfile={sessionSSHProfile}
                 forwards={forwards}
                 enabled={active && detailsActiveTab === 'forwards' && !detailsCollapsed}
                 actionBusy={actionBusy}

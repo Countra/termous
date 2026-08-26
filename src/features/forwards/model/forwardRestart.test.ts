@@ -29,11 +29,13 @@ test('会话和单次后台转发保留原作用域及端点配置', () => {
     scope: 'session',
     session_id: 'session-1',
     host_id: 'host-1',
+    ssh_profile_id: 'ssh-profile-1',
   })
   assert.deepEqual(buildForwardRestartRequest(sessionForward), {
     scope: 'session',
     session_id: 'session-1',
     host_id: 'host-1',
+    ssh_profile_id: 'ssh-profile-1',
     name: '测试转发',
     description: '测试说明',
     mode: 'local',
@@ -53,6 +55,7 @@ test('会话和单次后台转发保留原作用域及端点配置', () => {
     scope: 'background_once',
     session_id: undefined,
     host_id: 'host-1',
+    ssh_profile_id: 'ssh-profile-1',
     name: '测试转发',
     description: '测试说明',
     mode: 'dynamic',
@@ -223,6 +226,7 @@ function createForward(patch: Partial<ForwardInstance> = {}): ForwardInstance {
   return {
     id: 'forward-1',
     host_id: 'host-1',
+    ssh_profile_id: 'ssh-profile-1',
     name: '测试转发',
     description: '测试说明',
     mode: 'local',

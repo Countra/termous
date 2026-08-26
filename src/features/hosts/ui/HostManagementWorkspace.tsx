@@ -11,7 +11,7 @@ import type {
   ConnectionProxy,
   ConnectionProxyInput,
 } from '#entities/connection-proxy'
-import type { HostAccessManagementGateway } from '#features/host-access'
+import type { HostAccessWorkspaceGateway } from '#features/host-access'
 import {
   createBlankHostInput,
   hostInputsEqual,
@@ -39,7 +39,7 @@ export interface HostManagementWorkspaceProps {
   accessIntent?: HostAccessIntent | null
   onAccessIntentHandled?: (key: number) => void
   actionBusy: boolean
-  accessGateway?: HostAccessManagementGateway
+  accessGateway?: HostAccessWorkspaceGateway
   onSelectHost: (hostId: string) => void
   onSave: (id: string | null, input: HostInput) => Promise<Host | undefined>
   onDelete: (id: string) => Promise<boolean | undefined>

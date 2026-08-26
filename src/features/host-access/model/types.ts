@@ -1,5 +1,6 @@
 import type { FileAccessProfile, FileAccessProfileMetadataInput } from '#entities/file-access-profile'
 import type { HostAccessCatalog, HostAsset, HostAssetInput } from '#entities/host-asset'
+import type { HostReachability } from '#entities/host'
 import type {
   RemoteDesktopAccessProfile,
   RemoteDesktopAccessProfileInput,
@@ -66,6 +67,17 @@ export interface HostAccessManagementGateway {
     expectedUpdatedAt: string,
   ) => Promise<RemoteDesktopAccessProfile>
 }
+
+export interface SSHProfileReachabilityGateway {
+  loadSSHProfileReachability: () => Promise<HostReachability[]>
+  refreshSSHProfileReachability: (
+    sshProfileIds?: string[],
+    force?: boolean,
+  ) => Promise<HostReachability[]>
+  sshProfileReachabilityEventsUrl: () => string
+}
+
+export type HostAccessWorkspaceGateway = HostAccessManagementGateway & SSHProfileReachabilityGateway
 
 export type HostAccessProfileKind = 'ssh' | 'file' | 'remote_desktop'
 

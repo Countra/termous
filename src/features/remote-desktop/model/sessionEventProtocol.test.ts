@@ -7,9 +7,8 @@ const validSession = {
   profile_id: 'rdp_test',
   profile_name: '测试桌面',
   host_id: 'host_test',
+  host_name: '测试主机',
   ssh_profile_id: 'ssh_test',
-  ssh_host_id: 'host_test',
-  ssh_host_name: '测试主机',
   route: 'ssh_tunnel',
   route_config_version: 1,
   protocol: 'vnc',
@@ -113,6 +112,7 @@ test('upsert 拒绝字段缺失、枚举越界和无效 VNC 目标', () => {
   )
   const invalidSessions = [
     { ...validSession, host_id: '' },
+    { ...validSession, host_name: '' },
     { ...validSession, ssh_profile_id: '' },
     { ...validSession, updated_at: 'not-a-time' },
     { ...validSession, status: 'unknown' },

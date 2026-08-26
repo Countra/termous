@@ -22,6 +22,10 @@ import type {
   ForwardStartRequest,
 } from '#entities/forward'
 import type { Host } from '#entities/host'
+import {
+  selectDefaultSSHAccessProfile,
+  sortSSHAccessProfiles,
+} from '#entities/ssh-access-profile'
 import type { ForwardManagementData } from '../model/types'
 import { useForwardDurationTick } from '../model/forwardTiming'
 import { ForwardEditorFields } from './ForwardEditorFields'
@@ -57,6 +61,7 @@ interface ForwardFormState {
   description: string
   mode: ForwardMode
   host_id: string
+  ssh_profile_id: string
   bind_host: string
   bind_port: number | null
   target_host: string
@@ -68,6 +73,7 @@ const defaultForm: ForwardFormState = {
   description: '',
   mode: 'local',
   host_id: '',
+  ssh_profile_id: '',
   bind_host: '127.0.0.1',
   bind_port: 8080,
   target_host: '127.0.0.1',
@@ -97,8 +103,18 @@ export function ForwardManagementWorkspace({
   const [modeFilter, setModeFilter] = useState<ForwardModeFilter>('all')
   const consumedTemporaryIntentKeyRef = useRef<number | null>(null)
   const hostOptions = useMemo(
-    () => data.hosts.map((host) => ({ value: host.id, label: host.name, description: `${host.username}@${host.address}:${host.port}` })),
+    () => data.hosts.map((host) => ({ value: host.id, label: host.name })),
     [data.hosts],
+  )
+  const sshProfileOptions = useMemo(
+    () => sortSSHAccessProfiles(data.sshAccessProfiles)
+      .filter((profile) => profile.host_id === form.host_id)
+      .map((profile) => ({
+        value: profile.id,
+        label: profile.name,
+        description: `${profile.username}@${profile.address}:${profile.port}`,
+      })),
+    [data.sshAccessProfiles, form.host_id],
   )
   const hostLookup = useMemo(() => new Map(data.hosts.map((host) => [host.id, host])), [data.hosts])
   const runningForwards = useMemo(
@@ -128,14 +144,14 @@ export function ForwardManagementWorkspace({
   const openCreateProfile = () => {
     setEditorMode('profile')
     setEditingProfile(null)
-    setForm({ ...defaultForm, host_id: data.hosts[0]?.id ?? '' })
+    setForm(createForwardForm(data, data.hosts[0]?.id ?? ''))
     setEditorOpen(true)
   }
 
   const openTemporaryForward = () => {
     setEditorMode('temporary')
     setEditingProfile(null)
-    setForm({ ...defaultForm, name: t('forwards.temporaryDefaultName'), host_id: data.hosts[0]?.id ?? '' })
+    setForm(createForwardForm(data, data.hosts[0]?.id ?? '', t('forwards.temporaryDefaultName')))
     setEditorOpen(true)
   }
 
@@ -149,9 +165,9 @@ export function ForwardManagementWorkspace({
     consumedTemporaryIntentKeyRef.current = temporaryIntent.key
     setEditorMode('temporary')
     setEditingProfile(null)
-    setForm({ ...defaultForm, name: t('forwards.temporaryDefaultName'), host_id: temporaryIntent.hostId })
+    setForm(createForwardForm(data, temporaryIntent.hostId, t('forwards.temporaryDefaultName')))
     setEditorOpen(true)
-  }, [t, temporaryIntent])
+  }, [data, t, temporaryIntent])
 
   const openEditProfile = (profile: ForwardProfile) => {
     setEditorMode('profile')
@@ -161,6 +177,7 @@ export function ForwardManagementWorkspace({
       description: profile.description ?? '',
       mode: profile.mode,
       host_id: profile.host_id,
+      ssh_profile_id: profile.ssh_profile_id ?? '',
       bind_host: profile.bind_host,
       bind_port: profile.bind_port,
       target_host: profile.target_host ?? '127.0.0.1',
@@ -371,6 +388,12 @@ export function ForwardManagementWorkspace({
         <ForwardEditorForm
           form={form}
           hostOptions={hostOptions}
+          sshProfileOptions={sshProfileOptions}
+          onHostChange={(hostId) => setForm((current) => ({
+            ...current,
+            host_id: hostId,
+            ssh_profile_id: selectDefaultSSHAccessProfile(data.sshAccessProfiles, hostId)?.id ?? '',
+          }))}
           onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
         />
       </Modal>
@@ -381,10 +404,14 @@ export function ForwardManagementWorkspace({
 function ForwardEditorForm({
   form,
   hostOptions,
+  sshProfileOptions,
+  onHostChange,
   onChange,
 }: {
   form: ForwardFormState
   hostOptions: Array<{ value: string; label: string; description?: string }>
+  sshProfileOptions: Array<{ value: string; label: string; description?: string }>
+  onHostChange: (hostId: string) => void
   onChange: (patch: Partial<ForwardFormState>) => void
 }) {
   const { t } = useTranslation()
@@ -414,8 +441,17 @@ function ForwardEditorForm({
             label={t('forwards.host')}
             value={form.host_id}
             options={hostOptions}
-            onChange={(value) => onChange({ host_id: value })}
+            onChange={onHostChange}
             disabled={hostOptions.length === 0}
+          />
+          <CustomSelect
+            className={scopedClassName('forwarding-modal-select')}
+            popupClassName={scopedClassName('forwarding-select-popup')}
+            label={t('forwards.sshProfile')}
+            value={form.ssh_profile_id}
+            options={sshProfileOptions}
+            onChange={(value) => onChange({ ssh_profile_id: value })}
+            disabled={sshProfileOptions.length === 0}
           />
         </div>
         <label className={scopedClassName('forward-field')}>
@@ -725,6 +761,7 @@ function formToInput(form: ForwardFormState): ForwardProfileInput {
     description: form.description.trim(),
     mode: form.mode,
     host_id: form.host_id,
+    ssh_profile_id: form.ssh_profile_id,
     bind_host: form.bind_host.trim(),
     bind_port: Number(form.bind_port),
     target_host: form.mode === 'dynamic' ? '' : form.target_host.trim(),
@@ -739,6 +776,9 @@ function validateForwardForm(form: ForwardFormState, t: (key: string) => string)
   if (!form.host_id) {
     return t('forwards.validation.host')
   }
+  if (!form.ssh_profile_id) {
+    return t('forwards.validation.sshProfile')
+  }
   if (!validPort(form.bind_port)) {
     return t('forwards.validation.bindPort')
   }
@@ -750,6 +790,16 @@ function validateForwardForm(form: ForwardFormState, t: (key: string) => string)
   }
   return ''
 }
+
+function createForwardForm(data: ForwardManagementData, hostId: string, name = ''): ForwardFormState {
+  return {
+    ...defaultForm,
+    name,
+    host_id: hostId,
+    ssh_profile_id: selectDefaultSSHAccessProfile(data.sshAccessProfiles, hostId)?.id ?? '',
+  }
+}
+
 
 function validPort(value: number | null) {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 && value <= 65535

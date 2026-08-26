@@ -82,9 +82,8 @@ export interface RemoteDesktopSession {
   profile_id: string
   profile_name: string
   host_id: string
+  host_name: string
   ssh_profile_id: string
-  ssh_host_id: string
-  ssh_host_name: string
   route: RemoteDesktopRoute
   route_config_version: number
   protocol: RemoteDesktopProtocol

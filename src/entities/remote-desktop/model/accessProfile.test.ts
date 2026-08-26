@@ -6,6 +6,7 @@ import {
   sortRemoteDesktopAccessProfiles,
 } from './accessProfile.ts'
 import type { RemoteDesktopAccessProfile } from './types.ts'
+import { projectRemoteDesktopAccessProfile } from './accessProfileProjection.ts'
 
 test('远程桌面精确 Profile 输入不回传兼容别名和持久化字段', () => {
   const source = profile('rdp_b', 1, true)
@@ -26,6 +27,22 @@ test('远程桌面默认项不猜测并按 Host 与顺序稳定排列', () => {
   const second = profile('rdp_a', 0, false)
   assert.deepEqual(sortRemoteDesktopAccessProfiles([first, second]).map((item) => item.id), ['rdp_a', 'rdp_b'])
   assert.equal(selectDefaultRemoteDesktopAccessProfile([first, second], 'hst_1')?.id, 'rdp_b')
+})
+
+test('远程桌面公共投影隐藏 VNC 与路由私有配置', () => {
+  const projection = projectRemoteDesktopAccessProfile(profile('rdp_a', 0, true))
+  assert.deepEqual(projection, {
+    profileId: 'rdp_a',
+    hostId: 'hst_1',
+    name: 'rdp_a',
+    technology: { id: 'vnc', label: 'VNC' },
+    endpoint: '127.0.0.1:5901',
+    routeDependency: { kind: 'ssh_profile', profileId: 'ssh_1' },
+    isDefault: true,
+    sortOrder: 0,
+  })
+  assert.equal('vnc' in projection, false)
+  assert.equal('ssh_profile_id' in projection, false)
 })
 
 function profile(id: string, sortOrder: number, isDefault: boolean): RemoteDesktopAccessProfile {

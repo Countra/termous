@@ -260,7 +260,6 @@ test('侧栏框架与折叠控件由共享 Module 承载', () => {
   for (const relativePath of [
     '../shared/ui/SidePanelControls.module.scss',
     '../features/hosts/ui/HostLauncherModal.module.scss',
-    '../features/remote-desktop/ui/RemoteDesktopLauncher.module.scss',
   ]) {
     assert.doesNotMatch(source(relativePath), /var\(--surface-(?:base|elevated|hover)\b/)
   }

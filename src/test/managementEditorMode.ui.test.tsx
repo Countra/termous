@@ -63,6 +63,8 @@ function hostEditorProps(): ComponentProps<typeof HostEditor> {
       proxies: [],
       credentials: [passwordCredential],
       hostIcons: [],
+      sessions: [],
+      fileSessions: [],
     },
     draft: hostDraft,
     dirty: false,

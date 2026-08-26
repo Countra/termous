@@ -211,7 +211,7 @@ export function RemoteDesktopWorkspace({
                   status={tabStatus(session)}
                   statusLabel={t(`remoteDesktop.status.${session.status}`)}
                   closeLabel={t('remoteDesktop.disconnect')}
-                  tooltipTitle={`${session.profile_name} · ${session.ssh_host_name}`}
+                  tooltipTitle={`${session.profile_name} · ${session.host_name}`}
                   onClick={() => runtime.selectSession(session.id)}
                   onClose={() => closeSession(session)}
                 />
@@ -447,7 +447,7 @@ function RemoteDesktopStatusBar({ session, viewerState }: { session: RemoteDeskt
       <div className={styles['status-context']}>
         <span className={`${styles.dot} ${styles[`is-${tabStatus(session).replace('_', '-')}`]}`} />
         <strong>{t(`remoteDesktop.status.${session.status}`)}</strong>
-        <span className={styles['status-host']}>{session.ssh_host_name}</span>
+        <span className={styles['status-host']}>{session.host_name}</span>
         {viewerState?.targetLabel ? (
           <span className={styles['status-target']}>{viewerState.targetLabel}</span>
         ) : null}

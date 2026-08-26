@@ -144,6 +144,7 @@ function ControllerHarness({
       <output data-testid="file-count">{controller.catalog?.files.length ?? 0}</output>
       <output data-testid="default-ssh">{controller.catalog?.ssh.find((profile) => profile.is_default)?.id ?? ''}</output>
       <output data-testid="vnc-name">{controller.vncDraft.name}</output>
+      <output data-testid="vnc-ssh-profile">{controller.vncDraft.ssh_profile_id}</output>
       <output data-testid="vnc-target-auth-mutation">{controller.vncTargetAuthDraft.mutation}</output>
       <button type="button" onClick={() => controller.setAssetDraft({ ...controller.assetDraft, name: 'Local draft' })}>edit-asset</button>
       <button type="button" onClick={() => controller.setAssetDraft({ ...controller.assetDraft, name: '' })}>invalidate-asset</button>
@@ -175,6 +176,7 @@ function ControllerHarness({
       </button>
       <button type="button" onClick={() => void controller.saveProfile()}>save-profile</button>
       <button type="button" onClick={() => void controller.setDefaultProfile('ssh', 'ssh-secondary')}>default-secondary</button>
+      <button type="button" onClick={() => controller.requestEditor({ kind: 'remote_desktop', mode: 'create' })}>create-vnc</button>
       <button
         type="button"
         onClick={() => controller.requestEditor({
@@ -328,6 +330,7 @@ describe('主机访问方式 Controller', () => {
     await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
 
     fireEvent.click(screen.getByRole('button', { name: 'edit-asset' }))
+    await waitFor(() => expect(screen.getByTestId('asset-name')).toHaveTextContent('Local draft'))
     fireEvent.click(screen.getByRole('button', { name: 'open-access' }))
     expect(screen.getByTestId('view')).toHaveTextContent('asset')
     expect(screen.getByTestId('pending')).toHaveTextContent('true')
@@ -457,5 +460,25 @@ describe('主机访问方式 Controller', () => {
     expect(screen.getByTestId('error')).toHaveTextContent(
       'remoteDesktop.targetAuth.profileSavedCredentialFailed',
     )
+  })
+
+  it('默认 SSH 异常时新建 VNC 不猜测第一条路由', async () => {
+    const source = catalog('host-a')
+    const ambiguous = {
+      ...source,
+      ssh: [
+        { ...source.ssh[0], is_default: false },
+        { ...source.ssh[0], id: 'ssh-secondary', name: 'Secondary', is_default: false },
+      ],
+    }
+    const api = gateway(ambiguous)
+    render(<ControllerHarness host={legacyHost('host-a')} api={api} />)
+    await waitFor(() => expect(screen.getByTestId('catalog-host')).toHaveTextContent('host-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'create-vnc' }))
+
+    expect(screen.getByTestId('vnc-ssh-profile')).toBeEmptyDOMElement()
+    fireEvent.click(screen.getByRole('button', { name: 'save-profile' }))
+    expect(api.createRemoteDesktopProfile).not.toHaveBeenCalled()
   })
 })

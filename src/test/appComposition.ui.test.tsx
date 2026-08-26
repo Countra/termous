@@ -544,6 +544,7 @@ describe('应用运行时组合合同', () => {
       'hostReachability',
       'hosts',
       'proxies',
+      'sshAccessProfiles',
     ])
     expect(testState.projectionKeys.workbenchSessionView).toEqual([
       'sessions',
@@ -575,7 +576,15 @@ describe('应用运行时组合合同', () => {
     ])
 
     await user.click(screen.getByRole('button', { name: 'hosts' }))
-    expect(testState.projectionKeys.hosts).toEqual(['credentials', 'groups', 'hostIcons', 'hosts', 'proxies'])
+    expect(testState.projectionKeys.hosts).toEqual([
+      'credentials',
+      'fileSessions',
+      'groups',
+      'hostIcons',
+      'hosts',
+      'proxies',
+      'sessions',
+    ])
 
     await user.click(screen.getByRole('button', { name: 'files' }))
     expect(testState.projectionKeys.files).toEqual([
@@ -588,7 +597,12 @@ describe('应用运行时组合合同', () => {
     ])
 
     await user.click(screen.getByRole('button', { name: 'forwards' }))
-    expect(testState.projectionKeys.forwards).toEqual(['forwardProfiles', 'forwards', 'hosts'])
+    expect(testState.projectionKeys.forwards).toEqual([
+      'forwardProfiles',
+      'forwards',
+      'hosts',
+      'sshAccessProfiles',
+    ])
 
     await user.click(screen.getByRole('button', { name: 'snippets' }))
     expect(testState.projectionKeys.snippets).toEqual(['snippetGroups', 'snippets'])

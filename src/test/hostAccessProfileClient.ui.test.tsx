@@ -230,6 +230,28 @@ describe('主机访问 Profile HTTP 合同', () => {
     expect(requestAt(fetchMock, 1).search).toBe('?host_id=')
     expect(requestAt(fetchMock, 2).search).toBe('?host_id=')
   })
+
+  it('使用独立 SSH Profile 可达性端点并精确提交 Profile ID', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify([]), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const hosts = createGateways().hosts
+
+    await hosts.sshProfileReachability()
+    await hosts.refreshSSHProfileReachability(['ssh-a', 'ssh-b'], true)
+
+    expect(requestAt(fetchMock, 0)).toMatchObject({
+      pathname: '/api/v1/ssh-access-profiles/reachability',
+      method: 'GET',
+    })
+    expect(requestAt(fetchMock, 1)).toMatchObject({
+      pathname: '/api/v1/ssh-access-profiles/reachability/refresh',
+      method: 'POST',
+      body: { ssh_profile_ids: ['ssh-a', 'ssh-b'], force: true },
+    })
+    expect(hosts.sshProfileReachabilityEventsUrl()).toContain(
+      '/api/v1/ssh-access-profiles/reachability/events',
+    )
+  })
 })
 
 function requestAt(fetchMock: ReturnType<typeof vi.fn>, index: number) {

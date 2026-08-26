@@ -1,10 +1,14 @@
 import {
+  projectFileAccessProfile,
   sortFileAccessProfiles,
-  type FileAccessProfile,
+  type FileAccessEngine,
+  type FileAccessProfileProjection,
 } from '#entities/file-access-profile'
 import {
+  projectRemoteDesktopAccessProfile,
   sortRemoteDesktopAccessProfiles,
-  type RemoteDesktopAccessProfile,
+  type RemoteDesktopAccessProfileProjection,
+  type RemoteDesktopProtocol,
 } from '#entities/remote-desktop'
 import {
   sortSSHAccessProfiles,
@@ -13,7 +17,7 @@ import {
 import type { HostLauncherIntent } from './hostLauncherIntent.ts'
 import type { HostLauncherProfileData } from './types.ts'
 
-export type HostLauncherProfileTechnology = 'ssh' | 'sftp' | 'vnc'
+export type HostLauncherProfileTechnology = 'ssh' | FileAccessEngine | RemoteDesktopProtocol
 
 export type HostLauncherProfileAvailability = 'ready' | 'route_missing'
 
@@ -53,14 +57,14 @@ export interface HostLauncherSSHProfileMenuItem extends HostLauncherProfileMenuI
 export interface HostLauncherFileProfileMenuItem extends HostLauncherProfileMenuItemBase {
   intent: 'files'
   actionId: 'openFiles'
-  technology: 'sftp'
+  technology: FileAccessEngine
 }
 
 export interface HostLauncherRemoteDesktopProfileMenuItem
   extends HostLauncherProfileMenuItemBase {
   intent: 'remote_desktop'
   actionId: 'openRemoteDesktop'
-  technology: 'vnc'
+  technology: RemoteDesktopProtocol
 }
 
 export type HostLauncherProfileMenuItem =
@@ -114,10 +118,12 @@ function buildItems(
   if (intent === 'files') {
     return sortFileAccessProfiles(data.fileAccessProfiles)
       .filter((profile) => profile.host_id === hostId)
+      .map(projectFileAccessProfile)
       .map((profile) => toFileMenuItem(profile, sshProfiles))
   }
   return sortRemoteDesktopAccessProfiles(data.remoteDesktopProfiles)
     .filter((profile) => profile.host_id === hostId)
+    .map(projectRemoteDesktopAccessProfile)
     .map((profile) => toRemoteDesktopMenuItem(profile, sshProfiles))
 }
 
@@ -139,42 +145,49 @@ function toSSHMenuItem(profile: SSHAccessProfile): HostLauncherSSHProfileMenuIte
 }
 
 function toFileMenuItem(
-  profile: FileAccessProfile,
+  profile: FileAccessProfileProjection,
   sshProfiles: SSHAccessProfile[],
 ): HostLauncherFileProfileMenuItem {
-  const route = resolveRouteInfo(sshProfiles, profile.host_id, profile.sftp.ssh_profile_id)
+  const route = resolveRouteInfo(
+    sshProfiles,
+    profile.hostId,
+    profile.routeDependency.profileId,
+  )
   return {
-    profileId: profile.id,
-    hostId: profile.host_id,
+    profileId: profile.profileId,
+    hostId: profile.hostId,
     intent: 'files',
     actionId: 'openFiles',
-    technology: 'sftp',
-    name: displayName(profile.name, route?.endpoint ?? 'SFTP'),
+    technology: profile.technology.id,
+    name: displayName(profile.name, route?.endpoint ?? profile.technology.label),
     endpoint: route?.endpoint ?? '',
     route,
-    isDefault: profile.is_default,
-    sortOrder: profile.sort_order,
+    isDefault: profile.isDefault,
+    sortOrder: profile.sortOrder,
     availability: route ? 'ready' : 'route_missing',
   }
 }
 
 function toRemoteDesktopMenuItem(
-  profile: RemoteDesktopAccessProfile,
+  profile: RemoteDesktopAccessProfileProjection,
   sshProfiles: SSHAccessProfile[],
 ): HostLauncherRemoteDesktopProfileMenuItem {
-  const endpoint = formatHostPort(profile.vnc.loopback_host, profile.vnc.port)
-  const route = resolveRouteInfo(sshProfiles, profile.host_id, profile.ssh_profile_id)
+  const route = resolveRouteInfo(
+    sshProfiles,
+    profile.hostId,
+    profile.routeDependency.profileId,
+  )
   return {
-    profileId: profile.id,
-    hostId: profile.host_id,
+    profileId: profile.profileId,
+    hostId: profile.hostId,
     intent: 'remote_desktop',
     actionId: 'openRemoteDesktop',
-    technology: 'vnc',
-    name: displayName(profile.name, endpoint),
-    endpoint,
+    technology: profile.technology.id,
+    name: displayName(profile.name, profile.endpoint),
+    endpoint: profile.endpoint,
     route,
-    isDefault: profile.is_default,
-    sortOrder: profile.sort_order,
+    isDefault: profile.isDefault,
+    sortOrder: profile.sortOrder,
     availability: route ? 'ready' : 'route_missing',
   }
 }

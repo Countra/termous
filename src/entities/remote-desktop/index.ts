@@ -20,3 +20,11 @@ export {
   selectDefaultRemoteDesktopAccessProfile,
   sortRemoteDesktopAccessProfiles,
 } from './model/accessProfile.ts'
+export {
+  getRemoteDesktopTechnologyDescriptor,
+  projectRemoteDesktopAccessProfile,
+} from './model/accessProfileProjection.ts'
+export type {
+  RemoteDesktopAccessProfileProjection,
+  RemoteDesktopTechnologyDescriptor,
+} from './model/accessProfileProjection.ts'

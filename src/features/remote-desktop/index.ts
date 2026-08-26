@@ -8,5 +8,4 @@ export type {
   RemoteDesktopCredentials,
   RemoteDesktopViewerState,
 } from './runtime/core/viewerContracts.ts'
-export { RemoteDesktopLauncher } from './ui/RemoteDesktopLauncher.tsx'
 export { RemoteDesktopViewport } from './ui/RemoteDesktopViewport.tsx'

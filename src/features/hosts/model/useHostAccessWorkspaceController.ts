@@ -18,6 +18,7 @@ import {
 import {
   createSSHAccessProfileDraft,
   normalizeSSHAccessProfileDraft,
+  selectDefaultSSHAccessProfile,
   sshAccessProfileDraftsEqual,
   sshAccessProfileToDraft,
   validateSSHAccessProfileDraft,
@@ -193,7 +194,7 @@ export function useHostAccessWorkspaceController({
       setFileDraft(next)
       setFileBaseline(next)
     } else {
-      const defaultSSH = catalog.ssh.find((profile) => profile.is_default) ?? catalog.ssh[0]
+      const defaultSSH = selectDefaultSSHAccessProfile(catalog.ssh, hostId)
       const source = intent.mode === 'edit'
         ? catalog.remote_desktops.find((profile) => profile.id === intent.profileId)
         : undefined
@@ -210,7 +211,7 @@ export function useHostAccessWorkspaceController({
     }
     setView('access')
     setEditor(intent)
-  }, [catalogState.catalog, t])
+  }, [catalogState.catalog, hostId, t])
 
   const discardProfile = useCallback(() => {
     if (editor?.kind === 'ssh') setSSHDraft(sshBaseline)

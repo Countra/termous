@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Host } from '#entities/host'
-import type { HostAccessManagementGateway } from '#features/host-access'
+import type { HostAccessWorkspaceGateway } from '#features/host-access'
 import { HostManagementWorkspace } from './HostManagementWorkspace.tsx'
 
 vi.mock('./HostAccessWorkspace', async () => {
@@ -61,7 +61,7 @@ const secondHost: Host = {
   address: 'host-b.example.com',
 }
 
-const accessGateway: HostAccessManagementGateway = {
+const accessGateway: HostAccessWorkspaceGateway = {
   loadCatalog: vi.fn(),
   listSSHProfiles: vi.fn(),
   updateHostAsset: vi.fn(),
@@ -78,13 +78,24 @@ const accessGateway: HostAccessManagementGateway = {
   saveRemoteDesktopTargetAuth: vi.fn(),
   deleteRemoteDesktopTargetAuth: vi.fn(),
   setDefaultRemoteDesktopProfile: vi.fn(),
+  loadSSHProfileReachability: vi.fn(),
+  refreshSSHProfileReachability: vi.fn(),
+  sshProfileReachabilityEventsUrl: vi.fn(),
 }
 
 describe('主机管理工作区', () => {
   it('确认放弃访问草稿后重置隐藏编辑器状态', () => {
     render(
       <HostManagementWorkspace
-        data={{ hosts: [host], groups: [], proxies: [], credentials: [], hostIcons: [] }}
+        data={{
+          hosts: [host],
+          groups: [],
+          proxies: [],
+          credentials: [],
+          hostIcons: [],
+          sessions: [],
+          fileSessions: [],
+        }}
         selectedHostId={host.id}
         actionBusy={false}
         accessGateway={accessGateway}
@@ -127,6 +138,8 @@ describe('主机管理工作区', () => {
         proxies: [],
         credentials: [],
         hostIcons: [],
+        sessions: [],
+        fileSessions: [],
       },
       actionBusy: false,
       accessGateway,

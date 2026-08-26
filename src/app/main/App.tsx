@@ -12,10 +12,9 @@ import {
 } from '#entities/file'
 import {
   selectCompanionSFTPFileAccessProfile,
-  selectDefaultFileAccessProfile,
 } from '#entities/file-access-profile'
 import { isForwardRestartCompleted } from '#features/forwards'
-import type { HostAccessManagementGateway } from '#features/host-access'
+import type { HostAccessWorkspaceGateway } from '#features/host-access'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
@@ -336,10 +335,20 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     proxies: data.proxies,
     credentials: data.credentials,
     hostIcons: data.hostIcons,
-  }), [data.credentials, data.groups, data.hostIcons, data.hosts, data.proxies])
+    sessions: data.sessions,
+    fileSessions: data.fileSessions,
+  }), [
+    data.credentials,
+    data.fileSessions,
+    data.groups,
+    data.hostIcons,
+    data.hosts,
+    data.proxies,
+    data.sessions,
+  ])
   const hostAccessActionsRef = useRef(actions)
   hostAccessActionsRef.current = actions
-  const hostAccessGateway = useMemo<HostAccessManagementGateway>(() => ({
+  const hostAccessGateway = useMemo<HostAccessWorkspaceGateway>(() => ({
     loadCatalog: (hostId) => hostAccessActionsRef.current.hostAccessCatalog(hostId),
     listSSHProfiles: () => hostAccessActionsRef.current.sshAccessProfiles(),
     updateHostAsset: (...input) => hostAccessActionsRef.current.updateHostAsset(...input),
@@ -356,14 +365,20 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     saveRemoteDesktopTargetAuth: (...input) => hostAccessActionsRef.current.saveRemoteDesktopTargetAuth(...input),
     deleteRemoteDesktopTargetAuth: (...input) => hostAccessActionsRef.current.deleteRemoteDesktopTargetAuth(...input),
     setDefaultRemoteDesktopProfile: (...input) => hostAccessActionsRef.current.setDefaultRemoteDesktopAccessProfile(...input),
-  }), [])
+    loadSSHProfileReachability: () => gateways.hosts.sshProfileReachability(),
+    refreshSSHProfileReachability: (profileIds, force) => (
+      gateways.hosts.refreshSSHProfileReachability(profileIds, force)
+    ),
+    sshProfileReachabilityEventsUrl: () => gateways.hosts.sshProfileReachabilityEventsUrl(),
+  }), [gateways.hosts])
   const workbenchHostView = useMemo<WorkbenchPageProps['hostView']>(() => ({
     hosts: data.hosts,
     groups: data.groups,
     proxies: data.proxies,
     credentials: data.credentials,
     hostReachability: data.hostReachability,
-  }), [data.credentials, data.groups, data.hostReachability, data.hosts, data.proxies])
+    sshAccessProfiles: data.sshAccessProfiles,
+  }), [data.credentials, data.groups, data.hostReachability, data.hosts, data.proxies, data.sshAccessProfiles])
   const hostLauncherData = useMemo<HostLauncherData>(() => ({
     ...workbenchHostView,
     sshAccessProfiles: data.sshAccessProfiles,
@@ -377,9 +392,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   ])
   const forwardManagementData = useMemo<ForwardsPageProps['data']>(() => ({
     hosts: data.hosts,
+    sshAccessProfiles: data.sshAccessProfiles,
     forwardProfiles: data.forwardProfiles,
     forwards: data.forwards,
-  }), [data.forwardProfiles, data.forwards, data.hosts])
+  }), [data.forwardProfiles, data.forwards, data.hosts, data.sshAccessProfiles])
   const snippetManagementData = useMemo<SnippetsPageProps['data']>(() => ({
     snippetGroups: data.snippetGroups,
     snippets: data.snippets,
@@ -876,16 +892,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
-  const openFilesForHost = async (hostId: string) => {
-    const fileProfile = selectDefaultFileAccessProfile(data.fileAccessProfiles, hostId)
-    if (!fileProfile) {
-      setSelectedHostId(hostId)
-      setPage('files')
-      return
-    }
-    await openFilesForProfile(fileProfile.id, hostId)
-  }
-
   const openTemporaryForwardForHost = (hostId: string) => {
     setSelectedHostId(hostId)
     setForwardTemporaryIntent({ key: Date.now(), hostId })
@@ -1051,6 +1057,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           actionBusy={actionBusy}
                           onOpenConnectionLauncher={openTerminalSessionLauncher}
                           onConnect={(hostId) => runAction(() => actions.connect(hostId).then(() => undefined))}
+                          onConnectSSHProfile={(sshProfileId) => runAction(
+                            () => actions.connectSSHProfile(sshProfileId).then(() => undefined),
+                          ).then(() => undefined)}
                           onSelectSession={actions.selectSession}
                           onDisconnect={async (sessionId) => (
                             await runAction(async () => {
@@ -1145,7 +1154,6 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                               consumeFilesBookmarkManagementIntent(current, requestId)
                             ))
                           }}
-                          onOpenFileSession={openFilesForHost}
                           onOpenFileSessionLauncher={openFileSessionLauncher}
                           onConnectFileSession={async (input) => {
                             invalidateFilesBookmarkManagementRequest()

@@ -169,6 +169,8 @@ function data(hosts: Host[], hostIcons: HostIcon[] = []): HostManagementData {
     groups: [],
     proxies: [],
     hostIcons,
+    sessions: [],
+    fileSessions: [],
     credentials: [{
       id: 'credential-password',
       name: 'Password',

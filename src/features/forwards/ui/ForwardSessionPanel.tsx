@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton, StatusBadge, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
 import type { ForwardInstance, ForwardMode, ForwardStartRequest } from '#entities/forward'
-import type { Host } from '#entities/host'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import type { ForwardSessionContext } from '../model/types'
 import { ForwardEditorFields } from './ForwardEditorFields'
 import { ForwardModeBadge, ForwardModeSelector } from './ForwardModeSelector'
@@ -21,7 +21,7 @@ const scopedClassName = (...classNames: string[]) => classNames
 
 export interface ForwardSessionPanelProps {
   session: ForwardSessionContext | null
-  host?: Host
+  sshProfile?: SSHAccessProfile
   forwards: ForwardInstance[]
   enabled: boolean
   actionBusy: boolean
@@ -58,7 +58,7 @@ const forwardStatusPriority: Record<ForwardInstance['status'], number> = {
 
 export function ForwardSessionPanel({
   session,
-  host,
+  sshProfile,
   forwards,
   enabled,
   actionBusy,
@@ -159,7 +159,9 @@ export function ForwardSessionPanel({
     )
   }
 
-  const sessionTarget = host ? `${host.username}@${host.address}:${host.port}` : t('fields.none')
+  const sessionTarget = sshProfile
+    ? `${sshProfile.username}@${sshProfile.address}:${sshProfile.port}`
+    : t('fields.none')
 
   return (
     <section className={`${scopedClassName('forward-session-panel')} ${styles.root}`}>

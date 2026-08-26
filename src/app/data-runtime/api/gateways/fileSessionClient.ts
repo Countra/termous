@@ -88,11 +88,6 @@ fileSessionEventsUrl(id: string) {
     return this.websocketUrl(`/api/v1/file-sessions/${encodeURIComponent(id)}/events`)
   }
 
-listFiles(hostId: string, path: string) {
-    const query = new URLSearchParams({ path })
-    return this.request<RemoteDirectoryListing>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files?${query.toString()}`)
-  }
-
 listFileSessionFiles(
     fileSessionId: string,
     path: string,
@@ -172,45 +167,6 @@ moveFileSessionFiles(fileSessionId: string, sourcePaths: string[], targetDir: st
     })
   }
 
-statFile(hostId: string, path: string) {
-    const query = new URLSearchParams({ path })
-    return this.request<RemoteFileEntry>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/stat?${query.toString()}`)
-  }
-
-mkdirFile(hostId: string, path: string) {
-    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/mkdir`, {
-      method: 'POST',
-      body: { path },
-    })
-  }
-
-renameFile(hostId: string, sourcePath: string, targetPath: string) {
-    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/rename`, {
-      method: 'PATCH',
-      body: { source_path: sourcePath, target_path: targetPath },
-    })
-  }
-
-deleteFiles(hostId: string, paths: string[], recursive = true) {
-    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files`, {
-      method: 'DELETE',
-      body: { paths, recursive },
-    })
-  }
-
-copyFiles(hostId: string, sourcePaths: string[], targetDir: string, overwritePolicy: OverwritePolicy = 'rename') {
-    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/copy`, {
-      method: 'POST',
-      body: { source_paths: sourcePaths, target_dir: targetDir, overwrite_policy: overwritePolicy },
-    })
-  }
-
-moveFiles(hostId: string, sourcePaths: string[], targetDir: string, overwritePolicy: OverwritePolicy = 'rename') {
-    return this.request<void>(`/api/v1/hosts/${encodeURIComponent(hostId)}/files/move`, {
-      method: 'POST',
-      body: { source_paths: sourcePaths, target_dir: targetDir, overwrite_policy: overwritePolicy },
-    })
-  }
 }
 
 function requireConnectionTargetID(value: string, message: string) {

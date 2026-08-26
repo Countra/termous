@@ -338,7 +338,9 @@
     "openCmd": "CMD",
     "connectionOverview": {
       "emptyTitle": "No connected host",
-      "emptyHint": "Connect an SSH host session to show the current host details here."
+      "emptyHint": "Connect an SSH host session to show the current host details here.",
+      "profileUnavailable": "SSH profile unavailable",
+      "profileUnavailableHint": "The SSH profile referenced by this session no longer exists, so its details and reconnect action are unavailable."
     },
     "sessionState": "Session state",
     "noSession": "No session",
@@ -1674,6 +1676,16 @@
       "deleteHostTitle": "Delete this host?",
       "deleteHostDescription": "This deletes “{{name}}”. Termous blocks the operation and reports references when access profiles or active sessions still depend on it.",
       "deleteProfileTitle": "Delete this access profile?",
+      "reachability": {
+        "unknown": "Not checked",
+        "checking": "Checking",
+        "online": "Online",
+        "onlineLatency": "Online · {{latency}} ms",
+        "offline": "Offline",
+        "unavailable": "Unavailable",
+        "refresh": "Refresh reachability for {{name}}",
+        "directHint": "Direct ICMP check against this SSH endpoint"
+      },
       "ssh": {
         "title": "SSH terminal",
         "add": "Add SSH",
@@ -1684,8 +1696,8 @@
         "connectionHint": "The endpoint, identity, and route belong only to this SSH profile.",
         "authHint": "The credential belongs to this SSH profile and is not copied into its companion SFTP profile.",
         "deleteBlockedTitle": "This SSH profile is still referenced",
-        "deleteBlocked": "Remove these references first: {{forwards}} forwarding profiles, {{desktops}} remote desktop routes, and {{jumps}} jump dependencies. Its {{files}} companion SFTP profile is handled with SSH.",
-        "deleteDescription": "This deletes the SSH profile and {{files}} companion SFTP profile. Current references: {{forwards}} forwarding profiles, {{desktops}} remote desktop routes, and {{jumps}} jump dependencies."
+        "deleteBlocked": "Remove these references first: {{forwards}} forwarding profiles, {{desktops}} remote desktop routes, and {{jumps}} jump dependencies. The SSH profile has {{files}} companion SFTP profile(s), with {{terminals}} active terminal session(s) and {{fileSessions}} active file session(s).",
+        "deleteDescription": "This deletes the SSH profile and {{files}} companion SFTP profile(s). {{terminals}} terminal session(s) and {{fileSessions}} file session(s) are still active; existing connections keep their startup snapshots, but this profile can no longer start new connections."
       },
       "file": {
         "title": "File access",
@@ -2835,6 +2847,7 @@
     "basicInfo": "Basic information",
     "endpointSettings": "Endpoint settings",
     "host": "Host",
+    "sshProfile": "SSH profile",
     "name": "Name",
     "namePlaceholder": "For example Web console",
     "description": "Description",
@@ -2888,6 +2901,7 @@
     "validation": {
       "name": "Enter a forward name",
       "host": "Select a host",
+      "sshProfile": "Select an SSH profile",
       "bindPort": "Bind port must be between 1 and 65535",
       "targetHost": "Enter a target address",
       "targetPort": "Target port must be between 1 and 65535"

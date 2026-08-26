@@ -8,6 +8,7 @@ import type { CredentialView } from '#entities/credential'
 import type { ConnectionProxy } from '#entities/connection-proxy'
 import type { Host, HostGroup } from '#entities/host'
 import type { Session } from '#entities/session'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import styles from './WorkbenchDetails.module.scss'
 
 interface WorkbenchConnectionOverviewProps {
@@ -29,6 +30,7 @@ interface WorkbenchConnectionData {
   groups: HostGroup[]
   proxies: ConnectionProxy[]
   credentials: CredentialView[]
+  sshAccessProfiles: SSHAccessProfile[]
 }
 
 export function WorkbenchConnectionOverview({
@@ -48,6 +50,9 @@ export function WorkbenchConnectionOverview({
   const host = session?.kind === 'ssh'
     ? data.hosts.find((candidate) => candidate.id === session.host_id)
     : undefined
+  const sshProfile = session?.kind === 'ssh'
+    ? data.sshAccessProfiles.find((candidate) => candidate.id === session.ssh_profile_id)
+    : undefined
   if (!host) {
     return (
       <WorkbenchEmptyState
@@ -57,10 +62,20 @@ export function WorkbenchConnectionOverview({
       />
     )
   }
+  if (!sshProfile) {
+    return (
+      <WorkbenchEmptyState
+        icon={<Server size={20} />}
+        title={t('workbench.connectionOverview.profileUnavailable')}
+        description={t('workbench.connectionOverview.profileUnavailableHint')}
+      />
+    )
+  }
 
-  const credential = data.credentials.find((item) => item.id === host.credential_id)
+  const credential = data.credentials.find((item) => item.id === sshProfile.credential_id)
   const group = data.groups.find((item) => item.id === host.group_id)
-  const jumpHost = data.hosts.find((item) => item.id === host.jump_host_id)
+  const jumpSSHProfile = data.sshAccessProfiles.find((item) => item.id === session?.jump_ssh_profile_id)
+  const jumpHost = data.hosts.find((item) => item.id === jumpSSHProfile?.host_id)
   const proxy = data.proxies.find((item) => item.id === session?.proxy_id)
   const tags = host.tags ?? []
   const credentialLabel = credential
@@ -68,7 +83,7 @@ export function WorkbenchConnectionOverview({
     : t('fields.none')
   const sessionEnded = session?.status === 'disconnected' || session?.status === 'failed'
   const canOpenFiles = session?.status === 'connected' && Boolean(session.host_id)
-  const canReconnect = Boolean(session?.host_id && sessionEnded)
+  const canReconnect = Boolean(session?.ssh_profile_id && sessionEnded)
 
   return (
     <div className={styles['connection-overview-panel']}>
@@ -82,18 +97,18 @@ export function WorkbenchConnectionOverview({
         />
         <div className={styles['connection-overview-copy']}>
           <strong>{host.name}</strong>
-          <small>{`${host.username}@${host.address}:${host.port}`}</small>
+          <small>{`${sshProfile.username}@${sshProfile.address}:${sshProfile.port}`}</small>
         </div>
         <StatusBadge status={sessionBadgeStatus} label={sessionStatusLabel} />
       </div>
       <dl className={styles['detail-list']}>
         <div>
           <dt>{t('hosts.address')}</dt>
-          <dd>{`${host.address}:${host.port}`}</dd>
+          <dd>{`${sshProfile.address}:${sshProfile.port}`}</dd>
         </div>
         <div>
           <dt>{t('hosts.username')}</dt>
-          <dd>{host.username}</dd>
+          <dd>{sshProfile.username}</dd>
         </div>
         <div>
           <dt>{t('hosts.platform.label')}</dt>
@@ -105,7 +120,7 @@ export function WorkbenchConnectionOverview({
         </div>
         <div>
           <dt>{t('hosts.authMethod')}</dt>
-          <dd>{t(`hosts.auth.${host.auth_method}`)}</dd>
+          <dd>{t(`hosts.auth.${sshProfile.auth_method}`)}</dd>
         </div>
         <div>
           <dt>{t('workbench.credential')}</dt>
@@ -129,7 +144,9 @@ export function WorkbenchConnectionOverview({
         </div>
         <div>
           <dt>{t('workbench.jumpHost')}</dt>
-          <dd>{jumpHost?.name ?? t('fields.none')}</dd>
+          <dd>{jumpSSHProfile
+            ? `${jumpHost?.name ?? t('fields.none')} / ${jumpSSHProfile.name}`
+            : t('fields.none')}</dd>
         </div>
         <div>
           <dt>{t('hosts.proxy')}</dt>

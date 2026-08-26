@@ -9,6 +9,7 @@ import {
   validateFileAccessProfileMetadataInput,
 } from './fileAccessProfile.ts'
 import type { FileAccessProfile } from './types.ts'
+import { projectFileAccessProfile } from './accessProfileProjection.ts'
 
 test('文件 Profile 只开放独立元数据并校验名称', () => {
   assert.deepEqual(normalizeFileAccessProfileMetadataInput({ name: '  Files  ' }), { name: 'Files' })
@@ -43,6 +44,21 @@ test('伴生 SFTP 仅在主机和 SSH Profile 唯一匹配时返回', () => {
     ),
     undefined,
   )
+})
+
+test('文件访问公共投影隐藏 SFTP 私有配置', () => {
+  const source = profile('file-primary', 0, true, 'ssh-primary')
+  const projection = projectFileAccessProfile(source)
+  assert.deepEqual(projection, {
+    profileId: 'file-primary',
+    hostId: 'hst_1',
+    name: 'file-primary',
+    technology: { id: 'sftp', label: 'SFTP' },
+    routeDependency: { kind: 'ssh_profile', profileId: 'ssh-primary' },
+    isDefault: true,
+    sortOrder: 0,
+  })
+  assert.equal('sftp' in projection, false)
 })
 
 function profile(

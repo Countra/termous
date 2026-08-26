@@ -57,6 +57,9 @@ describe('访问方式目录', () => {
       <AccessProfileCatalog
         catalog={accessCatalog()}
         busy={false}
+        sshReachability={{}}
+        refreshingSSHProfileIds={new Set()}
+        onRefreshSSHReachability={vi.fn()}
         onCreateSSH={vi.fn()}
         onEditSSH={vi.fn()}
         onDeleteSSH={vi.fn()}
@@ -82,6 +85,9 @@ describe('访问方式目录', () => {
       <AccessProfileCatalog
         catalog={accessCatalog()}
         busy
+        sshReachability={{}}
+        refreshingSSHProfileIds={new Set()}
+        onRefreshSSHReachability={vi.fn()}
         onCreateSSH={vi.fn()}
         onEditSSH={vi.fn()}
         onDeleteSSH={vi.fn()}
@@ -97,5 +103,60 @@ describe('访问方式目录', () => {
 
     expect(screen.getByRole('button', { name: 'hosts.access.ssh.add' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'hosts.access.desktop.add' })).toBeDisabled()
+  })
+
+  it('按 SSH Profile 展示独立在线状态并精确刷新当前项', () => {
+    const source = accessCatalog()
+    source.ssh.push({
+      ...source.ssh[0],
+      id: 'ssh-b',
+      name: 'Secondary SSH',
+      address: 'secondary.example.com',
+      is_default: false,
+      sort_order: 1,
+    })
+    const onRefresh = vi.fn()
+    render(
+      <AccessProfileCatalog
+        catalog={source}
+        busy={false}
+        sshReachability={{
+          'ssh-a': {
+            host_id: 'host-a',
+            ssh_profile_id: 'ssh-a',
+            address: 'server.example.com',
+            status: 'online',
+            latency_ms: 12,
+            packet_loss: 0,
+          },
+          'ssh-b': {
+            host_id: 'host-a',
+            ssh_profile_id: 'ssh-b',
+            address: 'secondary.example.com',
+            status: 'offline',
+            packet_loss: 1,
+          },
+        }}
+        refreshingSSHProfileIds={new Set()}
+        onRefreshSSHReachability={onRefresh}
+        onCreateSSH={vi.fn()}
+        onEditSSH={vi.fn()}
+        onDeleteSSH={vi.fn()}
+        onSetDefaultSSH={vi.fn()}
+        onEditFile={vi.fn()}
+        onSetDefaultFile={vi.fn()}
+        onCreateRemoteDesktop={vi.fn()}
+        onEditRemoteDesktop={vi.fn()}
+        onDeleteRemoteDesktop={vi.fn()}
+        onSetDefaultRemoteDesktop={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('hosts.access.reachability.onlineLatency')).toBeInTheDocument()
+    expect(screen.getByText('hosts.access.reachability.offline')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', {
+      name: 'hosts.access.reachability.refresh',
+    })[0])
+    expect(onRefresh).toHaveBeenCalledWith('ssh-a')
   })
 })

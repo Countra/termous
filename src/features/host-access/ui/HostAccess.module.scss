@@ -68,12 +68,58 @@
   display: grid;
   min-width: 0;
   min-height: 58px;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: 42px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   background: transparent;
   padding: 7px 6px;
   transition: background-color 140ms ease;
+}
+
+.row-reachability {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.row-reachability > i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+
+.row-reachability[data-status='online'] {
+  color: var(--success);
+}
+
+.row-reachability[data-status='offline'] {
+  color: var(--danger);
+}
+
+.row-reachability[data-status='unavailable'] {
+  color: var(--warning);
+}
+
+.row-reachability[data-status='checking'] {
+  color: var(--accent);
+}
+
+.row-reachability[data-status='checking'] > i {
+  animation: profile-reachability-pulse 1s ease-in-out infinite;
+}
+
+@keyframes profile-reachability-pulse {
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .row + .row {
@@ -305,6 +351,10 @@
     opacity: 1;
   }
 
+  .row-reachability {
+    grid-column: 2;
+  }
+
   .sync-state {
     display: none;
   }
@@ -327,7 +377,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .row,
-  .row-actions {
+  .row-actions,
+  .row-reachability[data-status='checking'] > i {
     transition: none;
+    animation: none;
   }
 }

@@ -156,6 +156,22 @@ export class HostClient extends TermousApiTransport {
     return this.websocketUrl('/api/v1/hosts/reachability/events')
   }
 
+  sshProfileReachability() {
+    return this.request<HostReachability[]>('/api/v1/ssh-access-profiles/reachability')
+  }
+
+  refreshSSHProfileReachability(sshProfileIds: string[] = [], force = false) {
+    return this.request<HostReachability[]>('/api/v1/ssh-access-profiles/reachability/refresh', {
+      method: 'POST',
+      body: { ssh_profile_ids: sshProfileIds, force },
+      timeoutMs: 4_000,
+    })
+  }
+
+  sshProfileReachabilityEventsUrl() {
+    return this.websocketUrl('/api/v1/ssh-access-profiles/reachability/events')
+  }
+
   createHost(input: HostInput) {
     return this.request<Host>('/api/v1/hosts', {
       method: 'POST',

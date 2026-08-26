@@ -90,9 +90,8 @@ function isRemoteDesktopSession(value: unknown): value is RemoteDesktopSession {
     && isNonEmptyString(value.profile_id)
     && isNonEmptyString(value.profile_name)
     && isNonEmptyString(value.host_id)
+    && isNonEmptyString(value.host_name)
     && isNonEmptyString(value.ssh_profile_id)
-    && isNonEmptyString(value.ssh_host_id)
-    && isNonEmptyString(value.ssh_host_name)
     && value.route === 'ssh_tunnel'
     && isConfigVersion(value.route_config_version)
     && value.protocol === 'vnc'

@@ -53,8 +53,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import { writeClipboardText } from '#shared/clipboard'
-import { SessionQuickConnect } from '#features/hosts'
-import { confirmDialogStyles, EmptyState, SessionTabButton, SessionTabStrip, uiStyles, termousNotificationClassName } from '#shared/ui'
+import { confirmDialogStyles, EmptyState, SessionNewTabButton, SessionTabButton, SessionTabStrip, uiStyles, termousNotificationClassName } from '#shared/ui'
 import { usePersistentJsonState } from '#shared/hooks'
 import type { TerminalSettings } from '#common/contracts'
 import type { Host } from '#entities/host'
@@ -202,7 +201,6 @@ export interface FilesWorkspaceProps {
   closingFileSessionIds: readonly string[]
   bookmarkManagementIntent: FilesWorkspaceBookmarkManagementIntent | null
   onConsumeBookmarkManagementIntent: (requestId: number) => void
-  onOpenFileSession: (hostId: string) => Promise<void>
   onOpenFileSessionLauncher: () => void
   onConnectFileSession: (input: FileSessionConnectInput) => Promise<FileSession>
   onSelectFileSession: (fileSessionId: string) => void
@@ -354,7 +352,6 @@ function FilesWorkspaceContent({
   closingFileSessionIds,
   bookmarkManagementIntent,
   onConsumeBookmarkManagementIntent,
-  onOpenFileSession,
   onOpenFileSessionLauncher,
   onConnectFileSession,
   onSelectFileSession,
@@ -440,8 +437,6 @@ function FilesWorkspaceContent({
   } = useFilesWorkspaceRuntime()
   const workspaceStatesRef = useRef(workspaceStates)
   workspaceStatesRef.current = workspaceStates
-  const [quickConnectOpen, setQuickConnectOpen] = useState(false)
-  const [quickConnectQuery, setQuickConnectQuery] = useState('')
   const [pathInput, setPathInput] = useState('/')
   const [editingPath, setEditingPath] = useState(false)
   const [breadcrumbScrollState, setBreadcrumbScrollState] = useState({
@@ -1254,15 +1249,6 @@ function FilesWorkspaceContent({
       closeFileSessionTab(fileSessionId)
     },
     [closeFileSessionTab],
-  )
-
-  const connectQuickFileHost = useCallback(
-    async (hostId: string) => {
-      setQuickConnectOpen(false)
-      setQuickConnectQuery('')
-      await onOpenFileSession(hostId)
-    },
-    [onOpenFileSession],
   )
 
   const notifyError = (actionError: unknown) => {
@@ -3237,15 +3223,9 @@ function FilesWorkspaceContent({
             scrollRightLabel={t('workbench.scrollTabsRight')}
             tabsClassName={`${styles['terminal-tabs']} terminal-tabs`}
             trailing={(
-              <SessionQuickConnect
-                hosts={data.hosts}
-                triggerLabel={t('files.openFileSession')}
-                open={quickConnectOpen}
-                query={quickConnectQuery}
-                onOpenChange={setQuickConnectOpen}
-                onQueryChange={setQuickConnectQuery}
-                onConnect={connectQuickFileHost}
-                getHostIconUrl={getHostIconUrl}
+              <SessionNewTabButton
+                label={t('files.openFileSession')}
+                onClick={onOpenFileSessionLauncher}
               />
             )}
           >

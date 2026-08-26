@@ -4,6 +4,7 @@ import type { ChangeEvent, ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ForwardInstance, ForwardMode, ForwardProfile } from '#entities/forward'
 import type { Host } from '#entities/host'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 
 const workspaceMocks = vi.hoisted(() => ({
   notification: {
@@ -211,10 +212,29 @@ function host(id: string): Host {
   }
 }
 
+function sshProfile(id: string, hostId: string): SSHAccessProfile {
+  return {
+    id,
+    host_id: hostId,
+    name: `SSH ${hostId}`,
+    address: `${hostId}.example.com`,
+    port: 22,
+    username: 'root',
+    auth_method: 'password',
+    credential_id: 'credential-password',
+    fingerprint_policy: 'confirm_on_change',
+    is_default: true,
+    sort_order: 0,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+  }
+}
+
 function workspaceProps() {
   return {
     data: {
       hosts: [host('host-a'), host('host-b')],
+      sshAccessProfiles: [sshProfile('ssh-a', 'host-a'), sshProfile('ssh-b', 'host-b')],
       forwardProfiles: [],
       forwards: [],
     },
@@ -236,6 +256,7 @@ function profile(): ForwardProfile {
     description: '',
     mode: 'local',
     host_id: 'host-a',
+    ssh_profile_id: 'ssh-a',
     bind_host: '127.0.0.1',
     bind_port: 8080,
     target_host: '127.0.0.1',
@@ -269,6 +290,7 @@ describe('端口转发临时启动意图', () => {
         description: '',
         mode: 'dynamic',
         host_id: 'host-b',
+        ssh_profile_id: 'ssh-b',
         bind_host: '127.0.0.1',
         bind_port: 8080,
         target_host: '',
@@ -318,5 +340,33 @@ describe('端口转发临时启动意图', () => {
     expect(editContext).toHaveTextContent('Profile Alpha')
     expect(editContext).toHaveTextContent('app.edit')
     expect(screen.getByRole('button', { name: 'app.save' })).toBeInTheDocument()
+  })
+
+  it('编辑与切换主机时始终提交精确的 SSH Profile', async () => {
+    const user = userEvent.setup()
+    const props = workspaceProps()
+    const savedProfile = profile()
+    render(
+      <ForwardManagementWorkspace
+        {...props}
+        temporaryIntent={undefined}
+        data={{ ...props.data, forwardProfiles: [savedProfile] }}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'app.update' }))
+    expect(screen.getByRole('combobox', { name: 'forwards.sshProfile' })).toHaveValue('ssh-a')
+    await user.click(screen.getByRole('button', { name: 'app.save' }))
+
+    await waitFor(() => {
+      expect(props.onUpdateProfile).toHaveBeenCalledWith(
+        'profile-a',
+        expect.objectContaining({ host_id: 'host-a', ssh_profile_id: 'ssh-a' }),
+      )
+    })
+
+    await user.click(screen.getByRole('button', { name: 'forwards.newProfile' }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'forwards.host' }), 'host-b')
+    expect(screen.getByRole('combobox', { name: 'forwards.sshProfile' })).toHaveValue('ssh-b')
   })
 })

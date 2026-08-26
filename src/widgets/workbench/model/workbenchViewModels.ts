@@ -6,6 +6,7 @@ import type { FileAccessProfile } from '#entities/file-access-profile'
 import type { Host, HostGroup, HostReachability } from '#entities/host'
 import type { Session } from '#entities/session'
 import type { CodeSnippet, CodeSnippetGroup } from '#entities/snippet'
+import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 
 export interface WorkbenchHostView {
   hosts: Host[]
@@ -13,6 +14,7 @@ export interface WorkbenchHostView {
   proxies: ConnectionProxy[]
   credentials: CredentialView[]
   hostReachability: Record<string, HostReachability>
+  sshAccessProfiles: SSHAccessProfile[]
 }
 
 export interface WorkbenchSessionView {
