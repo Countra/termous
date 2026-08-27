@@ -1,28 +1,64 @@
 .form {
+  container-name: vnc-profile-editor;
+  container-type: inline-size;
   min-width: 0;
 }
 
 .section {
-  padding: 18px 20px 20px;
+  padding: 18px 22px 20px;
 }
 
 .section + .section {
   border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
 }
 
+.section-inner {
+  width: 100%;
+  max-width: 1040px;
+  margin-inline: auto;
+}
+
 .section-heading {
   display: grid;
-  gap: 3px;
+  min-width: 0;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
   margin-bottom: 14px;
 }
 
-.section-heading strong {
+.section-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.section-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.section-copy h3,
+.section-copy small {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-copy h3 {
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 720;
+  letter-spacing: 0;
 }
 
-.section-heading small {
+.section-copy small {
   color: var(--text-muted);
   font-size: 10px;
   line-height: 15px;
@@ -31,7 +67,8 @@
 .grid {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: start;
   gap: 14px;
 }
 
@@ -42,11 +79,50 @@
   gap: 6px;
 }
 
-.field > span:first-child,
+.profile-name-field,
+.port-field {
+  grid-column: span 4;
+}
+
+.route-field,
+.loopback-field {
+  grid-column: span 8;
+}
+
+.profile-name-field,
+.route-field,
+.loopback-field,
+.port-field {
+  grid-template-rows: 15px 40px minmax(14px, auto);
+}
+
+.route-field > :global(.custom-select),
+.loopback-field > :global(.custom-select) {
+  display: contents;
+}
+
+.description-field {
+  grid-column: 1 / -1;
+}
+
+.field > label:first-child,
 .field :global(.field-label) {
+  display: block;
+  height: 15px;
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 650;
+  line-height: 15px;
+}
+
+.profile-name-field :global(.ant-input),
+.route-field :global(.ant-select),
+.route-field :global(.ant-select-selector),
+.loopback-field :global(.ant-select),
+.loopback-field :global(.ant-select-selector),
+.port-field :global(.ant-input-number) {
+  height: 40px;
+  min-height: 40px;
 }
 
 .field :global(.ant-input-number) {
@@ -57,119 +133,164 @@
 .field :global(.ant-input-number),
 .field :global(.ant-select-selector),
 .field :global(textarea.ant-input) {
-  min-height: 36px;
+  min-height: 40px;
   border-color: var(--border) !important;
   background: var(--input-bg) !important;
   box-shadow: none !important;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
-.wide {
-  grid-column: 1 / -1;
+.field :global(.ant-input-number-input) {
+  height: 38px;
+  font-variant-numeric: tabular-nums;
 }
 
-.error {
-  color: var(--danger);
+.description-field :global(textarea.ant-input) {
+  height: 64px;
+  min-height: 64px;
+  max-height: 64px;
+  resize: none;
+}
+
+.field :global(.ant-input:focus),
+.field :global(.ant-input-number-focused),
+.field :global(.ant-select-focused .ant-select-selector) {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border)) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent) !important;
+}
+
+.field[data-invalid='true'] :global(.ant-select-selector) {
+  border-color: var(--danger) !important;
+}
+
+.feedback {
+  min-height: 14px;
+  color: transparent;
   font-size: 10px;
   line-height: 14px;
+  visibility: hidden;
 }
 
-.display-mode {
+.feedback.error {
+  color: var(--danger);
+  visibility: visible;
+}
+
+.viewer-layout {
   display: grid;
-  grid-template-columns: minmax(140px, 0.55fr) minmax(280px, 1.45fr);
-  align-items: center;
-  gap: 16px;
+  min-width: 0;
+  grid-template-columns: minmax(0, 7fr) minmax(320px, 5fr);
+  align-items: start;
+  gap: 22px;
 }
 
-.display-mode > span {
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 650;
-}
-
-.display-mode :global(.ant-segmented) {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-subtle);
-  padding: 2px;
-}
-
-.display-mode :global(.ant-segmented-item-selected) {
-  background: color-mix(in srgb, var(--accent-soft) 52%, var(--surface));
-  color: var(--accent);
-  box-shadow: none;
-}
-
-.display-mode :global(.ant-segmented-item-label > span) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  font-size: 10px;
-}
-
-.switches {
+.mode-setting,
+.setting-copy {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 14px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  min-width: 0;
 }
 
-.switches > label {
-  display: grid;
-  min-height: 62px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px 0 0;
+.mode-setting {
+  align-content: start;
+  gap: 8px;
 }
 
-.switches > label + label {
-  border-left: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
-  padding-right: 0;
-  padding-left: 14px;
+.setting-copy {
+  gap: 2px;
 }
 
-.switches > label > span {
-  display: grid;
-  gap: 3px;
-}
-
-.switches strong {
+.setting-copy strong,
+.switch-setting strong {
   color: var(--text-primary);
   font-size: 11px;
   font-weight: 670;
 }
 
-.switches small {
+.setting-copy small,
+.switch-setting small {
   color: var(--text-muted);
   font-size: 10px;
   line-height: 14px;
 }
 
-@media (width <= 580px) {
-  .grid,
-  .display-mode,
-  .switches {
+.behavior-settings {
+  display: grid;
+  min-width: 0;
+  border-left: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  padding-left: 22px;
+}
+
+.switch-setting {
+  display: grid;
+  min-width: 0;
+  min-height: 48px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding-block: 5px;
+}
+
+.switch-setting + .switch-setting {
+  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+}
+
+.switch-setting > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+@container vnc-profile-editor (max-width: 640px) {
+  .section {
+    padding: 16px 16px 18px;
+  }
+
+  .grid {
     grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
   }
 
-  .wide {
-    grid-column: auto;
+  .profile-name-field,
+  .route-field,
+  .description-field,
+  .loopback-field,
+  .port-field {
+    grid-column: 1 / -1;
   }
 
-  .display-mode {
-    align-items: stretch;
-    gap: 8px;
+  .section-copy small {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}
+
+@container vnc-profile-editor (max-width: 720px) {
+  .viewer-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
   }
 
-  .switches > label,
-  .switches > label + label {
+  .behavior-settings {
+    border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
     border-left: 0;
-    padding-right: 0;
+    padding-top: 8px;
     padding-left: 0;
   }
+}
 
-  .switches > label + label {
-    border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+@container vnc-profile-editor (max-width: 380px) {
+  .display-options :global(.ant-segmented-item-icon) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field :global(.ant-input),
+  .field :global(.ant-input-number),
+  .field :global(.ant-select-selector) {
+    transition: none;
   }
 }

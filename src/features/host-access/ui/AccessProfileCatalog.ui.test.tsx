@@ -53,12 +53,12 @@ function accessCatalog(): HostAccessCatalog {
 describe('访问方式目录', () => {
   it('SFTP 只提供编辑与默认项操作，不提供删除或改绑入口', () => {
     const onEditFile = vi.fn()
-    render(
+    const view = render(
       <AccessProfileCatalog
         catalog={accessCatalog()}
         busy={false}
         sshReachability={{}}
-        refreshingSSHProfileIds={new Set()}
+        sshReachabilityRefreshing={false}
         onRefreshSSHReachability={vi.fn()}
         onCreateSSH={vi.fn()}
         onEditSSH={vi.fn()}
@@ -74,6 +74,8 @@ describe('访问方式目录', () => {
     )
 
     expect(screen.getByText('Bound SFTP')).toBeInTheDocument()
+    expect(view.container.querySelectorAll('.lucide-circle-check')).toHaveLength(2)
+    expect(view.container.querySelector('.lucide-star')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'app.delete Bound SFTP' })).not.toBeInTheDocument()
     expect(screen.queryByText(/rebind|改绑/i)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'app.edit Bound SFTP' }))
@@ -86,7 +88,7 @@ describe('访问方式目录', () => {
         catalog={accessCatalog()}
         busy
         sshReachability={{}}
-        refreshingSSHProfileIds={new Set()}
+        sshReachabilityRefreshing={false}
         onRefreshSSHReachability={vi.fn()}
         onCreateSSH={vi.fn()}
         onEditSSH={vi.fn()}
@@ -101,11 +103,17 @@ describe('访问方式目录', () => {
       />,
     )
 
-    expect(screen.getByRole('button', { name: 'hosts.access.ssh.add' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'hosts.access.desktop.add' })).toBeDisabled()
+    const sshAdd = screen.getByRole('button', { name: 'hosts.access.ssh.add' })
+    const desktopAdd = screen.getByRole('button', { name: 'hosts.access.desktop.add' })
+    const refreshAll = screen.getByRole('button', { name: 'hosts.access.reachability.refreshAll' })
+    expect(sshAdd).toBeDisabled()
+    expect(desktopAdd).toBeDisabled()
+    expect(refreshAll).toBeDisabled()
+    expect(sshAdd.className).toContain('section-add')
+    expect(desktopAdd.className).toContain('section-add')
   })
 
-  it('按 SSH Profile 展示独立在线状态并精确刷新当前项', () => {
+  it('按 SSH Profile 展示独立在线状态并通过标题栏统一检测', () => {
     const source = accessCatalog()
     source.ssh.push({
       ...source.ssh[0],
@@ -116,7 +124,7 @@ describe('访问方式目录', () => {
       sort_order: 1,
     })
     const onRefresh = vi.fn()
-    render(
+    const view = render(
       <AccessProfileCatalog
         catalog={source}
         busy={false}
@@ -137,7 +145,7 @@ describe('访问方式目录', () => {
             packet_loss: 1,
           },
         }}
-        refreshingSSHProfileIds={new Set()}
+        sshReachabilityRefreshing={false}
         onRefreshSSHReachability={onRefresh}
         onCreateSSH={vi.fn()}
         onEditSSH={vi.fn()}
@@ -152,11 +160,81 @@ describe('访问方式目录', () => {
       />,
     )
 
-    expect(screen.getByText('hosts.access.reachability.onlineLatency')).toBeInTheDocument()
-    expect(screen.getByText('hosts.access.reachability.offline')).toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('button', {
-      name: 'hosts.access.reachability.refresh',
-    })[0])
-    expect(onRefresh).toHaveBeenCalledWith('ssh-a')
+    const onlineLabel = screen.getByText('hosts.access.reachability.onlineLatency')
+    const offlineLabel = screen.getByText('hosts.access.reachability.offline')
+    expect(onlineLabel).toBeInTheDocument()
+    expect(offlineLabel).toBeInTheDocument()
+    expect(view.container.querySelectorAll('[class*="row-controls"]')).toHaveLength(3)
+    expect(onlineLabel.closest('[data-status]')?.parentElement?.className).toContain('row-status')
+    expect(offlineLabel.closest('[data-status]')?.parentElement?.className).toContain('row-status')
+    fireEvent.mouseEnter(onlineLabel.closest('[data-status]') as HTMLElement)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    const refreshButtons = screen.getAllByRole('button', {
+      name: 'hosts.access.reachability.refreshAll',
+    })
+    expect(refreshButtons).toHaveLength(1)
+    expect(view.container.querySelectorAll('.lucide-refresh-cw')).toHaveLength(1)
+    expect(refreshButtons[0].closest('header')).not.toBeNull()
+    expect(screen.getByRole('button', {
+      name: 'hosts.access.setDefault Secondary SSH',
+    })).toBeEnabled()
+    const defaultDeleteReason = screen.getByRole('note', {
+      name: 'hosts.access.switchDefaultBeforeDelete',
+    })
+    expect(defaultDeleteReason).toHaveAttribute('tabindex', '0')
+    expect(screen.getByRole('button', { name: 'app.delete Primary SSH' })).toBeDisabled()
+    fireEvent.click(refreshButtons[0])
+    expect(onRefresh).toHaveBeenCalledOnce()
+  })
+
+  it('远端检测状态不锁死刷新入口，并在本地请求或失败时展示明确状态', () => {
+    const source = accessCatalog()
+    const onRefresh = vi.fn()
+    const props = {
+      catalog: source,
+      busy: false,
+      sshReachability: {
+        'ssh-a': {
+          host_id: 'host-a',
+          ssh_profile_id: 'ssh-a',
+          address: 'server.example.com',
+          status: 'checking' as const,
+          packet_loss: 0,
+        },
+      },
+      sshReachabilityRefreshing: false,
+      sshReachabilityError: 'refresh failed',
+      onRefreshSSHReachability: onRefresh,
+      onCreateSSH: vi.fn(),
+      onEditSSH: vi.fn(),
+      onDeleteSSH: vi.fn(),
+      onSetDefaultSSH: vi.fn(),
+      onEditFile: vi.fn(),
+      onSetDefaultFile: vi.fn(),
+      onCreateRemoteDesktop: vi.fn(),
+      onEditRemoteDesktop: vi.fn(),
+      onDeleteRemoteDesktop: vi.fn(),
+      onSetDefaultRemoteDesktop: vi.fn(),
+    }
+    const view = render(<AccessProfileCatalog {...props} />)
+
+    const retryButton = screen.getByRole('button', {
+      name: 'hosts.access.reachability.refreshFailed',
+    })
+    expect(retryButton).toBeEnabled()
+    expect(retryButton).toHaveAttribute('data-error', 'true')
+    fireEvent.click(retryButton)
+    expect(onRefresh).toHaveBeenCalledOnce()
+
+    view.rerender(
+      <AccessProfileCatalog
+        {...props}
+        sshReachabilityError={undefined}
+        sshReachabilityRefreshing
+      />,
+    )
+    expect(screen.getByRole('button', {
+      name: 'hosts.access.reachability.refreshAll',
+    })).toBeDisabled()
   })
 })

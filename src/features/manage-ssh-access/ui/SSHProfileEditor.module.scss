@@ -1,37 +1,73 @@
 .form {
+  container-name: ssh-profile-editor;
+  container-type: inline-size;
   min-width: 0;
 }
 
 .section {
-  padding: 18px 20px 20px;
+  padding: 18px 22px 20px;
 }
 
 .section + .section {
   border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
 }
 
+.section-inner {
+  width: 100%;
+  max-width: 1040px;
+  margin-inline: auto;
+}
+
 .section-heading {
   display: grid;
-  gap: 3px;
+  min-width: 0;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 14px;
 }
 
-.section-heading strong {
+.section-icon {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--surface-subtle));
+  color: var(--accent);
+}
+
+.section-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.section-copy h3,
+.section-copy small {
+  margin: 0;
+}
+
+.section-copy h3 {
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 720;
+  letter-spacing: 0;
 }
 
-.section-heading small {
+.section-copy small {
+  overflow: hidden;
   color: var(--text-muted);
   font-size: 10px;
   line-height: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .grid {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -42,6 +78,66 @@
   gap: 6px;
 }
 
+.profile-name-field {
+  grid-column: span 4;
+}
+
+.address-field {
+  grid-column: span 6;
+}
+
+.port-field {
+  grid-column: span 2;
+}
+
+.basic-grid[data-profile-name="hidden"] .address-field {
+  grid-column: span 9;
+}
+
+.basic-grid[data-profile-name="hidden"] .port-field {
+  grid-column: span 3;
+}
+
+.auth-method-field,
+.username-field,
+.credential-field {
+  grid-column: span 4;
+}
+
+.authentication-grid {
+  align-items: start;
+}
+
+.authentication-grid > .field {
+  grid-template-rows: 15px 40px minmax(14px, auto);
+}
+
+.authentication-grid > .field > label:first-child,
+.authentication-grid > .field > span:first-child,
+.credential-field :global(.field-label) {
+  display: block;
+  height: 15px;
+  line-height: 15px;
+}
+
+.credential-field > :global(.custom-select) {
+  display: contents;
+}
+
+.authentication-grid .auth-methods:global(.ant-segmented),
+.authentication-grid .username-field :global(.ant-input),
+.authentication-grid .credential-field :global(.ant-select),
+.authentication-grid .credential-field :global(.ant-select-selector) {
+  height: 40px;
+  min-height: 40px;
+}
+
+.proxy-field,
+.jump-field {
+  grid-column: span 6;
+}
+
+.field > label:first-child,
 .field > span:first-child,
 .field :global(.field-label) {
   color: var(--text-secondary);
@@ -56,63 +152,118 @@
 .field :global(.ant-input),
 .field :global(.ant-input-number),
 .field :global(.ant-select-selector) {
-  min-height: 36px;
+  min-height: 40px;
   border-color: var(--border) !important;
   background: var(--input-bg) !important;
   box-shadow: none !important;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
-.wide {
-  grid-column: 1 / -1;
+.field :global(.ant-input-number-input) {
+  height: 38px;
+  font-variant-numeric: tabular-nums;
 }
 
-.error {
-  color: var(--danger);
+.field :global(.ant-input:focus),
+.field :global(.ant-input-number-focused),
+.field :global(.ant-select-focused .ant-select-selector) {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border)) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent) !important;
+}
+
+.field[data-invalid="true"] :global(.ant-select-selector) {
+  border-color: var(--danger) !important;
+}
+
+.feedback {
+  min-height: 14px;
+  color: transparent;
   font-size: 10px;
   line-height: 14px;
+  visibility: hidden;
 }
 
-.auth-methods:global(.ant-radio-group) {
-  display: grid;
-  max-width: 360px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px;
-  margin-bottom: 14px;
+.feedback.error {
+  color: var(--danger);
+  visibility: visible;
+}
+
+.auth-methods:global(.ant-segmented) {
+  width: 100%;
+  min-height: 40px;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--surface-subtle);
   padding: 3px;
 }
 
-.auth-methods :global(.ant-radio-button-wrapper) {
+.auth-methods :global(.ant-segmented-group) {
+  min-height: 32px;
+}
+
+.auth-methods :global(.ant-segmented-item) {
+  min-width: 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+}
+
+.auth-methods :global(.ant-segmented-item-label) {
+  min-height: 32px;
+  padding-inline: 7px;
+  line-height: 32px;
+}
+
+.auth-methods :global(.ant-segmented-item-selected) {
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--surface));
+  color: var(--accent);
+  box-shadow: none;
+}
+
+.auth-option {
   display: inline-flex;
-  height: 32px;
+  min-width: 0;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  border: 0 !important;
-  border-radius: 6px !important;
-  background: transparent !important;
-  color: var(--text-secondary);
-  font-size: 11px;
-  box-shadow: none !important;
+  gap: 5px;
+  white-space: nowrap;
 }
 
-.auth-methods :global(.ant-radio-button-wrapper::before) {
-  display: none;
-}
-
-.auth-methods :global(.ant-radio-button-wrapper-checked) {
-  background: color-mix(in srgb, var(--accent-soft) 58%, var(--surface)) !important;
-  color: var(--accent) !important;
-}
-
-@media (width <= 580px) {
-  .grid {
-    grid-template-columns: minmax(0, 1fr);
+@container ssh-profile-editor (max-width: 700px) {
+  .section {
+    padding: 16px 16px 18px;
   }
 
-  .wide {
-    grid-column: auto;
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .profile-name-field,
+  .address-field,
+  .port-field,
+  .basic-grid[data-profile-name="hidden"] .address-field,
+  .basic-grid[data-profile-name="hidden"] .port-field,
+  .auth-method-field,
+  .username-field,
+  .credential-field,
+  .proxy-field,
+  .jump-field {
+    grid-column: 1 / -1;
+  }
+
+  .section-copy small {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field :global(.ant-input),
+  .field :global(.ant-input-number),
+  .field :global(.ant-select-selector) {
+    transition: none;
   }
 }

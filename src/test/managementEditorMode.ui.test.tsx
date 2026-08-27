@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { CredentialView } from '#entities/credential'
@@ -123,6 +123,20 @@ describe('管理编辑器模式视觉合同', () => {
     expect(screen.queryByRole('button', { name: 'app.delete' })).not.toBeInTheDocument()
     expect(screen.queryByText('hosts.unsaved')).not.toBeInTheDocument()
     expect(screen.queryByText('hosts.saved')).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'hosts.access.hostInfo' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'hosts.access.connectionConfig' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('region', { name: 'hosts.access.hostInfo' })).toBeInTheDocument()
+    const nameInput = screen.getByRole('textbox', { name: 'hosts.name' })
+    const nameHint = screen.getByText('hosts.nameHint')
+    expect(nameInput).toHaveAttribute('aria-describedby', nameHint.id)
+    const favoriteSwitch = screen.getByRole('switch', { name: 'hosts.access.favorite' })
+    expect(favoriteSwitch).not.toBeChecked()
+    fireEvent.click(favoriteSwitch)
+    expect(props.onChange).toHaveBeenCalledWith(expect.objectContaining({ favorite: true }))
+
+    view.rerender(<HostEditor {...props} actionBusy />)
+    expect(screen.getByRole('tab', { name: 'hosts.access.hostInfo' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('tab', { name: 'hosts.access.connectionConfig' })).toHaveAttribute('aria-disabled', 'true')
 
     view.rerender(<HostEditor {...props} dirty />)
 
@@ -131,6 +145,8 @@ describe('管理编辑器模式视觉合同', () => {
     expect(screen.getByRole('button', { name: 'app.create' })).toBeEnabled()
     expect(screen.getByText('hosts.unsaved')).toBeVisible()
     expect(screen.queryByText('hosts.saved')).not.toBeInTheDocument()
+    expect(within(document.querySelector('[data-editor-mode="create"]') as HTMLElement)
+      .getByRole('status')).toHaveTextContent('hosts.unsaved')
 
     view.rerender(<HostEditor {...props} editingHost={existingHost} />)
 
@@ -140,6 +156,8 @@ describe('管理编辑器模式视觉合同', () => {
     expect(screen.getByRole('button', { name: 'app.delete' })).toBeEnabled()
     expect(screen.getByText('hosts.saved')).toBeVisible()
     expect(screen.queryByText('hosts.unsaved')).not.toBeInTheDocument()
+    expect(within(document.querySelector('[data-editor-mode="edit"]') as HTMLElement)
+      .getByRole('status')).toHaveTextContent('hosts.saved')
 
     view.rerender(
       <HostEditor
@@ -152,6 +170,33 @@ describe('管理编辑器模式视觉合同', () => {
 
     expect(document.querySelector('[data-editor-mode="edit"]')).toHaveTextContent(existingHost.name)
     expect(document.querySelector('[data-editor-mode="edit"]')).not.toHaveTextContent('hosts.newHost')
+  })
+
+  it('主机新增在同一编辑器中切换主机信息和连接配置，并将错误定位到连接段', () => {
+    const props = hostEditorProps()
+    const onSave = vi.fn()
+    render(
+      <HostEditor
+        {...props}
+        draft={{ ...hostDraft, address: '', username: '', credential_id: '' }}
+        dirty
+        errors={{
+          address: 'address-error',
+          username: 'username-error',
+          credentialId: 'credential-error',
+        }}
+        onSave={onSave}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'app.create' }))
+
+    expect(onSave).not.toHaveBeenCalled()
+    expect(screen.getByRole('tab', { name: 'hosts.access.connectionConfig' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('region', { name: 'hosts.access.connectionConfig' })).toBeInTheDocument()
+    expect(screen.getByText('address-error')).toBeVisible()
+    expect(screen.getByText('username-error')).toBeVisible()
+    expect(screen.getByText('credential-error')).toBeVisible()
   })
 
   it('凭据编辑器区分新建、未保存和已同步编辑状态', () => {

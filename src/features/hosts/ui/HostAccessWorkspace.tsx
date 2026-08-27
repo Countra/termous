@@ -1,18 +1,14 @@
 import { Alert, Button } from 'antd'
 import {
-  ArrowLeft,
   FileKey2,
-  Info,
   Layers3,
   MonitorPlay,
   RefreshCw,
-  RotateCcw,
   Save,
   Trash2,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { HostAvatar } from '#entities/host'
 import type { HostAsset } from '#entities/host-asset'
 import { projectFileAccessProfile } from '#entities/file-access-profile'
 import {
@@ -29,15 +25,13 @@ import { VNCProfileEditor } from '#features/manage-remote-desktop'
 import { SSHProfileEditor } from '#features/manage-ssh-access'
 import {
   ConfirmDialog,
-  ConnectionActionButton,
-  ManagementFilterTabs,
-  ManagementPanel,
   WorkspaceDetectionLoading,
   WorkspaceEmptyState,
 } from '#shared/ui'
 import type { HostManagementData } from '../model/types.ts'
 import { useHostAccessWorkspaceController } from '../model/useHostAccessWorkspaceController.ts'
 import { HostAssetForm } from './HostAssetForm.tsx'
+import { HostEditorShell } from './HostEditorShell.tsx'
 import styles from './HostAccessWorkspace.module.scss'
 
 interface HostAccessWorkspaceProps {
@@ -51,6 +45,7 @@ interface HostAccessWorkspaceProps {
   onBack: () => void
   onDeleteHost: () => Promise<boolean>
   onCreateGroup: (name: string) => Promise<{ id: string; name: string }>
+  onManageProxies: () => void
   onManageIcons: () => void
   onDirtyChange: (dirty: boolean) => void
   onProtectedIconIdChange: (iconId: string) => void
@@ -67,6 +62,7 @@ export function HostAccessWorkspace({
   onBack,
   onDeleteHost,
   onCreateGroup,
+  onManageProxies,
   onManageIcons,
   onDirtyChange,
   onProtectedIconIdChange,
@@ -102,6 +98,10 @@ export function HostAccessWorkspace({
   const busy = actionBusy || controller.operationBusy
   const catalog = controller.catalog
   const overviewError = controller.mutationError || controller.error?.message
+  const sshProxyError = controller.sshDraft.proxy_id
+    && !data.proxies.some((proxy) => proxy.id === controller.sshDraft.proxy_id)
+    ? t('hosts.validation.proxyMissing')
+    : undefined
 
   if (controller.editor && catalog) {
     const editor = controller.editor
@@ -114,14 +114,14 @@ export function HostAccessWorkspace({
           <AccessProfileEditorShell
             mode={editor.mode}
             title={controller.sshDraft.name.trim() || t(editor.mode === 'create' ? 'hosts.access.ssh.add' : 'hosts.access.ssh.edit')}
-            subtitle={t('hosts.access.ssh.subtitle')}
             icon={<FileKey2 size={17} />}
             dirty={controller.profileDirty}
             busy={busy}
-            saveDisabled={controller.profileSaveDisabled}
+            saveDisabled={controller.profileSaveDisabled || Boolean(sshProxyError)}
             error={controller.mutationError}
             canDelete={editor.mode === 'edit'}
             deleteDisabled={Boolean(profile?.is_default && catalog.ssh.length > 1)}
+            deleteDisabledReason={t('hosts.access.switchDefaultBeforeDelete')}
             onBack={controller.requestCloseEditor}
             onDiscard={controller.discardProfile}
             onSave={() => void controller.saveProfile()}
@@ -137,6 +137,8 @@ export function HostAccessWorkspace({
               credentials={data.credentials}
               proxies={data.proxies}
               jumpProfiles={controller.sshProfiles}
+              errorMessages={sshProxyError ? { proxy: sshProxyError } : undefined}
+              onManageProxies={onManageProxies}
               onChange={controller.setSSHDraft}
             />
           </AccessProfileEditorShell>
@@ -188,7 +190,6 @@ export function HostAccessWorkspace({
         <AccessProfileEditorShell
           mode={editor.mode}
           title={controller.vncDraft.name.trim() || t(editor.mode === 'create' ? 'hosts.access.desktop.add' : 'hosts.access.desktop.edit')}
-          subtitle={t('hosts.access.desktop.subtitle')}
           icon={<MonitorPlay size={17} />}
           dirty={controller.profileDirty}
           busy={busy}
@@ -196,6 +197,7 @@ export function HostAccessWorkspace({
           error={controller.mutationError}
           canDelete={editor.mode === 'edit'}
           deleteDisabled={Boolean(profile?.is_default && catalog.remote_desktops.length > 1)}
+          deleteDisabledReason={t('hosts.access.switchDefaultBeforeDelete')}
           onBack={controller.requestCloseEditor}
           onDiscard={controller.discardProfile}
           onSave={() => void controller.saveProfile()}
@@ -223,45 +225,20 @@ export function HostAccessWorkspace({
 
   return (
     <>
-      <ManagementPanel
-        className={styles.overview}
-        bodyClassName={styles['overview-body']}
-        header={(
-          <div className={styles.header}>
-            <Button
-              type="text"
-              className={styles.back}
-              icon={<ArrowLeft size={16} />}
-              aria-label={t('hosts.backToList')}
-              disabled={busy}
-              onClick={onBack}
-            />
-            <HostAvatar
-              host={{
-                name: controller.assetDraft.name.trim() || catalog?.host.name || host.name,
-                icon_id: controller.assetDraft.icon_id,
-              }}
-              getIconUrl={getHostIconUrl}
-              size={40}
-              iconSize={19}
-            />
-            <span className={styles['header-copy']}>
-              <strong>{controller.assetDraft.name.trim() || catalog?.host.name || host.name}</strong>
-              <small>{t('hosts.access.hostAsset')}</small>
-            </span>
-            <ManagementFilterTabs
-              className={styles.tabs}
-              activeKey={controller.view}
-              items={[
-                { key: 'asset', label: <span><Info size={13} />{t('hosts.access.hostInfo')}</span> },
-                { key: 'access', label: <span><Layers3 size={13} />{t('hosts.access.title')}</span> },
-              ]}
-              onChange={(key) => controller.requestView(key as 'asset' | 'access')}
-            />
-          </div>
+      <HostEditorShell
+        mode="edit"
+        title={controller.assetDraft.name.trim() || catalog?.host.name || host.name}
+        iconId={controller.assetDraft.icon_id}
+        getHostIconUrl={getHostIconUrl}
+        activeSection={controller.view === 'asset' ? 'asset' : 'connections'}
+        dirty={controller.assetDirty}
+        busy={busy}
+        onBack={onBack}
+        onSectionChange={(section) => controller.requestView(
+          section === 'asset' ? 'asset' : 'access',
         )}
-        footer={controller.view === 'asset' && catalog ? (
-          <div className={styles.footer}>
+        actions={controller.view === 'asset' && catalog ? {
+          leading: (
             <Button
               danger
               icon={<Trash2 size={14} />}
@@ -270,25 +247,14 @@ export function HostAccessWorkspace({
             >
               {t('app.delete')}
             </Button>
-            <span className={styles['footer-actions']}>
-              <Button
-                icon={<RotateCcw size={14} />}
-                disabled={busy || !controller.assetDirty}
-                onClick={controller.discardAsset}
-              >
-                {t('hosts.discard')}
-              </Button>
-              <ConnectionActionButton
-                icon={<Save size={14} />}
-                loading={busy}
-                disabled={busy || !controller.assetDirty || Object.values(controller.assetErrors).some(Boolean)}
-                onClick={() => void controller.saveAsset()}
-              >
-                {t('app.save')}
-              </ConnectionActionButton>
-            </span>
-          </div>
-        ) : undefined}
+          ),
+          saveLabel: t('app.save'),
+          saveIcon: <Save size={14} />,
+          saveDisabled: !controller.assetDirty
+            || Object.values(controller.assetErrors).some(Boolean),
+          onDiscard: controller.discardAsset,
+          onSave: () => void controller.saveAsset(),
+        } : undefined}
       >
         {overviewError ? (
           <Alert
@@ -321,7 +287,7 @@ export function HostAccessWorkspace({
           onManageIcons,
           t,
         })}
-      </ManagementPanel>
+      </HostEditorShell>
       <ConfirmDialog
         open={deleteHostConfirmOpen}
         title={t('hosts.access.deleteHostTitle')}
@@ -401,9 +367,13 @@ function renderOverviewBody({
       catalog={catalog}
       busy={busy}
       sshReachability={profileReachability.states}
-      reachabilityError={profileReachability.error?.message}
-      refreshingSSHProfileIds={profileReachability.pendingProfileIds}
-      onRefreshSSHReachability={(profileId) => void profileReachability.refresh(profileId)}
+      sshReachabilityRefreshing={catalog.ssh.some((profile) => (
+        profileReachability.pendingProfileIds.has(profile.id)
+      ))}
+      sshReachabilityError={profileReachability.error?.message}
+      onRefreshSSHReachability={() => void profileReachability.refreshMany(
+        catalog.ssh.map((profile) => profile.id),
+      )}
       onCreateSSH={() => controller.requestEditor({ kind: 'ssh', mode: 'create' })}
       onEditSSH={(profile) => controller.requestEditor({ kind: 'ssh', mode: 'edit', profileId: profile.id })}
       onDeleteSSH={(profile) => void controller.requestDeleteSSH(profile.id)}

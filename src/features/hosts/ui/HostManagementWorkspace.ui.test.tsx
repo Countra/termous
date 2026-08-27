@@ -269,4 +269,57 @@ describe('主机管理工作区', () => {
     expect(screen.getByTestId('access-intent')).toHaveTextContent('host-b:3')
     expect(screen.getByTestId('access-draft')).toHaveTextContent('备用主机')
   })
+
+  it('重新进入新增流程时重置分段和上一轮校验状态', () => {
+    const props = {
+      data: {
+        hosts: [],
+        hostAssets: [],
+        sshAccessProfiles: [],
+        groups: [],
+        proxies: [],
+        credentials: [],
+        hostIcons: [],
+        sessions: [],
+        fileSessions: [],
+        forwards: [],
+        remoteDesktopSessions: [],
+      },
+      selectedHostId: '',
+      actionBusy: false,
+      onSelectHost: vi.fn(),
+      onSave: vi.fn(),
+      onDelete: vi.fn(),
+      onCreateGroup: vi.fn(),
+      onRenameGroup: vi.fn(),
+      onDeleteGroup: vi.fn(),
+      onReorderGroups: vi.fn(),
+      onCreateProxy: vi.fn(),
+      onUpdateProxy: vi.fn(),
+      onDeleteProxy: vi.fn(),
+      onUploadHostIcon: vi.fn(),
+      onRenameHostIcon: vi.fn(),
+      onReorderHostIcons: vi.fn(),
+      onDeleteHostIcon: vi.fn(),
+      getHostIconUrl: () => '',
+    }
+    const view = render(
+      <HostManagementWorkspace {...props} createIntentKey={1} />,
+    )
+
+    fireEvent.change(screen.getByRole('textbox', { name: /^hosts.name/ }), {
+      target: { value: '临时主机' },
+    })
+    fireEvent.click(screen.getByRole('tab', { name: 'hosts.access.connectionConfig' }))
+    fireEvent.click(screen.getByRole('button', { name: 'app.create' }))
+    expect(screen.getByText('hosts.validation.addressRequired')).toBeVisible()
+
+    view.rerender(
+      <HostManagementWorkspace {...props} createIntentKey={2} />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'hosts.discardAndContinue' }))
+
+    expect(screen.getByRole('tab', { name: 'hosts.access.hostInfo' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByText('hosts.validation.addressRequired')).not.toBeInTheDocument()
+  })
 })

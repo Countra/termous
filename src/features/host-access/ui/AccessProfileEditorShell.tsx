@@ -1,5 +1,5 @@
-import { Alert, Button } from 'antd'
-import { ArrowLeft, RotateCcw, Save, Trash2 } from 'lucide-react'
+import { Alert, Button, Tooltip } from 'antd'
+import { ArrowLeft, Plus, RotateCcw, Save, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -7,12 +7,12 @@ import {
   EditorModeContext,
   ManagementPanel,
 } from '#shared/ui'
-import styles from './HostAccess.module.scss'
+import styles from './AccessProfileEditorShell.module.scss'
 
 interface AccessProfileEditorShellProps {
   mode: 'create' | 'edit'
   title: string
-  subtitle: string
+  subtitle?: string
   icon: ReactNode
   dirty: boolean
   busy: boolean
@@ -20,6 +20,7 @@ interface AccessProfileEditorShellProps {
   error?: string
   canDelete?: boolean
   deleteDisabled?: boolean
+  deleteDisabledReason?: string
   children: ReactNode
   onBack: () => void
   onDiscard: () => void
@@ -38,6 +39,7 @@ export function AccessProfileEditorShell({
   error,
   canDelete = false,
   deleteDisabled = false,
+  deleteDisabledReason,
   children,
   onBack,
   onDiscard,
@@ -45,6 +47,7 @@ export function AccessProfileEditorShell({
   onDelete,
 }: AccessProfileEditorShellProps) {
   const { t } = useTranslation()
+  const showSyncState = mode === 'edit' || dirty
 
   return (
     <ManagementPanel
@@ -66,25 +69,36 @@ export function AccessProfileEditorShell({
               mode={mode}
               label={t(mode === 'create' ? 'app.add' : 'app.edit')}
               title={<h2>{title}</h2>}
+              metaTrailing={showSyncState ? (
+                <span
+                  className={`${styles['sync-state']} ${dirty ? styles.dirty : ''}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <i aria-hidden="true" />
+                  {t(dirty ? 'hosts.unsaved' : 'hosts.saved')}
+                </span>
+              ) : undefined}
             />
-            <p>{subtitle}</p>
+            {subtitle ? <p>{subtitle}</p> : null}
           </div>
-          <span className={`${styles['sync-state']} ${dirty ? styles.dirty : ''}`}>
-            {t(dirty ? 'hosts.unsaved' : 'hosts.saved')}
-          </span>
         </div>
       )}
       footer={(
         <div className={styles['editor-footer']}>
           {canDelete && onDelete ? (
-            <Button
-              danger
-              icon={<Trash2 size={14} />}
-              disabled={busy || deleteDisabled}
-              onClick={onDelete}
-            >
-              {t('app.delete')}
-            </Button>
+            <Tooltip title={deleteDisabled ? deleteDisabledReason : undefined}>
+              <span>
+                <Button
+                  danger
+                  icon={<Trash2 size={14} />}
+                  disabled={busy || deleteDisabled}
+                  onClick={onDelete}
+                >
+                  {t('app.delete')}
+                </Button>
+              </span>
+            </Tooltip>
           ) : <span />}
           <div className={styles['editor-footer-actions']}>
             <Button
@@ -95,12 +109,12 @@ export function AccessProfileEditorShell({
               {t('hosts.discard')}
             </Button>
             <ConnectionActionButton
-              icon={<Save size={14} />}
+              icon={mode === 'create' ? <Plus size={14} /> : <Save size={14} />}
               loading={busy}
               disabled={saveDisabled || busy}
               onClick={onSave}
             >
-              {t('app.save')}
+              {t(mode === 'create' ? 'app.create' : 'app.save')}
             </ConnectionActionButton>
           </div>
         </div>

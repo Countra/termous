@@ -103,7 +103,7 @@ describe('主机图标选择器行为合同', () => {
     expect(screen.queryByText('Development Icon')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('Production Icon'))
-    expect(onChange).toHaveBeenLastCalledWith({ icon_id: 'icon-production' })
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ icon_id: 'icon-production' }))
   })
 
   it('预览当前选择、支持清空为默认图标，并可打开管理器', async () => {
@@ -127,9 +127,11 @@ describe('主机图标选择器行为合同', () => {
     expect(clearButton).not.toBeNull()
     fireEvent.mouseDown(clearButton!)
     fireEvent.click(clearButton!)
-    expect(onChange).toHaveBeenLastCalledWith({ icon_id: '' })
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ icon_id: '' }))
 
-    await user.click(screen.getByRole('button', { name: 'hosts.iconLibrary.manage' }))
+    const manageIcons = screen.getByRole('button', { name: 'hosts.iconLibrary.manage' })
+    expect(manageIcons.className).toContain('inline-management-action')
+    await user.click(manageIcons)
     expect(onManageIcons).toHaveBeenCalledTimes(1)
   })
 })

@@ -9,6 +9,7 @@ export interface EditorModeContextProps {
   mode: EditorMode
   label: string
   title?: ReactNode
+  metaTrailing?: ReactNode
   size?: EditorModeContextSize
   className?: string
 }
@@ -17,6 +18,7 @@ export function EditorModeContext({
   mode,
   label,
   title,
+  metaTrailing,
   size = 'default',
   className,
 }: EditorModeContextProps) {
@@ -46,6 +48,7 @@ export function EditorModeContext({
           aria-hidden="true"
         />
         <span className={styles['editor-mode-context-label']}>{label}</span>
+        {metaTrailing}
       </div>
     </div>
   )

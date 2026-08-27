@@ -1,126 +1,231 @@
 .section {
-  display: grid;
   min-width: 0;
-  grid-template-columns: minmax(170px, 0.62fr) minmax(300px, 1.38fr);
-  align-items: start;
-  gap: 18px;
   border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  padding: 18px 20px 20px;
+  padding: 18px 22px 20px;
+}
+
+.section-inner {
+  width: 100%;
+  max-width: 1040px;
+  margin-inline: auto;
 }
 
 .heading {
   display: grid;
   min-width: 0;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: start;
-  gap: 9px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
 }
 
 .icon {
-  display: grid;
-  width: 28px;
-  height: 28px;
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
   place-items: center;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--accent-soft) 58%, transparent);
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--surface-subtle));
   color: var(--accent);
 }
 
 .copy,
 .status-copy > span,
-.editor label {
+.field {
   display: grid;
   min-width: 0;
   gap: 3px;
 }
 
-.copy strong,
+.copy h3,
+.copy small {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy h3,
 .status-copy strong,
-.editor label > span {
+.field > span {
   color: var(--text-primary);
   font-size: 11px;
   font-weight: 680;
+  letter-spacing: 0;
+}
+
+.copy h3 {
+  font-size: 12px;
+  font-weight: 720;
 }
 
 .copy small,
 .status-copy small,
-.editor label > small {
+.field > small {
   color: var(--text-muted);
   font-size: 10px;
   line-height: 15px;
 }
 
-.control {
+.auth-layout {
+  display: grid;
   min-width: 0;
+}
+
+.mode-setting {
+  display: grid;
+  min-width: 0;
+  min-height: 40px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+  align-items: center;
+  gap: 24px;
+}
+
+.mode-label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.auth-detail {
+  display: grid;
+  min-width: 0;
+  min-height: 90px;
+  align-items: center;
+  margin-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  padding-top: 12px;
 }
 
 .status {
   display: grid;
-  min-height: 48px;
+  min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .status-copy {
   display: grid;
   min-width: 0;
-  grid-template-columns: 18px minmax(0, 1fr);
+  grid-template-columns: 20px minmax(0, 1fr);
   align-items: start;
   gap: 8px;
 }
 
 .status-copy > svg {
   margin-top: 1px;
+  color: var(--text-muted);
+}
+
+.status[data-state='saved'] .status-copy > svg {
   color: var(--success);
 }
 
-.is-removing .status-copy > svg {
+.status[data-state='removing'] .status-copy > svg {
   color: var(--warning);
 }
 
-.actions {
-  display: inline-flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px;
+.replace-action:global(.ant-btn),
+.editor > :global(.ant-btn) {
+  min-height: 30px;
+  border-radius: 7px;
+  font-size: 11px;
+}
+
+.replace-action:global(.ant-btn) {
+  color: var(--text-secondary);
+}
+
+.replace-action:global(.ant-btn):hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-soft) 28%, transparent) !important;
+  color: var(--accent) !important;
 }
 
 .editor {
   display: grid;
+  width: min(100%, 680px);
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 8px;
+  align-items: start;
+  gap: 10px;
 }
 
-.editor :global(.ant-input-affix-wrapper) {
-  min-height: 36px;
+.field {
+  gap: 6px;
+}
+
+.field :global(.ant-input-affix-wrapper) {
+  height: 40px;
+  min-height: 40px;
   border-color: var(--border);
   background: var(--input-bg);
   box-shadow: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
-.editor :global(.ant-input-prefix) {
+.field :global(.ant-input-affix-wrapper-focused) {
+  border-color: color-mix(in srgb, var(--accent) 64%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.field :global(.ant-input-prefix) {
   color: var(--text-muted);
+}
+
+.field > small {
+  min-height: 15px;
+}
+
+.editor > :global(.ant-btn) {
+  margin-top: 21px;
 }
 
 .error {
   color: var(--danger) !important;
 }
 
-@media (width <= 680px) {
-  .section,
+@container vnc-profile-editor (max-width: 640px) {
+  .section {
+    padding: 16px 16px 18px;
+  }
+
+  .copy small {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .mode-setting {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+}
+
+@container vnc-profile-editor (max-width: 420px) {
   .status,
   .editor {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .actions {
-    justify-content: flex-start;
+  .auth-detail {
+    min-height: 124px;
   }
 
-  .editor > button {
+  .replace-action:global(.ant-btn),
+  .editor > :global(.ant-btn) {
     justify-self: start;
+  }
+
+  .editor > :global(.ant-btn) {
+    margin-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field :global(.ant-input-affix-wrapper) {
+    transition: none;
   }
 }

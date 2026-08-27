@@ -137,13 +137,13 @@ export function useHostAccessWorkspaceController({
 
   useEffect(() => {
     const host = catalogState.catalog?.host
-    if (!host || assetDirty) return
+    if (!host || assetDirty || operationBusyRef.current) return
     if (isStaleOrAppliedAssetRevision(host.updated_at, appliedAssetRevisionRef.current)) return
     const next = hostAssetToInput(host)
     appliedAssetRevisionRef.current = host.updated_at
     setAssetDraft(next)
     setAssetBaseline(next)
-  }, [assetDirty, catalogState.catalog?.host])
+  }, [assetDirty, catalogState.catalog?.host, operationBusy])
 
   useEffect(() => {
     onDirtyChange?.(dirty)

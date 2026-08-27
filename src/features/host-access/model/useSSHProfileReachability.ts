@@ -39,60 +39,85 @@ export function useSSHProfileReachability(
         applySnapshot(items, eventRevision)
       }
     } catch (cause) {
-      if (!disposedRef.current && loadRevisionRef.current === loadRevision) {
+      if (
+        !disposedRef.current
+        && loadRevisionRef.current === loadRevision
+        && eventRevisionRef.current === eventRevision
+      ) {
         setError(cause instanceof Error ? cause : new Error(String(cause)))
       }
     }
   }, [applySnapshot, gateway])
 
-  const refresh = useCallback(async (sshProfileId: string) => {
-    if (pendingProfileIdsRef.current.has(sshProfileId)) {
+  const refreshMany = useCallback(async (sshProfileIds: readonly string[]) => {
+    if (!enabled || disposedRef.current) {
       return
     }
-    pendingProfileIdsRef.current.add(sshProfileId)
-    setPendingProfileIds((current) => new Set(current).add(sshProfileId))
+    const targetProfileIds = [...new Set(sshProfileIds)]
+      .filter((profileId) => profileId && !pendingProfileIdsRef.current.has(profileId))
+    if (targetProfileIds.length === 0) {
+      return
+    }
+    setError(null)
+    targetProfileIds.forEach((profileId) => pendingProfileIdsRef.current.add(profileId))
+    setPendingProfileIds((current) => {
+      const next = new Set(current)
+      targetProfileIds.forEach((profileId) => next.add(profileId))
+      return next
+    })
     const eventRevision = eventRevisionRef.current
     const lifecycleRevision = lifecycleRevisionRef.current
     try {
-      const items = await gateway.refreshSSHProfileReachability([sshProfileId], true)
-      const next = items.find((item) => item.ssh_profile_id === sshProfileId)
+      const items = await gateway.refreshSSHProfileReachability(targetProfileIds, true)
       if (
-        next
-        && !disposedRef.current
+        !disposedRef.current
         && eventRevisionRef.current === eventRevision
         && lifecycleRevisionRef.current === lifecycleRevision
       ) {
-        setStates((current) => ({ ...current, [sshProfileId]: next }))
+        const targetProfileIdSet = new Set(targetProfileIds)
+        const updates = items.filter((item) => targetProfileIdSet.has(item.ssh_profile_id))
+        if (updates.length > 0) {
+          setStates((current) => {
+            const next = { ...current }
+            updates.forEach((item) => { next[item.ssh_profile_id] = item })
+            return next
+          })
+        }
         setError(null)
       }
     } catch (cause) {
-      if (!disposedRef.current && lifecycleRevisionRef.current === lifecycleRevision) {
+      if (
+        !disposedRef.current
+        && eventRevisionRef.current === eventRevision
+        && lifecycleRevisionRef.current === lifecycleRevision
+      ) {
         setError(cause instanceof Error ? cause : new Error(String(cause)))
       }
     } finally {
       if (!disposedRef.current && lifecycleRevisionRef.current === lifecycleRevision) {
-        pendingProfileIdsRef.current.delete(sshProfileId)
+        targetProfileIds.forEach((profileId) => pendingProfileIdsRef.current.delete(profileId))
         setPendingProfileIds((current) => {
           const next = new Set(current)
-          next.delete(sshProfileId)
+          targetProfileIds.forEach((profileId) => next.delete(profileId))
           return next
         })
       }
     }
-  }, [gateway])
+  }, [enabled, gateway])
 
   useEffect(() => {
+    const pendingProfileIds = pendingProfileIdsRef.current
     lifecycleRevisionRef.current += 1
     const lifecycleRevision = lifecycleRevisionRef.current
+    pendingProfileIds.clear()
+    setPendingProfileIds((current) => (current.size === 0 ? current : new Set()))
+    setError(null)
     if (!enabled) {
       disposedRef.current = true
       loadRevisionRef.current += 1
-      pendingProfileIdsRef.current.clear()
-      setPendingProfileIds((current) => (current.size === 0 ? current : new Set()))
       return undefined
     }
     disposedRef.current = false
-    const pendingProfileIds = pendingProfileIdsRef.current
     let active = true
     void reload()
     let reconnectTimer: number | undefined
@@ -145,5 +170,5 @@ export function useSSHProfileReachability(
     }
   }, [enabled, gateway, reload])
 
-  return { states, pendingProfileIds, error, refresh, reload }
+  return { states, pendingProfileIds, error, refreshMany, reload }
 }

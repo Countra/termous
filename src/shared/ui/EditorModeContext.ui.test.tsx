@@ -10,6 +10,7 @@ describe('EditorModeContext', () => {
         mode="create"
         label="新增"
         title={<h2>生产主机</h2>}
+        metaTrailing={<span>已同步</span>}
         className="custom-context"
       />,
     )
@@ -25,6 +26,7 @@ describe('EditorModeContext', () => {
     expect(context).toHaveAttribute('data-editor-size', 'default')
     expect(screen.getByRole('heading', { name: '生产主机' })).toBeVisible()
     expect(screen.getByText('新增')).toHaveClass(styles['editor-mode-context-label'])
+    expect(screen.getByText('已同步')).toBeVisible()
     expect(context?.querySelector('svg')).toHaveClass(
       styles['editor-mode-context-icon'],
       'lucide-plus',

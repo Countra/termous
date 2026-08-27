@@ -115,6 +115,7 @@ export function HostManagementWorkspace({
   const [accessDirty, setAccessDirty] = useState(false)
   const [accessProtectedIconId, setAccessProtectedIconId] = useState('')
   const [accessWorkspaceRevision, setAccessWorkspaceRevision] = useState(0)
+  const [createWorkspaceRevision, setCreateWorkspaceRevision] = useState(0)
   const lastCreateIntentRef = useRef(0)
   const ignoredExternalSelectionRef = useRef('')
   const legacyDirty = useMemo(() => !hostInputsEqual(draft, baseline), [baseline, draft])
@@ -190,6 +191,7 @@ export function HostManagementWorkspace({
     setDraft(input)
     setBaseline(input)
     setActiveView('editor')
+    setCreateWorkspaceRevision((current) => current + 1)
     setAccessDirty(false)
     setAccessProtectedIconId('')
   }, [selectedHostId])
@@ -334,12 +336,13 @@ export function HostManagementWorkspace({
             onBack={() => requestIntent({ type: 'back' })}
             onDeleteHost={removeCurrentHost}
             onCreateGroup={onCreateGroup}
+            onManageProxies={() => setProxyManagerOpen(true)}
             onManageIcons={() => setIconManagerOpen(true)}
             onDirtyChange={setAccessDirty}
             onProtectedIconIdChange={setAccessProtectedIconId}
           />
         ) : (
-          <HostEditor key={editingId ?? 'new'} data={data} editingHost={editingLegacyHost} draft={draft} dirty={legacyDirty} errors={errors} actionBusy={actionBusy} getHostIconUrl={getHostIconUrl} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} onBack={() => requestIntent({ type: 'back' })} onSave={() => void save()} onDelete={() => void removeCurrentHost()} onDiscard={() => setDraft(baseline)} onCreateGroup={onCreateGroup} onManageProxies={() => setProxyManagerOpen(true)} onManageIcons={() => setIconManagerOpen(true)} />
+          <HostEditor key={editingId ?? `new:${createWorkspaceRevision}`} data={data} editingHost={editingLegacyHost} draft={draft} dirty={legacyDirty} errors={errors} actionBusy={actionBusy} getHostIconUrl={getHostIconUrl} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} onBack={() => requestIntent({ type: 'back' })} onSave={() => void save()} onDelete={() => void removeCurrentHost()} onDiscard={() => setDraft(baseline)} onCreateGroup={onCreateGroup} onManageProxies={() => setProxyManagerOpen(true)} onManageIcons={() => setIconManagerOpen(true)} />
         )}
       />
       <GroupManagerModal

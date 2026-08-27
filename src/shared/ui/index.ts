@@ -21,6 +21,12 @@ export { FilterPopover, type FilterPopoverProps } from './FilterPopover'
 export { ManagementFilterTabs } from './ManagementFilterTabs'
 export { termousNotificationClassName } from './notificationStyles'
 export {
+  ProfileEditorField,
+  ProfileEditorFieldFeedback,
+  ProfileEditorSectionHeading,
+  type ProfileEditorFieldControlProps,
+} from './ProfileEditorPrimitives'
+export {
   GroupManagerModal,
   type GroupManagerItem,
 } from './GroupManagerModal.tsx'

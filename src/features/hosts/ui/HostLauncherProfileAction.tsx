@@ -2,10 +2,10 @@ import { Button, Dropdown, Tooltip, type MenuProps } from 'antd'
 import {
   Cable,
   ChevronDown,
+  CircleCheck,
   FolderOpen,
   MonitorPlay,
   Settings2,
-  Star,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton, contextActionMenuPopupClassName } from '#shared/ui'
@@ -57,9 +57,8 @@ export function HostLauncherProfileAction({
         <span className={styles['menu-item']}>
           <span>{item.name}</span>
           {item.isDefault ? (
-            <Star
+            <CircleCheck
               size={12}
-              fill="currentColor"
               aria-label={t('hosts.access.default')}
             />
           ) : null}

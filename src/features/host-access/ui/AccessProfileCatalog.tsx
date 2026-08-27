@@ -1,12 +1,12 @@
 import { Button, Tooltip } from 'antd'
 import {
+  CircleCheck,
   FileKey2,
   FolderSync,
   MonitorPlay,
   Pencil,
   Plus,
   RefreshCw,
-  Star,
   Trash2,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -29,9 +29,9 @@ interface AccessProfileCatalogProps {
   catalog: HostAccessCatalog
   busy: boolean
   sshReachability: SSHProfileReachabilityIndex
-  refreshingSSHProfileIds: ReadonlySet<string>
-  reachabilityError?: string
-  onRefreshSSHReachability: (profileId: string) => void
+  sshReachabilityRefreshing: boolean
+  sshReachabilityError?: string
+  onRefreshSSHReachability: () => void
   onCreateSSH: () => void
   onEditSSH: (profile: SSHAccessProfile) => void
   onDeleteSSH: (profile: SSHAccessProfile) => void
@@ -48,8 +48,8 @@ export function AccessProfileCatalog({
   catalog,
   busy,
   sshReachability,
-  refreshingSSHProfileIds,
-  reachabilityError,
+  sshReachabilityRefreshing,
+  sshReachabilityError,
   onRefreshSSHReachability,
   onCreateSSH,
   onEditSSH,
@@ -64,6 +64,9 @@ export function AccessProfileCatalog({
 }: AccessProfileCatalogProps) {
   const { t } = useTranslation()
   const sshById = new Map(catalog.ssh.map((profile) => [profile.id, profile]))
+  const refreshReachabilityLabel = sshReachabilityError
+    ? t('hosts.access.reachability.refreshFailed')
+    : t('hosts.access.reachability.refreshAll')
 
   return (
     <div className={styles.catalog}>
@@ -73,6 +76,24 @@ export function AccessProfileCatalog({
         count={catalog.ssh.length}
         actionLabel={t('hosts.access.ssh.add')}
         actionDisabled={busy}
+        headerAction={(
+          <Tooltip title={sshReachabilityError
+            ? `${refreshReachabilityLabel} · ${sshReachabilityError}`
+            : refreshReachabilityLabel}
+          >
+            <Button
+              type="default"
+              size="small"
+              className={styles['section-refresh']}
+              loading={sshReachabilityRefreshing}
+              icon={<RefreshCw size={14} strokeWidth={2} aria-hidden="true" />}
+              aria-label={refreshReachabilityLabel}
+              data-error={sshReachabilityError ? 'true' : 'false'}
+              disabled={busy || catalog.ssh.length === 0 || sshReachabilityRefreshing}
+              onClick={onRefreshSSHReachability}
+            />
+          </Tooltip>
+        )}
         onAdd={onCreateSSH}
       >
         {catalog.ssh.length === 0 ? (
@@ -86,10 +107,8 @@ export function AccessProfileCatalog({
             isDefault={profile.is_default}
             busy={busy}
             reachability={sshReachability[profile.id]}
-            reachabilityError={reachabilityError}
-            refreshingReachability={refreshingSSHProfileIds.has(profile.id)}
+            showReachability
             deleteDisabled={profile.is_default && catalog.ssh.length > 1}
-            onRefreshReachability={() => onRefreshSSHReachability(profile.id)}
             onEdit={() => onEditSSH(profile)}
             onDelete={() => onDeleteSSH(profile)}
             onSetDefault={() => onSetDefaultSSH(profile)}
@@ -163,6 +182,7 @@ function AccessProfileSection({
   count,
   actionLabel,
   actionDisabled = false,
+  headerAction,
   onAdd,
   children,
 }: {
@@ -171,6 +191,7 @@ function AccessProfileSection({
   count: number
   actionLabel?: string
   actionDisabled?: boolean
+  headerAction?: ReactNode
   onAdd?: () => void
   children: ReactNode
 }) {
@@ -180,16 +201,22 @@ function AccessProfileSection({
         <span className={styles['section-icon']} aria-hidden="true">{icon}</span>
         <strong>{title}</strong>
         <small>{count}</small>
-        {actionLabel && onAdd ? (
-          <Button
-            type="text"
-            size="small"
-            icon={<Plus size={14} />}
-            disabled={actionDisabled}
-            onClick={onAdd}
-          >
-            {actionLabel}
-          </Button>
+        {headerAction || (actionLabel && onAdd) ? (
+          <span className={styles['section-actions']}>
+            {headerAction}
+            {actionLabel && onAdd ? (
+              <Button
+                type="default"
+                size="small"
+                className={styles['section-add']}
+                icon={<Plus size={13} strokeWidth={2.2} aria-hidden="true" />}
+                disabled={actionDisabled}
+                onClick={onAdd}
+              >
+                {actionLabel}
+              </Button>
+            ) : null}
+          </span>
         ) : null}
       </header>
       <div className={styles.rows}>{children}</div>
@@ -208,9 +235,7 @@ function AccessProfileRow({
   onDelete,
   onSetDefault,
   reachability,
-  reachabilityError,
-  refreshingReachability = false,
-  onRefreshReachability,
+  showReachability = false,
 }: {
   name: string
   type: string
@@ -222,75 +247,68 @@ function AccessProfileRow({
   onDelete?: () => void
   onSetDefault: () => void
   reachability?: HostReachability
-  reachabilityError?: string
-  refreshingReachability?: boolean
-  onRefreshReachability?: () => void
+  showReachability?: boolean
 }) {
   const { t } = useTranslation()
+  const setDefaultLabel = `${t('hosts.access.setDefault')} ${name}`
+  const deleteDisabledReason = t('hosts.access.switchDefaultBeforeDelete')
   return (
     <div className={styles.row} data-default={isDefault ? 'true' : 'false'}>
       <span className={styles['row-kind']}>{type}</span>
       <span className={styles['row-copy']}>
         <span>
           <strong>{name}</strong>
-          {isDefault ? <em><Star size={10} />{t('hosts.access.default')}</em> : null}
+          {isDefault ? <em><CircleCheck size={10} />{t('hosts.access.default')}</em> : null}
         </span>
         <small>{detail}</small>
       </span>
-      {onRefreshReachability ? (
-        <ProfileReachability state={reachability} error={reachabilityError} />
-      ) : null}
-      <span className={styles['row-actions']}>
-        {onRefreshReachability ? (
-          <Tooltip title={t('hosts.access.reachability.refresh', { name })}>
-            <Button
-              type="text"
-              size="small"
-              loading={refreshingReachability}
-              icon={<RefreshCw size={13} />}
-              aria-label={t('hosts.access.reachability.refresh', { name })}
-              disabled={busy || refreshingReachability}
-              onClick={onRefreshReachability}
-            />
-          </Tooltip>
-        ) : null}
-        {!isDefault ? (
-          <Tooltip title={t('hosts.access.setDefault')}>
-            <Button
-              type="text"
-              size="small"
-              icon={<Star size={14} />}
-              aria-label={t('hosts.access.setDefault')}
-              disabled={busy}
-              onClick={onSetDefault}
-            />
-          </Tooltip>
-        ) : null}
-        <Tooltip title={t('app.edit')}>
-          <Button
-            type="text"
-            size="small"
-            icon={<Pencil size={14} />}
-            aria-label={`${t('app.edit')} ${name}`}
-            disabled={busy}
-            onClick={onEdit}
-          />
-        </Tooltip>
-        {onDelete ? (
-          <Tooltip title={deleteDisabled ? t('hosts.access.switchDefaultBeforeDelete') : t('app.delete')}>
-            <span>
+      <span className={styles['row-controls']}>
+        <span className={styles['row-status']}>
+          {showReachability ? <ProfileReachability state={reachability} /> : null}
+        </span>
+        <span className={styles['row-actions']}>
+          {!isDefault ? (
+            <Tooltip title={setDefaultLabel}>
               <Button
-                danger
                 type="text"
                 size="small"
-                icon={<Trash2 size={14} />}
-                aria-label={`${t('app.delete')} ${name}`}
-                disabled={busy || deleteDisabled}
-                onClick={onDelete}
+                icon={<CircleCheck size={14} />}
+                aria-label={setDefaultLabel}
+                disabled={busy}
+                onClick={onSetDefault}
               />
-            </span>
+            </Tooltip>
+          ) : null}
+          <Tooltip title={t('app.edit')}>
+            <Button
+              type="text"
+              size="small"
+              icon={<Pencil size={14} />}
+              aria-label={`${t('app.edit')} ${name}`}
+              disabled={busy}
+              onClick={onEdit}
+            />
           </Tooltip>
-        ) : null}
+          {onDelete ? (
+            <Tooltip title={deleteDisabled ? deleteDisabledReason : t('app.delete')}>
+              <span
+                role={deleteDisabled ? 'note' : undefined}
+                tabIndex={deleteDisabled ? 0 : undefined}
+                aria-label={deleteDisabled ? deleteDisabledReason : undefined}
+              >
+                <Button
+                  danger
+                  type="text"
+                  size="small"
+                  icon={<Trash2 size={14} />}
+                  aria-label={`${t('app.delete')} ${name}`}
+                  disabled={busy || deleteDisabled}
+                  onClick={onDelete}
+                />
+              </span>
+            </Tooltip>
+          ) : null}
+        </span>
       </span>
     </div>
   )
@@ -298,24 +316,19 @@ function AccessProfileRow({
 
 function ProfileReachability({
   state,
-  error,
 }: {
   state?: HostReachability
-  error?: string
 }) {
   const { t } = useTranslation()
   const status = state?.status ?? 'unknown'
   const label = status === 'online' && state?.latency_ms !== undefined
     ? t('hosts.access.reachability.onlineLatency', { latency: state.latency_ms })
     : t(`hosts.access.reachability.${status}`)
-  const detail = state?.error_message || error || t('hosts.access.reachability.directHint')
   return (
-    <Tooltip title={`${label} · ${detail}`}>
-      <span className={styles['row-reachability']} data-status={status}>
-        <i aria-hidden="true" />
-        {label}
-      </span>
-    </Tooltip>
+    <span className={styles['row-reachability']} data-status={status}>
+      <i aria-hidden="true" />
+      <span>{label}</span>
+    </span>
   )
 }
 

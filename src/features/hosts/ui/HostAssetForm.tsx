@@ -1,6 +1,6 @@
 import { Button, Input, Select, Switch } from 'antd'
-import { Images, Plus } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Images, Plus, Star } from 'lucide-react'
+import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   HostAvatar,
@@ -8,7 +8,7 @@ import {
   normalizeHostTags,
 } from '#entities/host'
 import type { HostAssetInput } from '#entities/host-asset'
-import { customSelectStyles } from '#shared/ui'
+import { customSelectStyles, uiStyles } from '#shared/ui'
 import type { HostManagementData } from '../model/types.ts'
 import {
   buildHostDirectoryItems,
@@ -20,6 +20,8 @@ interface HostAssetFormProps {
   data: HostManagementData
   draft: HostAssetInput
   nameError?: string
+  nameHint?: string
+  autoFocusName?: boolean
   disabled: boolean
   getHostIconUrl: (iconId: string) => string
   onChange: (draft: HostAssetInput) => void
@@ -42,6 +44,8 @@ export function HostAssetForm({
   data,
   draft,
   nameError,
+  nameHint,
+  autoFocusName = false,
   disabled,
   getHostIconUrl,
   onChange,
@@ -52,6 +56,9 @@ export function HostAssetForm({
   const [groupCreatorOpen, setGroupCreatorOpen] = useState(false)
   const [groupDraft, setGroupDraft] = useState('')
   const [creatingGroup, setCreatingGroup] = useState(false)
+  const nameControlId = useId()
+  const nameFeedbackId = useId()
+  const groupControlId = useId()
   const tagOptions = useMemo(
     () => buildHostDirectoryTagOptions(
       buildHostDirectoryItems(data.hostAssets, data.sshAccessProfiles),
@@ -97,18 +104,22 @@ export function HostAssetForm({
     <div className="host-editor-body">
       <section className="host-editor-section">
         <div className="host-editor-grid">
-          <label className="host-editor-field">
-            <span className="host-editor-field-label">{t('hosts.name')}</span>
+          <div className="host-editor-field">
+            <label className="host-editor-field-label" htmlFor={nameControlId}>{t('hosts.name')}</label>
             <Input
+              id={nameControlId}
               value={draft.name}
               maxLength={80}
-              autoFocus
+              autoFocus={autoFocusName}
               status={nameError ? 'error' : undefined}
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameError || nameHint ? nameFeedbackId : undefined}
               disabled={disabled}
               onChange={(event) => onChange({ ...draft, name: event.target.value })}
             />
-            {nameError ? <small className="host-editor-field-error" role="alert">{nameError}</small> : null}
-          </label>
+            {nameError ? <small id={nameFeedbackId} className="host-editor-field-error" role="alert">{nameError}</small> : null}
+            {!nameError && nameHint ? <small id={nameFeedbackId} className="host-editor-field-hint">{nameHint}</small> : null}
+          </div>
           <HostSelectField
             label={t('hosts.platform.label')}
             value={draft.platform}
@@ -122,8 +133,8 @@ export function HostAssetForm({
               <Button
                 type="text"
                 size="small"
-                className="host-icon-inline-manage"
-                icon={<Images size={12} />}
+                className={uiStyles['inline-management-action']}
+                icon={<Images size={13} />}
                 disabled={disabled}
                 onClick={onManageIcons}
               >
@@ -136,6 +147,7 @@ export function HostAssetForm({
               showSearch
               virtual={false}
               disabled={disabled}
+              aria-label={t('hosts.iconLibrary.select')}
               placeholder={t('hosts.iconLibrary.default')}
               className={customSelectStyles.select}
               classNames={{ popup: { root: `${customSelectStyles['select-popup']} ${styles['host-icon-select-popup']}` } }}
@@ -160,9 +172,10 @@ export function HostAssetForm({
             />
           </div>
           <div className="host-editor-field host-group-editor-field">
-            <span className="host-editor-field-label">{t('hosts.group')}</span>
+            <label className="host-editor-field-label" htmlFor={groupControlId}>{t('hosts.group')}</label>
             <div className="host-group-editor-control">
               <Select
+                id={groupControlId}
                 value={draft.group_id}
                 disabled={disabled}
                 className={customSelectStyles.select}
@@ -185,6 +198,7 @@ export function HostAssetForm({
                 <Input
                   value={groupDraft}
                   autoFocus
+                  aria-label={t('hosts.groupNamePlaceholder')}
                   placeholder={t('hosts.groupNamePlaceholder')}
                   disabled={disabled || creatingGroup}
                   onChange={(event) => setGroupDraft(event.target.value)}
@@ -218,15 +232,24 @@ export function HostAssetForm({
               onChange={(event) => onChange({ ...draft, note: event.target.value })}
             />
           </label>
-          <label className={`host-editor-field is-wide ${styles['is-wide']}`}>
-            <span className="host-editor-field-label">{t('hosts.access.favorite')}</span>
+          <div
+            className={`host-editor-field is-wide ${styles['is-wide']} ${styles['favorite-setting']}`}
+            data-active={draft.favorite ? 'true' : 'false'}
+          >
+            <span className={styles['favorite-icon']} aria-hidden="true">
+              <Star size={15} fill={draft.favorite ? 'currentColor' : 'none'} />
+            </span>
+            <span className={styles['favorite-copy']}>
+              <span className="host-editor-field-label">{t('hosts.access.favorite')}</span>
+              <small className="host-editor-field-hint">{t('hosts.access.favoriteHint')}</small>
+            </span>
             <Switch
               checked={draft.favorite}
               disabled={disabled}
+              aria-label={t('hosts.access.favorite')}
               onChange={(favorite) => onChange({ ...draft, favorite })}
             />
-            <small className="host-editor-field-hint">{t('hosts.access.favoriteHint')}</small>
-          </label>
+          </div>
         </div>
       </section>
     </div>
@@ -250,10 +273,12 @@ function HostSelectField({
   disabled: boolean
   onChange: (value: string | string[]) => void
 }) {
+  const controlId = useId()
   return (
-    <label className="host-editor-field">
-      <span className="host-editor-field-label">{label}</span>
+    <div className="host-editor-field">
+      <label className="host-editor-field-label" htmlFor={controlId}>{label}</label>
       <Select
+        id={controlId}
         mode={mode}
         value={value}
         options={options}
@@ -264,6 +289,6 @@ function HostSelectField({
         classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
         onChange={onChange}
       />
-    </label>
+    </div>
   )
 }
