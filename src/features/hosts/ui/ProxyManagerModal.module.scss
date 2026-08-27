@@ -221,11 +221,9 @@
 .proxy-manager-editor-heading-copy {
   display: grid;
   min-width: 0;
-  gap: 4px;
 }
 
-.proxy-manager-editor-heading h3,
-.proxy-manager-editor-heading p {
+.proxy-manager-editor-heading h3 {
   overflow: hidden;
   margin: 0;
   text-overflow: ellipsis;
@@ -238,12 +236,6 @@
   color: var(--text-primary);
   font-size: 14px;
   font-weight: 700;
-}
-
-.proxy-manager-editor-heading p {
-  margin-left: 11px;
-  color: var(--text-muted);
-  font-size: 11px;
 }
 
 .proxy-manager-form {

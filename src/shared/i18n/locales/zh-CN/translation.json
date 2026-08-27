@@ -1754,7 +1754,6 @@
     "add": "新增代理",
     "new": "新增代理",
     "edit": "编辑代理",
-    "newHint": "配置用于建立 SSH 连接的网络代理",
     "searchPlaceholder": "搜索名称、类型或地址",
     "empty": "暂无连接代理",
     "noSearchResults": "没有匹配的代理",

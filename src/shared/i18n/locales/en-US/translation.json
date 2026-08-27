@@ -1761,7 +1761,6 @@
     "add": "Add proxy",
     "new": "New proxy",
     "edit": "Edit proxy",
-    "newHint": "Configure the network proxy used to establish SSH connections",
     "searchPlaceholder": "Search name, type, or address",
     "empty": "No connection proxies",
     "noSearchResults": "No matching proxies",
