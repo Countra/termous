@@ -10,7 +10,7 @@
   margin-inline: auto;
 }
 
-.heading {
+.section-heading {
   display: grid;
   min-width: 0;
   grid-template-columns: 30px minmax(0, 1fr);
@@ -19,7 +19,7 @@
   margin-bottom: 14px;
 }
 
-.icon {
+.section-icon {
   display: inline-grid;
   width: 30px;
   height: 30px;
@@ -29,7 +29,7 @@
   color: var(--accent);
 }
 
-.copy,
+.section-copy,
 .status-copy > span,
 .field {
   display: grid;
@@ -37,15 +37,18 @@
   gap: 3px;
 }
 
-.copy h3,
-.copy small {
+.section-copy h3 {
   overflow: hidden;
   margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 720;
+  letter-spacing: 0;
+  line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.copy h3,
 .status-copy strong,
 .field > span {
   color: var(--text-primary);
@@ -54,12 +57,6 @@
   letter-spacing: 0;
 }
 
-.copy h3 {
-  font-size: 12px;
-  font-weight: 720;
-}
-
-.copy small,
 .status-copy small,
 .field > small {
   color: var(--text-muted);
@@ -190,12 +187,6 @@
 @container vnc-profile-editor (max-width: 640px) {
   .section {
     padding: 16px 16px 18px;
-  }
-
-  .copy small {
-    overflow: visible;
-    text-overflow: clip;
-    white-space: normal;
   }
 
   .mode-setting {

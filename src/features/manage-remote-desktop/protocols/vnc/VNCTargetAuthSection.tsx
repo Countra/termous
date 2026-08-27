@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useId, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { ProfileEditorSectionHeading } from '#shared/ui'
 import type {
   VNCTargetAuthDraft,
   VNCTargetAuthDraftError,
@@ -75,13 +76,12 @@ export function VNCTargetAuthSection({
   return (
     <section className={styles.section} aria-labelledby={titleId}>
       <div className={styles['section-inner']}>
-        <header className={styles.heading}>
-          <span className={styles.icon} aria-hidden="true"><KeyRound size={15} /></span>
-          <div className={styles.copy}>
-            <h3 id={titleId}>{t('remoteDesktop.targetAuth.title')}</h3>
-            <small>{t('remoteDesktop.targetAuth.hint')}</small>
-          </div>
-        </header>
+        <ProfileEditorSectionHeading
+          classNames={styles}
+          id={titleId}
+          icon={<KeyRound size={15} />}
+          title={t('remoteDesktop.targetAuth.title')}
+        />
 
         <div className={styles['auth-layout']}>
           <div className={styles['mode-setting']}>

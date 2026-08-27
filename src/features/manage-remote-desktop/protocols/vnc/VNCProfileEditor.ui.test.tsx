@@ -116,15 +116,27 @@ describe('VNCProfileEditor', () => {
     const props = editorProps()
     render(<VNCProfileEditor {...props} />)
 
-    expect(screen.getByRole('heading', { name: 'remoteDesktop.connectionSection' })).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'remoteDesktop.endpointSection' })).toBeVisible()
+    const basicSection = screen.getByRole('heading', { name: 'remoteDesktop.basicSection' }).closest('section')
+    const connectionSection = screen.getByRole('heading', { name: 'remoteDesktop.connectionSection' }).closest('section')
+    expect(basicSection).toBeVisible()
+    expect(connectionSection).toBeVisible()
     expect(screen.getByRole('heading', { name: 'remoteDesktop.viewerSection' })).toBeVisible()
     expect(screen.getByRole('heading', { name: 'remoteDesktop.targetAuth.title' })).toBeVisible()
+    expect(screen.queryByText('remoteDesktop.basicSectionHint')).not.toBeInTheDocument()
+    expect(screen.queryByText('hosts.access.desktop.routeHint')).not.toBeInTheDocument()
+    expect(screen.queryByText('remoteDesktop.viewerSectionHint')).not.toBeInTheDocument()
+    expect(screen.queryByText('remoteDesktop.targetAuth.hint')).not.toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'hosts.access.profileName' })).toHaveValue('Console VNC')
     expect(screen.getByRole('textbox', { name: 'remoteDesktop.description' })).toHaveValue('Operations console')
     expect(screen.getByRole('combobox', { name: 'hosts.access.desktop.sshRoute' })).toHaveValue('ssh-primary')
     expect(screen.getByRole('combobox', { name: 'remoteDesktop.loopbackHost' })).toHaveValue('127.0.0.1')
     expect(screen.getByRole('spinbutton', { name: 'remoteDesktop.port' })).toHaveValue('5901')
+
+    const routeMode = screen.getByRole('radiogroup', { name: 'remoteDesktop.route.label' })
+    expect(connectionSection).toContainElement(routeMode)
+    expect(basicSection).not.toContainElement(routeMode)
+    expect(routeMode).toHaveAttribute('aria-controls')
+    expect(document.getElementById(routeMode.getAttribute('aria-controls')!)).toBeVisible()
 
     const displayMode = screen.getByRole('radiogroup', { name: 'remoteDesktop.displayMode' })
     expect(within(displayMode).getByRole('radio', { name: 'remoteDesktop.display.fit' })).toBeChecked()
@@ -168,19 +180,20 @@ describe('VNCProfileEditor', () => {
     const errors = {
       name: 'required' as const,
       ssh_profile_id: 'missing' as const,
+      target_host: 'loopback' as const,
       port: 'range' as const,
     }
     const view = render(<VNCProfileEditor {...props} errors={errors} />)
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(view.container.querySelectorAll('small[aria-hidden="true"]')).toHaveLength(6)
+    expect(view.container.querySelectorAll('small[aria-hidden="true"]')).toHaveLength(5)
 
     view.rerender(<VNCProfileEditor {...props} errors={errors} submitted />)
 
     expect(screen.getByText('hosts.access.errors.required')).toHaveRole('alert')
     expect(screen.getByText('hosts.access.errors.sshMissing')).toHaveRole('alert')
     expect(screen.getByText('remoteDesktop.validationPort')).toHaveRole('alert')
-    expect(view.container.querySelectorAll('small[role="alert"], small[aria-hidden="true"]')).toHaveLength(6)
+    expect(view.container.querySelectorAll('small[role="alert"], small[aria-hidden="true"]')).toHaveLength(5)
 
     expectControlError(
       screen.getByRole('textbox', { name: 'hosts.access.profileName' }),
@@ -189,6 +202,10 @@ describe('VNCProfileEditor', () => {
     expectControlError(
       screen.getByRole('combobox', { name: 'hosts.access.desktop.sshRoute' }),
       'hosts.access.errors.sshMissing',
+    )
+    expectControlError(
+      screen.getByRole('combobox', { name: 'remoteDesktop.loopbackHost' }),
+      'remoteDesktop.validationLoopbackAddress',
     )
     expectControlError(
       screen.getByRole('spinbutton', { name: 'remoteDesktop.port' }),

@@ -1,10 +1,16 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { HostAccessCatalog } from '#entities/host-asset'
 import { AccessProfileCatalog } from './AccessProfileCatalog.tsx'
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, options?: Record<string, unknown>) => (
+      key === 'hosts.access.reachability.latencyValue'
+        ? `${options?.latency} ms`
+        : key
+    ),
+  }),
 }))
 
 function accessCatalog(): HostAccessCatalog {
@@ -134,7 +140,7 @@ describe('访问方式目录', () => {
             ssh_profile_id: 'ssh-a',
             address: 'server.example.com',
             status: 'online',
-            latency_ms: 12,
+            latency_ms: 0,
             packet_loss: 0,
           },
           'ssh-b': {
@@ -160,14 +166,18 @@ describe('访问方式目录', () => {
       />,
     )
 
-    const onlineLabel = screen.getByText('hosts.access.reachability.onlineLatency')
+    const onlineLabel = screen.getByText('hosts.access.reachability.online')
+    const onlineStatus = onlineLabel.closest('[data-status]') as HTMLElement
     const offlineLabel = screen.getByText('hosts.access.reachability.offline')
     expect(onlineLabel).toBeInTheDocument()
+    expect(within(onlineStatus).getByText('0 ms')).toBeInTheDocument()
+    expect(onlineStatus).toHaveAttribute('data-status', 'online')
     expect(offlineLabel).toBeInTheDocument()
     expect(view.container.querySelectorAll('[class*="row-controls"]')).toHaveLength(3)
-    expect(onlineLabel.closest('[data-status]')?.parentElement?.className).toContain('row-status')
+    expect(onlineStatus.parentElement?.className).toContain('row-status')
     expect(offlineLabel.closest('[data-status]')?.parentElement?.className).toContain('row-status')
-    fireEvent.mouseEnter(onlineLabel.closest('[data-status]') as HTMLElement)
+    expect(offlineLabel.closest('[data-status]')).not.toHaveTextContent('ms')
+    fireEvent.mouseEnter(onlineStatus)
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
     const refreshButtons = screen.getAllByRole('button', {
       name: 'hosts.access.reachability.refreshAll',

@@ -120,7 +120,6 @@ export function SSHProfileEditor({
             id={connectionSectionId}
             icon={<Cable size={15} />}
             title={t('hosts.access.ssh.connection')}
-            hint={t('hosts.access.ssh.connectionHint')}
           />
           <div
             className={`${styles.grid} ${styles['basic-grid']}`}
@@ -195,7 +194,6 @@ export function SSHProfileEditor({
             id={authenticationSectionId}
             icon={<ShieldCheck size={15} />}
             title={t('hosts.access.ssh.authentication')}
-            hint={t('hosts.access.ssh.authHint')}
           />
           <div className={`${styles.grid} ${styles['authentication-grid']}`}>
             <div className={`${styles.field} ${styles['auth-method-field']}`}>
@@ -272,7 +270,6 @@ export function SSHProfileEditor({
             id={routeSectionId}
             icon={<Route size={15} />}
             title={t('hosts.access.ssh.route')}
-            hint={t('hosts.access.ssh.routeHint')}
             action={onManageProxies ? (
               <Button
                 type="text"

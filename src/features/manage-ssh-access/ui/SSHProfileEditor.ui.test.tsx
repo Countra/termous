@@ -187,6 +187,9 @@ describe('SSHProfileEditor', () => {
     expect(screen.getByRole('heading', { name: 'hosts.access.ssh.connection' })).toBeVisible()
     expect(screen.getByRole('heading', { name: 'hosts.access.ssh.authentication' })).toBeVisible()
     expect(screen.getByRole('heading', { name: 'hosts.access.ssh.route' })).toBeVisible()
+    expect(screen.queryByText('hosts.access.ssh.connectionHint')).not.toBeInTheDocument()
+    expect(screen.queryByText('hosts.access.ssh.authHint')).not.toBeInTheDocument()
+    expect(screen.queryByText('hosts.access.ssh.routeHint')).not.toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'hosts.access.profileName' })).toHaveValue('Primary SSH')
     expect(view.container.querySelector('[data-profile-name="visible"]')).toBeInTheDocument()
 

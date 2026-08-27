@@ -43,23 +43,13 @@
   gap: 2px;
 }
 
-.section-copy h3,
-.section-copy small {
-  margin: 0;
-}
-
 .section-copy h3 {
+  margin: 0;
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 720;
   letter-spacing: 0;
-}
-
-.section-copy small {
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 15px;
+  line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -259,11 +249,6 @@
     grid-column: 1 / -1;
   }
 
-  .section-copy small {
-    overflow: visible;
-    text-overflow: clip;
-    white-space: normal;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

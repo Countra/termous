@@ -78,7 +78,7 @@ export function ProfileEditorSectionHeading({
   id: string
   icon: ReactNode
   title: string
-  hint: string
+  hint?: string
   action?: ReactNode
 }) {
   return (
@@ -86,7 +86,7 @@ export function ProfileEditorSectionHeading({
       <span className={classNames['section-icon']} aria-hidden="true">{icon}</span>
       <div className={classNames['section-copy']}>
         <h3 id={id}>{title}</h3>
-        <small>{hint}</small>
+        {hint ? <small>{hint}</small> : null}
       </div>
       {action}
     </header>

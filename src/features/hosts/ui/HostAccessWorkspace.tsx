@@ -160,7 +160,6 @@ export function HostAccessWorkspace({
           <AccessProfileEditorShell
             mode="edit"
             title={controller.fileDraft.name.trim() || t('hosts.access.file.edit')}
-            subtitle={t('hosts.access.file.subtitle')}
             icon={<Layers3 size={17} />}
             dirty={controller.profileDirty}
             busy={busy}

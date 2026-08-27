@@ -326,13 +326,25 @@ function ProfileReachability({
 }) {
   const { t } = useTranslation()
   const status = state?.status ?? 'unknown'
-  const label = status === 'online' && state?.latency_ms !== undefined
-    ? t('hosts.access.reachability.onlineLatency', { latency: state.latency_ms })
-    : t(`hosts.access.reachability.${status}`)
+  const latency = status === 'online' ? state?.latency_ms : undefined
+  const statusLabel = t(`hosts.access.reachability.${status}`)
   return (
-    <span className={styles['row-reachability']} data-status={status}>
-      <i aria-hidden="true" />
-      <span>{label}</span>
+    <span
+      className={styles['row-reachability']}
+      data-status={status}
+    >
+      <span className={styles['row-reachability-state']}>
+        <i aria-hidden="true" />
+        <span>{statusLabel}</span>
+      </span>
+      {latency !== undefined ? (
+        <>
+          {' '}
+          <span className={styles['row-reachability-latency']}>
+            {t('hosts.access.reachability.latencyValue', { latency })}
+          </span>
+        </>
+      ) : null}
     </span>
   )
 }
