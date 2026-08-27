@@ -1,6 +1,7 @@
 import type {
   RemoteDesktopAccessProfile,
   RemoteDesktopProtocol,
+  RemoteDesktopRoute,
 } from './types.ts'
 
 export interface RemoteDesktopTechnologyDescriptor {
@@ -14,10 +15,11 @@ export interface RemoteDesktopAccessProfileProjection {
   name: string
   technology: RemoteDesktopTechnologyDescriptor
   endpoint: string
+  route: RemoteDesktopRoute
   routeDependency: {
     kind: 'ssh_profile'
     profileId: string
-  }
+  } | null
   isDefault: boolean
   sortOrder: number
 }
@@ -38,11 +40,11 @@ const profileProjectors = {
     hostId: profile.host_id,
     name: profile.name,
     technology: technologyDescriptors.vnc,
-    endpoint: formatHostPort(profile.vnc.loopback_host, profile.vnc.port),
-    routeDependency: {
-      kind: 'ssh_profile',
-      profileId: profile.ssh_profile_id,
-    },
+    endpoint: formatHostPort(profile.vnc.target_host, profile.vnc.port),
+    route: profile.route,
+    routeDependency: profile.route === 'ssh_tunnel'
+      ? { kind: 'ssh_profile', profileId: profile.ssh_profile_id }
+      : null,
     isDefault: profile.is_default,
     sortOrder: profile.sort_order,
   }),

@@ -461,6 +461,7 @@ function RemoteDesktopStatusBar({ session, viewerState }: { session: RemoteDeskt
       <RemoteDesktopConnectionQuality
         sessionId={session.id}
         connected={viewerState?.connection === 'connected'}
+        showSshLatency={session.route === 'ssh_tunnel'}
       />
     </footer>
   )

@@ -35,7 +35,9 @@ test('接受连接代次更高的权威快照', () => {
   assert.equal(shouldAcceptSessionSnapshot(current, incoming), true)
 })
 
-function session(overrides: Partial<RemoteDesktopSession> = {}): RemoteDesktopSession {
+type SSHTunnelSession = Extract<RemoteDesktopSession, { route: 'ssh_tunnel' }>
+
+function session(overrides: Partial<SSHTunnelSession> = {}): SSHTunnelSession {
   return {
     id: 'rds_test',
     profile_id: 'rdp_test',
@@ -48,7 +50,7 @@ function session(overrides: Partial<RemoteDesktopSession> = {}): RemoteDesktopSe
     protocol: 'vnc',
     protocol_config_version: 1,
     vnc: {
-      loopback_host: '127.0.0.1',
+      target_host: '127.0.0.1',
       port: 5901,
       shared: true,
       default_view_only: false,

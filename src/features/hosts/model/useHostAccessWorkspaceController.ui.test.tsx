@@ -75,7 +75,7 @@ function remoteDesktopProfile(hostId: string) {
     protocol: 'vnc' as const,
     protocol_config_version: 1 as const,
     vnc: {
-      loopback_host: '127.0.0.1' as const,
+      target_host: '127.0.0.1' as const,
       port: 5901,
       shared: true,
       default_view_only: false,

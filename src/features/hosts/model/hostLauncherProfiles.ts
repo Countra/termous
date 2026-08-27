@@ -172,11 +172,13 @@ function toRemoteDesktopMenuItem(
   profile: RemoteDesktopAccessProfileProjection,
   sshProfiles: SSHAccessProfile[],
 ): HostLauncherRemoteDesktopProfileMenuItem {
-  const route = resolveRouteInfo(
-    sshProfiles,
-    profile.hostId,
-    profile.routeDependency.profileId,
-  )
+  const route = profile.routeDependency
+    ? resolveRouteInfo(
+        sshProfiles,
+        profile.hostId,
+        profile.routeDependency.profileId,
+      )
+    : null
   return {
     profileId: profile.profileId,
     hostId: profile.hostId,
@@ -188,7 +190,7 @@ function toRemoteDesktopMenuItem(
     route,
     isDefault: profile.isDefault,
     sortOrder: profile.sortOrder,
-    availability: route ? 'ready' : 'route_missing',
+    availability: profile.routeDependency && !route ? 'route_missing' : 'ready',
   }
 }
 

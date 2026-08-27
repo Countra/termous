@@ -24,6 +24,12 @@ export {
   getRemoteDesktopTechnologyDescriptor,
   projectRemoteDesktopAccessProfile,
 } from './model/accessProfileProjection.ts'
+export {
+  isRemoteDesktopLoopbackAddress,
+  isValidRemoteDesktopIPAddress,
+  normalizeRemoteDesktopIPAddress,
+  remoteDesktopTargetHostMaxLength,
+} from './model/targetHost.ts'
 export type {
   RemoteDesktopAccessProfileProjection,
   RemoteDesktopTechnologyDescriptor,

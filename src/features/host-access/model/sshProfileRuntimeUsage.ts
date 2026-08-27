@@ -62,9 +62,9 @@ export function countSSHProfileRuntimeUsage(
     && forward.ssh_profile_id === sshProfileId
     && activeForwardStatuses.has(forward.status)
   )).length
-  // 远程桌面失败会话仍可手工重连，并持续持有 SSH Profile 租约，直到会话从运行时清单移除。
+  // SSH 隧道的失败会话仍可手工重连，并持续持有 SSH Profile 租约，直到会话从运行时清单移除。
   const matchedRemoteDesktopSessions = remoteDesktopSessions.filter((session) => (
-    session.ssh_profile_id === sshProfileId
+    session.route === 'ssh_tunnel' && session.ssh_profile_id === sshProfileId
   )).length
   return {
     terminalSessions,

@@ -1,6 +1,6 @@
 export type RemoteDesktopProtocol = 'vnc'
 
-export type RemoteDesktopRoute = 'ssh_tunnel'
+export type RemoteDesktopRoute = 'ssh_tunnel' | 'direct'
 
 export type RemoteDesktopDisplayMode = 'fit' | 'resize' | 'actual'
 
@@ -28,7 +28,7 @@ export type RemoteDesktopSessionPhase =
   | 'failed'
 
 export interface VncProfileSettings {
-  loopback_host: '127.0.0.1' | '::1'
+  target_host: string
   port: number
   shared: boolean
   default_view_only: boolean
@@ -52,39 +52,52 @@ interface RemoteDesktopAccessProfileBase {
   updated_at: string
 }
 
-export interface VncRemoteDesktopAccessProfile extends RemoteDesktopAccessProfileBase {
+interface RemoteDesktopSSHTunnelRoute {
   route: 'ssh_tunnel'
   route_config_version: 1
   ssh_profile_id: string
-  protocol: 'vnc'
-  protocol_config_version: 1
-  vnc: VncProfileSettings
 }
+
+interface RemoteDesktopDirectRoute {
+  route: 'direct'
+  route_config_version: 1
+  ssh_profile_id?: never
+}
+
+type RemoteDesktopRouteConfiguration =
+  | RemoteDesktopSSHTunnelRoute
+  | RemoteDesktopDirectRoute
+
+export type VncRemoteDesktopAccessProfile = RemoteDesktopAccessProfileBase
+  & RemoteDesktopRouteConfiguration
+  & {
+    protocol: 'vnc'
+    protocol_config_version: 1
+    vnc: VncProfileSettings
+  }
 
 export type RemoteDesktopAccessProfile = VncRemoteDesktopAccessProfile
 
-export interface VncRemoteDesktopAccessProfileInput {
+interface VncRemoteDesktopAccessProfileInputBase {
   host_id: string
   name: string
   description: string
-  route: 'ssh_tunnel'
-  route_config_version: 1
-  ssh_profile_id: string
   protocol: 'vnc'
   protocol_config_version: 1
   vnc: VncProfileSettings
 }
 
+export type VncRemoteDesktopAccessProfileInput = VncRemoteDesktopAccessProfileInputBase
+  & RemoteDesktopRouteConfiguration
+
 export type RemoteDesktopAccessProfileInput = VncRemoteDesktopAccessProfileInput
 
-export interface RemoteDesktopSession {
+interface RemoteDesktopSessionBase {
   id: string
   profile_id: string
   profile_name: string
   host_id: string
   host_name: string
-  ssh_profile_id: string
-  route: RemoteDesktopRoute
   route_config_version: number
   protocol: RemoteDesktopProtocol
   protocol_config_version: number
@@ -103,6 +116,11 @@ export interface RemoteDesktopSession {
   last_error?: string
   error_code?: string
 }
+
+export type RemoteDesktopSession = RemoteDesktopSessionBase & (
+  | { route: 'ssh_tunnel'; ssh_profile_id: string }
+  | { route: 'direct'; ssh_profile_id?: never }
+)
 
 export interface RemoteDesktopAttachTicket {
   ticket: string

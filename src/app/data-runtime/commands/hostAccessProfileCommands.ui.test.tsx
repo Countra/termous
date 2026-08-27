@@ -141,7 +141,7 @@ test('Profile 只读查询直接透传，写入成功后才触发静默对账', 
     protocol: 'vnc',
     protocol_config_version: 1,
     vnc: {
-      loopback_host: '127.0.0.1',
+      target_host: '127.0.0.1',
       port: 5900,
       shared: true,
       default_view_only: false,

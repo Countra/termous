@@ -169,7 +169,8 @@ export function RemoteDesktopRuntimeProvider({
     const session = sessionsRef.current.get(event.session_id)
     const sampledAt = Date.parse(event.sampled_at)
     if (
-      session?.connection_generation === event.connection_generation
+      session?.route === 'ssh_tunnel'
+      && session.connection_generation === event.connection_generation
       && acceptsTelemetry(session.status)
       && Number.isFinite(sampledAt)
     ) {

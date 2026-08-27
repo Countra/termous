@@ -158,6 +158,11 @@ function profileDetail(
       route: item.route.name,
     })
   }
+  if (item.intent === 'remote_desktop') {
+    return t('workbench.hostLauncher.profiles.desktopDirectDetail', {
+      endpoint: item.endpoint,
+    })
+  }
   if (item.route) {
     return t('workbench.hostLauncher.profiles.fileDetail', { route: item.route.name })
   }

@@ -179,7 +179,7 @@ function remoteDesktopSession(id: string): RemoteDesktopSession {
     protocol: 'vnc',
     protocol_config_version: 1,
     vnc: {
-      loopback_host: '127.0.0.1',
+      target_host: '127.0.0.1',
       port: 5900,
       shared: true,
       default_view_only: false,

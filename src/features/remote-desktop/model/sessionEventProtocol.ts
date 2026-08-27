@@ -1,9 +1,11 @@
-import type {
-  RemoteDesktopDisplayMode,
-  RemoteDesktopSession,
-  RemoteDesktopSessionEvent,
-  RemoteDesktopSessionPhase,
-  RemoteDesktopSessionStatus,
+import {
+  isRemoteDesktopLoopbackAddress,
+  isValidRemoteDesktopIPAddress,
+  type RemoteDesktopDisplayMode,
+  type RemoteDesktopSession,
+  type RemoteDesktopSessionEvent,
+  type RemoteDesktopSessionPhase,
+  type RemoteDesktopSessionStatus,
 } from '#entities/remote-desktop'
 
 const rfc3339Pattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
@@ -91,12 +93,10 @@ function isRemoteDesktopSession(value: unknown): value is RemoteDesktopSession {
     && isNonEmptyString(value.profile_name)
     && isNonEmptyString(value.host_id)
     && isNonEmptyString(value.host_name)
-    && isNonEmptyString(value.ssh_profile_id)
-    && value.route === 'ssh_tunnel'
-    && isConfigVersion(value.route_config_version)
+    && isRemoteDesktopSessionRoute(value, vnc)
     && value.protocol === 'vnc'
     && isConfigVersion(value.protocol_config_version)
-    && (vnc.loopback_host === '127.0.0.1' || vnc.loopback_host === '::1')
+    && isNonEmptyString(vnc.target_host)
     && isPort(vnc.port)
     && typeof vnc.shared === 'boolean'
     && typeof vnc.default_view_only === 'boolean'
@@ -145,6 +145,22 @@ function isOptionalNonNegativeSafeInteger(value: unknown): value is number | und
 
 function isPort(value: unknown): value is number {
   return isPositiveSafeInteger(value) && value <= 65_535
+}
+
+function isRemoteDesktopSessionRoute(
+  value: Record<string, unknown>,
+  vnc: Record<string, unknown>,
+) {
+  if (!isConfigVersion(value.route_config_version) || !isNonEmptyString(vnc.target_host)) {
+    return false
+  }
+  if (value.route === 'ssh_tunnel') {
+    return isNonEmptyString(value.ssh_profile_id)
+      && isRemoteDesktopLoopbackAddress(vnc.target_host)
+  }
+  return value.route === 'direct'
+    && value.ssh_profile_id === undefined
+    && isValidRemoteDesktopIPAddress(vnc.target_host)
 }
 
 function isConfigVersion(value: unknown): value is number {

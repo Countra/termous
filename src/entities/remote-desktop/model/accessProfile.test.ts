@@ -37,12 +37,31 @@ test('远程桌面公共投影隐藏 VNC 与路由私有配置', () => {
     name: 'rdp_a',
     technology: { id: 'vnc', label: 'VNC' },
     endpoint: '127.0.0.1:5901',
+    route: 'ssh_tunnel',
     routeDependency: { kind: 'ssh_profile', profileId: 'ssh_1' },
     isDefault: true,
     sortOrder: 0,
   })
   assert.equal('vnc' in projection, false)
   assert.equal('ssh_profile_id' in projection, false)
+})
+
+test('VNC 直连投影不声明 SSH 依赖且输入不携带 SSH Profile', () => {
+  const tunneled = profile('rdp_direct', 0, true)
+  const { ssh_profile_id: _sshProfileID, ...withoutSSHProfile } = tunneled
+  assert.equal(_sshProfileID, 'ssh_1')
+  const direct: RemoteDesktopAccessProfile = {
+    ...withoutSSHProfile,
+    route: 'direct',
+    vnc: { ...tunneled.vnc, target_host: '2001:db8::10' },
+  }
+  const input = remoteDesktopAccessProfileToInput(direct)
+  const projection = projectRemoteDesktopAccessProfile(direct)
+
+  assert.equal('ssh_profile_id' in input, false)
+  assert.equal(projection.endpoint, '[2001:db8::10]:5901')
+  assert.equal(projection.route, 'direct')
+  assert.equal(projection.routeDependency, null)
 })
 
 function profile(id: string, sortOrder: number, isDefault: boolean): RemoteDesktopAccessProfile {
@@ -57,7 +76,7 @@ function profile(id: string, sortOrder: number, isDefault: boolean): RemoteDeskt
     protocol: 'vnc',
     protocol_config_version: 1,
     vnc: {
-      loopback_host: '127.0.0.1',
+      target_host: '127.0.0.1',
       port: 5901,
       shared: true,
       default_view_only: false,

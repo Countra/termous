@@ -21,7 +21,9 @@ test('Driver 身份只由 Session 固化快照决定', () => {
   assert.equal(resolved.protocol, protocolV2)
 })
 
-function session(overrides: Partial<RemoteDesktopSession>): RemoteDesktopSession {
+type SSHTunnelSession = Extract<RemoteDesktopSession, { route: 'ssh_tunnel' }>
+
+function session(overrides: Partial<SSHTunnelSession>): SSHTunnelSession {
   return {
     id: 'rds_test',
     profile_id: 'rdp_test',
@@ -34,7 +36,7 @@ function session(overrides: Partial<RemoteDesktopSession>): RemoteDesktopSession
     protocol: 'vnc',
     protocol_config_version: 1,
     vnc: {
-      loopback_host: '127.0.0.1',
+      target_host: '127.0.0.1',
       port: 5900,
       shared: true,
       default_view_only: false,

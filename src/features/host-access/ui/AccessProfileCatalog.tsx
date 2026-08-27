@@ -155,13 +155,18 @@ export function AccessProfileCatalog({
           <ProfileEmpty label={t('hosts.access.desktop.empty')} />
         ) : catalog.remote_desktops.map((profile) => {
           const projection = projectRemoteDesktopAccessProfile(profile)
-          const ssh = sshById.get(projection.routeDependency.profileId)
+          const ssh = projection.routeDependency
+            ? sshById.get(projection.routeDependency.profileId)
+            : undefined
+          const detail = projection.routeDependency
+            ? `${projection.endpoint} · ${ssh?.name || t('hosts.access.file.missingSSH')}`
+            : `${projection.endpoint} · ${t('remoteDesktop.route.direct')}`
           return (
             <AccessProfileRow
               key={profile.id}
               name={profile.name}
               type={projection.technology.label}
-              detail={`${projection.endpoint} · ${ssh?.name || t('hosts.access.file.missingSSH')}`}
+              detail={detail}
               isDefault={profile.is_default}
               busy={busy}
               deleteDisabled={profile.is_default && catalog.remote_desktops.length > 1}

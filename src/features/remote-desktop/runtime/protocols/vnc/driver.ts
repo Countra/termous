@@ -26,7 +26,7 @@ export const vncProtocolDriver = Object.freeze({
       desktopName: '',
       remoteClipboard: '',
       capabilities: { power: false },
-      targetLabel: `VNC · ${session.vnc.loopback_host}:${session.vnc.port}`,
+      targetLabel: `VNC · ${formatHostPort(session.vnc.target_host, session.vnc.port)}`,
       errorCode: '',
     }
   },
@@ -71,4 +71,9 @@ function toVncCredentials(credentials?: RemoteDesktopCredentials): VncCredential
   if (typeof credentials.password === 'string') result.password = credentials.password
   if (typeof credentials.target === 'string') result.target = credentials.target
   return result
+}
+
+function formatHostPort(host: string, port: number) {
+  const normalizedHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host
+  return `${normalizedHost}:${port}`
 }

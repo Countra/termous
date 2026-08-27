@@ -86,9 +86,10 @@ const sshProfiles: SSHAccessProfile[] = [
 const draft: VNCAccessProfileDraft = {
   name: 'Console VNC',
   description: 'Operations console',
+  route: 'ssh_tunnel',
   ssh_profile_id: 'ssh-primary',
   vnc: {
-    loopback_host: '127.0.0.1',
+    target_host: '127.0.0.1',
     port: 5901,
     shared: true,
     default_view_only: false,
@@ -146,7 +147,7 @@ describe('VNCProfileEditor', () => {
     })
     expect(props.onChange).toHaveBeenLastCalledWith({
       ...draft,
-      vnc: { ...draft.vnc, loopback_host: '::1' },
+      vnc: { ...draft.vnc, target_host: '::1' },
     })
 
     fireEvent.click(within(displayMode).getByRole('radio', { name: 'remoteDesktop.display.actual' }))
@@ -172,14 +173,14 @@ describe('VNCProfileEditor', () => {
     const view = render(<VNCProfileEditor {...props} errors={errors} />)
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(view.container.querySelectorAll('small[aria-hidden="true"]')).toHaveLength(5)
+    expect(view.container.querySelectorAll('small[aria-hidden="true"]')).toHaveLength(6)
 
     view.rerender(<VNCProfileEditor {...props} errors={errors} submitted />)
 
     expect(screen.getByText('hosts.access.errors.required')).toHaveRole('alert')
     expect(screen.getByText('hosts.access.errors.sshMissing')).toHaveRole('alert')
     expect(screen.getByText('remoteDesktop.validationPort')).toHaveRole('alert')
-    expect(view.container.querySelectorAll('small[role="alert"], small[aria-hidden="true"]')).toHaveLength(5)
+    expect(view.container.querySelectorAll('small[role="alert"], small[aria-hidden="true"]')).toHaveLength(6)
 
     expectControlError(
       screen.getByRole('textbox', { name: 'hosts.access.profileName' }),
@@ -193,6 +194,64 @@ describe('VNCProfileEditor', () => {
       screen.getByRole('spinbutton', { name: 'remoteDesktop.port' }),
       'remoteDesktop.validationPort',
     )
+  })
+
+  it('切换直连时改为目标 IP 输入并移除 SSH 端点字段', () => {
+    const props = editorProps()
+    const view = render(<VNCProfileEditor {...props} />)
+    const routeMode = screen.getByRole('radiogroup', { name: 'remoteDesktop.route.label' })
+
+    fireEvent.click(within(routeMode).getByRole('radio', { name: 'remoteDesktop.route.direct' }))
+    expect(props.onChange).toHaveBeenLastCalledWith({
+      ...draft,
+      route: 'direct',
+      ssh_profile_id: '',
+      vnc: { ...draft.vnc, target_host: '' },
+      route_memory: {
+        ssh_profile_id: 'ssh-primary',
+        direct_target_host: '',
+      },
+    })
+
+    view.rerender(<VNCProfileEditor
+      {...props}
+      draft={{
+        ...draft,
+        route: 'direct',
+        ssh_profile_id: '',
+        vnc: { ...draft.vnc, target_host: '192.0.2.10' },
+      }}
+      errors={{ target_host: 'invalid' }}
+      submitted
+    />)
+    expect(screen.queryByRole('combobox', { name: 'hosts.access.desktop.sshRoute' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'remoteDesktop.loopbackHost' })).not.toBeInTheDocument()
+    expectControlError(
+      screen.getByRole('textbox', { name: 'remoteDesktop.targetAddress' }),
+      'remoteDesktop.validationTargetAddress',
+    )
+  })
+
+  it('没有 SSH Profile 时保持直连可用并阻止进入不可完成的隧道路由', () => {
+    const props = editorProps()
+    render(<VNCProfileEditor
+      {...props}
+      sshProfiles={[]}
+      draft={{
+        ...props.draft,
+        route: 'direct',
+        ssh_profile_id: '',
+        vnc: { ...props.draft.vnc, target_host: '192.0.2.10' },
+      }}
+    />)
+
+    const routeMode = screen.getByRole('radiogroup', { name: 'remoteDesktop.route.label' })
+    expect(within(routeMode).getByRole('radio', {
+      name: 'remoteDesktop.route.sshTunnel',
+    })).toBeDisabled()
+    expect(within(routeMode).getByRole('radio', {
+      name: 'remoteDesktop.route.direct',
+    })).toBeChecked()
   })
 
   it('完整禁用所有字段和认证操作', () => {

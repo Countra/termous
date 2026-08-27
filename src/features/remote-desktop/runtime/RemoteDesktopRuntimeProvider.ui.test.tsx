@@ -562,6 +562,38 @@ test('telemetry 仅更新当前会话 generation 并在重连状态清空', asyn
   expect(view.getByTestId('ssh-rtt')).toHaveTextContent('--')
 })
 
+test('直连会话拒绝消费 SSH 链路 telemetry', () => {
+  vi.stubGlobal('WebSocket', MockWebSocket)
+  const tunneled = remoteDesktopSession()
+  const { ssh_profile_id: _sshProfileID, ...sessionBase } = tunneled
+  expect(_sshProfileID).toBe('ssh_test')
+  const session: RemoteDesktopSession = {
+    ...sessionBase,
+    route: 'direct',
+    vnc: { ...tunneled.vnc, target_host: '192.0.2.10' },
+  }
+  const view = render(
+    <RemoteDesktopRuntimeProvider
+      api={remoteDesktopGateway(session, vi.fn())}
+      enabled
+      profiles={[]}
+      initialSessions={[session]}
+    >
+      <MetricsHarness sessionId={session.id} />
+    </RemoteDesktopRuntimeProvider>,
+  )
+
+  act(() => MockWebSocket.instances[0].emit({
+    type: 'telemetry',
+    session_id: session.id,
+    connection_generation: session.connection_generation,
+    ssh_rtt_ms: 25,
+    sampled_at: '2026-08-24T08:00:01Z',
+  }))
+
+  expect(view.getByTestId('ssh-rtt')).toHaveTextContent('--')
+})
+
 test('迟到的 GET 不会覆盖事件流已经推进的 Viewer generation', async () => {
   vi.stubGlobal('WebSocket', MockWebSocket)
   const session = remoteDesktopSession()
@@ -1001,7 +1033,7 @@ function remoteDesktopSession(): RemoteDesktopSession {
     protocol: 'vnc',
     protocol_config_version: 1,
     vnc: {
-      loopback_host: '127.0.0.1',
+      target_host: '127.0.0.1',
       port: 5900,
       shared: true,
       default_view_only: false,
@@ -1031,7 +1063,7 @@ function remoteDesktopProfile(): RemoteDesktopAccessProfile {
     protocol: 'vnc',
     protocol_config_version: 1,
     vnc: {
-      loopback_host: '127.0.0.1',
+      target_host: '127.0.0.1',
       port: 5900,
       shared: true,
       default_view_only: false,

@@ -186,6 +186,10 @@
   background: color-mix(in srgb, var(--surface-subtle) 54%, transparent);
 }
 
+.live-metrics.without-latency {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .primary-metric {
   display: grid;
   min-width: 0;

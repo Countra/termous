@@ -25,6 +25,15 @@ test('同一协议和路由的不同配置版本可以并存并精确解析', ()
   assert.equal(routes.resolve('ssh_tunnel', 2), routeV2)
 })
 
+test('静态路由注册表可同时解析 SSH 隧道和直连实现', () => {
+  const sshTunnel = { id: 'ssh_tunnel' as const, configVersion: 1 }
+  const direct = { id: 'direct' as const, configVersion: 1 }
+  const routes = createRemoteDesktopRouteRegistry([sshTunnel, direct])
+
+  assert.equal(routes.resolve('ssh_tunnel', 1), sshTunnel)
+  assert.equal(routes.resolve('direct', 1), direct)
+})
+
 test('Registry 拒绝重复、空注册、错误生命周期和未知版本', () => {
   const protocol = protocolDriver(1)
   const protocols = new RemoteDesktopProtocolRegistry()

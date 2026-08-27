@@ -34,6 +34,17 @@ test('SSH Profile 运行时影响只统计精确匹配的活动 Terminal、FileS
     remoteDesktopSession('desktop-failed', 'ssh-target', 'failed'),
     remoteDesktopSession('desktop-other', 'ssh-other', 'streaming'),
   ]
+  const { ssh_profile_id: directSSHProfileID, ...directBase } = remoteDesktopSession(
+    'desktop-direct',
+    'ssh-target',
+    'streaming',
+  )
+  assert.equal(directSSHProfileID, 'ssh-target')
+  remoteDesktopSessions.push({
+    ...directBase,
+    route: 'direct',
+    vnc: { ...directBase.vnc, target_host: '192.0.2.10' },
+  })
 
   assert.deepEqual(countSSHProfileRuntimeUsage(
     'ssh-target',
@@ -105,7 +116,7 @@ function remoteDesktopSession(
     protocol: 'vnc',
     protocol_config_version: 1,
     vnc: {
-      loopback_host: '127.0.0.1',
+      target_host: '127.0.0.1',
       port: 5900,
       shared: true,
       default_view_only: false,

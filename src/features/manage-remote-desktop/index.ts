@@ -1,4 +1,5 @@
 export {
+  changeVNCAccessProfileRoute,
   createVNCAccessProfileDraft,
   normalizeVNCAccessProfileDraft,
   validateVNCAccessProfileDraft,

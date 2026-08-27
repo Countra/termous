@@ -104,6 +104,25 @@ test('缺失、重复和不可用默认项保持可区分且不猜测', () => {
   assert.deepEqual(empty.items, [])
 })
 
+test('VNC 直连无需 SSH Profile 即可作为默认远程桌面连接', () => {
+  const tunneled = desktopProfile('desktop-direct', 'host-a', 'unused', true)
+  const { ssh_profile_id: _sshProfileID, ...withoutSSHProfile } = tunneled
+  assert.equal(_sshProfileID, 'unused')
+  const direct: RemoteDesktopAccessProfile = {
+    ...withoutSSHProfile,
+    route: 'direct',
+    vnc: { ...tunneled.vnc, target_host: '192.0.2.10' },
+  }
+  const menu = buildHostLauncherProfileMenu(profileData({
+    remoteDesktopProfiles: [direct],
+  }), 'host-a', 'remote_desktop')
+
+  assert.equal(menu.defaultResolution, 'resolved')
+  assert.equal(menu.defaultItem?.availability, 'ready')
+  assert.equal(menu.defaultItem?.route, null)
+  assert.equal(menu.defaultItem?.endpoint, '192.0.2.10:5901')
+})
+
 function profileData(
   overrides: Partial<HostLauncherProfileData> = {},
 ): HostLauncherProfileData {
@@ -176,7 +195,7 @@ function desktopProfile(
     protocol: 'vnc',
     protocol_config_version: 1,
     vnc: {
-      loopback_host: '::1',
+      target_host: '::1',
       port: 5901,
       shared: true,
       default_view_only: false,

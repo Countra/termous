@@ -14,9 +14,11 @@ import styles from './RemoteDesktopConnectionQuality.module.scss'
 export function RemoteDesktopConnectionQuality({
   sessionId,
   connected,
+  showSshLatency,
 }: {
   sessionId: string
   connected: boolean
+  showSshLatency: boolean
 }) {
   const { t } = useTranslation()
   const metrics = useRemoteDesktopConnectionMetrics(sessionId)
@@ -35,12 +37,14 @@ export function RemoteDesktopConnectionQuality({
           <span>{t('remoteDesktop.connectionQuality.duration')} · {formatDuration(metrics.sampledAt - metrics.connectedAt)}</span>
         </div>
       </div>
-      <div className={styles['live-metrics']}>
-        <PrimaryMetric
-          icon={<Timer size={13} strokeWidth={1.8} />}
-          label={t('remoteDesktop.connectionQuality.sshLatency')}
-          value={sshRtt}
-        />
+      <div className={`${styles['live-metrics']} ${showSshLatency ? '' : styles['without-latency']}`}>
+        {showSshLatency ? (
+          <PrimaryMetric
+            icon={<Timer size={13} strokeWidth={1.8} />}
+            label={t('remoteDesktop.connectionQuality.sshLatency')}
+            value={sshRtt}
+          />
+        ) : null}
         <PrimaryMetric
           icon={<ArrowDown size={13} strokeWidth={1.8} />}
           label={t('remoteDesktop.connectionQuality.receiveRate')}
@@ -78,7 +82,9 @@ export function RemoteDesktopConnectionQuality({
           <span className={styles['health-label']}>{t(`remoteDesktop.connectionQuality.${health}`)}</span>
         </span>
         <span className={styles['summary-divider']} />
-        <SummaryMetric icon={<Timer size={11} />} value={sshRtt} compact />
+        {showSshLatency ? (
+          <SummaryMetric icon={<Timer size={11} />} value={sshRtt} compact />
+        ) : null}
         <SummaryMetric icon={<ArrowDown size={11} />} value={formatRate(metrics.receiveBytesPerSecond)} />
         {metrics.outboundMeasured ? (
           <SummaryMetric icon={<ArrowUp size={11} />} value={formatRate(metrics.sendBytesPerSecond)} />

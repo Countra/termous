@@ -1,8 +1,21 @@
 import { Input, InputNumber, Segmented, Switch } from 'antd'
-import { Cable, Maximize2, MonitorCog, Route, Scaling, Scan } from 'lucide-react'
+import {
+  Cable,
+  LockKeyhole,
+  Maximize2,
+  MonitorCog,
+  Network,
+  Route,
+  Scaling,
+  Scan,
+} from 'lucide-react'
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { RemoteDesktopDisplayMode } from '#entities/remote-desktop'
+import {
+  remoteDesktopTargetHostMaxLength,
+  type RemoteDesktopDisplayMode,
+  type RemoteDesktopRoute,
+} from '#entities/remote-desktop'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import {
   CustomSelect,
@@ -14,6 +27,7 @@ import type {
   VNCAccessProfileDraft,
   VNCAccessProfileDraftErrors,
 } from '../../model/vncAccessProfileDraft.ts'
+import { changeVNCAccessProfileRoute } from '../../model/vncAccessProfileDraft.ts'
 import type {
   VNCTargetAuthDraft,
   VNCTargetAuthDraftError,
@@ -63,6 +77,16 @@ export function VNCProfileEditor({
       : 'hosts.access.errors.sshRequired')
     : undefined
   const portError = profileError(visibleErrors.port, t)
+  const targetHostError = visibleErrors.target_host
+    ? t(visibleErrors.target_host === 'invalid'
+      ? 'remoteDesktop.validationTargetAddress'
+      : visibleErrors.target_host === 'loopback'
+        ? 'remoteDesktop.validationLoopbackAddress'
+        : 'hosts.access.errors.required')
+    : undefined
+  const defaultSSHProfileId = sshProfiles.find((profile) => profile.is_default)?.id
+    ?? sshProfiles[0]?.id
+    ?? ''
 
   return (
     <div className={styles.form}>
@@ -95,30 +119,40 @@ export function VNCProfileEditor({
                 />
               )}
             </ProfileEditorField>
-            <div
-              className={`${styles.field} ${styles['route-field']}`}
-              data-invalid={routeError ? 'true' : 'false'}
+            <ProfileEditorField
+              classNames={styles}
+              className={styles['route-mode-field']}
+              label={t('remoteDesktop.route.label')}
             >
-              <CustomSelect
-                label={t('hosts.access.desktop.sshRoute')}
-                value={draft.ssh_profile_id}
-                disabled={disabled || sshProfiles.length === 0}
-                status={routeError ? 'error' : undefined}
-                aria-invalid={routeError ? true : undefined}
-                aria-describedby={routeError ? routeFeedbackId : undefined}
-                options={sshProfiles.map((profile) => ({
-                  value: profile.id,
-                  label: profile.name || `${profile.username}@${profile.address}`,
-                  description: `${profile.username}@${profile.address}:${profile.port}`,
-                }))}
-                onChange={(ssh_profile_id) => onChange({ ...draft, ssh_profile_id })}
-              />
-              <ProfileEditorFieldFeedback
-                classNames={styles}
-                id={routeFeedbackId}
-                message={routeError}
-              />
-            </div>
+              {(controlProps) => (
+                <Segmented<RemoteDesktopRoute>
+                  {...controlProps}
+                  block
+                  className={`${segmentedStyles.control} ${styles['route-options']}`}
+                  value={draft.route}
+                  disabled={disabled}
+                  aria-label={t('remoteDesktop.route.label')}
+                  options={[
+                    {
+                      value: 'ssh_tunnel',
+                      icon: <LockKeyhole size={13} aria-hidden="true" />,
+                      label: t('remoteDesktop.route.sshTunnel'),
+                      disabled: sshProfiles.length === 0 && draft.route !== 'ssh_tunnel',
+                    },
+                    {
+                      value: 'direct',
+                      icon: <Network size={13} aria-hidden="true" />,
+                      label: t('remoteDesktop.route.direct'),
+                    },
+                  ]}
+                  onChange={(route) => onChange(changeVNCAccessProfileRoute(
+                    draft,
+                    route,
+                    defaultSSHProfileId,
+                  ))}
+                />
+              )}
+            </ProfileEditorField>
             <ProfileEditorField
               classNames={styles}
               className={styles['description-field']}
@@ -146,25 +180,84 @@ export function VNCProfileEditor({
             id={endpointSectionId}
             icon={<Cable size={15} />}
             title={t('remoteDesktop.endpointSection')}
-            hint={t('hosts.access.desktop.endpointHint')}
+            hint={t(draft.route === 'ssh_tunnel'
+              ? 'hosts.access.desktop.endpointTunnelHint'
+              : 'hosts.access.desktop.endpointDirectHint')}
           />
-          <div className={styles.grid}>
-            <div className={`${styles.field} ${styles['loopback-field']}`}>
-              <CustomSelect
-                label={t('remoteDesktop.loopbackHost')}
-                value={draft.vnc.loopback_host}
-                disabled={disabled}
-                options={[
-                  { value: '127.0.0.1', label: '127.0.0.1', description: t('remoteDesktop.ipv4Loopback') },
-                  { value: '::1', label: '::1', description: t('remoteDesktop.ipv6Loopback') },
-                ]}
-                onChange={(loopback_host) => onChange({
-                  ...draft,
-                  vnc: { ...draft.vnc, loopback_host: loopback_host as '127.0.0.1' | '::1' },
-                })}
-              />
-              <ProfileEditorFieldFeedback classNames={styles} />
-            </div>
+          <div className={styles.grid} data-route={draft.route}>
+            {draft.route === 'ssh_tunnel' ? (
+              <div
+                className={`${styles.field} ${styles['ssh-route-field']}`}
+                data-invalid={routeError ? 'true' : 'false'}
+              >
+                <CustomSelect
+                  label={t('hosts.access.desktop.sshRoute')}
+                  value={draft.ssh_profile_id}
+                  disabled={disabled || sshProfiles.length === 0}
+                  status={routeError ? 'error' : undefined}
+                  aria-invalid={routeError ? true : undefined}
+                  aria-describedby={routeError ? routeFeedbackId : undefined}
+                  options={sshProfiles.map((profile) => ({
+                    value: profile.id,
+                    label: profile.name || `${profile.username}@${profile.address}`,
+                    description: `${profile.username}@${profile.address}:${profile.port}`,
+                  }))}
+                  onChange={(ssh_profile_id) => onChange({ ...draft, ssh_profile_id })}
+                />
+                <ProfileEditorFieldFeedback
+                  classNames={styles}
+                  id={routeFeedbackId}
+                  message={routeError}
+                />
+              </div>
+            ) : null}
+            {draft.route === 'ssh_tunnel' ? (
+              <div
+                className={`${styles.field} ${styles['target-field']}`}
+                data-invalid={targetHostError ? 'true' : 'false'}
+              >
+                <CustomSelect
+                  label={t('remoteDesktop.loopbackHost')}
+                  value={draft.vnc.target_host}
+                  disabled={disabled}
+                  status={targetHostError ? 'error' : undefined}
+                  options={[
+                    { value: '127.0.0.1', label: '127.0.0.1', description: t('remoteDesktop.ipv4Loopback') },
+                    { value: '::1', label: '::1', description: t('remoteDesktop.ipv6Loopback') },
+                  ]}
+                  onChange={(target_host) => onChange({
+                    ...draft,
+                    vnc: { ...draft.vnc, target_host },
+                  })}
+                />
+                <ProfileEditorFieldFeedback
+                  classNames={styles}
+                  message={targetHostError}
+                />
+              </div>
+            ) : (
+              <ProfileEditorField
+                classNames={styles}
+                className={styles['target-field']}
+                label={t('remoteDesktop.targetAddress')}
+                error={targetHostError}
+              >
+                {(controlProps) => (
+                  <Input
+                    {...controlProps}
+                    value={draft.vnc.target_host}
+                    maxLength={remoteDesktopTargetHostMaxLength}
+                    placeholder={t('remoteDesktop.targetAddressPlaceholder')}
+                    status={targetHostError ? 'error' : undefined}
+                    disabled={disabled}
+                    onChange={(event) => onChange({
+                      ...draft,
+                      vnc: { ...draft.vnc, target_host: event.target.value },
+                    })}
+                  />
+                )}
+              </ProfileEditorField>
+            )}
             <ProfileEditorField
               classNames={styles}
               className={styles['port-field']}

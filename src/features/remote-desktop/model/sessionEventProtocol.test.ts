@@ -14,7 +14,7 @@ const validSession = {
   protocol: 'vnc',
   protocol_config_version: 1,
   vnc: {
-    loopback_host: '127.0.0.1',
+    target_host: '127.0.0.1',
     port: 5901,
     shared: true,
     default_view_only: false,
@@ -120,7 +120,7 @@ test('upsert 拒绝字段缺失、枚举越界和无效 VNC 目标', () => {
     { ...validSession, route: 'unknown' },
     { ...validSession, route_config_version: 0 },
     { ...validSession, protocol_config_version: 65_536 },
-    { ...validSession, vnc: { ...validSession.vnc, loopback_host: '10.0.0.2' } },
+    { ...validSession, vnc: { ...validSession.vnc, target_host: '10.0.0.2' } },
     { ...validSession, vnc: { ...validSession.vnc, port: 65_536 } },
   ]
   for (const session of invalidSessions) {
@@ -141,4 +141,28 @@ test('upsert 接受显式为零的重连计数', () => {
     decodeRemoteDesktopSessionEvent(JSON.stringify({ type: 'upsert', session })),
     { type: 'upsert', session },
   )
+})
+
+test('upsert 严格区分直连与 SSH 隧道路由字段', () => {
+  const { ssh_profile_id: _sshProfileID, ...withoutSSHProfile } = validSession
+  assert.equal(_sshProfileID, 'ssh_test')
+  const direct = {
+    ...withoutSSHProfile,
+    route: 'direct',
+    vnc: { ...validSession.vnc, target_host: '2001:db8::10' },
+  }
+  assert.deepEqual(
+    decodeRemoteDesktopSessionEvent(JSON.stringify({ type: 'upsert', session: direct })),
+    { type: 'upsert', session: direct },
+  )
+  for (const session of [
+    { ...direct, ssh_profile_id: 'ssh_test' },
+    { ...direct, vnc: { ...direct.vnc, target_host: 'vnc.example.com' } },
+    { ...direct, vnc: { ...direct.vnc, target_host: '0.0.0.0' } },
+  ]) {
+    assert.equal(
+      decodeRemoteDesktopSessionEvent(JSON.stringify({ type: 'upsert', session })),
+      null,
+    )
+  }
 })

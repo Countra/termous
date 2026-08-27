@@ -6,17 +6,26 @@ import type {
 export function remoteDesktopAccessProfileToInput(
   profile: RemoteDesktopAccessProfile,
 ): RemoteDesktopAccessProfileInput {
-  return {
+  const common = {
     host_id: profile.host_id,
     name: profile.name,
     description: profile.description,
-    route: profile.route,
-    route_config_version: profile.route_config_version,
-    ssh_profile_id: profile.ssh_profile_id,
     protocol: profile.protocol,
     protocol_config_version: profile.protocol_config_version,
     vnc: { ...profile.vnc },
   }
+  return profile.route === 'ssh_tunnel'
+    ? {
+        ...common,
+        route: 'ssh_tunnel',
+        route_config_version: profile.route_config_version,
+        ssh_profile_id: profile.ssh_profile_id,
+      }
+    : {
+        ...common,
+        route: 'direct',
+        route_config_version: profile.route_config_version,
+      }
 }
 
 export function sortRemoteDesktopAccessProfiles(

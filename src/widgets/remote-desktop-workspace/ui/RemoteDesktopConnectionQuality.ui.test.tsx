@@ -64,7 +64,7 @@ test('SSH 链路延迟超过采样有效期后不再展示旧值', () => {
 })
 
 test('连接详情以同一主指标层级展示延迟和双向速率', async () => {
-  render(<RemoteDesktopConnectionQuality sessionId="rds_metrics" connected />)
+  render(<RemoteDesktopConnectionQuality sessionId="rds_metrics" connected showSshLatency />)
 
   fireEvent.click(screen.getByRole('button', { name: '查看连接详情' }))
 
@@ -74,4 +74,15 @@ test('连接详情以同一主指标层级展示延迟和双向速率', async ()
   expect(screen.getByText('发送速率')).toBeInTheDocument()
   expect(screen.getByText('待发送数据')).toBeInTheDocument()
   expect(screen.getAllByText('<1 ms')).toHaveLength(2)
+})
+
+test('直连路由不展示 SSH 链路延迟', async () => {
+  render(<RemoteDesktopConnectionQuality sessionId="rds_metrics" connected showSshLatency={false} />)
+
+  fireEvent.click(screen.getByRole('button', { name: '查看连接详情' }))
+
+  expect(screen.queryByText('SSH 延迟')).not.toBeInTheDocument()
+  expect(screen.queryByText('<1 ms')).not.toBeInTheDocument()
+  expect(await screen.findByText('接收速率')).toBeInTheDocument()
+  expect(screen.getByText('发送速率')).toBeInTheDocument()
 })
