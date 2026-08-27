@@ -52,6 +52,48 @@ vi.mock('#shared/ui', async (importOriginal) => ({
   ),
 }))
 
+vi.mock('./SSHJumpProfileSelect.tsx', () => ({
+  SSHJumpProfileSelect: ({
+    label,
+    value,
+    profiles,
+    editingProfileId,
+    disabled,
+    status,
+    'aria-invalid': ariaInvalid,
+    'aria-describedby': ariaDescribedBy,
+    onChange,
+  }: {
+    label: string
+    value: string
+    profiles: SSHAccessProfile[]
+    editingProfileId?: string
+    disabled?: boolean
+    status?: 'error' | 'warning'
+    'aria-invalid'?: boolean
+    'aria-describedby'?: string
+    onChange: (value: string) => void
+  }) => (
+    <label>
+      <span>{label}</span>
+      <select
+        aria-label={label}
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedBy}
+        data-status={status}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="">hosts.noJumpHost</option>
+        {profiles
+          .filter((item) => item.id !== editingProfileId)
+          .map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+      </select>
+    </label>
+  ),
+}))
+
 import { SSHProfileEditor } from './SSHProfileEditor.tsx'
 
 const passwordCredential: CredentialView = {
@@ -129,6 +171,9 @@ function editorProps(): ComponentProps<typeof SSHProfileEditor> {
     credentials: [passwordCredential, privateKeyCredential, passphraseCredential],
     proxies: [proxy],
     jumpProfiles: [profile('ssh-self', 'Current SSH'), profile('ssh-jump', 'Jump SSH')],
+    jumpHosts: [],
+    jumpGroups: [],
+    getHostIconUrl: vi.fn(() => ''),
     onManageProxies: vi.fn(),
     onChange: vi.fn(),
   }

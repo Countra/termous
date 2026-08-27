@@ -137,6 +137,9 @@ export function HostAccessWorkspace({
               credentials={data.credentials}
               proxies={data.proxies}
               jumpProfiles={controller.sshProfiles}
+              jumpHosts={data.hostAssets}
+              jumpGroups={data.groups}
+              getHostIconUrl={getHostIconUrl}
               errorMessages={sshProxyError ? { proxy: sshProxyError } : undefined}
               onManageProxies={onManageProxies}
               onChange={controller.setSSHDraft}

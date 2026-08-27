@@ -137,6 +137,12 @@
   grid-column: span 6;
 }
 
+.proxy-field :global(.ant-select),
+.proxy-field :global(.ant-select-selector) {
+  height: 40px;
+  min-height: 40px;
+}
+
 .field > label:first-child,
 .field > span:first-child,
 .field :global(.field-label) {

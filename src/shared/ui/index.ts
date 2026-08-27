@@ -1,5 +1,10 @@
 export { ConfirmDialog } from './ConfirmDialog'
 export { default as confirmDialogStyles } from './ConfirmDialog.module.scss'
+export {
+  AssociationSelect,
+  type AssociationSelectItem,
+  type AssociationSelectProps,
+} from './AssociationSelect'
 export { ConnectionActionButton } from './ConnectionActionButton'
 export { connectionActionButtonClassName } from './connectionActionButtonStyles'
 export { ContextActionMenu } from './ContextActionMenu'

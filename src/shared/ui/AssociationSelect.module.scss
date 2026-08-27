@@ -1,0 +1,58 @@
+.select {
+  min-width: 0;
+  height: 40px;
+}
+
+.select :global(.ant-select-selector) {
+  min-height: 40px;
+  height: 40px;
+}
+
+.popup:global(.ant-select-dropdown) :global(.ant-select-item) {
+  min-height: 40px;
+  align-items: center;
+  border: 0;
+  padding: 0;
+}
+
+.popup:global(.ant-select-dropdown) :global(.ant-select-item-option-content) {
+  display: flex;
+  min-width: 0;
+  align-self: stretch;
+  overflow: visible;
+}
+
+.popup:global(.ant-select-dropdown) :global(.ant-select-item-option-state) {
+  align-self: stretch;
+  align-items: center;
+  padding-inline-end: 8px;
+}
+
+.popup:global(.ant-select-dropdown) :global(.ant-select-item-option-disabled) {
+  opacity: 0.58;
+}
+
+.option-trigger {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+}
+
+.detail-tooltip:global(.ant-tooltip) {
+  max-width: min(288px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+.detail-tooltip:global(.ant-tooltip) :global(.ant-tooltip-inner),
+.detail-tooltip:global(.ant-tooltip) :global(.ant-tooltip-container) {
+  min-width: min(268px, calc(100vw - 24px));
+  padding: 11px 12px;
+}
+
+@media (width <= 560px) {
+  .detail-tooltip:global(.ant-tooltip) :global(.ant-tooltip-inner),
+  .detail-tooltip:global(.ant-tooltip) :global(.ant-tooltip-container) {
+    min-width: min(248px, calc(100vw - 24px));
+  }
+}

@@ -169,6 +169,9 @@ export function HostEditor({
           credentials={data.credentials}
           proxies={data.proxies}
           jumpProfiles={jumpProfiles}
+          jumpHosts={data.hostAssets}
+          jumpGroups={data.groups}
+          getHostIconUrl={getHostIconUrl}
           showProfileName={false}
           autoFocus={false}
           errorMessages={submitted ? {

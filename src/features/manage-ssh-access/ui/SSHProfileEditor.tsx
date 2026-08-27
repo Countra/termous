@@ -11,6 +11,8 @@ import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ConnectionProxy } from '#entities/connection-proxy'
 import type { CredentialView } from '#entities/credential'
+import type { HostGroup } from '#entities/host'
+import type { HostAsset } from '#entities/host-asset'
 import type {
   SSHAccessProfile,
   SSHAccessProfileDraft,
@@ -23,6 +25,7 @@ import {
   ProfileEditorSectionHeading,
   uiStyles,
 } from '#shared/ui'
+import { SSHJumpProfileSelect } from './SSHJumpProfileSelect.tsx'
 import styles from './SSHProfileEditor.module.scss'
 
 interface SSHProfileEditorProps {
@@ -35,6 +38,9 @@ interface SSHProfileEditorProps {
   credentials: CredentialView[]
   proxies: ConnectionProxy[]
   jumpProfiles: SSHAccessProfile[]
+  jumpHosts: HostAsset[]
+  jumpGroups: HostGroup[]
+  getHostIconUrl: (iconId: string) => string
   showProfileName?: boolean
   autoFocus?: boolean
   errorMessages?: {
@@ -59,6 +65,9 @@ export function SSHProfileEditor({
   credentials,
   proxies,
   jumpProfiles,
+  jumpHosts,
+  jumpGroups,
+  getHostIconUrl,
   showProfileName = true,
   autoFocus = true,
   errorMessages = {},
@@ -309,23 +318,18 @@ export function SSHProfileEditor({
               className={`${styles.field} ${styles['jump-field']}`}
               data-invalid={jumpError ? 'true' : 'false'}
             >
-              <CustomSelect
+              <SSHJumpProfileSelect
                 label={t('hosts.jumpHost')}
                 value={draft.jump_ssh_profile_id}
+                profiles={jumpProfiles}
+                hosts={jumpHosts}
+                groups={jumpGroups}
+                editingProfileId={editingProfileId}
+                getHostIconUrl={getHostIconUrl}
                 disabled={disabled}
                 status={jumpError ? 'error' : undefined}
                 aria-invalid={jumpError ? true : undefined}
                 aria-describedby={jumpError ? jumpFeedbackId : undefined}
-                options={[
-                  { value: '', label: t('hosts.noJumpHost') },
-                  ...jumpProfiles
-                    .filter((profile) => profile.id !== editingProfileId)
-                    .map((profile) => ({
-                      value: profile.id,
-                      label: profile.name || `${profile.username}@${profile.address}`,
-                      description: `${profile.username}@${profile.address}:${profile.port}`,
-                    })),
-                ]}
                 onChange={(jump_ssh_profile_id) => onChange({ ...draft, jump_ssh_profile_id })}
               />
               <ProfileEditorFieldFeedback
