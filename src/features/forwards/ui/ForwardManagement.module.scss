@@ -479,15 +479,15 @@
   column-gap: 8px;
 }
 
-.forward-runtime-metric.has-rate {
+.forward-runtime-metric.has-detail {
   position: relative;
 }
 
-.forward-runtime-metric.has-rate:is(:hover, :focus) {
+.forward-runtime-metric.has-detail:is(:hover, :focus) {
   z-index: 4;
 }
 
-.forward-runtime-metric.has-rate:focus-visible {
+.forward-runtime-metric.has-detail:focus-visible {
   border-radius: 7px;
   outline: 1px solid color-mix(in srgb, var(--forward-metric-tone) 72%, transparent);
   outline-offset: 1px;
@@ -679,11 +679,21 @@
   color: var(--text-secondary);
 }
 
+.forward-runtime-metric-detail-time {
+  color: var(--text-primary);
+  font-family: var(--font-mono, "Cascadia Code", "JetBrains Mono", Consolas, monospace);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 22px;
+  white-space: nowrap;
+}
+
 .forward-runtime-metric.is-rate-active .forward-runtime-metric-detail-row.is-rate b {
   color: color-mix(in srgb, var(--forward-metric-tone) 78%, var(--text-primary));
 }
 
-.forward-runtime-metric.has-rate:is(:hover, :focus) .forward-runtime-metric-detail {
+.forward-runtime-metric.has-detail:is(:hover, :focus) .forward-runtime-metric-detail {
   opacity: 1;
   transform: translateY(0);
   visibility: visible;
@@ -1581,6 +1591,7 @@
 
 .forwarding-modal {
   --forwarding-modal-bg: #21252e;
+  --forwarding-modal-height: min(760px, calc(100dvh - 48px));
   --forwarding-modal-panel-bg: #262b35;
   --ant-modal-content-bg: var(--forwarding-modal-bg);
   --ant-modal-header-bg: var(--forwarding-modal-bg);
@@ -1596,7 +1607,9 @@
 .forwarding-modal :global(.ant-modal-content),
 .forwarding-modal :global(.ant-modal-container) {
   display: flex;
-  max-height: calc(100dvh - 48px);
+  height: var(--forwarding-modal-height);
+  min-height: 0;
+  max-height: var(--forwarding-modal-height);
   flex-direction: column;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
@@ -1628,6 +1641,7 @@
 
 .forwarding-modal :global(.ant-modal-body) {
   min-height: 0;
+  flex: 1 1 auto;
   overflow: auto;
   background: var(--forwarding-modal-bg);
   padding: 14px 18px;

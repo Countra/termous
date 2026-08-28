@@ -4,7 +4,8 @@
       --ant-modal-content-bg: #21252e;
     }
 
-    .remote-text-editor-modal.ant-modal .ant-modal-content {
+    .remote-text-editor-modal.ant-modal .ant-modal-content,
+    .remote-text-editor-modal.ant-modal .ant-modal-container {
       overflow: hidden;
       border: 1px solid color-mix(in srgb, var(--border-strong) 82%, transparent);
       border-radius: 20px;
@@ -20,6 +21,8 @@
     }
 
     .remote-text-editor-modal .ant-modal-close {
+      top: 18px;
+      inset-inline-end: 18px;
       color: var(--text-muted);
     }
 
@@ -33,8 +36,9 @@
 
       display: grid;
       grid-template-rows: auto minmax(0, 1fr) auto;
-      min-height: min(760px, calc(100vh - 88px));
-      max-height: calc(100vh - 64px);
+      height: min(760px, calc(100dvh - 88px));
+      min-height: 0;
+      max-height: calc(100dvh - 64px);
       background: var(--ant-modal-content-bg);
     }
 
@@ -60,6 +64,7 @@
     .remote-text-editor-header {
       border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
       background: var(--ant-modal-content-bg);
+      padding-inline-end: 64px;
     }
 
     .remote-text-editor-footer {

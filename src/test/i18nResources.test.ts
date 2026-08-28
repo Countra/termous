@@ -31,6 +31,11 @@ test('代码中的字面量翻译键均已配置', () => {
   assert.deepEqual([...missing].sort(), [])
 })
 
+test('顶部空会话标签使用统一的双语文案', () => {
+  assert.equal(translationValue(zhCN, 'app.noSessions'), '暂无会话')
+  assert.equal(translationValue(enUS, 'app.noSessions'), 'No sessions')
+})
+
 test('端口转发实时速度文案和格式保持一致', () => {
   assert.equal(translationValue(zhCN, 'forwards.sendRate'), '发送速度')
   assert.equal(translationValue(zhCN, 'forwards.receiveRate'), '接收速度')

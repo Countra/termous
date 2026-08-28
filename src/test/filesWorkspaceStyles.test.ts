@@ -55,6 +55,10 @@ const remoteFileModalStyles = readFileSync(
   fileURLToPath(new URL('../features/remote-file/ui/RemoteFileModalShared.module.scss', import.meta.url)),
   'utf8',
 )
+const remoteTextEditorStyles = readFileSync(
+  fileURLToPath(new URL('../features/remote-file/ui/RemoteTextEditorModal.module.scss', import.meta.url)),
+  'utf8',
+)
 
 test('文件工作区局部动画与 CSS Modules 使用同一 keyframe 作用域', () => {
   assert.match(workspaceStyles, /@keyframes files-drop-mask-enter/)
@@ -139,6 +143,33 @@ test('文件工作区行为使用稳定数据标记而不读取内部样式类�
   assert.doesNotMatch(workspaceSource, /closest<HTMLElement>\('\.files-table-row\.is-directory/)
   assert.doesNotMatch(workspaceSource, /target\.closest\('\.ant-dropdown'\)/)
   assert.doesNotMatch(workspaceSource, /classList\.(?:add|remove)\('is-files-column-resizing'\)/)
+})
+
+test('远程文本编辑器使用稳定且受可视区约束的弹窗高度', () => {
+  assert.match(
+    remoteTextEditorStyles,
+    /\.remote-text-editor-modal\.ant-modal \.ant-modal-content,\s*\.remote-text-editor-modal\.ant-modal \.ant-modal-container\s*\{[\s\S]*?padding:\s*0 !important;/,
+  )
+  assert.match(
+    remoteTextEditorStyles,
+    /\.remote-text-editor\s*\{[\s\S]*?height:\s*min\(760px, calc\(100dvh - 88px\)\);/,
+  )
+  assert.match(
+    remoteTextEditorStyles,
+    /\.remote-text-editor\s*\{[\s\S]*?min-height:\s*0;/,
+  )
+  assert.doesNotMatch(remoteTextEditorStyles, /min-height:\s*min\(760px/)
+})
+
+test('远程文本编辑器头部为弹窗关闭按钮保留独立空间', () => {
+  assert.match(
+    remoteTextEditorStyles,
+    /\.remote-text-editor-modal \.ant-modal-close\s*\{[\s\S]*?top:\s*18px;[\s\S]*?inset-inline-end:\s*18px;/,
+  )
+  assert.match(
+    remoteTextEditorStyles,
+    /\.remote-text-editor-header\s*\{[\s\S]*?padding-inline-end:\s*64px;/,
+  )
 })
 
 test('文件选择操作仅在工具栏空间不足时收进更多菜单', () => {

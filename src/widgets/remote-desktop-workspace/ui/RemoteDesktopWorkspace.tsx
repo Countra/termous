@@ -197,7 +197,7 @@ export function RemoteDesktopWorkspace({
               <SessionTabButton
                 empty
                 icon={<MonitorPlay size={18} />}
-                label={t('remoteDesktop.noSession')}
+                label={t('app.noSessions')}
               />
             ) : runtime.sessions.map((session) => (
                 <SessionTabButton

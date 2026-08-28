@@ -3230,7 +3230,7 @@ function FilesWorkspaceContent({
             )}
           >
             {data.fileSessions.length === 0 ? (
-              <SessionTabButton empty icon={<Folder size={18} />} label={t('files.noFileSession')} />
+              <SessionTabButton empty icon={<Folder size={18} />} label={t('app.noSessions')} />
             ) : (
               data.fileSessions.map((fileSession) => {
                 const host = data.hosts.find((item) => item.id === fileSession.host_id)

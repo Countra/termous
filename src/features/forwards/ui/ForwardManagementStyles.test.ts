@@ -69,3 +69,18 @@ test('端口转发关键交互尺寸和响应式边界保持不变', () => {
   assert.match(source, /@container forward-session \(max-width:\s*259px\)/)
   assert.match(source, /@container forwarding-page \(max-width:\s*660px\)/)
 })
+
+test('端口转发编辑弹窗使用稳定高度并仅滚动正文区域', () => {
+  assert.match(
+    source,
+    /--forwarding-modal-height:\s*min\(760px, calc\(100dvh - 48px\)\);/,
+  )
+  assert.match(
+    source,
+    /\.forwarding-modal :global\(\.ant-modal-content\),[\s\S]*?height:\s*var\(--forwarding-modal-height\);[\s\S]*?max-height:\s*var\(--forwarding-modal-height\);/,
+  )
+  assert.match(
+    source,
+    /\.forwarding-modal :global\(\.ant-modal-body\)\s*\{[\s\S]*?min-height:\s*0;[\s\S]*?flex:\s*1 1 auto;[\s\S]*?overflow:\s*auto;/,
+  )
+})

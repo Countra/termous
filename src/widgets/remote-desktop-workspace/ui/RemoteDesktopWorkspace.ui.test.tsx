@@ -78,7 +78,7 @@ test('无远程桌面会话时两个入口都打开统一连接器', async () =>
   )
 
   const tablist = screen.getByRole('tablist', { name: 'remoteDesktop.sessions' })
-  expect(within(tablist).getByRole('status')).toHaveTextContent('remoteDesktop.noSession')
+  expect(within(tablist).getByRole('status')).toHaveTextContent('app.noSessions')
   expect(screen.getByText('remoteDesktop.emptyTitle')).toBeVisible()
   expect(screen.getByText('remoteDesktop.emptyDescription')).toBeVisible()
   const openButtons = screen.getAllByRole('button', { name: 'remoteDesktop.newConnection' })
