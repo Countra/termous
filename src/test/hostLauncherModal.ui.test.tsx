@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FileAccessProfile } from '#entities/file-access-profile'
@@ -43,28 +43,32 @@ vi.mock('#entities/host', () => ({
   AuthMethodBadge: () => <span>auth</span>,
 }))
 
-vi.mock('#shared/ui', () => ({
-  confirmDialogStyles: {
-    'modal-root': 'modal-root',
-  },
-  customSelectStyles: {
-    select: 'select',
-    'select-popup': 'select-popup',
-  },
-  uiStyles: {
-    'search-input': 'search-input',
-    'secondary-button': 'secondary-button',
-  },
-  ConnectionActionButton: ({
-    children,
-    disabled,
-    onClick,
-  }: {
-    children: ReactNode
-    disabled?: boolean
-    onClick?: () => void
-  }) => <button type="button" disabled={disabled} onClick={onClick}>{children}</button>,
-}))
+vi.mock('#shared/ui', async (importOriginal) => {
+  const original = await importOriginal<typeof import('#shared/ui')>()
+  return {
+    ...original,
+    confirmDialogStyles: {
+      'modal-root': 'modal-root',
+    },
+    customSelectStyles: {
+      select: 'select',
+      'select-popup': 'select-popup',
+    },
+    uiStyles: {
+      'search-input': 'search-input',
+      'secondary-button': 'secondary-button',
+    },
+    ConnectionActionButton: ({
+      children,
+      disabled,
+      onClick,
+    }: {
+      children: ReactNode
+      disabled?: boolean
+      onClick?: () => void
+    }) => <button type="button" disabled={disabled} onClick={onClick}>{children}</button>,
+  }
+})
 
 import { HostLauncherModal } from '../features/hosts/ui/HostLauncherModal'
 
@@ -490,10 +494,11 @@ describe('HostLauncherModal 行为合同', () => {
     expect(document.querySelectorAll('.ant-empty')).toHaveLength(0)
   })
 
-  it('回退到首个可用主机并且每次打开只自动刷新一次', async () => {
+  it('每次打开只自动刷新一次且默认 SSH 不会被重复探测', async () => {
     const hosts = [host('host-a', 'Alpha'), host('host-b', 'Beta')]
     const onSelectHost = vi.fn()
     const onRefreshReachability = vi.fn().mockResolvedValue(undefined)
+    const onRefreshSSHProfileReachability = vi.fn().mockResolvedValue(undefined)
     const props = {
       open: true,
       instanceKey: 1,
@@ -511,6 +516,7 @@ describe('HostLauncherModal 行为合同', () => {
       onOpenForward: vi.fn(),
       onToggleFavorite: vi.fn().mockResolvedValue(undefined),
       onRefreshReachability,
+      onRefreshSSHProfileReachability,
       getHostIconUrl: vi.fn(() => ''),
     }
     const view = render(<HostLauncherModal {...props} />)
@@ -518,9 +524,20 @@ describe('HostLauncherModal 行为合同', () => {
     await waitFor(() => expect(onSelectHost).toHaveBeenCalledWith('host-a'))
     await waitFor(() => expect(onRefreshReachability).toHaveBeenCalledWith(['host-a', 'host-b'], false))
     expect(onRefreshReachability).toHaveBeenCalledTimes(1)
+    const refresh = screen.getByRole('button', {
+      name: 'workbench.hostLauncher.refreshReachability',
+    })
+    await waitFor(() => expect(refresh).toBeEnabled())
+    fireEvent.click(refresh)
+    await waitFor(() => expect(onRefreshReachability).toHaveBeenCalledWith(
+      ['host-a', 'host-b'],
+      true,
+    ))
+    expect(onRefreshReachability).toHaveBeenCalledTimes(2)
+    expect(onRefreshSSHProfileReachability).not.toHaveBeenCalled()
 
     view.rerender(<HostLauncherModal {...props} selectedHostId="host-a" />)
-    expect(onRefreshReachability).toHaveBeenCalledTimes(1)
+    expect(onRefreshReachability).toHaveBeenCalledTimes(2)
     view.rerender(<HostLauncherModal {...props} open={false} selectedHostId="host-a" />)
     view.rerender(
       <HostLauncherModal
@@ -530,7 +547,45 @@ describe('HostLauncherModal 行为合同', () => {
         selectedHostId="host-a"
       />,
     )
-    await waitFor(() => expect(onRefreshReachability).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(onRefreshReachability).toHaveBeenCalledTimes(3))
+  })
+
+  it('自动刷新期间数据更新后仍会结束 Loading', async () => {
+    const current = host('host-a', 'Alpha')
+    const pendingRefresh = deferred<void>()
+    const onRefreshReachability = vi.fn(() => pendingRefresh.promise)
+    const props = {
+      open: true,
+      instanceKey: 1,
+      data: data([current]),
+      selectedHostId: current.id,
+      actionBusy: false,
+      onClose: vi.fn(),
+      onSelectHost: vi.fn(),
+      onConnectSSHProfile: vi.fn().mockResolvedValue(undefined),
+      onCreateHost: vi.fn(),
+      onEditHost: vi.fn(),
+      onManageHostAccess: vi.fn(),
+      onOpenFileProfile: vi.fn().mockResolvedValue(undefined),
+      onOpenRemoteDesktopProfile: vi.fn().mockResolvedValue(undefined),
+      onOpenForward: vi.fn(),
+      onToggleFavorite: vi.fn().mockResolvedValue(undefined),
+      onRefreshReachability,
+      getHostIconUrl: vi.fn(() => ''),
+    }
+    const view = render(<HostLauncherModal {...props} />)
+
+    await waitFor(() => expect(onRefreshReachability).toHaveBeenCalledTimes(1))
+    const refresh = screen.getByRole('button', {
+      name: 'workbench.hostLauncher.refreshReachability',
+    })
+    expect(refresh).toHaveClass('ant-btn-loading')
+
+    view.rerender(<HostLauncherModal {...props} data={data([current])} />)
+    expect(onRefreshReachability).toHaveBeenCalledTimes(1)
+
+    await act(async () => pendingRefresh.resolve())
+    await waitFor(() => expect(refresh).not.toHaveClass('ant-btn-loading'))
   })
 
   it('主动作同步防重并在异步完成后才关闭', async () => {
@@ -650,6 +705,662 @@ describe('HostLauncherModal 行为合同', () => {
       name: 'workbench.hostLauncher.kicker',
     })).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('切换本次 SSH 时同步概览与伴生文件快捷动作', async () => {
+    const current = host('host-a', 'Production')
+    current.note = 'Primary production host'
+    current.tags = ['prod']
+    const gateway = host('host-jump', 'Gateway')
+    const launcherData = data([current, gateway])
+    launcherData.credentials.push({
+      id: 'credential-secondary',
+      name: 'Secondary key',
+      type: 'private_key',
+      vault_id: 'secondary-vault',
+      metadata: {},
+      bound_host_count: 1,
+    })
+    launcherData.proxies.push({
+      id: 'proxy-secondary',
+      name: 'Office SOCKS',
+      type: 'socks5',
+      url: 'socks5://127.0.0.1:1080',
+      bound_host_count: 1,
+    })
+    launcherData.sshAccessProfiles.push({
+      id: 'host-a-ssh-secondary',
+      host_id: current.id,
+      name: 'Secondary SSH',
+      address: 'secondary.example.com',
+      port: 2222,
+      username: 'deploy',
+      auth_method: 'private_key',
+      credential_id: 'credential-secondary',
+      proxy_id: 'proxy-secondary',
+      jump_ssh_profile_id: 'host-jump-ssh',
+      fingerprint_policy: 'confirm_on_change',
+      is_default: false,
+      sort_order: 1,
+      created_at: '2026-08-26T00:00:00Z',
+      updated_at: '2026-08-26T00:00:00Z',
+    })
+    launcherData.fileAccessProfiles.push({
+      id: 'host-a-file-secondary',
+      host_id: current.id,
+      name: 'Secondary files',
+      engine: 'sftp',
+      engine_config_version: 1,
+      sftp: { ssh_profile_id: 'host-a-ssh-secondary' },
+      is_default: false,
+      sort_order: 1,
+      created_at: '2026-08-26T00:00:00Z',
+      updated_at: '2026-08-26T00:00:00Z',
+    })
+    launcherData.hostReachability[current.id] = {
+      host_id: current.id,
+      ssh_profile_id: 'host-a-ssh',
+      address: current.address,
+      status: 'online',
+      latency_ms: 12,
+      packet_loss: 0,
+      checked_at: '2026-08-26T01:00:00Z',
+    }
+    launcherData.sshProfileReachability = {
+      'host-a-ssh-secondary': {
+        host_id: current.id,
+        ssh_profile_id: 'host-a-ssh-secondary',
+        address: 'secondary.example.com',
+        status: 'online',
+        latency_ms: 44,
+        packet_loss: 0,
+        checked_at: '2026-08-26T02:00:00Z',
+      },
+    }
+    const onOpenFileProfile = vi.fn().mockResolvedValue(undefined)
+    const onRefreshReachability = vi.fn().mockResolvedValue(undefined)
+    const onRefreshSSHProfileReachability = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <HostLauncherModal
+        open
+        instanceKey={1}
+        data={launcherData}
+        selectedHostId={current.id}
+        actionBusy={false}
+        onClose={vi.fn()}
+        onSelectHost={vi.fn()}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
+        onCreateHost={vi.fn()}
+        onEditHost={vi.fn()}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={onOpenFileProfile}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenForward={vi.fn()}
+        onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
+        onRefreshReachability={onRefreshReachability}
+        onRefreshSSHProfileReachability={onRefreshSSHProfileReachability}
+        getHostIconUrl={vi.fn(() => '')}
+      />,
+    )
+
+    expect(screen.getAllByText('root@host-a.example.com:22').length).toBeGreaterThan(0)
+    expect(screen.getByText('Primary production host')).toBeVisible()
+    expect(document.querySelector('time[datetime="2026-08-26T01:00:00Z"]')).toBeInTheDocument()
+    expect(Array.from(document.querySelectorAll('.host-launcher-detail-grid dt')).map((item) => item.textContent)).toEqual([
+      'hosts.address',
+      'hosts.platform.label',
+      'hosts.note',
+      'hosts.tags',
+      'workbench.hostLauncher.latency',
+      'workbench.credential',
+      'workbench.jumpHost',
+      'hosts.proxy',
+    ])
+
+    const selector = screen.getByRole('combobox', {
+      name: 'workbench.hostLauncher.profiles.selection',
+    })
+    fireEvent.mouseDown(selector)
+    fireEvent.click(await screen.findByRole('option', { name: /Secondary SSH/ }))
+
+    await waitFor(() => {
+      expect(screen.getAllByText('deploy@secondary.example.com:2222').length).toBeGreaterThan(0)
+    })
+    expect(screen.getByText('Secondary key · vault.typeName.private_key')).toBeVisible()
+    expect(screen.getByText('Gateway · Primary SSH')).toBeVisible()
+    expect(screen.getByText('Office SOCKS · proxies.types.socks5')).toBeVisible()
+    expect(document.querySelector('time[datetime="2026-08-26T02:00:00Z"]')).toBeInTheDocument()
+    expect(document.querySelector('time[datetime="2026-08-26T01:00:00Z"]')).not.toBeInTheDocument()
+    expect(screen.getByText('Primary production host')).toBeVisible()
+
+    const refresh = screen.getByRole('button', {
+      name: 'workbench.hostLauncher.refreshReachability',
+    })
+    await waitFor(() => expect(refresh).toBeEnabled())
+    fireEvent.click(refresh)
+    await waitFor(() => expect(onRefreshReachability).toHaveBeenCalledWith(
+      expect.arrayContaining([current.id, gateway.id]),
+      true,
+    ))
+    expect(onRefreshSSHProfileReachability).toHaveBeenCalledTimes(1)
+    expect(onRefreshSSHProfileReachability).toHaveBeenCalledWith([
+      'host-a-ssh-secondary',
+    ])
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'workbench.hostLauncher.openFiles',
+    }))
+    await waitFor(() => expect(onOpenFileProfile).toHaveBeenCalledWith(
+      'host-a-file-secondary',
+      current.id,
+    ))
+  })
+
+  it('无默认 SSH 时可刷新显式选择且同步防止重复提交', async () => {
+    const current = host('host-a', 'Production')
+    const launcherData = data([current])
+    launcherData.sshAccessProfiles = [{
+      ...sshProfile(current),
+      is_default: false,
+    }]
+    const pendingRefresh = deferred<void>()
+    const onRefreshReachability = vi.fn().mockResolvedValue(undefined)
+    const onRefreshSSHProfileReachability = vi.fn(() => pendingRefresh.promise)
+
+    render(
+      <HostLauncherModal
+        open
+        instanceKey={1}
+        data={launcherData}
+        selectedHostId={current.id}
+        actionBusy={false}
+        onClose={vi.fn()}
+        onSelectHost={vi.fn()}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
+        onCreateHost={vi.fn()}
+        onEditHost={vi.fn()}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenForward={vi.fn()}
+        onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
+        onRefreshReachability={onRefreshReachability}
+        onRefreshSSHProfileReachability={onRefreshSSHProfileReachability}
+        getHostIconUrl={vi.fn(() => '')}
+      />,
+    )
+
+    const refresh = screen.getByRole('button', {
+      name: 'workbench.hostLauncher.refreshReachability',
+    })
+    expect(refresh).toBeDisabled()
+    const selector = screen.getByRole('combobox', {
+      name: 'workbench.hostLauncher.profiles.selection',
+    })
+    fireEvent.mouseDown(selector)
+    fireEvent.click(await screen.findByRole('option', { name: /Primary SSH/ }))
+    await waitFor(() => expect(refresh).toBeEnabled())
+
+    fireEvent.click(refresh)
+    fireEvent.click(refresh)
+    expect(onRefreshReachability).not.toHaveBeenCalled()
+    await waitFor(() => expect(onRefreshSSHProfileReachability).toHaveBeenCalledTimes(1))
+    expect(onRefreshSSHProfileReachability).toHaveBeenCalledWith(['host-a-ssh'])
+
+    await act(async () => pendingRefresh.resolve())
+    await waitFor(() => expect(refresh).toBeEnabled())
+  })
+
+  it('并行刷新部分失败时等待其余请求结束后再允许重试', async () => {
+    const current = host('host-a', 'Production')
+    const launcherData = data([current])
+    launcherData.sshAccessProfiles.push({
+      ...sshProfile(current),
+      id: 'host-a-ssh-secondary',
+      name: 'Secondary SSH',
+      is_default: false,
+      sort_order: 1,
+    })
+    const pendingProfileRefresh = deferred<void>()
+    const onRefreshReachability = vi.fn((_: string[] | undefined, force?: boolean) => {
+      if (force) throw new Error('host refresh failed')
+      return Promise.resolve()
+    })
+    const onRefreshSSHProfileReachability = vi.fn(() => pendingProfileRefresh.promise)
+
+    render(
+      <HostLauncherModal
+        open
+        instanceKey={1}
+        data={launcherData}
+        selectedHostId={current.id}
+        actionBusy={false}
+        onClose={vi.fn()}
+        onSelectHost={vi.fn()}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
+        onCreateHost={vi.fn()}
+        onEditHost={vi.fn()}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenForward={vi.fn()}
+        onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
+        onRefreshReachability={onRefreshReachability}
+        onRefreshSSHProfileReachability={onRefreshSSHProfileReachability}
+        getHostIconUrl={vi.fn(() => '')}
+      />,
+    )
+
+    await waitFor(() => expect(onRefreshReachability).toHaveBeenCalledWith(
+      [current.id],
+      false,
+    ))
+    fireEvent.mouseDown(screen.getByRole('combobox', {
+      name: 'workbench.hostLauncher.profiles.selection',
+    }))
+    fireEvent.click(await screen.findByRole('option', { name: /Secondary SSH/ }))
+
+    const refresh = screen.getByRole('button', {
+      name: 'workbench.hostLauncher.refreshReachability',
+    })
+    await waitFor(() => expect(refresh).toBeEnabled())
+    fireEvent.click(refresh)
+    await waitFor(() => expect(onRefreshSSHProfileReachability).toHaveBeenCalledTimes(1))
+    expect(refresh).toHaveClass('ant-btn-loading')
+
+    fireEvent.click(refresh)
+    expect(onRefreshSSHProfileReachability).toHaveBeenCalledTimes(1)
+    expect(onRefreshReachability.mock.calls.filter(([, force]) => force)).toHaveLength(1)
+
+    await act(async () => pendingProfileRefresh.resolve())
+    await waitFor(() => expect(refresh).not.toHaveClass('ant-btn-loading'))
+  })
+
+  it('新 Launcher 实例不会继承旧实例未完成的精确刷新状态', async () => {
+    const current = host('host-a', 'Production')
+    const launcherData = data([current])
+    launcherData.sshAccessProfiles = [{
+      ...sshProfile(current),
+      is_default: false,
+    }]
+    const pendingRefresh = deferred<void>()
+    const onRefreshSSHProfileReachability = vi.fn(() => pendingRefresh.promise)
+    const props = {
+      open: true,
+      instanceKey: 1,
+      data: launcherData,
+      selectedHostId: current.id,
+      actionBusy: false,
+      onClose: vi.fn(),
+      onSelectHost: vi.fn(),
+      onConnectSSHProfile: vi.fn().mockResolvedValue(undefined),
+      onCreateHost: vi.fn(),
+      onEditHost: vi.fn(),
+      onManageHostAccess: vi.fn(),
+      onOpenFileProfile: vi.fn().mockResolvedValue(undefined),
+      onOpenRemoteDesktopProfile: vi.fn().mockResolvedValue(undefined),
+      onOpenForward: vi.fn(),
+      onToggleFavorite: vi.fn().mockResolvedValue(undefined),
+      onRefreshReachability: vi.fn().mockResolvedValue(undefined),
+      onRefreshSSHProfileReachability,
+      getHostIconUrl: vi.fn(() => ''),
+    }
+    const view = render(<HostLauncherModal {...props} />)
+
+    const selectProfile = async () => {
+      fireEvent.mouseDown(screen.getByRole('combobox', {
+        name: 'workbench.hostLauncher.profiles.selection',
+      }))
+      fireEvent.click(await screen.findByRole('option', { name: /Primary SSH/ }))
+    }
+    await selectProfile()
+    const refresh = screen.getByRole('button', {
+      name: 'workbench.hostLauncher.refreshReachability',
+    })
+    await waitFor(() => expect(refresh).toBeEnabled())
+    fireEvent.click(refresh)
+    await waitFor(() => expect(onRefreshSSHProfileReachability).toHaveBeenCalledTimes(1))
+    expect(refresh).toHaveClass('ant-btn-loading')
+
+    view.rerender(<HostLauncherModal {...props} instanceKey={2} />)
+    await waitFor(() => expect(refresh).not.toHaveClass('ant-btn-loading'))
+    await selectProfile()
+    await waitFor(() => expect(refresh).toBeEnabled())
+    fireEvent.click(refresh)
+    await waitFor(() => expect(onRefreshSSHProfileReachability).toHaveBeenCalledTimes(2))
+
+    await act(async () => pendingRefresh.resolve())
+  })
+
+  it('新 Launcher 恢复默认项且主机行 Enter 使用当前显式选择', async () => {
+    const current = host('host-a', 'Production')
+    const launcherData = data([current])
+    launcherData.sshAccessProfiles.push({
+      ...sshProfile(current),
+      id: 'host-a-ssh-secondary',
+      name: 'Secondary SSH',
+      address: 'secondary.example.com',
+      is_default: false,
+      sort_order: 1,
+    })
+    const onConnectSSHProfile = vi.fn().mockResolvedValue(undefined)
+    const props = {
+      open: true,
+      instanceKey: 1,
+      data: launcherData,
+      selectedHostId: current.id,
+      actionBusy: false,
+      onClose: vi.fn(),
+      onSelectHost: vi.fn(),
+      onConnectSSHProfile,
+      onCreateHost: vi.fn(),
+      onEditHost: vi.fn(),
+      onManageHostAccess: vi.fn(),
+      onOpenFileProfile: vi.fn().mockResolvedValue(undefined),
+      onOpenRemoteDesktopProfile: vi.fn().mockResolvedValue(undefined),
+      onOpenForward: vi.fn(),
+      onToggleFavorite: vi.fn().mockResolvedValue(undefined),
+      onRefreshReachability: vi.fn().mockResolvedValue(undefined),
+      getHostIconUrl: vi.fn(() => ''),
+    }
+    const view = render(<HostLauncherModal {...props} />)
+
+    const selectSecondary = async () => {
+      fireEvent.mouseDown(screen.getByRole('combobox', {
+        name: 'workbench.hostLauncher.profiles.selection',
+      }))
+      fireEvent.click(await screen.findByRole('option', { name: /Secondary SSH/ }))
+      await waitFor(() => expect(within(
+        screen.getByRole('combobox', {
+          name: 'workbench.hostLauncher.profiles.selection',
+        }).closest('.ant-select') as HTMLElement,
+      ).getByText('Secondary SSH')).toBeVisible())
+    }
+    await selectSecondary()
+
+    view.rerender(<HostLauncherModal {...props} open={false} />)
+    view.rerender(<HostLauncherModal {...props} instanceKey={2} />)
+    await waitFor(() => expect(within(
+      screen.getByRole('combobox', {
+        name: 'workbench.hostLauncher.profiles.selection',
+      }).closest('.ant-select') as HTMLElement,
+    ).getByText('Primary SSH')).toBeVisible())
+
+    await selectSecondary()
+    fireEvent.keyDown(screen.getByRole('option', { name: /Production/ }), {
+      key: 'Enter',
+    })
+    await waitFor(() => expect(onConnectSSHProfile).toHaveBeenCalledWith(
+      'host-a-ssh-secondary',
+    ))
+  })
+
+  it('端口转发跟随当前显式 SSH 且不依赖默认项', async () => {
+    const current = host('host-a', 'Production')
+    const launcherData = data([current])
+    launcherData.sshAccessProfiles = [
+      {
+        ...sshProfile(current),
+        is_default: false,
+      },
+      {
+        ...sshProfile(current),
+        id: 'host-a-ssh-secondary',
+        name: 'Secondary SSH',
+        address: 'secondary.example.com',
+        is_default: false,
+        sort_order: 1,
+      },
+    ]
+    const onOpenForward = vi.fn()
+
+    render(
+      <HostLauncherModal
+        open
+        instanceKey={1}
+        data={launcherData}
+        selectedHostId={current.id}
+        actionBusy={false}
+        onClose={vi.fn()}
+        onSelectHost={vi.fn()}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
+        onCreateHost={vi.fn()}
+        onEditHost={vi.fn()}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenForward={onOpenForward}
+        onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
+        onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
+        getHostIconUrl={vi.fn(() => '')}
+      />,
+    )
+
+    const openForward = screen.getByRole('button', {
+      name: 'workbench.hostLauncher.openForward',
+    })
+    expect(openForward).toBeDisabled()
+    fireEvent.mouseDown(screen.getByRole('combobox', {
+      name: 'workbench.hostLauncher.profiles.selection',
+    }))
+    fireEvent.click(await screen.findByRole('option', { name: /Secondary SSH/ }))
+    await waitFor(() => expect(openForward).toBeEnabled())
+    fireEvent.click(openForward)
+
+    await waitFor(() => expect(onOpenForward).toHaveBeenCalledWith(
+      current.id,
+      'host-a-ssh-secondary',
+    ))
+  })
+
+  it('文件 Launcher 的主机行 Enter 使用当前显式选择', async () => {
+    const current = host('host-a', 'Production')
+    const launcherData = data([current])
+    launcherData.sshAccessProfiles.push({
+      ...sshProfile(current),
+      id: 'host-a-ssh-secondary',
+      name: 'Secondary SSH',
+      is_default: false,
+      sort_order: 1,
+    })
+    launcherData.fileAccessProfiles.push({
+      ...fileProfile(current),
+      id: 'host-a-file-secondary',
+      name: 'Secondary files',
+      sftp: { ssh_profile_id: 'host-a-ssh-secondary' },
+      is_default: false,
+      sort_order: 1,
+    })
+    const onOpenFileProfile = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <HostLauncherModal
+        open
+        instanceKey={1}
+        intent="files"
+        data={launcherData}
+        selectedHostId={current.id}
+        actionBusy={false}
+        onClose={vi.fn()}
+        onSelectHost={vi.fn()}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
+        onCreateHost={vi.fn()}
+        onEditHost={vi.fn()}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={onOpenFileProfile}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenForward={vi.fn()}
+        onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
+        onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
+        getHostIconUrl={vi.fn(() => '')}
+      />,
+    )
+
+    fireEvent.mouseDown(screen.getByRole('combobox', {
+      name: 'workbench.hostLauncher.profiles.selection',
+    }))
+    fireEvent.click(await screen.findByRole('option', { name: /Secondary files/ }))
+    fireEvent.keyDown(screen.getByRole('option', { name: /Production/ }), {
+      key: 'Enter',
+    })
+
+    await waitFor(() => expect(onOpenFileProfile).toHaveBeenCalledWith(
+      'host-a-file-secondary',
+      current.id,
+    ))
+  })
+
+  it('文件快捷动作跟随当前 SSH 而不是文件默认项', async () => {
+    const current = host('host-a', 'Production')
+    const launcherData = data([current])
+    launcherData.sshAccessProfiles.push({
+      ...sshProfile(current),
+      id: 'host-a-ssh-secondary',
+      name: 'Secondary SSH',
+      is_default: false,
+      sort_order: 1,
+    })
+    launcherData.fileAccessProfiles = [
+      {
+        ...fileProfile(current),
+        is_default: false,
+      },
+      {
+        ...fileProfile(current),
+        id: 'host-a-file-secondary',
+        name: 'Secondary files',
+        sftp: { ssh_profile_id: 'host-a-ssh-secondary' },
+        is_default: true,
+        sort_order: 1,
+      },
+    ]
+    const onOpenFileProfile = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <HostLauncherModal
+        open
+        instanceKey={1}
+        data={launcherData}
+        selectedHostId={current.id}
+        actionBusy={false}
+        onClose={vi.fn()}
+        onSelectHost={vi.fn()}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
+        onCreateHost={vi.fn()}
+        onEditHost={vi.fn()}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={onOpenFileProfile}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenForward={vi.fn()}
+        onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
+        onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
+        getHostIconUrl={vi.fn(() => '')}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'workbench.hostLauncher.openFiles',
+    }))
+
+    await waitFor(() => expect(onOpenFileProfile).toHaveBeenCalledWith(
+      'host-a-file',
+      current.id,
+    ))
+    expect(onOpenFileProfile).not.toHaveBeenCalledWith(
+      'host-a-file-secondary',
+      current.id,
+    )
+  })
+
+  it('当前 SSH 缺少唯一绑定的 SFTP 时禁用文件快捷动作', () => {
+    const current = host('host-a', 'Production')
+    const launcherData = data([current])
+    launcherData.sshAccessProfiles.push({
+      ...sshProfile(current),
+      id: 'host-a-ssh-secondary',
+      name: 'Secondary SSH',
+      is_default: false,
+      sort_order: 1,
+    })
+    launcherData.fileAccessProfiles = [{
+      ...fileProfile(current),
+      id: 'host-a-file-secondary',
+      name: 'Secondary files',
+      sftp: { ssh_profile_id: 'host-a-ssh-secondary' },
+    }]
+    const onOpenFileProfile = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <HostLauncherModal
+        open
+        instanceKey={1}
+        data={launcherData}
+        selectedHostId={current.id}
+        actionBusy={false}
+        onClose={vi.fn()}
+        onSelectHost={vi.fn()}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
+        onCreateHost={vi.fn()}
+        onEditHost={vi.fn()}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={onOpenFileProfile}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenForward={vi.fn()}
+        onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
+        onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
+        getHostIconUrl={vi.fn(() => '')}
+      />,
+    )
+
+    const openFiles = screen.getByRole('button', {
+      name: 'workbench.hostLauncher.openFiles',
+    })
+    expect(openFiles).toBeDisabled()
+    fireEvent.click(openFiles)
+    expect(onOpenFileProfile).not.toHaveBeenCalled()
+  })
+
+  it('终端未解析出唯一 SSH 时不会回退默认文件 Profile', () => {
+    const current = host('host-a', 'Production')
+    const launcherData = data([current])
+    launcherData.sshAccessProfiles.push({
+      ...sshProfile(current),
+      id: 'host-a-ssh-secondary',
+      name: 'Secondary SSH',
+      is_default: true,
+      sort_order: 1,
+    })
+    const onOpenFileProfile = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <HostLauncherModal
+        open
+        instanceKey={1}
+        data={launcherData}
+        selectedHostId={current.id}
+        actionBusy={false}
+        onClose={vi.fn()}
+        onSelectHost={vi.fn()}
+        onConnectSSHProfile={vi.fn().mockResolvedValue(undefined)}
+        onCreateHost={vi.fn()}
+        onEditHost={vi.fn()}
+        onManageHostAccess={vi.fn()}
+        onOpenFileProfile={onOpenFileProfile}
+        onOpenRemoteDesktopProfile={vi.fn().mockResolvedValue(undefined)}
+        onOpenForward={vi.fn()}
+        onToggleFavorite={vi.fn().mockResolvedValue(undefined)}
+        onRefreshReachability={vi.fn().mockResolvedValue(undefined)}
+        getHostIconUrl={vi.fn(() => '')}
+      />,
+    )
+
+    const openFiles = screen.getByRole('button', {
+      name: 'workbench.hostLauncher.openFiles',
+    })
+    expect(openFiles).toBeDisabled()
+    fireEvent.click(openFiles)
+    expect(onOpenFileProfile).not.toHaveBeenCalled()
   })
 
   it('高级筛选只保留自身 Select 浮层的指针交互', async () => {

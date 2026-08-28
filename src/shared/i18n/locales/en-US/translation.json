@@ -394,7 +394,7 @@
       "favorite": "Favorite",
       "unfavorite": "Remove favorite",
       "lastConnected": "Recent connection",
-      "lastChecked": "Last checked",
+      "latencySampleTime": "Sample time: {{time}}",
       "latency": "Latency",
       "latencyValue": "{{latency}} ms",
       "latencyLevels": {
@@ -414,15 +414,13 @@
       "openForward": "Port forwarding",
       "profiles": {
         "context": {
-          "terminal": "Default terminal access",
-          "files": "Default file access",
-          "remote_desktop": "Default remote desktop"
+          "terminal": "Terminal access",
+          "files": "File access",
+          "remote_desktop": "Remote desktop"
         },
-        "more": {
-          "terminal": "Choose another terminal access",
-          "files": "Choose another file access",
-          "remote_desktop": "Choose another remote desktop"
-        },
+        "count_one": "{{count}} profile",
+        "count_other": "{{count}} profiles",
+        "selection": "Use for this connection",
         "status": {
           "empty": "Not configured",
           "missing": "No default selected",
@@ -433,9 +431,18 @@
         "manageHint": "Complete this access method in host management",
         "selectionMissing": "The selected access method no longer exists. Refresh and try again.",
         "routeMissing": "The linked SSH route is unavailable",
-        "fileDetail": "Access through {{route}}",
+        "fileDetail": "{{endpoint}} · via {{route}}",
         "desktopDetail": "{{endpoint}} · via {{route}}",
-        "desktopDirectDetail": "{{endpoint}} · direct"
+        "desktopDirectDetail": "{{endpoint}} · direct",
+        "details": {
+          "endpoint": "Connection endpoint",
+          "route": "Connection route",
+          "direct": "Direct connection",
+          "sshCredential": "SSH credential",
+          "targetCredential": "Target credential",
+          "fingerprint": "Host fingerprint",
+          "lastDirectory": "Recent directory"
+        }
       },
       "filters": {
         "all": "All",

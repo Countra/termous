@@ -2,7 +2,6 @@ import { Button, Empty, Tooltip } from 'antd'
 import {
   Activity,
   Cable,
-  Clock3,
   Edit3,
   FolderOpen,
   Globe2,
@@ -15,7 +14,6 @@ import {
   Tags,
   UserRound,
 } from 'lucide-react'
-import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { HostAvatar } from '#entities/host'
 import { ConnectionActionButton, uiStyles } from '#shared/ui'
@@ -24,17 +22,14 @@ import {
   type HostLauncherActionPlan,
 } from '../model/hostLauncherIntent.ts'
 import {
-  formatDateTime,
   tagKey,
 } from '../model/hostLauncherListModel.ts'
+import { resolveHostLauncherProfileDetails } from '../model/hostLauncherProfileDetails.ts'
 import type {
   HostLauncherProfileMenu,
   HostLauncherProfileMenuItem,
 } from '../model/hostLauncherProfiles.ts'
-import {
-  formatSSHProfileEndpoint,
-  type HostDirectoryItem,
-} from '../model/hostDirectory.ts'
+import type { HostDirectoryItem } from '../model/hostDirectory.ts'
 import type { HostLauncherData } from '../model/types.ts'
 import {
   DetailItem,
@@ -49,6 +44,7 @@ interface HostLauncherDetailProps {
   data: HostLauncherData
   actionPlan: HostLauncherActionPlan
   profileMenu: HostLauncherProfileMenu
+  selectedProfile: HostLauncherProfileMenuItem | null
   busy: boolean
   pendingHostAction: HostLauncherActionId | null
   pendingProfileId: string | null
@@ -59,6 +55,7 @@ interface HostLauncherDetailProps {
     hostId: string,
     profile?: HostLauncherProfileMenuItem,
   ) => void
+  onSelectProfile: (profile: HostLauncherProfileMenuItem) => void
   onManageAccess: (hostId: string) => void
   onToggleFavorite: (hostId: string) => Promise<void>
   onClearFilters: () => void
@@ -71,34 +68,20 @@ export function HostLauncherDetail({
   data,
   actionPlan,
   profileMenu,
+  selectedProfile,
   busy,
   pendingHostAction,
   pendingProfileId,
   getHostIconUrl,
   canRunAction,
   onRunAction,
+  onSelectProfile,
   onManageAccess,
   onToggleFavorite,
   onClearFilters,
   onCreateHost,
 }: HostLauncherDetailProps) {
   const { t } = useTranslation()
-  const credentialsById = useMemo(
-    () => new Map(data.credentials.map((credential) => [credential.id, credential.name])),
-    [data.credentials],
-  )
-  const hostAssetsById = useMemo(
-    () => new Map(data.hostAssets.map((host) => [host.id, host])),
-    [data.hostAssets],
-  )
-  const sshProfilesById = useMemo(
-    () => new Map(data.sshAccessProfiles.map((profile) => [profile.id, profile])),
-    [data.sshAccessProfiles],
-  )
-  const proxiesById = useMemo(
-    () => new Map(data.proxies.map((proxy) => [proxy.id, proxy])),
-    [data.proxies],
-  )
 
   if (!hasHosts) {
     return (
@@ -142,24 +125,17 @@ export function HostLauncherDetail({
     )
   }
 
-  const selectedSSHProfile = selectedHost.defaultSSHProfile ?? null
-  const selectedHostCredential = selectedSSHProfile?.credential_id
-    ? credentialsById.get(selectedSSHProfile.credential_id)
-    : ''
-  const selectedJumpProfile = selectedSSHProfile?.jump_ssh_profile_id
-    ? sshProfilesById.get(selectedSSHProfile.jump_ssh_profile_id)
-    : undefined
-  const selectedJumpHost = selectedJumpProfile
-    ? hostAssetsById.get(selectedJumpProfile.host_id)
-    : undefined
-  const selectedProxy = selectedSSHProfile?.proxy_id
-    ? proxiesById.get(selectedSSHProfile.proxy_id)
-    : undefined
+  const selectedProfileDetails = resolveHostLauncherProfileDetails(data, selectedProfile)
   const selectedReachabilityCandidate = data.hostReachability[selectedHost.id]
-  const selectedReachability = selectedSSHProfile
-    && selectedReachabilityCandidate?.ssh_profile_id === selectedSSHProfile.id
-    ? selectedReachabilityCandidate
+  const selectedReachability = selectedProfileDetails?.sshProfileId
+    ? data.sshProfileReachability?.[selectedProfileDetails.sshProfileId]
+      ?? (selectedReachabilityCandidate?.ssh_profile_id === selectedProfileDetails.sshProfileId
+        ? selectedReachabilityCandidate
+        : undefined)
     : undefined
+  const selectedCredential = selectedProfileDetails?.primaryCredential
+  const selectedJump = selectedProfileDetails?.jump
+  const selectedProxy = selectedProfileDetails?.proxy
 
   return (
     <main className="host-launcher-detail">
@@ -175,7 +151,7 @@ export function HostLauncherDetail({
         <div className="host-launcher-hero-copy">
           <div className="host-launcher-hero-title">
             <h4>{selectedHost.name}</h4>
-            <HostReachabilityPill state={selectedReachability} usesProxy={Boolean(selectedSSHProfile?.proxy_id)} />
+            <HostReachabilityPill state={selectedReachability} usesProxy={Boolean(selectedProxy)} />
             <Tooltip title={selectedHost.favorite ? t('workbench.hostLauncher.unfavorite') : t('workbench.hostLauncher.favorite')}>
               <Button
                 type="text"
@@ -188,14 +164,14 @@ export function HostLauncherDetail({
             </Tooltip>
           </div>
           <div className="host-launcher-hero-meta">
-            <span>{selectedSSHProfile ? formatSSHProfileEndpoint(selectedSSHProfile) : t('hosts.access.ssh.empty')}</span>
+            <span>{selectedProfileDetails?.endpoint || t('fields.none')}</span>
           </div>
         </div>
       </div>
       <dl className="host-launcher-detail-grid">
-        <DetailItem icon={<Globe2 size={14} />} label={t('hosts.address')} value={selectedSSHProfile ? formatSSHProfileEndpoint(selectedSSHProfile) : t('fields.none')} />
+        <DetailItem icon={<Globe2 size={14} />} label={t('hosts.address')} value={selectedProfileDetails?.endpoint || t('fields.none')} />
         <DetailItem icon={<Server size={14} />} label={t('hosts.platform.label')} value={t('hosts.platform.linux')} />
-        <DetailItem icon={<KeyRound size={14} />} label={t('workbench.credential')} value={selectedHostCredential || t('fields.none')} />
+        <DetailItem icon={<UserRound size={14} />} label={t('hosts.note')} value={selectedHost.note || t('fields.none')} />
         <DetailItem
           icon={<Tags size={14} />}
           label={t('hosts.tags')}
@@ -206,14 +182,19 @@ export function HostLauncherDetail({
           ) : t('fields.none')}
         />
         <DetailItem icon={<Activity size={14} />} label={t('workbench.hostLauncher.latency')} value={<LatencyValue state={selectedReachability} />} />
-        <DetailItem icon={<UserRound size={14} />} label={t('hosts.note')} value={selectedHost.note || t('fields.none')} />
-        <DetailItem icon={<Clock3 size={14} />} label={t('workbench.hostLauncher.lastChecked')} value={formatDateTime(selectedReachability?.checked_at, t('fields.none'))} />
+        <DetailItem
+          icon={<KeyRound size={14} />}
+          label={t('workbench.credential')}
+          value={selectedCredential
+            ? `${selectedCredential.name} · ${t(`vault.typeName.${selectedCredential.type}`)}`
+            : t('fields.none')}
+        />
         <DetailItem
           icon={<Network size={14} />}
           label={t('workbench.jumpHost')}
-          value={selectedJumpHost
-            ? `${selectedJumpHost.name} · ${selectedJumpProfile?.name ?? ''}`
-            : selectedJumpProfile?.name ?? t('fields.none')}
+          value={selectedJump
+            ? [selectedJump.hostName, selectedJump.profileName].filter(Boolean).join(' · ')
+            : t('hosts.noJumpHost')}
         />
         <DetailItem
           icon={<Cable size={14} />}
@@ -242,8 +223,11 @@ export function HostLauncherDetail({
       </div>
       <HostLauncherProfileAction
         menu={profileMenu}
+        data={data}
+        selectedItem={selectedProfile}
         busy={busy}
         pendingProfileId={pendingProfileId}
+        onSelect={onSelectProfile}
         onManage={() => onManageAccess(selectedHost.id)}
         onRun={(profile) => onRunAction(profile.actionId, selectedHost.id, profile)}
       />

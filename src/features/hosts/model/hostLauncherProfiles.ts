@@ -1,5 +1,6 @@
 import {
   projectFileAccessProfile,
+  selectCompanionSFTPFileAccessProfile,
   sortFileAccessProfiles,
   type FileAccessEngine,
   type FileAccessProfileProjection,
@@ -14,6 +15,7 @@ import {
   sortSSHAccessProfiles,
   type SSHAccessProfile,
 } from '#entities/ssh-access-profile'
+import { formatSSHProfileEndpoint } from './hostDirectory.ts'
 import type { HostLauncherIntent } from './hostLauncherIntent.ts'
 import type { HostLauncherProfileData } from './types.ts'
 
@@ -104,6 +106,29 @@ export function selectUniqueDefaultHostLauncherProfile<
   return defaults.length === 1 ? defaults[0] : undefined
 }
 
+export function selectCompanionHostLauncherFileProfile(
+  data: HostLauncherProfileData,
+  hostId: string,
+  sshProfileId: string,
+): HostLauncherFileProfileMenuItem | null {
+  const companion = selectCompanionSFTPFileAccessProfile(
+    data.fileAccessProfiles,
+    hostId,
+    sshProfileId,
+  )
+  if (!companion) return null
+
+  const matches = buildHostLauncherProfileMenu(data, hostId, 'files').items.filter(
+    (item): item is HostLauncherFileProfileMenuItem => (
+      item.intent === 'files'
+      && item.profileId === companion.id
+      && item.route?.profileId === sshProfileId
+      && item.availability === 'ready'
+    ),
+  )
+  return matches.length === 1 ? matches[0] ?? null : null
+}
+
 function buildItems(
   data: HostLauncherProfileData,
   sshProfiles: SSHAccessProfile[],
@@ -128,7 +153,7 @@ function buildItems(
 }
 
 function toSSHMenuItem(profile: SSHAccessProfile): HostLauncherSSHProfileMenuItem {
-  const endpoint = formatSSHEndpoint(profile)
+  const endpoint = formatSSHProfileEndpoint(profile)
   return {
     profileId: profile.id,
     hostId: profile.host_id,
@@ -205,7 +230,7 @@ function resolveRouteInfo(
   if (matches.length !== 1) return null
   const profile = matches[0]
   if (!profile) return null
-  const endpoint = formatSSHEndpoint(profile)
+  const endpoint = formatSSHProfileEndpoint(profile)
   return {
     profileId: profile.id,
     name: displayName(profile.name, endpoint),
@@ -222,17 +247,6 @@ function resolveDefaultState(
   if (defaultCount === 0) return 'missing'
   if (defaultCount > 1) return 'ambiguous'
   return defaultItem?.availability === 'ready' ? 'resolved' : 'unavailable'
-}
-
-function formatSSHEndpoint(profile: SSHAccessProfile) {
-  return `${profile.username}@${formatHostPort(profile.address, profile.port)}`
-}
-
-function formatHostPort(host: string, port: number) {
-  const normalizedHost = host.includes(':') && !host.startsWith('[')
-    ? `[${host}]`
-    : host
-  return `${normalizedHost}:${port}`
 }
 
 function displayName(name: string, fallback: string) {

@@ -1523,6 +1523,10 @@
   gap: 10px;
 }
 
+.forwarding-editor-basic-grid > .forward-field.is-name {
+  grid-column: 1 / -1;
+}
+
 .forwarding-editor-section-title {
   color: var(--text-primary);
   font-size: 13px;

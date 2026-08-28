@@ -1,130 +1,87 @@
-import { Button, Dropdown, Tooltip, type MenuProps } from 'antd'
+import { Button } from 'antd'
 import {
   Cable,
-  ChevronDown,
-  CircleCheck,
   FolderOpen,
   MonitorPlay,
   Settings2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { ConnectionActionButton, contextActionMenuPopupClassName } from '#shared/ui'
+import { ConnectionActionButton } from '#shared/ui'
+import type { HostLauncherData } from '../model/types.ts'
 import type { HostLauncherIntent } from '../model/hostLauncherIntent.ts'
 import type {
   HostLauncherProfileMenu,
   HostLauncherProfileMenuItem,
 } from '../model/hostLauncherProfiles.ts'
+import { HostLauncherProfileSelect } from './HostLauncherProfileSelect.tsx'
 import styles from './HostLauncherProfileAction.module.scss'
 
 export interface HostLauncherProfileActionProps {
   menu: HostLauncherProfileMenu
+  data: HostLauncherData
+  selectedItem: HostLauncherProfileMenuItem | null
   busy: boolean
   pendingProfileId: string | null
+  onSelect: (item: HostLauncherProfileMenuItem) => void
   onRun: (item: HostLauncherProfileMenuItem) => void
   onManage: () => void
 }
 
 export function HostLauncherProfileAction({
   menu,
+  data,
+  selectedItem,
   busy,
   pendingProfileId,
+  onSelect,
   onRun,
   onManage,
 }: HostLauncherProfileActionProps) {
   const { t } = useTranslation()
-  const defaultItem = menu.defaultItem
-  const ready = menu.defaultResolution === 'resolved' && defaultItem?.availability === 'ready'
-  const showProfileMenu = menu.items.length >= 2
-    || (!ready && menu.items.some((item) => item.availability === 'ready'))
-  const status = defaultItem && ready
-    ? defaultItem.name
-    : t(`workbench.hostLauncher.profiles.status.${menu.defaultResolution}`)
-  const detail = defaultItem && ready
-    ? profileDetail(defaultItem, t)
-    : t('workbench.hostLauncher.profiles.manageHint')
-
-  const items: MenuProps['items'] = menu.items.map((item) => ({
-    key: item.profileId,
-    disabled: item.availability !== 'ready',
-    icon: profileIcon(item.intent, 15),
-    label: (
-      <Tooltip
-        arrow={false}
-        placement="left"
-        title={profileDetail(item, t)}
-        mouseEnterDelay={0.35}
-      >
-        <span className={styles['menu-item']}>
-          <span>{item.name}</span>
-          {item.isDefault ? (
-            <CircleCheck
-              size={12}
-              aria-label={t('hosts.access.default')}
-            />
-          ) : null}
-        </span>
-      </Tooltip>
-    ),
-  }))
-
-  const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
-    const item = menu.items.find((candidate) => candidate.profileId === key)
-    if (item?.availability === 'ready') onRun(item)
-  }
+  const ready = selectedItem?.availability === 'ready'
 
   return (
     <section className={styles.root} aria-label={t(`workbench.hostLauncher.profiles.context.${menu.intent}`)}>
-      <div className={`${styles.context} ${ready ? '' : styles['is-unavailable']}`}>
-        <span className={styles.icon} aria-hidden="true">
-          {profileIcon(menu.intent, 16)}
+      <header className={styles.header}>
+        <span className={styles.context}>
+          <span className={styles.icon} aria-hidden="true">
+            {profileIcon(menu.intent, 15)}
+          </span>
+          <strong>{t(`workbench.hostLauncher.profiles.context.${menu.intent}`)}</strong>
+          <small>{t('workbench.hostLauncher.profiles.count', { count: menu.items.length })}</small>
         </span>
-        <span className={styles.copy}>
-          <small>{t(`workbench.hostLauncher.profiles.context.${menu.intent}`)}</small>
-          <strong>{status}</strong>
-          <span>{detail}</span>
-        </span>
-        {!ready ? (
-          <Button
-            type="text"
-            className={styles.manage}
-            aria-label={t('workbench.hostLauncher.profiles.manage')}
-            icon={<Settings2 size={15} />}
-            disabled={busy}
-            onClick={onManage}
-          />
-        ) : null}
-      </div>
-      <div className={`${styles.actions} ${showProfileMenu ? styles['has-menu'] : ''}`}>
+        <Button
+          type="text"
+          size="small"
+          className={styles.manage}
+          icon={<Settings2 size={13} />}
+          disabled={busy}
+          onClick={onManage}
+        >
+          {t('workbench.hostLauncher.profiles.manage')}
+        </Button>
+      </header>
+      <div className={styles.actions}>
+        <HostLauncherProfileSelect
+          menu={menu}
+          data={data}
+          selectedItem={selectedItem}
+          busy={busy}
+          onSelect={onSelect}
+        />
         <ConnectionActionButton
           block
           size="large"
           className={styles.primary}
           icon={profileIcon(menu.intent, 17)}
-          loading={Boolean(defaultItem && pendingProfileId === defaultItem.profileId)}
-          disabled={busy || !ready || !defaultItem}
+          loading={Boolean(selectedItem && pendingProfileId === selectedItem.profileId)}
+          disabled={busy || !ready || !selectedItem}
           onClick={() => {
-            if (defaultItem && ready) onRun(defaultItem)
+            if (selectedItem && ready) onRun(selectedItem)
           }}
         >
           {primaryLabel(menu.intent, t)}
         </ConnectionActionButton>
-        {showProfileMenu ? (
-          <Dropdown
-            trigger={['click']}
-            placement="bottomRight"
-            menu={{ items, onClick: handleMenuClick }}
-            classNames={{ root: `${contextActionMenuPopupClassName} ${styles.popup}` }}
-            disabled={busy}
-          >
-            <Button
-              type="default"
-              className={styles.more}
-              aria-label={t(`workbench.hostLauncher.profiles.more.${menu.intent}`)}
-              icon={<ChevronDown size={16} />}
-              disabled={busy}
-            />
-          </Dropdown>
-        ) : null}
       </div>
     </section>
   )
@@ -143,28 +100,4 @@ function profileIcon(intent: HostLauncherIntent, size: number) {
   if (intent === 'files') return <FolderOpen size={size} />
   if (intent === 'remote_desktop') return <MonitorPlay size={size} />
   return <Cable size={size} />
-}
-
-function profileDetail(
-  item: HostLauncherProfileMenuItem,
-  t: ReturnType<typeof useTranslation>['t'],
-) {
-  if (item.availability !== 'ready') {
-    return t('workbench.hostLauncher.profiles.routeMissing')
-  }
-  if (item.route && item.intent === 'remote_desktop') {
-    return t('workbench.hostLauncher.profiles.desktopDetail', {
-      endpoint: item.endpoint,
-      route: item.route.name,
-    })
-  }
-  if (item.intent === 'remote_desktop') {
-    return t('workbench.hostLauncher.profiles.desktopDirectDetail', {
-      endpoint: item.endpoint,
-    })
-  }
-  if (item.route) {
-    return t('workbench.hostLauncher.profiles.fileDetail', { route: item.route.name })
-  }
-  return item.endpoint
 }

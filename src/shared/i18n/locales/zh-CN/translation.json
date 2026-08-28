@@ -394,7 +394,7 @@
       "favorite": "收藏",
       "unfavorite": "取消收藏",
       "lastConnected": "最近连接",
-      "lastChecked": "最近检测",
+      "latencySampleTime": "采样时间：{{time}}",
       "latency": "延迟",
       "latencyValue": "{{latency}} ms",
       "latencyLevels": {
@@ -414,15 +414,12 @@
       "openForward": "端口转发",
       "profiles": {
         "context": {
-          "terminal": "默认终端连接",
-          "files": "默认文件访问",
-          "remote_desktop": "默认远程桌面"
+          "terminal": "终端连接",
+          "files": "文件访问",
+          "remote_desktop": "远程桌面"
         },
-        "more": {
-          "terminal": "选择其他终端连接",
-          "files": "选择其他文件访问",
-          "remote_desktop": "选择其他远程桌面"
-        },
+        "count": "{{count}} 个配置",
+        "selection": "本次使用",
         "status": {
           "empty": "尚未配置",
           "missing": "未设置默认项",
@@ -433,9 +430,18 @@
         "manageHint": "请在主机管理中完善访问方式",
         "selectionMissing": "所选访问方式已不存在，请刷新后重试",
         "routeMissing": "关联的 SSH 路由不可用",
-        "fileDetail": "经 {{route}} 访问",
+        "fileDetail": "{{endpoint}} · 经 {{route}} 访问",
         "desktopDetail": "{{endpoint}} · 经 {{route}}",
-        "desktopDirectDetail": "{{endpoint}} · 直接连接"
+        "desktopDirectDetail": "{{endpoint}} · 直接连接",
+        "details": {
+          "endpoint": "连接端点",
+          "route": "连接路径",
+          "direct": "直接连接",
+          "sshCredential": "SSH 凭据",
+          "targetCredential": "目标凭据",
+          "fingerprint": "主机指纹",
+          "lastDirectory": "最近目录"
+        }
       },
       "filters": {
         "all": "全部",

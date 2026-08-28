@@ -35,4 +35,5 @@ export interface HostLauncherProfileData {
 export interface HostLauncherData extends HostConfigurationData, HostLauncherProfileData {
   hostAssets: HostAsset[]
   hostReachability: Record<string, HostReachability>
+  sshProfileReachability?: Readonly<Record<string, HostReachability>>
 }

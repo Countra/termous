@@ -27,6 +27,13 @@ const testState = vi.hoisted(() => {
     onLauncherClose: null as (() => void) | null,
     onConnectSSHProfile: null as ((profileId: string) => Promise<void>) | null,
     onOpenFileProfile: null as ((profileId: string, hostId: string) => Promise<void>) | null,
+    onOpenForward: null as ((hostId: string, sshProfileId: string) => void) | null,
+    forwardTemporaryIntent: null as {
+      key: number
+      hostId: string
+      sshProfileId: string
+    } | null,
+    onForwardTemporaryIntentHandled: null as ((key: number) => void) | null,
     projectionKeys: {
       workbench: [] as string[],
       workbenchHostView: [] as string[],
@@ -332,9 +339,23 @@ vi.mock('#pages/remote-desktop', () => ({
   ),
 }))
 vi.mock('#pages/forwards', () => ({
-  ForwardsPage: ({ data }: { data: Record<string, unknown> }) => {
+  ForwardsPage: ({
+    data,
+    temporaryIntent,
+    onTemporaryIntentHandled,
+  }: {
+    data: Record<string, unknown>
+    temporaryIntent?: {
+      key: number
+      hostId: string
+      sshProfileId: string
+    } | null
+    onTemporaryIntentHandled: (key: number) => void
+  }) => {
     testState.projectionKeys.forwards = Object.keys(data).sort()
-    return null
+    testState.forwardTemporaryIntent = temporaryIntent ?? null
+    testState.onForwardTemporaryIntentHandled = onTemporaryIntentHandled
+    return <div data-testid="forwards-page">Forwards</div>
   },
 }))
 vi.mock('#pages/settings', () => ({ SettingsPage: () => null }))
@@ -360,6 +381,7 @@ vi.mock('#features/hosts', () => ({
     onClose,
     onConnectSSHProfile,
     onOpenFileProfile,
+    onOpenForward,
   }: {
     data: Record<string, unknown>
     onManageHostAccess: (hostId: string) => void
@@ -368,6 +390,7 @@ vi.mock('#features/hosts', () => ({
     onClose: () => void
     onConnectSSHProfile: (profileId: string) => Promise<void>
     onOpenFileProfile: (profileId: string, hostId: string) => Promise<void>
+    onOpenForward: (hostId: string, sshProfileId: string) => void
   }) => {
     testState.projectionKeys.hostLauncher = Object.keys(data).sort()
     testState.onManageHostAccess = onManageHostAccess
@@ -376,6 +399,7 @@ vi.mock('#features/hosts', () => ({
     testState.onLauncherClose = onClose
     testState.onConnectSSHProfile = onConnectSSHProfile
     testState.onOpenFileProfile = onOpenFileProfile
+    testState.onOpenForward = onOpenForward
     return null
   },
   HostKeyCoordinator: () => null,
@@ -431,6 +455,9 @@ vi.mock('#app/data-runtime', () => ({
         hostIconFileUrl: (iconId: string, sha256?: string) => (
           `http://127.0.0.1/host-icons/${iconId}?sha256=${sha256 ?? ''}`
         ),
+        sshProfileReachability: async () => [],
+        refreshSSHProfileReachability: async () => [],
+        sshProfileReachabilityEventsUrl: () => 'ws://127.0.0.1/ssh-profile-reachability',
       },
       credentials: {},
       hostKeys: {},
@@ -492,6 +519,9 @@ describe('应用运行时组合合同', () => {
     testState.onLauncherClose = null
     testState.onConnectSSHProfile = null
     testState.onOpenFileProfile = null
+    testState.onOpenForward = null
+    testState.forwardTemporaryIntent = null
+    testState.onForwardTemporaryIntentHandled = null
     testState.data.sshAccessProfiles.splice(0)
     testState.data.fileAccessProfiles.splice(0)
     testState.data.remoteDesktopProfiles.splice(0)
@@ -574,6 +604,7 @@ describe('应用运行时组合合同', () => {
       'proxies',
       'remoteDesktopProfiles',
       'sshAccessProfiles',
+      'sshProfileReachability',
     ])
 
     await user.click(screen.getByRole('button', { name: 'hosts' }))
@@ -648,6 +679,26 @@ describe('应用运行时组合合同', () => {
 
     expect(testState.launcherOpen).toBe(true)
     expect(testState.notifications.error).toHaveBeenCalledTimes(1)
+  })
+
+  it('Launcher 端口转发意图完整保留当前 SSH Profile', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'global-connect' }))
+    act(() => testState.onOpenForward?.('host-a', 'ssh-secondary'))
+
+    await waitFor(() => expect(testState.forwardTemporaryIntent).toEqual({
+      key: expect.any(Number),
+      hostId: 'host-a',
+      sshProfileId: 'ssh-secondary',
+    }))
+    expect(screen.getByTestId('forwards-page')).toBeInTheDocument()
+
+    const intentKey = testState.forwardTemporaryIntent?.key
+    expect(intentKey).toEqual(expect.any(Number))
+    act(() => testState.onForwardTemporaryIntentHandled?.(intentKey!))
+    await waitFor(() => expect(testState.forwardTemporaryIntent).toBeNull())
   })
 
   it('文件 Profile 连接失败继续拒绝且不误判为打开成功', async () => {

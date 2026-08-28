@@ -12,6 +12,7 @@ export type { ForwardRuntimeAction } from './model/forwardRestart.ts'
 export type {
   ForwardManagementData,
   ForwardSessionContext,
+  ForwardTemporaryIntent,
 } from './model/types.ts'
 export {
   ForwardManagementWorkspace,

@@ -26,7 +26,10 @@ import {
   selectDefaultSSHAccessProfile,
   sortSSHAccessProfiles,
 } from '#entities/ssh-access-profile'
-import type { ForwardManagementData } from '../model/types'
+import type {
+  ForwardManagementData,
+  ForwardTemporaryIntent,
+} from '../model/types'
 import { useForwardDurationTick } from '../model/forwardTiming'
 import { ForwardEditorFields } from './ForwardEditorFields'
 import { ForwardModeBadge, ForwardModeSelector } from './ForwardModeSelector'
@@ -47,7 +50,8 @@ type ForwardModeFilter = 'all' | ForwardMode
 export interface ForwardManagementWorkspaceProps {
   data: ForwardManagementData
   actionBusy: boolean
-  temporaryIntent?: { key: number; hostId: string } | null
+  temporaryIntent?: ForwardTemporaryIntent | null
+  onTemporaryIntentHandled: (key: number) => void
   onCreateProfile: (input: ForwardProfileInput) => Promise<ForwardProfile>
   onUpdateProfile: (id: string, input: ForwardProfileInput) => Promise<ForwardProfile>
   onDeleteProfile: (id: string) => Promise<void>
@@ -86,6 +90,7 @@ export function ForwardManagementWorkspace({
   data,
   actionBusy,
   temporaryIntent,
+  onTemporaryIntentHandled,
   onCreateProfile,
   onUpdateProfile,
   onDeleteProfile,
@@ -165,9 +170,15 @@ export function ForwardManagementWorkspace({
     consumedTemporaryIntentKeyRef.current = temporaryIntent.key
     setEditorMode('temporary')
     setEditingProfile(null)
-    setForm(createForwardForm(data, temporaryIntent.hostId, t('forwards.temporaryDefaultName')))
+    setForm(createForwardForm(
+      data,
+      temporaryIntent.hostId,
+      t('forwards.temporaryDefaultName'),
+      temporaryIntent.sshProfileId,
+    ))
     setEditorOpen(true)
-  }, [data, t, temporaryIntent])
+    onTemporaryIntentHandled(temporaryIntent.key)
+  }, [data, onTemporaryIntentHandled, t, temporaryIntent])
 
   const openEditProfile = (profile: ForwardProfile) => {
     setEditorMode('profile')
@@ -425,7 +436,7 @@ function ForwardEditorForm({
           <span className={scopedClassName('forwarding-editor-section-title')}>{t('forwards.basicInfo')}</span>
         </header>
         <div className={scopedClassName('forwarding-editor-basic-grid')}>
-          <label className={scopedClassName('forward-field')}>
+          <label className={scopedClassName('forward-field', 'is-name')}>
             <span className={`${uiStyles['field-label']} ${scopedClassName('field-label')}`}>{t('forwards.name')}</span>
             <Input
               id="forward-name"
@@ -791,13 +802,32 @@ function validateForwardForm(form: ForwardFormState, t: (key: string) => string)
   return ''
 }
 
-function createForwardForm(data: ForwardManagementData, hostId: string, name = ''): ForwardFormState {
+function createForwardForm(
+  data: ForwardManagementData,
+  hostId: string,
+  name = '',
+  requestedSSHProfileId?: string,
+): ForwardFormState {
   return {
     ...defaultForm,
     name,
     host_id: hostId,
-    ssh_profile_id: selectDefaultSSHAccessProfile(data.sshAccessProfiles, hostId)?.id ?? '',
+    ssh_profile_id: initialSSHProfileId(data, hostId, requestedSSHProfileId),
   }
+}
+
+function initialSSHProfileId(
+  data: ForwardManagementData,
+  hostId: string,
+  requestedSSHProfileId: string | undefined,
+) {
+  if (requestedSSHProfileId !== undefined) {
+    const matches = data.sshAccessProfiles.filter((profile) => (
+      profile.id === requestedSSHProfileId && profile.host_id === hostId
+    ))
+    return matches.length === 1 ? requestedSSHProfileId : ''
+  }
+  return selectDefaultSSHAccessProfile(data.sshAccessProfiles, hostId)?.id ?? ''
 }
 
 

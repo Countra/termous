@@ -32,8 +32,11 @@ import {
 } from '../model/hostLauncherListModel.ts'
 import {
   buildHostLauncherProfileMenu,
+  selectCompanionHostLauncherFileProfile,
   type HostLauncherProfileMenuItem,
+  type HostLauncherSSHProfileMenuItem,
 } from '../model/hostLauncherProfiles.ts'
+import { effectiveSSHProfileId } from '../model/hostLauncherProfileDetails.ts'
 import {
   buildHostDirectoryItems,
 } from '../model/hostDirectory.ts'
@@ -58,9 +61,10 @@ export interface HostLauncherModalProps {
   onManageHostAccess: (hostId: string) => void
   onOpenFileProfile: (profileId: string, hostId: string) => Promise<void>
   onOpenRemoteDesktopProfile: (profileId: string) => Promise<void>
-  onOpenForward: (hostId: string) => void
+  onOpenForward: (hostId: string, sshProfileId: string) => void
   onToggleFavorite: (hostId: string) => Promise<void>
   onRefreshReachability: (hostIds?: string[], force?: boolean) => Promise<void>
+  onRefreshSSHProfileReachability?: (profileIds: readonly string[]) => Promise<void>
   getHostIconUrl: (iconId: string) => string
 }
 
@@ -82,6 +86,7 @@ export function HostLauncherModal({
   onOpenForward,
   onToggleFavorite,
   onRefreshReachability,
+  onRefreshSSHProfileReachability,
   getHostIconUrl,
 }: HostLauncherModalProps) {
   const { t } = useTranslation()
@@ -96,7 +101,12 @@ export function HostLauncherModal({
   const [refreshingReachability, setRefreshingReachability] = useState(false)
   const [pendingHostAction, setPendingHostAction] = useState<HostLauncherActionId | null>(null)
   const [pendingProfileId, setPendingProfileId] = useState<string | null>(null)
+  const [profileSelection, setProfileSelection] = useState({
+    contextKey: '',
+    profileId: null as string | null,
+  })
   const pendingHostActionRef = useRef<HostLauncherActionId | null>(null)
+  const manualReachabilityRefreshGenerationRef = useRef<number | null>(null)
   const openGenerationRef = useRef(0)
   const launcherOpenRef = useRef(false)
   const refreshReachabilityRef = useRef(onRefreshReachability)
@@ -158,6 +168,24 @@ export function HostLauncherModal({
       selectedHost?.id,
     ],
   )
+  const profileSelectionContextKey = `${instanceKey}:${selectedProfileMenu.hostId}:${selectedProfileMenu.intent}`
+  const explicitProfileId = profileSelection.contextKey === profileSelectionContextKey
+    ? profileSelection.profileId
+    : null
+  const explicitProfile = explicitProfileId
+    ? selectedProfileMenu.items.find((item) => item.profileId === explicitProfileId) ?? null
+    : null
+  const selectedProfile = explicitProfile?.availability === 'ready'
+    ? explicitProfile
+    : selectedProfileMenu.defaultItem
+  const selectedSSHProfileId = effectiveSSHProfileId(selectedProfile)
+  const dedicatedReachabilityProfileId = selectedSSHProfileId
+    && onRefreshSSHProfileReachability
+    && selectedSSHProfileId !== selectedHost?.defaultSSHProfile?.id
+    ? selectedSSHProfileId
+    : null
+  const canRefreshReachability = hostIds.length > 0
+    || dedicatedReachabilityProfileId !== null
 
   const invalidateOpenGeneration = () => {
     launcherOpenRef.current = false
@@ -176,14 +204,33 @@ export function HostLauncherModal({
     openGenerationRef.current += 1
     launcherOpenRef.current = open
     pendingHostActionRef.current = null
+    manualReachabilityRefreshGenerationRef.current = null
     setPendingHostAction(null)
     setPendingProfileId(null)
+    setRefreshingReachability(false)
     autoRefreshOpenRef.current = false
     return () => {
       launcherOpenRef.current = false
       openGenerationRef.current += 1
     }
   }, [instanceKey, open])
+
+  useEffect(() => {
+    setProfileSelection((current) => {
+      if (current.contextKey !== profileSelectionContextKey) {
+        return { contextKey: profileSelectionContextKey, profileId: null }
+      }
+      if (
+        current.profileId
+        && !selectedProfileMenu.items.some((item) => (
+          item.profileId === current.profileId && item.availability === 'ready'
+        ))
+      ) {
+        return { contextKey: profileSelectionContextKey, profileId: null }
+      }
+      return current
+    })
+  }, [profileSelectionContextKey, selectedProfileMenu.items])
 
   useEffect(() => {
     refreshReachabilityRef.current = onRefreshReachability
@@ -210,18 +257,18 @@ export function HostLauncherModal({
       return
     }
     autoRefreshOpenRef.current = true
-    let disposed = false
+    const openGeneration = openGenerationRef.current
     setRefreshingReachability(true)
     void refreshReachabilityRef.current(hostIds, false)
       .catch(() => undefined)
       .finally(() => {
-        if (!disposed) {
+        if (
+          launcherOpenRef.current
+          && openGenerationRef.current === openGeneration
+        ) {
           setRefreshingReachability(false)
         }
       })
-    return () => {
-      disposed = true
-    }
   }, [hostIds, instanceKey, open])
 
   useEffect(() => {
@@ -249,10 +296,91 @@ export function HostLauncherModal({
     return menu.defaultResolution === 'resolved' ? menu.defaultItem : null
   }
 
+  const resolveActionProfile = (actionId: HostLauncherActionId, hostId: string) => {
+    const targetIntent = launcherIntentForAction(actionId)
+    if (
+      targetIntent === intent
+      && selectedProfile?.hostId === hostId
+      && selectedProfile.intent === targetIntent
+      && selectedProfile.availability === 'ready'
+    ) {
+      return selectedProfile
+    }
+    if (actionId === 'openFiles' && intent === 'terminal') {
+      if (
+        !selectedProfile
+        || selectedProfile.intent !== 'terminal'
+        || selectedProfile.hostId !== hostId
+      ) return null
+      return selectCompanionHostLauncherFileProfile(
+        data,
+        hostId,
+        selectedProfile.profileId,
+      )
+    }
+    return resolveDefaultProfile(actionId, hostId)
+  }
+
+  const resolveForwardSSHProfile = (hostId: string): HostLauncherSSHProfileMenuItem | null => {
+    const selectedProfileId = selectedProfile?.hostId === hostId
+      ? effectiveSSHProfileId(selectedProfile)
+      : null
+    if (selectedProfileId) {
+      const matches = buildHostLauncherProfileMenu(data, hostId, 'terminal').items.filter(
+        (profile): profile is HostLauncherSSHProfileMenuItem => (
+          profile.intent === 'terminal'
+          && profile.profileId === selectedProfileId
+          && profile.availability === 'ready'
+        ),
+      )
+      return matches.length === 1 ? matches[0] ?? null : null
+    }
+    const fallback = resolveDefaultProfile('connect', hostId)
+    return fallback?.intent === 'terminal' && fallback.availability === 'ready'
+      ? fallback
+      : null
+  }
+
+  const refreshReachability = async () => {
+    const openGeneration = openGenerationRef.current
+    if (
+      !canRefreshReachability
+      || refreshingReachability
+      || manualReachabilityRefreshGenerationRef.current === openGeneration
+    ) {
+      return
+    }
+    manualReachabilityRefreshGenerationRef.current = openGeneration
+    setRefreshingReachability(true)
+    try {
+      const refreshes: Promise<void>[] = []
+      if (hostIds.length > 0) {
+        refreshes.push(Promise.resolve().then(() => onRefreshReachability(hostIds, true)))
+      }
+      if (dedicatedReachabilityProfileId && onRefreshSSHProfileReachability) {
+        refreshes.push(Promise.resolve().then(() => (
+          onRefreshSSHProfileReachability([dedicatedReachabilityProfileId])
+        )))
+      }
+      // 等待本轮全部刷新结束，避免单个请求提前失败后过早释放防重锁。
+      await Promise.allSettled(refreshes)
+    } finally {
+      if (manualReachabilityRefreshGenerationRef.current === openGeneration) {
+        manualReachabilityRefreshGenerationRef.current = null
+      }
+      if (
+        launcherOpenRef.current
+        && openGenerationRef.current === openGeneration
+      ) {
+        setRefreshingReachability(false)
+      }
+    }
+  }
+
   const canRunHostAction = (actionId: HostLauncherActionId, hostId: string) => {
     if (actionId === 'editHost') return true
-    if (actionId === 'openForward') return Boolean(resolveDefaultProfile('connect', hostId))
-    return Boolean(resolveDefaultProfile(actionId, hostId))
+    if (actionId === 'openForward') return Boolean(resolveForwardSSHProfile(hostId))
+    return Boolean(resolveActionProfile(actionId, hostId))
   }
 
   const executeHostAction = async (
@@ -278,7 +406,9 @@ export function HostLauncherModal({
       onEditHost(hostId)
       return
     }
-    onOpenForward(hostId)
+    if (actionId === 'openForward' && profile?.intent === 'terminal') {
+      onOpenForward(hostId, profile.profileId)
+    }
   }
 
   const runHostAction = async (
@@ -290,15 +420,18 @@ export function HostLauncherModal({
       return
     }
     const targetIntent = launcherIntentForAction(actionId)
-    const profile = targetIntent
-      ? requestedProfile ?? resolveDefaultProfile(actionId, hostId)
-      : null
+    const requiredIntent = actionId === 'openForward' ? 'terminal' : targetIntent
+    const profile = actionId === 'openForward'
+      ? resolveForwardSSHProfile(hostId)
+      : targetIntent
+        ? requestedProfile ?? resolveActionProfile(actionId, hostId)
+        : null
     if (
-      targetIntent
+      requiredIntent
       && (
         !profile
         || profile.hostId !== hostId
-        || profile.intent !== targetIntent
+        || profile.intent !== requiredIntent
         || profile.availability !== 'ready'
       )
     ) {
@@ -469,9 +602,9 @@ export function HostLauncherModal({
                 className="host-launcher-title-refresh"
                 aria-label={t('workbench.hostLauncher.refreshReachability')}
                 loading={refreshingReachability}
-                disabled={hostIds.length === 0}
+                disabled={!canRefreshReachability}
                 icon={<RefreshCcw size={15} />}
-                onClick={() => void onRefreshReachability(hostIds, true)}
+                onClick={() => void refreshReachability()}
               />
             </Tooltip>
           ) : null}
@@ -561,6 +694,7 @@ export function HostLauncherModal({
             data={data}
             actionPlan={actionPlan}
             profileMenu={selectedProfileMenu}
+            selectedProfile={selectedProfile}
             busy={hostActionBusy}
             pendingHostAction={pendingHostAction}
             pendingProfileId={pendingProfileId}
@@ -568,6 +702,19 @@ export function HostLauncherModal({
             canRunAction={canRunHostAction}
             onRunAction={(actionId, hostId, profile) => {
               void runHostAction(actionId, hostId, profile)
+            }}
+            onSelectProfile={(profile) => {
+              const validProfile = selectedProfileMenu.items.find((item) => (
+                item.profileId === profile.profileId
+                && item.hostId === selectedProfileMenu.hostId
+                && item.intent === selectedProfileMenu.intent
+                && item.availability === 'ready'
+              ))
+              if (!validProfile) return
+              setProfileSelection({
+                contextKey: profileSelectionContextKey,
+                profileId: validProfile.profileId,
+              })
             }}
             onManageAccess={(hostId) => {
               void runLauncherAction(() => onManageHostAccess(hostId))

@@ -9,6 +9,12 @@ export interface ForwardManagementData {
   forwards: ForwardInstance[]
 }
 
+export interface ForwardTemporaryIntent {
+  key: number
+  hostId: string
+  sshProfileId: string
+}
+
 export interface ForwardSessionContext {
   id: string
   kind: 'ssh' | 'local'

@@ -13,8 +13,14 @@ import {
 import {
   selectCompanionSFTPFileAccessProfile,
 } from '#entities/file-access-profile'
-import { isForwardRestartCompleted } from '#features/forwards'
-import type { HostAccessWorkspaceGateway } from '#features/host-access'
+import {
+  isForwardRestartCompleted,
+  type ForwardTemporaryIntent,
+} from '#features/forwards'
+import {
+  useSSHProfileReachability,
+  type HostAccessWorkspaceGateway,
+} from '#features/host-access'
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
@@ -232,7 +238,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     hostId: string
   } | null>(null)
   const nextHostAccessIntentKeyRef = useRef(0)
-  const [forwardTemporaryIntent, setForwardTemporaryIntent] = useState<{ key: number; hostId: string } | null>(null)
+  const [forwardTemporaryIntent, setForwardTemporaryIntent] =
+    useState<ForwardTemporaryIntent | null>(null)
+  const nextForwardTemporaryIntentKeyRef = useRef(0)
   const [actionBusy, setActionBusy] = useState(false)
   const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
   const [activeRemoteDesktopCount, setActiveRemoteDesktopCount] = useState(0)
@@ -390,6 +398,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     ),
     sshProfileReachabilityEventsUrl: () => gateways.hosts.sshProfileReachabilityEventsUrl(),
   }), [gateways.hosts])
+  const launcherProfileReachability = useSSHProfileReachability(
+    hostAccessGateway,
+    hostLauncherState.open,
+  )
   const workbenchHostView = useMemo<WorkbenchPageProps['hostView']>(() => ({
     hosts: data.hosts,
     groups: data.groups,
@@ -404,6 +416,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     proxies: data.proxies,
     credentials: data.credentials,
     hostReachability: data.hostReachability,
+    sshProfileReachability: launcherProfileReachability.states,
     sshAccessProfiles: data.sshAccessProfiles,
     fileAccessProfiles: data.fileAccessProfiles,
     remoteDesktopProfiles: data.remoteDesktopProfiles,
@@ -416,6 +429,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     data.proxies,
     data.remoteDesktopProfiles,
     data.sshAccessProfiles,
+    launcherProfileReachability.states,
   ])
   const forwardManagementData = useMemo<ForwardsPageProps['data']>(() => ({
     hosts: data.hosts,
@@ -919,11 +933,20 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
   }
 
-  const openTemporaryForwardForHost = (hostId: string) => {
+  const openTemporaryForwardForProfile = (hostId: string, sshProfileId: string) => {
+    nextForwardTemporaryIntentKeyRef.current += 1
     setSelectedHostId(hostId)
-    setForwardTemporaryIntent({ key: Date.now(), hostId })
+    setForwardTemporaryIntent({
+      key: nextForwardTemporaryIntentKeyRef.current,
+      hostId,
+      sshProfileId,
+    })
     setPage('forwards')
   }
+
+  const handleForwardTemporaryIntent = useCallback((key: number) => {
+    setForwardTemporaryIntent((current) => current?.key === key ? null : current)
+  }, [])
 
   const openHostLauncher = useCallback((intent: HostLauncherIntent) => {
     if (actionBusy) {
@@ -1215,6 +1238,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           data={forwardManagementData}
                           actionBusy={actionBusy}
                           temporaryIntent={forwardTemporaryIntent}
+                          onTemporaryIntentHandled={handleForwardTemporaryIntent}
                           onCreateProfile={(input) => actions.createForwardProfile(input)}
                           onUpdateProfile={(id, input) => actions.updateForwardProfile(id, input)}
                           onDeleteProfile={(id) => runAction(() => actions.deleteForwardProfile(id))}
@@ -1293,9 +1317,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                       onOpenFileProfile={(profileId, hostId) => (
                         openFilesForProfile(profileId, hostId, true)
                       )}
-                      onOpenForward={openTemporaryForwardForHost}
+                      onOpenForward={openTemporaryForwardForProfile}
                       onToggleFavorite={(hostId) => runAction(() => actions.toggleHostFavorite(hostId))}
                       onRefreshReachability={(hostIds, force) => actions.refreshHostReachability(hostIds, force)}
+                      onRefreshSSHProfileReachability={launcherProfileReachability.refreshMany}
                       getHostIconUrl={getHostIconUrl}
                       onRemoteDesktopConnected={() => setPage('remote-desktop')}
                       onRemoteDesktopConnectionError={showActionError}

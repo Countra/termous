@@ -5,6 +5,7 @@ import type { RemoteDesktopAccessProfile } from '#entities/remote-desktop'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import {
   buildHostLauncherProfileMenu,
+  selectCompanionHostLauncherFileProfile,
   selectUniqueDefaultHostLauncherProfile,
 } from './hostLauncherProfiles.ts'
 import type { HostLauncherProfileData } from './types.ts'
@@ -121,6 +122,46 @@ test('VNC 直连无需 SSH Profile 即可作为默认远程桌面连接', () => 
   assert.equal(menu.defaultItem?.availability, 'ready')
   assert.equal(menu.defaultItem?.route, null)
   assert.equal(menu.defaultItem?.endpoint, '192.0.2.10:5901')
+})
+
+test('文件快捷动作只解析当前 SSH Profile 唯一绑定的 SFTP Profile', () => {
+  const data = profileData({
+    sshAccessProfiles: [
+      sshProfile('ssh-primary', 'host-a', 0, true),
+      sshProfile('ssh-secondary', 'host-a', 1, false),
+    ],
+    fileAccessProfiles: [
+      fileProfile('file-primary', 'host-a', 'ssh-primary', true),
+      fileProfile('file-secondary', 'host-a', 'ssh-secondary', false),
+    ],
+  })
+
+  assert.equal(
+    selectCompanionHostLauncherFileProfile(
+      data,
+      'host-a',
+      'ssh-secondary',
+    )?.profileId,
+    'file-secondary',
+  )
+  assert.equal(
+    selectCompanionHostLauncherFileProfile(
+      {
+        ...data,
+        fileAccessProfiles: [
+          ...data.fileAccessProfiles,
+          fileProfile('file-duplicate', 'host-a', 'ssh-secondary', false),
+        ],
+      },
+      'host-a',
+      'ssh-secondary',
+    ),
+    null,
+  )
+  assert.equal(
+    selectCompanionHostLauncherFileProfile(data, 'host-a', 'ssh-missing'),
+    null,
+  )
 })
 
 function profileData(
