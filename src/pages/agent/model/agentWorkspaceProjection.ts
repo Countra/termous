@@ -49,12 +49,17 @@ export function projectAgentMessages(
   return messages.map((message): AgentWorkspaceMessage => {
     const streaming = message.status === 'pending' || message.status === 'streaming'
     const status: AgentWorkspaceMessage['status'] = message.status === 'pending' ? 'streaming' : message.status
+    const sourcePart = message.parts.find((part): part is Extract<AgentMessagePart, { kind: 'text' }> => (
+      part.kind === 'text' && part.source_context !== undefined
+    ))
     return {
       id: message.id,
       role: message.role,
       status,
       created_at: message.created_at,
       parts: projectMessageParts(message.parts, streaming, finalizedParts, run, events),
+      attachments: message.attachments,
+      source_context: sourcePart?.source_context,
     }
   })
 }

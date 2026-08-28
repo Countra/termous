@@ -1,9 +1,9 @@
 import { App as AntdApp, Alert } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AgentModelProfile, AgentReadiness, AgentSession } from '#entities/agent'
+import type { AgentLaunchIntent, AgentModelProfile, AgentReadiness, AgentSession, AgentSourceContext } from '#entities/agent'
 import type { AgentSetupGateway } from '#features/agent-setup'
-import { AgentWorkspaceController, type AgentWorkspaceGateway } from '#features/agent-runtime'
+import { AgentWorkspaceController, useAgentDraftAttachments, type AgentWorkspaceGateway } from '#features/agent-runtime'
 import { termousNotificationClassName } from '#shared/ui'
 import { AgentWorkspace, type AgentWorkspaceInspectorState } from '#widgets/agent-workspace'
 import {
@@ -21,11 +21,15 @@ export function AgentPage({
   setupGateway,
   enabled,
   active,
+  launchIntent,
+  onLaunchIntentHandled,
 }: {
   gateway: AgentWorkspaceGateway
   setupGateway: AgentSetupGateway
   enabled: boolean
   active: boolean
+  launchIntent?: AgentLaunchIntent | null
+  onLaunchIntentHandled?: (key: number) => void
 }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
@@ -36,7 +40,11 @@ export function AgentPage({
   const [setupLoading, setSetupLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [draftModelProfileId, setDraftModelProfileId] = useState<string>()
+  const [draftSourceContexts, setDraftSourceContexts] = useState<Record<string, AgentSourceContext>>({})
   const busyRef = useRef(false)
+  const draftSessionPromiseRef = useRef<Promise<AgentSession> | null>(null)
+  const attachmentDraftSessionIdsRef = useRef(new Set<string>())
+  const handledLaunchIntentRef = useRef(0)
   const notificationRef = useRef(notification)
   const tRef = useRef(t)
   notificationRef.current = notification
@@ -97,6 +105,87 @@ export function AgentPage({
     }
   }, [])
 
+  const selected = state.sessions.find((session) => session.id === state.selected_session_id)
+  const newSessionModelProfileId = draftModelProfileId
+    ?? readiness?.settings.default_model_profile_id
+    ?? profiles[0]?.id
+  const createDraftSession = useCallback(async (sourceContext?: AgentSourceContext) => {
+    if (draftSessionPromiseRef.current) return draftSessionPromiseRef.current
+    const profileId = newSessionModelProfileId
+    if (!profileId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
+    const profile = profiles.find((item) => item.id === profileId)
+    const promise = controller.createSession({
+      title: sourceContext?.title || tRef.current('agent.sessions.untitled'),
+      model_profile_id: profileId,
+      reasoning_level: profile?.supports_reasoning
+        ? readiness?.settings.default_reasoning_level ?? 'off'
+        : 'off',
+    }).then((session) => {
+      controller.selectSession(session.id)
+      return session
+    }).finally(() => {
+      if (draftSessionPromiseRef.current === promise) draftSessionPromiseRef.current = null
+    })
+    draftSessionPromiseRef.current = promise
+    return promise
+  }, [controller, newSessionModelProfileId, profiles, readiness?.settings.default_reasoning_level])
+
+  const ensureAttachmentSession = useCallback(async () => {
+    const current = controller.getSnapshot().selected_session_id
+    if (current) return current
+    const newDraft = controller.getSnapshot().drafts.new?.text ?? ''
+    const sourceContext = draftSourceContexts.new
+    const session = await createDraftSession(sourceContext)
+    attachmentDraftSessionIdsRef.current.add(session.id)
+    if (newDraft) controller.updateDraft(session.id, newDraft)
+    controller.updateDraft('new', '')
+    if (sourceContext) {
+      setDraftSourceContexts((contexts) => {
+        const next = { ...contexts, [session.id]: sourceContext }
+        delete next.new
+        return next
+      })
+    }
+    return session.id
+  }, [controller, createDraftSession, draftSourceContexts.new])
+
+  const reportAttachmentError = useCallback((code: string) => {
+    notificationRef.current.error({
+      title: tRef.current('agent.attachments.failed'),
+      description: tRef.current(`agent.attachments.error.${code}`, {
+        defaultValue: tRef.current('agent.attachments.error.unknown'),
+      }),
+      className: termousNotificationClassName,
+    })
+  }, [])
+  const loadAttachmentContent = useCallback(
+    (attachment: import('#entities/agent').AgentAttachment, signal?: AbortSignal) => (
+      gateway.attachmentContent(attachment.id, signal)
+    ),
+    [gateway],
+  )
+  const draftAttachments = useAgentDraftAttachments({
+    gateway,
+    ensureSession: ensureAttachmentSession,
+    onError: reportAttachmentError,
+  })
+
+  useEffect(() => {
+    if (!active || readiness?.status !== 'ready' || !launchIntent) return
+    if (handledLaunchIntentRef.current === launchIntent.key) return
+    handledLaunchIntentRef.current = launchIntent.key
+    void createDraftSession(launchIntent.source_context).then((session) => {
+      const prompt = tRef.current(`agent.launch.prompt.${launchIntent.source_context.kind}`)
+      controller.updateDraft(session.id, prompt)
+      setDraftSourceContexts((contexts) => ({ ...contexts, [session.id]: launchIntent.source_context }))
+      onLaunchIntentHandled?.(launchIntent.key)
+    }).catch(() => {
+      handledLaunchIntentRef.current = 0
+      onLaunchIntentHandled?.(launchIntent.key)
+      notifyError(notificationRef.current, tRef.current)
+    })
+  }, [active, controller, createDraftSession, launchIntent, onLaunchIntentHandled, readiness?.status])
+
   if (!enabled || readiness?.status !== 'ready') {
     return (
       <div className={styles.page}>
@@ -113,12 +202,8 @@ export function AgentPage({
     )
   }
 
-  const selected = state.sessions.find((session) => session.id === state.selected_session_id)
   const selectedRun = selected ? latestSessionRun(selected.id, state.runs) : undefined
   const runEvents = selectedRun ? state.run_events[selectedRun.id] ?? [] : []
-  const newSessionModelProfileId = draftModelProfileId
-    ?? readiness.settings.default_model_profile_id
-    ?? profiles[0]?.id
   const selectedProfile = profiles.find((profile) => (
     profile.id === (selected?.model_profile_id ?? newSessionModelProfileId)
   ))
@@ -150,6 +235,17 @@ export function AgentPage({
         selected_model_profile_id={selected?.model_profile_id ?? newSessionModelProfileId}
         inspector={inspector}
         draft={state.drafts[selected?.id ?? 'new']?.text ?? ''}
+        draft_source_context={draftSourceContexts[selected?.id ?? 'new']}
+        draft_attachments={(draftAttachments.records[selected?.id ?? 'new'] ?? []).map((record) => ({
+          client_id: record.client_id,
+          name: record.file.name,
+          size_bytes: record.file.size,
+          kind: record.kind,
+          phase: record.phase,
+          attachment: record.attachment,
+          error_code: record.error_code,
+        }))}
+        supports_images={selectedProfile?.supports_images ?? false}
         loading={state.phase === 'loading'}
         busy={busy}
         run_blocked={agentRunInteractionBlocked(
@@ -167,6 +263,9 @@ export function AgentPage({
         onArchiveSession={(sessionId) => void perform(async () => {
           const session = requireSession(state.sessions, sessionId)
           await controller.updateSession(sessionId, updateInput(session, true))
+          await draftAttachments.discard(sessionId)
+          attachmentDraftSessionIdsRef.current.delete(sessionId)
+          setDraftSourceContexts((contexts) => omitKey(contexts, sessionId))
           if (state.selected_session_id === sessionId) {
             controller.selectSession(selectionAfterSessionRemoval(workspaceSessions, sessionId))
           }
@@ -174,6 +273,9 @@ export function AgentPage({
         onDeleteSession={(sessionId) => void perform(async () => {
           const session = requireSession(state.sessions, sessionId)
           await controller.deleteSession(sessionId, session.revision)
+          draftAttachments.clear(sessionId)
+          attachmentDraftSessionIdsRef.current.delete(sessionId)
+          setDraftSourceContexts((contexts) => omitKey(contexts, sessionId))
         })}
         onModelChange={(profileId) => void perform(async () => {
           if (!selected) {
@@ -188,7 +290,11 @@ export function AgentPage({
           })
         })}
         onDraftChange={(value) => controller.updateDraft(selected?.id ?? 'new', value)}
-        onSend={async (message) => {
+        onAttachFiles={draftAttachments.add}
+        onRemoveAttachment={draftAttachments.remove}
+        onRetryAttachment={draftAttachments.retry}
+        onLoadAttachmentContent={loadAttachmentContent}
+        onSend={async (message, attachmentIds, sourceContext) => {
           await perform(async () => {
             let targetSession = selected
             if (!targetSession) {
@@ -204,7 +310,20 @@ export function AgentPage({
               controller.updateDraft('new', '')
               setDraftModelProfileId(readiness.settings.default_model_profile_id || profiles[0]?.id)
             }
-            await controller.startRun(targetSession.id, message)
+            if (attachmentDraftSessionIdsRef.current.has(targetSession.id)) {
+              targetSession = await controller.updateSession(targetSession.id, {
+                ...updateInput(targetSession, false),
+                title: createSessionTitle(message, t('agent.sessions.untitled')),
+              })
+              attachmentDraftSessionIdsRef.current.delete(targetSession.id)
+            }
+            await controller.startRun(targetSession.id, message, attachmentIds, sourceContext)
+            draftAttachments.clear(targetSession.id)
+            setDraftSourceContexts((contexts) => {
+              const next = { ...contexts }
+              delete next[targetSession.id]
+              return next
+            })
           })
         }}
         onSteer={async (message) => {
@@ -257,6 +376,13 @@ function requireSession(sessions: AgentSession[], id: string) {
 function createSessionTitle(prompt: string, fallback: string) {
   const firstLine = prompt.split(/\r?\n/, 1)[0]?.trim() || fallback
   return Array.from(firstLine).slice(0, 48).join('')
+}
+
+function omitKey<Value>(values: Record<string, Value>, key: string) {
+  if (!(key in values)) return values
+  const next = { ...values }
+  delete next[key]
+  return next
 }
 
 async function loadProfiles(gateway: AgentWorkspaceGateway) {

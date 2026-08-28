@@ -1,13 +1,17 @@
 import {
   agentApiModes,
+  agentAttachmentStates,
   agentMessagePartKinds,
   agentMessageRoles,
   agentMessageStatuses,
   agentReasoningLevels,
   agentRunEventKinds,
   agentRunStatuses,
+  agentSourceContextKinds,
   isAgentRunActive,
   type AgentApiMode,
+  type AgentAttachment,
+  type AgentAttachmentState,
   type AgentJsonValue,
   type AgentMessage,
   type AgentMessagePage,
@@ -22,6 +26,7 @@ import {
   type AgentRunEventPage,
   type AgentRunModelSnapshot,
   type AgentRunStatus,
+  type AgentSourceContext,
   type AgentSession,
   type AgentSessionPage,
   type AgentUsage,
@@ -88,7 +93,14 @@ export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
     if (kind === 'reasoning' && body.thinking_signature !== undefined) {
       throw new AgentRuntimeProtocolError('Agent 公开 reasoning 不得包含 thinking signature')
     }
-    return { ...base, kind, text: utf8(body.text, `Agent ${kind} 文本无效`, 256 * 1024, true) }
+    return {
+      ...base,
+      kind,
+      text: utf8(body.text, `Agent ${kind} 文本无效`, 256 * 1024, true),
+      ...(kind === 'text' && body.source_context !== undefined
+        ? { source_context: decodeAgentSourceContext(body.source_context) }
+        : {}),
+    }
   }
   const body = record(content[kind], `Agent ${kind} 片段无效`)
   if (kind === 'tool_call') {
@@ -112,12 +124,19 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
   unique(parts.map(({ id }) => id), 'Agent 消息包含重复片段 ID')
   ascending(parts.map(({ sequence }) => sequence), 'Agent 消息片段 sequence 无序')
   const id = identifier(source.id, 'Agent 消息 ID 无效')
+  const sessionId = identifier(source.session_id, 'Agent 消息 Session ID 无效')
+  const attachments = array(source.attachments ?? [], 'Agent 消息附件列表无效', 8)
+    .map(decodeAgentAttachment)
+  unique(attachments.map(({ id: attachmentId }) => attachmentId), 'Agent 消息包含重复附件 ID')
   if (parts.some(({ message_id }) => message_id !== id)) {
     throw new AgentRuntimeProtocolError('Agent 消息片段归属无效')
   }
+  if (attachments.some(({ session_id }) => session_id !== sessionId)) {
+    throw new AgentRuntimeProtocolError('Agent 消息附件归属无效')
+  }
   return {
     id,
-    session_id: identifier(source.session_id, 'Agent 消息 Session ID 无效'),
+    session_id: sessionId,
     role: enumValue<AgentMessageRole>(source.role, agentMessageRoles, 'Agent 消息角色无效'),
     status: enumValue<AgentMessageStatus>(source.status, agentMessageStatuses, 'Agent 消息状态无效'),
     sequence: positiveInteger(source.sequence, 'Agent 消息 sequence 无效'),
@@ -125,6 +144,34 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
     created_at: timestamp(source.created_at, 'Agent 消息创建时间无效'),
     updated_at: timestamp(source.updated_at, 'Agent 消息更新时间无效'),
     parts,
+    attachments,
+  }
+}
+
+export function decodeAgentAttachment(value: unknown): AgentAttachment {
+  const source = record(value, 'Agent 附件响应无效')
+  return {
+    id: identifier(source.id, 'Agent 附件 ID 无效'),
+    session_id: identifier(source.session_id, 'Agent 附件 Session ID 无效'),
+    original_name: utf8(source.original_name, 'Agent 附件名称无效', 255),
+    mime_type: utf8(source.mime_type, 'Agent 附件 MIME 无效', 128),
+    kind: enumValue(source.kind, ['text', 'image'] as const, 'Agent 附件类型无效'),
+    size_bytes: positiveInteger(source.size_bytes, 'Agent 附件大小无效'),
+    state: enumValue<AgentAttachmentState>(source.state, agentAttachmentStates, 'Agent 附件状态无效'),
+    expires_at: optionalTimestamp(source.expires_at, 'Agent 附件过期时间无效'),
+    revision: positiveInteger(source.revision, 'Agent 附件 revision 无效'),
+    created_at: timestamp(source.created_at, 'Agent 附件创建时间无效'),
+    updated_at: timestamp(source.updated_at, 'Agent 附件更新时间无效'),
+  }
+}
+
+export function decodeAgentSourceContext(value: unknown): AgentSourceContext {
+  const source = record(value, 'Agent 来源上下文无效')
+  return {
+    kind: enumValue(source.kind, agentSourceContextKinds, 'Agent 来源上下文类型无效'),
+    entity_id: identifier(source.entity_id, 'Agent 来源实体 ID 无效'),
+    title: utf8(source.title, 'Agent 来源标题无效', 200),
+    summary: utf8(source.summary, 'Agent 来源摘要无效', 2_000, true),
   }
 }
 

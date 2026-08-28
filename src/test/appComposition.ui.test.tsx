@@ -17,6 +17,10 @@ const testState = vi.hoisted(() => {
     workbenchUnmounts: 0,
     agentMounts: 0,
     agentUnmounts: 0,
+    agentLaunchIntent: null as import('#entities/agent').AgentLaunchIntent | null,
+    onAgentLaunchIntentHandled: null as ((key: number) => void) | null,
+    onHostsLaunchAgent: null as ((intent: import('#entities/agent').AgentLaunchRequest) => void) | null,
+    forwardErrorEvent: null as import('#entities/forward').ForwardEvent | null,
     filesPageMounts: 0,
     filesPageUnmounts: 0,
     workbenchForwardsIsArray: false,
@@ -214,7 +218,17 @@ vi.mock('#app/app-shell', () => ({
 }))
 
 vi.mock('#pages/agent', () => ({
-  AgentPage: ({ active }: { active: boolean }) => {
+  AgentPage: ({
+    active,
+    launchIntent,
+    onLaunchIntentHandled,
+  }: {
+    active: boolean
+    launchIntent?: import('#entities/agent').AgentLaunchIntent | null
+    onLaunchIntentHandled?: (key: number) => void
+  }) => {
+    testState.agentLaunchIntent = launchIntent ?? null
+    testState.onAgentLaunchIntentHandled = onLaunchIntentHandled ?? null
     useEffect(() => {
       testState.agentMounts += 1
       return () => {
@@ -298,15 +312,18 @@ vi.mock('#pages/hosts', () => ({
     onDirtyChange,
     accessIntent,
     onAccessIntentHandled,
+    onLaunchAgent,
   }: {
     data: Record<string, unknown>
     onDirtyChange: (dirty: boolean) => void
     accessIntent?: { key: number; hostId: string } | null
     onAccessIntentHandled?: (key: number) => void
+    onLaunchAgent?: (intent: import('#entities/agent').AgentLaunchRequest) => void
   }) => {
     testState.projectionKeys.hosts = Object.keys(data).sort()
     testState.hostAccessIntent = accessIntent ?? null
     testState.onAccessIntentHandled = onAccessIntentHandled ?? null
+    testState.onHostsLaunchAgent = onLaunchAgent ?? null
     return (
       <div data-testid="hosts-page">
         Hosts
@@ -494,7 +511,7 @@ vi.mock('#app/data-runtime', () => ({
     apiReady: false,
     error: null,
     activeSession: null,
-    forwardErrorEvent: null,
+    forwardErrorEvent: testState.forwardErrorEvent,
     fileSessionClosures: {},
     actions: new Proxy({}, { get: () => testState.action }),
   }),
@@ -524,6 +541,10 @@ describe('应用运行时组合合同', () => {
     testState.workbenchUnmounts = 0
     testState.agentMounts = 0
     testState.agentUnmounts = 0
+    testState.agentLaunchIntent = null
+    testState.onAgentLaunchIntentHandled = null
+    testState.onHostsLaunchAgent = null
+    testState.forwardErrorEvent = null
     testState.filesPageMounts = 0
     testState.filesPageUnmounts = 0
     testState.workbenchForwardsIsArray = false
@@ -895,6 +916,87 @@ describe('应用运行时组合合同', () => {
     await user.click(screen.getByRole('button', { name: 'confirm-continue' }))
     expect(screen.queryByTestId('hosts-page')).not.toBeInTheDocument()
     expect(screen.getByTestId('files-page')).toBeInTheDocument()
+  })
+
+  it('Agent 来源意图在脏草稿取消时清理，确认后按 key 单次消费', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const request = {
+      source: 'host_profile' as const,
+      host_id: 'host-a',
+      profile_kind: 'ssh' as const,
+      profile_id: 'ssh-a',
+      source_context: {
+        kind: 'host_profile' as const,
+        entity_id: 'ssh-a',
+        title: 'Host A',
+        summary: 'SSH',
+      },
+    }
+
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+    await user.click(screen.getByRole('button', { name: 'hosts-dirty' }))
+    act(() => testState.onHostsLaunchAgent?.(request))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('hosts.unsavedTitle')
+    expect(testState.agentLaunchIntent).toMatchObject({ key: 1, profile_id: 'ssh-a' })
+
+    await user.click(screen.getByRole('button', { name: 'confirm-cancel' }))
+    await waitFor(() => expect(testState.agentLaunchIntent).toBeNull())
+
+    act(() => testState.onHostsLaunchAgent?.(request))
+    await user.click(screen.getByRole('button', { name: 'confirm-continue' }))
+
+    expect(screen.getByTestId('agent-page')).toHaveAttribute('data-active', 'true')
+    expect(testState.agentLaunchIntent).toMatchObject({ key: 2, profile_id: 'ssh-a' })
+    act(() => testState.onAgentLaunchIntentHandled?.(2))
+    await waitFor(() => expect(testState.agentLaunchIntent).toBeNull())
+  })
+
+  it('后台转发失败通知提供脱敏的 Agent 入口', async () => {
+    testState.forwardErrorEvent = {
+      type: 'error',
+      message: 'sensitive runtime detail',
+      forward: {
+        id: 'forward-a',
+        host_id: 'host-a',
+        profile_id: 'forward-profile-a',
+        name: 'Production tunnel',
+        mode: 'local',
+        scope: 'background_profile',
+        status: 'failed',
+        phase: 'failed',
+        progress: 100,
+        bind_host: '127.0.0.1',
+        bind_port: 8080,
+        target_host: '127.0.0.1',
+        target_port: 80,
+        active_connections: 0,
+        total_connections: 0,
+        bytes_in: 0,
+        bytes_out: 0,
+        started_at: '2026-08-29T00:00:00Z',
+        last_error: 'sensitive runtime detail',
+      },
+    }
+    render(<App />)
+
+    await waitFor(() => expect(testState.notifications.error).toHaveBeenCalledOnce())
+    const notification = testState.notifications.error.mock.calls[0]?.[0] as {
+      actions?: ReactNode
+    }
+    expect(notification.actions).toBeTruthy()
+    render(<>{notification.actions}</>)
+    await userEvent.click(screen.getByRole('button', { name: 'agent.launch.action' }))
+
+    expect(testState.agentLaunchIntent).toMatchObject({
+      source: 'forward_failure',
+      forward_id: 'forward-a',
+      host_id: 'host-a',
+      status: 'failed',
+    })
+    expect(testState.agentLaunchIntent).not.toHaveProperty('error_message')
+    expect(testState.agentLaunchIntent?.source_context.summary).not.toContain('sensitive runtime detail')
   })
 
   it('片段使用次数上报失败不会阻断已完成的工作台回调', async () => {

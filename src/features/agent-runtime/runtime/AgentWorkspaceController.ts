@@ -5,6 +5,7 @@ import type {
   AgentSession,
   AgentSessionInput,
   AgentSessionUpdateInput,
+  AgentSourceContext,
 } from '#entities/agent'
 import { isAgentRunTerminal } from '#entities/agent'
 import type { AgentRuntimeStatus } from '#common/contracts'
@@ -147,7 +148,12 @@ export class AgentWorkspaceController {
     })
   }
 
-  async startRun(sessionId: string, prompt: string) {
+  async startRun(
+    sessionId: string,
+    prompt: string,
+    attachmentIds: string[] = [],
+    sourceContext?: AgentSourceContext,
+  ) {
     return await this.runMutation(async () => {
       if (activeAgentRun(this.state)) throw new AgentWorkspaceControllerError('AGENT_RUN_ACTIVE')
       if (!this.state.sessions.some(({ id }) => id === sessionId)) {
@@ -158,7 +164,8 @@ export class AgentWorkspaceController {
       const run = await this.gateway.createRun(sessionId, {
         client_request_id: this.newClientRequestID(),
         prompt,
-        attachment_ids: [],
+        attachment_ids: attachmentIds,
+        source_context: sourceContext,
       })
       this.commit(replaceAgentRun(this.state, run))
       let result

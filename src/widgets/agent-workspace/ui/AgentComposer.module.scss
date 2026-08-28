@@ -29,6 +29,83 @@
   padding: 9px;
 }
 
+.source-context {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
+  gap: 6px;
+  padding: 4px 7px;
+}
+
+.source-context span,
+.attachment-copy strong,
+.attachment-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachments {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.attachment {
+  display: grid;
+  min-width: 0;
+  max-width: min(260px, 100%);
+  grid-template-columns: 26px minmax(0, 1fr) auto auto;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-subtle);
+  padding: 4px 4px 4px 6px;
+}
+
+.attachment[data-phase='failed'] {
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
+}
+
+.attachment-icon {
+  color: var(--accent);
+}
+
+.attachment-copy {
+  display: grid;
+  min-width: 0;
+  line-height: 15px;
+}
+
+.attachment-copy strong {
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.attachment-copy small {
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.attachment :global(.ant-btn) {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+.attachment-warning {
+  color: var(--danger);
+  font-size: 10px;
+}
+
 .composer-context + .composer-input {
   border-top-left-radius: 0;
 }
@@ -54,6 +131,15 @@
   align-items: center;
   justify-content: flex-end;
   gap: 7px;
+}
+
+.composer-secondary-actions {
+  display: flex;
+  flex: 1;
+}
+
+.file-input {
+  display: none;
 }
 
 .composer-actions :global(.ant-btn) {

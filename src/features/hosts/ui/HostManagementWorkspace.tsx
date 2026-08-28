@@ -12,6 +12,7 @@ import type {
   ConnectionProxyInput,
 } from '#entities/connection-proxy'
 import type { HostAccessWorkspaceGateway } from '#features/host-access'
+import type { AgentLaunchRequest } from '#entities/agent'
 import {
   createBlankHostInput,
   hostInputsEqual,
@@ -60,6 +61,7 @@ export interface HostManagementWorkspaceProps {
   onDeleteHostIcon: (id: string) => Promise<void>
   getHostIconUrl: (iconId: string) => string
   onDirtyChange?: (dirty: boolean) => void
+  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 export interface HostAccessIntent {
@@ -96,6 +98,7 @@ export function HostManagementWorkspace({
   onDeleteHostIcon,
   getHostIconUrl,
   onDirtyChange,
+  onLaunchAgent,
 }: HostManagementWorkspaceProps) {
   const { t } = useTranslation()
   const initialAsset = data.hostAssets.find((host) => host.id === selectedHostId)
@@ -340,6 +343,7 @@ export function HostManagementWorkspace({
             onManageIcons={() => setIconManagerOpen(true)}
             onDirtyChange={setAccessDirty}
             onProtectedIconIdChange={setAccessProtectedIconId}
+            onLaunchAgent={onLaunchAgent}
           />
         ) : (
           <HostEditor key={editingId ?? `new:${createWorkspaceRevision}`} data={data} editingHost={editingLegacyHost} draft={draft} dirty={legacyDirty} errors={errors} actionBusy={actionBusy} getHostIconUrl={getHostIconUrl} onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))} onBack={() => requestIntent({ type: 'back' })} onSave={() => void save()} onDelete={() => void removeCurrentHost()} onDiscard={() => setDraft(baseline)} onCreateGroup={onCreateGroup} onManageProxies={() => setProxyManagerOpen(true)} onManageIcons={() => setIconManagerOpen(true)} />

@@ -1,3 +1,5 @@
+import type { AgentAttachment, AgentSourceContext } from '#entities/agent'
+
 export type AgentWorkspaceRunStatus =
   | 'idle'
   | 'queued'
@@ -60,6 +62,18 @@ export interface AgentWorkspaceMessage {
   status: 'streaming' | 'completed' | 'failed' | 'interrupted'
   created_at: string
   parts: AgentWorkspaceMessagePart[]
+  attachments: AgentAttachment[]
+  source_context?: AgentSourceContext
+}
+
+export interface AgentWorkspaceDraftAttachment {
+  client_id: string
+  name: string
+  size_bytes: number
+  kind: 'text' | 'image'
+  phase: 'uploading' | 'ready' | 'failed' | 'deleting'
+  attachment?: AgentAttachment
+  error_code?: string
 }
 
 export interface AgentWorkspaceContextState {
@@ -95,6 +109,9 @@ export interface AgentWorkspaceProps {
   selected_model_profile_id?: string
   inspector: AgentWorkspaceInspectorState
   draft: string
+  draft_source_context?: AgentSourceContext
+  draft_attachments: AgentWorkspaceDraftAttachment[]
+  supports_images: boolean
   loading: boolean
   busy: boolean
   run_blocked: boolean
@@ -104,7 +121,11 @@ export interface AgentWorkspaceProps {
   onDeleteSession: (sessionId: string) => void
   onModelChange: (profileId: string) => void
   onDraftChange: (value: string) => void
-  onSend: (message: string) => Promise<void>
+  onAttachFiles: (files: File[]) => Promise<void>
+  onRemoveAttachment: (clientId: string) => Promise<void>
+  onRetryAttachment: (clientId: string) => Promise<void>
+  onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
+  onSend: (message: string, attachmentIds: string[], sourceContext?: AgentSourceContext) => Promise<void>
   onSteer: (message: string) => Promise<void>
   onStop: () => Promise<void>
   onApprovalBypassChange: (enabled: boolean) => Promise<void>

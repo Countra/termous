@@ -1,5 +1,6 @@
 import { Alert, Button } from 'antd'
 import {
+  Bot,
   FileKey2,
   Layers3,
   MonitorPlay,
@@ -10,6 +11,10 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { HostAsset } from '#entities/host-asset'
+import {
+  buildHostProfileAgentLaunchRequest,
+  type AgentLaunchRequest,
+} from '#entities/agent'
 import { projectFileAccessProfile } from '#entities/file-access-profile'
 import {
   AccessProfileCatalog,
@@ -49,6 +54,7 @@ interface HostAccessWorkspaceProps {
   onManageIcons: () => void
   onDirtyChange: (dirty: boolean) => void
   onProtectedIconIdChange: (iconId: string) => void
+  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 export function HostAccessWorkspace({
@@ -66,6 +72,7 @@ export function HostAccessWorkspace({
   onManageIcons,
   onDirtyChange,
   onProtectedIconIdChange,
+  onLaunchAgent,
 }: HostAccessWorkspaceProps) {
   const { t } = useTranslation()
   const [deleteHostConfirmOpen, setDeleteHostConfirmOpen] = useState(false)
@@ -241,14 +248,27 @@ export function HostAccessWorkspace({
         )}
         actions={controller.view === 'asset' && catalog ? {
           leading: (
-            <Button
-              danger
-              icon={<Trash2 size={14} />}
-              disabled={busy}
-              onClick={() => setDeleteHostConfirmOpen(true)}
-            >
-              {t('app.delete')}
-            </Button>
+            <span className={styles['host-footer-leading-actions']}>
+              {onLaunchAgent ? <Button
+                icon={<Bot size={14} />}
+                disabled={busy}
+                onClick={() => onLaunchAgent(buildHostProfileAgentLaunchRequest({
+                  hostId: host.id,
+                  title: t('agent.launch.title.host', { name: catalog.host.name }),
+                  summary: t('agent.launch.summary.host'),
+                }))}
+              >
+                {t('agent.launch.action')}
+              </Button> : null}
+              <Button
+                danger
+                icon={<Trash2 size={14} />}
+                disabled={busy}
+                onClick={() => setDeleteHostConfirmOpen(true)}
+              >
+                {t('app.delete')}
+              </Button>
+            </span>
           ),
           saveLabel: t('app.save'),
           saveIcon: <Save size={14} />,
@@ -287,6 +307,7 @@ export function HostAccessWorkspace({
           getHostIconUrl,
           onCreateGroup,
           onManageIcons,
+          onLaunchAgent,
           t,
         })}
       </HostEditorShell>
@@ -318,6 +339,7 @@ function renderOverviewBody({
   getHostIconUrl,
   onCreateGroup,
   onManageIcons,
+  onLaunchAgent,
   t,
 }: {
   controller: ReturnType<typeof useHostAccessWorkspaceController>
@@ -328,6 +350,7 @@ function renderOverviewBody({
   getHostIconUrl: (iconId: string) => string
   onCreateGroup: (name: string) => Promise<{ id: string; name: string }>
   onManageIcons: () => void
+  onLaunchAgent?: (intent: AgentLaunchRequest) => void
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
   if (controller.loading && !catalog) {
@@ -386,6 +409,15 @@ function renderOverviewBody({
       onEditRemoteDesktop={(profile) => controller.requestEditor({ kind: 'remote_desktop', mode: 'edit', profileId: profile.id })}
       onDeleteRemoteDesktop={(profile) => controller.setDeleteTarget({ kind: 'remote_desktop', profileId: profile.id })}
       onSetDefaultRemoteDesktop={(profile) => void controller.setDefaultProfile('remote_desktop', profile.id)}
+      onLaunchAgent={onLaunchAgent ? (profileKind, profileId, profileName, technology) => (
+        onLaunchAgent(buildHostProfileAgentLaunchRequest({
+          hostId: catalog.host.id,
+          profileKind,
+          profileId,
+          title: t('agent.launch.title.profile', { name: profileName }),
+          summary: t('agent.launch.summary.profile', { technology }),
+        }))
+      ) : undefined}
     />
   )
 }

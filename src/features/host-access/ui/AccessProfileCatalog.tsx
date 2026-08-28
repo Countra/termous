@@ -1,5 +1,6 @@
 import { Button, Tooltip } from 'antd'
 import {
+  Bot,
   CircleCheck,
   FileKey2,
   FolderSync,
@@ -42,6 +43,12 @@ interface AccessProfileCatalogProps {
   onEditRemoteDesktop: (profile: RemoteDesktopAccessProfile) => void
   onDeleteRemoteDesktop: (profile: RemoteDesktopAccessProfile) => void
   onSetDefaultRemoteDesktop: (profile: RemoteDesktopAccessProfile) => void
+  onLaunchAgent?: (
+    kind: 'ssh' | 'file' | 'remote_desktop',
+    profileId: string,
+    profileName: string,
+    technology: string,
+  ) => void
 }
 
 export function AccessProfileCatalog({
@@ -61,6 +68,7 @@ export function AccessProfileCatalog({
   onEditRemoteDesktop,
   onDeleteRemoteDesktop,
   onSetDefaultRemoteDesktop,
+  onLaunchAgent,
 }: AccessProfileCatalogProps) {
   const { t } = useTranslation()
   const sshById = new Map(catalog.ssh.map((profile) => [profile.id, profile]))
@@ -112,6 +120,9 @@ export function AccessProfileCatalog({
             onEdit={() => onEditSSH(profile)}
             onDelete={() => onDeleteSSH(profile)}
             onSetDefault={() => onSetDefaultSSH(profile)}
+            onLaunchAgent={onLaunchAgent
+              ? () => onLaunchAgent('ssh', profile.id, profile.name, 'SSH')
+              : undefined}
           />
         ))}
       </AccessProfileSection>
@@ -138,6 +149,9 @@ export function AccessProfileCatalog({
               busy={busy}
               onEdit={() => onEditFile(profile)}
               onSetDefault={() => onSetDefaultFile(profile)}
+              onLaunchAgent={onLaunchAgent
+                ? () => onLaunchAgent('file', profile.id, profile.name, projection.technology.label)
+                : undefined}
             />
           )
         })}
@@ -173,6 +187,14 @@ export function AccessProfileCatalog({
               onEdit={() => onEditRemoteDesktop(profile)}
               onDelete={() => onDeleteRemoteDesktop(profile)}
               onSetDefault={() => onSetDefaultRemoteDesktop(profile)}
+              onLaunchAgent={onLaunchAgent
+                ? () => onLaunchAgent(
+                    'remote_desktop',
+                    profile.id,
+                    profile.name,
+                    projection.technology.label,
+                  )
+                : undefined}
             />
           )
         })}
@@ -239,6 +261,7 @@ function AccessProfileRow({
   onEdit,
   onDelete,
   onSetDefault,
+  onLaunchAgent,
   reachability,
   showReachability = false,
 }: {
@@ -251,6 +274,7 @@ function AccessProfileRow({
   onEdit: () => void
   onDelete?: () => void
   onSetDefault: () => void
+  onLaunchAgent?: () => void
   reachability?: HostReachability
   showReachability?: boolean
 }) {
@@ -272,6 +296,16 @@ function AccessProfileRow({
           {showReachability ? <ProfileReachability state={reachability} /> : null}
         </span>
         <span className={styles['row-actions']}>
+          {onLaunchAgent ? <Tooltip title={t('agent.launch.action')}>
+            <Button
+              type="text"
+              size="small"
+              icon={<Bot size={14} />}
+              aria-label={`${t('agent.launch.action')} ${name}`}
+              disabled={busy}
+              onClick={onLaunchAgent}
+            />
+          </Tooltip> : null}
           {!isDefault ? (
             <Tooltip title={setDefaultLabel}>
               <Button

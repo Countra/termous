@@ -62,6 +62,12 @@ import type {
   TrayMenuState,
 } from '#common/contracts'
 import type { CodeSnippet, CodeSnippetGroup, CodeSnippetInput } from '#entities/snippet'
+import {
+  assignAgentLaunchIntentKey,
+  buildForwardFailureAgentLaunchRequest,
+  type AgentLaunchIntent,
+  type AgentLaunchRequest,
+} from '#entities/agent'
 import type { ConnectionProxy, ConnectionProxyInput } from '#entities/connection-proxy'
 import type { CredentialInput, CredentialView } from '#entities/credential'
 import type { ForwardEvent } from '#entities/forward'
@@ -242,6 +248,9 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [forwardTemporaryIntent, setForwardTemporaryIntent] =
     useState<ForwardTemporaryIntent | null>(null)
   const nextForwardTemporaryIntentKeyRef = useRef(0)
+  const [agentLaunchIntent, setAgentLaunchIntent] = useState<AgentLaunchIntent | null>(null)
+  const nextAgentLaunchIntentKeyRef = useRef(0)
+  const agentLaunchPendingRef = useRef(false)
   const [actionBusy, setActionBusy] = useState(false)
   const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
   const [activeRemoteDesktopCount, setActiveRemoteDesktopCount] = useState(0)
@@ -255,9 +264,17 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     setFilesBookmarkManagementIntent(null)
   }, [])
 
+  const clearAgentLaunchIntent = useCallback(() => {
+    agentLaunchPendingRef.current = false
+    setAgentLaunchIntent(null)
+  }, [])
+
   const navigateToPage = useCallback((nextPage: PageKey) => {
     if (nextPage === page) {
       return
+    }
+    if (nextPage !== 'agent') {
+      clearAgentLaunchIntent()
     }
     if ((page === 'vault' && vaultDirty) || (page === 'hosts' && hostsDirty)) {
       setPendingPage(nextPage)
@@ -265,7 +282,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     }
     invalidateFilesBookmarkManagementRequest()
     setPage(nextPage)
-  }, [hostsDirty, invalidateFilesBookmarkManagementRequest, page, vaultDirty])
+  }, [clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, vaultDirty])
+
+  const launchAgent = useCallback((request: AgentLaunchRequest) => {
+    if (agentLaunchPendingRef.current) return
+    agentLaunchPendingRef.current = true
+    nextAgentLaunchIntentKeyRef.current += 1
+    setAgentLaunchIntent(assignAgentLaunchIntentKey(
+      request,
+      nextAgentLaunchIntentKeyRef.current,
+    ))
+    navigateToPage('agent')
+  }, [navigateToPage])
 
   useEffect(() => {
     if (page !== 'files') {
@@ -301,8 +329,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     if (!forwardErrorEvent) {
       return
     }
-    notifyForwardError(forwardErrorEvent, notification, t, notifiedForwardFailuresRef, notifiedForwardRuntimeErrorsRef)
-  }, [forwardErrorEvent, notification, t])
+    notifyForwardError(
+      forwardErrorEvent,
+      notification,
+      t,
+      notifiedForwardFailuresRef,
+      notifiedForwardRuntimeErrorsRef,
+      launchAgent,
+    )
+  }, [forwardErrorEvent, launchAgent, notification, t])
 
   const selectedLegacyHostIdStable = useMemo(() => {
     if (data.hosts.some((host) => host.id === selectedHostId)) {
@@ -1134,6 +1169,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onStartForward={(input) => actions.startForward(input)}
                           onRestartForward={restartForward}
                           onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
+                          onLaunchAgent={launchAgent}
                         />
                       </div>
 
@@ -1146,6 +1182,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           setupGateway={gateways.agentSetup}
                           enabled={apiReady && !coreFatal}
                           active={page === 'agent'}
+                          launchIntent={agentLaunchIntent}
+                          onLaunchIntentHandled={(key) => {
+                            if (agentLaunchIntent?.key === key) {
+                              clearAgentLaunchIntent()
+                            }
+                          }}
                         />
                       </div>
 
@@ -1187,6 +1229,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onDeleteHostIcon={deleteHostIcon}
                           getHostIconUrl={getHostIconUrl}
                           onDirtyChange={setHostsDirty}
+                          onLaunchAgent={launchAgent}
                         />
                       ) : null}
 
@@ -1243,6 +1286,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onUpdateLocalPathMapping={actions.updateLocalPathMapping}
                           onDeleteLocalPathMapping={actions.deleteLocalPathMapping}
                           onReorderLocalPathMappings={actions.reorderLocalPathMappings}
+                          onLaunchAgent={launchAgent}
                         />
                       ) : null}
 
@@ -1258,6 +1302,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onStartForward={(input) => actions.startForward(input)}
                           onRestartForward={restartForward}
                           onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
+                          onLaunchAgent={launchAgent}
                         />
                       ) : null}
 
@@ -1351,7 +1396,12 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         confirmLabel={t(page === 'hosts' ? 'hosts.discardAndContinue' : 'vault.discardAndContinue')}
         cancelLabel={t('app.cancel')}
         danger
-        onCancel={() => setPendingPage(null)}
+        onCancel={() => {
+          if (pendingPage === 'agent') {
+            clearAgentLaunchIntent()
+          }
+          setPendingPage(null)
+        }}
         onConfirm={() => {
           const nextPage = pendingPage
           setPendingPage(null)
@@ -1441,6 +1491,7 @@ function notifyForwardError(
   t: (key: string, options?: Record<string, unknown>) => string,
   failedRef: React.MutableRefObject<Set<string>>,
   runtimeRef: React.MutableRefObject<Map<string, string>>,
+  onLaunchAgent: (intent: AgentLaunchRequest) => void,
 ) {
   if (event.forward.status !== 'failed') {
     failedRef.current.delete(event.forward.id)
@@ -1470,6 +1521,27 @@ function notifyForwardError(
       duration: 6,
       role: 'alert',
       className: termousNotificationClassName,
+      actions: (
+        <Button
+          type="text"
+          size="small"
+          onClick={() => onLaunchAgent(buildForwardFailureAgentLaunchRequest({
+            hostId: event.forward.host_id,
+            forwardId: event.forward.id,
+            forwardProfileId: event.forward.profile_id,
+            status: event.forward.status,
+            title: t('agent.launch.title.forwardFailure', {
+              name: event.forward.name || t(`forwards.modeName.${event.forward.mode}`),
+            }),
+            summary: t('agent.launch.summary.forwardFailure', {
+              status: t(`forwards.status.${event.forward.status}`),
+              phase: t(`forwards.phaseName.${event.forward.phase}`),
+            }),
+          }))}
+        >
+          {t('agent.launch.action')}
+        </Button>
+      ),
     })
   }
 }

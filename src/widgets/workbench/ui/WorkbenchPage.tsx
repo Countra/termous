@@ -33,6 +33,7 @@ import type { CodeSnippet } from '#entities/snippet'
 import type { ForwardInstance, ForwardStartRequest } from '#entities/forward'
 import type { Host } from '#entities/host'
 import type { Session } from '#entities/session'
+import type { AgentLaunchRequest } from '#entities/agent'
 import type {
   FileBookmark,
   FileBookmarkInput,
@@ -178,6 +179,7 @@ export interface WorkbenchPageProps {
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
   onRestartForward: (id: string) => Promise<void>
   onStopForward: (id: string) => Promise<void>
+  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 export function WorkbenchPage({
@@ -218,6 +220,7 @@ export function WorkbenchPage({
   onStartForward,
   onRestartForward,
   onStopForward,
+  onLaunchAgent,
 }: WorkbenchPageProps) {
   const { t } = useTranslation()
   const { modal, notification } = AntdApp.useApp()
@@ -1415,6 +1418,7 @@ export function WorkbenchPage({
                 onOpenFiles={onOpenFiles}
                 onReconnect={reconnectActiveSession}
                 onClose={closeSessionTab}
+                onLaunchAgent={onLaunchAgent}
               />
           ),
           files: (
@@ -1498,6 +1502,7 @@ export function WorkbenchPage({
                 onStartForward={onStartForward}
                 onRestartForward={onRestartForward}
                 onStopForward={onStopForward}
+                onLaunchAgent={onLaunchAgent}
               />
           ),
           aliases: (

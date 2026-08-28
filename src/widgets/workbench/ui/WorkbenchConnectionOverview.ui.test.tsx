@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Host } from '#entities/host'
@@ -10,7 +10,15 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('antd', () => ({
-  Button: ({ children }: { children?: ReactNode }) => <button type="button">{children}</button>,
+  Button: ({
+    children,
+    disabled,
+    onClick,
+  }: {
+    children?: ReactNode
+    disabled?: boolean
+    onClick?: () => void
+  }) => <button type="button" disabled={disabled} onClick={onClick}>{children}</button>,
 }))
 
 vi.mock('#entities/host', () => ({ HostAvatar: () => null }))
@@ -51,6 +59,41 @@ describe('工作台连接详情', () => {
     expect(screen.getByText('profile-user@profile.example.com:2202')).toBeInTheDocument()
     expect(screen.getByText('profile.example.com:2202')).toBeInTheDocument()
     expect(screen.queryByText('legacy-user@legacy.example.com:22')).not.toBeInTheDocument()
+  })
+
+  it('交给 Agent 时只投影主机、Profile 与连接状态', () => {
+    const onLaunchAgent = vi.fn()
+    render(
+      <WorkbenchConnectionOverview
+        data={{
+          hosts: [legacyHost()],
+          groups: [],
+          proxies: [],
+          credentials: [],
+          sshAccessProfiles: [profile()],
+        }}
+        session={session()}
+        actionBusy={false}
+        sessionClosing={false}
+        sessionBadgeStatus="connected"
+        sessionStatusLabel="connected"
+        sessionStateLabel="ready"
+        getHostIconUrl={() => ''}
+        onOpenFiles={async () => undefined}
+        onReconnect={async () => undefined}
+        onClose={async () => true}
+        onLaunchAgent={onLaunchAgent}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.launch.action' }))
+    expect(onLaunchAgent).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'workbench',
+      host_id: 'host-a',
+      ssh_profile_id: 'ssh-profile-a',
+      connection_status: 'connected',
+    }))
+    expect(onLaunchAgent.mock.calls[0]?.[0]).not.toHaveProperty('session_id')
   })
 })
 

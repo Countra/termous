@@ -26,7 +26,7 @@ describe('AgentWorkspace', () => {
     expect(screen.getByText('agent.tool.status.completed')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'agent.composer.send' }))
-    expect(props.onSend).toHaveBeenCalledWith('hello')
+    expect(props.onSend).toHaveBeenCalledWith('hello', [], undefined)
 
     view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
       draft: 'adjust',
@@ -87,6 +87,65 @@ describe('AgentWorkspace', () => {
     await user.click(sessionButton)
     expect(await screen.findAllByText('agent.sessions.new')).not.toHaveLength(0)
   })
+
+  it('模型不支持图片时阻止提交，并在忙碌期间锁定附件操作', () => {
+    const props = fixtureProps({
+      draft: '检查图片',
+      supports_images: false,
+      busy: true,
+      draft_attachments: [{
+        client_id: 'draft-image',
+        name: 'screen.png',
+        size_bytes: 128,
+        kind: 'image',
+        phase: 'ready',
+        attachment: attachment({ kind: 'image', original_name: 'screen.png', mime_type: 'image/png' }),
+      }],
+    })
+    renderWorkspace(props)
+
+    expect(screen.getByText('agent.attachments.imageModelUnsupported')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.attachments.previewName' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.attachments.removeName' })).toBeDisabled()
+  })
+
+  it('不限制 UTF-8 代码扩展名，并在附件删除期间锁定发送与重复删除', () => {
+    const view = renderWorkspace(fixtureProps({
+      draft: '检查配置',
+      draft_attachments: [{
+        client_id: 'draft-text',
+        name: 'service.conf',
+        size_bytes: 128,
+        kind: 'text',
+        phase: 'deleting',
+        attachment: attachment({ original_name: 'service.conf' }),
+      }],
+    }))
+
+    expect(view.container.querySelector('input[type="file"]')).not.toHaveAttribute('accept')
+    expect(screen.getByText('agent.attachments.deleting')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.attachments.removeName' })).toBeDisabled()
+  })
+
+  it('通过受鉴权的 Blob 加载器预览历史文本附件', async () => {
+    const user = userEvent.setup()
+    const onLoadAttachmentContent = vi.fn(async () => new Blob(['preview contents'], { type: 'text/plain' }))
+    const props = fixtureProps({
+      messages: [{
+        id: 'message-attachment', role: 'user', status: 'completed', created_at: '2026-08-29T08:00:00Z',
+        parts: [{ id: 'text', kind: 'text', text: '请检查' }],
+        attachments: [attachment()],
+      }],
+      onLoadAttachmentContent,
+    })
+    renderWorkspace(props)
+
+    await user.click(screen.getByRole('button', { name: 'diagnostic.txt' }))
+    expect(await screen.findByText('preview contents')).toBeInTheDocument()
+    expect(onLoadAttachmentContent).toHaveBeenCalledWith(expect.objectContaining({ id: 'attachment-one' }), expect.any(AbortSignal))
+  })
 })
 
 function renderWorkspace(props: AgentWorkspaceProps) {
@@ -107,6 +166,7 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
         { id: 'tool-1', kind: 'tool', name: 'mcp.tool', status: 'completed', duration_ms: 24, detail: '{}' },
         { id: 'text-1', kind: 'text', text: 'done' },
       ],
+      attachments: [],
     }],
     models: [{ id: 'model-1', name: 'Local model', supports_reasoning: true }],
     selected_model_profile_id: 'model-1',
@@ -115,9 +175,11 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
       skills: [],
       mcp: { connected: true, tool_count: 76, scope_count: 29, approval_bypass: false },
     },
-    draft: '', loading: false, busy: false, run_blocked: false,
+    draft: '', draft_attachments: [], supports_images: false, loading: false, busy: false, run_blocked: false,
     onCreateSession: vi.fn(), onSelectSession: vi.fn(), onArchiveSession: vi.fn(), onDeleteSession: vi.fn(),
     onModelChange: vi.fn(), onDraftChange: vi.fn(), onSend: vi.fn(async () => undefined),
+    onAttachFiles: vi.fn(async () => undefined), onRemoveAttachment: vi.fn(async () => undefined),
+    onRetryAttachment: vi.fn(async () => undefined), onLoadAttachmentContent: vi.fn(async () => new Blob()),
     onSteer: vi.fn(async () => undefined), onStop: vi.fn(async () => undefined),
     onApprovalBypassChange: vi.fn(async () => undefined),
     ...overrides,
@@ -138,4 +200,20 @@ function setViewport(inspector: boolean, sessions: boolean) {
       dispatchEvent: () => false,
     }),
   })
+}
+
+function attachment(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'attachment-one',
+    session_id: 'session-1',
+    original_name: 'diagnostic.txt',
+    mime_type: 'text/plain',
+    kind: 'text' as const,
+    size_bytes: 16,
+    state: 'bound' as const,
+    revision: 1,
+    created_at: '2026-08-29T08:00:00Z',
+    updated_at: '2026-08-29T08:00:00Z',
+    ...overrides,
+  }
 }

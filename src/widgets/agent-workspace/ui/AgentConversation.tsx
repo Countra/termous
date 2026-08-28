@@ -1,7 +1,8 @@
-import { BrainCircuit, CircleAlert, LoaderCircle, MessageSquareText } from 'lucide-react'
+import { BrainCircuit, CircleAlert, FileCode2, Image, LoaderCircle, MessageSquareText, Waypoints } from 'lucide-react'
 import { useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AgentWorkspaceMessage, AgentWorkspaceRunStatus } from '../model/types.ts'
+import type { AgentAttachment } from '#entities/agent'
 import { AgentMarkdown } from './AgentMarkdown.tsx'
 import { AgentToolTimeline } from './AgentToolTimeline.tsx'
 import styles from './AgentConversation.module.scss'
@@ -11,11 +12,13 @@ export function AgentConversation({
   runStatus,
   loading,
   sessionKey,
+  onPreviewAttachment = () => undefined,
 }: {
   messages: AgentWorkspaceMessage[]
   runStatus: AgentWorkspaceRunStatus
   loading: boolean
   sessionKey: string
+  onPreviewAttachment?: (attachment: AgentAttachment) => void
 }) {
   const { t } = useTranslation()
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -66,6 +69,9 @@ export function AgentConversation({
               <time dateTime={message.created_at}>{formatTime(message.created_at)}</time>
             </header>
             <div className={styles['message-content']}>
+              {message.source_context ? (
+                <div className={styles['message-source']}><Waypoints size={12} />{message.source_context.title}</div>
+              ) : null}
               {message.parts.map((part) => {
                 if (part.kind === 'text') return <AgentMarkdown key={part.id}>{part.text}</AgentMarkdown>
                 if (part.kind === 'tool') return <AgentToolTimeline key={part.id} tool={part} />
@@ -77,6 +83,16 @@ export function AgentConversation({
                   </details>
                 )
               })}
+              {message.attachments.length > 0 ? (
+                <div className={styles['message-attachments']}>
+                  {message.attachments.map((attachment) => (
+                    <button key={attachment.id} type="button" onClick={() => onPreviewAttachment(attachment)}>
+                      {attachment.kind === 'image' ? <Image size={13} /> : <FileCode2 size={13} />}
+                      <span>{attachment.original_name}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               {message.status === 'streaming' && message.parts.length === 0 ? (
                 <span className={styles['streaming-state']}><LoaderCircle size={14} />{t('agent.status.running')}</span>
               ) : null}

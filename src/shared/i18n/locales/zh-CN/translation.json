@@ -87,6 +87,29 @@
       "title": "开始一个 Agent 会话",
       "description": "描述你希望完成的目标。Agent 会在已授权范围内通过 MCP 调用 Termous 能力。"
     },
+    "launch": {
+      "action": "交给 Agent",
+      "title": {
+        "workbench": "处理 {{name}} 的终端连接",
+        "files": "处理 {{name}} 的文件连接",
+        "host": "处理主机 {{name}}",
+        "profile": "处理访问配置 {{name}}",
+        "forwardFailure": "排查端口转发 {{name}}"
+      },
+      "summary": {
+        "workbench": "SSH 连接状态：{{status}}",
+        "files": "文件连接状态：{{status}}",
+        "host": "来源：主机管理",
+        "profile": "访问类型：{{technology}}",
+        "forwardFailure": "转发状态：{{status}}；阶段：{{phase}}"
+      },
+      "prompt": {
+        "workbench": "请检查这个终端连接，并协助我处理当前问题。",
+        "files": "请检查这个文件连接，并协助我处理当前问题。",
+        "host_profile": "请检查这个主机或访问配置，并协助我处理当前问题。",
+        "forward_failure": "请分析这次端口转发失败，并给出处理方案。"
+      }
+    },
     "message": {
       "you": "你",
       "agent": "Agent",
@@ -114,6 +137,38 @@
       "send": "发送",
       "steer": "追加",
       "stop": "停止任务"
+    },
+    "attachments": {
+      "title": "附件",
+      "add": "添加附件",
+      "failed": "附件操作未完成",
+      "uploading": "正在上传",
+      "deleting": "正在移除",
+      "cancel": "取消上传",
+      "preview": "预览附件",
+      "previewName": "预览 {{name}}",
+      "previewFailed": "无法加载附件预览",
+      "retryName": "重新上传 {{name}}",
+      "removeName": "移除 {{name}}",
+      "size": "{{size}}",
+      "imageModelUnsupported": "当前模型不支持图片，请移除图片或切换模型后发送。",
+      "error": {
+        "AGENT_ATTACHMENT_LIMIT_COUNT": "每条消息最多添加 8 个附件。",
+        "AGENT_ATTACHMENT_LIMIT_TEXT": "单个文本附件不能超过 256 KiB。",
+        "AGENT_ATTACHMENT_LIMIT_TEXT_TOTAL": "文本附件合计不能超过 512 KiB。",
+        "AGENT_ATTACHMENT_LIMIT_IMAGE": "单张图片不能超过 10 MiB。",
+        "AGENT_ATTACHMENT_LIMIT_IMAGE_TOTAL": "图片附件合计不能超过 20 MiB。",
+        "AGENT_ATTACHMENT_IMAGE_SIGNATURE": "图片格式与文件内容不一致，仅支持 PNG、JPEG 和 WebP。",
+        "AGENT_ATTACHMENT_TEXT_ENCODING": "文本附件必须是有效 UTF-8，且不能包含 NUL 字符。",
+        "AGENT_ATTACHMENT_DELETE_FAILED": "附件未能删除，请稍后重试。",
+        "AGENT_ATTACHMENT_LIMIT": "附件数量或大小已超过限制。",
+        "AGENT_ATTACHMENT_CONFLICT": "附件状态已变化，请刷新后重试。",
+        "AGENT_ATTACHMENT_CONTENT_INVALID": "附件内容无效或格式不受支持。",
+        "AGENT_ATTACHMENT_NOT_FOUND": "附件已不存在。",
+        "NETWORK_ERROR": "无法连接本地 Core，请稍后重试。",
+        "REQUEST_TIMEOUT": "附件操作超时，请稍后重试。",
+        "unknown": "附件操作失败，请稍后重试。"
+      }
     },
     "inspector": {
       "title": "运行检查器",

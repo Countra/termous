@@ -5,6 +5,10 @@ import { useTranslation } from 'react-i18next'
 import { ConnectionActionButton, StatusBadge, WorkspaceEmptyState, termousNotificationClassName } from '#shared/ui'
 import type { ForwardInstance, ForwardMode, ForwardStartRequest } from '#entities/forward'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
+import {
+  buildForwardFailureAgentLaunchRequest,
+  type AgentLaunchRequest,
+} from '#entities/agent'
 import type { ForwardSessionContext } from '../model/types'
 import { ForwardEditorFields } from './ForwardEditorFields'
 import { ForwardModeBadge, ForwardModeSelector } from './ForwardModeSelector'
@@ -28,6 +32,7 @@ export interface ForwardSessionPanelProps {
   onStartForward: (input: ForwardStartRequest) => Promise<ForwardInstance>
   onRestartForward: (id: string) => Promise<void>
   onStopForward: (id: string) => Promise<void>
+  onLaunchAgent?: (intent: AgentLaunchRequest) => void
 }
 
 interface SessionForwardForm {
@@ -65,6 +70,7 @@ export function ForwardSessionPanel({
   onStartForward,
   onRestartForward,
   onStopForward,
+  onLaunchAgent,
 }: ForwardSessionPanelProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
@@ -236,6 +242,19 @@ export function ForwardSessionPanel({
               actionBusy={actionBusy}
               onRestart={() => onRestartForward(forward.id)}
               onStop={() => onStopForward(forward.id)}
+              onLaunchAgent={onLaunchAgent ? () => onLaunchAgent(buildForwardFailureAgentLaunchRequest({
+                hostId: forward.host_id,
+                forwardId: forward.id,
+                forwardProfileId: forward.profile_id,
+                status: forward.status,
+                title: t('agent.launch.title.forwardFailure', {
+                  name: forward.name || t(`forwards.modeName.${forward.mode}`),
+                }),
+                summary: t('agent.launch.summary.forwardFailure', {
+                  status: t(`forwards.status.${forward.status}`),
+                  phase: t(`forwards.phaseName.${forward.phase}`),
+                }),
+              })) : undefined}
             />
           ))
         )}
@@ -250,12 +269,14 @@ function SessionForwardRow({
   actionBusy,
   onRestart,
   onStop,
+  onLaunchAgent,
 }: {
   forward: ForwardInstance
   enabled: boolean
   actionBusy: boolean
   onRestart: () => Promise<void>
   onStop: () => Promise<void>
+  onLaunchAgent?: () => void
 }) {
   const { t } = useTranslation()
   const status = forward.status === 'running' ? 'connected' : forward.status === 'failed' ? 'failed' : forward.status === 'stopped' ? 'disconnected' : 'connecting'
@@ -274,6 +295,7 @@ function SessionForwardRow({
             disabled={actionBusy}
             onRestart={onRestart}
             onStop={onStop}
+            onLaunchAgent={onLaunchAgent}
           />
         </div>
       </div>

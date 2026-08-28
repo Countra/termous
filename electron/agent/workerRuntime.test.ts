@@ -330,6 +330,7 @@ function runtimeBootstrap(): RuntimeBootstrap {
       status: 'completed',
       sequence: 1,
       created_at: '2026-08-28T00:00:00Z',
+      attachments: [],
       parts: [{
         id: 'agp_user',
         message_id: 'agm_user',

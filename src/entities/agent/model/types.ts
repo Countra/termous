@@ -108,6 +108,71 @@ export type AgentMessageStatus = (typeof agentMessageStatuses)[number]
 export const agentMessagePartKinds = ['text', 'reasoning', 'tool_call', 'tool_result'] as const
 export type AgentMessagePartKind = (typeof agentMessagePartKinds)[number]
 
+export const agentAttachmentStates = ['pending', 'ready', 'bound'] as const
+export type AgentAttachmentState = (typeof agentAttachmentStates)[number]
+
+export interface AgentAttachment {
+  id: string
+  session_id: string
+  original_name: string
+  mime_type: string
+  kind: 'text' | 'image'
+  size_bytes: number
+  state: AgentAttachmentState
+  expires_at?: string
+  revision: number
+  created_at: string
+  updated_at: string
+}
+
+export const agentSourceContextKinds = ['workbench', 'files', 'host_profile', 'forward_failure'] as const
+export type AgentSourceContextKind = (typeof agentSourceContextKinds)[number]
+
+export interface AgentSourceContext {
+  kind: AgentSourceContextKind
+  entity_id: string
+  title: string
+  summary: string
+}
+
+export type AgentLaunchIntent = {
+  key: number
+  source_context: AgentSourceContext
+} & (
+  | {
+      source: 'workbench'
+      host_id: string
+      ssh_profile_id?: string
+      connection_status: string
+    }
+  | {
+      source: 'files'
+      host_id: string
+      file_access_profile_id?: string
+      connection_status: string
+    }
+  | {
+      source: 'host_profile'
+      host_id: string
+      profile_kind?: 'ssh' | 'file' | 'remote_desktop'
+      profile_id?: string
+    }
+  | {
+      source: 'forward_failure'
+      host_id?: string
+      forward_id: string
+      forward_profile_id?: string
+      status: string
+      error_code?: string
+    }
+)
+
+export type AgentLaunchRequest = AgentLaunchIntent extends infer Intent
+  ? Intent extends { key: number }
+    ? Omit<Intent, 'key'>
+    : never
+  : never
+
 export type AgentJsonValue =
   | null
   | boolean
@@ -164,7 +229,7 @@ export type AgentMessagePart = {
   created_at: string
   updated_at: string
 } & (
-  | { kind: 'text'; text: string }
+  | { kind: 'text'; text: string; source_context?: AgentSourceContext }
   | { kind: 'reasoning'; text: string }
   | { kind: 'tool_call'; tool_call: AgentToolCallPart }
   | { kind: 'tool_result'; tool_result: AgentToolResultPart }
@@ -180,6 +245,7 @@ export interface AgentMessage {
   created_at: string
   updated_at: string
   parts: AgentMessagePart[]
+  attachments: AgentAttachment[]
 }
 
 export interface AgentMessagePage {

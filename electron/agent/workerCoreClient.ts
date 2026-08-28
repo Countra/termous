@@ -1,8 +1,13 @@
 import type { AgentWorkerStartMessage } from './protocol.ts'
 import { isRecord, validGeneration } from './protocol.ts'
+import {
+  isRuntimeMessageAttachmentList,
+  type RuntimeMessageAttachment,
+} from './runtimeAttachmentPolicy.ts'
 
 const bootstrapPath = '/api/v1/agent/runtime/bootstrap'
-const runtimeRequestTimeoutMs = 15_000
+export const agentRuntimeRequestTimeoutMs = 15_000
+export const agentRuntimeBootstrapRequestTimeoutMs = 60_000
 
 export type AgentRunStatus =
   | 'queued'
@@ -40,6 +45,7 @@ export interface RuntimeMessageView {
   sequence: number
   created_at: string
   parts: RuntimeMessagePart[]
+  attachments: RuntimeMessageAttachment[]
 }
 
 export interface RuntimeBootstrap {
@@ -111,15 +117,19 @@ export interface WorkerCoreClientPort {
 export interface WorkerCoreClientOptions {
   fetch?: typeof globalThis.fetch
   requestTimeoutMs?: number
+  bootstrapRequestTimeoutMs?: number
 }
 
 export class WorkerCoreClient implements WorkerCoreClientPort {
   private readonly fetchImplementation: typeof globalThis.fetch
   private readonly requestTimeoutMs: number
+  private readonly bootstrapRequestTimeoutMs: number
 
   constructor(options: WorkerCoreClientOptions = {}) {
     this.fetchImplementation = options.fetch ?? globalThis.fetch
-    this.requestTimeoutMs = options.requestTimeoutMs ?? runtimeRequestTimeoutMs
+    this.requestTimeoutMs = options.requestTimeoutMs ?? agentRuntimeRequestTimeoutMs
+    this.bootstrapRequestTimeoutMs = options.bootstrapRequestTimeoutMs
+      ?? agentRuntimeBootstrapRequestTimeoutMs
   }
 
   async bootstrap(start: AgentWorkerStartMessage, signal?: AbortSignal) {
@@ -132,6 +142,7 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
       },
       undefined,
       signal,
+      this.bootstrapRequestTimeoutMs,
     )
     if (!isRuntimeBootstrap(value, start)) {
       throw new WorkerCoreError('AGENT_RUNTIME_BOOTSTRAP_INVALID')
@@ -202,6 +213,7 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     init: RequestInit,
     bearer?: string,
     signal?: AbortSignal,
+    timeoutMs = this.requestTimeoutMs,
   ) {
     const baseURL = validateCoreBaseURL(coreBaseURL)
     const controller = new AbortController()
@@ -211,7 +223,7 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     } else {
       signal?.addEventListener('abort', forwardAbort, { once: true })
     }
-    const timer = setTimeout(() => controller.abort(), this.requestTimeoutMs)
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
     timer.unref?.()
     try {
       const response = await this.fetchImplementation(new URL(pathname, baseURL), {
@@ -320,6 +332,7 @@ function isRuntimeMessageView(value: unknown): value is RuntimeMessageView {
     && typeof value.created_at === 'string'
     && Array.isArray(value.parts)
     && value.parts.every(isRuntimeMessagePart)
+    && isRuntimeMessageAttachmentList(value.attachments)
 }
 
 function isRuntimeMessagePart(value: unknown): value is RuntimeMessagePart {

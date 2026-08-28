@@ -1,5 +1,6 @@
 export {
   AgentRuntimeProtocolError,
+  decodeAgentAttachment,
   decodeAgentMessage,
   decodeAgentMessagePage,
   decodeAgentMessagePart,
@@ -8,6 +9,7 @@ export {
   decodeAgentRunEventPage,
   decodeAgentSession,
   decodeAgentSessionPage,
+  decodeAgentSourceContext,
   decodeAgentWorkspaceEvent,
   type AgentWorkspaceEvent,
 } from './agentRuntimeProtocol.ts'
@@ -27,3 +29,15 @@ export {
   type AgentWorkspacePhase,
   type AgentWorkspaceState,
 } from './agentWorkspaceState.ts'
+export {
+  AgentAttachmentSelectionError,
+  agentAttachmentLimits,
+  isAgentImageAttachment,
+  validateAgentAttachmentSelection,
+  type AgentAttachmentKind,
+  type AgentAttachmentSelection,
+} from './agentAttachmentPolicy.ts'
+export {
+  useAgentDraftAttachments,
+  type AgentDraftAttachmentRecord,
+} from './useAgentDraftAttachments.ts'

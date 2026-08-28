@@ -1,5 +1,7 @@
 export {
   agentApiModes,
+  agentAttachmentStates,
+  agentSourceContextKinds,
   agentMessagePartKinds,
   agentMessageRoles,
   agentMessageStatuses,
@@ -11,6 +13,12 @@ export {
   isAgentRunActive,
   isAgentRunTerminal,
   type AgentApiMode,
+  type AgentAttachment,
+  type AgentAttachmentState,
+  type AgentLaunchIntent,
+  type AgentLaunchRequest,
+  type AgentSourceContext,
+  type AgentSourceContextKind,
   type AgentJsonValue,
   type AgentMcpPolicy,
   type AgentMessage,
@@ -45,3 +53,10 @@ export {
   type AgentToolResultPart,
   type AgentUsage,
 } from './model/types.ts'
+export {
+  assignAgentLaunchIntentKey,
+  buildFilesAgentLaunchRequest,
+  buildForwardFailureAgentLaunchRequest,
+  buildHostProfileAgentLaunchRequest,
+  buildWorkbenchAgentLaunchRequest,
+} from './model/agentLaunchIntent.ts'

@@ -87,6 +87,29 @@
       "title": "Start an Agent session",
       "description": "Describe the outcome you need. The Agent uses Termous capabilities through MCP within the scopes you have granted."
     },
+    "launch": {
+      "action": "Ask Agent",
+      "title": {
+        "workbench": "Handle the terminal connection for {{name}}",
+        "files": "Handle the file connection for {{name}}",
+        "host": "Handle host {{name}}",
+        "profile": "Handle access profile {{name}}",
+        "forwardFailure": "Investigate port forward {{name}}"
+      },
+      "summary": {
+        "workbench": "SSH connection status: {{status}}",
+        "files": "File connection status: {{status}}",
+        "host": "Source: host management",
+        "profile": "Access type: {{technology}}",
+        "forwardFailure": "Forward status: {{status}}; phase: {{phase}}"
+      },
+      "prompt": {
+        "workbench": "Inspect this terminal connection and help me handle the current issue.",
+        "files": "Inspect this file connection and help me handle the current issue.",
+        "host_profile": "Inspect this host or access profile and help me handle the current issue.",
+        "forward_failure": "Analyze this port forwarding failure and suggest how to resolve it."
+      }
+    },
     "message": {
       "you": "You",
       "agent": "Agent",
@@ -114,6 +137,38 @@
       "send": "Send",
       "steer": "Add guidance",
       "stop": "Stop task"
+    },
+    "attachments": {
+      "title": "Attachments",
+      "add": "Add attachment",
+      "failed": "Attachment operation did not complete",
+      "uploading": "Uploading",
+      "deleting": "Removing",
+      "cancel": "Cancel upload",
+      "preview": "Preview attachment",
+      "previewName": "Preview {{name}}",
+      "previewFailed": "Could not load the attachment preview",
+      "retryName": "Retry {{name}}",
+      "removeName": "Remove {{name}}",
+      "size": "{{size}}",
+      "imageModelUnsupported": "The selected model does not support images. Remove them or choose another model before sending.",
+      "error": {
+        "AGENT_ATTACHMENT_LIMIT_COUNT": "A message can include up to 8 attachments.",
+        "AGENT_ATTACHMENT_LIMIT_TEXT": "Each text attachment must be 256 KiB or smaller.",
+        "AGENT_ATTACHMENT_LIMIT_TEXT_TOTAL": "Text attachments must total 512 KiB or less.",
+        "AGENT_ATTACHMENT_LIMIT_IMAGE": "Each image must be 10 MiB or smaller.",
+        "AGENT_ATTACHMENT_LIMIT_IMAGE_TOTAL": "Image attachments must total 20 MiB or less.",
+        "AGENT_ATTACHMENT_IMAGE_SIGNATURE": "The image type does not match its content. Only PNG, JPEG, and WebP are supported.",
+        "AGENT_ATTACHMENT_TEXT_ENCODING": "Text attachments must be valid UTF-8 and cannot contain NUL characters.",
+        "AGENT_ATTACHMENT_DELETE_FAILED": "The attachment could not be deleted. Try again.",
+        "AGENT_ATTACHMENT_LIMIT": "The attachment count or size exceeds the allowed limit.",
+        "AGENT_ATTACHMENT_CONFLICT": "The attachment changed. Refresh and try again.",
+        "AGENT_ATTACHMENT_CONTENT_INVALID": "The attachment content is invalid or unsupported.",
+        "AGENT_ATTACHMENT_NOT_FOUND": "The attachment no longer exists.",
+        "NETWORK_ERROR": "Could not reach the local Core. Try again.",
+        "REQUEST_TIMEOUT": "The attachment operation timed out. Try again.",
+        "unknown": "The attachment operation failed. Try again."
+      }
     },
     "inspector": {
       "title": "Run inspector",

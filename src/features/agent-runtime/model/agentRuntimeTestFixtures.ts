@@ -68,6 +68,7 @@ export function agentMessageFixture(overrides: Partial<AgentMessage> = {}): Agen
     created_at: agentFixtureTime,
     updated_at: agentFixtureTime,
     parts: [],
+    attachments: [],
     ...overrides,
   }
 }

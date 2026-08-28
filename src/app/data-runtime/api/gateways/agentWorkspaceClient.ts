@@ -13,6 +13,7 @@ import type {
 } from '#features/agent-runtime'
 import {
   decodeAgentMessagePage,
+  decodeAgentAttachment,
   decodeAgentRun,
   decodeAgentRunEventPage,
   decodeAgentSession,
@@ -63,6 +64,32 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
 
   deleteSession(id: string, expectedRevision: number, signal?: AbortSignal) {
     return this.request<void>(`${agentPath}/sessions/${encodeURIComponent(id)}`, {
+      method: 'DELETE', body: { expected_revision: expectedRevision }, signal,
+    })
+  }
+
+  uploadAttachment(sessionId: string, file: File, signal?: AbortSignal) {
+    const body = new FormData()
+    body.append('session_id', sessionId)
+    body.append('file', file, file.name)
+    return this.request<unknown>(`${agentPath}/attachments`, {
+      method: 'POST', body, signal, timeoutMs: 45_000,
+    }).then(decodeAgentAttachment)
+  }
+
+  attachment(id: string, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/attachments/${encodeURIComponent(id)}`, { signal })
+      .then(decodeAgentAttachment)
+  }
+
+  attachmentContent(id: string, signal?: AbortSignal) {
+    return this.requestBlob(`${agentPath}/attachments/${encodeURIComponent(id)}/content`, {
+      signal, timeoutMs: 45_000,
+    })
+  }
+
+  deleteAttachment(id: string, expectedRevision: number, signal?: AbortSignal) {
+    return this.request<void>(`${agentPath}/attachments/${encodeURIComponent(id)}`, {
       method: 'DELETE', body: { expected_revision: expectedRevision }, signal,
     })
   }

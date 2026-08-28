@@ -3,7 +3,12 @@ import test from 'node:test'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
 import type { AgentWorkerStartMessage } from './protocol.ts'
 import { testAgentSkillBundle } from './skillBundleTestFixture.ts'
-import { WorkerCoreClient, type RuntimeBootstrap } from './workerCoreClient.ts'
+import {
+  agentRuntimeBootstrapRequestTimeoutMs,
+  agentRuntimeRequestTimeoutMs,
+  WorkerCoreClient,
+  type RuntimeBootstrap,
+} from './workerCoreClient.ts'
 
 const start: AgentWorkerStartMessage = {
   type: 'start',
@@ -14,6 +19,12 @@ const start: AgentWorkerStartMessage = {
   generation: 1,
   skills: testAgentSkillBundle(),
 }
+
+test('bootstrap 独立使用大响应预算且不放宽普通 Runtime 请求', () => {
+  assert.equal(agentRuntimeBootstrapRequestTimeoutMs, 60_000)
+  assert.equal(agentRuntimeRequestTimeoutMs, 15_000)
+  assert.ok(agentRuntimeBootstrapRequestTimeoutMs > agentRuntimeRequestTimeoutMs)
+})
 
 test('已取消的 bootstrap signal 在发起 fetch 前生效', async () => {
   let aborted = false
@@ -81,6 +92,43 @@ test('bootstrap 绑定 Run、generation、Session 与 reasoning 枚举', async (
   await assert.rejects(wrongReasoning.bootstrap(start), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
 })
 
+test('bootstrap 严格校验附件传输形状、数量与预解码长度', async () => {
+  const valid = bootstrapResponse()
+  valid.messages = [runtimeMessage()]
+  const client = new WorkerCoreClient({ fetch: async () => Response.json(valid) })
+  await client.bootstrap(start)
+
+  const missingAttachments = bootstrapResponse()
+  missingAttachments.messages = [runtimeMessage()]
+  delete (missingAttachments.messages[0] as unknown as Record<string, unknown>).attachments
+  await assert.rejects(
+    new WorkerCoreClient({ fetch: async () => Response.json(missingAttachments) }).bootstrap(start),
+    /AGENT_RUNTIME_BOOTSTRAP_INVALID/u,
+  )
+
+  const excessiveEnvelope = bootstrapResponse()
+  excessiveEnvelope.messages = [runtimeMessage(Array.from({ length: 9 }, (_, index) => ({
+    id: `aga_${index}`,
+    kind: 'text' as const,
+    mime_type: 'text/plain',
+    content_base64: 'YQ==',
+  })))]
+  await assert.rejects(
+    new WorkerCoreClient({ fetch: async () => Response.json(excessiveEnvelope) }).bootstrap(start),
+    /AGENT_RUNTIME_BOOTSTRAP_INVALID/u,
+  )
+
+  const duplicateEnvelope = bootstrapResponse()
+  duplicateEnvelope.messages = [runtimeMessage([
+    runtimeMessage().attachments[0]!,
+    runtimeMessage().attachments[0]!,
+  ])]
+  await assert.rejects(
+    new WorkerCoreClient({ fetch: async () => Response.json(duplicateEnvelope) }).bootstrap(start),
+    /AGENT_RUNTIME_BOOTSTRAP_INVALID/u,
+  )
+})
+
 function bootstrapResponse(): RuntimeBootstrap {
   return {
     core_instance_id: 'core-1',
@@ -113,5 +161,30 @@ function bootstrapResponse(): RuntimeBootstrap {
       },
       api_key: 'configured',
     },
+  }
+}
+
+function runtimeMessage(
+  attachments: RuntimeBootstrap['messages'][number]['attachments'] = [{
+    id: 'aga_text',
+    kind: 'text',
+    mime_type: 'text/plain',
+    content_base64: 'YQ==',
+  }],
+): RuntimeBootstrap['messages'][number] {
+  return {
+    id: 'agm_user',
+    role: 'user',
+    status: 'completed',
+    sequence: 1,
+    created_at: '2026-08-28T00:00:00Z',
+    parts: [{
+      id: 'agp_user',
+      message_id: 'agm_user',
+      kind: 'text',
+      sequence: 1,
+      content: { text: { text: 'hello' } },
+    }],
+    attachments,
   }
 }

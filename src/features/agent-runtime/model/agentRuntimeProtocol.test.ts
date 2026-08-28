@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   AgentRuntimeProtocolError,
+  decodeAgentAttachment,
+  decodeAgentMessage,
   decodeAgentRunEventPage,
   decodeAgentWorkspaceEvent,
 } from './agentRuntimeProtocol.ts'
@@ -81,6 +83,38 @@ test('message delta 必须声明 text 或 reasoning 类型', () => {
   }), /片段类型/)
 })
 
+test('消息协议投影附件与结构化来源上下文', () => {
+  const message = decodeAgentMessage(messageResponse({
+    role: 'user',
+    status: 'completed',
+    sequence: 1,
+    attachments: [attachmentResponse()],
+    parts: [partResponse('text', {
+      text: {
+        text: '请检查此连接',
+        source_context: {
+          kind: 'workbench',
+          entity_id: 'host-one',
+          title: '生产主机',
+          summary: 'SSH 连接已断开',
+        },
+      },
+    })],
+  }))
+
+  assert.equal(message.attachments[0]?.original_name, 'diagnostic.txt')
+  assert.equal(message.parts[0]?.kind === 'text' ? message.parts[0].source_context?.entity_id : '', 'host-one')
+  assert.throws(() => decodeAgentMessage(messageResponse({
+    attachments: [attachmentResponse({ session_id: 'ags-other' })],
+  })), /附件归属/)
+})
+
+test('附件协议拒绝无效大小与未知状态', () => {
+  assert.equal(decodeAgentAttachment(attachmentResponse()).kind, 'text')
+  assert.throws(() => decodeAgentAttachment(attachmentResponse({ size_bytes: 0 })), /大小/)
+  assert.throws(() => decodeAgentAttachment(attachmentResponse({ state: 'unknown' })), /状态/)
+})
+
 test('Run Event 补偿页拒绝跨 Run、跨 generation 和 sequence 缺口', () => {
   const first = runEventResponse(1, 'status', { status: { status: 'running' } })
   const second = runEventResponse(2, 'status', { status: { status: 'running' } })
@@ -122,6 +156,22 @@ function partResponse(kind: string, content: Record<string, unknown>) {
     revision: 1,
     created_at: agentFixtureTime,
     updated_at: agentFixtureTime,
+  }
+}
+
+function attachmentResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'aga-attachment',
+    session_id: 'ags-session',
+    original_name: 'diagnostic.txt',
+    mime_type: 'text/plain',
+    kind: 'text',
+    size_bytes: 10,
+    state: 'bound',
+    revision: 1,
+    created_at: agentFixtureTime,
+    updated_at: agentFixtureTime,
+    ...overrides,
   }
 }
 

@@ -47,6 +47,7 @@ describe('Agent 工作区页面投影', () => {
       created_at: '2026-08-29T00:00:00Z',
       updated_at: '2026-08-29T00:00:00Z',
       parts: [],
+      attachments: [],
     }
 
     expect(projectAgentMessages([message], undefined, [])[0]?.status).toBe('streaming')
@@ -72,6 +73,7 @@ describe('Agent 工作区页面投影', () => {
         kind: 'reasoning',
         text: '已完成的分析',
       }],
+      attachments: [],
     }
     const finalPart: AgentRunEvent = {
       id: 'event-part',
@@ -87,6 +89,41 @@ describe('Agent 工作区页面投影', () => {
     const after = projectAgentMessages([message], activeRun(), [finalPart])[0]?.parts[0]
     expect(before?.kind === 'reasoning' && before.streaming).toBe(true)
     expect(after?.kind === 'reasoning' && after.streaming).toBe(false)
+  })
+
+  it('将消息附件与文本片段中的来源上下文投影到工作区', () => {
+    const message: AgentMessage = {
+      id: 'message-user',
+      session_id: 'session-one',
+      role: 'user',
+      status: 'completed',
+      sequence: 1,
+      revision: 1,
+      created_at: '2026-08-29T00:00:00Z',
+      updated_at: '2026-08-29T00:00:00Z',
+      parts: [{
+        id: 'part-text',
+        message_id: 'message-user',
+        sequence: 1,
+        revision: 1,
+        created_at: '2026-08-29T00:00:00Z',
+        updated_at: '2026-08-29T00:00:00Z',
+        kind: 'text',
+        text: '检查连接',
+        source_context: {
+          kind: 'workbench', entity_id: 'host-one', title: '生产主机', summary: '连接中断',
+        },
+      }],
+      attachments: [{
+        id: 'attachment-one', session_id: 'session-one', original_name: 'diagnostic.txt',
+        mime_type: 'text/plain', kind: 'text', size_bytes: 10, state: 'bound', revision: 1,
+        created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z',
+      }],
+    }
+
+    const [projected] = projectAgentMessages([message], undefined, [])
+    expect(projected?.source_context?.entity_id).toBe('host-one')
+    expect(projected?.attachments[0]?.id).toBe('attachment-one')
   })
 })
 

@@ -5,6 +5,7 @@ export type {
   AgentWorkspaceMessage,
   AgentWorkspaceMessagePart,
   AgentWorkspaceModelOption,
+  AgentWorkspaceDraftAttachment,
   AgentWorkspaceProps,
   AgentWorkspaceRunStatus,
   AgentWorkspaceSession,

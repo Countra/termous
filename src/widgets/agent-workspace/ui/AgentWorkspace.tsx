@@ -6,6 +6,7 @@ import { ConfirmDialog } from '#shared/ui'
 import { useAgentWorkspaceBreakpoints } from '../model/useAgentWorkspaceBreakpoints.ts'
 import { isActiveAgentRun, type AgentWorkspaceProps } from '../model/types.ts'
 import { AgentComposer } from './AgentComposer.tsx'
+import { AgentAttachmentPreview } from './AgentAttachmentPreview.tsx'
 import { AgentConversation } from './AgentConversation.tsx'
 import { AgentInspector } from './AgentInspector.tsx'
 import { AgentSessionSidebar } from './AgentSessionSidebar.tsx'
@@ -17,6 +18,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const [sessionsOpen, setSessionsOpen] = useState(false)
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [deleteSessionId, setDeleteSessionId] = useState<string>()
+  const [previewAttachment, setPreviewAttachment] = useState<import('#entities/agent').AgentAttachment>()
   const selectedSession = props.sessions.find((session) => session.id === props.selected_session_id)
   const runStatus = selectedSession?.run_status ?? 'idle'
   const active = isActiveAgentRun(runStatus)
@@ -89,14 +91,22 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           runStatus={runStatus}
           loading={props.loading}
           sessionKey={selectedSession?.id ?? 'new'}
+          onPreviewAttachment={setPreviewAttachment}
         />
         <AgentComposer
           value={props.draft}
           runStatus={runStatus}
           disabled={props.busy}
           submitDisabled={props.busy || props.run_blocked}
+          sourceContext={props.draft_source_context}
+          attachments={props.draft_attachments}
+          supportsImages={props.supports_images}
           onChange={props.onDraftChange}
-          onSend={(value) => void props.onSend(value)}
+          onAttachFiles={(files) => void props.onAttachFiles(files)}
+          onRemoveAttachment={(clientId) => void props.onRemoveAttachment(clientId)}
+          onRetryAttachment={(clientId) => void props.onRetryAttachment(clientId)}
+          onPreviewAttachment={(item) => item.attachment && setPreviewAttachment(item.attachment)}
+          onSend={(value, attachmentIds, sourceContext) => void props.onSend(value, attachmentIds, sourceContext)}
           onSteer={(value) => void props.onSteer(value)}
           onStop={() => void props.onStop()}
         />
@@ -133,6 +143,11 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           props.onDeleteSession(deleteSession.id)
           setDeleteSessionId(undefined)
         }}
+      />
+      <AgentAttachmentPreview
+        attachment={previewAttachment}
+        onClose={() => setPreviewAttachment(undefined)}
+        onLoad={props.onLoadAttachmentContent}
       />
     </div>
   )

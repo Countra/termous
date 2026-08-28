@@ -57,6 +57,35 @@ function accessCatalog(): HostAccessCatalog {
 }
 
 describe('访问方式目录', () => {
+  it('通过行内操作传递 Profile 的稳定身份', () => {
+    const onLaunchAgent = vi.fn()
+    render(
+      <AccessProfileCatalog
+        catalog={accessCatalog()}
+        busy={false}
+        sshReachability={{}}
+        sshReachabilityRefreshing={false}
+        onRefreshSSHReachability={vi.fn()}
+        onCreateSSH={vi.fn()}
+        onEditSSH={vi.fn()}
+        onDeleteSSH={vi.fn()}
+        onSetDefaultSSH={vi.fn()}
+        onEditFile={vi.fn()}
+        onSetDefaultFile={vi.fn()}
+        onCreateRemoteDesktop={vi.fn()}
+        onEditRemoteDesktop={vi.fn()}
+        onDeleteRemoteDesktop={vi.fn()}
+        onSetDefaultRemoteDesktop={vi.fn()}
+        onLaunchAgent={onLaunchAgent}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'agent.launch.action Primary SSH',
+    }))
+    expect(onLaunchAgent).toHaveBeenCalledWith('ssh', 'ssh-a', 'Primary SSH', 'SSH')
+  })
+
   it('SFTP 只提供编辑与默认项操作，不提供删除或改绑入口', () => {
     const onEditFile = vi.fn()
     const view = render(

@@ -1,4 +1,5 @@
 import type {
+  AgentAttachment,
   AgentMcpPolicy,
   AgentMessagePage,
   AgentModelProfilePage,
@@ -9,6 +10,7 @@ import type {
   AgentSessionInput,
   AgentSessionPage,
   AgentSessionUpdateInput,
+  AgentSourceContext,
 } from '#entities/agent'
 import type { AgentRuntimeCommandResult, AgentRuntimeStatus } from '#common/contracts'
 
@@ -36,6 +38,7 @@ export interface AgentCreateRunInput {
   client_request_id: string
   prompt: string
   attachment_ids: string[]
+  source_context?: AgentSourceContext
 }
 
 export interface AgentWorkspaceGateway {
@@ -44,6 +47,10 @@ export interface AgentWorkspaceGateway {
   createSession(input: AgentSessionInput, signal?: AbortSignal): Promise<AgentSession>
   updateSession(id: string, input: AgentSessionUpdateInput, signal?: AbortSignal): Promise<AgentSession>
   deleteSession(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
+  uploadAttachment(sessionId: string, file: File, signal?: AbortSignal): Promise<AgentAttachment>
+  attachment(id: string, signal?: AbortSignal): Promise<AgentAttachment>
+  attachmentContent(id: string, signal?: AbortSignal): Promise<Blob>
+  deleteAttachment(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   messages(sessionId: string, options?: AgentMessageListOptions): Promise<AgentMessagePage>
   createRun(sessionId: string, input: AgentCreateRunInput, signal?: AbortSignal): Promise<AgentRun>
   run(id: string, signal?: AbortSignal): Promise<AgentRun>
