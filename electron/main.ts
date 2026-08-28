@@ -16,10 +16,18 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { Readable } from 'node:stream'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import path from 'node:path'
-import type { AppLanguage, AppTheme, DataPortabilityProgress } from '#common/contracts'
+import type {
+  AppLanguage,
+  AppTheme,
+  DataPortabilityProgress,
+} from '#common/contracts'
 import { termousReleasePageUrl } from '#common/release-page'
+import { AgentCoreRuntimeClient } from './agent/coreRuntimeClient'
+import { registerAgentRuntimeIPC } from './agent/ipc'
+import { AgentSupervisor } from './agent/supervisor'
+import { UtilityWorkerFactory } from './agent/utilityWorkerFactory'
 import { AppExitCoordinator } from './appExitCoordinator'
-import { CoreProcessManager } from './coreProcess'
+import { CoreProcessManager, type CoreShutdownReason } from './coreProcess'
 import { createElectronUpdaterEngine } from './electronUpdaterEngine'
 import { openExternalUrl, type ExternalUrlOpenResult } from './externalUrl'
 import { TermousTrayController } from './tray'
@@ -66,6 +74,19 @@ if (hasSingleInstanceLock) {
   })
 }
 const coreProcess = new CoreProcessManager()
+const agentSupervisor = new AgentSupervisor({
+  core: new AgentCoreRuntimeClient({
+    getConfig: () => coreProcess.initialize(),
+  }),
+  workerFactory: new UtilityWorkerFactory({
+    modulePath: path.join(MAIN_DIST, 'agent-worker.js'),
+    cwd: path.join(__dirname, '..'),
+  }),
+  logger: {
+    info: (event, details = {}) => reportElectronProcessEvent(event, details),
+    error: (event, details = {}) => reportElectronProcessEvent(event, details),
+  },
+})
 const trayController = new TermousTrayController({
   appName: APP_NAME,
   iconCandidates: [TRAY_ICON, APP_ICON],
@@ -94,7 +115,7 @@ let splashFocusRequested = false
 let startupCompletionTimer: NodeJS.Timeout | null = null
 
 const exitCoordinator = new AppExitCoordinator({
-  shutdownCore: (reason) => coreProcess.shutdownGracefully(reason),
+  shutdownCore: shutdownAgentRuntimeAndCore,
   prepareForExit: prepareApplicationExit,
   recoverAfterFailedUpdateInstall: recoverApplicationAfterFailedUpdateInstall,
   closeAllWindows: closeAllApplicationWindows,
@@ -668,8 +689,57 @@ function prepareApplicationExit() {
   trayController.destroy()
 }
 
+async function shutdownAgentRuntimeAndCore(reason: CoreShutdownReason) {
+  let agentRuntimeStopped = true
+  try {
+    await agentSupervisor.shutdown()
+  } catch (error) {
+    agentRuntimeStopped = false
+    reportElectronProcessEvent('agent-runtime-shutdown-failed', {
+      error_name: error instanceof Error ? error.name : 'UnknownError',
+    })
+  }
+  if (!agentRuntimeStopped && reason === 'application_update') {
+    await recoverAgentRuntimeAfterFailedShutdown()
+    return false
+  }
+  const coreStopped = await coreProcess.shutdownGracefully(reason)
+  if (!coreStopped && reason === 'application_update') {
+    await recoverAgentRuntimeAfterFailedShutdown()
+  }
+  return coreStopped
+}
+
+async function recoverAgentRuntimeAfterFailedShutdown() {
+  const status = await agentSupervisor.initialize()
+  if (status.state === 'offline') {
+    reportElectronProcessEvent('agent-runtime-recovery-failed', {
+      error_code: status.error_code ?? 'AGENT_RUNTIME_UNAVAILABLE',
+    })
+  }
+}
+
+async function restartCoreAfterRestore() {
+  try {
+    await agentSupervisor.shutdown()
+  } catch (error) {
+    reportElectronProcessEvent('agent-runtime-restore-shutdown-failed', {
+      error_name: error instanceof Error ? error.name : 'UnknownError',
+    })
+    throw error
+  }
+  try {
+    return await coreProcess.restartAfterRestore()
+  } finally {
+    if (!exitCoordinator.isApplicationExiting()) {
+      await agentSupervisor.initialize()
+    }
+  }
+}
+
 async function recoverApplicationAfterFailedUpdateInstall() {
   await coreProcess.recoverAfterFailedUpdateInstall()
+  await agentSupervisor.initialize()
   trayController.initialize()
   if (win && !win.isDestroyed()) {
     win.webContents.reload()
@@ -907,8 +977,22 @@ function registerWindowControls() {
 function registerCoreProcessControls() {
   ipcMain.handle('core:get-config', () => coreProcess.initialize())
   ipcMain.handle('core:status', () => coreProcess.status())
-  ipcMain.handle('core:shutdown', () => coreProcess.shutdownGracefully())
+  ipcMain.handle('core:shutdown', () => shutdownAgentRuntimeAndCore('frontend_exit'))
   ipcMain.handle('core:get-fatal', () => coreProcess.getFatal())
+}
+
+function registerAgentRuntimeControls() {
+  registerAgentRuntimeIPC({
+    ipcMain,
+    supervisor: agentSupervisor,
+    isTrustedSender: isTrustedMainIPCEvent,
+    sendStatus: (status) => {
+      const target = win
+      if (target && !target.isDestroyed()) {
+        target.webContents.send('agent-runtime:status', status)
+      }
+    },
+  })
 }
 
 function registerStartupControls() {
@@ -1352,7 +1436,7 @@ function registerDataPortabilityControls() {
     }
   })
 
-  ipcMain.handle('portability:restart-after-restore', () => coreProcess.restartAfterRestore())
+  ipcMain.handle('portability:restart-after-restore', () => restartCoreAfterRestore())
 }
 
 app.on('window-all-closed', () => {
@@ -1384,6 +1468,7 @@ async function initializeApplication() {
   }
   Menu.setApplicationMenu(null)
   registerCoreProcessControls()
+  registerAgentRuntimeControls()
   registerStartupControls()
   registerAppearanceControls()
   registerWindowControls()
@@ -1434,6 +1519,11 @@ async function initializeApplication() {
   trayController.initialize()
   void coreProcess.initialize().then(() => {
     updateSplashPhase(coreProcess.getFatal() ? 'error' : 'workspace')
+    return agentSupervisor.initialize()
+  }).catch((error) => {
+    reportElectronProcessEvent('agent-runtime-initialize-failed', {
+      error_name: error instanceof Error ? error.name : 'UnknownError',
+    })
   })
 }
 

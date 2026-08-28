@@ -1,8 +1,10 @@
 allowBuilds:
+  '@google/genai': false
   '@parcel/watcher': false
   electron: true
   electron-winstaller: false
   esbuild: true
+  protobufjs: false
 minimumReleaseAgeExclude:
   - electron@43.1.1
 overrides:

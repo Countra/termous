@@ -1,4 +1,12 @@
 export type {
+  AgentRuntimeCommandResult,
+  AgentRuntimeRunRef,
+  AgentRuntimeState,
+  AgentRuntimeStatus,
+  AgentRuntimeSteerRequest,
+} from './agent-runtime.ts'
+export { agentRuntimeProtocolVersion } from './agent-runtime.ts'
+export type {
   AppBuildInfo,
   AppConfig,
   AppLanguage,
