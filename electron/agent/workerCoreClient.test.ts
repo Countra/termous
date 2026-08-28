@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
 import type { AgentWorkerStartMessage } from './protocol.ts'
+import { testAgentSkillBundle } from './skillBundleTestFixture.ts'
 import { WorkerCoreClient, type RuntimeBootstrap } from './workerCoreClient.ts'
 
 const start: AgentWorkerStartMessage = {
@@ -11,6 +12,7 @@ const start: AgentWorkerStartMessage = {
   ticket: 't'.repeat(48),
   run_id: 'agr_test',
   generation: 1,
+  skills: testAgentSkillBundle(),
 }
 
 test('已取消的 bootstrap signal 在发起 fetch 前生效', async () => {

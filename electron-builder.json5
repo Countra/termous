@@ -56,6 +56,15 @@
       ]
     }
   ],
+  "extraResources": [
+    {
+      "from": "build/agent/skills",
+      "to": "agent/skills",
+      "filter": [
+        "**/*"
+      ]
+    }
+  ],
   "mac": {
     "icon": "build/icon.icns",
     "identity": null,

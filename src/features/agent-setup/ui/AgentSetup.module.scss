@@ -1,0 +1,375 @@
+.stack {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 980px);
+}
+
+.surface,
+.skeleton {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 16px;
+  box-shadow: var(--shadow-soft);
+}
+
+.surface > :global(.ant-alert) + :global(.ant-btn) {
+  margin-top: 12px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-primary);
+}
+
+.section-title h2,
+.editor-header h2,
+.key-dialog h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 720;
+  letter-spacing: 0;
+}
+
+.section-hint {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.readiness-list,
+.model-list {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.readiness-row {
+  display: grid;
+  grid-template-columns: 24px 150px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.readiness-row:last-child,
+.model-row:last-child {
+  border-bottom: 0;
+}
+
+.readiness-icon {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.readiness-icon.is-ready {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.readiness-icon.is-unavailable {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.readiness-message {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.policy-row,
+.scope-sync {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.policy-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.policy-row span,
+.scope-sync span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.scope-sync {
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warning) 7%, var(--surface));
+  padding: 10px 12px;
+}
+
+.scope-sync > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--warning);
+}
+
+.model-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 58px;
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
+}
+
+.model-main,
+.model-name,
+.model-actions {
+  display: flex;
+  align-items: center;
+}
+
+.model-main {
+  min-width: 0;
+  gap: 10px;
+}
+
+.model-main > div {
+  min-width: 0;
+}
+
+.model-main > div > span {
+  display: block;
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-name {
+  min-width: 0;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.model-name strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.model-icon,
+.key-icon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  color: var(--accent);
+}
+
+.model-actions {
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+.model-actions :global(.ant-btn) {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.defaults-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.defaults-grid label,
+.field {
+  display: grid;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.defaults-grid :global(.ant-select),
+.field :global(.ant-select),
+.field :global(.ant-input-number) {
+  width: 100%;
+}
+
+.empty {
+  margin: 14px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.editor-modal :global(.ant-modal-content),
+.key-modal :global(.ant-modal-content) {
+  padding: 0;
+  overflow: hidden;
+}
+
+.editor,
+.key-dialog {
+  padding: 18px;
+}
+
+.editor-header {
+  border-bottom: 1px solid var(--border);
+  padding: 0 0 14px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 16px;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.capability-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.capability {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.risk-note,
+.validation {
+  margin: 12px 0 0;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface));
+  padding: 9px 11px;
+  color: var(--warning);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.validation {
+  background: color-mix(in srgb, var(--danger) 9%, var(--surface));
+  color: var(--danger);
+}
+
+.editor-actions,
+.key-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.key-dialog {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.key-dialog p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.key-label {
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.key-dialog > :global(.ant-input-affix-wrapper),
+.key-dialog > :global(.ant-alert),
+.key-dialog > .key-label,
+.key-dialog > .validation,
+.key-actions {
+  grid-column: 1 / -1;
+}
+
+.editor > :global(.ant-alert),
+.key-dialog > :global(.ant-alert) {
+  margin-top: 12px;
+}
+
+@media (width <= 1080px) {
+  .model-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .model-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+@media (width <= 760px) {
+  .readiness-row {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+  }
+
+  .readiness-message {
+    grid-column: 2 / -1;
+    white-space: normal;
+  }
+
+  .defaults-grid,
+  .form-grid,
+  .capability-list {
+    grid-template-columns: 1fr;
+  }
+
+  .wide {
+    grid-column: auto;
+  }
+
+  .section-header {
+    align-items: flex-start;
+  }
+}

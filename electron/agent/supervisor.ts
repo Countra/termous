@@ -4,6 +4,7 @@ import type {
   AgentRuntimeRunRef,
   AgentRuntimeStatus,
   AgentRuntimeSteerRequest,
+  AgentSkillsBundleStatus,
 } from '#common/contracts'
 import type {
   AgentCoreRuntimePort,
@@ -17,6 +18,8 @@ import {
   type AgentRunWorkerLogger,
 } from './runWorker.ts'
 import type { AgentWorkerFactory } from './workerProcess.ts'
+import type { AgentSkillBundleSnapshot } from './skillBundle.ts'
+import type { AgentSkillBundleSourcePort } from './skillBundleSource.ts'
 
 const defaultLeaseRefreshIntervalMs = 10_000
 const defaultWorkerAbortGraceMs = 5_000
@@ -29,6 +32,7 @@ export type AgentSupervisorLogger = AgentRunWorkerLogger
 export interface AgentSupervisorOptions {
   core: AgentCoreRuntimePort
   workerFactory: AgentWorkerFactory
+  skills: AgentSkillBundleSourcePort
   logger?: AgentSupervisorLogger
   newInstanceID?: () => string
   setTimeout?: typeof globalThis.setTimeout
@@ -42,6 +46,7 @@ export interface AgentSupervisorOptions {
 export class AgentSupervisor {
   private readonly core: AgentCoreRuntimePort
   private readonly workerFactory: AgentWorkerFactory
+  private readonly skills: AgentSkillBundleSourcePort
   private readonly logger?: AgentSupervisorLogger
   private readonly supervisorInstanceID: string
   private readonly setTimeoutImplementation: typeof globalThis.setTimeout
@@ -56,12 +61,14 @@ export class AgentSupervisor {
   private leasePromise: Promise<AgentSupervisorLease> | null = null
   private leaseTimer: ReturnType<typeof setTimeout> | null = null
   private leaseEnabled = false
+  private skillsStatus: AgentSkillsBundleStatus = unavailableSkillsStatus()
   private worker: AgentRunWorker | null = null
   private operationTail: Promise<void> = Promise.resolve()
 
   constructor(options: AgentSupervisorOptions) {
     this.core = options.core
     this.workerFactory = options.workerFactory
+    this.skills = options.skills
     this.logger = options.logger
     this.supervisorInstanceID = (options.newInstanceID ?? randomUUID)()
     this.setTimeoutImplementation = options.setTimeout ?? globalThis.setTimeout
@@ -181,8 +188,23 @@ export class AgentSupervisor {
       this.publish({ state: 'offline', error_code: code })
       return this.rejected(code)
     }
+    if (this.skillsStatus.status !== 'ready') {
+      return this.rejected('AGENT_SKILLS_BUNDLE_NOT_READY')
+    }
+    let skills: AgentSkillBundleSnapshot
+    try {
+      skills = await this.skills.snapshot()
+    } catch (error) {
+      const code = stableAgentRuntimeErrorCode(error, 'AGENT_RUNTIME_LAUNCH_FAILED')
+      await this.reportFailure(request, 'launch_failed')
+      await this.markSkillsSnapshotFailed()
+      return this.rejected(code)
+    }
     let createdWorker: AgentRunWorker | null = null
     try {
+      if (skills.fingerprint !== this.skillsStatus.fingerprint) {
+        lease = await this.refreshLease(skillsStatusFromSnapshot(skills))
+      }
       const coreBaseURL = await this.core.currentBaseURL()
       const process = this.workerFactory.create()
       const worker = new AgentRunWorker({
@@ -190,6 +212,7 @@ export class AgentSupervisor {
         request,
         coreInstanceID: lease.core_instance_id,
         coreBaseURL,
+        skills,
         supervisorInstanceID: this.supervisorInstanceID,
         core: this.core,
         logger: this.logger,
@@ -228,12 +251,31 @@ export class AgentSupervisor {
     }
   }
 
+  private async markSkillsSnapshotFailed() {
+    const failedStatus: AgentSkillsBundleStatus = {
+      status: 'unavailable',
+      fingerprint: '',
+      skill_count: 0,
+      resource_count: 0,
+      error_category: 'snapshot_failed',
+    }
+    this.skillsStatus = failedStatus
+    try {
+      await this.refreshLease(failedStatus)
+    } catch (error) {
+      this.logger?.error('agent-skills-status-report-failed', {
+        error_code: stableAgentRuntimeErrorCode(error, 'AGENT_RUNTIME_UNAVAILABLE'),
+      })
+    }
+    this.publish(this.idleStatus())
+  }
+
   private handleWorkerExited(worker: AgentRunWorker) {
     if (this.worker !== worker) {
       return
     }
     this.worker = null
-    this.publish(this.lease ? { state: 'ready' } : { state: 'offline' })
+    this.publish(this.idleStatus())
   }
 
   private async stopActiveWorker(worker: AgentRunWorker, shutdown: boolean) {
@@ -260,14 +302,18 @@ export class AgentSupervisor {
     }
   }
 
-  private refreshLease() {
+  private refreshLease(statusOverride?: AgentSkillsBundleStatus) {
     if (!this.leaseEnabled) {
       return Promise.reject(new Error('AGENT_RUNTIME_UNAVAILABLE'))
     }
     if (this.leasePromise) {
       return this.leasePromise
     }
-    const pending = this.core.registerSupervisor(this.supervisorInstanceID)
+    const pending = (async () => {
+      const skillsStatus = statusOverride ?? await this.skills.inspect()
+      this.skillsStatus = skillsStatus
+      return this.core.registerSupervisor(this.supervisorInstanceID, skillsStatus)
+    })()
       .then(async (lease) => {
         const previous = this.lease
         this.lease = lease
@@ -279,7 +325,7 @@ export class AgentSupervisor {
           }
         }
         if (!this.worker) {
-          this.publish({ state: 'ready' })
+          this.publish(this.idleStatus())
         }
         return lease
       })
@@ -342,7 +388,9 @@ export class AgentSupervisor {
     }
     const active = this.worker
     if (!active) {
-      this.publish({ state: 'ready', error_code: code })
+      this.publish(this.skillsStatus.status === 'ready'
+        ? { state: 'ready', error_code: code }
+        : this.idleStatus())
     } else if (active.isStopping()) {
       this.publish({
         state: 'stopping',
@@ -361,6 +409,18 @@ export class AgentSupervisor {
     for (const listener of this.listeners) {
       this.notifyListener(listener)
     }
+  }
+
+  private idleStatus(): AgentRuntimeStatus {
+    if (!this.lease || this.skillsStatus.status !== 'ready') {
+      return {
+        state: 'offline',
+        ...(this.skillsStatus.status !== 'ready'
+          ? { error_code: 'AGENT_SKILLS_BUNDLE_NOT_READY' }
+          : {}),
+      }
+    }
+    return { state: 'ready' }
   }
 
   private notifyListener(listener: (status: AgentRuntimeStatus) => void) {
@@ -385,6 +445,25 @@ export class AgentSupervisor {
     const pending = this.operationTail.then(operation, operation)
     this.operationTail = pending.then(() => undefined, () => undefined)
     return pending
+  }
+}
+
+function skillsStatusFromSnapshot(snapshot: AgentSkillBundleSnapshot): AgentSkillsBundleStatus {
+  return {
+    status: 'ready',
+    fingerprint: snapshot.fingerprint,
+    skill_count: snapshot.catalog.length,
+    resource_count: snapshot.resources.length,
+  }
+}
+
+function unavailableSkillsStatus(): AgentSkillsBundleStatus {
+  return {
+    status: 'unavailable',
+    fingerprint: '',
+    skill_count: 0,
+    resource_count: 0,
+    error_category: 'runtime_not_initialized',
   }
 }
 

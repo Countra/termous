@@ -2,12 +2,46 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { RuntimeBootstrap } from './workerCoreClient.ts'
 import {
+  chatMaxTokensField,
   createRestrictedProviderFetch,
   createRuntimeModel,
   createRuntimeStreamOptions,
   handlePiEvent,
   hydrateRuntimeMessages,
 } from './piAgentAdapter.ts'
+
+test('Chat Completions 输出上限字段与 Core 模型探测兼容矩阵一致', () => {
+  for (const [baseURL, expected] of [
+    ['https://api.openai.com/v1', 'max_completion_tokens'],
+    ['http://127.0.0.1:11434/v1', 'max_completion_tokens'],
+    ['https://api.deepseek.com/v1', 'max_tokens'],
+    ['https://api.moonshot.cn/v1', 'max_tokens'],
+    ['https://gateway.ai.cloudflare.com/v1/account/gateway', 'max_tokens'],
+    ['https://api.together.ai/v1', 'max_tokens'],
+    ['https://integrate.api.nvidia.com/v1', 'max_tokens'],
+    ['https://api.ant-ling.com/v1', 'max_tokens'],
+    ['https://api.z.ai/api/paas/v4', 'max_tokens'],
+    ['https://open.bigmodel.cn/api/paas/v4', 'max_tokens'],
+  ] as const) {
+    assert.equal(chatMaxTokensField(baseURL), expected, baseURL)
+  }
+})
+
+test('Chat Completions 兼容矩阵使用规范化主机名判定', () => {
+  for (const baseURL of [
+    'https://API.MOONSHOT.CN/v1',
+    'https://gateway.API.MOONSHOT.CN./v1',
+  ]) {
+    assert.equal(chatMaxTokensField(baseURL), 'max_tokens', baseURL)
+  }
+  for (const baseURL of [
+    'https://example.test/v1/API.MOONSHOT.CN',
+    'https://api.moonshot.cn.example.test/v1',
+    'https://prefixapi.moonshot.cn/v1',
+  ]) {
+    assert.equal(chatMaxTokensField(baseURL), 'max_completion_tokens', baseURL)
+  }
+})
 
 test('Provider fetch 限定 origin 和路径前缀并移除无鉴权哨兵', async () => {
   let received: RequestInit | undefined

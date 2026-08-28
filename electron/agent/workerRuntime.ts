@@ -15,7 +15,12 @@ import type {
   AgentWorkerOutboundMessage,
   AgentWorkerStartMessage,
 } from './protocol.ts'
-import { isRecord, validGeneration, validRunID } from './protocol.ts'
+import {
+  isRecord,
+  validAgentWorkerStartMessage,
+  validGeneration,
+  validRunID,
+} from './protocol.ts'
 import { RuntimeEventWriter } from './runtimeEventWriter.ts'
 import {
   WorkerCoreClient,
@@ -151,6 +156,7 @@ export class AgentWorkerRuntime {
         bootstrap,
         mcp: this.mcp,
         events: this.events,
+        skills: start.skills,
         onFailure: (error) => this.failRuntime(error),
       })
       this.events.push('status', { status: { status: 'running' } })
@@ -334,13 +340,7 @@ function parseInboundMessage(value: unknown): AgentWorkerInboundMessage | null {
     return null
   }
   if (value.type === 'start') {
-    return value.protocol_version === agentRuntimeProtocolVersion
-      && typeof value.core_base_url === 'string'
-      && typeof value.ticket === 'string'
-      && value.ticket.length >= 40
-      && value.ticket.length <= 128
-      ? value as unknown as AgentWorkerStartMessage
-      : null
+    return validAgentWorkerStartMessage(value) ? value : null
   }
   if (value.type === 'abort') {
     return {

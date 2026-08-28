@@ -3184,6 +3184,149 @@
       "unavailableHint": "Saved update preferences could not be loaded. Try again in a moment.",
       "retryLoading": "Try again"
     },
+    "tabAgent": "Agent",
+    "agent": {
+      "loadFailed": "Agent settings could not be loaded",
+      "operationFailed": "The Agent setting operation failed",
+      "readiness": {
+        "title": "Runtime readiness",
+        "description": "Initial setup enables MCP, creates an Agent-managed client with all current 29 scopes, and keeps per-operation approval enabled. Repair is safe to run repeatedly.",
+        "mcpRuntime": "MCP Runtime",
+        "mcpClient": "Managed client",
+        "skills": "Skills resources",
+        "defaultModel": "Default model",
+        "setup": "Set up or repair",
+        "checkAgain": "Check again"
+      },
+      "componentState": {
+        "ready": "Ready",
+        "missing": "Setup needed",
+        "outdated": "Update needed",
+        "unavailable": "Unavailable"
+      },
+      "componentMessage": {
+        "ready": "Available now",
+        "missing": "Configuration is required",
+        "outdated": "Update before use",
+        "unavailable": "Currently unavailable"
+      },
+      "policy": {
+        "title": "MCP approval policy",
+        "description": "This policy applies only to the Agent-managed client and does not change external MCP clients.",
+        "approval": "Tool execution approval",
+        "review": "Ask every time",
+        "bypass": "No confirmation",
+        "reviewHint": "Sensitive operations continue to use the global MCP approval interface.",
+        "bypassHint": "The Agent can execute tools within its granted scopes without confirmation. Use with care.",
+        "unavailable": "Complete initial setup to manage the approval policy.",
+        "scopeOutdated": "{{current}}/{{required}} scopes are granted. New scopes are not granted automatically.",
+        "sync": "Sync scopes"
+      },
+      "models": {
+        "title": "Model profiles",
+        "description": "Configure OpenAI-compatible models. The address and model ID are stored in Core; API keys are encrypted separately by the Vault.",
+        "add": "Add model",
+        "empty": "No model profiles have been added",
+        "default": "Default",
+        "insecureHttp": "Plain HTTP",
+        "test": "Test connection"
+      },
+      "defaults": {
+        "title": "Defaults",
+        "model": "Default model",
+        "modelPlaceholder": "Select a model",
+        "reasoning": "Default reasoning level"
+      },
+      "apiMode": {
+        "responses": "Responses API",
+        "chatCompletions": "Chat Completions"
+      },
+      "reasoning": {
+        "off": "Off",
+        "minimal": "Minimal",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "xhigh": "Extra high"
+      },
+      "modelEditor": {
+        "createTitle": "Add model profile",
+        "editTitle": "Edit model profile",
+        "name": "Profile name",
+        "apiMode": "API mode",
+        "baseUrl": "Base URL",
+        "modelId": "Model ID",
+        "contextWindow": "Context window tokens",
+        "maxOutput": "Maximum output tokens",
+        "images": "Supports image input",
+        "reasoning": "Supports reasoning",
+        "httpRisk": "This profile uses plain HTTP. Model requests, context, and credentials may be read or changed by other parties on the network path."
+      },
+      "apiKey": {
+        "title": "Set API key",
+        "description": "The Renderer does not persist the key. It is held briefly in this page while entered, then encrypted by the local Core Vault after submission.",
+        "fieldLabel": "API key for {{name}}",
+        "placeholder": "Enter a new API key",
+        "configured": "Key configured",
+        "notConfigured": "No key",
+        "remove": "Delete API key",
+        "tooLarge": "The API key cannot exceed 16 KiB"
+      },
+      "confirmHttp": {
+        "title": "Save a plain HTTP address?",
+        "description": "HTTP does not encrypt transport. Prompts, model responses, and the API key may be exposed on the network. Use it only on a fully trusted local network.",
+        "confirm": "Save anyway"
+      },
+      "confirmBypass": {
+        "title": "Allow execution without confirmation?",
+        "description": "The Agent will be able to execute MCP tools within every granted scope without showing per-operation approvals.",
+        "confirm": "Enable no confirmation"
+      },
+      "confirmTest": {
+        "title": "Test this model profile?",
+        "description": "The test sends one minimal request to the model service. Your provider may charge for it.",
+        "confirm": "Run test"
+      },
+      "confirmDelete": {
+        "title": "Delete model profile?",
+        "description": "The model profile “{{name}}” and its saved API key will be deleted. Change or clear the default model first."
+      },
+      "confirmRemoveKey": {
+        "title": "Delete the saved API key?",
+        "description": "The key cannot be recovered after deletion. The model profile itself will remain.",
+        "confirm": "Delete key"
+      },
+      "testSuccess": "Model connection is ready, {{latency}} ms",
+      "testFailed": "The model connection test did not pass",
+      "testResult": {
+        "ready": "The model service answered the minimal test request.",
+        "failed": "The model service did not complete the minimal test request. Review the profile and try again."
+      },
+      "conflict": {
+        "title": "This configuration changed elsewhere",
+        "description": "Load the latest configuration, review it, and confirm the operation again.",
+        "editorDescription": "Loading the latest revision preserves this local draft. Review it and save again.",
+        "apiKeyDescription": "Load the latest revision before submitting a key to avoid updating stale configuration. The previous input has been cleared.",
+        "refresh": "Load latest",
+        "draftPreserved": "The latest revision is loaded and the local draft is preserved. Review and save it again.",
+        "apiKeyRefreshed": "The latest revision is loaded. Enter the API key again to save it."
+      },
+      "validation": {
+        "name": "Enter a profile name",
+        "nameTooLarge": "Profile name cannot exceed 80 bytes",
+        "modelId": "Enter a Model ID",
+        "modelIdTooLarge": "Model ID cannot exceed 200 bytes",
+        "baseUrl": "Enter a complete HTTP or HTTPS URL without credentials, query parameters, or a fragment",
+        "integerTokens": "Token counts must be integers",
+        "contextWindow": "Context window must be between 1024 and 2000000 tokens",
+        "tokenLimit": "Maximum output tokens cannot exceed the context window"
+      },
+      "error": {
+        "generic": "The operation did not complete. Check Core, Vault, and the model profile, then try again.",
+        "conflict": "This configuration changed elsewhere. Your draft is preserved; reload and review it before saving again.",
+        "vaultLocked": "The Vault is locked. Unlock it and try again."
+      }
+    },
     "tabMcp": "MCP",
     "mcp": {
       "title": "MCP access",

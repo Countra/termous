@@ -1,5 +1,8 @@
 import type { CoreRuntimeConfig } from '../coreProcess'
-import { agentRuntimeProtocolVersion } from '#common/contracts'
+import {
+  agentRuntimeProtocolVersion,
+  type AgentSkillsBundleStatus,
+} from '#common/contracts'
 import { isRecord, validGeneration, validRunID } from './protocol.ts'
 
 export type AgentRuntimeFailureCategory =
@@ -24,7 +27,10 @@ export interface AgentRuntimeTicket {
 }
 
 export interface AgentCoreRuntimePort {
-  registerSupervisor(supervisorInstanceID: string): Promise<AgentSupervisorLease>
+  registerSupervisor(
+    supervisorInstanceID: string,
+    skillsBundle: AgentSkillsBundleStatus,
+  ): Promise<AgentSupervisorLease>
   unregisterSupervisor(supervisorInstanceID: string, expectedRevision: number): Promise<void>
   issueRuntimeTicket(
     supervisorInstanceID: string,
@@ -69,12 +75,16 @@ export class AgentCoreRuntimeClient implements AgentCoreRuntimePort {
     this.requestTimeoutMs = options.requestTimeoutMs ?? 5_000
   }
 
-  async registerSupervisor(supervisorInstanceID: string) {
+  async registerSupervisor(
+    supervisorInstanceID: string,
+    skillsBundle: AgentSkillsBundleStatus,
+  ) {
     const value = await this.request('/api/v1/agent/runtime/supervisor', {
       method: 'PUT',
       body: JSON.stringify({
         supervisor_instance_id: supervisorInstanceID,
         runtime_protocol_version: agentRuntimeProtocolVersion,
+        skills_bundle: skillsBundle,
       }),
     })
     if (!isSupervisorLease(value, supervisorInstanceID)) {

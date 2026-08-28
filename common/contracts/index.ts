@@ -4,6 +4,8 @@ export type {
   AgentRuntimeState,
   AgentRuntimeStatus,
   AgentRuntimeSteerRequest,
+  AgentSkillsBundleState,
+  AgentSkillsBundleStatus,
 } from './agent-runtime.ts'
 export { agentRuntimeProtocolVersion } from './agent-runtime.ts'
 export type {

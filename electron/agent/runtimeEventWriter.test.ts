@@ -3,6 +3,7 @@ import test from 'node:test'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
 import type { AgentWorkerStartMessage } from './protocol.ts'
 import { RuntimeEventWriter } from './runtimeEventWriter.ts'
+import { testAgentSkillBundle } from './skillBundleTestFixture.ts'
 import type {
   RuntimeEventInput,
   WorkerCoreClientPort,
@@ -15,6 +16,7 @@ const start: AgentWorkerStartMessage = {
   ticket: 't'.repeat(48),
   run_id: 'agr_test',
   generation: 2,
+  skills: testAgentSkillBundle(),
 }
 
 class RecordingCore implements WorkerCoreClientPort {

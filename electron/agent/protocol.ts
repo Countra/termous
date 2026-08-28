@@ -1,4 +1,6 @@
 import { agentRuntimeProtocolVersion } from '#common/contracts'
+import type { AgentSkillBundleSnapshot } from './skillBundle.ts'
+import { isAgentSkillBundleSnapshot } from './skillBundle.ts'
 
 export interface AgentWorkerStartMessage {
   type: 'start'
@@ -7,6 +9,7 @@ export interface AgentWorkerStartMessage {
   ticket: string
   run_id: string
   generation: number
+  skills: AgentSkillBundleSnapshot
 }
 
 export interface AgentWorkerAbortMessage {
@@ -74,6 +77,19 @@ export function isAgentWorkerOutboundMessage(value: unknown): value is AgentWork
     && (value.category === 'bootstrap_failed' || value.category === 'runtime_failed')
 }
 
+export function validAgentWorkerStartMessage(value: unknown): value is AgentWorkerStartMessage {
+  return isRecord(value)
+    && value.type === 'start'
+    && value.protocol_version === agentRuntimeProtocolVersion
+    && validRunID(value.run_id)
+    && validGeneration(value.generation)
+    && typeof value.core_base_url === 'string'
+    && typeof value.ticket === 'string'
+    && value.ticket.length >= 40
+    && value.ticket.length <= 128
+    && isAgentSkillBundleSnapshot(value.skills)
+}
+
 export function validRunID(value: unknown): value is string {
   return typeof value === 'string'
     && value.length > 0
@@ -88,4 +104,3 @@ export function validGeneration(value: unknown): value is number {
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
-

@@ -11,6 +11,10 @@ on:
         description: "termous-core tag, branch, or commit to resolve once before building"
         required: false
         default: ""
+      skills_ref:
+        description: "termous-skills tag, branch, or commit to resolve once before building"
+        required: false
+        default: ""
   push:
     tags:
       - "v*"
@@ -30,6 +34,7 @@ jobs:
       contents: read
     outputs:
       core_sha: ${{ steps.core.outputs.sha }}
+      skills_sha: ${{ steps.skills.outputs.sha }}
       prerelease: ${{ steps.release.outputs.prerelease }}
       release_date: ${{ steps.release.outputs.release_date }}
       tag: ${{ steps.release.outputs.tag }}
@@ -132,6 +137,27 @@ jobs:
           echo "Resolved termous-core commit: $sha"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
+      - name: Checkout Termous Skills
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: Countra/termous-skills
+          ref: ${{ github.event.inputs.skills_ref || vars.TERMOUS_SKILLS_REF || steps.release.outputs.tag }}
+          path: termous-skills
+          token: ${{ secrets.TERMOUS_SKILLS_READ_TOKEN || secrets.TERMOUS_CORE_READ_TOKEN }}
+          persist-credentials: false
+
+      - name: Pin resolved Skills commit
+        id: skills
+        shell: bash
+        run: |
+          sha="$(git -C termous-skills rev-parse HEAD)"
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "无法把 Skills ref 固定为 40 位 commit SHA。" >&2
+            exit 1
+          fi
+          echo "Resolved termous-skills commit: $sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
   prepare-release:
     name: Prepare Draft Release
     needs: metadata
@@ -141,6 +167,7 @@ jobs:
       contents: write
     outputs:
       core_sha: ${{ needs.metadata.outputs.core_sha }}
+      skills_sha: ${{ needs.metadata.outputs.skills_sha }}
       prerelease: ${{ needs.metadata.outputs.prerelease }}
       release_date: ${{ needs.metadata.outputs.release_date }}
       tag: ${{ needs.metadata.outputs.tag }}
@@ -224,6 +251,7 @@ jobs:
       TERMOUS_ARCH: ${{ matrix.arch }}
       TERMOUS_CORE_DIR: ${{ github.workspace }}/backend
       TERMOUS_OUTPUT_DIR: ${{ github.workspace }}/build/${{ matrix.platform }}-${{ matrix.arch }}
+      TERMOUS_SKILLS_DIR: ${{ github.workspace }}/termous-skills/skills
       TERMOUS_RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
       TERMOUS_TARGET_OS: ${{ matrix.target_os }}
       TERMOUS_VERSION: ${{ needs.prepare-release.outputs.version }}
@@ -246,6 +274,15 @@ jobs:
           token: ${{ secrets.TERMOUS_CORE_READ_TOKEN }}
           persist-credentials: false
 
+      - name: Checkout pinned Termous Skills
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: Countra/termous-skills
+          ref: ${{ needs.prepare-release.outputs.skills_sha }}
+          path: termous-skills
+          token: ${{ secrets.TERMOUS_SKILLS_READ_TOKEN || secrets.TERMOUS_CORE_READ_TOKEN }}
+          persist-credentials: false
+
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
         with:
@@ -264,6 +301,15 @@ jobs:
           go-version: ${{ vars.GO_VERSION || '1.25.x' }}
           cache: true
           cache-dependency-path: backend/go.sum
+
+      - name: Setup Python
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: '3.13'
+
+      - name: Install Skills validation dependencies
+        shell: bash
+        run: python -m pip install -r termous-skills/requirements-dev.txt
 
       - name: Install Linux packaging dependencies
         if: matrix.platform == 'linux'

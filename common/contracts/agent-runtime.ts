@@ -1,4 +1,18 @@
-export const agentRuntimeProtocolVersion = '1' as const
+export const agentRuntimeProtocolVersion = '2' as const
+
+export type AgentSkillsBundleState =
+  | 'ready'
+  | 'missing'
+  | 'outdated'
+  | 'unavailable'
+
+export interface AgentSkillsBundleStatus {
+  status: AgentSkillsBundleState
+  fingerprint: string
+  skill_count: number
+  resource_count: number
+  error_category?: string
+}
 
 export type AgentRuntimeState =
   | 'offline'
@@ -28,4 +42,3 @@ export interface AgentRuntimeCommandResult {
   status: AgentRuntimeStatus
   error_code?: string
 }
-

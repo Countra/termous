@@ -7,6 +7,7 @@ import type {
   Usage,
 } from '@earendil-works/pi-ai'
 import { isMCPToolDetails } from './mcpClientAdapter.ts'
+import { isSkillResourceToolDetails } from './skillResourceTool.ts'
 import { projectToolTimelineValue } from './toolTimelineProjection.ts'
 import type { RuntimeEventKind } from './workerCoreClient.ts'
 
@@ -266,6 +267,13 @@ function projectToolResult(result: unknown) {
         : {}),
       is_error: details.result.isError === true,
     })
+  }
+  if (isSkillResourceToolDetails(details)) {
+    return {
+      uri: details.uri,
+      sha256: details.sha256,
+      size: details.size,
+    }
   }
   return projectToolTimelineValue({
     content: jsonValue((result as { content?: unknown }).content),

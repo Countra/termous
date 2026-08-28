@@ -1280,6 +1280,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           terminalFonts={data.terminalFonts}
                           appVersion={appVersion}
                           dataPortabilityGateway={gateways.dataPortability}
+                          agentSetupGateway={gateways.agentSetup}
                           updatePreferencesRuntime={updatePreferencesRuntime}
                           actionBusy={actionBusy}
                           onLanguageChange={(language) => runAction(() => actions.setLanguage(language))}

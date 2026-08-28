@@ -1,4 +1,4 @@
-import { Bot, DatabaseBackup, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
+import { Bot, BrainCircuit, DatabaseBackup, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
 import { Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type {
@@ -13,6 +13,7 @@ import type {
   WindowSettings,
 } from '#common/contracts'
 import { useShortcutRuntime } from '#entities/shortcuts'
+import { AgentSettingsPanel, type AgentSetupGateway } from '#features/agent-setup'
 import { McpSettingsPanel } from '#features/mcp-access'
 import {
   DataPortabilitySettings,
@@ -39,6 +40,7 @@ export interface SettingsPageProps {
   terminalFonts: TerminalFont[]
   appVersion: string
   dataPortabilityGateway: DataPortabilityGateway
+  agentSetupGateway: AgentSetupGateway
   updatePreferencesRuntime?: UpdatePreferencesRuntime | null
   actionBusy: boolean
   onLanguageChange: (language: AppLanguage) => Promise<void>
@@ -65,6 +67,7 @@ export function SettingsPage({
   terminalFonts,
   appVersion,
   dataPortabilityGateway,
+  agentSetupGateway,
   updatePreferencesRuntime = null,
   actionBusy,
   onLanguageChange,
@@ -178,6 +181,20 @@ export function SettingsPage({
                   onPatchChanges={(changes) => onShortcutSettingsChange({ changes })}
                   onResetAll={() => onShortcutSettingsChange({ reset_all: true })}
                 />
+              </div>
+            ),
+          },
+          {
+            key: 'agent',
+            label: (
+              <span className={styles['tab-label']}>
+                <BrainCircuit size={15} aria-hidden="true" />
+                {t('settings.tabAgent')}
+              </span>
+            ),
+            children: (
+              <div className={styles['tab-scroll']}>
+                <AgentSettingsPanel gateway={agentSetupGateway} />
               </div>
             ),
           },

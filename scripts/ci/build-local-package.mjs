@@ -17,6 +17,7 @@ import {
   requireReleaseVersion,
   validateUpdateManifest,
 } from './release-manifest-contract.mjs'
+import { validateAgentSkillsBundleDirectory } from '../agent/validate-skills-bundle.mjs'
 
 const scriptPath = fileURLToPath(import.meta.url)
 const scriptDirectory = path.dirname(scriptPath)
@@ -188,10 +189,21 @@ export async function validatePackageArtifacts({
   for (const corePath of corePaths) {
     await assertFile(corePath, `包内 Core ${coreName}`)
   }
+  const packagedResources = packagedResourcesDirectory(
+    root,
+    normalizedPlatform,
+    normalizedArch,
+  )
+  const skillsDirectory = path.join(packagedResources, 'agent', 'skills')
+  const skillsManifestPath = path.join(skillsDirectory, 'manifest.json')
+  await assertFile(skillsManifestPath, '包内 Agent Skills manifest')
+  await validateAgentSkillsBundleDirectory(skillsDirectory)
+  const skillsManifestPaths = [skillsManifestPath]
 
   return {
     appUpdatePaths,
     corePaths,
+    skillsManifestPaths,
     manifestPath,
     files: expected.files.map((fileName) => path.join(root, fileName)),
   }
@@ -421,6 +433,22 @@ function expectedArtifacts(platform, arch, version) {
     payloads: [zip, dmg],
     files: [dmg, zip, `${zip}.blockmap`, 'latest-mac.yml'],
   }
+}
+
+function packagedResourcesDirectory(root, platform, arch) {
+  if (platform === 'win32') {
+    return path.join(root, 'win-unpacked', 'resources')
+  }
+  if (platform === 'linux') {
+    return path.join(root, 'linux-unpacked', 'resources')
+  }
+  return path.join(
+    root,
+    arch === 'arm64' ? 'mac-arm64' : 'mac',
+    'Termous.app',
+    'Contents',
+    'Resources',
+  )
 }
 
 async function readPackageJson(webDirectory) {

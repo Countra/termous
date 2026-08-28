@@ -7,6 +7,7 @@ import type {
   AgentWorkerOutboundMessage,
   AgentWorkerStartMessage,
 } from './protocol.ts'
+import { testAgentSkillBundle } from './skillBundleTestFixture.ts'
 import { AgentWorkerRuntime } from './workerRuntime.ts'
 import type {
   RuntimeBootstrap,
@@ -306,6 +307,7 @@ function startMessage(): AgentWorkerStartMessage {
     ticket: 't'.repeat(48),
     run_id: 'agr_test',
     generation: 1,
+    skills: testAgentSkillBundle(),
   }
 }
 

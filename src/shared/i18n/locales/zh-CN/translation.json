@@ -3161,6 +3161,149 @@
       "unavailableHint": "暂时无法读取已保存的更新偏好，请稍后重试。",
       "retryLoading": "重新读取"
     },
+    "tabAgent": "Agent",
+    "agent": {
+      "loadFailed": "无法读取 Agent 设置",
+      "operationFailed": "Agent 设置操作失败",
+      "readiness": {
+        "title": "运行准备",
+        "description": "首次准备会启用 MCP、创建具有当前全部 29 项权限的 Agent 托管客户端，并保持逐次审批。修复操作可安全重复执行。",
+        "mcpRuntime": "MCP Runtime",
+        "mcpClient": "托管客户端",
+        "skills": "Skills 资源",
+        "defaultModel": "默认模型",
+        "setup": "准备或修复",
+        "checkAgain": "重新检查"
+      },
+      "componentState": {
+        "ready": "就绪",
+        "missing": "待准备",
+        "outdated": "需更新",
+        "unavailable": "不可用"
+      },
+      "componentMessage": {
+        "ready": "当前可用",
+        "missing": "需要完成配置",
+        "outdated": "需要更新后使用",
+        "unavailable": "当前无法使用"
+      },
+      "policy": {
+        "title": "MCP 审批策略",
+        "description": "该策略只作用于 Agent 托管客户端，不会修改外部 MCP 客户端。",
+        "approval": "工具执行确认",
+        "review": "逐次审批",
+        "bypass": "无需确认",
+        "reviewHint": "每次敏感操作继续使用全局 MCP 审批界面确认。",
+        "bypassHint": "Agent 可在授权范围内直接执行工具，请谨慎使用。",
+        "unavailable": "完成首次准备后可管理审批策略。",
+        "scopeOutdated": "当前已授权 {{current}}/{{required}} 项权限。新增权限不会自动授予。",
+        "sync": "同步权限"
+      },
+      "models": {
+        "title": "模型配置",
+        "description": "配置 OpenAI-compatible 模型。地址和模型标识保存在 Core，API Key 由 Vault 单独加密。",
+        "add": "添加模型",
+        "empty": "尚未添加模型配置",
+        "default": "默认",
+        "insecureHttp": "HTTP 明文传输",
+        "test": "测试连接"
+      },
+      "defaults": {
+        "title": "默认行为",
+        "model": "默认模型",
+        "modelPlaceholder": "选择模型",
+        "reasoning": "默认推理级别"
+      },
+      "apiMode": {
+        "responses": "Responses API",
+        "chatCompletions": "Chat Completions"
+      },
+      "reasoning": {
+        "off": "关闭",
+        "minimal": "最少",
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "xhigh": "极高"
+      },
+      "modelEditor": {
+        "createTitle": "新增模型配置",
+        "editTitle": "编辑模型配置",
+        "name": "配置名称",
+        "apiMode": "API 模式",
+        "baseUrl": "Base URL",
+        "modelId": "Model ID",
+        "contextWindow": "上下文窗口 Token",
+        "maxOutput": "最大输出 Token",
+        "images": "支持图片输入",
+        "reasoning": "支持 reasoning",
+        "httpRisk": "此配置使用明文 HTTP，模型请求、上下文和认证信息可能被链路上的其他方读取或篡改。"
+      },
+      "apiKey": {
+        "title": "设置 API Key",
+        "description": "密钥不会由 Renderer 持久化；输入期间会短暂保留在当前页面内存中，提交后由本机 Core 的 Vault 加密。",
+        "fieldLabel": "{{name}} 的 API Key",
+        "placeholder": "输入新的 API Key",
+        "configured": "已配置密钥",
+        "notConfigured": "无密钥",
+        "remove": "删除 API Key",
+        "tooLarge": "API Key 不能超过 16 KiB"
+      },
+      "confirmHttp": {
+        "title": "保存明文 HTTP 地址？",
+        "description": "HTTP 不提供传输加密，提示词、模型回复和 API Key 可能在网络中泄露。仅在完全可信的本地网络中使用。",
+        "confirm": "确认保存"
+      },
+      "confirmBypass": {
+        "title": "允许 Agent 无需确认执行？",
+        "description": "启用后，Agent 可在托管客户端已授权的全部权限范围内直接执行 MCP 工具，不再逐次显示审批。",
+        "confirm": "启用无需确认"
+      },
+      "confirmTest": {
+        "title": "测试此模型配置？",
+        "description": "测试会向模型服务发送一次最小请求，服务提供方可能因此计费。",
+        "confirm": "确认测试"
+      },
+      "confirmDelete": {
+        "title": "删除模型配置？",
+        "description": "模型配置“{{name}}”及其已保存 API Key 将被删除。默认模型需要先切换或清除。"
+      },
+      "confirmRemoveKey": {
+        "title": "删除已保存的 API Key？",
+        "description": "删除后无法恢复；模型配置本身会保留。",
+        "confirm": "删除密钥"
+      },
+      "testSuccess": "模型连接正常，延迟 {{latency}} ms",
+      "testFailed": "模型连接测试未通过",
+      "testResult": {
+        "ready": "模型服务已响应最小测试请求。",
+        "failed": "模型服务未能完成最小测试请求，请检查配置后重试。"
+      },
+      "conflict": {
+        "title": "配置已在其他位置更新",
+        "description": "请读取最新配置并核对后再次执行操作。",
+        "editorDescription": "读取最新 revision 后会保留当前编辑草稿，仍需再次确认保存。",
+        "apiKeyDescription": "为避免把密钥提交到过期配置，请先读取最新 revision。原输入已清除。",
+        "refresh": "读取最新配置",
+        "draftPreserved": "已读取最新 revision，当前编辑草稿已保留，请核对后重新保存。",
+        "apiKeyRefreshed": "已读取最新 revision，请重新输入 API Key 后保存。"
+      },
+      "validation": {
+        "name": "请输入配置名称",
+        "nameTooLarge": "配置名称不能超过 80 字节",
+        "modelId": "请输入 Model ID",
+        "modelIdTooLarge": "Model ID 不能超过 200 字节",
+        "baseUrl": "请输入不含凭据、查询参数和片段的完整 HTTP 或 HTTPS 地址",
+        "integerTokens": "Token 数量必须是整数",
+        "contextWindow": "上下文窗口必须介于 1024 和 2000000 Token",
+        "tokenLimit": "最大输出 Token 不能超过上下文窗口"
+      },
+      "error": {
+        "generic": "操作未完成，请检查 Core、Vault 和模型配置后重试。",
+        "conflict": "配置已在其他位置更新。当前草稿已保留，请重新载入后核对再保存。",
+        "vaultLocked": "Vault 当前已锁定，请先解锁后重试。"
+      }
+    },
     "tabMcp": "MCP",
     "mcp": {
       "title": "MCP 访问",

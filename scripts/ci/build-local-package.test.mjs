@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import {
   mkdtemp,
   mkdir,
   readFile,
   realpath,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -116,8 +118,49 @@ test('三平台产物门禁接受完整 manifest、载荷与 blockmap', async ()
       })
       assert.equal(result.appUpdatePaths.length, 1)
       assert.equal(result.corePaths.length, 1)
+      assert.equal(result.skillsManifestPaths.length, 1)
       assert.equal(result.files.length >= 2, true)
     }
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('产物门禁拒绝由输出树旁路 Skills Bundle 掩盖应用漏打包', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'termous-package-decoy-'))
+  try {
+    await writeCompleteFixture({
+      outputDirectory: root,
+      platform: 'win32',
+      arch: 'x64',
+      version: '1.2.3',
+    })
+    const packagedSkills = path.join(
+      root,
+      'win-unpacked',
+      'resources',
+      'agent',
+      'skills',
+    )
+    const decoySkills = path.join(
+      root,
+      'decoy',
+      'resources',
+      'agent',
+      'skills',
+    )
+    await mkdir(path.dirname(decoySkills), { recursive: true })
+    await rename(packagedSkills, decoySkills)
+
+    await assert.rejects(
+      validatePackageArtifacts({
+        outputDirectory: root,
+        platform: 'win32',
+        arch: 'x64',
+        version: '1.2.3',
+      }),
+      /包内 Agent Skills manifest不存在/,
+    )
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -377,5 +420,37 @@ async function writeCompleteFixture({
       platform === 'win32' ? 'termous-core.exe' : 'termous-core',
     ),
     'fixture-core',
+  )
+  const skillsDirectory = path.join(resourcesDirectory, 'agent', 'skills')
+  const skillPath = path.join(skillsDirectory, 'termous-test', 'SKILL.md')
+  await mkdir(path.dirname(skillPath), { recursive: true })
+  const skillContent = 'fixture-skill'
+  await writeFile(skillPath, skillContent, 'utf8')
+  const catalog = [{
+    name: 'termous-test',
+    description: 'Fixture skill',
+    entry_uri: 'skill://termous-test/SKILL.md',
+  }]
+  const resources = [{
+    uri: 'skill://termous-test/SKILL.md',
+    path: 'termous-test/SKILL.md',
+    sha256: createHash('sha256').update(skillContent).digest('hex'),
+    size: Buffer.byteLength(skillContent),
+    media_type: 'text/markdown; charset=utf-8',
+  }]
+  const fingerprint = createHash('sha256').update(JSON.stringify({
+    format_version: 1,
+    catalog,
+    resources: resources.map(({ uri, sha256, size, media_type }) => ({ uri, sha256, size, media_type })),
+  })).digest('hex')
+  await writeFile(
+    path.join(skillsDirectory, 'manifest.json'),
+    JSON.stringify({
+      format_version: 1,
+      fingerprint,
+      catalog,
+      resources,
+    }),
+    'utf8',
   )
 }

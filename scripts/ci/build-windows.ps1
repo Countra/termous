@@ -186,6 +186,7 @@ $defaultWebDir = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..\..")).P
 $webDir = Resolve-ExistingDirectory -Value $env:TERMOUS_WEB_DIR -Fallback $defaultWebDir -Name "TERMOUS_WEB_DIR"
 $workspaceDir = Split-Path -Parent $webDir
 $coreDir = Resolve-ExistingDirectory -Value $env:TERMOUS_CORE_DIR -Fallback (Join-Path $workspaceDir "backend") -Name "TERMOUS_CORE_DIR"
+$skillsDir = Resolve-ExistingDirectory -Value $env:TERMOUS_SKILLS_DIR -Fallback (Join-Path $workspaceDir "termous-skills\skills") -Name "TERMOUS_SKILLS_DIR"
 $outputDir = if ([string]::IsNullOrWhiteSpace($env:TERMOUS_OUTPUT_DIR)) {
   Join-Path $workspaceDir "build\github-actions\windows"
 } else {
@@ -214,11 +215,14 @@ Clear-PublishCredentials
 Write-Host "Termous Windows build"
 Write-Host "webDir=$webDir"
 Write-Host "coreDir=$coreDir"
+Write-Host "skillsDir=$skillsDir"
 Write-Host "outputDir=$outputDir"
 Write-Host "version=$version"
 Write-Host "phase=$phase"
 
 $env:VITE_TERMOUS_APP_VERSION = $version
+$env:TERMOUS_SKILLS_DIR = $skillsDir
+$env:TERMOUS_CORE_DIR = $coreDir
 
 if ($phase -in @("all", "prepare")) {
   Prepare-CoreOutputDirectory `
@@ -257,6 +261,7 @@ if ($phase -in @("all", "package")) {
     }
   }
 
+  Invoke-Native -Name "Prepare Agent Skills bundle" -FilePath "pnpm" -Arguments @("run", "build:skills") -WorkingDirectory $webDir
   Disable-CodeSigning
   Invoke-Native -Name "Build Windows installer" -FilePath "node" -Arguments @(
     "scripts/ci/build-local-package.mjs",

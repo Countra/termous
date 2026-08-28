@@ -9,6 +9,7 @@ import type {
 } from './coreRuntimeClient.ts'
 import { isAgentWorkerOutboundMessage } from './protocol.ts'
 import type { AgentWorkerProcess } from './workerProcess.ts'
+import type { AgentSkillBundleSnapshot } from './skillBundle.ts'
 
 export interface AgentRunWorkerLogger {
   info(event: string, details?: Record<string, unknown>): void
@@ -20,6 +21,7 @@ export interface AgentRunWorkerOptions {
   request: AgentRuntimeRunRef
   coreInstanceID: string
   coreBaseURL: string
+  skills: AgentSkillBundleSnapshot
   supervisorInstanceID: string
   core: Pick<AgentCoreRuntimePort, 'issueRuntimeTicket'>
   logger?: AgentRunWorkerLogger
@@ -41,6 +43,7 @@ export class AgentRunWorker {
   private readonly coreInstanceID: string
   private readonly coreBaseURL: string
   private readonly supervisorInstanceID: string
+  private readonly skills: AgentSkillBundleSnapshot
   private readonly core: Pick<AgentCoreRuntimePort, 'issueRuntimeTicket'>
   private readonly logger?: AgentRunWorkerLogger
   private readonly enqueue: AgentRunWorkerOptions['enqueue']
@@ -72,6 +75,7 @@ export class AgentRunWorker {
     this.coreInstanceID = options.coreInstanceID
     this.coreBaseURL = options.coreBaseURL
     this.supervisorInstanceID = options.supervisorInstanceID
+    this.skills = options.skills
     this.core = options.core
     this.logger = options.logger
     this.enqueue = options.enqueue
@@ -211,6 +215,7 @@ export class AgentRunWorker {
         ticket: ticket.ticket,
         run_id: this.runID,
         generation: this.generation,
+        skills: this.skills,
       })
     } catch (error) {
       await this.failLaunch(stableAgentRuntimeErrorCode(error, 'AGENT_RUNTIME_LAUNCH_FAILED'))

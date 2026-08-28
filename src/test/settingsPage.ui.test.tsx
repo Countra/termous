@@ -9,8 +9,10 @@ import type {
   TerminalSettings,
   WindowSettings,
 } from '#common/contracts'
+import type { AgentSetupGateway } from '#features/agent-setup'
 
 const childState = vi.hoisted(() => ({
+  agentSetupGateway: null as unknown,
   dataPortabilityGateway: null as unknown,
   platform: 'darwin' as const,
 }))
@@ -80,6 +82,12 @@ vi.mock('#entities/shortcuts', () => ({
 
 vi.mock('#features/mcp-access', () => ({
   McpSettingsPanel: () => <div data-testid="mcp-settings" />,
+}))
+
+vi.mock('#features/agent-setup', () => ({
+  AgentSettingsPanel: ({ gateway }: { gateway: unknown }) => (
+    <div data-testid="agent-settings" ref={() => { childState.agentSetupGateway = gateway }} />
+  ),
 }))
 
 vi.mock('#features/settings', () => ({
@@ -214,6 +222,7 @@ const completionSettings: CompletionSettings = {
 
 function renderSettingsPage(overrides: Record<string, unknown> = {}) {
   const handlers = {
+    agentSetupGateway: { readiness: vi.fn(async () => { throw new Error('unused') }) } as unknown as AgentSetupGateway,
     dataPortabilityGateway: {
       applyDataPortabilityPlan: vi.fn(async () => { throw new Error('unused') }),
       cancelDataPortabilityImport: vi.fn(async () => { throw new Error('unused') }),
@@ -272,17 +281,18 @@ function renderSettingsPage(overrides: Record<string, unknown> = {}) {
 }
 
 describe('设置页面装配合同', () => {
-  it('保持七个页签及通用设置默认页签和命令委托', async () => {
+  it('保持八个页签及通用设置默认页签和命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsPage()
     const tabs = screen.getAllByRole('tab')
 
-    expect(tabs).toHaveLength(7)
+    expect(tabs).toHaveLength(8)
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'settings.tabGeneral',
       'settings.tabTerminal',
       'settings.tabConnection',
       'settings.tabShortcuts',
+      'settings.tabAgent',
       'settings.tabMcp',
       'settings.tabData',
       'settings.tabUpdates',
@@ -298,7 +308,7 @@ describe('设置页面装配合同', () => {
     expect(handlers.onWindowSettingsChange).toHaveBeenCalledWith({ close_behavior: 'minimize_to_tray' })
   })
 
-  it('保持终端、连接、快捷键、MCP、数据和更新子模块的 Props 与命令委托', async () => {
+  it('保持终端、连接、快捷键、Agent、MCP、数据和更新子模块的 Props 与命令委托', async () => {
     const user = userEvent.setup()
     const handlers = renderSettingsPage()
 
@@ -332,6 +342,10 @@ describe('设置页面装配合同', () => {
       changes: { 'terminal.paste': null },
     })
     expect(handlers.onShortcutSettingsChange).toHaveBeenNthCalledWith(2, { reset_all: true })
+
+    await user.click(screen.getByRole('tab', { name: 'settings.tabAgent' }))
+    expect(screen.getByTestId('agent-settings')).toBeInTheDocument()
+    expect(childState.agentSetupGateway).toBe(handlers.agentSetupGateway)
 
     await user.click(screen.getByRole('tab', { name: 'settings.tabMcp' }))
     expect(screen.getByTestId('mcp-settings')).toBeInTheDocument()

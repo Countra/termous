@@ -24,6 +24,7 @@ import type {
 import { termousReleasePageUrl } from '#common/release-page'
 import { AgentCoreRuntimeClient } from './agent/coreRuntimeClient'
 import { registerAgentRuntimeIPC } from './agent/ipc'
+import { AgentSkillBundleSource } from './agent/skillBundleSource'
 import { AgentSupervisor } from './agent/supervisor'
 import { UtilityWorkerFactory } from './agent/utilityWorkerFactory'
 import { AppExitCoordinator } from './appExitCoordinator'
@@ -81,6 +82,12 @@ const agentSupervisor = new AgentSupervisor({
   workerFactory: new UtilityWorkerFactory({
     modulePath: path.join(MAIN_DIST, 'agent-worker.js'),
     cwd: path.join(__dirname, '..'),
+  }),
+  skills: new AgentSkillBundleSource({
+    mode: VITE_DEV_SERVER_URL ? 'development' : 'production',
+    rootDirectory: VITE_DEV_SERVER_URL
+      ? path.join(__dirname, '..', '..', 'termous-skills', 'skills')
+      : path.join(process.resourcesPath, 'agent', 'skills'),
   }),
   logger: {
     info: (event, details = {}) => reportElectronProcessEvent(event, details),

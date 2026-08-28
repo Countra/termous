@@ -16,12 +16,30 @@ import { streamSimple as streamOpenAIResponses } from '@earendil-works/pi-ai/api
 import type { AgentMCPConnection } from './mcpClientAdapter.ts'
 import { isMCPToolDetails } from './mcpClientAdapter.ts'
 import { PiEventBridge, type PiRunOutcome } from './piEventBridge.ts'
+import type { AgentSkillBundleSnapshot } from './skillBundle.ts'
+import {
+  createSkillResourceTool,
+  skillCatalogPrompt,
+} from './skillResourceTool.ts'
+import { readSkillResourceToolName } from './skillBundle.ts'
 import { encodeMCPToolName } from './toolNameCodec.ts'
 import type { RuntimeBootstrap, RuntimeMessagePart } from './workerCoreClient.ts'
 import type { RuntimeEventWriter } from './runtimeEventWriter.ts'
 
 const unauthenticatedAPIKeySentinel = 'termous-local-no-auth'
 const providerRequestTimeoutMs = 10 * 60_000
+const legacyChatMaxTokensProviderDomains = [
+  'chutes.ai',
+  'deepseek.com',
+  'api.moonshot.cn',
+  'gateway.ai.cloudflare.com',
+  'api.together.ai',
+  'api.together.xyz',
+  'integrate.api.nvidia.com',
+  'api.ant-ling.com',
+  'api.z.ai',
+  'open.bigmodel.cn',
+] as const
 
 export const builtinAgentSystemPrompt = [
   '你是 Termous 内置 Agent。',
@@ -42,6 +60,7 @@ export interface CreatePiAgentOptions {
   bootstrap: RuntimeBootstrap
   mcp: AgentMCPConnection
   events: RuntimeEventWriter
+  skills: AgentSkillBundleSnapshot
   fetch?: typeof globalThis.fetch
   now?: () => number
   newPartID?: () => string
@@ -62,16 +81,18 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
   const bridge = new PiEventBridge({
     writer: options.events,
     assistantMessageID: options.bootstrap.run.assistant_message_id,
-    originalToolName: options.mcp.originalName,
+    originalToolName: (name) => name === readSkillResourceToolName
+      ? readSkillResourceToolName
+      : options.mcp.originalName(name),
     now: options.now,
     newPartID: options.newPartID,
   })
   const agent = new Agent({
     initialState: {
-      systemPrompt: builtinAgentSystemPrompt,
+      systemPrompt: `${builtinAgentSystemPrompt}\n\n${skillCatalogPrompt(options.skills)}`,
       model,
       thinkingLevel: options.bootstrap.run.reasoning_level,
-      tools: options.mcp.tools,
+      tools: [...options.mcp.tools, createSkillResourceTool(options.skills)],
       messages: hydrateRuntimeMessages(options.bootstrap, model),
     },
     convertToLlm: standardMessages,
@@ -155,11 +176,19 @@ export function createRuntimeModel(bootstrap: RuntimeBootstrap): RuntimeModel {
       supportsDeveloperRole: false,
       supportsStore: false,
       supportsReasoningEffort: snapshot.supports_reasoning,
+      maxTokensField: chatMaxTokensField(common.baseUrl),
       supportsStrictMode: false,
       supportsLongCacheRetention: false,
       sendSessionAffinityHeaders: false,
     },
   }
+}
+
+export function chatMaxTokensField(baseURL: string): 'max_tokens' | 'max_completion_tokens' {
+  const hostname = validateProviderBaseURL(baseURL).hostname.toLowerCase().replace(/\.$/u, '')
+  const legacy = legacyChatMaxTokensProviderDomains.some((domain) =>
+    hostname === domain || hostname.endsWith(`.${domain}`))
+  return legacy ? 'max_tokens' : 'max_completion_tokens'
 }
 
 export function handlePiEvent(
@@ -319,7 +348,7 @@ function hydrateAssistantParts(
         assistantContent.push({
           type: 'toolCall',
           id: requiredString(tool.tool_call_id),
-          name: encodeMCPToolName(requiredString(tool.tool_name)),
+          name: runtimeToolName(requiredString(tool.tool_name)),
           arguments: requiredRecord(tool.arguments),
         })
         break
@@ -330,7 +359,7 @@ function hydrateAssistantParts(
         target.push({
           role: 'toolResult',
           toolCallId: requiredString(tool.tool_call_id),
-          toolName: encodeMCPToolName(requiredString(tool.tool_name)),
+          toolName: runtimeToolName(requiredString(tool.tool_name)),
           content: runtimeToolResultContent(tool.content),
           isError: requiredBoolean(tool.is_error),
           timestamp,
@@ -374,6 +403,10 @@ function runtimeToolResultContent(value: unknown): ToolResultMessage['content'] 
 function standardMessages(messages: AgentMessage[]): Message[] {
   return messages.filter((message): message is Message =>
     message.role === 'user' || message.role === 'assistant' || message.role === 'toolResult')
+}
+
+function runtimeToolName(value: string) {
+  return value === readSkillResourceToolName ? value : encodeMCPToolName(value)
 }
 
 function validateProviderBaseURL(value: string) {
