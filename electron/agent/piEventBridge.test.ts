@@ -84,6 +84,7 @@ test('pi 事件映射流式片段、签名、Tool 时间线和累计 usage', () 
   const delta = nested(sink.values[0]?.payload, 'message_delta')
   const textPart = nested(sink.values[1]?.payload, 'message_part')
   assert.equal(delta.part_id, textPart.id)
+  assert.equal(delta.kind, 'text')
   const reasoningPart = nested(sink.values[2]?.payload, 'message_part')
   assert.equal(
     nested(reasoningPart.content, 'reasoning').thinking_signature,

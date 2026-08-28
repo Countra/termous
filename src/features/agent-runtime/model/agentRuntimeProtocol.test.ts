@@ -1,0 +1,138 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import {
+  AgentRuntimeProtocolError,
+  decodeAgentRunEventPage,
+  decodeAgentWorkspaceEvent,
+} from './agentRuntimeProtocol.ts'
+import {
+  agentFixtureTime,
+  agentRunFixture,
+  agentSessionFixture,
+} from './agentRuntimeTestFixtures.ts'
+
+test('工作区协议接受 Core 新实例的 revision 0 权威快照', () => {
+  const event = decodeAgentWorkspaceEvent({
+    type: 'snapshot',
+    revision: 0,
+    sessions: [agentSessionFixture()],
+    active_runs: [agentRunFixture()],
+  })
+
+  assert.equal(event.type, 'snapshot')
+  assert.equal(event.revision, 0)
+  assert.equal(event.type === 'snapshot' ? event.active_runs[0]?.model_snapshot.model_id : '', 'test-model')
+})
+
+test('工作区 upsert 严格要求一个实体且增量 revision 必须递增起步', () => {
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'upsert', revision: 1,
+  }), AgentRuntimeProtocolError)
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'upsert', revision: 1,
+    session: agentSessionFixture(),
+    run: agentRunFixture(),
+  }), AgentRuntimeProtocolError)
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'removed', revision: 0, entity: 'session', id: 'ags-session',
+  }), AgentRuntimeProtocolError)
+
+  const event = decodeAgentWorkspaceEvent({
+    type: 'upsert', revision: 1, session: agentSessionFixture(),
+  })
+  assert.equal(event.type === 'upsert' ? event.session?.id : '', 'ags-session')
+})
+
+test('公开 reasoning 拒绝 thinking signature', () => {
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'upsert',
+    revision: 1,
+    message: messageResponse({
+      parts: [partResponse('reasoning', {
+        reasoning: { text: '分析', thinking_signature: 'private-signature' },
+      })],
+    }),
+  }), /thinking signature/)
+})
+
+test('message delta 必须声明 text 或 reasoning 类型', () => {
+  const valid = decodeAgentWorkspaceEvent({
+    type: 'upsert', revision: 1,
+    run_event: runEventResponse(1, 'message_delta', {
+      message_delta: {
+        message_id: 'agm-assistant', part_id: 'agp-text', kind: 'text', delta: '内容',
+      },
+    }),
+  })
+  assert.equal(
+    valid.type === 'upsert' && valid.run_event?.kind === 'message_delta'
+      ? valid.run_event.payload.message_delta.kind
+      : '',
+    'text',
+  )
+
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'upsert', revision: 1,
+    run_event: runEventResponse(1, 'message_delta', {
+      message_delta: {
+        message_id: 'agm-assistant', part_id: 'agp-text', delta: '内容',
+      },
+    }),
+  }), /片段类型/)
+})
+
+test('Run Event 补偿页拒绝跨 Run、跨 generation 和 sequence 缺口', () => {
+  const first = runEventResponse(1, 'status', { status: { status: 'running' } })
+  const second = runEventResponse(2, 'status', { status: { status: 'running' } })
+  assert.equal(decodeAgentRunEventPage({ items: [first, second] }).items.length, 2)
+
+  assert.throws(() => decodeAgentRunEventPage({
+    items: [first, { ...second, sequence: 3 }],
+  }), /不连续/)
+  assert.throws(() => decodeAgentRunEventPage({
+    items: [first, { ...second, run_id: 'agr-other' }],
+  }), /归属/)
+  assert.throws(() => decodeAgentRunEventPage({
+    items: [first, { ...second, generation: 2 }],
+  }), /归属/)
+})
+
+function messageResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'agm-assistant',
+    session_id: 'ags-session',
+    role: 'assistant',
+    status: 'streaming',
+    sequence: 2,
+    revision: 2,
+    created_at: agentFixtureTime,
+    updated_at: agentFixtureTime,
+    parts: [],
+    ...overrides,
+  }
+}
+
+function partResponse(kind: string, content: Record<string, unknown>) {
+  return {
+    id: 'agp-part',
+    message_id: 'agm-assistant',
+    kind,
+    sequence: 1,
+    content,
+    revision: 1,
+    created_at: agentFixtureTime,
+    updated_at: agentFixtureTime,
+  }
+}
+
+function runEventResponse(sequence: number, kind: string, payload: Record<string, unknown>) {
+  return {
+    id: `age-${sequence}`,
+    run_id: 'agr-run',
+    generation: 1,
+    sequence,
+    kind,
+    payload,
+    created_at: agentFixtureTime,
+  }
+}

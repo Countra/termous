@@ -1,0 +1,118 @@
+.markdown {
+  min-width: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.72;
+  overflow-wrap: anywhere;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown blockquote,
+.markdown pre,
+.markdown table {
+  margin: 0 0 12px;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 20px 0 9px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 740;
+  letter-spacing: 0;
+  line-height: 1.4;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 22px;
+}
+
+.markdown li + li {
+  margin-top: 4px;
+}
+
+.markdown a {
+  display: inline-flex;
+  align-items: baseline;
+  color: var(--accent);
+  gap: 3px;
+  text-decoration: none;
+}
+
+.markdown a:hover {
+  text-decoration: underline;
+}
+
+.markdown code {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 4px;
+  background: var(--surface-subtle);
+  font-family: var(--terminal-font-family);
+  font-size: 11px;
+  padding: 1px 5px;
+}
+
+.markdown pre {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--app-bg) 72%, var(--surface) 28%);
+  padding: 12px 14px;
+}
+
+.markdown pre code {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.markdown blockquote {
+  border-left: 2px solid color-mix(in srgb, var(--accent) 58%, var(--border));
+  color: var(--text-secondary);
+  padding-left: 12px;
+}
+
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid var(--border);
+  padding: 6px 9px;
+  text-align: left;
+}
+
+.markdown th {
+  background: var(--surface-subtle);
+  font-weight: 700;
+}
+
+.blocked-image {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+  gap: 6px;
+  padding: 4px 8px;
+}

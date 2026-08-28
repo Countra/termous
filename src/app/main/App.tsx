@@ -6,6 +6,7 @@ import { TermousUiProvider } from '#app/ui-runtime'
 import { AppShell } from '#app/app-shell'
 import { ConfirmDialog, confirmDialogStyles, termousNotificationClassName } from '#shared/ui'
 import { HostsPage, type HostsPageProps } from '#pages/hosts'
+import { AgentPage } from '#pages/agent'
 import {
   selectFileSessionForNavigation,
   selectFileSessionNavigationTarget,
@@ -1133,6 +1134,18 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                           onStartForward={(input) => actions.startForward(input)}
                           onRestartForward={restartForward}
                           onStopForward={(id) => runAction(() => actions.stopForward(id), t('forwards.stopAccepted'))}
+                        />
+                      </div>
+
+                      <div
+                        className={`${styles['app-keepalive-page']} ${page === 'agent' ? styles['is-active'] : styles['is-hidden']}`}
+                        inert={page !== 'agent'}
+                      >
+                        <AgentPage
+                          gateway={gateways.agentWorkspace}
+                          setupGateway={gateways.agentSetup}
+                          enabled={apiReady && !coreFatal}
+                          active={page === 'agent'}
                         />
                       </div>
 

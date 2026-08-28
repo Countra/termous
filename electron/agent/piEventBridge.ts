@@ -99,6 +99,7 @@ export class PiEventBridge {
         message_delta: {
           message_id: this.assistantMessageID,
           part_id: part.id,
+          kind,
           delta,
         },
       })

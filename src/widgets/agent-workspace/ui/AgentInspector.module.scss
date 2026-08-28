@@ -1,0 +1,163 @@
+.inspector {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: color-mix(in srgb, var(--sidebar-bg) 78%, var(--surface));
+  overflow-y: auto;
+}
+
+.inspector-section {
+  display: grid;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 15px 14px;
+}
+
+.inspector-section > header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  color: var(--text-secondary);
+  gap: 7px;
+}
+
+.inspector-section h3 {
+  flex: 1;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.inspector-section > header > span {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.inspector-section > header > span.is-connected {
+  color: var(--success);
+}
+
+.context-usage {
+  display: grid;
+  gap: 7px;
+}
+
+.context-usage > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.context-usage strong {
+  color: var(--text-primary);
+  font-size: 18px;
+}
+
+.context-usage span,
+.context-usage p {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.context-usage p {
+  margin: 0;
+}
+
+.context-usage :global(.ant-progress) {
+  line-height: 1;
+}
+
+.skill-list {
+  display: grid;
+  gap: 8px;
+}
+
+.skill-list > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.skill-list strong {
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.skill-list span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 15px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.inspector-empty {
+  margin: 18px 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.mcp-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mcp-metrics > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 7px;
+  padding: 9px;
+}
+
+.mcp-metrics > div + div {
+  border-left: 1px solid var(--border);
+}
+
+.mcp-metrics svg {
+  grid-row: 1 / 3;
+  color: var(--accent);
+}
+
+.mcp-metrics strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.mcp-metrics span {
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.approval-policy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.approval-policy > div {
+  display: grid;
+  gap: 2px;
+}
+
+.approval-policy strong {
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.approval-policy span {
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 14px;
+}

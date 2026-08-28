@@ -1,7 +1,10 @@
-import { parentPort } from 'electron'
 import { AgentWorkerRuntime } from './workerRuntime.ts'
 
 let exitScheduled = false
+const parentPort = process.parentPort
+if (!parentPort) {
+  throw new Error('AGENT_RUNTIME_PARENT_PORT_UNAVAILABLE')
+}
 
 const runtime = new AgentWorkerRuntime({
   send: (message) => parentPort.postMessage(message),

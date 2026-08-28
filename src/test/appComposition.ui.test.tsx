@@ -15,6 +15,8 @@ const testState = vi.hoisted(() => {
     persistentStateSetter: vi.fn(),
     workbenchMounts: 0,
     workbenchUnmounts: 0,
+    agentMounts: 0,
+    agentUnmounts: 0,
     filesPageMounts: 0,
     filesPageUnmounts: 0,
     workbenchForwardsIsArray: false,
@@ -193,12 +195,13 @@ vi.mock('#app/app-shell', () => ({
     onOpenConnectionLauncher,
   }: {
     children: ReactNode
-    onNavigate: (page: 'workbench' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets' | 'remote-desktop') => void
+    onNavigate: (page: 'workbench' | 'agent' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets' | 'remote-desktop') => void
     onOpenConnectionLauncher: () => void
   }) => (
     <div data-provider="app-shell">
       <button type="button" onClick={onOpenConnectionLauncher}>global-connect</button>
       <button type="button" onClick={() => onNavigate('workbench')}>workbench</button>
+      <button type="button" onClick={() => onNavigate('agent')}>agent</button>
       <button type="button" onClick={() => onNavigate('hosts')}>hosts</button>
       <button type="button" onClick={() => onNavigate('vault')}>vault</button>
       <button type="button" onClick={() => onNavigate('files')}>files</button>
@@ -208,6 +211,18 @@ vi.mock('#app/app-shell', () => ({
       {children}
     </div>
   ),
+}))
+
+vi.mock('#pages/agent', () => ({
+  AgentPage: ({ active }: { active: boolean }) => {
+    useEffect(() => {
+      testState.agentMounts += 1
+      return () => {
+        testState.agentUnmounts += 1
+      }
+    }, [])
+    return <div data-testid="agent-page" data-active={String(active)}>Agent</div>
+  },
 }))
 
 vi.mock('#widgets/workbench', () => ({
@@ -507,6 +522,8 @@ describe('应用运行时组合合同', () => {
   beforeEach(() => {
     testState.workbenchMounts = 0
     testState.workbenchUnmounts = 0
+    testState.agentMounts = 0
+    testState.agentUnmounts = 0
     testState.filesPageMounts = 0
     testState.filesPageUnmounts = 0
     testState.workbenchForwardsIsArray = false
@@ -758,6 +775,37 @@ describe('应用运行时组合合同', () => {
     expect(workbench).toHaveAttribute('data-active', 'true')
     expect(keepAlivePage).not.toHaveAttribute('inert')
     expect(keepAlivePage).toBeVisible()
+  })
+
+  it('Agent 工作区切页后保持挂载，并通过 inert 与 active 停用', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const agent = screen.getByTestId('agent-page')
+    const keepAlivePage = agent.parentElement
+    expect(testState.agentMounts).toBe(1)
+    expect(testState.agentUnmounts).toBe(0)
+    expect(agent).toHaveAttribute('data-active', 'false')
+    expect(keepAlivePage).toHaveAttribute('inert')
+    expect(keepAlivePage).not.toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'agent' }))
+
+    expect(screen.getByTestId('agent-page')).toBe(agent)
+    expect(testState.agentMounts).toBe(1)
+    expect(testState.agentUnmounts).toBe(0)
+    expect(agent).toHaveAttribute('data-active', 'true')
+    expect(keepAlivePage).not.toHaveAttribute('inert')
+    expect(keepAlivePage).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'hosts' }))
+
+    expect(screen.getByTestId('agent-page')).toBe(agent)
+    expect(testState.agentMounts).toBe(1)
+    expect(testState.agentUnmounts).toBe(0)
+    expect(agent).toHaveAttribute('data-active', 'false')
+    expect(keepAlivePage).toHaveAttribute('inert')
+    expect(keepAlivePage).not.toBeVisible()
   })
 
   it('文件页面按需卸载，而文件工作区运行时保持常驻', async () => {

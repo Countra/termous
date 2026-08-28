@@ -1,1 +1,1 @@
-export type PageKey = 'workbench' | 'remote-desktop' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets' | 'settings'
+export type PageKey = 'workbench' | 'agent' | 'remote-desktop' | 'hosts' | 'vault' | 'files' | 'forwards' | 'snippets' | 'settings'

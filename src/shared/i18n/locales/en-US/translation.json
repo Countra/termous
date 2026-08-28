@@ -46,6 +46,7 @@
   },
   "nav": {
     "workbench": "Workbench",
+    "agent": "Agent",
     "remote-desktop": "Remote Desktop",
     "hosts": "Hosts",
     "vault": "Credential Vault",
@@ -53,6 +54,100 @@
     "forwards": "Port Forwarding",
     "snippets": "Snippets",
     "settings": "Settings"
+  },
+  "agent": {
+    "sessions": {
+      "title": "Sessions",
+      "new": "New session",
+      "untitled": "New session",
+      "search": "Search sessions",
+      "empty": "No matching sessions",
+      "archive": "Archive session",
+      "deleteTitle": "Delete this session?",
+      "deleteDescription": "The session “{{title}}” and its message history will be permanently deleted."
+    },
+    "header": {
+      "newSession": "Start with the default model",
+      "model": "Model",
+      "selectModel": "Select model"
+    },
+    "status": {
+      "idle": "Ready",
+      "queued": "Queued",
+      "starting": "Starting",
+      "running": "Running",
+      "waiting_approval": "Awaiting approval",
+      "stopping": "Stopping",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "interrupted": "Interrupted"
+    },
+    "empty": {
+      "title": "Start an Agent session",
+      "description": "Describe the outcome you need. The Agent uses Termous capabilities through MCP within the scopes you have granted."
+    },
+    "message": {
+      "you": "You",
+      "agent": "Agent",
+      "failed": "This response failed",
+      "interrupted": "This response was interrupted"
+    },
+    "reasoning": {
+      "running": "Thinking",
+      "completed": "Reasoning"
+    },
+    "tool": {
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "waiting_approval": "Awaiting approval",
+        "completed": "Completed",
+        "failed": "Failed",
+        "interrupted": "Interrupted"
+      }
+    },
+    "composer": {
+      "placeholder": "Type a message. Enter to send, Shift + Enter for a new line",
+      "steerPlaceholder": "Add guidance after the current tool batch finishes",
+      "steerHint": "This message will be added to the running task",
+      "send": "Send",
+      "steer": "Add guidance",
+      "stop": "Stop task"
+    },
+    "inspector": {
+      "title": "Run inspector",
+      "context": "Context",
+      "estimated": "Estimated usage",
+      "measured": "Measured usage",
+      "skills": "Skills",
+      "skillsReady": "Skill resources are loaded on demand by the runtime",
+      "mcp": "MCP",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "tools": "Tools",
+      "scopes": "Scopes",
+      "approval": "Skip per-tool approval",
+      "reviewHint": "Sensitive operations use the global approval flow",
+      "bypassHint": "Granted tools may execute directly",
+      "confirmBypassTitle": "Allow the Agent to run without confirmation?",
+      "confirmBypassDescription": "The Agent will be able to execute MCP tools within the managed client's granted scopes. A running task is not changed by this setting.",
+      "confirmBypass": "Enable no confirmation"
+    },
+    "markdown": {
+      "remoteImageBlocked": "Remote image blocked"
+    },
+    "readiness": {
+      "title": "Prepare the Agent runtime",
+      "description": "The Agent works through Termous MCP and read-only Skill resources. Initial setup enables MCP, creates a managed client with all {{count}} current scopes, and keeps per-operation approval enabled; models remain managed under Settings > Agent.",
+      "prepare": "Set up or repair",
+      "loadFailed": "Agent runtime status is temporarily unavailable"
+    },
+    "error": {
+      "workspace": "The live status connection was interrupted. Recovering from the authoritative snapshot.",
+      "operation": "The Agent operation did not complete",
+      "operationDescription": "Check Core, the model profile, and runtime status, then try again."
+    }
   },
   "remoteDesktop": {
     "launcherTitle": "Connect Remote Desktop",

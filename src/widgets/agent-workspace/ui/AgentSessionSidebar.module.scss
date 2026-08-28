@@ -1,0 +1,141 @@
+.session-sidebar {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--sidebar-bg) 78%, var(--surface));
+}
+
+.session-sidebar-header {
+  display: grid;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px;
+}
+
+.session-sidebar-header :global(.ant-btn) {
+  height: 34px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.session-sidebar-header :global(.ant-input-affix-wrapper) {
+  height: 32px;
+  border-color: var(--border);
+  border-radius: 7px;
+  background: var(--surface-subtle);
+  box-shadow: none;
+}
+
+.session-list {
+  display: grid;
+  min-height: 0;
+  align-content: start;
+  gap: 3px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.session-row {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 58px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.session-row:hover,
+.session-row:focus-within {
+  background: var(--surface-hover);
+}
+
+.session-row.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+  background: var(--nav-active-bg);
+  box-shadow: var(--inner-highlight);
+}
+
+.session-row > button {
+  display: grid;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  gap: 6px;
+  padding: 9px 50px 9px 10px;
+  text-align: left;
+}
+
+.session-row > button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: -2px;
+}
+
+.session-row strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 17px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-row > button > span {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 10px;
+  gap: 8px;
+}
+
+.session-row > button > span > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-row time {
+  flex: 0 0 auto;
+}
+
+.session-actions {
+  position: absolute;
+  top: 7px;
+  right: 6px;
+  display: flex;
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.session-row:hover .session-actions,
+.session-row:focus-within .session-actions {
+  opacity: 1;
+}
+
+.session-actions :global(.ant-btn) {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+}
+
+.session-list-empty {
+  margin: 18px 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-row,
+  .session-actions {
+    transition: none;
+  }
+}

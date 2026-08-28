@@ -1,4 +1,5 @@
 import {
+  Bot,
   ChevronDown,
   DatabaseZap,
   FileCode2,
@@ -43,6 +44,7 @@ export interface AppShellProps {
 
 const navItems = [
   { key: 'workbench' as const, icon: TerminalSquare },
+  { key: 'agent' as const, icon: Bot },
   { key: 'remote-desktop' as const, icon: MonitorPlay },
   { key: 'hosts' as const, icon: Server },
   { key: 'vault' as const, icon: DatabaseZap },

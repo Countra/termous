@@ -1,6 +1,7 @@
 import type { AppConfig } from '#common/contracts'
 import type { AliasGateway } from '#features/alias'
 import type { AgentSetupGateway } from '#features/agent-setup'
+import type { AgentWorkspaceGateway } from '#features/agent-runtime'
 import type { CommandDispatchGateway } from '#features/command-dispatch'
 import type { FileGateway } from '#features/files'
 import type { McpAccessGateway } from '#features/mcp-access'
@@ -11,6 +12,7 @@ import { getTermousBridge } from '#shared/bridge'
 import type { AppDataSnapshotGateway } from './runtimeGatewayContracts'
 import { AliasClient } from './gateways/aliasClient'
 import { AgentSetupClient } from './gateways/agentSetupClient'
+import { AgentWorkspaceClient } from './gateways/agentWorkspaceClient'
 import { CommandDispatchClient } from './gateways/commandDispatchClient'
 import { CredentialClient } from './gateways/credentialsClient'
 import { CrontabClient } from './gateways/crontabClient'
@@ -41,6 +43,7 @@ type DomainGateway<Client extends TermousApiTransport> = Omit<
 
 export interface RuntimeGateways {
   readonly agentSetup: AgentSetupGateway
+  readonly agentWorkspace: AgentWorkspaceGateway
   readonly runtime: DomainGateway<RuntimeClient>
   readonly settings: DomainGateway<SettingsClient>
   readonly snippets: DomainGateway<SnippetClient>
@@ -72,6 +75,7 @@ export function createRuntimeGatewaysFromConfig(
 ): RuntimeGateways {
   const runtime = new RuntimeClient(config)
   const agentSetup = new AgentSetupClient(config)
+  const agentWorkspace = new AgentWorkspaceClient(config)
   const settings = new SettingsClient(config)
   const snippets = new SnippetClient(config)
   const fileCatalog = new FileCatalogClient(config)
@@ -98,6 +102,7 @@ export function createRuntimeGatewaysFromConfig(
 
   return {
     agentSetup,
+    agentWorkspace,
     runtime,
     settings,
     snippets,

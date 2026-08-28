@@ -1,0 +1,127 @@
+.tool-row {
+  margin: 7px 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
+  overflow: hidden;
+}
+
+.tool-row summary {
+  display: grid;
+  min-height: 34px;
+  grid-template-columns: 14px 16px minmax(0, 1fr) auto auto;
+  align-items: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  gap: 6px;
+  list-style: none;
+  padding: 0 9px;
+}
+
+.tool-row summary::-webkit-details-marker {
+  display: none;
+}
+
+.tool-row summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline-offset: -2px;
+}
+
+.tool-row[open] .tool-disclosure {
+  transform: rotate(90deg);
+}
+
+.tool-disclosure {
+  display: inline-flex;
+  transition: transform 0.14s ease;
+}
+
+.tool-status-icon {
+  display: inline-flex;
+  color: var(--text-muted);
+}
+
+.tool-row.is-running .tool-status-icon,
+.tool-row.is-queued .tool-status-icon {
+  color: var(--accent);
+  animation: agent-tool-spin 1s linear infinite;
+}
+
+.tool-row.is-completed .tool-status-icon {
+  color: var(--success);
+}
+
+.tool-row.is-failed .tool-status-icon,
+.tool-row.is-interrupted .tool-status-icon {
+  color: var(--danger);
+}
+
+.tool-row.is-waiting-approval .tool-status-icon {
+  color: var(--warning);
+}
+
+.tool-row strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: var(--terminal-font-family);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-state,
+.tool-duration {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.tool-duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tool-row > p,
+.tool-row > pre {
+  margin: 0;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 17px;
+  padding: 8px 10px;
+}
+
+.tool-row > pre {
+  max-height: 180px;
+  background: var(--surface-code);
+  font-family: var(--terminal-font-family);
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@keyframes agent-tool-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (width <= 720px) {
+  .tool-row summary {
+    grid-template-columns: 14px 16px minmax(0, 1fr) auto;
+  }
+
+  .tool-duration {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-disclosure {
+    transition: none;
+  }
+
+  .tool-row.is-running .tool-status-icon,
+  .tool-row.is-queued .tool-status-icon {
+    animation: none;
+  }
+}
