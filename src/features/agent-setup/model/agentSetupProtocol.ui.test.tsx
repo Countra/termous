@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   AgentSetupProtocolError,
-  decodeAgentModelProfile,
-  decodeAgentModelProfilePage,
+  decodeAgentModel,
+  decodeAgentModelPage,
+  decodeAgentModelProvider,
+  decodeAgentModelProviderPage,
   decodeAgentModelTestResult,
   decodeAgentReadiness,
   decodeAgentSettings,
@@ -11,74 +13,60 @@ import {
 describe('Agent setup protocol', () => {
   it('严格解析缺省默认模型、准备状态和 MCP 策略', () => {
     const readiness = decodeAgentReadiness(readinessFixture())
-
-    expect(readiness.settings.default_model_profile_id).toBeUndefined()
+    expect(readiness.settings.default_model_id).toBeUndefined()
     expect(readiness.mcp_policy).toMatchObject({
-      approval_bypass: false,
-      scope_count: 29,
-      required_scope_count: 29,
-      revision: 2,
+      approval_bypass: false, scope_count: 29, required_scope_count: 29, revision: 2,
     })
   })
 
-  it('拒绝零 revision、非法时间和越界字段', () => {
-    expect(() => decodeAgentSettings({
-      ...settingsFixture(),
-      revision: 0,
-    })).toThrow(AgentSetupProtocolError)
-    expect(() => decodeAgentSettings({
-      ...settingsFixture(),
-      updated_at: 'not-a-time',
-    })).toThrow(AgentSetupProtocolError)
-    expect(() => decodeAgentModelProfile({
-      ...profileFixture(),
-      name: 'a'.repeat(81),
-    })).toThrow(AgentSetupProtocolError)
-    expect(() => decodeAgentModelProfile({
-      ...profileFixture(),
-      name: '模'.repeat(27),
-    })).toThrow(AgentSetupProtocolError)
+  it('拒绝零 revision、非法时间和越界 UTF-8 字段', () => {
+    expect(() => decodeAgentSettings({ ...settingsFixture(), revision: 0 })).toThrow(AgentSetupProtocolError)
+    expect(() => decodeAgentSettings({ ...settingsFixture(), updated_at: 'not-a-time' })).toThrow(AgentSetupProtocolError)
+    expect(() => decodeAgentModelProvider({ ...providerFixture(), name: '模'.repeat(27) })).toThrow(AgentSetupProtocolError)
+    expect(() => decodeAgentModel({ ...modelFixture(), display_name: '模'.repeat(67) })).toThrow(AgentSetupProtocolError)
   })
 
-  it('模型列表单页最多接受 32 项', () => {
-    expect(decodeAgentModelProfilePage({
-      items: Array.from({ length: 32 }, (_, index) => ({ ...profileFixture(), id: `amp-${index}` })),
-    }).items).toHaveLength(32)
-    for (const count of [33, 50]) {
-      expect(() => decodeAgentModelProfilePage({
-        items: Array.from({ length: count }, (_, index) => ({ ...profileFixture(), id: `amp-${index}` })),
-      })).toThrow(AgentSetupProtocolError)
-    }
+  it('拒绝 Provider 与模型文本中的 ASCII 控制字符', () => {
+    expect(() => decodeAgentModelProvider({ ...providerFixture(), name: 'Local\nProvider' })).toThrow(AgentSetupProtocolError)
+    expect(() => decodeAgentModel({ ...modelFixture(), remote_model_id: 'gpt\u0000test' })).toThrow(AgentSetupProtocolError)
+    expect(() => decodeAgentModel({ ...modelFixture(), display_name: 'GPT\tTest' })).toThrow(AgentSetupProtocolError)
+    expect(() => decodeAgentModel({ ...modelFixture(), owned_by: 'owner\u007f' })).toThrow(AgentSetupProtocolError)
   })
 
-  it('拒绝包含凭据、查询参数或片段的模型地址', () => {
+  it('严格限制 Provider 与模型分页大小和重复 ID', () => {
+    expect(decodeAgentModelProviderPage({ items: Array.from({ length: 16 }, (_, index) => ({ ...providerFixture(), id: `apv-${index}` })) }).items).toHaveLength(16)
+    expect(() => decodeAgentModelProviderPage({ items: Array.from({ length: 17 }, (_, index) => ({ ...providerFixture(), id: `apv-${index}` })) })).toThrow(AgentSetupProtocolError)
+    expect(decodeAgentModelPage({ items: Array.from({ length: 100 }, (_, index) => ({ ...modelFixture(), id: `apm-${index}`, remote_model_id: `model-${index}` })) }).items).toHaveLength(100)
+    expect(() => decodeAgentModelPage({ items: [{ ...modelFixture() }, { ...modelFixture() }] })).toThrow(AgentSetupProtocolError)
+  })
+
+  it('拒绝包含凭据、查询参数或片段的 Provider 地址', () => {
     for (const baseUrl of [
       'https://user:secret@example.test/v1',
       'https://example.test/v1?token=secret',
       'https://example.test/v1#fragment',
     ]) {
-      expect(() => decodeAgentModelProfile({ ...profileFixture(), base_url: baseUrl })).toThrow(AgentSetupProtocolError)
+      expect(() => decodeAgentModelProvider({ ...providerFixture(), base_url: baseUrl })).toThrow(AgentSetupProtocolError)
     }
   })
 
   it('只接受稳定的模型测试状态', () => {
     expect(decodeAgentModelTestResult({ status: 'ready', latency_ms: 42, model_id: 'gpt-test', message: '' }).status).toBe('ready')
     expect(() => decodeAgentModelTestResult({ status: 'unknown', latency_ms: 42, model_id: 'gpt-test', message: '' })).toThrow(AgentSetupProtocolError)
+    expect(() => decodeAgentModelTestResult({ status: 'ready', latency_ms: 42, model_id: 'gpt\nsecret', message: '' })).toThrow(AgentSetupProtocolError)
   })
 })
 
 function settingsFixture() {
   return {
-    default_reasoning_level: 'off',
-    revision: 1,
-    created_at: '2026-08-28T00:00:00Z',
-    updated_at: '2026-08-28T00:00:00Z',
+    default_reasoning_level: 'off', revision: 1,
+    created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
   }
 }
 
 function readinessFixture() {
   return {
-    status: 'ready',
+    status: 'needs_setup',
     mcp_runtime: { status: 'ready', message: 'ready' },
     mcp_client: { status: 'ready', message: 'ready' },
     skills_bundle: { status: 'ready', message: 'ready' },
@@ -91,11 +79,19 @@ function readinessFixture() {
   }
 }
 
-function profileFixture() {
+function providerFixture() {
   return {
-    id: 'amp-1', name: 'Local model', api_mode: 'responses', base_url: 'https://example.test/v1',
-    model_id: 'gpt-test', context_window_tokens: 8192, max_output_tokens: 1024,
-    supports_images: false, supports_reasoning: true, api_key_configured: false,
-    revision: 1, created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
+    id: 'apv-1', name: 'Local provider', api_mode: 'responses', base_url: 'https://example.test/v1',
+    enabled: true, api_key_configured: false, refresh_status: 'ready', revision: 1,
+    created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
+  }
+}
+
+function modelFixture() {
+  return {
+    id: 'apm-1', provider_id: 'apv-1', remote_model_id: 'gpt-test', display_name: 'GPT Test',
+    availability: 'available', context_window_tokens: 8192, max_output_tokens: 1024,
+    supports_images: false, supports_reasoning: true, capabilities_confirmed: false, revision: 1,
+    created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
   }
 }

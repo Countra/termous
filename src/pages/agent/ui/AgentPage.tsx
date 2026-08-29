@@ -1,8 +1,16 @@
 import { App as AntdApp, Alert } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AgentLaunchIntent, AgentModelProfile, AgentReadiness, AgentSession, AgentSourceContext } from '#entities/agent'
-import { loadAllAgentModelProfiles, type AgentSetupGateway } from '#features/agent-setup'
+import {
+  isAgentModelRunnable,
+  type AgentLaunchIntent,
+  type AgentModel,
+  type AgentModelProvider,
+  type AgentReadiness,
+  type AgentSession,
+  type AgentSourceContext,
+} from '#entities/agent'
+import { loadAgentModelCatalog, type AgentSetupGateway } from '#features/agent-setup'
 import {
   AgentRuntimeStartError,
   AgentWorkspaceController,
@@ -13,7 +21,9 @@ import { termousNotificationClassName } from '#shared/ui'
 import { AgentWorkspace, type AgentWorkspaceInspectorState } from '#widgets/agent-workspace'
 import {
   agentRunInteractionBlocked,
+  agentWorkspaceInfrastructureReady,
   latestSessionRun,
+  projectAgentModelOptions,
   projectAgentMessages,
   projectAgentSessions,
   selectionAfterSessionRemoval,
@@ -29,6 +39,7 @@ export function AgentPage({
   launchIntent,
   onLaunchIntentHandled,
   onRuntimeSummaryChange,
+  onOpenSettings,
 }: {
   gateway: AgentWorkspaceGateway
   setupGateway: AgentSetupGateway
@@ -40,55 +51,125 @@ export function AgentPage({
     agentRunCount: number
     snapshotComplete: boolean
   }) => void
+  onOpenSettings?: () => void
 }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
   const controller = useMemo(() => new AgentWorkspaceController({ gateway }), [gateway])
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot)
   const [readiness, setReadiness] = useState<AgentReadiness | null>(null)
-  const [profiles, setProfiles] = useState<AgentModelProfile[]>([])
+  const [providers, setProviders] = useState<AgentModelProvider[]>([])
+  const [models, setModels] = useState<AgentModel[]>([])
   const [setupLoading, setSetupLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [draftModelProfileId, setDraftModelProfileId] = useState<string>()
+  const [draftModelId, setDraftModelId] = useState<string>()
   const [draftSourceContexts, setDraftSourceContexts] = useState<Record<string, AgentSourceContext>>({})
+  const [activeSetupReadyEpoch, setActiveSetupReadyEpoch] = useState(0)
   const busyRef = useRef(false)
   const attachmentDraftSessionPromiseRef = useRef<Promise<AgentSession> | null>(null)
   const attachmentDraftSessionIdsRef = useRef(new Set<string>())
   const handledLaunchIntentRef = useRef(0)
+  const setupLoadRequestRef = useRef(0)
+  const activeSetupEpochRef = useRef(0)
+  const activeSetupReadyEpochRef = useRef(0)
+  const activeSetupAbortRef = useRef<AbortController | null>(null)
   const notificationRef = useRef(notification)
   const tRef = useRef(t)
   notificationRef.current = notification
   tRef.current = t
+  const providerById = useMemo(
+    () => new Map(providers.map((provider) => [provider.id, provider])),
+    [providers],
+  )
+  const modelById = useMemo(
+    () => new Map(models.map((model) => [model.id, model])),
+    [models],
+  )
+  const firstRunnableModelId = useMemo(
+    () => models.find((model) => isAgentModelRunnable(model, providerById.get(model.provider_id)))?.id,
+    [models, providerById],
+  )
+  const workspaceModelOptions = useMemo(
+    () => projectAgentModelOptions(models, providerById),
+    [models, providerById],
+  )
+  const workspaceSessions = useMemo(
+    () => projectAgentSessions(state.sessions, models, providers, state.runs),
+    [models, providers, state.runs, state.sessions],
+  )
 
   const acceptSetupSnapshot = useCallback((
     nextReadiness: AgentReadiness,
-    nextProfiles: AgentModelProfile[],
+    nextProviders: AgentModelProvider[],
+    nextModels: AgentModel[],
   ) => {
+    const nextProvidersById = new Map(nextProviders.map((provider) => [provider.id, provider]))
     setReadiness(nextReadiness)
-    setProfiles(nextProfiles)
-    setDraftModelProfileId((current) => (
-      current && nextProfiles.some((profile) => profile.id === current)
-        ? current
-        : nextReadiness.settings.default_model_profile_id || nextProfiles[0]?.id
+    setProviders(nextProviders)
+    setModels(nextModels)
+    setDraftModelId((current) => (
+      current && nextModels.some((model) => model.id === current)
+          ? current
+          : nextReadiness.settings.default_model_id
+          || nextModels.find((model) => (
+            isAgentModelRunnable(model, nextProvidersById.get(model.provider_id))
+          ))?.id
     ))
   }, [])
 
-  const loadSetup = useCallback(async () => {
+  const loadSetup = useCallback(async (
+    signal?: AbortSignal,
+    shouldAccept: () => boolean = () => true,
+  ) => {
+    const request = setupLoadRequestRef.current + 1
+    setupLoadRequestRef.current = request
     setSetupLoading(true)
     try {
-      const [nextReadiness, nextProfiles] = await Promise.all([
-        setupGateway.readiness(),
-        loadAllAgentModelProfiles(gateway),
+      const [nextReadiness, catalog] = await Promise.all([
+        setupGateway.readiness(signal),
+        loadAgentModelCatalog(setupGateway, signal),
       ])
-      acceptSetupSnapshot(nextReadiness, nextProfiles)
+      signal?.throwIfAborted()
+      if (!shouldAccept()) return false
+      acceptSetupSnapshot(nextReadiness, catalog.providers, catalog.models)
       const selectedSessionId = controller.getSnapshot().selected_session_id
-      if (selectedSessionId) await controller.reloadContext(selectedSessionId)
+      if (selectedSessionId) {
+        try {
+          await controller.reloadContext(selectedSessionId)
+        } catch {
+          if (!signal?.aborted) notifyError(notificationRef.current, tRef.current)
+        }
+      }
+      signal?.throwIfAborted()
+      return shouldAccept()
     } catch {
-      notifyError(notificationRef.current, tRef.current)
+      if (!signal?.aborted) notifyError(notificationRef.current, tRef.current)
+      return false
     } finally {
-      setSetupLoading(false)
+      if (setupLoadRequestRef.current === request) setSetupLoading(false)
     }
-  }, [acceptSetupSnapshot, controller, gateway, setupGateway])
+  }, [acceptSetupSnapshot, controller, setupGateway])
+
+  const markActiveSetupReady = useCallback((epoch: number) => {
+    if (epoch <= 0 || activeSetupEpochRef.current !== epoch) return
+    activeSetupReadyEpochRef.current = epoch
+    setActiveSetupReadyEpoch(epoch)
+  }, [])
+
+  const hydrateActiveSetup = useCallback((epoch: number) => {
+    activeSetupAbortRef.current?.abort()
+    const controller = new AbortController()
+    activeSetupAbortRef.current = controller
+    activeSetupReadyEpochRef.current = 0
+    setActiveSetupReadyEpoch(0)
+    return loadSetup(
+      controller.signal,
+      () => activeSetupEpochRef.current === epoch,
+    ).then((accepted) => {
+      if (accepted && !controller.signal.aborted) markActiveSetupReady(epoch)
+      return accepted
+    })
+  }, [loadSetup, markActiveSetupReady])
 
   useEffect(() => {
     if (!enabled) return
@@ -105,8 +186,16 @@ export function AgentPage({
 
   useEffect(() => {
     if (!enabled || !active) return
-    void loadSetup()
-  }, [active, enabled, loadSetup])
+    const epoch = activeSetupEpochRef.current + 1
+    activeSetupEpochRef.current = epoch
+    void hydrateActiveSetup(epoch)
+    return () => {
+      if (activeSetupEpochRef.current !== epoch) return
+      activeSetupAbortRef.current?.abort()
+      activeSetupAbortRef.current = null
+      activeSetupReadyEpochRef.current = 0
+    }
+  }, [active, enabled, hydrateActiveSetup])
 
   const perform = useCallback(async (operation: () => Promise<unknown>) => {
     if (busyRef.current) return false
@@ -125,23 +214,34 @@ export function AgentPage({
   }, [])
 
   const selected = state.sessions.find((session) => session.id === state.selected_session_id)
-  const newSessionModelProfileId = draftModelProfileId
-    ?? readiness?.settings.default_model_profile_id
-    ?? profiles[0]?.id
+  const newSessionModelId = draftModelId
+    ?? readiness?.settings.default_model_id
+    ?? firstRunnableModelId
+  const newSessionModel = newSessionModelId ? modelById.get(newSessionModelId) : undefined
+  const newSessionModelRunnable = Boolean(newSessionModel && isAgentModelRunnable(
+    newSessionModel,
+    providerById.get(newSessionModel.provider_id),
+  ))
+  const workspaceInfrastructureReady = Boolean(
+    readiness && agentWorkspaceInfrastructureReady(readiness),
+  )
   const createDraftSession = useCallback(async (sourceContext?: AgentSourceContext) => {
-    const profileId = newSessionModelProfileId
-    if (!profileId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
-    const profile = profiles.find((item) => item.id === profileId)
+    const modelId = newSessionModelId
+    if (!modelId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
+    const model = modelById.get(modelId)
+    if (!model || !isAgentModelRunnable(model, providerById.get(model.provider_id))) {
+      throw new Error('AGENT_MODEL_UNAVAILABLE')
+    }
     const session = await controller.createSession({
       title: sourceContext?.title || tRef.current('agent.sessions.untitled'),
-      model_profile_id: profileId,
-      reasoning_level: profile?.supports_reasoning
+      model_id: modelId,
+      reasoning_level: model.supports_reasoning
         ? readiness?.settings.default_reasoning_level ?? 'off'
         : 'off',
     })
     controller.selectSession(session.id)
     return session
-  }, [controller, newSessionModelProfileId, profiles, readiness?.settings.default_reasoning_level])
+  }, [controller, modelById, newSessionModelId, providerById, readiness?.settings.default_reasoning_level])
 
   const ensureAttachmentDraftSession = useCallback((sourceContext?: AgentSourceContext) => {
     if (attachmentDraftSessionPromiseRef.current) return attachmentDraftSessionPromiseRef.current
@@ -207,7 +307,9 @@ export function AgentPage({
   })
 
   useEffect(() => {
-    if (!active || readiness?.status !== 'ready' || !launchIntent) return
+    if (!active || !workspaceInfrastructureReady || !newSessionModelRunnable || !launchIntent) return
+    if (activeSetupReadyEpoch !== activeSetupEpochRef.current
+      || activeSetupReadyEpochRef.current !== activeSetupEpochRef.current) return
     if (handledLaunchIntentRef.current === launchIntent.key) return
     handledLaunchIntentRef.current = launchIntent.key
     void createIndependentDraftSession(launchIntent.source_context).then((session) => {
@@ -220,18 +322,31 @@ export function AgentPage({
       onLaunchIntentHandled?.(launchIntent.key)
       notifyError(notificationRef.current, tRef.current)
     })
-  }, [active, controller, createIndependentDraftSession, launchIntent, onLaunchIntentHandled, readiness?.status])
+  }, [
+    active,
+    activeSetupReadyEpoch,
+    controller,
+    createIndependentDraftSession,
+    launchIntent,
+    newSessionModelRunnable,
+    onLaunchIntentHandled,
+    workspaceInfrastructureReady,
+  ])
 
-  if (!enabled || readiness?.status !== 'ready') {
+  if (!enabled || !readiness || !workspaceInfrastructureReady) {
     return (
       <div className={styles.page}>
         <AgentReadinessSurface
           readiness={readiness}
           loading={setupLoading || busy}
-          onRefresh={() => void loadSetup()}
+          onRefresh={() => void hydrateActiveSetup(activeSetupEpochRef.current)}
           onPrepare={() => void perform(async () => {
+            const epoch = activeSetupEpochRef.current
             const result = await setupGateway.setup()
-            acceptSetupSnapshot(result, await loadAllAgentModelProfiles(gateway))
+            const catalog = await loadAgentModelCatalog(setupGateway)
+            if (activeSetupEpochRef.current !== epoch) return
+            acceptSetupSnapshot(result, catalog.providers, catalog.models)
+            markActiveSetupReady(epoch)
           })}
         />
       </div>
@@ -241,12 +356,13 @@ export function AgentPage({
   const selectedRun = selected ? latestSessionRun(selected.id, state.runs) : undefined
   const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
   const runEvents = selectedRun ? state.run_events[selectedRun.id] ?? [] : []
-  const selectedProfile = profiles.find((profile) => (
-    profile.id === (selected?.model_profile_id ?? newSessionModelProfileId)
+  const selectedModel = modelById.get(selected?.model_id ?? newSessionModelId ?? '')
+  const selectedModelRunnable = Boolean(selectedModel && isAgentModelRunnable(
+    selectedModel,
+    providerById.get(selectedModel.provider_id),
   ))
   const selectedContext = selected ? state.session_contexts[selected.id] : undefined
   const contextSnapshot = selectedContext?.value
-  const workspaceSessions = projectAgentSessions(state.sessions, profiles, state.runs)
   const inspector: AgentWorkspaceInspectorState = {
     context: {
       phase: selected ? selectedContext?.phase ?? 'idle' : 'unavailable',
@@ -288,8 +404,8 @@ export function AgentPage({
         sessions={workspaceSessions}
         selected_session_id={state.selected_session_id}
         messages={projectAgentMessages(selected ? state.messages[selected.id] ?? [] : [], selectedRun, runEvents)}
-        models={profiles.map((profile) => ({ id: profile.id, name: profile.name, supports_reasoning: profile.supports_reasoning }))}
-        selected_model_profile_id={selected?.model_profile_id ?? newSessionModelProfileId}
+        models={workspaceModelOptions}
+        selected_model_id={selected?.model_id ?? newSessionModelId}
         inspector={inspector}
         draft={state.drafts[selected?.id ?? 'new']?.text ?? ''}
         draft_source_context={draftSourceContexts[selected?.id ?? 'new']}
@@ -302,7 +418,8 @@ export function AgentPage({
           attachment: record.attachment,
           error_code: record.error_code,
         }))}
-        supports_images={selectedProfile?.supports_images ?? false}
+        supports_images={selectedModel?.supports_images ?? false}
+        model_runnable={selectedModelRunnable}
         loading={state.phase === 'loading'}
         busy={busy}
         active_run={activeRun ? {
@@ -316,8 +433,10 @@ export function AgentPage({
         )}
         onCreateSession={() => {
           controller.selectSession(undefined)
-          setDraftModelProfileId((current) => (
-            current ?? readiness.settings.default_model_profile_id ?? profiles[0]?.id
+          setDraftModelId((current) => (
+              current
+              ?? readiness.settings.default_model_id
+              ?? firstRunnableModelId
           ))
         }}
         onSelectSession={(sessionId) => controller.selectSession(sessionId)}
@@ -341,18 +460,22 @@ export function AgentPage({
           attachmentDraftSessionIdsRef.current.delete(sessionId)
           setDraftSourceContexts((contexts) => omitKey(contexts, sessionId))
         })}
-        onModelChange={(profileId) => void perform(async () => {
+        onModelChange={(modelId) => void perform(async () => {
           if (!selected) {
-            setDraftModelProfileId(profileId)
+            setDraftModelId(modelId)
             return
           }
-          const profile = profiles.find((item) => item.id === profileId)
+          const model = modelById.get(modelId)
+          if (!model || !isAgentModelRunnable(model, providerById.get(model.provider_id))) {
+            throw new Error('AGENT_MODEL_UNAVAILABLE')
+          }
           await controller.updateSession(selected.id, {
             ...updateInput(selected, false),
-            model_profile_id: profileId,
-            reasoning_level: profile?.supports_reasoning ? selected.reasoning_level : 'off',
+            model_id: modelId,
+            reasoning_level: model.supports_reasoning ? selected.reasoning_level : 'off',
           })
         })}
+        onOpenSettings={onOpenSettings ?? (() => undefined)}
         onDraftChange={(value) => controller.updateDraft(selected?.id ?? 'new', value)}
         onAttachFiles={draftAttachments.add}
         onRemoveAttachment={draftAttachments.remove}
@@ -362,17 +485,21 @@ export function AgentPage({
           await perform(async () => {
             let targetSession = selected
             if (!targetSession) {
-              const profileId = newSessionModelProfileId
-              if (!profileId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
-              const profile = profiles.find((item) => item.id === profileId)
+              const modelId = newSessionModelId
+              if (!modelId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
+              const model = modelById.get(modelId)
+              if (!model || !isAgentModelRunnable(model, providerById.get(model.provider_id))) {
+                throw new Error('AGENT_MODEL_UNAVAILABLE')
+              }
               targetSession = await controller.createSession({
                 title: createSessionTitle(message, t('agent.sessions.untitled')),
-                model_profile_id: profileId,
-                reasoning_level: profile?.supports_reasoning ? readiness.settings.default_reasoning_level : 'off',
+                model_id: modelId,
+                reasoning_level: model.supports_reasoning ? readiness.settings.default_reasoning_level : 'off',
               })
               controller.updateDraft(targetSession.id, message)
               controller.updateDraft('new', '')
-              setDraftModelProfileId(readiness.settings.default_model_profile_id || profiles[0]?.id)
+              setDraftModelId(readiness.settings.default_model_id
+                || firstRunnableModelId)
             }
             if (attachmentDraftSessionIdsRef.current.has(targetSession.id)) {
               targetSession = await controller.updateSession(targetSession.id, {
@@ -445,7 +572,7 @@ export function AgentPage({
 function updateInput(session: AgentSession, archived: boolean) {
   return {
     title: session.title,
-    model_profile_id: session.model_profile_id,
+    model_id: session.model_id,
     reasoning_level: session.reasoning_level,
     archived,
     expected_revision: session.revision,

@@ -12,10 +12,10 @@ import type {
   TerminalSettings,
   WindowSettings,
 } from '#common/contracts'
-import { McpIcon } from '#entities/mcp-access'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import { AgentSettingsPanel, type AgentSetupGateway } from '#features/agent-setup'
 import { McpSettingsPanel } from '#features/mcp-access'
+import { McpIcon } from '#shared/ui'
 import {
   DataPortabilitySettings,
   ConnectionSettings as ConnectionSettingsPanel,
@@ -29,7 +29,18 @@ import {
 } from '#features/settings'
 import styles from './SettingsPage.module.scss'
 
+export type SettingsPageTabKey =
+  | 'general'
+  | 'terminal'
+  | 'connection'
+  | 'shortcuts'
+  | 'agent'
+  | 'mcp'
+  | 'data'
+  | 'updates'
+
 export interface SettingsPageProps {
+  initialTab?: SettingsPageTabKey
   language: AppLanguage
   appearanceSettings: AppearanceSettings
   terminalSettings: TerminalSettings
@@ -57,6 +68,7 @@ export interface SettingsPageProps {
 }
 
 export function SettingsPage({
+  initialTab = 'general',
   language,
   appearanceSettings,
   terminalSettings,
@@ -95,6 +107,7 @@ export function SettingsPage({
       </div>
       <Tabs
         className={styles.tabs}
+        defaultActiveKey={initialTab}
         items={[
           {
             key: 'general',

@@ -66,6 +66,7 @@ function compressionBootstrap(): RuntimeBootstrap {
     run: {
       id: 'agr_test', session_id: 'ags_test', generation: 1,
       event_sequence: 1, status: 'starting', assistant_message_id: 'agm_reply',
+      provider_id: 'amp_provider', model_id: 'apm_model',
       reasoning_level: 'off',
     },
     session: { id: 'ags_test' },
@@ -77,6 +78,8 @@ function compressionBootstrap(): RuntimeBootstrap {
     model: {
       snapshot: {
         api_mode: 'responses', base_url: 'http://127.0.0.1:11434/v1', model_id: 'test-model',
+        provider_id: 'amp_provider', provider_name: '本地 Provider', model_display_name: '测试模型',
+        provider_revision: 3, model_revision: 5,
         context_window_tokens: 8192, max_output_tokens: 1024,
         supports_images: false, supports_reasoning: false,
       },

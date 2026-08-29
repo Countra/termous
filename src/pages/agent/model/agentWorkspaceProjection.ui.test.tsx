@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import type { AgentMessage, AgentRun, AgentRunEvent } from '#entities/agent'
+import type {
+  AgentMessage,
+  AgentModel,
+  AgentModelProvider,
+  AgentReadiness,
+  AgentRun,
+  AgentRunEvent,
+  AgentSession,
+} from '#entities/agent'
 import type { AgentWorkspaceSession } from '#widgets/agent-workspace'
 import {
   agentRunInteractionBlocked,
+  agentWorkspaceInfrastructureReady,
   projectAgentMessages,
+  projectAgentSessions,
   selectionAfterSessionRemoval,
 } from './agentWorkspaceProjection.ts'
 
@@ -34,6 +44,92 @@ describe('Agent 工作区页面投影', () => {
 
   it('目标会话已不在投影中时回退到首个可见会话', () => {
     expect(selectionAfterSessionRemoval([session('one'), session('two')], 'missing')).toBe('one')
+  })
+
+  it('默认模型异常只限制模型操作，不遮蔽已就绪的历史工作区', () => {
+    const readiness: AgentReadiness = {
+      status: 'needs_repair',
+      mcp_runtime: { status: 'ready', message: '' },
+      mcp_client: { status: 'ready', message: '' },
+      skills_bundle: { status: 'ready', message: '' },
+      default_model: { status: 'outdated', message: '' },
+      settings: {
+        default_model_id: 'model-missing', default_reasoning_level: 'off', revision: 1,
+        created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z',
+      },
+    }
+
+    expect(agentWorkspaceInfrastructureReady(readiness)).toBe(true)
+    expect(agentWorkspaceInfrastructureReady({
+      ...readiness,
+      mcp_client: { status: 'missing', message: '' },
+    })).toBe(false)
+  })
+
+  it('目录缺失时只使用当前模型对应的最近 Run 快照恢复会话模型信息', () => {
+    const current = agentSession('model-current')
+    const currentRun = activeRun({
+      id: 'agr-current-model',
+      model_id: 'model-current',
+      model_snapshot: modelSnapshot({
+        model_id: 'remote-current',
+        model_display_name: '当前模型快照',
+        provider_name: '当前 Provider 快照',
+      }),
+      updated_at: '2026-08-29T00:00:01Z',
+    })
+    const newerOtherRun = activeRun({
+      id: 'agr-other-model',
+      model_id: 'model-other',
+      model_snapshot: modelSnapshot({
+        model_id: 'remote-other',
+        model_display_name: '其他模型快照',
+        provider_name: '其他 Provider 快照',
+      }),
+      updated_at: '2026-08-29T00:00:02Z',
+    })
+
+    const [projected] = projectAgentSessions(
+      [current],
+      [],
+      [],
+      { [currentRun.id]: currentRun, [newerOtherRun.id]: newerOtherRun },
+    )
+
+    expect(projected).toMatchObject({
+      model_id: 'model-current',
+      model_name: '当前模型快照',
+      provider_name: '当前 Provider 快照',
+    })
+  })
+
+  it('当前模型目录优先于历史 Run 快照展示', () => {
+    const current = agentSession('model-current')
+    const model: AgentModel = {
+      id: 'model-current', provider_id: 'apv-current', remote_model_id: 'remote-current',
+      display_name: '当前目录模型', availability: 'available', context_window_tokens: 16_384,
+      max_output_tokens: 4_096, supports_images: false, supports_reasoning: false,
+      capabilities_confirmed: false, revision: 2,
+      created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:02Z',
+    }
+    const provider: AgentModelProvider = {
+      id: 'apv-current', name: '当前目录 Provider', api_mode: 'responses',
+      base_url: 'http://127.0.0.1:18188/v1', enabled: true, api_key_configured: false,
+      refresh_status: 'ready', revision: 2,
+      created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:02Z',
+    }
+
+    const [projected] = projectAgentSessions(
+      [current],
+      [model],
+      [provider],
+      { run: activeRun({ model_id: 'model-current' }) },
+    )
+
+    expect(projected).toMatchObject({
+      model_name: '当前目录模型',
+      provider_name: '当前目录 Provider',
+    })
   })
 
   it('将尚未开始输出的消息投影为流式状态', () => {
@@ -131,7 +227,7 @@ function session(id: string): AgentWorkspaceSession {
   return {
     id,
     title: id,
-    model_profile_id: 'model',
+    model_id: 'model',
     model_name: 'Model',
     updated_at: '2026-08-29T00:00:00Z',
     archived: false,
@@ -139,7 +235,7 @@ function session(id: string): AgentWorkspaceSession {
   }
 }
 
-function activeRun(): AgentRun {
+function activeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'agr-current',
     client_request_id: 'request-current',
@@ -149,16 +245,9 @@ function activeRun(): AgentRun {
     status: 'running',
     user_message_id: 'message-user',
     assistant_message_id: 'message-assistant',
-    model_profile_id: 'model',
-    model_snapshot: {
-      api_mode: 'chat_completions',
-      base_url: 'http://127.0.0.1:18188/v1',
-      model_id: 'fixture',
-      context_window_tokens: 8_192,
-      max_output_tokens: 1_024,
-      supports_images: false,
-      supports_reasoning: true,
-    },
+    provider_id: 'apv-current',
+    model_id: 'model',
+    model_snapshot: modelSnapshot(),
     reasoning_level: 'off',
     usage: {
       input_tokens: 0,
@@ -171,5 +260,33 @@ function activeRun(): AgentRun {
     queued_at: '2026-08-29T00:00:00Z',
     started_at: '2026-08-29T00:00:01Z',
     updated_at: '2026-08-29T00:00:01Z',
+    ...overrides,
+  }
+}
+
+function agentSession(modelId: string): AgentSession {
+  return {
+    id: 'session-one', title: '会话', model_id: modelId, reasoning_level: 'off', revision: 1,
+    created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:01Z',
+  }
+}
+
+function modelSnapshot(
+  overrides: Partial<AgentRun['model_snapshot']> = {},
+): AgentRun['model_snapshot'] {
+  return {
+    api_mode: 'chat_completions',
+    base_url: 'http://127.0.0.1:18188/v1',
+    model_id: 'fixture',
+    provider_id: 'apv-current',
+    provider_name: 'Provider 快照',
+    model_display_name: '模型快照',
+    provider_revision: 1,
+    model_revision: 1,
+    context_window_tokens: 8_192,
+    max_output_tokens: 1_024,
+    supports_images: false,
+    supports_reasoning: true,
+    ...overrides,
   }
 }

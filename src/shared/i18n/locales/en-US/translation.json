@@ -70,6 +70,19 @@
       "newSession": "Start with the default model",
       "model": "Model",
       "selectModel": "Select model",
+      "configureProvider": "Configure provider",
+      "modelUnavailable": "Current model unavailable",
+      "modelUnavailableReason": {
+        "provider_disabled": "Provider disabled",
+        "catalog_stale": "Catalog sync required",
+        "missing": "Model removed"
+      },
+      "modelUnavailableHint": {
+        "provider_disabled": "Enable this provider in Agent settings, or select another available model for the session.",
+        "catalog_stale": "Sync this provider's model catalog in Agent settings, or select another available model for the session.",
+        "missing": "This model was removed from the provider catalog. Select another available model for the session.",
+        "unknown": "Check the provider and model catalog in Agent settings, or select another available model."
+      },
       "returnToActiveRun": "Return to running session"
     },
     "status": {
@@ -3355,7 +3368,7 @@
       "operationFailed": "The Agent setting operation failed",
       "readiness": {
         "title": "Runtime readiness",
-        "description": "Initial setup enables MCP, creates an Agent-managed client with all current 29 scopes, and keeps per-operation approval enabled. Repair is safe to run repeatedly.",
+      "description": "Check MCP, Skills, and the default model. Initial setup creates a managed client with per-action approval.",
         "mcpRuntime": "MCP Runtime",
         "mcpClient": "Managed client",
         "skills": "Skills resources",
@@ -3388,19 +3401,113 @@
         "sync": "Sync scopes"
       },
       "models": {
-        "title": "Model profiles",
-        "description": "Configure OpenAI-compatible models. The address and model ID are stored in Core; API keys are encrypted separately by the Vault.",
-        "add": "Add model",
-        "empty": "No model profiles have been added",
         "default": "Default",
-        "insecureHttp": "Plain HTTP",
         "test": "Test connection"
       },
-      "defaults": {
-        "title": "Defaults",
+      "providers": {
+      "title": "Model providers",
+      "count": "{{count}} providers",
+      "modelCount": "{{count}} models",
+        "search": "Search providers",
+        "add": "Add provider",
+        "noResults": "No matching providers",
+        "empty": "No providers have been added",
+        "emptyEditor": "Add a provider to discover its model catalog",
+        "new": "New provider",
+        "connectionTab": "Connection",
+        "catalogTab": "Model catalog",
+        "saved": "Provider settings saved",
+        "test": "Test provider",
+        "testSuccess": "Provider is available, {{latency}} ms, {{count}} models found",
+        "testFailed": "Provider test failed",
+        "testReady": "The model catalog endpoint responded successfully.",
+        "testUnavailable": "The model catalog request failed. Review the address and authentication.",
+        "discardTitle": "Discard unsaved provider changes?",
+        "discardDescription": "Switching now will discard the current form changes.",
+        "discard": "Discard changes",
+        "deleteDefaultBlocked": "This provider contains the default model. Choose another default first"
+      },
+    "providerEditor": {
+      "basicSection": "General",
+      "connectionSection": "Connection and authentication",
+      "name": "Provider name",
+        "namePlaceholder": "For example: Company OpenAI gateway",
+        "apiMode": "API mode",
+        "enabled": "Usage",
+        "enabledState": "Available to new sessions",
+        "disabledState": "Paused for new sessions",
+        "baseUrl": "Base URL",
+        "optionalApiKey": "API key (optional)",
+        "testRequiresSave": "Save the changes before testing this configuration",
+        "reset": "Discard changes",
+        "httpRiskTitle": "This provider uses plain HTTP",
+        "httpRisk": "Model requests, context, and credentials may be read or changed on the network path. Saving requires explicit confirmation.",
+        "provisionFailure": {
+          "refresh": {
+            "title": "Provider saved, but the model catalog did not sync",
+            "description": "The provider and API key, when supplied, are saved and the key input has been cleared. The last successful catalog remains available; review the address, authentication, or network and sync again."
+          }
+        }
+      },
+      "catalog": {
+        "search": "Search model ID, name, or owner",
+        "refresh": "Sync catalog",
+        "refreshSuccess": "Model catalog synced",
+        "refreshFailed": "Model catalog sync did not complete",
+        "refreshFailedDescription": "The last successful catalog is preserved. Review the provider and try again.",
+        "noResults": "No matching models",
+        "neverEmpty": "Sync the provider to display its models here",
+        "empty": "The current catalog has no models",
+        "missing": "Removed upstream",
+        "conservative": "Conservative capabilities",
+        "context": "context",
+        "images": "Images",
+        "reasoning": "Reasoning",
+        "setDefault": "Set as default model",
+        "editCapabilities": "Edit model capabilities",
+        "unavailable": "Unavailable for new sessions",
+        "lastSynced": "Last synced {{time}}",
+        "status": {
+          "disabled": "Disabled",
+          "never": "Not synced",
+          "ready": "Synced",
+          "readyWarning": "Using cache",
+          "stale": "Sync required",
+          "failed": "Sync failed"
+        },
+        "stateTitle": {
+          "disabled": "Provider is paused for new sessions",
+          "never": "The model catalog has not been synced",
+          "readyWarning": "The latest sync failed; the cached catalog remains active",
+          "stale": "The provider configuration changed",
+          "failed": "Model catalog sync failed"
+        },
+        "stateDescription": {
+          "disabled": "You can still test the connection or sync manually. Enable the provider before starting a new session.",
+          "never": "Test the connection or sync the catalog to discover models automatically.",
+          "readyWarning": "Existing models remain usable. Check the network or authentication and sync again.",
+          "stale": "The old catalog is retained, but cannot start a new run until it is synced again.",
+          "failed": "Review the provider URL, API key, and network, then retry."
+        },
+        "errorDescription": {
+          "invalid_config": "The provider configuration is invalid. Review the base URL and API mode, then retry.",
+          "timeout": "The provider did not respond in time. Check the service and network, then retry.",
+          "connect_failed": "Termous could not connect to the provider. Check the address, proxy, certificate, and network.",
+          "authentication_failed": "The provider rejected authentication. Update the API key, then retry.",
+          "rate_limited": "The provider is temporarily limiting requests. Sync again later.",
+          "invalid_response": "The provider returned an unrecognized model catalog. Confirm that its model-list endpoint is OpenAI-compatible.",
+          "response_too_large": "The provider returned a model catalog above the safety limit. Reduce the gateway catalog, then retry.",
+          "catalog_fetch_failed": "The model catalog could not be fetched. Check the provider status, then retry."
+        }
+      },
+    "defaults": {
+      "title": "Defaults",
+      "description": "Choose the model and reasoning level used by new conversations.",
         "model": "Default model",
         "modelPlaceholder": "Select a model",
-        "reasoning": "Default reasoning level"
+        "reasoning": "Default reasoning level",
+        "unavailableTitle": "The current default model cannot start a new session",
+        "unavailableDescription": "The model record is retained. Sync its catalog, enable the provider, or choose another default model."
       },
       "apiMode": {
         "responses": "Responses API",
@@ -3415,23 +3522,26 @@
         "xhigh": "Extra high"
       },
       "modelEditor": {
-        "createTitle": "Add model profile",
-        "editTitle": "Edit model profile",
-        "name": "Profile name",
-        "apiMode": "API mode",
-        "baseUrl": "Base URL",
-        "modelId": "Model ID",
+        "displayName": "Display name",
         "contextWindow": "Context window tokens",
         "maxOutput": "Maximum output tokens",
         "images": "Supports image input",
         "reasoning": "Supports reasoning",
-        "httpRisk": "This profile uses plain HTTP. Model requests, context, and credentials may be read or changed by other parties on the network path."
+        "conservativeTitle": "Using conservative capability defaults",
+        "conservativeDescription": "Catalog APIs do not reliably report context, image, or reasoning support. Adjust these values after checking the service documentation. Unconfirmed capabilities do not block text-only use.",
+        "discardTitle": "Discard model capability changes?",
+        "discardDescription": "Closing now will discard the unsaved capability changes."
       },
       "apiKey": {
-        "title": "Set API key",
-        "description": "The Renderer does not persist the key. It is held briefly in this page while entered, then encrypted by the local Core Vault after submission.",
-        "fieldLabel": "API key for {{name}}",
-        "placeholder": "Enter a new API key",
+        "optionalPlaceholder": "Leave blank for services without authentication",
+        "configuredPlaceholder": "Stored securely; enter a new key to replace it",
+        "configuredHint": "Leave this blank to keep the saved key. Termous never displays the stored value.",
+        "optionalHint": "Leave blank for services without authentication. Submitted keys are encrypted by the local Vault.",
+        "addPending": "The key will be configured when saved",
+        "replacePending": "The saved key will be replaced",
+        "removePending": "The saved key will be deleted",
+        "removePendingHint": "The provider and model catalog will remain. After saving, Termous will sync without a key.",
+        "undoRemove": "Keep key",
         "configured": "Key configured",
         "notConfigured": "No key",
         "remove": "Delete API key",
@@ -3454,12 +3564,7 @@
       },
       "confirmDelete": {
         "title": "Delete model profile?",
-        "description": "The model profile “{{name}}” and its saved API key will be deleted. Change or clear the default model first."
-      },
-      "confirmRemoveKey": {
-        "title": "Delete the saved API key?",
-        "description": "The key cannot be recovered after deletion. The model profile itself will remain.",
-        "confirm": "Delete key"
+        "description": "Provider “{{name}}”, its model catalog, and its saved API key will be deleted. Providers referenced by a default model or session cannot be deleted."
       },
       "testSuccess": "Model connection is ready, {{latency}} ms",
       "testFailed": "The model connection test did not pass",
@@ -3471,17 +3576,18 @@
         "title": "This configuration changed elsewhere",
         "description": "Load the latest configuration, review it, and confirm the operation again.",
         "editorDescription": "Loading the latest revision preserves this local draft. Review it and save again.",
-        "apiKeyDescription": "Load the latest revision before submitting a key to avoid updating stale configuration. The previous input has been cleared.",
+        "providerDeleted": "This provider was deleted elsewhere. The local draft is preserved; discard it or choose another provider.",
+        "modelDeleted": "This model was deleted with its provider elsewhere. The local capability draft is preserved and must be discarded explicitly before closing.",
         "refresh": "Load latest",
-        "draftPreserved": "The latest revision is loaded and the local draft is preserved. Review and save it again.",
-        "apiKeyRefreshed": "The latest revision is loaded. Enter the API key again to save it."
+        "draftPreserved": "The latest revision is loaded and the local draft is preserved. Review and save it again."
       },
       "validation": {
-        "name": "Enter a profile name",
+        "providerName": "Enter a provider name",
         "nameTooLarge": "Profile name cannot exceed 80 bytes",
-        "modelId": "Enter a Model ID",
-        "modelIdTooLarge": "Model ID cannot exceed 200 bytes",
+        "displayName": "Enter a model display name",
+        "displayNameTooLarge": "Model display name cannot exceed 200 bytes",
         "baseUrl": "Enter a complete HTTP or HTTPS URL without credentials, query parameters, or a fragment",
+        "baseUrlTooLarge": "Base URL cannot exceed 2048 bytes",
         "integerTokens": "Token counts must be integers",
         "contextWindow": "Context window must be between 1024 and 2000000 tokens",
         "tokenLimit": "Maximum output tokens cannot exceed the context window"
@@ -3489,7 +3595,9 @@
       "error": {
         "generic": "The operation did not complete. Check Core, Vault, and the model profile, then try again.",
         "conflict": "This configuration changed elsewhere. Your draft is preserved; reload and review it before saving again.",
-        "vaultLocked": "The Vault is locked. Unlock it and try again."
+        "vaultLocked": "The Vault is locked. Unlock it and try again.",
+        "providerInUse": "This provider is still referenced by defaults, sessions, or run history and cannot be deleted.",
+        "modelCapabilityConflict": "This model is still used by a default or session with reasoning enabled. Turn reasoning off there before disabling the model capability."
       }
     },
     "tabMcp": "MCP",

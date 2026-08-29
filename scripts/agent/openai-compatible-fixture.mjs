@@ -20,6 +20,7 @@ const defaultChunkDelayMs = 18
 const defaultSlowDelayMs = 30_000
 const maximumSlowDelayMs = 5 * 60_000
 const completionPath = '/v1/chat/completions'
+const modelsPath = '/v1/models'
 
 export function createAgentModelFixture(options = {}) {
   const chunkDelayMs = normalizedDelay(options.chunkDelayMs, defaultChunkDelayMs, 1_000)
@@ -54,6 +55,20 @@ async function handleRequest(request, response, options) {
     return writeJSON(response, 200, {
       status: 'ok',
       model: agentModelFixtureID,
+    })
+  }
+  if (url.pathname === modelsPath && url.search === '') {
+    if (request.method !== 'GET') {
+      return methodNotAllowed(response, ['GET'])
+    }
+    return writeJSON(response, 200, {
+      object: 'list',
+      data: [{
+        id: agentModelFixtureID,
+        object: 'model',
+        created: 1,
+        owned_by: 'termous',
+      }],
     })
   }
   if (url.pathname !== completionPath || url.search !== '') {

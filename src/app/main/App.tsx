@@ -25,7 +25,7 @@ import {
 import { GlobalFileSearchRuntimeProvider } from '#features/remote-file'
 import { ForwardsPage, type ForwardsPageProps } from '#pages/forwards'
 import { RemoteDesktopPage } from '#pages/remote-desktop'
-import { SettingsPage } from '#pages/settings'
+import { SettingsPage, type SettingsPageTabKey } from '#pages/settings'
 import { snippetToInput } from '#entities/snippet'
 import { SnippetsPage, type SnippetsPageProps } from '#pages/snippets'
 import { VaultPage } from '#pages/vault'
@@ -212,6 +212,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     onSnapshot: actions.applyFileSessionSnapshot,
   })
   const [page, setPage] = useState<PageKey>('workbench')
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsPageTabKey>('general')
   const [vaultDirty, setVaultDirty] = useState(false)
   const [hostsDirty, setHostsDirty] = useState(false)
   const [pendingPage, setPendingPage] = useState<PageKey | null>(null)
@@ -273,7 +274,11 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     setAgentLaunchIntent(null)
   }, [])
 
-  const navigateToPage = useCallback((nextPage: PageKey) => {
+  const navigateToPage = useCallback((
+    nextPage: PageKey,
+    options?: { settingsTab?: SettingsPageTabKey },
+  ) => {
+    if (nextPage === 'settings') setSettingsInitialTab(options?.settingsTab ?? 'general')
     if (nextPage === page) {
       return
     }
@@ -287,6 +292,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     invalidateFilesBookmarkManagementRequest()
     setPage(nextPage)
   }, [clearAgentLaunchIntent, hostsDirty, invalidateFilesBookmarkManagementRequest, page, vaultDirty])
+
+  const openAgentSettings = useCallback(() => {
+    navigateToPage('settings', { settingsTab: 'agent' })
+  }, [navigateToPage])
 
   const launchAgent = useCallback((request: AgentLaunchRequest) => {
     if (agentLaunchPendingRef.current) return
@@ -1198,6 +1207,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                             }
                           }}
                           onRuntimeSummaryChange={setAgentRuntimeSummary}
+                          onOpenSettings={openAgentSettings}
                         />
                       </div>
 
@@ -1337,6 +1347,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
 
                       {page === 'settings' ? (
                         <SettingsPage
+                          initialTab={settingsInitialTab}
                           language={data.settings.language}
                           appearanceSettings={data.settings.appearance}
                           terminalSettings={data.settings.terminal}

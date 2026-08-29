@@ -21,7 +21,6 @@ describe('AgentWorkspaceClient', () => {
       .mockResolvedValueOnce(jsonResponse(runFixture()))
       .mockResolvedValueOnce(jsonResponse({ ...runFixture(), status: 'stopping', revision: 2 }))
       .mockResolvedValueOnce(jsonResponse({ items: [runEventFixture()] }))
-      .mockResolvedValueOnce(jsonResponse({ items: [modelFixture()] }))
       .mockResolvedValueOnce(jsonResponse(policyFixture()))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -60,7 +59,6 @@ describe('AgentWorkspaceClient', () => {
     await gateway.run('agr/1')
     await gateway.stopRun('agr/1', 1)
     await gateway.runEvents('agr/1', { generation: 2, afterSequence: 7, limit: 20 })
-    await gateway.modelProfiles('model/cursor')
     await gateway.updateMcpPolicy({
       approval_bypass: true, sync_scopes: false, expected_revision: 3,
     })
@@ -98,8 +96,7 @@ describe('AgentWorkspaceClient', () => {
       path: '/api/v1/agent/runs/agr%2F1/events',
       search: '?generation=2&after_sequence=7&limit=20',
     })
-    expect(requestAt(fetchMock, 11).search).toBe('?limit=32&cursor=model%2Fcursor')
-    expect(requestAt(fetchMock, 12).body).toEqual({
+    expect(requestAt(fetchMock, 11).body).toEqual({
       approval_bypass: true, sync_scopes: false, expected_revision: 3,
     })
     expect(gateway.eventsUrl()).toBe('ws://127.0.0.1:8122/api/v1/agent/events?token=renderer-token')
@@ -127,7 +124,7 @@ function jsonResponse(value: unknown) {
 }
 
 function sessionInput() {
-  return { title: '测试会话', model_profile_id: 'amp-model', reasoning_level: 'medium' as const }
+  return { title: '测试会话', model_id: 'apm-model', reasoning_level: 'medium' as const }
 }
 
 function sessionFixture() {
@@ -149,9 +146,11 @@ function runFixture() {
   return {
     id: 'agr-run', client_request_id: 'request-1', session_id: 'ags-session',
     generation: 1, event_sequence: 0, status: 'running', user_message_id: 'agm-user',
-    assistant_message_id: 'agm-assistant', model_profile_id: 'amp-model',
+    assistant_message_id: 'agm-assistant', provider_id: 'apv-provider', model_id: 'apm-model',
     model_snapshot: {
       api_mode: 'responses', base_url: 'https://model.example.test/v1', model_id: 'test-model',
+      provider_id: 'apv-provider', provider_name: '测试 Provider', model_display_name: '测试模型',
+      provider_revision: 1, model_revision: 1,
       context_window_tokens: 32768, max_output_tokens: 4096,
       supports_images: false, supports_reasoning: true,
     },
@@ -173,16 +172,6 @@ function runEventFixture() {
   return {
     id: 'age-1', run_id: 'agr-run', generation: 1, sequence: 1, kind: 'status',
     payload: { status: { status: 'running' } }, created_at: '2026-08-29T00:00:00Z',
-  }
-}
-
-function modelFixture() {
-  return {
-    id: 'amp-model', name: '测试模型', api_mode: 'responses',
-    base_url: 'https://model.example.test/v1', model_id: 'test-model',
-    context_window_tokens: 32768, max_output_tokens: 4096,
-    supports_images: false, supports_reasoning: true, api_key_configured: false,
-    revision: 1, created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z',
   }
 }
 

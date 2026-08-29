@@ -15,17 +15,27 @@ export type AgentWorkspaceRunStatus =
 export interface AgentWorkspaceSession {
   id: string
   title: string
-  model_profile_id: string
+  model_id: string
   model_name: string
+  provider_name?: string
   updated_at: string
   archived: boolean
   run_status: AgentWorkspaceRunStatus
 }
 
+export type AgentWorkspaceModelUnavailableReason =
+  | 'provider_disabled'
+  | 'catalog_stale'
+  | 'missing'
+
 export interface AgentWorkspaceModelOption {
   id: string
   name: string
+  provider_name: string
+  remote_model_id: string
   supports_reasoning: boolean
+  runnable: boolean
+  unavailable_reason?: AgentWorkspaceModelUnavailableReason
 }
 
 export interface AgentWorkspaceTextPart {
@@ -115,12 +125,13 @@ export interface AgentWorkspaceProps {
   selected_session_id?: string
   messages: AgentWorkspaceMessage[]
   models: AgentWorkspaceModelOption[]
-  selected_model_profile_id?: string
+  selected_model_id?: string
   inspector: AgentWorkspaceInspectorState
   draft: string
   draft_source_context?: AgentSourceContext
   draft_attachments: AgentWorkspaceDraftAttachment[]
   supports_images: boolean
+  model_runnable: boolean
   loading: boolean
   busy: boolean
   active_run?: {
@@ -133,7 +144,8 @@ export interface AgentWorkspaceProps {
   onReturnToActiveRun: () => void
   onArchiveSession: (sessionId: string) => void
   onDeleteSession: (sessionId: string) => void
-  onModelChange: (profileId: string) => void
+  onModelChange: (modelId: string) => void
+  onOpenSettings: () => void
   onDraftChange: (value: string) => void
   onAttachFiles: (files: File[]) => Promise<void>
   onRemoveAttachment: (clientId: string) => Promise<void>

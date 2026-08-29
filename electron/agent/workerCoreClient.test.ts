@@ -90,6 +90,46 @@ test('bootstrap 绑定 Run、generation、Session 与 reasoning 枚举', async (
     fetch: async () => Response.json(wrongReasoningResponse),
   })
   await assert.rejects(wrongReasoning.bootstrap(start), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+
+  const wrongProviderResponse = bootstrapResponse()
+  wrongProviderResponse.model.snapshot.provider_id = 'amp_other'
+  const wrongProvider = new WorkerCoreClient({
+    fetch: async () => Response.json(wrongProviderResponse),
+  })
+  await assert.rejects(wrongProvider.bootstrap(start), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+
+  const invalidRevisionResponse = bootstrapResponse()
+  invalidRevisionResponse.model.snapshot.model_revision = 0
+  const invalidRevision = new WorkerCoreClient({
+    fetch: async () => Response.json(invalidRevisionResponse),
+  })
+  await assert.rejects(invalidRevision.bootstrap(start), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+
+  const invalidBaseURLResponse = bootstrapResponse()
+  invalidBaseURLResponse.model.snapshot.base_url = 'https://user@example.test/v1'
+  const invalidBaseURL = new WorkerCoreClient({
+    fetch: async () => Response.json(invalidBaseURLResponse),
+  })
+  await assert.rejects(invalidBaseURL.bootstrap(start), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+
+  const invalidTokenRangeResponse = bootstrapResponse()
+  invalidTokenRangeResponse.model.snapshot.max_output_tokens = 16_384
+  const invalidTokenRange = new WorkerCoreClient({
+    fetch: async () => Response.json(invalidTokenRangeResponse),
+  })
+  await assert.rejects(invalidTokenRange.bootstrap(start), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+})
+
+test('bootstrap 冻结 Run 模型快照且不混淆内部模型 ID', async () => {
+  const client = new WorkerCoreClient({
+    fetch: async () => Response.json(bootstrapResponse()),
+  })
+  const bootstrap = await client.bootstrap(start)
+
+  assert.equal(bootstrap.run.model_id, 'apm_model')
+  assert.equal(bootstrap.model.snapshot.model_id, 'test-model')
+  assert.equal(Object.isFrozen(bootstrap.model.snapshot), true)
+  assert.equal(Object.isFrozen(bootstrap.model), false)
 })
 
 test('bootstrap 严格校验附件传输形状、数量与预解码长度', async () => {
@@ -248,6 +288,8 @@ function bootstrapResponse(): RuntimeBootstrap {
       event_sequence: 1,
       status: 'starting',
       assistant_message_id: 'agm_reply',
+      provider_id: 'amp_provider',
+      model_id: 'apm_model',
       reasoning_level: 'off',
     },
     session: { id: 'ags_test' },
@@ -263,6 +305,11 @@ function bootstrapResponse(): RuntimeBootstrap {
         api_mode: 'responses',
         base_url: 'http://127.0.0.1:11434/v1',
         model_id: 'test-model',
+        provider_id: 'amp_provider',
+        provider_name: '本地 Provider',
+        model_display_name: '测试模型',
+        provider_revision: 3,
+        model_revision: 5,
         context_window_tokens: 8192,
         max_output_tokens: 1024,
         supports_images: false,

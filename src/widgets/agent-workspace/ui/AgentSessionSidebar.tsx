@@ -58,7 +58,9 @@ export function AgentSessionSidebar({
             >
               <strong>{session.title}</strong>
               <span>
-                <span>{session.model_name}</span>
+                <span>{session.provider_name
+                  ? `${session.model_name} · ${session.provider_name}`
+                  : session.model_name}</span>
                 <time dateTime={session.updated_at}>{formatRelative(session.updated_at, i18n?.resolvedLanguage)}</time>
               </span>
             </button>

@@ -1,13 +1,20 @@
 import {
   agentApiModes,
+  agentModelAvailabilities,
+  agentModelRefreshStatuses,
   agentReadinessComponentStates,
   agentReadinessStates,
   agentReasoningLevels,
   type AgentApiMode,
   type AgentMcpPolicy,
-  type AgentModelProfile,
-  type AgentModelProfilePage,
+  type AgentModel,
+  type AgentModelAvailability,
+  type AgentModelPage,
+  type AgentModelProvider,
+  type AgentModelProviderPage,
+  type AgentModelRefreshStatus,
   type AgentModelTestResult,
+  type AgentProviderTestResult,
   type AgentReadiness,
   type AgentReadinessComponent,
   type AgentReadinessComponentState,
@@ -39,10 +46,18 @@ function string(value: unknown, message: string, allowEmpty = false, maxLength =
 
 function utf8String(value: unknown, message: string, maxBytes: number) {
   const result = string(value, message, false, maxBytes)
-  if (new TextEncoder().encode(result).byteLength > maxBytes) {
+  if (new TextEncoder().encode(result).byteLength > maxBytes || containsASCIIControlText(result)) {
     throw new AgentSetupProtocolError(message)
   }
   return result
+}
+
+function containsASCIIControlText(value: string) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+    if (code < 0x20 || code === 0x7f) return true
+  }
+  return false
 }
 
 function boolean(value: unknown, message: string) {
@@ -77,9 +92,9 @@ function enumValue<T extends string>(value: unknown, values: readonly T[], messa
 export function decodeAgentSettings(value: unknown): AgentSettings {
   const source = record(value, 'Agent 设置响应无效')
   return {
-    default_model_profile_id: source.default_model_profile_id === undefined
+    default_model_id: source.default_model_id === undefined
       ? undefined
-      : string(source.default_model_profile_id, 'Agent 默认模型无效', false, 128),
+      : string(source.default_model_id, 'Agent 默认模型无效', false, 128),
     default_reasoning_level: enumValue<AgentReasoningLevel>(source.default_reasoning_level, agentReasoningLevels, 'Agent 默认推理级别无效'),
     revision: positiveInteger(source.revision, 'Agent 设置 revision 无效'),
     created_at: timestamp(source.created_at, 'Agent 设置创建时间缺失'),
@@ -124,38 +139,72 @@ export function decodeAgentSetupResult(value: unknown): AgentReadiness {
   return decodeAgentReadiness(record(value, 'Agent 初始化响应无效').readiness)
 }
 
-export function decodeAgentModelProfile(value: unknown): AgentModelProfile {
-  const source = record(value, 'Agent 模型配置响应无效')
+export function decodeAgentModelProvider(value: unknown): AgentModelProvider {
+  const source = record(value, 'Agent Provider 响应无效')
+  return {
+    id: string(source.id, 'Agent Provider ID 缺失', false, 128),
+    name: utf8String(source.name, 'Agent Provider 名称缺失', 80),
+    api_mode: enumValue<AgentApiMode>(source.api_mode, agentApiModes, 'Agent Provider API 模式无效'),
+    base_url: decodeBaseUrl(source.base_url),
+    enabled: boolean(source.enabled, 'Agent Provider 启用状态无效'),
+    api_key_configured: boolean(source.api_key_configured, 'Agent Provider 密钥状态无效'),
+    refresh_status: enumValue<AgentModelRefreshStatus>(source.refresh_status, agentModelRefreshStatuses, 'Agent Provider 刷新状态无效'),
+    last_refresh_attempt_at: source.last_refresh_attempt_at === undefined ? undefined : timestamp(source.last_refresh_attempt_at, 'Agent Provider 刷新时间无效'),
+    last_refresh_success_at: source.last_refresh_success_at === undefined ? undefined : timestamp(source.last_refresh_success_at, 'Agent Provider 成功刷新时间无效'),
+    last_refresh_error_code: source.last_refresh_error_code === undefined ? undefined : string(source.last_refresh_error_code, 'Agent Provider 刷新错误无效', false, 128),
+    revision: positiveInteger(source.revision, 'Agent Provider revision 无效'),
+    created_at: timestamp(source.created_at, 'Agent Provider 创建时间缺失'),
+    updated_at: timestamp(source.updated_at, 'Agent Provider 更新时间缺失'),
+  }
+}
+
+export function decodeAgentModel(value: unknown): AgentModel {
+  const source = record(value, 'Agent 模型响应无效')
   const contextWindowTokens = positiveInteger(source.context_window_tokens, 'Agent 模型上下文窗口无效')
   const maxOutputTokens = positiveInteger(source.max_output_tokens, 'Agent 模型最大输出无效')
   if (contextWindowTokens < 1024 || contextWindowTokens > 2_000_000 || maxOutputTokens > contextWindowTokens) {
     throw new AgentSetupProtocolError('Agent 模型 token 配置无效')
   }
   return {
-    id: string(source.id, 'Agent 模型配置 ID 缺失', false, 128),
-    name: utf8String(source.name, 'Agent 模型配置名称缺失', 80),
-    api_mode: enumValue<AgentApiMode>(source.api_mode, agentApiModes, 'Agent 模型 API 模式无效'),
-    base_url: decodeBaseUrl(source.base_url),
-    model_id: utf8String(source.model_id, 'Agent 模型 ID 缺失', 200),
+    id: string(source.id, 'Agent 模型 ID 缺失', false, 128),
+    provider_id: string(source.provider_id, 'Agent 模型 Provider ID 缺失', false, 128),
+    remote_model_id: utf8String(source.remote_model_id, 'Agent 远端模型 ID 缺失', 200),
+    display_name: utf8String(source.display_name, 'Agent 模型显示名称缺失', 200),
+    owned_by: source.owned_by === undefined ? undefined : utf8String(source.owned_by, 'Agent 模型所有者无效', 200),
+    availability: enumValue<AgentModelAvailability>(source.availability, agentModelAvailabilities, 'Agent 模型可用状态无效'),
     context_window_tokens: contextWindowTokens,
     max_output_tokens: maxOutputTokens,
     supports_images: boolean(source.supports_images, 'Agent 模型图片能力无效'),
     supports_reasoning: boolean(source.supports_reasoning, 'Agent 模型推理能力无效'),
-    api_key_configured: boolean(source.api_key_configured, 'Agent 模型密钥状态无效'),
-    revision: positiveInteger(source.revision, 'Agent 模型配置 revision 无效'),
-    created_at: timestamp(source.created_at, 'Agent 模型配置创建时间缺失'),
-    updated_at: timestamp(source.updated_at, 'Agent 模型配置更新时间缺失'),
+    capabilities_confirmed: boolean(source.capabilities_confirmed, 'Agent 模型能力确认状态无效'),
+    revision: positiveInteger(source.revision, 'Agent 模型 revision 无效'),
+    created_at: timestamp(source.created_at, 'Agent 模型创建时间缺失'),
+    updated_at: timestamp(source.updated_at, 'Agent 模型更新时间缺失'),
   }
 }
 
-export function decodeAgentModelProfilePage(value: unknown): AgentModelProfilePage {
-  const source = record(value, 'Agent 模型配置列表响应无效')
-  if (!Array.isArray(source.items)) throw new AgentSetupProtocolError('Agent 模型配置列表无效')
-  if (source.items.length > 32) throw new AgentSetupProtocolError('Agent 模型配置列表数量无效')
+export function decodeAgentModelProviderPage(value: unknown): AgentModelProviderPage {
+  const source = record(value, 'Agent Provider 列表响应无效')
+  if (!Array.isArray(source.items) || source.items.length > 16) throw new AgentSetupProtocolError('Agent Provider 列表无效')
+  const items = source.items.map(decodeAgentModelProvider)
+  ensureUnique(items.map(({ id }) => id), 'Agent Provider 列表包含重复 ID')
   return {
-    items: source.items.map(decodeAgentModelProfile),
-    next_cursor: source.next_cursor === undefined ? undefined : string(source.next_cursor, 'Agent 模型列表游标无效', false, 4096),
+    items,
+    next_cursor: source.next_cursor === undefined ? undefined : string(source.next_cursor, 'Agent Provider 列表游标无效', false, 4096),
   }
+}
+
+export function decodeAgentModelPage(value: unknown): AgentModelPage {
+  const source = record(value, 'Agent 模型列表响应无效')
+  if (!Array.isArray(source.items) || source.items.length > 100) throw new AgentSetupProtocolError('Agent 模型列表无效')
+  const items = source.items.map(decodeAgentModel)
+  ensureUnique(items.map(({ id }) => id), 'Agent 模型列表包含重复 ID')
+  return { items, next_cursor: source.next_cursor === undefined ? undefined : string(source.next_cursor, 'Agent 模型列表游标无效', false, 4096) }
+}
+
+export function decodeAgentProviderTestResult(value: unknown): AgentProviderTestResult {
+  const source = record(value, 'Agent Provider 测试响应无效')
+  return { status: enumValue(source.status, ['ready', 'failed'] as const, 'Agent Provider 测试状态无效'), latency_ms: integer(source.latency_ms, 'Agent Provider 测试延迟无效'), model_count: integer(source.model_count, 'Agent Provider 模型数量无效'), message: string(source.message, 'Agent Provider 测试说明无效', true, 1024) }
 }
 
 export function decodeAgentModelTestResult(value: unknown): AgentModelTestResult {
@@ -163,7 +212,7 @@ export function decodeAgentModelTestResult(value: unknown): AgentModelTestResult
   return {
     status: enumValue(source.status, ['ready', 'failed'] as const, 'Agent 模型测试状态无效'),
     latency_ms: integer(source.latency_ms, 'Agent 模型测试延迟无效'),
-    model_id: string(source.model_id, 'Agent 模型测试模型 ID 缺失', false, 200),
+    model_id: utf8String(source.model_id, 'Agent 模型测试模型 ID 缺失', 200),
     message: string(source.message, 'Agent 模型测试说明无效', true, 1024),
   }
 }
@@ -179,4 +228,8 @@ function decodeBaseUrl(value: unknown) {
     throw new AgentSetupProtocolError('Agent 模型地址无效')
   }
   return result
+}
+
+function ensureUnique(values: string[], message: string) {
+  if (new Set(values).size !== values.length) throw new AgentSetupProtocolError(message)
 }

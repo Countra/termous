@@ -9,6 +9,7 @@ const harness = vi.hoisted(() => ({
   state: {} as Record<string, unknown>,
   listeners: new Set<() => void>(),
   workspaceProps: null as Record<string, unknown> | null,
+  workspaceRenderCount: 0,
   createSession: vi.fn(),
   startRun: vi.fn(),
   steerActiveRun: vi.fn(),
@@ -24,7 +25,8 @@ const harness = vi.hoisted(() => ({
   retryAttachment: vi.fn(),
   clearAttachments: vi.fn(),
   discardAttachments: vi.fn(),
-  modelProfiles: vi.fn(),
+  modelProviders: vi.fn(),
+  models: vi.fn(),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -71,6 +73,7 @@ vi.mock('#features/agent-runtime', () => ({
 
 vi.mock('#widgets/agent-workspace', () => ({
   AgentWorkspace: (props: Record<string, unknown>) => {
+    harness.workspaceRenderCount += 1
     harness.workspaceProps = props
     return <div data-testid="agent-workspace" />
   },
@@ -82,6 +85,7 @@ describe('AgentPage', () => {
   beforeEach(() => {
     harness.listeners.clear()
     harness.workspaceProps = null
+    harness.workspaceRenderCount = 0
     harness.createSession.mockReset()
     harness.startRun.mockReset()
     harness.steerActiveRun.mockReset()
@@ -97,7 +101,8 @@ describe('AgentPage', () => {
     harness.retryAttachment.mockReset()
     harness.clearAttachments.mockReset()
     harness.discardAttachments.mockReset().mockResolvedValue(undefined)
-    harness.modelProfiles.mockReset().mockResolvedValue({ items: [modelProfile()] })
+    harness.modelProviders.mockReset().mockResolvedValue({ items: [providerFixture()] })
+    harness.models.mockReset().mockResolvedValue({ items: [modelFixture()] })
     harness.state = workspaceState()
     harness.selectSession.mockImplementation((sessionId?: string) => {
       harness.state = { ...harness.state, selected_session_id: sessionId }
@@ -188,6 +193,24 @@ describe('AgentPage', () => {
     renderPage()
 
     await waitFor(() => expect(harness.reloadContext).toHaveBeenCalledWith('session-one'))
+  })
+
+  it('流式事件未改变会话与 Run 时复用会话投影', async () => {
+    renderPage()
+    await waitFor(() => expect(harness.reloadContext).toHaveBeenCalledWith('session-one'))
+    const projectedSessions = harness.workspaceProps?.sessions
+    const renderCount = harness.workspaceRenderCount
+
+    act(() => {
+      harness.state = {
+        ...harness.state,
+        run_events: { stream: [] },
+      }
+      publishState()
+    })
+
+    await waitFor(() => expect(harness.workspaceRenderCount).toBeGreaterThan(renderCount))
+    expect(harness.workspaceProps?.sessions).toBe(projectedSessions)
   })
 
   it('归档非当前会话时保持现有选择', async () => {
@@ -350,6 +373,97 @@ describe('AgentPage', () => {
     expect(harness.startRun).not.toHaveBeenCalled()
   })
 
+  it('默认模型不可用时保留业务来源，选择可运行模型后自动创建草稿', async () => {
+    const disabledProvider = { ...providerFixture(), enabled: false }
+    const runnableProvider = {
+      ...providerFixture(),
+      id: 'provider-two',
+      name: 'Provider Two',
+    }
+    harness.modelProviders.mockResolvedValue({ items: [disabledProvider, runnableProvider] })
+    harness.models.mockResolvedValue({
+      items: [
+        modelFixture(),
+        { ...modelFixture('model-two'), provider_id: runnableProvider.id },
+      ],
+    })
+    harness.state = { ...workspaceState(), selected_session_id: undefined }
+    const onLaunchIntentHandled = vi.fn()
+    renderPage({
+      launchIntent: launchIntent(),
+      onLaunchIntentHandled,
+      readiness: readinessFixture('needs_setup', 'missing'),
+    })
+
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    expect(harness.createSession).not.toHaveBeenCalled()
+    expect(onLaunchIntentHandled).not.toHaveBeenCalled()
+
+    act(() => {
+      const selectModel = harness.workspaceProps?.onModelChange as (modelId: string) => void
+      selectModel('model-two')
+    })
+
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(onLaunchIntentHandled).toHaveBeenCalledWith(7))
+    expect(harness.updateDraft).toHaveBeenCalledWith('session-created', 'agent.launch.prompt.workbench')
+  })
+
+  it('重新激活时等待当前模型目录水合后再处理业务来源', async () => {
+    const initialProvider = providerFixture()
+    const disabledProvider = { ...initialProvider, enabled: false }
+    const runnableProvider = {
+      ...providerFixture(),
+      id: 'provider-two',
+      name: 'Provider Two',
+    }
+    const pendingProviders = deferred<{ items: ReturnType<typeof providerFixture>[] }>()
+    harness.modelProviders.mockReset()
+      .mockResolvedValueOnce({ items: [initialProvider] })
+      .mockReturnValueOnce(pendingProviders.promise)
+    harness.models.mockReset()
+      .mockResolvedValueOnce({ items: [modelFixture()] })
+      .mockResolvedValueOnce({
+        items: [
+          modelFixture(),
+          { ...modelFixture('model-two'), provider_id: runnableProvider.id },
+        ],
+      })
+    const onLaunchIntentHandled = vi.fn()
+    const page = renderPage()
+    await waitFor(() => expect(harness.reloadContext).toHaveBeenCalledWith('session-one'))
+
+    act(() => {
+      harness.state = { ...harness.state, selected_session_id: undefined }
+      publishState()
+    })
+    page.rerenderPage({ active: false })
+    page.rerenderPage({
+      active: true,
+      launchIntent: launchIntent(),
+      onLaunchIntentHandled,
+    })
+    await waitFor(() => expect(harness.modelProviders).toHaveBeenCalledTimes(2))
+    expect(harness.createSession).not.toHaveBeenCalled()
+    expect(onLaunchIntentHandled).not.toHaveBeenCalled()
+
+    await act(async () => {
+      pendingProviders.resolve({ items: [disabledProvider, runnableProvider] })
+      await pendingProviders.promise
+    })
+    await waitFor(() => expect((harness.workspaceProps?.models as Array<{ id: string }>))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ id: 'model-two' })])))
+    expect(harness.createSession).not.toHaveBeenCalled()
+    expect(onLaunchIntentHandled).not.toHaveBeenCalled()
+
+    act(() => {
+      const selectModel = harness.workspaceProps?.onModelChange as (modelId: string) => void
+      selectModel('model-two')
+    })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(onLaunchIntentHandled).toHaveBeenCalledWith(7))
+  })
+
   it('业务入口创建独立草稿但不自动发送或覆盖当前会话草稿', async () => {
     const onLaunchIntentHandled = vi.fn()
     harness.state = {
@@ -423,40 +537,32 @@ describe('AgentPage', () => {
   })
 
   it('模型分页拒绝重复 cursor，避免异常服务端响应导致无限请求', async () => {
-    harness.modelProfiles
-      .mockResolvedValueOnce({ items: [modelProfile('model-one')], next_cursor: 'repeat' })
-      .mockResolvedValueOnce({ items: [modelProfile('model-two')], next_cursor: 'repeat' })
+    harness.models
+      .mockResolvedValueOnce({ items: [modelFixture('model-one')], next_cursor: 'repeat' })
+      .mockResolvedValueOnce({ items: [modelFixture('model-two')], next_cursor: 'repeat' })
 
     renderPage()
 
-    await waitFor(() => expect(harness.modelProfiles).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(harness.models).toHaveBeenCalledTimes(2))
     expect(harness.workspaceProps).toBeNull()
   })
 
   it('模型分页拒绝跨页重复 ID', async () => {
-    harness.modelProfiles
-      .mockResolvedValueOnce({ items: [modelProfile('duplicate')], next_cursor: 'next' })
-      .mockResolvedValueOnce({ items: [modelProfile('duplicate')] })
+    harness.models
+      .mockResolvedValueOnce({ items: [modelFixture('duplicate')], next_cursor: 'next' })
+      .mockResolvedValueOnce({ items: [modelFixture('duplicate')] })
     renderPage()
-    await waitFor(() => expect(harness.modelProfiles).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(harness.models).toHaveBeenCalledTimes(2))
     expect(harness.workspaceProps).toBeNull()
   })
 
-  it('模型分页拒绝超出总量上限', async () => {
-    harness.modelProfiles.mockReset().mockResolvedValue({
-      items: Array.from({ length: 33 }, (_, index) => modelProfile(`overflow-${index}`)),
-    })
-    renderPage()
-    await waitFor(() => expect(harness.modelProfiles).toHaveBeenCalledTimes(1))
-    expect(harness.workspaceProps).toBeNull()
-  })
 })
 
 const sessions: AgentSession[] = [
   {
     id: 'session-one',
     title: 'First',
-    model_profile_id: 'model-one',
+    model_id: 'model-one',
     reasoning_level: 'off',
     revision: 1,
     created_at: '2026-08-29T00:00:00Z',
@@ -465,7 +571,7 @@ const sessions: AgentSession[] = [
   {
     id: 'session-two',
     title: 'Second',
-    model_profile_id: 'model-one',
+    model_id: 'model-one',
     reasoning_level: 'off',
     revision: 1,
     created_at: '2026-08-29T00:00:00Z',
@@ -504,6 +610,8 @@ function renderPage({
   launchIntent,
   onLaunchIntentHandled,
   onRuntimeSummaryChange,
+  readiness = readinessFixture(),
+  active = true,
 }: {
   launchIntent?: AgentLaunchIntent
   onLaunchIntentHandled?: (key: number) => void
@@ -511,45 +619,26 @@ function renderPage({
     agentRunCount: number
     snapshotComplete: boolean
   }) => void
+  readiness?: AgentReadiness
+  active?: boolean
 } = {}) {
-  const readiness: AgentReadiness = {
-    status: 'ready',
-    mcp_runtime: { status: 'ready', message: '' },
-    mcp_client: { status: 'ready', message: '' },
-    skills_bundle: { status: 'ready', message: '' },
-    default_model: { status: 'ready', message: '' },
-    mcp_policy: {
-      client_id: 'mcp-one',
-      approval_bypass: false,
-      scope_count: 29,
-      required_scope_count: 29,
-      scope_sync_required: false,
-      revision: 1,
-    },
-    settings: {
-      default_model_profile_id: 'model-one',
-      default_reasoning_level: 'off',
-      revision: 1,
-      created_at: '2026-08-29T00:00:00Z',
-      updated_at: '2026-08-29T00:00:00Z',
-    },
-  }
   const setupGateway = {
     readiness: vi.fn(async () => readiness),
+    modelProviders: harness.modelProviders,
+    models: harness.models,
   } as unknown as AgentSetupGateway
-  const gateway = {
-    modelProfiles: harness.modelProfiles,
-  } as unknown as AgentWorkspaceGateway
+  const gateway = {} as AgentWorkspaceGateway
   const element = (next: {
     launchIntent?: AgentLaunchIntent
     onLaunchIntentHandled?: (key: number) => void
+    active?: boolean
   } = {}) => (
     <AntdApp>
       <AgentPage
         gateway={gateway}
         setupGateway={setupGateway}
         enabled
-        active
+        active={next.active ?? active}
         launchIntent={next.launchIntent ?? launchIntent}
         onLaunchIntentHandled={next.onLaunchIntentHandled ?? onLaunchIntentHandled}
         onRuntimeSummaryChange={onRuntimeSummaryChange}
@@ -562,22 +651,66 @@ function renderPage({
     rerenderPage: (next: {
       launchIntent?: AgentLaunchIntent
       onLaunchIntentHandled?: (key: number) => void
+      active?: boolean
     }) => view.rerender(element(next)),
   }
 }
 
-function modelProfile(id = 'model-one') {
+function providerFixture() {
   return {
-    id,
-    name: `Model ${id}`,
+    id: 'provider-one',
+    name: 'Provider One',
     api_mode: 'responses' as const,
     base_url: 'http://127.0.0.1:11434/v1',
-    model_id: 'model',
+    enabled: true,
+    api_key_configured: false,
+    refresh_status: 'ready' as const,
+    revision: 1,
+    created_at: '2026-08-29T00:00:00Z',
+    updated_at: '2026-08-29T00:00:00Z',
+  }
+}
+
+function readinessFixture(
+  status: AgentReadiness['status'] = 'ready',
+  defaultModelStatus: AgentReadiness['default_model']['status'] = 'ready',
+): AgentReadiness {
+  return {
+    status,
+    mcp_runtime: { status: 'ready', message: '' },
+    mcp_client: { status: 'ready', message: '' },
+    skills_bundle: { status: 'ready', message: '' },
+    default_model: { status: defaultModelStatus, message: '' },
+    mcp_policy: {
+      client_id: 'mcp-one',
+      approval_bypass: false,
+      scope_count: 29,
+      required_scope_count: 29,
+      scope_sync_required: false,
+      revision: 1,
+    },
+    settings: {
+      default_model_id: 'model-one',
+      default_reasoning_level: 'off',
+      revision: 1,
+      created_at: '2026-08-29T00:00:00Z',
+      updated_at: '2026-08-29T00:00:00Z',
+    },
+  }
+}
+
+function modelFixture(id = 'model-one') {
+  return {
+    id,
+    provider_id: 'provider-one',
+    remote_model_id: `remote-${id}`,
+    display_name: `Model ${id}`,
+    availability: 'available' as const,
     context_window_tokens: 8_192,
     max_output_tokens: 1_024,
     supports_images: false,
     supports_reasoning: false,
-    api_key_configured: false,
+    capabilities_confirmed: false,
     revision: 1,
     created_at: '2026-08-29T00:00:00Z',
     updated_at: '2026-08-29T00:00:00Z',
@@ -594,11 +727,17 @@ function runFixture(overrides: Partial<AgentRun> = {}): AgentRun {
     status: 'running',
     user_message_id: 'message-user',
     assistant_message_id: 'message-assistant',
-    model_profile_id: 'model-one',
+    provider_id: 'provider-one',
+    model_id: 'model-one',
     model_snapshot: {
       api_mode: 'responses',
       base_url: 'http://127.0.0.1:11434/v1',
       model_id: 'model',
+      provider_id: 'provider-one',
+      provider_name: 'Provider One',
+      model_display_name: 'Model model-one',
+      provider_revision: 1,
+      model_revision: 1,
       context_window_tokens: 8_192,
       max_output_tokens: 1_024,
       supports_images: false,

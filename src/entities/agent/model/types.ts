@@ -11,7 +11,7 @@ export const agentReadinessComponentStates = ['ready', 'missing', 'outdated', 'u
 export type AgentReadinessComponentState = (typeof agentReadinessComponentStates)[number]
 
 export interface AgentSettings {
-  default_model_profile_id?: string
+  default_model_id?: string
   default_reasoning_level: AgentReasoningLevel
   revision: number
   created_at: string
@@ -42,40 +42,75 @@ export interface AgentReadiness {
   settings: AgentSettings
 }
 
-export interface AgentModelProfile {
+export const agentModelRefreshStatuses = ['never', 'ready', 'stale', 'failed'] as const
+export type AgentModelRefreshStatus = (typeof agentModelRefreshStatuses)[number]
+export const agentModelAvailabilities = ['available', 'missing'] as const
+export type AgentModelAvailability = (typeof agentModelAvailabilities)[number]
+
+export interface AgentModelProvider {
   id: string
   name: string
   api_mode: AgentApiMode
   base_url: string
-  model_id: string
-  context_window_tokens: number
-  max_output_tokens: number
-  supports_images: boolean
-  supports_reasoning: boolean
+  enabled: boolean
   api_key_configured: boolean
+  refresh_status: AgentModelRefreshStatus
+  last_refresh_attempt_at?: string
+  last_refresh_success_at?: string
+  last_refresh_error_code?: string
   revision: number
   created_at: string
   updated_at: string
 }
 
-export interface AgentModelProfilePage {
-  items: AgentModelProfile[]
+export interface AgentModelProviderPage {
+  items: AgentModelProvider[]
   next_cursor?: string
 }
 
-export interface AgentModelProfileInput {
+export interface AgentModelProviderInput {
   name: string
   api_mode: AgentApiMode
   base_url: string
-  model_id: string
+  enabled: boolean
+  confirm_insecure_http: boolean
+  api_key?: string
+  remove_api_key?: boolean
+}
+
+export interface AgentModelProviderUpdateInput extends AgentModelProviderInput {
+  expected_revision: number
+}
+
+export interface AgentModel {
+  id: string
+  provider_id: string
+  remote_model_id: string
+  display_name: string
+  owned_by?: string
+  availability: AgentModelAvailability
   context_window_tokens: number
   max_output_tokens: number
   supports_images: boolean
   supports_reasoning: boolean
-  confirm_insecure_http: boolean
+  capabilities_confirmed: boolean
+  revision: number
+  created_at: string
+  updated_at: string
 }
 
-export interface AgentModelProfileUpdateInput extends AgentModelProfileInput {
+export interface AgentModelPage {
+  items: AgentModel[]
+  next_cursor?: string
+}
+
+export interface AgentModelUpdateInput {
+  display_name: string
+  context_window_tokens: number
+  max_output_tokens: number
+  supports_images: boolean
+  supports_reasoning: boolean
+  capabilities_confirmed: true
   expected_revision: number
 }
 
@@ -83,6 +118,13 @@ export interface AgentModelTestResult {
   status: 'ready' | 'failed'
   latency_ms: number
   model_id: string
+  message: string
+}
+
+export interface AgentProviderTestResult {
+  status: 'ready' | 'failed'
+  latency_ms: number
+  model_count: number
   message: string
 }
 
@@ -184,7 +226,7 @@ export type AgentJsonValue =
 export interface AgentSession {
   id: string
   title: string
-  model_profile_id: string
+  model_id: string
   reasoning_level: AgentReasoningLevel
   archived_at?: string
   revision: number
@@ -199,7 +241,7 @@ export interface AgentSessionPage {
 
 export interface AgentSessionInput {
   title: string
-  model_profile_id: string
+  model_id: string
   reasoning_level: AgentReasoningLevel
 }
 
@@ -281,6 +323,11 @@ export interface AgentRunModelSnapshot {
   api_mode: AgentApiMode
   base_url: string
   model_id: string
+  provider_id: string
+  provider_name: string
+  model_display_name: string
+  provider_revision: number
+  model_revision: number
   context_window_tokens: number
   max_output_tokens: number
   supports_images: boolean
@@ -296,7 +343,8 @@ export interface AgentRun {
   status: AgentRunStatus
   user_message_id: string
   assistant_message_id: string
-  model_profile_id: string
+  provider_id: string
+  model_id: string
   model_snapshot: AgentRunModelSnapshot
   reasoning_level: AgentReasoningLevel
   usage: AgentUsage

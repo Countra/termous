@@ -184,10 +184,10 @@ export class AgentWorkspaceController {
 
   async updateSession(id: string, input: AgentSessionUpdateInput) {
     return await this.runMutation(async () => {
-      const previousModelProfileId = this.state.sessions.find((session) => session.id === id)?.model_profile_id
+      const previousModelId = this.state.sessions.find((session) => session.id === id)?.model_id
       const session = await this.gateway.updateSession(id, input)
       this.acceptSession(session)
-      if (previousModelProfileId && previousModelProfileId !== session.model_profile_id) {
+      if (previousModelId && previousModelId !== session.model_id) {
         void this.hydrateContext(id, 'restart')
       }
       return session
@@ -687,13 +687,13 @@ function changedContextModelSessions(
 ) {
   const previousModels = new Map(previous.sessions.map((session) => [
     session.id,
-    session.model_profile_id,
+    session.model_id,
   ]))
   return next.sessions
     .filter((session) => (
       !session.archived_at
       && previousModels.has(session.id)
-      && previousModels.get(session.id) !== session.model_profile_id
+      && previousModels.get(session.id) !== session.model_id
       && (next.selected_session_id === session.id || next.session_contexts[session.id] !== undefined)
     ))
     .map(({ id }) => id)

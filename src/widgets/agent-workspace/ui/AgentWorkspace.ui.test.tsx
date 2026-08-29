@@ -40,6 +40,70 @@ describe('AgentWorkspace', () => {
     expect(props.onStop).toHaveBeenCalledTimes(1)
   })
 
+  it('模型不可用时展示可操作原因并禁止启动新 Run', () => {
+    renderWorkspace(fixtureProps({
+      models: [{
+        id: 'model-1', name: 'Local model', provider_name: 'Local Provider',
+        remote_model_id: 'local-model', supports_reasoning: true, runnable: false,
+        unavailable_reason: 'provider_disabled',
+      }],
+      model_runnable: false,
+    }))
+
+    expect(screen.getByText('agent.header.modelUnavailableReason.provider_disabled')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
+  })
+
+  it('没有可用模型时提供直接进入 Agent 设置的入口', async () => {
+    const user = userEvent.setup()
+    const onOpenSettings = vi.fn()
+    renderWorkspace(fixtureProps({
+      models: [],
+      selected_model_id: undefined,
+      model_runnable: false,
+      onOpenSettings,
+    }))
+
+    await user.click(screen.getByRole('button', { name: 'agent.header.configureProvider' }))
+    expect(onOpenSettings).toHaveBeenCalledOnce()
+  })
+
+  it('活动 Run 使用启动快照，模型目录不可用时仍允许 steer', async () => {
+    const user = userEvent.setup()
+    const onSteer = vi.fn(async () => undefined)
+    renderWorkspace(fixtureProps({
+      draft: '继续检查',
+      sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
+      models: [],
+      model_runnable: false,
+      onSteer,
+    }))
+
+    const steer = screen.getByRole('button', { name: 'agent.composer.steer' })
+    expect(steer).toBeEnabled()
+    await user.click(steer)
+    expect(onSteer).toHaveBeenCalledWith('继续检查')
+  })
+
+  it('模型目录可按 Provider 和远端模型 ID 搜索', async () => {
+    const user = userEvent.setup()
+    renderWorkspace(fixtureProps({
+      models: [
+        ...fixtureProps().models,
+        {
+          id: 'model-2', name: 'Secondary model', provider_name: 'Remote Provider',
+          remote_model_id: 'remote-model-v2', supports_reasoning: false, runnable: true,
+        },
+      ],
+    }))
+
+    const modelSelect = screen.getByRole('combobox', { name: 'agent.header.model' })
+    expect(modelSelect).not.toHaveAttribute('readonly')
+    await user.click(modelSelect)
+    await user.type(modelSelect, 'remote-model-v2')
+    expect(await screen.findByText(/Secondary model/)).toBeInTheDocument()
+  })
+
   it('其他会话有活动 Run 时仍可保存草稿但不能启动第二个 Run', () => {
     const props = fixtureProps({
       active_run: { session_id: 'session-2', status: 'running' },
@@ -221,7 +285,8 @@ function renderWorkspace(props: AgentWorkspaceProps) {
 function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorkspaceProps {
   return {
     sessions: [{
-      id: 'session-1', title: 'Deploy review', model_profile_id: 'model-1', model_name: 'Local model',
+      id: 'session-1', title: 'Deploy review', model_id: 'model-1', model_name: 'Local model',
+      provider_name: 'Local Provider',
       updated_at: '2026-08-29T08:00:00Z', archived: false, run_status: 'idle',
     }],
     selected_session_id: 'session-1',
@@ -234,8 +299,11 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
       ],
       attachments: [],
     }],
-    models: [{ id: 'model-1', name: 'Local model', supports_reasoning: true }],
-    selected_model_profile_id: 'model-1',
+    models: [{
+      id: 'model-1', name: 'Local model', provider_name: 'Local Provider',
+      remote_model_id: 'local-model', supports_reasoning: true, runnable: true,
+    }],
+    selected_model_id: 'model-1',
     inspector: {
       context: {
         phase: 'ready', has_snapshot: true, used_tokens: 120, context_window_tokens: 8_000,
@@ -244,10 +312,12 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
       skills: [],
       mcp: { connection: 'connected', tool_count: 76, scope_count: 29, approval_bypass: false },
     },
-    draft: '', draft_attachments: [], supports_images: false, loading: false, busy: false, run_blocked: false,
+    draft: '', draft_attachments: [], supports_images: false, model_runnable: true,
+    loading: false, busy: false, run_blocked: false,
     onCreateSession: vi.fn(), onSelectSession: vi.fn(), onReturnToActiveRun: vi.fn(),
     onArchiveSession: vi.fn(), onDeleteSession: vi.fn(),
-    onModelChange: vi.fn(), onDraftChange: vi.fn(), onSend: vi.fn(async () => undefined),
+    onModelChange: vi.fn(), onOpenSettings: vi.fn(), onDraftChange: vi.fn(),
+    onSend: vi.fn(async () => undefined),
     onAttachFiles: vi.fn(async () => undefined), onRemoveAttachment: vi.fn(async () => undefined),
     onRetryAttachment: vi.fn(async () => undefined), onLoadAttachmentContent: vi.fn(async () => new Blob()),
     onSteer: vi.fn(async () => undefined), onStop: vi.fn(async () => undefined),

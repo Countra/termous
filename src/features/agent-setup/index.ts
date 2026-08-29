@@ -1,14 +1,20 @@
 export type { AgentSetupGateway } from './api/agentSetupGateway.ts'
 export {
-  loadAllAgentModelProfiles,
-  type AgentModelProfilePageSource,
-} from './model/loadAgentModelProfiles.ts'
+  loadAgentModelCatalog,
+  loadAllAgentModelProviders,
+  loadAllAgentModels,
+  type AgentModelCatalog,
+  type AgentModelCatalogSource,
+} from './model/loadAgentModelCatalog.ts'
 export {
   AgentSetupProtocolError,
   decodeAgentMcpPolicy,
-  decodeAgentModelProfile,
-  decodeAgentModelProfilePage,
+  decodeAgentModel,
+  decodeAgentModelPage,
+  decodeAgentModelProvider,
+  decodeAgentModelProviderPage,
   decodeAgentModelTestResult,
+  decodeAgentProviderTestResult,
   decodeAgentReadiness,
   decodeAgentSettings,
   decodeAgentSetupResult,

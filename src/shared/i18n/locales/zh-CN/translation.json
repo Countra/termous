@@ -70,6 +70,19 @@
       "newSession": "使用默认模型开始对话",
       "model": "模型",
       "selectModel": "选择模型",
+      "configureProvider": "配置 Provider",
+      "modelUnavailable": "当前模型不可用",
+      "modelUnavailableReason": {
+        "provider_disabled": "Provider 已停用",
+        "catalog_stale": "模型目录待同步",
+        "missing": "模型已移除"
+      },
+      "modelUnavailableHint": {
+        "provider_disabled": "请在 Agent 设置中启用该 Provider，或为会话选择其他可用模型。",
+        "catalog_stale": "请在 Agent 设置中同步该 Provider 的模型目录，或为会话选择其他可用模型。",
+        "missing": "该模型已从 Provider 目录移除，请为会话选择其他可用模型。",
+        "unknown": "请在 Agent 设置中检查 Provider 和模型目录，或选择其他可用模型。"
+      },
       "returnToActiveRun": "返回运行会话"
     },
     "status": {
@@ -3332,7 +3345,7 @@
       "operationFailed": "Agent 设置操作失败",
       "readiness": {
         "title": "运行准备",
-        "description": "首次准备会启用 MCP、创建具有当前全部 29 项权限的 Agent 托管客户端，并保持逐次审批。修复操作可安全重复执行。",
+      "description": "检查 MCP、Skills 与默认模型；首次准备会创建托管客户端并保持逐次审批。",
         "mcpRuntime": "MCP Runtime",
         "mcpClient": "托管客户端",
         "skills": "Skills 资源",
@@ -3365,19 +3378,113 @@
         "sync": "同步权限"
       },
       "models": {
-        "title": "模型配置",
-        "description": "配置 OpenAI-compatible 模型。地址和模型标识保存在 Core，API Key 由 Vault 单独加密。",
-        "add": "添加模型",
-        "empty": "尚未添加模型配置",
         "default": "默认",
-        "insecureHttp": "HTTP 明文传输",
         "test": "测试连接"
       },
-      "defaults": {
-        "title": "默认行为",
+      "providers": {
+      "title": "模型提供商",
+      "count": "{{count}} 个 Provider",
+      "modelCount": "{{count}} 个模型",
+        "search": "搜索 Provider",
+        "add": "添加 Provider",
+        "noResults": "没有匹配的 Provider",
+        "empty": "尚未添加 Provider",
+        "emptyEditor": "添加 Provider 后自动同步模型目录",
+        "new": "新增 Provider",
+        "connectionTab": "连接设置",
+        "catalogTab": "模型目录",
+        "saved": "Provider 设置已保存",
+        "test": "测试 Provider",
+        "testSuccess": "Provider 可访问，{{latency}} ms，发现 {{count}} 个模型",
+        "testFailed": "Provider 测试未通过",
+        "testReady": "模型目录接口响应正常。",
+        "testUnavailable": "模型目录接口未能完成请求，请检查地址和认证。",
+        "discardTitle": "放弃未保存的 Provider 修改？",
+        "discardDescription": "切换后当前表单中的修改将丢失。",
+        "discard": "放弃修改",
+        "deleteDefaultBlocked": "该 Provider 包含默认模型，请先切换默认模型"
+      },
+    "providerEditor": {
+      "basicSection": "基本信息",
+      "connectionSection": "连接与认证",
+      "name": "Provider 名称",
+        "namePlaceholder": "例如：公司 OpenAI 网关",
+        "apiMode": "API 模式",
+        "enabled": "使用状态",
+        "enabledState": "允许用于新会话",
+        "disabledState": "暂停用于新会话",
+        "baseUrl": "Base URL",
+        "optionalApiKey": "API Key（可选）",
+        "testRequiresSave": "请先保存修改，再测试当前配置",
+        "reset": "撤销更改",
+        "httpRiskTitle": "当前使用明文 HTTP",
+        "httpRisk": "模型请求、上下文和认证信息可能被链路上的其他方读取或篡改。保存时需要再次确认。",
+        "provisionFailure": {
+          "refresh": {
+            "title": "Provider 已保存，但模型目录同步失败",
+            "description": "Provider 和 API Key（如有）已经保存，密钥输入已清除。最近一次成功目录仍会保留，请检查地址、认证或网络后重试同步。"
+          }
+        }
+      },
+      "catalog": {
+        "search": "搜索模型 ID、名称或所有者",
+        "refresh": "同步目录",
+        "refreshSuccess": "模型目录已同步",
+        "refreshFailed": "模型目录同步未完成",
+        "refreshFailedDescription": "已保留最近一次成功目录，请检查 Provider 配置后重试。",
+        "noResults": "没有匹配的模型",
+        "neverEmpty": "同步 Provider 后将在这里显示模型",
+        "empty": "当前目录没有模型",
+        "missing": "服务端已移除",
+        "conservative": "保守能力",
+        "context": "上下文",
+        "images": "图片",
+        "reasoning": "Reasoning",
+        "setDefault": "设为默认模型",
+        "editCapabilities": "编辑模型能力",
+        "unavailable": "不可用于新会话",
+        "lastSynced": "上次同步 {{time}}",
+        "status": {
+          "disabled": "已停用",
+          "never": "待同步",
+          "ready": "已同步",
+          "readyWarning": "使用缓存",
+          "stale": "需重新同步",
+          "failed": "同步失败"
+        },
+        "stateTitle": {
+          "disabled": "Provider 已暂停用于新会话",
+          "never": "尚未同步模型目录",
+          "readyWarning": "最近一次同步失败，正在使用缓存目录",
+          "stale": "Provider 配置已变化",
+          "failed": "模型目录同步失败"
+        },
+        "stateDescription": {
+          "disabled": "仍可测试连接或手工同步目录，重新启用后才能创建新会话。",
+          "never": "测试连接或同步目录后，Termous 会自动发现模型。",
+          "readyWarning": "已有模型仍可使用；建议检查网络或认证后再次同步。",
+          "stale": "旧目录仍会保留，但重新同步前不能用于新 Run。",
+          "failed": "请检查 Provider 地址、API Key 和网络后重试。"
+        },
+        "errorDescription": {
+          "invalid_config": "Provider 配置无效。请检查 Base URL 和 API 模式后重试。",
+          "timeout": "Provider 未在时限内响应。请检查服务状态和网络后重试。",
+          "connect_failed": "无法连接 Provider。请检查地址、代理、证书和网络。",
+          "authentication_failed": "Provider 拒绝了认证。请更新 API Key 后重试。",
+          "rate_limited": "Provider 暂时限制了请求。请稍后再同步。",
+          "invalid_response": "Provider 返回了无法识别的模型目录。请确认其兼容 OpenAI 模型列表接口。",
+          "response_too_large": "Provider 返回的模型目录超过安全上限。请缩小网关目录后重试。",
+          "catalog_fetch_failed": "模型目录获取失败。请检查 Provider 状态后重试。"
+        }
+      },
+    "defaults": {
+      "title": "默认行为",
+      "description": "设置新会话默认使用的模型与推理级别。",
         "model": "默认模型",
         "modelPlaceholder": "选择模型",
-        "reasoning": "默认推理级别"
+        "reasoning": "默认推理级别",
+        "unavailableTitle": "当前默认模型不可用于新会话",
+        "unavailableDescription": "模型记录会继续保留，请同步目录、启用 Provider 或选择其他默认模型。"
       },
       "apiMode": {
         "responses": "Responses API",
@@ -3392,23 +3499,26 @@
         "xhigh": "极高"
       },
       "modelEditor": {
-        "createTitle": "新增模型配置",
-        "editTitle": "编辑模型配置",
-        "name": "配置名称",
-        "apiMode": "API 模式",
-        "baseUrl": "Base URL",
-        "modelId": "Model ID",
+        "displayName": "显示名称",
         "contextWindow": "上下文窗口 Token",
         "maxOutput": "最大输出 Token",
         "images": "支持图片输入",
         "reasoning": "支持 reasoning",
-        "httpRisk": "此配置使用明文 HTTP，模型请求、上下文和认证信息可能被链路上的其他方读取或篡改。"
+        "conservativeTitle": "当前使用保守能力配置",
+        "conservativeDescription": "模型目录无法可靠提供上下文、图片和 reasoning 能力。确认服务文档后再调整；未确认不会阻止文本模型运行。",
+        "discardTitle": "放弃模型能力修改？",
+        "discardDescription": "关闭后当前未保存的能力配置将丢失。"
       },
       "apiKey": {
-        "title": "设置 API Key",
-        "description": "密钥不会由 Renderer 持久化；输入期间会短暂保留在当前页面内存中，提交后由本机 Core 的 Vault 加密。",
-        "fieldLabel": "{{name}} 的 API Key",
-        "placeholder": "输入新的 API Key",
+        "optionalPlaceholder": "无鉴权服务可留空",
+        "configuredPlaceholder": "已安全保存；输入新密钥可替换",
+        "configuredHint": "留空会保留当前密钥，Termous 不会回显已保存的值。",
+        "optionalHint": "无鉴权服务可留空；提交后由本机 Vault 加密保存。",
+        "addPending": "保存后配置密钥",
+        "replacePending": "保存后替换当前密钥",
+        "removePending": "保存后删除密钥",
+        "removePendingHint": "Provider 配置和模型目录会保留，保存后将按无密钥方式重新同步。",
+        "undoRemove": "撤销删除",
         "configured": "已配置密钥",
         "notConfigured": "无密钥",
         "remove": "删除 API Key",
@@ -3431,12 +3541,7 @@
       },
       "confirmDelete": {
         "title": "删除模型配置？",
-        "description": "模型配置“{{name}}”及其已保存 API Key 将被删除。默认模型需要先切换或清除。"
-      },
-      "confirmRemoveKey": {
-        "title": "删除已保存的 API Key？",
-        "description": "删除后无法恢复；模型配置本身会保留。",
-        "confirm": "删除密钥"
+        "description": "Provider“{{name}}”、模型目录及已保存 API Key 将被删除。被默认模型或会话引用时无法删除。"
       },
       "testSuccess": "模型连接正常，延迟 {{latency}} ms",
       "testFailed": "模型连接测试未通过",
@@ -3448,17 +3553,18 @@
         "title": "配置已在其他位置更新",
         "description": "请读取最新配置并核对后再次执行操作。",
         "editorDescription": "读取最新 revision 后会保留当前编辑草稿，仍需再次确认保存。",
-        "apiKeyDescription": "为避免把密钥提交到过期配置，请先读取最新 revision。原输入已清除。",
+        "providerDeleted": "此 Provider 已在其他位置删除。当前草稿仍保留；请放弃草稿或选择其他 Provider。",
+        "modelDeleted": "此模型已随 Provider 在其他位置删除。当前能力草稿仍保留，关闭前需要确认放弃。",
         "refresh": "读取最新配置",
-        "draftPreserved": "已读取最新 revision，当前编辑草稿已保留，请核对后重新保存。",
-        "apiKeyRefreshed": "已读取最新 revision，请重新输入 API Key 后保存。"
+        "draftPreserved": "已读取最新 revision，当前编辑草稿已保留，请核对后重新保存。"
       },
       "validation": {
-        "name": "请输入配置名称",
+        "providerName": "请输入 Provider 名称",
         "nameTooLarge": "配置名称不能超过 80 字节",
-        "modelId": "请输入 Model ID",
-        "modelIdTooLarge": "Model ID 不能超过 200 字节",
+        "displayName": "请输入模型显示名称",
+        "displayNameTooLarge": "模型显示名称不能超过 200 字节",
         "baseUrl": "请输入不含凭据、查询参数和片段的完整 HTTP 或 HTTPS 地址",
+        "baseUrlTooLarge": "Base URL 不能超过 2048 字节",
         "integerTokens": "Token 数量必须是整数",
         "contextWindow": "上下文窗口必须介于 1024 和 2000000 Token",
         "tokenLimit": "最大输出 Token 不能超过上下文窗口"
@@ -3466,7 +3572,9 @@
       "error": {
         "generic": "操作未完成，请检查 Core、Vault 和模型配置后重试。",
         "conflict": "配置已在其他位置更新。当前草稿已保留，请重新载入后核对再保存。",
-        "vaultLocked": "Vault 当前已锁定，请先解锁后重试。"
+        "vaultLocked": "Vault 当前已锁定，请先解锁后重试。",
+        "providerInUse": "该 Provider 仍被默认设置、会话或历史任务引用，无法删除。",
+        "modelCapabilityConflict": "该模型仍被启用了推理的默认设置或会话使用。请先关闭这些位置的推理等级，再停用模型推理能力。"
       }
     },
     "tabMcp": "MCP",

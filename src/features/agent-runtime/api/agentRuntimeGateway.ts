@@ -2,7 +2,6 @@ import type {
   AgentAttachment,
   AgentMcpPolicy,
   AgentMessagePage,
-  AgentModelProfilePage,
   AgentReasoningLevel,
   AgentRun,
   AgentRunEventPage,
@@ -65,7 +64,6 @@ export interface AgentWorkspaceGateway {
   stopRuntime(run: Pick<AgentRun, 'id' | 'generation'>): Promise<AgentRuntimeCommandResult>
   steerRuntime(run: Pick<AgentRun, 'id' | 'generation'>, message: string): Promise<AgentRuntimeCommandResult>
   onRuntimeStatus(callback: (status: AgentRuntimeStatus) => void): () => void
-  modelProfiles(cursor?: string, signal?: AbortSignal): Promise<AgentModelProfilePage>
   updateMcpPolicy(input: {
     approval_bypass: boolean
     sync_scopes: boolean
@@ -74,6 +72,6 @@ export interface AgentWorkspaceGateway {
 }
 
 export interface AgentWorkspaceSessionDefaults {
-  modelProfileId: string
+  modelId: string
   reasoningLevel: AgentReasoningLevel
 }

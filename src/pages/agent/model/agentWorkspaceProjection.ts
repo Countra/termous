@@ -1,16 +1,19 @@
 import type {
   AgentMessage,
   AgentMessagePart,
-  AgentModelProfile,
+  AgentModel,
+  AgentModelProvider,
+  AgentReadiness,
   AgentRun,
   AgentRunEvent,
   AgentSession,
 } from '#entities/agent'
-import { isAgentRunActive } from '#entities/agent'
+import { isAgentModelRunnable, isAgentRunActive } from '#entities/agent'
 import type { AgentRuntimeStatus } from '#common/contracts'
 import type {
   AgentWorkspaceMessage,
   AgentWorkspaceMessagePart,
+  AgentWorkspaceModelOption,
   AgentWorkspaceRunStatus,
   AgentWorkspaceSession,
   AgentWorkspaceToolPart,
@@ -19,21 +22,56 @@ import type {
 const sensitiveKey = /(?:api[_-]?key|authorization|bearer|credential|pass(?:word|phrase)?|private[_-]?key|secret|token)/i
 const maximumToolDetailLength = 4_000
 
+export function agentWorkspaceInfrastructureReady(readiness: AgentReadiness) {
+  return readiness.mcp_runtime.status === 'ready'
+    && readiness.mcp_client.status === 'ready'
+    && readiness.skills_bundle.status === 'ready'
+}
+
+export function projectAgentModelOptions(
+  models: AgentModel[],
+  providersById: ReadonlyMap<string, AgentModelProvider>,
+): AgentWorkspaceModelOption[] {
+  return models.map((model) => {
+    const provider = providersById.get(model.provider_id)
+    return {
+      id: model.id,
+      name: model.display_name,
+      provider_name: provider?.name ?? model.provider_id,
+      remote_model_id: model.remote_model_id,
+      supports_reasoning: model.supports_reasoning,
+      runnable: isAgentModelRunnable(model, provider),
+      unavailable_reason: model.availability === 'missing'
+        ? 'missing'
+        : !provider?.enabled ? 'provider_disabled'
+          : provider?.refresh_status !== 'ready' ? 'catalog_stale' : undefined,
+    }
+  })
+}
+
 export function projectAgentSessions(
   sessions: AgentSession[],
-  profiles: AgentModelProfile[],
+  models: AgentModel[],
+  providers: AgentModelProvider[],
   runs: Record<string, AgentRun>,
 ): AgentWorkspaceSession[] {
-  const models = new Map(profiles.map((profile) => [profile.id, profile.name]))
-  return sessions.filter((session) => !session.archived_at).map((session) => ({
-    id: session.id,
-    title: session.title,
-    model_profile_id: session.model_profile_id,
-    model_name: models.get(session.model_profile_id) ?? session.model_profile_id,
-    updated_at: session.updated_at,
-    archived: false,
-    run_status: latestSessionRun(session.id, runs)?.status ?? 'idle',
-  }))
+  const modelsById = new Map(models.map((model) => [model.id, model]))
+  const providersById = new Map(providers.map((provider) => [provider.id, provider]))
+  return sessions.filter((session) => !session.archived_at).map((session) => {
+    const model = modelsById.get(session.model_id)
+    const provider = model ? providersById.get(model.provider_id) : undefined
+    const snapshot = latestSessionModelRun(session.id, session.model_id, runs)?.model_snapshot
+    return {
+      id: session.id,
+      title: session.title,
+      model_id: session.model_id,
+      model_name: model?.display_name ?? snapshot?.model_display_name ?? session.model_id,
+      provider_name: provider?.name ?? snapshot?.provider_name,
+      updated_at: session.updated_at,
+      archived: false,
+      run_status: latestSessionRun(session.id, runs)?.status ?? 'idle',
+    }
+  })
 }
 
 export function projectAgentMessages(
@@ -67,6 +105,16 @@ export function projectAgentMessages(
 export function latestSessionRun(sessionId: string, runs: Record<string, AgentRun>) {
   return Object.values(runs)
     .filter((run) => run.session_id === sessionId)
+    .sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at))[0]
+}
+
+function latestSessionModelRun(
+  sessionId: string,
+  modelId: string,
+  runs: Record<string, AgentRun>,
+) {
+  return Object.values(runs)
+    .filter((run) => run.session_id === sessionId && run.model_id === modelId)
     .sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at))[0]
 }
 

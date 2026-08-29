@@ -3,7 +3,6 @@ import test from 'node:test'
 import type {
   AgentMcpPolicy,
   AgentMessagePage,
-  AgentModelProfilePage,
   AgentRun,
   AgentRunEventPage,
   AgentSessionContext,
@@ -477,7 +476,7 @@ test('切换会话模型后重新读取对应上下文窗口', async () => {
 
   await controller.updateSession('ags-session', {
     ...sessionInput(),
-    model_profile_id: 'amp-larger-model',
+    model_id: 'apm-larger-model',
     archived: false,
     expected_revision: 1,
   })
@@ -509,7 +508,7 @@ test('WebSocket 外部变更会话模型后重启已加载的上下文水合', a
       ? {
           type: 'snapshot', revision: 1,
           sessions: [agentSessionFixture({
-            model_profile_id: 'amp-external-model',
+            model_id: 'apm-external-model',
             revision: 2,
           })],
           active_runs: [],
@@ -517,7 +516,7 @@ test('WebSocket 外部变更会话模型后重启已加载的上下文水合', a
       : {
           type: 'upsert', revision: 1,
           session: agentSessionFixture({
-            model_profile_id: 'amp-external-model',
+            model_id: 'apm-external-model',
             revision: 2,
           }),
         })
@@ -574,17 +573,17 @@ class FakeGateway implements AgentWorkspaceGateway {
   }
 
   async session() { return agentSessionFixture() }
-  async createSession(input: { title: string; model_profile_id: string; reasoning_level: 'medium' }) {
+  async createSession(input: Parameters<AgentWorkspaceGateway['createSession']>[0]) {
     return agentSessionFixture({
       title: input.title,
-      model_profile_id: input.model_profile_id,
+      model_id: input.model_id,
       reasoning_level: input.reasoning_level,
     })
   }
   async updateSession(_id: string, input: Parameters<AgentWorkspaceGateway['updateSession']>[1]) {
     return agentSessionFixture({
       title: input.title,
-      model_profile_id: input.model_profile_id,
+      model_id: input.model_id,
       reasoning_level: input.reasoning_level,
       archived_at: input.archived ? agentSessionFixture().updated_at : undefined,
       revision: input.expected_revision + 1,
@@ -633,7 +632,6 @@ class FakeGateway implements AgentWorkspaceGateway {
     return commandResult(true)
   }
   onRuntimeStatus() { return () => undefined }
-  async modelProfiles(): Promise<AgentModelProfilePage> { return { items: [] } }
   async updateMcpPolicy(): Promise<AgentMcpPolicy> {
     return {
       client_id: 'mcp-client', approval_bypass: false, scope_count: 29,
@@ -664,7 +662,7 @@ class FakeSocket extends EventTarget {
 }
 
 function sessionInput() {
-  return { title: '测试会话', model_profile_id: 'amp-model', reasoning_level: 'medium' as const }
+  return { title: '测试会话', model_id: 'apm-model', reasoning_level: 'medium' as const }
 }
 
 function runtimeStatus(): AgentRuntimeStatus {

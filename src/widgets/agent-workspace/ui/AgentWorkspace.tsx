@@ -1,10 +1,14 @@
-import { Bot, CornerUpLeft, PanelLeftOpen, PanelRightOpen, Square } from 'lucide-react'
+import { Bot, CornerUpLeft, PanelLeftOpen, PanelRightOpen, Settings2, Square } from 'lucide-react'
 import { Button, Drawer, Select, Skeleton, Tag, Tooltip } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '#shared/ui'
 import { useAgentWorkspaceBreakpoints } from '../model/useAgentWorkspaceBreakpoints.ts'
-import { isActiveAgentRun, type AgentWorkspaceProps } from '../model/types.ts'
+import {
+  isActiveAgentRun,
+  type AgentWorkspaceModelUnavailableReason,
+  type AgentWorkspaceProps,
+} from '../model/types.ts'
 import { AgentComposer } from './AgentComposer.tsx'
 import { AgentAttachmentPreview } from './AgentAttachmentPreview.tsx'
 import { AgentConversation } from './AgentConversation.tsx'
@@ -20,8 +24,20 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const [deleteSessionId, setDeleteSessionId] = useState<string>()
   const [previewAttachment, setPreviewAttachment] = useState<import('#entities/agent').AgentAttachment>()
   const selectedSession = props.sessions.find((session) => session.id === props.selected_session_id)
+  const modelById = useMemo(
+    () => new Map(props.models.map((model) => [model.id, model])),
+    [props.models],
+  )
+  const modelOptions = useMemo(
+    () => groupModelOptions(props.models, t),
+    [props.models, t],
+  )
+  const selectedModel = props.selected_model_id
+    ? modelById.get(props.selected_model_id)
+    : undefined
   const runStatus = selectedSession?.run_status ?? 'idle'
   const active = isActiveAgentRun(runStatus)
+  const hasRunnableModels = props.models.some(({ runnable }) => runnable)
   const activeRunElsewhere = props.active_run
     && props.active_run.session_id !== props.selected_session_id
   const displayedRunStatus = activeRunElsewhere ? props.active_run!.status : runStatus
@@ -69,7 +85,12 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
               <Tooltip title={t('agent.sessions.title')}><Button type="text" aria-label={t('agent.sessions.title')} icon={<PanelLeftOpen size={17} />} onClick={() => setSessionsOpen(true)} /></Tooltip>
             ) : null}
             <span className={styles['agent-mark']}><Bot size={16} /></span>
-            <div><strong>{selectedSession?.title ?? t('agent.sessions.new')}</strong><span>{selectedSession ? selectedSession.model_name : t('agent.header.newSession')}</span></div>
+            <div>
+              <strong>{selectedSession?.title ?? t('agent.sessions.new')}</strong>
+              <span>{selectedSession
+                ? sessionModelLabel(selectedSession.model_name, selectedSession.provider_name)
+                : t('agent.header.newSession')}</span>
+            </div>
           </div>
           <div className={styles['header-controls']}>
             <Tag
@@ -103,13 +124,39 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
               </div>
             ) : null}
             <Select
-              value={props.selected_model_profile_id}
+              value={props.selected_model_id}
               placeholder={t('agent.header.selectModel')}
               disabled={props.busy || active || props.run_blocked}
               aria-label={t('agent.header.model')}
-              options={props.models.map((model) => ({ value: model.id, label: model.name }))}
+              showSearch
+              options={modelOptions}
+              filterOption={(input, option) => (
+                isSearchableModelOption(option)
+                  && option.search_text.includes(input.trim().toLocaleLowerCase())
+              )}
               onChange={props.onModelChange}
             />
+            {!props.model_runnable ? (
+              <Tooltip title={modelUnavailableHint(selectedModel?.unavailable_reason, t)}>
+                <Tag color="warning">
+                  {modelUnavailableLabel(selectedModel?.unavailable_reason, t)}
+                </Tag>
+              </Tooltip>
+            ) : null}
+            {!hasRunnableModels ? (
+              <Button
+                type="text"
+                size="small"
+                className={styles['model-settings-action']}
+                aria-label={t('agent.header.configureProvider')}
+                icon={<Settings2 size={14} aria-hidden="true" />}
+                onClick={props.onOpenSettings}
+              >
+                <span className={styles['model-settings-action-label']}>
+                  {t('agent.header.configureProvider')}
+                </span>
+              </Button>
+            ) : null}
             {breakpoints.inspectorOverlay ? (
               <Tooltip title={t('agent.inspector.title')}><Button type="text" aria-label={t('agent.inspector.title')} icon={<PanelRightOpen size={17} />} onClick={() => setInspectorOpen(true)} /></Tooltip>
             ) : null}
@@ -126,7 +173,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           value={props.draft}
           runStatus={runStatus}
           disabled={props.busy}
-          submitDisabled={props.busy || props.run_blocked}
+          submitDisabled={props.busy || props.run_blocked || (!active && !props.model_runnable)}
           sourceContext={props.draft_source_context}
           attachments={props.draft_attachments}
           supportsImages={props.supports_images}
@@ -180,4 +227,59 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       />
     </div>
   )
+}
+
+function groupModelOptions(
+  models: AgentWorkspaceProps['models'],
+  t: (key: string) => string,
+) {
+  const providers = new Map<string, AgentWorkspaceProps['models']>()
+  for (const model of models) {
+    const items = providers.get(model.provider_name) ?? []
+    items.push(model)
+    providers.set(model.provider_name, items)
+  }
+  return Array.from(providers, ([provider, items]) => ({
+    label: provider,
+    title: provider,
+    options: items.map((model) => ({
+      value: model.id,
+      disabled: !model.runnable,
+      label: `${model.name} · ${provider} · ${model.remote_model_id}${model.runnable
+        ? ''
+        : ` · ${modelUnavailableLabel(model.unavailable_reason, t)}`}`,
+      search_text: `${model.name} ${provider} ${model.remote_model_id}`.toLocaleLowerCase(),
+    })),
+  }))
+}
+
+function sessionModelLabel(modelName: string, providerName?: string) {
+  return providerName ? `${modelName} · ${providerName}` : modelName
+}
+
+function isSearchableModelOption(value: unknown): value is { search_text: string } {
+  return Boolean(
+    value
+    && typeof value === 'object'
+    && 'search_text' in value
+    && typeof value.search_text === 'string',
+  )
+}
+
+function modelUnavailableLabel(
+  reason: AgentWorkspaceModelUnavailableReason | undefined,
+  t: (key: string) => string,
+) {
+  return reason
+    ? t(`agent.header.modelUnavailableReason.${reason}`)
+    : t('agent.header.modelUnavailable')
+}
+
+function modelUnavailableHint(
+  reason: AgentWorkspaceModelUnavailableReason | undefined,
+  t: (key: string) => string,
+) {
+  return reason
+    ? t(`agent.header.modelUnavailableHint.${reason}`)
+    : t('agent.header.modelUnavailableHint.unknown')
 }

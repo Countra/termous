@@ -1,11 +1,14 @@
 import type { AppConfig } from '#common/contracts'
-import type { AgentModelProfileInput, AgentModelProfileUpdateInput, AgentReasoningLevel } from '#entities/agent'
+import type { AgentModelProviderInput, AgentModelProviderUpdateInput, AgentModelUpdateInput, AgentReasoningLevel } from '#entities/agent'
 import type { AgentSetupGateway } from '#features/agent-setup'
 import {
   decodeAgentMcpPolicy,
-  decodeAgentModelProfile,
-  decodeAgentModelProfilePage,
+  decodeAgentModel,
+  decodeAgentModelPage,
+  decodeAgentModelProvider,
+  decodeAgentModelProviderPage,
   decodeAgentModelTestResult,
+  decodeAgentProviderTestResult,
   decodeAgentReadiness,
   decodeAgentSettings,
   decodeAgentSetupResult,
@@ -13,6 +16,7 @@ import {
 import { TermousApiTransport } from '#shared/api'
 
 const agentPath = '/api/v1/agent'
+const modelProbeTimeoutMs = 25_000
 
 export class AgentSetupClient extends TermousApiTransport implements AgentSetupGateway {
   constructor(config: Partial<AppConfig> = {}) {
@@ -24,7 +28,7 @@ export class AgentSetupClient extends TermousApiTransport implements AgentSetupG
   }
 
   updateSettings(input: {
-    default_model_profile_id: string
+    default_model_id: string
     default_reasoning_level: AgentReasoningLevel
     expected_revision: number
   }, signal?: AbortSignal) {
@@ -47,41 +51,44 @@ export class AgentSetupClient extends TermousApiTransport implements AgentSetupG
     return this.request<unknown>(`${agentPath}/mcp-policy`, { method: 'PATCH', body: input, signal }).then(decodeAgentMcpPolicy)
   }
 
-  modelProfiles(cursor?: string, signal?: AbortSignal) {
-    const query = new URLSearchParams({ limit: '32' })
+  modelProviders(cursor?: string, signal?: AbortSignal) {
+    const query = new URLSearchParams({ limit: '16' })
     if (cursor) query.set('cursor', cursor)
-    return this.request<unknown>(`${agentPath}/model-profiles?${query.toString()}`, { signal }).then(decodeAgentModelProfilePage)
+    return this.request<unknown>(`${agentPath}/model-providers?${query.toString()}`, { signal }).then(decodeAgentModelProviderPage)
   }
 
-  createModelProfile(input: AgentModelProfileInput, signal?: AbortSignal) {
-    return this.request<unknown>(`${agentPath}/model-profiles`, { method: 'POST', body: input, signal }).then(decodeAgentModelProfile)
+  createModelProvider(input: AgentModelProviderInput, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/model-providers`, { method: 'POST', body: input, signal }).then(decodeAgentModelProvider)
   }
 
-  updateModelProfile(id: string, input: AgentModelProfileUpdateInput, signal?: AbortSignal) {
-    return this.request<unknown>(`${agentPath}/model-profiles/${encodeURIComponent(id)}`, { method: 'PATCH', body: input, signal }).then(decodeAgentModelProfile)
+  updateModelProvider(id: string, input: AgentModelProviderUpdateInput, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/model-providers/${encodeURIComponent(id)}`, { method: 'PATCH', body: input, signal }).then(decodeAgentModelProvider)
   }
 
-  deleteModelProfile(id: string, expectedRevision: number, signal?: AbortSignal) {
-    return this.request<void>(`${agentPath}/model-profiles/${encodeURIComponent(id)}`, {
+  deleteModelProvider(id: string, expectedRevision: number, signal?: AbortSignal) {
+    return this.request<void>(`${agentPath}/model-providers/${encodeURIComponent(id)}`, {
       method: 'DELETE', body: { expected_revision: expectedRevision }, signal,
     })
   }
 
-  testModelProfile(id: string, expectedRevision: number, signal?: AbortSignal) {
-    return this.request<unknown>(`${agentPath}/model-profiles/${encodeURIComponent(id)}/test`, {
-      method: 'POST', body: { expected_revision: expectedRevision, confirm_potential_cost: true }, signal,
-    }).then(decodeAgentModelTestResult)
+  testModelProvider(id: string, expectedRevision: number, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/model-providers/${encodeURIComponent(id)}/test`, {
+      method: 'POST', body: { expected_revision: expectedRevision }, signal,
+    }).then(decodeAgentProviderTestResult)
   }
 
-  replaceModelApiKey(id: string, apiKey: string, expectedRevision: number, signal?: AbortSignal) {
-    return this.request<unknown>(`${agentPath}/model-profiles/${encodeURIComponent(id)}/api-key`, {
-      method: 'PUT', body: { api_key: apiKey, expected_revision: expectedRevision }, signal,
-    }).then(decodeAgentModelProfile)
+  refreshProviderModels(id: string, expectedRevision: number, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/model-providers/${encodeURIComponent(id)}/models/refresh`, { method: 'POST', body: { expected_revision: expectedRevision }, signal }).then(decodeAgentModelProvider)
   }
 
-  deleteModelApiKey(id: string, expectedRevision: number, signal?: AbortSignal) {
-    return this.request<unknown>(`${agentPath}/model-profiles/${encodeURIComponent(id)}/api-key`, {
-      method: 'DELETE', body: { expected_revision: expectedRevision }, signal,
-    }).then(decodeAgentModelProfile)
+  models(providerId?: string, cursor?: string, signal?: AbortSignal) {
+    const query = new URLSearchParams({ limit: '100' })
+    if (providerId) query.set('provider_id', providerId)
+    if (cursor) query.set('cursor', cursor)
+    return this.request<unknown>(`${agentPath}/models?${query.toString()}`, { signal }).then(decodeAgentModelPage)
   }
+
+  model(id: string, signal?: AbortSignal) { return this.request<unknown>(`${agentPath}/models/${encodeURIComponent(id)}`, { signal }).then(decodeAgentModel) }
+  updateModel(id: string, input: AgentModelUpdateInput, signal?: AbortSignal) { return this.request<unknown>(`${agentPath}/models/${encodeURIComponent(id)}`, { method: 'PATCH', body: input, signal }).then(decodeAgentModel) }
+  testModel(id: string, expectedRevision: number, signal?: AbortSignal) { return this.request<unknown>(`${agentPath}/models/${encodeURIComponent(id)}/test`, { method: 'POST', body: { expected_revision: expectedRevision, confirm_potential_cost: true }, signal, timeoutMs: modelProbeTimeoutMs }).then(decodeAgentModelTestResult) }
 }

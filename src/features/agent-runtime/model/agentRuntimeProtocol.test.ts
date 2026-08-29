@@ -27,6 +27,15 @@ test('工作区协议接受 Core 新实例的 revision 0 权威快照', () => {
   assert.equal(event.type === 'snapshot' ? event.active_runs[0]?.model_snapshot.model_id : '', 'test-model')
 })
 
+test('Run 与模型快照必须归属于同一 Provider', () => {
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'snapshot',
+    revision: 0,
+    sessions: [agentSessionFixture()],
+    active_runs: [agentRunFixture({ provider_id: 'apv-other' })],
+  }), /Provider 归属不一致/)
+})
+
 test('工作区 upsert 严格要求一个实体且增量 revision 必须递增起步', () => {
   assert.throws(() => decodeAgentWorkspaceEvent({
     type: 'upsert', revision: 1,

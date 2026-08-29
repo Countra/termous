@@ -39,6 +39,28 @@ test('Fixture 仅监听 loopback 并兼容 Core 模型探测', async () => {
   })
 })
 
+test('Fixture 提供严格只读的 OpenAI 模型目录', async () => {
+  await withFixture(async ({ baseURL }) => {
+    const response = await fetch(`${baseURL}/models`)
+    assert.equal(response.status, 200)
+    assert.equal(response.headers.get('cache-control'), 'no-store')
+    assert.deepEqual(await response.json(), {
+      object: 'list',
+      data: [{
+        id: agentModelFixtureID,
+        object: 'model',
+        created: 1,
+        owned_by: 'termous',
+      }],
+    })
+
+    const wrongMethod = await fetch(`${baseURL}/models`, { method: 'POST' })
+    assert.equal(wrongMethod.status, 405)
+    assert.equal(wrongMethod.headers.get('allow'), 'GET')
+    assert.equal((await fetch(`${baseURL}/models?cursor=next`)).status, 404)
+  })
+})
+
 test('Fixture 拒绝非精确接口、错误类型和超限请求', async () => {
   await withFixture(async ({ baseURL }) => {
     assert.equal((await fetch(`${baseURL}/chat/completions?unexpected=1`, {

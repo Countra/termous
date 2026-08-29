@@ -57,7 +57,7 @@ export function decodeAgentSession(value: unknown): AgentSession {
   return {
     id: identifier(source.id, 'Agent 会话 ID 无效'),
     title: utf8(source.title, 'Agent 会话标题无效', 200, true),
-    model_profile_id: identifier(source.model_profile_id, 'Agent 会话模型 ID 无效'),
+    model_id: identifier(source.model_id, 'Agent 会话模型 ID 无效'),
     reasoning_level: enumValue<AgentReasoningLevel>(source.reasoning_level, agentReasoningLevels, 'Agent 会话推理级别无效'),
     archived_at: optionalTimestamp(source.archived_at, 'Agent 会话归档时间无效'),
     revision: positiveInteger(source.revision, 'Agent 会话 revision 无效'),
@@ -212,6 +212,11 @@ export function decodeAgentMessagePage(value: unknown): AgentMessagePage {
 
 export function decodeAgentRun(value: unknown): AgentRun {
   const source = record(value, 'Agent Run 响应无效')
+  const providerId = identifier(source.provider_id, 'Agent Run Provider ID 无效')
+  const modelSnapshot = decodeModelSnapshot(source.model_snapshot)
+  if (providerId !== modelSnapshot.provider_id) {
+    throw new AgentRuntimeProtocolError('Agent Run 与模型快照的 Provider 归属不一致')
+  }
   return {
     id: identifier(source.id, 'Agent Run ID 无效'),
     client_request_id: identifier(source.client_request_id, 'Agent Run 请求 ID 无效'),
@@ -221,8 +226,9 @@ export function decodeAgentRun(value: unknown): AgentRun {
     status: enumValue<AgentRunStatus>(source.status, agentRunStatuses, 'Agent Run 状态无效'),
     user_message_id: identifier(source.user_message_id, 'Agent Run 用户消息 ID 无效'),
     assistant_message_id: identifier(source.assistant_message_id, 'Agent Run 回复消息 ID 无效'),
-    model_profile_id: identifier(source.model_profile_id, 'Agent Run 模型 ID 无效'),
-    model_snapshot: decodeModelSnapshot(source.model_snapshot),
+    provider_id: providerId,
+    model_id: identifier(source.model_id, 'Agent Run 模型 ID 无效'),
+    model_snapshot: modelSnapshot,
     reasoning_level: enumValue<AgentReasoningLevel>(source.reasoning_level, agentReasoningLevels, 'Agent Run 推理级别无效'),
     usage: decodeUsage(source.usage),
     error_code: optionalString(source.error_code, 'Agent Run 错误码无效', 256),
@@ -365,6 +371,11 @@ function decodeModelSnapshot(value: unknown): AgentRunModelSnapshot {
     api_mode: enumValue<AgentApiMode>(source.api_mode, agentApiModes, 'Agent Run API 模式无效'),
     base_url: utf8(source.base_url, 'Agent Run 模型地址无效', 2048),
     model_id: utf8(source.model_id, 'Agent Run 模型 ID 无效', 200),
+    provider_id: identifier(source.provider_id, 'Agent Run 快照 Provider ID 无效'),
+    provider_name: utf8(source.provider_name, 'Agent Run 快照 Provider 名称无效', 80),
+    model_display_name: utf8(source.model_display_name, 'Agent Run 快照模型名称无效', 200),
+    provider_revision: positiveInteger(source.provider_revision, 'Agent Run 快照 Provider revision 无效'),
+    model_revision: positiveInteger(source.model_revision, 'Agent Run 快照模型 revision 无效'),
     context_window_tokens: positiveInteger(source.context_window_tokens, 'Agent Run 上下文窗口无效'),
     max_output_tokens: positiveInteger(source.max_output_tokens, 'Agent Run 输出上限无效'),
     supports_images: bool(source.supports_images, 'Agent Run 图片能力无效'),

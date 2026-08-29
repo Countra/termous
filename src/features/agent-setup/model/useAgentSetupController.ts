@@ -1,28 +1,60 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
-  AgentModelProfile,
-  AgentModelProfileInput,
+  AgentModel,
+  AgentModelProvider,
+  AgentModelProviderInput,
+  AgentModelUpdateInput,
   AgentReadiness,
   AgentReasoningLevel,
 } from '#entities/agent'
 import { TermousApiError } from '#shared/api'
 import type { AgentSetupGateway } from '../api/agentSetupGateway.ts'
-import { loadAllAgentModelProfiles } from './loadAgentModelProfiles.ts'
+import { loadAgentModelCatalog } from './loadAgentModelCatalog.ts'
 
-export type AgentSetupMutation = 'setup' | 'settings' | 'policy' | `model:${string}` | null
+export type AgentSetupMutation =
+  | 'setup'
+  | 'settings'
+  | 'policy'
+  | `provider:${string}`
+  | `model:${string}`
+  | null
 
 export type AgentSetupConflict =
   | { kind: 'settings' | 'policy' }
-  | { kind: 'profile'; operation: 'edit' | 'api_key' | 'delete' | 'test'; profileId: string }
+  | {
+      kind: 'provider'
+      operation: 'edit' | 'delete' | 'test' | 'refresh'
+      providerId: string
+    }
+  | { kind: 'model'; operation: 'edit' | 'test'; modelId: string }
+
+export class AgentProviderProvisionError extends Error {
+  constructor(
+    readonly providerId: string,
+    readonly stage: 'refresh',
+    readonly cause: unknown,
+  ) {
+    super('Agent Provider 模型同步失败')
+    this.name = 'AgentProviderProvisionError'
+  }
+}
 
 interface AgentSetupSnapshot {
   readiness: AgentReadiness
-  profiles: AgentModelProfile[]
+  providers: AgentModelProvider[]
+  models: AgentModel[]
+}
+
+interface ExecuteOptions {
+  conflict: AgentSetupConflict | null
+  reconcileAfterSuccess?: boolean
+  reconcileAfterFailure?: boolean
 }
 
 export function useAgentSetupController(gateway: AgentSetupGateway) {
   const [readiness, setReadiness] = useState<AgentReadiness | null>(null)
-  const [profiles, setProfiles] = useState<AgentModelProfile[]>([])
+  const [providers, setProviders] = useState<AgentModelProvider[]>([])
+  const [models, setModels] = useState<AgentModel[]>([])
   const [loading, setLoading] = useState(true)
   const [mutation, setMutation] = useState<AgentSetupMutation>(null)
   const [error, setError] = useState<Error | null>(null)
@@ -33,7 +65,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
   const mutationAbort = useRef<AbortController | null>(null)
   const mutationRef = useRef<AgentSetupMutation>(null)
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const load = useCallback(async (signal?: AbortSignal, preserveError = false) => {
     if (mutationRef.current) return null
     const generation = ++requestGeneration.current
     loadAbort.current?.abort()
@@ -41,19 +73,20 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     loadAbort.current = controller
     const detachSignal = forwardAbort(signal, controller)
     setLoading(true)
-    setError(null)
+    if (!preserveError) setError(null)
     try {
-      const [nextReadiness, nextProfiles] = await Promise.all([
+      const [nextReadiness, catalog] = await Promise.all([
         gateway.readiness(controller.signal),
-        loadAllAgentModelProfiles(gateway, controller.signal),
+        loadAgentModelCatalog(gateway, controller.signal),
       ])
       if (!isCurrentRequest(mounted, requestGeneration, generation, controller)) return null
       setReadiness(nextReadiness)
-      setProfiles(nextProfiles)
-      return { readiness: nextReadiness, profiles: nextProfiles } satisfies AgentSetupSnapshot
+      setProviders(catalog.providers)
+      setModels(catalog.models)
+      return { readiness: nextReadiness, ...catalog } satisfies AgentSetupSnapshot
     } catch (loadError) {
       if (!isCurrentRequest(mounted, requestGeneration, generation, controller) || isAborted(loadError)) return null
-      setError(asError(loadError))
+      if (!preserveError) setError(asError(loadError))
       return null
     } finally {
       detachSignal()
@@ -73,8 +106,8 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
       requestGeneration.current += 1
       controller.abort()
       loadAbort.current?.abort()
-      loadAbort.current = null
       mutationAbort.current?.abort()
+      loadAbort.current = null
       mutationAbort.current = null
       mutationRef.current = null
     }
@@ -82,8 +115,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
 
   const execute = useCallback(async <T,>(
     key: Exclude<AgentSetupMutation, null>,
-    conflictContext: AgentSetupConflict | null,
-    reconcileAfterSuccess: boolean,
+    options: ExecuteOptions,
     action: (signal: AbortSignal, isCurrent: () => boolean) => Promise<T>,
   ) => {
     if (mutationRef.current) throw new Error('Agent 设置操作正在进行')
@@ -97,6 +129,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     setMutation(key)
     setError(null)
     let succeeded = false
+    let failure: unknown
     const isCurrent = () => isCurrentRequest(mounted, requestGeneration, generation, controller)
     try {
       const result = await action(controller.signal, isCurrent)
@@ -105,9 +138,10 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
       setConflict(null)
       return result
     } catch (actionError) {
+      failure = actionError
       if (isCurrent() && !isAborted(actionError)) {
         setError(asError(actionError))
-        if (conflictContext && isRevisionConflict(actionError)) setConflict(conflictContext)
+        if (options.conflict && isRevisionConflict(actionError)) setConflict(options.conflict)
       }
       throw actionError
     } finally {
@@ -116,90 +150,153 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
         mutationRef.current = null
         if (mounted.current) {
           setMutation(null)
-          if (succeeded && reconcileAfterSuccess) void load()
+          if (succeeded && options.reconcileAfterSuccess) void load()
+          if (!succeeded && options.reconcileAfterFailure) {
+            void load(undefined, shouldPreserveMutationError(failure))
+          }
         }
       }
     }
   }, [load])
 
-  const setup = useCallback(() => execute('setup', null, false, async (signal, isCurrent) => {
-    const next = await gateway.setup(signal)
-    if (isCurrent()) setReadiness(next)
-    return next
-  }), [execute, gateway])
+  const setup = useCallback(() => execute(
+    'setup',
+    { conflict: null, reconcileAfterSuccess: true },
+    async (signal, isCurrent) => {
+      const next = await gateway.setup(signal)
+      if (isCurrent()) setReadiness(next)
+      return next
+    },
+  ), [execute, gateway])
 
-  const updateSettings = useCallback((defaultModelProfileId: string, reasoning: AgentReasoningLevel) => {
+  const updateSettings = useCallback((defaultModelId: string, reasoning: AgentReasoningLevel) => {
     if (!readiness) return Promise.reject(new Error('Agent settings are unavailable'))
-    return execute('settings', { kind: 'settings' }, true, async (signal, isCurrent) => {
-      const settings = await gateway.updateSettings({
-        default_model_profile_id: defaultModelProfileId,
-        default_reasoning_level: reasoning,
-        expected_revision: readiness.settings.revision,
-      }, signal)
-      if (isCurrent()) setReadiness((current) => current ? { ...current, settings } : current)
-      return settings
-    })
+    return execute(
+      'settings',
+      { conflict: { kind: 'settings' }, reconcileAfterSuccess: true },
+      async (signal, isCurrent) => {
+        const settings = await gateway.updateSettings({
+          default_model_id: defaultModelId,
+          default_reasoning_level: reasoning,
+          expected_revision: readiness.settings.revision,
+        }, signal)
+        if (isCurrent()) setReadiness((current) => current ? { ...current, settings } : current)
+        return settings
+      },
+    )
   }, [execute, gateway, readiness])
 
   const updatePolicy = useCallback((approvalBypass: boolean, syncScopes = false) => {
     const policy = readiness?.mcp_policy
     if (!policy) return Promise.reject(new Error('Agent MCP policy is unavailable'))
-    return execute('policy', { kind: 'policy' }, true, async (signal, isCurrent) => {
-      const next = await gateway.updateMcpPolicy({
-        approval_bypass: approvalBypass,
-        sync_scopes: syncScopes,
-        expected_revision: policy.revision,
-      }, signal)
-      if (isCurrent()) setReadiness((current) => current ? { ...current, mcp_policy: next } : current)
-      return next
-    })
-  }, [execute, gateway, readiness?.mcp_policy])
-
-  const saveProfile = useCallback((input: AgentModelProfileInput, current?: AgentModelProfile) => (
-    execute(
-      `model:${current?.id ?? 'create'}`,
-      current ? { kind: 'profile', operation: 'edit', profileId: current.id } : null,
-      true,
+    return execute(
+      'policy',
+      { conflict: { kind: 'policy' }, reconcileAfterSuccess: true },
       async (signal, isCurrent) => {
-        const saved = current
-          ? await gateway.updateModelProfile(current.id, { ...input, expected_revision: current.revision }, signal)
-          : await gateway.createModelProfile(input, signal)
-        if (isCurrent()) setProfiles((items) => upsertProfile(items, saved))
-        return saved
+        const next = await gateway.updateMcpPolicy({
+          approval_bypass: approvalBypass,
+          sync_scopes: syncScopes,
+          expected_revision: policy.revision,
+        }, signal)
+        if (isCurrent()) setReadiness((current) => current ? { ...current, mcp_policy: next } : current)
+        return next
       },
     )
-  ), [execute, gateway])
+  }, [execute, gateway, readiness?.mcp_policy])
 
-  const deleteProfile = useCallback((profile: AgentModelProfile) => (
-    execute(`model:${profile.id}`, { kind: 'profile', operation: 'delete', profileId: profile.id }, true, async (signal, isCurrent) => {
-      await gateway.deleteModelProfile(profile.id, profile.revision, signal)
-      if (isCurrent()) setProfiles((items) => items.filter((item) => item.id !== profile.id))
-    })
-  ), [execute, gateway])
+  const saveProvider = useCallback((
+    input: AgentModelProviderInput,
+    current?: AgentModelProvider,
+  ) => execute(
+    `provider:${current?.id ?? 'create'}`,
+    {
+      conflict: current ? { kind: 'provider', operation: 'edit', providerId: current.id } : null,
+      reconcileAfterSuccess: true,
+      reconcileAfterFailure: true,
+    },
+    async (signal, isCurrent) => {
+      let saved = current
+        ? await gateway.updateModelProvider(current.id, { ...input, expected_revision: current.revision }, signal)
+        : await gateway.createModelProvider(input, signal)
+      if (isCurrent()) setProviders((items) => upsert(items, saved))
 
-  const testProfile = useCallback((profile: AgentModelProfile) => (
-    execute(
-      `model:${profile.id}`,
-      { kind: 'profile', operation: 'test', profileId: profile.id },
-      false,
-      (signal) => gateway.testModelProfile(profile.id, profile.revision, signal),
-    )
-  ), [execute, gateway])
-
-  const replaceApiKey = useCallback((profile: AgentModelProfile, apiKey: string) => (
-    execute(`model:${profile.id}`, { kind: 'profile', operation: 'api_key', profileId: profile.id }, true, async (signal, isCurrent) => {
-      const saved = await gateway.replaceModelApiKey(profile.id, apiKey, profile.revision, signal)
-      if (isCurrent()) setProfiles((items) => upsertProfile(items, saved))
+      const catalogChanged = !current
+        || current.api_mode !== input.api_mode
+        || current.base_url !== input.base_url
+        || (!current.enabled && input.enabled)
+        || input.api_key !== undefined
+        || input.remove_api_key === true
+      if (saved.enabled && catalogChanged) {
+        try {
+          saved = await gateway.refreshProviderModels(saved.id, saved.revision, signal)
+          if (isCurrent()) setProviders((items) => upsert(items, saved))
+          if (hasCatalogRefreshFailure(saved)) {
+            throw new AgentProviderProvisionError(saved.id, 'refresh', saved.last_refresh_error_code)
+          }
+        } catch (refreshError) {
+          if (refreshError instanceof AgentProviderProvisionError || isAborted(refreshError)) throw refreshError
+          throw new AgentProviderProvisionError(saved.id, 'refresh', refreshError)
+        }
+      }
       return saved
-    })
+    },
   ), [execute, gateway])
 
-  const deleteApiKey = useCallback((profile: AgentModelProfile) => (
-    execute(`model:${profile.id}`, { kind: 'profile', operation: 'api_key', profileId: profile.id }, true, async (signal, isCurrent) => {
-      const saved = await gateway.deleteModelApiKey(profile.id, profile.revision, signal)
-      if (isCurrent()) setProfiles((items) => upsertProfile(items, saved))
+  const deleteProvider = useCallback((provider: AgentModelProvider) => execute(
+    `provider:${provider.id}`,
+    {
+      conflict: { kind: 'provider', operation: 'delete', providerId: provider.id },
+      reconcileAfterSuccess: true,
+    },
+    async (signal, isCurrent) => {
+      await gateway.deleteModelProvider(provider.id, provider.revision, signal)
+      if (isCurrent()) {
+        setProviders((items) => items.filter(({ id }) => id !== provider.id))
+        setModels((items) => items.filter(({ provider_id }) => provider_id !== provider.id))
+      }
+    },
+  ), [execute, gateway])
+
+  const testProvider = useCallback((provider: AgentModelProvider) => execute(
+    `provider:${provider.id}`,
+    { conflict: { kind: 'provider', operation: 'test', providerId: provider.id } },
+    (signal) => gateway.testModelProvider(provider.id, provider.revision, signal),
+  ), [execute, gateway])
+
+  const refreshProvider = useCallback((provider: AgentModelProvider) => execute(
+    `provider:${provider.id}`,
+    {
+      conflict: { kind: 'provider', operation: 'refresh', providerId: provider.id },
+      reconcileAfterSuccess: true,
+      reconcileAfterFailure: true,
+    },
+    async (signal, isCurrent) => {
+      const saved = await gateway.refreshProviderModels(provider.id, provider.revision, signal)
+      if (isCurrent()) setProviders((items) => upsert(items, saved))
       return saved
-    })
+    },
+  ), [execute, gateway])
+
+  const saveModel = useCallback((
+    model: AgentModel,
+    input: Omit<AgentModelUpdateInput, 'expected_revision'>,
+  ) => execute(
+    `model:${model.id}`,
+    {
+      conflict: { kind: 'model', operation: 'edit', modelId: model.id },
+      reconcileAfterSuccess: true,
+    },
+    async (signal, isCurrent) => {
+      const saved = await gateway.updateModel(model.id, { ...input, expected_revision: model.revision }, signal)
+      if (isCurrent()) setModels((items) => upsert(items, saved))
+      return saved
+    },
+  ), [execute, gateway])
+
+  const testModel = useCallback((model: AgentModel) => execute(
+    `model:${model.id}`,
+    { conflict: { kind: 'model', operation: 'test', modelId: model.id } },
+    (signal) => gateway.testModel(model.id, model.revision, signal),
   ), [execute, gateway])
 
   const resolveConflict = useCallback(async () => {
@@ -212,18 +309,27 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
   }, [load])
 
   return useMemo(() => ({
-    readiness, profiles, loading, mutation, error, conflict, load, resolveConflict, setup, updateSettings, updatePolicy,
-    saveProfile, deleteProfile, testProfile, replaceApiKey, deleteApiKey,
+    readiness, providers, models, loading, mutation, error, conflict,
+    load, resolveConflict, setup, updateSettings, updatePolicy,
+    saveProvider, deleteProvider, testProvider, refreshProvider,
+    saveModel, testModel,
   }), [
-    conflict, deleteApiKey, deleteProfile, error, load, loading, mutation, profiles, readiness, resolveConflict,
-    replaceApiKey, saveProfile, setup, testProfile, updatePolicy, updateSettings,
+    conflict, deleteProvider, error, load, loading, models, mutation, providers,
+    readiness, refreshProvider, resolveConflict, saveModel, saveProvider, setup,
+    testModel, testProvider, updatePolicy, updateSettings,
   ])
 }
 
-function upsertProfile(items: AgentModelProfile[], saved: AgentModelProfile) {
-  const index = items.findIndex((item) => item.id === saved.id)
-  if (index < 0) return [...items, saved]
-  return items.map((item) => item.id === saved.id ? saved : item)
+export type AgentSetupController = ReturnType<typeof useAgentSetupController>
+
+function upsert<Item extends { id: string }>(items: Item[], saved: Item) {
+  return items.some(({ id }) => id === saved.id)
+    ? items.map((item) => item.id === saved.id ? saved : item)
+    : [...items, saved]
+}
+
+function hasCatalogRefreshFailure(provider: AgentModelProvider) {
+  return provider.refresh_status !== 'ready' || Boolean(provider.last_refresh_error_code)
 }
 
 function asError(value: unknown) {
@@ -234,10 +340,16 @@ function isAborted(value: unknown) {
   return value instanceof TermousApiError && value.code === 'REQUEST_ABORTED'
 }
 
-function isRevisionConflict(value: unknown) {
+function isRevisionConflict(value: unknown): boolean {
   return value instanceof TermousApiError
     && value.status === 409
     && value.code === 'AGENT_REVISION_CONFLICT'
+}
+
+function shouldPreserveMutationError(value: unknown) {
+  return !isAborted(value)
+    && !isRevisionConflict(value)
+    && !(value instanceof AgentProviderProvisionError)
 }
 
 function isCurrentRequest(

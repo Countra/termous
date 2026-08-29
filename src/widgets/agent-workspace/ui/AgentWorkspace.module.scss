@@ -119,6 +119,13 @@
   box-shadow: none !important;
 }
 
+.model-settings-action:global(.ant-btn) {
+  height: 28px;
+  padding-inline: 7px;
+  color: var(--accent);
+  font-size: 10px;
+}
+
 .status-tag:global(.ant-tag) {
   min-width: 64px;
   margin: 0;
@@ -187,6 +194,15 @@
   }
 
   .status-tag:global(.ant-tag) {
+    display: none;
+  }
+
+  .model-settings-action:global(.ant-btn) {
+    width: 28px;
+    padding: 0;
+  }
+
+  .model-settings-action-label {
     display: none;
   }
 }

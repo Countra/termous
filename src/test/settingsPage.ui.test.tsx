@@ -49,11 +49,13 @@ vi.mock('antd', () => ({
     </div>
   ),
   Tabs: ({
+    defaultActiveKey,
     items,
   }: {
+    defaultActiveKey?: string
     items: Array<{ children: ReactNode; key: string; label: ReactNode }>
   }) => {
-    const [activeKey, setActiveKey] = useState(items[0]?.key)
+    const [activeKey, setActiveKey] = useState(defaultActiveKey ?? items[0]?.key)
     const activeItem = items.find((item) => item.key === activeKey)
     return (
       <div>
@@ -308,6 +310,14 @@ describe('设置页面装配合同', () => {
     expect(handlers.onAppearanceSettingsChange).toHaveBeenCalledWith({ theme: 'light' })
     expect(handlers.onLanguageChange).toHaveBeenCalledWith('en-US')
     expect(handlers.onWindowSettingsChange).toHaveBeenCalledWith({ close_behavior: 'minimize_to_tray' })
+  })
+
+  it('支持从 Agent 工作区直接打开 Agent 设置页签', () => {
+    renderSettingsPage({ initialTab: 'agent' })
+
+    expect(screen.getByRole('tab', { name: 'settings.tabAgent' }))
+      .toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('agent-settings')).toBeInTheDocument()
   })
 
   it('保持终端、连接、快捷键、Agent、MCP、数据和更新子模块的 Props 与命令委托', async () => {

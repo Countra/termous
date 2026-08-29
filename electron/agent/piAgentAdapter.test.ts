@@ -351,6 +351,20 @@ test('Provider 调用固定关闭缓存保留和自动重试', () => {
   assert.equal(options.fetch, providerFetch)
 })
 
+test('运行时模型完全使用 Run 快照且保留 Provider 目录身份', () => {
+  const bootstrap = runtimeBootstrap()
+  const model = createRuntimeModel(bootstrap)
+
+  assert.equal(model.id, 'test-model')
+  assert.equal(model.baseUrl, 'http://127.0.0.1:11434/v1')
+  assert.equal(model.contextWindow, 8192)
+  assert.equal(model.maxTokens, 1024)
+  assert.deepEqual(model.input, ['text'])
+  assert.equal(bootstrap.model.snapshot.provider_id, 'amp_provider')
+  assert.equal(bootstrap.model.snapshot.provider_revision, 3)
+  assert.equal(bootstrap.model.snapshot.model_revision, 5)
+})
+
 test('pi 监听器异常通知失败并取消 Agent，且不反向抛出', () => {
   const failure = new Error('bridge failed')
   let received: unknown
@@ -376,6 +390,8 @@ function runtimeBootstrap(): RuntimeBootstrap {
       event_sequence: 1,
       status: 'starting',
       assistant_message_id: 'agm_reply',
+      provider_id: 'amp_provider',
+      model_id: 'apm_model',
       reasoning_level: 'off',
     },
     session: { id: 'ags_test' },
@@ -391,6 +407,11 @@ function runtimeBootstrap(): RuntimeBootstrap {
         api_mode: 'chat_completions',
         base_url: 'http://127.0.0.1:11434/v1',
         model_id: 'test-model',
+        provider_id: 'amp_provider',
+        provider_name: '本地 Provider',
+        model_display_name: '测试模型',
+        provider_revision: 3,
+        model_revision: 5,
         context_window_tokens: 8192,
         max_output_tokens: 1024,
         supports_images: false,

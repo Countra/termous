@@ -24,6 +24,11 @@ export interface RuntimeModelSnapshot {
   api_mode: 'responses' | 'chat_completions'
   base_url: string
   model_id: string
+  provider_id: string
+  provider_name: string
+  model_display_name: string
+  provider_revision: number
+  model_revision: number
   context_window_tokens: number
   max_output_tokens: number
   supports_images: boolean
@@ -57,6 +62,8 @@ export interface RuntimeBootstrap {
     event_sequence: number
     status: AgentRunStatus
     assistant_message_id: string
+    provider_id: string
+    model_id: string
     reasoning_level: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
   }
   session: {
@@ -180,6 +187,8 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     if (!isRuntimeBootstrap(value, start)) {
       throw new WorkerCoreError('AGENT_RUNTIME_BOOTSTRAP_INVALID')
     }
+    // Run 模型快照只允许在 Core 创建任务时确定，Worker 后续阶段不得改写。
+    Object.freeze(value.model.snapshot)
     return value
   }
 
@@ -356,6 +365,12 @@ function isRuntimeBootstrap(value: unknown, start: AgentWorkerStartMessage): val
     || typeof value.run.assistant_message_id !== 'string'
     || value.run.assistant_message_id.length === 0
     || value.run.assistant_message_id.length > 128
+    || typeof value.run.provider_id !== 'string'
+    || value.run.provider_id.length === 0
+    || value.run.provider_id.length > 128
+    || typeof value.run.model_id !== 'string'
+    || value.run.model_id.length === 0
+    || value.run.model_id.length > 128
     || !validReasoningLevel(value.run.reasoning_level)
     || !isRecord(value.session)
     || value.session.id !== value.run.session_id
@@ -372,6 +387,7 @@ function isRuntimeBootstrap(value: unknown, start: AgentWorkerStartMessage): val
     || typeof value.mcp.protocol_version !== 'string'
     || !isRecord(value.model)
     || !isRuntimeModelSnapshot(value.model.snapshot)
+    || value.model.snapshot.provider_id !== value.run.provider_id
     || !isRuntimeContextBootstrap(value.context)) {
     return false
   }
@@ -452,17 +468,47 @@ function isRuntimeModelSnapshot(value: unknown): value is RuntimeModelSnapshot {
   return isRecord(value)
     && (value.api_mode === 'responses' || value.api_mode === 'chat_completions')
     && typeof value.base_url === 'string'
-    && value.base_url.length > 0
-    && value.base_url.length <= 4096
+    && validProviderBaseURL(value.base_url)
     && typeof value.model_id === 'string'
     && value.model_id.length > 0
     && value.model_id.length <= 512
+    && typeof value.provider_id === 'string'
+    && value.provider_id.length > 0
+    && value.provider_id.length <= 128
+    && typeof value.provider_name === 'string'
+    && value.provider_name.length > 0
+    && value.provider_name.length <= 256
+    && typeof value.model_display_name === 'string'
+    && value.model_display_name.length > 0
+    && value.model_display_name.length <= 512
+    && Number.isSafeInteger(value.provider_revision)
+    && Number(value.provider_revision) > 0
+    && Number.isSafeInteger(value.model_revision)
+    && Number(value.model_revision) > 0
     && Number.isSafeInteger(value.context_window_tokens)
-    && Number(value.context_window_tokens) > 0
+    && Number(value.context_window_tokens) >= 1_024
+    && Number(value.context_window_tokens) <= 2_000_000
     && Number.isSafeInteger(value.max_output_tokens)
     && Number(value.max_output_tokens) > 0
+    && Number(value.max_output_tokens) <= Number(value.context_window_tokens)
     && typeof value.supports_images === 'boolean'
     && typeof value.supports_reasoning === 'boolean'
+}
+
+function validProviderBaseURL(value: string) {
+  if (value.length === 0 || value.length > 2_048) {
+    return false
+  }
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:')
+      && !url.username
+      && !url.password
+      && !url.search
+      && !url.hash
+  } catch {
+    return false
+  }
 }
 
 function validReasoningLevel(value: unknown): value is RuntimeBootstrap['run']['reasoning_level'] {
