@@ -41,13 +41,35 @@ describe('AgentWorkspace', () => {
   })
 
   it('其他会话有活动 Run 时仍可保存草稿但不能启动第二个 Run', () => {
-    const props = fixtureProps({ run_blocked: true })
+    const props = fixtureProps({
+      active_run: { session_id: 'session-2', status: 'running' },
+      run_blocked: true,
+    })
     renderWorkspace(props)
     const composer = screen.getByPlaceholderText('agent.composer.placeholder')
     expect(composer).not.toBeDisabled()
     fireEvent.change(composer, { target: { value: 'draft remains editable' } })
     expect(props.onDraftChange).toHaveBeenCalledWith('draft remains editable')
     expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
+    expect(screen.getByText('agent.status.running')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.header.returnToActiveRun' }))
+    expect(props.onReturnToActiveRun).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.composer.stop' }))
+    expect(props.onStop).toHaveBeenCalledOnce()
+  })
+
+  it('空闲时展示 MCP 按需连接且不展示无权威来源的数量', () => {
+    renderWorkspace(fixtureProps({
+      inspector: {
+        ...fixtureProps().inspector,
+        skills: [],
+        mcp: { connection: 'on_demand', scope_count: 29, approval_bypass: false },
+      },
+    }))
+
+    expect(screen.getByText('agent.inspector.onDemand')).toBeInTheDocument()
+    expect(screen.queryByText('agent.inspector.tools')).not.toBeInTheDocument()
+    expect(screen.getByText('agent.inspector.skillsReady')).toBeInTheDocument()
   })
 
   it('为会话选择、搜索和流式消息提供稳定的无障碍语义', () => {
@@ -220,10 +242,11 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
         estimated: true, warning: false, compression_available: false, compression_pending: false,
       },
       skills: [],
-      mcp: { connected: true, tool_count: 76, scope_count: 29, approval_bypass: false },
+      mcp: { connection: 'connected', tool_count: 76, scope_count: 29, approval_bypass: false },
     },
     draft: '', draft_attachments: [], supports_images: false, loading: false, busy: false, run_blocked: false,
-    onCreateSession: vi.fn(), onSelectSession: vi.fn(), onArchiveSession: vi.fn(), onDeleteSession: vi.fn(),
+    onCreateSession: vi.fn(), onSelectSession: vi.fn(), onReturnToActiveRun: vi.fn(),
+    onArchiveSession: vi.fn(), onDeleteSession: vi.fn(),
     onModelChange: vi.fn(), onDraftChange: vi.fn(), onSend: vi.fn(async () => undefined),
     onAttachFiles: vi.fn(async () => undefined), onRemoveAttachment: vi.fn(async () => undefined),
     onRetryAttachment: vi.fn(async () => undefined), onLoadAttachmentContent: vi.fn(async () => new Blob()),

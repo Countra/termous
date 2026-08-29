@@ -117,7 +117,7 @@ export function AgentInspector({
         ) : null}
       </section>
       <section className={styles['inspector-section']}>
-        <header><BookOpenText size={15} /><h3>{t('agent.inspector.skills')}</h3><span>{inspector.skills.length}</span></header>
+        <header><BookOpenText size={15} /><h3>{t('agent.inspector.skills')}</h3>{inspector.skills.length > 0 ? <span>{inspector.skills.length}</span> : null}</header>
         {inspector.skills.length ? (
           <div className={styles['skill-list']}>
             {inspector.skills.map((skill) => <div key={skill.name}><strong>{skill.name}</strong><span>{skill.description}</span></div>)}
@@ -125,9 +125,9 @@ export function AgentInspector({
         ) : <p className={styles['inspector-empty']}>{t('agent.inspector.skillsReady')}</p>}
       </section>
       <section className={styles['inspector-section']}>
-        <header><PlugZap size={15} /><h3>{t('agent.inspector.mcp')}</h3><span className={inspector.mcp.connected ? styles['is-connected'] : ''}>{t(inspector.mcp.connected ? 'agent.inspector.connected' : 'agent.inspector.disconnected')}</span></header>
+        <header><PlugZap size={15} /><h3>{t('agent.inspector.mcp')}</h3><span className={inspector.mcp.connection === 'connected' ? styles['is-connected'] : ''}>{t(`agent.inspector.${mcpConnectionKey(inspector.mcp.connection)}`)}</span></header>
         <div className={styles['mcp-metrics']}>
-          <div><Braces size={14} /><strong>{inspector.mcp.tool_count ?? '—'}</strong><span>{t('agent.inspector.tools')}</span></div>
+          {inspector.mcp.tool_count !== undefined ? <div><Braces size={14} /><strong>{inspector.mcp.tool_count}</strong><span>{t('agent.inspector.tools')}</span></div> : null}
           <div><ShieldCheck size={14} /><strong>{inspector.mcp.scope_count}</strong><span>{t('agent.inspector.scopes')}</span></div>
         </div>
         <div className={styles['approval-policy']}>
@@ -153,6 +153,13 @@ export function AgentInspector({
       />
     </aside>
   )
+}
+
+function mcpConnectionKey(connection: AgentWorkspaceInspectorState['mcp']['connection']) {
+  if (connection === 'connected') return 'connected'
+  if (connection === 'connecting') return 'connecting'
+  if (connection === 'on_demand') return 'onDemand'
+  return 'disconnected'
 }
 
 function formatTokens(value: number) {

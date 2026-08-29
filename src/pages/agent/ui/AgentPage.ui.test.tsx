@@ -1,9 +1,9 @@
 import { App as AntdApp } from 'antd'
 import { act, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentLaunchIntent, AgentReadiness, AgentSession } from '#entities/agent'
+import type { AgentLaunchIntent, AgentReadiness, AgentRun, AgentSession } from '#entities/agent'
 import type { AgentSetupGateway } from '#features/agent-setup'
-import type { AgentWorkspaceGateway } from '#features/agent-runtime'
+import { AgentRuntimeStartError, type AgentWorkspaceGateway } from '#features/agent-runtime'
 
 const harness = vi.hoisted(() => ({
   state: {} as Record<string, unknown>,
@@ -24,6 +24,7 @@ const harness = vi.hoisted(() => ({
   retryAttachment: vi.fn(),
   clearAttachments: vi.fn(),
   discardAttachments: vi.fn(),
+  modelProfiles: vi.fn(),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -31,6 +32,11 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('#features/agent-runtime', () => ({
+  AgentRuntimeStartError: class AgentRuntimeStartError extends Error {
+    constructor(_code: string, readonly run: { session_id: string }) {
+      super(_code)
+    }
+  },
   AgentWorkspaceController: function AgentWorkspaceController() {
     return {
       subscribe: (listener: () => void) => {
@@ -91,6 +97,7 @@ describe('AgentPage', () => {
     harness.retryAttachment.mockReset()
     harness.clearAttachments.mockReset()
     harness.discardAttachments.mockReset().mockResolvedValue(undefined)
+    harness.modelProfiles.mockReset().mockResolvedValue({ items: [modelProfile()] })
     harness.state = workspaceState()
     harness.selectSession.mockImplementation((sessionId?: string) => {
       harness.state = { ...harness.state, selected_session_id: sessionId }
@@ -152,6 +159,29 @@ describe('AgentPage', () => {
       agentRunCount: 1,
       snapshotComplete: false,
     }))
+  })
+
+  it('查看其他会话时投影全局活动 Run，并可返回运行会话', async () => {
+    const run = runFixture({ session_id: 'session-two' })
+    harness.state = {
+      ...workspaceState(),
+      active_run_id: run.id,
+      runs: { [run.id]: run },
+      runtime_status: { state: 'running', active_run_id: run.id, generation: run.generation },
+    }
+    renderPage()
+
+    await waitFor(() => expect(harness.workspaceProps?.active_run).toEqual({
+      session_id: 'session-two',
+      status: 'running',
+    }))
+    expect((harness.workspaceProps?.inspector as { mcp: { connection: string } }).mcp.connection)
+      .toBe('connected')
+    act(() => {
+      const returnToRun = harness.workspaceProps?.onReturnToActiveRun as () => void
+      returnToRun()
+    })
+    expect(harness.selectSession).toHaveBeenCalledWith('session-two')
   })
 
   it('返回 Agent 页面时刷新当前会话的权威上下文容量', async () => {
@@ -270,6 +300,46 @@ describe('AgentPage', () => {
     expect(harness.clearAttachments).toHaveBeenCalledWith('session-created')
   })
 
+  it('Run 已创建但 Runtime 启动失败时清理已提交附件和来源上下文', async () => {
+    harness.startRun.mockRejectedValueOnce(new AgentRuntimeStartError(
+      'AGENT_RUNTIME_START_REJECTED',
+      { session_id: 'session-created' } as AgentRun,
+    ))
+    renderPage({ launchIntent: launchIntent() })
+    await waitFor(() => expect(harness.workspaceProps?.selected_session_id).toBe('session-created'))
+    await waitFor(() => expect(harness.workspaceProps?.draft_source_context).toEqual(
+      launchIntent().source_context,
+    ))
+
+    await act(async () => {
+      const send = harness.workspaceProps?.onSend as (
+        message: string,
+        attachmentIds: string[],
+        sourceContext: AgentLaunchIntent['source_context'],
+      ) => Promise<void>
+      await send('检查生产连接', ['attachment-one'], launchIntent().source_context)
+    })
+
+    expect(harness.clearAttachments).toHaveBeenCalledWith('session-created')
+    await waitFor(() => expect(harness.workspaceProps?.draft_source_context).toBeUndefined())
+  })
+
+  it('Run 创建失败时保留未提交附件草稿', async () => {
+    harness.startRun.mockRejectedValueOnce(new Error('AGENT_RUN_CREATE_FAILED'))
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+
+    await act(async () => {
+      const send = harness.workspaceProps?.onSend as (
+        message: string,
+        attachmentIds: string[],
+      ) => Promise<void>
+      await send('检查生产连接', ['attachment-one'])
+    })
+
+    expect(harness.clearAttachments).not.toHaveBeenCalled()
+  })
+
   it('业务来源创建失败时释放 pending intent，允许用户重新发起', async () => {
     const onLaunchIntentHandled = vi.fn()
     harness.createSession.mockRejectedValueOnce(new Error('failed'))
@@ -313,6 +383,35 @@ describe('AgentPage', () => {
       remove('session-one')
     })
     await waitFor(() => expect(harness.clearAttachments).toHaveBeenCalledWith('session-one'))
+  })
+
+  it('模型分页拒绝重复 cursor，避免异常服务端响应导致无限请求', async () => {
+    harness.modelProfiles
+      .mockResolvedValueOnce({ items: [modelProfile('model-one')], next_cursor: 'repeat' })
+      .mockResolvedValueOnce({ items: [modelProfile('model-two')], next_cursor: 'repeat' })
+
+    renderPage()
+
+    await waitFor(() => expect(harness.modelProfiles).toHaveBeenCalledTimes(2))
+    expect(harness.workspaceProps).toBeNull()
+  })
+
+  it('模型分页拒绝跨页重复 ID', async () => {
+    harness.modelProfiles
+      .mockResolvedValueOnce({ items: [modelProfile('duplicate')], next_cursor: 'next' })
+      .mockResolvedValueOnce({ items: [modelProfile('duplicate')] })
+    renderPage()
+    await waitFor(() => expect(harness.modelProfiles).toHaveBeenCalledTimes(2))
+    expect(harness.workspaceProps).toBeNull()
+  })
+
+  it('模型分页拒绝超出总量上限', async () => {
+    harness.modelProfiles.mockReset().mockResolvedValue({
+      items: Array.from({ length: 33 }, (_, index) => modelProfile(`overflow-${index}`)),
+    })
+    renderPage()
+    await waitFor(() => expect(harness.modelProfiles).toHaveBeenCalledTimes(1))
+    expect(harness.workspaceProps).toBeNull()
   })
 })
 
@@ -402,23 +501,7 @@ function renderPage({
     readiness: vi.fn(async () => readiness),
   } as unknown as AgentSetupGateway
   const gateway = {
-    modelProfiles: vi.fn(async () => ({
-      items: [{
-        id: 'model-one',
-        name: 'Model',
-        api_mode: 'responses',
-        base_url: 'http://127.0.0.1:11434/v1',
-        model_id: 'model',
-        context_window_tokens: 8_192,
-        max_output_tokens: 1_024,
-        supports_images: false,
-        supports_reasoning: false,
-        api_key_configured: false,
-        revision: 1,
-        created_at: '2026-08-29T00:00:00Z',
-        updated_at: '2026-08-29T00:00:00Z',
-      }],
-    })),
+    modelProfiles: harness.modelProfiles,
   } as unknown as AgentWorkspaceGateway
   return render(
     <AntdApp>
@@ -433,6 +516,60 @@ function renderPage({
       />
     </AntdApp>,
   )
+}
+
+function modelProfile(id = 'model-one') {
+  return {
+    id,
+    name: `Model ${id}`,
+    api_mode: 'responses' as const,
+    base_url: 'http://127.0.0.1:11434/v1',
+    model_id: 'model',
+    context_window_tokens: 8_192,
+    max_output_tokens: 1_024,
+    supports_images: false,
+    supports_reasoning: false,
+    api_key_configured: false,
+    revision: 1,
+    created_at: '2026-08-29T00:00:00Z',
+    updated_at: '2026-08-29T00:00:00Z',
+  }
+}
+
+function runFixture(overrides: Partial<AgentRun> = {}): AgentRun {
+  return {
+    id: 'run-active',
+    client_request_id: 'request-active',
+    session_id: 'session-one',
+    generation: 1,
+    event_sequence: 0,
+    status: 'running',
+    user_message_id: 'message-user',
+    assistant_message_id: 'message-assistant',
+    model_profile_id: 'model-one',
+    model_snapshot: {
+      api_mode: 'responses',
+      base_url: 'http://127.0.0.1:11434/v1',
+      model_id: 'model',
+      context_window_tokens: 8_192,
+      max_output_tokens: 1_024,
+      supports_images: false,
+      supports_reasoning: false,
+    },
+    reasoning_level: 'off',
+    usage: {
+      input_tokens: 0,
+      output_tokens: 0,
+      reasoning_tokens: 0,
+      total_tokens: 0,
+      estimated: true,
+    },
+    revision: 1,
+    queued_at: '2026-08-29T00:00:00Z',
+    started_at: '2026-08-29T00:00:01Z',
+    updated_at: '2026-08-29T00:00:01Z',
+    ...overrides,
+  }
 }
 
 function launchIntent(): AgentLaunchIntent {

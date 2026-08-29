@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
 import {
   connectAgentMCP,
@@ -18,6 +17,7 @@ import type {
 import {
   isRecord,
   validAgentWorkerStartMessage,
+  validClientRequestID,
   validGeneration,
   validRunID,
 } from './protocol.ts'
@@ -39,7 +39,6 @@ export interface AgentWorkerRuntimeOptions {
   connectMCP?: (options: ConnectAgentMCPOptions) => Promise<AgentMCPConnection>
   createAgent?: (options: CreatePiAgentOptions) => PiAgentController
   summarizeContext?: typeof summarizeRuntimeContext
-  newClientRequestID?: () => string
 }
 
 interface PendingSteer {
@@ -54,7 +53,6 @@ export class AgentWorkerRuntime {
   private readonly connectMCP: (options: ConnectAgentMCPOptions) => Promise<AgentMCPConnection>
   private readonly createAgent: (options: CreatePiAgentOptions) => PiAgentController
   private readonly summarizeContext: typeof summarizeRuntimeContext
-  private readonly newClientRequestID: () => string
   private readonly startupAbort = new AbortController()
   private readonly pendingSteers: PendingSteer[] = []
   private startMessage: AgentWorkerStartMessage | null = null
@@ -76,8 +74,6 @@ export class AgentWorkerRuntime {
     this.connectMCP = options.connectMCP ?? connectAgentMCP
     this.createAgent = options.createAgent ?? createPiAgent
     this.summarizeContext = options.summarizeContext ?? summarizeRuntimeContext
-    this.newClientRequestID = options.newClientRequestID
-      ?? (() => `agsr_${randomUUID()}`)
   }
 
   handleMessage(value: unknown) {
@@ -95,20 +91,22 @@ export class AgentWorkerRuntime {
     if (message.type === 'abort') {
       this.abortRequested = true
       this.steerIntakeOpen = false
-      this.pendingSteers.length = 0
+      this.rejectPendingSteers('AGENT_RUNTIME_RUN_NOT_ACTIVE')
       this.startupAbort.abort()
       this.agent?.abort()
       return
     }
     if (!this.steerIntakeOpen) {
+      this.acknowledgeSteer(message.client_request_id, false, 'AGENT_RUNTIME_STEER_CLOSED')
       return
     }
     const pending = {
-      clientRequestID: this.newClientRequestID(),
+      clientRequestID: message.client_request_id,
       text: message.message,
     }
     if (!this.agent || !this.events || !this.bootstrap || !this.startMessage) {
       if (this.pendingSteers.length >= maximumPendingSteers) {
+        this.acknowledgeSteer(pending.clientRequestID, false, 'AGENT_RUNTIME_STEER_QUEUE_FULL')
         this.failRuntime(new Error('AGENT_RUNTIME_STEER_QUEUE_FULL'))
         return
       }
@@ -260,6 +258,7 @@ export class AgentWorkerRuntime {
   private enqueueSteer(value: PendingSteer) {
     const operation = this.steerTail.then(async () => {
       if (this.abortRequested || this.runtimeFailure !== null) {
+        this.acknowledgeSteer(value.clientRequestID, false, 'AGENT_RUNTIME_STEER_CLOSED')
         return
       }
       const start = this.startMessage
@@ -269,19 +268,26 @@ export class AgentWorkerRuntime {
       if (!start || !bootstrap || !events || !agent) {
         throw new Error('AGENT_RUNTIME_STEER_UNAVAILABLE')
       }
-      await events.writeExternal(async (eventID, sequence) => {
-        const lastSequence = await this.core.appendSteer(
-          start,
-          bootstrap.runtime_bearer,
-          {
-            event_id: eventID,
-            sequence,
-            client_request_id: value.clientRequestID,
-            text: value.text,
-          },
-        )
-        return { lastSequence, value: undefined }
-      })
+      try {
+        await events.writeExternal(async (eventID, sequence) => {
+          const lastSequence = await this.core.appendSteer(
+            start,
+            bootstrap.runtime_bearer,
+            {
+              event_id: eventID,
+              sequence,
+              client_request_id: value.clientRequestID,
+              text: value.text,
+            },
+          )
+          return { lastSequence, value: undefined }
+        })
+      } catch (error) {
+        this.acknowledgeSteer(value.clientRequestID, false, 'AGENT_RUNTIME_STEER_PERSIST_FAILED')
+        throw error
+      }
+      // 只有 Core 已持久化追加指令后才确认，避免 Renderer 清空尚未落地的草稿。
+      this.acknowledgeSteer(value.clientRequestID, true)
       if (!this.abortRequested) {
         agent.steer(value.text)
       }
@@ -322,12 +328,14 @@ export class AgentWorkerRuntime {
     if (this.runtimeFailure === null) {
       this.runtimeFailure = error
     }
+    this.steerIntakeOpen = false
+    this.rejectPendingSteers('AGENT_RUNTIME_STEER_CLOSED')
     this.startupAbort.abort()
     this.agent?.abort()
   }
 
   private async closeResources() {
-    this.pendingSteers.length = 0
+    this.rejectPendingSteers('AGENT_RUNTIME_STEER_CLOSED')
     this.agent?.abort()
     await this.agent?.waitForIdle().catch(() => undefined)
     this.agent?.close()
@@ -338,6 +346,27 @@ export class AgentWorkerRuntime {
     await this.mcp?.close().catch(() => undefined)
     this.mcp = null
     this.bootstrap = null
+  }
+
+  private rejectPendingSteers(errorCode: string) {
+    for (const steer of this.pendingSteers.splice(0)) {
+      this.acknowledgeSteer(steer.clientRequestID, false, errorCode)
+    }
+  }
+
+  private acknowledgeSteer(
+    clientRequestID: string,
+    accepted: boolean,
+    errorCode?: string,
+  ) {
+    const start = this.startMessage
+    if (!start) return
+    this.safeSend(workerMessage(start, {
+      type: 'steer_ack',
+      client_request_id: clientRequestID,
+      accepted,
+      ...(accepted ? {} : { error_code: errorCode ?? 'AGENT_RUNTIME_STEER_CLOSED' }),
+    }))
   }
 
   private safeSend(message: AgentWorkerOutboundMessage) {
@@ -376,6 +405,7 @@ function parseInboundMessage(value: unknown): AgentWorkerInboundMessage | null {
     }
   }
   if (value.type === 'steer'
+    && validClientRequestID(value.client_request_id)
     && typeof value.message === 'string'
     && value.message.trim() !== ''
     && Buffer.byteLength(value.message, 'utf8') <= maximumSteerBytes) {
@@ -383,6 +413,7 @@ function parseInboundMessage(value: unknown): AgentWorkerInboundMessage | null {
       type: 'steer',
       run_id: value.run_id,
       generation: value.generation,
+      client_request_id: value.client_request_id,
       message: value.message,
     }
   }
@@ -399,7 +430,8 @@ function matchesRun(
 function workerMessage<T extends
   | { type: 'started' }
   | { type: 'settled'; outcome: 'completed' | 'cancelled' | 'failed' }
-  | { type: 'fatal'; category: 'bootstrap_failed' | 'runtime_failed' }>(
+  | { type: 'fatal'; category: 'bootstrap_failed' | 'runtime_failed' }
+  | { type: 'steer_ack'; client_request_id: string; accepted: boolean; error_code?: string }>(
   start: AgentWorkerStartMessage,
   value: T,
 ) {

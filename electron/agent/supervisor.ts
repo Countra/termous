@@ -16,6 +16,7 @@ import {
   AgentRunWorker,
   stableAgentRuntimeErrorCode,
   type AgentRunWorkerLogger,
+  type AgentRunWorkerSteerResult,
 } from './runWorker.ts'
 import type { AgentWorkerFactory } from './workerProcess.ts'
 import type { AgentSkillBundleSnapshot } from './skillBundle.ts'
@@ -25,9 +26,15 @@ const defaultLeaseRefreshIntervalMs = 10_000
 const defaultWorkerAbortGraceMs = 5_000
 const defaultWorkerKillWaitMs = 2_000
 const defaultSettledExitGraceMs = 5_000
+// 确认预算覆盖事件队列等待与一次 Core 写入超时，避免先报失败后又落库。
+const defaultSteerAckTimeoutMs = 60_000
 const maxSteerMessageBytes = 1 << 20
 
 export type AgentSupervisorLogger = AgentRunWorkerLogger
+
+type PreparedAgentSteer =
+  | { command: AgentRuntimeCommandResult }
+  | { pending: Promise<AgentRunWorkerSteerResult> }
 
 export interface AgentSupervisorOptions {
   core: AgentCoreRuntimePort
@@ -41,6 +48,7 @@ export interface AgentSupervisorOptions {
   workerAbortGraceMs?: number
   workerKillWaitMs?: number
   settledExitGraceMs?: number
+  steerAckTimeoutMs?: number
 }
 
 export class AgentSupervisor {
@@ -55,6 +63,7 @@ export class AgentSupervisor {
   private readonly workerAbortGraceMs: number
   private readonly workerKillWaitMs: number
   private readonly settledExitGraceMs: number
+  private readonly steerAckTimeoutMs: number
   private readonly listeners = new Set<(status: AgentRuntimeStatus) => void>()
   private status: AgentRuntimeStatus = { state: 'offline' }
   private lease: AgentSupervisorLease | null = null
@@ -77,6 +86,7 @@ export class AgentSupervisor {
     this.workerAbortGraceMs = options.workerAbortGraceMs ?? defaultWorkerAbortGraceMs
     this.workerKillWaitMs = options.workerKillWaitMs ?? defaultWorkerKillWaitMs
     this.settledExitGraceMs = options.settledExitGraceMs ?? defaultSettledExitGraceMs
+    this.steerAckTimeoutMs = options.steerAckTimeoutMs ?? defaultSteerAckTimeoutMs
   }
 
   getStatus() {
@@ -124,22 +134,26 @@ export class AgentSupervisor {
     })
   }
 
-  steerRun(request: AgentRuntimeSteerRequest) {
-    return this.runExclusive(async () => {
+  steerRun(request: AgentRuntimeSteerRequest): Promise<AgentRuntimeCommandResult> {
+    return this.runExclusive<PreparedAgentSteer>(async () => {
       if (!validRunRef(request)
         || typeof request.message !== 'string'
         || request.message.trim() === ''
         || Buffer.byteLength(request.message, 'utf8') > maxSteerMessageBytes) {
-        return this.rejected('AGENT_RUNTIME_STEER_INVALID')
+        return { command: this.rejected('AGENT_RUNTIME_STEER_INVALID') }
       }
       const active = this.worker
       if (!active || !active.matches(request) || active.isStopping()) {
-        return this.rejected('AGENT_RUNTIME_RUN_NOT_ACTIVE')
+        return { command: this.rejected('AGENT_RUNTIME_RUN_NOT_ACTIVE') }
       }
-      if (!active.steer(request.message)) {
-        return this.rejected('AGENT_RUNTIME_WORKER_UNAVAILABLE')
-      }
-      return this.accepted()
+      // 等待 Worker 确认时不占用 Supervisor 串行队列，使 stop/shutdown 能立即取消在途请求。
+      return { pending: active.steer(request.message) }
+    }).then(async (prepared) => {
+      if ('command' in prepared) return prepared.command
+      const result = await prepared.pending
+      return result.accepted
+        ? this.accepted()
+        : this.rejected(result.error_code ?? 'AGENT_RUNTIME_STEER_REJECTED')
     })
   }
 
@@ -229,6 +243,7 @@ export class AgentSupervisor {
         abortGraceMs: this.workerAbortGraceMs,
         killWaitMs: this.workerKillWaitMs,
         settledExitGraceMs: this.settledExitGraceMs,
+        steerAckTimeoutMs: this.steerAckTimeoutMs,
       })
       createdWorker = worker
       this.worker = worker

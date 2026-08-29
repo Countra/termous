@@ -69,7 +69,8 @@
     "header": {
       "newSession": "Start with the default model",
       "model": "Model",
-      "selectModel": "Select model"
+      "selectModel": "Select model",
+      "returnToActiveRun": "Return to running session"
     },
     "status": {
       "idle": "Ready",
@@ -188,6 +189,8 @@
       "skillsReady": "Skill resources are loaded on demand by the runtime",
       "mcp": "MCP",
       "connected": "Connected",
+      "connecting": "Connecting",
+      "onDemand": "Connects on demand",
       "disconnected": "Disconnected",
       "tools": "Tools",
       "scopes": "Scopes",

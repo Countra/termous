@@ -148,7 +148,7 @@ class FakeWorkerFactory implements AgentWorkerFactory {
   }
 }
 
-function createFixture() {
+function createFixture(options: { steerAckTimeoutMs?: number } = {}) {
   const core = new FakeCore()
   const factory = new FakeWorkerFactory()
   const skills = {
@@ -164,6 +164,7 @@ function createFixture() {
     workerAbortGraceMs: 5,
     workerKillWaitMs: 5,
     settledExitGraceMs: 5,
+    steerAckTimeoutMs: options.steerAckTimeoutMs,
   })
   return { core, factory, skills, supervisor }
 }
@@ -356,10 +357,144 @@ test('Supervisor 只在 Worker 进入 running 后接受 steer', async () => {
   assert.equal((await supervisor.steerRun({ ...primaryRun, message: '追加指令' })).accepted, false)
   worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
   await flushSupervisor()
-  assert.equal((await supervisor.steerRun({ ...primaryRun, message: '追加指令' })).accepted, true)
-  assert.deepEqual(worker.sent[worker.sent.length - 1], {
-    type: 'steer', ...primaryRun, message: '追加指令',
+  const steering = supervisor.steerRun({ ...primaryRun, message: '追加指令' })
+  await flushSupervisor()
+  const steer = worker.sent[worker.sent.length - 1] as {
+    type: string
+    client_request_id: string
+  }
+  assert.equal(steer.type, 'steer')
+  assert.match(steer.client_request_id, /^agsr_[A-Za-z0-9-]+$/)
+  worker.emitMessage({
+    type: 'steer_ack',
+    protocol_version: agentRuntimeProtocolVersion,
+    ...primaryRun,
+    client_request_id: steer.client_request_id,
+    accepted: true,
   })
+  assert.equal((await steering).accepted, true)
+  await supervisor.shutdown()
+})
+
+test('终态冻结会明确拒绝在途 steer，重复和迟到 ack 不会污染后续请求', async () => {
+  const { factory, supervisor } = createFixture()
+  await supervisor.initialize()
+  await supervisor.startRun(primaryRun)
+  const worker = factory.workers[0]
+  worker.emitSpawn()
+  await flushSupervisor()
+  worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
+  await flushSupervisor()
+
+  const firstPending = supervisor.steerRun({ ...primaryRun, message: '终态边界指令' })
+  await flushSupervisor()
+  const first = worker.sent[worker.sent.length - 1] as { client_request_id: string }
+  worker.emitMessage({
+    type: 'settled',
+    protocol_version: agentRuntimeProtocolVersion,
+    ...primaryRun,
+    outcome: 'completed',
+  })
+  const firstResult = await firstPending
+  assert.equal(firstResult.accepted, false)
+  assert.equal(firstResult.error_code, 'AGENT_RUNTIME_RUN_NOT_ACTIVE')
+
+  const lateAck = {
+    type: 'steer_ack' as const,
+    protocol_version: agentRuntimeProtocolVersion,
+    ...primaryRun,
+    client_request_id: first.client_request_id,
+    accepted: true,
+  }
+  worker.emitMessage(lateAck)
+  worker.emitMessage(lateAck)
+  worker.emitExit(0)
+  await flushSupervisor()
+  assert.equal(supervisor.getStatus().state, 'ready')
+  await supervisor.shutdown()
+})
+
+test('stop 可立即取消等待 ack 的 steer 且 Worker 退出后不遗留请求', async () => {
+  const { factory, supervisor } = createFixture()
+  await supervisor.initialize()
+  await supervisor.startRun(primaryRun)
+  const worker = factory.workers[0]
+  worker.emitSpawn()
+  await flushSupervisor()
+  worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
+  await flushSupervisor()
+
+  const steering = supervisor.steerRun({ ...primaryRun, message: '等待确认' })
+  await flushSupervisor()
+  const stopping = supervisor.stopRun(primaryRun)
+  const [steerResult, stopResult] = await Promise.all([steering, stopping])
+
+  assert.equal(steerResult.accepted, false)
+  assert.equal(steerResult.error_code, 'AGENT_RUNTIME_RUN_NOT_ACTIVE')
+  assert.equal(stopResult.accepted, true)
+  assert.equal(worker.killed, true)
+  assert.equal(supervisor.getStatus().state, 'ready')
+  await supervisor.shutdown()
+})
+
+test('Worker 崩溃会拒绝等待 ack 的 steer 并恢复 Supervisor 空闲状态', async () => {
+  const { factory, supervisor } = createFixture()
+  await supervisor.initialize()
+  await supervisor.startRun(primaryRun)
+  const worker = factory.workers[0]
+  worker.emitSpawn()
+  await flushSupervisor()
+  worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
+  await flushSupervisor()
+
+  const steering = supervisor.steerRun({ ...primaryRun, message: '崩溃边界指令' })
+  await flushSupervisor()
+  worker.emitExit(7)
+  const result = await steering
+  await flushSupervisor()
+
+  assert.equal(result.accepted, false)
+  assert.equal(result.error_code, 'AGENT_RUNTIME_WORKER_UNAVAILABLE')
+  assert.equal(supervisor.getStatus().state, 'ready')
+  await supervisor.shutdown()
+})
+
+test('steer 确认超时后忽略迟到 ack，且不污染下一次请求', async () => {
+  const { factory, supervisor } = createFixture({ steerAckTimeoutMs: 50 })
+  await supervisor.initialize()
+  await supervisor.startRun(primaryRun)
+  const worker = factory.workers[0]
+  worker.emitSpawn()
+  await flushSupervisor()
+  worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
+  await flushSupervisor()
+
+  const firstPending = supervisor.steerRun({ ...primaryRun, message: '超时指令' })
+  await flushSupervisor()
+  const first = worker.sent[worker.sent.length - 1] as { client_request_id: string }
+  const firstResult = await firstPending
+  assert.equal(firstResult.accepted, false)
+  assert.equal(firstResult.error_code, 'AGENT_RUNTIME_STEER_ACK_TIMEOUT')
+
+  worker.emitMessage({
+    type: 'steer_ack',
+    protocol_version: agentRuntimeProtocolVersion,
+    ...primaryRun,
+    client_request_id: first.client_request_id,
+    accepted: true,
+  })
+  const secondPending = supervisor.steerRun({ ...primaryRun, message: '后续指令' })
+  await flushSupervisor()
+  const second = worker.sent[worker.sent.length - 1] as { client_request_id: string }
+  assert.notEqual(second.client_request_id, first.client_request_id)
+  worker.emitMessage({
+    type: 'steer_ack',
+    protocol_version: agentRuntimeProtocolVersion,
+    ...primaryRun,
+    client_request_id: second.client_request_id,
+    accepted: true,
+  })
+  assert.equal((await secondPending).accepted, true)
   await supervisor.shutdown()
 })
 

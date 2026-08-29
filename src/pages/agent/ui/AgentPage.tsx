@@ -2,8 +2,13 @@ import { App as AntdApp, Alert } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AgentLaunchIntent, AgentModelProfile, AgentReadiness, AgentSession, AgentSourceContext } from '#entities/agent'
-import type { AgentSetupGateway } from '#features/agent-setup'
-import { AgentWorkspaceController, useAgentDraftAttachments, type AgentWorkspaceGateway } from '#features/agent-runtime'
+import { loadAllAgentModelProfiles, type AgentSetupGateway } from '#features/agent-setup'
+import {
+  AgentRuntimeStartError,
+  AgentWorkspaceController,
+  useAgentDraftAttachments,
+  type AgentWorkspaceGateway,
+} from '#features/agent-runtime'
 import { termousNotificationClassName } from '#shared/ui'
 import { AgentWorkspace, type AgentWorkspaceInspectorState } from '#widgets/agent-workspace'
 import {
@@ -73,7 +78,7 @@ export function AgentPage({
     try {
       const [nextReadiness, nextProfiles] = await Promise.all([
         setupGateway.readiness(),
-        loadProfiles(gateway),
+        loadAllAgentModelProfiles(gateway),
       ])
       acceptSetupSnapshot(nextReadiness, nextProfiles)
       const selectedSessionId = controller.getSnapshot().selected_session_id
@@ -209,7 +214,7 @@ export function AgentPage({
           onRefresh={() => void loadSetup()}
           onPrepare={() => void perform(async () => {
             const result = await setupGateway.setup()
-            acceptSetupSnapshot(result, await loadProfiles(gateway))
+            acceptSetupSnapshot(result, await loadAllAgentModelProfiles(gateway))
           })}
         />
       </div>
@@ -217,6 +222,7 @@ export function AgentPage({
   }
 
   const selectedRun = selected ? latestSessionRun(selected.id, state.runs) : undefined
+  const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
   const runEvents = selectedRun ? state.run_events[selectedRun.id] ?? [] : []
   const selectedProfile = profiles.find((profile) => (
     profile.id === (selected?.model_profile_id ?? newSessionModelProfileId)
@@ -239,7 +245,7 @@ export function AgentPage({
     },
     skills: [],
     mcp: {
-      connected: state.runtime_status?.state !== undefined && state.runtime_status.state !== 'offline',
+      connection: projectMcpConnection(Boolean(state.active_run_id), state.runtime_status?.state),
       scope_count: readiness.mcp_policy?.scope_count ?? 0,
       approval_bypass: readiness.mcp_policy?.approval_bypass ?? false,
     },
@@ -282,6 +288,10 @@ export function AgentPage({
         supports_images={selectedProfile?.supports_images ?? false}
         loading={state.phase === 'loading'}
         busy={busy}
+        active_run={activeRun ? {
+          session_id: activeRun.session_id,
+          status: activeRun.status,
+        } : undefined}
         run_blocked={agentRunInteractionBlocked(
           state.active_run_id,
           selectedRun,
@@ -294,6 +304,9 @@ export function AgentPage({
           ))
         }}
         onSelectSession={(sessionId) => controller.selectSession(sessionId)}
+        onReturnToActiveRun={() => {
+          if (activeRun) controller.selectSession(activeRun.session_id)
+        }}
         onArchiveSession={(sessionId) => void perform(async () => {
           const session = requireSession(state.sessions, sessionId)
           await controller.updateSession(sessionId, updateInput(session, true))
@@ -351,13 +364,23 @@ export function AgentPage({
               })
               attachmentDraftSessionIdsRef.current.delete(targetSession.id)
             }
-            await controller.startRun(targetSession.id, message, attachmentIds, sourceContext)
-            draftAttachments.clear(targetSession.id)
-            setDraftSourceContexts((contexts) => {
-              const next = { ...contexts }
-              delete next[targetSession.id]
-              return next
-            })
+            const targetSessionId = targetSession.id
+            const clearCommittedDraft = () => {
+              draftAttachments.clear(targetSessionId)
+              setDraftSourceContexts((contexts) => omitKey(contexts, targetSessionId))
+            }
+            try {
+              await controller.startRun(targetSessionId, message, attachmentIds, sourceContext)
+            } catch (error) {
+              if (
+                error instanceof AgentRuntimeStartError
+                && error.run.session_id === targetSessionId
+              ) {
+                clearCommittedDraft()
+              }
+              throw error
+            }
+            clearCommittedDraft()
           })
         }}
         onSteer={async (message) => {
@@ -430,15 +453,16 @@ function omitKey<Value>(values: Record<string, Value>, key: string) {
   return next
 }
 
-async function loadProfiles(gateway: AgentWorkspaceGateway) {
-  const profiles: AgentModelProfile[] = []
-  let cursor: string | undefined
-  do {
-    const page = await gateway.modelProfiles(cursor)
-    profiles.push(...page.items)
-    cursor = page.next_cursor
-  } while (cursor && profiles.length < 256)
-  return profiles
+function projectMcpConnection(
+  hasActiveRun: boolean,
+  runtimeState: 'offline' | 'ready' | 'starting' | 'running' | 'stopping' | undefined,
+): AgentWorkspaceInspectorState['mcp']['connection'] {
+  if (!hasActiveRun) return runtimeState === 'offline' ? 'disconnected' : 'on_demand'
+  return runtimeState === 'running' || runtimeState === 'stopping'
+    ? 'connected'
+    : runtimeState === 'starting' || runtimeState === 'ready'
+      ? 'connecting'
+      : 'disconnected'
 }
 
 function notifyError(

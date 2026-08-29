@@ -1,4 +1,4 @@
-import { Bot, PanelLeftOpen, PanelRightOpen } from 'lucide-react'
+import { Bot, CornerUpLeft, PanelLeftOpen, PanelRightOpen, Square } from 'lucide-react'
 import { Button, Drawer, Select, Skeleton, Tag, Tooltip } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,6 +22,9 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const selectedSession = props.sessions.find((session) => session.id === props.selected_session_id)
   const runStatus = selectedSession?.run_status ?? 'idle'
   const active = isActiveAgentRun(runStatus)
+  const activeRunElsewhere = props.active_run
+    && props.active_run.session_id !== props.selected_session_id
+  const displayedRunStatus = activeRunElsewhere ? props.active_run!.status : runStatus
   const deleteSession = useMemo(
     () => props.sessions.find((session) => session.id === deleteSessionId),
     [deleteSessionId, props.sessions],
@@ -70,11 +73,35 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           </div>
           <div className={styles['header-controls']}>
             <Tag
-              className={`${styles['status-tag']} ${styles[`is-${runStatus.replace('_', '-')}`]}`}
+              className={`${styles['status-tag']} ${styles[`is-${displayedRunStatus.replace('_', '-')}`]}`}
               aria-live="polite"
             >
-              {t(`agent.status.${runStatus}`)}
+              {t(`agent.status.${displayedRunStatus}`)}
             </Tag>
+            {activeRunElsewhere ? (
+              <div className={styles['active-run-actions']}>
+                <Tooltip title={t('agent.header.returnToActiveRun')}>
+                  <Button
+                    type="text"
+                    size="small"
+                    aria-label={t('agent.header.returnToActiveRun')}
+                    icon={<CornerUpLeft size={14} />}
+                    onClick={props.onReturnToActiveRun}
+                  />
+                </Tooltip>
+                <Tooltip title={t('agent.composer.stop')}>
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    aria-label={t('agent.composer.stop')}
+                    icon={<Square size={12} fill="currentColor" />}
+                    disabled={props.busy || props.active_run?.status === 'stopping'}
+                    onClick={() => void props.onStop()}
+                  />
+                </Tooltip>
+              </div>
+            ) : null}
             <Select
               value={props.selected_model_profile_id}
               placeholder={t('agent.header.selectModel')}

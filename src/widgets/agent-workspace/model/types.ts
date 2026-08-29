@@ -98,7 +98,7 @@ export interface AgentWorkspaceSkillItem {
 }
 
 export interface AgentWorkspaceMcpState {
-  connected: boolean
+  connection: 'connected' | 'connecting' | 'on_demand' | 'disconnected'
   tool_count?: number
   scope_count: number
   approval_bypass: boolean
@@ -123,9 +123,14 @@ export interface AgentWorkspaceProps {
   supports_images: boolean
   loading: boolean
   busy: boolean
+  active_run?: {
+    session_id: string
+    status: AgentWorkspaceRunStatus
+  }
   run_blocked: boolean
   onCreateSession: () => void
   onSelectSession: (sessionId: string) => void
+  onReturnToActiveRun: () => void
   onArchiveSession: (sessionId: string) => void
   onDeleteSession: (sessionId: string) => void
   onModelChange: (profileId: string) => void

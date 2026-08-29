@@ -69,7 +69,8 @@
     "header": {
       "newSession": "使用默认模型开始对话",
       "model": "模型",
-      "selectModel": "选择模型"
+      "selectModel": "选择模型",
+      "returnToActiveRun": "返回运行会话"
     },
     "status": {
       "idle": "就绪",
@@ -188,6 +189,8 @@
       "skillsReady": "Skills 资源已由运行时按需加载",
       "mcp": "MCP",
       "connected": "已连接",
+      "connecting": "正在连接",
+      "onDemand": "按需连接",
       "disconnected": "未连接",
       "tools": "工具",
       "scopes": "权限",

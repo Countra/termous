@@ -91,6 +91,21 @@
   gap: 7px;
 }
 
+.active-run-actions {
+  display: flex;
+  align-items: center;
+  border-left: 1px solid var(--border);
+  gap: 2px;
+  padding-left: 5px;
+}
+
+.active-run-actions :global(.ant-btn) {
+  width: 26px;
+  height: 26px;
+  color: var(--text-secondary);
+  padding: 0;
+}
+
 .header-controls :global(.ant-select) {
   width: 168px;
 }

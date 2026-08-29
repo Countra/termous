@@ -24,9 +24,13 @@ import {
   agentSessionFixture,
   agentStatusEventFixture,
 } from '../model/agentRuntimeTestFixtures.ts'
-import { AgentWorkspaceController, AgentWorkspaceControllerError } from './AgentWorkspaceController.ts'
+import {
+  AgentRuntimeStartError,
+  AgentWorkspaceController,
+  AgentWorkspaceControllerError,
+} from './AgentWorkspaceController.ts'
 
-test('Runtime 启动拒绝时保留草稿，成功后才清空', async () => {
+test('Run 持久化后清空对应草稿，Runtime 启动拒绝不恢复已提交内容', async () => {
   const rejectedGateway = new FakeGateway()
   rejectedGateway.startResult = commandResult(false, 'AGENT_RUNTIME_START_REJECTED')
   rejectedGateway.stopRunImpl = async (_id, expectedRevision) => (
@@ -38,10 +42,10 @@ test('Runtime 启动拒绝时保留草稿，成功后才清空', async () => {
 
   await assert.rejects(
     rejected.startRun(session.id, '保留的请求'),
-    (error: unknown) => error instanceof AgentWorkspaceControllerError
+    (error: unknown) => error instanceof AgentRuntimeStartError
       && error.code === 'AGENT_RUNTIME_START_REJECTED',
   )
-  assert.equal(rejected.getSnapshot().drafts[session.id]?.text, '保留的请求')
+  assert.equal(rejected.getSnapshot().drafts[session.id], undefined)
   assert.equal(rejected.getSnapshot().runs['agr-run']?.status, 'cancelled')
   assert.deepEqual(rejectedGateway.stopRequests, [{ id: 'agr-run', expectedRevision: 1 }])
   assert.deepEqual(rejectedGateway.stopped, [])
@@ -53,6 +57,24 @@ test('Runtime 启动拒绝时保留草稿，成功后才清空', async () => {
   await accepted.startRun(acceptedSession.id, '正常请求')
   assert.equal(accepted.getSnapshot().drafts[acceptedSession.id], undefined)
   assert.deepEqual(acceptedGateway.started, [{ run_id: 'agr-run', generation: 1 }])
+})
+
+test('Run 创建失败时保留尚未持久化的草稿', async () => {
+  const gateway = new FakeGateway()
+  gateway.createRunImpl = async () => {
+    throw new AgentWorkspaceControllerError('AGENT_RUN_CREATE_FAILED')
+  }
+  const controller = new AgentWorkspaceController({ gateway })
+  const session = await controller.createSession(sessionInput())
+  controller.updateDraft(session.id, '尚未提交的请求')
+
+  await assert.rejects(
+    controller.startRun(session.id, '尚未提交的请求'),
+    /AGENT_RUN_CREATE_FAILED/,
+  )
+
+  assert.equal(controller.getSnapshot().drafts[session.id]?.text, '尚未提交的请求')
+  assert.deepEqual(gateway.started, [])
 })
 
 test('Runtime Bridge 抛错时取消已持久化的 queued Run', async () => {
@@ -519,6 +541,9 @@ class FakeGateway implements AgentWorkspaceGateway {
   readonly steered: Array<{ run_id: string; generation: number; message: string }> = []
   readonly stopRequests: Array<{ id: string; expectedRevision: number }> = []
   readonly createRunRequests: AgentCreateRunInput[] = []
+  createRunImpl: (sessionId: string, input: AgentCreateRunInput) => Promise<AgentRun> = async () => (
+    agentRunFixture()
+  )
   runCalls = 0
   contextCalls = 0
   startResult: AgentRuntimeCommandResult | Promise<AgentRuntimeCommandResult> = commandResult(true)
@@ -580,9 +605,9 @@ class FakeGateway implements AgentWorkspaceGateway {
     this.contextCalls += 1
     return this.contextImpl(sessionId, signal)
   }
-  async createRun(_sessionId: string, input: AgentCreateRunInput) {
+  async createRun(sessionId: string, input: AgentCreateRunInput) {
     this.createRunRequests.push(input)
-    return agentRunFixture()
+    return this.createRunImpl(sessionId, input)
   }
   run(id: string, signal?: AbortSignal) { return this.runImpl(id, signal) }
   async stopRun(id: string, expectedRevision: number) {

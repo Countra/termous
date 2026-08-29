@@ -151,27 +151,38 @@ test('steer 严格隔离 generation 并先持久化再交给 pi', async () => {
     type: 'steer',
     run_id: 'agr_test',
     generation: 0,
+    client_request_id: 'agsr_old_generation',
     message: '旧代消息',
   })
   fixture.runtime.handleMessage({
     type: 'steer',
     run_id: 'agr_other',
     generation: 1,
+    client_request_id: 'agsr_other_run',
     message: '其他任务',
   })
   fixture.runtime.handleMessage({
     type: 'steer',
     run_id: 'agr_test',
     generation: 1,
+    client_request_id: 'agsr_valid',
     message: '有效调整',
   })
-  await waitUntil(() => order.length === 2)
+  await waitUntil(() => order.length === 3)
   releaseContinue()
   fixture.agent.continueGate = null
   await fixture.finished
 
-  assert.deepEqual(order, ['core:有效调整', 'agent:有效调整'])
+  assert.deepEqual(order, ['core:有效调整', 'ack:agsr_valid', 'agent:有效调整'])
   assert.equal(fixture.core.steers.length, 1)
+  assert.deepEqual(fixture.outbound.find((message) => message.type === 'steer_ack'), {
+    type: 'steer_ack',
+    protocol_version: agentRuntimeProtocolVersion,
+    run_id: 'agr_test',
+    generation: 1,
+    client_request_id: 'agsr_valid',
+    accepted: true,
+  })
 })
 
 test('bootstrap 期间取消仍消费 Ticket 并持久化 cancelled', async () => {
@@ -227,6 +238,7 @@ test('start 前的旧 generation 控制消息不会污染首次 Run', async () =
     type: 'steer',
     run_id: 'agr_old',
     generation: 1,
+    client_request_id: 'agsr_before_start',
     message: '不应执行',
   })
   fixture.runtime.handleMessage(startMessage())
@@ -263,6 +275,7 @@ test('终态回写期间拒绝迟到 steer，避免事件落在终态之后', as
     type: 'steer',
     run_id: 'agr_test',
     generation: 1,
+    client_request_id: 'agsr_late',
     message: '迟到调整',
   })
   releaseTerminal()
@@ -270,6 +283,15 @@ test('终态回写期间拒绝迟到 steer，避免事件落在终态之后', as
 
   assert.equal(fixture.core.steers.length, 0)
   assert.equal(fixture.agent.order.includes('agent:迟到调整'), false)
+  assert.deepEqual(fixture.outbound.find((message) => message.type === 'steer_ack'), {
+    type: 'steer_ack',
+    protocol_version: agentRuntimeProtocolVersion,
+    run_id: 'agr_test',
+    generation: 1,
+    client_request_id: 'agsr_late',
+    accepted: false,
+    error_code: 'AGENT_RUNTIME_STEER_CLOSED',
+  })
 })
 
 test('终态持久化后先通知主进程，再等待运行资源关闭', async () => {
@@ -408,12 +430,14 @@ function workerFixture(order: string[] = [], options: {
       return agent
     },
     summarizeContext: options.summarizeContext ?? (async () => '压缩后的历史'),
-    send: (message) => outbound.push(message),
+    send: (message) => {
+      outbound.push(message)
+      if (message.type === 'steer_ack') order.push(`ack:${message.client_request_id}`)
+    },
     finish: () => {
       finishedState.value = true
       resolveFinished()
     },
-    newClientRequestID: () => 'agsr_test',
   })
   return { runtime, core, agent, mcp, outbound, finished, finishedState }
 }

@@ -7,6 +7,7 @@ import type {
 } from '#entities/agent'
 import { TermousApiError } from '#shared/api'
 import type { AgentSetupGateway } from '../api/agentSetupGateway.ts'
+import { loadAllAgentModelProfiles } from './loadAgentModelProfiles.ts'
 
 export type AgentSetupMutation = 'setup' | 'settings' | 'policy' | `model:${string}` | null
 
@@ -18,8 +19,6 @@ interface AgentSetupSnapshot {
   readiness: AgentReadiness
   profiles: AgentModelProfile[]
 }
-
-const maximumModelProfiles = 32
 
 export function useAgentSetupController(gateway: AgentSetupGateway) {
   const [readiness, setReadiness] = useState<AgentReadiness | null>(null)
@@ -46,7 +45,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     try {
       const [nextReadiness, nextProfiles] = await Promise.all([
         gateway.readiness(controller.signal),
-        loadAllProfiles(gateway, controller.signal),
+        loadAllAgentModelProfiles(gateway, controller.signal),
       ])
       if (!isCurrentRequest(mounted, requestGeneration, generation, controller)) return null
       setReadiness(nextReadiness)
@@ -219,31 +218,6 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     conflict, deleteApiKey, deleteProfile, error, load, loading, mutation, profiles, readiness, resolveConflict,
     replaceApiKey, saveProfile, setup, testProfile, updatePolicy, updateSettings,
   ])
-}
-
-async function loadAllProfiles(gateway: AgentSetupGateway, signal?: AbortSignal) {
-  const profiles: AgentModelProfile[] = []
-  const cursors = new Set<string>()
-  const profileIds = new Set<string>()
-  let cursor: string | undefined
-  let pageCount = 0
-  do {
-    pageCount += 1
-    if (pageCount > maximumModelProfiles) throw new Error('Agent model profile pagination is invalid')
-    const page = await gateway.modelProfiles(cursor, signal)
-    for (const profile of page.items) {
-      if (profileIds.has(profile.id)) throw new Error('Agent model profile pagination is invalid')
-      profileIds.add(profile.id)
-      profiles.push(profile)
-      if (profiles.length > maximumModelProfiles) throw new Error('Agent model profile pagination is invalid')
-    }
-    cursor = page.next_cursor
-    if (cursor && cursors.has(cursor)) {
-      throw new Error('Agent model profile pagination is invalid')
-    }
-    if (cursor) cursors.add(cursor)
-  } while (cursor)
-  return profiles
 }
 
 function upsertProfile(items: AgentModelProfile[], saved: AgentModelProfile) {

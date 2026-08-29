@@ -53,6 +53,16 @@ export class AgentWorkspaceControllerError extends Error {
   }
 }
 
+export class AgentRuntimeStartError extends AgentWorkspaceControllerError {
+  readonly run: AgentRun
+
+  constructor(code: string, run: AgentRun) {
+    super(code)
+    this.name = 'AgentRuntimeStartError'
+    this.run = run
+  }
+}
+
 export class AgentWorkspaceController {
   private state = createAgentWorkspaceState()
   private readonly listeners = new Set<() => void>()
@@ -213,22 +223,25 @@ export class AgentWorkspaceController {
         force_context_compression: forceContextCompression,
       })
       this.commit(replaceAgentRun(this.state, run))
+      if (this.state.drafts[sessionId] === submittedDraft) {
+        this.commit(setAgentDraft(this.state, sessionId, ''))
+      }
       let result
       try {
         result = await this.gateway.startRuntime(run)
       } catch (error) {
         await this.cancelRejectedRuntimeStart(run)
-        throw error
+        throw new AgentRuntimeStartError(runtimeStartErrorCode(error), run)
       }
       if (!result.accepted) {
         await this.cancelRejectedRuntimeStart(run)
-        throw new AgentWorkspaceControllerError(result.error_code ?? 'AGENT_RUNTIME_START_REJECTED')
+        throw new AgentRuntimeStartError(
+          result.error_code ?? 'AGENT_RUNTIME_START_REJECTED',
+          run,
+        )
       }
       if (forceContextCompression) {
         this.commit(setAgentContextCompressionPending(this.state, sessionId, false))
-      }
-      if (this.state.drafts[sessionId] === submittedDraft) {
-        this.commit(setAgentDraft(this.state, sessionId, ''))
       }
       return run
     })
@@ -652,6 +665,15 @@ function errorCode(error: unknown) {
     if (typeof code === 'string' && code) return code
   }
   return error instanceof AgentWorkspaceControllerError ? error.code : 'AGENT_WORKSPACE_UNAVAILABLE'
+}
+
+function runtimeStartErrorCode(error: unknown) {
+  const code = errorCode(error)
+  if (code !== 'AGENT_WORKSPACE_UNAVAILABLE') return code
+  if (error instanceof Error && error.message === 'AGENT_RUNTIME_BRIDGE_UNAVAILABLE') {
+    return error.message
+  }
+  return 'AGENT_RUNTIME_START_FAILED'
 }
 
 function isAbortError(error: unknown) {

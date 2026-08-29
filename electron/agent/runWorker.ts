@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type {
   AgentRuntimeRunRef,
   AgentRuntimeStatus,
@@ -7,7 +8,10 @@ import type {
   AgentCoreRuntimePort,
   AgentRuntimeFailureCategory,
 } from './coreRuntimeClient.ts'
-import { isAgentWorkerOutboundMessage } from './protocol.ts'
+import {
+  isAgentWorkerOutboundMessage,
+  type AgentWorkerSteerAckMessage,
+} from './protocol.ts'
 import type { AgentWorkerProcess } from './workerProcess.ts'
 import type { AgentSkillBundleSnapshot } from './skillBundle.ts'
 
@@ -34,6 +38,17 @@ export interface AgentRunWorkerOptions {
   abortGraceMs: number
   killWaitMs: number
   settledExitGraceMs: number
+  steerAckTimeoutMs: number
+}
+
+export interface AgentRunWorkerSteerResult {
+  accepted: boolean
+  error_code?: string
+}
+
+interface PendingSteerAck {
+  timer: ReturnType<typeof setTimeout>
+  resolve: (result: AgentRunWorkerSteerResult) => void
 }
 
 export class AgentRunWorker {
@@ -55,6 +70,7 @@ export class AgentRunWorker {
   private readonly abortGraceMs: number
   private readonly killWaitMs: number
   private readonly settledExitGraceMs: number
+  private readonly steerAckTimeoutMs: number
   private readonly exitPromise: Promise<number>
   private resolveExit: (code: number) => void = () => undefined
   private readonly disposers: Array<() => void> = []
@@ -67,6 +83,7 @@ export class AgentRunWorker {
   private exitHandled = false
   private exitCode = 0
   private exitGuardTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly pendingSteerAcks = new Map<string, PendingSteerAck>()
 
   constructor(options: AgentRunWorkerOptions) {
     this.process = options.process
@@ -87,6 +104,7 @@ export class AgentRunWorker {
     this.abortGraceMs = options.abortGraceMs
     this.killWaitMs = options.killWaitMs
     this.settledExitGraceMs = options.settledExitGraceMs
+    this.steerAckTimeoutMs = options.steerAckTimeoutMs
     this.exitPromise = new Promise<number>((resolve) => {
       this.resolveExit = resolve
     })
@@ -102,6 +120,10 @@ export class AgentRunWorker {
 
   observe() {
     this.disposers.push(this.process.onMessage((message) => {
+      if (isCurrentSteerAckMessage(message, this.runID, this.generation)) {
+        this.acceptSteerAck(message)
+        return
+      }
       if (isCurrentSettledMessage(message, this.runID, this.generation)) {
         this.acceptSettled()
         return
@@ -121,25 +143,40 @@ export class AgentRunWorker {
     }))
   }
 
-  steer(message: string) {
+  steer(message: string): Promise<AgentRunWorkerSteerResult> {
     if (!this.runtimeStarted || this.settled || this.stopping) {
-      return false
+      return Promise.resolve({ accepted: false, error_code: 'AGENT_RUNTIME_RUN_NOT_ACTIVE' })
     }
-    try {
-      this.process.postMessage({
-        type: 'steer',
-        run_id: this.runID,
-        generation: this.generation,
-        message,
-      })
-      return true
-    } catch {
-      return false
-    }
+    const clientRequestID = `agsr_${randomUUID()}`
+    return new Promise<AgentRunWorkerSteerResult>((resolve) => {
+      const timer = this.setTimeoutImplementation(() => {
+        this.resolveSteerAck(clientRequestID, {
+          accepted: false,
+          error_code: 'AGENT_RUNTIME_STEER_ACK_TIMEOUT',
+        })
+      }, this.steerAckTimeoutMs)
+      if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+      this.pendingSteerAcks.set(clientRequestID, { timer, resolve })
+      try {
+        this.process.postMessage({
+          type: 'steer',
+          run_id: this.runID,
+          generation: this.generation,
+          client_request_id: clientRequestID,
+          message,
+        })
+      } catch {
+        this.resolveSteerAck(clientRequestID, {
+          accepted: false,
+          error_code: 'AGENT_RUNTIME_WORKER_UNAVAILABLE',
+        })
+      }
+    })
   }
 
   async stop(shutdown: boolean) {
     this.stopping = true
+    this.rejectPendingSteerAcks('AGENT_RUNTIME_RUN_NOT_ACTIVE')
     this.clearExitGuard()
     this.publishStatus('stopping')
     try {
@@ -174,6 +211,7 @@ export class AgentRunWorker {
 
   async failLaunch(errorCode: string) {
     this.stopping = true
+    this.rejectPendingSteerAcks('AGENT_RUNTIME_WORKER_UNAVAILABLE')
     if (!this.failureReported) {
       this.failureReported = true
       await this.reportFailure('launch_failed')
@@ -239,11 +277,15 @@ export class AgentRunWorker {
       this.acceptSettled()
       return
     }
+    if (message.type === 'steer_ack') {
+      return
+    }
     if (this.settled || this.failureReported) {
       return
     }
     this.failureReported = true
     this.stopping = true
+    this.rejectPendingSteerAcks('AGENT_RUNTIME_WORKER_UNAVAILABLE')
     this.publishStatus(
       'stopping',
       message.category === 'bootstrap_failed'
@@ -262,6 +304,7 @@ export class AgentRunWorker {
     }
     this.exitHandled = true
     this.clearExitGuard()
+    this.rejectPendingSteerAcks('AGENT_RUNTIME_WORKER_UNAVAILABLE')
     this.dispose()
     if (!this.settled && !this.failureReported) {
       this.failureReported = true
@@ -300,6 +343,7 @@ export class AgentRunWorker {
     // settled 表示 Worker 已把终态事件写入 Core；同步记录可避免 stop 等待阻塞消息队列时误报强制终止。
     this.settled = true
     this.stopping = true
+    this.rejectPendingSteerAcks('AGENT_RUNTIME_RUN_NOT_ACTIVE')
     this.publishStatus('stopping')
     this.scheduleExitGuard()
   }
@@ -364,11 +408,47 @@ export class AgentRunWorker {
     )
   }
 
+  private acceptSteerAck(
+    message: AgentWorkerSteerAckMessage,
+  ) {
+    this.resolveSteerAck(message.client_request_id, message.accepted
+      ? { accepted: true }
+      : {
+          accepted: false,
+          error_code: message.error_code ?? 'AGENT_RUNTIME_STEER_REJECTED',
+        })
+  }
+
+  private resolveSteerAck(clientRequestID: string, result: AgentRunWorkerSteerResult) {
+    const pending = this.pendingSteerAcks.get(clientRequestID)
+    if (!pending) return
+    this.pendingSteerAcks.delete(clientRequestID)
+    this.clearTimeoutImplementation(pending.timer)
+    pending.resolve(result)
+  }
+
+  private rejectPendingSteerAcks(errorCode: string) {
+    for (const clientRequestID of [...this.pendingSteerAcks.keys()]) {
+      this.resolveSteerAck(clientRequestID, { accepted: false, error_code: errorCode })
+    }
+  }
+
   private dispose() {
     for (const dispose of this.disposers.splice(0)) {
       dispose()
     }
   }
+}
+
+function isCurrentSteerAckMessage(
+  message: unknown,
+  runID: string,
+  generation: number,
+): message is AgentWorkerSteerAckMessage {
+  return isAgentWorkerOutboundMessage(message)
+    && message.type === 'steer_ack'
+    && message.run_id === runID
+    && message.generation === generation
 }
 
 function isCurrentSettledMessage(
