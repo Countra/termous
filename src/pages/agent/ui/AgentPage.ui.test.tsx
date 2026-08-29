@@ -365,6 +365,43 @@ describe('AgentPage', () => {
     expect(harness.updateDraft).toHaveBeenCalledWith('session-created', 'agent.launch.prompt.workbench')
   })
 
+  it('附件草稿创建在途时业务入口等待后创建独立会话', async () => {
+    const attachmentSession = { ...sessions[0], id: 'session-attachment', title: 'Attachment' }
+    const launchSession = { ...sessions[0], id: 'session-launch', title: 'Launch' }
+    const pendingAttachmentSession = deferred<AgentSession>()
+    harness.createSession
+      .mockImplementationOnce(() => pendingAttachmentSession.promise)
+      .mockResolvedValueOnce(launchSession)
+    harness.state = {
+      ...workspaceState(),
+      selected_session_id: undefined,
+      drafts: { new: { text: '附件草稿', updated_at: 1 } },
+    }
+    const onLaunchIntentHandled = vi.fn()
+    const page = renderPage()
+    await waitFor(() => expect(harness.attachmentOptions).not.toBeNull())
+
+    let attachmentCreation!: Promise<string>
+    act(() => {
+      attachmentCreation = harness.attachmentOptions!.ensureSession()
+    })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledTimes(1))
+
+    page.rerenderPage({ launchIntent: launchIntent(), onLaunchIntentHandled })
+    await act(async () => { await Promise.resolve() })
+    expect(harness.createSession).toHaveBeenCalledTimes(1)
+
+    pendingAttachmentSession.resolve(attachmentSession)
+    await act(async () => { await attachmentCreation })
+    await waitFor(() => expect(harness.createSession).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(onLaunchIntentHandled).toHaveBeenCalledWith(7))
+
+    expect(harness.updateDraft).toHaveBeenCalledWith('session-attachment', '附件草稿')
+    expect(harness.updateDraft).toHaveBeenCalledWith('session-launch', 'agent.launch.prompt.workbench')
+    expect(harness.selectSession).toHaveBeenCalledWith('session-attachment')
+    expect(harness.selectSession).toHaveBeenCalledWith('session-launch')
+  })
+
   it('归档会话时丢弃未绑定附件，删除会话时释放本地附件记录', async () => {
     harness.updateSession.mockResolvedValue({ ...sessions[0], archived_at: '2026-08-29T03:00:00Z' })
     renderPage()
@@ -503,19 +540,30 @@ function renderPage({
   const gateway = {
     modelProfiles: harness.modelProfiles,
   } as unknown as AgentWorkspaceGateway
-  return render(
+  const element = (next: {
+    launchIntent?: AgentLaunchIntent
+    onLaunchIntentHandled?: (key: number) => void
+  } = {}) => (
     <AntdApp>
       <AgentPage
         gateway={gateway}
         setupGateway={setupGateway}
         enabled
         active
-        launchIntent={launchIntent}
-        onLaunchIntentHandled={onLaunchIntentHandled}
+        launchIntent={next.launchIntent ?? launchIntent}
+        onLaunchIntentHandled={next.onLaunchIntentHandled ?? onLaunchIntentHandled}
         onRuntimeSummaryChange={onRuntimeSummaryChange}
       />
-    </AntdApp>,
+    </AntdApp>
   )
+  const view = render(element())
+  return {
+    ...view,
+    rerenderPage: (next: {
+      launchIntent?: AgentLaunchIntent
+      onLaunchIntentHandled?: (key: number) => void
+    }) => view.rerender(element(next)),
+  }
 }
 
 function modelProfile(id = 'model-one') {

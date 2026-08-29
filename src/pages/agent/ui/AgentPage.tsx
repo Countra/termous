@@ -52,7 +52,7 @@ export function AgentPage({
   const [draftModelProfileId, setDraftModelProfileId] = useState<string>()
   const [draftSourceContexts, setDraftSourceContexts] = useState<Record<string, AgentSourceContext>>({})
   const busyRef = useRef(false)
-  const draftSessionPromiseRef = useRef<Promise<AgentSession> | null>(null)
+  const attachmentDraftSessionPromiseRef = useRef<Promise<AgentSession> | null>(null)
   const attachmentDraftSessionIdsRef = useRef(new Set<string>())
   const handledLaunchIntentRef = useRef(0)
   const notificationRef = useRef(notification)
@@ -129,32 +129,49 @@ export function AgentPage({
     ?? readiness?.settings.default_model_profile_id
     ?? profiles[0]?.id
   const createDraftSession = useCallback(async (sourceContext?: AgentSourceContext) => {
-    if (draftSessionPromiseRef.current) return draftSessionPromiseRef.current
     const profileId = newSessionModelProfileId
     if (!profileId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
     const profile = profiles.find((item) => item.id === profileId)
-    const promise = controller.createSession({
+    const session = await controller.createSession({
       title: sourceContext?.title || tRef.current('agent.sessions.untitled'),
       model_profile_id: profileId,
       reasoning_level: profile?.supports_reasoning
         ? readiness?.settings.default_reasoning_level ?? 'off'
         : 'off',
-    }).then((session) => {
-      controller.selectSession(session.id)
-      return session
-    }).finally(() => {
-      if (draftSessionPromiseRef.current === promise) draftSessionPromiseRef.current = null
     })
-    draftSessionPromiseRef.current = promise
-    return promise
+    controller.selectSession(session.id)
+    return session
   }, [controller, newSessionModelProfileId, profiles, readiness?.settings.default_reasoning_level])
+
+  const ensureAttachmentDraftSession = useCallback((sourceContext?: AgentSourceContext) => {
+    if (attachmentDraftSessionPromiseRef.current) return attachmentDraftSessionPromiseRef.current
+    const promise = createDraftSession(sourceContext).finally(() => {
+      if (attachmentDraftSessionPromiseRef.current === promise) {
+        attachmentDraftSessionPromiseRef.current = null
+      }
+    })
+    attachmentDraftSessionPromiseRef.current = promise
+    return promise
+  }, [createDraftSession])
+
+  const createIndependentDraftSession = useCallback(async (sourceContext: AgentSourceContext) => {
+    const pendingAttachmentSession = attachmentDraftSessionPromiseRef.current
+    if (pendingAttachmentSession) {
+      try {
+        await pendingAttachmentSession
+      } catch {
+        // 附件草稿创建失败不应阻止业务入口随后创建独立会话。
+      }
+    }
+    return createDraftSession(sourceContext)
+  }, [createDraftSession])
 
   const ensureAttachmentSession = useCallback(async () => {
     const current = controller.getSnapshot().selected_session_id
     if (current) return current
     const newDraft = controller.getSnapshot().drafts.new?.text ?? ''
     const sourceContext = draftSourceContexts.new
-    const session = await createDraftSession(sourceContext)
+    const session = await ensureAttachmentDraftSession(sourceContext)
     attachmentDraftSessionIdsRef.current.add(session.id)
     if (newDraft) controller.updateDraft(session.id, newDraft)
     controller.updateDraft('new', '')
@@ -166,7 +183,7 @@ export function AgentPage({
       })
     }
     return session.id
-  }, [controller, createDraftSession, draftSourceContexts.new])
+  }, [controller, draftSourceContexts.new, ensureAttachmentDraftSession])
 
   const reportAttachmentError = useCallback((code: string) => {
     notificationRef.current.error({
@@ -193,7 +210,7 @@ export function AgentPage({
     if (!active || readiness?.status !== 'ready' || !launchIntent) return
     if (handledLaunchIntentRef.current === launchIntent.key) return
     handledLaunchIntentRef.current = launchIntent.key
-    void createDraftSession(launchIntent.source_context).then((session) => {
+    void createIndependentDraftSession(launchIntent.source_context).then((session) => {
       const prompt = tRef.current(`agent.launch.prompt.${launchIntent.source_context.kind}`)
       controller.updateDraft(session.id, prompt)
       setDraftSourceContexts((contexts) => ({ ...contexts, [session.id]: launchIntent.source_context }))
@@ -203,7 +220,7 @@ export function AgentPage({
       onLaunchIntentHandled?.(launchIntent.key)
       notifyError(notificationRef.current, tRef.current)
     })
-  }, [active, controller, createDraftSession, launchIntent, onLaunchIntentHandled, readiness?.status])
+  }, [active, controller, createIndependentDraftSession, launchIntent, onLaunchIntentHandled, readiness?.status])
 
   if (!enabled || readiness?.status !== 'ready') {
     return (
