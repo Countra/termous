@@ -297,6 +297,8 @@ describe('设置页面装配合同', () => {
       'settings.tabData',
       'settings.tabUpdates',
     ])
+    expect(screen.getByRole('tab', { name: 'settings.tabAgent' }).querySelector('.lucide-bot')).not.toBeNull()
+    expect(screen.getByRole('tab', { name: 'settings.tabMcp' }).querySelector('.mcp-icon')).not.toBeNull()
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
 
     await user.click(screen.getByRole('button', { name: 'settings.themeLight' }))

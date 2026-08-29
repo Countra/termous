@@ -24,3 +24,4 @@ export {
   type McpSettingsInput,
   type McpStatus,
 } from './model/types.ts'
+export { McpIcon, type McpIconProps } from './ui/McpIcon.tsx'

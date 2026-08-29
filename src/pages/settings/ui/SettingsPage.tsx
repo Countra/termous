@@ -1,4 +1,4 @@
-import { Bot, BrainCircuit, DatabaseBackup, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
+import { Bot, DatabaseBackup, Keyboard, Network, RefreshCw, Settings2, SquareTerminal } from 'lucide-react'
 import { Tabs } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type {
@@ -12,6 +12,7 @@ import type {
   TerminalSettings,
   WindowSettings,
 } from '#common/contracts'
+import { McpIcon } from '#entities/mcp-access'
 import { useShortcutRuntime } from '#entities/shortcuts'
 import { AgentSettingsPanel, type AgentSetupGateway } from '#features/agent-setup'
 import { McpSettingsPanel } from '#features/mcp-access'
@@ -188,7 +189,7 @@ export function SettingsPage({
             key: 'agent',
             label: (
               <span className={styles['tab-label']}>
-                <BrainCircuit size={15} aria-hidden="true" />
+                <Bot size={15} aria-hidden="true" />
                 {t('settings.tabAgent')}
               </span>
             ),
@@ -202,7 +203,7 @@ export function SettingsPage({
             key: 'mcp',
             label: (
               <span className={styles['tab-label']}>
-                <Bot size={15} aria-hidden="true" />
+                <McpIcon size={15} aria-hidden="true" />
                 {t('settings.tabMcp')}
               </span>
             ),

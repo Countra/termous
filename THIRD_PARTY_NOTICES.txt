@@ -60,6 +60,8 @@ Model Context Protocol TypeScript Client 2.0.0
 ------------------------------------------------
 
 Termous includes @modelcontextprotocol/client and @modelcontextprotocol/core.
+Termous also includes a theme-adapted monochrome rendering of the official
+MCP mark from the Model Context Protocol documentation repository.
 
 Copyright (c) 2024-2025 Model Context Protocol, a Series of LF Projects, LLC.
 
@@ -67,6 +69,7 @@ License: Apache-2.0 / MIT transition terms; documentation under CC-BY-4.0
 License text: licenses/MCP-Client-LICENSE.txt
 Project: https://github.com/modelcontextprotocol/typescript-sdk
 Source for this version: https://github.com/modelcontextprotocol/typescript-sdk/tree/2.0.0
+Official mark source: https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/favicon.svg
 
 eventsource-parser 3.1.1
 ------------------------
