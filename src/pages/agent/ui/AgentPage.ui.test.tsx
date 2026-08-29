@@ -16,6 +16,7 @@ const harness = vi.hoisted(() => ({
   updateSession: vi.fn(),
   deleteSession: vi.fn(),
   selectSession: vi.fn(),
+  reloadContext: vi.fn(),
   attachmentOptions: null as null | { ensureSession: () => Promise<string> },
   attachmentRecords: {} as Record<string, unknown[]>,
   addAttachment: vi.fn(),
@@ -46,6 +47,7 @@ vi.mock('#features/agent-runtime', () => ({
       updateSession: harness.updateSession,
       deleteSession: harness.deleteSession,
       selectSession: harness.selectSession,
+      reloadContext: harness.reloadContext,
     }
   },
   useAgentDraftAttachments: (options: { ensureSession: () => Promise<string> }) => {
@@ -81,6 +83,7 @@ describe('AgentPage', () => {
     harness.updateSession.mockReset()
     harness.deleteSession.mockReset().mockResolvedValue(undefined)
     harness.selectSession.mockReset()
+    harness.reloadContext.mockReset().mockResolvedValue(undefined)
     harness.attachmentOptions = null
     harness.attachmentRecords = {}
     harness.addAttachment.mockReset()
@@ -128,6 +131,35 @@ describe('AgentPage', () => {
     expect(harness.selectSession).toHaveBeenCalledWith('session-two')
   })
 
+  it('向应用上报 Core 权威活动任务和快照完整性', async () => {
+    const onRuntimeSummaryChange = vi.fn()
+    renderPage({ onRuntimeSummaryChange })
+
+    await waitFor(() => expect(onRuntimeSummaryChange).toHaveBeenCalledWith({
+      agentRunCount: 0,
+      snapshotComplete: true,
+    }))
+    act(() => {
+      harness.state = {
+        ...harness.state,
+        phase: 'reconnecting',
+        snapshot_complete: false,
+        active_run_id: 'run-one',
+      }
+      publishState()
+    })
+    await waitFor(() => expect(onRuntimeSummaryChange).toHaveBeenLastCalledWith({
+      agentRunCount: 1,
+      snapshotComplete: false,
+    }))
+  })
+
+  it('返回 Agent 页面时刷新当前会话的权威上下文容量', async () => {
+    renderPage()
+
+    await waitFor(() => expect(harness.reloadContext).toHaveBeenCalledWith('session-one'))
+  })
+
   it('归档非当前会话时保持现有选择', async () => {
     harness.updateSession.mockResolvedValue({ ...sessions[1], archived_at: '2026-08-29T02:00:00Z' })
     renderPage()
@@ -152,8 +184,8 @@ describe('AgentPage', () => {
     })
     await waitFor(() => expect(harness.workspaceProps?.selected_session_id).toBeUndefined())
     expect((harness.workspaceProps?.inspector as {
-      context: { context_window_tokens: number }
-    }).context.context_window_tokens).toBe(8_192)
+      context: { phase: string }
+    }).context.phase).toBe('unavailable')
     expect(harness.createSession).not.toHaveBeenCalled()
 
     act(() => {
@@ -308,13 +340,16 @@ const sessions: AgentSession[] = [
 function workspaceState() {
   return {
     phase: 'ready',
+    snapshot_complete: true,
     revision: 1,
     sessions,
     runs: {},
     messages: {},
     run_events: {},
     run_event_sequences: {},
+    run_part_overlays: {},
     drafts: {},
+    session_contexts: {},
     selected_session_id: 'session-one',
   }
 }
@@ -332,9 +367,14 @@ function deferred<Value>() {
 function renderPage({
   launchIntent,
   onLaunchIntentHandled,
+  onRuntimeSummaryChange,
 }: {
   launchIntent?: AgentLaunchIntent
   onLaunchIntentHandled?: (key: number) => void
+  onRuntimeSummaryChange?: (snapshot: {
+    agentRunCount: number
+    snapshotComplete: boolean
+  }) => void
 } = {}) {
   const readiness: AgentReadiness = {
     status: 'ready',
@@ -389,6 +429,7 @@ function renderPage({
         active
         launchIntent={launchIntent}
         onLaunchIntentHandled={onLaunchIntentHandled}
+        onRuntimeSummaryChange={onRuntimeSummaryChange}
       />
     </AntdApp>,
   )

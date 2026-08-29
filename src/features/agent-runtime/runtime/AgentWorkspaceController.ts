@@ -23,6 +23,12 @@ import {
   setAgentDraft,
   type AgentWorkspaceState,
 } from '../model/agentWorkspaceState.ts'
+import {
+  acceptAgentSessionContext,
+  beginAgentSessionContextLoad,
+  failAgentSessionContextLoad,
+  setAgentContextCompressionPending,
+} from '../model/agentWorkspaceContext.ts'
 import { decodeAgentWorkspaceEvent } from '../model/agentRuntimeProtocol.ts'
 
 const reconnectInitialDelay = 500
@@ -56,6 +62,7 @@ export class AgentWorkspaceController {
   private readonly setTimer: NonNullable<AgentWorkspaceControllerOptions['setTimer']>
   private readonly clearTimer: NonNullable<AgentWorkspaceControllerOptions['clearTimer']>
   private socket: WebSocket | null = null
+  private snapshotSocket: WebSocket | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined
   private reconnectDelay = reconnectInitialDelay
   private disposed = true
@@ -67,6 +74,11 @@ export class AgentWorkspaceController {
     promise: Promise<void>
   }>()
   private readonly messageHydrations = new Map<string, AbortController>()
+  private readonly contextHydrations = new Map<string, {
+    controller: AbortController
+    dirty: boolean
+    promise: Promise<void>
+  }>()
   private mutation: Promise<unknown> | null = null
   private unsubscribeRuntime?: () => void
 
@@ -88,7 +100,7 @@ export class AgentWorkspaceController {
   start() {
     if (!this.disposed) return
     this.disposed = false
-    this.commit({ ...this.state, phase: 'loading', error_code: undefined })
+    this.commit({ ...this.state, phase: 'loading', snapshot_complete: false, error_code: undefined })
     this.observeRuntime()
     void this.reload().catch((error) => this.captureError(error))
     this.connect()
@@ -104,25 +116,52 @@ export class AgentWorkspaceController {
     this.runHydrations.clear()
     for (const controller of this.messageHydrations.values()) controller.abort()
     this.messageHydrations.clear()
+    for (const hydration of this.contextHydrations.values()) hydration.controller.abort()
+    this.contextHydrations.clear()
     if (this.reconnectTimer !== undefined) {
       this.clearTimer(this.reconnectTimer)
       this.reconnectTimer = undefined
     }
     const socket = this.socket
     this.socket = null
+    this.snapshotSocket = null
     if (socket) retireWebSocket(socket)
     this.unsubscribeRuntime?.()
     this.unsubscribeRuntime = undefined
-    this.commit({ ...this.state, phase: 'idle' })
+    this.commit({ ...this.state, phase: 'idle', snapshot_complete: false })
   }
 
   selectSession(sessionId?: string) {
     this.commit(selectAgentSession(this.state, sessionId))
-    if (sessionId) void this.hydrateMessages(sessionId, true).catch((error) => this.captureError(error))
+    for (const [id, hydration] of this.contextHydrations) {
+      if (id === sessionId) continue
+      hydration.controller.abort()
+      this.contextHydrations.delete(id)
+    }
+    if (sessionId) {
+      void this.hydrateMessages(sessionId, true).catch((error) => this.captureError(error))
+      void this.hydrateContext(sessionId)
+    }
   }
 
   updateDraft(sessionId: string, text: string) {
     this.commit(setAgentDraft(this.state, sessionId, text))
+  }
+
+  setContextCompressionPending(sessionId: string, pending: boolean) {
+    if (activeAgentRun(this.state)) throw new AgentWorkspaceControllerError('AGENT_RUN_ACTIVE')
+    if (!this.state.sessions.some(({ id, archived_at }) => id === sessionId && !archived_at)) {
+      throw new AgentWorkspaceControllerError('AGENT_SESSION_NOT_FOUND')
+    }
+    const context = this.state.session_contexts[sessionId]
+    if (pending && !context?.value?.compression_available) {
+      throw new AgentWorkspaceControllerError('AGENT_CONTEXT_COMPRESSION_UNAVAILABLE')
+    }
+    this.commit(setAgentContextCompressionPending(this.state, sessionId, pending))
+  }
+
+  reloadContext(sessionId: string) {
+    return this.hydrateContext(sessionId)
   }
 
   async createSession(input: AgentSessionInput) {
@@ -135,8 +174,12 @@ export class AgentWorkspaceController {
 
   async updateSession(id: string, input: AgentSessionUpdateInput) {
     return await this.runMutation(async () => {
+      const previousModelProfileId = this.state.sessions.find((session) => session.id === id)?.model_profile_id
       const session = await this.gateway.updateSession(id, input)
       this.acceptSession(session)
+      if (previousModelProfileId && previousModelProfileId !== session.model_profile_id) {
+        void this.hydrateContext(id, 'restart')
+      }
       return session
     })
   }
@@ -161,11 +204,13 @@ export class AgentWorkspaceController {
       }
       if (!prompt.trim()) throw new AgentWorkspaceControllerError('AGENT_PROMPT_EMPTY')
       const submittedDraft = this.state.drafts[sessionId]
+      const forceContextCompression = this.state.session_contexts[sessionId]?.compression_pending === true
       const run = await this.gateway.createRun(sessionId, {
         client_request_id: this.newClientRequestID(),
         prompt,
         attachment_ids: attachmentIds,
         source_context: sourceContext,
+        force_context_compression: forceContextCompression,
       })
       this.commit(replaceAgentRun(this.state, run))
       let result
@@ -178,6 +223,9 @@ export class AgentWorkspaceController {
       if (!result.accepted) {
         await this.cancelRejectedRuntimeStart(run)
         throw new AgentWorkspaceControllerError(result.error_code ?? 'AGENT_RUNTIME_START_REJECTED')
+      }
+      if (forceContextCompression) {
+        this.commit(setAgentContextCompressionPending(this.state, sessionId, false))
       }
       if (this.state.drafts[sessionId] === submittedDraft) {
         this.commit(setAgentDraft(this.state, sessionId, ''))
@@ -217,11 +265,25 @@ export class AgentWorkspaceController {
   }
 
   async reload() {
+    const recoverySocket = this.socket
+    const recoveryAuthority = this.authorityVersion
     await this.hydrateSessions()
     const run = activeAgentRun(this.state)
     if (run) await this.hydrateRun(run.id)
     const selected = this.state.selected_session_id
-    if (selected && selected !== run?.session_id) await this.hydrateMessages(selected, true)
+    await Promise.all([
+      selected && selected !== run?.session_id
+        ? this.hydrateMessages(selected, true)
+        : Promise.resolve(),
+      selected ? this.hydrateContext(selected) : Promise.resolve(),
+    ])
+    if (!this.disposed
+      && recoverySocket
+      && this.socket === recoverySocket
+      && this.snapshotSocket === recoverySocket
+      && this.authorityVersion === recoveryAuthority) {
+      this.commit({ ...this.state, phase: 'ready', error_code: undefined })
+    }
   }
 
   private connect() {
@@ -235,16 +297,19 @@ export class AgentWorkspaceController {
       return
     }
     this.socket = socket
+    this.snapshotSocket = null
     socket.addEventListener('open', () => {
       if (this.disposed || this.socket !== socket) return
       this.reconnectDelay = reconnectInitialDelay
-      this.commit({ ...this.state, phase: 'ready', error_code: undefined })
       void this.reload().catch((error) => this.captureError(error))
     })
     socket.addEventListener('message', (message: MessageEvent<string>) => {
       if (this.disposed || this.socket !== socket) return
       try {
         const event = decodeAgentWorkspaceEvent(JSON.parse(String(message.data)))
+        if (event.type !== 'snapshot' && this.snapshotSocket !== socket) {
+          throw new AgentWorkspaceControllerError('AGENT_WORKSPACE_SNAPSHOT_REQUIRED')
+        }
         if (event.type !== 'snapshot' && event.revision <= this.state.revision) return
         const revisionGap = event.type !== 'snapshot'
           && event.revision > this.state.revision + 1
@@ -259,8 +324,20 @@ export class AgentWorkspaceController {
         }
         this.authorityVersion += 1
         for (const hydration of this.runHydrations.values()) hydration.dirty = true
+        const previousActiveRun = activeAgentRun(this.state)
         const result = applyAgentWorkspaceEvent(this.state, event)
-        this.commit(result.state)
+        const changedContextModels = changedContextModelSessions(this.state, result.state)
+        if (event.type === 'snapshot') this.snapshotSocket = socket
+        this.commit(event.type === 'snapshot'
+          ? { ...result.state, phase: 'ready', snapshot_complete: true, error_code: undefined }
+          : result.state)
+        for (const sessionId of changedContextModels) {
+          void this.hydrateContext(sessionId, 'restart')
+        }
+        const nextActiveRun = activeAgentRun(result.state)
+        if (previousActiveRun && previousActiveRun.id !== nextActiveRun?.id) {
+          void this.hydrateContext(previousActiveRun.session_id, 'refresh')
+        }
         if (result.reconcile_run) {
           void this.hydrateRun(result.reconcile_run.id).catch((error) => this.captureError(error))
         }
@@ -273,8 +350,9 @@ export class AgentWorkspaceController {
     socket.addEventListener('error', () => socket.close())
     socket.addEventListener('close', () => {
       if (this.socket === socket) this.socket = null
+      if (this.snapshotSocket === socket) this.snapshotSocket = null
       if (!this.disposed) {
-        this.commit({ ...this.state, phase: 'reconnecting' })
+        this.commit({ ...this.state, phase: 'reconnecting', snapshot_complete: false })
         this.scheduleReconnect()
       }
     })
@@ -363,6 +441,7 @@ export class AgentWorkspaceController {
       throw new AgentWorkspaceControllerError('AGENT_RUN_EVENT_GAP')
     }
     this.commit(result.state)
+    if (isAgentRunTerminal(run.status)) void this.hydrateContext(run.session_id, 'refresh')
   }
 
   private async hydrateMessages(sessionId: string, authoritative: boolean) {
@@ -385,6 +464,47 @@ export class AgentWorkspaceController {
         this.messageHydrations.delete(sessionId)
       }
     }
+  }
+
+  private hydrateContext(
+    sessionId: string,
+    mode: 'coalesce' | 'refresh' | 'restart' = 'coalesce',
+  ) {
+    if (this.disposed) return
+    const current = this.contextHydrations.get(sessionId)
+    if (current && mode !== 'restart') {
+      if (mode === 'refresh') current.dirty = true
+      return current.promise
+    }
+    current?.controller.abort()
+    const controller = new AbortController()
+    const entry = { controller, dirty: false, promise: Promise.resolve() }
+    entry.promise = (async () => {
+      this.commit(beginAgentSessionContextLoad(this.state, sessionId))
+      do {
+        entry.dirty = false
+        try {
+          const context = await this.gateway.context(sessionId, controller.signal)
+          if (this.disposed || this.contextHydrations.get(sessionId) !== entry) return
+          if (!entry.dirty) this.commit(acceptAgentSessionContext(this.state, context))
+        } catch (error) {
+          if (
+            !this.disposed
+            && this.contextHydrations.get(sessionId) === entry
+            && !isAbortError(error)
+            && !entry.dirty
+          ) {
+            this.commit(failAgentSessionContextLoad(this.state, sessionId, errorCode(error)))
+          }
+        }
+      } while (!this.disposed && !controller.signal.aborted && entry.dirty)
+    })().finally(() => {
+      if (this.contextHydrations.get(sessionId) === entry) {
+        this.contextHydrations.delete(sessionId)
+      }
+    })
+    this.contextHydrations.set(sessionId, entry)
+    return entry.promise
   }
 
   private async loadMessages(sessionId: string, afterSequence: number, signal?: AbortSignal) {
@@ -507,6 +627,8 @@ export class AgentWorkspaceController {
     this.runHydrations.clear()
     for (const controller of this.messageHydrations.values()) controller.abort()
     this.messageHydrations.clear()
+    for (const hydration of this.contextHydrations.values()) hydration.controller.abort()
+    this.contextHydrations.clear()
   }
 
   private commit(next: AgentWorkspaceState) {
@@ -535,4 +657,22 @@ function errorCode(error: unknown) {
 function isAbortError(error: unknown) {
   if (error instanceof DOMException && error.name === 'AbortError') return true
   return errorCode(error) === 'REQUEST_ABORTED'
+}
+
+function changedContextModelSessions(
+  previous: AgentWorkspaceState,
+  next: AgentWorkspaceState,
+) {
+  const previousModels = new Map(previous.sessions.map((session) => [
+    session.id,
+    session.model_profile_id,
+  ]))
+  return next.sessions
+    .filter((session) => (
+      !session.archived_at
+      && previousModels.has(session.id)
+      && previousModels.get(session.id) !== session.model_profile_id
+      && (next.selected_session_id === session.id || next.session_contexts[session.id] !== undefined)
+    ))
+    .map(({ id }) => id)
 }

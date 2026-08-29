@@ -12,6 +12,7 @@ function summary(
   patch: Partial<UpdateRuntimeSummary> = {},
 ): UpdateRuntimeSummary {
   return {
+    agent_runs: 0,
     ssh_sessions: 0,
     remote_desktop_sessions: 0,
     file_sessions: 0,
@@ -306,6 +307,10 @@ test('主动刷新退避期间摘要变化会立即发送最新内容并保留�
 })
 
 test('摘要签名包含完整性状态且重试时限存在上限', () => {
+  assert.notEqual(
+    runtimeSummarySignature(summary({ agent_runs: 0 })),
+    runtimeSummarySignature(summary({ agent_runs: 1 })),
+  )
   assert.notEqual(
     runtimeSummarySignature(summary({ transfers_complete: true })),
     runtimeSummarySignature(summary({ transfers_complete: false })),

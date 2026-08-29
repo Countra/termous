@@ -11,6 +11,53 @@ import { CommandDispatchRuntimeProvider } from './CommandDispatchRuntimeProvider
 describe('CommandDispatchRuntimeProvider 创建门禁', () => {
   afterEach(() => vi.unstubAllGlobals())
 
+  it('运行时配置未就绪时不恢复任务或建立事件连接', async () => {
+    FakeWebSocket.sockets.length = 0
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    const latestTask = vi.fn().mockResolvedValue(null)
+    const gateway = createGateway({ latestTask })
+
+    const view = render(
+      <CommandDispatchRuntimeProvider api={gateway} enabled={false}>
+        <RuntimeCapture onRuntime={() => undefined} />
+      </CommandDispatchRuntimeProvider>,
+    )
+    await act(async () => Promise.resolve())
+
+    expect(latestTask).not.toHaveBeenCalled()
+    expect(FakeWebSocket.sockets).toHaveLength(0)
+
+    view.rerender(
+      <CommandDispatchRuntimeProvider api={gateway} enabled>
+        <RuntimeCapture onRuntime={() => undefined} />
+      </CommandDispatchRuntimeProvider>,
+    )
+
+    await waitFor(() => expect(latestTask).toHaveBeenCalledTimes(1))
+    expect(FakeWebSocket.sockets).toHaveLength(1)
+  })
+
+  it('握手中的事件连接卸载后迟到建立不会再次请求任务', async () => {
+    FakeWebSocket.sockets.length = 0
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    const latestTask = vi.fn().mockResolvedValue(null)
+    const gateway = createGateway({ latestTask })
+
+    const view = render(
+      <CommandDispatchRuntimeProvider api={gateway}>
+        <RuntimeCapture onRuntime={() => undefined} />
+      </CommandDispatchRuntimeProvider>,
+    )
+    await waitFor(() => expect(latestTask).toHaveBeenCalledTimes(1))
+    const socket = FakeWebSocket.sockets[0]
+
+    view.unmount()
+    act(() => socket?.open())
+    await act(async () => Promise.resolve())
+
+    expect(latestTask).toHaveBeenCalledTimes(1)
+  })
+
   it('恢复完成前拒绝发送，快速重复发送只创建一个任务', async () => {
     let resolveRecovery: (task: CommandDispatchTask | null) => void = () => undefined
     const latestTask = vi.fn(() => new Promise<CommandDispatchTask | null>((resolve) => {

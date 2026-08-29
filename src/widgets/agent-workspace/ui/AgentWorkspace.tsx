@@ -46,6 +46,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
     <AgentInspector
       inspector={props.inspector}
       disabled={props.busy || active || props.run_blocked}
+      onContextCompressionPendingChange={props.onContextCompressionPendingChange}
+      onRetryContext={props.onRetryContext}
       onApprovalBypassChange={props.onApprovalBypassChange}
     />
   )

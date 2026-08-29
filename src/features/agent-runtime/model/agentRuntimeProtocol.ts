@@ -28,6 +28,7 @@ import {
   type AgentRunStatus,
   type AgentSourceContext,
   type AgentSession,
+  type AgentSessionContext,
   type AgentSessionPage,
   type AgentUsage,
 } from '#entities/agent'
@@ -70,6 +71,29 @@ export function decodeAgentSessionPage(value: unknown): AgentSessionPage {
   const items = array(source.items, 'Agent 会话列表无效', 200).map(decodeAgentSession)
   unique(items.map(({ id }) => id), 'Agent 会话列表包含重复 ID')
   return { items, next_cursor: optionalString(source.next_cursor, 'Agent 会话 cursor 无效', 4096) }
+}
+
+export function decodeAgentSessionContext(
+  value: unknown,
+  expectedSessionId?: string,
+): AgentSessionContext {
+  const source = record(value, 'Agent 会话上下文响应无效')
+  const sessionId = identifier(source.session_id, 'Agent 会话上下文 Session ID 无效')
+  if (expectedSessionId !== undefined && sessionId !== expectedSessionId) {
+    throw new AgentRuntimeProtocolError('Agent 会话上下文归属无效')
+  }
+  const checkpoint = source.checkpoint === undefined
+    ? undefined
+    : decodeAgentContextCheckpoint(source.checkpoint)
+  return {
+    session_id: sessionId,
+    estimated_tokens: nonNegativeInteger(source.estimated_tokens, 'Agent 会话上下文 Token 估算无效'),
+    context_window_tokens: positiveInteger(source.context_window_tokens, 'Agent 会话上下文窗口无效'),
+    estimated: bool(source.estimated, 'Agent 会话上下文估算状态无效'),
+    warning: bool(source.warning, 'Agent 会话上下文预警状态无效'),
+    compression_available: bool(source.compression_available, 'Agent 会话上下文整理能力无效'),
+    ...(checkpoint ? { checkpoint } : {}),
+  }
 }
 
 export function decodeAgentMessagePart(value: unknown): AgentMessagePart {
@@ -345,6 +369,21 @@ function decodeModelSnapshot(value: unknown): AgentRunModelSnapshot {
     max_output_tokens: positiveInteger(source.max_output_tokens, 'Agent Run 输出上限无效'),
     supports_images: bool(source.supports_images, 'Agent Run 图片能力无效'),
     supports_reasoning: bool(source.supports_reasoning, 'Agent Run reasoning 能力无效'),
+  }
+}
+
+function decodeAgentContextCheckpoint(value: unknown) {
+  const source = record(value, 'Agent 上下文 Checkpoint 无效')
+  return {
+    boundary_message_sequence: positiveInteger(
+      source.boundary_message_sequence,
+      'Agent 上下文 Checkpoint 消息边界无效',
+    ),
+    estimated_tokens: nonNegativeInteger(
+      source.estimated_tokens,
+      'Agent 上下文 Checkpoint Token 估算无效',
+    ),
+    created_at: timestamp(source.created_at, 'Agent 上下文 Checkpoint 创建时间无效'),
   }
 }
 

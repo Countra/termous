@@ -90,6 +90,69 @@ describe('Transfer Runtime Provider', () => {
     vi.useRealTimers()
   })
 
+  it('运行时配置未就绪时不请求快照或建立事件连接', async () => {
+    const transfers = vi.fn(async () => [])
+    const api = {
+      transfers,
+      transferEventsUrl: () => 'ws://127.0.0.1/api/v1/transfers/events',
+    } satisfies TransferRuntimeApi
+
+    const view = render(
+      <TransferRuntimeProvider api={api} enabled={false}>
+        <div />
+      </TransferRuntimeProvider>,
+    )
+    await act(async () => Promise.resolve())
+
+    expect(transfers).not.toHaveBeenCalled()
+    expect(FakeWebSocket.instances).toHaveLength(0)
+
+    view.rerender(
+      <TransferRuntimeProvider api={api} enabled>
+        <div />
+      </TransferRuntimeProvider>,
+    )
+    await act(async () => Promise.resolve())
+
+    expect(transfers).toHaveBeenCalledTimes(1)
+    expect(FakeWebSocket.instances).toHaveLength(1)
+  })
+
+  it('连接握手期间关闭门禁会回收连接且忽略迟到建立', async () => {
+    const initialTransfers = deferred<[]>()
+    const transfers = vi.fn(() => initialTransfers.promise)
+    const api = {
+      transfers,
+      transferEventsUrl: () => 'ws://127.0.0.1/api/v1/transfers/events',
+    } satisfies TransferRuntimeApi
+
+    const view = render(
+      <TransferRuntimeProvider api={api} enabled>
+        <div />
+      </TransferRuntimeProvider>,
+    )
+    expect(transfers).toHaveBeenCalledTimes(1)
+    expect(FakeWebSocket.instances).toHaveLength(1)
+
+    view.rerender(
+      <TransferRuntimeProvider api={api} enabled={false}>
+        <div />
+      </TransferRuntimeProvider>,
+    )
+    await act(async () => vi.advanceTimersByTime(0))
+    expect(FakeWebSocket.instances[0].closeCalls).toBe(1)
+
+    act(() => FakeWebSocket.instances[0].open())
+    await act(async () => Promise.resolve())
+    expect(transfers).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      initialTransfers.resolve([])
+      await initialTransfers.promise
+    })
+    expect(FakeWebSocket.instances).toHaveLength(1)
+  })
+
   it('同一 API 共享运行时，并按连接与快照顺序初始化，最后消费者释放后才关闭', async () => {
     const initialTransfers = deferred<[]>()
     const transfers = vi.fn(() => initialTransfers.promise)

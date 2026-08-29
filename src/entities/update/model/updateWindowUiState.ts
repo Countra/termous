@@ -175,7 +175,8 @@ export function canPrepareUpdateInstall(snapshot: UpdateSnapshot) {
 
 export function summarizeRuntimeImpact(summary: UpdateRuntimeSummary) {
   return (
-    summary.ssh_sessions
+    summary.agent_runs
+    + summary.ssh_sessions
     + summary.remote_desktop_sessions
     + summary.file_sessions
     + summary.forwards

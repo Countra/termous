@@ -23,6 +23,7 @@ export function AgentPage({
   active,
   launchIntent,
   onLaunchIntentHandled,
+  onRuntimeSummaryChange,
 }: {
   gateway: AgentWorkspaceGateway
   setupGateway: AgentSetupGateway
@@ -30,6 +31,10 @@ export function AgentPage({
   active: boolean
   launchIntent?: AgentLaunchIntent | null
   onLaunchIntentHandled?: (key: number) => void
+  onRuntimeSummaryChange?: (snapshot: {
+    agentRunCount: number
+    snapshotComplete: boolean
+  }) => void
 }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
@@ -71,18 +76,27 @@ export function AgentPage({
         loadProfiles(gateway),
       ])
       acceptSetupSnapshot(nextReadiness, nextProfiles)
+      const selectedSessionId = controller.getSnapshot().selected_session_id
+      if (selectedSessionId) await controller.reloadContext(selectedSessionId)
     } catch {
       notifyError(notificationRef.current, tRef.current)
     } finally {
       setSetupLoading(false)
     }
-  }, [acceptSetupSnapshot, gateway, setupGateway])
+  }, [acceptSetupSnapshot, controller, gateway, setupGateway])
 
   useEffect(() => {
     if (!enabled) return
     controller.start()
     return () => controller.close()
   }, [controller, enabled])
+
+  useEffect(() => {
+    onRuntimeSummaryChange?.({
+      agentRunCount: state.active_run_id ? 1 : 0,
+      snapshotComplete: enabled && state.snapshot_complete,
+    })
+  }, [enabled, onRuntimeSummaryChange, state.active_run_id, state.snapshot_complete])
 
   useEffect(() => {
     if (!enabled || !active) return
@@ -207,14 +221,21 @@ export function AgentPage({
   const selectedProfile = profiles.find((profile) => (
     profile.id === (selected?.model_profile_id ?? newSessionModelProfileId)
   ))
-  const contextWindow = selectedRun?.model_snapshot.context_window_tokens ?? selectedProfile?.context_window_tokens ?? 0
+  const selectedContext = selected ? state.session_contexts[selected.id] : undefined
+  const contextSnapshot = selectedContext?.value
   const workspaceSessions = projectAgentSessions(state.sessions, profiles, state.runs)
   const inspector: AgentWorkspaceInspectorState = {
     context: {
-      used_tokens: selectedRun?.usage.total_tokens ?? 0,
-      context_window_tokens: contextWindow,
-      estimated: selectedRun?.usage.estimated ?? true,
-      warning_threshold: 0.7,
+      phase: selected ? selectedContext?.phase ?? 'idle' : 'unavailable',
+      has_snapshot: Boolean(contextSnapshot),
+      used_tokens: contextSnapshot?.estimated_tokens ?? 0,
+      context_window_tokens: contextSnapshot?.context_window_tokens ?? 0,
+      estimated: contextSnapshot?.estimated ?? true,
+      warning: contextSnapshot?.warning ?? false,
+      compression_available: contextSnapshot?.compression_available ?? false,
+      compression_pending: selectedContext?.compression_pending ?? false,
+      checkpoint: contextSnapshot?.checkpoint,
+      error_code: selectedContext?.error_code,
     },
     skills: [],
     mcp: {
@@ -226,7 +247,20 @@ export function AgentPage({
 
   return (
     <div className={styles.page}>
-      {state.error_code ? <Alert className={styles.alert} type="warning" showIcon title={t('agent.error.workspace')} action={<button type="button" onClick={() => void controller.reload()}>{t('app.retry')}</button>} /> : null}
+      {state.error_code ? (
+        <Alert
+          className={styles.alert}
+          type="warning"
+          showIcon
+          title={t(state.phase === 'reconnecting'
+            ? 'agent.error.reconnecting'
+            : 'agent.error.degraded')}
+          description={t(state.phase === 'reconnecting'
+            ? 'agent.error.reconnectingDescription'
+            : 'agent.error.degradedDescription')}
+          action={<button type="button" onClick={() => void perform(() => controller.reload())}>{t('app.retry')}</button>}
+        />
+      ) : null}
       <AgentWorkspace
         sessions={workspaceSessions}
         selected_session_id={state.selected_session_id}
@@ -339,6 +373,17 @@ export function AgentPage({
           })
         }}
         onStop={async () => { await perform(() => controller.stopActiveRun()) }}
+        onContextCompressionPendingChange={(enabled) => {
+          if (!selected) return
+          try {
+            controller.setContextCompressionPending(selected.id, enabled)
+          } catch {
+            notifyError(notificationRef.current, tRef.current)
+          }
+        }}
+        onRetryContext={() => {
+          if (selected) void controller.reloadContext(selected.id)
+        }}
         onApprovalBypassChange={async (approvalBypass) => {
           const policy = readiness.mcp_policy
           if (!policy) throw new Error('AGENT_MCP_POLICY_MISSING')

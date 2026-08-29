@@ -31,12 +31,14 @@ test('更新安装影响摘要统计仍会被退出流程中断的远程资源',
 
   assert.deepEqual(buildUpdateRuntimeSummary({
     activeTransferCount: 4,
+    agentRunCount: 1,
     fileSessions,
     forwards,
     sessions,
     remoteDesktopCount: 2,
-    transferSnapshotComplete: true,
+    runtimeSnapshotComplete: true,
   }), {
+    agent_runs: 1,
     ssh_sessions: 3,
     remote_desktop_sessions: 2,
     file_sessions: 3,
@@ -49,12 +51,14 @@ test('更新安装影响摘要统计仍会被退出流程中断的远程资源',
 test('更新安装影响摘要限制异常的传输数量', () => {
   const summary = buildUpdateRuntimeSummary({
     activeTransferCount: Number.POSITIVE_INFINITY,
+    agentRunCount: Number.POSITIVE_INFINITY,
     fileSessions: [],
     forwards: [],
     sessions: [],
     remoteDesktopCount: 0,
-    transferSnapshotComplete: false,
+    runtimeSnapshotComplete: false,
   })
+  assert.equal(summary.agent_runs, 0)
   assert.equal(summary.transfers, 0)
   assert.equal(summary.transfers_complete, false)
 })

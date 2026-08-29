@@ -8,11 +8,22 @@ export {
   decodeAgentRunEvent,
   decodeAgentRunEventPage,
   decodeAgentSession,
+  decodeAgentSessionContext,
   decodeAgentSessionPage,
   decodeAgentSourceContext,
   decodeAgentWorkspaceEvent,
   type AgentWorkspaceEvent,
 } from './agentRuntimeProtocol.ts'
+export {
+  acceptAgentSessionContext,
+  beginAgentSessionContextLoad,
+  failAgentSessionContextLoad,
+  setAgentContextCompressionPending,
+} from './agentWorkspaceContext.ts'
+export {
+  type AgentSessionContextLoadPhase,
+  type AgentWorkspaceSessionContextState,
+} from './agentWorkspaceContextTypes.ts'
 export {
   activeAgentRun,
   applyAgentWorkspaceEvent,

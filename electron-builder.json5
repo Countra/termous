@@ -29,6 +29,54 @@
       "to": "THIRD_PARTY_NOTICES.txt"
     },
     {
+      "from": "third_party_licenses/pi-LICENSE.txt",
+      "to": "licenses/pi-LICENSE.txt"
+    },
+    {
+      "from": "third_party_licenses/OpenAI-SDK-LICENSE.txt",
+      "to": "licenses/OpenAI-SDK-LICENSE.txt"
+    },
+    {
+      "from": "third_party_licenses/OpenAI-qs-LICENSE.txt",
+      "to": "licenses/OpenAI-qs-LICENSE.txt"
+    },
+    {
+      "from": "third_party_licenses/diff-LICENSE.txt",
+      "to": "licenses/diff-LICENSE.txt"
+    },
+    {
+      "from": "third_party_licenses/partial-json-LICENSE.txt",
+      "to": "licenses/partial-json-LICENSE.txt"
+    },
+    {
+      "from": "node_modules/@modelcontextprotocol/client/LICENSE",
+      "to": "licenses/MCP-Client-LICENSE.txt"
+    },
+    {
+      "from": "third_party_licenses/eventsource-parser-LICENSE.txt",
+      "to": "licenses/eventsource-parser-LICENSE.txt"
+    },
+    {
+      "from": "third_party_licenses/pkce-challenge-LICENSE.txt",
+      "to": "licenses/pkce-challenge-LICENSE.txt"
+    },
+    {
+      "from": "third_party_licenses/Zod-LICENSE.txt",
+      "to": "licenses/Zod-LICENSE.txt"
+    },
+    {
+      "from": "node_modules/typebox/license",
+      "to": "licenses/TypeBox-LICENSE.txt"
+    },
+    {
+      "from": "node_modules/react-markdown/license",
+      "to": "licenses/react-markdown-LICENSE.txt"
+    },
+    {
+      "from": "node_modules/remark-gfm/license",
+      "to": "licenses/remark-gfm-LICENSE.txt"
+    },
+    {
       "from": "node_modules/@novnc/novnc/LICENSE.txt",
       "to": "licenses/noVNC-LICENSE.txt"
     },

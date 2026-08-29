@@ -175,6 +175,15 @@
       "context": "上下文",
       "estimated": "估算用量",
       "measured": "精确用量",
+      "contextUnavailable": "选择一个会话后查看上下文容量",
+      "contextWarning": "上下文用量已达到 70%，后续请求可能先进行整理。",
+      "contextLoadFailed": "暂时无法读取上下文状态",
+      "checkpoint": "最近整理",
+      "checkpointMeta": "约 {{tokens}} token · {{time}}",
+      "compressNext": "下次发送前整理",
+      "compressPending": "已安排，将在下次发送前整理",
+      "compressAvailable": "保留最近六轮对话，原始消息不会删除",
+      "compressUnavailable": "当前完整轮次不足，无需整理",
       "skills": "Skills",
       "skillsReady": "Skills 资源已由运行时按需加载",
       "mcp": "MCP",
@@ -199,7 +208,10 @@
       "loadFailed": "暂时无法读取 Agent 运行状态"
     },
     "error": {
-      "workspace": "实时状态连接中断，正在使用权威快照恢复",
+      "reconnecting": "正在重新连接 Agent 实时状态",
+      "reconnectingDescription": "会话内容已保留，连接恢复后会自动与 Core 权威状态对账。",
+      "degraded": "部分 Agent 状态暂时不可用",
+      "degradedDescription": "会话内容已保留，可重试读取 Core 权威状态。",
       "operation": "Agent 操作未完成",
       "operationDescription": "请检查 Core、模型配置和运行状态后重试。"
     }

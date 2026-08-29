@@ -130,7 +130,7 @@ function App() {
 function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<SetStateAction<ThemeMode>> }) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
-  const { gateways, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
+  const { gateways, runtimeConfigReady, data, initializing, apiReady, error, activeSession, forwardErrorEvent, fileSessionClosures, actions } = useTermousData()
   const hostIconSHAByID = useMemo(
     () => new Map(data.hostIcons.map((icon) => [icon.id, icon.sha256])),
     [data.hostIcons],
@@ -254,6 +254,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   const [actionBusy, setActionBusy] = useState(false)
   const [hostKeyApprovalBlocking, setHostKeyApprovalBlocking] = useState(false)
   const [activeRemoteDesktopCount, setActiveRemoteDesktopCount] = useState(0)
+  const [agentRuntimeSummary, setAgentRuntimeSummary] = useState({
+    agentRunCount: 0,
+    snapshotComplete: false,
+  })
   const [remoteDesktopRuntimeSessions, setRemoteDesktopRuntimeSessions] = useState(
     data.remoteDesktopSessions,
   )
@@ -1073,13 +1077,15 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
         },
       }} />
       <FilesWorkspaceRuntimeProvider>
-        <TransferRuntimeProvider api={gateways.transfers}>
+        <TransferRuntimeProvider api={gateways.transfers} enabled={runtimeConfigReady}>
           <UpdateRuntimeSummaryReporter
             apiReady={apiReady}
             sessions={data.sessions}
             fileSessions={data.fileSessions}
             forwards={data.forwards}
             remoteDesktopCount={activeRemoteDesktopCount}
+            agentRunCount={agentRuntimeSummary.agentRunCount}
+            agentSnapshotComplete={agentRuntimeSummary.snapshotComplete}
           />
           <TerminalRuntimeProvider
             api={gateways.terminal}
@@ -1091,7 +1097,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
             terminalFonts={data.terminalFonts}
             onSessionEvent={actions.updateSession}
           >
-            <CommandDispatchRuntimeProvider api={gateways.commandDispatch}>
+            <CommandDispatchRuntimeProvider
+              api={gateways.commandDispatch}
+              enabled={runtimeConfigReady}
+            >
               <McpAccessRuntimeProvider api={gateways.mcpAccess} enabled={apiReady && !coreFatal}>
                 <GlobalFileSearchRuntimeProvider
                   api={gateways.files}
@@ -1188,6 +1197,7 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                               clearAgentLaunchIntent()
                             }
                           }}
+                          onRuntimeSummaryChange={setAgentRuntimeSummary}
                         />
                       </div>
 

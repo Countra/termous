@@ -28,12 +28,17 @@ interface TransferEventMessage {
 
 interface TransferRuntimeProviderProps {
   api: TransferRuntimeApi
+  enabled?: boolean
   children: ReactNode
 }
 
 const sharedRuntimes = new WeakMap<TransferRuntimeApi, SharedTransferRuntime>()
 
-export function TransferRuntimeProvider({ api, children }: TransferRuntimeProviderProps) {
+export function TransferRuntimeProvider({
+  api,
+  enabled = true,
+  children,
+}: TransferRuntimeProviderProps) {
   const runtime = useMemo(() => getSharedTransferRuntime(api), [api])
   const value = useSyncExternalStore(
     runtime.subscribe,
@@ -42,9 +47,12 @@ export function TransferRuntimeProvider({ api, children }: TransferRuntimeProvid
   )
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined
+    }
     runtime.retain()
     return () => runtime.release()
-  }, [runtime])
+  }, [enabled, runtime])
 
   return (
     <TransferRuntimeContext.Provider value={value}>

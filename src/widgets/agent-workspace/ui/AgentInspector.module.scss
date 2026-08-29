@@ -70,6 +70,86 @@
   line-height: 1;
 }
 
+.context-skeleton {
+  padding-block: 2px;
+}
+
+.context-skeleton :global(.ant-skeleton-paragraph) {
+  margin-block: 0;
+}
+
+.context-warning,
+.context-error {
+  display: flex;
+  align-items: flex-start;
+  border: 1px solid color-mix(in srgb, var(--warning) 34%, var(--border));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  color: var(--text-secondary);
+  font-size: 10px;
+  gap: 7px;
+  line-height: 15px;
+  padding: 7px 8px;
+}
+
+.context-warning svg {
+  flex: none;
+  color: var(--warning);
+  margin-top: 1px;
+}
+
+.context-checkpoint,
+.context-compression {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.context-checkpoint {
+  justify-content: flex-start;
+  color: var(--text-muted);
+}
+
+.context-checkpoint > div,
+.context-compression > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.context-checkpoint strong,
+.context-compression strong {
+  color: var(--text-primary);
+  font-size: 11px;
+}
+
+.context-checkpoint span,
+.context-compression span {
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 14px;
+}
+
+.context-error {
+  align-items: center;
+  justify-content: space-between;
+  border-color: var(--border);
+  background: var(--surface-hover);
+}
+
+.context-error > span {
+  min-width: 0;
+}
+
+.context-error :global(.ant-btn) {
+  flex: none;
+  height: 24px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  padding-inline: 5px;
+}
+
 .skill-list {
   display: grid;
   gap: 8px;

@@ -129,6 +129,115 @@ test('bootstrap 严格校验附件传输形状、数量与预解码长度', asyn
   )
 })
 
+test('bootstrap 严格校验上下文 Checkpoint 与压缩计划', async () => {
+  const valid = bootstrapResponse()
+  valid.context = {
+    estimated_tokens: 7000,
+    warning: true,
+    checkpoint: {
+      boundary_message_sequence: 4,
+      summary: '已压缩历史',
+      estimated_tokens: 6000,
+    },
+    compression: {
+      boundary_message_sequence: 8,
+      source_hash: 'a'.repeat(64),
+      estimated_tokens: 7000,
+    },
+  }
+  await new WorkerCoreClient({ fetch: async () => Response.json(valid) }).bootstrap(start)
+
+  const invalidHash = structuredClone(valid)
+  invalidHash.context.compression!.source_hash = 'A'.repeat(64)
+  await assert.rejects(
+    new WorkerCoreClient({ fetch: async () => Response.json(invalidHash) }).bootstrap(start),
+    /AGENT_RUNTIME_BOOTSTRAP_INVALID/u,
+  )
+
+  const emptySummary = structuredClone(valid)
+  emptySummary.context.checkpoint!.summary = '   '
+  await assert.rejects(
+    new WorkerCoreClient({ fetch: async () => Response.json(emptySummary) }).bootstrap(start),
+    /AGENT_RUNTIME_BOOTSTRAP_INVALID/u,
+  )
+})
+
+test('Checkpoint 提交绑定 Run、generation、Bearer 并透传取消信号', async () => {
+  let request: Request | undefined
+  let requestSignal: AbortSignal | null | undefined
+  const client = new WorkerCoreClient({
+    fetch: async (input, init) => {
+      request = new Request(input, init)
+      requestSignal = init?.signal
+      return Response.json({
+        checkpoint: {
+          boundary_message_sequence: 4,
+          summary: '已压缩历史',
+          estimated_tokens: 7000,
+        },
+      })
+    },
+  })
+  const controller = new AbortController()
+  const checkpoint = await client.commitCheckpoint(start, 'r'.repeat(48), {
+    generation: 1,
+    boundary_message_sequence: 4,
+    source_hash: 'b'.repeat(64),
+    summary: '已压缩历史',
+  }, controller.signal)
+
+  assert.equal(checkpoint.boundary_message_sequence, 4)
+  assert.equal(request?.url, 'http://127.0.0.1:52000/api/v1/agent/runs/agr_test/runtime-checkpoints')
+  assert.equal(request?.headers.get('authorization'), `Bearer ${'r'.repeat(48)}`)
+  assert.equal(requestSignal?.aborted, false)
+  assert.deepEqual(await request?.json(), {
+    generation: 1,
+    boundary_message_sequence: 4,
+    source_hash: 'b'.repeat(64),
+    summary: '已压缩历史',
+  })
+})
+
+test('Checkpoint 提交拒绝跨 generation 和被替换的响应内容', async () => {
+  const client = new WorkerCoreClient({
+    fetch: async () => Response.json({
+      checkpoint: {
+        boundary_message_sequence: 5,
+        summary: '已压缩历史',
+        estimated_tokens: 7000,
+      },
+    }),
+  })
+  await assert.rejects(client.commitCheckpoint(start, 'r'.repeat(48), {
+    generation: 2,
+    boundary_message_sequence: 4,
+    source_hash: 'b'.repeat(64),
+    summary: '已压缩历史',
+  }), /AGENT_RUNTIME_CHECKPOINT_INVALID/u)
+  await assert.rejects(client.commitCheckpoint(start, 'r'.repeat(48), {
+    generation: 1,
+    boundary_message_sequence: 4,
+    source_hash: 'b'.repeat(64),
+    summary: '已压缩历史',
+  }), /AGENT_RUNTIME_CHECKPOINT_RESPONSE_INVALID/u)
+
+  const replacedSummaryClient = new WorkerCoreClient({
+    fetch: async () => Response.json({
+      checkpoint: {
+        boundary_message_sequence: 4,
+        summary: '异常替换摘要',
+        estimated_tokens: 7000,
+      },
+    }),
+  })
+  await assert.rejects(replacedSummaryClient.commitCheckpoint(start, 'r'.repeat(48), {
+    generation: 1,
+    boundary_message_sequence: 4,
+    source_hash: 'b'.repeat(64),
+    summary: '已压缩历史',
+  }), /AGENT_RUNTIME_CHECKPOINT_RESPONSE_INVALID/u)
+})
+
 function bootstrapResponse(): RuntimeBootstrap {
   return {
     core_instance_id: 'core-1',
@@ -161,6 +270,7 @@ function bootstrapResponse(): RuntimeBootstrap {
       },
       api_key: 'configured',
     },
+    context: { estimated_tokens: 1280, warning: false },
   }
 }
 

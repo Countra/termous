@@ -77,10 +77,19 @@ export interface AgentWorkspaceDraftAttachment {
 }
 
 export interface AgentWorkspaceContextState {
+  phase: 'unavailable' | 'idle' | 'loading' | 'ready' | 'error'
+  has_snapshot: boolean
   used_tokens: number
   context_window_tokens: number
   estimated: boolean
-  warning_threshold: number
+  warning: boolean
+  compression_available: boolean
+  compression_pending: boolean
+  checkpoint?: {
+    estimated_tokens: number
+    created_at: string
+  }
+  error_code?: string
 }
 
 export interface AgentWorkspaceSkillItem {
@@ -128,6 +137,8 @@ export interface AgentWorkspaceProps {
   onSend: (message: string, attachmentIds: string[], sourceContext?: AgentSourceContext) => Promise<void>
   onSteer: (message: string) => Promise<void>
   onStop: () => Promise<void>
+  onContextCompressionPendingChange: (enabled: boolean) => void
+  onRetryContext: () => void
   onApprovalBypassChange: (enabled: boolean) => Promise<void>
 }
 

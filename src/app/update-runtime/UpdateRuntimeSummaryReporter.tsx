@@ -13,6 +13,8 @@ interface UpdateRuntimeSummaryReporterProps {
   forwards: ForwardInstance[]
   sessions: Session[]
   remoteDesktopCount: number
+  agentRunCount: number
+  agentSnapshotComplete: boolean
 }
 
 export function UpdateRuntimeSummaryReporter({
@@ -21,6 +23,8 @@ export function UpdateRuntimeSummaryReporter({
   forwards,
   sessions,
   remoteDesktopCount,
+  agentRunCount,
+  agentSnapshotComplete,
 }: UpdateRuntimeSummaryReporterProps) {
   const { activeTransfers, initialized } = useTransferRuntime()
   const publisherRef = useRef<UpdateRuntimeSummaryPublisher | null>(null)
@@ -28,12 +32,23 @@ export function UpdateRuntimeSummaryReporter({
   const documentEpochRef = useRef<string | null>(null)
   const summary = useMemo(() => buildUpdateRuntimeSummary({
     activeTransferCount: activeTransfers.length,
+    agentRunCount,
     fileSessions,
     forwards,
     sessions,
     remoteDesktopCount,
-    transferSnapshotComplete: apiReady && initialized,
-  }), [activeTransfers.length, apiReady, fileSessions, forwards, initialized, remoteDesktopCount, sessions])
+    runtimeSnapshotComplete: apiReady && initialized && agentSnapshotComplete,
+  }), [
+    activeTransfers.length,
+    agentRunCount,
+    agentSnapshotComplete,
+    apiReady,
+    fileSessions,
+    forwards,
+    initialized,
+    remoteDesktopCount,
+    sessions,
+  ])
   const summaryRef = useRef(summary)
   summaryRef.current = summary
   const bridge = getTermousBridge()?.updates

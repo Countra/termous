@@ -34,6 +34,7 @@ import {
 
 interface CommandDispatchRuntimeProviderProps {
   api: CommandDispatchGateway
+  enabled?: boolean
   children: ReactNode
 }
 
@@ -42,6 +43,7 @@ const reconnectMaximumDelay = 5_000
 
 export function CommandDispatchRuntimeProvider({
   api,
+  enabled = true,
   children,
 }: CommandDispatchRuntimeProviderProps) {
   const [state, dispatch] = useReducer(
@@ -93,6 +95,9 @@ export function CommandDispatchRuntimeProvider({
   }, [outputStore])
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined
+    }
     let disposed = false
     let socket: WebSocket | null = null
     let reconnectTimer = 0
@@ -141,6 +146,7 @@ export function CommandDispatchRuntimeProvider({
       const currentSocket = socket
       let firstMessage = true
       currentSocket.addEventListener('open', () => {
+        if (disposed || socket !== currentSocket) return
         reconnectDelay = reconnectInitialDelay
         reconcileLatest()
       })
@@ -185,9 +191,12 @@ export function CommandDispatchRuntimeProvider({
       reconcileController?.abort()
       if (socket) retireWebSocket(socket)
     }
-  }, [acceptTask, api, clearLatestTask])
+  }, [acceptTask, api, clearLatestTask, enabled])
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined
+    }
     const controller = new AbortController()
     const recoveryToken = {}
     recoveryTokenRef.current = recoveryToken
@@ -231,12 +240,12 @@ export function CommandDispatchRuntimeProvider({
         recoveryTokenRef.current = null
       }
     }
-  }, [api, outputStore])
+  }, [api, enabled, outputStore])
 
   const taskId = state.task?.id ?? ''
   const taskTerminal = state.task ? isCommandDispatchTaskTerminal(state.task.status) : true
   useEffect(() => {
-    if (!taskId || taskTerminal) {
+    if (!enabled || !taskId || taskTerminal) {
       return undefined
     }
     let disposed = false
@@ -333,7 +342,7 @@ export function CommandDispatchRuntimeProvider({
       socket = null
       if (currentSocket) retireWebSocket(currentSocket)
     }
-  }, [acceptTask, api, outputStore, taskId, taskTerminal])
+  }, [acceptTask, api, enabled, outputStore, taskId, taskTerminal])
 
   useEffect(() => () => outputStore.dispose(), [outputStore])
 

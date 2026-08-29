@@ -17,6 +17,7 @@ import {
   decodeAgentRun,
   decodeAgentRunEventPage,
   decodeAgentSession,
+  decodeAgentSessionContext,
   decodeAgentSessionPage,
 } from '#features/agent-runtime'
 import type {
@@ -100,6 +101,11 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
     return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/messages?${query.toString()}`, {
       signal: options.signal,
     }).then(decodeAgentMessagePage)
+  }
+
+  context(sessionId: string, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/context`, { signal })
+      .then((value) => decodeAgentSessionContext(value, sessionId))
   }
 
   createRun(sessionId: string, input: AgentCreateRunInput, signal?: AbortSignal) {

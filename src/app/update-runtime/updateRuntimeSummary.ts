@@ -5,13 +5,15 @@ import type { UpdateRuntimeSummary } from '#common/contracts'
 
 export function buildUpdateRuntimeSummary(input: {
   activeTransferCount: number
+  agentRunCount: number
   fileSessions: FileSession[]
   forwards: ForwardInstance[]
   sessions: Session[]
   remoteDesktopCount: number
-  transferSnapshotComplete: boolean
+  runtimeSnapshotComplete: boolean
 }): UpdateRuntimeSummary {
   return {
+    agent_runs: clampRuntimeCount(input.agentRunCount),
     ssh_sessions: clampRuntimeCount(input.sessions.filter((session) => (
       session.kind === 'ssh'
       && (
@@ -34,7 +36,8 @@ export function buildUpdateRuntimeSummary(input: {
       || forward.status === 'stopping'
     )).length),
     transfers: clampRuntimeCount(input.activeTransferCount),
-    transfers_complete: input.transferSnapshotComplete,
+    // 保留既有协议字段名，其值表示所有 Renderer 运行态快照均已完成对账。
+    transfers_complete: input.runtimeSnapshotComplete,
   }
 }
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { agentRuntimeProtocolVersion } from '#common/contracts'
 import type { AgentMCPConnection } from './mcpClientAdapter.ts'
-import type { PiAgentController } from './piAgentAdapter.ts'
+import type { CreatePiAgentOptions, PiAgentController } from './piAgentAdapter.ts'
 import type {
   AgentWorkerOutboundMessage,
   AgentWorkerStartMessage,
@@ -11,6 +11,8 @@ import { testAgentSkillBundle } from './skillBundleTestFixture.ts'
 import { AgentWorkerRuntime } from './workerRuntime.ts'
 import type {
   RuntimeBootstrap,
+  RuntimeCheckpointInput,
+  RuntimeContextCheckpoint,
   RuntimeEventInput,
   RuntimeSteerInput,
   WorkerCoreClientPort,
@@ -19,6 +21,7 @@ import type {
 class FakeCore implements WorkerCoreClientPort {
   readonly events: RuntimeEventInput[] = []
   readonly steers: RuntimeSteerInput[] = []
+  readonly checkpoints: RuntimeCheckpointInput[] = []
   bootstrapValue = runtimeBootstrap()
   bootstrapError: unknown = null
   bootstrapGate: Promise<void> | null = null
@@ -62,6 +65,21 @@ class FakeCore implements WorkerCoreClientPort {
     this.order.push(`core:${input.text}`)
     this.steers.push(input)
     return this.lastSequence
+  }
+
+  async commitCheckpoint(
+    _start: AgentWorkerStartMessage,
+    _runtimeBearer: string,
+    input: RuntimeCheckpointInput,
+    signal?: AbortSignal,
+  ): Promise<RuntimeContextCheckpoint> {
+    if (signal?.aborted) throw new DOMException('cancelled', 'AbortError')
+    this.checkpoints.push(input)
+    return {
+      boundary_message_sequence: input.boundary_message_sequence,
+      summary: input.summary,
+      estimated_tokens: 7000,
+    }
   }
 }
 
@@ -271,7 +289,101 @@ test('终态持久化后先通知主进程，再等待运行资源关闭', async
   assert.equal(fixture.finishedState.value, true)
 })
 
-function workerFixture(order: string[] = []) {
+test('上下文摘要成功后提交 Checkpoint，再连接 MCP 并只保留边界后的消息', async () => {
+  const order: string[] = []
+  let agentBootstrap: RuntimeBootstrap | undefined
+  const fixture = workerFixture(order, {
+    summarizeContext: async () => {
+      order.push('summary')
+      return '压缩后的历史'
+    },
+    onConnectMCP: () => order.push('mcp'),
+    onCreateAgent: (options) => {
+      agentBootstrap = structuredClone(options.bootstrap)
+    },
+  })
+  fixture.core.bootstrapValue.context = {
+    estimated_tokens: 7000,
+    warning: true,
+    compression: {
+      boundary_message_sequence: 1,
+      source_hash: 'a'.repeat(64),
+      estimated_tokens: 7000,
+    },
+  }
+  fixture.core.bootstrapValue.messages = [
+    runtimeMessage(1, '旧历史'),
+    runtimeMessage(2, '当前请求'),
+  ]
+
+  fixture.runtime.handleMessage(startMessage())
+  await fixture.finished
+
+  assert.deepEqual(order.slice(0, 2), ['summary', 'mcp'])
+  assert.equal(fixture.core.checkpoints.length, 1)
+  assert.equal(fixture.core.checkpoints[0]?.generation, 1)
+  assert.deepEqual(agentBootstrap?.messages.map(({ sequence }) => sequence), [2])
+  assert.equal(agentBootstrap?.context.checkpoint?.summary, '压缩后的历史')
+  assert.equal(agentBootstrap?.context.compression, undefined)
+})
+
+test('上下文摘要失败时不连接 MCP，并以 failed 收口当前 Run', async () => {
+  let mcpConnected = false
+  const fixture = workerFixture([], {
+    summarizeContext: async () => { throw new Error('summary failed') },
+    onConnectMCP: () => { mcpConnected = true },
+  })
+  fixture.core.bootstrapValue.context = compressionContext()
+
+  fixture.runtime.handleMessage(startMessage())
+  await fixture.finished
+
+  assert.equal(mcpConnected, false)
+  assert.equal(fixture.core.checkpoints.length, 0)
+  assert.deepEqual(statuses(fixture.core.events), ['failed'])
+})
+
+test('上下文摘要返回空值时按压缩失败而非取消收口', async () => {
+  let connectCount = 0
+  const fixture = workerFixture([], {
+    summarizeContext: async () => undefined,
+    onConnectMCP: () => { connectCount += 1 },
+  })
+  fixture.core.bootstrapValue.context = compressionContext()
+  fixture.runtime.handleMessage(startMessage())
+  await fixture.finished
+
+  assert.equal(connectCount, 0)
+  assert.equal(fixture.core.checkpoints.length, 0)
+  assert.deepEqual(statuses(fixture.core.events), ['failed'])
+})
+
+test('上下文摘要期间取消时不提交 Checkpoint，也不连接 MCP', async () => {
+  let mcpConnected = false
+  let summaryStarted = false
+  const fixture = workerFixture([], {
+    summarizeContext: async (_bootstrap, signal) => await new Promise<string>((_resolve, reject) => {
+      summaryStarted = true
+      signal.addEventListener('abort', () => reject(new DOMException('cancelled', 'AbortError')), { once: true })
+    }),
+    onConnectMCP: () => { mcpConnected = true },
+  })
+  fixture.core.bootstrapValue.context = compressionContext()
+  fixture.runtime.handleMessage(startMessage())
+  await waitUntil(() => summaryStarted)
+  fixture.runtime.handleMessage({ type: 'abort', run_id: 'agr_test', generation: 1 })
+  await fixture.finished
+
+  assert.equal(mcpConnected, false)
+  assert.equal(fixture.core.checkpoints.length, 0)
+  assert.deepEqual(statuses(fixture.core.events), ['cancelled'])
+})
+
+function workerFixture(order: string[] = [], options: {
+  summarizeContext?: (bootstrap: RuntimeBootstrap, signal: AbortSignal) => Promise<string | undefined>
+  onConnectMCP?: () => void
+  onCreateAgent?: (options: CreatePiAgentOptions) => void
+} = {}) {
   const core = new FakeCore(order)
   const agent = new FakeAgent(order)
   const outbound: AgentWorkerOutboundMessage[] = []
@@ -287,8 +399,15 @@ function workerFixture(order: string[] = []) {
   const finishedState = { value: false }
   const runtime = new AgentWorkerRuntime({
     core,
-    connectMCP: async () => mcp,
-    createAgent: () => agent,
+    connectMCP: async () => {
+      options.onConnectMCP?.()
+      return mcp
+    },
+    createAgent: (createOptions) => {
+      options.onCreateAgent?.(createOptions)
+      return agent
+    },
+    summarizeContext: options.summarizeContext ?? (async () => '压缩后的历史'),
     send: (message) => outbound.push(message),
     finish: () => {
       finishedState.value = true
@@ -297,6 +416,42 @@ function workerFixture(order: string[] = []) {
     newClientRequestID: () => 'agsr_test',
   })
   return { runtime, core, agent, mcp, outbound, finished, finishedState }
+}
+
+function runtimeMessage(sequence: number, text: string): RuntimeBootstrap['messages'][number] {
+  return {
+    id: `agm_user_${sequence}`,
+    role: 'user',
+    status: 'completed',
+    sequence,
+    created_at: '2026-08-28T00:00:00Z',
+    attachments: [],
+    parts: [{
+      id: `agp_user_${sequence}`,
+      message_id: `agm_user_${sequence}`,
+      kind: 'text',
+      sequence: 1,
+      content: { text: { text } },
+    }],
+  }
+}
+
+function compressionContext(): RuntimeBootstrap['context'] {
+  return {
+    estimated_tokens: 7000,
+    warning: true,
+    compression: {
+      boundary_message_sequence: 1,
+      source_hash: 'a'.repeat(64),
+      estimated_tokens: 7000,
+    },
+  }
+}
+
+function statuses(events: RuntimeEventInput[]) {
+  return events
+    .filter((event) => event.kind === 'status')
+    .map((event) => nested(nested(event.payload, 'status'), 'status'))
 }
 
 function startMessage(): AgentWorkerStartMessage {
@@ -356,6 +511,7 @@ function runtimeBootstrap(): RuntimeBootstrap {
         supports_reasoning: false,
       },
     },
+    context: { estimated_tokens: 1280, warning: false },
   }
 }
 

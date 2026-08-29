@@ -6,7 +6,7 @@ import type { AgentWorkspaceProps } from '../model/types.ts'
 import { AgentWorkspace } from './AgentWorkspace.tsx'
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: (key: string) => key, i18n: { resolvedLanguage: 'en-US' } }),
 }))
 
 vi.mock('#shared/bridge', () => ({ getTermousBridge: () => null }))
@@ -74,6 +74,50 @@ describe('AgentWorkspace', () => {
       sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
     })} /></AntdApp>)
     expect(screen.getByRole('switch', { name: 'agent.inspector.approval' })).toBeDisabled()
+  })
+
+  it('展示权威上下文预警和 Checkpoint，并将整理安排到下一次发送', async () => {
+    const user = userEvent.setup()
+    const onContextCompressionPendingChange = vi.fn()
+    const onRetryContext = vi.fn()
+    const view = renderWorkspace(fixtureProps({
+      inspector: {
+        ...fixtureProps().inspector,
+        context: {
+          phase: 'ready',
+          has_snapshot: true,
+          used_tokens: 6_000,
+          context_window_tokens: 8_000,
+          estimated: true,
+          warning: true,
+          compression_available: true,
+          compression_pending: false,
+          checkpoint: { estimated_tokens: 4_200, created_at: '2026-08-29T08:00:00Z' },
+        },
+      },
+      onContextCompressionPendingChange,
+      onRetryContext,
+    }))
+
+    expect(screen.getByText('75%')).toBeInTheDocument()
+    expect(screen.getByText('agent.inspector.contextWarning')).toBeInTheDocument()
+    expect(screen.getByText('agent.inspector.checkpoint')).toBeInTheDocument()
+    await user.click(screen.getByRole('switch', { name: 'agent.inspector.compressNext' }))
+    expect(onContextCompressionPendingChange).toHaveBeenCalledWith(true)
+
+    view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
+      inspector: {
+        ...fixtureProps().inspector,
+        context: {
+          phase: 'error', has_snapshot: false, used_tokens: 0, context_window_tokens: 0,
+          estimated: true, warning: false, compression_available: false,
+          compression_pending: false, error_code: 'NETWORK_ERROR',
+        },
+      },
+      onRetryContext,
+    })} /></AntdApp>)
+    await user.click(screen.getByRole('button', { name: 'app.retry' }))
+    expect(onRetryContext).toHaveBeenCalledOnce()
   })
 
   it('窄窗口将会话栏和检查器切换为按需抽屉', async () => {
@@ -171,7 +215,10 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
     models: [{ id: 'model-1', name: 'Local model', supports_reasoning: true }],
     selected_model_profile_id: 'model-1',
     inspector: {
-      context: { used_tokens: 120, context_window_tokens: 8_000, estimated: true, warning_threshold: 0.7 },
+      context: {
+        phase: 'ready', has_snapshot: true, used_tokens: 120, context_window_tokens: 8_000,
+        estimated: true, warning: false, compression_available: false, compression_pending: false,
+      },
       skills: [],
       mcp: { connected: true, tool_count: 76, scope_count: 29, approval_bypass: false },
     },
@@ -181,6 +228,7 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
     onAttachFiles: vi.fn(async () => undefined), onRemoveAttachment: vi.fn(async () => undefined),
     onRetryAttachment: vi.fn(async () => undefined), onLoadAttachmentContent: vi.fn(async () => new Blob()),
     onSteer: vi.fn(async () => undefined), onStop: vi.fn(async () => undefined),
+    onContextCompressionPendingChange: vi.fn(), onRetryContext: vi.fn(),
     onApprovalBypassChange: vi.fn(async () => undefined),
     ...overrides,
   }

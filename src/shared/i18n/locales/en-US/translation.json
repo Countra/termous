@@ -175,6 +175,15 @@
       "context": "Context",
       "estimated": "Estimated usage",
       "measured": "Measured usage",
+      "contextUnavailable": "Select a session to inspect its context capacity",
+      "contextWarning": "Context usage is 70% or higher. A later request may compact it first.",
+      "contextLoadFailed": "Context status is temporarily unavailable",
+      "checkpoint": "Latest compaction",
+      "checkpointMeta": "About {{tokens}} tokens · {{time}}",
+      "compressNext": "Compact before next send",
+      "compressPending": "Scheduled for the next message",
+      "compressAvailable": "Keeps the latest six turns; original messages remain intact",
+      "compressUnavailable": "There are not enough complete turns to compact yet",
       "skills": "Skills",
       "skillsReady": "Skill resources are loaded on demand by the runtime",
       "mcp": "MCP",
@@ -199,7 +208,10 @@
       "loadFailed": "Agent runtime status is temporarily unavailable"
     },
     "error": {
-      "workspace": "The live status connection was interrupted. Recovering from the authoritative snapshot.",
+      "reconnecting": "Reconnecting Agent live status",
+      "reconnectingDescription": "Session content is preserved and will reconcile with Core after reconnecting.",
+      "degraded": "Some Agent state is temporarily unavailable",
+      "degradedDescription": "Session content is preserved. Retry to load Core's authoritative state.",
       "operation": "The Agent operation did not complete",
       "operationDescription": "Check Core, the model profile, and runtime status, then try again."
     }

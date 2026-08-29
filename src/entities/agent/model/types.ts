@@ -253,6 +253,22 @@ export interface AgentMessagePage {
   next_after_sequence?: number
 }
 
+export interface AgentContextCheckpoint {
+  boundary_message_sequence: number
+  estimated_tokens: number
+  created_at: string
+}
+
+export interface AgentSessionContext {
+  session_id: string
+  estimated_tokens: number
+  context_window_tokens: number
+  estimated: boolean
+  warning: boolean
+  compression_available: boolean
+  checkpoint?: AgentContextCheckpoint
+}
+
 export interface AgentUsage {
   input_tokens: number
   output_tokens: number

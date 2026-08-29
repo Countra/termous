@@ -73,6 +73,33 @@ export interface RuntimeBootstrap {
     snapshot: RuntimeModelSnapshot
     api_key?: string
   }
+  context: RuntimeContextBootstrap
+}
+
+export interface RuntimeContextCheckpoint {
+  boundary_message_sequence: number
+  summary: string
+  estimated_tokens: number
+}
+
+export interface RuntimeContextCompression {
+  boundary_message_sequence: number
+  source_hash: string
+  estimated_tokens: number
+}
+
+export interface RuntimeContextBootstrap {
+  estimated_tokens: number
+  warning: boolean
+  checkpoint?: RuntimeContextCheckpoint
+  compression?: RuntimeContextCompression
+}
+
+export interface RuntimeCheckpointInput {
+  generation: number
+  boundary_message_sequence: number
+  source_hash: string
+  summary: string
 }
 
 export type RuntimeEventKind =
@@ -112,6 +139,12 @@ export interface WorkerCoreClientPort {
     runtimeBearer: string,
     input: RuntimeSteerInput,
   ): Promise<number>
+  commitCheckpoint(
+    start: AgentWorkerStartMessage,
+    runtimeBearer: string,
+    input: RuntimeCheckpointInput,
+    signal?: AbortSignal,
+  ): Promise<RuntimeContextCheckpoint>
 }
 
 export interface WorkerCoreClientOptions {
@@ -205,6 +238,30 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
       throw new WorkerCoreError('AGENT_RUNTIME_STEER_RESPONSE_INVALID')
     }
     return value.last_sequence
+  }
+
+  async commitCheckpoint(
+    start: AgentWorkerStartMessage,
+    runtimeBearer: string,
+    input: RuntimeCheckpointInput,
+    signal?: AbortSignal,
+  ) {
+    if (!isRuntimeCheckpointInput(input, start.generation)) {
+      throw new WorkerCoreError('AGENT_RUNTIME_CHECKPOINT_INVALID')
+    }
+    const value = await this.request(
+      start.core_base_url,
+      `/api/v1/agent/runs/${encodeURIComponent(start.run_id)}/runtime-checkpoints`,
+      { method: 'POST', body: JSON.stringify(input) },
+      runtimeBearer,
+      signal,
+    )
+    if (!isRecord(value) || !isRuntimeContextCheckpoint(value.checkpoint)
+      || value.checkpoint.boundary_message_sequence !== input.boundary_message_sequence
+      || value.checkpoint.summary !== input.summary) {
+      throw new WorkerCoreError('AGENT_RUNTIME_CHECKPOINT_RESPONSE_INVALID')
+    }
+    return value.checkpoint
   }
 
   private async request(
@@ -314,13 +371,56 @@ function isRuntimeBootstrap(value: unknown, start: AgentWorkerStartMessage): val
     || value.mcp.bearer_token.length > 4096
     || typeof value.mcp.protocol_version !== 'string'
     || !isRecord(value.model)
-    || !isRuntimeModelSnapshot(value.model.snapshot)) {
+    || !isRuntimeModelSnapshot(value.model.snapshot)
+    || !isRuntimeContextBootstrap(value.context)) {
     return false
   }
   return value.model.api_key === undefined
     || (typeof value.model.api_key === 'string'
       && value.model.api_key.length > 0
       && value.model.api_key.length <= 16 * 1024)
+}
+
+function isRuntimeContextBootstrap(value: unknown): value is RuntimeContextBootstrap {
+  return isRecord(value)
+    && Number.isSafeInteger(value.estimated_tokens)
+    && Number(value.estimated_tokens) >= 0
+    && typeof value.warning === 'boolean'
+    && (value.checkpoint === undefined || isRuntimeContextCheckpoint(value.checkpoint))
+    && (value.compression === undefined || isRuntimeContextCompression(value.compression))
+}
+
+function isRuntimeContextCheckpoint(value: unknown): value is RuntimeContextCheckpoint {
+  return isRecord(value)
+    && Number.isSafeInteger(value.boundary_message_sequence)
+    && Number(value.boundary_message_sequence) > 0
+    && typeof value.summary === 'string'
+    && value.summary.trim().length > 0
+    && Buffer.byteLength(value.summary, 'utf8') <= 256 * 1024
+    && Number.isSafeInteger(value.estimated_tokens)
+    && Number(value.estimated_tokens) >= 0
+}
+
+function isRuntimeContextCompression(value: unknown): value is RuntimeContextCompression {
+  return isRecord(value)
+    && Number.isSafeInteger(value.boundary_message_sequence)
+    && Number(value.boundary_message_sequence) > 0
+    && typeof value.source_hash === 'string'
+    && /^[0-9a-f]{64}$/u.test(value.source_hash)
+    && Number.isSafeInteger(value.estimated_tokens)
+    && Number(value.estimated_tokens) >= 0
+}
+
+function isRuntimeCheckpointInput(value: RuntimeCheckpointInput, generation: number) {
+  return value.generation === generation
+    && isRuntimeContextCompression({
+      boundary_message_sequence: value.boundary_message_sequence,
+      source_hash: value.source_hash,
+      estimated_tokens: 0,
+    })
+    && typeof value.summary === 'string'
+    && value.summary.trim().length > 0
+    && Buffer.byteLength(value.summary, 'utf8') <= 256 * 1024
 }
 
 function isRuntimeMessageView(value: unknown): value is RuntimeMessageView {

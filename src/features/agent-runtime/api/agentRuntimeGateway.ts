@@ -7,6 +7,7 @@ import type {
   AgentRun,
   AgentRunEventPage,
   AgentSession,
+  AgentSessionContext,
   AgentSessionInput,
   AgentSessionPage,
   AgentSessionUpdateInput,
@@ -39,6 +40,7 @@ export interface AgentCreateRunInput {
   prompt: string
   attachment_ids: string[]
   source_context?: AgentSourceContext
+  force_context_compression: boolean
 }
 
 export interface AgentWorkspaceGateway {
@@ -52,6 +54,7 @@ export interface AgentWorkspaceGateway {
   attachmentContent(id: string, signal?: AbortSignal): Promise<Blob>
   deleteAttachment(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   messages(sessionId: string, options?: AgentMessageListOptions): Promise<AgentMessagePage>
+  context(sessionId: string, signal?: AbortSignal): Promise<AgentSessionContext>
   createRun(sessionId: string, input: AgentCreateRunInput, signal?: AbortSignal): Promise<AgentRun>
   run(id: string, signal?: AbortSignal): Promise<AgentRun>
   stopRun(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentRun>

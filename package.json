@@ -22,7 +22,7 @@
     "build": "pnpm run typecheck && pnpm run build:renderer && pnpm run build:package",
     "build:package": "pnpm run build:skills && node scripts/ci/build-local-package.mjs",
     "build:package:validation": "pnpm run build:skills && node scripts/ci/build-local-package.mjs --version 0.0.0 --output ../build/update-validation",
-    "build:renderer": "pnpm run build:skills && vite build",
+    "build:renderer": "pnpm run build:skills && vite build && node scripts/agent/check-worker-bundle.mjs",
     "build:skills": "node scripts/agent/build-skills-bundle.mjs",
     "build:update-simulation": "node scripts/update-simulation/build-fixtures.mjs",
     "build:validation": "pnpm run typecheck && pnpm run build:renderer && pnpm run build:package:validation",

@@ -5,6 +5,7 @@ import {
   decodeAgentAttachment,
   decodeAgentMessage,
   decodeAgentRunEventPage,
+  decodeAgentSessionContext,
   decodeAgentWorkspaceEvent,
 } from './agentRuntimeProtocol.ts'
 import {
@@ -113,6 +114,40 @@ test('附件协议拒绝无效大小与未知状态', () => {
   assert.equal(decodeAgentAttachment(attachmentResponse()).kind, 'text')
   assert.throws(() => decodeAgentAttachment(attachmentResponse({ size_bytes: 0 })), /大小/)
   assert.throws(() => decodeAgentAttachment(attachmentResponse({ state: 'unknown' })), /状态/)
+})
+
+test('会话上下文协议严格校验归属、容量和 Checkpoint', () => {
+  const context = decodeAgentSessionContext({
+    session_id: 'ags-session',
+    estimated_tokens: 23_000,
+    context_window_tokens: 32_768,
+    estimated: true,
+    warning: true,
+    compression_available: true,
+    checkpoint: {
+      boundary_message_sequence: 12,
+      estimated_tokens: 18_000,
+      created_at: agentFixtureTime,
+    },
+  }, 'ags-session')
+
+  assert.equal(context.checkpoint?.boundary_message_sequence, 12)
+  assert.equal(decodeAgentSessionContext({
+    ...context,
+    checkpoint: undefined,
+  }, 'ags-session').checkpoint, undefined)
+  assert.throws(() => decodeAgentSessionContext({
+    ...context,
+    session_id: 'ags-other',
+  }, 'ags-session'), /归属/)
+  assert.throws(() => decodeAgentSessionContext({
+    ...context,
+    estimated_tokens: -1,
+  }), /Token/)
+  assert.throws(() => decodeAgentSessionContext({
+    ...context,
+    checkpoint: { ...context.checkpoint, created_at: 'not-a-time' },
+  }), /创建时间/)
 })
 
 test('Run Event 补偿页拒绝跨 Run、跨 generation 和 sequence 缺口', () => {

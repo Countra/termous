@@ -7,6 +7,7 @@ import {
 } from '#entities/agent'
 import type { AgentRuntimeStatus } from '#common/contracts'
 import type { AgentWorkspaceEvent } from './agentRuntimeProtocol.ts'
+import type { AgentWorkspaceSessionContextState } from './agentWorkspaceContextTypes.ts'
 
 export type AgentWorkspacePhase = 'idle' | 'loading' | 'ready' | 'reconnecting' | 'degraded'
 
@@ -17,6 +18,7 @@ export interface AgentComposerDraft {
 
 export interface AgentWorkspaceState {
   phase: AgentWorkspacePhase
+  snapshot_complete: boolean
   revision: number
   sessions: AgentSession[]
   runs: Record<string, AgentRun>
@@ -26,6 +28,7 @@ export interface AgentWorkspaceState {
   run_event_sequences: Record<string, number>
   run_part_overlays: Record<string, Record<string, AgentMessage['parts'][number]>>
   drafts: Record<string, AgentComposerDraft>
+  session_contexts: Record<string, AgentWorkspaceSessionContextState>
   selected_session_id?: string
   runtime_status?: AgentRuntimeStatus
   error_code?: string
@@ -39,6 +42,7 @@ export interface AgentWorkspaceMergeResult {
 export function createAgentWorkspaceState(): AgentWorkspaceState {
   return {
     phase: 'idle',
+    snapshot_complete: false,
     revision: 0,
     sessions: [],
     runs: {},
@@ -47,6 +51,7 @@ export function createAgentWorkspaceState(): AgentWorkspaceState {
     run_event_sequences: {},
     run_part_overlays: {},
     drafts: {},
+    session_contexts: {},
   }
 }
 
@@ -88,7 +93,13 @@ export function replaceAgentSessions(
   const selected = current.selected_session_id && selectableIDs.has(current.selected_session_id)
     ? current.selected_session_id
     : sorted.find(({ archived_at }) => !archived_at)?.id
-  return { ...current, sessions: sorted, selected_session_id: selected }
+  const sessionIDs = new Set(sorted.map(({ id }) => id))
+  return {
+    ...current,
+    sessions: sorted,
+    session_contexts: Object.fromEntries(Object.entries(current.session_contexts).filter(([id]) => sessionIDs.has(id))),
+    selected_session_id: selected,
+  }
 }
 
 export function mergeAgentMessages(
@@ -323,6 +334,7 @@ function removeEntity(
       run_event_sequences: withoutKeys(current.run_event_sequences, removedRunIDs),
       run_part_overlays: withoutKeys(current.run_part_overlays, removedRunIDs),
       drafts: withoutKey(current.drafts, id),
+      session_contexts: withoutKey(current.session_contexts, id),
       active_run_id: current.active_run_id && removedRunIDs.includes(current.active_run_id)
         ? undefined
         : current.active_run_id,

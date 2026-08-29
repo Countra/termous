@@ -16,6 +16,7 @@ describe('AgentWorkspaceClient', () => {
       .mockResolvedValueOnce(jsonResponse({ ...sessionFixture(), revision: 2 }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(jsonResponse({ items: [messageFixture()] }))
+      .mockResolvedValueOnce(jsonResponse(contextFixture()))
       .mockResolvedValueOnce(jsonResponse(runFixture()))
       .mockResolvedValueOnce(jsonResponse(runFixture()))
       .mockResolvedValueOnce(jsonResponse({ ...runFixture(), status: 'stopping', revision: 2 }))
@@ -51,8 +52,10 @@ describe('AgentWorkspaceClient', () => {
     await gateway.updateSession('ags/1', { ...sessionInput(), archived: false, expected_revision: 1 })
     await gateway.deleteSession('ags/1', 2)
     await gateway.messages('ags/1', { afterSequence: 4, limit: 80 })
+    await gateway.context('ags/1')
     const run = await gateway.createRun('ags/1', {
       client_request_id: 'request-1', prompt: '检查主机', attachment_ids: [],
+      force_context_compression: true,
     })
     await gateway.run('agr/1')
     await gateway.stopRun('agr/1', 1)
@@ -82,19 +85,21 @@ describe('AgentWorkspaceClient', () => {
       path: '/api/v1/agent/sessions/ags%2F1/messages',
       search: '?limit=80&after_sequence=4',
     })
-    expect(requestAt(fetchMock, 6).body).toEqual({
+    expect(requestAt(fetchMock, 6).path).toBe('/api/v1/agent/sessions/ags%2F1/context')
+    expect(requestAt(fetchMock, 7).body).toEqual({
       client_request_id: 'request-1', prompt: '检查主机', attachment_ids: [],
+      force_context_compression: true,
     })
-    expect(requestAt(fetchMock, 8)).toMatchObject({
+    expect(requestAt(fetchMock, 9)).toMatchObject({
       path: '/api/v1/agent/runs/agr%2F1/stop',
       method: 'POST', body: { expected_revision: 1 },
     })
-    expect(requestAt(fetchMock, 9)).toMatchObject({
+    expect(requestAt(fetchMock, 10)).toMatchObject({
       path: '/api/v1/agent/runs/agr%2F1/events',
       search: '?generation=2&after_sequence=7&limit=20',
     })
-    expect(requestAt(fetchMock, 10).search).toBe('?limit=32&cursor=model%2Fcursor')
-    expect(requestAt(fetchMock, 11).body).toEqual({
+    expect(requestAt(fetchMock, 11).search).toBe('?limit=32&cursor=model%2Fcursor')
+    expect(requestAt(fetchMock, 12).body).toEqual({
       approval_bypass: true, sync_scopes: false, expected_revision: 3,
     })
     expect(gateway.eventsUrl()).toBe('ws://127.0.0.1:8122/api/v1/agent/events?token=renderer-token')
@@ -154,6 +159,13 @@ function runFixture() {
     usage: { input_tokens: 0, output_tokens: 0, reasoning_tokens: 0, total_tokens: 0, estimated: false },
     revision: 1, queued_at: '2026-08-29T00:00:00Z', started_at: '2026-08-29T00:00:00Z',
     updated_at: '2026-08-29T00:00:00Z',
+  }
+}
+
+function contextFixture() {
+  return {
+    session_id: 'ags/1', estimated_tokens: 24_000, context_window_tokens: 32_768,
+    estimated: true, warning: true, compression_available: true,
   }
 }
 

@@ -86,6 +86,7 @@ import type { Session } from './model/sessionTypes'
 
 export function useTermousData() {
   const [gateways, setGateways] = useState(() => createRuntimeGatewaysFromConfig())
+  const [runtimeConfigReady, setRuntimeConfigReady] = useState(false)
   const [data, setData] = useState<AppData>(initialData)
   const [initializing, setInitializing] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -685,6 +686,7 @@ export function useTermousData() {
           return
         }
         setGateways(runtimeGateways)
+        setRuntimeConfigReady(true)
         void loadWithGateways(runtimeGateways, 'initial')
       })
       .catch((runtimeError) => {
@@ -812,7 +814,7 @@ export function useTermousData() {
     ],
   )
 
-  return { gateways, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, fileSessionClosures, actions }
+  return { gateways, runtimeConfigReady, data, initializing, refreshing, apiReady, error, activeSession, setActiveSession, lastUpdatedAt, forwardErrorEvent, fileSessionClosures, actions }
 }
 
 function publicMessage(error: unknown) {

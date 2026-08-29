@@ -22,6 +22,7 @@ import {
   validRunID,
 } from './protocol.ts'
 import { RuntimeEventWriter } from './runtimeEventWriter.ts'
+import { applyRuntimeCheckpoint, summarizeRuntimeContext } from './runtimeContextSummary.ts'
 import {
   WorkerCoreClient,
   type RuntimeBootstrap,
@@ -37,6 +38,7 @@ export interface AgentWorkerRuntimeOptions {
   core?: WorkerCoreClientPort
   connectMCP?: (options: ConnectAgentMCPOptions) => Promise<AgentMCPConnection>
   createAgent?: (options: CreatePiAgentOptions) => PiAgentController
+  summarizeContext?: typeof summarizeRuntimeContext
   newClientRequestID?: () => string
 }
 
@@ -51,6 +53,7 @@ export class AgentWorkerRuntime {
   private readonly core: WorkerCoreClientPort
   private readonly connectMCP: (options: ConnectAgentMCPOptions) => Promise<AgentMCPConnection>
   private readonly createAgent: (options: CreatePiAgentOptions) => PiAgentController
+  private readonly summarizeContext: typeof summarizeRuntimeContext
   private readonly newClientRequestID: () => string
   private readonly startupAbort = new AbortController()
   private readonly pendingSteers: PendingSteer[] = []
@@ -72,6 +75,7 @@ export class AgentWorkerRuntime {
     this.core = options.core ?? new WorkerCoreClient()
     this.connectMCP = options.connectMCP ?? connectAgentMCP
     this.createAgent = options.createAgent ?? createPiAgent
+    this.summarizeContext = options.summarizeContext ?? summarizeRuntimeContext
     this.newClientRequestID = options.newClientRequestID
       ?? (() => `agsr_${randomUUID()}`)
   }
@@ -140,6 +144,28 @@ export class AgentWorkerRuntime {
       if (this.abortRequested) {
         settled = await this.persistTerminalStatus('cancelled')
         return
+      }
+      if (bootstrap.context.compression) {
+        const summary = await this.summarizeContext(bootstrap, this.startupAbort.signal)
+        if (this.abortRequested) {
+          settled = await this.persistTerminalStatus('cancelled')
+          return
+        }
+        if (!summary) {
+          throw new Error('AGENT_RUNTIME_CONTEXT_COMPRESSION_INVALID')
+        }
+        const checkpoint = await this.core.commitCheckpoint(
+          start,
+          bootstrap.runtime_bearer,
+          {
+            generation: start.generation,
+            boundary_message_sequence: bootstrap.context.compression.boundary_message_sequence,
+            source_hash: bootstrap.context.compression.source_hash,
+            summary,
+          },
+          this.startupAbort.signal,
+        )
+        applyRuntimeCheckpoint(bootstrap, checkpoint)
       }
       this.mcp = await this.connectMCP({
         coreBaseURL: start.core_base_url,

@@ -43,6 +43,10 @@ class RecordingCore implements WorkerCoreClientPort {
   appendSteer(): Promise<number> {
     throw new Error('not implemented')
   }
+
+  commitCheckpoint(): Promise<never> {
+    throw new Error('not implemented')
+  }
 }
 
 test('Runtime Event Writer 以 64 条分批并保持单调 sequence', async () => {
