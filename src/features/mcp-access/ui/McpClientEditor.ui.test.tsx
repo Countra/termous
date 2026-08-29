@@ -22,6 +22,8 @@ vi.mock('react-i18next', () => ({
 const client: McpClient = {
   id: 'client-1',
   name: 'Codex',
+  source: 'external',
+  read_only: false,
   enabled: true,
   approval_bypass: false,
   scopes: ['hosts:probe', 'commands:interrupt'],

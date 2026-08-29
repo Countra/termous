@@ -3511,6 +3511,7 @@
       "clientsHint": "Each client has an independent token and least-privilege scopes.",
       "addClient": "Add client",
       "noClients": "No MCP clients have been added",
+      "managedByAgent": "Agent-managed",
       "deleteClient": "Delete client",
       "deleteClientLabel": "Delete client {{name}}",
       "deleteTitle": "Delete this client?",

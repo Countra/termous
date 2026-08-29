@@ -162,6 +162,50 @@ describe('McpAccessRuntimeProvider', () => {
     expect(runtime!.clients.some((client) => client.id === 'client-1')).toBe(false)
   })
 
+  it('普通 MCP 管理运行时拒绝修改 Agent 托管客户端', async () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket)
+    const managedClient: McpClient = {
+      ...clientFixture(),
+      source: 'builtin_agent',
+      read_only: true,
+      token_prefix: '',
+    }
+    const patchClient = vi.fn()
+    const deleteClient = vi.fn()
+    const issueClientToken = vi.fn()
+    const gateway = gatewayFixture({
+      clients: vi.fn().mockResolvedValue([managedClient]),
+      patchClient,
+      deleteClient,
+      issueClientToken,
+    })
+    let runtime: McpAccessRuntimeValue | null = null
+
+    render(
+      <McpAccessRuntimeProvider api={gateway} enabled>
+        <RuntimeCapture onRuntime={(value) => { runtime = value }} />
+      </McpAccessRuntimeProvider>,
+    )
+    await waitFor(() => expect(runtime?.phase).toBe('ready'))
+
+    await act(async () => {
+      await expect(runtime!.patchClient(managedClient.id, { enabled: false }))
+        .rejects.toThrow('Agent 托管客户端只能在 Agent 设置中管理')
+    })
+    await act(async () => {
+      await expect(runtime!.deleteClient(managedClient.id))
+        .rejects.toThrow('Agent 托管客户端只能在 Agent 设置中管理')
+    })
+    await act(async () => {
+      await expect(runtime!.issueToken(managedClient.id))
+        .rejects.toThrow('Agent 托管客户端只能在 Agent 设置中管理')
+    })
+
+    expect(patchClient).not.toHaveBeenCalled()
+    expect(deleteClient).not.toHaveBeenCalled()
+    expect(issueClientToken).not.toHaveBeenCalled()
+  })
+
   it('运行时切换期间完成的旧写操作会触发当前网关对账', async () => {
     vi.stubGlobal('WebSocket', FakeWebSocket)
     const update = deferred<McpStatus>()
@@ -254,6 +298,8 @@ function clientFixture(): McpClient {
   return {
     id: 'client-1',
     name: 'Codex',
+    source: 'external',
+    read_only: false,
     enabled: true,
     approval_bypass: false,
     scopes: ['hosts:read', 'sessions:read'],

@@ -28,7 +28,9 @@ export function McpClientManagement({ runtime, onFailure }: McpClientManagementP
   const [tokenCandidateId, setTokenCandidateId] = useState<string | null>(null)
   const [tokenResult, setTokenResult] = useState<McpClientToken | null>(null)
   const tokenCandidate = tokenCandidateId
-    ? runtime.clients.find((client) => client.id === tokenCandidateId && client.enabled) ?? null
+    ? runtime.clients.find((client) => (
+      client.id === tokenCandidateId && client.enabled && !client.read_only
+    )) ?? null
     : null
 
   const openCreate = () => setEditor({ client: null })
@@ -198,6 +200,7 @@ function ClientRow({
           <div className={styles['client-name']}>
             <strong>{client.name}</strong>
             <Tag color={active ? 'success' : 'default'}>{t(`settings.mcp.clientState.${state}`)}</Tag>
+            {client.read_only ? <Tag>{t('settings.mcp.managedByAgent')}</Tag> : null}
             {client.approval_bypass ? (
               <Tag color="error">{t('settings.mcp.approvalBypass')}</Tag>
             ) : null}
@@ -236,44 +239,46 @@ function ClientRow({
           </small>
         </div>
       </div>
-      <div className={styles['client-actions']}>
-        <Switch
-          size="small"
-          checked={active}
-          loading={busy}
-          disabled={disabled}
-          aria-label={t('settings.mcp.clientToggleLabel', { name: client.name })}
-          onChange={onToggle}
-        />
-        <Tooltip title={t('app.edit')}>
-          <Button
-            type="text"
-            icon={<Pencil size={15} />}
+      {!client.read_only ? (
+        <div className={styles['client-actions']}>
+          <Switch
+            size="small"
+            checked={active}
+            loading={busy}
             disabled={disabled}
-            aria-label={t('settings.mcp.editClientLabel', { name: client.name })}
-            onClick={onEdit}
+            aria-label={t('settings.mcp.clientToggleLabel', { name: client.name })}
+            onChange={onToggle}
           />
-        </Tooltip>
-        <Tooltip title={t('settings.mcp.newToken')}>
-          <Button
-            type="text"
-            icon={<RefreshCw size={15} />}
-            disabled={disabled || !active}
-            aria-label={t('settings.mcp.newTokenLabel', { name: client.name })}
-            onClick={onIssueToken}
-          />
-        </Tooltip>
-        <Tooltip title={t('settings.mcp.deleteClient')}>
-          <Button
-            type="text"
-            danger
-            icon={<Trash2 size={15} />}
-            disabled={disabled}
-            aria-label={t('settings.mcp.deleteClientLabel', { name: client.name })}
-            onClick={onDelete}
-          />
-        </Tooltip>
-      </div>
+          <Tooltip title={t('app.edit')}>
+            <Button
+              type="text"
+              icon={<Pencil size={15} />}
+              disabled={disabled}
+              aria-label={t('settings.mcp.editClientLabel', { name: client.name })}
+              onClick={onEdit}
+            />
+          </Tooltip>
+          <Tooltip title={t('settings.mcp.newToken')}>
+            <Button
+              type="text"
+              icon={<RefreshCw size={15} />}
+              disabled={disabled || !active}
+              aria-label={t('settings.mcp.newTokenLabel', { name: client.name })}
+              onClick={onIssueToken}
+            />
+          </Tooltip>
+          <Tooltip title={t('settings.mcp.deleteClient')}>
+            <Button
+              type="text"
+              danger
+              icon={<Trash2 size={15} />}
+              disabled={disabled}
+              aria-label={t('settings.mcp.deleteClientLabel', { name: client.name })}
+              onClick={onDelete}
+            />
+          </Tooltip>
+        </div>
+      ) : null}
     </article>
   )
 }

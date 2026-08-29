@@ -1,4 +1,6 @@
 export class McpAccessProtocolError extends Error {
+  readonly code = 'MCP_PROTOCOL_INVALID'
+
   constructor(message: string) {
     super(message)
     this.name = 'McpAccessProtocolError'

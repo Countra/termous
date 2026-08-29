@@ -1,8 +1,12 @@
 import type { McpScope } from './scopes.ts'
 
+export type McpClientSource = 'external' | 'builtin_agent'
+
 export interface McpClient {
   id: string
   name: string
+  source: McpClientSource
+  read_only: boolean
   enabled: boolean
   approval_bypass: boolean
   scopes: McpScope[]

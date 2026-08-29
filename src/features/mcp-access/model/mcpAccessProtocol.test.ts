@@ -30,6 +30,55 @@ test('MCP 管理协议解码 canonical 状态、客户端和一次性令牌', ()
   assert.equal(credential.client.revision, 7)
 })
 
+test('MCP 管理协议接受 Agent 托管投影并兼容旧 Core 与外部写响应', () => {
+  const managed = decodeMcpClients([{
+    ...clientFixture(),
+    source: 'builtin_agent',
+    read_only: true,
+    token_prefix: '',
+  }])[0]
+  assert.equal(managed?.source, 'builtin_agent')
+  assert.equal(managed?.read_only, true)
+  assert.equal(managed?.token_prefix, '')
+
+  const legacy = decodeMcpClients([{
+    ...clientFixture(),
+    source: undefined,
+    read_only: undefined,
+  }])[0]
+  assert.equal(legacy?.source, 'external')
+  assert.equal(legacy?.read_only, false)
+
+  const externalWriteResponse = decodeMcpClients([{
+    ...clientFixture(),
+    read_only: undefined,
+  }])[0]
+  assert.equal(externalWriteResponse?.source, 'external')
+  assert.equal(externalWriteResponse?.read_only, false)
+})
+
+test('MCP 管理协议拒绝客户端来源、只读状态与令牌投影不一致', () => {
+  assert.throws(() => decodeMcpClients([{
+    ...clientFixture(),
+    read_only: true,
+  }]), /不一致/)
+  assert.throws(() => decodeMcpClients([{
+    ...clientFixture(),
+    source: 'builtin_agent',
+    read_only: undefined,
+    token_prefix: '',
+  }]), /只读状态/)
+  assert.throws(() => decodeMcpClients([{
+    ...clientFixture(),
+    source: 'builtin_agent',
+    read_only: true,
+  }]), /令牌投影/)
+  assert.throws(() => decodeMcpClients([{
+    ...clientFixture(),
+    token_prefix: '',
+  }]), /令牌标识/)
+})
+
 test('MCP 审批协议使用完整快照事件并保留调度冲突状态', () => {
   const snapshot = decodeMcpApprovalSnapshot(approvalSnapshotFixture('dispatch_conflict'))
   assert.equal(snapshot.items[0]?.state, 'dispatch_conflict')
@@ -401,6 +450,8 @@ function clientFixture() {
   return {
     id: 'client-1',
     name: 'Codex workspace',
+    source: 'external',
+    read_only: false,
     enabled: true,
     scopes: ['hosts:read', 'sessions:read'],
     host_access_mode: 'all_saved',

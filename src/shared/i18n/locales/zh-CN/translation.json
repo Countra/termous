@@ -3488,6 +3488,7 @@
       "clientsHint": "每个客户端使用独立令牌和最小权限范围。",
       "addClient": "添加客户端",
       "noClients": "尚未添加 MCP 客户端",
+      "managedByAgent": "Agent 托管",
       "deleteClient": "删除客户端",
       "deleteClientLabel": "删除客户端 {{name}}",
       "deleteTitle": "删除此客户端？",

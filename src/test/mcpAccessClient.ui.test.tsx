@@ -22,12 +22,12 @@ describe('McpAccessClient', () => {
 
     await client.status()
     await client.updateSettings({ enabled: true, expected_revision: 4 })
-    await client.createClient({
+    const created = await client.createClient({
       name: 'Codex',
       approval_bypass: true,
       scopes: ['hosts:read', 'sessions:read'],
     })
-    await client.patchClient('client/1', {
+    const updated = await client.patchClient('client/1', {
       name: 'Codex',
       enabled: false,
       approval_bypass: false,
@@ -35,7 +35,7 @@ describe('McpAccessClient', () => {
       expected_revision: 1,
     })
     const deleted = await client.deleteClient('client/1', 2)
-    await client.issueClientToken('client/1', 3)
+    const rotated = await client.issueClientToken('client/1', 3)
     await client.approvals()
     await client.decideApproval('approval/1', 'approve', 9)
 
@@ -50,6 +50,7 @@ describe('McpAccessClient', () => {
       method: 'POST',
       body: { name: 'Codex', approval_bypass: true, scopes: ['hosts:read', 'sessions:read'] },
     })
+    expect(created.client).toMatchObject({ source: 'external', read_only: false })
     expect(requestAt(fetchMock, 3)).toMatchObject({
       path: '/api/v1/mcp/clients/client%2F1',
       method: 'PATCH',
@@ -61,6 +62,7 @@ describe('McpAccessClient', () => {
         expected_revision: 1,
       },
     })
+    expect(updated).toMatchObject({ source: 'external', read_only: false })
     expect(requestAt(fetchMock, 4)).toMatchObject({
       path: '/api/v1/mcp/clients/client%2F1',
       method: 'DELETE',
@@ -72,6 +74,7 @@ describe('McpAccessClient', () => {
       method: 'POST',
       body: { expected_revision: 3 },
     })
+    expect(rotated.client).toMatchObject({ source: 'external', read_only: false })
     expect(requestAt(fetchMock, 6)).toMatchObject({ path: '/api/v1/mcp/approvals', method: 'GET' })
     expect(requestAt(fetchMock, 7)).toMatchObject({
       path: '/api/v1/mcp/approvals/approval%2F1/decisions',
@@ -114,6 +117,7 @@ function clientFixture(revision: number) {
   return {
     id: 'client-1',
     name: 'Codex',
+    source: 'external',
     enabled: true,
     scopes: ['hosts:read', 'sessions:read'],
     host_access_mode: 'all_saved',

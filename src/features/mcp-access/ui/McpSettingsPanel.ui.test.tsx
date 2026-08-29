@@ -70,6 +70,8 @@ describe('McpSettingsPanel', () => {
         approval_bypass: false,
         scopes: ['hosts:read', 'sessions:read'],
         host_access_mode: 'all_saved',
+        source: 'external',
+        read_only: false,
         token_prefix: 'tmcp_abcd',
         revision: 1,
         created_at: '2026-08-13T00:00:00Z',
@@ -85,6 +87,8 @@ describe('McpSettingsPanel', () => {
         approval_bypass: false,
         scopes: ['hosts:read', 'sessions:read'],
         host_access_mode: 'all_saved',
+        source: 'external',
+        read_only: false,
         token_prefix: 'tmcp_rotated',
         revision: 2,
         created_at: '2026-08-13T00:00:00Z',
@@ -149,6 +153,8 @@ describe('McpSettingsPanel', () => {
       approval_bypass: true,
       scopes: ['hosts:read'],
       host_access_mode: 'all_saved',
+      source: 'external',
+      read_only: false,
       token_prefix: 'tmcp_abcd',
       revision: 1,
       created_at: '2026-08-13T00:00:00Z',
@@ -163,6 +169,39 @@ describe('McpSettingsPanel', () => {
     expect(screen.getByText('settings.mcp.approvalBypass')).toBeInTheDocument()
   })
 
+  it('Agent 托管客户端正常展示但不提供普通管理操作', () => {
+    testState.clients = [{
+      id: 'client-agent',
+      name: 'Termous Agent',
+      source: 'builtin_agent',
+      read_only: true,
+      enabled: true,
+      approval_bypass: false,
+      scopes: ['hosts:read', 'sessions:read'],
+      host_access_mode: 'all_saved',
+      token_prefix: '',
+      revision: 1,
+      created_at: '2026-08-29T00:00:00Z',
+      updated_at: '2026-08-29T00:00:00Z',
+    }]
+    render(<AntdApp><McpSettingsPanel /></AntdApp>)
+
+    expect(screen.getByText('Termous Agent')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.managedByAgent')).toBeInTheDocument()
+    expect(screen.queryByRole('switch', {
+      name: 'settings.mcp.clientToggleLabel:Termous Agent',
+    })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', {
+      name: 'settings.mcp.editClientLabel:Termous Agent',
+    })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', {
+      name: 'settings.mcp.newTokenLabel:Termous Agent',
+    })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', {
+      name: 'settings.mcp.deleteClientLabel:Termous Agent',
+    })).not.toBeInTheDocument()
+  })
+
   it('重新生成令牌前要求二次确认，取消时不调用接口', async () => {
     const user = userEvent.setup()
     testState.clients = [{
@@ -172,6 +211,8 @@ describe('McpSettingsPanel', () => {
       approval_bypass: false,
       scopes: ['hosts:read'],
       host_access_mode: 'all_saved',
+      source: 'external',
+      read_only: false,
       token_prefix: 'tmcp_abcd',
       revision: 1,
       created_at: '2026-08-13T00:00:00Z',
@@ -206,6 +247,8 @@ describe('McpSettingsPanel', () => {
       approval_bypass: false,
       scopes: ['hosts:read'],
       host_access_mode: 'all_saved',
+      source: 'external',
+      read_only: false,
       token_prefix: 'tmcp_abcd',
       revision: 1,
       created_at: '2026-08-13T00:00:00Z',
@@ -230,6 +273,8 @@ describe('McpSettingsPanel', () => {
       approval_bypass: false,
       scopes: ['hosts:read'],
       host_access_mode: 'all_saved',
+      source: 'external',
+      read_only: false,
       token_prefix: 'tmcp_abcd',
       revision: 1,
       created_at: '2026-08-13T00:00:00Z',
@@ -266,6 +311,8 @@ describe('McpSettingsPanel', () => {
         'sessions:close',
       ],
       host_access_mode: 'all_saved',
+      source: 'external',
+      read_only: false,
       token_prefix: 'tmcp_abcd',
       revision: 1,
       created_at: '2026-08-13T00:00:00Z',
@@ -295,6 +342,8 @@ describe('McpSettingsPanel', () => {
       approval_bypass: false,
       scopes: [...scopes],
       host_access_mode: 'all_saved',
+      source: 'external',
+      read_only: false,
       token_prefix: 'tmcp_abcd',
       revision: 1,
       created_at: '2026-08-13T00:00:00Z',
@@ -323,6 +372,8 @@ describe('McpSettingsPanel', () => {
       approval_bypass: false,
       scopes: ['hosts:read'],
       host_access_mode: 'all_saved',
+      source: 'external',
+      read_only: false,
       token_prefix: 'tmcp_abcd',
       revision: 1,
       created_at: '2026-08-13T00:00:00Z',
@@ -347,6 +398,8 @@ describe('McpSettingsPanel', () => {
       approval_bypass: false,
       scopes: ['hosts:read'],
       host_access_mode: 'all_saved',
+      source: 'external',
+      read_only: false,
       token_prefix: 'tmcp_abcd',
       revision: 1,
       created_at: '2026-08-13T00:00:00Z',
@@ -372,6 +425,8 @@ describe('McpSettingsPanel', () => {
       approval_bypass: false,
       scopes: ['hosts:read'],
       host_access_mode: 'all_saved',
+      source: 'external',
+      read_only: false,
       token_prefix: 'tmcp_abcd',
       revision: 1,
       created_at: '2026-08-13T00:00:00Z',
@@ -397,6 +452,8 @@ describe('McpSettingsPanel', () => {
       approval_bypass: true,
       scopes: ['commands:read', 'hosts:read'],
       host_access_mode: 'all_saved',
+      source: 'external',
+      read_only: false,
       token_prefix: 'tmcp_abcd',
       revision: 1,
       created_at: '2026-08-13T00:00:00Z',

@@ -15,6 +15,7 @@ export {
   type McpClient,
   type McpClientInput,
   type McpClientPatch,
+  type McpClientSource,
   type McpClientToken,
   type McpClientUpdateInput,
   type McpRemoteOpsApproval,
