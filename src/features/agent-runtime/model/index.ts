@@ -10,6 +10,7 @@ export {
   decodeAgentSession,
   decodeAgentSessionContext,
   decodeAgentSessionPage,
+  decodeAgentSessionUsage,
   decodeAgentSourceContext,
   decodeAgentWorkspaceEvent,
   type AgentWorkspaceEvent,
@@ -24,6 +25,15 @@ export {
   type AgentSessionContextLoadPhase,
   type AgentWorkspaceSessionContextState,
 } from './agentWorkspaceContextTypes.ts'
+export {
+  acceptAgentSessionUsage,
+  beginAgentSessionUsageLoad,
+  failAgentSessionUsageLoad,
+} from './agentWorkspaceUsage.ts'
+export {
+  type AgentSessionUsageLoadPhase,
+  type AgentWorkspaceSessionUsageState,
+} from './agentWorkspaceUsageTypes.ts'
 export {
   activeAgentRun,
   applyAgentWorkspaceEvent,

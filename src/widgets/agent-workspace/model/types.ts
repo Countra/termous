@@ -102,6 +102,19 @@ export interface AgentWorkspaceContextState {
   error_code?: string
 }
 
+export interface AgentWorkspaceUsageState {
+  phase: 'unavailable' | 'idle' | 'loading' | 'ready' | 'error'
+  has_snapshot: boolean
+  run_count: number
+  input_tokens: number
+  output_tokens: number
+  reasoning_tokens: number
+  total_tokens: number
+  estimated: boolean
+  updated_at?: string
+  error_code?: string
+}
+
 export interface AgentWorkspaceSkillItem {
   name: string
   description: string
@@ -116,6 +129,7 @@ export interface AgentWorkspaceMcpState {
 
 export interface AgentWorkspaceInspectorState {
   context: AgentWorkspaceContextState
+  usage: AgentWorkspaceUsageState
   skills: AgentWorkspaceSkillItem[]
   mcp: AgentWorkspaceMcpState
 }
@@ -156,6 +170,7 @@ export interface AgentWorkspaceProps {
   onStop: () => Promise<void>
   onContextCompressionPendingChange: (enabled: boolean) => void
   onRetryContext: () => void
+  onRetryUsage: () => void
   onApprovalBypassChange: (enabled: boolean) => Promise<void>
 }
 

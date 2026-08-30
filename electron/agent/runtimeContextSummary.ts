@@ -6,14 +6,30 @@ import {
   hydrateRuntimeMessages,
   standardMessages,
 } from './piAgentAdapter.ts'
+import { sumPiUsage, type RuntimeUsage } from './runtimeUsage.ts'
 import type { RuntimeBootstrap, RuntimeMessageView } from './workerCoreClient.ts'
 
 const maximumSummaryBytes = 256 * 1024
 
+export interface RuntimeContextSummaryResult {
+  summary: string
+  usage: RuntimeUsage
+}
+
+export class RuntimeContextSummaryError extends Error {
+  readonly usage: RuntimeUsage
+
+  constructor(code: string, usage: RuntimeUsage) {
+    super(code)
+    this.name = 'RuntimeContextSummaryError'
+    this.usage = usage
+  }
+}
+
 export async function summarizeRuntimeContext(
   bootstrap: RuntimeBootstrap,
   signal: AbortSignal,
-) {
+): Promise<RuntimeContextSummaryResult | undefined> {
   const compression = bootstrap.context.compression
   if (!compression) return undefined
   const prefix = bootstrap.messages.filter((message) => (
@@ -21,18 +37,34 @@ export async function summarizeRuntimeContext(
   ))
   if (prefix.length === 0) throw new Error('AGENT_RUNTIME_CONTEXT_COMPRESSION_INVALID')
   const agent = new Agent(createRuntimeContextSummaryAgentOptions(bootstrap, prefix))
+  const initialMessageCount = agent.state.messages.length
   const abort = () => agent.abort()
   signal.addEventListener('abort', abort, { once: true })
   try {
-    if (signal.aborted) throw new Error('AGENT_RUNTIME_CONTEXT_COMPRESSION_ABORTED')
-    await agent.continue()
-    await agent.waitForIdle()
-    if (signal.aborted) throw new Error('AGENT_RUNTIME_CONTEXT_COMPRESSION_ABORTED')
-    const summary = completedRuntimeSummaryText(agent.state.messages)?.trim()
-    if (!summary || Buffer.byteLength(summary, 'utf8') > maximumSummaryBytes) {
-      throw new Error('AGENT_RUNTIME_CONTEXT_COMPRESSION_INVALID')
+    let failure: unknown
+    try {
+      if (signal.aborted) throw new Error('AGENT_RUNTIME_CONTEXT_COMPRESSION_ABORTED')
+      await agent.continue()
+      await agent.waitForIdle()
+      if (signal.aborted) throw new Error('AGENT_RUNTIME_CONTEXT_COMPRESSION_ABORTED')
+    } catch (error) {
+      failure = error
     }
-    return summary
+    const generatedMessages = agent.state.messages.slice(initialMessageCount)
+    const usage = summaryMessagesUsage(generatedMessages)
+    if (failure !== undefined) {
+      throw new RuntimeContextSummaryError(
+        signal.aborted
+          ? 'AGENT_RUNTIME_CONTEXT_COMPRESSION_ABORTED'
+          : 'AGENT_RUNTIME_CONTEXT_COMPRESSION_FAILED',
+        usage,
+      )
+    }
+    const summary = completedRuntimeSummaryText(generatedMessages)?.trim()
+    if (!summary || Buffer.byteLength(summary, 'utf8') > maximumSummaryBytes) {
+      throw new RuntimeContextSummaryError('AGENT_RUNTIME_CONTEXT_COMPRESSION_INVALID', usage)
+    }
+    return { summary, usage }
   } finally {
     signal.removeEventListener('abort', abort)
     agent.clearAllQueues()
@@ -117,4 +149,10 @@ export function completedRuntimeSummaryText(messages: AgentMessage[]) {
     .filter((part) => part.type === 'text')
     .map((part) => part.text)
     .join('')
+}
+
+export function summaryMessagesUsage(messages: AgentMessage[]) {
+  return sumPiUsage(messages
+    .filter((message) => message.role === 'assistant')
+    .map((message) => message.usage))
 }

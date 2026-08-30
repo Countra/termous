@@ -62,6 +62,7 @@
       "untitled": "新会话",
       "search": "搜索会话",
       "empty": "暂无匹配的会话",
+      "more": "更多会话操作",
       "archive": "归档会话",
       "deleteTitle": "删除此会话？",
       "deleteDescription": "会话“{{title}}”及其消息记录将被永久删除。"
@@ -98,8 +99,11 @@
       "interrupted": "已中断"
     },
     "empty": {
-      "title": "开始一个 Agent 会话",
+      "title": "今天想处理什么？",
       "description": "描述你希望完成的目标。Agent 会在已授权范围内通过 MCP 调用 Termous 能力。"
+    },
+    "conversation": {
+      "jumpToLatest": "回到最新消息"
     },
     "launch": {
       "action": "交给 Agent",
@@ -145,7 +149,7 @@
       }
     },
     "composer": {
-      "placeholder": "输入消息，Enter 发送，Shift + Enter 换行",
+      "placeholder": "给 Agent 发消息",
       "steerPlaceholder": "追加要求，将在当前工具批次结束后生效",
       "steerHint": "当前输入会追加到正在运行的任务",
       "send": "发送",
@@ -198,6 +202,19 @@
       "compressPending": "已安排，将在下次发送前整理",
       "compressAvailable": "保留最近六轮对话，原始消息不会删除",
       "compressUnavailable": "当前完整轮次不足，无需整理",
+      "tokenUsage": "Token 用量",
+      "runCount": "{{count}} 次运行",
+      "sessionTotal": "当前会话总计",
+      "inputTokens": "输入",
+      "outputTokens": "输出",
+      "reasoningTokens": "其中推理",
+      "partialUsage": "部分统计",
+      "usageUnavailable": "选择一个会话后查看 Token 用量",
+      "usageEmpty": "当前会话还没有可统计的运行",
+      "usageNotReported": "未产生可统计的 Token 用量",
+      "usageNotReportedHint": "当前运行可能在模型请求前结束，或 Provider 未返回用量数据。",
+      "usageLoadFailed": "暂时无法更新 Token 用量",
+      "usageScopeHint": "输入包含缓存读写，推理包含在输出中；上下文整理也计入会话总量。",
       "skills": "Skills",
       "skillsReady": "Skills 资源已由运行时按需加载",
       "mcp": "MCP",

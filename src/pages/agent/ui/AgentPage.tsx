@@ -135,7 +135,10 @@ export function AgentPage({
       const selectedSessionId = controller.getSnapshot().selected_session_id
       if (selectedSessionId) {
         try {
-          await controller.reloadContext(selectedSessionId)
+          await Promise.all([
+            controller.reloadContext(selectedSessionId),
+            controller.reloadUsage(selectedSessionId),
+          ])
         } catch {
           if (!signal?.aborted) notifyError(notificationRef.current, tRef.current)
         }
@@ -363,6 +366,8 @@ export function AgentPage({
   ))
   const selectedContext = selected ? state.session_contexts[selected.id] : undefined
   const contextSnapshot = selectedContext?.value
+  const selectedUsage = selected ? state.session_usages[selected.id] : undefined
+  const usageSnapshot = selectedUsage?.value
   const inspector: AgentWorkspaceInspectorState = {
     context: {
       phase: selected ? selectedContext?.phase ?? 'idle' : 'unavailable',
@@ -375,6 +380,18 @@ export function AgentPage({
       compression_pending: selectedContext?.compression_pending ?? false,
       checkpoint: contextSnapshot?.checkpoint,
       error_code: selectedContext?.error_code,
+    },
+    usage: {
+      phase: selected ? selectedUsage?.phase ?? 'idle' : 'unavailable',
+      has_snapshot: Boolean(usageSnapshot),
+      run_count: usageSnapshot?.run_count ?? 0,
+      input_tokens: usageSnapshot?.input_tokens ?? 0,
+      output_tokens: usageSnapshot?.output_tokens ?? 0,
+      reasoning_tokens: usageSnapshot?.reasoning_tokens ?? 0,
+      total_tokens: usageSnapshot?.total_tokens ?? 0,
+      estimated: usageSnapshot?.estimated ?? false,
+      updated_at: usageSnapshot?.updated_at,
+      error_code: selectedUsage?.error_code,
     },
     skills: [],
     mcp: {
@@ -445,12 +462,17 @@ export function AgentPage({
         }}
         onArchiveSession={(sessionId) => void perform(async () => {
           const session = requireSession(state.sessions, sessionId)
+          const selection = controller.getSnapshot()
+          const nextSessionId = selectionAfterSessionRemoval(workspaceSessions, sessionId)
           await controller.updateSession(sessionId, updateInput(session, true))
           await draftAttachments.discard(sessionId)
           attachmentDraftSessionIdsRef.current.delete(sessionId)
           setDraftSourceContexts((contexts) => omitKey(contexts, sessionId))
-          if (state.selected_session_id === sessionId) {
-            controller.selectSession(selectionAfterSessionRemoval(workspaceSessions, sessionId))
+          if (
+            selection.selected_session_id === sessionId
+            && controller.getSnapshot().selection_intent_revision === selection.selection_intent_revision
+          ) {
+            controller.selectSession(nextSessionId)
           }
         })}
         onDeleteSession={(sessionId) => void perform(async () => {
@@ -550,6 +572,9 @@ export function AgentPage({
         }}
         onRetryContext={() => {
           if (selected) void controller.reloadContext(selected.id)
+        }}
+        onRetryUsage={() => {
+          if (selected) void controller.reloadUsage(selected.id)
         }}
         onApprovalBypassChange={async (approvalBypass) => {
           const policy = readiness.mcp_policy

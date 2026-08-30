@@ -1,36 +1,58 @@
-import { useEffect, useState } from 'react'
+import { useLayoutEffect, useState, type RefObject } from 'react'
 
-const inspectorQuery = '(max-width: 1280px)'
-const sessionsQuery = '(max-width: 960px)'
+const inspectorWidth = 1_040
+const sessionsWidth = 720
+const inspectorViewportFallback = '(max-width: 1280px)'
+const sessionsViewportFallback = '(max-width: 960px)'
 
-export function useAgentWorkspaceBreakpoints() {
-  const [state, setState] = useState(readBreakpoints)
+export function useAgentWorkspaceBreakpoints(containerRef: RefObject<HTMLElement | null>) {
+  const [state, setState] = useState(readViewportBreakpoints)
 
-  useEffect(() => {
-    const inspector = window.matchMedia(inspectorQuery)
-    const sessions = window.matchMedia(sessionsQuery)
-    const update = () => setState({
-      inspectorOverlay: inspector.matches,
-      sessionsOverlay: sessions.matches,
-    })
-    inspector.addEventListener('change', update)
-    sessions.addEventListener('change', update)
-    update()
-    return () => {
-      inspector.removeEventListener('change', update)
-      sessions.removeEventListener('change', update)
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const update = (measuredWidth = container.getBoundingClientRect().width || container.clientWidth) => {
+      const next = measuredWidth > 0 ? breakpointsForWidth(measuredWidth) : readViewportBreakpoints()
+      setState((current) => (
+        current.inspectorOverlay === next.inspectorOverlay
+        && current.sessionsOverlay === next.sessionsOverlay
+          ? current
+          : next
+      ))
     }
-  }, [])
+    update()
+    if (typeof ResizeObserver === 'function') {
+      const observer = new ResizeObserver((entries) => {
+        const entry = entries[0]
+        update(entry?.contentRect.width)
+      })
+      observer.observe(container)
+      return () => observer.disconnect()
+    }
+    const updateFromWindow = () => update()
+    window.addEventListener('resize', updateFromWindow)
+    return () => window.removeEventListener('resize', updateFromWindow)
+  }, [containerRef])
 
   return state
 }
 
-function readBreakpoints() {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+function readViewportBreakpoints() {
+  if (typeof window === 'undefined') {
     return { inspectorOverlay: false, sessionsOverlay: false }
   }
+  if (typeof window.matchMedia === 'function') {
+    return {
+      inspectorOverlay: window.matchMedia(inspectorViewportFallback).matches,
+      sessionsOverlay: window.matchMedia(sessionsViewportFallback).matches,
+    }
+  }
+  return breakpointsForWidth(Math.max(0, window.innerWidth - 280))
+}
+
+function breakpointsForWidth(width: number) {
   return {
-    inspectorOverlay: window.matchMedia(inspectorQuery).matches,
-    sessionsOverlay: window.matchMedia(sessionsQuery).matches,
+    inspectorOverlay: width <= inspectorWidth,
+    sessionsOverlay: width <= sessionsWidth,
   }
 }

@@ -1,0 +1,141 @@
+.picker {
+  display: flex;
+  min-width: 0;
+  max-width: 188px;
+  flex: 0 1 188px;
+  align-items: center;
+  gap: 2px;
+}
+
+.select:global(.ant-select) {
+  width: 100%;
+  min-width: 0;
+}
+
+.select :global(.ant-select-selector) {
+  height: 30px !important;
+  border-radius: 7px !important;
+  background: transparent !important;
+  padding-inline: 7px !important;
+  box-shadow: none !important;
+  transition: background 160ms ease;
+}
+
+.picker:not([data-disabled='true']) .select:hover :global(.ant-select-selector),
+.select:global(.ant-select-focused) :global(.ant-select-selector) {
+  background: var(--row-hover-bg) !important;
+}
+
+.select :global(.ant-select-prefix) {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  margin-inline-end: 6px;
+}
+
+.select :global(.ant-select-selection-item),
+.select :global(.ant-select-selection-placeholder) {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 30px !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select :global(.ant-select-arrow) {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.select:global(.ant-select-disabled) :global(.ant-select-selector) {
+  cursor: default !important;
+  opacity: 0.72;
+}
+
+.picker[data-unavailable='true'] .select :global(.ant-select-prefix) {
+  color: var(--warning);
+}
+
+.warning:global(.ant-btn) {
+  display: inline-flex;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--warning);
+  padding: 0;
+}
+
+.warning:global(.ant-btn):hover,
+.warning:global(.ant-btn):focus-visible {
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  color: var(--warning);
+}
+
+.configure-action:global(.ant-btn) {
+  display: inline-flex;
+  max-width: 220px;
+  height: 30px;
+  min-width: 0;
+  align-items: center;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  gap: 6px;
+  padding-inline: 8px;
+}
+
+.configure-action:global(.ant-btn):hover {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.configure-action :global(.ant-btn-icon) {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.configure-action > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.option {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+  padding-block: 2px;
+}
+
+.option-name,
+.option-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.option-name {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 17px;
+}
+
+.option-detail {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+@container agent-workspace (width <= 520px) {
+  .picker {
+    max-width: 166px;
+    flex-basis: 166px;
+  }
+}

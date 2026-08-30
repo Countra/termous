@@ -303,19 +303,24 @@ test('AntD 下拉虚拟列表统一使用紧凑滚动条', () => {
 
 test('共享下拉菜单使用不透明主题背景', () => {
   const customSelectStyles = source('../shared/ui/CustomSelect.module.scss')
+  const contextActionMenuStyles = source('../shared/ui/ContextActionMenu.module.scss')
 
   assert.match(globalStyles, /:root\s*\{[^}]*--termous-dropdown-bg:\s*#20242d;/s)
   assert.match(globalStyles, /:root\[data-theme="light"\]\s*\{[^}]*--termous-dropdown-bg:\s*#fff;/s)
   assert.match(
     customSelectStyles,
-    /\.select-popup:global\(\.ant-select-dropdown\)\s*\{[^}]*background:\s*var\(--termous-dropdown-bg\) !important;/s,
+    /\.select-popup:global\(\.ant-select-dropdown\),\s*\.select-dropdown:global\(\.ant-select-dropdown\)\s*\{[^}]*background:\s*var\(--termous-dropdown-bg\) !important;/s,
   )
   assert.match(
     customSelectStyles,
-    /\.select-popup :global\(\.rc-virtual-list\),[^}]*\.select-popup :global\(\.rc-virtual-list-holder-inner\)\s*\{[^}]*background:\s*var\(--termous-dropdown-bg\) !important;/s,
+    /\.select-popup :global\(\.rc-virtual-list\),[^}]*\.select-dropdown :global\(\.rc-virtual-list-holder-inner\)\s*\{[^}]*background:\s*var\(--termous-dropdown-bg\) !important;/s,
+  )
+  assert.match(
+    contextActionMenuStyles,
+    /\.root :global\(\.ant-dropdown-menu\)\s*\{[^}]*background:\s*var\(--termous-dropdown-bg\) !important;/s,
   )
   assert.doesNotMatch(
-    customSelectStyles,
+    `${customSelectStyles}\n${contextActionMenuStyles}`,
     /background:\s*var\(--surface-strong\)/,
   )
 })

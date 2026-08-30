@@ -29,10 +29,19 @@ import {
   failAgentSessionContextLoad,
   setAgentContextCompressionPending,
 } from '../model/agentWorkspaceContext.ts'
-import { decodeAgentWorkspaceEvent } from '../model/agentRuntimeProtocol.ts'
+import {
+  acceptAgentSessionUsage,
+  beginAgentSessionUsageLoad,
+  failAgentSessionUsageLoad,
+} from '../model/agentWorkspaceUsage.ts'
+import {
+  decodeAgentWorkspaceEvent,
+  type AgentWorkspaceEvent,
+} from '../model/agentRuntimeProtocol.ts'
 
 const reconnectInitialDelay = 500
 const reconnectMaximumDelay = 5_000
+const usageRefreshDelay = 750
 const maximumPageCount = 100
 
 export interface AgentWorkspaceControllerOptions {
@@ -89,6 +98,12 @@ export class AgentWorkspaceController {
     dirty: boolean
     promise: Promise<void>
   }>()
+  private readonly usageHydrations = new Map<string, {
+    controller: AbortController
+    dirty: boolean
+    promise: Promise<void>
+  }>()
+  private readonly usageRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private mutation: Promise<unknown> | null = null
   private unsubscribeRuntime?: () => void
 
@@ -128,6 +143,7 @@ export class AgentWorkspaceController {
     this.messageHydrations.clear()
     for (const hydration of this.contextHydrations.values()) hydration.controller.abort()
     this.contextHydrations.clear()
+    this.cancelUsageHydrations()
     if (this.reconnectTimer !== undefined) {
       this.clearTimer(this.reconnectTimer)
       this.reconnectTimer = undefined
@@ -142,15 +158,20 @@ export class AgentWorkspaceController {
   }
 
   selectSession(sessionId?: string) {
-    this.commit(selectAgentSession(this.state, sessionId))
+    const previousSessionId = this.state.selected_session_id
+    const next = selectAgentSession(this.state, sessionId)
+    if (next === this.state && previousSessionId !== sessionId) return
+    this.commit(next)
     for (const [id, hydration] of this.contextHydrations) {
       if (id === sessionId) continue
       hydration.controller.abort()
       this.contextHydrations.delete(id)
     }
+    if (previousSessionId !== sessionId) this.cancelUsageHydrations(sessionId)
     if (sessionId) {
       void this.hydrateMessages(sessionId, true).catch((error) => this.captureError(error))
       void this.hydrateContext(sessionId)
+      void this.hydrateUsage(sessionId)
     }
   }
 
@@ -174,10 +195,19 @@ export class AgentWorkspaceController {
     return this.hydrateContext(sessionId)
   }
 
+  reloadUsage(sessionId: string) {
+    const timer = this.usageRefreshTimers.get(sessionId)
+    if (timer !== undefined) {
+      this.clearTimer(timer)
+      this.usageRefreshTimers.delete(sessionId)
+    }
+    return this.hydrateUsage(sessionId, 'restart')
+  }
+
   async createSession(input: AgentSessionInput) {
     return await this.runMutation(async () => {
       const session = await this.gateway.createSession(input)
-      this.acceptSession(session)
+      this.acceptSession(session, true)
       return session
     })
   }
@@ -253,6 +283,7 @@ export class AgentWorkspaceController {
       if (!run) return undefined
       const stopping = await this.gateway.stopRun(run.id, run.revision)
       this.commit(replaceAgentRun(this.state, stopping))
+      if (runUsageRequiresRefresh(run, stopping)) this.scheduleUsageRefresh(stopping.session_id)
       if (isAgentRunTerminal(stopping.status)) return stopping
       const result = await this.gateway.stopRuntime(stopping)
       if (!result.accepted) {
@@ -289,6 +320,7 @@ export class AgentWorkspaceController {
         ? this.hydrateMessages(selected, true)
         : Promise.resolve(),
       selected ? this.hydrateContext(selected) : Promise.resolve(),
+      selected ? this.hydrateUsage(selected) : Promise.resolve(),
     ])
     if (!this.disposed
       && recoverySocket
@@ -337,20 +369,28 @@ export class AgentWorkspaceController {
         }
         this.authorityVersion += 1
         for (const hydration of this.runHydrations.values()) hydration.dirty = true
-        const previousActiveRun = activeAgentRun(this.state)
-        const result = applyAgentWorkspaceEvent(this.state, event)
-        const changedContextModels = changedContextModelSessions(this.state, result.state)
+        const previousState = this.state
+        const previousActiveRun = activeAgentRun(previousState)
+        const result = applyAgentWorkspaceEvent(previousState, event)
+        const changedContextModels = changedContextModelSessions(previousState, result.state)
         if (event.type === 'snapshot') this.snapshotSocket = socket
         this.commit(event.type === 'snapshot'
           ? { ...result.state, phase: 'ready', snapshot_complete: true, error_code: undefined }
           : result.state)
+        if (previousState.selected_session_id !== result.state.selected_session_id) {
+          this.cancelUsageHydrations(result.state.selected_session_id)
+          if (result.state.selected_session_id) void this.hydrateUsage(result.state.selected_session_id)
+        }
         for (const sessionId of changedContextModels) {
           void this.hydrateContext(sessionId, 'restart')
         }
         const nextActiveRun = activeAgentRun(result.state)
         if (previousActiveRun && previousActiveRun.id !== nextActiveRun?.id) {
           void this.hydrateContext(previousActiveRun.session_id, 'refresh')
+          this.scheduleUsageRefresh(previousActiveRun.session_id)
         }
+        const usageSessionId = usageRefreshSession(previousState, result.state, event)
+        if (usageSessionId) this.scheduleUsageRefresh(usageSessionId)
         if (result.reconcile_run) {
           void this.hydrateRun(result.reconcile_run.id).catch((error) => this.captureError(error))
         }
@@ -404,7 +444,13 @@ export class AgentWorkspaceController {
         if (page === maximumPageCount - 1) throw new AgentWorkspaceControllerError('AGENT_SESSION_PAGE_LIMIT')
       }
       if (!this.disposed && authority === this.authorityVersion) {
-        this.commit(replaceAgentSessions(this.state, sessions))
+        const previousSessionId = this.state.selected_session_id
+        const next = replaceAgentSessions(this.state, sessions)
+        this.commit(next)
+        this.cancelUsageHydrations(next.selected_session_id)
+        if (previousSessionId !== next.selected_session_id) {
+          if (next.selected_session_id) void this.hydrateUsage(next.selected_session_id)
+        }
       }
     } finally {
       if (this.hydrateController === controller) this.hydrateController = null
@@ -454,6 +500,7 @@ export class AgentWorkspaceController {
       throw new AgentWorkspaceControllerError('AGENT_RUN_EVENT_GAP')
     }
     this.commit(result.state)
+    if (runUsageRequiresRefresh(currentRun, run)) this.scheduleUsageRefresh(run.session_id)
     if (isAgentRunTerminal(run.status)) void this.hydrateContext(run.session_id, 'refresh')
   }
 
@@ -520,6 +567,71 @@ export class AgentWorkspaceController {
     return entry.promise
   }
 
+  private hydrateUsage(
+    sessionId: string,
+    mode: 'coalesce' | 'refresh' | 'restart' = 'coalesce',
+  ) {
+    if (this.disposed || !this.state.sessions.some(({ id }) => id === sessionId)) return
+    const current = this.usageHydrations.get(sessionId)
+    if (current && mode !== 'restart') {
+      if (mode === 'refresh') current.dirty = true
+      return current.promise
+    }
+    current?.controller.abort()
+    const controller = new AbortController()
+    const entry = { controller, dirty: false, promise: Promise.resolve() }
+    entry.promise = (async () => {
+      this.commit(beginAgentSessionUsageLoad(this.state, sessionId))
+      do {
+        entry.dirty = false
+        try {
+          const usage = await this.gateway.usage(sessionId, controller.signal)
+          if (this.disposed || this.usageHydrations.get(sessionId) !== entry) return
+          if (!entry.dirty) this.commit(acceptAgentSessionUsage(this.state, usage))
+        } catch (error) {
+          if (
+            !this.disposed
+            && this.usageHydrations.get(sessionId) === entry
+            && !isAbortError(error)
+            && !entry.dirty
+          ) {
+            this.commit(failAgentSessionUsageLoad(this.state, sessionId, errorCode(error)))
+          }
+        }
+      } while (!this.disposed && !controller.signal.aborted && entry.dirty)
+    })().finally(() => {
+      if (this.usageHydrations.get(sessionId) === entry) {
+        this.usageHydrations.delete(sessionId)
+      }
+    })
+    this.usageHydrations.set(sessionId, entry)
+    return entry.promise
+  }
+
+  private scheduleUsageRefresh(sessionId: string) {
+    if (this.disposed || this.usageRefreshTimers.has(sessionId)) return
+    if (!this.state.sessions.some(({ id }) => id === sessionId)) return
+    const timer = this.setTimer(() => {
+      this.usageRefreshTimers.delete(sessionId)
+      if (!this.state.sessions.some(({ id }) => id === sessionId)) return
+      void this.hydrateUsage(sessionId, 'refresh')
+    }, usageRefreshDelay)
+    this.usageRefreshTimers.set(sessionId, timer)
+  }
+
+  private cancelUsageHydrations(exceptSessionId?: string) {
+    for (const [sessionId, hydration] of this.usageHydrations) {
+      if (sessionId === exceptSessionId) continue
+      hydration.controller.abort()
+      this.usageHydrations.delete(sessionId)
+    }
+    for (const [sessionId, timer] of this.usageRefreshTimers) {
+      if (sessionId === exceptSessionId) continue
+      this.clearTimer(timer)
+      this.usageRefreshTimers.delete(sessionId)
+    }
+  }
+
   private async loadMessages(sessionId: string, afterSequence: number, signal?: AbortSignal) {
     const messages: AgentMessage[] = []
     let cursor = afterSequence
@@ -580,11 +692,16 @@ export class AgentWorkspaceController {
     if (!this.disposed) this.commit({ ...this.state, runtime_status: status })
   }
 
-  private acceptSession(session: AgentSession) {
-    this.commit(replaceAgentSessions(this.state, [
+  private acceptSession(session: AgentSession, select = false) {
+    const state = replaceAgentSessions(this.state, [
       session,
-      ...this.state.sessions.filter(({ id }) => id !== session.id),
-    ]))
+      ...this.state.sessions,
+    ])
+    this.commit(select ? selectAgentSession(state, session.id) : state)
+    if (select) {
+      this.cancelUsageHydrations(session.id)
+      void this.hydrateUsage(session.id)
+    }
   }
 
   private async cancelRejectedRuntimeStart(run: AgentRun) {
@@ -594,6 +711,7 @@ export class AgentWorkspaceController {
       try {
         const stopped = await this.gateway.stopRun(current.id, current.revision)
         this.commit(replaceAgentRun(this.state, stopped))
+        if (runUsageRequiresRefresh(current, stopped)) this.scheduleUsageRefresh(stopped.session_id)
         if (stopped.status === 'stopping') {
           const result = await this.gateway.stopRuntime(stopped)
           if (!result.accepted && result.error_code !== 'AGENT_RUNTIME_RUN_NOT_ACTIVE') {
@@ -642,6 +760,7 @@ export class AgentWorkspaceController {
     this.messageHydrations.clear()
     for (const hydration of this.contextHydrations.values()) hydration.controller.abort()
     this.contextHydrations.clear()
+    this.cancelUsageHydrations()
   }
 
   private commit(next: AgentWorkspaceState) {
@@ -697,4 +816,28 @@ function changedContextModelSessions(
       && (next.selected_session_id === session.id || next.session_contexts[session.id] !== undefined)
     ))
     .map(({ id }) => id)
+}
+
+function usageRefreshSession(
+  previous: AgentWorkspaceState,
+  next: AgentWorkspaceState,
+  event: AgentWorkspaceEvent,
+) {
+  if (event.type !== 'upsert') return undefined
+  if (event.run_event?.kind === 'usage') {
+    return next.runs[event.run_event.run_id]?.session_id
+      ?? previous.runs[event.run_event.run_id]?.session_id
+  }
+  if (!event.run || !runUsageRequiresRefresh(previous.runs[event.run.id], event.run)) return undefined
+  return event.run.session_id
+}
+
+function runUsageRequiresRefresh(previous: AgentRun | undefined, next: AgentRun) {
+  if (!previous || previous.generation !== next.generation) return isAgentRunTerminal(next.status)
+  return previous.usage.input_tokens !== next.usage.input_tokens
+    || previous.usage.output_tokens !== next.usage.output_tokens
+    || previous.usage.reasoning_tokens !== next.usage.reasoning_tokens
+    || previous.usage.total_tokens !== next.usage.total_tokens
+    || previous.usage.estimated !== next.usage.estimated
+    || (!isAgentRunTerminal(previous.status) && isAgentRunTerminal(next.status))
 }

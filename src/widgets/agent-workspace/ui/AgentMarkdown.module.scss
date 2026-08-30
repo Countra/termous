@@ -1,8 +1,8 @@
 .markdown {
   min-width: 0;
   color: var(--text-primary);
-  font-size: 13px;
-  line-height: 1.72;
+  font-size: 14px;
+  line-height: 1.7;
   overflow-wrap: anywhere;
 }
 
@@ -27,12 +27,27 @@
 .markdown h2,
 .markdown h3,
 .markdown h4 {
-  margin: 20px 0 9px;
+  margin: 22px 0 10px;
   color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 740;
+  font-weight: 700;
   letter-spacing: 0;
-  line-height: 1.4;
+  line-height: 1.38;
+}
+
+.markdown h1 {
+  font-size: 20px;
+}
+
+.markdown h2 {
+  font-size: 17px;
+}
+
+.markdown h3 {
+  font-size: 15px;
+}
+
+.markdown h4 {
+  font-size: 14px;
 }
 
 .markdown ul,
@@ -61,16 +76,16 @@
   border-radius: 4px;
   background: var(--surface-subtle);
   font-family: var(--terminal-font-family);
-  font-size: 11px;
+  font-size: 12px;
   padding: 1px 5px;
 }
 
 .markdown pre {
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: color-mix(in srgb, var(--app-bg) 72%, var(--surface) 28%);
-  padding: 12px 14px;
+  padding: 13px 15px;
 }
 
 .markdown pre code {
@@ -87,9 +102,13 @@
 }
 
 .markdown table {
-  width: 100%;
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .markdown th,

@@ -319,6 +319,12 @@ export interface AgentUsage {
   estimated: boolean
 }
 
+export interface AgentSessionUsage extends AgentUsage {
+  session_id: string
+  run_count: number
+  updated_at?: string
+}
+
 export interface AgentRunModelSnapshot {
   api_mode: AgentApiMode
   base_url: string

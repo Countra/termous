@@ -4,9 +4,14 @@ import type {
   AssistantMessage,
   AssistantMessageEvent,
   ToolResultMessage,
-  Usage,
 } from '@earendil-works/pi-ai'
 import { isMCPToolDetails } from './mcpClientAdapter.ts'
+import {
+  addRuntimeUsage,
+  emptyRuntimeUsage,
+  projectPiUsage,
+  type RuntimeUsage,
+} from './runtimeUsage.ts'
 import { isSkillResourceToolDetails } from './skillResourceTool.ts'
 import { projectToolTimelineValue } from './toolTimelineProjection.ts'
 import type { RuntimeEventKind } from './workerCoreClient.ts'
@@ -21,6 +26,7 @@ export interface PiEventBridgeOptions {
   originalToolName: (encodedName: string) => string | null
   now?: () => number
   newPartID?: () => string
+  initialUsage?: RuntimeUsage
 }
 
 export interface RuntimeEventSink {
@@ -42,7 +48,7 @@ export class PiEventBridge {
   private readonly toolStartedAt = new Map<string, number>()
   private messagePartSequence = 0
   private runOutcome: PiRunOutcome = 'completed'
-  private usage = emptyRuntimeUsage()
+  private usage: RuntimeUsage
 
   constructor(options: PiEventBridgeOptions) {
     this.writer = options.writer
@@ -50,6 +56,7 @@ export class PiEventBridge {
     this.originalToolName = options.originalToolName
     this.now = options.now ?? Date.now
     this.newPartID = options.newPartID ?? (() => `agp_${randomUUID()}`)
+    this.usage = { ...(options.initialUsage ?? emptyRuntimeUsage()) }
   }
 
   handle(event: AgentEvent) {
@@ -144,7 +151,7 @@ export class PiEventBridge {
         },
       })
     })
-    this.addUsage(message.usage)
+    this.usage = addRuntimeUsage(this.usage, projectPiUsage(message.usage))
     this.writer.push('usage', { usage: { ...this.usage } })
     if (message.stopReason === 'error') {
       this.runOutcome = 'failed'
@@ -241,18 +248,6 @@ export class PiEventBridge {
     return original
   }
 
-  private addUsage(usage: Usage) {
-    const input = safeTokenCount(usage.input)
-      + safeTokenCount(usage.cacheRead)
-      + safeTokenCount(usage.cacheWrite)
-    const output = safeTokenCount(usage.output)
-    const total = Math.max(safeTokenCount(usage.totalTokens), input + output)
-    this.usage.input_tokens += input
-    this.usage.output_tokens += output
-    this.usage.reasoning_tokens += Math.min(output, safeTokenCount(usage.reasoning ?? 0))
-    this.usage.total_tokens += total
-    this.usage.estimated ||= total === 0
-  }
 }
 
 function projectToolResult(result: unknown) {
@@ -317,23 +312,6 @@ function jsonValue(value: unknown): unknown {
   } catch {
     return null
   }
-}
-
-function emptyRuntimeUsage() {
-  return {
-    input_tokens: 0,
-    output_tokens: 0,
-    reasoning_tokens: 0,
-    total_tokens: 0,
-    estimated: false,
-  }
-}
-
-function safeTokenCount(value: number) {
-  if (!Number.isFinite(value) || value < 0) {
-    return 0
-  }
-  return Math.min(Number.MAX_SAFE_INTEGER, Math.floor(value))
 }
 
 function splitUTF8(value: string, maximumBytes: number) {

@@ -99,6 +99,35 @@ test('pi 事件映射流式片段、签名、Tool 时间线和累计 usage', () 
   assert.equal(usage.total_tokens, 12)
 })
 
+test('主 Agent 首次 usage 从上下文摘要累计值继续递增', () => {
+  const sink = new EventSink()
+  const bridge = new PiEventBridge({
+    writer: sink,
+    assistantMessageID: 'agm_reply',
+    originalToolName: (name) => name === 'm_termous_dhosts_dlist'
+      ? 'termous.hosts.list'
+      : null,
+    initialUsage: {
+      input_tokens: 100,
+      output_tokens: 20,
+      reasoning_tokens: 2,
+      total_tokens: 120,
+      estimated: false,
+    },
+  })
+
+  bridge.handle({ type: 'message_end', message: assistantMessage() })
+
+  const usage = nested(sink.values.find((value) => value.kind === 'usage')?.payload, 'usage')
+  assert.deepEqual(usage, {
+    input_tokens: 109,
+    output_tokens: 23,
+    reasoning_tokens: 3,
+    total_tokens: 132,
+    estimated: false,
+  })
+})
+
 test('Provider 失败只写入稳定错误分类', () => {
   const sink = new EventSink()
   const bridge = new PiEventBridge({

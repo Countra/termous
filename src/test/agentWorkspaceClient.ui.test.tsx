@@ -22,6 +22,7 @@ describe('AgentWorkspaceClient', () => {
       .mockResolvedValueOnce(jsonResponse({ ...runFixture(), status: 'stopping', revision: 2 }))
       .mockResolvedValueOnce(jsonResponse({ items: [runEventFixture()] }))
       .mockResolvedValueOnce(jsonResponse(policyFixture()))
+      .mockResolvedValueOnce(jsonResponse(usageFixture()))
     vi.stubGlobal('fetch', fetchMock)
 
     const start = vi.fn().mockResolvedValue(commandResult())
@@ -62,6 +63,7 @@ describe('AgentWorkspaceClient', () => {
     await gateway.updateMcpPolicy({
       approval_bypass: true, sync_scopes: false, expected_revision: 3,
     })
+    await gateway.usage('ags/1')
     await gateway.runtimeStatus()
     await gateway.startRuntime(run)
     await gateway.stopRuntime(run)
@@ -99,6 +101,7 @@ describe('AgentWorkspaceClient', () => {
     expect(requestAt(fetchMock, 11).body).toEqual({
       approval_bypass: true, sync_scopes: false, expected_revision: 3,
     })
+    expect(requestAt(fetchMock, 12).path).toBe('/api/v1/agent/sessions/ags%2F1/usage')
     expect(gateway.eventsUrl()).toBe('ws://127.0.0.1:8122/api/v1/agent/events?token=renderer-token')
     expect(start).toHaveBeenCalledWith({ run_id: 'agr-run', generation: 1 })
     expect(stop).toHaveBeenCalledWith({ run_id: 'agr-run', generation: 1 })
@@ -165,6 +168,14 @@ function contextFixture() {
   return {
     session_id: 'ags/1', estimated_tokens: 24_000, context_window_tokens: 32_768,
     estimated: true, warning: true, compression_available: true,
+  }
+}
+
+function usageFixture() {
+  return {
+    session_id: 'ags/1', run_count: 2, input_tokens: 1_000, output_tokens: 240,
+    reasoning_tokens: 40, total_tokens: 1_240, estimated: false,
+    updated_at: '2026-08-29T00:00:00Z',
   }
 }
 

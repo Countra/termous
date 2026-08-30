@@ -9,6 +9,7 @@ import type {
   AgentSessionContext,
   AgentSessionInput,
   AgentSessionPage,
+  AgentSessionUsage,
   AgentSessionUpdateInput,
   AgentSourceContext,
 } from '#entities/agent'
@@ -54,6 +55,7 @@ export interface AgentWorkspaceGateway {
   deleteAttachment(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   messages(sessionId: string, options?: AgentMessageListOptions): Promise<AgentMessagePage>
   context(sessionId: string, signal?: AbortSignal): Promise<AgentSessionContext>
+  usage(sessionId: string, signal?: AbortSignal): Promise<AgentSessionUsage>
   createRun(sessionId: string, input: AgentCreateRunInput, signal?: AbortSignal): Promise<AgentRun>
   run(id: string, signal?: AbortSignal): Promise<AgentRun>
   stopRun(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentRun>

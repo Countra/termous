@@ -39,6 +39,27 @@ test('草稿按会话隔离并在清空后只删除目标草稿', () => {
   assert.equal(state.drafts['ags-two']?.text, '第二份')
 })
 
+test('显式新会话选择不被列表水合或快照回选为历史会话', () => {
+  const historical = agentSessionFixture({ id: 'ags-historical' })
+  let state = applyAgentWorkspaceEvent(createAgentWorkspaceState(), {
+    type: 'snapshot', revision: 0, sessions: [historical], active_runs: [],
+  }).state
+  state = selectAgentSession(state, undefined)
+  state = setAgentDraft(state, 'new', '尚未提交的请求', 1)
+
+  state = applyAgentWorkspaceEvent(state, {
+    type: 'snapshot', revision: 1, sessions: [historical], active_runs: [],
+  }).state
+  state = applyAgentWorkspaceEvent(state, {
+    type: 'upsert', revision: 2,
+    session: agentSessionFixture({ id: 'ags-newer', updated_at: '2026-08-29T00:02:00Z' }),
+  }).state
+
+  assert.equal(state.selected_session_id, undefined)
+  assert.equal(state.new_session_selected, true)
+  assert.equal(state.drafts.new?.text, '尚未提交的请求')
+})
+
 test('连续 delta 直接合入消息且重复与旧 generation 不重复追加', () => {
   let state = workspaceWithRun()
   const first = applyAgentWorkspaceEvent(state, {

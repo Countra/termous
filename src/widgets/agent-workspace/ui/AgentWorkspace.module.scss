@@ -4,16 +4,18 @@
   height: 100%;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: 252px minmax(420px, 1fr) 304px;
+  grid-template-columns: 252px minmax(0, 1fr);
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
   box-shadow: var(--inner-highlight);
+  container-name: agent-workspace;
+  container-type: inline-size;
   overflow: hidden;
 }
 
-.workspace.has-inspector-overlay {
-  grid-template-columns: 252px minmax(0, 1fr);
+.workspace.has-inspector {
+  grid-template-columns: 252px minmax(420px, 1fr) 296px;
 }
 
 .workspace.has-sessions-overlay {
@@ -24,7 +26,7 @@
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-rows: 52px minmax(0, 1fr) auto;
+  grid-template-rows: 48px minmax(0, 1fr) auto;
   background: color-mix(in srgb, var(--surface) 97%, var(--app-bg));
 }
 
@@ -33,130 +35,137 @@
   min-width: 0;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-  background: var(--terminal-toolbar);
-  gap: 16px;
-  padding: 0 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  background: color-mix(in srgb, var(--terminal-toolbar) 92%, transparent);
+  gap: 14px;
+  padding: 0 10px 0 14px;
 }
 
 .header-title,
-.header-controls {
+.header-controls,
+.active-run-actions {
   display: flex;
   min-width: 0;
   align-items: center;
 }
 
 .header-title {
-  gap: 9px;
+  flex: 1 1 auto;
+  gap: 8px;
 }
 
-.header-title > div {
+.header-heading {
   display: grid;
   min-width: 0;
+  gap: 1px;
 }
 
-.header-title strong,
-.header-title span {
+.header-heading > strong,
+.header-meta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.header-title strong {
+.header-heading > strong {
   color: var(--text-primary);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 18px;
 }
 
-.header-title > div > span {
+.header-meta {
+  min-height: 15px;
   color: var(--text-muted);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: 11px;
+  line-height: 15px;
 }
 
-.agent-mark {
-  display: grid;
-  width: 28px;
-  height: 28px;
+.run-status {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  gap: 6px;
+}
+
+.run-status > i {
+  width: 6px;
+  height: 6px;
   flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
-  border-radius: 7px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.run-status[data-status='queued'] > i,
+.run-status[data-status='starting'] > i,
+.run-status[data-status='running'] > i {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
+}
+
+.run-status[data-status='waiting-approval'] > i,
+.run-status[data-status='stopping'] > i {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.run-status[data-status='failed'],
+.run-status[data-status='interrupted'] {
+  color: var(--danger);
+}
+
+.run-status[data-status='failed'] > i,
+.run-status[data-status='interrupted'] > i {
+  background: var(--danger);
 }
 
 .header-controls {
   flex: 0 1 auto;
-  gap: 7px;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
 .active-run-actions {
-  display: flex;
-  align-items: center;
-  border-left: 1px solid var(--border);
-  gap: 2px;
-  padding-left: 5px;
+  min-height: 32px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent-soft) 44%, transparent);
+  gap: 1px;
+  margin-right: 2px;
+  padding: 1px 2px;
 }
 
 .active-run-actions :global(.ant-btn) {
-  width: 26px;
   height: 26px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding-inline: 6px;
+}
+
+.active-run-actions :global(.ant-btn-icon) {
+  display: inline-flex;
+}
+
+.header-icon-button:global(.ant-btn) {
+  display: inline-flex;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
   color: var(--text-secondary);
   padding: 0;
 }
 
-.header-controls :global(.ant-select) {
-  width: 168px;
+.header-icon-button:global(.ant-btn):hover,
+.header-icon-button.is-active:global(.ant-btn) {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
 }
 
-.header-controls :global(.ant-select-selector) {
-  height: 30px !important;
-  border-color: var(--border) !important;
-  border-radius: 7px !important;
-  background: var(--surface-subtle) !important;
-  font-size: 11px;
-  box-shadow: none !important;
-}
-
-.model-settings-action:global(.ant-btn) {
-  height: 28px;
-  padding-inline: 7px;
-  color: var(--accent);
-  font-size: 10px;
-}
-
-.status-tag:global(.ant-tag) {
-  min-width: 64px;
-  margin: 0;
-  border-color: var(--border);
-  border-radius: 999px;
-  background: var(--surface-subtle);
-  color: var(--text-secondary);
-  font-size: 10px;
-  line-height: 20px;
-  text-align: center;
-}
-
-.status-tag.is-running:global(.ant-tag),
-.status-tag.is-starting:global(.ant-tag),
-.status-tag.is-queued:global(.ant-tag) {
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.status-tag.is-waiting-approval:global(.ant-tag) {
-  border-color: color-mix(in srgb, var(--warning) 36%, var(--border));
-  background: color-mix(in srgb, var(--warning) 10%, var(--surface));
-  color: var(--warning);
-}
-
-.status-tag.is-failed:global(.ant-tag),
-.status-tag.is-interrupted:global(.ant-tag) {
-  border-color: color-mix(in srgb, var(--danger) 36%, var(--border));
-  background: color-mix(in srgb, var(--danger) 9%, var(--surface));
-  color: var(--danger);
+.header-icon-button.is-active:global(.ant-btn) {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, var(--border));
 }
 
 .drawer :global(.ant-drawer-content),
@@ -179,30 +188,25 @@
   padding: 28px;
 }
 
-@media (width <= 720px) {
+@container agent-workspace (width <= 720px) {
   .header {
     gap: 8px;
     padding-inline: 8px;
   }
 
-  .agent-mark {
+  .header-meta,
+  .active-run-label {
     display: none;
   }
 
-  .header-controls :global(.ant-select) {
-    width: 126px;
+  .header-heading {
+    display: block;
   }
 
-  .status-tag:global(.ant-tag) {
-    display: none;
-  }
+}
 
-  .model-settings-action:global(.ant-btn) {
-    width: 28px;
-    padding: 0;
-  }
-
-  .model-settings-action-label {
-    display: none;
+@media (prefers-reduced-motion: reduce) {
+  .run-status > i {
+    box-shadow: none !important;
   }
 }

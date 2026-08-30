@@ -56,6 +56,7 @@ export {
   type AgentSessionContext,
   type AgentSessionInput,
   type AgentSessionPage,
+  type AgentSessionUsage,
   type AgentSessionUpdateInput,
   type AgentSettings,
   type AgentToolCallPart,

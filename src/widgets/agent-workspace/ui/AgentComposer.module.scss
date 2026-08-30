@@ -1,46 +1,61 @@
 .composer {
   z-index: 2;
-  width: min(860px, calc(100% - 28px));
+  width: min(780px, calc(100% - 32px));
   margin: 0 auto;
   background: transparent;
-  padding: 0 0 14px;
-}
-
-.composer-context {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
-  border-bottom: 0;
-  border-radius: 7px 7px 0 0;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 10px;
-  gap: 5px;
-  padding: 4px 8px;
+  padding: 0 0 16px;
 }
 
 .composer-input {
   display: grid;
-  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border-strong));
-  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 82%, transparent);
+  border-radius: 12px;
   background: var(--surface-strong);
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--app-bg) 35%, transparent), var(--inner-highlight);
-  gap: 8px;
-  padding: 9px;
+  box-shadow:
+    0 10px 26px color-mix(in srgb, var(--app-bg) 34%, transparent),
+    var(--inner-highlight);
+  gap: 6px;
+  padding: 11px 10px 9px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.composer-input:hover {
+  border-color: var(--border-strong);
+}
+
+.composer-tray {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 1px;
+}
+
+.composer-context,
+.source-context {
+  display: inline-flex;
+  min-height: 30px;
+  flex: 0 0 auto;
+  align-items: center;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--text-secondary);
+  font-size: 11px;
+  gap: 6px;
+  padding: 5px 8px;
+}
+
+.composer-context {
+  color: var(--accent);
 }
 
 .source-context {
-  display: inline-flex;
-  width: fit-content;
-  max-width: 100%;
-  align-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
-  border-radius: 6px;
-  background: var(--accent-soft);
-  color: var(--text-secondary);
-  font-size: 10px;
-  gap: 6px;
-  padding: 4px 7px;
+  max-width: 260px;
 }
 
 .source-context span,
@@ -54,24 +69,26 @@
 .attachments {
   display: flex;
   min-width: 0;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
   gap: 6px;
 }
 
 .attachment {
   display: grid;
+  width: 220px;
   min-width: 0;
-  max-width: min(260px, 100%);
-  grid-template-columns: 26px minmax(0, 1fr) auto auto;
+  min-height: 42px;
+  flex: 0 0 220px;
+  grid-template-columns: 24px minmax(0, 1fr) auto auto;
   align-items: center;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--surface-subtle);
-  padding: 4px 4px 4px 6px;
+  padding: 4px 4px 4px 7px;
 }
 
 .attachment[data-phase='failed'] {
-  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
 }
 
 .attachment-icon {
@@ -81,53 +98,56 @@
 .attachment-copy {
   display: grid;
   min-width: 0;
-  line-height: 15px;
+  line-height: 16px;
 }
 
 .attachment-copy strong {
   color: var(--text-primary);
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 620;
 }
 
 .attachment-copy small {
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .attachment :global(.ant-btn) {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 7px;
   padding: 0;
 }
 
 .attachment-warning {
   color: var(--danger);
-  font-size: 10px;
+  font-size: 11px;
+  line-height: 16px;
 }
 
-.composer-context + .composer-input {
-  border-top-left-radius: 0;
-}
-
-.composer-input:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 52%, var(--border-strong));
-}
-
-.composer-input :global(.ant-input) {
-  min-height: 24px;
-  border: 0;
-  background: transparent;
+.composer-textarea:global(.ant-input) {
+  min-height: 46px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
   color: var(--text-primary);
-  font-size: 13px;
-  line-height: 20px;
-  padding: 1px 2px;
+  font-size: 14px;
+  line-height: 22px;
+  padding: 2px 4px 4px !important;
   resize: none;
-  box-shadow: none;
+  caret-color: var(--accent);
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.composer-textarea:global(.ant-input)::placeholder {
+  color: var(--text-muted);
 }
 
 .composer-actions {
   display: flex;
+  min-height: 32px;
   align-items: center;
   justify-content: flex-end;
   gap: 7px;
@@ -135,21 +155,88 @@
 
 .composer-secondary-actions {
   display: flex;
-  flex: 1;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.composer-primary-actions {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
 }
 
 .file-input {
   display: none;
 }
 
-.composer-actions :global(.ant-btn) {
-  height: 30px;
-  border-radius: 7px;
-  font-size: 11px;
+.composer-attachment-action:global(.ant-btn),
+.composer-stop:global(.ant-btn),
+.composer-submit:global(.ant-btn) {
+  display: inline-flex;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 0;
 }
 
-@media (width <= 720px) {
+.composer-attachment-action:global(.ant-btn) {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.composer-attachment-action:global(.ant-btn):hover {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.composer-stop:global(.ant-btn) {
+  border-color: color-mix(in srgb, var(--danger) 24%, var(--border));
+  background: color-mix(in srgb, var(--danger) 7%, transparent);
+}
+
+.composer-submit:global(.ant-btn) {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+  box-shadow: none;
+}
+
+.composer-submit:global(.ant-btn):not(:disabled):hover {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.composer-submit:global(.ant-btn):disabled {
+  border-color: transparent;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.composer-attachment-action:global(.ant-btn):focus-visible,
+.composer-submit:global(.ant-btn):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 58%, transparent);
+  outline-offset: 1px;
+}
+
+.composer-stop:global(.ant-btn):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--danger) 58%, transparent);
+  outline-offset: 1px;
+}
+
+@container agent-workspace (width <= 720px) {
   .composer {
     width: calc(100% - 20px);
+    padding-bottom: 10px;
+  }
+
+  .composer-input {
+    border-radius: 10px;
   }
 }

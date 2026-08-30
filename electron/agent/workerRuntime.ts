@@ -22,7 +22,16 @@ import {
   validRunID,
 } from './protocol.ts'
 import { RuntimeEventWriter } from './runtimeEventWriter.ts'
-import { applyRuntimeCheckpoint, summarizeRuntimeContext } from './runtimeContextSummary.ts'
+import {
+  applyRuntimeCheckpoint,
+  RuntimeContextSummaryError,
+  summarizeRuntimeContext,
+} from './runtimeContextSummary.ts'
+import {
+  emptyRuntimeUsage,
+  hasRuntimeUsage,
+  type RuntimeUsage,
+} from './runtimeUsage.ts'
 import {
   WorkerCoreClient,
   type RuntimeBootstrap,
@@ -128,6 +137,7 @@ export class AgentWorkerRuntime {
   private async execute(start: AgentWorkerStartMessage) {
     let settled: 'completed' | 'cancelled' | 'failed' | null = null
     let fatal: 'bootstrap_failed' | 'runtime_failed' | null = null
+    let initialUsage = emptyRuntimeUsage()
     try {
       // start 已签发一次性 Ticket 后必须尝试消费；取消由 bootstrap 后的终态事件收口。
       const bootstrap = await this.core.bootstrap(start)
@@ -144,13 +154,23 @@ export class AgentWorkerRuntime {
         return
       }
       if (bootstrap.context.compression) {
-        const summary = await this.summarizeContext(bootstrap, this.startupAbort.signal)
+        let result
+        try {
+          result = await this.summarizeContext(bootstrap, this.startupAbort.signal)
+        } catch (error) {
+          if (error instanceof RuntimeContextSummaryError) {
+            await this.persistUsage(error.usage)
+          }
+          throw error
+        }
+        if (!result) {
+          throw new Error('AGENT_RUNTIME_CONTEXT_COMPRESSION_INVALID')
+        }
+        initialUsage = result.usage
+        await this.persistUsage(initialUsage)
         if (this.abortRequested) {
           settled = await this.persistTerminalStatus('cancelled')
           return
-        }
-        if (!summary) {
-          throw new Error('AGENT_RUNTIME_CONTEXT_COMPRESSION_INVALID')
         }
         const checkpoint = await this.core.commitCheckpoint(
           start,
@@ -159,7 +179,7 @@ export class AgentWorkerRuntime {
             generation: start.generation,
             boundary_message_sequence: bootstrap.context.compression.boundary_message_sequence,
             source_hash: bootstrap.context.compression.source_hash,
-            summary,
+            summary: result.summary,
           },
           this.startupAbort.signal,
         )
@@ -181,6 +201,7 @@ export class AgentWorkerRuntime {
         mcp: this.mcp,
         events: this.events,
         skills: start.skills,
+        initialUsage,
         onFailure: (error) => this.failRuntime(error),
       })
       this.events.push('status', { status: { status: 'running' } })
@@ -322,6 +343,12 @@ export class AgentWorkerRuntime {
     events.push('status', { status: { status: outcome } })
     await events.flush()
     return outcome
+  }
+
+  private async persistUsage(usage: RuntimeUsage) {
+    if (!this.events || !hasRuntimeUsage(usage)) return
+    this.events.push('usage', { usage: { ...usage } })
+    await this.events.flush()
   }
 
   private failRuntime(error: unknown) {

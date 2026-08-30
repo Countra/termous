@@ -11,4 +11,5 @@ export type {
   AgentWorkspaceSession,
   AgentWorkspaceSkillItem,
   AgentWorkspaceToolPart,
+  AgentWorkspaceUsageState,
 } from './model/types.ts'

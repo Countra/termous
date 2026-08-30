@@ -8,6 +8,10 @@ import type {
   AgentWorkerStartMessage,
 } from './protocol.ts'
 import { testAgentSkillBundle } from './skillBundleTestFixture.ts'
+import {
+  RuntimeContextSummaryError,
+  type RuntimeContextSummaryResult,
+} from './runtimeContextSummary.ts'
 import { AgentWorkerRuntime } from './workerRuntime.ts'
 import type {
   RuntimeBootstrap,
@@ -314,14 +318,16 @@ test('终态持久化后先通知主进程，再等待运行资源关闭', async
 test('上下文摘要成功后提交 Checkpoint，再连接 MCP 并只保留边界后的消息', async () => {
   const order: string[] = []
   let agentBootstrap: RuntimeBootstrap | undefined
+  let agentInitialUsage: CreatePiAgentOptions['initialUsage']
   const fixture = workerFixture(order, {
     summarizeContext: async () => {
       order.push('summary')
-      return '压缩后的历史'
+      return { summary: '压缩后的历史', usage: summaryUsage() }
     },
     onConnectMCP: () => order.push('mcp'),
     onCreateAgent: (options) => {
       agentBootstrap = structuredClone(options.bootstrap)
+      agentInitialUsage = options.initialUsage
     },
   })
   fixture.core.bootstrapValue.context = {
@@ -347,12 +353,17 @@ test('上下文摘要成功后提交 Checkpoint，再连接 MCP 并只保留边�
   assert.deepEqual(agentBootstrap?.messages.map(({ sequence }) => sequence), [2])
   assert.equal(agentBootstrap?.context.checkpoint?.summary, '压缩后的历史')
   assert.equal(agentBootstrap?.context.compression, undefined)
+  assert.deepEqual(agentInitialUsage, summaryUsage())
+  const usageEvent = fixture.core.events.find((event) => event.kind === 'usage')
+  assert.deepEqual(nested(usageEvent?.payload, 'usage'), summaryUsage())
 })
 
-test('上下文摘要失败时不连接 MCP，并以 failed 收口当前 Run', async () => {
+test('上下文摘要失败时保留已产生用量，不连接 MCP 并以 failed 收口当前 Run', async () => {
   let mcpConnected = false
   const fixture = workerFixture([], {
-    summarizeContext: async () => { throw new Error('summary failed') },
+    summarizeContext: async () => {
+      throw new RuntimeContextSummaryError('summary failed', summaryUsage())
+    },
     onConnectMCP: () => { mcpConnected = true },
   })
   fixture.core.bootstrapValue.context = compressionContext()
@@ -362,6 +373,8 @@ test('上下文摘要失败时不连接 MCP，并以 failed 收口当前 Run', a
 
   assert.equal(mcpConnected, false)
   assert.equal(fixture.core.checkpoints.length, 0)
+  const usageEvent = fixture.core.events.find((event) => event.kind === 'usage')
+  assert.deepEqual(nested(usageEvent?.payload, 'usage'), summaryUsage())
   assert.deepEqual(statuses(fixture.core.events), ['failed'])
 })
 
@@ -384,7 +397,7 @@ test('上下文摘要期间取消时不提交 Checkpoint，也不连接 MCP', as
   let mcpConnected = false
   let summaryStarted = false
   const fixture = workerFixture([], {
-    summarizeContext: async (_bootstrap, signal) => await new Promise<string>((_resolve, reject) => {
+    summarizeContext: async (_bootstrap, signal) => await new Promise<RuntimeContextSummaryResult>((_resolve, reject) => {
       summaryStarted = true
       signal.addEventListener('abort', () => reject(new DOMException('cancelled', 'AbortError')), { once: true })
     }),
@@ -402,7 +415,10 @@ test('上下文摘要期间取消时不提交 Checkpoint，也不连接 MCP', as
 })
 
 function workerFixture(order: string[] = [], options: {
-  summarizeContext?: (bootstrap: RuntimeBootstrap, signal: AbortSignal) => Promise<string | undefined>
+  summarizeContext?: (
+    bootstrap: RuntimeBootstrap,
+    signal: AbortSignal,
+  ) => Promise<RuntimeContextSummaryResult | undefined>
   onConnectMCP?: () => void
   onCreateAgent?: (options: CreatePiAgentOptions) => void
 } = {}) {
@@ -429,7 +445,10 @@ function workerFixture(order: string[] = [], options: {
       options.onCreateAgent?.(createOptions)
       return agent
     },
-    summarizeContext: options.summarizeContext ?? (async () => '压缩后的历史'),
+    summarizeContext: options.summarizeContext ?? (async () => ({
+      summary: '压缩后的历史',
+      usage: summaryUsage(),
+    })),
     send: (message) => {
       outbound.push(message)
       if (message.type === 'steer_ack') order.push(`ack:${message.client_request_id}`)
@@ -469,6 +488,16 @@ function compressionContext(): RuntimeBootstrap['context'] {
       source_hash: 'a'.repeat(64),
       estimated_tokens: 7000,
     },
+  }
+}
+
+function summaryUsage() {
+  return {
+    input_tokens: 120,
+    output_tokens: 30,
+    reasoning_tokens: 0,
+    total_tokens: 150,
+    estimated: false,
   }
 }
 

@@ -6,6 +6,7 @@ import {
   decodeAgentMessage,
   decodeAgentRunEventPage,
   decodeAgentSessionContext,
+  decodeAgentSessionUsage,
   decodeAgentWorkspaceEvent,
 } from './agentRuntimeProtocol.ts'
 import {
@@ -157,6 +158,42 @@ test('会话上下文协议严格校验归属、容量和 Checkpoint', () => {
     ...context,
     checkpoint: { ...context.checkpoint, created_at: 'not-a-time' },
   }), /创建时间/)
+})
+
+test('会话 Token 统计严格校验归属和聚合关系', () => {
+  const response = {
+    session_id: 'ags-session',
+    run_count: 3,
+    input_tokens: 1_200,
+    output_tokens: 320,
+    reasoning_tokens: 80,
+    total_tokens: 1_520,
+    estimated: false,
+    updated_at: agentFixtureTime,
+  }
+
+  const usage = decodeAgentSessionUsage(response, 'ags-session')
+  assert.equal(usage.total_tokens, 1_520)
+  assert.equal(usage.updated_at, agentFixtureTime)
+  assert.throws(() => decodeAgentSessionUsage({
+    ...response, session_id: 'ags-other',
+  }, 'ags-session'), /归属/)
+  assert.throws(() => decodeAgentSessionUsage({
+    ...response, run_count: Number.MAX_SAFE_INTEGER + 1,
+  }), /Run 数量/)
+  assert.throws(() => decodeAgentSessionUsage({
+    ...response, reasoning_tokens: 321,
+  }), /reasoning token/)
+  assert.throws(() => decodeAgentSessionUsage({
+    ...response, total_tokens: 1_519,
+  }), /total token/)
+  assert.throws(() => decodeAgentSessionUsage({
+    ...response,
+    input_tokens: Number.MAX_SAFE_INTEGER,
+    output_tokens: 1,
+    reasoning_tokens: 0,
+    total_tokens: Number.MAX_SAFE_INTEGER,
+  }), /total token/)
 })
 
 test('Run Event 补偿页拒绝跨 Run、跨 generation 和 sequence 缺口', () => {

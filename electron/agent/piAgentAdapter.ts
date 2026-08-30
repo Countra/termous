@@ -16,6 +16,7 @@ import { streamSimple as streamOpenAIResponses } from '@earendil-works/pi-ai/api
 import type { AgentMCPConnection } from './mcpClientAdapter.ts'
 import { isMCPToolDetails } from './mcpClientAdapter.ts'
 import { PiEventBridge, type PiRunOutcome } from './piEventBridge.ts'
+import type { RuntimeUsage } from './runtimeUsage.ts'
 import type { AgentSkillBundleSnapshot } from './skillBundle.ts'
 import {
   createSkillResourceTool,
@@ -69,6 +70,7 @@ export interface CreatePiAgentOptions {
   fetch?: typeof globalThis.fetch
   now?: () => number
   newPartID?: () => string
+  initialUsage?: RuntimeUsage
   onFailure?: (error: unknown) => void
 }
 
@@ -91,6 +93,7 @@ export function createPiAgent(options: CreatePiAgentOptions): PiAgentController 
       : options.mcp.originalName(name),
     now: options.now,
     newPartID: options.newPartID,
+    initialUsage: options.initialUsage,
   })
   const agent = new Agent({
     initialState: {

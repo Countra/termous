@@ -5,8 +5,10 @@ import type {
   AgentMessagePage,
   AgentRun,
   AgentRunEventPage,
+  AgentSession,
   AgentSessionContext,
   AgentSessionPage,
+  AgentSessionUsage,
 } from '#entities/agent'
 import type { AgentRuntimeCommandResult, AgentRuntimeStatus } from '#common/contracts'
 import type {
@@ -74,6 +76,64 @@ test('Run 创建失败时保留尚未持久化的草稿', async () => {
 
   assert.equal(controller.getSnapshot().drafts[session.id]?.text, '尚未提交的请求')
   assert.deepEqual(gateway.started, [])
+})
+
+test('新会话草稿持久化后显式选择创建的会话', async () => {
+  const controller = new AgentWorkspaceController({ gateway: new FakeGateway() })
+  controller.selectSession(undefined)
+
+  const session = await controller.createSession(sessionInput())
+
+  assert.equal(controller.getSnapshot().selected_session_id, session.id)
+  assert.equal(controller.getSnapshot().new_session_selected, false)
+})
+
+test('已移除会话的迟到选择不会取消当前会话水合或触发无效请求', async () => {
+  const gateway = new FakeGateway()
+  const controller = startedController(gateway)
+  await waitFor(() => controller.getSnapshot().selected_session_id === 'ags-session')
+  const messageRequests = gateway.messageSignals.length
+  const contextRequests = gateway.contextCalls
+  const usageRequests = gateway.usageCalls
+
+  controller.selectSession('ags-removed')
+
+  assert.equal(controller.getSnapshot().selected_session_id, 'ags-session')
+  assert.equal(gateway.messageSignals.length, messageRequests)
+  assert.equal(gateway.contextCalls, contextRequests)
+  assert.equal(gateway.usageCalls, usageRequests)
+  controller.close()
+})
+
+test('迟到的更新响应不会覆盖 WebSocket 已接收的更高会话 revision', async () => {
+  const gateway = new FakeGateway()
+  const pending = deferred<AgentSession>()
+  gateway.updateSession = async () => await pending.promise
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+  })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().selected_session_id === 'ags-session')
+  socket.open()
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [],
+  })
+  const update = controller.updateSession('ags-session', {
+    ...sessionInput(), archived: false, expected_revision: 1,
+  })
+  socket.message({
+    type: 'upsert', revision: 1,
+    session: agentSessionFixture({ title: '较新的会话', revision: 3 }),
+  })
+  pending.resolve(agentSessionFixture({ title: '迟到的响应', revision: 2 }))
+  await update
+
+  assert.equal(controller.getSnapshot().sessions[0]?.revision, 3)
+  assert.equal(controller.getSnapshot().sessions[0]?.title, '较新的会话')
+  controller.close()
 })
 
 test('Runtime Bridge 抛错时取消已持久化的 queued Run', async () => {
@@ -148,6 +208,25 @@ test('上下文读取失败只降级检查器并支持独立重试', async () =>
   gateway.contextImpl = async () => contextFixture()
   await controller.reloadContext('ags-session')
   assert.equal(controller.getSnapshot().session_contexts['ags-session']?.value?.estimated_tokens, 24_000)
+  controller.close()
+})
+
+test('Token 统计独立失败并在手工重试时保留旧快照', async () => {
+  const gateway = new FakeGateway()
+  const controller = startedController(gateway)
+  await waitFor(() => controller.getSnapshot().session_usages['ags-session']?.phase === 'ready')
+  const previous = controller.getSnapshot().session_usages['ags-session']?.value
+  gateway.usageImpl = async () => {
+    throw Object.assign(new Error('temporary'), { code: 'NETWORK_ERROR' })
+  }
+
+  await controller.reloadUsage('ags-session')
+
+  const usage = controller.getSnapshot().session_usages['ags-session']
+  assert.equal(usage?.phase, 'error')
+  assert.equal(usage?.value, previous)
+  assert.equal(usage?.error_code, 'NETWORK_ERROR')
+  assert.notEqual(controller.getSnapshot().phase, 'degraded')
   controller.close()
 })
 
@@ -360,6 +439,7 @@ test('close 会中止在途 Session、Message 和 Run 水合', async () => {
   const gateway = new FakeGateway()
   const messages = deferred<AgentMessagePage>()
   const context = deferred<AgentSessionContext>()
+  const usage = deferred<AgentSessionUsage>()
   const run = deferred<AgentRun>()
   gateway.messagesImpl = (sessionId, options) => {
     assert.equal(sessionId, 'ags-session')
@@ -371,13 +451,18 @@ test('close 会中止在途 Session、Message 和 Run 水合', async () => {
     return abortable(run, signal)
   }
   gateway.contextImpl = (_sessionId, signal) => abortable(context, signal)
+  gateway.usageImpl = (_sessionId, signal) => abortable(usage, signal)
   const socket = new FakeSocket()
   const controller = new AgentWorkspaceController({
     gateway,
     socketFactory: () => socket as unknown as WebSocket,
   })
   controller.start()
-  await waitFor(() => gateway.messageSignals.length === 1 && gateway.contextSignals.length === 1)
+  await waitFor(() => (
+    gateway.messageSignals.length === 1
+    && gateway.contextSignals.length === 1
+    && gateway.usageSignals.length === 1
+  ))
   socket.message({
     type: 'snapshot', revision: 0,
     sessions: [agentSessionFixture()],
@@ -388,9 +473,36 @@ test('close 会中止在途 Session、Message 和 Run 水合', async () => {
   controller.close()
   assert.equal(gateway.messageSignals[0]?.aborted, true)
   assert.equal(gateway.contextSignals[0]?.aborted, true)
+  assert.equal(gateway.usageSignals[0]?.aborted, true)
   assert.equal(gateway.runSignals[0]?.aborted, true)
   assert.equal(controller.getSnapshot().phase, 'idle')
   await settle()
+})
+
+test('切换会话和权威失效会取消在途 Token 统计请求', async () => {
+  for (const invalidate of ['selection', 'revision_gap'] as const) {
+    const gateway = new FakeGateway()
+    const pending = deferred<AgentSessionUsage>()
+    gateway.usageImpl = (_sessionId, signal) => abortable(pending, signal)
+    const socket = new FakeSocket()
+    const controller = new AgentWorkspaceController({
+      gateway,
+      socketFactory: () => socket as unknown as WebSocket,
+    })
+    controller.start()
+    await waitFor(() => gateway.usageSignals.length === 1)
+
+    if (invalidate === 'selection') {
+      controller.selectSession(undefined)
+    } else {
+      socket.open()
+      socket.message({ type: 'snapshot', revision: 1, sessions: [agentSessionFixture()], active_runs: [] })
+      socket.message({ type: 'upsert', revision: 3, session: agentSessionFixture({ revision: 2 }) })
+    }
+
+    assert.equal(gateway.usageSignals[0]?.aborted, true, invalidate)
+    controller.close()
+  }
 })
 
 test('revision 缺口关闭当前 WS，等待新连接权威快照', async () => {
@@ -468,6 +580,83 @@ test('活动 Run 进入终态后刷新权威上下文容量', async () => {
   controller.close()
 })
 
+test('连续 usage 事件和 Run 终态合并为一次低频 Token 统计刷新', async () => {
+  const gateway = new FakeGateway()
+  const socket = new FakeSocket()
+  const timers: Array<{ callback: () => void; delay: number }> = []
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+    setTimer: (callback, delay) => {
+      timers.push({ callback, delay })
+      return timers.length as unknown as ReturnType<typeof setTimeout>
+    },
+    clearTimer: () => undefined,
+  })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().session_usages['ags-session']?.phase === 'ready')
+  socket.open()
+  await settle()
+  const initialUsageCalls = gateway.usageCalls
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+  })
+  socket.message({
+    type: 'upsert', revision: 1,
+    run_event: usageEventResponse(1, 10, 4),
+  })
+  socket.message({
+    type: 'upsert', revision: 2,
+    run_event: usageEventResponse(2, 20, 8),
+  })
+  socket.message({
+    type: 'upsert', revision: 3,
+    run: agentRunFixture({ status: 'completed', revision: 2, completed_at: agentFixtureTime }),
+  })
+
+  const usageTimers = timers.filter(({ delay }) => delay === 750)
+  assert.equal(usageTimers.length, 1)
+  usageTimers[0]!.callback()
+  await waitFor(() => gateway.usageCalls === initialUsageCalls + 1)
+  controller.close()
+})
+
+test('手工刷新 Token 统计会清除同会话尚未执行的合并定时器', async () => {
+  const gateway = new FakeGateway()
+  const socket = new FakeSocket()
+  const timers: Array<{ callback: () => void; delay: number; id: number }> = []
+  const cleared: number[] = []
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+    setTimer: (callback, delay) => {
+      const id = timers.length + 1
+      timers.push({ callback, delay, id })
+      return id as unknown as ReturnType<typeof setTimeout>
+    },
+    clearTimer: (timer) => cleared.push(timer as unknown as number),
+  })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().session_usages['ags-session']?.phase === 'ready')
+  socket.open()
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+  })
+  socket.message({
+    type: 'upsert', revision: 1,
+    run_event: usageEventResponse(1, 10, 4),
+  })
+  const timer = timers.find(({ delay }) => delay === 750)
+  assert.ok(timer)
+
+  await controller.reloadUsage('ags-session')
+
+  assert.deepEqual(cleared, [timer.id])
+  controller.close()
+})
+
 test('切换会话模型后重新读取对应上下文窗口', async () => {
   const gateway = new FakeGateway()
   const controller = startedController(gateway)
@@ -533,6 +722,7 @@ class FakeGateway implements AgentWorkspaceGateway {
   readonly sessionSignals: AbortSignal[] = []
   readonly messageSignals: AbortSignal[] = []
   readonly contextSignals: AbortSignal[] = []
+  readonly usageSignals: AbortSignal[] = []
   readonly runSignals: Array<AbortSignal | undefined> = []
   readonly runEventRequests: AgentRunEventListOptions[] = []
   readonly started: Array<{ run_id: string; generation: number }> = []
@@ -545,6 +735,7 @@ class FakeGateway implements AgentWorkspaceGateway {
   )
   runCalls = 0
   contextCalls = 0
+  usageCalls = 0
   startResult: AgentRuntimeCommandResult | Promise<AgentRuntimeCommandResult> = commandResult(true)
   stopResult: AgentRuntimeCommandResult | Promise<AgentRuntimeCommandResult> = commandResult(true)
   stopRunImpl: (id: string, expectedRevision: number) => Promise<AgentRun> = async (_id, expectedRevision) => (
@@ -566,6 +757,9 @@ class FakeGateway implements AgentWorkspaceGateway {
     return agentRunFixture()
   }
   contextImpl: (sessionId: string, signal?: AbortSignal) => Promise<AgentSessionContext> = async () => contextFixture()
+  usageImpl: (sessionId: string, signal?: AbortSignal) => Promise<AgentSessionUsage> = async (sessionId) => (
+    usageFixture({ session_id: sessionId })
+  )
 
   sessions(options: AgentSessionListOptions = {}) {
     if (options.signal && !this.sessionSignals.includes(options.signal)) this.sessionSignals.push(options.signal)
@@ -603,6 +797,11 @@ class FakeGateway implements AgentWorkspaceGateway {
     if (signal) this.contextSignals.push(signal)
     this.contextCalls += 1
     return this.contextImpl(sessionId, signal)
+  }
+  usage(sessionId: string, signal?: AbortSignal) {
+    if (signal) this.usageSignals.push(signal)
+    this.usageCalls += 1
+    return this.usageImpl(sessionId, signal)
   }
   async createRun(sessionId: string, input: AgentCreateRunInput) {
     this.createRunRequests.push(input)
@@ -682,6 +881,40 @@ function contextFixture(overrides: Partial<AgentSessionContext> = {}): AgentSess
     warning: true,
     compression_available: true,
     ...overrides,
+  }
+}
+
+function usageFixture(overrides: Partial<AgentSessionUsage> = {}): AgentSessionUsage {
+  return {
+    session_id: 'ags-session',
+    run_count: 2,
+    input_tokens: 1_000,
+    output_tokens: 240,
+    reasoning_tokens: 40,
+    total_tokens: 1_240,
+    estimated: false,
+    updated_at: agentFixtureTime,
+    ...overrides,
+  }
+}
+
+function usageEventResponse(sequence: number, inputTokens: number, outputTokens: number) {
+  return {
+    id: `age-usage-${sequence}`,
+    run_id: 'agr-run',
+    generation: 1,
+    sequence,
+    kind: 'usage',
+    payload: {
+      usage: {
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        reasoning_tokens: Math.floor(outputTokens / 2),
+        total_tokens: inputTokens + outputTokens,
+        estimated: false,
+      },
+    },
+    created_at: agentFixtureTime,
   }
 }
 

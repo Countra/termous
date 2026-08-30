@@ -18,6 +18,7 @@ const harness = vi.hoisted(() => ({
   deleteSession: vi.fn(),
   selectSession: vi.fn(),
   reloadContext: vi.fn(),
+  reloadUsage: vi.fn(),
   attachmentOptions: null as null | { ensureSession: () => Promise<string> },
   attachmentRecords: {} as Record<string, unknown[]>,
   addAttachment: vi.fn(),
@@ -56,6 +57,7 @@ vi.mock('#features/agent-runtime', () => ({
       deleteSession: harness.deleteSession,
       selectSession: harness.selectSession,
       reloadContext: harness.reloadContext,
+      reloadUsage: harness.reloadUsage,
     }
   },
   useAgentDraftAttachments: (options: { ensureSession: () => Promise<string> }) => {
@@ -94,6 +96,7 @@ describe('AgentPage', () => {
     harness.deleteSession.mockReset().mockResolvedValue(undefined)
     harness.selectSession.mockReset()
     harness.reloadContext.mockReset().mockResolvedValue(undefined)
+    harness.reloadUsage.mockReset().mockResolvedValue(undefined)
     harness.attachmentOptions = null
     harness.attachmentRecords = {}
     harness.addAttachment.mockReset()
@@ -105,7 +108,12 @@ describe('AgentPage', () => {
     harness.models.mockReset().mockResolvedValue({ items: [modelFixture()] })
     harness.state = workspaceState()
     harness.selectSession.mockImplementation((sessionId?: string) => {
-      harness.state = { ...harness.state, selected_session_id: sessionId }
+      harness.state = {
+        ...harness.state,
+        selected_session_id: sessionId,
+        new_session_selected: sessionId === undefined,
+        selection_intent_revision: Number(harness.state.selection_intent_revision ?? 0) + 1,
+      }
       publishState()
     })
     harness.updateDraft.mockImplementation((sessionId: string, text: string) => {
@@ -121,6 +129,8 @@ describe('AgentPage', () => {
         ...harness.state,
         sessions: [created, ...(harness.state.sessions as AgentSession[])],
         selected_session_id: created.id,
+        new_session_selected: false,
+        selection_intent_revision: Number(harness.state.selection_intent_revision ?? 0) + 1,
       }
       publishState()
       return created
@@ -189,10 +199,42 @@ describe('AgentPage', () => {
     expect(harness.selectSession).toHaveBeenCalledWith('session-two')
   })
 
-  it('返回 Agent 页面时刷新当前会话的权威上下文容量', async () => {
+  it('返回 Agent 页面时刷新当前会话的权威上下文容量与 Token 用量', async () => {
     renderPage()
 
     await waitFor(() => expect(harness.reloadContext).toHaveBeenCalledWith('session-one'))
+    expect(harness.reloadUsage).toHaveBeenCalledWith('session-one')
+  })
+
+  it('投影当前会话 Token 用量并路由独立重试', async () => {
+    harness.state = {
+      ...workspaceState(),
+      session_usages: {
+        'session-one': {
+          phase: 'ready',
+          value: {
+            session_id: 'session-one', run_count: 3,
+            input_tokens: 1_200, output_tokens: 800, reasoning_tokens: 125,
+            total_tokens: 2_000, estimated: true,
+            updated_at: '2026-08-29T02:00:00Z',
+          },
+        },
+      },
+    }
+    renderPage()
+
+    await waitFor(() => expect(harness.workspaceProps?.inspector).toMatchObject({
+      usage: {
+        phase: 'ready', has_snapshot: true, run_count: 3,
+        input_tokens: 1_200, output_tokens: 800, reasoning_tokens: 125,
+        total_tokens: 2_000, estimated: true,
+      },
+    }))
+    act(() => {
+      const retryUsage = harness.workspaceProps?.onRetryUsage as () => void
+      retryUsage()
+    })
+    expect(harness.reloadUsage).toHaveBeenCalledWith('session-one')
   })
 
   it('流式事件未改变会话与 Run 时复用会话投影', async () => {
@@ -225,6 +267,29 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(harness.updateSession).toHaveBeenCalledTimes(1))
     expect(harness.selectSession).not.toHaveBeenCalled()
+  })
+
+  it('归档响应迟到时不覆盖用户切换到的新会话草稿', async () => {
+    const pending = deferred<AgentSession>()
+    harness.updateSession.mockReturnValueOnce(pending.promise)
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+
+    act(() => {
+      const archive = harness.workspaceProps?.onArchiveSession as (sessionId: string) => void
+      archive('session-one')
+    })
+    await waitFor(() => expect(harness.updateSession).toHaveBeenCalledTimes(1))
+    act(() => {
+      const create = harness.workspaceProps?.onCreateSession as () => void
+      create()
+    })
+    pending.resolve({ ...sessions[0], archived_at: '2026-08-29T02:00:00Z' })
+    await act(async () => { await pending.promise })
+
+    await waitFor(() => expect(harness.discardAttachments).toHaveBeenCalledWith('session-one'))
+    expect(harness.selectSession).toHaveBeenCalledTimes(1)
+    expect(harness.selectSession).toHaveBeenLastCalledWith(undefined)
   })
 
   it('新会话草稿跨会话保留，并在首次发送时才持久化会话', async () => {
@@ -592,7 +657,10 @@ function workspaceState() {
     run_part_overlays: {},
     drafts: {},
     session_contexts: {},
+    session_usages: {},
     selected_session_id: 'session-one',
+    new_session_selected: false,
+    selection_intent_revision: 0,
   }
 }
 

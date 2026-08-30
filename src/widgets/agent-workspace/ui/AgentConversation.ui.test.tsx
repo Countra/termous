@@ -16,8 +16,10 @@ describe('AgentConversation', () => {
     const view = render(
       <AgentConversation messages={[message('short')]} runStatus="running" loading={false} sessionKey="session-one" />,
     )
-    const viewport = view.container.firstElementChild as HTMLDivElement
-    const scrollTo = vi.fn()
+    const viewport = view.container.querySelector('[role="log"]') as HTMLDivElement
+    const scrollTo = vi.fn(({ top }: ScrollToOptions) => {
+      viewport.scrollTop = Number(top) - viewport.clientHeight
+    })
     Object.defineProperties(viewport, {
       clientHeight: { configurable: true, value: 300 },
       scrollHeight: { configurable: true, value: 1_000 },
@@ -37,6 +39,15 @@ describe('AgentConversation', () => {
       <AgentConversation messages={[message('streaming content continues')]} runStatus="running" loading={false} sessionKey="session-one" />,
     )
     expect(scrollTo).toHaveBeenCalledTimes(callCount)
+    expect(screen.getByRole('button', { name: 'agent.conversation.jumpToLatest' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.conversation.jumpToLatest' }))
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 1_000 })
+    fireEvent.scroll(viewport)
+    const resumedCallCount = scrollTo.mock.calls.length
+    view.rerender(
+      <AgentConversation messages={[message('new token after jumping to tail')]} runStatus="running" loading={false} sessionKey="session-one" />,
+    )
+    expect(scrollTo).toHaveBeenCalledTimes(resumedCallCount + 1)
   })
 
   it('展示来源上下文与附件，并将预览动作交给工作区', () => {

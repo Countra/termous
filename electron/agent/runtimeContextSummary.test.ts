@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { AgentMessage } from '@earendil-works/pi-agent-core'
+import type { Usage } from '@earendil-works/pi-ai'
 import {
   applyRuntimeCheckpoint,
   completedRuntimeSummaryText,
   createRuntimeContextSummaryAgentOptions,
+  summaryMessagesUsage,
 } from './runtimeContextSummary.ts'
 import type { RuntimeBootstrap } from './workerCoreClient.ts'
 
@@ -60,6 +62,27 @@ test('本轮没有生成新 Assistant 时不得复用历史回复作摘要', () 
   ]), undefined)
 })
 
+test('摘要模型调用使用与主 Agent 相同的 Token 投影口径', () => {
+  const usage = summaryMessagesUsage([
+    assistantMessage('stop', '摘要', {
+      input: 12,
+      output: 5,
+      cacheRead: 3,
+      cacheWrite: 1,
+      reasoning: 2,
+      totalTokens: 21,
+    }),
+  ])
+
+  assert.deepEqual(usage, {
+    input_tokens: 16,
+    output_tokens: 5,
+    reasoning_tokens: 2,
+    total_tokens: 21,
+    estimated: false,
+  })
+})
+
 function compressionBootstrap(): RuntimeBootstrap {
   return {
     core_instance_id: 'core-1',
@@ -110,6 +133,7 @@ function runtimeMessage(sequence: number, text: string): RuntimeBootstrap['messa
 function assistantMessage(
   stopReason: 'stop' | 'length' | 'error' | 'aborted',
   text: string,
+  usageOverrides: Partial<Usage> = {},
 ): AgentMessage {
   return {
     role: 'assistant',
@@ -122,8 +146,10 @@ function assistantMessage(
       output: 0,
       cacheRead: 0,
       cacheWrite: 0,
+      reasoning: 0,
       totalTokens: 0,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      ...usageOverrides,
     },
     stopReason,
     timestamp: 0,

@@ -1,82 +1,129 @@
+.conversation-shell {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
 .conversation {
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scroll-padding-bottom: 28px;
+  scroll-padding-bottom: 36px;
 }
 
 .message-stack {
-  width: min(820px, calc(100% - 36px));
+  width: min(780px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 20px 0 28px;
+  padding: 24px 0 36px;
 }
 
 .message {
   display: grid;
+  min-width: 0;
   gap: 8px;
-  margin-bottom: 22px;
+  margin-bottom: 26px;
 }
 
 .message > header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
+  gap: 9px;
+  line-height: 16px;
   padding: 0 2px;
 }
 
 .message > header > span {
   color: var(--text-secondary);
-  font-weight: 650;
+  font-weight: 640;
+}
+
+.message > header time {
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.message:hover > header time,
+.message:focus-within > header time {
+  opacity: 1;
 }
 
 .message-content {
   min-width: 0;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.7;
+}
+
+.message.is-user {
+  width: fit-content;
+  max-width: min(76%, 640px);
+  justify-items: end;
+  margin-left: auto;
+}
+
+.message.is-user > header {
+  justify-content: flex-end;
+}
+
+.message.is-user .message-content {
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-subtle) 88%, var(--accent-soft));
+  padding: 10px 13px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 8%, var(--border));
 }
 
 .message-source {
   display: inline-flex;
   max-width: 100%;
   align-items: center;
-  border-radius: 5px;
+  border-radius: 6px;
   background: var(--accent-soft);
   color: var(--text-secondary);
-  font-size: 10px;
-  gap: 5px;
-  margin-bottom: 7px;
-  padding: 3px 6px;
+  font-size: 11px;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 4px 7px;
 }
 
 .message-attachments {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 9px;
 }
 
 .message-attachments button {
   display: inline-flex;
-  max-width: 240px;
+  max-width: 260px;
+  min-height: 30px;
   align-items: center;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-strong);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
   color: var(--text-secondary);
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
-  gap: 6px;
-  padding: 4px 7px;
+  font-size: 11px;
+  gap: 7px;
+  padding: 5px 8px;
 }
 
 .message-attachments button:hover {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: var(--surface-strong);
   color: var(--text-primary);
+}
+
+.message-attachments button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 66%, transparent);
+  outline-offset: 2px;
 }
 
 .message-attachments span {
@@ -85,28 +132,27 @@
   white-space: nowrap;
 }
 
-.message.is-user .message-content {
-  border: 1px solid color-mix(in srgb, var(--accent) 12%, var(--border));
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--accent) 5%, var(--surface-subtle));
-  padding: 10px 12px;
-}
-
 .reasoning {
-  margin: 7px 0 10px;
-  border-left: 2px solid color-mix(in srgb, var(--accent) 36%, var(--border));
+  margin: 6px 0 11px;
   color: var(--text-secondary);
-  padding-left: 10px;
 }
 
 .reasoning summary {
   display: inline-flex;
+  min-height: 28px;
   align-items: center;
+  border-radius: 6px;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
   gap: 6px;
   list-style: none;
+  padding: 3px 6px 3px 2px;
+}
+
+.reasoning summary:hover {
+  background: var(--row-hover-bg);
+  color: var(--text-secondary);
 }
 
 .reasoning summary::-webkit-details-marker {
@@ -114,13 +160,22 @@
 }
 
 .reasoning summary:focus-visible {
-  border-radius: 4px;
-  outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 68%, transparent);
   outline-offset: 2px;
 }
 
+.reasoning-chevron {
+  transition: transform 0.14s ease;
+}
+
+.reasoning[open] .reasoning-chevron {
+  transform: rotate(90deg);
+}
+
 .reasoning > div {
-  margin-top: 7px;
+  margin: 4px 0 0 6px;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  padding: 5px 0 5px 12px;
   white-space: pre-wrap;
 }
 
@@ -130,8 +185,8 @@
   display: inline-flex;
   align-items: center;
   color: var(--text-muted);
-  font-size: 11px;
-  gap: 6px;
+  font-size: 12px;
+  gap: 7px;
 }
 
 .streaming-state svg,
@@ -150,46 +205,77 @@
   place-content: center;
   justify-items: center;
   color: var(--text-muted);
-  padding: 24px;
+  padding: 24px 24px 8vh;
   text-align: center;
 }
 
 .conversation-empty > span {
   display: grid;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   place-items: center;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
   border-radius: 10px;
-  background: var(--surface-subtle);
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface));
   color: var(--accent);
   box-shadow: var(--inner-highlight);
 }
 
 .conversation-empty h2 {
-  margin: 12px 0 4px;
+  margin: 14px 0 0;
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: 18px;
+  font-weight: 660;
+  letter-spacing: 0;
+  line-height: 26px;
 }
 
-.conversation-empty p {
-  max-width: 380px;
-  margin: 0;
-  font-size: 11px;
-  line-height: 18px;
+.jump-to-latest:global(.ant-btn) {
+  position: absolute;
+  right: 50%;
+  bottom: 10px;
+  z-index: 2;
+  display: inline-flex;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--surface-strong);
+  color: var(--text-secondary);
+  padding: 0;
+  box-shadow: var(--shadow-soft);
+  transform: translateX(50%);
+}
+
+.jump-to-latest:global(.ant-btn):hover {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: var(--surface-strong);
+  color: var(--text-primary);
 }
 
 @keyframes agent-conversation-spin {
   to { transform: rotate(360deg); }
 }
 
-@media (width <= 720px) {
+@container agent-workspace (width <= 720px) {
   .message-stack {
     width: calc(100% - 24px);
+  }
+
+  .message.is-user {
+    max-width: 88%;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .message > header time,
+  .reasoning-chevron {
+    transition: none;
+  }
+
   .streaming-state svg,
   .run-pending svg {
     animation: none;

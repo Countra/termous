@@ -8,6 +8,7 @@ import {
 import type { AgentRuntimeStatus } from '#common/contracts'
 import type { AgentWorkspaceEvent } from './agentRuntimeProtocol.ts'
 import type { AgentWorkspaceSessionContextState } from './agentWorkspaceContextTypes.ts'
+import type { AgentWorkspaceSessionUsageState } from './agentWorkspaceUsageTypes.ts'
 
 export type AgentWorkspacePhase = 'idle' | 'loading' | 'ready' | 'reconnecting' | 'degraded'
 
@@ -29,7 +30,10 @@ export interface AgentWorkspaceState {
   run_part_overlays: Record<string, Record<string, AgentMessage['parts'][number]>>
   drafts: Record<string, AgentComposerDraft>
   session_contexts: Record<string, AgentWorkspaceSessionContextState>
+  session_usages: Record<string, AgentWorkspaceSessionUsageState>
   selected_session_id?: string
+  new_session_selected: boolean
+  selection_intent_revision: number
   runtime_status?: AgentRuntimeStatus
   error_code?: string
 }
@@ -52,6 +56,9 @@ export function createAgentWorkspaceState(): AgentWorkspaceState {
     run_part_overlays: {},
     drafts: {},
     session_contexts: {},
+    session_usages: {},
+    new_session_selected: false,
+    selection_intent_revision: 0,
   }
 }
 
@@ -89,16 +96,14 @@ export function replaceAgentSessions(
   sessions: AgentSession[],
 ): AgentWorkspaceState {
   const sorted = sortSessions(dedupeByID(sessions, preferSession))
-  const selectableIDs = new Set(sorted.filter(({ archived_at }) => !archived_at).map(({ id }) => id))
-  const selected = current.selected_session_id && selectableIDs.has(current.selected_session_id)
-    ? current.selected_session_id
-    : sorted.find(({ archived_at }) => !archived_at)?.id
+  const selection = reconcileSessionSelection(current, sorted)
   const sessionIDs = new Set(sorted.map(({ id }) => id))
   return {
     ...current,
     sessions: sorted,
     session_contexts: Object.fromEntries(Object.entries(current.session_contexts).filter(([id]) => sessionIDs.has(id))),
-    selected_session_id: selected,
+    session_usages: Object.fromEntries(Object.entries(current.session_usages).filter(([id]) => sessionIDs.has(id))),
+    ...selection,
   }
 }
 
@@ -172,7 +177,12 @@ export function selectAgentSession(current: AgentWorkspaceState, sessionId?: str
   if (sessionId !== undefined && !current.sessions.some(({ id, archived_at }) => id === sessionId && !archived_at)) {
     return current
   }
-  return { ...current, selected_session_id: sessionId }
+  return {
+    ...current,
+    selected_session_id: sessionId,
+    new_session_selected: sessionId === undefined,
+    selection_intent_revision: current.selection_intent_revision + 1,
+  }
 }
 
 export function activeAgentRun(current: AgentWorkspaceState) {
@@ -205,14 +215,11 @@ function upsertSession(current: AgentWorkspaceState, session: AgentSession) {
     session,
     ...current.sessions.filter((item) => item.id !== session.id),
   ])
+  const selection = reconcileSessionSelection(current, sessions)
   return {
     ...current,
     sessions,
-    selected_session_id: sessions.some(({ id, archived_at }) => (
-      id === current.selected_session_id && !archived_at
-    ))
-      ? current.selected_session_id
-      : sessions.find(({ archived_at }) => !archived_at)?.id,
+    ...selection,
   }
 }
 
@@ -325,6 +332,12 @@ function removeEntity(
     const removedRunIDs = Object.values(current.runs)
       .filter(({ session_id }) => session_id === id)
       .map((run) => run.id)
+    const selection = current.selected_session_id === id
+      ? automaticSessionSelection(sessions)
+      : {
+          selected_session_id: current.selected_session_id,
+          new_session_selected: current.new_session_selected,
+        }
     return {
       ...current,
       sessions,
@@ -335,12 +348,11 @@ function removeEntity(
       run_part_overlays: withoutKeys(current.run_part_overlays, removedRunIDs),
       drafts: withoutKey(current.drafts, id),
       session_contexts: withoutKey(current.session_contexts, id),
+      session_usages: withoutKey(current.session_usages, id),
       active_run_id: current.active_run_id && removedRunIDs.includes(current.active_run_id)
         ? undefined
         : current.active_run_id,
-      selected_session_id: current.selected_session_id === id
-        ? sessions.find(({ archived_at }) => !archived_at)?.id
-        : current.selected_session_id,
+      ...selection,
     }
   }
   if (entity === 'message') {
@@ -360,6 +372,34 @@ function removeEntity(
     run_event_sequences: withoutKey(current.run_event_sequences, id),
     run_part_overlays: withoutKey(current.run_part_overlays, id),
     active_run_id: current.active_run_id === id ? undefined : current.active_run_id,
+  }
+}
+
+function reconcileSessionSelection(
+  current: Pick<AgentWorkspaceState, 'selected_session_id' | 'new_session_selected'>,
+  sessions: AgentSession[],
+) {
+  if (current.selected_session_id && sessions.some(({ id, archived_at }) => (
+    id === current.selected_session_id && !archived_at
+  ))) {
+    return {
+      selected_session_id: current.selected_session_id,
+      new_session_selected: false,
+    }
+  }
+  if (current.selected_session_id === undefined && current.new_session_selected) {
+    return {
+      selected_session_id: undefined,
+      new_session_selected: true,
+    }
+  }
+  return automaticSessionSelection(sessions)
+}
+
+function automaticSessionSelection(sessions: AgentSession[]) {
+  return {
+    selected_session_id: sessions.find(({ archived_at }) => !archived_at)?.id,
+    new_session_selected: false,
   }
 }
 

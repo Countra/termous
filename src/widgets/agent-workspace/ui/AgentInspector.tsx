@@ -4,37 +4,49 @@ import {
   Braces,
   CircleGauge,
   History,
+  PanelRightClose,
   PlugZap,
   RefreshCw,
   ShieldCheck,
 } from 'lucide-react'
-import { Button, Progress, Skeleton, Switch } from 'antd'
-import { useState } from 'react'
+import { Button, Progress, Skeleton, Switch, Tooltip } from 'antd'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '#shared/ui'
 import type { AgentWorkspaceInspectorState } from '../model/types.ts'
 import styles from './AgentInspector.module.scss'
+import { AgentTokenUsage } from './AgentTokenUsage.tsx'
 
 export function AgentInspector({
   inspector,
   disabled,
   onContextCompressionPendingChange,
   onRetryContext,
+  onRetryUsage,
   onApprovalBypassChange,
+  onClose,
 }: {
   inspector: AgentWorkspaceInspectorState
   disabled: boolean
   onContextCompressionPendingChange: (enabled: boolean) => void
   onRetryContext: () => void
+  onRetryUsage: () => void
   onApprovalBypassChange: (enabled: boolean) => Promise<void>
+  onClose: () => void
 }) {
   const { t, i18n } = useTranslation()
   const [confirmBypass, setConfirmBypass] = useState(false)
   const [saving, setSaving] = useState(false)
+  const disabledRef = useRef(disabled)
+  disabledRef.current = disabled
   const usage = inspector.context.has_snapshot && inspector.context.context_window_tokens > 0
     ? Math.min(100, Math.round(inspector.context.used_tokens / inspector.context.context_window_tokens * 100))
     : 0
+  useEffect(() => {
+    if (disabled) setConfirmBypass(false)
+  }, [disabled])
   const setPolicy = async (enabled: boolean) => {
+    if (disabledRef.current || saving) return
     setSaving(true)
     try {
       await onApprovalBypassChange(enabled)
@@ -48,6 +60,12 @@ export function AgentInspector({
 
   return (
     <aside className={styles.inspector} data-agent-panel aria-label={t('agent.inspector.title')}>
+      <div className={styles['inspector-header']}>
+        <span><CircleGauge size={15} aria-hidden="true" /><strong>{t('agent.inspector.title')}</strong></span>
+        <Tooltip title={t('app.close')}>
+          <Button type="text" aria-label={t('app.close')} icon={<PanelRightClose size={16} />} onClick={onClose} />
+        </Tooltip>
+      </div>
       <section className={styles['inspector-section']}>
         <header><CircleGauge size={15} /><h3>{t('agent.inspector.context')}</h3></header>
         {inspector.context.phase === 'unavailable' ? (
@@ -61,7 +79,7 @@ export function AgentInspector({
               percent={usage}
               showInfo={false}
               strokeColor={inspector.context.warning ? 'var(--warning)' : 'var(--accent)'}
-              railColor="var(--surface-hover)"
+              railColor="var(--row-hover-bg)"
             />
             <p>{formatTokens(inspector.context.used_tokens)} / {formatTokens(inspector.context.context_window_tokens)} token</p>
           </div>
@@ -116,14 +134,15 @@ export function AgentInspector({
           </div>
         ) : null}
       </section>
-      <section className={styles['inspector-section']}>
-        <header><BookOpenText size={15} /><h3>{t('agent.inspector.skills')}</h3>{inspector.skills.length > 0 ? <span>{inspector.skills.length}</span> : null}</header>
-        {inspector.skills.length ? (
+      <AgentTokenUsage usage={inspector.usage} onRetry={onRetryUsage} />
+      {inspector.skills.length ? (
+        <section className={styles['inspector-section']}>
+          <header><BookOpenText size={15} /><h3>{t('agent.inspector.skills')}</h3><span>{inspector.skills.length}</span></header>
           <div className={styles['skill-list']}>
             {inspector.skills.map((skill) => <div key={skill.name}><strong>{skill.name}</strong><span>{skill.description}</span></div>)}
           </div>
-        ) : <p className={styles['inspector-empty']}>{t('agent.inspector.skillsReady')}</p>}
-      </section>
+        </section>
+      ) : null}
       <section className={styles['inspector-section']}>
         <header><PlugZap size={15} /><h3>{t('agent.inspector.mcp')}</h3><span className={inspector.mcp.connection === 'connected' ? styles['is-connected'] : ''}>{t(`agent.inspector.${mcpConnectionKey(inspector.mcp.connection)}`)}</span></header>
         <div className={styles['mcp-metrics']}>
@@ -142,7 +161,7 @@ export function AgentInspector({
         </div>
       </section>
       <ConfirmDialog
-        open={confirmBypass}
+        open={confirmBypass && !disabled}
         title={t('agent.inspector.confirmBypassTitle')}
         description={t('agent.inspector.confirmBypassDescription')}
         confirmLabel={t('agent.inspector.confirmBypass')}

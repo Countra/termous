@@ -1,7 +1,8 @@
-import { Archive, MessageSquarePlus, Search, Trash2 } from 'lucide-react'
-import { Button, Input, Tooltip } from 'antd'
+import { Archive, MessageSquarePlus, MessageSquareText, MoreHorizontal, PanelLeftClose, Search, Trash2 } from 'lucide-react'
+import { Button, Dropdown, Input, Tooltip } from 'antd'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { contextActionMenuPopupClassName } from '#shared/ui'
 import type { AgentWorkspaceSession } from '../model/types.ts'
 import styles from './AgentSessionSidebar.module.scss'
 
@@ -13,6 +14,7 @@ export function AgentSessionSidebar({
   onSelect,
   onArchive,
   onDelete,
+  onClose,
 }: {
   sessions: AgentWorkspaceSession[]
   selectedSessionId?: string
@@ -21,6 +23,7 @@ export function AgentSessionSidebar({
   onSelect: (sessionId: string) => void
   onArchive: (sessionId: string) => void
   onDelete: (sessionId: string) => void
+  onClose?: () => void
 }) {
   const { t, i18n } = useTranslation()
   const [query, setQuery] = useState('')
@@ -32,9 +35,19 @@ export function AgentSessionSidebar({
   return (
     <aside className={styles['session-sidebar']} data-agent-panel aria-label={t('agent.sessions.title')}>
       <div className={styles['session-sidebar-header']}>
-        <Button type="primary" block icon={<MessageSquarePlus size={16} />} onClick={onCreate}>
-          {t('agent.sessions.new')}
-        </Button>
+        <div className={styles['session-sidebar-title']}>
+          <span><MessageSquareText size={15} aria-hidden="true" /><strong>{t('agent.sessions.title')}</strong></span>
+          <span>
+            <Tooltip title={t('agent.sessions.new')}>
+              <Button type="text" aria-label={t('agent.sessions.new')} icon={<MessageSquarePlus size={16} />} onClick={onCreate} />
+            </Tooltip>
+            {onClose ? (
+              <Tooltip title={t('app.close')}>
+                <Button type="text" aria-label={t('app.close')} icon={<PanelLeftClose size={16} />} onClick={onClose} />
+              </Tooltip>
+            ) : null}
+          </span>
+        </div>
         <Input
           allowClear
           prefix={<Search size={14} aria-hidden="true" />}
@@ -57,20 +70,42 @@ export function AgentSessionSidebar({
               onClick={() => onSelect(session.id)}
             >
               <strong>{session.title}</strong>
-              <span>
-                <span>{session.provider_name
-                  ? `${session.model_name} · ${session.provider_name}`
-                  : session.model_name}</span>
+              <span className={styles['session-meta']}>
+                <span className={styles['session-model']}>
+                  <i data-status={session.run_status.replace('_', '-')} aria-hidden="true" />
+                  <span>{session.provider_name
+                    ? `${session.model_name} · ${session.provider_name}`
+                    : session.model_name}</span>
+                </span>
                 <time dateTime={session.updated_at}>{formatRelative(session.updated_at, i18n?.resolvedLanguage)}</time>
               </span>
             </button>
             <div className={styles['session-actions']}>
-              <Tooltip title={t('agent.sessions.archive')}>
-                <Button type="text" size="small" disabled={disabled} aria-label={t('agent.sessions.archive')} icon={<Archive size={14} />} onClick={() => onArchive(session.id)} />
-              </Tooltip>
-              <Tooltip title={t('app.delete')}>
-                <Button type="text" size="small" danger disabled={disabled} aria-label={t('app.delete')} icon={<Trash2 size={14} />} onClick={() => onDelete(session.id)} />
-              </Tooltip>
+              <Dropdown
+                trigger={['click']}
+                disabled={disabled}
+                classNames={{ root: contextActionMenuPopupClassName }}
+                menu={{
+                  items: [
+                    { key: 'archive', icon: <Archive size={14} />, label: t('agent.sessions.archive') },
+                    { key: 'delete', icon: <Trash2 size={14} />, label: t('app.delete'), danger: true },
+                  ],
+                  onClick: ({ key }) => {
+                    if (key === 'archive') onArchive(session.id)
+                    if (key === 'delete') onDelete(session.id)
+                  },
+                }}
+              >
+                <Tooltip title={t('agent.sessions.more')}>
+                  <Button
+                    type="text"
+                    size="small"
+                    disabled={disabled}
+                    aria-label={t('agent.sessions.more')}
+                    icon={<MoreHorizontal size={15} />}
+                  />
+                </Tooltip>
+              </Dropdown>
             </div>
           </div>
         ))}

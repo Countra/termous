@@ -62,6 +62,7 @@
       "untitled": "New session",
       "search": "Search sessions",
       "empty": "No matching sessions",
+      "more": "More session actions",
       "archive": "Archive session",
       "deleteTitle": "Delete this session?",
       "deleteDescription": "The session “{{title}}” and its message history will be permanently deleted."
@@ -98,8 +99,11 @@
       "interrupted": "Interrupted"
     },
     "empty": {
-      "title": "Start an Agent session",
+      "title": "What would you like to work on?",
       "description": "Describe the outcome you need. The Agent uses Termous capabilities through MCP within the scopes you have granted."
+    },
+    "conversation": {
+      "jumpToLatest": "Jump to latest message"
     },
     "launch": {
       "action": "Ask Agent",
@@ -145,7 +149,7 @@
       }
     },
     "composer": {
-      "placeholder": "Type a message. Enter to send, Shift + Enter for a new line",
+      "placeholder": "Message Agent",
       "steerPlaceholder": "Add guidance after the current tool batch finishes",
       "steerHint": "This message will be added to the running task",
       "send": "Send",
@@ -198,6 +202,20 @@
       "compressPending": "Scheduled for the next message",
       "compressAvailable": "Keeps the latest six turns; original messages remain intact",
       "compressUnavailable": "There are not enough complete turns to compact yet",
+      "tokenUsage": "Token usage",
+      "runCount_one": "{{count}} run",
+      "runCount_other": "{{count}} runs",
+      "sessionTotal": "Current session total",
+      "inputTokens": "Input",
+      "outputTokens": "Output",
+      "reasoningTokens": "Of which reasoning",
+      "partialUsage": "Partial data",
+      "usageUnavailable": "Select a session to view token usage",
+      "usageEmpty": "This session has no runs to summarize yet",
+      "usageNotReported": "No token usage was recorded",
+      "usageNotReportedHint": "The run may have ended before a model request, or the Provider returned no usage data.",
+      "usageLoadFailed": "Token usage could not be updated",
+      "usageScopeHint": "Input includes cache reads and writes; reasoning is included in output, and context compaction counts toward the session total.",
       "skills": "Skills",
       "skillsReady": "Skill resources are loaded on demand by the runtime",
       "mcp": "MCP",

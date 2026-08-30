@@ -30,6 +30,7 @@ import {
   type AgentSession,
   type AgentSessionContext,
   type AgentSessionPage,
+  type AgentSessionUsage,
   type AgentUsage,
 } from '#entities/agent'
 
@@ -400,12 +401,40 @@ function decodeAgentContextCheckpoint(value: unknown) {
 
 function decodeUsage(value: unknown): AgentUsage {
   const source = record(value, 'Agent usage 无效')
+  const inputTokens = nonNegativeInteger(source.input_tokens, 'Agent input token 无效')
+  const outputTokens = nonNegativeInteger(source.output_tokens, 'Agent output token 无效')
+  const reasoningTokens = nonNegativeInteger(source.reasoning_tokens, 'Agent reasoning token 无效')
+  const totalTokens = nonNegativeInteger(source.total_tokens, 'Agent total token 无效')
+  if (reasoningTokens > outputTokens) {
+    throw new AgentRuntimeProtocolError('Agent reasoning token 不得超过 output token')
+  }
+  const minimumTotal = inputTokens + outputTokens
+  if (!Number.isSafeInteger(minimumTotal) || totalTokens < minimumTotal) {
+    throw new AgentRuntimeProtocolError('Agent total token 小于 input 与 output token 之和')
+  }
   return {
-    input_tokens: nonNegativeInteger(source.input_tokens, 'Agent input token 无效'),
-    output_tokens: nonNegativeInteger(source.output_tokens, 'Agent output token 无效'),
-    reasoning_tokens: nonNegativeInteger(source.reasoning_tokens, 'Agent reasoning token 无效'),
-    total_tokens: nonNegativeInteger(source.total_tokens, 'Agent total token 无效'),
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    reasoning_tokens: reasoningTokens,
+    total_tokens: totalTokens,
     estimated: bool(source.estimated, 'Agent usage 估算状态无效'),
+  }
+}
+
+export function decodeAgentSessionUsage(
+  value: unknown,
+  expectedSessionId?: string,
+): AgentSessionUsage {
+  const source = record(value, 'Agent 会话 Token 统计响应无效')
+  const sessionId = identifier(source.session_id, 'Agent 会话 Token 统计 Session ID 无效')
+  if (expectedSessionId !== undefined && sessionId !== expectedSessionId) {
+    throw new AgentRuntimeProtocolError('Agent 会话 Token 统计归属无效')
+  }
+  return {
+    session_id: sessionId,
+    run_count: nonNegativeInteger(source.run_count, 'Agent 会话 Run 数量无效'),
+    ...decodeUsage(source),
+    updated_at: optionalTimestamp(source.updated_at, 'Agent 会话 Token 统计更新时间无效'),
   }
 }
 

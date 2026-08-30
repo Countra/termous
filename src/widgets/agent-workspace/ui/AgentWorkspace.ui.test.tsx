@@ -1,7 +1,8 @@
 import { App as AntdApp } from 'antd'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { contextActionMenuPopupClassName, customSelectStyles } from '#shared/ui'
 import type { AgentWorkspaceProps } from '../model/types.ts'
 import { AgentWorkspace } from './AgentWorkspace.tsx'
 
@@ -15,7 +16,10 @@ const originalMatchMedia = window.matchMedia
 
 describe('AgentWorkspace', () => {
   beforeEach(() => setViewport(false, false))
-  afterEach(() => Object.defineProperty(window, 'matchMedia', { configurable: true, value: originalMatchMedia }))
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', { configurable: true, value: originalMatchMedia })
+    vi.unstubAllGlobals()
+  })
 
   it('展示真实 reasoning 与 Tool 时间线并路由发送、steer 和停止', async () => {
     const user = userEvent.setup()
@@ -34,13 +38,15 @@ describe('AgentWorkspace', () => {
       onSteer: props.onSteer,
       onStop: props.onStop,
     })} /></AntdApp>)
+    expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'agent.composer.steer' }))
     expect(props.onSteer).toHaveBeenCalledWith('adjust')
     await user.click(screen.getByRole('button', { name: 'agent.composer.stop' }))
     expect(props.onStop).toHaveBeenCalledTimes(1)
   })
 
-  it('模型不可用时展示可操作原因并禁止启动新 Run', () => {
+  it('模型不可用时向键盘用户展示原因并禁止启动新 Run', async () => {
+    const user = userEvent.setup()
     renderWorkspace(fixtureProps({
       models: [{
         id: 'model-1', name: 'Local model', provider_name: 'Local Provider',
@@ -50,7 +56,14 @@ describe('AgentWorkspace', () => {
       model_runnable: false,
     }))
 
-    expect(screen.getByText('agent.header.modelUnavailableReason.provider_disabled')).toBeInTheDocument()
+    const warning = screen.getByRole('button', {
+      name: 'agent.header.modelUnavailableReason.provider_disabled',
+    })
+    expect(warning).toBeEnabled()
+    await user.click(screen.getByRole('combobox', { name: 'agent.header.model' }))
+    expect(await screen.findByRole('option', {
+      name: /agent.header.modelUnavailableReason.provider_disabled/,
+    })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
   })
 
@@ -68,6 +81,25 @@ describe('AgentWorkspace', () => {
     expect(onOpenSettings).toHaveBeenCalledOnce()
   })
 
+  it('模型目录非空但全部不可用时仍提供进入 Agent 设置的入口', async () => {
+    const user = userEvent.setup()
+    const onOpenSettings = vi.fn()
+    renderWorkspace(fixtureProps({
+      models: [{
+        id: 'model-disabled', name: 'Disabled model', provider_name: 'Disabled Provider',
+        remote_model_id: 'disabled-model', supports_reasoning: false, runnable: false,
+        unavailable_reason: 'provider_disabled',
+      }],
+      selected_model_id: undefined,
+      model_runnable: false,
+      onOpenSettings,
+    }))
+
+    expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'agent.header.configureProvider' }))
+    expect(onOpenSettings).toHaveBeenCalledOnce()
+  })
+
   it('活动 Run 使用启动快照，模型目录不可用时仍允许 steer', async () => {
     const user = userEvent.setup()
     const onSteer = vi.fn(async () => undefined)
@@ -81,12 +113,22 @@ describe('AgentWorkspace', () => {
 
     const steer = screen.getByRole('button', { name: 'agent.composer.steer' })
     expect(steer).toBeEnabled()
+    expect(screen.getByText('Local model')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeDisabled()
     await user.click(steer)
     expect(onSteer).toHaveBeenCalledWith('继续检查')
   })
 
+  it('模型目录可用但尚未选择时只展示选择提示，不误报模型不可用', () => {
+    renderWorkspace(fixtureProps({ selected_model_id: undefined, model_runnable: false }))
+
+    expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'agent.header.modelUnavailable' })).not.toBeInTheDocument()
+  })
+
   it('模型目录可按 Provider 和远端模型 ID 搜索', async () => {
     const user = userEvent.setup()
+    const onModelChange = vi.fn()
     renderWorkspace(fixtureProps({
       models: [
         ...fixtureProps().models,
@@ -95,13 +137,19 @@ describe('AgentWorkspace', () => {
           remote_model_id: 'remote-model-v2', supports_reasoning: false, runnable: true,
         },
       ],
+      onModelChange,
     }))
 
     const modelSelect = screen.getByRole('combobox', { name: 'agent.header.model' })
+    const workspaceHeader = screen.getByRole('button', { name: 'agent.inspector.title' }).closest('header')
+    expect(workspaceHeader).not.toBeNull()
+    expect(within(workspaceHeader!).queryByRole('combobox')).not.toBeInTheDocument()
     expect(modelSelect).not.toHaveAttribute('readonly')
     await user.click(modelSelect)
+    expect(document.querySelector(`.${customSelectStyles['select-popup']}`)).toBeInTheDocument()
     await user.type(modelSelect, 'remote-model-v2')
-    expect(await screen.findByText(/Secondary model/)).toBeInTheDocument()
+    await user.click(await screen.findByText('Secondary model'))
+    expect(onModelChange).toHaveBeenCalledWith('model-2')
   })
 
   it('其他会话有活动 Run 时仍可保存草稿但不能启动第二个 Run', () => {
@@ -115,14 +163,16 @@ describe('AgentWorkspace', () => {
     fireEvent.change(composer, { target: { value: 'draft remains editable' } })
     expect(props.onDraftChange).toHaveBeenCalledWith('draft remains editable')
     expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
-    expect(screen.getByText('agent.status.running')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeDisabled()
+    expect(screen.queryByText('agent.status.running')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'agent.header.returnToActiveRun' }))
     expect(props.onReturnToActiveRun).toHaveBeenCalledOnce()
     fireEvent.click(screen.getByRole('button', { name: 'agent.composer.stop' }))
     expect(props.onStop).toHaveBeenCalledOnce()
   })
 
-  it('空闲时展示 MCP 按需连接且不展示无权威来源的数量', () => {
+  it('空闲时按需打开检查器并展示 MCP 权威状态', async () => {
+    const user = userEvent.setup()
     renderWorkspace(fixtureProps({
       inspector: {
         ...fixtureProps().inspector,
@@ -131,9 +181,11 @@ describe('AgentWorkspace', () => {
       },
     }))
 
+    expect(screen.queryByText('agent.inspector.onDemand')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'agent.inspector.title' }))
     expect(screen.getByText('agent.inspector.onDemand')).toBeInTheDocument()
     expect(screen.queryByText('agent.inspector.tools')).not.toBeInTheDocument()
-    expect(screen.getByText('agent.inspector.skillsReady')).toBeInTheDocument()
+    expect(screen.queryByText('agent.inspector.skills')).not.toBeInTheDocument()
   })
 
   it('为会话选择、搜索和流式消息提供稳定的无障碍语义', () => {
@@ -146,10 +198,28 @@ describe('AgentWorkspace', () => {
     expect(view.container.querySelector('[role="log"]')).toHaveAttribute('aria-busy', 'true')
   })
 
+  it('将低频会话操作收进单一更多菜单', async () => {
+    const user = userEvent.setup()
+    const onArchiveSession = vi.fn()
+    const onDeleteSession = vi.fn()
+    renderWorkspace(fixtureProps({ onArchiveSession, onDeleteSession }))
+
+    await user.click(screen.getByRole('button', { name: 'agent.sessions.more' }))
+    expect(document.querySelector(`.${contextActionMenuPopupClassName}`)).toBeInTheDocument()
+    await user.click(await screen.findByRole('menuitem', { name: 'agent.sessions.archive' }))
+    expect(onArchiveSession).toHaveBeenCalledWith('session-1')
+
+    await user.click(screen.getByRole('button', { name: 'agent.sessions.more' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'app.delete' }))
+    await user.click(screen.getByRole('button', { name: 'app.delete' }))
+    expect(onDeleteSession).toHaveBeenCalledWith('session-1')
+  })
+
   it('无需确认策略必须二次确认，运行期间禁止切换', async () => {
     const user = userEvent.setup()
     const onApprovalBypassChange = vi.fn(async () => undefined)
     const view = renderWorkspace(fixtureProps({ onApprovalBypassChange }))
+    await user.click(screen.getByRole('button', { name: 'agent.inspector.title' }))
     await user.click(screen.getByRole('switch', { name: 'agent.inspector.approval' }))
     expect(screen.getByText('agent.inspector.confirmBypassTitle')).toBeInTheDocument()
     expect(onApprovalBypassChange).not.toHaveBeenCalled()
@@ -160,6 +230,22 @@ describe('AgentWorkspace', () => {
       sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
     })} /></AntdApp>)
     expect(screen.getByRole('switch', { name: 'agent.inspector.approval' })).toBeDisabled()
+  })
+
+  it('确认无需审批期间启动 Run 时关闭失效的确认窗口', async () => {
+    const user = userEvent.setup()
+    const onApprovalBypassChange = vi.fn(async () => undefined)
+    const view = renderWorkspace(fixtureProps({ onApprovalBypassChange }))
+    await user.click(screen.getByRole('button', { name: 'agent.inspector.title' }))
+    await user.click(screen.getByRole('switch', { name: 'agent.inspector.approval' }))
+    expect(screen.getByText('agent.inspector.confirmBypassTitle')).toBeInTheDocument()
+
+    view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
+      sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
+      onApprovalBypassChange,
+    })} /></AntdApp>)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.inspector.confirmBypass', hidden: true }))
+    expect(onApprovalBypassChange).not.toHaveBeenCalled()
   })
 
   it('展示权威上下文预警和 Checkpoint，并将整理安排到下一次发送', async () => {
@@ -185,6 +271,7 @@ describe('AgentWorkspace', () => {
       onRetryContext,
     }))
 
+    await user.click(screen.getByRole('button', { name: 'agent.inspector.title' }))
     expect(screen.getByText('75%')).toBeInTheDocument()
     expect(screen.getByText('agent.inspector.contextWarning')).toBeInTheDocument()
     expect(screen.getByText('agent.inspector.checkpoint')).toBeInTheDocument()
@@ -206,6 +293,84 @@ describe('AgentWorkspace', () => {
     expect(onRetryContext).toHaveBeenCalledOnce()
   })
 
+  it('展示当前会话 Token 总计、组成和部分统计语义', async () => {
+    const user = userEvent.setup()
+    renderWorkspace(fixtureProps({
+      inspector: {
+        ...fixtureProps().inspector,
+        usage: {
+          phase: 'ready', has_snapshot: true, run_count: 3,
+          input_tokens: 1_200, output_tokens: 800, reasoning_tokens: 125,
+          total_tokens: 2_000, estimated: true,
+        },
+      },
+    }))
+
+    await user.click(screen.getByRole('button', { name: 'agent.inspector.title' }))
+    const usage = screen.getByRole('region', { name: 'agent.inspector.tokenUsage' })
+    expect(within(usage).getByText('2,000')).toBeInTheDocument()
+    expect(within(usage).getByText('1,200')).toBeInTheDocument()
+    expect(within(usage).getByText('800')).toBeInTheDocument()
+    expect(within(usage).getByText('125')).toBeInTheDocument()
+    expect(within(usage).getByText('agent.inspector.partialUsage')).toBeInTheDocument()
+    expect(within(usage).getByText('agent.inspector.usageScopeHint')).toBeInTheDocument()
+  })
+
+  it('区分 Provider 未返回与无运行，不把缺失统计显示为精确零值', async () => {
+    const user = userEvent.setup()
+    const view = renderWorkspace(fixtureProps({
+      inspector: {
+        ...fixtureProps().inspector,
+        usage: {
+          phase: 'ready', has_snapshot: true, run_count: 2,
+          input_tokens: 0, output_tokens: 0, reasoning_tokens: 0,
+          total_tokens: 0, estimated: true,
+        },
+      },
+    }))
+
+    await user.click(screen.getByRole('button', { name: 'agent.inspector.title' }))
+    let usage = screen.getByRole('region', { name: 'agent.inspector.tokenUsage' })
+    expect(within(usage).getByText('agent.inspector.usageNotReported')).toBeInTheDocument()
+    expect(within(usage).queryByText('0')).not.toBeInTheDocument()
+
+    view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
+      inspector: {
+        ...fixtureProps().inspector,
+        usage: {
+          phase: 'ready', has_snapshot: true, run_count: 0,
+          input_tokens: 0, output_tokens: 0, reasoning_tokens: 0,
+          total_tokens: 0, estimated: false,
+        },
+      },
+    })} /></AntdApp>)
+    usage = screen.getByRole('region', { name: 'agent.inspector.tokenUsage' })
+    expect(within(usage).getByText('agent.inspector.usageEmpty')).toBeInTheDocument()
+  })
+
+  it('Token 用量刷新失败时保留旧快照并路由独立重试', async () => {
+    const user = userEvent.setup()
+    const onRetryUsage = vi.fn()
+    renderWorkspace(fixtureProps({
+      inspector: {
+        ...fixtureProps().inspector,
+        usage: {
+          phase: 'error', has_snapshot: true, run_count: 1,
+          input_tokens: 900, output_tokens: 300, reasoning_tokens: 80,
+          total_tokens: 1_200, estimated: false, error_code: 'NETWORK_ERROR',
+        },
+      },
+      onRetryUsage,
+    }))
+
+    await user.click(screen.getByRole('button', { name: 'agent.inspector.title' }))
+    const usage = screen.getByRole('region', { name: 'agent.inspector.tokenUsage' })
+    expect(within(usage).getByText('1,200')).toBeInTheDocument()
+    expect(within(usage).getByText('agent.inspector.usageLoadFailed')).toBeInTheDocument()
+    await user.click(within(usage).getByRole('button', { name: 'app.retry' }))
+    expect(onRetryUsage).toHaveBeenCalledOnce()
+  })
+
   it('窄窗口将会话栏和检查器切换为按需抽屉', async () => {
     setViewport(true, true)
     const user = userEvent.setup()
@@ -215,7 +380,40 @@ describe('AgentWorkspace', () => {
     expect(sessionButton).toBeInTheDocument()
     expect(inspectorButton).toBeInTheDocument()
     await user.click(sessionButton)
-    expect(await screen.findAllByText('agent.sessions.new')).not.toHaveLength(0)
+    expect(await screen.findByRole('dialog', { name: 'agent.sessions.title' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'agent.sessions.new' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'app.close' }))
+    await user.click(inspectorButton)
+    expect(await screen.findByRole('dialog', { name: 'agent.inspector.title' })).toBeInTheDocument()
+  })
+
+  it('检查器跨响应式断点时保留用户的打开意图', async () => {
+    let notifyResize: ((width: number) => void) | undefined
+    class ResizeObserverMock {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = (width) => callback([{
+          contentRect: { width } as DOMRectReadOnly,
+        } as ResizeObserverEntry], this as unknown as ResizeObserver)
+      }
+
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+    const user = userEvent.setup()
+    renderWorkspace(fixtureProps())
+
+    act(() => notifyResize?.(1_000))
+    await user.click(screen.getByRole('button', { name: 'agent.inspector.title' }))
+    expect(screen.getByRole('dialog', { name: 'agent.inspector.title' })).toBeInTheDocument()
+
+    act(() => notifyResize?.(1_100))
+    expect(screen.getByRole('button', { name: 'agent.inspector.title' })).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() => expect(
+      screen.getAllByRole('complementary', { name: 'agent.inspector.title' })
+        .some((element) => !element.closest('[role="dialog"]')),
+    ).toBe(true))
   })
 
   it('模型不支持图片时阻止提交，并在忙碌期间锁定附件操作', () => {
@@ -236,6 +434,7 @@ describe('AgentWorkspace', () => {
 
     expect(screen.getByText('agent.attachments.imageModelUnsupported')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'agent.attachments.previewName' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'agent.attachments.removeName' })).toBeDisabled()
   })
@@ -309,6 +508,11 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
         phase: 'ready', has_snapshot: true, used_tokens: 120, context_window_tokens: 8_000,
         estimated: true, warning: false, compression_available: false, compression_pending: false,
       },
+      usage: {
+        phase: 'ready', has_snapshot: true, run_count: 1,
+        input_tokens: 80, output_tokens: 40, reasoning_tokens: 10,
+        total_tokens: 120, estimated: false,
+      },
       skills: [],
       mcp: { connection: 'connected', tool_count: 76, scope_count: 29, approval_bypass: false },
     },
@@ -322,6 +526,7 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
     onRetryAttachment: vi.fn(async () => undefined), onLoadAttachmentContent: vi.fn(async () => new Blob()),
     onSteer: vi.fn(async () => undefined), onStop: vi.fn(async () => undefined),
     onContextCompressionPendingChange: vi.fn(), onRetryContext: vi.fn(),
+    onRetryUsage: vi.fn(),
     onApprovalBypassChange: vi.fn(async () => undefined),
     ...overrides,
   }
