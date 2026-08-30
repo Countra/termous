@@ -6,6 +6,7 @@ import {
   type AgentLaunchIntent,
   type AgentModel,
   type AgentModelProvider,
+  type AgentReasoningLevel,
   type AgentReadiness,
   type AgentSession,
   type AgentSourceContext,
@@ -28,6 +29,7 @@ import {
   projectAgentSessions,
   selectionAfterSessionRemoval,
 } from '../model/agentWorkspaceProjection.ts'
+import { resolveAgentModelReasoningLevel } from '../model/agentModelSelection.ts'
 import { AgentReadinessSurface } from './AgentReadinessSurface.tsx'
 import styles from './AgentPage.module.scss'
 
@@ -63,6 +65,7 @@ export function AgentPage({
   const [setupLoading, setSetupLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [draftModelId, setDraftModelId] = useState<string>()
+  const [draftReasoningLevel, setDraftReasoningLevel] = useState<AgentReasoningLevel>()
   const [draftSourceContexts, setDraftSourceContexts] = useState<Record<string, AgentSourceContext>>({})
   const [activeSetupReadyEpoch, setActiveSetupReadyEpoch] = useState(0)
   const busyRef = useRef(false)
@@ -225,6 +228,10 @@ export function AgentPage({
     newSessionModel,
     providerById.get(newSessionModel.provider_id),
   ))
+  const newSessionReasoningLevel = resolveAgentModelReasoningLevel(
+    newSessionModel,
+    draftReasoningLevel ?? newSessionModel?.effective_default_reasoning_level ?? 'off',
+  )
   const workspaceInfrastructureReady = Boolean(
     readiness && agentWorkspaceInfrastructureReady(readiness),
   )
@@ -238,13 +245,11 @@ export function AgentPage({
     const session = await controller.createSession({
       title: sourceContext?.title || tRef.current('agent.sessions.untitled'),
       model_id: modelId,
-      reasoning_level: model.supports_reasoning
-        ? readiness?.settings.default_reasoning_level ?? 'off'
-        : 'off',
+      reasoning_level: resolveAgentModelReasoningLevel(model, newSessionReasoningLevel),
     })
     controller.selectSession(session.id)
     return session
-  }, [controller, modelById, newSessionModelId, providerById, readiness?.settings.default_reasoning_level])
+  }, [controller, modelById, newSessionModelId, newSessionReasoningLevel, providerById])
 
   const ensureAttachmentDraftSession = useCallback((sourceContext?: AgentSourceContext) => {
     if (attachmentDraftSessionPromiseRef.current) return attachmentDraftSessionPromiseRef.current
@@ -360,10 +365,11 @@ export function AgentPage({
   const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
   const runEvents = selectedRun ? state.run_events[selectedRun.id] ?? [] : []
   const selectedModel = modelById.get(selected?.model_id ?? newSessionModelId ?? '')
+  const selectedReasoningLevel = selected?.reasoning_level ?? newSessionReasoningLevel
   const selectedModelRunnable = Boolean(selectedModel && isAgentModelRunnable(
     selectedModel,
     providerById.get(selectedModel.provider_id),
-  ))
+  ) && selectedModel.supported_reasoning_levels.includes(selectedReasoningLevel))
   const selectedContext = selected ? state.session_contexts[selected.id] : undefined
   const contextSnapshot = selectedContext?.value
   const selectedUsage = selected ? state.session_usages[selected.id] : undefined
@@ -425,6 +431,7 @@ export function AgentPage({
         messages={projectAgentMessages(selected ? state.messages[selected.id] ?? [] : [], selectedRun, runEvents)}
         models={workspaceModelOptions}
         selected_model_id={selected?.model_id ?? newSessionModelId}
+        selected_reasoning_level={selectedReasoningLevel}
         inspector={inspector}
         draft={state.drafts[selected?.id ?? 'new']?.text ?? ''}
         draft_source_context={draftSourceContexts[selected?.id ?? 'new']}
@@ -453,11 +460,10 @@ export function AgentPage({
         )}
         onCreateSession={() => {
           controller.selectSession(undefined)
-          setDraftModelId((current) => (
-              current
-              ?? readiness.settings.default_model_id
-              ?? firstRunnableModelId
-          ))
+          const modelId = readiness.settings.default_model_id ?? firstRunnableModelId
+          const model = modelId ? modelById.get(modelId) : undefined
+          setDraftModelId(modelId)
+          setDraftReasoningLevel(model?.effective_default_reasoning_level ?? 'off')
         }}
         onSelectSession={(sessionId) => controller.selectSession(sessionId)}
         onReturnToActiveRun={() => {
@@ -487,6 +493,14 @@ export function AgentPage({
         })}
         onModelChange={(modelId) => void perform(async () => {
           if (!selected) {
+            const model = modelById.get(modelId)
+            if (!model || !isAgentModelRunnable(model, providerById.get(model.provider_id))) {
+              throw new Error('AGENT_MODEL_UNAVAILABLE')
+            }
+            setDraftReasoningLevel((current) => resolveAgentModelReasoningLevel(
+              model,
+              current ?? newSessionReasoningLevel,
+            ))
             setDraftModelId(modelId)
             return
           }
@@ -497,7 +511,21 @@ export function AgentPage({
           await controller.updateSession(selected.id, {
             ...updateInput(selected, false),
             model_id: modelId,
-            reasoning_level: model.supports_reasoning ? selected.reasoning_level : 'off',
+            reasoning_level: resolveAgentModelReasoningLevel(model, selected.reasoning_level),
+          })
+        })}
+        onReasoningChange={(reasoningLevel) => void perform(async () => {
+          const model = selectedModel
+          if (!model || !model.supported_reasoning_levels.includes(reasoningLevel)) {
+            throw new Error('AGENT_REASONING_LEVEL_UNSUPPORTED')
+          }
+          if (!selected) {
+            setDraftReasoningLevel(reasoningLevel)
+            return
+          }
+          await controller.updateSession(selected.id, {
+            ...updateInput(selected, false),
+            reasoning_level: reasoningLevel,
           })
         })}
         onOpenSettings={onOpenSettings ?? (() => undefined)}
@@ -519,12 +547,13 @@ export function AgentPage({
               targetSession = await controller.createSession({
                 title: createSessionTitle(message, t('agent.sessions.untitled')),
                 model_id: modelId,
-                reasoning_level: model.supports_reasoning ? readiness.settings.default_reasoning_level : 'off',
+                reasoning_level: resolveAgentModelReasoningLevel(model, newSessionReasoningLevel),
               })
               controller.updateDraft(targetSession.id, message)
               controller.updateDraft('new', '')
               setDraftModelId(readiness.settings.default_model_id
                 || firstRunnableModelId)
+              setDraftReasoningLevel(undefined)
             }
             if (attachmentDraftSessionIdsRef.current.has(targetSession.id)) {
               targetSession = await controller.updateSession(targetSession.id, {

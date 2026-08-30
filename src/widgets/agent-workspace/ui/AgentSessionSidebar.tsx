@@ -74,8 +74,8 @@ export function AgentSessionSidebar({
                 <span className={styles['session-model']}>
                   <i data-status={session.run_status.replace('_', '-')} aria-hidden="true" />
                   <span>{session.provider_name
-                    ? `${session.model_name} · ${session.provider_name}`
-                    : session.model_name}</span>
+                    ? `${session.model_alias ?? session.model_name} · ${session.provider_name}`
+                    : session.model_alias ?? session.model_name}</span>
                 </span>
                 <time dateTime={session.updated_at}>{formatRelative(session.updated_at, i18n?.resolvedLanguage)}</time>
               </span>

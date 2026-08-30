@@ -1,0 +1,186 @@
+.controls {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.primary-controls,
+.parameter-controls {
+  display: grid;
+  min-width: 0;
+  align-items: end;
+  gap: 9px;
+}
+
+.primary-controls {
+  grid-template-columns: minmax(180px, 1.45fr) minmax(132px, 0.55fr);
+}
+
+.parameter-controls {
+  grid-template-columns: repeat(2, minmax(142px, 1fr)) auto;
+  align-items: start;
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.field-label {
+  display: flex;
+  min-width: 0;
+  min-height: 16px;
+  align-items: center;
+  gap: 4px;
+}
+
+.field-label > span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field :global(.ant-select),
+.field :global(.ant-input-number) {
+  width: 100%;
+}
+
+.field-help {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: help;
+  padding: 0;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.field-help:hover,
+.field-help:focus-visible {
+  background: var(--row-hover-bg);
+  color: var(--text-secondary);
+  outline: none;
+}
+
+.field-help:focus-visible {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 58%, transparent);
+}
+
+.field-error {
+  color: var(--danger);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.save {
+  min-width: 72px;
+  margin-top: 22px;
+}
+
+.model-option {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.model-option strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: "Cascadia Mono", SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-option em {
+  color: var(--warning);
+  font-size: 9px;
+  font-style: normal;
+}
+
+.model-detail-tooltip:global(.ant-tooltip) {
+  max-width: min(288px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+.model-detail-tooltip:global(.ant-tooltip) :global(.ant-tooltip-inner),
+.model-detail-tooltip:global(.ant-tooltip) :global(.ant-tooltip-container) {
+  width: min(268px, calc(100vw - 24px));
+  max-width: none;
+  padding: 10px 11px;
+}
+
+.model-detail {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.model-detail > strong {
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+  font-family: "Cascadia Mono", SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.model-detail > span {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+@container agent-settings (max-width: 980px) {
+  .save {
+    justify-self: end;
+  }
+}
+
+@container agent-settings (max-width: 760px) {
+  .controls {
+    grid-column: 2;
+  }
+}
+
+@container agent-settings (max-width: 520px) {
+  .primary-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .save {
+    grid-column: 1 / -1;
+  }
+
+  .parameter-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .save {
+    justify-self: end;
+    margin-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field-help {
+    transition: none;
+  }
+}

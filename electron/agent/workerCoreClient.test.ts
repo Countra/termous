@@ -120,6 +120,46 @@ test('bootstrap 绑定 Run、generation、Session 与 reasoning 枚举', async (
   await assert.rejects(invalidTokenRange.bootstrap(start), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
 })
 
+test('bootstrap 严格校验推理控制、支持档位及本次 Run 档位', async () => {
+  const unsupportedRunResponse = bootstrapResponse()
+  unsupportedRunResponse.run.reasoning_level = 'high'
+  const unsupportedRun = new WorkerCoreClient({
+    fetch: async () => Response.json(unsupportedRunResponse),
+  })
+  await assert.rejects(unsupportedRun.bootstrap(start), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+
+  const duplicateLevelsResponse = bootstrapResponse()
+  duplicateLevelsResponse.model.snapshot.reasoning_control = 'openai_effort'
+  duplicateLevelsResponse.model.snapshot.supported_reasoning_levels = ['off', 'high', 'high']
+  const duplicateLevels = new WorkerCoreClient({
+    fetch: async () => Response.json(duplicateLevelsResponse),
+  })
+  await assert.rejects(duplicateLevels.bootstrap(start), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+
+  const noneWithEffortResponse = bootstrapResponse()
+  noneWithEffortResponse.model.snapshot.supported_reasoning_levels = ['off', 'low']
+  const noneWithEffort = new WorkerCoreClient({
+    fetch: async () => Response.json(noneWithEffortResponse),
+  })
+  await assert.rejects(noneWithEffort.bootstrap(start), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+
+  const effortWithoutLevelResponse = bootstrapResponse()
+  effortWithoutLevelResponse.model.snapshot.reasoning_control = 'openai_effort'
+  const effortWithoutLevel = new WorkerCoreClient({
+    fetch: async () => Response.json(effortWithoutLevelResponse),
+  })
+  await assert.rejects(effortWithoutLevel.bootstrap(start), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
+
+  const validMaxResponse = bootstrapResponse()
+  validMaxResponse.run.reasoning_level = 'max'
+  validMaxResponse.model.snapshot.reasoning_control = 'openai_effort'
+  validMaxResponse.model.snapshot.supported_reasoning_levels = ['high', 'max']
+  const validMax = new WorkerCoreClient({
+    fetch: async () => Response.json(validMaxResponse),
+  })
+  await assert.doesNotReject(validMax.bootstrap(start))
+})
+
 test('bootstrap 冻结 Run 模型快照且不混淆内部模型 ID', async () => {
   const client = new WorkerCoreClient({
     fetch: async () => Response.json(bootstrapResponse()),
@@ -313,7 +353,8 @@ function bootstrapResponse(): RuntimeBootstrap {
         context_window_tokens: 8192,
         max_output_tokens: 1024,
         supports_images: false,
-        supports_reasoning: false,
+        reasoning_control: 'none',
+        supported_reasoning_levels: ['off'],
       },
       api_key: 'configured',
     },

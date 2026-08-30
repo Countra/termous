@@ -84,6 +84,8 @@ describe('AgentSettingsPanel', () => {
     await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith({
       default_model_id: 'apm-1',
       default_reasoning_level: 'off',
+      global_context_window_tokens: 16_384,
+      global_max_output_tokens: 4_096,
       show_turn_token_usage: false,
       expected_revision: 7,
     }, expect.any(AbortSignal)))
@@ -94,24 +96,293 @@ describe('AgentSettingsPanel', () => {
     expect(toggle).not.toBeChecked()
   })
 
-  it('不支持 reasoning 的默认模型禁用高等级选项', async () => {
+  it('全局默认参数独立保存并只用模型 ID 展示默认模型', async () => {
     const user = userEvent.setup()
     const provider = providerFixture()
-    const model = { ...modelFixture(), supports_reasoning: false }
+    const model = {
+      ...modelFixture(),
+      supports_reasoning: false,
+      reasoning_control: 'none' as const,
+      supported_reasoning_levels: ['off' as const],
+    }
     const gateway = gatewayFixture({
       providers: [provider], models: [model], readiness: readinessFixture(1, model.id),
     })
     renderPanel(gateway)
     await screen.findByDisplayValue(provider.name)
 
-    const defaultModelField = screen.getByText('settings.agent.defaults.model').closest('label')
-    expect(defaultModelField).toHaveTextContent(model.display_name)
+    const defaultModelField = screen.getByText('settings.agent.defaults.model')
+      .closest('[data-agent-default-field]')
+    expect(defaultModelField).toHaveTextContent(model.remote_model_id)
+    expect(defaultModelField).not.toHaveTextContent(model.display_name)
     expect(defaultModelField).not.toHaveTextContent(provider.name)
-    const reasoningField = screen.getByText('settings.agent.defaults.reasoning').closest('label')!
+    const reasoningField = screen.getByText('settings.agent.defaults.reasoning')
+      .closest<HTMLElement>('[data-agent-default-field]')!
     const reasoning = within(reasoningField).getByRole('combobox')
     await user.click(reasoning)
     const high = await screen.findByText('settings.agent.reasoning.high')
-    expect(high.closest('.ant-select-item-option')).toHaveClass('ant-select-item-option-disabled')
+    expect(high.closest('.ant-select-item-option')).not.toHaveClass('ant-select-item-option-disabled')
+    await user.click(high)
+    fireEvent.change(screen.getByRole('spinbutton', {
+      name: /settings\.agent\.defaults\.contextBudget/,
+    }), { target: { value: '32768' } })
+    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+
+    await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith({
+      default_model_id: model.id,
+      default_reasoning_level: 'high',
+      global_context_window_tokens: 32_768,
+      global_max_output_tokens: 4_096,
+      show_turn_token_usage: true,
+      expected_revision: 1,
+    }, expect.any(AbortSignal)))
+  })
+
+  it('Token 快捷档位只更新草稿并在保存时提交精确值', async () => {
+    const user = userEvent.setup()
+    const model = modelFixture()
+    const gateway = gatewayFixture({
+      providers: [providerFixture()],
+      models: [model],
+      readiness: readinessFixture(1, model.id),
+    })
+    renderPanel(gateway)
+    await screen.findByDisplayValue('Provider')
+
+    await user.click(screen.getByRole('button', {
+      name: 'settings.agent.defaults.contextQuickSelect',
+    }))
+    await user.click(await screen.findByText('64K'))
+    await user.click(screen.getByRole('button', {
+      name: 'settings.agent.defaults.outputQuickSelect',
+    }))
+    await user.click(await screen.findByText('8K'))
+
+    expect(gateway.updateSettings).not.toHaveBeenCalled()
+    expect(screen.getByRole('spinbutton', {
+      name: 'settings.agent.defaults.contextBudget',
+    })).toHaveValue('65536')
+    expect(screen.getByRole('spinbutton', {
+      name: 'settings.agent.defaults.maxOutput',
+    })).toHaveValue('8192')
+
+    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith({
+      default_model_id: model.id,
+      default_reasoning_level: 'off',
+      global_context_window_tokens: 65_536,
+      global_max_output_tokens: 8_192,
+      show_turn_token_usage: true,
+      expected_revision: 1,
+    }, expect.any(AbortSignal)))
+  })
+
+  it('保留任意自定义 Token 值并阻止输出上限超过上下文窗口', async () => {
+    const model = modelFixture()
+    const gateway = gatewayFixture({
+      providers: [providerFixture()],
+      models: [model],
+      readiness: readinessFixture(1, model.id),
+    })
+    renderPanel(gateway)
+    await screen.findByDisplayValue('Provider')
+
+    const contextInput = screen.getByRole('spinbutton', {
+      name: 'settings.agent.defaults.contextBudget',
+    })
+    const outputInput = screen.getByRole('spinbutton', {
+      name: 'settings.agent.defaults.maxOutput',
+    })
+    fireEvent.change(contextInput, { target: { value: '50000' } })
+    fireEvent.change(outputInput, { target: { value: '50001' } })
+
+    expect(contextInput).toHaveValue('50000')
+    expect(outputInput).toHaveValue('50001')
+    expect(screen.getByText('settings.agent.validation.tokenLimit')).toBeInTheDocument()
+    expect(outputInput).toHaveAttribute('aria-invalid', 'true')
+    const errorId = outputInput.getAttribute('aria-describedby')
+    expect(errorId).toBeTruthy()
+    expect(document.getElementById(errorId!)).toHaveTextContent('settings.agent.validation.tokenLimit')
+    expect(screen.getByRole('button', { name: 'settings.agent.defaults.save' })).toBeDisabled()
+    expect(gateway.updateSettings).not.toHaveBeenCalled()
+  })
+
+  it('读取新 revision 后保留默认参数草稿并按新基线保存', async () => {
+    const user = userEvent.setup()
+    const model = modelFixture()
+    const initial = readinessFixture(1, model.id)
+    const latest: AgentReadiness = {
+      ...initial,
+      settings: {
+        ...initial.settings,
+        global_context_window_tokens: 65_536,
+        revision: 2,
+        updated_at: '2026-08-30T00:01:00Z',
+      },
+    }
+    const saved: AgentSettings = {
+      ...latest.settings,
+      global_context_window_tokens: 32_768,
+      revision: 3,
+      updated_at: '2026-08-30T00:02:00Z',
+    }
+    const gateway = gatewayFixture({
+      providers: [providerFixture()], models: [model], readiness: initial,
+    })
+    vi.mocked(gateway.setup).mockResolvedValue(latest)
+    vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue(latest)
+    vi.mocked(gateway.updateSettings).mockResolvedValue(saved)
+    renderPanel(gateway)
+    await screen.findByDisplayValue('Provider')
+
+    const contextInput = screen.getByRole('spinbutton', {
+      name: 'settings.agent.defaults.contextBudget',
+    })
+    fireEvent.change(contextInput, { target: { value: '32768' } })
+    await user.click(screen.getByRole('button', { name: 'settings.agent.readiness.checkAgain' }))
+
+    expect(await screen.findByText('settings.agent.conflict.defaultsDescription')).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', {
+      name: 'settings.agent.defaults.contextBudget',
+    })).toHaveValue('32768')
+    await user.click(screen.getByRole('button', { name: 'settings.agent.conflict.refresh' }))
+    expect(screen.getByRole('spinbutton', {
+      name: 'settings.agent.defaults.contextBudget',
+    })).toHaveValue('32768')
+
+    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        global_context_window_tokens: 32_768,
+        expected_revision: 2,
+      }),
+      expect.any(AbortSignal),
+    ))
+  })
+
+  it('默认参数 revision 冲突只显示一个恢复入口并一次保留草稿', async () => {
+    const user = userEvent.setup()
+    const model = modelFixture()
+    const initial = readinessFixture(1, model.id)
+    const latest: AgentReadiness = {
+      ...initial,
+      settings: {
+        ...initial.settings,
+        global_context_window_tokens: 65_536,
+        revision: 2,
+        updated_at: '2026-08-30T00:01:00Z',
+      },
+    }
+    const saved: AgentSettings = {
+      ...latest.settings,
+      global_context_window_tokens: 32_768,
+      revision: 3,
+      updated_at: '2026-08-30T00:02:00Z',
+    }
+    const gateway = gatewayFixture({
+      providers: [providerFixture()], models: [model], readiness: initial,
+    })
+    vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue(latest)
+    vi.mocked(gateway.updateSettings)
+      .mockRejectedValueOnce(new TermousApiError(
+        'revision conflict',
+        'AGENT_REVISION_CONFLICT',
+        409,
+      ))
+      .mockResolvedValue(saved)
+    renderPanel(gateway)
+    await screen.findByDisplayValue('Provider')
+
+    const contextInput = screen.getByRole('spinbutton', {
+      name: 'settings.agent.defaults.contextBudget',
+    })
+    fireEvent.change(contextInput, { target: { value: '32768' } })
+    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+
+    expect(await screen.findByText('settings.agent.conflict.defaultsDescription')).toBeInTheDocument()
+    expect(screen.queryByText('settings.agent.conflict.description')).not.toBeInTheDocument()
+    const refresh = screen.getByRole('button', { name: 'settings.agent.conflict.refresh' })
+    await waitFor(() => expect(refresh).toBeEnabled())
+    await user.click(refresh)
+    await waitFor(() => expect(screen.queryByText(
+      'settings.agent.conflict.defaultsDescription',
+    )).not.toBeInTheDocument())
+    expect(screen.getByRole('spinbutton', {
+      name: 'settings.agent.defaults.contextBudget',
+    })).toHaveValue('32768')
+
+    await user.click(screen.getByRole('button', { name: 'settings.agent.defaults.save' }))
+    await waitFor(() => expect(gateway.updateSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        global_context_window_tokens: 32_768,
+        expected_revision: 2,
+      }),
+      expect.any(AbortSignal),
+    ))
+  })
+
+  it('默认模型候选项的 hover 详情显示在下拉层上方', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const model = modelFixture()
+    renderPanel(gatewayFixture({ providers: [provider], models: [model] }))
+    await screen.findByDisplayValue(provider.name)
+
+    await user.click(screen.getByRole('combobox', { name: 'settings.agent.defaults.model' }))
+    const modelLabels = await screen.findAllByText(model.remote_model_id)
+    const optionLabel = modelLabels.find((element) => element.closest('.ant-select-item-option'))
+    expect(optionLabel).toBeDefined()
+    await user.hover(optionLabel!)
+
+    const tooltip = await screen.findByRole('tooltip')
+    expect(tooltip).toHaveTextContent(model.remote_model_id)
+    expect(tooltip).toHaveTextContent('settings.agent.defaults.modelDetail')
+    expect(tooltip.closest('.ant-tooltip')).toHaveStyle({ zIndex: '3600' })
+    expect(optionLabel!.parentElement?.getAttribute('aria-label'))
+      .toContain('settings.agent.defaults.modelDetail')
+  })
+
+  it('未编辑全局参数时自动吸收模型目录切换的默认项', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const first = modelFixture()
+    const second = {
+      ...modelFixture(),
+      id: 'apm-2',
+      remote_model_id: 'gpt-second',
+      display_name: 'GPT Second',
+    }
+    const initial = readinessFixture(1, first.id)
+    const updated = {
+      ...initial,
+      settings: {
+        ...initial.settings,
+        default_model_id: second.id,
+        revision: 2,
+        updated_at: '2026-08-30T00:01:00Z',
+      },
+    }
+    const gateway = gatewayFixture({
+      providers: [provider], models: [first, second], readiness: initial,
+    })
+    vi.mocked(gateway.updateSettings).mockResolvedValue(updated.settings)
+    vi.mocked(gateway.readiness).mockResolvedValueOnce(initial).mockResolvedValue(updated)
+    renderPanel(gateway)
+    await screen.findByDisplayValue(provider.name)
+
+    await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
+    const modelActions = screen.getAllByRole('button', {
+      name: 'settings.agent.catalog.moreActions',
+    })
+    await user.click(modelActions[1]!)
+    await user.click(await screen.findByRole('menuitem', {
+      name: 'settings.agent.catalog.setDefault',
+    }))
+
+    const defaultModelField = screen.getByText('settings.agent.defaults.model')
+      .closest('[data-agent-default-field]')
+    await waitFor(() => expect(defaultModelField).toHaveTextContent(second.remote_model_id))
+    expect(screen.queryByText('settings.agent.conflict.defaultsDescription')).not.toBeInTheDocument()
   })
 
   it('Provider、模型目录和默认模型选择提供可搜索语义', async () => {
@@ -342,6 +613,34 @@ describe('AgentSettingsPanel', () => {
     expect(document.body.textContent).not.toContain('draft-secret')
   })
 
+  it('Provider 删除 revision 冲突后关闭确认框并要求重新发起操作', async () => {
+    const user = userEvent.setup()
+    const original = providerFixture(1)
+    const refreshed = providerFixture(2)
+    const gateway = gatewayFixture({ providers: [original] })
+    vi.mocked(gateway.modelProviders)
+      .mockResolvedValueOnce({ items: [original] })
+      .mockResolvedValue({ items: [refreshed] })
+    vi.mocked(gateway.deleteModelProvider).mockRejectedValue(
+      new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409),
+    )
+    renderPanel(gateway)
+    await screen.findByDisplayValue(original.name)
+
+    await user.click(screen.getByRole('button', { name: 'app.delete' }))
+    const description = await screen.findByText('settings.agent.confirmDelete.description')
+    const dialog = description.closest<HTMLElement>('[role="dialog"]')
+    expect(dialog).not.toBeNull()
+    await user.click(within(dialog!).getByRole('button', { name: 'app.delete' }))
+
+    await waitFor(() => expect(dialog).toHaveClass('ant-zoom-leave'))
+    expect(await screen.findByText('settings.agent.conflict.description')).toBeInTheDocument()
+    expect(gateway.deleteModelProvider).toHaveBeenCalledTimes(1)
+    expect(gateway.deleteModelProvider).toHaveBeenCalledWith(
+      original.id, original.revision, expect.any(AbortSignal),
+    )
+  })
+
   it('能力编辑中的模型被外部删除后保留草稿并要求显式确认关闭', async () => {
     const user = userEvent.setup()
     const provider = providerFixture()
@@ -356,7 +655,7 @@ describe('AgentSettingsPanel', () => {
     renderPanel(gateway)
     await screen.findByDisplayValue(provider.name)
     await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
-    await user.click(screen.getByRole('button', { name: 'settings.agent.catalog.editCapabilities' }))
+    await chooseModelAction(user, 'settings.agent.catalog.edit')
     const displayName = screen.getByLabelText('settings.agent.modelEditor.displayName')
 
     fireEvent.change(displayName, { target: { value: 'Local model draft' } })
@@ -364,7 +663,7 @@ describe('AgentSettingsPanel', () => {
 
     expect(await screen.findByText('settings.agent.conflict.modelDeleted')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.agent.modelEditor.displayName')).toHaveValue('Local model draft')
-    expect(screen.getByRole('button', { name: 'app.save' })).toBeDisabled()
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'app.save' })).toBeDisabled()
 
     await user.click(screen.getByRole('button', { name: 'app.cancel' }))
     const description = await screen.findByText('settings.agent.modelEditor.discardDescription')
@@ -376,6 +675,96 @@ describe('AgentSettingsPanel', () => {
     }))
 
     await waitFor(() => expect(screen.queryByText('settings.agent.conflict.modelDeleted')).not.toBeInTheDocument())
+  })
+
+  it('编辑中的模型被外部逻辑移除后保留草稿并禁止保存', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const model = modelFixture()
+    const removed = {
+      ...modelFixture(2),
+      removed_at: '2026-08-30T00:02:00Z',
+    }
+    const gateway = gatewayFixture({ providers: [provider], models: [model] })
+    vi.mocked(gateway.models)
+      .mockResolvedValueOnce({ items: [model] })
+      .mockResolvedValue({ items: [removed] })
+    renderPanel(gateway)
+    await screen.findByDisplayValue(provider.name)
+    await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
+    await chooseModelAction(user, 'settings.agent.catalog.edit')
+
+    fireEvent.change(screen.getByLabelText('settings.agent.modelEditor.displayName'), {
+      target: { value: 'Local model draft' },
+    })
+    await user.click(screen.getByRole('button', { name: 'settings.agent.readiness.setup' }))
+
+    expect(await screen.findByText('settings.agent.conflict.modelRemoved')).toBeInTheDocument()
+    expect(screen.getByLabelText('settings.agent.modelEditor.displayName')).toHaveValue('Local model draft')
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'app.save' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'app.cancel' }))
+    expect(await screen.findByText('settings.agent.modelEditor.discardDescription')).toBeInTheDocument()
+  })
+
+  it('模型移除 revision 冲突后关闭确认框并保留显式冲突入口', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const original = modelFixture(1)
+    const refreshed = modelFixture(2)
+    const gateway = gatewayFixture({ providers: [provider], models: [original] })
+    vi.mocked(gateway.models)
+      .mockResolvedValueOnce({ items: [original] })
+      .mockResolvedValue({ items: [refreshed] })
+    vi.mocked(gateway.removeModel).mockRejectedValue(
+      new TermousApiError('revision conflict', 'AGENT_REVISION_CONFLICT', 409),
+    )
+    renderPanel(gateway)
+    await screen.findByDisplayValue(provider.name)
+    await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
+    await chooseModelAction(user, 'settings.agent.catalog.remove')
+    const description = await screen.findByText('settings.agent.catalog.confirmRemoveDescription')
+    const dialog = description.closest<HTMLElement>('[role="dialog"]')
+    expect(dialog).not.toBeNull()
+
+    await user.click(within(dialog!).getByRole('button', { name: 'settings.agent.catalog.remove' }))
+
+    await waitFor(() => expect(dialog).toHaveClass('ant-zoom-leave'))
+    expect(await screen.findByText('settings.agent.conflict.description')).toBeInTheDocument()
+    expect(gateway.removeModel).toHaveBeenCalledTimes(1)
+    expect(gateway.removeModel).toHaveBeenCalledWith(
+      original.id, original.revision, expect.any(AbortSignal),
+    )
+  })
+
+  it('新增模型期间 Provider 被外部删除时不把草稿切换到其他 Provider', async () => {
+    const user = userEvent.setup()
+    const original = providerFixture()
+    const fallback = {
+      ...providerFixture(),
+      id: 'apv-2',
+      name: 'Provider B',
+      base_url: 'https://provider-b.example.test/v1',
+    }
+    const gateway = gatewayFixture({ providers: [original, fallback] })
+    vi.mocked(gateway.modelProviders)
+      .mockResolvedValueOnce({ items: [original, fallback] })
+      .mockResolvedValue({ items: [fallback] })
+    renderPanel(gateway)
+    await screen.findByDisplayValue(original.name)
+    await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
+    await user.click(screen.getByRole('button', { name: 'settings.agent.catalog.add' }))
+
+    fireEvent.change(screen.getByLabelText('settings.agent.modelEditor.modelId'), {
+      target: { value: 'draft-model' },
+    })
+    await user.click(screen.getByRole('button', { name: 'settings.agent.readiness.setup' }))
+
+    expect(await screen.findByText('settings.agent.conflict.providerDeleted')).toBeInTheDocument()
+    expect(screen.getByLabelText('settings.agent.modelEditor.modelId')).toHaveValue('draft-model')
+    expect(within(screen.getByRole('dialog')).getByText(original.name)).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).queryByText(fallback.name)).not.toBeInTheDocument()
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'app.save' }))
+      .toBeDisabled()
   })
 
   it('模型能力脏草稿遇到外部 revision 更新时显式换基线后才保存', async () => {
@@ -394,7 +783,7 @@ describe('AgentSettingsPanel', () => {
     renderPanel(gateway)
     await screen.findByDisplayValue(provider.name)
     await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
-    await user.click(screen.getByRole('button', { name: 'settings.agent.catalog.editCapabilities' }))
+    await chooseModelAction(user, 'settings.agent.catalog.edit')
     const displayName = screen.getByLabelText('settings.agent.modelEditor.displayName')
 
     fireEvent.change(displayName, { target: { value: saved.display_name } })
@@ -539,14 +928,83 @@ describe('AgentSettingsPanel', () => {
     await screen.findByDisplayValue(provider.name)
 
     await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
-    await user.click(await screen.findByRole('button', {
-      name: 'settings.agent.catalog.editCapabilities',
-    }))
-    const reasoningField = screen.getByText('settings.agent.modelEditor.reasoning').closest('label')!
-    await user.click(within(reasoningField).getByRole('switch'))
+    await chooseModelAction(user, 'settings.agent.catalog.edit')
+    fireEvent.change(screen.getByLabelText('settings.agent.modelEditor.displayName'), {
+      target: { value: 'Changed model name' },
+    })
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'app.save' }))
 
     expect(await screen.findByText('settings.agent.error.modelCapabilityConflict')).toBeInTheDocument()
+  })
+
+  it('手工新增模型冲突时在编辑弹窗内展示准确错误且不误报 revision 冲突', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const gateway = gatewayFixture({ providers: [provider] })
+    vi.mocked(gateway.createModel).mockRejectedValue(
+      new TermousApiError('model id conflict', 'AGENT_MODEL_ID_CONFLICT', 409),
+    )
+    renderPanel(gateway)
+    await screen.findByDisplayValue(provider.name)
+    await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
+    await user.click(screen.getByRole('button', { name: 'settings.agent.catalog.add' }))
+    await user.type(screen.getByLabelText('settings.agent.modelEditor.modelId'), 'duplicate-model')
+
+    const editor = screen.getByRole('dialog')
+    await user.click(within(editor).getByRole('button', { name: 'app.save' }))
+
+    expect(await within(editor).findByText('settings.agent.error.modelIdConflict')).toBeInTheDocument()
+    expect(screen.queryByText('settings.agent.error.conflict')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.agent.conflict.description')).not.toBeInTheDocument()
+  })
+
+  it('非 revision 的 HTTP 409 按稳定业务错误码展示', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const gateway = gatewayFixture({ providers: [provider] })
+    vi.mocked(gateway.deleteModelProvider).mockRejectedValue(
+      new TermousApiError('provider in use', 'AGENT_MODEL_PROVIDER_IN_USE', 409),
+    )
+    renderPanel(gateway)
+    await screen.findByDisplayValue(provider.name)
+
+    await user.click(screen.getByRole('button', { name: 'app.delete' }))
+    const dialog = (await screen.findByText('settings.agent.confirmDelete.description'))
+      .closest<HTMLElement>('[role="dialog"]')
+    expect(dialog).not.toBeNull()
+    await user.click(within(dialog!).getByRole('button', { name: 'app.delete' }))
+
+    expect(await screen.findByText('settings.agent.error.providerInUse')).toBeInTheDocument()
+    expect(screen.queryByText('settings.agent.error.conflict')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.agent.conflict.description')).not.toBeInTheDocument()
+  })
+
+  it('目录刷新图标只在真实同步期间显示 loading', async () => {
+    const user = userEvent.setup()
+    const provider = providerFixture()
+    const deletePending = deferred<void>()
+    const refreshPending = deferred<AgentModelProvider>()
+    const gateway = gatewayFixture({ providers: [provider] })
+    vi.mocked(gateway.deleteModelProvider).mockReturnValue(deletePending.promise)
+    vi.mocked(gateway.refreshProviderModels).mockReturnValue(refreshPending.promise)
+    renderPanel(gateway)
+    await screen.findByDisplayValue(provider.name)
+    await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
+    const refresh = screen.getByRole('button', { name: 'settings.agent.catalog.refresh' })
+
+    await user.click(screen.getByRole('button', { name: 'app.delete' }))
+    const deleteDialog = (await screen.findByText('settings.agent.confirmDelete.description'))
+      .closest<HTMLElement>('[role="dialog"]')
+    await user.click(within(deleteDialog!).getByRole('button', { name: 'app.delete' }))
+    expect(refresh).not.toHaveClass('ant-btn-loading')
+
+    deletePending.reject(new TermousApiError('provider in use', 'AGENT_MODEL_PROVIDER_IN_USE', 409))
+    await waitFor(() => expect(refresh).toBeEnabled())
+    await user.click(refresh)
+    await waitFor(() => expect(refresh).toHaveClass('ant-btn-loading'))
+
+    refreshPending.resolve(providerFixture(2))
+    await waitFor(() => expect(refresh).not.toHaveClass('ant-btn-loading'))
   })
 
   it('明文 HTTP Provider 在统一表单持续展示传输风险', async () => {
@@ -584,7 +1042,7 @@ describe('AgentSettingsPanel', () => {
     await screen.findByDisplayValue(provider.name)
 
     await user.click(screen.getByRole('tab', { name: 'settings.agent.providers.catalogTab' }))
-    await user.click(screen.getByRole('button', { name: 'settings.agent.models.test' }))
+    await chooseModelAction(user, 'settings.agent.models.test')
     await user.click(screen.getByRole('button', { name: 'settings.agent.confirmTest.confirm' }))
 
     expect(await screen.findByText('settings.agent.testFailed')).toBeInTheDocument()
@@ -606,6 +1064,14 @@ describe('AgentSettingsPanel', () => {
   })
 })
 
+async function chooseModelAction(
+  user: ReturnType<typeof userEvent.setup>,
+  action: string,
+) {
+  await user.click(screen.getByRole('button', { name: 'settings.agent.catalog.moreActions' }))
+  await user.click(await screen.findByRole('menuitem', { name: action }))
+}
+
 function renderPanel(gateway: AgentSetupGateway) {
   return render(<AntdApp><AgentSettingsPanel gateway={gateway} /></AntdApp>)
 }
@@ -621,7 +1087,20 @@ function gatewayFixture(options: {
   const readiness = options.readiness ?? readinessFixture()
   return {
     settings: vi.fn(async () => readiness.settings),
-    updateSettings: vi.fn(async () => readiness.settings),
+    updateSettings: vi.fn(async (input) => {
+      const settings: AgentSettings = {
+        ...readiness.settings,
+        default_reasoning_level: input.default_reasoning_level,
+        global_context_window_tokens: input.global_context_window_tokens,
+        global_max_output_tokens: input.global_max_output_tokens,
+        show_turn_token_usage: input.show_turn_token_usage,
+        revision: input.expected_revision + 1,
+        updated_at: '2026-08-30T00:01:00Z',
+      }
+      if (input.default_model_id) settings.default_model_id = input.default_model_id
+      else delete settings.default_model_id
+      return settings
+    }),
     readiness: vi.fn(async () => readiness),
     setup: vi.fn(async () => readiness),
     updateMcpPolicy: vi.fn(async (input) => ({ ...readiness.mcp_policy!, approval_bypass: input.approval_bypass, revision: 2 })),
@@ -633,7 +1112,13 @@ function gatewayFixture(options: {
     refreshProviderModels: vi.fn(async () => providerFixture(2, false, 'ready')),
     models: vi.fn(async () => ({ items: models })),
     model: vi.fn(async () => models[0] ?? modelFixture()),
+    createModel: vi.fn(async (_providerId, input) => ({
+      model: { ...modelFixture(), ...input, source: 'manual' as const },
+      provider_revision: input.expected_revision + 1,
+    })),
     updateModel: vi.fn(async (_id, input) => ({ ...modelFixture(input.expected_revision + 1), ...input })),
+    removeModel: vi.fn(async () => undefined),
+    restoreModel: vi.fn(async () => modelFixture(2)),
     testModel: vi.fn(async () => ({ status: 'ready' as const, latency_ms: 10, model_id: 'gpt-test', message: '' })),
   }
 }
@@ -652,6 +1137,7 @@ function readinessFixture(revision = 1, defaultModelId = ''): AgentReadiness {
     settings: {
       ...(defaultModelId ? { default_model_id: defaultModelId } : {}),
       default_reasoning_level: 'off', show_turn_token_usage: true, revision,
+      global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
       created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
     },
   }
@@ -672,8 +1158,13 @@ function providerFixture(
 function modelFixture(revision = 1): AgentModel {
   return {
     id: 'apm-1', provider_id: 'apv-1', remote_model_id: 'gpt-test', display_name: 'GPT Test',
-    availability: 'available', context_window_tokens: 8192, max_output_tokens: 1024,
-    supports_images: false, supports_reasoning: true, capabilities_confirmed: false, revision,
+    availability: 'available', source: 'sync', parameter_mode: 'custom',
+    context_window_tokens: 8192, max_output_tokens: 1024, default_reasoning_level: 'off',
+    reasoning_control: 'openai_effort', supported_reasoning_levels: ['off', 'minimal', 'low', 'medium', 'high'],
+    supports_images: false, supports_reasoning: true, capabilities_confirmed: false,
+    effective_context_window_tokens: 8192, effective_max_output_tokens: 1024,
+    effective_default_reasoning_level: 'off',
+    first_seen_at: '2026-08-28T00:00:00Z', last_seen_at: '2026-08-28T00:00:00Z', revision,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
   }
 }

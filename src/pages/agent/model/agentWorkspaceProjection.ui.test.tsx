@@ -12,6 +12,7 @@ import type { AgentWorkspaceSession } from '#widgets/agent-workspace'
 import {
   agentRunInteractionBlocked,
   agentWorkspaceInfrastructureReady,
+  projectAgentModelOptions,
   projectAgentMessages,
   projectAgentSessions,
   selectionAfterSessionRemoval,
@@ -55,6 +56,7 @@ describe('Agent 工作区页面投影', () => {
       default_model: { status: 'outdated', message: '' },
       settings: {
         default_model_id: 'model-missing', default_reasoning_level: 'off',
+        global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
         show_turn_token_usage: true, revision: 1,
         created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z',
       },
@@ -65,6 +67,47 @@ describe('Agent 工作区页面投影', () => {
       ...readiness,
       mcp_client: { status: 'missing', message: '' },
     })).toBe(false)
+  })
+
+  it('手工模型不受远程目录陈旧状态限制', () => {
+    const provider: AgentModelProvider = {
+      id: 'apv-current', name: 'Provider', api_mode: 'responses',
+      base_url: 'http://127.0.0.1:18188/v1', enabled: true, api_key_configured: false,
+      refresh_status: 'stale', revision: 2,
+      created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:02Z',
+    }
+    const synced = modelFixture({ id: 'sync', source: 'sync' })
+    const manual = modelFixture({ id: 'manual', source: 'manual' })
+
+    const projected = projectAgentModelOptions([synced, manual], new Map([[provider.id, provider]]))
+
+    expect(projected.find(({ id }) => id === synced.id)).toMatchObject({
+      runnable: false,
+      unavailable_reason: 'catalog_stale',
+    })
+    expect(projected.find(({ id }) => id === manual.id)).toMatchObject({
+      runnable: true,
+      unavailable_reason: undefined,
+    })
+  })
+
+  it('已逻辑移除模型与远程目录缺失使用不同不可用原因', () => {
+    const provider: AgentModelProvider = {
+      id: 'apv-current', name: 'Provider', api_mode: 'responses',
+      base_url: 'http://127.0.0.1:18188/v1', enabled: true, api_key_configured: false,
+      refresh_status: 'ready', revision: 2,
+      created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:02Z',
+    }
+    const removed = modelFixture({
+      id: 'removed',
+      removed_at: '2026-08-30T00:00:00Z',
+    })
+    const missing = modelFixture({ id: 'missing', availability: 'missing' })
+
+    const projected = projectAgentModelOptions([removed, missing], new Map([[provider.id, provider]]))
+
+    expect(projected.find(({ id }) => id === removed.id)?.unavailable_reason).toBe('removed')
+    expect(projected.find(({ id }) => id === missing.id)?.unavailable_reason).toBe('missing')
   })
 
   it('目录缺失时只使用当前模型对应的最近 Run 快照恢复会话模型信息', () => {
@@ -99,7 +142,7 @@ describe('Agent 工作区页面投影', () => {
 
     expect(projected).toMatchObject({
       model_id: 'model-current',
-      model_name: '当前模型快照',
+      model_name: 'remote-current',
       provider_name: '当前 Provider 快照',
     })
   })
@@ -108,9 +151,13 @@ describe('Agent 工作区页面投影', () => {
     const current = agentSession('model-current')
     const model: AgentModel = {
       id: 'model-current', provider_id: 'apv-current', remote_model_id: 'remote-current',
-      display_name: '当前目录模型', availability: 'available', context_window_tokens: 16_384,
-      max_output_tokens: 4_096, supports_images: false, supports_reasoning: false,
-      capabilities_confirmed: false, revision: 2,
+      display_name: '当前目录模型', availability: 'available', source: 'sync',
+      parameter_mode: 'custom', context_window_tokens: 16_384, max_output_tokens: 4_096,
+      default_reasoning_level: 'off', reasoning_control: 'none', supported_reasoning_levels: ['off'],
+      supports_images: false, supports_reasoning: false, capabilities_confirmed: false,
+      effective_context_window_tokens: 16_384, effective_max_output_tokens: 4_096,
+      effective_default_reasoning_level: 'off', revision: 2,
+      first_seen_at: '2026-08-29T00:00:00Z', last_seen_at: '2026-08-29T00:00:02Z',
       created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:02Z',
     }
     const provider: AgentModelProvider = {
@@ -128,7 +175,7 @@ describe('Agent 工作区页面投影', () => {
     )
 
     expect(projected).toMatchObject({
-      model_name: '当前目录模型',
+      model_name: 'remote-current',
       provider_name: '当前目录 Provider',
     })
   })
@@ -320,6 +367,21 @@ function agentSession(modelId: string): AgentSession {
   }
 }
 
+function modelFixture(overrides: Partial<AgentModel> = {}): AgentModel {
+  return {
+    id: 'model', provider_id: 'apv-current', remote_model_id: 'remote-model',
+    display_name: '模型', availability: 'available', source: 'sync', parameter_mode: 'custom',
+    context_window_tokens: 16_384, max_output_tokens: 4_096, default_reasoning_level: 'off',
+    reasoning_control: 'none', supported_reasoning_levels: ['off'], supports_images: false,
+    supports_reasoning: false, capabilities_confirmed: true,
+    effective_context_window_tokens: 16_384, effective_max_output_tokens: 4_096,
+    effective_default_reasoning_level: 'off', revision: 1,
+    first_seen_at: '2026-08-29T00:00:00Z', last_seen_at: '2026-08-29T00:00:01Z',
+    created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:01Z',
+    ...overrides,
+  }
+}
+
 function modelSnapshot(
   overrides: Partial<AgentRun['model_snapshot']> = {},
 ): AgentRun['model_snapshot'] {
@@ -335,6 +397,8 @@ function modelSnapshot(
     context_window_tokens: 8_192,
     max_output_tokens: 1_024,
     supports_images: false,
+    reasoning_control: 'openai_effort',
+    supported_reasoning_levels: ['off', 'medium'],
     supports_reasoning: true,
     ...overrides,
   }

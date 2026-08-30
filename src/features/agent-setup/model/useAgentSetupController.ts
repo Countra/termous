@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AgentModel,
+  AgentModelCreateInput,
   AgentModelProvider,
   AgentModelProviderInput,
   AgentModelUpdateInput,
@@ -26,7 +27,7 @@ export type AgentSetupConflict =
       operation: 'edit' | 'delete' | 'test' | 'refresh'
       providerId: string
     }
-  | { kind: 'model'; operation: 'edit' | 'test'; modelId: string }
+  | { kind: 'model'; operation: 'edit' | 'test' | 'remove' | 'restore'; modelId: string }
 
 export class AgentProviderProvisionError extends Error {
   constructor(
@@ -172,17 +173,27 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
   const updateSettings = useCallback((patch: {
     default_model_id?: string
     default_reasoning_level?: AgentReasoningLevel
+    global_context_window_tokens?: number
+    global_max_output_tokens?: number
     show_turn_token_usage?: boolean
   }) => {
     if (!readiness) return Promise.reject(new Error('Agent settings are unavailable'))
     const currentSettings = readiness.settings
     return execute(
       'settings',
-      { conflict: { kind: 'settings' }, reconcileAfterSuccess: true },
+      {
+        conflict: { kind: 'settings' },
+        reconcileAfterSuccess: true,
+        reconcileAfterFailure: true,
+      },
       async (signal, isCurrent) => {
         const settings = await gateway.updateSettings({
           default_model_id: patch.default_model_id ?? currentSettings.default_model_id ?? '',
           default_reasoning_level: patch.default_reasoning_level ?? currentSettings.default_reasoning_level,
+          global_context_window_tokens: patch.global_context_window_tokens
+            ?? currentSettings.global_context_window_tokens,
+          global_max_output_tokens: patch.global_max_output_tokens
+            ?? currentSettings.global_max_output_tokens,
           show_turn_token_usage: patch.show_turn_token_usage ?? currentSettings.show_turn_token_usage,
           expected_revision: currentSettings.revision,
         }, signal)
@@ -197,7 +208,11 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     if (!policy) return Promise.reject(new Error('Agent MCP policy is unavailable'))
     return execute(
       'policy',
-      { conflict: { kind: 'policy' }, reconcileAfterSuccess: true },
+      {
+        conflict: { kind: 'policy' },
+        reconcileAfterSuccess: true,
+        reconcileAfterFailure: true,
+      },
       async (signal, isCurrent) => {
         const next = await gateway.updateMcpPolicy({
           approval_bypass: approvalBypass,
@@ -253,6 +268,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     {
       conflict: { kind: 'provider', operation: 'delete', providerId: provider.id },
       reconcileAfterSuccess: true,
+      reconcileAfterFailure: true,
     },
     async (signal, isCurrent) => {
       await gateway.deleteModelProvider(provider.id, provider.revision, signal)
@@ -265,7 +281,10 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
 
   const testProvider = useCallback((provider: AgentModelProvider) => execute(
     `provider:${provider.id}`,
-    { conflict: { kind: 'provider', operation: 'test', providerId: provider.id } },
+    {
+      conflict: { kind: 'provider', operation: 'test', providerId: provider.id },
+      reconcileAfterFailure: true,
+    },
     (signal) => gateway.testModelProvider(provider.id, provider.revision, signal),
   ), [execute, gateway])
 
@@ -291,6 +310,7 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     {
       conflict: { kind: 'model', operation: 'edit', modelId: model.id },
       reconcileAfterSuccess: true,
+      reconcileAfterFailure: true,
     },
     async (signal, isCurrent) => {
       const saved = await gateway.updateModel(model.id, { ...input, expected_revision: model.revision }, signal)
@@ -299,9 +319,62 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     },
   ), [execute, gateway])
 
+  const createModel = useCallback((
+    provider: AgentModelProvider,
+    input: Omit<AgentModelCreateInput, 'expected_revision'>,
+  ) => execute(
+    `model:create:${provider.id}`,
+    {
+      conflict: { kind: 'provider', operation: 'edit', providerId: provider.id },
+      reconcileAfterSuccess: true,
+      reconcileAfterFailure: true,
+    },
+    async (signal, isCurrent) => {
+      const result = await gateway.createModel(provider.id, {
+        ...input,
+        expected_revision: provider.revision,
+      }, signal)
+      if (result.model.provider_id !== provider.id || result.provider_revision <= provider.revision) {
+        throw new Error('Agent 模型创建响应的 Provider revision 无效')
+      }
+      if (isCurrent()) {
+        setModels((items) => upsert(items, result.model))
+        setProviders((items) => applyProviderRevision(items, provider.id, result.provider_revision))
+      }
+      return result.model
+    },
+  ), [execute, gateway])
+
+  const removeModel = useCallback((model: AgentModel) => execute(
+    `model:${model.id}`,
+    {
+      conflict: { kind: 'model', operation: 'remove', modelId: model.id },
+      reconcileAfterSuccess: true,
+      reconcileAfterFailure: true,
+    },
+    (signal) => gateway.removeModel(model.id, model.revision, signal),
+  ), [execute, gateway])
+
+  const restoreModel = useCallback((model: AgentModel) => execute(
+    `model:${model.id}`,
+    {
+      conflict: { kind: 'model', operation: 'restore', modelId: model.id },
+      reconcileAfterSuccess: true,
+      reconcileAfterFailure: true,
+    },
+    async (signal, isCurrent) => {
+      const saved = await gateway.restoreModel(model.id, model.revision, signal)
+      if (isCurrent()) setModels((items) => upsert(items, saved))
+      return saved
+    },
+  ), [execute, gateway])
+
   const testModel = useCallback((model: AgentModel) => execute(
     `model:${model.id}`,
-    { conflict: { kind: 'model', operation: 'test', modelId: model.id } },
+    {
+      conflict: { kind: 'model', operation: 'test', modelId: model.id },
+      reconcileAfterFailure: true,
+    },
     (signal) => gateway.testModel(model.id, model.revision, signal),
   ), [execute, gateway])
 
@@ -318,11 +391,12 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     readiness, providers, models, loading, mutation, error, conflict,
     load, resolveConflict, setup, updateSettings, updatePolicy,
     saveProvider, deleteProvider, testProvider, refreshProvider,
-    saveModel, testModel,
+    createModel, saveModel, removeModel, restoreModel, testModel,
   }), [
     conflict, deleteProvider, error, load, loading, models, mutation, providers,
-    readiness, refreshProvider, resolveConflict, saveModel, saveProvider, setup,
-    testModel, testProvider, updatePolicy, updateSettings,
+    readiness, refreshProvider, removeModel, resolveConflict, restoreModel,
+    createModel, saveModel, saveProvider, setup, testModel, testProvider,
+    updatePolicy, updateSettings,
   ])
 }
 
@@ -332,6 +406,16 @@ function upsert<Item extends { id: string }>(items: Item[], saved: Item) {
   return items.some(({ id }) => id === saved.id)
     ? items.map((item) => item.id === saved.id ? saved : item)
     : [...items, saved]
+}
+
+function applyProviderRevision(
+  providers: AgentModelProvider[],
+  providerId: string,
+  revision: number,
+) {
+  return providers.map((provider) => provider.id === providerId
+    ? { ...provider, revision }
+    : provider)
 }
 
 function hasCatalogRefreshFailure(provider: AgentModelProvider) {

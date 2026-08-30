@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Alert, Button, Select, Switch } from 'antd'
+import { useState } from 'react'
+import { Button, Switch } from 'antd'
 import {
   BrainCircuit,
   ChartNoAxesColumnIncreasing,
@@ -7,43 +7,28 @@ import {
   CircleAlert,
   RefreshCw,
   ShieldCheck,
-  SlidersHorizontal,
   Wrench,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import {
-  isAgentModelRunnable,
-  type AgentModel,
-  type AgentModelProvider,
-  type AgentReadinessComponent,
-  type AgentReasoningLevel,
-} from '#entities/agent'
-import { ConfirmDialog, customSelectStyles } from '#shared/ui'
+import type { AgentReadinessComponent } from '#entities/agent'
+import { ConfirmDialog } from '#shared/ui'
 import type { AgentSetupController } from '../model/useAgentSetupController.ts'
+import { AgentGlobalModelDefaults } from './AgentGlobalModelDefaults.tsx'
 import styles from './AgentSetup.module.scss'
 
-export function AgentRuntimeSettings({ runtime }: { runtime: AgentSetupController }) {
+export function AgentRuntimeSettings({
+  runtime,
+  onDefaultsConflictVisibilityChange,
+}: {
+  runtime: AgentSetupController
+  onDefaultsConflictVisibilityChange: (visible: boolean) => void
+}) {
   const { t } = useTranslation()
   const [confirmBypass, setConfirmBypass] = useState(false)
-  const providerById = useMemo(
-    () => new Map(runtime.providers.map((provider) => [provider.id, provider])),
-    [runtime.providers],
-  )
-  const modelById = useMemo(
-    () => new Map(runtime.models.map((model) => [model.id, model])),
-    [runtime.models],
-  )
-  const modelOptions = useMemo(
-    () => buildModelOptions(runtime.providers, runtime.models),
-    [runtime.models, runtime.providers],
-  )
   const readiness = runtime.readiness
   if (!readiness) return null
 
   const busy = runtime.loading || runtime.mutation !== null
-  const defaultModel = readiness.settings.default_model_id
-    ? modelById.get(readiness.settings.default_model_id)
-    : undefined
   const readinessState = readiness.status === 'ready'
     ? 'ready'
     : readiness.status === 'blocked'
@@ -97,89 +82,10 @@ export function AgentRuntimeSettings({ runtime }: { runtime: AgentSetupControlle
         </div>
 
         <div className={styles['agent-setting-list']}>
-          <section className={styles['agent-setting-row']} aria-labelledby="agent-defaults-title">
-            <span className={styles['agent-setting-icon']} aria-hidden="true">
-              <SlidersHorizontal size={16} />
-            </span>
-            <div className={styles['agent-setting-copy']}>
-              <strong id="agent-defaults-title">{t('settings.agent.defaults.title')}</strong>
-              <span>{t('settings.agent.defaults.description')}</span>
-            </div>
-            <div className={styles['default-controls']}>
-              <label className={styles['agent-control-field']}>
-                <span>{t('settings.agent.defaults.model')}</span>
-                <Select
-                  value={readiness.settings.default_model_id || undefined}
-                  placeholder={t('settings.agent.defaults.modelPlaceholder')}
-                  allowClear
-                  showSearch
-                  disabled={busy}
-                  aria-label={t('settings.agent.defaults.model')}
-                  className={customSelectStyles.select}
-                  classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
-                  options={modelOptions}
-                  filterOption={(input, option) => (
-                    isAgentModelSelectOption(option)
-                      ? option.search_text.includes(input.trim().toLocaleLowerCase())
-                      : false
-                  )}
-                  optionLabelProp="label"
-                  labelRender={({ value, label }) => modelById.get(String(value))?.display_name ?? label}
-                  optionRender={(option) => {
-                    const modelOption = option.data
-                    if (!isAgentModelSelectOption(modelOption)) return option.label
-                    return (
-                      <span className={styles['model-option']}>
-                        <strong>{modelOption.label}</strong>
-                        <small>{modelOption.provider_name} · {modelOption.remote_model_id}</small>
-                        {modelOption.unavailable ? <em>{t('settings.agent.catalog.unavailable')}</em> : null}
-                      </span>
-                    )
-                  }}
-                  onChange={(value) => {
-                    const selected = value
-                      ? runtime.models.find(({ id }) => id === value)
-                      : undefined
-                    const reasoning = selected && !selected.supports_reasoning
-                      ? 'off'
-                      : readiness.settings.default_reasoning_level
-                    consume(runtime.updateSettings({
-                      default_model_id: value ?? '',
-                      default_reasoning_level: reasoning,
-                    }))
-                  }}
-                />
-              </label>
-              <label className={styles['agent-control-field']}>
-                <span>{t('settings.agent.defaults.reasoning')}</span>
-                <Select
-                  value={readiness.settings.default_reasoning_level}
-                  disabled={busy}
-                  aria-label={t('settings.agent.defaults.reasoning')}
-                  className={customSelectStyles.select}
-                  classNames={{ popup: { root: customSelectStyles['select-popup'] } }}
-                  options={(['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as AgentReasoningLevel[])
-                    .map((value) => ({
-                      value,
-                      label: t(`settings.agent.reasoning.${value}`),
-                      disabled: value !== 'off' && Boolean(defaultModel && !defaultModel.supports_reasoning),
-                    }))}
-                  onChange={(value) => consume(runtime.updateSettings({
-                    default_reasoning_level: value,
-                  }))}
-                />
-              </label>
-            </div>
-            {defaultModel && !isAgentModelRunnable(defaultModel, providerById.get(defaultModel.provider_id)) ? (
-              <Alert
-                className={styles['agent-setting-alert']}
-                type="warning"
-                showIcon
-                title={t('settings.agent.defaults.unavailableTitle')}
-                description={t('settings.agent.defaults.unavailableDescription')}
-              />
-            ) : null}
-          </section>
+          <AgentGlobalModelDefaults
+            runtime={runtime}
+            onConflictVisibilityChange={onDefaultsConflictVisibilityChange}
+          />
 
           <section className={styles['agent-setting-row']} aria-labelledby="agent-turn-usage-title">
             <span className={styles['agent-setting-icon']} aria-hidden="true">
@@ -291,42 +197,6 @@ function ReadinessItem({ label, component }: {
       </span>
     </div>
   )
-}
-
-function buildModelOptions(providers: AgentModelProvider[], models: AgentModel[]) {
-  const modelsByProvider = new Map<string, AgentModel[]>()
-  for (const model of models) {
-    const items = modelsByProvider.get(model.provider_id) ?? []
-    items.push(model)
-    modelsByProvider.set(model.provider_id, items)
-  }
-  return providers.map((provider) => ({
-    label: provider.name,
-    title: provider.name,
-    options: (modelsByProvider.get(provider.id) ?? []).map((model): AgentModelSelectOption => ({
-      value: model.id,
-      disabled: !isAgentModelRunnable(model, provider),
-      label: model.display_name,
-      provider_name: provider.name,
-      remote_model_id: model.remote_model_id,
-      search_text: `${model.display_name} ${provider.name} ${model.remote_model_id}`.toLocaleLowerCase(),
-      unavailable: !isAgentModelRunnable(model, provider),
-    })),
-  })).filter(({ options }) => options.length > 0)
-}
-
-interface AgentModelSelectOption {
-  value: string
-  label: string
-  disabled: boolean
-  provider_name: string
-  remote_model_id: string
-  search_text: string
-  unavailable: boolean
-}
-
-function isAgentModelSelectOption(value: unknown): value is AgentModelSelectOption {
-  return Boolean(value && typeof value === 'object' && 'value' in value && 'remote_model_id' in value)
 }
 
 function consume(promise: Promise<unknown>) {

@@ -36,6 +36,13 @@ test('顶部空会话标签使用统一的双语文案', () => {
   assert.equal(translationValue(enUS, 'app.noSessions'), 'No sessions')
 })
 
+test('公共布尔值详情文案拥有完整双语翻译', () => {
+  assert.equal(translationValue(zhCN, 'app.yes'), '是')
+  assert.equal(translationValue(zhCN, 'app.no'), '否')
+  assert.equal(translationValue(enUS, 'app.yes'), 'Yes')
+  assert.equal(translationValue(enUS, 'app.no'), 'No')
+})
+
 test('端口转发实时速度文案和格式保持一致', () => {
   assert.equal(translationValue(zhCN, 'forwards.sendRate'), '发送速度')
   assert.equal(translationValue(zhCN, 'forwards.receiveRate'), '接收速度')

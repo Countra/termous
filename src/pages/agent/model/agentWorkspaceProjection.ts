@@ -36,15 +36,26 @@ export function projectAgentModelOptions(
     const provider = providersById.get(model.provider_id)
     return {
       id: model.id,
-      name: model.display_name,
+      display_name: model.display_name,
+      provider_id: model.provider_id,
       provider_name: provider?.name ?? model.provider_id,
       remote_model_id: model.remote_model_id,
-      supports_reasoning: model.supports_reasoning,
+      source: model.source,
+      supports_images: model.supports_images,
+      reasoning_control: model.reasoning_control,
+      supported_reasoning_levels: model.supported_reasoning_levels,
+      effective_default_reasoning_level: model.effective_default_reasoning_level,
+      effective_context_window_tokens: model.effective_context_window_tokens,
+      effective_max_output_tokens: model.effective_max_output_tokens,
       runnable: isAgentModelRunnable(model, provider),
-      unavailable_reason: model.availability === 'missing'
-        ? 'missing'
-        : !provider?.enabled ? 'provider_disabled'
-          : provider?.refresh_status !== 'ready' ? 'catalog_stale' : undefined,
+      unavailable_reason: model.removed_at
+        ? 'removed'
+        : model.availability === 'missing'
+          ? 'missing'
+          : !provider?.enabled ? 'provider_disabled'
+            : model.source === 'sync' && provider?.refresh_status !== 'ready'
+              ? 'catalog_stale'
+              : undefined,
     }
   })
 }
@@ -65,7 +76,8 @@ export function projectAgentSessions(
       id: session.id,
       title: session.title,
       model_id: session.model_id,
-      model_name: model?.display_name ?? snapshot?.model_display_name ?? session.model_id,
+      model_name: model?.remote_model_id ?? snapshot?.model_id ?? session.model_id,
+      model_alias: model?.display_name ?? snapshot?.model_display_name,
       provider_name: provider?.name ?? snapshot?.provider_name,
       updated_at: session.updated_at,
       archived: false,

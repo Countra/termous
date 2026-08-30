@@ -10,6 +10,7 @@ export {
   AgentSetupProtocolError,
   decodeAgentMcpPolicy,
   decodeAgentModel,
+  decodeAgentModelCreateResult,
   decodeAgentModelPage,
   decodeAgentModelProvider,
   decodeAgentModelProviderPage,

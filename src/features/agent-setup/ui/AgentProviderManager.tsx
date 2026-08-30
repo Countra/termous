@@ -9,8 +9,9 @@ import {
   AgentProviderProvisionError,
   type AgentSetupController,
 } from '../model/useAgentSetupController.ts'
-import { AgentModelCapabilityDialog } from './AgentModelCapabilityDialog.tsx'
+import { AgentModelEditorDialog } from './AgentModelEditorDialog.tsx'
 import { AgentModelCatalog } from './AgentModelCatalog.tsx'
+import { AgentModelActionDialogs } from './AgentModelActionDialogs.tsx'
 import { AgentProviderConnectionForm } from './AgentProviderConnectionForm.tsx'
 import { AgentProviderList } from './AgentProviderList.tsx'
 import setupStyles from './AgentSetup.module.scss'
@@ -41,8 +42,12 @@ export function AgentProviderManager({
   const [deleteProviderId, setDeleteProviderId] = useState<string>()
   const [editModelId, setEditModelId] = useState<string>()
   const [editModelSnapshot, setEditModelSnapshot] = useState<AgentModel>()
+  const [creatingModel, setCreatingModel] = useState(false)
+  const [removeModelId, setRemoveModelId] = useState<string>()
   const [testModelId, setTestModelId] = useState<string>()
   const [testingProviderId, setTestingProviderId] = useState<string>()
+  const [refreshingProviderId, setRefreshingProviderId] = useState<string>()
+  const [modelSaveErrorVisible, setModelSaveErrorVisible] = useState(false)
   const [selectedProviderSnapshot, setSelectedProviderSnapshot] = useState<AgentModelProvider | undefined>(
     () => runtime.providers[0],
   )
@@ -57,6 +62,7 @@ export function AgentProviderManager({
   const modelCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const model of runtime.models) {
+      if (model.removed_at) continue
       counts.set(model.provider_id, (counts.get(model.provider_id) ?? 0) + 1)
     }
     return counts
@@ -67,22 +73,34 @@ export function AgentProviderManager({
       ? selectedProviderSnapshot
       : undefined)
   const selectedProviderMissing = Boolean(!creating && selectedId && !selectedProvider && editingProvider)
+  const modelProviderMissing = Boolean(
+    (creatingModel || editModelId)
+    && selectedId
+    && !selectedProvider
+    && selectedProviderSnapshot?.id === selectedId,
+  )
   const deleteProvider = deleteProviderId ? providerById.get(deleteProviderId) : undefined
   const editModel = editModelId ? modelById.get(editModelId) : undefined
   const editingModel = editModel
     ?? (editModelSnapshot?.id === editModelId ? editModelSnapshot : undefined)
   const editModelMissing = Boolean(editModelId && !editModel && editingModel)
+  const editModelRemoved = Boolean(editModel?.removed_at)
   const testModel = testModelId ? modelById.get(testModelId) : undefined
+  const removeModel = removeModelId ? modelById.get(removeModelId) : undefined
   const busy = runtime.loading || runtime.mutation !== null
 
   useEffect(() => {
     if (creating) return
     if (selectedId && providerById.has(selectedId)) return
     if (dirty && selectedProviderSnapshot?.id === selectedId) return
+    if ((creatingModel || editModelId) && selectedProviderSnapshot?.id === selectedId) return
     const first = runtime.providers[0]
     setSelectedId(first?.id)
     if (!first && !runtime.loading) setCreating(true)
-  }, [creating, dirty, providerById, runtime.loading, runtime.providers, selectedId, selectedProviderSnapshot])
+  }, [
+    creating, creatingModel, dirty, editModelId, providerById, runtime.loading,
+    runtime.providers, selectedId, selectedProviderSnapshot,
+  ])
 
   useEffect(() => {
     if (selectedProvider) setSelectedProviderSnapshot(selectedProvider)
@@ -92,8 +110,10 @@ export function AgentProviderManager({
     if (deleteProviderId && !deleteProvider) setDeleteProviderId(undefined)
     if (editModelId && !editingModel) setEditModelId(undefined)
     if (testModelId && !testModel) setTestModelId(undefined)
+    if (removeModelId && !removeModel) setRemoveModelId(undefined)
   }, [
-    deleteProvider, deleteProviderId, editModelId, editingModel, testModel, testModelId,
+    deleteProvider, deleteProviderId, editModelId, editingModel, removeModel,
+    removeModelId, testModel, testModelId,
   ])
 
   useEffect(() => {
@@ -208,6 +228,7 @@ export function AgentProviderManager({
   }
 
   const refreshProvider = async (provider: AgentModelProvider) => {
+    setRefreshingProviderId(provider.id)
     try {
       const refreshed = await runtime.refreshProvider(provider)
       const failed = refreshed.refresh_status !== 'ready' || Boolean(refreshed.last_refresh_error_code)
@@ -227,6 +248,8 @@ export function AgentProviderManager({
           className: termousNotificationClassName,
         })
       }
+    } finally {
+      setRefreshingProviderId((current) => current === provider.id ? undefined : current)
     }
   }
 
@@ -242,10 +265,19 @@ export function AgentProviderManager({
   const modelConflict = runtime.conflict?.kind === 'model'
     && runtime.conflict.operation === 'edit'
     && runtime.conflict.modelId === editingModel?.id
-  const modelEditorConflict = modelConflict || editModelMissing
+  const createModelConflict = creatingModel
+    && runtime.conflict?.kind === 'provider'
+    && runtime.conflict.providerId === selectedProvider?.id
+  const modelEditorConflict = modelConflict
+    || createModelConflict
+    || editModelMissing
+    || editModelRemoved
+    || modelProviderMissing
   useEffect(() => {
-    onEditorConflictVisibilityChange(Boolean(providerEditorConflict || modelEditorConflict))
-  }, [modelEditorConflict, onEditorConflictVisibilityChange, providerEditorConflict])
+    onEditorConflictVisibilityChange(Boolean(
+      providerEditorConflict || modelEditorConflict || modelSaveErrorVisible,
+    ))
+  }, [modelEditorConflict, modelSaveErrorVisible, onEditorConflictVisibilityChange, providerEditorConflict])
   const providerContainsDefault = Boolean(selectedProvider && runtime.models.some((model) => (
     model.provider_id === selectedProvider.id
     && model.id === runtime.readiness?.settings.default_model_id
@@ -312,6 +344,7 @@ export function AgentProviderManager({
               items={[
                 {
                   key: 'connection',
+                  className: styles['provider-connection-pane'],
                   label: (
                     <span className={styles['provider-tab-label']}>
                       <Settings2 size={14} aria-hidden="true" />
@@ -339,6 +372,7 @@ export function AgentProviderManager({
                 },
                 ...(!creating && selectedProvider ? [{
                   key: 'catalog',
+                  className: styles['provider-catalog-pane'],
                   label: (
                     <span className={styles['provider-tab-label']}>
                       <Boxes size={14} aria-hidden="true" />
@@ -351,19 +385,24 @@ export function AgentProviderManager({
                       models={providerModels}
                       defaultModelId={runtime.readiness?.settings.default_model_id}
                       disabled={busy}
-                      refreshing={runtime.mutation === `provider:${selectedProvider.id}`}
+                      refreshing={refreshingProviderId === selectedProvider.id}
                       onRefresh={() => void refreshProvider(selectedProvider)}
+                      onAdd={() => {
+                        setEditModelId(undefined)
+                        setEditModelSnapshot(undefined)
+                        setCreatingModel(true)
+                      }}
                       onEdit={(model) => {
+                        setCreatingModel(false)
                         setEditModelSnapshot(model)
                         setEditModelId(model.id)
                       }}
                       onTest={(model) => setTestModelId(model.id)}
                       onSetDefault={(model) => void runtime.updateSettings({
                         default_model_id: model.id,
-                        default_reasoning_level: model.supports_reasoning
-                          ? runtime.readiness?.settings.default_reasoning_level ?? 'off'
-                          : 'off',
                       }).catch(() => undefined)}
+                      onRemove={(model) => setRemoveModelId(model.id)}
+                      onRestore={(model) => void runtime.restoreModel(model).catch(() => undefined)}
                     />
                   ),
                 }] : []),
@@ -381,22 +420,39 @@ export function AgentProviderManager({
         </section>
       </div>
 
-      <AgentModelCapabilityDialog
-        key={editingModel?.id ?? 'closed'}
+      <AgentModelEditorDialog
+        key={creatingModel ? `create:${selectedId}` : editingModel?.id ?? 'closed'}
+        open={creatingModel || Boolean(editingModel)}
+        provider={selectedProvider ?? (modelProviderMissing ? selectedProviderSnapshot : undefined)}
         model={editingModel}
+        settings={runtime.readiness?.settings}
         busy={busy}
-        conflicted={editModelMissing || (runtime.conflict?.kind === 'model'
-          && runtime.conflict.operation === 'edit'
-          && runtime.conflict.modelId === editingModel?.id)}
+        conflicted={modelEditorConflict}
         modelMissing={editModelMissing}
+        modelRemoved={editModelRemoved}
+        providerMissing={modelProviderMissing}
+        onSaveErrorVisibilityChange={setModelSaveErrorVisible}
         onCancel={() => {
+          setCreatingModel(false)
           setEditModelId(undefined)
           setEditModelSnapshot(undefined)
         }}
-        onResolveConflict={resolveModelConflict}
+        onResolveConflict={creatingModel
+          ? async () => {
+              await runtime.resolveConflict()
+              return undefined
+            }
+          : resolveModelConflict}
         onSave={async (input, baseline) => {
-          if (editModelMissing) return
-          await runtime.saveModel(baseline, input)
+          if (editModelMissing || !selectedProvider) return
+          if (baseline) {
+            const { remote_model_id, ...updateInput } = input
+            if (!remote_model_id) return
+            await runtime.saveModel(baseline, updateInput)
+          } else {
+            await runtime.createModel(selectedProvider, input)
+          }
+          setCreatingModel(false)
           setEditModelId(undefined)
           setEditModelSnapshot(undefined)
         }}
@@ -416,37 +472,12 @@ export function AgentProviderManager({
           setPendingNavigation(undefined)
         }}
       />
-      <ConfirmDialog
-        open={Boolean(testModel)}
-        title={t('settings.agent.confirmTest.title')}
-        description={t('settings.agent.confirmTest.description')}
-        confirmLabel={t('settings.agent.confirmTest.confirm')}
-        confirmLoading={runtime.mutation === `model:${testModel?.id}`}
-        onCancel={() => setTestModelId(undefined)}
-        onConfirm={() => {
-          if (!testModel) return
-          void runtime.testModel(testModel).then((result) => {
-            setTestModelId(undefined)
-            notification[result.status === 'ready' ? 'success' : 'warning']({
-              title: t(result.status === 'ready'
-                ? 'settings.agent.testSuccess'
-                : 'settings.agent.testFailed', { latency: result.latency_ms }),
-              description: t(result.status === 'ready'
-                ? 'settings.agent.testResult.ready'
-                : 'settings.agent.testResult.failed'),
-              className: termousNotificationClassName,
-            })
-          }).catch((error) => {
-            setTestModelId(undefined)
-            if (!isRequestAborted(error)) {
-              notification.warning({
-                title: t('settings.agent.testFailed'),
-                description: t('settings.agent.testResult.failed'),
-                className: termousNotificationClassName,
-              })
-            }
-          })
-        }}
+      <AgentModelActionDialogs
+        runtime={runtime}
+        removeModel={removeModel}
+        testModel={testModel}
+        onRemoveClose={() => setRemoveModelId(undefined)}
+        onTestClose={() => setTestModelId(undefined)}
       />
       <ConfirmDialog
         open={Boolean(deleteProvider)}
@@ -458,8 +489,9 @@ export function AgentProviderManager({
         onCancel={() => setDeleteProviderId(undefined)}
         onConfirm={() => {
           if (!deleteProvider) return
-          void runtime.deleteProvider(deleteProvider).then(() => {
-            setDeleteProviderId(undefined)
+          const target = deleteProvider
+          setDeleteProviderId(undefined)
+          void runtime.deleteProvider(target).then(() => {
             setSelectedId(undefined)
           }).catch(() => undefined)
         }}

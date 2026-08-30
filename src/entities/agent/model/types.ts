@@ -1,7 +1,7 @@
 export const agentApiModes = ['responses', 'chat_completions'] as const
 export type AgentApiMode = (typeof agentApiModes)[number]
 
-export const agentReasoningLevels = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const
+export const agentReasoningLevels = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
 export type AgentReasoningLevel = (typeof agentReasoningLevels)[number]
 
 export const agentReadinessStates = ['ready', 'needs_setup', 'needs_repair', 'blocked'] as const
@@ -13,6 +13,8 @@ export type AgentReadinessComponentState = (typeof agentReadinessComponentStates
 export interface AgentSettings {
   default_model_id?: string
   default_reasoning_level: AgentReasoningLevel
+  global_context_window_tokens: number
+  global_max_output_tokens: number
   show_turn_token_usage: boolean
   revision: number
   created_at: string
@@ -47,6 +49,14 @@ export const agentModelRefreshStatuses = ['never', 'ready', 'stale', 'failed'] a
 export type AgentModelRefreshStatus = (typeof agentModelRefreshStatuses)[number]
 export const agentModelAvailabilities = ['available', 'missing'] as const
 export type AgentModelAvailability = (typeof agentModelAvailabilities)[number]
+export const agentModelSources = ['sync', 'manual'] as const
+export type AgentModelSource = (typeof agentModelSources)[number]
+export const agentModelParameterModes = ['inherit_global', 'custom'] as const
+export type AgentModelParameterMode = (typeof agentModelParameterModes)[number]
+export const agentModelReasoningControls = ['none', 'openai_effort'] as const
+export type AgentModelReasoningControl = (typeof agentModelReasoningControls)[number]
+export const agentModelListStates = ['active', 'removed', 'all'] as const
+export type AgentModelListState = (typeof agentModelListStates)[number]
 
 export interface AgentModelProvider {
   id: string
@@ -90,11 +100,22 @@ export interface AgentModel {
   display_name: string
   owned_by?: string
   availability: AgentModelAvailability
+  source: AgentModelSource
+  parameter_mode: AgentModelParameterMode
   context_window_tokens: number
   max_output_tokens: number
+  default_reasoning_level: AgentReasoningLevel
+  reasoning_control: AgentModelReasoningControl
+  supported_reasoning_levels: AgentReasoningLevel[]
   supports_images: boolean
   supports_reasoning: boolean
   capabilities_confirmed: boolean
+  removed_at?: string
+  effective_context_window_tokens: number
+  effective_max_output_tokens: number
+  effective_default_reasoning_level: AgentReasoningLevel
+  first_seen_at: string
+  last_seen_at: string
   revision: number
   created_at: string
   updated_at: string
@@ -105,12 +126,40 @@ export interface AgentModelPage {
   next_cursor?: string
 }
 
-export interface AgentModelUpdateInput {
+export interface AgentModelListQuery {
+  provider_id?: string
+  state?: AgentModelListState
+  source?: AgentModelSource
+}
+
+export interface AgentModelCreateInput {
+  remote_model_id: string
   display_name: string
+  parameter_mode: AgentModelParameterMode
   context_window_tokens: number
   max_output_tokens: number
+  default_reasoning_level: AgentReasoningLevel
   supports_images: boolean
-  supports_reasoning: boolean
+  reasoning_control: AgentModelReasoningControl
+  supported_reasoning_levels: AgentReasoningLevel[]
+  capabilities_confirmed: true
+  expected_revision: number
+}
+
+export interface AgentModelCreateResult {
+  model: AgentModel
+  provider_revision: number
+}
+
+export interface AgentModelUpdateInput {
+  display_name: string
+  parameter_mode: AgentModelParameterMode
+  context_window_tokens: number
+  max_output_tokens: number
+  default_reasoning_level: AgentReasoningLevel
+  supports_images: boolean
+  reasoning_control: AgentModelReasoningControl
+  supported_reasoning_levels: AgentReasoningLevel[]
   capabilities_confirmed: true
   expected_revision: number
 }
@@ -346,6 +395,8 @@ export interface AgentRunModelSnapshot {
   context_window_tokens: number
   max_output_tokens: number
   supports_images: boolean
+  reasoning_control: AgentModelReasoningControl
+  supported_reasoning_levels: AgentReasoningLevel[]
   supports_reasoning: boolean
 }
 

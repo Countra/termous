@@ -20,9 +20,11 @@ export interface AssociationSelectProps<TItem extends AssociationSelectItem> ext
   value: string
   items: readonly TItem[]
   onChange: (value: string, item: TItem | undefined) => void
+  onOpenChange?: (open: boolean) => void
   renderOption: (item: TItem) => ReactNode
   renderSelection: (item: TItem | undefined, value: string) => ReactNode
   renderDetails?: (item: TItem) => ReactNode | null
+  groupBy?: (item: TItem) => { key: string; label: ReactNode }
   isItemVisible?: (item: TItem) => boolean
   matchesSearch?: (item: TItem, normalizedQuery: string) => boolean
   disabled?: boolean
@@ -43,14 +45,27 @@ interface AssociationSelectOption<TItem extends AssociationSelectItem> {
   'aria-label'?: string
 }
 
+interface AssociationSelectGroup<TItem extends AssociationSelectItem> {
+  key: string
+  label: ReactNode
+  title: string
+  options: AssociationSelectOption<TItem>[]
+}
+
+type AssociationSelectEntry<TItem extends AssociationSelectItem> =
+  | AssociationSelectOption<TItem>
+  | AssociationSelectGroup<TItem>
+
 export function AssociationSelect<TItem extends AssociationSelectItem>({
   label,
   value,
   items,
   onChange,
+  onOpenChange,
   renderOption,
   renderSelection,
   renderDetails,
+  groupBy,
   isItemVisible,
   matchesSearch,
   disabled = false,
@@ -82,7 +97,7 @@ export function AssociationSelect<TItem extends AssociationSelectItem>({
     () => new Set(visibleItems.map((item) => item.value)),
     [visibleItems],
   )
-  const options = useMemo<AssociationSelectOption<TItem>[]>(
+  const flatOptions = useMemo<AssociationSelectOption<TItem>[]>(
     () => visibleItems.map((item) => ({
       value: item.value,
       label: item.label,
@@ -93,6 +108,28 @@ export function AssociationSelect<TItem extends AssociationSelectItem>({
     })),
     [visibleItems],
   )
+  const options = useMemo(() => {
+    if (!groupBy) return flatOptions
+    const groups = new Map<string, {
+      label: ReactNode
+      options: AssociationSelectOption<TItem>[]
+    }>()
+    for (const option of flatOptions) {
+      const group = groupBy(option.item)
+      const current = groups.get(group.key)
+      if (current) {
+        current.options.push(option)
+      } else {
+        groups.set(group.key, { label: group.label, options: [option] })
+      }
+    }
+    return Array.from(groups, ([key, group]) => ({
+      key,
+      label: group.label,
+      title: typeof group.label === 'string' ? group.label : '',
+      options: group.options,
+    }))
+  }, [flatOptions, groupBy])
 
   useEffect(() => {
     hoveredDetailValueRef.current = null
@@ -124,7 +161,7 @@ export function AssociationSelect<TItem extends AssociationSelectItem>({
       >
         {label}
       </label>
-      <Select<string, AssociationSelectOption<TItem>>
+      <Select<string, AssociationSelectEntry<TItem>>
         id={controlId}
         value={value}
         options={options}
@@ -149,7 +186,7 @@ export function AssociationSelect<TItem extends AssociationSelectItem>({
         }}
         optionLabelProp="label"
         filterOption={(input, option) => {
-          if (!option) return false
+          if (!isAssociationSelectOption(option)) return false
           const normalizedQuery = normalizeSearchText(input)
           if (matchesSearch) return matchesSearch(option.item, normalizedQuery)
           return matchesDefaultSearch(option.item, normalizedQuery)
@@ -159,6 +196,7 @@ export function AssociationSelect<TItem extends AssociationSelectItem>({
           return renderSelection(itemsByValue.get(normalizedValue), normalizedValue)
         }}
         optionRender={(option) => {
+          if (!isAssociationSelectOption(option.data)) return option.label
           const item = option.data.item
           const details = renderDetails?.(item)
           const content = (
@@ -217,6 +255,7 @@ export function AssociationSelect<TItem extends AssociationSelectItem>({
             hoveredDetailValueRef.current = null
             setOpenDetailValue(null)
           }
+          onOpenChange?.(open)
         }}
         onSearch={() => {
           hoveredDetailValueRef.current = null
@@ -234,6 +273,12 @@ export function AssociationSelect<TItem extends AssociationSelectItem>({
       />
     </div>
   )
+}
+
+function isAssociationSelectOption<TItem extends AssociationSelectItem>(
+  value: AssociationSelectEntry<TItem> | undefined,
+): value is AssociationSelectOption<TItem> {
+  return value !== undefined && 'item' in value
 }
 
 function matchesDefaultSearch(item: AssociationSelectItem, normalizedQuery: string) {

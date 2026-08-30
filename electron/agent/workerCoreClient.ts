@@ -32,8 +32,11 @@ export interface RuntimeModelSnapshot {
   context_window_tokens: number
   max_output_tokens: number
   supports_images: boolean
-  supports_reasoning: boolean
+  reasoning_control: 'none' | 'openai_effort'
+  supported_reasoning_levels: RuntimeReasoningLevel[]
 }
+
+export type RuntimeReasoningLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 export interface RuntimeMessagePart {
   id: string
@@ -64,7 +67,7 @@ export interface RuntimeBootstrap {
     assistant_message_id: string
     provider_id: string
     model_id: string
-    reasoning_level: 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+    reasoning_level: RuntimeReasoningLevel
   }
   session: {
     id: string
@@ -388,6 +391,7 @@ function isRuntimeBootstrap(value: unknown, start: AgentWorkerStartMessage): val
     || !isRecord(value.model)
     || !isRuntimeModelSnapshot(value.model.snapshot)
     || value.model.snapshot.provider_id !== value.run.provider_id
+    || !value.model.snapshot.supported_reasoning_levels.includes(value.run.reasoning_level)
     || !isRuntimeContextBootstrap(value.context)) {
     return false
   }
@@ -492,7 +496,7 @@ function isRuntimeModelSnapshot(value: unknown): value is RuntimeModelSnapshot {
     && Number(value.max_output_tokens) > 0
     && Number(value.max_output_tokens) <= Number(value.context_window_tokens)
     && typeof value.supports_images === 'boolean'
-    && typeof value.supports_reasoning === 'boolean'
+    && validReasoningConfiguration(value.reasoning_control, value.supported_reasoning_levels)
 }
 
 function validProviderBaseURL(value: string) {
@@ -518,6 +522,23 @@ function validReasoningLevel(value: unknown): value is RuntimeBootstrap['run']['
     || value === 'medium'
     || value === 'high'
     || value === 'xhigh'
+    || value === 'max'
+}
+
+function validReasoningConfiguration(
+  control: unknown,
+  levels: unknown,
+): levels is RuntimeReasoningLevel[] {
+  if ((control !== 'none' && control !== 'openai_effort')
+    || !Array.isArray(levels)
+    || levels.length === 0
+    || !levels.every(validReasoningLevel)
+    || new Set(levels).size !== levels.length) {
+    return false
+  }
+  return control === 'none'
+    ? levels.length === 1 && levels[0] === 'off'
+    : levels.some((level) => level !== 'off')
 }
 
 function validRuntimeSteerInput(value: RuntimeSteerInput) {

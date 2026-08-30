@@ -60,11 +60,36 @@ describe('Agent setup protocol', () => {
     expect(() => decodeAgentModelTestResult({ status: 'unknown', latency_ms: 42, model_id: 'gpt-test', message: '' })).toThrow(AgentSetupProtocolError)
     expect(() => decodeAgentModelTestResult({ status: 'ready', latency_ms: 42, model_id: 'gpt\nsecret', message: '' })).toThrow(AgentSetupProtocolError)
   })
+
+  it('允许 openai_effort 明确声明不含关闭项的推理档位', () => {
+    expect(decodeAgentModel({
+      ...modelFixture(),
+      reasoning_control: 'openai_effort',
+      supported_reasoning_levels: ['low', 'high'],
+      default_reasoning_level: 'off',
+      effective_default_reasoning_level: 'low',
+      supports_reasoning: true,
+    }).supported_reasoning_levels).toEqual(['low', 'high'])
+
+    expect(() => decodeAgentModel({
+      ...modelFixture(),
+      reasoning_control: 'none',
+      supported_reasoning_levels: ['off', 'low'],
+      supports_reasoning: false,
+    })).toThrow(AgentSetupProtocolError)
+    expect(() => decodeAgentModel({
+      ...modelFixture(),
+      reasoning_control: 'openai_effort',
+      supported_reasoning_levels: ['off'],
+      supports_reasoning: true,
+    })).toThrow(AgentSetupProtocolError)
+  })
 })
 
 function settingsFixture() {
   return {
-    default_reasoning_level: 'off', show_turn_token_usage: true, revision: 1,
+    default_reasoning_level: 'off', global_context_window_tokens: 16_384,
+    global_max_output_tokens: 4_096, show_turn_token_usage: true, revision: 1,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
   }
 }
@@ -95,8 +120,13 @@ function providerFixture() {
 function modelFixture() {
   return {
     id: 'apm-1', provider_id: 'apv-1', remote_model_id: 'gpt-test', display_name: 'GPT Test',
-    availability: 'available', context_window_tokens: 8192, max_output_tokens: 1024,
-    supports_images: false, supports_reasoning: true, capabilities_confirmed: false, revision: 1,
+    availability: 'available', source: 'sync', parameter_mode: 'custom',
+    context_window_tokens: 8192, max_output_tokens: 1024, default_reasoning_level: 'off',
+    reasoning_control: 'openai_effort', supported_reasoning_levels: ['off', 'minimal', 'low', 'medium', 'high'],
+    supports_images: false, supports_reasoning: true, capabilities_confirmed: false,
+    effective_context_window_tokens: 8192, effective_max_output_tokens: 1024,
+    effective_default_reasoning_level: 'off',
+    first_seen_at: '2026-08-28T00:00:00Z', last_seen_at: '2026-08-28T00:00:00Z', revision: 1,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
   }
 }

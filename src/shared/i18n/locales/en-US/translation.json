@@ -39,7 +39,9 @@
     "error": "Error",
     "retry": "Retry",
     "copy": "Copy",
-    "more": "More"
+    "more": "More",
+    "yes": "Yes",
+    "no": "No"
   },
   "sessionOrigin": {
     "mcp": "Created by MCP"
@@ -74,14 +76,16 @@
       "configureProvider": "Configure provider",
       "modelUnavailable": "Current model unavailable",
       "modelUnavailableReason": {
+        "removed": "Model removed",
         "provider_disabled": "Provider disabled",
         "catalog_stale": "Catalog sync required",
-        "missing": "Model removed"
+        "missing": "Missing from remote catalog"
       },
       "modelUnavailableHint": {
+        "removed": "This model was removed from the Termous model catalog. Select another available model for the session.",
         "provider_disabled": "Enable this provider in Agent settings, or select another available model for the session.",
         "catalog_stale": "Sync this provider's model catalog in Agent settings, or select another available model for the session.",
-        "missing": "This model was removed from the provider catalog. Select another available model for the session.",
+        "missing": "The remote provider does not currently return this model. Sync the catalog or select another available model.",
         "unknown": "Check the provider and model catalog in Agent settings, or select another available model."
       },
       "returnToActiveRun": "Return to running session"
@@ -156,7 +160,19 @@
       "steerHint": "This message will be added to the running task",
       "send": "Send",
       "steer": "Add guidance",
-      "stop": "Stop task"
+      "stop": "Stop task",
+      "reasoning": "Reasoning effort",
+      "modelDetails": "Model details",
+      "modelAlias": "Display name",
+      "contextBudget": "Context window",
+      "maxOutput": "Output limit per response",
+      "reasoningLevels": "Reasoning levels",
+      "imagesSupported": "Image input",
+      "imagesUnsupported": "Text input only",
+      "modelSource": {
+        "sync": "Synced",
+        "manual": "Manually added"
+      }
     },
     "attachments": {
       "title": "Attachments",
@@ -3481,22 +3497,59 @@
       },
       "catalog": {
         "search": "Search model ID, name, or owner",
+        "stateFilter": "Model state",
+        "sourceFilter": "Model source",
+        "filterState": {
+          "active": "Active",
+          "removed": "Removed",
+          "all": "All states"
+        },
+        "filterSource": {
+          "all": "All sources",
+          "sync": "Remote sync",
+          "manual": "Manual"
+        },
         "refresh": "Sync catalog",
+        "add": "Add model",
         "refreshSuccess": "Model catalog synced",
         "refreshFailed": "Model catalog sync did not complete",
         "refreshFailedDescription": "The last successful catalog is preserved. Review the provider and try again.",
         "noResults": "No matching models",
+        "noRemoved": "No removed models",
         "neverEmpty": "Sync the provider to display its models here",
         "empty": "The current catalog has no models",
         "missing": "Removed upstream",
+        "manual": "Manual",
+        "removed": "Removed",
         "conservative": "Conservative capabilities",
         "context": "context",
         "images": "Images",
         "reasoning": "Reasoning",
         "setDefault": "Set as default model",
+        "edit": "Edit model",
+        "remove": "Remove model",
+        "restore": "Restore model",
+        "moreActions": "More actions for {{model}}",
+        "inheritsGlobal": "Uses global defaults",
+        "customParameters": "Model-specific",
+        "confirmRemoveTitle": "Remove this model?",
+        "confirmRemoveDescription": "Model “{{model}}” will no longer be available for new sessions and catalog sync will not restore it automatically. Existing session history remains readable.",
         "editCapabilities": "Edit model capabilities",
         "unavailable": "Unavailable for new sessions",
         "lastSynced": "Last synced {{time}}",
+        "detail": {
+          "provider": "Provider",
+          "alias": "Display name",
+          "source": "Source",
+          "catalogStatus": "Catalog state",
+          "manualUnmanaged": "Not managed by catalog sync",
+          "synced": "Confirmed in the latest catalog",
+          "lastSeen": "Last discovered",
+          "context": "Context window",
+          "output": "Output limit per response",
+          "reasoning": "Reasoning levels",
+          "images": "Image input"
+        },
         "status": {
           "disabled": "Disabled",
           "never": "Not synced",
@@ -3531,11 +3584,19 @@
         }
       },
     "defaults": {
-      "title": "Defaults",
-      "description": "Choose the model and reasoning level used by new conversations.",
+      "title": "New session defaults",
+      "description": "Used for new sessions. Model-specific settings take precedence.",
+        "save": "Save defaults",
         "model": "Default model",
         "modelPlaceholder": "Select a model",
-        "reasoning": "Default reasoning level",
+        "modelDetail": "{{provider}} · Display name: {{alias}}",
+        "contextBudget": "Context window",
+        "contextHelp": "The total tokens a single model request can contain, including system instructions, history, tool results, and model output. Use the limit published by the provider.",
+        "contextQuickSelect": "Choose a common context window",
+        "maxOutput": "Output limit per response",
+        "outputHelp": "The maximum tokens a single model response may generate. It must not exceed the context window, and the actual response may be shorter.",
+        "outputQuickSelect": "Choose a common output limit",
+        "reasoning": "Reasoning effort",
         "unavailableTitle": "The current default model cannot start a new session",
         "unavailableDescription": "The model record is retained. Sync its catalog, enable the provider, or choose another default model."
       },
@@ -3549,16 +3610,33 @@
         "low": "Low",
         "medium": "Medium",
         "high": "High",
-        "xhigh": "Extra high"
+        "xhigh": "Extra high",
+        "max": "Maximum"
       },
       "modelEditor": {
+        "addTitle": "Add model",
+        "editTitle": "Edit model",
+        "identitySection": "Model identity",
+        "parametersSection": "Runtime parameters",
+        "capabilitiesSection": "Capability declaration",
+        "modelId": "Model ID",
+        "modelIdPlaceholder": "Enter the model ID accepted by the provider",
         "displayName": "Display name",
-        "contextWindow": "Context window tokens",
-        "maxOutput": "Maximum output tokens",
+        "displayNamePlaceholder": "Optional; uses the model ID when empty",
+        "contextBudget": "Context window",
+        "maxOutput": "Output limit per response",
+        "defaultReasoning": "Default reasoning effort",
+        "parameterMode": "Runtime parameter source",
+        "inheritGlobal": "Use global settings",
+        "customParameters": "Use model-specific settings",
         "images": "Supports image input",
-        "reasoning": "Supports reasoning",
-        "conservativeTitle": "Using conservative capability defaults",
-        "conservativeDescription": "Catalog APIs do not reliably report context, image, or reasoning support. Adjust these values after checking the service documentation. Unconfirmed capabilities do not block text-only use.",
+        "reasoningControl": "Model reasoning",
+        "reasoningLevels": "Supported reasoning effort",
+        "reasoningNone": "Not supported",
+        "reasoningEffort": "Reasoning effort",
+        "selectAllReasoningLevels": "Select all",
+        "conservativeTitle": "Model capabilities not yet confirmed",
+        "conservativeDescription": "These defaults enable image input and reasoning. Verify them against the provider documentation.",
         "discardTitle": "Discard model capability changes?",
         "discardDescription": "Closing now will discard the unsaved capability changes."
       },
@@ -3608,25 +3686,37 @@
         "editorDescription": "Loading the latest revision preserves this local draft. Review it and save again.",
         "providerDeleted": "This provider was deleted elsewhere. The local draft is preserved; discard it or choose another provider.",
         "modelDeleted": "This model was deleted with its provider elsewhere. The local capability draft is preserved and must be discarded explicitly before closing.",
+        "modelRemoved": "This model was removed elsewhere. The local draft is preserved and must be discarded explicitly before closing.",
+        "defaultsDescription": "Global defaults changed elsewhere. Load the latest values before saving this draft.",
         "refresh": "Load latest",
         "draftPreserved": "The latest revision is loaded and the local draft is preserved. Review and save it again."
       },
       "validation": {
         "providerName": "Enter a provider name",
+        "modelId": "Enter a model ID",
+        "modelIdInvalid": "The model ID must be UTF-8 text without control characters and no longer than 200 bytes",
         "nameTooLarge": "Profile name cannot exceed 80 bytes",
         "displayName": "Enter a model display name",
         "displayNameTooLarge": "Model display name cannot exceed 200 bytes",
         "baseUrl": "Enter a complete HTTP or HTTPS URL without credentials, query parameters, or a fragment",
         "baseUrlTooLarge": "Base URL cannot exceed 2048 bytes",
         "integerTokens": "Token counts must be integers",
-        "contextWindow": "Context window must be between 1024 and 2000000 tokens",
-        "tokenLimit": "Maximum output tokens cannot exceed the context window"
+        "contextWindow": "Context window must be between 1,024 and 2,000,000 tokens",
+        "tokenLimit": "Output limit per response must be between 1 token and the context window",
+        "reasoningLevels": "Select at least one non-off level when reasoning is enabled",
+        "defaultReasoning": "The default reasoning effort must be supported by this model"
       },
       "error": {
         "generic": "The operation did not complete. Check Core, Vault, and the model profile, then try again.",
         "conflict": "This configuration changed elsewhere. Your draft is preserved; reload and review it before saving again.",
         "vaultLocked": "The Vault is locked. Unlock it and try again.",
         "providerInUse": "This provider is still referenced by defaults, sessions, or run history and cannot be deleted.",
+        "providerLimit": "The provider limit has been reached. Delete a provider you no longer use and try again.",
+        "providerNameConflict": "A provider with this name already exists. Use a different name.",
+        "providerNotFound": "The provider no longer exists. Close this editor and choose another provider.",
+        "modelIdConflict": "A model with this ID already exists in the provider. Use a different model ID.",
+        "modelInUse": "This model is still referenced by defaults, sessions, or run history and cannot be removed.",
+        "modelUnavailable": "This model is unavailable for new requests. Sync the catalog or choose another model.",
         "modelCapabilityConflict": "This model is still used by a default or session with reasoning enabled. Turn reasoning off there before disabling the model capability."
       }
     },

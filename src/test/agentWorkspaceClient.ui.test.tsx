@@ -155,7 +155,10 @@ function runFixture() {
       provider_id: 'apv-provider', provider_name: '测试 Provider', model_display_name: '测试模型',
       provider_revision: 1, model_revision: 1,
       context_window_tokens: 32768, max_output_tokens: 4096,
-      supports_images: false, supports_reasoning: true,
+      supports_images: false,
+      reasoning_control: 'openai_effort',
+      supported_reasoning_levels: ['off', 'medium'],
+      supports_reasoning: true,
     },
     reasoning_level: 'medium',
     usage: {

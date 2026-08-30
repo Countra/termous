@@ -21,6 +21,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
   const [deleteSessionId, setDeleteSessionId] = useState<string>()
   const [previewAttachment, setPreviewAttachment] = useState<import('#entities/agent').AgentAttachment>()
   const selectedSession = props.sessions.find((session) => session.id === props.selected_session_id)
+  const selectedModel = props.models.find((model) => model.id === props.selected_model_id)
   const runStatus = selectedSession?.run_status ?? 'idle'
   const active = isActiveAgentRun(runStatus)
   const activeRunElsewhere = props.active_run
@@ -99,8 +100,12 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           models={props.models}
           selectedModelId={props.selected_model_id}
           selectedModelName={selectedSession?.model_name}
+          selectedModelAlias={selectedSession?.model_alias}
           selectedProviderName={selectedSession?.provider_name}
+          selectedReasoningLevel={props.selected_reasoning_level}
+          supportedReasoningLevels={selectedModel?.supported_reasoning_levels ?? ['off']}
           modelSelectionDisabled={props.busy || active || props.run_blocked}
+          reasoningSelectionDisabled={props.busy || active || props.run_blocked || !selectedModel?.runnable}
           onChange={props.onDraftChange}
           onAttachFiles={(files) => void props.onAttachFiles(files)}
           onRemoveAttachment={(clientId) => void props.onRemoveAttachment(clientId)}
@@ -110,6 +115,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onSteer={(value) => void props.onSteer(value)}
           onStop={() => void props.onStop()}
           onModelChange={props.onModelChange}
+          onReasoningChange={props.onReasoningChange}
           onOpenSettings={props.onOpenSettings}
         />
       </section>

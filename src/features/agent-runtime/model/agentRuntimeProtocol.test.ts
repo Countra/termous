@@ -38,6 +38,80 @@ test('Run 与模型快照必须归属于同一 Provider', () => {
   }), /Provider 归属不一致/)
 })
 
+test('Run 推理档位必须由快照明确支持且能力字段保持一致', () => {
+  const run = agentRunFixture()
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'snapshot', revision: 0, sessions: [agentSessionFixture()],
+    active_runs: [{
+      ...run,
+      reasoning_level: 'high',
+      model_snapshot: {
+        ...run.model_snapshot,
+        supported_reasoning_levels: ['off', 'medium'],
+      },
+    }],
+  }), /不受模型快照支持/)
+
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'snapshot', revision: 0, sessions: [agentSessionFixture()],
+    active_runs: [{
+      ...run,
+      model_snapshot: {
+        ...run.model_snapshot,
+        reasoning_control: 'none',
+        supported_reasoning_levels: ['off', 'medium'],
+        supports_reasoning: false,
+      },
+    }],
+  }), /推理控制与支持级别不一致/)
+
+  const maximum = decodeAgentWorkspaceEvent({
+    type: 'snapshot', revision: 0, sessions: [agentSessionFixture()],
+    active_runs: [{
+      ...run,
+      reasoning_level: 'max',
+      model_snapshot: {
+        ...run.model_snapshot,
+        supported_reasoning_levels: ['off', 'medium', 'max'],
+      },
+    }],
+  })
+  assert.equal(
+    maximum.type === 'snapshot' ? maximum.active_runs[0]?.reasoning_level : undefined,
+    'max',
+  )
+
+  const highOnly = decodeAgentWorkspaceEvent({
+    type: 'snapshot', revision: 0, sessions: [agentSessionFixture()],
+    active_runs: [{
+      ...run,
+      reasoning_level: 'high',
+      model_snapshot: {
+        ...run.model_snapshot,
+        supported_reasoning_levels: ['high', 'max'],
+      },
+    }],
+  })
+  assert.deepEqual(
+    highOnly.type === 'snapshot'
+      ? highOnly.active_runs[0]?.model_snapshot.supported_reasoning_levels
+      : undefined,
+    ['high', 'max'],
+  )
+
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'snapshot', revision: 0, sessions: [agentSessionFixture()],
+    active_runs: [{
+      ...run,
+      reasoning_level: 'off',
+      model_snapshot: {
+        ...run.model_snapshot,
+        supported_reasoning_levels: ['off'],
+      },
+    }],
+  }), /至少一个推理档位/)
+})
+
 test('Run usage 要求缓存读写明细并校验完整分类和', () => {
   const run = agentRunFixture()
   const missingCacheRead = { ...run.usage } as Record<string, unknown>

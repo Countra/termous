@@ -39,7 +39,9 @@
     "error": "发生错误",
     "retry": "重试",
     "copy": "复制",
-    "more": "更多"
+    "more": "更多",
+    "yes": "是",
+    "no": "否"
   },
   "sessionOrigin": {
     "mcp": "MCP 创建的会话"
@@ -74,14 +76,16 @@
       "configureProvider": "配置 Provider",
       "modelUnavailable": "当前模型不可用",
       "modelUnavailableReason": {
+        "removed": "模型已移除",
         "provider_disabled": "Provider 已停用",
         "catalog_stale": "模型目录待同步",
-        "missing": "模型已移除"
+        "missing": "远程目录缺失"
       },
       "modelUnavailableHint": {
+        "removed": "该模型已从 Termous 模型目录移除，请为会话选择其他可用模型。",
         "provider_disabled": "请在 Agent 设置中启用该 Provider，或为会话选择其他可用模型。",
         "catalog_stale": "请在 Agent 设置中同步该 Provider 的模型目录，或为会话选择其他可用模型。",
-        "missing": "该模型已从 Provider 目录移除，请为会话选择其他可用模型。",
+        "missing": "远程 Provider 当前未返回该模型，请同步模型目录或选择其他可用模型。",
         "unknown": "请在 Agent 设置中检查 Provider 和模型目录，或选择其他可用模型。"
       },
       "returnToActiveRun": "返回运行会话"
@@ -156,7 +160,19 @@
       "steerHint": "当前输入会追加到正在运行的任务",
       "send": "发送",
       "steer": "追加",
-      "stop": "停止任务"
+      "stop": "停止任务",
+      "reasoning": "推理强度",
+      "modelDetails": "模型详情",
+      "modelAlias": "显示名称",
+      "contextBudget": "上下文窗口",
+      "maxOutput": "单次输出上限",
+      "reasoningLevels": "推理档位",
+      "imagesSupported": "支持图片输入",
+      "imagesUnsupported": "仅文本输入",
+      "modelSource": {
+        "sync": "远程同步",
+        "manual": "手工添加"
+      }
     },
     "attachments": {
       "title": "附件",
@@ -3457,22 +3473,59 @@
       },
       "catalog": {
         "search": "搜索模型 ID、名称或所有者",
+        "stateFilter": "模型状态",
+        "sourceFilter": "模型来源",
+        "filterState": {
+          "active": "使用中",
+          "removed": "已移除",
+          "all": "全部状态"
+        },
+        "filterSource": {
+          "all": "全部来源",
+          "sync": "远程同步",
+          "manual": "手工添加"
+        },
         "refresh": "同步目录",
+        "add": "添加模型",
         "refreshSuccess": "模型目录已同步",
         "refreshFailed": "模型目录同步未完成",
         "refreshFailedDescription": "已保留最近一次成功目录，请检查 Provider 配置后重试。",
         "noResults": "没有匹配的模型",
+        "noRemoved": "没有已移除的模型",
         "neverEmpty": "同步 Provider 后将在这里显示模型",
         "empty": "当前目录没有模型",
         "missing": "服务端已移除",
+        "manual": "手工",
+        "removed": "已移除",
         "conservative": "保守能力",
         "context": "上下文",
         "images": "图片",
         "reasoning": "Reasoning",
         "setDefault": "设为默认模型",
+        "edit": "编辑模型",
+        "remove": "移除模型",
+        "restore": "恢复模型",
+        "moreActions": "{{model}} 的更多操作",
+        "inheritsGlobal": "跟随全局",
+        "customParameters": "单独设置",
+        "confirmRemoveTitle": "移除此模型？",
+        "confirmRemoveDescription": "模型“{{model}}”将不再用于新会话，后续同步不会自动恢复；历史会话仍可读取。",
         "editCapabilities": "编辑模型能力",
         "unavailable": "不可用于新会话",
         "lastSynced": "上次同步 {{time}}",
+        "detail": {
+          "provider": "Provider",
+          "alias": "显示名称",
+          "source": "来源",
+          "catalogStatus": "目录状态",
+          "manualUnmanaged": "不受目录同步管理",
+          "synced": "已在最近目录中确认",
+          "lastSeen": "最近发现",
+          "context": "上下文窗口",
+          "output": "单次输出上限",
+          "reasoning": "推理档位",
+          "images": "图片输入"
+        },
         "status": {
           "disabled": "已停用",
           "never": "待同步",
@@ -3507,11 +3560,19 @@
         }
       },
     "defaults": {
-      "title": "默认行为",
-      "description": "设置新会话默认使用的模型与推理级别。",
+      "title": "新会话默认值",
+      "description": "用于新建会话；模型专属设置优先。",
+        "save": "保存默认设置",
         "model": "默认模型",
         "modelPlaceholder": "选择模型",
-        "reasoning": "默认推理级别",
+        "modelDetail": "{{provider}} · 显示名称：{{alias}}",
+        "contextBudget": "上下文窗口",
+        "contextHelp": "模型单次请求可容纳的 Token 总量，包含系统提示、历史消息、工具结果和模型输出。请按服务商公布的上限填写。",
+        "contextQuickSelect": "选择常用上下文窗口",
+        "maxOutput": "单次输出上限",
+        "outputHelp": "限制模型单次回复最多生成的 Token 数，必须小于或等于上下文窗口；实际输出可能更少。",
+        "outputQuickSelect": "选择常用输出上限",
+        "reasoning": "推理强度",
         "unavailableTitle": "当前默认模型不可用于新会话",
         "unavailableDescription": "模型记录会继续保留，请同步目录、启用 Provider 或选择其他默认模型。"
       },
@@ -3525,16 +3586,33 @@
         "low": "低",
         "medium": "中",
         "high": "高",
-        "xhigh": "极高"
+        "xhigh": "极高",
+        "max": "最大"
       },
       "modelEditor": {
+        "addTitle": "新增模型",
+        "editTitle": "编辑模型",
+        "identitySection": "模型标识",
+        "parametersSection": "运行参数",
+        "capabilitiesSection": "能力声明",
+        "modelId": "模型 ID",
+        "modelIdPlaceholder": "输入 Provider 接受的模型 ID",
         "displayName": "显示名称",
-        "contextWindow": "上下文窗口 Token",
-        "maxOutput": "最大输出 Token",
+        "displayNamePlaceholder": "可选；留空时使用模型 ID",
+        "contextBudget": "上下文窗口",
+        "maxOutput": "单次输出上限",
+        "defaultReasoning": "默认推理强度",
+        "parameterMode": "运行参数来源",
+        "inheritGlobal": "跟随全局设置",
+        "customParameters": "使用模型专属设置",
         "images": "支持图片输入",
-        "reasoning": "支持 reasoning",
-        "conservativeTitle": "当前使用保守能力配置",
-        "conservativeDescription": "模型目录无法可靠提供上下文、图片和 reasoning 能力。确认服务文档后再调整；未确认不会阻止文本模型运行。",
+        "reasoningControl": "模型推理",
+        "reasoningLevels": "支持的推理强度",
+        "reasoningNone": "不支持",
+        "reasoningEffort": "Reasoning effort",
+        "selectAllReasoningLevels": "全选",
+        "conservativeTitle": "模型能力尚未确认",
+        "conservativeDescription": "当前使用默认能力配置，请根据服务文档确认图片输入和推理能力。",
         "discardTitle": "放弃模型能力修改？",
         "discardDescription": "关闭后当前未保存的能力配置将丢失。"
       },
@@ -3584,25 +3662,37 @@
         "editorDescription": "读取最新 revision 后会保留当前编辑草稿，仍需再次确认保存。",
         "providerDeleted": "此 Provider 已在其他位置删除。当前草稿仍保留；请放弃草稿或选择其他 Provider。",
         "modelDeleted": "此模型已随 Provider 在其他位置删除。当前能力草稿仍保留，关闭前需要确认放弃。",
+        "modelRemoved": "此模型已在其他位置移除。当前草稿仍保留，关闭前需要确认放弃。",
+        "defaultsDescription": "全局默认设置已在其他位置更新。读取最新值后再保存当前修改。",
         "refresh": "读取最新配置",
         "draftPreserved": "已读取最新 revision，当前编辑草稿已保留，请核对后重新保存。"
       },
       "validation": {
         "providerName": "请输入 Provider 名称",
+        "modelId": "请输入模型 ID",
+        "modelIdInvalid": "模型 ID 必须是不含控制字符且不超过 200 字节的 UTF-8 文本",
         "nameTooLarge": "配置名称不能超过 80 字节",
         "displayName": "请输入模型显示名称",
         "displayNameTooLarge": "模型显示名称不能超过 200 字节",
         "baseUrl": "请输入不含凭据、查询参数和片段的完整 HTTP 或 HTTPS 地址",
         "baseUrlTooLarge": "Base URL 不能超过 2048 字节",
         "integerTokens": "Token 数量必须是整数",
-        "contextWindow": "上下文窗口必须介于 1024 和 2000000 Token",
-        "tokenLimit": "最大输出 Token 不能超过上下文窗口"
+        "contextWindow": "上下文窗口必须介于 1,024 和 2,000,000 Token",
+        "tokenLimit": "单次输出上限必须介于 1 Token 和上下文窗口之间",
+        "reasoningLevels": "启用推理后至少选择一个非关闭档位",
+        "defaultReasoning": "默认推理强度必须属于该模型支持的档位"
       },
       "error": {
         "generic": "操作未完成，请检查 Core、Vault 和模型配置后重试。",
         "conflict": "配置已在其他位置更新。当前草稿已保留，请重新载入后核对再保存。",
         "vaultLocked": "Vault 当前已锁定，请先解锁后重试。",
         "providerInUse": "该 Provider 仍被默认设置、会话或历史任务引用，无法删除。",
+        "providerLimit": "Provider 数量已达到上限，请删除不再使用的配置后重试。",
+        "providerNameConflict": "该 Provider 名称已存在，请使用其他名称。",
+        "providerNotFound": "所属 Provider 已不存在，请关闭当前编辑并重新选择。",
+        "modelIdConflict": "该 Provider 中已存在相同的模型 ID，请使用其他模型 ID。",
+        "modelInUse": "该模型仍被默认设置、会话或历史任务引用，无法移除。",
+        "modelUnavailable": "该模型当前不可用于新请求，请同步目录或选择其他模型。",
         "modelCapabilityConflict": "该模型仍被启用了推理的默认设置或会话使用。请先关闭这些位置的推理等级，再停用模型推理能力。"
       }
     },

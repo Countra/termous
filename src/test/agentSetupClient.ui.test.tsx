@@ -19,7 +19,12 @@ describe('AgentSetupClient', () => {
       .mockResolvedValueOnce(jsonResponse(providerFixture(3, false, 'ready')))
       .mockResolvedValueOnce(jsonResponse({ items: [modelFixture(1)] }))
       .mockResolvedValueOnce(jsonResponse(modelFixture(1)))
+      .mockResolvedValueOnce(jsonResponse({
+        model: { ...modelFixture(2), source: 'manual' }, provider_revision: 3,
+      }))
       .mockResolvedValueOnce(jsonResponse(modelFixture(2)))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(jsonResponse(modelFixture(3)))
       .mockResolvedValueOnce(jsonResponse({ status: 'ready', latency_ms: 30, model_id: 'gpt-test', message: '' }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
     vi.stubGlobal('fetch', fetchMock)
@@ -30,6 +35,7 @@ describe('AgentSetupClient', () => {
     await client.settings()
     await client.updateSettings({
       default_model_id: 'apm-1', default_reasoning_level: 'high',
+      global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
       show_turn_token_usage: false, expected_revision: 2,
     })
     await client.readiness()
@@ -42,9 +48,14 @@ describe('AgentSetupClient', () => {
     })
     await client.testModelProvider('apv/1', 2)
     await client.refreshProviderModels('apv/1', 2)
-    await client.models('apv/1', 'model/cursor')
+    await client.models({ provider_id: 'apv/1', state: 'all', source: 'manual' }, 'model/cursor')
     await client.model('apm/1')
+    await client.createModel('apv/1', {
+      remote_model_id: 'manual-model', ...modelInput(), expected_revision: 2,
+    })
     await client.updateModel('apm/1', { ...modelInput(), expected_revision: 1 })
+    await client.removeModel('apm/1', 2)
+    await client.restoreModel('apm/1', 2)
     await client.testModel('apm/1', 2)
     await client.deleteModelProvider('apv/1', 5)
 
@@ -52,6 +63,7 @@ describe('AgentSetupClient', () => {
       path: '/api/v1/agent/settings', method: 'PATCH',
       body: {
         default_model_id: 'apm-1', default_reasoning_level: 'high',
+        global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
         show_turn_token_usage: false, expected_revision: 2,
       },
     })
@@ -69,15 +81,23 @@ describe('AgentSetupClient', () => {
       body: { expected_revision: 2 },
     })
     expect(requestAt(fetchMock, 10)).toMatchObject({
-      path: '/api/v1/agent/models', search: '?limit=100&provider_id=apv%2F1&cursor=model%2Fcursor',
+      path: '/api/v1/agent/models', search: '?limit=100&provider_id=apv%2F1&state=all&source=manual&cursor=model%2Fcursor',
     })
     expect(requestAt(fetchMock, 12)).toMatchObject({
+      path: '/api/v1/agent/model-providers/apv%2F1/models', method: 'POST',
+      body: { remote_model_id: 'manual-model', ...modelInput(), expected_revision: 2 },
+    })
+    expect(requestAt(fetchMock, 13)).toMatchObject({
       path: '/api/v1/agent/models/apm%2F1', method: 'PATCH',
       body: { ...modelInput(), expected_revision: 1 },
     })
-    expect(requestAt(fetchMock, 13).body).toEqual({ expected_revision: 2, confirm_potential_cost: true })
+    expect(requestAt(fetchMock, 14)).toMatchObject({ method: 'DELETE', body: { expected_revision: 2 } })
+    expect(requestAt(fetchMock, 15)).toMatchObject({
+      path: '/api/v1/agent/models/apm%2F1/restore', method: 'POST', body: { expected_revision: 2 },
+    })
+    expect(requestAt(fetchMock, 16).body).toEqual({ expected_revision: 2, confirm_potential_cost: true })
     expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 25_000)
-    expect(requestAt(fetchMock, 14)).toMatchObject({ method: 'DELETE', body: { expected_revision: 5 } })
+    expect(requestAt(fetchMock, 17)).toMatchObject({ method: 'DELETE', body: { expected_revision: 5 } })
   })
 })
 
@@ -96,6 +116,7 @@ function jsonResponse(value: unknown) {
 function settingsFixture(revision: number) {
   return {
     default_model_id: 'apm-1', default_reasoning_level: 'high',
+    global_context_window_tokens: 16_384, global_max_output_tokens: 4_096,
     show_turn_token_usage: true, revision,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:01Z',
   }
@@ -133,16 +154,26 @@ function providerFixture(revision: number, apiKeyConfigured = false, refreshStat
 
 function modelInput() {
   return {
-    display_name: 'GPT Test', context_window_tokens: 8192, max_output_tokens: 1024,
-    supports_images: false, supports_reasoning: true, capabilities_confirmed: true as const,
+    display_name: 'GPT Test', parameter_mode: 'custom' as const,
+    context_window_tokens: 8192, max_output_tokens: 1024, default_reasoning_level: 'medium' as const,
+    supports_images: false, reasoning_control: 'openai_effort' as const,
+    supported_reasoning_levels: [
+      'off' as const, 'minimal' as const, 'low' as const, 'medium' as const, 'high' as const,
+    ],
+    capabilities_confirmed: true as const,
   }
 }
 
 function modelFixture(revision: number) {
   return {
     id: 'apm-1', provider_id: 'apv-1', remote_model_id: 'gpt-test', display_name: 'GPT Test',
-    availability: 'available', context_window_tokens: 8192, max_output_tokens: 1024,
-    supports_images: false, supports_reasoning: true, capabilities_confirmed: false, revision,
+    availability: 'available', source: 'sync', parameter_mode: 'custom',
+    context_window_tokens: 8192, max_output_tokens: 1024, default_reasoning_level: 'medium',
+    reasoning_control: 'openai_effort', supported_reasoning_levels: ['off', 'minimal', 'low', 'medium', 'high'],
+    supports_images: false, supports_reasoning: true, capabilities_confirmed: false,
+    effective_context_window_tokens: 8192, effective_max_output_tokens: 1024,
+    effective_default_reasoning_level: 'medium',
+    first_seen_at: '2026-08-28T00:00:00Z', last_seen_at: '2026-08-28T00:00:00Z', revision,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:01Z',
   }
 }

@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { contextActionMenuPopupClassName, customSelectStyles } from '#shared/ui'
-import type { AgentWorkspaceProps } from '../model/types.ts'
+import type { AgentWorkspaceModelOption, AgentWorkspaceProps } from '../model/types.ts'
 import { AgentWorkspace } from './AgentWorkspace.tsx'
 
 vi.mock('react-i18next', () => ({
@@ -39,6 +39,7 @@ describe('AgentWorkspace', () => {
       onStop: props.onStop,
     })} /></AntdApp>)
     expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'agent.composer.reasoning' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'agent.composer.steer' }))
     expect(props.onSteer).toHaveBeenCalledWith('adjust')
     await user.click(screen.getByRole('button', { name: 'agent.composer.stop' }))
@@ -48,11 +49,10 @@ describe('AgentWorkspace', () => {
   it('模型不可用时向键盘用户展示原因并禁止启动新 Run', async () => {
     const user = userEvent.setup()
     renderWorkspace(fixtureProps({
-      models: [{
-        id: 'model-1', name: 'Local model', provider_name: 'Local Provider',
-        remote_model_id: 'local-model', supports_reasoning: true, runnable: false,
+      models: [workspaceModel({
+        runnable: false,
         unavailable_reason: 'provider_disabled',
-      }],
+      })],
       model_runnable: false,
     }))
 
@@ -64,6 +64,7 @@ describe('AgentWorkspace', () => {
     expect(await screen.findByRole('option', {
       name: /agent.header.modelUnavailableReason.provider_disabled/,
     })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'agent.composer.reasoning' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
   })
 
@@ -85,11 +86,12 @@ describe('AgentWorkspace', () => {
     const user = userEvent.setup()
     const onOpenSettings = vi.fn()
     renderWorkspace(fixtureProps({
-      models: [{
-        id: 'model-disabled', name: 'Disabled model', provider_name: 'Disabled Provider',
-        remote_model_id: 'disabled-model', supports_reasoning: false, runnable: false,
+      models: [workspaceModel({
+        id: 'model-disabled', display_name: 'Disabled model', provider_name: 'Disabled Provider',
+        remote_model_id: 'disabled-model', reasoning_control: 'none',
+        supported_reasoning_levels: ['off'], effective_default_reasoning_level: 'off', runnable: false,
         unavailable_reason: 'provider_disabled',
-      }],
+      })],
       selected_model_id: undefined,
       model_runnable: false,
       onOpenSettings,
@@ -132,10 +134,11 @@ describe('AgentWorkspace', () => {
     renderWorkspace(fixtureProps({
       models: [
         ...fixtureProps().models,
-        {
-          id: 'model-2', name: 'Secondary model', provider_name: 'Remote Provider',
-          remote_model_id: 'remote-model-v2', supports_reasoning: false, runnable: true,
-        },
+        workspaceModel({
+          id: 'model-2', display_name: 'Secondary model', provider_name: 'Remote Provider',
+          remote_model_id: 'remote-model-v2', reasoning_control: 'none',
+          supported_reasoning_levels: ['off'], effective_default_reasoning_level: 'off',
+        }),
       ],
       onModelChange,
     }))
@@ -148,8 +151,151 @@ describe('AgentWorkspace', () => {
     await user.click(modelSelect)
     expect(document.querySelector(`.${customSelectStyles['select-popup']}`)).toBeInTheDocument()
     await user.type(modelSelect, 'remote-model-v2')
-    await user.click(await screen.findByText('Secondary model'))
+    await user.click(await screen.findByText('remote-model-v2'))
     expect(onModelChange).toHaveBeenCalledWith('model-2')
+  })
+
+  it('已选模型保持简洁名称并通过 hover 与 focus 展示完整详情', async () => {
+    const user = userEvent.setup()
+    const view = renderWorkspace(fixtureProps())
+
+    const selectedName = screen.getByText('local-model')
+    expect(selectedName.parentElement).not.toHaveAttribute('title')
+    await user.hover(selectedName)
+
+    const hoverDetails = await screen.findByRole('group', { name: 'agent.composer.modelDetails' })
+    expect(within(hoverDetails).getByText('Local Provider')).toBeInTheDocument()
+    expect(within(hoverDetails).getByText('Local model')).toBeInTheDocument()
+    expect(within(hoverDetails).getByText('8,192')).toBeInTheDocument()
+    const detailTrigger = selectedName.closest('.ant-select')?.parentElement?.parentElement
+    if (!(detailTrigger instanceof HTMLElement)) throw new Error('未找到已选模型详情触发区域')
+    expect(detailTrigger).toHaveAttribute('data-detail-open', 'true')
+
+    const combobox = screen.getByRole('combobox', { name: 'agent.header.model' })
+    await user.click(combobox)
+    await waitFor(() => {
+      expect(detailTrigger).toHaveAttribute('data-detail-open', 'false')
+    })
+
+    view.unmount()
+    renderWorkspace(fixtureProps())
+    const focusCombobox = screen.getByRole('combobox', { name: 'agent.header.model' })
+    const focusName = screen.getByText('local-model')
+    const focusTrigger = focusName.closest('.ant-select')?.parentElement?.parentElement
+    if (!(focusTrigger instanceof HTMLElement)) throw new Error('未找到键盘模型详情触发区域')
+    fireEvent.focus(focusCombobox)
+    await waitFor(() => {
+      expect(focusTrigger).toHaveAttribute('data-detail-open', 'true')
+    })
+    expect(await screen.findByRole('group', { name: 'agent.composer.modelDetails' })).toBeInTheDocument()
+  })
+
+  it('推理选择只展示当前模型支持的档位并路由下一轮配置', async () => {
+    const user = userEvent.setup()
+    const onReasoningChange = vi.fn()
+    renderWorkspace(fixtureProps({ onReasoningChange }))
+
+    const select = screen.getByRole('combobox', { name: 'agent.composer.reasoning' })
+    expect(select.closest('.ant-select')).toHaveTextContent('settings.agent.reasoning.medium')
+    await user.click(select)
+    expect(screen.queryByRole('option', { name: 'settings.agent.reasoning.minimal' })).not.toBeInTheDocument()
+    await user.click(await screen.findByRole('option', { name: 'settings.agent.reasoning.high' }))
+    expect(onReasoningChange).toHaveBeenCalledWith('high')
+  })
+
+  it('当前推理档位失效时展示本地化禁用项并允许切回支持档位', async () => {
+    const user = userEvent.setup()
+    const onReasoningChange = vi.fn()
+    renderWorkspace(fixtureProps({
+      selected_reasoning_level: 'max',
+      models: [workspaceModel({
+        supported_reasoning_levels: ['off', 'low'],
+        effective_default_reasoning_level: 'low',
+      })],
+      onReasoningChange,
+    }))
+
+    const select = screen.getByRole('combobox', { name: 'agent.composer.reasoning' })
+    expect(select.closest('.ant-select')).toHaveTextContent('settings.agent.reasoning.max')
+    await user.click(select)
+    expect(await screen.findByRole('option', { name: 'settings.agent.reasoning.max' }))
+      .toHaveAttribute('aria-disabled', 'true')
+    await user.click(screen.getByRole('option', { name: 'settings.agent.reasoning.low' }))
+    expect(onReasoningChange).toHaveBeenCalledWith('low')
+  })
+
+  it('同名 Provider 仍按稳定 ID 分成独立模型分组', async () => {
+    const user = userEvent.setup()
+    renderWorkspace(fixtureProps({
+      models: [
+        workspaceModel({ provider_id: 'provider-a', provider_name: '同名 Provider' }),
+        workspaceModel({
+          id: 'model-2', provider_id: 'provider-b', provider_name: '同名 Provider',
+          remote_model_id: 'other-model', display_name: 'Other model',
+        }),
+      ],
+    }))
+
+    await user.click(screen.getByRole('combobox', { name: 'agent.header.model' }))
+    const popup = document.querySelector(`.${customSelectStyles['select-popup']}`)
+    if (!(popup instanceof HTMLElement)) throw new Error('未找到模型选择下拉层')
+    expect(await within(popup).findAllByText('同名 Provider')).toHaveLength(2)
+  })
+
+  it('历史目录缺失模型只显示真实远端 ID，别名保留在 hover 详情', async () => {
+    const user = userEvent.setup()
+    renderWorkspace(fixtureProps({
+      sessions: [{
+        ...fixtureProps().sessions[0]!,
+        model_name: 'remote-snapshot-id',
+        model_alias: '历史显示名称',
+      }],
+      models: [],
+      model_runnable: false,
+    }))
+
+    const selector = screen.getByRole('combobox', { name: 'agent.header.model' })
+    expect(selector.closest('.ant-select')).toHaveTextContent('remote-snapshot-id')
+    expect(selector.closest('.ant-select')).not.toHaveTextContent('历史显示名称')
+    await user.click(selector)
+    expect(await screen.findByRole('option', { name: /remote-snapshot-id/u }))
+      .toHaveAttribute('aria-disabled', 'true')
+    const optionLabel = (await screen.findAllByText('remote-snapshot-id')).find((element) => (
+      element.closest('.ant-select-item-option-content')
+    ))
+    if (!(optionLabel instanceof HTMLElement)) throw new Error('未找到历史模型候选项')
+    const trigger = optionLabel.closest('.ant-select-item-option-content')?.firstElementChild
+    if (!(trigger instanceof HTMLElement)) throw new Error('未找到模型详情触发区域')
+    await user.hover(trigger)
+    expect(await screen.findByText('历史显示名称')).toBeInTheDocument()
+  })
+
+  it('非当前已移除模型不进入选择器候选', async () => {
+    const user = userEvent.setup()
+    renderWorkspace(fixtureProps({
+      selected_model_id: 'model-active',
+      sessions: [{
+        ...fixtureProps().sessions[0]!,
+        model_id: 'model-active',
+        model_name: 'active-model',
+      }],
+      models: [
+        workspaceModel({
+          remote_model_id: 'removed-model',
+          runnable: false,
+          unavailable_reason: 'removed',
+        }),
+        workspaceModel({
+          id: 'model-active',
+          remote_model_id: 'active-model',
+          display_name: 'Active model',
+        }),
+      ],
+    }))
+
+    await user.click(screen.getByRole('combobox', { name: 'agent.header.model' }))
+    expect((await screen.findAllByText('active-model')).length).toBeGreaterThan(0)
+    expect(screen.queryByText('removed-model')).not.toBeInTheDocument()
   })
 
   it('其他会话有活动 Run 时仍可保存草稿但不能启动第二个 Run', () => {
@@ -534,11 +680,9 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
       ],
       attachments: [],
     }],
-    models: [{
-      id: 'model-1', name: 'Local model', provider_name: 'Local Provider',
-      remote_model_id: 'local-model', supports_reasoning: true, runnable: true,
-    }],
+    models: [workspaceModel()],
     selected_model_id: 'model-1',
+    selected_reasoning_level: 'medium',
     inspector: {
       context: {
         phase: 'ready', has_snapshot: true, used_tokens: 120, context_window_tokens: 8_000,
@@ -558,7 +702,7 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
     loading: false, busy: false, run_blocked: false,
     onCreateSession: vi.fn(), onSelectSession: vi.fn(), onReturnToActiveRun: vi.fn(),
     onArchiveSession: vi.fn(), onDeleteSession: vi.fn(),
-    onModelChange: vi.fn(), onOpenSettings: vi.fn(), onDraftChange: vi.fn(),
+    onModelChange: vi.fn(), onReasoningChange: vi.fn(), onOpenSettings: vi.fn(), onDraftChange: vi.fn(),
     onSend: vi.fn(async () => undefined),
     onAttachFiles: vi.fn(async () => undefined), onRemoveAttachment: vi.fn(async () => undefined),
     onRetryAttachment: vi.fn(async () => undefined), onLoadAttachmentContent: vi.fn(async () => new Blob()),
@@ -566,6 +710,27 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
     onContextCompressionPendingChange: vi.fn(), onRetryContext: vi.fn(),
     onRetryUsage: vi.fn(),
     onApprovalBypassChange: vi.fn(async () => undefined),
+    ...overrides,
+  }
+}
+
+function workspaceModel(
+  overrides: Partial<AgentWorkspaceModelOption> = {},
+): AgentWorkspaceModelOption {
+  return {
+    id: 'model-1',
+    display_name: 'Local model',
+    provider_id: 'provider-local',
+    provider_name: 'Local Provider',
+    remote_model_id: 'local-model',
+    source: 'sync',
+    supports_images: false,
+    reasoning_control: 'openai_effort',
+    supported_reasoning_levels: ['off', 'low', 'medium', 'high'],
+    effective_default_reasoning_level: 'medium',
+    effective_context_window_tokens: 8_192,
+    effective_max_output_tokens: 1_024,
+    runnable: true,
     ...overrides,
   }
 }

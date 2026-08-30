@@ -1,4 +1,9 @@
-import type { AgentAttachment, AgentSourceContext, AgentUsage } from '#entities/agent'
+import type {
+  AgentAttachment,
+  AgentReasoningLevel,
+  AgentSourceContext,
+  AgentUsage,
+} from '#entities/agent'
 
 export type AgentWorkspaceRunStatus =
   | 'idle'
@@ -17,6 +22,7 @@ export interface AgentWorkspaceSession {
   title: string
   model_id: string
   model_name: string
+  model_alias?: string
   provider_name?: string
   updated_at: string
   archived: boolean
@@ -24,16 +30,24 @@ export interface AgentWorkspaceSession {
 }
 
 export type AgentWorkspaceModelUnavailableReason =
+  | 'removed'
   | 'provider_disabled'
   | 'catalog_stale'
   | 'missing'
 
 export interface AgentWorkspaceModelOption {
   id: string
-  name: string
+  display_name: string
+  provider_id: string
   provider_name: string
   remote_model_id: string
-  supports_reasoning: boolean
+  source: 'sync' | 'manual'
+  supports_images: boolean
+  reasoning_control: 'none' | 'openai_effort'
+  supported_reasoning_levels: AgentReasoningLevel[]
+  effective_default_reasoning_level: AgentReasoningLevel
+  effective_context_window_tokens: number
+  effective_max_output_tokens: number
   runnable: boolean
   unavailable_reason?: AgentWorkspaceModelUnavailableReason
 }
@@ -143,6 +157,7 @@ export interface AgentWorkspaceProps {
   messages: AgentWorkspaceMessage[]
   models: AgentWorkspaceModelOption[]
   selected_model_id?: string
+  selected_reasoning_level: AgentReasoningLevel
   inspector: AgentWorkspaceInspectorState
   draft: string
   draft_source_context?: AgentSourceContext
@@ -163,6 +178,7 @@ export interface AgentWorkspaceProps {
   onArchiveSession: (sessionId: string) => void
   onDeleteSession: (sessionId: string) => void
   onModelChange: (modelId: string) => void
+  onReasoningChange: (reasoningLevel: AgentReasoningLevel) => void
   onOpenSettings: () => void
   onDraftChange: (value: string) => void
   onAttachFiles: (files: File[]) => Promise<void>

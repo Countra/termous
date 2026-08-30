@@ -9,6 +9,7 @@ import {
   type Message,
   type Model,
   type SimpleStreamOptions,
+  type ThinkingLevelMap,
   type ToolResultMessage,
 } from '@earendil-works/pi-ai'
 import { streamSimple as streamOpenAICompletions } from '@earendil-works/pi-ai/api/openai-completions'
@@ -160,7 +161,8 @@ export function createRuntimeModel(bootstrap: RuntimeBootstrap): RuntimeModel {
     name: snapshot.model_id,
     provider: 'termous-openai-compatible',
     baseUrl: validateProviderBaseURL(snapshot.base_url).toString().replace(/\/$/, ''),
-    reasoning: snapshot.supports_reasoning,
+    reasoning: snapshot.reasoning_control === 'openai_effort',
+    thinkingLevelMap: runtimeThinkingLevelMap(snapshot.supported_reasoning_levels),
     input,
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: snapshot.context_window_tokens,
@@ -183,12 +185,27 @@ export function createRuntimeModel(bootstrap: RuntimeBootstrap): RuntimeModel {
     compat: {
       supportsDeveloperRole: false,
       supportsStore: false,
-      supportsReasoningEffort: snapshot.supports_reasoning,
+      supportsReasoningEffort: snapshot.reasoning_control === 'openai_effort',
       maxTokensField: chatMaxTokensField(common.baseUrl),
       supportsStrictMode: false,
       supportsLongCacheRetention: false,
       sendSessionAffinityHeaders: false,
     },
+  }
+}
+
+function runtimeThinkingLevelMap(
+  supportedLevels: RuntimeBootstrap['model']['snapshot']['supported_reasoning_levels'],
+): ThinkingLevelMap {
+  const supported = new Set(supportedLevels)
+  return {
+    off: supported.has('off') ? 'none' : null,
+    minimal: supported.has('minimal') ? 'minimal' : null,
+    low: supported.has('low') ? 'low' : null,
+    medium: supported.has('medium') ? 'medium' : null,
+    high: supported.has('high') ? 'high' : null,
+    xhigh: supported.has('xhigh') ? 'xhigh' : null,
+    max: supported.has('max') ? 'max' : null,
   }
 }
 

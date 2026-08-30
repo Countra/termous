@@ -5,6 +5,7 @@ export function isAgentModelRunnable(
   provider: AgentModelProvider | undefined,
 ) {
   return Boolean(provider?.enabled
-    && provider.refresh_status === 'ready'
-    && model.availability === 'available')
+    && !model.removed_at
+    && model.availability === 'available'
+    && (model.source === 'manual' || provider.refresh_status === 'ready'))
 }

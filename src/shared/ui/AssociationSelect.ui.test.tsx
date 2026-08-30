@@ -80,6 +80,26 @@ describe('AssociationSelect', () => {
     expect(screen.getByRole('option', { name: '北京主机' })).toBeInTheDocument()
   })
 
+  it('按稳定分组键组织候选且选择时仍返回原始条目', async () => {
+    const onChange = vi.fn()
+    renderSelect({
+      onChange,
+      groupBy: (item) => ({
+        key: item.hostId,
+        label: item.hostId === 'host-a' ? '主机 A' : '主机 B',
+      }),
+    })
+
+    openSelect()
+    expect(await screen.findByText('主机 A')).toBeInTheDocument()
+    expect(screen.getByText('主机 B')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('option', { name: '北京主机' }))
+    expect(onChange).toHaveBeenCalledWith(
+      'host-b',
+      expect.objectContaining({ hostId: 'host-b', kind: 'host' }),
+    )
+  })
+
   it('下拉关闭后拒绝迟到的详情开启回调', async () => {
     renderSelect()
     const combobox = openSelect()

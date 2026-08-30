@@ -2,7 +2,7 @@ import { ArrowUp, CornerDownLeft, Eye, FileCode2, Image, Paperclip, RefreshCw, S
 import { Button, Input, Tooltip } from 'antd'
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AgentSourceContext } from '#entities/agent'
+import type { AgentReasoningLevel, AgentSourceContext } from '#entities/agent'
 import type {
   AgentWorkspaceDraftAttachment,
   AgentWorkspaceProps,
@@ -10,6 +10,7 @@ import type {
 } from '../model/types.ts'
 import { isActiveAgentRun } from '../model/types.ts'
 import { AgentModelSelector } from './AgentModelSelector.tsx'
+import { AgentReasoningSelect } from './AgentReasoningSelect.tsx'
 import styles from './AgentComposer.module.scss'
 
 export function AgentComposer({
@@ -23,8 +24,12 @@ export function AgentComposer({
   models,
   selectedModelId,
   selectedModelName,
+  selectedModelAlias,
   selectedProviderName,
+  selectedReasoningLevel,
+  supportedReasoningLevels,
   modelSelectionDisabled,
+  reasoningSelectionDisabled,
   onChange,
   onAttachFiles,
   onRemoveAttachment,
@@ -34,6 +39,7 @@ export function AgentComposer({
   onSteer,
   onStop,
   onModelChange,
+  onReasoningChange,
   onOpenSettings,
 }: {
   value: string
@@ -46,8 +52,12 @@ export function AgentComposer({
   models: AgentWorkspaceProps['models']
   selectedModelId?: string
   selectedModelName?: string
+  selectedModelAlias?: string
   selectedProviderName?: string
+  selectedReasoningLevel: AgentReasoningLevel
+  supportedReasoningLevels: AgentReasoningLevel[]
   modelSelectionDisabled: boolean
+  reasoningSelectionDisabled: boolean
   onChange: (value: string) => void
   onAttachFiles: (files: File[]) => void
   onRemoveAttachment: (clientId: string) => void
@@ -57,6 +67,7 @@ export function AgentComposer({
   onSteer: (value: string) => void
   onStop: () => void
   onModelChange: (modelId: string) => void
+  onReasoningChange: (reasoningLevel: AgentReasoningLevel) => void
   onOpenSettings: () => void
 }) {
   const { t } = useTranslation()
@@ -162,10 +173,17 @@ export function AgentComposer({
             ) : null}
           </div>
           <div className={styles['composer-primary-actions']}>
+            <AgentReasoningSelect
+              value={selectedReasoningLevel}
+              levels={supportedReasoningLevels}
+              disabled={reasoningSelectionDisabled}
+              onChange={onReasoningChange}
+            />
             <AgentModelSelector
               models={models}
               selectedModelId={selectedModelId}
               fallbackName={selectedModelName}
+              fallbackDisplayName={selectedModelAlias}
               fallbackProviderName={selectedProviderName}
               disabled={modelSelectionDisabled}
               onChange={onModelChange}

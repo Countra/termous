@@ -4,6 +4,7 @@ import {
   agentMessagePartKinds,
   agentMessageRoles,
   agentMessageStatuses,
+  agentModelReasoningControls,
   agentReasoningLevels,
   agentRunEventKinds,
   agentRunStatuses,
@@ -19,6 +20,7 @@ import {
   type AgentMessagePartKind,
   type AgentMessageRole,
   type AgentMessageStatus,
+  type AgentModelReasoningControl,
   type AgentReasoningLevel,
   type AgentRun,
   type AgentRunEvent,
@@ -230,8 +232,16 @@ export function decodeAgentRun(value: unknown): AgentRun {
   const source = record(value, 'Agent Run 响应无效')
   const providerId = identifier(source.provider_id, 'Agent Run Provider ID 无效')
   const modelSnapshot = decodeModelSnapshot(source.model_snapshot)
+  const reasoningLevel = enumValue<AgentReasoningLevel>(
+    source.reasoning_level,
+    agentReasoningLevels,
+    'Agent Run 推理级别无效',
+  )
   if (providerId !== modelSnapshot.provider_id) {
     throw new AgentRuntimeProtocolError('Agent Run 与模型快照的 Provider 归属不一致')
+  }
+  if (!modelSnapshot.supported_reasoning_levels.includes(reasoningLevel)) {
+    throw new AgentRuntimeProtocolError('Agent Run 推理级别不受模型快照支持')
   }
   return {
     id: identifier(source.id, 'Agent Run ID 无效'),
@@ -245,7 +255,7 @@ export function decodeAgentRun(value: unknown): AgentRun {
     provider_id: providerId,
     model_id: identifier(source.model_id, 'Agent Run 模型 ID 无效'),
     model_snapshot: modelSnapshot,
-    reasoning_level: enumValue<AgentReasoningLevel>(source.reasoning_level, agentReasoningLevels, 'Agent Run 推理级别无效'),
+    reasoning_level: reasoningLevel,
     usage: decodeUsage(source.usage),
     error_code: optionalString(source.error_code, 'Agent Run 错误码无效', 256),
     error_message: optionalString(source.error_message, 'Agent Run 错误说明无效', 4096),
@@ -383,6 +393,24 @@ export function decodeAgentWorkspaceEvent(value: unknown): AgentWorkspaceEvent {
 
 function decodeModelSnapshot(value: unknown): AgentRunModelSnapshot {
   const source = record(value, 'Agent Run 模型快照无效')
+  const reasoningControl = enumValue<AgentModelReasoningControl>(
+    source.reasoning_control,
+    agentModelReasoningControls,
+    'Agent Run 推理控制无效',
+  )
+  const supportedReasoningLevels = decodeSnapshotReasoningLevels(source.supported_reasoning_levels)
+  const supportsReasoning = bool(source.supports_reasoning, 'Agent Run reasoning 能力无效')
+  if (supportsReasoning !== (reasoningControl !== 'none')) {
+    throw new AgentRuntimeProtocolError('Agent Run 推理能力与控制方式不一致')
+  }
+  if (reasoningControl === 'none'
+    && (supportedReasoningLevels.length !== 1 || supportedReasoningLevels[0] !== 'off')) {
+    throw new AgentRuntimeProtocolError('Agent Run 推理控制与支持级别不一致')
+  }
+  if (reasoningControl === 'openai_effort'
+    && !supportedReasoningLevels.some((level) => level !== 'off')) {
+    throw new AgentRuntimeProtocolError('Agent Run 推理控制必须声明至少一个推理档位')
+  }
   return {
     api_mode: enumValue<AgentApiMode>(source.api_mode, agentApiModes, 'Agent Run API 模式无效'),
     base_url: utf8(source.base_url, 'Agent Run 模型地址无效', 2048),
@@ -395,8 +423,23 @@ function decodeModelSnapshot(value: unknown): AgentRunModelSnapshot {
     context_window_tokens: positiveInteger(source.context_window_tokens, 'Agent Run 上下文窗口无效'),
     max_output_tokens: positiveInteger(source.max_output_tokens, 'Agent Run 输出上限无效'),
     supports_images: bool(source.supports_images, 'Agent Run 图片能力无效'),
-    supports_reasoning: bool(source.supports_reasoning, 'Agent Run reasoning 能力无效'),
+    reasoning_control: reasoningControl,
+    supported_reasoning_levels: supportedReasoningLevels,
+    supports_reasoning: supportsReasoning,
   }
+}
+
+function decodeSnapshotReasoningLevels(value: unknown): AgentReasoningLevel[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > agentReasoningLevels.length) {
+    throw new AgentRuntimeProtocolError('Agent Run 推理级别集合无效')
+  }
+  const levels = value.map((item) => enumValue<AgentReasoningLevel>(
+    item,
+    agentReasoningLevels,
+    'Agent Run 推理级别集合无效',
+  ))
+  unique(levels, 'Agent Run 推理级别集合包含重复值')
+  return levels
 }
 
 function decodeAgentContextCheckpoint(value: unknown) {

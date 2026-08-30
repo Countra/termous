@@ -1,0 +1,55 @@
+.select:global(.ant-select) {
+  width: 94px;
+  min-width: 86px;
+  flex: 0 1 94px;
+}
+
+.select :global(.ant-select-selector) {
+  height: 30px !important;
+  border-radius: 7px !important;
+  background: transparent !important;
+  padding-inline: 7px !important;
+  box-shadow: none !important;
+  transition: background 160ms ease;
+}
+
+.select:hover :global(.ant-select-selector),
+.select:global(.ant-select-focused) :global(.ant-select-selector) {
+  background: var(--row-hover-bg) !important;
+}
+
+.select :global(.ant-select-prefix) {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  margin-inline-end: 5px;
+}
+
+.select :global(.ant-select-selection-item) {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 30px !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.select :global(.ant-select-arrow) {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.select:global(.ant-select-disabled) :global(.ant-select-selector) {
+  background: transparent !important;
+  cursor: default !important;
+  opacity: 0.72;
+}
+
+@container agent-workspace (width <= 520px) {
+  .select:global(.ant-select) {
+    width: 82px;
+    min-width: 78px;
+    flex-basis: 82px;
+  }
+}

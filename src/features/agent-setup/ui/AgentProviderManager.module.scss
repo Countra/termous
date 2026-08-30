@@ -314,10 +314,16 @@
 .provider-tabs :global(.ant-tabs-tabpane) {
   min-height: 0;
   height: 100%;
+  overflow: hidden;
 }
 
-.provider-tabs :global(.ant-tabs-tabpane) {
+.provider-connection-pane {
   overflow: hidden auto;
+}
+
+.provider-catalog-pane {
+  display: block;
+  overflow: hidden;
 }
 
 .provider-editor-empty {

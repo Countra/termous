@@ -338,6 +338,63 @@ test('自定义模型使用保守兼容配置', () => {
   assert.equal(responses.compat?.supportsDeveloperRole, false)
 })
 
+test('运行时模型只开放快照明确声明的推理档位', () => {
+  const bootstrap = runtimeBootstrap()
+  bootstrap.run.reasoning_level = 'xhigh'
+  bootstrap.model.snapshot.reasoning_control = 'openai_effort'
+  bootstrap.model.snapshot.supported_reasoning_levels = ['off', 'low', 'high', 'xhigh']
+
+  const model = createRuntimeModel(bootstrap)
+
+  assert.equal(model.reasoning, true)
+  assert.deepEqual(model.thinkingLevelMap, {
+    off: 'none',
+    minimal: null,
+    low: 'low',
+    medium: null,
+    high: 'high',
+    xhigh: 'xhigh',
+    max: null,
+  })
+  assert.equal(
+    model.api === 'openai-completions'
+      ? model.compat?.supportsReasoningEffort
+      : undefined,
+    true,
+  )
+})
+
+test('运行时模型允许仅声明较高推理档位', () => {
+  const bootstrap = runtimeBootstrap()
+  bootstrap.run.reasoning_level = 'max'
+  bootstrap.model.snapshot.reasoning_control = 'openai_effort'
+  bootstrap.model.snapshot.supported_reasoning_levels = ['high', 'max']
+
+  const model = createRuntimeModel(bootstrap)
+
+  assert.deepEqual(model.thinkingLevelMap, {
+    off: null,
+    minimal: null,
+    low: null,
+    medium: null,
+    high: 'high',
+    xhigh: null,
+    max: 'max',
+  })
+})
+
+test('无推理控制模型不会向 Chat Completions 声明 reasoning_effort', () => {
+  const model = createRuntimeModel(runtimeBootstrap())
+
+  assert.equal(model.reasoning, false)
+  assert.equal(
+    model.api === 'openai-completions'
+      ? model.compat?.supportsReasoningEffort
+      : undefined,
+    false,
+  )
+})
+
 test('Provider 调用固定关闭缓存保留和自动重试', () => {
   const providerFetch = async () => new Response('{}')
   const options = createRuntimeStreamOptions('configured', providerFetch, {
@@ -415,7 +472,8 @@ function runtimeBootstrap(): RuntimeBootstrap {
         context_window_tokens: 8192,
         max_output_tokens: 1024,
         supports_images: false,
-        supports_reasoning: false,
+        reasoning_control: 'none',
+        supported_reasoning_levels: ['off'],
       },
     },
     context: { estimated_tokens: 1280, warning: false },

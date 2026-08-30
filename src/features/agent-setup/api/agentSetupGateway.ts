@@ -1,6 +1,9 @@
 import type {
   AgentMcpPolicy,
   AgentModel,
+  AgentModelCreateInput,
+  AgentModelCreateResult,
+  AgentModelListQuery,
   AgentModelPage,
   AgentModelProvider,
   AgentModelProviderInput,
@@ -19,6 +22,8 @@ export interface AgentSetupGateway {
   updateSettings(input: {
     default_model_id: string
     default_reasoning_level: AgentReasoningLevel
+    global_context_window_tokens: number
+    global_max_output_tokens: number
     show_turn_token_usage: boolean
     expected_revision: number
   }, signal?: AbortSignal): Promise<AgentSettings>
@@ -35,8 +40,11 @@ export interface AgentSetupGateway {
   deleteModelProvider(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   testModelProvider(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentProviderTestResult>
   refreshProviderModels(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentModelProvider>
-  models(providerId?: string, cursor?: string, signal?: AbortSignal): Promise<AgentModelPage>
+  models(query?: AgentModelListQuery, cursor?: string, signal?: AbortSignal): Promise<AgentModelPage>
   model(id: string, signal?: AbortSignal): Promise<AgentModel>
+  createModel(providerId: string, input: AgentModelCreateInput, signal?: AbortSignal): Promise<AgentModelCreateResult>
   updateModel(id: string, input: AgentModelUpdateInput, signal?: AbortSignal): Promise<AgentModel>
+  removeModel(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
+  restoreModel(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentModel>
   testModel(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentModelTestResult>
 }

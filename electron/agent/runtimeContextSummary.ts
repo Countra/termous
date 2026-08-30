@@ -7,9 +7,22 @@ import {
   standardMessages,
 } from './piAgentAdapter.ts'
 import { sumPiUsage, type RuntimeUsage } from './runtimeUsage.ts'
-import type { RuntimeBootstrap, RuntimeMessageView } from './workerCoreClient.ts'
+import type {
+  RuntimeBootstrap,
+  RuntimeMessageView,
+  RuntimeReasoningLevel,
+} from './workerCoreClient.ts'
 
 const maximumSummaryBytes = 256 * 1024
+const reasoningLevels: RuntimeReasoningLevel[] = [
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+]
 
 export interface RuntimeContextSummaryResult {
   summary: string
@@ -91,7 +104,7 @@ export function createRuntimeContextSummaryAgentOptions(
         '输出纯文本摘要，不使用前言。',
       ].join('\n'),
       model,
-      thinkingLevel: 'off',
+      thinkingLevel: summaryReasoningLevel(bootstrap),
       tools: [],
       messages: history,
     },
@@ -100,6 +113,11 @@ export function createRuntimeContextSummaryAgentOptions(
     sessionId: `${bootstrap.session.id}:context-summary`,
     toolExecution: 'sequential',
   }
+}
+
+function summaryReasoningLevel(bootstrap: RuntimeBootstrap): RuntimeReasoningLevel {
+  const supported = new Set(bootstrap.model.snapshot.supported_reasoning_levels)
+  return reasoningLevels.find((level) => supported.has(level)) ?? 'off'
 }
 
 export function applyRuntimeCheckpoint(

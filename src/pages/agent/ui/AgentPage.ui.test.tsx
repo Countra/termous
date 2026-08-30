@@ -1,7 +1,7 @@
 import { App as AntdApp } from 'antd'
 import { act, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentLaunchIntent, AgentReadiness, AgentRun, AgentSession } from '#entities/agent'
+import type { AgentLaunchIntent, AgentModel, AgentReadiness, AgentRun, AgentSession } from '#entities/agent'
 import type { AgentSetupGateway } from '#features/agent-setup'
 import { AgentRuntimeStartError, type AgentWorkspaceGateway } from '#features/agent-runtime'
 
@@ -478,6 +478,82 @@ describe('AgentPage', () => {
     expect(harness.updateDraft).toHaveBeenCalledWith('session-created', 'agent.launch.prompt.workbench')
   })
 
+  it('切换模型时在同一次会话更新中回退不受支持的推理档位', async () => {
+    const reasoningModel = {
+      ...modelFixture(),
+      reasoning_control: 'openai_effort' as const,
+      supported_reasoning_levels: ['off', 'high'] as const,
+      supports_reasoning: true,
+      effective_default_reasoning_level: 'high' as const,
+    }
+    const lowModel = {
+      ...modelFixture('model-low'),
+      reasoning_control: 'openai_effort' as const,
+      supported_reasoning_levels: ['off', 'low'] as const,
+      supports_reasoning: true,
+      effective_default_reasoning_level: 'low' as const,
+    }
+    harness.models.mockResolvedValue({ items: [reasoningModel, lowModel] })
+    harness.state = {
+      ...workspaceState(),
+      sessions: [{ ...sessions[0], reasoning_level: 'high' }, sessions[1]],
+    }
+    harness.updateSession.mockResolvedValue({ ...sessions[0], model_id: lowModel.id, reasoning_level: 'low' })
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+
+    act(() => {
+      const selectModel = harness.workspaceProps?.onModelChange as (modelId: string) => void
+      selectModel(lowModel.id)
+    })
+
+    await waitFor(() => expect(harness.updateSession).toHaveBeenCalledWith('session-one', expect.objectContaining({
+      model_id: lowModel.id,
+      reasoning_level: 'low',
+      expected_revision: 1,
+    })))
+  })
+
+  it('会话推理强度选择通过 Session PATCH 仅影响后续 Run', async () => {
+    const model = {
+      ...modelFixture(),
+      reasoning_control: 'openai_effort' as const,
+      supported_reasoning_levels: ['off', 'medium', 'high'] as const,
+      supports_reasoning: true,
+      effective_default_reasoning_level: 'medium' as const,
+    }
+    harness.models.mockResolvedValue({ items: [model] })
+    harness.updateSession.mockResolvedValue({ ...sessions[0], reasoning_level: 'high' })
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+
+    act(() => {
+      const selectReasoning = harness.workspaceProps?.onReasoningChange as (level: string) => void
+      selectReasoning('high')
+    })
+
+    await waitFor(() => expect(harness.updateSession).toHaveBeenCalledWith('session-one', expect.objectContaining({
+      model_id: 'model-one',
+      reasoning_level: 'high',
+      expected_revision: 1,
+    })))
+    expect(harness.startRun).not.toHaveBeenCalled()
+  })
+
+  it('模型能力变更后会话保留不受支持的推理档位时禁止发送', async () => {
+    harness.models.mockResolvedValue({ items: [modelFixture()] })
+    harness.state = {
+      ...workspaceState(),
+      sessions: [{ ...sessions[0], reasoning_level: 'high' }, sessions[1]],
+    }
+
+    renderPage()
+
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    expect(harness.workspaceProps?.selected_reasoning_level).toBe('high')
+    expect(harness.workspaceProps?.model_runnable).toBe(false)
+  })
+
   it('重新激活时等待当前模型目录水合后再处理业务来源', async () => {
     const initialProvider = providerFixture()
     const disabledProvider = { ...initialProvider, enabled: false }
@@ -764,6 +840,8 @@ function readinessFixture(
     settings: {
       default_model_id: 'model-one',
       default_reasoning_level: 'off',
+      global_context_window_tokens: 16_384,
+      global_max_output_tokens: 4_096,
       show_turn_token_usage: true,
       revision: 1,
       created_at: '2026-08-29T00:00:00Z',
@@ -772,19 +850,29 @@ function readinessFixture(
   }
 }
 
-function modelFixture(id = 'model-one') {
+function modelFixture(id = 'model-one'): AgentModel {
   return {
     id,
     provider_id: 'provider-one',
     remote_model_id: `remote-${id}`,
     display_name: `Model ${id}`,
     availability: 'available' as const,
+    source: 'sync' as const,
+    parameter_mode: 'inherit_global' as const,
     context_window_tokens: 8_192,
     max_output_tokens: 1_024,
+    default_reasoning_level: 'off' as const,
+    reasoning_control: 'none' as const,
+    supported_reasoning_levels: ['off'],
     supports_images: false,
     supports_reasoning: false,
     capabilities_confirmed: false,
+    effective_context_window_tokens: 16_384,
+    effective_max_output_tokens: 4_096,
+    effective_default_reasoning_level: 'off' as const,
     revision: 1,
+    first_seen_at: '2026-08-29T00:00:00Z',
+    last_seen_at: '2026-08-29T00:00:00Z',
     created_at: '2026-08-29T00:00:00Z',
     updated_at: '2026-08-29T00:00:00Z',
   }
@@ -814,6 +902,8 @@ function runFixture(overrides: Partial<AgentRun> = {}): AgentRun {
       context_window_tokens: 8_192,
       max_output_tokens: 1_024,
       supports_images: false,
+      reasoning_control: 'none',
+      supported_reasoning_levels: ['off'],
       supports_reasoning: false,
     },
     reasoning_level: 'off',

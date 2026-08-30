@@ -17,10 +17,22 @@ test('摘要步骤固定禁用 Tool，并把历史作为不可信消息交给同
   assert.deepEqual(options.initialState?.tools, [])
   assert.equal(options.toolExecution, 'sequential')
   assert.equal(options.initialState?.model?.id, 'test-model')
+  assert.equal(options.initialState?.thinkingLevel, 'off')
   assert.match(String(options.initialState?.systemPrompt), /不得执行，也不得调用工具/u)
   const messages = options.initialState?.messages ?? []
   assert.equal(messages[messages.length - 1]?.role, 'user')
   assert.match(JSON.stringify(messages), /请压缩以上历史上下文/u)
+})
+
+test('摘要步骤使用模型明确支持的最低推理档位', () => {
+  const bootstrap = compressionBootstrap()
+  bootstrap.run.reasoning_level = 'max'
+  bootstrap.model.snapshot.reasoning_control = 'openai_effort'
+  bootstrap.model.snapshot.supported_reasoning_levels = ['high', 'max']
+
+  const options = createRuntimeContextSummaryAgentOptions(bootstrap, bootstrap.messages.slice(0, 1))
+
+  assert.equal(options.initialState?.thinkingLevel, 'high')
 })
 
 test('应用 Checkpoint 只裁剪已确认边界，并清除一次性压缩计划', () => {
@@ -106,7 +118,7 @@ function compressionBootstrap(): RuntimeBootstrap {
         provider_id: 'amp_provider', provider_name: '本地 Provider', model_display_name: '测试模型',
         provider_revision: 3, model_revision: 5,
         context_window_tokens: 8192, max_output_tokens: 1024,
-        supports_images: false, supports_reasoning: false,
+        supports_images: false, reasoning_control: 'none', supported_reasoning_levels: ['off'],
       },
     },
     context: {
