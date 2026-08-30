@@ -75,7 +75,6 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           busy={props.busy}
           sessionsOverlay={breakpoints.sessionsOverlay}
           inspectorOpen={inspectorOpen}
-          inspectorOverlay={breakpoints.inspectorOverlay}
           onOpenSessions={() => setSessionsOpen(true)}
           onToggleInspector={() => setInspectorOpen((open) => !open)}
           onReturnToActiveRun={props.onReturnToActiveRun}

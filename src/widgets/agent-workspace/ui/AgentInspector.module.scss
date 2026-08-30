@@ -33,21 +33,29 @@
   font-weight: 680;
 }
 
-.inspector-header :global(.ant-btn) {
+.inspector-collapse:global(.ant-btn) {
   display: inline-flex;
   width: 28px;
   min-width: 28px;
   height: 28px;
   align-items: center;
   justify-content: center;
+  border: 1px solid transparent;
   border-radius: 7px;
-  color: var(--text-secondary);
+  background: transparent;
+  color: var(--text-muted);
   padding: 0;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
-.inspector-header :global(.ant-btn):hover {
-  background: var(--row-hover-bg);
-  color: var(--text-primary);
+.inspector-collapse:global(.ant-btn):not(:disabled):hover,
+.inspector-collapse:global(.ant-btn):not(:disabled):focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 38%, var(--row-hover-bg));
+  color: var(--accent);
 }
 
 .inspector-section {

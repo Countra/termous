@@ -86,20 +86,21 @@
   display: grid;
   min-width: 0;
   min-height: 60px;
-  border-radius: 9px;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-subtle) 72%, transparent);
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .session-row:hover,
 .session-row:focus-within {
-  background: var(--row-hover-bg);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
+  background: color-mix(in srgb, var(--surface-subtle) 88%, var(--accent-soft) 12%);
 }
 
 .session-row.is-selected {
-  background: color-mix(in srgb, var(--row-active-bg) 72%, var(--surface));
-  box-shadow:
-    inset 2px 0 0 var(--accent),
-    inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, var(--border));
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 52%, var(--surface-subtle));
 }
 
 .session-row > button {
@@ -115,7 +116,7 @@
 }
 
 .session-row > button:focus-visible {
-  border-radius: 9px;
+  border-radius: 10px;
   outline: 2px solid color-mix(in srgb, var(--accent) 68%, transparent);
   outline-offset: -2px;
 }

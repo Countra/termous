@@ -614,11 +614,16 @@ describe('AgentWorkspace', () => {
     expect(screen.getByRole('dialog', { name: 'agent.inspector.title' })).toBeInTheDocument()
 
     act(() => notifyResize?.(1_100))
-    expect(screen.getByRole('button', { name: 'agent.inspector.title' })).toHaveAttribute('aria-pressed', 'true')
-    await waitFor(() => expect(
-      screen.getAllByRole('complementary', { name: 'agent.inspector.title' })
-        .some((element) => !element.closest('[role="dialog"]')),
-    ).toBe(true))
+    await waitFor(() => {
+      const inlineInspector = screen.getAllByRole('complementary', { name: 'agent.inspector.title' })
+        .find((element) => !element.closest('[role="dialog"]'))
+      expect(inlineInspector).toBeDefined()
+      expect(within(inlineInspector!).getByRole('button', { name: 'app.collapse' }))
+        .toBeInTheDocument()
+    })
+    expect(screen.queryByRole('button', { name: 'agent.inspector.title' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'app.collapse' }))
+    expect(screen.getByRole('button', { name: 'agent.inspector.title' })).toBeInTheDocument()
   })
 
   it('模型不支持图片时阻止提交，并在忙碌期间锁定附件操作', () => {

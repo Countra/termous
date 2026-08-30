@@ -1,7 +1,6 @@
 import {
   CornerUpLeft,
   PanelLeftOpen,
-  PanelRightClose,
   PanelRightOpen,
   Square,
 } from 'lucide-react'
@@ -21,7 +20,6 @@ export function AgentWorkspaceHeader({
   busy,
   sessionsOverlay,
   inspectorOpen,
-  inspectorOverlay,
   onOpenSessions,
   onToggleInspector,
   onReturnToActiveRun,
@@ -33,7 +31,6 @@ export function AgentWorkspaceHeader({
   busy: boolean
   sessionsOverlay: boolean
   inspectorOpen: boolean
-  inspectorOverlay: boolean
   onOpenSessions: () => void
   onToggleInspector: () => void
   onReturnToActiveRun: () => void
@@ -92,18 +89,17 @@ export function AgentWorkspaceHeader({
             </Tooltip>
           </div>
         ) : null}
-        <Tooltip title={t('agent.inspector.title')}>
-          <Button
-            type="text"
-            className={`${styles['header-icon-button']} ${inspectorOpen ? styles['is-active'] : ''}`}
-            aria-label={t('agent.inspector.title')}
-            aria-pressed={inspectorOpen}
-            icon={inspectorOpen && !inspectorOverlay
-              ? <PanelRightClose size={17} />
-              : <PanelRightOpen size={17} />}
-            onClick={onToggleInspector}
-          />
-        </Tooltip>
+        {!inspectorOpen ? (
+          <Tooltip title={t('agent.inspector.title')}>
+            <Button
+              type="text"
+              className={styles['header-icon-button']}
+              aria-label={t('agent.inspector.title')}
+              icon={<PanelRightOpen size={17} />}
+              onClick={onToggleInspector}
+            />
+          </Tooltip>
+        ) : null}
       </div>
     </header>
   )

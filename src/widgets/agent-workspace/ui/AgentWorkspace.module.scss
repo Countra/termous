@@ -158,14 +158,9 @@
   padding: 0;
 }
 
-.header-icon-button:global(.ant-btn):hover,
-.header-icon-button.is-active:global(.ant-btn) {
+.header-icon-button:global(.ant-btn):hover {
   background: var(--row-hover-bg);
   color: var(--text-primary);
-}
-
-.header-icon-button.is-active:global(.ant-btn) {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, var(--border));
 }
 
 .drawer :global(.ant-drawer-content),

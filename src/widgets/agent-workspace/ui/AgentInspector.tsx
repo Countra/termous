@@ -2,9 +2,9 @@ import {
   AlertTriangle,
   BookOpenText,
   Braces,
+  ChevronRight,
   CircleGauge,
   History,
-  PanelRightClose,
   PlugZap,
   RefreshCw,
   ShieldCheck,
@@ -62,8 +62,14 @@ export function AgentInspector({
     <aside className={styles.inspector} data-agent-panel aria-label={t('agent.inspector.title')}>
       <div className={styles['inspector-header']}>
         <span><CircleGauge size={15} aria-hidden="true" /><strong>{t('agent.inspector.title')}</strong></span>
-        <Tooltip title={t('app.close')}>
-          <Button type="text" aria-label={t('app.close')} icon={<PanelRightClose size={16} />} onClick={onClose} />
+        <Tooltip title={t('app.collapse')}>
+          <Button
+            type="text"
+            className={styles['inspector-collapse']}
+            aria-label={t('app.collapse')}
+            icon={<ChevronRight size={17} strokeWidth={2.2} />}
+            onClick={onClose}
+          />
         </Tooltip>
       </div>
       <section className={styles['inspector-section']}>
