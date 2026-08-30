@@ -431,6 +431,7 @@ export function AgentPage({
         messages={projectAgentMessages(selected ? state.messages[selected.id] ?? [] : [], selectedRun, runEvents)}
         models={workspaceModelOptions}
         selected_model_id={selected?.model_id ?? newSessionModelId}
+        default_model_id={readiness.settings.default_model_id ?? firstRunnableModelId}
         selected_reasoning_level={selectedReasoningLevel}
         inspector={inspector}
         draft={state.drafts[selected?.id ?? 'new']?.text ?? ''}
@@ -525,6 +526,27 @@ export function AgentPage({
           }
           await controller.updateSession(selected.id, {
             ...updateInput(selected, false),
+            reasoning_level: reasoningLevel,
+          })
+        })}
+        onResetResponseOptions={() => void perform(async () => {
+          const modelId = readiness.settings.default_model_id ?? firstRunnableModelId
+          const model = modelId ? modelById.get(modelId) : undefined
+          if (!model || !isAgentModelRunnable(model, providerById.get(model.provider_id))) {
+            throw new Error('AGENT_DEFAULT_MODEL_MISSING')
+          }
+          const reasoningLevel = resolveAgentModelReasoningLevel(
+            model,
+            model.effective_default_reasoning_level,
+          )
+          if (!selected) {
+            setDraftModelId(model.id)
+            setDraftReasoningLevel(reasoningLevel)
+            return
+          }
+          await controller.updateSession(selected.id, {
+            ...updateInput(selected, false),
+            model_id: model.id,
             reasoning_level: reasoningLevel,
           })
         })}

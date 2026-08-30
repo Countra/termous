@@ -2,7 +2,7 @@ import { App as AntdApp } from 'antd'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { contextActionMenuPopupClassName, customSelectStyles } from '#shared/ui'
+import { contextActionMenuPopupClassName } from '#shared/ui'
 import type { AgentWorkspaceModelOption, AgentWorkspaceProps } from '../model/types.ts'
 import { AgentWorkspace } from './AgentWorkspace.tsx'
 
@@ -38,8 +38,7 @@ describe('AgentWorkspace', () => {
       onSteer: props.onSteer,
       onStop: props.onStop,
     })} /></AntdApp>)
-    expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeDisabled()
-    expect(screen.getByRole('combobox', { name: 'agent.composer.reasoning' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'agent.composer.steer' }))
     expect(props.onSteer).toHaveBeenCalledWith('adjust')
     await user.click(screen.getByRole('button', { name: 'agent.composer.stop' }))
@@ -56,15 +55,12 @@ describe('AgentWorkspace', () => {
       model_runnable: false,
     }))
 
-    const warning = screen.getByRole('button', {
-      name: 'agent.header.modelUnavailableReason.provider_disabled',
-    })
-    expect(warning).toBeEnabled()
-    await user.click(screen.getByRole('combobox', { name: 'agent.header.model' }))
-    expect(await screen.findByRole('option', {
+    await openResponseOptions(user)
+    await user.click(screen.getByRole('menuitem', { name: 'agent.header.model' }))
+    expect(await screen.findByRole('menuitemradio', {
       name: /agent.header.modelUnavailableReason.provider_disabled/,
     })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'agent.composer.reasoning' })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: 'agent.composer.reasoning' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
   })
 
@@ -97,8 +93,8 @@ describe('AgentWorkspace', () => {
       onOpenSettings,
     }))
 
-    expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: 'agent.header.configureProvider' }))
+    await openResponseOptions(user)
+    await user.click(screen.getByRole('menuitem', { name: 'agent.header.configureProvider' }))
     expect(onOpenSettings).toHaveBeenCalledOnce()
   })
 
@@ -116,7 +112,7 @@ describe('AgentWorkspace', () => {
     const steer = screen.getByRole('button', { name: 'agent.composer.steer' })
     expect(steer).toBeEnabled()
     expect(screen.getByText('Local model')).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
     await user.click(steer)
     expect(onSteer).toHaveBeenCalledWith('继续检查')
   })
@@ -124,8 +120,8 @@ describe('AgentWorkspace', () => {
   it('模型目录可用但尚未选择时只展示选择提示，不误报模型不可用', () => {
     renderWorkspace(fixtureProps({ selected_model_id: undefined, model_runnable: false }))
 
-    expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeEnabled()
-    expect(screen.queryByRole('button', { name: 'agent.header.modelUnavailable' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeEnabled()
+    expect(screen.queryByRole('menuitem', { name: 'agent.header.configureProvider' })).not.toBeInTheDocument()
   })
 
   it('模型目录可按 Provider 和远端模型 ID 搜索', async () => {
@@ -134,6 +130,11 @@ describe('AgentWorkspace', () => {
     renderWorkspace(fixtureProps({
       models: [
         ...fixtureProps().models,
+        ...Array.from({ length: 7 }, (_, index) => workspaceModel({
+          id: `model-extra-${index}`,
+          remote_model_id: `extra-model-${index}`,
+          display_name: `Extra model ${index}`,
+        })),
         workspaceModel({
           id: 'model-2', display_name: 'Secondary model', provider_name: 'Remote Provider',
           remote_model_id: 'remote-model-v2', reasoning_control: 'none',
@@ -143,50 +144,59 @@ describe('AgentWorkspace', () => {
       onModelChange,
     }))
 
-    const modelSelect = screen.getByRole('combobox', { name: 'agent.header.model' })
     const workspaceHeader = screen.getByRole('button', { name: 'agent.inspector.title' }).closest('header')
     expect(workspaceHeader).not.toBeNull()
-    expect(within(workspaceHeader!).queryByRole('combobox')).not.toBeInTheDocument()
-    expect(modelSelect).not.toHaveAttribute('readonly')
-    await user.click(modelSelect)
-    expect(document.querySelector(`.${customSelectStyles['select-popup']}`)).toBeInTheDocument()
-    await user.type(modelSelect, 'remote-model-v2')
-    await user.click(await screen.findByText('remote-model-v2'))
+    expect(within(workspaceHeader!).queryByRole('button', { name: 'agent.composer.responseOptions' }))
+      .not.toBeInTheDocument()
+    await openModelPane(user)
+    const search = screen.getByRole('textbox', { name: 'agent.composer.modelSearch' })
+    await user.type(search, 'Remote Provider remote-model-v2')
+    fireEvent.keyDown(search, { key: 'ArrowLeft' })
+    expect(search).toBeInTheDocument()
+    await user.click(await screen.findByRole('menuitemradio', { name: 'remote-model-v2' }))
     expect(onModelChange).toHaveBeenCalledWith('model-2')
+  })
+
+  it('长模型目录只渲染可视窗口并可滚动到末尾', async () => {
+    const user = userEvent.setup()
+    const models = Array.from({ length: 1_000 }, (_, index) => workspaceModel({
+      id: `catalog-model-${index}`,
+      display_name: `Catalog model ${index}`,
+      remote_model_id: `catalog-model-${String(index).padStart(4, '0')}`,
+    }))
+    renderWorkspace(fixtureProps({
+      models,
+      selected_model_id: models[0].id,
+      default_model_id: models[0].id,
+    }))
+
+    await openModelPane(user)
+    const menu = screen.getByRole('menu', { name: 'agent.header.model' })
+    const virtualList = menu.querySelector<HTMLElement>('[data-virtual-model-list]')
+    if (!virtualList) throw new Error('未找到模型虚拟列表')
+    expect(within(menu).getAllByRole('menuitemradio').length).toBeLessThan(30)
+
+    fireEvent.scroll(virtualList, { target: { scrollTop: 33_700 } })
+    expect(await screen.findByRole('menuitemradio', { name: 'catalog-model-0999' }))
+      .toBeInTheDocument()
   })
 
   it('已选模型保持简洁名称并通过 hover 与 focus 展示完整详情', async () => {
     const user = userEvent.setup()
     const view = renderWorkspace(fixtureProps())
 
-    const selectedName = screen.getByText('local-model')
-    expect(selectedName.parentElement).not.toHaveAttribute('title')
-    await user.hover(selectedName)
+    await openModelPane(user)
+    const selectedModel = screen.getByRole('menuitemradio', { name: 'local-model' })
+    await user.hover(selectedModel)
 
     const hoverDetails = await screen.findByRole('group', { name: 'agent.composer.modelDetails' })
     expect(within(hoverDetails).getByText('Local Provider')).toBeInTheDocument()
     expect(within(hoverDetails).getByText('Local model')).toBeInTheDocument()
     expect(within(hoverDetails).getByText('8,192')).toBeInTheDocument()
-    const detailTrigger = selectedName.closest('.ant-select')?.parentElement?.parentElement
-    if (!(detailTrigger instanceof HTMLElement)) throw new Error('未找到已选模型详情触发区域')
-    expect(detailTrigger).toHaveAttribute('data-detail-open', 'true')
-
-    const combobox = screen.getByRole('combobox', { name: 'agent.header.model' })
-    await user.click(combobox)
-    await waitFor(() => {
-      expect(detailTrigger).toHaveAttribute('data-detail-open', 'false')
-    })
-
     view.unmount()
     renderWorkspace(fixtureProps())
-    const focusCombobox = screen.getByRole('combobox', { name: 'agent.header.model' })
-    const focusName = screen.getByText('local-model')
-    const focusTrigger = focusName.closest('.ant-select')?.parentElement?.parentElement
-    if (!(focusTrigger instanceof HTMLElement)) throw new Error('未找到键盘模型详情触发区域')
-    fireEvent.focus(focusCombobox)
-    await waitFor(() => {
-      expect(focusTrigger).toHaveAttribute('data-detail-open', 'true')
-    })
+    await openModelPane(user)
+    fireEvent.focus(screen.getByRole('menuitemradio', { name: 'local-model' }))
     expect(await screen.findByRole('group', { name: 'agent.composer.modelDetails' })).toBeInTheDocument()
   })
 
@@ -195,11 +205,10 @@ describe('AgentWorkspace', () => {
     const onReasoningChange = vi.fn()
     renderWorkspace(fixtureProps({ onReasoningChange }))
 
-    const select = screen.getByRole('combobox', { name: 'agent.composer.reasoning' })
-    expect(select.closest('.ant-select')).toHaveTextContent('settings.agent.reasoning.medium')
-    await user.click(select)
-    expect(screen.queryByRole('option', { name: 'settings.agent.reasoning.minimal' })).not.toBeInTheDocument()
-    await user.click(await screen.findByRole('option', { name: 'settings.agent.reasoning.high' }))
+    await openReasoningPane(user)
+    expect(screen.queryByRole('menuitemradio', { name: 'settings.agent.reasoning.minimal' }))
+      .not.toBeInTheDocument()
+    await user.click(await screen.findByRole('menuitemradio', { name: 'settings.agent.reasoning.high' }))
     expect(onReasoningChange).toHaveBeenCalledWith('high')
   })
 
@@ -215,13 +224,33 @@ describe('AgentWorkspace', () => {
       onReasoningChange,
     }))
 
-    const select = screen.getByRole('combobox', { name: 'agent.composer.reasoning' })
-    expect(select.closest('.ant-select')).toHaveTextContent('settings.agent.reasoning.max')
-    await user.click(select)
-    expect(await screen.findByRole('option', { name: 'settings.agent.reasoning.max' }))
-      .toHaveAttribute('aria-disabled', 'true')
-    await user.click(screen.getByRole('option', { name: 'settings.agent.reasoning.low' }))
+    await openReasoningPane(user)
+    expect(await screen.findByRole('menuitemradio', { name: 'settings.agent.reasoning.max' }))
+      .toBeDisabled()
+    await user.click(screen.getByRole('menuitemradio', { name: 'settings.agent.reasoning.low' }))
     expect(onReasoningChange).toHaveBeenCalledWith('low')
+  })
+
+  it('集中配置菜单可恢复默认模型与推理设置', async () => {
+    const user = userEvent.setup()
+    const onResetResponseOptions = vi.fn()
+    renderWorkspace(fixtureProps({
+      selected_reasoning_level: 'high',
+      onResetResponseOptions,
+    }))
+
+    await openResponseOptions(user)
+    const trigger = screen.getByRole('button', { name: 'agent.composer.responseOptions' })
+    expect(trigger).toHaveAccessibleDescription(
+      'local-model · settings.agent.reasoning.high',
+    )
+    expect(screen.getByRole('menuitem', { name: 'agent.header.model' }))
+      .toHaveAttribute('aria-haspopup', 'menu')
+    expect(screen.getByRole('menuitem', { name: 'agent.header.model' }))
+      .toHaveAccessibleDescription('local-model')
+    await user.click(screen.getByRole('menuitem', { name: 'agent.composer.resetResponseOptions' }))
+    expect(onResetResponseOptions).toHaveBeenCalledOnce()
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('同名 Provider 仍按稳定 ID 分成独立模型分组', async () => {
@@ -236,10 +265,8 @@ describe('AgentWorkspace', () => {
       ],
     }))
 
-    await user.click(screen.getByRole('combobox', { name: 'agent.header.model' }))
-    const popup = document.querySelector(`.${customSelectStyles['select-popup']}`)
-    if (!(popup instanceof HTMLElement)) throw new Error('未找到模型选择下拉层')
-    expect(await within(popup).findAllByText('同名 Provider')).toHaveLength(2)
+    await openModelPane(user)
+    expect(await screen.findAllByText('同名 Provider')).toHaveLength(2)
   })
 
   it('历史目录缺失模型只显示真实远端 ID，别名保留在 hover 详情', async () => {
@@ -254,17 +281,13 @@ describe('AgentWorkspace', () => {
       model_runnable: false,
     }))
 
-    const selector = screen.getByRole('combobox', { name: 'agent.header.model' })
-    expect(selector.closest('.ant-select')).toHaveTextContent('remote-snapshot-id')
-    expect(selector.closest('.ant-select')).not.toHaveTextContent('历史显示名称')
-    await user.click(selector)
-    expect(await screen.findByRole('option', { name: /remote-snapshot-id/u }))
-      .toHaveAttribute('aria-disabled', 'true')
-    const optionLabel = (await screen.findAllByText('remote-snapshot-id')).find((element) => (
-      element.closest('.ant-select-item-option-content')
-    ))
-    if (!(optionLabel instanceof HTMLElement)) throw new Error('未找到历史模型候选项')
-    const trigger = optionLabel.closest('.ant-select-item-option-content')?.firstElementChild
+    const selector = screen.getByRole('button', { name: 'agent.composer.responseOptions' })
+    expect(selector).toHaveTextContent('remote-snapshot-id')
+    expect(selector).not.toHaveTextContent('历史显示名称')
+    await openModelPane(user)
+    const option = await screen.findByRole('menuitemradio', { name: /remote-snapshot-id/u })
+    expect(option).toHaveAttribute('aria-disabled', 'true')
+    const trigger = option.parentElement
     if (!(trigger instanceof HTMLElement)) throw new Error('未找到模型详情触发区域')
     await user.hover(trigger)
     expect(await screen.findByText('历史显示名称')).toBeInTheDocument()
@@ -293,7 +316,7 @@ describe('AgentWorkspace', () => {
       ],
     }))
 
-    await user.click(screen.getByRole('combobox', { name: 'agent.header.model' }))
+    await openModelPane(user)
     expect((await screen.findAllByText('active-model')).length).toBeGreaterThan(0)
     expect(screen.queryByText('removed-model')).not.toBeInTheDocument()
   })
@@ -309,7 +332,7 @@ describe('AgentWorkspace', () => {
     fireEvent.change(composer, { target: { value: 'draft remains editable' } })
     expect(props.onDraftChange).toHaveBeenCalledWith('draft remains editable')
     expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
-    expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
     expect(screen.queryByText('agent.status.running')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'agent.header.returnToActiveRun' }))
     expect(props.onReturnToActiveRun).toHaveBeenCalledOnce()
@@ -616,7 +639,7 @@ describe('AgentWorkspace', () => {
 
     expect(screen.getByText('agent.attachments.imageModelUnsupported')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
-    expect(screen.getByRole('combobox', { name: 'agent.header.model' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'agent.attachments.previewName' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'agent.attachments.removeName' })).toBeDisabled()
   })
@@ -663,6 +686,20 @@ function renderWorkspace(props: AgentWorkspaceProps) {
   return render(<AntdApp><AgentWorkspace {...props} /></AntdApp>)
 }
 
+async function openResponseOptions(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'agent.composer.responseOptions' }))
+}
+
+async function openModelPane(user: ReturnType<typeof userEvent.setup>) {
+  await openResponseOptions(user)
+  await user.click(screen.getByRole('menuitem', { name: 'agent.header.model' }))
+}
+
+async function openReasoningPane(user: ReturnType<typeof userEvent.setup>) {
+  await openResponseOptions(user)
+  await user.click(screen.getByRole('menuitem', { name: 'agent.composer.reasoning' }))
+}
+
 function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorkspaceProps {
   return {
     sessions: [{
@@ -682,6 +719,7 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
     }],
     models: [workspaceModel()],
     selected_model_id: 'model-1',
+    default_model_id: 'model-1',
     selected_reasoning_level: 'medium',
     inspector: {
       context: {
@@ -702,7 +740,8 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
     loading: false, busy: false, run_blocked: false,
     onCreateSession: vi.fn(), onSelectSession: vi.fn(), onReturnToActiveRun: vi.fn(),
     onArchiveSession: vi.fn(), onDeleteSession: vi.fn(),
-    onModelChange: vi.fn(), onReasoningChange: vi.fn(), onOpenSettings: vi.fn(), onDraftChange: vi.fn(),
+    onModelChange: vi.fn(), onReasoningChange: vi.fn(), onResetResponseOptions: vi.fn(),
+    onOpenSettings: vi.fn(), onDraftChange: vi.fn(),
     onSend: vi.fn(async () => undefined),
     onAttachFiles: vi.fn(async () => undefined), onRemoveAttachment: vi.fn(async () => undefined),
     onRetryAttachment: vi.fn(async () => undefined), onLoadAttachmentContent: vi.fn(async () => new Blob()),

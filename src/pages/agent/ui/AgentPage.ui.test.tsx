@@ -540,6 +540,51 @@ describe('AgentPage', () => {
     expect(harness.startRun).not.toHaveBeenCalled()
   })
 
+  it('恢复默认配置在一次 Session PATCH 中同时更新模型与推理强度', async () => {
+    const currentModel = {
+      ...modelFixture('model-current'),
+      reasoning_control: 'openai_effort' as const,
+      supported_reasoning_levels: ['off', 'high'] as const,
+      supports_reasoning: true,
+      effective_default_reasoning_level: 'high' as const,
+    }
+    const defaultModel = {
+      ...modelFixture(),
+      reasoning_control: 'openai_effort' as const,
+      supported_reasoning_levels: ['off', 'low'] as const,
+      supports_reasoning: true,
+      effective_default_reasoning_level: 'low' as const,
+    }
+    harness.models.mockResolvedValue({ items: [currentModel, defaultModel] })
+    harness.state = {
+      ...workspaceState(),
+      sessions: [{
+        ...sessions[0],
+        model_id: currentModel.id,
+        reasoning_level: 'high',
+      }, sessions[1]],
+    }
+    harness.updateSession.mockResolvedValue({
+      ...sessions[0],
+      model_id: defaultModel.id,
+      reasoning_level: 'low',
+    })
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+
+    act(() => {
+      const reset = harness.workspaceProps?.onResetResponseOptions as () => void
+      reset()
+    })
+
+    await waitFor(() => expect(harness.updateSession).toHaveBeenCalledTimes(1))
+    expect(harness.updateSession).toHaveBeenCalledWith('session-one', expect.objectContaining({
+      model_id: defaultModel.id,
+      reasoning_level: 'low',
+      expected_revision: 1,
+    }))
+  })
+
   it('模型能力变更后会话保留不受支持的推理档位时禁止发送', async () => {
     harness.models.mockResolvedValue({ items: [modelFixture()] })
     harness.state = {

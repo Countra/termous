@@ -9,8 +9,7 @@ import type {
   AgentWorkspaceRunStatus,
 } from '../model/types.ts'
 import { isActiveAgentRun } from '../model/types.ts'
-import { AgentModelSelector } from './AgentModelSelector.tsx'
-import { AgentReasoningSelect } from './AgentReasoningSelect.tsx'
+import { AgentResponseOptionsMenu } from './AgentResponseOptionsMenu.tsx'
 import styles from './AgentComposer.module.scss'
 
 export function AgentComposer({
@@ -26,6 +25,7 @@ export function AgentComposer({
   selectedModelName,
   selectedModelAlias,
   selectedProviderName,
+  defaultModelId,
   selectedReasoningLevel,
   supportedReasoningLevels,
   modelSelectionDisabled,
@@ -40,6 +40,7 @@ export function AgentComposer({
   onStop,
   onModelChange,
   onReasoningChange,
+  onResetResponseOptions,
   onOpenSettings,
 }: {
   value: string
@@ -54,6 +55,7 @@ export function AgentComposer({
   selectedModelName?: string
   selectedModelAlias?: string
   selectedProviderName?: string
+  defaultModelId?: string
   selectedReasoningLevel: AgentReasoningLevel
   supportedReasoningLevels: AgentReasoningLevel[]
   modelSelectionDisabled: boolean
@@ -68,6 +70,7 @@ export function AgentComposer({
   onStop: () => void
   onModelChange: (modelId: string) => void
   onReasoningChange: (reasoningLevel: AgentReasoningLevel) => void
+  onResetResponseOptions: () => void
   onOpenSettings: () => void
 }) {
   const { t } = useTranslation()
@@ -173,20 +176,20 @@ export function AgentComposer({
             ) : null}
           </div>
           <div className={styles['composer-primary-actions']}>
-            <AgentReasoningSelect
-              value={selectedReasoningLevel}
-              levels={supportedReasoningLevels}
-              disabled={reasoningSelectionDisabled}
-              onChange={onReasoningChange}
-            />
-            <AgentModelSelector
+            <AgentResponseOptionsMenu
               models={models}
               selectedModelId={selectedModelId}
-              fallbackName={selectedModelName}
-              fallbackDisplayName={selectedModelAlias}
+              fallbackModelName={selectedModelName}
+              fallbackModelAlias={selectedModelAlias}
               fallbackProviderName={selectedProviderName}
-              disabled={modelSelectionDisabled}
-              onChange={onModelChange}
+              selectedReasoningLevel={selectedReasoningLevel}
+              supportedReasoningLevels={supportedReasoningLevels}
+              defaultModelId={defaultModelId}
+              modelSelectionDisabled={modelSelectionDisabled}
+              reasoningSelectionDisabled={reasoningSelectionDisabled}
+              onModelChange={onModelChange}
+              onReasoningChange={onReasoningChange}
+              onReset={onResetResponseOptions}
               onOpenSettings={onOpenSettings}
             />
             {active ? (

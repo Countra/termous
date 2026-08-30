@@ -157,6 +157,7 @@ export interface AgentWorkspaceProps {
   messages: AgentWorkspaceMessage[]
   models: AgentWorkspaceModelOption[]
   selected_model_id?: string
+  default_model_id?: string
   selected_reasoning_level: AgentReasoningLevel
   inspector: AgentWorkspaceInspectorState
   draft: string
@@ -179,6 +180,7 @@ export interface AgentWorkspaceProps {
   onDeleteSession: (sessionId: string) => void
   onModelChange: (modelId: string) => void
   onReasoningChange: (reasoningLevel: AgentReasoningLevel) => void
+  onResetResponseOptions: () => void
   onOpenSettings: () => void
   onDraftChange: (value: string) => void
   onAttachFiles: (files: File[]) => Promise<void>

@@ -99,6 +99,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           supportsImages={props.supports_images}
           models={props.models}
           selectedModelId={props.selected_model_id}
+          defaultModelId={props.default_model_id}
           selectedModelName={selectedSession?.model_name}
           selectedModelAlias={selectedSession?.model_alias}
           selectedProviderName={selectedSession?.provider_name}
@@ -116,6 +117,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onStop={() => void props.onStop()}
           onModelChange={props.onModelChange}
           onReasoningChange={props.onReasoningChange}
+          onResetResponseOptions={props.onResetResponseOptions}
           onOpenSettings={props.onOpenSettings}
         />
       </section>
