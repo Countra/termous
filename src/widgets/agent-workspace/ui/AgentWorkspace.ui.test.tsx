@@ -300,20 +300,53 @@ describe('AgentWorkspace', () => {
         ...fixtureProps().inspector,
         usage: {
           phase: 'ready', has_snapshot: true, run_count: 3,
-          input_tokens: 1_200, output_tokens: 800, reasoning_tokens: 125,
-          total_tokens: 2_000, estimated: true,
+          input_tokens: 1_200, output_tokens: 800,
+          cache_read_tokens: 125, cache_write_tokens: 25,
+          reasoning_tokens: 100,
+          total_tokens: 2_150, estimated: true,
         },
       },
     }))
 
     await user.click(screen.getByRole('button', { name: 'agent.inspector.title' }))
     const usage = screen.getByRole('region', { name: 'agent.inspector.tokenUsage' })
-    expect(within(usage).getByText('2,000')).toBeInTheDocument()
+    expect(within(usage).getByText('2,150')).toBeInTheDocument()
     expect(within(usage).getByText('1,200')).toBeInTheDocument()
     expect(within(usage).getByText('800')).toBeInTheDocument()
     expect(within(usage).getByText('125')).toBeInTheDocument()
     expect(within(usage).getByText('agent.inspector.partialUsage')).toBeInTheDocument()
-    expect(within(usage).getByText('agent.inspector.usageScopeHint')).toBeInTheDocument()
+
+    const cacheDetails = within(usage).getByRole('button', { name: 'agent.inspector.cacheDetails' })
+    await user.hover(cacheDetails)
+    const details = await screen.findByRole('group', { name: 'agent.inspector.cacheDetailsTitle' })
+    expect(within(details).getByText('agent.inspector.cacheWriteTokens')).toBeInTheDocument()
+    expect(within(details).getByText('25')).toBeInTheDocument()
+    expect(within(details).getByText('agent.inspector.cacheReadTokens')).toBeInTheDocument()
+    expect(within(details).getByText('125')).toBeInTheDocument()
+
+  })
+
+  it('缓存详情支持通过键盘焦点打开', async () => {
+    const user = userEvent.setup()
+    renderWorkspace(fixtureProps({
+      inspector: {
+        ...fixtureProps().inspector,
+        usage: {
+          phase: 'ready', has_snapshot: true, run_count: 1,
+          input_tokens: 100, output_tokens: 40,
+          cache_read_tokens: 20, cache_write_tokens: 5,
+          reasoning_tokens: 10,
+          total_tokens: 165, estimated: false,
+        },
+      },
+    }))
+
+    await user.click(screen.getByRole('button', { name: 'agent.inspector.title' }))
+    const usage = screen.getByRole('region', { name: 'agent.inspector.tokenUsage' })
+    const cacheDetails = within(usage).getByRole('button', { name: 'agent.inspector.cacheDetails' })
+    cacheDetails.focus()
+    expect(cacheDetails).toHaveFocus()
+    expect(await screen.findByRole('group', { name: 'agent.inspector.cacheDetailsTitle' })).toBeInTheDocument()
   })
 
   it('区分 Provider 未返回与无运行，不把缺失统计显示为精确零值', async () => {
@@ -323,7 +356,8 @@ describe('AgentWorkspace', () => {
         ...fixtureProps().inspector,
         usage: {
           phase: 'ready', has_snapshot: true, run_count: 2,
-          input_tokens: 0, output_tokens: 0, reasoning_tokens: 0,
+          input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0,
+          reasoning_tokens: 0,
           total_tokens: 0, estimated: true,
         },
       },
@@ -339,7 +373,8 @@ describe('AgentWorkspace', () => {
         ...fixtureProps().inspector,
         usage: {
           phase: 'ready', has_snapshot: true, run_count: 0,
-          input_tokens: 0, output_tokens: 0, reasoning_tokens: 0,
+          input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0,
+          reasoning_tokens: 0,
           total_tokens: 0, estimated: false,
         },
       },
@@ -356,7 +391,8 @@ describe('AgentWorkspace', () => {
         ...fixtureProps().inspector,
         usage: {
           phase: 'error', has_snapshot: true, run_count: 1,
-          input_tokens: 900, output_tokens: 300, reasoning_tokens: 80,
+          input_tokens: 900, output_tokens: 300, cache_read_tokens: 0, cache_write_tokens: 0,
+          reasoning_tokens: 50,
           total_tokens: 1_200, estimated: false, error_code: 'NETWORK_ERROR',
         },
       },
@@ -510,7 +546,8 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
       },
       usage: {
         phase: 'ready', has_snapshot: true, run_count: 1,
-        input_tokens: 80, output_tokens: 40, reasoning_tokens: 10,
+        input_tokens: 80, output_tokens: 40, cache_read_tokens: 0, cache_write_tokens: 0,
+        reasoning_tokens: 10,
         total_tokens: 120, estimated: false,
       },
       skills: [],

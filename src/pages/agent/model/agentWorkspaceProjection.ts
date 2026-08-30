@@ -8,7 +8,7 @@ import type {
   AgentRunEvent,
   AgentSession,
 } from '#entities/agent'
-import { isAgentModelRunnable, isAgentRunActive } from '#entities/agent'
+import { isAgentModelRunnable, isAgentRunActive, isAgentRunTerminal } from '#entities/agent'
 import type { AgentRuntimeStatus } from '#common/contracts'
 import type {
   AgentWorkspaceMessage,
@@ -85,8 +85,18 @@ export function projectAgentMessages(
       : []
   )))
   return messages.map((message): AgentWorkspaceMessage => {
+    const messageRun = run
+      && run.session_id === message.session_id
+      && run.assistant_message_id === message.id
+      ? run
+      : undefined
+    const messageEvents = messageRun ? events : []
     const streaming = message.status === 'pending' || message.status === 'streaming'
     const status: AgentWorkspaceMessage['status'] = message.status === 'pending' ? 'streaming' : message.status
+    const usage = message.role === 'assistant' && !streaming
+      ? (messageRun && isAgentRunTerminal(messageRun.status) ? messageRun.usage : undefined)
+        ?? message.turn_usage?.usage
+      : undefined
     const sourcePart = message.parts.find((part): part is Extract<AgentMessagePart, { kind: 'text' }> => (
       part.kind === 'text' && part.source_context !== undefined
     ))
@@ -95,9 +105,10 @@ export function projectAgentMessages(
       role: message.role,
       status,
       created_at: message.created_at,
-      parts: projectMessageParts(message.parts, streaming, finalizedParts, run, events),
+      parts: projectMessageParts(message.parts, streaming, finalizedParts, messageRun, messageEvents),
       attachments: message.attachments,
       source_context: sourcePart?.source_context,
+      usage: usage && usage.total_tokens > 0 ? usage : undefined,
     }
   })
 }

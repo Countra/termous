@@ -30,6 +30,7 @@ export {
   type AgentMessagePartKind,
   type AgentMessageRole,
   type AgentMessageStatus,
+  type AgentMessageTurnUsage,
   type AgentModel,
   type AgentModelAvailability,
   type AgentModelPage,

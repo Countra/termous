@@ -2,6 +2,8 @@ import { ChartNoAxesColumnIncreasing, RefreshCw } from 'lucide-react'
 import { Button, Skeleton } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { AgentWorkspaceUsageState } from '../model/types.ts'
+import { AgentCacheUsagePopover } from './AgentCacheUsagePopover.tsx'
+import { formatAgentTokenCount } from './agentTokenUsageFormat.ts'
 import styles from './AgentInspector.module.scss'
 
 export function AgentTokenUsage({
@@ -67,29 +69,31 @@ function UsageSnapshot({
     <div className={styles['usage-snapshot']}>
       <div className={styles['usage-total']}>
         <span>{t('agent.inspector.sessionTotal')}</span>
-        <strong>{formatTokenCount(usage.total_tokens, language)}</strong>
+        <strong>{formatAgentTokenCount(usage.total_tokens, language)}</strong>
         {usage.estimated ? <em>{t('agent.inspector.partialUsage')}</em> : null}
       </div>
       <dl className={styles['usage-breakdown']}>
         <div>
           <dt>{t('agent.inspector.inputTokens')}</dt>
-          <dd>{formatTokenCount(usage.input_tokens, language)}</dd>
+          <dd>{formatAgentTokenCount(usage.input_tokens, language)}</dd>
         </div>
         <div>
           <dt>{t('agent.inspector.outputTokens')}</dt>
-          <dd>{formatTokenCount(usage.output_tokens, language)}</dd>
+          <dd>{formatAgentTokenCount(usage.output_tokens, language)}</dd>
         </div>
         <div>
-          <dt>{t('agent.inspector.reasoningTokens')}</dt>
-          <dd>{formatTokenCount(usage.reasoning_tokens, language)}</dd>
+          <dt className={styles['usage-metric-label']}>
+            <span>{t('agent.inspector.cacheTokens')}</span>
+            <AgentCacheUsagePopover
+              cacheReadTokens={usage.cache_read_tokens}
+              cacheWriteTokens={usage.cache_write_tokens}
+              language={language}
+              placement="left"
+            />
+          </dt>
+          <dd>{formatAgentTokenCount(usage.cache_read_tokens, language)}</dd>
         </div>
       </dl>
-      <p className={styles['usage-note']}>{t('agent.inspector.usageScopeHint')}</p>
     </div>
   )
-}
-
-function formatTokenCount(value: number, language?: string) {
-  const normalized = Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0
-  return new Intl.NumberFormat(language).format(normalized)
 }

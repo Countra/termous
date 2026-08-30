@@ -608,7 +608,7 @@ test('连续 usage 事件和 Run 终态合并为一次低频 Token 统计刷新'
   })
   socket.message({
     type: 'upsert', revision: 2,
-    run_event: usageEventResponse(2, 20, 8),
+    run_event: usageEventResponse(2, 20, 8, 6, 2),
   })
   socket.message({
     type: 'upsert', revision: 3,
@@ -674,6 +674,40 @@ test('切换会话模型后重新读取对应上下文窗口', async () => {
   ))
 
   assert.equal(gateway.contextCalls, 2)
+  controller.close()
+})
+
+test('消息分页拒绝跨页重复的本轮 Run 用量', async () => {
+  const gateway = new FakeGateway()
+  const turnUsage = {
+    run_id: 'agr-duplicate-usage',
+    usage: {
+      input_tokens: 8,
+      cache_read_tokens: 2,
+      cache_write_tokens: 1,
+      output_tokens: 3,
+      reasoning_tokens: 1,
+      total_tokens: 14,
+      estimated: false,
+    },
+  }
+  gateway.messagesImpl = async (_sessionId, options) => options.afterSequence === 0
+    ? {
+        items: [agentMessageFixture({
+          id: 'agm-first', status: 'completed', sequence: 1, turn_usage: turnUsage,
+        })],
+        next_after_sequence: 1,
+      }
+    : {
+        items: [agentMessageFixture({
+          id: 'agm-second', status: 'completed', sequence: 2, turn_usage: turnUsage,
+        })],
+      }
+  const controller = startedController(gateway)
+
+  await waitFor(() => controller.getSnapshot().error_code === 'AGENT_MESSAGE_TURN_USAGE_DUPLICATE')
+
+  assert.equal(controller.getSnapshot().phase, 'degraded')
   controller.close()
 })
 
@@ -890,7 +924,9 @@ function usageFixture(overrides: Partial<AgentSessionUsage> = {}): AgentSessionU
     run_count: 2,
     input_tokens: 1_000,
     output_tokens: 240,
-    reasoning_tokens: 40,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
+    reasoning_tokens: 120,
     total_tokens: 1_240,
     estimated: false,
     updated_at: agentFixtureTime,
@@ -898,7 +934,13 @@ function usageFixture(overrides: Partial<AgentSessionUsage> = {}): AgentSessionU
   }
 }
 
-function usageEventResponse(sequence: number, inputTokens: number, outputTokens: number) {
+function usageEventResponse(
+  sequence: number,
+  inputTokens: number,
+  outputTokens: number,
+  cacheReadTokens = 0,
+  cacheWriteTokens = 0,
+) {
   return {
     id: `age-usage-${sequence}`,
     run_id: 'agr-run',
@@ -908,9 +950,11 @@ function usageEventResponse(sequence: number, inputTokens: number, outputTokens:
     payload: {
       usage: {
         input_tokens: inputTokens,
+        cache_read_tokens: cacheReadTokens,
+        cache_write_tokens: cacheWriteTokens,
         output_tokens: outputTokens,
         reasoning_tokens: Math.floor(outputTokens / 2),
-        total_tokens: inputTokens + outputTokens,
+        total_tokens: inputTokens + cacheReadTokens + cacheWriteTokens + outputTokens,
         estimated: false,
       },
     },

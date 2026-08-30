@@ -181,8 +181,9 @@ describe('Agent 工作区页面投影', () => {
       created_at: '2026-08-29T00:00:01Z',
     }
 
-    const before = projectAgentMessages([message], activeRun(), [])[0]?.parts[0]
-    const after = projectAgentMessages([message], activeRun(), [finalPart])[0]?.parts[0]
+    const run = activeRun()
+    const before = projectAgentMessages([message], run, [])[0]?.parts[0]
+    const after = projectAgentMessages([message], run, [finalPart])[0]?.parts[0]
     expect(before?.kind === 'reasoning' && before.streaming).toBe(true)
     expect(after?.kind === 'reasoning' && after.streaming).toBe(false)
   })
@@ -221,6 +222,39 @@ describe('Agent 工作区页面投影', () => {
     expect(projected?.source_context?.entity_id).toBe('host-one')
     expect(projected?.attachments[0]?.id).toBe('attachment-one')
   })
+
+  it('优先投影内存终态 Run 用量并在重载后回退到历史本轮用量', () => {
+    const historicalUsage = tokenUsage(100)
+    const currentUsage = tokenUsage(240)
+    const message: AgentMessage = {
+      id: 'message-assistant',
+      session_id: 'session-one',
+      role: 'assistant',
+      status: 'completed',
+      sequence: 2,
+      revision: 1,
+      created_at: '2026-08-29T00:00:00Z',
+      updated_at: '2026-08-29T00:00:01Z',
+      parts: [],
+      attachments: [],
+      turn_usage: { run_id: 'agr-history', usage: historicalUsage },
+    }
+    const run = activeRun({
+      status: 'completed',
+      usage: currentUsage,
+      completed_at: '2026-08-29T00:00:02Z',
+      updated_at: '2026-08-29T00:00:02Z',
+    })
+
+    expect(projectAgentMessages([message], undefined, [])[0]?.usage).toEqual(historicalUsage)
+    expect(projectAgentMessages([message], run, [])[0]?.usage).toEqual(currentUsage)
+    const foreignRun = { ...run, id: 'agr-foreign', session_id: 'session-other' }
+    expect(projectAgentMessages([message], foreignRun, [])[0]?.usage)
+      .toEqual(historicalUsage)
+    expect(projectAgentMessages([
+      { ...message, status: 'streaming' },
+    ], run, [])[0]?.usage).toBeUndefined()
+  })
 })
 
 function session(id: string): AgentWorkspaceSession {
@@ -251,6 +285,8 @@ function activeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     reasoning_level: 'off',
     usage: {
       input_tokens: 0,
+      cache_read_tokens: 0,
+      cache_write_tokens: 0,
       output_tokens: 0,
       reasoning_tokens: 0,
       total_tokens: 0,
@@ -261,6 +297,18 @@ function activeRun(overrides: Partial<AgentRun> = {}): AgentRun {
     started_at: '2026-08-29T00:00:01Z',
     updated_at: '2026-08-29T00:00:01Z',
     ...overrides,
+  }
+}
+
+function tokenUsage(totalTokens: number): AgentRun['usage'] {
+  return {
+    input_tokens: totalTokens - 30,
+    cache_read_tokens: 10,
+    cache_write_tokens: 5,
+    output_tokens: 15,
+    reasoning_tokens: 4,
+    total_tokens: totalTokens,
+    estimated: false,
   }
 }
 

@@ -158,7 +158,10 @@ function runFixture() {
       supports_images: false, supports_reasoning: true,
     },
     reasoning_level: 'medium',
-    usage: { input_tokens: 0, output_tokens: 0, reasoning_tokens: 0, total_tokens: 0, estimated: false },
+    usage: {
+      input_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0,
+      output_tokens: 0, reasoning_tokens: 0, total_tokens: 0, estimated: false,
+    },
     revision: 1, queued_at: '2026-08-29T00:00:00Z', started_at: '2026-08-29T00:00:00Z',
     updated_at: '2026-08-29T00:00:00Z',
   }
@@ -174,7 +177,8 @@ function contextFixture() {
 function usageFixture() {
   return {
     session_id: 'ags/1', run_count: 2, input_tokens: 1_000, output_tokens: 240,
-    reasoning_tokens: 40, total_tokens: 1_240, estimated: false,
+    cache_read_tokens: 0, cache_write_tokens: 0, reasoning_tokens: 40,
+    total_tokens: 1_240, estimated: false,
     updated_at: '2026-08-29T00:00:00Z',
   }
 }

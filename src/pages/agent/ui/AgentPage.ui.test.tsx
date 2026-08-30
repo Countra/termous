@@ -214,8 +214,10 @@ describe('AgentPage', () => {
           phase: 'ready',
           value: {
             session_id: 'session-one', run_count: 3,
-            input_tokens: 1_200, output_tokens: 800, reasoning_tokens: 125,
-            total_tokens: 2_000, estimated: true,
+            input_tokens: 1_200, output_tokens: 800,
+            cache_read_tokens: 125, cache_write_tokens: 25,
+            reasoning_tokens: 100,
+            total_tokens: 2_150, estimated: true,
             updated_at: '2026-08-29T02:00:00Z',
           },
         },
@@ -226,8 +228,10 @@ describe('AgentPage', () => {
     await waitFor(() => expect(harness.workspaceProps?.inspector).toMatchObject({
       usage: {
         phase: 'ready', has_snapshot: true, run_count: 3,
-        input_tokens: 1_200, output_tokens: 800, reasoning_tokens: 125,
-        total_tokens: 2_000, estimated: true,
+        input_tokens: 1_200, output_tokens: 800,
+        cache_read_tokens: 125, cache_write_tokens: 25,
+        reasoning_tokens: 100,
+        total_tokens: 2_150, estimated: true,
       },
     }))
     act(() => {
@@ -814,6 +818,8 @@ function runFixture(overrides: Partial<AgentRun> = {}): AgentRun {
     reasoning_level: 'off',
     usage: {
       input_tokens: 0,
+      cache_read_tokens: 0,
+      cache_write_tokens: 0,
       output_tokens: 0,
       reasoning_tokens: 0,
       total_tokens: 0,

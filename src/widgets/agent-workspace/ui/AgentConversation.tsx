@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import type { AgentWorkspaceMessage, AgentWorkspaceRunStatus } from '../model/types.ts'
 import type { AgentAttachment } from '#entities/agent'
 import { AgentMarkdown } from './AgentMarkdown.tsx'
+import { AgentTurnUsage } from './AgentTurnUsage.tsx'
 import { AgentToolTimeline } from './AgentToolTimeline.tsx'
 import styles from './AgentConversation.module.scss'
 
@@ -109,6 +110,12 @@ export function AgentConversation({
                     <span className={styles['message-failure']}><CircleAlert size={14} />{t(`agent.message.${message.status}`)}</span>
                   ) : null}
                 </div>
+                {message.role === 'assistant'
+                  && message.status !== 'streaming'
+                  && message.usage
+                  && message.usage.total_tokens > 0 ? (
+                  <AgentTurnUsage usage={message.usage} />
+                ) : null}
               </article>
             ))}
             {runStatus === 'starting' || runStatus === 'queued' ? (
@@ -146,7 +153,10 @@ function messageContentSignature(messages: AgentWorkspaceMessage[]) {
       }
       return `${part.id}:${part.kind}:${part.text.length}:${part.kind === 'reasoning' && part.streaming ? 1 : 0}`
     }).join(',')
-    return `${message.id}:${message.status}:${parts}`
+    const usage = message.usage
+      ? `${message.usage.input_tokens}:${message.usage.cache_read_tokens}:${message.usage.cache_write_tokens}:${message.usage.output_tokens}:${message.usage.total_tokens}:${message.usage.estimated ? 1 : 0}`
+      : ''
+    return `${message.id}:${message.status}:${parts}:${usage}`
   }).join('|')
 }
 

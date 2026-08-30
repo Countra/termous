@@ -634,9 +634,26 @@ export class AgentWorkspaceController {
 
   private async loadMessages(sessionId: string, afterSequence: number, signal?: AbortSignal) {
     const messages: AgentMessage[] = []
+    const messageIDs = new Set<string>()
+    const messageSequences = new Set<number>()
+    const turnUsageRunIDs = new Set<string>()
     let cursor = afterSequence
     for (let page = 0; page < maximumPageCount; page += 1) {
       const result = await this.gateway.messages(sessionId, { afterSequence: cursor, limit: 200, signal })
+      for (const message of result.items) {
+        if (message.session_id !== sessionId) {
+          throw new AgentWorkspaceControllerError('AGENT_MESSAGE_OWNER_INVALID')
+        }
+        if (message.sequence <= cursor || messageIDs.has(message.id) || messageSequences.has(message.sequence)) {
+          throw new AgentWorkspaceControllerError('AGENT_MESSAGE_PAGE_INVALID')
+        }
+        if (message.turn_usage && turnUsageRunIDs.has(message.turn_usage.run_id)) {
+          throw new AgentWorkspaceControllerError('AGENT_MESSAGE_TURN_USAGE_DUPLICATE')
+        }
+        messageIDs.add(message.id)
+        messageSequences.add(message.sequence)
+        if (message.turn_usage) turnUsageRunIDs.add(message.turn_usage.run_id)
+      }
       messages.push(...result.items)
       if (!result.next_after_sequence) break
       if (result.next_after_sequence <= cursor) throw new AgentWorkspaceControllerError('AGENT_MESSAGE_CURSOR_INVALID')
@@ -835,6 +852,8 @@ function usageRefreshSession(
 function runUsageRequiresRefresh(previous: AgentRun | undefined, next: AgentRun) {
   if (!previous || previous.generation !== next.generation) return isAgentRunTerminal(next.status)
   return previous.usage.input_tokens !== next.usage.input_tokens
+    || previous.usage.cache_read_tokens !== next.usage.cache_read_tokens
+    || previous.usage.cache_write_tokens !== next.usage.cache_write_tokens
     || previous.usage.output_tokens !== next.usage.output_tokens
     || previous.usage.reasoning_tokens !== next.usage.reasoning_tokens
     || previous.usage.total_tokens !== next.usage.total_tokens

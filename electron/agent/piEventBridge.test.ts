@@ -94,7 +94,9 @@ test('pi 事件映射流式片段、签名、Tool 时间线和累计 usage', () 
   assert.equal(tool.tool_name, 'termous.hosts.list')
   assert.equal(tool.duration_ms, 48)
   const usage = nested(sink.values[4]?.payload, 'usage')
-  assert.equal(usage.input_tokens, 9)
+  assert.equal(usage.input_tokens, 5)
+  assert.equal(usage.cache_read_tokens, 4)
+  assert.equal(usage.cache_write_tokens, 0)
   assert.equal(usage.output_tokens, 3)
   assert.equal(usage.total_tokens, 12)
 })
@@ -109,6 +111,8 @@ test('主 Agent 首次 usage 从上下文摘要累计值继续递增', () => {
       : null,
     initialUsage: {
       input_tokens: 100,
+      cache_read_tokens: 0,
+      cache_write_tokens: 0,
       output_tokens: 20,
       reasoning_tokens: 2,
       total_tokens: 120,
@@ -120,7 +124,9 @@ test('主 Agent 首次 usage 从上下文摘要累计值继续递增', () => {
 
   const usage = nested(sink.values.find((value) => value.kind === 'usage')?.payload, 'usage')
   assert.deepEqual(usage, {
-    input_tokens: 109,
+    input_tokens: 105,
+    cache_read_tokens: 4,
+    cache_write_tokens: 0,
     output_tokens: 23,
     reasoning_tokens: 3,
     total_tokens: 132,

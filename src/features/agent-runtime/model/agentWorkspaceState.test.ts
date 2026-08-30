@@ -260,13 +260,50 @@ test('新活动 Run 清理被替代 Run 的事件且删除会话同步清理子�
   assert.equal(state.active_run_id, undefined)
 })
 
-test('Run 终态同步收口 assistant 消息状态', () => {
+test('Run 终态同步收口 assistant 消息状态和本轮 Token 用量', () => {
   let state = workspaceWithRun()
+  const usage = {
+    input_tokens: 120,
+    cache_read_tokens: 40,
+    cache_write_tokens: 8,
+    output_tokens: 32,
+    reasoning_tokens: 12,
+    total_tokens: 200,
+    estimated: false,
+  }
   state = applyAgentWorkspaceEvent(state, {
     type: 'upsert', revision: 1,
-    run: agentRunFixture({ status: 'completed', revision: 2, completed_at: agentFixtureTime }),
+    run: agentRunFixture({ status: 'completed', usage, revision: 2, completed_at: agentFixtureTime }),
   }).state
   assert.equal(state.messages['ags-session']?.[0]?.status, 'completed')
+  assert.deepEqual(state.messages['ags-session']?.[0]?.turn_usage, {
+    run_id: 'agr-run', usage,
+  })
+})
+
+test('Run 状态已收口时仍接受后到的本轮 Token 用量', () => {
+  const message = agentMessageFixture({ status: 'completed' })
+  let state = workspaceWithRun(message)
+  state = applyAgentWorkspaceEvent(state, {
+    type: 'upsert', revision: 1,
+    run: agentRunFixture({
+      status: 'completed',
+      revision: 2,
+      completed_at: agentFixtureTime,
+      usage: {
+        input_tokens: 9,
+        cache_read_tokens: 3,
+        cache_write_tokens: 1,
+        output_tokens: 4,
+        reasoning_tokens: 0,
+        total_tokens: 17,
+        estimated: false,
+      },
+    }),
+  }).state
+
+  assert.equal(state.messages['ags-session']?.[0]?.status, 'completed')
+  assert.equal(state.messages['ags-session']?.[0]?.turn_usage?.usage.total_tokens, 17)
 })
 
 function workspaceWithRun(message = agentMessageFixture()) {

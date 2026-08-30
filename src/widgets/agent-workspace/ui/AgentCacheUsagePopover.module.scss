@@ -1,0 +1,116 @@
+.trigger {
+  display: inline-flex;
+  width: 17px;
+  height: 17px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: help;
+  padding: 0;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.trigger:hover,
+.trigger:focus-visible {
+  background: var(--row-hover-bg);
+  color: var(--text-secondary);
+  outline: none;
+}
+
+.trigger:focus-visible {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 58%, transparent);
+}
+
+.popover:global(.ant-popover) {
+  --agent-usage-popover-bg: var(--termous-dropdown-bg);
+  --ant-popover-bg: var(--agent-usage-popover-bg);
+  --antd-arrow-background-color: var(--agent-usage-popover-bg);
+
+  max-width: min(220px, calc(100vw - 24px));
+}
+
+.popover:global(.ant-popover) :global(.ant-popover-content) {
+  border-radius: 8px;
+  background: transparent;
+}
+
+.popover:global(.ant-popover) :global(.ant-popover-inner),
+.popover:global(.ant-popover) :global(.ant-popover-container),
+.popover:global(.ant-popover) :global(.ant-popover-unique-container) {
+  width: min(220px, calc(100vw - 24px));
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 8px;
+  background: var(--agent-usage-popover-bg) !important;
+  box-shadow:
+    0 14px 34px rgb(0 0 0 / 26%),
+    inset 0 1px 0 rgb(255 255 255 / 5%);
+  padding: 0;
+}
+
+.details {
+  color: var(--text-primary);
+  padding: 11px 12px 9px;
+}
+
+.details > strong {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 17px;
+}
+
+.details dl {
+  display: grid;
+  margin: 0;
+  gap: 1px;
+}
+
+.details dl > div {
+  display: grid;
+  min-height: 25px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.details dt,
+.details dd {
+  margin: 0;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.details dt {
+  color: var(--text-muted);
+}
+
+.details dd {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 580;
+  text-align: right;
+}
+
+.popover {
+  :global(:root[data-theme='light']) &:global(.ant-popover) :global(.ant-popover-inner),
+  :global(:root[data-theme='light']) &:global(.ant-popover) :global(.ant-popover-container),
+  :global(:root[data-theme='light']) &:global(.ant-popover) :global(.ant-popover-unique-container) {
+    box-shadow:
+      0 14px 32px rgb(30 44 64 / 14%),
+      inset 0 1px 0 rgb(255 255 255 / 92%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger {
+    transition: none;
+  }
+}

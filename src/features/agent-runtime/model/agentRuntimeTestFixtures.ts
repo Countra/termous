@@ -50,6 +50,8 @@ export function agentRunFixture(overrides: Partial<AgentRun> = {}): AgentRun {
     reasoning_level: 'medium',
     usage: {
       input_tokens: 0,
+      cache_read_tokens: 0,
+      cache_write_tokens: 0,
       output_tokens: 0,
       reasoning_tokens: 0,
       total_tokens: 0,

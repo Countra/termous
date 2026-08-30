@@ -75,7 +75,9 @@ test('摘要模型调用使用与主 Agent 相同的 Token 投影口径', () => 
   ])
 
   assert.deepEqual(usage, {
-    input_tokens: 16,
+    input_tokens: 12,
+    cache_read_tokens: 3,
+    cache_write_tokens: 1,
     output_tokens: 5,
     reasoning_tokens: 2,
     total_tokens: 21,

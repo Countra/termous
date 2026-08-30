@@ -387,6 +387,8 @@ export function AgentPage({
       run_count: usageSnapshot?.run_count ?? 0,
       input_tokens: usageSnapshot?.input_tokens ?? 0,
       output_tokens: usageSnapshot?.output_tokens ?? 0,
+      cache_read_tokens: usageSnapshot?.cache_read_tokens ?? 0,
+      cache_write_tokens: usageSnapshot?.cache_write_tokens ?? 0,
       reasoning_tokens: usageSnapshot?.reasoning_tokens ?? 0,
       total_tokens: usageSnapshot?.total_tokens ?? 0,
       estimated: usageSnapshot?.estimated ?? false,

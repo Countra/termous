@@ -8,7 +8,7 @@ import {
   sumPiUsage,
 } from './runtimeUsage.ts'
 
-test('pi usage 将缓存 Token 计入输入并保持 reasoning 属于输出', () => {
+test('pi usage 保留输入与缓存明细并保持 reasoning 属于输出', () => {
   assert.deepEqual(projectPiUsage(usage({
     input: 10,
     output: 8,
@@ -17,7 +17,9 @@ test('pi usage 将缓存 Token 计入输入并保持 reasoning 属于输出', ()
     reasoning: 3,
     totalTokens: 24,
   })), {
-    input_tokens: 16,
+    input_tokens: 10,
+    cache_read_tokens: 4,
+    cache_write_tokens: 2,
     output_tokens: 8,
     reasoning_tokens: 3,
     total_tokens: 24,
@@ -31,10 +33,12 @@ test('异常和溢出 Token 被限制在 JavaScript 安全整数内并标记为�
     output: 20,
     cacheRead: 10,
     reasoning: 20,
-    totalTokens: Number.POSITIVE_INFINITY,
+    totalTokens: Number.MAX_SAFE_INTEGER,
   }))
 
   assert.equal(projected.input_tokens, Number.MAX_SAFE_INTEGER)
+  assert.equal(projected.cache_read_tokens, 0)
+  assert.equal(projected.cache_write_tokens, 0)
   assert.equal(projected.output_tokens, 0)
   assert.equal(projected.reasoning_tokens, 0)
   assert.equal(projected.total_tokens, Number.MAX_SAFE_INTEGER)
@@ -42,9 +46,47 @@ test('异常和溢出 Token 被限制在 JavaScript 安全整数内并标记为�
   assert.equal(Number.isSafeInteger(projected.input_tokens + projected.output_tokens), true)
 })
 
+test('Provider 总量与分类和不一致时保留较大总量并标记为估算', () => {
+  assert.deepEqual(projectPiUsage(usage({
+    input: 10,
+    output: 5,
+    cacheRead: 2,
+    cacheWrite: 1,
+    totalTokens: 20,
+  })), {
+    input_tokens: 10,
+    cache_read_tokens: 2,
+    cache_write_tokens: 1,
+    output_tokens: 5,
+    reasoning_tokens: 0,
+    total_tokens: 20,
+    estimated: true,
+  })
+})
+
+test('Provider 总量小于分类和时使用分类下限并降级为估算', () => {
+  assert.deepEqual(projectPiUsage(usage({
+    input: 10,
+    output: 5,
+    cacheRead: 2,
+    cacheWrite: 1,
+    totalTokens: 17,
+  })), {
+    input_tokens: 10,
+    cache_read_tokens: 2,
+    cache_write_tokens: 1,
+    output_tokens: 5,
+    reasoning_tokens: 0,
+    total_tokens: 18,
+    estimated: true,
+  })
+})
+
 test('跨模型调用累计在饱和后保持单调且满足 Runtime usage 不变量', () => {
   const current = {
     input_tokens: Number.MAX_SAFE_INTEGER - 5,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
     output_tokens: 2,
     reasoning_tokens: 1,
     total_tokens: Number.MAX_SAFE_INTEGER - 1,
@@ -52,6 +94,8 @@ test('跨模型调用累计在饱和后保持单调且满足 Runtime usage 不�
   }
   const total = addRuntimeUsage(current, {
     input_tokens: 10,
+    cache_read_tokens: 2,
+    cache_write_tokens: 3,
     output_tokens: 8,
     reasoning_tokens: 4,
     total_tokens: 18,
@@ -60,6 +104,8 @@ test('跨模型调用累计在饱和后保持单调且满足 Runtime usage 不�
 
   assert.deepEqual(total, {
     input_tokens: Number.MAX_SAFE_INTEGER - 2,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
     output_tokens: 2,
     reasoning_tokens: 1,
     total_tokens: Number.MAX_SAFE_INTEGER,
@@ -77,6 +123,8 @@ test('多次 pi usage 使用同一累计规则', () => {
 
   assert.deepEqual(total, {
     input_tokens: 18,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
     output_tokens: 7,
     reasoning_tokens: 3,
     total_tokens: 25,
@@ -84,6 +132,8 @@ test('多次 pi usage 使用同一累计规则', () => {
   })
   assert.deepEqual(emptyRuntimeUsage(), {
     input_tokens: 0,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
     output_tokens: 0,
     reasoning_tokens: 0,
     total_tokens: 0,

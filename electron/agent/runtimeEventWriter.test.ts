@@ -67,6 +67,8 @@ test('Runtime Event Writer 以 64 条分批并保持单调 sequence', async () =
     writer.push('usage', {
       usage: {
         input_tokens: 0,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
         output_tokens: 0,
         reasoning_tokens: 0,
         total_tokens: 0,
@@ -100,6 +102,8 @@ test('外部 steer 写入与普通事件共享同一串行 sequence', async () =
   writer.push('usage', {
     usage: {
       input_tokens: 1,
+      cache_read_tokens: 0,
+      cache_write_tokens: 0,
       output_tokens: 1,
       reasoning_tokens: 0,
       total_tokens: 2,

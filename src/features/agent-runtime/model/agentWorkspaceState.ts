@@ -1,5 +1,6 @@
 import {
   isAgentRunActive,
+  isAgentRunTerminal,
   type AgentMessage,
   type AgentRun,
   type AgentRunEvent,
@@ -550,10 +551,29 @@ function applyRunMessageStatus(current: AgentWorkspaceState, run: AgentRun) {
       : run.status === 'cancelled' || run.status === 'interrupted'
         ? 'interrupted'
         : 'streaming'
-  if (messages[index]!.status === status) return current
+  const turnUsage = isAgentRunTerminal(run.status)
+    ? { run_id: run.id, usage: run.usage }
+    : undefined
+  const message = messages[index]!
+  if (message.status === status && messageTurnUsageEqual(message.turn_usage, turnUsage)) return current
   const next = [...messages]
-  next[index] = { ...messages[index]!, status, updated_at: run.updated_at }
+  next[index] = { ...message, status, updated_at: run.updated_at, turn_usage: turnUsage }
   return { ...current, messages: { ...current.messages, [run.session_id]: next } }
+}
+
+function messageTurnUsageEqual(
+  left: AgentMessage['turn_usage'],
+  right: AgentMessage['turn_usage'],
+) {
+  if (!left || !right) return left === right
+  return left.run_id === right.run_id
+    && left.usage.input_tokens === right.usage.input_tokens
+    && left.usage.cache_read_tokens === right.usage.cache_read_tokens
+    && left.usage.cache_write_tokens === right.usage.cache_write_tokens
+    && left.usage.output_tokens === right.usage.output_tokens
+    && left.usage.reasoning_tokens === right.usage.reasoning_tokens
+    && left.usage.total_tokens === right.usage.total_tokens
+    && left.usage.estimated === right.usage.estimated
 }
 
 function withoutKey<Value>(values: Record<string, Value>, key: string) {

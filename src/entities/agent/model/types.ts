@@ -288,6 +288,12 @@ export interface AgentMessage {
   updated_at: string
   parts: AgentMessagePart[]
   attachments: AgentAttachment[]
+  turn_usage?: AgentMessageTurnUsage
+}
+
+export interface AgentMessageTurnUsage {
+  run_id: string
+  usage: AgentUsage
 }
 
 export interface AgentMessagePage {
@@ -313,6 +319,8 @@ export interface AgentSessionContext {
 
 export interface AgentUsage {
   input_tokens: number
+  cache_read_tokens: number
+  cache_write_tokens: number
   output_tokens: number
   reasoning_tokens: number
   total_tokens: number

@@ -150,6 +150,11 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
   ascending(parts.map(({ sequence }) => sequence), 'Agent 消息片段 sequence 无序')
   const id = identifier(source.id, 'Agent 消息 ID 无效')
   const sessionId = identifier(source.session_id, 'Agent 消息 Session ID 无效')
+  const role = enumValue<AgentMessageRole>(source.role, agentMessageRoles, 'Agent 消息角色无效')
+  const status = enumValue<AgentMessageStatus>(source.status, agentMessageStatuses, 'Agent 消息状态无效')
+  const turnUsage = source.turn_usage === undefined
+    ? undefined
+    : decodeAgentMessageTurnUsage(source.turn_usage)
   const attachments = array(source.attachments ?? [], 'Agent 消息附件列表无效', 8)
     .map(decodeAgentAttachment)
   unique(attachments.map(({ id: attachmentId }) => attachmentId), 'Agent 消息包含重复附件 ID')
@@ -159,17 +164,24 @@ export function decodeAgentMessage(value: unknown): AgentMessage {
   if (attachments.some(({ session_id }) => session_id !== sessionId)) {
     throw new AgentRuntimeProtocolError('Agent 消息附件归属无效')
   }
+  if (turnUsage && role !== 'assistant') {
+    throw new AgentRuntimeProtocolError('只有 Agent 回复消息可以携带本轮 Token 用量')
+  }
+  if (turnUsage && (status === 'pending' || status === 'streaming')) {
+    throw new AgentRuntimeProtocolError('Agent 流式回复不得携带本轮 Token 用量')
+  }
   return {
     id,
     session_id: sessionId,
-    role: enumValue<AgentMessageRole>(source.role, agentMessageRoles, 'Agent 消息角色无效'),
-    status: enumValue<AgentMessageStatus>(source.status, agentMessageStatuses, 'Agent 消息状态无效'),
+    role,
+    status,
     sequence: positiveInteger(source.sequence, 'Agent 消息 sequence 无效'),
     revision: positiveInteger(source.revision, 'Agent 消息 revision 无效'),
     created_at: timestamp(source.created_at, 'Agent 消息创建时间无效'),
     updated_at: timestamp(source.updated_at, 'Agent 消息更新时间无效'),
     parts,
     attachments,
+    turn_usage: turnUsage,
   }
 }
 
@@ -204,6 +216,9 @@ export function decodeAgentMessagePage(value: unknown): AgentMessagePage {
   const source = record(value, 'Agent 消息列表响应无效')
   const items = array(source.items, 'Agent 消息列表无效', 200).map(decodeAgentMessage)
   unique(items.map(({ id }) => id), 'Agent 消息列表包含重复 ID')
+  unique(items.flatMap(({ turn_usage: turnUsage }) => (
+    turnUsage ? [turnUsage.run_id] : []
+  )), 'Agent 消息列表包含重复的本轮 Run 用量')
   ascending(items.map(({ sequence }) => sequence), 'Agent 消息 sequence 无序')
   return {
     items,
@@ -402,22 +417,34 @@ function decodeAgentContextCheckpoint(value: unknown) {
 function decodeUsage(value: unknown): AgentUsage {
   const source = record(value, 'Agent usage 无效')
   const inputTokens = nonNegativeInteger(source.input_tokens, 'Agent input token 无效')
+  const cacheReadTokens = nonNegativeInteger(source.cache_read_tokens, 'Agent cache read token 无效')
+  const cacheWriteTokens = nonNegativeInteger(source.cache_write_tokens, 'Agent cache write token 无效')
   const outputTokens = nonNegativeInteger(source.output_tokens, 'Agent output token 无效')
   const reasoningTokens = nonNegativeInteger(source.reasoning_tokens, 'Agent reasoning token 无效')
   const totalTokens = nonNegativeInteger(source.total_tokens, 'Agent total token 无效')
   if (reasoningTokens > outputTokens) {
     throw new AgentRuntimeProtocolError('Agent reasoning token 不得超过 output token')
   }
-  const minimumTotal = inputTokens + outputTokens
+  const minimumTotal = inputTokens + cacheReadTokens + cacheWriteTokens + outputTokens
   if (!Number.isSafeInteger(minimumTotal) || totalTokens < minimumTotal) {
-    throw new AgentRuntimeProtocolError('Agent total token 小于 input 与 output token 之和')
+    throw new AgentRuntimeProtocolError('Agent total token 小于 input、缓存与 output token 之和')
   }
   return {
     input_tokens: inputTokens,
+    cache_read_tokens: cacheReadTokens,
+    cache_write_tokens: cacheWriteTokens,
     output_tokens: outputTokens,
     reasoning_tokens: reasoningTokens,
     total_tokens: totalTokens,
     estimated: bool(source.estimated, 'Agent usage 估算状态无效'),
+  }
+}
+
+function decodeAgentMessageTurnUsage(value: unknown) {
+  const source = record(value, 'Agent 消息本轮 Token 用量无效')
+  return {
+    run_id: identifier(source.run_id, 'Agent 消息本轮 Run ID 无效'),
+    usage: decodeUsage(source.usage),
   }
 }
 

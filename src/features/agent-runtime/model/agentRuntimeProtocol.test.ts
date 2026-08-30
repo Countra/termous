@@ -4,6 +4,7 @@ import {
   AgentRuntimeProtocolError,
   decodeAgentAttachment,
   decodeAgentMessage,
+  decodeAgentMessagePage,
   decodeAgentRunEventPage,
   decodeAgentSessionContext,
   decodeAgentSessionUsage,
@@ -35,6 +36,31 @@ test('Run 与模型快照必须归属于同一 Provider', () => {
     sessions: [agentSessionFixture()],
     active_runs: [agentRunFixture({ provider_id: 'apv-other' })],
   }), /Provider 归属不一致/)
+})
+
+test('Run usage 要求缓存读写明细并校验完整分类和', () => {
+  const run = agentRunFixture()
+  const missingCacheRead = { ...run.usage } as Record<string, unknown>
+  delete missingCacheRead.cache_read_tokens
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()],
+    active_runs: [{ ...run, usage: missingCacheRead }],
+  }), /cache read token/)
+
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()],
+    active_runs: [{
+      ...run,
+      usage: {
+        ...run.usage,
+        input_tokens: Number.MAX_SAFE_INTEGER,
+        cache_read_tokens: 1,
+        total_tokens: Number.MAX_SAFE_INTEGER,
+      },
+    }],
+  }), /total token/)
 })
 
 test('工作区 upsert 严格要求一个实体且增量 revision 必须递增起步', () => {
@@ -120,6 +146,45 @@ test('消息协议投影附件与结构化来源上下文', () => {
   })), /附件归属/)
 })
 
+test('消息协议仅允许终态 Agent 回复携带唯一的本轮 Token 用量', () => {
+  const usage = {
+    input_tokens: 120,
+    cache_read_tokens: 30,
+    cache_write_tokens: 10,
+    output_tokens: 40,
+    reasoning_tokens: 8,
+    total_tokens: 200,
+    estimated: false,
+  }
+  const message = decodeAgentMessage(messageResponse({
+    status: 'completed',
+    turn_usage: { run_id: 'agr-run', usage },
+  }))
+
+  assert.deepEqual(message.turn_usage, { run_id: 'agr-run', usage })
+  assert.throws(() => decodeAgentMessage(messageResponse({
+    role: 'user',
+    status: 'completed',
+    turn_usage: { run_id: 'agr-run', usage },
+  })), /只有 Agent 回复/)
+  assert.throws(() => decodeAgentMessage(messageResponse({
+    status: 'streaming',
+    turn_usage: { run_id: 'agr-run', usage },
+  })), /流式回复/)
+  assert.throws(() => decodeAgentMessagePage({
+    items: [
+      messageResponse({
+        id: 'agm-assistant-one', sequence: 1, status: 'completed',
+        turn_usage: { run_id: 'agr-run', usage },
+      }),
+      messageResponse({
+        id: 'agm-assistant-two', sequence: 2, status: 'completed',
+        turn_usage: { run_id: 'agr-run', usage },
+      }),
+    ],
+  }), /重复的本轮 Run/)
+})
+
 test('附件协议拒绝无效大小与未知状态', () => {
   assert.equal(decodeAgentAttachment(attachmentResponse()).kind, 'text')
   assert.throws(() => decodeAgentAttachment(attachmentResponse({ size_bytes: 0 })), /大小/)
@@ -166,14 +231,16 @@ test('会话 Token 统计严格校验归属和聚合关系', () => {
     run_count: 3,
     input_tokens: 1_200,
     output_tokens: 320,
+    cache_read_tokens: 80,
+    cache_write_tokens: 20,
     reasoning_tokens: 80,
-    total_tokens: 1_520,
+    total_tokens: 1_620,
     estimated: false,
     updated_at: agentFixtureTime,
   }
 
   const usage = decodeAgentSessionUsage(response, 'ags-session')
-  assert.equal(usage.total_tokens, 1_520)
+  assert.equal(usage.total_tokens, 1_620)
   assert.equal(usage.updated_at, agentFixtureTime)
   assert.throws(() => decodeAgentSessionUsage({
     ...response, session_id: 'ags-other',
@@ -182,16 +249,24 @@ test('会话 Token 统计严格校验归属和聚合关系', () => {
     ...response, run_count: Number.MAX_SAFE_INTEGER + 1,
   }), /Run 数量/)
   assert.throws(() => decodeAgentSessionUsage({
+    ...response, cache_read_tokens: Number.MAX_SAFE_INTEGER + 1,
+  }), /cache read token/)
+  assert.throws(() => decodeAgentSessionUsage({
+    ...response, cache_write_tokens: Number.MAX_SAFE_INTEGER + 1,
+  }), /cache write token/)
+  assert.throws(() => decodeAgentSessionUsage({
     ...response, reasoning_tokens: 321,
   }), /reasoning token/)
   assert.throws(() => decodeAgentSessionUsage({
-    ...response, total_tokens: 1_519,
+    ...response, total_tokens: 1_619,
   }), /total token/)
   assert.throws(() => decodeAgentSessionUsage({
     ...response,
     input_tokens: Number.MAX_SAFE_INTEGER,
     output_tokens: 1,
     reasoning_tokens: 0,
+    cache_read_tokens: 0,
+    cache_write_tokens: 0,
     total_tokens: Number.MAX_SAFE_INTEGER,
   }), /total token/)
 })

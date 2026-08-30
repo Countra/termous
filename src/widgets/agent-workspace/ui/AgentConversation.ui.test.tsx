@@ -1,10 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentWorkspaceMessage } from '../model/types.ts'
 import { AgentConversation } from './AgentConversation.tsx'
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string) => {
+      if (key === 'agent.message.turnUsage') return '本轮用量'
+      if (key === 'agent.message.turnTotal') return '总量'
+      return key
+    },
+    i18n: { resolvedLanguage: 'zh-CN' },
+  }),
 }))
 
 vi.mock('./AgentMarkdown.tsx', () => ({
@@ -74,6 +81,117 @@ describe('AgentConversation', () => {
     expect(screen.getByText('生产主机')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'diagnostic.txt' }))
     expect(onPreviewAttachment).toHaveBeenCalledWith(expect.objectContaining({ id: 'attachment-one' }))
+  })
+
+  it('在终态 Agent 回复末尾展示本轮 Token 明细与缓存详情', async () => {
+    const value = message('已完成')
+    value.status = 'completed'
+    value.usage = {
+      input_tokens: 1_200,
+      cache_read_tokens: 125,
+      cache_write_tokens: 25,
+      output_tokens: 800,
+      reasoning_tokens: 100,
+      total_tokens: 2_150,
+      estimated: false,
+    }
+    const view = render(
+      <AgentConversation messages={[value]} runStatus="completed" loading={false} sessionKey="session-one" />,
+    )
+
+    const usage = screen.getByLabelText('本轮用量')
+    expect(within(usage).getByText('本轮用量')).toBeInTheDocument()
+    expect(within(usage).getByText('总量')).toBeInTheDocument()
+    expect(within(usage).getByText('2,150')).toBeInTheDocument()
+    expect(within(usage).getByText('1,200')).toBeInTheDocument()
+    expect(within(usage).getByText('800')).toBeInTheDocument()
+    expect(within(usage).getByText('125')).toBeInTheDocument()
+
+    fireEvent.mouseEnter(within(usage).getByRole('button', { name: 'agent.inspector.cacheDetails' }))
+    const details = await screen.findByRole('group', { name: 'agent.inspector.cacheDetailsTitle' })
+    expect(within(details).getByText('agent.inspector.cacheWriteTokens')).toBeInTheDocument()
+    expect(within(details).getByText('25')).toBeInTheDocument()
+    expect(within(details).getByText('125')).toBeInTheDocument()
+
+    view.rerender(
+      <AgentConversation
+        messages={[{ ...value, usage: { ...value.usage!, estimated: true } }]}
+        runStatus="completed"
+        loading={false}
+        sessionKey="session-one"
+      />,
+    )
+    expect(within(screen.getByLabelText('本轮用量'))
+      .getByText('agent.inspector.partialUsage')).toBeInTheDocument()
+
+    view.rerender(
+      <AgentConversation
+        messages={[{ ...value, status: 'streaming' }]}
+        runStatus="running"
+        loading={false}
+        sessionKey="session-one"
+      />,
+    )
+    expect(screen.queryByLabelText('本轮用量')).not.toBeInTheDocument()
+  })
+
+  it('同一终态回复后到 Token 用量时继续跟随对话尾部', () => {
+    const value = message('已完成')
+    value.status = 'completed'
+    const view = render(
+      <AgentConversation messages={[value]} runStatus="completed" loading={false} sessionKey="session-one" />,
+    )
+    const viewport = view.container.querySelector('[role="log"]') as HTMLDivElement
+    const scrollTo = vi.fn()
+    Object.defineProperties(viewport, {
+      clientHeight: { configurable: true, value: 300 },
+      scrollHeight: { configurable: true, value: 1_000 },
+      scrollTop: { configurable: true, writable: true, value: 700 },
+      scrollTo: { configurable: true, value: scrollTo },
+    })
+
+    view.rerender(
+      <AgentConversation
+        messages={[{
+          ...value,
+          usage: {
+            input_tokens: 80,
+            cache_read_tokens: 10,
+            cache_write_tokens: 0,
+            output_tokens: 30,
+            reasoning_tokens: 0,
+            total_tokens: 120,
+            estimated: false,
+          },
+        }]}
+        runStatus="completed"
+        loading={false}
+        sessionKey="session-one"
+      />,
+    )
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1_000 })
+  })
+
+  it('用户消息即使包含异常用量数据也不展示统计', () => {
+    const value = message('继续检查')
+    value.role = 'user'
+    value.status = 'completed'
+    value.usage = {
+      input_tokens: 80,
+      cache_read_tokens: 10,
+      cache_write_tokens: 0,
+      output_tokens: 30,
+      reasoning_tokens: 0,
+      total_tokens: 120,
+      estimated: false,
+    }
+
+    render(
+      <AgentConversation messages={[value]} runStatus="completed" loading={false} sessionKey="session-one" />,
+    )
+
+    expect(screen.queryByLabelText('本轮用量')).not.toBeInTheDocument()
   })
 })
 

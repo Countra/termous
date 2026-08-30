@@ -1,4 +1,4 @@
-import type { AgentAttachment, AgentSourceContext } from '#entities/agent'
+import type { AgentAttachment, AgentSourceContext, AgentUsage } from '#entities/agent'
 
 export type AgentWorkspaceRunStatus =
   | 'idle'
@@ -74,6 +74,7 @@ export interface AgentWorkspaceMessage {
   parts: AgentWorkspaceMessagePart[]
   attachments: AgentAttachment[]
   source_context?: AgentSourceContext
+  usage?: AgentUsage
 }
 
 export interface AgentWorkspaceDraftAttachment {
@@ -108,6 +109,8 @@ export interface AgentWorkspaceUsageState {
   run_count: number
   input_tokens: number
   output_tokens: number
+  cache_read_tokens: number
+  cache_write_tokens: number
   reasoning_tokens: number
   total_tokens: number
   estimated: boolean
