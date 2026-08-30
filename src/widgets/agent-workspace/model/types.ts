@@ -149,6 +149,7 @@ export interface AgentWorkspaceProps {
   draft_attachments: AgentWorkspaceDraftAttachment[]
   supports_images: boolean
   model_runnable: boolean
+  show_turn_token_usage: boolean
   loading: boolean
   busy: boolean
   active_run?: {

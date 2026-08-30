@@ -30,6 +30,7 @@ export class AgentSetupClient extends TermousApiTransport implements AgentSetupG
   updateSettings(input: {
     default_model_id: string
     default_reasoning_level: AgentReasoningLevel
+    show_turn_token_usage: boolean
     expected_revision: number
   }, signal?: AbortSignal) {
     return this.request<unknown>(`${agentPath}/settings`, { method: 'PATCH', body: input, signal }).then(decodeAgentSettings)

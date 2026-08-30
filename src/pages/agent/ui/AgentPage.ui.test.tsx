@@ -764,6 +764,7 @@ function readinessFixture(
     settings: {
       default_model_id: 'model-one',
       default_reasoning_level: 'off',
+      show_turn_token_usage: true,
       revision: 1,
       created_at: '2026-08-29T00:00:00Z',
       updated_at: '2026-08-29T00:00:00Z',

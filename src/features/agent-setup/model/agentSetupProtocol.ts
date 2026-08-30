@@ -96,6 +96,7 @@ export function decodeAgentSettings(value: unknown): AgentSettings {
       ? undefined
       : string(source.default_model_id, 'Agent 默认模型无效', false, 128),
     default_reasoning_level: enumValue<AgentReasoningLevel>(source.default_reasoning_level, agentReasoningLevels, 'Agent 默认推理级别无效'),
+    show_turn_token_usage: boolean(source.show_turn_token_usage, 'Agent 每轮 Token 用量展示设置无效'),
     revision: positiveInteger(source.revision, 'Agent 设置 revision 无效'),
     created_at: timestamp(source.created_at, 'Agent 设置创建时间缺失'),
     updated_at: timestamp(source.updated_at, 'Agent 设置更新时间缺失'),

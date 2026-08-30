@@ -19,6 +19,7 @@ export interface AgentSetupGateway {
   updateSettings(input: {
     default_model_id: string
     default_reasoning_level: AgentReasoningLevel
+    show_turn_token_usage: boolean
     expected_revision: number
   }, signal?: AbortSignal): Promise<AgentSettings>
   readiness(signal?: AbortSignal): Promise<AgentReadiness>

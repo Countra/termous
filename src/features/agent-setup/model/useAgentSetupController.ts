@@ -169,16 +169,22 @@ export function useAgentSetupController(gateway: AgentSetupGateway) {
     },
   ), [execute, gateway])
 
-  const updateSettings = useCallback((defaultModelId: string, reasoning: AgentReasoningLevel) => {
+  const updateSettings = useCallback((patch: {
+    default_model_id?: string
+    default_reasoning_level?: AgentReasoningLevel
+    show_turn_token_usage?: boolean
+  }) => {
     if (!readiness) return Promise.reject(new Error('Agent settings are unavailable'))
+    const currentSettings = readiness.settings
     return execute(
       'settings',
       { conflict: { kind: 'settings' }, reconcileAfterSuccess: true },
       async (signal, isCurrent) => {
         const settings = await gateway.updateSettings({
-          default_model_id: defaultModelId,
-          default_reasoning_level: reasoning,
-          expected_revision: readiness.settings.revision,
+          default_model_id: patch.default_model_id ?? currentSettings.default_model_id ?? '',
+          default_reasoning_level: patch.default_reasoning_level ?? currentSettings.default_reasoning_level,
+          show_turn_token_usage: patch.show_turn_token_usage ?? currentSettings.show_turn_token_usage,
+          expected_revision: currentSettings.revision,
         }, signal)
         if (isCurrent()) setReadiness((current) => current ? { ...current, settings } : current)
         return settings

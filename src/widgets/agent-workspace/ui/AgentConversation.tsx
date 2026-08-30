@@ -14,12 +14,14 @@ export function AgentConversation({
   runStatus,
   loading,
   sessionKey,
+  showTurnTokenUsage = true,
   onPreviewAttachment = () => undefined,
 }: {
   messages: AgentWorkspaceMessage[]
   runStatus: AgentWorkspaceRunStatus
   loading: boolean
   sessionKey: string
+  showTurnTokenUsage?: boolean
   onPreviewAttachment?: (attachment: AgentAttachment) => void
 }) {
   const { t } = useTranslation()
@@ -110,7 +112,8 @@ export function AgentConversation({
                     <span className={styles['message-failure']}><CircleAlert size={14} />{t(`agent.message.${message.status}`)}</span>
                   ) : null}
                 </div>
-                {message.role === 'assistant'
+                {showTurnTokenUsage
+                  && message.role === 'assistant'
                   && message.status !== 'streaming'
                   && message.usage
                   && message.usage.total_tokens > 0 ? (

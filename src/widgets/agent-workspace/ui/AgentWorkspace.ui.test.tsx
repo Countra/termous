@@ -554,6 +554,7 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
       mcp: { connection: 'connected', tool_count: 76, scope_count: 29, approval_bypass: false },
     },
     draft: '', draft_attachments: [], supports_images: false, model_runnable: true,
+    show_turn_token_usage: true,
     loading: false, busy: false, run_blocked: false,
     onCreateSession: vi.fn(), onSelectSession: vi.fn(), onReturnToActiveRun: vi.fn(),
     onArchiveSession: vi.fn(), onDeleteSession: vi.fn(),

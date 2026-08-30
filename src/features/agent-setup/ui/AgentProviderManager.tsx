@@ -358,12 +358,12 @@ export function AgentProviderManager({
                         setEditModelId(model.id)
                       }}
                       onTest={(model) => setTestModelId(model.id)}
-                      onSetDefault={(model) => void runtime.updateSettings(
-                        model.id,
-                        model.supports_reasoning
+                      onSetDefault={(model) => void runtime.updateSettings({
+                        default_model_id: model.id,
+                        default_reasoning_level: model.supports_reasoning
                           ? runtime.readiness?.settings.default_reasoning_level ?? 'off'
                           : 'off',
-                      ).catch(() => undefined)}
+                      }).catch(() => undefined)}
                     />
                   ),
                 }] : []),

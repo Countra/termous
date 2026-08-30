@@ -20,12 +20,44 @@ describe('useAgentSetupController', () => {
     const view = renderHook(() => useAgentSetupController(gateway))
     await waitFor(() => expect(view.result.current.loading).toBe(false))
 
-    await act(async () => { await view.result.current.updateSettings('', 'off') })
+    await act(async () => {
+      await view.result.current.updateSettings({
+        default_model_id: '',
+        default_reasoning_level: 'off',
+      })
+    })
 
     expect(gateway.updateSettings).toHaveBeenCalledWith({
-      default_model_id: '', default_reasoning_level: 'off', expected_revision: 2,
+      default_model_id: '', default_reasoning_level: 'off',
+      show_turn_token_usage: true, expected_revision: 2,
     }, expect.any(AbortSignal))
     expect(view.result.current.readiness?.settings).toEqual(refreshed.settings)
+  })
+
+  it('切换每轮 Token 展示时完整保留当前默认设置', async () => {
+    const readiness = readinessFixture(4, 'apm-1', 'high')
+    const updated = {
+      ...readiness.settings,
+      show_turn_token_usage: false,
+      revision: 5,
+    }
+    const gateway = gatewayFixture({ readiness })
+    vi.mocked(gateway.updateSettings).mockResolvedValue(updated)
+    vi.mocked(gateway.readiness)
+      .mockResolvedValueOnce(readiness)
+      .mockResolvedValue({ ...readiness, settings: updated })
+    const view = renderHook(() => useAgentSetupController(gateway))
+    await waitFor(() => expect(view.result.current.loading).toBe(false))
+
+    await act(async () => {
+      await view.result.current.updateSettings({ show_turn_token_usage: false })
+    })
+
+    expect(gateway.updateSettings).toHaveBeenCalledWith({
+      default_model_id: 'apm-1', default_reasoning_level: 'high',
+      show_turn_token_usage: false, expected_revision: 4,
+    }, expect.any(AbortSignal))
+    expect(view.result.current.readiness?.settings).toEqual(updated)
   })
 
   it('创建 Provider 时原子保存密钥并使用服务端 revision 刷新目录', async () => {
@@ -167,7 +199,10 @@ describe('useAgentSetupController', () => {
     const view = renderHook(() => useAgentSetupController(gateway))
     await waitFor(() => expect(view.result.current.loading).toBe(false))
 
-    const mutation = view.result.current.updateSettings('', 'off')
+    const mutation = view.result.current.updateSettings({
+      default_model_id: '',
+      default_reasoning_level: 'off',
+    })
     await waitFor(() => expect(receivedSignal).toBeDefined())
     view.unmount()
     expect(receivedSignal?.aborted).toBe(true)
@@ -237,7 +272,7 @@ function readinessFixture(revision = 1, defaultModelId = '', reasoning: 'off' | 
     mcp_policy: { client_id: 'client-1', approval_bypass: false, scope_count: 29, required_scope_count: 29, scope_sync_required: false, revision: 1 },
     settings: {
       ...(defaultModelId ? { default_model_id: defaultModelId } : {}),
-      default_reasoning_level: reasoning, revision,
+      default_reasoning_level: reasoning, show_turn_token_usage: true, revision,
       created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
     },
   }

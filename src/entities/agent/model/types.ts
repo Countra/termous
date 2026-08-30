@@ -13,6 +13,7 @@ export type AgentReadinessComponentState = (typeof agentReadinessComponentStates
 export interface AgentSettings {
   default_model_id?: string
   default_reasoning_level: AgentReasoningLevel
+  show_turn_token_usage: boolean
   revision: number
   created_at: string
   updated_at: string

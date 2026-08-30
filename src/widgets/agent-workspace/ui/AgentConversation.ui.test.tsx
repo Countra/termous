@@ -135,6 +135,33 @@ describe('AgentConversation', () => {
     expect(screen.queryByLabelText('本轮用量')).not.toBeInTheDocument()
   })
 
+  it('关闭每轮 Token 展示后隐藏终态回复尾注但保留消息正文', () => {
+    const value = message('已完成')
+    value.status = 'completed'
+    value.usage = {
+      input_tokens: 80,
+      cache_read_tokens: 10,
+      cache_write_tokens: 0,
+      output_tokens: 30,
+      reasoning_tokens: 0,
+      total_tokens: 120,
+      estimated: false,
+    }
+
+    render(
+      <AgentConversation
+        messages={[value]}
+        runStatus="completed"
+        loading={false}
+        sessionKey="session-one"
+        showTurnTokenUsage={false}
+      />,
+    )
+
+    expect(screen.getByText('已完成')).toBeInTheDocument()
+    expect(screen.queryByLabelText('本轮用量')).not.toBeInTheDocument()
+  })
+
   it('同一终态回复后到 Token 用量时继续跟随对话尾部', () => {
     const value = message('已完成')
     value.status = 'completed'

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Alert, Button, Select, Switch } from 'antd'
 import {
   BrainCircuit,
+  ChartNoAxesColumnIncreasing,
   Check,
   CircleAlert,
   RefreshCw,
@@ -142,7 +143,10 @@ export function AgentRuntimeSettings({ runtime }: { runtime: AgentSetupControlle
                     const reasoning = selected && !selected.supports_reasoning
                       ? 'off'
                       : readiness.settings.default_reasoning_level
-                    consume(runtime.updateSettings(value ?? '', reasoning))
+                    consume(runtime.updateSettings({
+                      default_model_id: value ?? '',
+                      default_reasoning_level: reasoning,
+                    }))
                   }}
                 />
               </label>
@@ -160,10 +164,9 @@ export function AgentRuntimeSettings({ runtime }: { runtime: AgentSetupControlle
                       label: t(`settings.agent.reasoning.${value}`),
                       disabled: value !== 'off' && Boolean(defaultModel && !defaultModel.supports_reasoning),
                     }))}
-                  onChange={(value) => consume(runtime.updateSettings(
-                    readiness.settings.default_model_id ?? '',
-                    value,
-                  ))}
+                  onChange={(value) => consume(runtime.updateSettings({
+                    default_reasoning_level: value,
+                  }))}
                 />
               </label>
             </div>
@@ -178,6 +181,30 @@ export function AgentRuntimeSettings({ runtime }: { runtime: AgentSetupControlle
             ) : null}
           </section>
 
+          <section className={styles['agent-setting-row']} aria-labelledby="agent-turn-usage-title">
+            <span className={styles['agent-setting-icon']} aria-hidden="true">
+              <ChartNoAxesColumnIncreasing size={16} />
+            </span>
+            <div className={styles['agent-setting-copy']}>
+              <strong id="agent-turn-usage-title">{t('settings.agent.turnUsage.title')}</strong>
+              <span>{t('settings.agent.turnUsage.description')}</span>
+            </div>
+            <div className={styles['toggle-control']}>
+              <span>{t(readiness.settings.show_turn_token_usage
+                ? 'settings.agent.turnUsage.visible'
+                : 'settings.agent.turnUsage.hidden')}</span>
+              <Switch
+                aria-label={t('settings.agent.turnUsage.toggle')}
+                checked={readiness.settings.show_turn_token_usage}
+                loading={runtime.mutation === 'settings'}
+                disabled={busy}
+                onChange={(checked) => consume(runtime.updateSettings({
+                  show_turn_token_usage: checked,
+                }))}
+              />
+            </div>
+          </section>
+
           <section className={styles['agent-setting-row']} aria-labelledby="agent-policy-title">
             <span className={styles['agent-setting-icon']} aria-hidden="true">
               <ShieldCheck size={16} />
@@ -187,7 +214,7 @@ export function AgentRuntimeSettings({ runtime }: { runtime: AgentSetupControlle
               <span>{t('settings.agent.policy.description')}</span>
             </div>
             {readiness.mcp_policy ? (
-              <div className={styles['policy-control']}>
+              <div className={styles['toggle-control']}>
                 <span>{t(readiness.mcp_policy.approval_bypass
                   ? 'settings.agent.policy.bypass'
                   : 'settings.agent.policy.review')}</span>

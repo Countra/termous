@@ -271,7 +271,7 @@
   width: 100%;
 }
 
-.policy-control {
+.toggle-control {
   display: flex;
   min-width: 0;
   align-items: center;
@@ -279,7 +279,7 @@
   gap: 10px;
 }
 
-.policy-control > span {
+.toggle-control > span {
   color: var(--text-secondary);
   font-size: 11px;
   font-weight: 620;
@@ -483,13 +483,13 @@
   }
 
   .default-controls,
-  .policy-control,
+  .toggle-control,
   .scope-sync,
   .agent-setting-alert {
     grid-column: 2;
   }
 
-  .policy-control {
+  .toggle-control {
     justify-content: flex-start;
   }
 

@@ -2,7 +2,7 @@ import { App as AntdApp } from 'antd'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentModel, AgentModelProvider, AgentReadiness } from '#entities/agent'
+import type { AgentModel, AgentModelProvider, AgentReadiness, AgentSettings } from '#entities/agent'
 import { TermousApiError } from '#shared/api'
 import type { AgentSetupGateway } from '../api/agentSetupGateway.ts'
 
@@ -52,13 +52,46 @@ describe('AgentSettingsPanel', () => {
     renderPanel(gateway)
     await screen.findByText('settings.agent.providers.empty')
 
-    await user.click(screen.getAllByRole('switch')[0]!)
+    await user.click(screen.getByRole('switch', { name: 'settings.agent.policy.approval' }))
     expect(screen.getByText('settings.agent.confirmBypass.description')).toBeInTheDocument()
     expect(gateway.updateMcpPolicy).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'settings.agent.confirmBypass.confirm' }))
     await waitFor(() => expect(gateway.updateMcpPolicy).toHaveBeenCalledWith(
       expect.objectContaining({ approval_bypass: true }), expect.any(AbortSignal),
     ))
+  })
+
+  it('保存每轮 Token 展示设置时完整提交当前设置并禁用开关', async () => {
+    const user = userEvent.setup()
+    const readiness = readinessFixture(7, 'apm-1')
+    const updatedSettings: AgentSettings = {
+      ...readiness.settings,
+      show_turn_token_usage: false,
+      revision: 8,
+    }
+    const pending = deferred<AgentSettings>()
+    const gateway = gatewayFixture({ readiness })
+    vi.mocked(gateway.updateSettings).mockReturnValue(pending.promise)
+    vi.mocked(gateway.readiness)
+      .mockResolvedValueOnce(readiness)
+      .mockResolvedValue({ ...readiness, settings: updatedSettings })
+    renderPanel(gateway)
+
+    const toggle = await screen.findByRole('switch', { name: 'settings.agent.turnUsage.toggle' })
+    expect(toggle).toBeChecked()
+    await user.click(toggle)
+
+    await waitFor(() => expect(gateway.updateSettings).toHaveBeenCalledWith({
+      default_model_id: 'apm-1',
+      default_reasoning_level: 'off',
+      show_turn_token_usage: false,
+      expected_revision: 7,
+    }, expect.any(AbortSignal)))
+    expect(toggle).toBeDisabled()
+
+    pending.resolve(updatedSettings)
+    await waitFor(() => expect(toggle).toBeEnabled())
+    expect(toggle).not.toBeChecked()
   })
 
   it('不支持 reasoning 的默认模型禁用高等级选项', async () => {
@@ -618,7 +651,7 @@ function readinessFixture(revision = 1, defaultModelId = ''): AgentReadiness {
     },
     settings: {
       ...(defaultModelId ? { default_model_id: defaultModelId } : {}),
-      default_reasoning_level: 'off', revision,
+      default_reasoning_level: 'off', show_turn_token_usage: true, revision,
       created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
     },
   }
@@ -643,4 +676,14 @@ function modelFixture(revision = 1): AgentModel {
     supports_images: false, supports_reasoning: true, capabilities_confirmed: false, revision,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
   }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
 }

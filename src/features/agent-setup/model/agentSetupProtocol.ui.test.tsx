@@ -14,6 +14,7 @@ describe('Agent setup protocol', () => {
   it('严格解析缺省默认模型、准备状态和 MCP 策略', () => {
     const readiness = decodeAgentReadiness(readinessFixture())
     expect(readiness.settings.default_model_id).toBeUndefined()
+    expect(readiness.settings.show_turn_token_usage).toBe(true)
     expect(readiness.mcp_policy).toMatchObject({
       approval_bypass: false, scope_count: 29, required_scope_count: 29, revision: 2,
     })
@@ -22,6 +23,10 @@ describe('Agent setup protocol', () => {
   it('拒绝零 revision、非法时间和越界 UTF-8 字段', () => {
     expect(() => decodeAgentSettings({ ...settingsFixture(), revision: 0 })).toThrow(AgentSetupProtocolError)
     expect(() => decodeAgentSettings({ ...settingsFixture(), updated_at: 'not-a-time' })).toThrow(AgentSetupProtocolError)
+    expect(() => decodeAgentSettings({ ...settingsFixture(), show_turn_token_usage: 'yes' })).toThrow(AgentSetupProtocolError)
+    const missingTurnUsageSetting: Record<string, unknown> = { ...settingsFixture() }
+    delete missingTurnUsageSetting.show_turn_token_usage
+    expect(() => decodeAgentSettings(missingTurnUsageSetting)).toThrow(AgentSetupProtocolError)
     expect(() => decodeAgentModelProvider({ ...providerFixture(), name: '模'.repeat(27) })).toThrow(AgentSetupProtocolError)
     expect(() => decodeAgentModel({ ...modelFixture(), display_name: '模'.repeat(67) })).toThrow(AgentSetupProtocolError)
   })
@@ -59,7 +64,7 @@ describe('Agent setup protocol', () => {
 
 function settingsFixture() {
   return {
-    default_reasoning_level: 'off', revision: 1,
+    default_reasoning_level: 'off', show_turn_token_usage: true, revision: 1,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:00Z',
   }
 }

@@ -54,7 +54,8 @@ describe('Agent 工作区页面投影', () => {
       skills_bundle: { status: 'ready', message: '' },
       default_model: { status: 'outdated', message: '' },
       settings: {
-        default_model_id: 'model-missing', default_reasoning_level: 'off', revision: 1,
+        default_model_id: 'model-missing', default_reasoning_level: 'off',
+        show_turn_token_usage: true, revision: 1,
         created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z',
       },
     }

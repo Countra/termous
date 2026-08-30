@@ -3411,6 +3411,13 @@
         "outdated": "Update before use",
         "unavailable": "Currently unavailable"
       },
+      "turnUsage": {
+        "title": "Per-turn token usage",
+        "description": "Show total, input, output, and cache usage below each Agent response.",
+        "toggle": "Show per-turn token usage",
+        "visible": "Shown",
+        "hidden": "Hidden"
+      },
       "policy": {
         "title": "MCP approval policy",
         "description": "This policy applies only to the Agent-managed client and does not change external MCP clients.",

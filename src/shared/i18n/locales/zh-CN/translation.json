@@ -3387,6 +3387,13 @@
         "outdated": "需要更新后使用",
         "unavailable": "当前无法使用"
       },
+      "turnUsage": {
+        "title": "每轮 Token 用量",
+        "description": "在每次 Agent 回复末尾显示本轮的总量、输入、输出和缓存用量。",
+        "toggle": "显示每轮 Token 用量",
+        "visible": "显示",
+        "hidden": "隐藏"
+      },
       "policy": {
         "title": "MCP 审批策略",
         "description": "该策略只作用于 Agent 托管客户端，不会修改外部 MCP 客户端。",

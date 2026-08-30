@@ -28,7 +28,10 @@ describe('AgentSetupClient', () => {
     }).agentSetup
 
     await client.settings()
-    await client.updateSettings({ default_model_id: 'apm-1', default_reasoning_level: 'high', expected_revision: 2 })
+    await client.updateSettings({
+      default_model_id: 'apm-1', default_reasoning_level: 'high',
+      show_turn_token_usage: false, expected_revision: 2,
+    })
     await client.readiness()
     await client.setup()
     await client.updateMcpPolicy({ approval_bypass: true, sync_scopes: false, expected_revision: 2 })
@@ -47,7 +50,10 @@ describe('AgentSetupClient', () => {
 
     expect(requestAt(fetchMock, 1)).toMatchObject({
       path: '/api/v1/agent/settings', method: 'PATCH',
-      body: { default_model_id: 'apm-1', default_reasoning_level: 'high', expected_revision: 2 },
+      body: {
+        default_model_id: 'apm-1', default_reasoning_level: 'high',
+        show_turn_token_usage: false, expected_revision: 2,
+      },
     })
     expect(requestAt(fetchMock, 5)).toMatchObject({
       path: '/api/v1/agent/model-providers', search: '?limit=16&cursor=cursor%2Fvalue',
@@ -89,7 +95,8 @@ function jsonResponse(value: unknown) {
 
 function settingsFixture(revision: number) {
   return {
-    default_model_id: 'apm-1', default_reasoning_level: 'high', revision,
+    default_model_id: 'apm-1', default_reasoning_level: 'high',
+    show_turn_token_usage: true, revision,
     created_at: '2026-08-28T00:00:00Z', updated_at: '2026-08-28T00:00:01Z',
   }
 }

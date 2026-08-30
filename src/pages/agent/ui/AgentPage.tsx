@@ -439,6 +439,7 @@ export function AgentPage({
         }))}
         supports_images={selectedModel?.supports_images ?? false}
         model_runnable={selectedModelRunnable}
+        show_turn_token_usage={readiness.settings.show_turn_token_usage}
         loading={state.phase === 'loading'}
         busy={busy}
         active_run={activeRun ? {
