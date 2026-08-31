@@ -97,8 +97,10 @@ test('可信 SSH 资源以安全投影进入系统提示且不包含展示字段
   assert.doesNotMatch(prompt, /bound_at/u)
 })
 
-test('未绑定资源的普通 Agent 系统提示不伪造可信资源块', () => {
+test('未绑定资源的普通 AI 助手系统提示不伪造可信资源块', () => {
   const prompt = createRuntimeSystemPrompt(runtimeBootstrap(), testAgentSkillBundle())
+  assert.match(prompt, /你是 Termous 内置 AI 助手。/u)
+  assert.doesNotMatch(prompt, /Termous 内置 Agent/u)
   assert.doesNotMatch(prompt, /TERMOUS_VERIFIED_RESOURCE/u)
 })
 

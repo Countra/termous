@@ -397,6 +397,10 @@ test('安装动作保持简洁，活动连接由状态区单独警告', () => {
   }
 
   assert.equal(primaryActionLabel('install', text, confirmation), '安装并重新启动')
+  assert.equal(
+    text.activeWorkWillClose,
+    '安装将停止活动的 AI 助手任务、断开当前连接和传输，并重新启动 Termous。',
+  )
   assert.equal(primaryActionLabel('retry_install', text, confirmation), '重试安装')
   assert.equal(primaryActionLabel('install', text, null), '正在准备安装…')
   assert.equal(primaryActionLabel('install', text, {

@@ -188,7 +188,7 @@ export function windowCopy(language: UpdateWindowLanguage) {
     downloaded: '已下载',
     speed: '实时速度',
     remaining: '预计剩余',
-    activeWorkWillClose: '安装将停止活动的 Agent 任务、断开当前连接和传输，并重新启动 Termous。',
+    activeWorkWillClose: '安装将停止活动的 AI 助手任务、断开当前连接和传输，并重新启动 Termous。',
     preparingInstallStatus: '正在准备安装…',
     summaryUnavailable: '暂时无法准备安装，请重试后继续。',
     retrySummary: '重试',

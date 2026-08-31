@@ -15,9 +15,16 @@ interface McpApprovalCoordinatorProps {
 export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinatorProps) {
   const { t } = useTranslation()
   const { notification } = AntdApp.useApp()
-  const { approvals, mutationKey, decideApproval, reload } = useMcpAccessRuntime()
+  const { clients, approvals, mutationKey, decideApproval, reload } = useMcpAccessRuntime()
   const approval = blocked ? null : approvals[0] ?? null
   const approvalId = approval?.id ?? ''
+  const approvalClient = clients.find((client) => client.id === approval?.client_id)
+  const approvalClientName = approvalClient?.source === 'builtin_agent'
+    ? t('settings.mcp.builtinAgentName')
+    : approvalClient
+      ? approval?.client_name || approval?.client_id || t('settings.mcp.unknownClient')
+      : approval?.client_id || t('settings.mcp.unknownClient')
+  const approvalClientMissing = Boolean(approval && !approvalClient)
   const mutationBusy = Boolean(mutationKey)
   const approvalBusy = approval ? mutationKey === `approval:${approval.id}` : false
   const [now, setNow] = useState(() => Date.now())
@@ -29,7 +36,15 @@ export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinat
     ? Math.max(0, Math.ceil((expiryTimestamp - now) / 1_000))
     : 0
   const expired = Boolean(approval) && remainingSeconds === 0
+  const clientReconciledApprovalRef = useRef('')
   const expiryReconciledRef = useRef('')
+
+  useEffect(() => {
+    if (!approvalId || !approvalClientMissing || clientReconciledApprovalRef.current === approvalId) return
+    // 审批事件可能早于客户端目录到达；先对账来源，避免展示持久化技术名称。
+    clientReconciledApprovalRef.current = approvalId
+    void reload().catch(() => undefined)
+  }, [approvalClientMissing, approvalId, reload])
 
   useEffect(() => {
     if (!approvalId) return undefined
@@ -84,7 +99,7 @@ export function McpApprovalCoordinator({ blocked = false }: McpApprovalCoordinat
           <div className={styles.client}>
             <ServerCog size={17} aria-hidden="true" />
             <span>{t('settings.mcp.approval.client')}</span>
-            <strong>{approval.client_name || approval.client_id || t('settings.mcp.unknownClient')}</strong>
+            <strong>{approvalClientName}</strong>
           </div>
 
           <McpApprovalDetails approval={approval} />

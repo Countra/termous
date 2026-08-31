@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { McpApproval, McpApprovalOperation } from '#entities/mcp-access'
+import type { McpApproval, McpApprovalOperation, McpClient } from '#entities/mcp-access'
 
 const testState = vi.hoisted(() => ({
+  clients: [] as McpClient[],
   approvals: [] as McpApproval[],
   mutationKey: '',
   decideApproval: vi.fn(async () => undefined),
@@ -34,6 +35,7 @@ vi.mock('antd', () => ({
 
 vi.mock('../runtime/mcpAccessContext', () => ({
   useMcpAccessRuntime: () => ({
+    clients: testState.clients,
     approvals: testState.approvals,
     mutationKey: testState.mutationKey,
     decideApproval: testState.decideApproval,
@@ -47,6 +49,7 @@ describe('McpApprovalCoordinator', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-13T00:00:00Z'))
+    testState.clients = [externalClient()]
     testState.approvals = [approvalFixture('2026-08-13T00:00:02Z')]
     testState.mutationKey = ''
     testState.decideApproval.mockClear()
@@ -80,6 +83,34 @@ describe('McpApprovalCoordinator', () => {
   it('主机密钥确认阻塞期间不展示 MCP 审批', () => {
     render(<McpApprovalCoordinator blocked />)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('审批先于客户端目录到达时先对账并隐藏持久化技术名称', () => {
+    testState.clients = []
+    testState.approvals = [{
+      ...approvalFixture('2026-08-13T00:00:30Z'),
+      client_name: 'Termous Agent',
+    }]
+    const view = render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('client-1')).toBeInTheDocument()
+    expect(screen.queryByText('Termous Agent')).not.toBeInTheDocument()
+    expect(testState.reload).toHaveBeenCalledTimes(1)
+
+    testState.clients = [builtinAgentClient()]
+    view.rerender(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.builtinAgentName')).toBeInTheDocument()
+    expect(testState.reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('AI 助手托管客户端的审批使用本地化产品名称', () => {
+    testState.clients = [builtinAgentClient()]
+
+    render(<McpApprovalCoordinator />)
+
+    expect(screen.getByText('settings.mcp.builtinAgentName')).toBeInTheDocument()
+    expect(screen.queryByText('Termous Agent')).not.toBeInTheDocument()
   })
 
   it('其他 MCP 管理操作进行时禁用审批决定', () => {
@@ -566,5 +597,39 @@ function approvalFixture(expiresAt: string): McpApproval {
     created_at: '2026-08-13T00:00:00Z',
     updated_at: '2026-08-13T00:00:00Z',
     expires_at: expiresAt,
+  }
+}
+
+function builtinAgentClient(): McpClient {
+  return {
+    id: 'client-1',
+    name: 'Termous Agent',
+    source: 'builtin_agent',
+    read_only: true,
+    enabled: true,
+    approval_bypass: false,
+    scopes: ['hosts:read'],
+    host_access_mode: 'all_saved',
+    token_prefix: '',
+    revision: 1,
+    created_at: '2026-08-13T00:00:00Z',
+    updated_at: '2026-08-13T00:00:00Z',
+  }
+}
+
+function externalClient(): McpClient {
+  return {
+    id: 'client-1',
+    name: 'Codex',
+    source: 'external',
+    read_only: false,
+    enabled: true,
+    approval_bypass: false,
+    scopes: ['hosts:read'],
+    host_access_mode: 'all_saved',
+    token_prefix: 'tmcp_abcd',
+    revision: 1,
+    created_at: '2026-08-13T00:00:00Z',
+    updated_at: '2026-08-13T00:00:00Z',
   }
 }

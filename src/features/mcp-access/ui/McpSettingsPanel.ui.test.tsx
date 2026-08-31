@@ -186,7 +186,8 @@ describe('McpSettingsPanel', () => {
     }]
     render(<AntdApp><McpSettingsPanel /></AntdApp>)
 
-    expect(screen.getByText('Termous Agent')).toBeInTheDocument()
+    expect(screen.getByText('settings.mcp.builtinAgentName')).toBeInTheDocument()
+    expect(screen.queryByText('Termous Agent')).not.toBeInTheDocument()
     expect(screen.getByText('settings.mcp.managedByAgent')).toBeInTheDocument()
     expect(screen.queryByRole('switch', {
       name: 'settings.mcp.clientToggleLabel:Termous Agent',

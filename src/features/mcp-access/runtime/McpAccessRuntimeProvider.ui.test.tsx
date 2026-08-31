@@ -190,15 +190,15 @@ describe('McpAccessRuntimeProvider', () => {
 
     await act(async () => {
       await expect(runtime!.patchClient(managedClient.id, { enabled: false }))
-        .rejects.toThrow('Agent 托管客户端只能在 Agent 设置中管理')
+        .rejects.toThrow('AI 助手托管客户端只能在 AI 助手设置中管理')
     })
     await act(async () => {
       await expect(runtime!.deleteClient(managedClient.id))
-        .rejects.toThrow('Agent 托管客户端只能在 Agent 设置中管理')
+        .rejects.toThrow('AI 助手托管客户端只能在 AI 助手设置中管理')
     })
     await act(async () => {
       await expect(runtime!.issueToken(managedClient.id))
-        .rejects.toThrow('Agent 托管客户端只能在 Agent 设置中管理')
+        .rejects.toThrow('AI 助手托管客户端只能在 AI 助手设置中管理')
     })
 
     expect(patchClient).not.toHaveBeenCalled()

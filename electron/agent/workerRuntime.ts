@@ -252,7 +252,7 @@ export class AgentWorkerRuntime {
         this.events?.push('error', {
           error: {
             code: 'AGENT_RUNTIME_EXECUTION_FAILED',
-            message: 'Agent 执行运行时失败',
+            message: 'AI 助手执行运行时失败',
           },
         })
         settled = await this.persistTerminalStatus('failed')

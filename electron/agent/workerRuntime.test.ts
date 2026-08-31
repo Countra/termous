@@ -142,6 +142,22 @@ test('Worker 完成 bootstrap、运行状态与终态的有序回写', async () 
   )
 })
 
+test('模型执行异常写入统一的 AI 助手错误文案', async () => {
+  const fixture = workerFixture()
+  fixture.agent.continue = async () => {
+    throw new Error('provider failed')
+  }
+  fixture.runtime.handleMessage(startMessage())
+  await fixture.finished
+
+  const errorEvent = fixture.core.events.find((event) => event.kind === 'error')
+  assert.equal(
+    nested(nested(errorEvent?.payload, 'error'), 'message'),
+    'AI 助手执行运行时失败',
+  )
+  assert.deepEqual(statuses(fixture.core.events), ['running', 'failed'])
+})
+
 test('steer 严格隔离 generation 并先持久化再交给 pi', async () => {
   const order: string[] = []
   const fixture = workerFixture(order)

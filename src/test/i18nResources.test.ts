@@ -43,6 +43,28 @@ test('公共布尔值详情文案拥有完整双语翻译', () => {
   assert.equal(translationValue(enUS, 'app.no'), 'No')
 })
 
+test('中文界面统一使用 AI 助手产品名称', () => {
+  assert.equal(translationValue(zhCN, 'nav.agent'), 'AI 助手')
+  assert.equal(translationValue(zhCN, 'agent.message.agent'), 'AI 助手')
+  assert.equal(translationValue(zhCN, 'settings.tabAgent'), 'AI 助手')
+  assert.equal(translationValue(zhCN, 'settings.mcp.builtinAgentName'), 'Termous AI 助手')
+  assert.equal(translationValue(zhCN, 'settings.mcp.managedByAgent'), 'AI 助手托管')
+
+  const productNameKeys = flattenKeys(zhCN).filter((key) => (
+    key === 'nav.agent'
+    || key.startsWith('agent.')
+    || key === 'settings.tabAgent'
+    || key.startsWith('settings.agent.')
+    || key === 'settings.mcp.builtinAgentName'
+    || key === 'settings.mcp.managedByAgent'
+  ))
+  const legacyKeys = productNameKeys.filter((key) => {
+    const value = translationValue(zhCN, key)
+    return typeof value === 'string' && /\bAgent\b/u.test(value)
+  })
+  assert.deepEqual(legacyKeys, [])
+})
+
 test('端口转发实时速度文案和格式保持一致', () => {
   assert.equal(translationValue(zhCN, 'forwards.sendRate'), '发送速度')
   assert.equal(translationValue(zhCN, 'forwards.receiveRate'), '接收速度')

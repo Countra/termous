@@ -170,6 +170,9 @@ function ClientRow({
   const { t, i18n } = useTranslation()
   const active = client.enabled
   const state = active ? 'active' : 'disabled'
+  const displayName = client.source === 'builtin_agent'
+    ? t('settings.mcp.builtinAgentName')
+    : client.name
   const scopeItems = client.scopes.map((scope) => {
     const entry = getMcpScopeCatalogEntry(scope)
     return { scope, label: t(entry.labelKey), destructive: entry.destructive }
@@ -198,7 +201,7 @@ function ClientRow({
         <span className={styles['client-icon']} aria-hidden="true"><KeyRound size={16} /></span>
         <div>
           <div className={styles['client-name']}>
-            <strong>{client.name}</strong>
+            <strong>{displayName}</strong>
             <Tag color={active ? 'success' : 'default'}>{t(`settings.mcp.clientState.${state}`)}</Tag>
             {client.read_only ? <Tag>{t('settings.mcp.managedByAgent')}</Tag> : null}
             {client.approval_bypass ? (

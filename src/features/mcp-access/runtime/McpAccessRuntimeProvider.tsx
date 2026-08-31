@@ -202,7 +202,7 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
     runMutation(`client:${clientId}`, async (isCurrent) => {
       const currentClient = clients.find((item) => item.id === clientId)
       if (!currentClient) throw new Error('MCP 客户端不存在')
-      if (currentClient.read_only) throw new Error('Agent 托管客户端只能在 Agent 设置中管理')
+      if (currentClient.read_only) throw new Error('AI 助手托管客户端只能在 AI 助手设置中管理')
       const client = await api.patchClient(clientId, {
         name: patch.name ?? currentClient.name,
         enabled: patch.enabled ?? currentClient.enabled,
@@ -219,7 +219,7 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
   const deleteClient = useCallback((clientId: string) => runMutation(`client:${clientId}`, async (isCurrent) => {
     const currentClient = clients.find((item) => item.id === clientId)
     if (!currentClient) throw new Error('MCP 客户端不存在')
-    if (currentClient.read_only) throw new Error('Agent 托管客户端只能在 Agent 设置中管理')
+    if (currentClient.read_only) throw new Error('AI 助手托管客户端只能在 AI 助手设置中管理')
     await api.deleteClient(clientId, currentClient.revision)
     if (isCurrent()) {
       setClients((current) => current.filter((item) => item.id !== clientId))
@@ -229,7 +229,7 @@ export function McpAccessRuntimeProvider({ api, enabled, children }: McpAccessRu
   const issueToken = useCallback((clientId: string) => runMutation(`client:${clientId}:token`, async (isCurrent) => {
     const currentClient = clients.find((item) => item.id === clientId)
     if (!currentClient) throw new Error('MCP 客户端不存在')
-    if (currentClient.read_only) throw new Error('Agent 托管客户端只能在 Agent 设置中管理')
+    if (currentClient.read_only) throw new Error('AI 助手托管客户端只能在 AI 助手设置中管理')
     const issued = await api.issueClientToken(clientId, currentClient.revision)
     if (isCurrent()) {
       setClients((current) => current.map((item) => item.id === issued.client.id ? issued.client : item))

@@ -49,7 +49,7 @@
   },
   "nav": {
     "workbench": "工作站",
-    "agent": "Agent",
+    "agent": "AI 助手",
     "remote-desktop": "远程桌面",
     "hosts": "主机",
     "vault": "凭据库",
@@ -84,10 +84,10 @@
       },
       "modelUnavailableHint": {
         "removed": "该模型已从 Termous 模型目录移除，请为会话选择其他可用模型。",
-        "provider_disabled": "请在 Agent 设置中启用该 Provider，或为会话选择其他可用模型。",
-        "catalog_stale": "请在 Agent 设置中同步该 Provider 的模型目录，或为会话选择其他可用模型。",
+        "provider_disabled": "请在 AI 助手设置中启用该 Provider，或为会话选择其他可用模型。",
+        "catalog_stale": "请在 AI 助手设置中同步该 Provider 的模型目录，或为会话选择其他可用模型。",
         "missing": "远程 Provider 当前未返回该模型，请同步模型目录或选择其他可用模型。",
-        "unknown": "请在 Agent 设置中检查 Provider 和模型目录，或选择其他可用模型。"
+        "unknown": "请在 AI 助手设置中检查 Provider 和模型目录，或选择其他可用模型。"
       },
       "returnToActiveRun": "返回运行会话"
     },
@@ -105,13 +105,13 @@
     },
     "empty": {
       "title": "今天想处理什么？",
-      "description": "描述你希望完成的目标。Agent 会在已授权范围内通过 MCP 调用 Termous 能力。"
+      "description": "描述你希望完成的目标。AI 助手会在已授权范围内通过 MCP 调用 Termous 能力。"
     },
     "conversation": {
       "jumpToLatest": "回到最新消息"
     },
     "launch": {
-      "action": "交给 Agent",
+      "action": "交给 AI 助手",
       "title": {
         "workbench": "处理 {{name}} 的终端连接",
         "files": "处理 {{name}} 的文件连接",
@@ -135,7 +135,7 @@
     },
     "message": {
       "you": "你",
-      "agent": "Agent",
+      "agent": "AI 助手",
       "failed": "本次回复失败",
       "interrupted": "本次回复已中断",
       "turnUsage": "本轮用量",
@@ -156,7 +156,7 @@
       }
     },
     "composer": {
-      "placeholder": "给 Agent 发消息",
+      "placeholder": "给 AI 助手发消息",
       "steerPlaceholder": "追加要求，将在当前工具批次结束后生效",
       "steerHint": "当前输入会追加到正在运行的任务",
       "send": "发送",
@@ -205,12 +205,12 @@
       "noCandidates": "暂无其他可用连接",
       "remove": "解除引用",
       "removeTitle": "解除 SSH 连接引用？",
-      "removeDescription": "解除后，此 Agent 会话将不再固定使用“{{host}}”的 SSH 连接，历史消息不会改变。",
+      "removeDescription": "解除后，当前 AI 助手会话将不再固定使用“{{host}}”的 SSH 连接，历史消息不会改变。",
       "activeRunLocked": "任务运行期间不能更换或解除连接",
       "error": {
         "unavailableTitle": "无法使用引用的 SSH 连接",
         "conflictTitle": "连接引用已发生变化",
-        "conflictDescription": "当前 Agent 会话已被更新，请等待状态同步后重新选择连接。",
+        "conflictDescription": "当前 AI 助手会话已被更新，请等待状态同步后重新选择连接。",
         "activeRunTitle": "任务正在运行",
         "activeRunDescription": "请先停止或等待当前任务结束，再更换或解除连接。",
         "reason": {
@@ -257,14 +257,14 @@
     },
     "approvalMode": {
       "label": "审核方式",
-      "title": "如何审批 Agent 的操作？",
+      "title": "如何审批 AI 助手的操作？",
       "review": "逐次审批",
       "reviewHint": "敏感操作执行前请求确认",
       "bypass": "无需确认",
       "bypassHint": "在已授权权限范围内直接执行工具",
       "unavailable": "审核方式不可用",
-      "confirmBypassTitle": "允许 Agent 无需确认执行？",
-      "confirmBypassDescription": "启用后，Agent 可在托管客户端已授权的权限范围内直接执行 MCP 工具。有任务运行时不能修改此设置。",
+      "confirmBypassTitle": "允许 AI 助手无需确认执行？",
+      "confirmBypassDescription": "启用后，AI 助手可在托管客户端已授权的权限范围内直接执行 MCP 工具。有任务运行时不能修改此设置。",
       "confirmBypass": "启用无需确认"
     },
     "inspector": {
@@ -311,17 +311,17 @@
       "remoteImageBlocked": "远程图片已阻止"
     },
     "readiness": {
-      "title": "准备 Agent 运行环境",
-      "description": "Agent 通过 Termous MCP 与只读 Skills 资源工作。首次准备会启用 MCP、创建拥有当前全部 {{count}} 项权限的 Agent 托管客户端并保持逐次审批；模型仍在“设置 > Agent”中管理。",
+      "title": "准备 AI 助手运行环境",
+      "description": "AI 助手通过 Termous MCP 与只读 Skills 资源工作。首次准备会启用 MCP、创建拥有当前全部 {{count}} 项权限的 AI 助手托管客户端并保持逐次审批；模型仍在“设置 > AI 助手”中管理。",
       "prepare": "准备或修复",
-      "loadFailed": "暂时无法读取 Agent 运行状态"
+      "loadFailed": "暂时无法读取 AI 助手运行状态"
     },
     "error": {
-      "reconnecting": "正在重新连接 Agent 实时状态",
+      "reconnecting": "正在重新连接 AI 助手实时状态",
       "reconnectingDescription": "会话内容已保留，连接恢复后会自动与 Core 权威状态对账。",
-      "degraded": "部分 Agent 状态暂时不可用",
+      "degraded": "部分 AI 助手状态暂时不可用",
       "degradedDescription": "会话内容已保留，可重试读取 Core 权威状态。",
-      "operation": "Agent 操作未完成",
+      "operation": "AI 助手操作未完成",
       "operationDescription": "请检查 Core、模型配置和运行状态后重试。"
     }
   },
@@ -3432,10 +3432,10 @@
       "unavailableHint": "暂时无法读取已保存的更新偏好，请稍后重试。",
       "retryLoading": "重新读取"
     },
-    "tabAgent": "Agent",
+    "tabAgent": "AI 助手",
     "agent": {
-      "loadFailed": "无法读取 Agent 设置",
-      "operationFailed": "Agent 设置操作失败",
+      "loadFailed": "无法读取 AI 助手设置",
+      "operationFailed": "AI 助手设置操作失败",
       "readiness": {
         "title": "运行准备",
       "description": "检查 MCP、Skills 与默认模型；首次准备会创建托管客户端并保持逐次审批。",
@@ -3460,19 +3460,19 @@
       },
       "turnUsage": {
         "title": "每轮 Token 用量",
-        "description": "在每次 Agent 回复末尾显示本轮的总量、输入、输出和缓存用量。",
+        "description": "在每次 AI 助手回复末尾显示本轮的总量、输入、输出和缓存用量。",
         "toggle": "显示每轮 Token 用量",
         "visible": "显示",
         "hidden": "隐藏"
       },
       "policy": {
         "title": "MCP 审批策略",
-        "description": "该策略只作用于 Agent 托管客户端，不会修改外部 MCP 客户端。",
+        "description": "该策略只作用于 AI 助手托管客户端，不会修改外部 MCP 客户端。",
         "approval": "工具执行确认",
         "review": "逐次审批",
         "bypass": "无需确认",
         "reviewHint": "每次敏感操作继续使用全局 MCP 审批界面确认。",
-        "bypassHint": "Agent 可在授权范围内直接执行工具，请谨慎使用。",
+        "bypassHint": "AI 助手可在授权范围内直接执行工具，请谨慎使用。",
         "unavailable": "完成首次准备后可管理审批策略。",
         "scopeOutdated": "当前已授权 {{current}}/{{required}} 项权限。新增权限不会自动授予。",
         "sync": "同步权限"
@@ -3692,8 +3692,8 @@
         "confirm": "确认保存"
       },
       "confirmBypass": {
-        "title": "允许 Agent 无需确认执行？",
-        "description": "启用后，Agent 可在托管客户端已授权的全部权限范围内直接执行 MCP 工具，不再逐次显示审批。",
+        "title": "允许 AI 助手无需确认执行？",
+        "description": "启用后，AI 助手可在托管客户端已授权的全部权限范围内直接执行 MCP 工具，不再逐次显示审批。",
         "confirm": "启用无需确认"
       },
       "confirmTest": {
@@ -3770,7 +3770,8 @@
       "clientsHint": "每个客户端使用独立令牌和最小权限范围。",
       "addClient": "添加客户端",
       "noClients": "尚未添加 MCP 客户端",
-      "managedByAgent": "Agent 托管",
+      "builtinAgentName": "Termous AI 助手",
+      "managedByAgent": "AI 助手托管",
       "deleteClient": "删除客户端",
       "deleteClientLabel": "删除客户端 {{name}}",
       "deleteTitle": "删除此客户端？",
