@@ -156,7 +156,9 @@ export function AgentComposer({
                         <Button type="text" size="small" disabled={disabled} aria-label={t('agent.attachments.retryName', { name: item.name })} icon={<RefreshCw size={13} />} onClick={() => onRetryAttachment(item.client_id)} />
                       </Tooltip>
                     ) : null}
-                    <Tooltip title={t(item.phase === 'uploading' ? 'agent.attachments.cancel' : 'app.remove')}>
+                    <Tooltip title={item.phase === 'uploading'
+                      ? t('agent.attachments.cancel')
+                      : t('app.remove')}>
                       <Button type="text" size="small" disabled={disabled || item.phase === 'deleting'} aria-label={t('agent.attachments.removeName', { name: item.name })} icon={<X size={13} />} onClick={() => onRemoveAttachment(item.client_id)} />
                     </Tooltip>
                   </div>
