@@ -143,7 +143,6 @@ jobs:
           repository: Countra/termous-skills
           ref: ${{ github.event.inputs.skills_ref || vars.TERMOUS_SKILLS_REF || steps.release.outputs.tag }}
           path: termous-skills
-          token: ${{ secrets.TERMOUS_SKILLS_READ_TOKEN || secrets.TERMOUS_CORE_READ_TOKEN }}
           persist-credentials: false
 
       - name: Pin resolved Skills commit
@@ -280,7 +279,6 @@ jobs:
           repository: Countra/termous-skills
           ref: ${{ needs.prepare-release.outputs.skills_sha }}
           path: termous-skills
-          token: ${{ secrets.TERMOUS_SKILLS_READ_TOKEN || secrets.TERMOUS_CORE_READ_TOKEN }}
           persist-credentials: false
 
       - name: Setup pnpm

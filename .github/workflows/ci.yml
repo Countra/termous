@@ -189,7 +189,7 @@ jobs:
 
   resolve-skills:
     name: Resolve matching Termous Skills commit
-    if: github.repository == 'Countra/termous' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.repository == 'Countra/termous'
     runs-on: ubuntu-24.04
     outputs:
       sha: ${{ steps.skills.outputs.sha }}
@@ -200,29 +200,38 @@ jobs:
         env:
           DEFAULT_SKILLS_BRANCH: main
           FRONTEND_BRANCH: ${{ github.head_ref || github.ref_name }}
-          GH_TOKEN: ${{ secrets.TERMOUS_SKILLS_READ_TOKEN || secrets.TERMOUS_CORE_READ_TOKEN }}
+          SKILLS_REPOSITORY: Countra/termous-skills
         run: |
           set -Eeuo pipefail
-          if [[ -z "$GH_TOKEN" ]]; then
-            echo "缺少读取 Termous Skills 的 Token。" >&2
-            exit 1
+          refs="$(
+            git ls-remote --refs --heads \
+              "$GITHUB_SERVER_URL/$SKILLS_REPOSITORY.git" \
+              "refs/heads/$FRONTEND_BRANCH" \
+              "refs/heads/$DEFAULT_SKILLS_BRANCH"
+          )"
+          matching_sha="$(
+            awk -v ref="refs/heads/$FRONTEND_BRANCH" \
+              '$2 == ref { print $1; exit }' <<<"$refs"
+          )"
+          fallback_sha="$(
+            awk -v ref="refs/heads/$DEFAULT_SKILLS_BRANCH" \
+              '$2 == ref { print $1; exit }' <<<"$refs"
+          )"
+
+          if [[ -n "$matching_sha" ]]; then
+            selected_branch="$FRONTEND_BRANCH"
+            selected_sha="$matching_sha"
+          else
+            selected_branch="$DEFAULT_SKILLS_BRANCH"
+            selected_sha="$fallback_sha"
+            echo "Skills 不存在同名分支 $FRONTEND_BRANCH，回退到 $DEFAULT_SKILLS_BRANCH。"
           fi
-          response="$(gh api graphql -f query='
-            query($owner: String!, $repository: String!, $matchingRef: String!, $fallbackRef: String!) {
-              repository(owner: $owner, name: $repository) {
-                matching: ref(qualifiedName: $matchingRef) { target { oid } }
-                fallback: ref(qualifiedName: $fallbackRef) { target { oid } }
-              }
-            }' -f owner='Countra' -f repository='termous-skills' \
-              -f matchingRef="refs/heads/$FRONTEND_BRANCH" \
-              -f fallbackRef="refs/heads/$DEFAULT_SKILLS_BRANCH")"
-          matching_sha="$(jq -r '.data.repository.matching.target.oid // empty' <<<"$response")"
-          fallback_sha="$(jq -r '.data.repository.fallback.target.oid // empty' <<<"$response")"
-          selected_sha="${matching_sha:-$fallback_sha}"
+
           if [[ ! "$selected_sha" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "无法把 Skills 分支解析为 40 位 commit SHA。" >&2
+            echo "无法把 Skills 分支 $selected_branch 解析为 40 位 commit SHA。" >&2
             exit 1
           fi
+          echo "Skills 分支: $selected_branch"
           echo "Skills commit: $selected_sha"
           echo "sha=$selected_sha" >> "$GITHUB_OUTPUT"
 
@@ -264,7 +273,6 @@ jobs:
           repository: Countra/termous-skills
           ref: ${{ needs.resolve-skills.outputs.sha }}
           path: termous-skills
-          token: ${{ secrets.TERMOUS_SKILLS_READ_TOKEN || secrets.TERMOUS_CORE_READ_TOKEN }}
           persist-credentials: false
 
       - name: Setup Python
@@ -322,7 +330,6 @@ jobs:
           repository: Countra/termous-skills
           ref: ${{ needs.resolve-skills.outputs.sha }}
           path: termous-skills
-          token: ${{ secrets.TERMOUS_SKILLS_READ_TOKEN || secrets.TERMOUS_CORE_READ_TOKEN }}
           persist-credentials: false
 
       - name: Setup pnpm

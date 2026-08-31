@@ -167,6 +167,38 @@ test("Metadata 在环境审批前固定标签与三个仓库提交", async () =>
   );
 });
 
+test("公开 Skills checkout 不依赖专用读取凭据", async () => {
+  const { workflow } = await loadWorkflow();
+  const cases = [
+    {
+      jobName: "metadata",
+      stepName: "Checkout Termous Skills",
+      ref: "${{ github.event.inputs.skills_ref || vars.TERMOUS_SKILLS_REF || steps.release.outputs.tag }}",
+    },
+    {
+      jobName: "build",
+      stepName: "Checkout pinned Termous Skills",
+      ref: "${{ needs.prepare-release.outputs.skills_sha }}",
+    },
+  ];
+
+  for (const { jobName, stepName, ref } of cases) {
+    const checkout = stepsFor(workflow, jobName).find(
+      ({ name }) => name === stepName,
+    );
+    assert.ok(checkout, `${jobName} 缺少 ${stepName}`);
+    assert.equal(
+      checkout.with.repository,
+      "Countra/termous-skills",
+    );
+    assert.equal(checkout.with.ref, ref);
+    assert.equal(checkout.with.path, "termous-skills");
+    assert.equal(checkout.with.token, undefined);
+    assert.equal(checkout.with["persist-credentials"], false);
+    assert.equal(JSON.stringify(checkout).includes("${{ secrets."), false);
+  }
+});
+
 test("平台构建完成后才使用内置 Token 上传 Draft 资产", async () => {
   const { workflow } = await loadWorkflow();
   const steps = stepsFor(workflow, "build");

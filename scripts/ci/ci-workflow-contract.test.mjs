@@ -135,37 +135,68 @@ test("Core 优先使用前端同名分支并在缺失时回退 main", async () =
   assert.equal(coreCheckout.with["persist-credentials"], false);
 });
 
-test("Skills 优先使用同名分支并固定为不可变提交", async () => {
+test("公开 Skills 无需专用读取凭据并固定为不可变提交", async () => {
   const { workflow } = await loadWorkflow();
   const resolver = workflow.jobs["resolve-skills"];
   const step = stepsFor(workflow, "resolve-skills").find(
     ({ name }) => name === "Resolve matching branch or main",
   );
   assert.ok(step);
-  assert.equal(
-    resolver.if,
-    "github.repository == 'Countra/termous' && "
-      + "(github.event_name != 'pull_request' || "
-      + "github.event.pull_request.head.repo.full_name == github.repository)",
-  );
+  assert.equal(resolver.if, "github.repository == 'Countra/termous'");
   assert.equal(step.env.FRONTEND_BRANCH, "${{ github.head_ref || github.ref_name }}");
-  assert.match(step.run, /repository='termous-skills'/u);
+  assert.equal(step.env.DEFAULT_SKILLS_BRANCH, "main");
+  assert.equal(
+    step.env.SKILLS_REPOSITORY,
+    "Countra/termous-skills",
+  );
+  assert.equal(step.env.GH_TOKEN, undefined);
+  assert.equal(JSON.stringify(resolver).includes("${{ secrets."), false);
+  assert.match(step.run, /git ls-remote --refs --heads/u);
+  assert.match(step.run, /\$GITHUB_SERVER_URL\/\$SKILLS_REPOSITORY\.git/u);
+  assert.match(step.run, /refs\/heads\/\$FRONTEND_BRANCH/u);
+  assert.match(step.run, /refs\/heads\/\$DEFAULT_SKILLS_BRANCH/u);
+  assert.match(step.run, /if \[\[ -n "\$matching_sha" \]\]; then/u);
+  assert.match(step.run, /selected_branch="\$FRONTEND_BRANCH"/u);
+  assert.match(step.run, /selected_sha="\$matching_sha"/u);
+  assert.match(step.run, /selected_branch="\$DEFAULT_SKILLS_BRANCH"/u);
+  assert.match(step.run, /selected_sha="\$fallback_sha"/u);
   assert.match(step.run, /\^\[0-9a-f\]\{40\}\$/u);
   assert.equal(resolver.outputs.sha, "${{ steps.skills.outputs.sha }}");
-  const checkout = stepsFor(workflow, "build").find(
-    ({ name }) => name === "Checkout pinned Termous Skills",
+
+  for (const jobName of ["web-renderer", "build"]) {
+    const checkout = stepsFor(workflow, jobName).find(
+      ({ name }) => name === "Checkout pinned Termous Skills",
+    );
+    assert.ok(checkout);
+    assert.equal(
+      checkout.with.repository,
+      "Countra/termous-skills",
+    );
+    assert.equal(checkout.with.ref, "${{ needs.resolve-skills.outputs.sha }}");
+    assert.equal(checkout.with.path, "termous-skills");
+    assert.equal(checkout.with.token, undefined);
+    assert.equal(checkout.with["persist-credentials"], false);
+  }
+  const rendererBuild = stepsFor(workflow, "web-renderer").find(
+    ({ name }) => name === "Build renderer",
   );
-  assert.equal(checkout.with.ref, "${{ needs.resolve-skills.outputs.sha }}");
+  assert.ok(rendererBuild);
+  assert.equal(
+    rendererBuild.env.TERMOUS_SKILLS_DIR,
+    "${{ github.workspace }}/termous-skills/skills",
+  );
   assert.equal(workflow.jobs.build.env.TERMOUS_SKILLS_DIR, "${{ github.workspace }}/termous-skills/skills");
 });
 
-test("fork PR 保留基础质量门禁并跳过需要私有依赖的 Renderer 构建", async () => {
+test("fork PR 保留基础质量门禁并跳过需要私有 Core 的 Renderer 构建", async () => {
   const { workflow } = await loadWorkflow();
   assert.equal(workflow.jobs.web.needs, undefined);
   assert.deepEqual(workflow.jobs["web-renderer"].needs, [
     "resolve-core",
     "resolve-skills",
   ]);
+  assert.equal(workflow.jobs["web-renderer"].if, undefined);
+  assert.equal(workflow.jobs.build.if, undefined);
   const rendererSteps = stepsFor(workflow, "web-renderer");
   assert.ok(rendererSteps.some(({ name }) => name === "Build renderer"));
   const rendererCheckout = rendererSteps.find(({ name }) => name === "Checkout");
@@ -187,9 +218,14 @@ test("fork PR 保留基础质量门禁并跳过需要私有依赖的 Renderer �
     stepsFor(workflow, "web").some(({ name }) => name === "Build renderer"),
     false,
   );
-  for (const resolverName of ["resolve-core", "resolve-skills"]) {
-    assert.match(workflow.jobs[resolverName].if, /head\.repo\.full_name == github\.repository/u);
-  }
+  assert.match(
+    workflow.jobs["resolve-core"].if,
+    /head\.repo\.full_name == github\.repository/u,
+  );
+  assert.equal(
+    workflow.jobs["resolve-skills"].if,
+    "github.repository == 'Countra/termous'",
+  );
 });
 
 test("提交构建按分支选择平台并复用 Release 打包路径", async () => {
