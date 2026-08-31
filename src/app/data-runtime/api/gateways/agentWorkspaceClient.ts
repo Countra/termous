@@ -23,6 +23,7 @@ import {
 } from '#features/agent-runtime'
 import type {
   AgentRun,
+  AgentResourceBindingUpdateInput,
   AgentSessionInput,
   AgentSessionUpdateInput,
 } from '#entities/agent'
@@ -61,6 +62,18 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
   updateSession(id: string, input: AgentSessionUpdateInput, signal?: AbortSignal) {
     return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}`, {
       method: 'PATCH', body: input, signal,
+    }).then(decodeAgentSession)
+  }
+
+  replaceResourceBinding(id: string, input: AgentResourceBindingUpdateInput, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding`, {
+      method: 'PUT', body: input, signal,
+    }).then(decodeAgentSession)
+  }
+
+  removeResourceBinding(id: string, expectedRevision: number, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(id)}/resource-binding`, {
+      method: 'DELETE', body: { expected_revision: expectedRevision }, signal,
     }).then(decodeAgentSession)
   }
 

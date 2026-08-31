@@ -5,6 +5,7 @@ interface UseAuthoritativeSnapshotSubscriptionOptions<Snapshot> {
   eventsUrl: () => string
   decode: (value: unknown) => Snapshot
   onSnapshot: (snapshot: Snapshot, generation: number) => void
+  onAwaitingSnapshot?: () => void
   reconnectDelayMs?: number
 }
 
@@ -13,19 +14,24 @@ export function useAuthoritativeSnapshotSubscription<Snapshot>({
   eventsUrl,
   decode,
   onSnapshot,
+  onAwaitingSnapshot,
   reconnectDelayMs = 1_200,
 }: UseAuthoritativeSnapshotSubscriptionOptions<Snapshot>) {
   const decodeRef = useRef(decode)
   const onSnapshotRef = useRef(onSnapshot)
+  const onAwaitingSnapshotRef = useRef(onAwaitingSnapshot)
   const generationRef = useRef(0)
 
   useEffect(() => {
     decodeRef.current = decode
     onSnapshotRef.current = onSnapshot
-  }, [decode, onSnapshot])
+    onAwaitingSnapshotRef.current = onAwaitingSnapshot
+  }, [decode, onAwaitingSnapshot, onSnapshot])
 
   useEffect(() => {
     if (!enabled) {
+      generationRef.current += 1
+      onAwaitingSnapshotRef.current?.()
       return undefined
     }
 
@@ -44,6 +50,7 @@ export function useAuthoritativeSnapshotSubscription<Snapshot>({
     }
 
     const connect = (): void => {
+      onAwaitingSnapshotRef.current?.()
       const generation = generationRef.current + 1
       generationRef.current = generation
       let nextSocket: WebSocket
@@ -77,6 +84,7 @@ export function useAuthoritativeSnapshotSubscription<Snapshot>({
           return
         }
         socket = undefined
+        onAwaitingSnapshotRef.current?.()
         scheduleReconnect()
       }
     }

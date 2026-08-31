@@ -7,6 +7,8 @@ export type {
   AgentWorkspaceModelOption,
   AgentWorkspaceDraftAttachment,
   AgentWorkspaceProps,
+  AgentWorkspaceResourceContext,
+  AgentWorkspaceResourceStatus,
   AgentWorkspaceRunStatus,
   AgentWorkspaceSession,
   AgentWorkspaceSkillItem,

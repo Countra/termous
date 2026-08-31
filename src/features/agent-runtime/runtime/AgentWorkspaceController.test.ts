@@ -136,6 +136,22 @@ test('迟到的更新响应不会覆盖 WebSocket 已接收的更高会话 revis
   controller.close()
 })
 
+test('资源绑定 revision 冲突恢复可单独刷新权威会话', async () => {
+  const gateway = new FakeGateway()
+  gateway.sessionImpl = async (id) => {
+    assert.equal(id, 'ags-session')
+    return agentSessionFixture({ title: '权威会话', revision: 7 })
+  }
+  const controller = startedController(gateway)
+  await waitFor(() => controller.getSnapshot().selected_session_id === 'ags-session')
+
+  const refreshed = await controller.reloadSession('ags-session')
+
+  assert.equal(refreshed?.revision, 7)
+  assert.equal(controller.getSnapshot().sessions[0]?.title, '权威会话')
+  controller.close()
+})
+
 test('Runtime Bridge 抛错时取消已持久化的 queued Run', async () => {
   const gateway = new FakeGateway()
   gateway.startResult = Promise.reject(new Error('AGENT_RUNTIME_BRIDGE_UNAVAILABLE'))
@@ -779,6 +795,9 @@ class FakeGateway implements AgentWorkspaceGateway {
     if (options.signal) this.sessionSignals.push(options.signal)
     return { items: [agentSessionFixture()] }
   }
+  sessionImpl: (id: string, signal?: AbortSignal) => Promise<AgentSession> = async () => (
+    agentSessionFixture()
+  )
   messagesImpl: (sessionId: string, options: AgentMessageListOptions) => Promise<AgentMessagePage> = async (sessionId, options) => {
     assert.equal(sessionId, 'ags-session')
     if (options.signal) this.messageSignals.push(options.signal)
@@ -800,7 +819,7 @@ class FakeGateway implements AgentWorkspaceGateway {
     return this.sessionsImpl(options)
   }
 
-  async session() { return agentSessionFixture() }
+  session(id: string, signal?: AbortSignal) { return this.sessionImpl(id, signal) }
   async createSession(input: Parameters<AgentWorkspaceGateway['createSession']>[0]) {
     return agentSessionFixture({
       title: input.title,
@@ -832,6 +851,8 @@ class FakeGateway implements AgentWorkspaceGateway {
     this.contextCalls += 1
     return this.contextImpl(sessionId, signal)
   }
+  async replaceResourceBinding() { return agentSessionFixture() }
+  async removeResourceBinding() { return agentSessionFixture() }
   usage(sessionId: string, signal?: AbortSignal) {
     if (signal) this.usageSignals.push(signal)
     this.usageCalls += 1

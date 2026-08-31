@@ -8,6 +8,7 @@ export {
   decodeAgentRunEvent,
   decodeAgentRunEventPage,
   decodeAgentSession,
+  decodeAgentResourceBinding,
   decodeAgentSessionContext,
   decodeAgentSessionPage,
   decodeAgentSessionUsage,

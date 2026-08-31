@@ -56,6 +56,16 @@ export interface RuntimeMessageView {
   attachments: RuntimeMessageAttachment[]
 }
 
+export interface RuntimeSSHResourceBinding {
+  kind: 'ssh_session'
+  session_id: string
+  host_id: string
+  ssh_profile_id: string
+  host_name: string
+  platform: 'linux'
+  bound_at: string
+}
+
 export interface RuntimeBootstrap {
   core_instance_id: string
   run: {
@@ -71,6 +81,7 @@ export interface RuntimeBootstrap {
   }
   session: {
     id: string
+    resource_binding?: RuntimeSSHResourceBinding
   }
   messages: RuntimeMessageView[]
   runtime_bearer: string
@@ -192,6 +203,10 @@ export class WorkerCoreClient implements WorkerCoreClientPort {
     }
     // Run 模型快照只允许在 Core 创建任务时确定，Worker 后续阶段不得改写。
     Object.freeze(value.model.snapshot)
+    if (value.session.resource_binding) {
+      Object.freeze(value.session.resource_binding)
+    }
+    Object.freeze(value.session)
     return value
   }
 
@@ -377,6 +392,8 @@ function isRuntimeBootstrap(value: unknown, start: AgentWorkerStartMessage): val
     || !validReasoningLevel(value.run.reasoning_level)
     || !isRecord(value.session)
     || value.session.id !== value.run.session_id
+    || (value.session.resource_binding !== undefined
+      && !isRuntimeSSHResourceBinding(value.session.resource_binding))
     || !Array.isArray(value.messages)
     || !value.messages.every(isRuntimeMessageView)
     || typeof value.runtime_bearer !== 'string'
@@ -399,6 +416,49 @@ function isRuntimeBootstrap(value: unknown, start: AgentWorkerStartMessage): val
     || (typeof value.model.api_key === 'string'
       && value.model.api_key.length > 0
       && value.model.api_key.length <= 16 * 1024)
+}
+
+function isRuntimeSSHResourceBinding(value: unknown): value is RuntimeSSHResourceBinding {
+  if (!isRecord(value) || !hasExactKeys(value, [
+    'kind',
+    'session_id',
+    'host_id',
+    'ssh_profile_id',
+    'host_name',
+    'platform',
+    'bound_at',
+  ])) {
+    return false
+  }
+  return value.kind === 'ssh_session'
+    && validOpaqueIdentifier(value.session_id)
+    && validOpaqueIdentifier(value.host_id)
+    && validOpaqueIdentifier(value.ssh_profile_id)
+    && typeof value.host_name === 'string'
+    && value.host_name.trim().length > 0
+    && Buffer.byteLength(value.host_name, 'utf8') <= 1024
+    && value.platform === 'linux'
+    && validRuntimeTimestamp(value.bound_at)
+}
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]) {
+  const actual = Object.keys(value)
+  return actual.length === keys.length && actual.every((key) => keys.includes(key))
+}
+
+function validOpaqueIdentifier(value: unknown): value is string {
+  return typeof value === 'string'
+    && value.length > 0
+    && value.length <= 128
+    && /^[A-Za-z0-9_-]+$/u.test(value)
+}
+
+function validRuntimeTimestamp(value: unknown): value is string {
+  return typeof value === 'string'
+    && value.length > 0
+    && value.length <= 64
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/u.test(value)
+    && Number.isFinite(Date.parse(value))
 }
 
 function isRuntimeContextBootstrap(value: unknown): value is RuntimeContextBootstrap {

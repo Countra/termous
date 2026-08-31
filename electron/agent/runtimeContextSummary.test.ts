@@ -8,6 +8,8 @@ import {
   createRuntimeContextSummaryAgentOptions,
   summaryMessagesUsage,
 } from './runtimeContextSummary.ts'
+import { createRuntimeSystemPrompt } from './piAgentAdapter.ts'
+import { testAgentSkillBundle } from './skillBundleTestFixture.ts'
 import type { RuntimeBootstrap } from './workerCoreClient.ts'
 
 test('摘要步骤固定禁用 Tool，并把历史作为不可信消息交给同一模型', () => {
@@ -37,6 +39,15 @@ test('摘要步骤使用模型明确支持的最低推理档位', () => {
 
 test('应用 Checkpoint 只裁剪已确认边界，并清除一次性压缩计划', () => {
   const bootstrap = compressionBootstrap()
+  bootstrap.session.resource_binding = {
+    kind: 'ssh_session',
+    session_id: 'ses_runtime_test',
+    host_id: 'hst_runtime_test',
+    ssh_profile_id: 'ssh_runtime_test',
+    host_name: 'Production',
+    platform: 'linux',
+    bound_at: '2026-08-31T02:20:30Z',
+  }
   applyRuntimeCheckpoint(bootstrap, {
     boundary_message_sequence: 1,
     summary: '压缩摘要',
@@ -46,6 +57,29 @@ test('应用 Checkpoint 只裁剪已确认边界，并清除一次性压缩计�
   assert.deepEqual(bootstrap.messages.map(({ sequence }) => sequence), [2])
   assert.equal(bootstrap.context.checkpoint?.summary, '压缩摘要')
   assert.equal(bootstrap.context.compression, undefined)
+  assert.equal(bootstrap.session.resource_binding.session_id, 'ses_runtime_test')
+  assert.match(
+    createRuntimeSystemPrompt(bootstrap, testAgentSkillBundle()),
+    /"session_id":"ses_runtime_test"/u,
+  )
+})
+
+test('摘要模型既不接收也不生成可信资源系统块', () => {
+  const bootstrap = compressionBootstrap()
+  bootstrap.session.resource_binding = {
+    kind: 'ssh_session',
+    session_id: 'ses_runtime_test',
+    host_id: 'hst_runtime_test',
+    ssh_profile_id: 'ssh_runtime_test',
+    host_name: 'Production',
+    platform: 'linux',
+    bound_at: '2026-08-31T02:20:30Z',
+  }
+
+  const options = createRuntimeContextSummaryAgentOptions(bootstrap, bootstrap.messages.slice(0, 1))
+
+  assert.doesNotMatch(String(options.initialState?.systemPrompt), /TERMOUS_VERIFIED_RESOURCE/u)
+  assert.doesNotMatch(JSON.stringify(options.initialState?.messages), /ses_runtime_test/u)
 })
 
 test('只有正常完成的模型回复可以作为上下文摘要', () => {

@@ -6,6 +6,7 @@ import {
   decodeAgentMessage,
   decodeAgentMessagePage,
   decodeAgentRunEventPage,
+  decodeAgentSession,
   decodeAgentSessionContext,
   decodeAgentSessionUsage,
   decodeAgentWorkspaceEvent,
@@ -15,6 +16,48 @@ import {
   agentRunFixture,
   agentSessionFixture,
 } from './agentRuntimeTestFixtures.ts'
+
+test('Agent 会话严格解码可信 SSH 资源绑定', () => {
+  const session = decodeAgentSession({
+    ...agentSessionFixture(),
+    resource_binding: {
+      kind: 'ssh_session',
+      session_id: 'ses-one',
+      host_id: 'host-one',
+      ssh_profile_id: 'ssh-one',
+      host_name: 'Production',
+      platform: 'linux',
+      bound_at: agentFixtureTime,
+    },
+  })
+  assert.equal(session.resource_binding?.session_id, 'ses-one')
+  assert.throws(() => decodeAgentSession({
+    ...agentSessionFixture(),
+    resource_binding: {
+      ...session.resource_binding,
+      kind: 'file_session',
+    },
+  }), /绑定类型无效/)
+})
+
+test('Agent 资源绑定接受 Host 领域允许的多字节长名称', () => {
+  const hostName = '生产环境主机'.repeat(13)
+  assert.equal(new TextEncoder().encode(hostName).byteLength > 200, true)
+  const session = decodeAgentSession({
+    ...agentSessionFixture(),
+    resource_binding: {
+      kind: 'ssh_session',
+      session_id: 'ses-one',
+      host_id: 'host-one',
+      ssh_profile_id: 'ssh-one',
+      host_name: hostName,
+      platform: 'linux',
+      bound_at: agentFixtureTime,
+    },
+  })
+
+  assert.equal(session.resource_binding?.host_name, hostName)
+})
 
 test('工作区协议接受 Core 新实例的 revision 0 权威快照', () => {
   const event = decodeAgentWorkspaceEvent({

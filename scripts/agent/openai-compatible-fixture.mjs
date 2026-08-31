@@ -7,10 +7,12 @@ export const agentModelFixtureID = 'termous-agent-fixture'
 export const agentModelFixtureDefaultPort = 18188
 export const agentModelFixtureToolName = 'm_termous_dhosts_dlist'
 export const agentModelFixtureApprovalToolName = 'm_termous_dsnippets_dcreate'
+export const agentModelFixtureBoundProcessToolName = 'm_termous_dremoteops_dprocesses_dlist'
 export const agentModelFixturePrompts = Object.freeze({
   basic: 'fixture:basic',
   reasoning: 'fixture:reasoning',
   tool: 'fixture:tool-hosts',
+  boundProcess: 'fixture:bound-processes',
   approval: 'fixture:approval-reject',
   slow: 'fixture:slow',
 })
@@ -96,13 +98,24 @@ async function handleRequest(request, response, options) {
   const scenario = resolveScenario(input.messages)
   const requiredTool = scenario === 'tool'
     ? agentModelFixtureToolName
-    : scenario === 'approval'
-      ? agentModelFixtureApprovalToolName
-      : ''
+    : scenario === 'bound_process'
+      ? agentModelFixtureBoundProcessToolName
+      : scenario === 'approval'
+        ? agentModelFixtureApprovalToolName
+        : ''
   if (requiredTool && !hasTool(input.tools, requiredTool)) {
     return writeJSON(response, 400, providerError('fixture_tool_missing', '缺少联调场景所需的 Tool'))
   }
-  return writeStreamResponse(request, response, input, scenario, options)
+  const verifiedSessionID = scenario === 'bound_process'
+    ? verifiedResourceSessionID(input.messages)
+    : ''
+  if (scenario === 'bound_process' && !verifiedSessionID) {
+    return writeJSON(response, 400, providerError(
+      'fixture_verified_resource_missing',
+      '缺少有效的可信 SSH 会话上下文',
+    ))
+  }
+  return writeStreamResponse(request, response, input, scenario, options, verifiedSessionID)
 }
 
 function writeProbeResponse(response, model) {
@@ -120,7 +133,14 @@ function writeProbeResponse(response, model) {
   })
 }
 
-async function writeStreamResponse(request, response, input, scenario, options) {
+async function writeStreamResponse(
+  request,
+  response,
+  input,
+  scenario,
+  options,
+  verifiedSessionID,
+) {
   response.writeHead(200, {
     'Cache-Control': 'no-store',
     Connection: 'keep-alive',
@@ -162,6 +182,24 @@ async function writeStreamResponse(request, response, input, scenario, options) 
       }],
     })
     return stream.finish('tool_calls', usage(20, 4, 0))
+  }
+  if (scenario === 'bound_process') {
+    if (hasToolResult(input.messages, 'call_termous_fixture_bound_processes')) {
+      await stream.text(['已使用可信绑定的 SSH 会话直接读取进程列表。'])
+      return stream.finish('stop', usage(28, 12, 0))
+    }
+    stream.chunk({
+      tool_calls: [{
+        index: 0,
+        id: 'call_termous_fixture_bound_processes',
+        type: 'function',
+        function: {
+          name: agentModelFixtureBoundProcessToolName,
+          arguments: JSON.stringify({ session_id: verifiedSessionID }),
+        },
+      }],
+    })
+    return stream.finish('tool_calls', usage(24, 4, 0))
   }
   if (scenario === 'approval') {
     if (hasToolResult(input.messages, 'call_termous_fixture_snippet_create')) {
@@ -250,9 +288,41 @@ function resolveScenario(messages) {
   const prompt = latestUserText(messages)
   if (prompt.includes(agentModelFixturePrompts.reasoning)) return 'reasoning'
   if (prompt.includes(agentModelFixturePrompts.tool)) return 'tool'
+  if (prompt.includes(agentModelFixturePrompts.boundProcess)) return 'bound_process'
   if (prompt.includes(agentModelFixturePrompts.approval)) return 'approval'
   if (prompt.includes(agentModelFixturePrompts.slow)) return 'slow'
   return 'basic'
+}
+
+function verifiedResourceSessionID(messages) {
+  const startMarker = '[TERMOUS_VERIFIED_RESOURCE]'
+  const endMarker = '[/TERMOUS_VERIFIED_RESOURCE]'
+  for (const message of messages) {
+    if (!isRecord(message) || message.role !== 'system' || typeof message.content !== 'string') {
+      continue
+    }
+    const start = message.content.indexOf(startMarker)
+    const end = message.content.indexOf(endMarker, start + startMarker.length)
+    if (start < 0 || end < 0) {
+      continue
+    }
+    try {
+      const resource = JSON.parse(
+        message.content.slice(start + startMarker.length, end).trim(),
+      )
+      if (isRecord(resource)
+        && resource.binding_mode === 'exact'
+        && resource.kind === 'ssh_session'
+        && resource.state === 'ready'
+        && typeof resource.session_id === 'string'
+        && /^ses_[A-Za-z0-9_-]+$/u.test(resource.session_id)) {
+        return resource.session_id
+      }
+    } catch {
+      return ''
+    }
+  }
+  return ''
 }
 
 function latestUserText(messages) {
@@ -275,7 +345,15 @@ function latestUserText(messages) {
 }
 
 function hasToolResult(messages, toolCallID) {
-  return messages.some((message) => isRecord(message)
+  let currentTurnStart = 0
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (isRecord(message) && message.role === 'user') {
+      currentTurnStart = index + 1
+      break
+    }
+  }
+  return messages.slice(currentTurnStart).some((message) => isRecord(message)
     && message.role === 'tool'
     && message.tool_call_id === toolCallID)
 }

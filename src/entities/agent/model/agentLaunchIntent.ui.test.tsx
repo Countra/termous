@@ -10,6 +10,7 @@ import {
 describe('Agent 业务来源意图', () => {
   it('为联合意图分配单调 key 时保持来源字段', () => {
     const request = buildWorkbenchAgentLaunchRequest({
+      sessionId: 'ses_a',
       hostId: 'hst_a',
       sshProfileId: 'sap_a',
       connectionStatus: 'connected',
@@ -20,8 +21,9 @@ describe('Agent 业务来源意图', () => {
     expect(assignAgentLaunchIntentKey(request, 7)).toEqual({ ...request, key: 7 })
   })
 
-  it('工作站只投影主机、SSH Profile 和连接状态', () => {
+  it('工作站同时投影展示上下文与精确 SSH Session 引用', () => {
     expect(buildWorkbenchAgentLaunchRequest({
+      sessionId: 'ses_a',
       hostId: 'hst_a',
       sshProfileId: 'sap_a',
       connectionStatus: 'connected',
@@ -32,6 +34,7 @@ describe('Agent 业务来源意图', () => {
       host_id: 'hst_a',
       ssh_profile_id: 'sap_a',
       connection_status: 'connected',
+      resource_reference: { kind: 'ssh_session', session_id: 'ses_a' },
       source_context: {
         kind: 'workbench',
         entity_id: 'sap_a',

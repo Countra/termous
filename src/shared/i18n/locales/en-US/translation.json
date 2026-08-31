@@ -178,6 +178,50 @@
         "manual": "Manually added"
       }
     },
+    "resource": {
+      "details": "Referenced SSH connection",
+      "host": "Host",
+      "profile": "SSH profile",
+      "session": "Session ID",
+      "boundAt": "Referenced at",
+      "status": {
+        "checking": "Checking connection",
+        "ready": "Connection ready",
+        "unavailable": "Connection unavailable",
+        "stale": "Original connection expired"
+      },
+      "hint": {
+        "checking": "Waiting for the latest SSH session snapshot from Core. The task will not be submitted until it is verified.",
+        "unavailable": "This connection is not ready. Your draft is preserved. If the original session disconnected, reconnect and explicitly replace the reference, or detach it.",
+        "stale": "The original connection was closed or Core restarted. A new connection using the same profile will not be selected automatically."
+      },
+      "aria": "Referenced SSH connection for {{host}}, {{status}}",
+      "tooltip": "{{host}} · {{status}}",
+      "replace": "Replace connection",
+      "confirmReplace": "Confirm replacement",
+      "selectLabel": "Select a new SSH connection",
+      "selectPlaceholder": "Select a connected SSH session",
+      "noCandidates": "No other connections are available",
+      "remove": "Detach connection",
+      "removeTitle": "Detach SSH connection?",
+      "removeDescription": "This Agent session will no longer be pinned to the SSH connection for “{{host}}”. Message history is unchanged.",
+      "activeRunLocked": "Connections cannot be replaced or detached while a task is running",
+      "error": {
+        "unavailableTitle": "Referenced SSH connection unavailable",
+        "conflictTitle": "Connection reference changed",
+        "conflictDescription": "This Agent session was updated. Wait for it to synchronize, then select the connection again.",
+        "activeRunTitle": "A task is running",
+        "activeRunDescription": "Stop or wait for the current task to finish before replacing or detaching the connection.",
+        "reason": {
+          "not_found": "The original SSH session no longer exists. Return to Workbench, reconnect, and select the new session.",
+          "not_connected": "The original SSH session disconnected. A reconnect will not be selected automatically; explicitly replace or detach the connection.",
+          "not_ready": "The SSH session is not ready yet. Try again later or select another connected session.",
+          "core_restarted": "Core restarted and the original session ID is no longer valid. Select the connection again.",
+          "identity_changed": "The SSH session identity no longer matches the reference, so submission was stopped to prevent targeting the wrong host.",
+          "unknown": "The connection is unavailable. Check it in Workbench and select the connection again."
+        }
+      }
+    },
     "attachments": {
       "title": "Attachments",
       "add": "Add attachment",

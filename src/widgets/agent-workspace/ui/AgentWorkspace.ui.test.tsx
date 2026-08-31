@@ -742,7 +742,7 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
     },
     draft: '', draft_attachments: [], supports_images: false, model_runnable: true,
     show_turn_token_usage: true,
-    loading: false, busy: false, run_blocked: false,
+    loading: false, busy: false, run_blocked: false, resource_run_blocked: false,
     onCreateSession: vi.fn(), onSelectSession: vi.fn(), onReturnToActiveRun: vi.fn(),
     onArchiveSession: vi.fn(), onDeleteSession: vi.fn(),
     onModelChange: vi.fn(), onReasoningChange: vi.fn(), onResetResponseOptions: vi.fn(),
@@ -754,6 +754,8 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
     onContextCompressionPendingChange: vi.fn(), onRetryContext: vi.fn(),
     onRetryUsage: vi.fn(),
     onApprovalBypassChange: vi.fn(async () => undefined),
+    onReplaceResourceBinding: vi.fn(async () => true),
+    onRemoveResourceBinding: vi.fn(async () => true),
     ...overrides,
   }
 }

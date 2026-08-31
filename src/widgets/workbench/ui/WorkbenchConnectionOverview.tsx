@@ -89,6 +89,12 @@ export function WorkbenchConnectionOverview({
     : t('fields.none')
   const sessionEnded = session?.status === 'disconnected' || session?.status === 'failed'
   const canOpenFiles = session?.status === 'connected' && Boolean(session.host_id)
+  const readyAgentSession = session?.kind === 'ssh'
+    && session.status === 'connected'
+    && session.phase === 'ready'
+    && host.platform === 'linux'
+    ? session
+    : undefined
   const canReconnect = Boolean(session?.ssh_profile_id && sessionEnded)
 
   return (
@@ -168,9 +174,10 @@ export function WorkbenchConnectionOverview({
       <div className={styles['current-connection-actions']}>
         {onLaunchAgent ? <Button
           className={`${uiStyles['secondary-button']} secondary-button`}
-          disabled={actionBusy}
+          disabled={actionBusy || !readyAgentSession}
           icon={<Bot size={16} />}
-          onClick={() => onLaunchAgent(buildWorkbenchAgentLaunchRequest({
+          onClick={() => readyAgentSession && onLaunchAgent(buildWorkbenchAgentLaunchRequest({
+            sessionId: readyAgentSession.id,
             hostId: host.id,
             sshProfileId: sshProfile.id,
             connectionStatus: session?.status ?? 'disconnected',

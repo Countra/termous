@@ -1,7 +1,7 @@
 import { App as AntdApp } from 'antd'
 import { act, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentLaunchIntent, AgentModel, AgentReadiness, AgentRun, AgentSession } from '#entities/agent'
+import type { AgentLaunchIntent, AgentModel, AgentReadiness, AgentRun, AgentSession, AgentSSHResourceState } from '#entities/agent'
 import type { AgentSetupGateway } from '#features/agent-setup'
 import { AgentRuntimeStartError, type AgentWorkspaceGateway } from '#features/agent-runtime'
 
@@ -11,6 +11,8 @@ const harness = vi.hoisted(() => ({
   workspaceProps: null as Record<string, unknown> | null,
   workspaceRenderCount: 0,
   createSession: vi.fn(),
+  replaceResourceBinding: vi.fn(),
+  removeResourceBinding: vi.fn(),
   startRun: vi.fn(),
   steerActiveRun: vi.fn(),
   updateDraft: vi.fn(),
@@ -19,6 +21,7 @@ const harness = vi.hoisted(() => ({
   selectSession: vi.fn(),
   reloadContext: vi.fn(),
   reloadUsage: vi.fn(),
+  reloadSession: vi.fn(),
   attachmentOptions: null as null | { ensureSession: () => Promise<string> },
   attachmentRecords: {} as Record<string, unknown[]>,
   addAttachment: vi.fn(),
@@ -50,6 +53,8 @@ vi.mock('#features/agent-runtime', () => ({
       start: vi.fn(),
       close: vi.fn(),
       createSession: harness.createSession,
+      replaceResourceBinding: harness.replaceResourceBinding,
+      removeResourceBinding: harness.removeResourceBinding,
       startRun: harness.startRun,
       steerActiveRun: harness.steerActiveRun,
       updateDraft: harness.updateDraft,
@@ -58,6 +63,7 @@ vi.mock('#features/agent-runtime', () => ({
       selectSession: harness.selectSession,
       reloadContext: harness.reloadContext,
       reloadUsage: harness.reloadUsage,
+      reloadSession: harness.reloadSession,
     }
   },
   useAgentDraftAttachments: (options: { ensureSession: () => Promise<string> }) => {
@@ -89,6 +95,10 @@ describe('AgentPage', () => {
     harness.workspaceProps = null
     harness.workspaceRenderCount = 0
     harness.createSession.mockReset()
+    harness.replaceResourceBinding.mockReset()
+    harness.removeResourceBinding.mockReset()
+    harness.replaceResourceBinding.mockResolvedValue(undefined)
+    harness.removeResourceBinding.mockResolvedValue(undefined)
     harness.startRun.mockReset()
     harness.steerActiveRun.mockReset()
     harness.updateDraft.mockReset()
@@ -97,6 +107,7 @@ describe('AgentPage', () => {
     harness.selectSession.mockReset()
     harness.reloadContext.mockReset().mockResolvedValue(undefined)
     harness.reloadUsage.mockReset().mockResolvedValue(undefined)
+    harness.reloadSession.mockReset().mockResolvedValue(undefined)
     harness.attachmentOptions = null
     harness.attachmentRecords = {}
     harness.addAttachment.mockReset()
@@ -402,6 +413,9 @@ describe('AgentPage', () => {
     await waitFor(() => expect(harness.workspaceProps?.draft_source_context).toEqual(
       launchIntent().source_context,
     ))
+    expect(harness.createSession).toHaveBeenCalledWith(expect.objectContaining({
+      resource_reference: { kind: 'ssh_session', session_id: 'ssh-session-one' },
+    }))
 
     await act(async () => {
       const send = harness.workspaceProps?.onSend as (
@@ -430,6 +444,87 @@ describe('AgentPage', () => {
     })
 
     expect(harness.clearAttachments).not.toHaveBeenCalled()
+  })
+
+  it('引用的精确 SSH 会话失效后不跟随同 Profile 新会话，并阻止发送且保留草稿', async () => {
+    harness.state = {
+      ...workspaceState(),
+      sessions: [boundSession(), sessions[1]],
+      drafts: { 'session-one': { text: '尚未发送的排查要求', updated_at: 1 } },
+    }
+    renderPage({ sshResourcesReady: true, sshResources: [sshResource('ssh-session-two')] })
+
+    await waitFor(() => expect(harness.workspaceProps?.resource_context).toMatchObject({ status: 'stale' }))
+    expect(harness.workspaceProps?.resource_run_blocked).toBe(true)
+    await act(async () => {
+      const send = harness.workspaceProps?.onSend as (message: string, ids: string[]) => Promise<void>
+      await send('尚未发送的排查要求', [])
+    })
+    expect(harness.startRun).not.toHaveBeenCalled()
+    expect((harness.state.drafts as Record<string, { text: string }>)['session-one']?.text)
+      .toBe('尚未发送的排查要求')
+  })
+
+  it('Agent Workspace 权威快照恢复前把已有绑定保持为 checking 并阻止发送', async () => {
+    harness.state = {
+      ...workspaceState(),
+      snapshot_complete: false,
+      sessions: [boundSession(), sessions[1]],
+      drafts: { 'session-one': { text: '等待权威状态恢复', updated_at: 1 } },
+    }
+    renderPage({
+      sshResourcesReady: true,
+      sshResources: [sshResource('ssh-session-one')],
+    })
+
+    await waitFor(() => expect(harness.workspaceProps?.resource_context)
+      .toMatchObject({ status: 'checking' }))
+    expect(harness.workspaceProps?.resource_run_blocked).toBe(true)
+    await act(async () => {
+      const send = harness.workspaceProps?.onSend as (message: string, ids: string[]) => Promise<void>
+      await send('等待权威状态恢复', [])
+    })
+    expect(harness.startRun).not.toHaveBeenCalled()
+    expect((harness.state.drafts as Record<string, { text: string }>)['session-one']?.text)
+      .toBe('等待权威状态恢复')
+  })
+
+  it('显式更换与解除引用使用 Agent Session revision', async () => {
+    harness.state = { ...workspaceState(), sessions: [boundSession(), sessions[1]] }
+    renderPage({ sshResourcesReady: true, sshResources: [sshResource('ssh-session-two')] })
+    await waitFor(() => expect(harness.workspaceProps?.resource_context).toBeDefined())
+
+    await act(async () => {
+      const replace = harness.workspaceProps?.onReplaceResourceBinding as (id: string) => Promise<boolean>
+      await replace('ssh-session-two')
+    })
+    expect(harness.replaceResourceBinding).toHaveBeenCalledWith('session-one', {
+      kind: 'ssh_session',
+      session_id: 'ssh-session-two',
+      expected_revision: 1,
+    })
+
+    await act(async () => {
+      const remove = harness.workspaceProps?.onRemoveResourceBinding as () => Promise<boolean>
+      await remove()
+    })
+    expect(harness.removeResourceBinding).toHaveBeenCalledWith('session-one', 1)
+  })
+
+  it('资源绑定 revision 冲突后主动恢复权威会话并保留失败结果', async () => {
+    harness.state = { ...workspaceState(), sessions: [boundSession(), sessions[1]] }
+    harness.replaceResourceBinding.mockRejectedValueOnce({ code: 'AGENT_REVISION_CONFLICT' })
+    renderPage({ sshResourcesReady: true, sshResources: [sshResource('ssh-session-two')] })
+    await waitFor(() => expect(harness.workspaceProps?.resource_context).toBeDefined())
+
+    let result = true
+    await act(async () => {
+      const replace = harness.workspaceProps?.onReplaceResourceBinding as (id: string) => Promise<boolean>
+      result = await replace('ssh-session-two')
+    })
+
+    expect(result).toBe(false)
+    expect(harness.reloadSession).toHaveBeenCalledWith('session-one')
   })
 
   it('业务来源创建失败时释放 pending intent，允许用户重新发起', async () => {
@@ -805,6 +900,8 @@ function renderPage({
   onRuntimeSummaryChange,
   readiness = readinessFixture(),
   active = true,
+  sshResources = [],
+  sshResourcesReady = false,
 }: {
   launchIntent?: AgentLaunchIntent
   onLaunchIntentHandled?: (key: number) => void
@@ -814,6 +911,8 @@ function renderPage({
   }) => void
   readiness?: AgentReadiness
   active?: boolean
+  sshResources?: AgentSSHResourceState[]
+  sshResourcesReady?: boolean
 } = {}) {
   const setupGateway = {
     readiness: vi.fn(async () => readiness),
@@ -832,6 +931,8 @@ function renderPage({
         setupGateway={setupGateway}
         enabled
         active={next.active ?? active}
+        sshResources={sshResources}
+        sshResourcesReady={sshResourcesReady}
         launchIntent={next.launchIntent ?? launchIntent}
         onLaunchIntentHandled={next.onLaunchIntentHandled ?? onLaunchIntentHandled}
         onRuntimeSummaryChange={onRuntimeSummaryChange}
@@ -861,6 +962,33 @@ function providerFixture() {
     revision: 1,
     created_at: '2026-08-29T00:00:00Z',
     updated_at: '2026-08-29T00:00:00Z',
+  }
+}
+
+function boundSession(): AgentSession {
+  return {
+    ...sessions[0],
+    resource_binding: {
+      kind: 'ssh_session',
+      session_id: 'ssh-session-one',
+      host_id: 'host-one',
+      ssh_profile_id: 'ssh-one',
+      host_name: 'Production',
+      platform: 'linux',
+      bound_at: '2026-08-31T08:00:00Z',
+    },
+  }
+}
+
+function sshResource(sessionId: string): AgentSSHResourceState {
+  return {
+    session_id: sessionId,
+    host_id: 'host-two',
+    ssh_profile_id: 'ssh-two',
+    host_name: 'Fallback',
+    ssh_profile_name: 'Primary',
+    status: 'ready',
+    started_at: '2026-08-31T09:00:00Z',
   }
 }
 
@@ -973,13 +1101,15 @@ function launchIntent(): AgentLaunchIntent {
   return {
     key: 7,
     source: 'workbench',
+    ssh_profile_id: 'ssh-one',
     host_id: 'host-one',
-    connection_status: 'failed',
+    connection_status: 'connected',
+    resource_reference: { kind: 'ssh_session', session_id: 'ssh-session-one' },
     source_context: {
       kind: 'workbench',
       entity_id: 'host-one',
       title: '生产主机',
-      summary: '连接已断开',
+      summary: '连接已就绪',
     },
   }
 }

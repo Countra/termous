@@ -6,6 +6,7 @@ interface LaunchContextCopy {
 }
 
 interface WorkbenchLaunchInput extends LaunchContextCopy {
+  sessionId: string
   hostId: string
   sshProfileId: string
   connectionStatus: string
@@ -50,6 +51,7 @@ export function buildWorkbenchAgentLaunchRequest(input: WorkbenchLaunchInput): A
     host_id: input.hostId,
     ssh_profile_id: input.sshProfileId,
     connection_status: input.connectionStatus,
+    resource_reference: { kind: 'ssh_session', session_id: input.sessionId },
     source_context: sourceContext('workbench', input.sshProfileId, input),
   }
 }

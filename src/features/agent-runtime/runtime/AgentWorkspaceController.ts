@@ -5,6 +5,7 @@ import type {
   AgentSession,
   AgentSessionInput,
   AgentSessionUpdateInput,
+  AgentResourceBindingUpdateInput,
   AgentSourceContext,
 } from '#entities/agent'
 import { isAgentRunTerminal } from '#entities/agent'
@@ -202,6 +203,14 @@ export class AgentWorkspaceController {
       this.usageRefreshTimers.delete(sessionId)
     }
     return this.hydrateUsage(sessionId, 'restart')
+  }
+
+  async reloadSession(sessionId: string) {
+    const authority = this.authorityVersion
+    const session = await this.gateway.session(sessionId)
+    if (this.disposed || authority !== this.authorityVersion) return undefined
+    this.acceptSession(session)
+    return session
   }
 
   async createSession(input: AgentSessionInput) {
@@ -502,6 +511,22 @@ export class AgentWorkspaceController {
     this.commit(result.state)
     if (runUsageRequiresRefresh(currentRun, run)) this.scheduleUsageRefresh(run.session_id)
     if (isAgentRunTerminal(run.status)) void this.hydrateContext(run.session_id, 'refresh')
+  }
+
+  async replaceResourceBinding(id: string, input: AgentResourceBindingUpdateInput) {
+    return await this.runMutation(async () => {
+      const session = await this.gateway.replaceResourceBinding(id, input)
+      this.acceptSession(session)
+      return session
+    })
+  }
+
+  async removeResourceBinding(id: string, expectedRevision: number) {
+    return await this.runMutation(async () => {
+      const session = await this.gateway.removeResourceBinding(id, expectedRevision)
+      this.acceptSession(session)
+      return session
+    })
   }
 
   private async hydrateMessages(sessionId: string, authoritative: boolean) {

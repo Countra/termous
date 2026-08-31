@@ -1,6 +1,8 @@
 import type {
   AgentAttachment,
   AgentReasoningLevel,
+  AgentResourceBinding,
+  AgentSSHResourceState,
   AgentSourceContext,
   AgentUsage,
 } from '#entities/agent'
@@ -27,6 +29,16 @@ export interface AgentWorkspaceSession {
   updated_at: string
   archived: boolean
   run_status: AgentWorkspaceRunStatus
+  resource_binding?: AgentResourceBinding
+}
+
+export type AgentWorkspaceResourceStatus = 'checking' | 'ready' | 'unavailable' | 'stale'
+
+export interface AgentWorkspaceResourceContext {
+  binding: AgentResourceBinding
+  status: AgentWorkspaceResourceStatus
+  live_resource?: AgentSSHResourceState
+  candidates: AgentSSHResourceState[]
 }
 
 export type AgentWorkspaceModelUnavailableReason =
@@ -173,6 +185,8 @@ export interface AgentWorkspaceProps {
     status: AgentWorkspaceRunStatus
   }
   run_blocked: boolean
+  resource_run_blocked: boolean
+  resource_context?: AgentWorkspaceResourceContext
   onCreateSession: () => void
   onSelectSession: (sessionId: string) => void
   onReturnToActiveRun: () => void
@@ -194,6 +208,8 @@ export interface AgentWorkspaceProps {
   onRetryContext: () => void
   onRetryUsage: () => void
   onApprovalBypassChange: (enabled: boolean) => Promise<void>
+  onReplaceResourceBinding: (sessionId: string) => Promise<boolean>
+  onRemoveResourceBinding: () => Promise<boolean>
 }
 
 export function isActiveAgentRun(status: AgentWorkspaceRunStatus | undefined) {

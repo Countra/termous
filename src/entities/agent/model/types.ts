@@ -227,6 +227,32 @@ export interface AgentSourceContext {
   summary: string
 }
 
+export const agentResourceKinds = ['ssh_session'] as const
+export type AgentResourceKind = (typeof agentResourceKinds)[number]
+
+export interface AgentResourceReference {
+  kind: AgentResourceKind
+  session_id: string
+}
+
+export interface AgentResourceBinding extends AgentResourceReference {
+  host_id: string
+  ssh_profile_id: string
+  host_name: string
+  platform: 'linux'
+  bound_at: string
+}
+
+export interface AgentSSHResourceState {
+  session_id: string
+  host_id: string
+  ssh_profile_id: string
+  host_name: string
+  ssh_profile_name: string
+  status: 'ready' | 'unavailable'
+  started_at: string
+}
+
 export type AgentLaunchIntent = {
   key: number
   source_context: AgentSourceContext
@@ -234,8 +260,9 @@ export type AgentLaunchIntent = {
   | {
       source: 'workbench'
       host_id: string
-      ssh_profile_id?: string
+      ssh_profile_id: string
       connection_status: string
+      resource_reference: AgentResourceReference
     }
   | {
       source: 'files'
@@ -282,6 +309,7 @@ export interface AgentSession {
   revision: number
   created_at: string
   updated_at: string
+  resource_binding?: AgentResourceBinding
 }
 
 export interface AgentSessionPage {
@@ -293,10 +321,18 @@ export interface AgentSessionInput {
   title: string
   model_id: string
   reasoning_level: AgentReasoningLevel
+  resource_reference?: AgentResourceReference
 }
 
-export interface AgentSessionUpdateInput extends AgentSessionInput {
+export interface AgentSessionUpdateInput {
+  title: string
+  model_id: string
+  reasoning_level: AgentReasoningLevel
   archived: boolean
+  expected_revision: number
+}
+
+export interface AgentResourceBindingUpdateInput extends AgentResourceReference {
   expected_revision: number
 }
 

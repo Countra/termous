@@ -61,7 +61,7 @@ describe('工作台连接详情', () => {
     expect(screen.queryByText('legacy-user@legacy.example.com:22')).not.toBeInTheDocument()
   })
 
-  it('交给 Agent 时只投影主机、Profile 与连接状态', () => {
+  it('交给 Agent 时携带当前 ready 会话的精确引用', () => {
     const onLaunchAgent = vi.fn()
     render(
       <WorkbenchConnectionOverview
@@ -92,8 +92,38 @@ describe('工作台连接详情', () => {
       host_id: 'host-a',
       ssh_profile_id: 'ssh-profile-a',
       connection_status: 'connected',
+      resource_reference: { kind: 'ssh_session', session_id: 'session-a' },
     }))
-    expect(onLaunchAgent.mock.calls[0]?.[0]).not.toHaveProperty('session_id')
+  })
+
+  it('SSH 会话尚未 ready 时不允许创建 Agent 绑定', () => {
+    const onLaunchAgent = vi.fn()
+    render(
+      <WorkbenchConnectionOverview
+        data={{
+          hosts: [legacyHost()],
+          groups: [],
+          proxies: [],
+          credentials: [],
+          sshAccessProfiles: [profile()],
+        }}
+        session={session({ phase: 'starting_shell' })}
+        actionBusy={false}
+        sessionClosing={false}
+        sessionBadgeStatus="connecting"
+        sessionStatusLabel="connecting"
+        sessionStateLabel="starting"
+        getHostIconUrl={() => ''}
+        onOpenFiles={async () => undefined}
+        onReconnect={async () => undefined}
+        onClose={async () => true}
+        onLaunchAgent={onLaunchAgent}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'agent.launch.action' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.launch.action' }))
+    expect(onLaunchAgent).not.toHaveBeenCalled()
   })
 })
 
@@ -132,7 +162,7 @@ function profile(): SSHAccessProfile {
   }
 }
 
-function session(): Session {
+function session(overrides: Partial<Session> = {}): Session {
   return {
     id: 'session-a',
     kind: 'ssh',
@@ -140,8 +170,10 @@ function session(): Session {
     host_id: 'host-a',
     ssh_profile_id: 'ssh-profile-a',
     status: 'connected',
+    phase: 'ready',
     started_at: '2026-08-25T00:00:00Z',
     pty_cols: 120,
     pty_rows: 32,
+    ...overrides,
   }
 }

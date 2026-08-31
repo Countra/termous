@@ -120,6 +120,33 @@ test('bootstrap 绑定 Run、generation、Session 与 reasoning 枚举', async (
   await assert.rejects(invalidTokenRange.bootstrap(start), /AGENT_RUNTIME_BOOTSTRAP_INVALID/)
 })
 
+test('bootstrap 严格校验可信 SSH 资源绑定且拒绝未声明字段', async () => {
+  const valid = bootstrapResponse()
+  valid.session.resource_binding = runtimeResourceBinding()
+  const accepted = await new WorkerCoreClient({
+    fetch: async () => Response.json(valid),
+  }).bootstrap(start)
+  assert.deepEqual(accepted.session.resource_binding, runtimeResourceBinding())
+  assert.equal(Object.isFrozen(accepted.session.resource_binding), true)
+
+  for (const mutate of [
+    (value: Record<string, unknown>) => { value.kind = 'file_session' },
+    (value: Record<string, unknown>) => { value.session_id = 'ses invalid' },
+    (value: Record<string, unknown>) => { value.platform = 'windows' },
+    (value: Record<string, unknown>) => { value.bound_at = 'not-a-time' },
+    (value: Record<string, unknown>) => { value.host_address = '192.0.2.1' },
+    (value: Record<string, unknown>) => { delete value.ssh_profile_id },
+  ]) {
+    const response = bootstrapResponse()
+    response.session.resource_binding = runtimeResourceBinding()
+    mutate(response.session.resource_binding as unknown as Record<string, unknown>)
+    await assert.rejects(
+      new WorkerCoreClient({ fetch: async () => Response.json(response) }).bootstrap(start),
+      /AGENT_RUNTIME_BOOTSTRAP_INVALID/u,
+    )
+  }
+})
+
 test('bootstrap 严格校验推理控制、支持档位及本次 Run 档位', async () => {
   const unsupportedRunResponse = bootstrapResponse()
   unsupportedRunResponse.run.reasoning_level = 'high'
@@ -170,6 +197,7 @@ test('bootstrap 冻结 Run 模型快照且不混淆内部模型 ID', async () =>
   assert.equal(bootstrap.model.snapshot.model_id, 'test-model')
   assert.equal(Object.isFrozen(bootstrap.model.snapshot), true)
   assert.equal(Object.isFrozen(bootstrap.model), false)
+  assert.equal(Object.isFrozen(bootstrap.session), true)
 })
 
 test('bootstrap 严格校验附件传输形状、数量与预解码长度', async () => {
@@ -384,5 +412,17 @@ function runtimeMessage(
       content: { text: { text: 'hello' } },
     }],
     attachments,
+  }
+}
+
+function runtimeResourceBinding(): NonNullable<RuntimeBootstrap['session']['resource_binding']> {
+  return {
+    kind: 'ssh_session',
+    session_id: 'ses_runtime_test',
+    host_id: 'hst_runtime_test',
+    ssh_profile_id: 'ssh_runtime_test',
+    host_name: 'Production',
+    platform: 'linux',
+    bound_at: '2026-08-31T02:20:30Z',
   }
 }

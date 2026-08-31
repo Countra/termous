@@ -6,9 +6,11 @@ import {
   type AgentLaunchIntent,
   type AgentModel,
   type AgentModelProvider,
+  type AgentResourceReference,
   type AgentReasoningLevel,
   type AgentReadiness,
   type AgentSession,
+  type AgentSSHResourceState,
   type AgentSourceContext,
 } from '#entities/agent'
 import { loadAgentModelCatalog, type AgentSetupGateway } from '#features/agent-setup'
@@ -19,7 +21,11 @@ import {
   type AgentWorkspaceGateway,
 } from '#features/agent-runtime'
 import { termousNotificationClassName } from '#shared/ui'
-import { AgentWorkspace, type AgentWorkspaceInspectorState } from '#widgets/agent-workspace'
+import {
+  AgentWorkspace,
+  type AgentWorkspaceInspectorState,
+  type AgentWorkspaceResourceContext,
+} from '#widgets/agent-workspace'
 import {
   agentRunInteractionBlocked,
   agentWorkspaceInfrastructureReady,
@@ -30,12 +36,15 @@ import {
   selectionAfterSessionRemoval,
 } from '../model/agentWorkspaceProjection.ts'
 import { resolveAgentModelReasoningLevel } from '../model/agentModelSelection.ts'
+import { resolveAgentResourceError } from '../model/agentResourceError.ts'
 import { AgentReadinessSurface } from './AgentReadinessSurface.tsx'
 import styles from './AgentPage.module.scss'
 
 export function AgentPage({
   gateway,
   setupGateway,
+  sshResources = [],
+  sshResourcesReady = false,
   enabled,
   active,
   launchIntent,
@@ -45,6 +54,8 @@ export function AgentPage({
 }: {
   gateway: AgentWorkspaceGateway
   setupGateway: AgentSetupGateway
+  sshResources?: AgentSSHResourceState[]
+  sshResourcesReady?: boolean
   enabled: boolean
   active: boolean
   launchIntent?: AgentLaunchIntent | null
@@ -203,21 +214,42 @@ export function AgentPage({
     }
   }, [active, enabled, hydrateActiveSetup])
 
-  const perform = useCallback(async (operation: () => Promise<unknown>) => {
+  const perform = useCallback(async (
+    operation: () => Promise<unknown>,
+    errorContext: 'generic' | 'resource' = 'generic',
+  ) => {
     if (busyRef.current) return false
     busyRef.current = true
     setBusy(true)
     try {
       await operation()
       return true
-    } catch {
-      notifyError(notificationRef.current, tRef.current)
+    } catch (error) {
+      notifyError(notificationRef.current, tRef.current, error, errorContext)
       return false
     } finally {
       busyRef.current = false
       setBusy(false)
     }
   }, [])
+
+  const performResourceMutation = useCallback(async (
+    sessionId: string,
+    operation: () => Promise<unknown>,
+  ) => await perform(async () => {
+    try {
+      await operation()
+    } catch (error) {
+      if (resolveAgentResourceError(error).kind === 'revision_conflict') {
+        try {
+          await controller.reloadSession(sessionId)
+        } catch {
+          // Workspace 事件仍可恢复权威状态，保留原始冲突错误供用户判断。
+        }
+      }
+      throw error
+    }
+  }, 'resource'), [controller, perform])
 
   const selected = state.sessions.find((session) => session.id === state.selected_session_id)
   const newSessionModelId = draftModelId
@@ -235,7 +267,10 @@ export function AgentPage({
   const workspaceInfrastructureReady = Boolean(
     readiness && agentWorkspaceInfrastructureReady(readiness),
   )
-  const createDraftSession = useCallback(async (sourceContext?: AgentSourceContext) => {
+  const createDraftSession = useCallback(async (
+    sourceContext?: AgentSourceContext,
+    resourceReference?: AgentResourceReference,
+  ) => {
     const modelId = newSessionModelId
     if (!modelId) throw new Error('AGENT_DEFAULT_MODEL_MISSING')
     const model = modelById.get(modelId)
@@ -246,6 +281,7 @@ export function AgentPage({
       title: sourceContext?.title || tRef.current('agent.sessions.untitled'),
       model_id: modelId,
       reasoning_level: resolveAgentModelReasoningLevel(model, newSessionReasoningLevel),
+      resource_reference: resourceReference,
     })
     controller.selectSession(session.id)
     return session
@@ -262,7 +298,10 @@ export function AgentPage({
     return promise
   }, [createDraftSession])
 
-  const createIndependentDraftSession = useCallback(async (sourceContext: AgentSourceContext) => {
+  const createIndependentDraftSession = useCallback(async (
+    sourceContext: AgentSourceContext,
+    resourceReference?: AgentResourceReference,
+  ) => {
     const pendingAttachmentSession = attachmentDraftSessionPromiseRef.current
     if (pendingAttachmentSession) {
       try {
@@ -271,7 +310,7 @@ export function AgentPage({
         // 附件草稿创建失败不应阻止业务入口随后创建独立会话。
       }
     }
-    return createDraftSession(sourceContext)
+    return createDraftSession(sourceContext, resourceReference)
   }, [createDraftSession])
 
   const ensureAttachmentSession = useCallback(async () => {
@@ -320,15 +359,18 @@ export function AgentPage({
       || activeSetupReadyEpochRef.current !== activeSetupEpochRef.current) return
     if (handledLaunchIntentRef.current === launchIntent.key) return
     handledLaunchIntentRef.current = launchIntent.key
-    void createIndependentDraftSession(launchIntent.source_context).then((session) => {
+    const resourceReference = launchIntent.source === 'workbench'
+      ? launchIntent.resource_reference
+      : undefined
+    void createIndependentDraftSession(launchIntent.source_context, resourceReference).then((session) => {
       const prompt = tRef.current(`agent.launch.prompt.${launchIntent.source_context.kind}`)
       controller.updateDraft(session.id, prompt)
       setDraftSourceContexts((contexts) => ({ ...contexts, [session.id]: launchIntent.source_context }))
       onLaunchIntentHandled?.(launchIntent.key)
-    }).catch(() => {
+    }).catch((error) => {
       handledLaunchIntentRef.current = 0
       onLaunchIntentHandled?.(launchIntent.key)
-      notifyError(notificationRef.current, tRef.current)
+      notifyError(notificationRef.current, tRef.current, error, 'resource')
     })
   }, [
     active,
@@ -362,6 +404,14 @@ export function AgentPage({
   }
 
   const selectedRun = selected ? latestSessionRun(selected.id, state.runs) : undefined
+  const resourceContext = selected?.resource_binding
+    ? projectResourceContext(
+        selected.resource_binding,
+        sshResources,
+        sshResourcesReady && state.snapshot_complete,
+      )
+    : undefined
+  const resourceRunBlocked = Boolean(resourceContext && resourceContext.status !== 'ready')
   const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
   const runEvents = selectedRun ? state.run_events[selectedRun.id] ?? [] : []
   const selectedModel = modelById.get(selected?.model_id ?? newSessionModelId ?? '')
@@ -459,6 +509,8 @@ export function AgentPage({
           selectedRun,
           state.runtime_status,
         )}
+        resource_run_blocked={resourceRunBlocked}
+        resource_context={resourceContext}
         onCreateSession={() => {
           controller.selectSession(undefined)
           const modelId = readiness.settings.default_model_id ?? firstRunnableModelId
@@ -558,6 +610,7 @@ export function AgentPage({
         onLoadAttachmentContent={loadAttachmentContent}
         onSend={async (message, attachmentIds, sourceContext) => {
           await perform(async () => {
+            if (resourceRunBlocked) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
             let targetSession = selected
             if (!targetSession) {
               const modelId = newSessionModelId
@@ -601,10 +654,11 @@ export function AgentPage({
               throw error
             }
             clearCommittedDraft()
-          })
+          }, resourceContext ? 'resource' : 'generic')
         }}
         onSteer={async (message) => {
           await perform(async () => {
+            if (resourceRunBlocked) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
             const targetSessionId = selected?.id
             const submittedDraft = targetSessionId
               ? controller.getSnapshot().drafts[targetSessionId]
@@ -613,7 +667,7 @@ export function AgentPage({
             if (targetSessionId && controller.getSnapshot().drafts[targetSessionId] === submittedDraft) {
               controller.updateDraft(targetSessionId, '')
             }
-          })
+          }, resourceContext ? 'resource' : 'generic')
         }}
         onStop={async () => { await perform(() => controller.stopActiveRun()) }}
         onContextCompressionPendingChange={(enabled) => {
@@ -643,6 +697,23 @@ export function AgentPage({
           })
           if (!updated) throw new Error('AGENT_MCP_POLICY_UPDATE_FAILED')
         }}
+        onReplaceResourceBinding={async (sessionId) => {
+          if (!selected) return false
+          return await performResourceMutation(selected.id, async () => {
+            await controller.replaceResourceBinding(selected.id, {
+              kind: 'ssh_session',
+              session_id: sessionId,
+              expected_revision: selected.revision,
+            })
+          })
+        }}
+        onRemoveResourceBinding={async () => {
+          if (!selected) return false
+          return await performResourceMutation(
+            selected.id,
+            () => controller.removeResourceBinding(selected.id, selected.revision),
+          )
+        }}
       />
     </div>
   )
@@ -655,6 +726,25 @@ function updateInput(session: AgentSession, archived: boolean) {
     reasoning_level: session.reasoning_level,
     archived,
     expected_revision: session.revision,
+  }
+}
+
+function projectResourceContext(
+  binding: NonNullable<AgentSession['resource_binding']>,
+  resources: AgentSSHResourceState[],
+  snapshotReady: boolean,
+): AgentWorkspaceResourceContext {
+  const live = resources.find(({ session_id }) => session_id === binding.session_id)
+  const identityMatches = live
+    && live.host_id === binding.host_id
+    && live.ssh_profile_id === binding.ssh_profile_id
+  return {
+    binding,
+    status: !snapshotReady ? 'checking' : !identityMatches ? 'stale' : live.status,
+    ...(identityMatches ? { live_resource: live } : {}),
+    candidates: resources
+      .filter(({ status }) => status === 'ready')
+      .sort((left, right) => Date.parse(right.started_at) - Date.parse(left.started_at)),
   }
 }
 
@@ -691,7 +781,36 @@ function projectMcpConnection(
 function notifyError(
   notification: ReturnType<typeof AntdApp.useApp>['notification'],
   t: (key: string) => string,
+  error?: unknown,
+  context: 'generic' | 'resource' = 'generic',
 ) {
+  if (context === 'resource') {
+    const resourceError = resolveAgentResourceError(error)
+    if (resourceError.kind === 'unavailable') {
+      notification.error({
+        title: t('agent.resource.error.unavailableTitle'),
+        description: t(`agent.resource.error.reason.${resourceError.reason}`),
+        className: termousNotificationClassName,
+      })
+      return
+    }
+    if (resourceError.kind === 'revision_conflict') {
+      notification.warning({
+        title: t('agent.resource.error.conflictTitle'),
+        description: t('agent.resource.error.conflictDescription'),
+        className: termousNotificationClassName,
+      })
+      return
+    }
+    if (resourceError.kind === 'run_conflict') {
+      notification.warning({
+        title: t('agent.resource.error.activeRunTitle'),
+        description: t('agent.resource.error.activeRunDescription'),
+        className: termousNotificationClassName,
+      })
+      return
+    }
+  }
   notification.error({
     title: t('agent.error.operation'),
     description: t('agent.error.operationDescription'),

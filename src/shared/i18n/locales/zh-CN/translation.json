@@ -178,6 +178,50 @@
         "manual": "手工添加"
       }
     },
+    "resource": {
+      "details": "已引用的 SSH 连接",
+      "host": "主机",
+      "profile": "SSH 配置",
+      "session": "会话标识",
+      "boundAt": "引用时间",
+      "status": {
+        "checking": "正在确认连接",
+        "ready": "连接可用",
+        "unavailable": "连接暂不可用",
+        "stale": "原连接已失效"
+      },
+      "hint": {
+        "checking": "正在等待 Core 返回最新的 SSH 会话状态，确认完成前不会提交任务。",
+        "unavailable": "当前连接未处于就绪状态。草稿会保留；若原会话已断开，请重新连接后显式更换引用，或解除引用。",
+        "stale": "原连接已关闭或 Core 已重启，不会自动切换到同配置的新连接。"
+      },
+      "aria": "已引用 {{host}} 的 SSH 连接，{{status}}",
+      "tooltip": "{{host}} · {{status}}",
+      "replace": "更换连接",
+      "confirmReplace": "确认更换",
+      "selectLabel": "选择新的 SSH 连接",
+      "selectPlaceholder": "选择已连接的 SSH 会话",
+      "noCandidates": "暂无其他可用连接",
+      "remove": "解除引用",
+      "removeTitle": "解除 SSH 连接引用？",
+      "removeDescription": "解除后，此 Agent 会话将不再固定使用“{{host}}”的 SSH 连接，历史消息不会改变。",
+      "activeRunLocked": "任务运行期间不能更换或解除连接",
+      "error": {
+        "unavailableTitle": "无法使用引用的 SSH 连接",
+        "conflictTitle": "连接引用已发生变化",
+        "conflictDescription": "当前 Agent 会话已被更新，请等待状态同步后重新选择连接。",
+        "activeRunTitle": "任务正在运行",
+        "activeRunDescription": "请先停止或等待当前任务结束，再更换或解除连接。",
+        "reason": {
+          "not_found": "原 SSH 会话已不存在，请返回工作站重新连接并选择新的会话。",
+          "not_connected": "原 SSH 会话已断开，不会自动跟随重连产生的新会话；请显式更换连接或解除引用。",
+          "not_ready": "SSH 会话尚未就绪，请稍后重试或选择其他已连接会话。",
+          "core_restarted": "Core 已重启，原会话标识不再有效，请重新选择连接。",
+          "identity_changed": "SSH 会话身份与原引用不一致，为避免误操作已停止提交。",
+          "unknown": "连接当前不可用，请返回工作站确认连接状态后重新选择。"
+        }
+      }
+    },
     "attachments": {
       "title": "附件",
       "add": "添加附件",

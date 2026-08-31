@@ -6,10 +6,12 @@ import type { AgentReasoningLevel, AgentSourceContext } from '#entities/agent'
 import type {
   AgentWorkspaceDraftAttachment,
   AgentWorkspaceProps,
+  AgentWorkspaceResourceContext,
   AgentWorkspaceRunStatus,
 } from '../model/types.ts'
 import { isActiveAgentRun } from '../model/types.ts'
 import { AgentResponseOptionsMenu } from './AgentResponseOptionsMenu.tsx'
+import { AgentResourceBindingControl } from './AgentResourceBindingControl.tsx'
 import styles from './AgentComposer.module.scss'
 
 export function AgentComposer({
@@ -18,6 +20,8 @@ export function AgentComposer({
   disabled,
   submitDisabled,
   sourceContext,
+  resourceContext,
+  resourceChangeDisabled,
   attachments,
   supportsImages,
   models,
@@ -42,12 +46,16 @@ export function AgentComposer({
   onReasoningChange,
   onResetResponseOptions,
   onOpenSettings,
+  onReplaceResourceBinding,
+  onRemoveResourceBinding,
 }: {
   value: string
   runStatus: AgentWorkspaceRunStatus
   disabled: boolean
   submitDisabled: boolean
   sourceContext?: AgentSourceContext
+  resourceContext?: AgentWorkspaceResourceContext
+  resourceChangeDisabled: boolean
   attachments: AgentWorkspaceDraftAttachment[]
   supportsImages: boolean
   models: AgentWorkspaceProps['models']
@@ -72,6 +80,8 @@ export function AgentComposer({
   onReasoningChange: (reasoningLevel: AgentReasoningLevel) => void
   onResetResponseOptions: () => void
   onOpenSettings: () => void
+  onReplaceResourceBinding: (sessionId: string) => Promise<boolean>
+  onRemoveResourceBinding: () => Promise<boolean>
 }) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -87,8 +97,16 @@ export function AgentComposer({
   return (
     <div className={styles.composer}>
       <div className={styles['composer-input']}>
-        {active || (sourceContext && !active) || (attachments.length > 0 && !active) ? (
+        {resourceContext || active || (sourceContext && !active) || (attachments.length > 0 && !active) ? (
           <div className={styles['composer-tray']}>
+            {resourceContext ? (
+              <AgentResourceBindingControl
+                context={resourceContext}
+                disabled={resourceChangeDisabled}
+                onReplace={onReplaceResourceBinding}
+                onRemove={onRemoveResourceBinding}
+              />
+            ) : null}
             {active ? (
               <div className={styles['composer-context']}><Waypoints size={13} />{t('agent.composer.steerHint')}</div>
             ) : null}

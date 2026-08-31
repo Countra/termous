@@ -73,7 +73,7 @@ import type { CredentialInput, CredentialView } from '#entities/credential'
 import type { ForwardEvent } from '#entities/forward'
 import type { Host, HostGroup, HostIcon, HostIconReorderItem, HostInput } from '#entities/host'
 import type { GroupReorderItem, PageKey } from '#shared/model'
-import type { LocalShell, Session } from '#entities/session'
+import type { LocalShell, Session, SessionSnapshotEvent } from '#entities/session'
 import styles from './App.module.scss'
 import {
   canCommitFilesBookmarkManagementRequest,
@@ -87,6 +87,7 @@ import { FilesWorkspaceRuntimeProvider } from '#widgets/files-workspace'
 import { useFileSessionCoordinator } from './model/useFileSessionCoordinator'
 import { useRealtimeStatusSubscriptions } from './model/useRealtimeStatusSubscriptions'
 import { useSessionSnapshotSubscription } from './model/useSessionSnapshotSubscription'
+import { projectAgentSSHResources } from './model/projectAgentSSHResources.ts'
 import { useFileSessionSnapshotSubscription } from './model/useFileSessionSnapshotSubscription'
 import { useDesktopBridgeRuntime } from './model/useDesktopBridgeRuntime'
 import { ConnectionLauncherRuntimeBridge } from './ConnectionLauncherRuntimeBridge.tsx'
@@ -190,6 +191,14 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     () => gateways.fileSessions.fileSessionSnapshotsUrl(),
     [gateways.fileSessions],
   )
+  const [sessionSnapshotReady, setSessionSnapshotReady] = useState(false)
+  const applyAgentAwareSessionSnapshot = useCallback((
+    event: SessionSnapshotEvent,
+    generation: number,
+  ) => {
+    actions.applySessionSnapshot(event, generation)
+    setSessionSnapshotReady(true)
+  }, [actions])
   useRealtimeStatusSubscriptions({
     enabled: apiReady,
     forwardEventsUrl,
@@ -204,7 +213,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
   useSessionSnapshotSubscription({
     enabled: apiReady,
     eventsUrl: sessionEventsUrl,
-    onSnapshot: actions.applySessionSnapshot,
+    onSnapshot: applyAgentAwareSessionSnapshot,
+    onAwaitingSnapshot: () => setSessionSnapshotReady(false),
   })
   useFileSessionSnapshotSubscription({
     enabled: apiReady,
@@ -422,6 +432,10 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
     data.sshAccessProfiles,
     remoteDesktopRuntimeSessions,
   ])
+  const agentSSHResources = useMemo(
+    () => projectAgentSSHResources(data.sessions, data.hosts, data.sshAccessProfiles),
+    [data.hosts, data.sessions, data.sshAccessProfiles],
+  )
   const hostAccessActionsRef = useRef(actions)
   hostAccessActionsRef.current = actions
   const hostAccessGateway = useMemo<HostAccessWorkspaceGateway>(() => ({
@@ -1198,6 +1212,8 @@ function AppContent({ theme, setTheme }: { theme: ThemeMode; setTheme: Dispatch<
                         <AgentPage
                           gateway={gateways.agentWorkspace}
                           setupGateway={gateways.agentSetup}
+                          sshResources={agentSSHResources}
+                          sshResourcesReady={apiReady && !coreFatal && sessionSnapshotReady}
                           enabled={apiReady && !coreFatal}
                           active={page === 'agent'}
                           launchIntent={agentLaunchIntent}

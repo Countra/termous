@@ -92,8 +92,13 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           value={props.draft}
           runStatus={runStatus}
           disabled={props.busy}
-          submitDisabled={props.busy || props.run_blocked || (!active && !props.model_runnable)}
+          submitDisabled={props.busy || props.run_blocked || props.resource_run_blocked || (!active && !props.model_runnable)}
           sourceContext={props.draft_source_context}
+          resourceContext={props.resource_context}
+          resourceChangeDisabled={props.busy
+            || active
+            || Boolean(props.active_run)
+            || props.resource_context?.status === 'checking'}
           attachments={props.draft_attachments}
           supportsImages={props.supports_images}
           models={props.models}
@@ -118,6 +123,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onReasoningChange={props.onReasoningChange}
           onResetResponseOptions={props.onResetResponseOptions}
           onOpenSettings={props.onOpenSettings}
+          onReplaceResourceBinding={props.onReplaceResourceBinding}
+          onRemoveResourceBinding={props.onRemoveResourceBinding}
         />
       </section>
       {inspectorOpen && !breakpoints.inspectorOverlay ? inspector : null}

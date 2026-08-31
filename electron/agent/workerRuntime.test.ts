@@ -343,6 +343,15 @@ test('上下文摘要成功后提交 Checkpoint，再连接 MCP 并只保留边�
     runtimeMessage(1, '旧历史'),
     runtimeMessage(2, '当前请求'),
   ]
+  fixture.core.bootstrapValue.session.resource_binding = {
+    kind: 'ssh_session',
+    session_id: 'ses_runtime_test',
+    host_id: 'hst_runtime_test',
+    ssh_profile_id: 'ssh_runtime_test',
+    host_name: 'Production',
+    platform: 'linux',
+    bound_at: '2026-08-31T02:20:30Z',
+  }
 
   fixture.runtime.handleMessage(startMessage())
   await fixture.finished
@@ -353,6 +362,7 @@ test('上下文摘要成功后提交 Checkpoint，再连接 MCP 并只保留边�
   assert.deepEqual(agentBootstrap?.messages.map(({ sequence }) => sequence), [2])
   assert.equal(agentBootstrap?.context.checkpoint?.summary, '压缩后的历史')
   assert.equal(agentBootstrap?.context.compression, undefined)
+  assert.equal(agentBootstrap?.session.resource_binding?.session_id, 'ses_runtime_test')
   assert.deepEqual(agentInitialUsage, summaryUsage())
   const usageEvent = fixture.core.events.find((event) => event.kind === 'usage')
   assert.deepEqual(nested(usageEvent?.payload, 'usage'), summaryUsage())

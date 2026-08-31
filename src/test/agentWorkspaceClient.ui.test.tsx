@@ -23,6 +23,8 @@ describe('AgentWorkspaceClient', () => {
       .mockResolvedValueOnce(jsonResponse({ items: [runEventFixture()] }))
       .mockResolvedValueOnce(jsonResponse(policyFixture()))
       .mockResolvedValueOnce(jsonResponse(usageFixture()))
+      .mockResolvedValueOnce(jsonResponse({ ...sessionFixture(), revision: 3 }))
+      .mockResolvedValueOnce(jsonResponse({ ...sessionFixture(), revision: 4 }))
     vi.stubGlobal('fetch', fetchMock)
 
     const start = vi.fn().mockResolvedValue(commandResult())
@@ -64,6 +66,10 @@ describe('AgentWorkspaceClient', () => {
       approval_bypass: true, sync_scopes: false, expected_revision: 3,
     })
     await gateway.usage('ags/1')
+    await gateway.replaceResourceBinding('ags/1', {
+      kind: 'ssh_session', session_id: 'ses/2', expected_revision: 2,
+    })
+    await gateway.removeResourceBinding('ags/1', 3)
     await gateway.runtimeStatus()
     await gateway.startRuntime(run)
     await gateway.stopRuntime(run)
@@ -102,6 +108,16 @@ describe('AgentWorkspaceClient', () => {
       approval_bypass: true, sync_scopes: false, expected_revision: 3,
     })
     expect(requestAt(fetchMock, 12).path).toBe('/api/v1/agent/sessions/ags%2F1/usage')
+    expect(requestAt(fetchMock, 13)).toMatchObject({
+      path: '/api/v1/agent/sessions/ags%2F1/resource-binding',
+      method: 'PUT',
+      body: { kind: 'ssh_session', session_id: 'ses/2', expected_revision: 2 },
+    })
+    expect(requestAt(fetchMock, 14)).toMatchObject({
+      path: '/api/v1/agent/sessions/ags%2F1/resource-binding',
+      method: 'DELETE',
+      body: { expected_revision: 3 },
+    })
     expect(gateway.eventsUrl()).toBe('ws://127.0.0.1:8122/api/v1/agent/events?token=renderer-token')
     expect(start).toHaveBeenCalledWith({ run_id: 'agr-run', generation: 1 })
     expect(stop).toHaveBeenCalledWith({ run_id: 'agr-run', generation: 1 })

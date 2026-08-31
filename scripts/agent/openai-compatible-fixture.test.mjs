@@ -5,6 +5,7 @@ import { Type } from 'typebox'
 import {
   agentModelFixtureID,
   agentModelFixtureApprovalToolName,
+  agentModelFixtureBoundProcessToolName,
   agentModelFixturePrompts,
   agentModelFixtureToolName,
   createAgentModelFixture,
@@ -138,6 +139,55 @@ test('pi Chat Completions 适配器完成一次只读 Tool call 后继续回答'
       true,
     )
     assert.equal(second.result.content.some((part) => part.type === 'toolCall'), false)
+  })
+})
+
+test('可信资源场景直接使用系统绑定的 SSH Session ID', async () => {
+  await withFixture(async ({ baseURL }) => {
+    const sessionID = 'ses_fixture_bound_123'
+    const context = {
+      systemPrompt: verifiedResourceSystemPrompt(sessionID),
+      messages: [userMessage(agentModelFixturePrompts.boundProcess)],
+      tools: [{
+        name: agentModelFixtureBoundProcessToolName,
+        description: '读取可信 SSH 会话的进程列表',
+        parameters: Type.Object({
+          session_id: Type.String(),
+        }, { additionalProperties: false }),
+      }],
+    }
+    const first = await collectPiStream(baseURL, context)
+    assert.equal(first.result.stopReason, 'toolUse')
+    const toolCall = first.result.content.find((part) => part.type === 'toolCall')
+    assert.ok(toolCall)
+    assert.equal(toolCall.name, agentModelFixtureBoundProcessToolName)
+    assert.deepEqual(toolCall.arguments, { session_id: sessionID })
+
+    context.messages.push(first.result, {
+      role: 'toolResult',
+      toolCallId: toolCall.id,
+      toolName: toolCall.name,
+      content: [{ type: 'text', text: '{"processes":[]}' }],
+      isError: false,
+      timestamp: 2,
+    })
+    const second = await collectPiStream(baseURL, context)
+    assert.equal(second.result.stopReason, 'stop')
+    assert.equal(
+      second.result.content.some((part) =>
+        part.type === 'text' && part.text.includes('可信绑定的 SSH 会话')),
+      true,
+    )
+
+    const reboundSessionID = 'ses_fixture_rebound_456'
+    context.systemPrompt = verifiedResourceSystemPrompt(reboundSessionID)
+    context.messages.push(second.result, userMessage(agentModelFixturePrompts.boundProcess))
+    const third = await collectPiStream(baseURL, context)
+    const reboundCall = third.result.content.find((part) => part.type === 'toolCall')
+    assert.equal(third.result.stopReason, 'toolUse')
+    assert.ok(reboundCall)
+    assert.equal(reboundCall.name, agentModelFixtureBoundProcessToolName)
+    assert.deepEqual(reboundCall.arguments, { session_id: reboundSessionID })
   })
 })
 
@@ -277,4 +327,21 @@ function fixtureModel(baseURL) {
 
 function userMessage(content) {
   return { role: 'user', content, timestamp: 1 }
+}
+
+function verifiedResourceSystemPrompt(sessionID) {
+  return [
+    '仅用于可信资源联调。',
+    '[TERMOUS_VERIFIED_RESOURCE]',
+    JSON.stringify({
+      binding_mode: 'exact',
+      host_id: 'hst_fixture',
+      kind: 'ssh_session',
+      platform: 'linux',
+      session_id: sessionID,
+      ssh_profile_id: 'ssh_fixture',
+      state: 'ready',
+    }),
+    '[/TERMOUS_VERIFIED_RESOURCE]',
+  ].join('\n')
 }

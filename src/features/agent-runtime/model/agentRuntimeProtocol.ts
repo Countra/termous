@@ -6,6 +6,7 @@ import {
   agentMessageStatuses,
   agentModelReasoningControls,
   agentReasoningLevels,
+  agentResourceKinds,
   agentRunEventKinds,
   agentRunStatuses,
   agentSourceContextKinds,
@@ -28,6 +29,8 @@ import {
   type AgentRunEventPage,
   type AgentRunModelSnapshot,
   type AgentRunStatus,
+  type AgentResourceBinding,
+  type AgentResourceKind,
   type AgentSourceContext,
   type AgentSession,
   type AgentSessionContext,
@@ -57,6 +60,9 @@ export class AgentRuntimeProtocolError extends Error {
 
 export function decodeAgentSession(value: unknown): AgentSession {
   const source = record(value, 'Agent 会话响应无效')
+  const resourceBinding = source.resource_binding === undefined
+    ? undefined
+    : decodeAgentResourceBinding(source.resource_binding)
   return {
     id: identifier(source.id, 'Agent 会话 ID 无效'),
     title: utf8(source.title, 'Agent 会话标题无效', 200, true),
@@ -66,6 +72,20 @@ export function decodeAgentSession(value: unknown): AgentSession {
     revision: positiveInteger(source.revision, 'Agent 会话 revision 无效'),
     created_at: timestamp(source.created_at, 'Agent 会话创建时间无效'),
     updated_at: timestamp(source.updated_at, 'Agent 会话更新时间无效'),
+    ...(resourceBinding ? { resource_binding: resourceBinding } : {}),
+  }
+}
+
+export function decodeAgentResourceBinding(value: unknown): AgentResourceBinding {
+  const source = record(value, 'Agent 资源绑定响应无效')
+  return {
+    kind: enumValue<AgentResourceKind>(source.kind, agentResourceKinds, 'Agent 资源绑定类型无效'),
+    session_id: identifier(source.session_id, 'Agent 资源 Session ID 无效'),
+    host_id: identifier(source.host_id, 'Agent 资源 Host ID 无效'),
+    ssh_profile_id: identifier(source.ssh_profile_id, 'Agent 资源 SSH Profile ID 无效'),
+    host_name: utf8(source.host_name, 'Agent 资源主机名称无效', 1_024),
+    platform: enumValue(source.platform, ['linux'] as const, 'Agent 资源平台无效'),
+    bound_at: timestamp(source.bound_at, 'Agent 资源绑定时间无效'),
   }
 }
 

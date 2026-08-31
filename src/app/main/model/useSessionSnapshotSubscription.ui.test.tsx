@@ -66,11 +66,15 @@ afterEach(() => {
 
 test('全局会话快照连接校验消息并隔离旧连接的迟到帧', async () => {
   const onSnapshot = vi.fn()
+  const onAwaitingSnapshot = vi.fn()
   const view = renderHook(() => useSessionSnapshotSubscription({
     enabled: true,
     eventsUrl: () => 'ws://termous.test/api/v1/sessions/events',
     onSnapshot,
+    onAwaitingSnapshot,
   }))
+
+  expect(onAwaitingSnapshot).toHaveBeenCalledTimes(1)
 
   const firstSocket = FakeWebSocket.instances[0]
   firstSocket.receive('{invalid')
@@ -78,12 +82,15 @@ test('全局会话快照连接校验消息并隔离旧连接的迟到帧', async
   expect(onSnapshot).toHaveBeenLastCalledWith(normalizedSnapshot, 1)
 
   firstSocket.disconnect()
+  expect(onAwaitingSnapshot).toHaveBeenCalledTimes(2)
   await act(async () => vi.advanceTimersByTime(1_200))
   const secondSocket = FakeWebSocket.instances[1]
   expect(secondSocket.url).toBe('ws://termous.test/api/v1/sessions/events')
 
   firstSocket.receive(JSON.stringify({ ...snapshot, revision: 99 }))
   expect(onSnapshot).toHaveBeenCalledTimes(1)
+  secondSocket.receive(JSON.stringify(snapshot))
+  expect(onSnapshot).toHaveBeenLastCalledWith(normalizedSnapshot, 2)
   secondSocket.receive(JSON.stringify({ ...snapshot, revision: 2 }))
   expect(onSnapshot).toHaveBeenLastCalledWith({ ...normalizedSnapshot, revision: 2 }, 2)
 
@@ -100,6 +107,23 @@ test('禁用时不建立会话快照连接', () => {
   }))
 
   expect(FakeWebSocket.instances).toEqual([])
+})
+
+test('订阅禁用并重新启用时先撤销旧快照 ready 状态', () => {
+  const onAwaitingSnapshot = vi.fn()
+  const { rerender } = renderHook(({ enabled }) => useSessionSnapshotSubscription({
+    enabled,
+    eventsUrl: () => 'ws://termous.test/api/v1/sessions/events',
+    onSnapshot: vi.fn(),
+    onAwaitingSnapshot,
+  }), { initialProps: { enabled: true } })
+
+  expect(onAwaitingSnapshot).toHaveBeenCalledTimes(1)
+  rerender({ enabled: false })
+  expect(onAwaitingSnapshot).toHaveBeenCalledTimes(2)
+  rerender({ enabled: true })
+  expect(onAwaitingSnapshot).toHaveBeenCalledTimes(3)
+  expect(FakeWebSocket.instances).toHaveLength(2)
 })
 
 test('WebSocket 构造失败时保持订阅并在延迟后重连', async () => {
