@@ -1,3 +1,4 @@
+import type { AppLanguage } from '#common/contracts'
 import type { HostGroup } from '#entities/host'
 import type { HostAsset } from '#entities/host-asset'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
@@ -23,6 +24,7 @@ interface BuildSSHJumpProfileChoicesInput {
   profiles: SSHAccessProfile[]
   hosts: HostAsset[]
   groups: HostGroup[]
+  language: AppLanguage
   editingProfileId?: string
 }
 
@@ -30,8 +32,14 @@ export function buildSSHJumpProfileChoices({
   profiles,
   hosts,
   groups,
+  language,
   editingProfileId = '',
 }: BuildSSHJumpProfileChoicesInput): SSHJumpProfileChoice[] {
+  const displayNameCollator = new Intl.Collator(language, {
+    usage: 'sort',
+    numeric: true,
+    sensitivity: 'base',
+  })
   const hostsById = new Map(hosts.map((host) => [host.id, host]))
   const groupsById = new Map(groups.map((group) => [group.id, group]))
   const consumerRouteLocked = Boolean(
@@ -79,7 +87,7 @@ export function buildSSHJumpProfileChoices({
           .toLocaleLowerCase(),
       }
     })
-    .sort(compareSSHJumpProfileChoices)
+    .sort((left, right) => compareSSHJumpProfileChoices(left, right, displayNameCollator))
 }
 
 export function formatSSHJumpEndpoint(
@@ -95,12 +103,18 @@ export function formatSSHJumpEndpoint(
 function compareSSHJumpProfileChoices(
   left: SSHJumpProfileChoice,
   right: SSHJumpProfileChoice,
+  displayNameCollator: Intl.Collator,
 ) {
   if (Boolean(left.host) !== Boolean(right.host)) return left.host ? -1 : 1
-  return (left.hostName ?? '').localeCompare(right.hostName ?? '')
-    || left.profile.host_id.localeCompare(right.profile.host_id)
+  return displayNameCollator.compare(left.hostName ?? '', right.hostName ?? '')
+    || compareStableIdentifier(left.profile.host_id, right.profile.host_id)
     || Number(right.profile.is_default) - Number(left.profile.is_default)
     || left.profile.sort_order - right.profile.sort_order
-    || left.profileName.localeCompare(right.profileName)
-    || left.profile.id.localeCompare(right.profile.id)
+    || displayNameCollator.compare(left.profileName, right.profileName)
+    || compareStableIdentifier(left.profile.id, right.profile.id)
+}
+
+function compareStableIdentifier(left: string, right: string) {
+  if (left === right) return 0
+  return left < right ? -1 : 1
 }

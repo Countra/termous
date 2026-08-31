@@ -17,15 +17,17 @@ const hosts: HostAsset[] = [
   host('host-a', '阿里云香港', ''),
 ]
 
-test('跳板候选保持扁平并按主机和默认配置稳定排序', () => {
+test('跳板候选按当前语言、主机和默认配置稳定排序', () => {
+  const profiles = [
+    profile('ssh-a-secondary', 'host-a', '备用 SSH', false, 1),
+    profile('ssh-b-default', 'host-b', '生产 SSH', true, 0),
+    profile('ssh-a-default', 'host-a', '公网 SSH', true, 2),
+  ]
   const choices = buildSSHJumpProfileChoices({
-    profiles: [
-      profile('ssh-a-secondary', 'host-a', '备用 SSH', false, 2),
-      profile('ssh-b-default', 'host-b', '生产 SSH', true, 0),
-      profile('ssh-a-default', 'host-a', '公网 SSH', true, 1),
-    ],
+    profiles,
     hosts,
     groups,
+    language: 'zh-CN',
   })
 
   assert.deepEqual(
@@ -34,6 +36,17 @@ test('跳板候选保持扁平并按主机和默认配置稳定排序', () => {
   )
   assert.equal(choices.find((choice) => choice.profile.id === 'ssh-b-default')?.groupName, '生产环境')
   assert.equal(choices.find((choice) => choice.profile.id === 'ssh-a-default')?.groupName, undefined)
+
+  const englishChoices = buildSSHJumpProfileChoices({
+    profiles,
+    hosts,
+    groups,
+    language: 'en-US',
+  })
+  assert.deepEqual(
+    englishChoices.map((choice) => choice.profile.id),
+    ['ssh-b-default', 'ssh-a-default', 'ssh-a-secondary'],
+  )
 })
 
 test('搜索投影覆盖主机、分组、配置和端点', () => {
@@ -41,6 +54,7 @@ test('搜索投影覆盖主机、分组、配置和端点', () => {
     profiles: [profile('ssh-b-default', 'host-b', '生产 SSH', true, 0)],
     hosts,
     groups,
+    language: 'zh-CN',
   })
 
   assert.ok(choice)
@@ -59,6 +73,7 @@ test('IPv6 端点使用方括号且缺失资产不会丢弃配置', () => {
     profiles: [orphan],
     hosts,
     groups,
+    language: 'zh-CN',
   })
 
   assert.equal(formatSSHJumpEndpoint(orphan), 'ops@[2001:db8::8]:2202')
@@ -76,13 +91,19 @@ test('排除当前配置并标记多级跳板和被引用路由限制', () => {
     profiles: [profile('ssh-current', 'host-a', '当前 SSH', true, 0), nested, consumer],
     hosts,
     groups,
+    language: 'zh-CN',
     editingProfileId: 'ssh-current',
   })
 
   assert.deepEqual(choices.map((choice) => choice.profile.id), ['ssh-nested', 'ssh-consumer'])
   assert.ok(choices.every((choice) => choice.availability === 'consumer_route_locked'))
 
-  const nestedOnly = buildSSHJumpProfileChoices({ profiles: [nested], hosts, groups })
+  const nestedOnly = buildSSHJumpProfileChoices({
+    profiles: [nested],
+    hosts,
+    groups,
+    language: 'zh-CN',
+  })
   assert.equal(nestedOnly[0]?.availability, 'nested_jump')
 })
 
@@ -92,6 +113,7 @@ test('主机引用未知分组时保留显式缺失状态', () => {
     profiles: [profile('ssh-c', 'host-c', '默认 SSH', true, 0)],
     hosts: [missingGroupHost],
     groups,
+    language: 'zh-CN',
   })
 
   assert.equal(choice?.groupName, undefined)

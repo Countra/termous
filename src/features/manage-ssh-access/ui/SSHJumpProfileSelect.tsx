@@ -54,10 +54,18 @@ export function SSHJumpProfileSelect({
   'aria-invalid': ariaInvalid,
   'aria-describedby': ariaDescribedBy,
 }: SSHJumpProfileSelectProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const activeLanguage = i18n?.resolvedLanguage ?? i18n?.language
+  const language = activeLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const choices = useMemo(
-    () => buildSSHJumpProfileChoices({ profiles, hosts, groups, editingProfileId }),
-    [editingProfileId, groups, hosts, profiles],
+    () => buildSSHJumpProfileChoices({
+      profiles,
+      hosts,
+      groups,
+      language,
+      editingProfileId,
+    }),
+    [editingProfileId, groups, hosts, language, profiles],
   )
   const items = useMemo<SSHJumpSelectItem[]>(() => {
     const next: SSHJumpSelectItem[] = [

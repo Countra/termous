@@ -1,12 +1,15 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { HostGroup } from '#entities/host'
 import type { HostAsset } from '#entities/host-asset'
 import type { SSHAccessProfile } from '#entities/ssh-access-profile'
 import { customSelectStyles } from '#shared/ui'
 
+const i18nMock = vi.hoisted(() => ({ resolvedLanguage: 'zh-CN' as string }))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: i18nMock,
     t: (key: string, values?: Record<string, string>) => {
       if (key === 'hosts.access.ssh.jumpOptionAria') {
         return `${values?.host ?? ''} ${values?.profile ?? ''} ${values?.endpoint ?? ''} ${values?.auth ?? ''}`
@@ -41,6 +44,10 @@ const hosts: HostAsset[] = [
 ]
 
 describe('SSHJumpProfileSelect', () => {
+  beforeEach(() => {
+    i18nMock.resolvedLanguage = 'zh-CN'
+  })
+
   it('收起态明确展示主机与配置归属，展开后保持无分组扁平列表', async () => {
     renderSelector({ value: 'ssh-primary' })
 
@@ -194,7 +201,46 @@ describe('SSHJumpProfileSelect', () => {
       'true',
     )
   })
+
+  it('语言切换后按当前语言重新排列候选', async () => {
+    const beijingHost: HostAsset = {
+      ...hosts[0],
+      id: 'host-b',
+      name: '北京节点',
+    }
+    const hongKongProfile = profile('ssh-hong-kong', '香港 SSH', true, 0)
+    const beijingProfile = profile('ssh-beijing', '北京 SSH', true, 0)
+    beijingProfile.host_id = beijingHost.id
+    const selectorProps = {
+      label: 'hosts.jumpHost',
+      value: '',
+      profiles: [beijingProfile, hongKongProfile],
+      hosts: [beijingHost, ...hosts],
+      groups,
+      getHostIconUrl: () => '',
+      onChange: vi.fn(),
+    }
+    const view = render(<SSHJumpProfileSelect {...selectorProps} />)
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'hosts.jumpHost' }))
+
+    await waitFor(() => {
+      expect(getProfileOptionOrder()).toEqual(['香港 SSH', '北京 SSH'])
+    })
+
+    i18nMock.resolvedLanguage = 'en-US'
+    view.rerender(<SSHJumpProfileSelect {...selectorProps} />)
+
+    await waitFor(() => {
+      expect(getProfileOptionOrder()).toEqual(['北京 SSH', '香港 SSH'])
+    })
+  })
 })
+
+function getProfileOptionOrder() {
+  const profileNames = ['香港 SSH', '北京 SSH']
+  return screen.getAllByRole('option')
+    .flatMap((option) => profileNames.filter((name) => option.textContent?.includes(name)))
+}
 
 function renderSelector({
   value,
