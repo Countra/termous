@@ -108,6 +108,7 @@ export interface AgentWorkspaceDraftAttachment {
   name: string
   size_bytes: number
   kind: 'text' | 'image'
+  file: File
   phase: 'uploading' | 'ready' | 'failed' | 'deleting'
   attachment?: AgentAttachment
   error_code?: string

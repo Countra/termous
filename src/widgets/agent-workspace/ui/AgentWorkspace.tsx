@@ -87,6 +87,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           sessionKey={selectedSession?.id ?? 'new'}
           showTurnTokenUsage={props.show_turn_token_usage}
           onPreviewAttachment={setPreviewAttachment}
+          onLoadAttachmentContent={props.onLoadAttachmentContent}
         />
         <AgentComposer
           value={props.draft}

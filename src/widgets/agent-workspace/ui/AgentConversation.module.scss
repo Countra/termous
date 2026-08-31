@@ -94,6 +94,49 @@
   padding: 4px 7px;
 }
 
+.message-images {
+  display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.message.is-user .message-images {
+  justify-content: flex-end;
+}
+
+.message-image {
+  display: grid;
+  width: min(176px, 100%);
+  height: auto;
+  aspect-ratio: 44 / 27;
+  overflow: hidden;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: zoom-in;
+  padding: 0;
+  box-shadow: none;
+}
+
+.message-image:hover .message-image-media {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 28%, var(--surface));
+}
+
+.message-image:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 66%, transparent);
+  outline-offset: 2px;
+}
+
+.message-image-media {
+  --agent-attachment-thumbnail-width: 100%;
+  --agent-attachment-thumbnail-height: 100%;
+}
+
 .message-attachments {
   display: flex;
   flex-wrap: wrap;

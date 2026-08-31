@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentWorkspaceMessage } from '../model/types.ts'
 import { AgentConversation } from './AgentConversation.tsx'
@@ -81,6 +81,37 @@ describe('AgentConversation', () => {
     expect(screen.getByText('生产主机')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'diagnostic.txt' }))
     expect(onPreviewAttachment).toHaveBeenCalledWith(expect.objectContaining({ id: 'attachment-one' }))
+  })
+
+  it('在消息正文内展示图片缩略图并保留大图预览入口', async () => {
+    const onPreviewAttachment = vi.fn()
+    const onLoadAttachmentContent = vi.fn(async () => new Blob(['image'], { type: 'image/png' }))
+    const value = message('请检查这张截图')
+    value.attachments = [{
+      id: 'attachment-image', session_id: 'session-one', original_name: 'screen.png',
+      mime_type: 'image/png', kind: 'image', size_bytes: 128, state: 'bound', revision: 1,
+      created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z',
+    }]
+    render(
+      <AgentConversation
+        messages={[value]}
+        runStatus="completed"
+        loading={false}
+        sessionKey="session-one"
+        onPreviewAttachment={onPreviewAttachment}
+        onLoadAttachmentContent={onLoadAttachmentContent}
+      />,
+    )
+
+    const preview = screen.getByRole('button', { name: 'agent.attachments.previewName' })
+    expect(within(preview).getByRole('img', { name: 'screen.png' })).toBeInTheDocument()
+    await waitFor(() => expect(onLoadAttachmentContent).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'attachment-image' }),
+      expect.any(AbortSignal),
+    ))
+    fireEvent.click(preview)
+    expect(onPreviewAttachment).toHaveBeenCalledWith(expect.objectContaining({ id: 'attachment-image' }))
+    expect(screen.queryByRole('button', { name: 'screen.png' })).not.toBeInTheDocument()
   })
 
   it('在终态 Agent 回复末尾展示本轮 Token 明细与缓存详情', async () => {

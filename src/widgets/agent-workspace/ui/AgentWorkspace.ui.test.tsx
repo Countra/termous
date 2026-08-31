@@ -1,5 +1,5 @@
 import { App as AntdApp } from 'antd'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { contextActionMenuPopupClassName } from '#shared/ui'
@@ -637,6 +637,7 @@ describe('AgentWorkspace', () => {
         name: 'screen.png',
         size_bytes: 128,
         kind: 'image',
+        file: new File(['image'], 'screen.png', { type: 'image/png' }),
         phase: 'ready',
         attachment: attachment({ kind: 'image', original_name: 'screen.png', mime_type: 'image/png' }),
       }],
@@ -644,10 +645,116 @@ describe('AgentWorkspace', () => {
     renderWorkspace(props)
 
     expect(screen.getByText('agent.attachments.imageModelUnsupported')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'screen.png' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'agent.attachments.previewName' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'agent.attachments.removeName' })).toBeDisabled()
+  })
+
+  it('通过粘贴事件添加剪贴板图片且不干扰普通文本粘贴', () => {
+    const onAttachFiles = vi.fn(async () => undefined)
+    renderWorkspace(fixtureProps({ onAttachFiles }))
+    const textarea = screen.getByPlaceholderText('agent.composer.placeholder')
+    const image = new File([
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    ], '', { type: 'image/png', lastModified: 42 })
+    const imagePaste = createEvent.paste(textarea, {
+      clipboardData: {
+        files: [],
+        items: [
+          { kind: 'string', type: 'text/plain', getAsFile: () => null },
+          { kind: 'file', type: 'image/png', getAsFile: () => image },
+        ],
+      },
+    })
+
+    fireEvent(textarea, imagePaste)
+
+    expect(imagePaste.defaultPrevented).toBe(true)
+    expect(onAttachFiles).toHaveBeenCalledOnce()
+    expect(onAttachFiles).toHaveBeenCalledWith([
+      expect.objectContaining({ name: 'pasted-image.png', type: 'image/png', lastModified: 42 }),
+    ])
+
+    const imageWithoutMIME = new File([
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    ], 'clipboard-capture', { type: '' })
+    const imageWithoutMIMEPaste = createEvent.paste(textarea, {
+      clipboardData: {
+        files: [],
+        items: [{ kind: 'file', type: '', getAsFile: () => imageWithoutMIME }],
+      },
+    })
+    fireEvent(textarea, imageWithoutMIMEPaste)
+
+    expect(imageWithoutMIMEPaste.defaultPrevented).toBe(true)
+    expect(onAttachFiles).toHaveBeenLastCalledWith([imageWithoutMIME])
+
+    const textPaste = createEvent.paste(textarea, {
+      clipboardData: {
+        files: [],
+        items: [{ kind: 'string', type: 'text/plain', getAsFile: () => null }],
+      },
+    })
+    fireEvent(textarea, textPaste)
+
+    expect(textPaste.defaultPrevented).toBe(false)
+    expect(onAttachFiles).toHaveBeenCalledTimes(2)
+  })
+
+  it('从 clipboard files 回退读取图片，并在活动 Run 或附件已满时保持入口关闭', () => {
+    const image = new File([
+      new Uint8Array([0xff, 0xd8, 0xff]),
+    ], 'clipboard.jpg', { type: 'image/jpeg' })
+    const onAttachFiles = vi.fn(async () => undefined)
+    const view = renderWorkspace(fixtureProps({ onAttachFiles }))
+    let textarea = screen.getByPlaceholderText('agent.composer.placeholder')
+    const fallbackPaste = createEvent.paste(textarea, {
+      clipboardData: { files: [image], items: [] },
+    })
+
+    fireEvent(textarea, fallbackPaste)
+
+    expect(fallbackPaste.defaultPrevented).toBe(true)
+    expect(onAttachFiles).toHaveBeenCalledWith([image])
+
+    view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
+      sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
+      onAttachFiles,
+    })} /></AntdApp>)
+    textarea = screen.getByPlaceholderText('agent.composer.steerPlaceholder')
+    const activePaste = createEvent.paste(textarea, {
+      clipboardData: { files: [image], items: [] },
+    })
+    fireEvent(textarea, activePaste)
+
+    expect(activePaste.defaultPrevented).toBe(false)
+    expect(onAttachFiles).toHaveBeenCalledOnce()
+
+    view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
+      draft_attachments: Array.from({ length: 8 }, (_, index) => ({
+        client_id: `draft-${index}`,
+        name: `attachment-${index}.txt`,
+        size_bytes: 16,
+        kind: 'text',
+        file: new File(['text'], `attachment-${index}.txt`, { type: 'text/plain' }),
+        phase: 'ready',
+        attachment: attachment({
+          id: `attachment-${index}`,
+          original_name: `attachment-${index}.txt`,
+        }),
+      })),
+      onAttachFiles,
+    })} /></AntdApp>)
+    textarea = screen.getByPlaceholderText('agent.composer.placeholder')
+    const fullPaste = createEvent.paste(textarea, {
+      clipboardData: { files: [image], items: [] },
+    })
+    fireEvent(textarea, fullPaste)
+
+    expect(fullPaste.defaultPrevented).toBe(false)
+    expect(onAttachFiles).toHaveBeenCalledOnce()
   })
 
   it('不限制 UTF-8 代码扩展名，并在附件删除期间锁定发送与重复删除', () => {
@@ -658,6 +765,7 @@ describe('AgentWorkspace', () => {
         name: 'service.conf',
         size_bytes: 128,
         kind: 'text',
+        file: new File(['text'], 'service.conf', { type: 'text/plain' }),
         phase: 'deleting',
         attachment: attachment({ original_name: 'service.conf' }),
       }],

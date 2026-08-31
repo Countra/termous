@@ -91,6 +91,47 @@
   border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
 }
 
+.attachment[data-kind='image'] {
+  width: 250px;
+  min-height: 64px;
+  flex-basis: 250px;
+  grid-template-columns: 70px minmax(0, 1fr) auto auto;
+  padding-left: 4px;
+}
+
+.attachment-thumbnail {
+  display: grid;
+  width: 64px;
+  height: 52px;
+  overflow: hidden;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.attachment-thumbnail:not(:disabled):hover .attachment-thumbnail-media {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 36%, var(--surface));
+}
+
+.attachment-thumbnail:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 62%, transparent);
+  outline-offset: 2px;
+}
+
+.attachment-thumbnail:disabled {
+  cursor: default;
+}
+
+.attachment-thumbnail-media {
+  --agent-attachment-thumbnail-width: 100%;
+  --agent-attachment-thumbnail-height: 100%;
+}
+
 .attachment-icon {
   color: var(--accent);
 }

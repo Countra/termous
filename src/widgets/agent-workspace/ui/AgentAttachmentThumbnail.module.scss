@@ -1,0 +1,62 @@
+.thumbnail {
+  position: relative;
+  display: inline-grid;
+  width: var(--agent-attachment-thumbnail-width, 88px);
+  height: var(--agent-attachment-thumbnail-height, 66px);
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 78%, transparent);
+  border-radius: 8px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-subtle) 92%, transparent), var(--surface));
+  color: var(--text-muted);
+  box-shadow: var(--inner-highlight);
+  transition: border-color 140ms ease;
+}
+
+.thumbnail img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.placeholder {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  background:
+    linear-gradient(110deg, transparent 34%, color-mix(in srgb, var(--text-primary) 4%, transparent) 48%, transparent 62%);
+  background-size: 220% 100%;
+}
+
+.thumbnail[data-state='loading'] .placeholder {
+  animation: agent-attachment-thumbnail-shimmer 1.35s ease-in-out infinite;
+}
+
+.thumbnail[data-state='failed'] {
+  border-color: color-mix(in srgb, var(--danger) 24%, var(--border));
+  color: color-mix(in srgb, var(--danger) 72%, var(--text-muted));
+}
+
+.spinner {
+  animation: agent-attachment-thumbnail-spin 0.9s linear infinite;
+}
+
+@keyframes agent-attachment-thumbnail-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+@keyframes agent-attachment-thumbnail-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumbnail[data-state='loading'] .placeholder,
+  .spinner {
+    animation: none;
+  }
+}

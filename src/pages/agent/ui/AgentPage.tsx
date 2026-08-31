@@ -491,6 +491,7 @@ export function AgentPage({
           name: record.file.name,
           size_bytes: record.file.size,
           kind: record.kind,
+          file: record.file,
           phase: record.phase,
           attachment: record.attachment,
           error_code: record.error_code,

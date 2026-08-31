@@ -4,6 +4,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AgentWorkspaceMessage, AgentWorkspaceRunStatus } from '../model/types.ts'
 import type { AgentAttachment } from '#entities/agent'
+import { AgentAttachmentThumbnail } from './AgentAttachmentThumbnail.tsx'
 import { AgentMarkdown } from './AgentMarkdown.tsx'
 import { AgentTurnUsage } from './AgentTurnUsage.tsx'
 import { AgentToolTimeline } from './AgentToolTimeline.tsx'
@@ -16,6 +17,7 @@ export function AgentConversation({
   sessionKey,
   showTurnTokenUsage = true,
   onPreviewAttachment = () => undefined,
+  onLoadAttachmentContent,
 }: {
   messages: AgentWorkspaceMessage[]
   runStatus: AgentWorkspaceRunStatus
@@ -23,6 +25,7 @@ export function AgentConversation({
   sessionKey: string
   showTurnTokenUsage?: boolean
   onPreviewAttachment?: (attachment: AgentAttachment) => void
+  onLoadAttachmentContent?: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
 }) {
   const { t } = useTranslation()
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -80,6 +83,26 @@ export function AgentConversation({
                   {message.source_context ? (
                     <div className={styles['message-source']}><Waypoints size={12} />{message.source_context.title}</div>
                   ) : null}
+                  {onLoadAttachmentContent && message.attachments.some(({ kind }) => kind === 'image') ? (
+                    <div className={styles['message-images']}>
+                      {message.attachments.filter(({ kind }) => kind === 'image').map((attachment) => (
+                        <button
+                          key={attachment.id}
+                          type="button"
+                          className={styles['message-image']}
+                          aria-label={t('agent.attachments.previewName', { name: attachment.original_name })}
+                          title={attachment.original_name}
+                          onClick={() => onPreviewAttachment(attachment)}
+                        >
+                          <AgentAttachmentThumbnail
+                            className={styles['message-image-media']}
+                            source={{ kind: 'remote', attachment, load: onLoadAttachmentContent }}
+                            alt={attachment.original_name}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   {message.parts.map((part) => {
                     if (part.kind === 'text') return <AgentMarkdown key={part.id}>{part.text}</AgentMarkdown>
                     if (part.kind === 'tool') return <AgentToolTimeline key={part.id} tool={part} />
@@ -95,9 +118,9 @@ export function AgentConversation({
                       </details>
                     )
                   })}
-                  {message.attachments.length > 0 ? (
+                  {message.attachments.some((attachment) => attachment.kind !== 'image' || !onLoadAttachmentContent) ? (
                     <div className={styles['message-attachments']}>
-                      {message.attachments.map((attachment) => (
+                      {message.attachments.filter((attachment) => attachment.kind !== 'image' || !onLoadAttachmentContent).map((attachment) => (
                         <button key={attachment.id} type="button" onClick={() => onPreviewAttachment(attachment)}>
                           {attachment.kind === 'image' ? <Image size={13} /> : <FileCode2 size={13} />}
                           <span>{attachment.original_name}</span>
@@ -159,7 +182,10 @@ function messageContentSignature(messages: AgentWorkspaceMessage[]) {
     const usage = message.usage
       ? `${message.usage.input_tokens}:${message.usage.cache_read_tokens}:${message.usage.cache_write_tokens}:${message.usage.output_tokens}:${message.usage.total_tokens}:${message.usage.estimated ? 1 : 0}`
       : ''
-    return `${message.id}:${message.status}:${parts}:${usage}`
+    const attachments = message.attachments
+      .map((attachment) => `${attachment.id}:${attachment.kind}:${attachment.revision}:${attachment.size_bytes}`)
+      .join(',')
+    return `${message.id}:${message.status}:${parts}:${attachments}:${usage}`
   }).join('|')
 }
 
