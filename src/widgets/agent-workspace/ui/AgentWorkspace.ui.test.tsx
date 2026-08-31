@@ -193,6 +193,7 @@ describe('AgentWorkspace', () => {
     expect(within(hoverDetails).getByText('Local Provider')).toBeInTheDocument()
     expect(within(hoverDetails).getByText('Local model')).toBeInTheDocument()
     expect(within(hoverDetails).getByText('8,192')).toBeInTheDocument()
+    expect(hoverDetails.closest('.ant-tooltip')).toHaveStyle({ zIndex: '3500' })
     view.unmount()
     renderWorkspace(fixtureProps())
     await openModelPane(user)

@@ -104,6 +104,7 @@ export function AgentModelPickerPane({
               destroyOnHidden
               mouseEnterDelay={0.25}
               mouseLeaveDelay={0.16}
+              zIndex={3500}
               classNames={{
                 root: `${uiStyles.tooltip} termous-tooltip ${styles['detail-tooltip']}`,
               }}
