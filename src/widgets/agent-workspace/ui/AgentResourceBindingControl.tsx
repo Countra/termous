@@ -1,10 +1,12 @@
-import { Button, Popover, Select, Tooltip } from 'antd'
+import { Button, Select, Tooltip } from 'antd'
 import { Check, Link2Off, RefreshCw, TerminalSquare } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ConfirmDialog } from '#shared/ui'
+import { ConfirmDialog, FilterPopover, uiStyles } from '#shared/ui'
 import type { AgentWorkspaceResourceContext } from '../model/types.ts'
 import styles from './AgentResourceBindingControl.module.scss'
+
+const resourceTooltipClassNames = { root: `${uiStyles.tooltip} termous-tooltip` }
 
 export function AgentResourceBindingControl({
   context,
@@ -19,6 +21,8 @@ export function AgentResourceBindingControl({
 }) {
   const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
+  const [tooltipOpen, setTooltipOpen] = useState(false)
+  const tooltipSuppressedRef = useRef(false)
   const [editing, setEditing] = useState(false)
   const [detachOpen, setDetachOpen] = useState(false)
   const [pending, setPending] = useState(false)
@@ -48,8 +52,13 @@ export function AgentResourceBindingControl({
     setDetachOpen(false)
   }, [disabled, pending])
 
+  const suppressTooltip = () => {
+    tooltipSuppressedRef.current = true
+    setTooltipOpen(false)
+  }
   const run = async (operation: () => Promise<boolean>, after: () => void) => {
     if (pending || disabled) return
+    suppressTooltip()
     setPending(true)
     try {
       if (await operation()) after()
@@ -61,6 +70,10 @@ export function AgentResourceBindingControl({
   const candidateReady = candidates.some(({ session_id }) => session_id === candidateId)
   const statusLabel = t(`agent.resource.status.${context.status}`)
   const sessionLabel = shortID(context.binding.session_id)
+  const handlePopoverOpenChange = (nextOpen: boolean) => {
+    suppressTooltip()
+    setOpen(nextOpen)
+  }
   const content = (
     <div className={styles.popover} role="group" aria-label={t('agent.resource.details')}>
       <div className={styles.heading}>
@@ -119,7 +132,11 @@ export function AgentResourceBindingControl({
             danger
             icon={<Link2Off size={13} />}
             disabled={disabled || pending}
-            onClick={() => setDetachOpen(true)}
+            onClick={() => {
+              suppressTooltip()
+              setOpen(false)
+              setDetachOpen(true)
+            }}
           >{t('agent.resource.remove')}</Button>
         </div>
       )}
@@ -131,16 +148,26 @@ export function AgentResourceBindingControl({
     <>
       <Tooltip
         title={t('agent.resource.tooltip', { host: context.binding.host_name, status: statusLabel })}
-        open={open ? false : undefined}
+        open={tooltipOpen && !open && !detachOpen && !pending}
         mouseEnterDelay={0.45}
+        mouseLeaveDelay={0}
+        destroyOnHidden
+        classNames={resourceTooltipClassNames}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) {
+            setTooltipOpen(false)
+          } else if (!open && !detachOpen && !pending && !tooltipSuppressedRef.current) {
+            setTooltipOpen(true)
+          }
+        }}
       >
-        <Popover
+        <FilterPopover
           open={open}
-          trigger="click"
           placement="topLeft"
           content={content}
-          arrow={false}
-          onOpenChange={setOpen}
+          destroyOnHidden
+          getPopupContainer={() => document.body}
+          onOpenChange={handlePopoverOpenChange}
         >
           <button
             type="button"
@@ -151,12 +178,18 @@ export function AgentResourceBindingControl({
               status: statusLabel,
             })}
             aria-expanded={open}
+            onMouseEnter={() => { tooltipSuppressedRef.current = false }}
+            onMouseLeave={() => {
+              tooltipSuppressedRef.current = false
+              setTooltipOpen(false)
+            }}
+            onClick={suppressTooltip}
           >
             <TerminalSquare size={14} aria-hidden="true" />
             <span>{context.binding.host_name}</span>
             <i aria-hidden="true" />
           </button>
-        </Popover>
+        </FilterPopover>
       </Tooltip>
       <ConfirmDialog
         open={detachOpen && !disabled}
@@ -165,7 +198,7 @@ export function AgentResourceBindingControl({
         confirmLabel={t('agent.resource.remove')}
         confirmLoading={pending}
         onCancel={() => setDetachOpen(false)}
-        onConfirm={() => void run(onRemove, () => { setDetachOpen(false); setOpen(false) })}
+        onConfirm={() => void run(onRemove, () => setDetachOpen(false))}
       />
     </>
   )

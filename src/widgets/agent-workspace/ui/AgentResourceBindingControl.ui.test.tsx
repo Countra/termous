@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import type { AgentWorkspaceResourceContext } from '../model/types.ts'
 
@@ -13,10 +13,34 @@ vi.mock('antd', () => ({
     disabled?: boolean
     onClick?: () => void
   }) => <button type="button" disabled={disabled} onClick={onClick}>{children}</button>,
-  Popover: ({ children, content }: { children: ReactNode; content: ReactNode }) => (
-    <div>{children}{content}</div>
-  ),
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+  Tooltip: ({ children, title, open, classNames, destroyOnHidden, onOpenChange }: {
+    children: ReactNode
+    title?: ReactNode
+    open?: boolean
+    classNames?: { root?: string }
+    destroyOnHidden?: boolean
+    onOpenChange?: (open: boolean) => void
+  }) => {
+    const [innerOpen, setInnerOpen] = useState(false)
+    const visible = open ?? innerOpen
+    const changeOpen = (nextOpen: boolean) => {
+      setInnerOpen(nextOpen)
+      onOpenChange?.(nextOpen)
+    }
+    return (
+      <div
+        data-testid="resource-tooltip-trigger"
+        data-tooltip-controlled={String(open !== undefined)}
+        data-tooltip-destroy-on-hidden={String(destroyOnHidden)}
+        data-tooltip-root-class={classNames?.root}
+        onMouseEnter={() => changeOpen(true)}
+        onMouseLeave={() => changeOpen(false)}
+      >
+        {children}
+        {visible ? <div role="tooltip">{title}</div> : null}
+      </div>
+    )
+  },
   Select: ({ options, disabled, onChange }: {
     options: Array<{ value: string; label: string }>
     disabled?: boolean
@@ -27,9 +51,25 @@ vi.mock('antd', () => ({
 }))
 
 vi.mock('#shared/ui', () => ({
+  FilterPopover: ({ children, content, open, destroyOnHidden, onOpenChange }: {
+    children: ReactNode
+    content: ReactNode
+    open: boolean
+    destroyOnHidden?: boolean
+    onOpenChange?: (open: boolean) => void
+  }) => (
+    <div
+      data-shared-filter-popover="true"
+      data-popover-destroy-on-hidden={String(destroyOnHidden)}
+    >
+      <div data-testid="resource-popover-trigger" onClick={() => onOpenChange?.(!open)}>{children}</div>
+      {open ? <div data-testid="resource-popover-content">{content}</div> : null}
+    </div>
+  ),
   ConfirmDialog: ({ open, onConfirm }: { open: boolean; onConfirm: () => void }) => (
     open ? <button type="button" onClick={onConfirm}>confirm-detach</button> : null
   ),
+  uiStyles: { tooltip: 'shared-tooltip' },
 }))
 
 import { AgentResourceBindingControl } from './AgentResourceBindingControl.tsx'
@@ -49,11 +89,13 @@ describe('Agent SSH 资源绑定控件', () => {
 
     expect(screen.getByRole('button', { name: /agent.resource.aria/ }))
       .toHaveAttribute('data-resource-status', 'ready')
+    fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.replace' }))
     fireEvent.click(screen.getByRole('button', { name: /Fallback/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.confirmReplace' }))
     await waitFor(() => expect(replace).toHaveBeenCalledWith('ses-two'))
 
+    fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.remove' }))
     fireEvent.click(screen.getByRole('button', { name: 'confirm-detach' }))
     await waitFor(() => expect(remove).toHaveBeenCalledOnce())
@@ -70,6 +112,7 @@ describe('Agent SSH 资源绑定控件', () => {
     )
     expect(screen.getByRole('button', { name: /agent.resource.aria/ }))
       .toHaveAttribute('data-resource-status', 'stale')
+    fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
     expect(screen.getByRole('button', { name: 'agent.resource.replace' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'agent.resource.remove' })).toBeDisabled()
   })
@@ -84,7 +127,9 @@ describe('Agent SSH 资源绑定控件', () => {
         onRemove={remove}
       />,
     )
+    fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.remove' }))
+    expect(screen.queryByTestId('resource-popover-content')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'confirm-detach' }))
     await waitFor(() => expect(remove).toHaveBeenCalledOnce())
     expect(screen.getByRole('button', { name: 'confirm-detach' })).toBeInTheDocument()
@@ -100,6 +145,7 @@ describe('Agent SSH 资源绑定控件', () => {
         onRemove={vi.fn().mockResolvedValue(true)}
       />,
     )
+    fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.replace' }))
     fireEvent.click(screen.getByRole('button', { name: /Fallback/ }))
 
@@ -129,6 +175,7 @@ describe('Agent SSH 资源绑定控件', () => {
         onRemove={remove}
       />,
     )
+    fireEvent.click(screen.getByRole('button', { name: /agent.resource.aria/ }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.resource.replace' }))
     fireEvent.click(screen.getByRole('button', { name: /Fallback/ }))
 
@@ -179,6 +226,45 @@ describe('Agent SSH 资源绑定控件', () => {
       />,
     )
     expect(screen.queryByRole('button', { name: 'confirm-detach' })).not.toBeInTheDocument()
+  })
+
+  it('关闭详情浮层后不会恢复旧的 hover 提示状态', () => {
+    render(
+      <AgentResourceBindingControl
+        context={resourceContext()}
+        disabled={false}
+        onReplace={vi.fn().mockResolvedValue(true)}
+        onRemove={vi.fn().mockResolvedValue(true)}
+      />,
+    )
+
+    const chip = screen.getByRole('button', { name: /agent.resource.aria/ })
+    fireEvent.mouseEnter(chip)
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+
+    fireEvent.click(chip)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    expect(screen.getByTestId('resource-popover-content')).toBeInTheDocument()
+
+    fireEvent.click(chip)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('resource-popover-content')).not.toBeInTheDocument()
+    fireEvent.mouseEnter(screen.getByTestId('resource-tooltip-trigger'))
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    expect(screen.getByTestId('resource-tooltip-trigger'))
+      .toHaveAttribute('data-tooltip-controlled', 'true')
+    expect(screen.getByTestId('resource-tooltip-trigger'))
+      .toHaveAttribute('data-tooltip-destroy-on-hidden', 'true')
+    expect(screen.getByTestId('resource-tooltip-trigger'))
+      .toHaveAttribute('data-tooltip-root-class', 'shared-tooltip termous-tooltip')
+    expect(screen.getByTestId('resource-popover-trigger').parentElement)
+      .toHaveAttribute('data-popover-destroy-on-hidden', 'true')
+    expect(screen.getByTestId('resource-popover-trigger').parentElement)
+      .toHaveAttribute('data-shared-filter-popover', 'true')
+
+    fireEvent.mouseLeave(chip)
+    fireEvent.mouseEnter(chip)
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
   })
 })
 
