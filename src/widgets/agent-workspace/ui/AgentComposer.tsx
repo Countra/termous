@@ -3,6 +3,11 @@ import { Button, Input, Tooltip } from 'antd'
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { AgentReasoningLevel, AgentSourceContext } from '#entities/agent'
+import {
+  AgentApprovalModeControl,
+  type AgentApprovalMode,
+  type AgentApprovalPolicyState,
+} from '#features/agent-approval-policy'
 import type {
   AgentWorkspaceDraftAttachment,
   AgentWorkspaceProps,
@@ -33,6 +38,8 @@ export function AgentComposer({
   defaultModelId,
   selectedReasoningLevel,
   supportedReasoningLevels,
+  approvalPolicy,
+  approvalModeDisabled,
   modelSelectionDisabled,
   reasoningSelectionDisabled,
   onChange,
@@ -45,6 +52,7 @@ export function AgentComposer({
   onStop,
   onModelChange,
   onReasoningChange,
+  onApprovalModeChange,
   onResetResponseOptions,
   onOpenSettings,
   onReplaceResourceBinding,
@@ -67,6 +75,8 @@ export function AgentComposer({
   defaultModelId?: string
   selectedReasoningLevel: AgentReasoningLevel
   supportedReasoningLevels: AgentReasoningLevel[]
+  approvalPolicy: AgentApprovalPolicyState
+  approvalModeDisabled: boolean
   modelSelectionDisabled: boolean
   reasoningSelectionDisabled: boolean
   onChange: (value: string) => void
@@ -79,6 +89,7 @@ export function AgentComposer({
   onStop: () => void
   onModelChange: (modelId: string) => void
   onReasoningChange: (reasoningLevel: AgentReasoningLevel) => void
+  onApprovalModeChange: (mode: AgentApprovalMode) => Promise<void>
   onResetResponseOptions: () => void
   onOpenSettings: () => void
   onReplaceResourceBinding: (sessionId: string) => Promise<boolean>
@@ -220,6 +231,11 @@ export function AgentComposer({
                 </Tooltip>
               </>
             ) : null}
+            <AgentApprovalModeControl
+              policy={approvalPolicy}
+              disabled={approvalModeDisabled}
+              onChange={onApprovalModeChange}
+            />
           </div>
           <div className={styles['composer-primary-actions']}>
             <AgentResponseOptionsMenu

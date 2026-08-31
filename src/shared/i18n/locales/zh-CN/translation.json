@@ -255,6 +255,18 @@
         "unknown": "附件操作失败，请稍后重试。"
       }
     },
+    "approvalMode": {
+      "label": "审核方式",
+      "title": "如何审批 Agent 的操作？",
+      "review": "逐次审批",
+      "reviewHint": "敏感操作执行前请求确认",
+      "bypass": "无需确认",
+      "bypassHint": "在已授权权限范围内直接执行工具",
+      "unavailable": "审核方式不可用",
+      "confirmBypassTitle": "允许 Agent 无需确认执行？",
+      "confirmBypassDescription": "启用后，Agent 可在托管客户端已授权的权限范围内直接执行 MCP 工具。有任务运行时不能修改此设置。",
+      "confirmBypass": "启用无需确认"
+    },
     "inspector": {
       "title": "运行检查器",
       "context": "上下文",
@@ -293,13 +305,7 @@
       "onDemand": "按需连接",
       "disconnected": "未连接",
       "tools": "工具",
-      "scopes": "权限",
-      "approval": "无需逐次确认",
-      "reviewHint": "敏感操作继续使用全局审批",
-      "bypassHint": "已授权工具可直接执行",
-      "confirmBypassTitle": "允许 Agent 无需确认执行？",
-      "confirmBypassDescription": "启用后，Agent 可在托管客户端已授权范围内直接执行 MCP 工具。运行中的任务不会受此变更影响。",
-      "confirmBypass": "启用无需确认"
+      "scopes": "权限"
     },
     "markdown": {
       "remoteImageBlocked": "远程图片已阻止"

@@ -52,7 +52,6 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
       onContextCompressionPendingChange={props.onContextCompressionPendingChange}
       onRetryContext={props.onRetryContext}
       onRetryUsage={props.onRetryUsage}
-      onApprovalBypassChange={props.onApprovalBypassChange}
       onClose={() => setInspectorOpen(false)}
     />
   )
@@ -110,6 +109,8 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           selectedProviderName={selectedSession?.provider_name}
           selectedReasoningLevel={props.selected_reasoning_level}
           supportedReasoningLevels={selectedModel?.supported_reasoning_levels ?? ['off']}
+          approvalPolicy={props.approval_policy}
+          approvalModeDisabled={props.busy || active || Boolean(props.active_run) || props.run_blocked}
           modelSelectionDisabled={props.busy || active || props.run_blocked}
           reasoningSelectionDisabled={props.busy || active || props.run_blocked || !selectedModel?.runnable}
           onChange={props.onDraftChange}
@@ -122,6 +123,7 @@ export function AgentWorkspace(props: AgentWorkspaceProps) {
           onStop={() => void props.onStop()}
           onModelChange={props.onModelChange}
           onReasoningChange={props.onReasoningChange}
+          onApprovalModeChange={props.onApprovalModeChange}
           onResetResponseOptions={props.onResetResponseOptions}
           onOpenSettings={props.onOpenSettings}
           onReplaceResourceBinding={props.onReplaceResourceBinding}

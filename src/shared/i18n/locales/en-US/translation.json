@@ -255,6 +255,18 @@
         "unknown": "The attachment operation failed. Try again."
       }
     },
+    "approvalMode": {
+      "label": "Approval mode",
+      "title": "How should Agent actions be approved?",
+      "review": "Ask for approval",
+      "reviewHint": "Request approval before sensitive operations",
+      "bypass": "No confirmation",
+      "bypassHint": "Run tools directly within the granted scopes",
+      "unavailable": "Approval mode unavailable",
+      "confirmBypassTitle": "Allow the Agent to run without confirmation?",
+      "confirmBypassDescription": "The Agent will be able to execute MCP tools within the managed client's granted scopes. This setting cannot be changed while a task is running.",
+      "confirmBypass": "Enable no confirmation"
+    },
     "inspector": {
       "title": "Run inspector",
       "context": "Context",
@@ -294,13 +306,7 @@
       "onDemand": "Connects on demand",
       "disconnected": "Disconnected",
       "tools": "Tools",
-      "scopes": "Scopes",
-      "approval": "Skip per-tool approval",
-      "reviewHint": "Sensitive operations use the global approval flow",
-      "bypassHint": "Granted tools may execute directly",
-      "confirmBypassTitle": "Allow the Agent to run without confirmation?",
-      "confirmBypassDescription": "The Agent will be able to execute MCP tools within the managed client's granted scopes. A running task is not changed by this setting.",
-      "confirmBypass": "Enable no confirmation"
+      "scopes": "Scopes"
     },
     "markdown": {
       "remoteImageBlocked": "Remote image blocked"

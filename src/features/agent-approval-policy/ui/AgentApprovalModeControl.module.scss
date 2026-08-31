@@ -1,0 +1,174 @@
+.trigger:global(.ant-btn) {
+  display: inline-flex;
+  max-width: 160px;
+  min-width: 0;
+  height: 30px;
+  align-items: center;
+  justify-content: flex-start;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 600;
+  gap: 5px;
+  padding: 0 7px;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.trigger:global(.ant-btn):not(:disabled):hover,
+.trigger:global(.ant-btn):not(:disabled):focus-visible,
+.trigger:global(.ant-btn)[aria-expanded='true'] {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+}
+
+.trigger:global(.ant-btn):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  outline-offset: 1px;
+}
+
+.trigger:global(.ant-btn):disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.7;
+}
+
+.trigger:global(.ant-btn)[data-tone='warning'] {
+  color: var(--warning);
+}
+
+.trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trigger > svg,
+.trigger :global(.ant-btn-icon) {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: inherit;
+}
+
+.menu {
+  width: min(280px, calc(100vw - 48px));
+}
+
+.title {
+  display: block;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 18px;
+  padding: 0 2px 9px;
+}
+
+.options {
+  display: grid;
+  gap: 2px;
+}
+
+.option {
+  display: grid;
+  width: 100%;
+  min-height: 54px;
+  grid-template-columns: 18px minmax(0, 1fr) 14px;
+  align-items: start;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  gap: 9px;
+  letter-spacing: 0;
+  padding: 8px;
+  text-align: left;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.option:not(:disabled):hover,
+.option:not(:disabled):focus-visible {
+  background: var(--row-hover-bg);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.option:focus-visible {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 36%, transparent);
+}
+
+.option:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.option > svg {
+  margin-top: 2px;
+}
+
+.option > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.option strong {
+  color: inherit;
+  font-size: 12px;
+  font-weight: 630;
+  line-height: 17px;
+}
+
+.option small {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.option[data-tone='warning'] > svg:first-child,
+.option[data-tone='warning'] small {
+  color: var(--warning);
+}
+
+.check {
+  color: var(--accent);
+  opacity: 0;
+}
+
+.option[aria-checked='true'] .check {
+  opacity: 1;
+}
+
+.popover:global(.ant-popover) :global(.ant-popover-container),
+.popover:global(.ant-popover) :global(.ant-popover-unique-container) {
+  border-radius: 10px;
+  padding: 7px;
+}
+
+@container agent-workspace (width <= 520px) {
+  .trigger:global(.ant-btn) {
+    max-width: 122px;
+  }
+}
+
+@container agent-workspace (width <= 420px) {
+  .trigger :global(.ant-btn-icon) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger:global(.ant-btn),
+  .option {
+    transition: none;
+  }
+}

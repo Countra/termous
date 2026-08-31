@@ -6,6 +6,10 @@ import type {
   AgentSourceContext,
   AgentUsage,
 } from '#entities/agent'
+import type {
+  AgentApprovalMode,
+  AgentApprovalPolicyState,
+} from '#features/agent-approval-policy'
 
 export type AgentWorkspaceRunStatus =
   | 'idle'
@@ -154,7 +158,6 @@ export interface AgentWorkspaceMcpState {
   connection: 'connected' | 'connecting' | 'on_demand' | 'disconnected'
   tool_count?: number
   scope_count: number
-  approval_bypass: boolean
 }
 
 export interface AgentWorkspaceInspectorState {
@@ -172,6 +175,7 @@ export interface AgentWorkspaceProps {
   selected_model_id?: string
   default_model_id?: string
   selected_reasoning_level: AgentReasoningLevel
+  approval_policy: AgentApprovalPolicyState
   inspector: AgentWorkspaceInspectorState
   draft: string
   draft_source_context?: AgentSourceContext
@@ -208,7 +212,7 @@ export interface AgentWorkspaceProps {
   onContextCompressionPendingChange: (enabled: boolean) => void
   onRetryContext: () => void
   onRetryUsage: () => void
-  onApprovalBypassChange: (enabled: boolean) => Promise<void>
+  onApprovalModeChange: (mode: AgentApprovalMode) => Promise<void>
   onReplaceResourceBinding: (sessionId: string) => Promise<boolean>
   onRemoveResourceBinding: () => Promise<boolean>
 }

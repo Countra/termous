@@ -163,24 +163,21 @@
 }
 
 .context-checkpoint > div,
-.context-compression > div,
-.approval-policy > div {
+.context-compression > div {
   display: grid;
   min-width: 0;
   gap: 3px;
 }
 
 .context-checkpoint strong,
-.context-compression strong,
-.approval-policy strong {
+.context-compression strong {
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 630;
 }
 
 .context-checkpoint span,
-.context-compression span,
-.approval-policy span {
+.context-compression span {
   color: var(--text-muted);
   font-size: 11px;
   line-height: 16px;
@@ -399,11 +396,4 @@
 .mcp-metrics span {
   color: var(--text-muted);
   font-size: 11px;
-}
-
-.approval-policy {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
 }

@@ -347,7 +347,7 @@ describe('AgentWorkspace', () => {
       inspector: {
         ...fixtureProps().inspector,
         skills: [],
-        mcp: { connection: 'on_demand', scope_count: 29, approval_bypass: false },
+        mcp: { connection: 'on_demand', scope_count: 29 },
       },
     }))
 
@@ -356,6 +356,7 @@ describe('AgentWorkspace', () => {
     expect(screen.getByText('agent.inspector.onDemand')).toBeInTheDocument()
     expect(screen.queryByText('agent.inspector.tools')).not.toBeInTheDocument()
     expect(screen.queryByText('agent.inspector.skills')).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch', { name: 'agent.inspector.approval' })).not.toBeInTheDocument()
   })
 
   it('为会话选择、搜索和流式消息提供稳定的无障碍语义', () => {
@@ -387,35 +388,24 @@ describe('AgentWorkspace', () => {
 
   it('无需确认策略必须二次确认，运行期间禁止切换', async () => {
     const user = userEvent.setup()
-    const onApprovalBypassChange = vi.fn(async () => undefined)
-    const view = renderWorkspace(fixtureProps({ onApprovalBypassChange }))
-    await user.click(screen.getByRole('button', { name: 'agent.inspector.title' }))
-    await user.click(screen.getByRole('switch', { name: 'agent.inspector.approval' }))
-    expect(screen.getByText('agent.inspector.confirmBypassTitle')).toBeInTheDocument()
-    expect(onApprovalBypassChange).not.toHaveBeenCalled()
-    await user.click(screen.getByRole('button', { name: 'agent.inspector.confirmBypass' }))
-    await waitFor(() => expect(onApprovalBypassChange).toHaveBeenCalledWith(true))
+    const onApprovalModeChange = vi.fn(async () => undefined)
+    const view = renderWorkspace(fixtureProps({ onApprovalModeChange }))
+    const trigger = screen.getByRole('button', { name: 'agent.approvalMode.label' })
+    await user.click(trigger)
+    expect(screen.getAllByRole('menuitemradio')).toHaveLength(2)
+    expect(screen.getByRole('menuitemradio', { name: /agent\.approvalMode\.review/ })).toHaveAttribute('aria-checked', 'true')
+    await user.click(screen.getByRole('menuitemradio', { name: /agent\.approvalMode\.bypass/ }))
+    expect(screen.getByText('agent.approvalMode.confirmBypassTitle')).toBeInTheDocument()
+    expect(onApprovalModeChange).not.toHaveBeenCalled()
+    const retryConfirm = screen.getByRole('button', { name: /agent\.approvalMode\.confirmBypass/ })
+    await waitFor(() => expect(retryConfirm).not.toBeDisabled())
+    await user.click(retryConfirm)
+    await waitFor(() => expect(onApprovalModeChange).toHaveBeenCalledWith('bypass'))
 
     view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
       sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
     })} /></AntdApp>)
-    expect(screen.getByRole('switch', { name: 'agent.inspector.approval' })).toBeDisabled()
-  })
-
-  it('确认无需审批期间启动 Run 时关闭失效的确认窗口', async () => {
-    const user = userEvent.setup()
-    const onApprovalBypassChange = vi.fn(async () => undefined)
-    const view = renderWorkspace(fixtureProps({ onApprovalBypassChange }))
-    await user.click(screen.getByRole('button', { name: 'agent.inspector.title' }))
-    await user.click(screen.getByRole('switch', { name: 'agent.inspector.approval' }))
-    expect(screen.getByText('agent.inspector.confirmBypassTitle')).toBeInTheDocument()
-
-    view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
-      sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
-      onApprovalBypassChange,
-    })} /></AntdApp>)
-    fireEvent.click(screen.getByRole('button', { name: 'agent.inspector.confirmBypass', hidden: true }))
-    expect(onApprovalBypassChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'agent.approvalMode.label' })).toBeDisabled()
   })
 
   it('展示权威上下文预警和 Checkpoint，并将整理安排到下一次发送', async () => {
@@ -835,6 +825,7 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
     selected_model_id: 'model-1',
     default_model_id: 'model-1',
     selected_reasoning_level: 'medium',
+    approval_policy: { status: 'ready', mode: 'review' },
     inspector: {
       context: {
         phase: 'ready', has_snapshot: true, used_tokens: 120, context_window_tokens: 8_000,
@@ -847,7 +838,7 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
         total_tokens: 120, estimated: false,
       },
       skills: [],
-      mcp: { connection: 'connected', tool_count: 76, scope_count: 29, approval_bypass: false },
+      mcp: { connection: 'connected', tool_count: 76, scope_count: 29 },
     },
     draft: '', draft_attachments: [], supports_images: false, model_runnable: true,
     show_turn_token_usage: true,
@@ -862,7 +853,7 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
     onSteer: vi.fn(async () => undefined), onStop: vi.fn(async () => undefined),
     onContextCompressionPendingChange: vi.fn(), onRetryContext: vi.fn(),
     onRetryUsage: vi.fn(),
-    onApprovalBypassChange: vi.fn(async () => undefined),
+    onApprovalModeChange: vi.fn(async () => undefined),
     onReplaceResourceBinding: vi.fn(async () => true),
     onRemoveResourceBinding: vi.fn(async () => true),
     ...overrides,

@@ -1,5 +1,5 @@
 import { App as AntdApp } from 'antd'
-import { act, render, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentLaunchIntent, AgentModel, AgentReadiness, AgentRun, AgentSession, AgentSSHResourceState } from '#entities/agent'
 import type { AgentSetupGateway } from '#features/agent-setup'
@@ -31,6 +31,8 @@ const harness = vi.hoisted(() => ({
   discardAttachments: vi.fn(),
   modelProviders: vi.fn(),
   models: vi.fn(),
+  readiness: vi.fn(),
+  updateMcpPolicy: vi.fn(),
 }))
 
 vi.mock('react-i18next', () => ({
@@ -117,6 +119,12 @@ describe('AgentPage', () => {
     harness.discardAttachments.mockReset().mockResolvedValue(undefined)
     harness.modelProviders.mockReset().mockResolvedValue({ items: [providerFixture()] })
     harness.models.mockReset().mockResolvedValue({ items: [modelFixture()] })
+    harness.readiness.mockReset()
+    harness.updateMcpPolicy.mockReset().mockResolvedValue({
+      ...readinessFixture().mcp_policy,
+      approval_bypass: true,
+      revision: 2,
+    })
     harness.state = workspaceState()
     harness.selectSession.mockImplementation((sessionId?: string) => {
       harness.state = {
@@ -184,6 +192,64 @@ describe('AgentPage', () => {
     await waitFor(() => expect(onRuntimeSummaryChange).toHaveBeenLastCalledWith({
       agentRunCount: 1,
       snapshotComplete: false,
+    }))
+  })
+
+  it('将语义化审核方式映射到带 revision 的 MCP 策略更新', async () => {
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.approval_policy).toEqual({
+      status: 'ready',
+      mode: 'review',
+    }))
+
+    await act(async () => {
+      const changeMode = harness.workspaceProps?.onApprovalModeChange as (mode: 'bypass') => Promise<void>
+      await changeMode('bypass')
+    })
+
+    expect(harness.updateMcpPolicy).toHaveBeenCalledWith({
+      approval_bypass: true,
+      sync_scopes: false,
+      expected_revision: 1,
+    })
+    await waitFor(() => expect(harness.workspaceProps?.approval_policy).toEqual({
+      status: 'ready',
+      mode: 'bypass',
+    }))
+  })
+
+  it('MCP 策略缺失时投影不可用态，不伪装为逐次审批', async () => {
+    renderPage({ readiness: { ...readinessFixture(), mcp_policy: undefined } })
+
+    await waitFor(() => expect(harness.workspaceProps?.approval_policy).toEqual({
+      status: 'unavailable',
+    }))
+  })
+
+  it('MCP 策略更新冲突后重新读取 readiness 对账', async () => {
+    const refreshed = readinessFixture()
+    refreshed.mcp_policy = {
+      ...refreshed.mcp_policy!,
+      approval_bypass: true,
+      revision: 4,
+    }
+    harness.updateMcpPolicy.mockRejectedValueOnce({ code: 'AGENT_REVISION_CONFLICT' })
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.approval_policy).toEqual({
+      status: 'ready',
+      mode: 'review',
+    }))
+    harness.readiness.mockResolvedValue(refreshed)
+
+    await act(async () => {
+      const changeMode = harness.workspaceProps?.onApprovalModeChange as (mode: 'bypass') => Promise<void>
+      await expect(changeMode('bypass')).rejects.toThrow('AGENT_MCP_POLICY_UPDATE_FAILED')
+    })
+
+    expect(harness.readiness).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(harness.workspaceProps?.approval_policy).toEqual({
+      status: 'ready',
+      mode: 'bypass',
     }))
   })
 
@@ -749,6 +815,71 @@ describe('AgentPage', () => {
     await waitFor(() => expect(onLaunchIntentHandled).toHaveBeenCalledWith(7))
   })
 
+  it('重新激活配置水合期间锁定新 Run 并在策略对账后解除', async () => {
+    const pendingReadiness = deferred<AgentReadiness>()
+    const refreshedReadiness = readinessFixture()
+    refreshedReadiness.mcp_policy = {
+      ...refreshedReadiness.mcp_policy!,
+      approval_bypass: true,
+      revision: 2,
+    }
+    const page = renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.run_blocked).toBe(false))
+
+    page.rerenderPage({ active: false })
+    harness.readiness.mockReturnValueOnce(pendingReadiness.promise)
+    page.rerenderPage({ active: true })
+    await waitFor(() => expect(harness.readiness).toHaveBeenCalledTimes(2))
+    expect(harness.workspaceProps?.run_blocked).toBe(true)
+    expect(harness.workspaceProps?.approval_policy).toEqual({
+      status: 'unavailable',
+    })
+    await act(async () => {
+      const send = harness.workspaceProps?.onSend as (message: string) => Promise<void>
+      await send('配置水合期间不应发送')
+    })
+    expect(harness.startRun).not.toHaveBeenCalled()
+
+    await act(async () => {
+      pendingReadiness.resolve(refreshedReadiness)
+      await pendingReadiness.promise
+    })
+    await waitFor(() => expect(harness.workspaceProps?.run_blocked).toBe(false))
+    expect(harness.workspaceProps?.approval_policy).toEqual({
+      status: 'ready',
+      mode: 'bypass',
+    })
+  })
+
+  it('重新激活配置水合失败后保持锁定并提供权威状态重试', async () => {
+    const refreshedReadiness = readinessFixture()
+    refreshedReadiness.mcp_policy = {
+      ...refreshedReadiness.mcp_policy!,
+      approval_bypass: true,
+      revision: 2,
+    }
+    const page = renderPage()
+    await waitFor(() => expect(harness.workspaceProps?.run_blocked).toBe(false))
+
+    page.rerenderPage({ active: false })
+    harness.readiness.mockRejectedValueOnce(new Error('readiness unavailable'))
+    page.rerenderPage({ active: true })
+
+    const retry = await waitFor(() => page.getByRole('button', { name: 'app.retry' }))
+    expect(harness.workspaceProps?.run_blocked).toBe(true)
+    expect(harness.workspaceProps?.approval_policy).toEqual({ status: 'unavailable' })
+    harness.readiness.mockResolvedValueOnce(refreshedReadiness)
+    fireEvent.click(retry)
+
+    await waitFor(() => expect(harness.readiness).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(harness.workspaceProps?.run_blocked).toBe(false))
+    expect(page.queryByRole('button', { name: 'app.retry' })).not.toBeInTheDocument()
+    expect(harness.workspaceProps?.approval_policy).toEqual({
+      status: 'ready',
+      mode: 'bypass',
+    })
+  })
+
   it('业务入口创建独立草稿但不自动发送或覆盖当前会话草稿', async () => {
     const onLaunchIntentHandled = vi.fn()
     harness.state = {
@@ -914,12 +1045,15 @@ function renderPage({
   sshResources?: AgentSSHResourceState[]
   sshResourcesReady?: boolean
 } = {}) {
+  harness.readiness.mockResolvedValue(readiness)
   const setupGateway = {
-    readiness: vi.fn(async () => readiness),
+    readiness: harness.readiness,
     modelProviders: harness.modelProviders,
     models: harness.models,
   } as unknown as AgentSetupGateway
-  const gateway = {} as AgentWorkspaceGateway
+  const gateway = {
+    updateMcpPolicy: harness.updateMcpPolicy,
+  } as unknown as AgentWorkspaceGateway
   const element = (next: {
     launchIntent?: AgentLaunchIntent
     onLaunchIntentHandled?: (key: number) => void

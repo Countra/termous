@@ -10,9 +10,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { Button, Progress, Skeleton, Switch, Tooltip } from 'antd'
-import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ConfirmDialog } from '#shared/ui'
 import type { AgentWorkspaceInspectorState } from '../model/types.ts'
 import styles from './AgentInspector.module.scss'
 import { AgentTokenUsage } from './AgentTokenUsage.tsx'
@@ -23,7 +21,6 @@ export function AgentInspector({
   onContextCompressionPendingChange,
   onRetryContext,
   onRetryUsage,
-  onApprovalBypassChange,
   onClose,
 }: {
   inspector: AgentWorkspaceInspectorState
@@ -31,32 +28,12 @@ export function AgentInspector({
   onContextCompressionPendingChange: (enabled: boolean) => void
   onRetryContext: () => void
   onRetryUsage: () => void
-  onApprovalBypassChange: (enabled: boolean) => Promise<void>
   onClose: () => void
 }) {
   const { t, i18n } = useTranslation()
-  const [confirmBypass, setConfirmBypass] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const disabledRef = useRef(disabled)
-  disabledRef.current = disabled
   const usage = inspector.context.has_snapshot && inspector.context.context_window_tokens > 0
     ? Math.min(100, Math.round(inspector.context.used_tokens / inspector.context.context_window_tokens * 100))
     : 0
-  useEffect(() => {
-    if (disabled) setConfirmBypass(false)
-  }, [disabled])
-  const setPolicy = async (enabled: boolean) => {
-    if (disabledRef.current || saving) return
-    setSaving(true)
-    try {
-      await onApprovalBypassChange(enabled)
-      setConfirmBypass(false)
-    } catch {
-      // 失败提示由页面统一处理，保留确认窗口便于用户重试。
-    } finally {
-      setSaving(false)
-    }
-  }
 
   return (
     <aside className={styles.inspector} data-agent-panel aria-label={t('agent.inspector.title')}>
@@ -155,27 +132,7 @@ export function AgentInspector({
           {inspector.mcp.tool_count !== undefined ? <div><Braces size={14} /><strong>{inspector.mcp.tool_count}</strong><span>{t('agent.inspector.tools')}</span></div> : null}
           <div><ShieldCheck size={14} /><strong>{inspector.mcp.scope_count}</strong><span>{t('agent.inspector.scopes')}</span></div>
         </div>
-        <div className={styles['approval-policy']}>
-          <div><strong>{t('agent.inspector.approval')}</strong><span>{t(inspector.mcp.approval_bypass ? 'agent.inspector.bypassHint' : 'agent.inspector.reviewHint')}</span></div>
-          <Switch
-            checked={inspector.mcp.approval_bypass}
-            loading={saving}
-            disabled={disabled || saving}
-            aria-label={t('agent.inspector.approval')}
-            onChange={(checked) => checked ? setConfirmBypass(true) : void setPolicy(false)}
-          />
-        </div>
       </section>
-      <ConfirmDialog
-        open={confirmBypass && !disabled}
-        title={t('agent.inspector.confirmBypassTitle')}
-        description={t('agent.inspector.confirmBypassDescription')}
-        confirmLabel={t('agent.inspector.confirmBypass')}
-        danger
-        confirmLoading={saving}
-        onCancel={() => setConfirmBypass(false)}
-        onConfirm={() => void setPolicy(true)}
-      />
     </aside>
   )
 }

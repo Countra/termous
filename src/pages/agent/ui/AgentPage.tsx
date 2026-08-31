@@ -1,5 +1,5 @@
 import { App as AntdApp, Alert } from 'antd'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   isAgentModelRunnable,
@@ -20,6 +20,11 @@ import {
   useAgentDraftAttachments,
   type AgentWorkspaceGateway,
 } from '#features/agent-runtime'
+import {
+  agentApprovalModeFromBypass,
+  agentApprovalModeToBypass,
+  type AgentApprovalMode,
+} from '#features/agent-approval-policy'
 import { termousNotificationClassName } from '#shared/ui'
 import {
   AgentWorkspace,
@@ -79,6 +84,7 @@ export function AgentPage({
   const [draftReasoningLevel, setDraftReasoningLevel] = useState<AgentReasoningLevel>()
   const [draftSourceContexts, setDraftSourceContexts] = useState<Record<string, AgentSourceContext>>({})
   const [activeSetupReadyEpoch, setActiveSetupReadyEpoch] = useState(0)
+  const [activeSetupFailedEpoch, setActiveSetupFailedEpoch] = useState(0)
   const busyRef = useRef(false)
   const attachmentDraftSessionPromiseRef = useRef<Promise<AgentSession> | null>(null)
   const attachmentDraftSessionIdsRef = useRef(new Set<string>())
@@ -171,6 +177,7 @@ export function AgentPage({
     if (epoch <= 0 || activeSetupEpochRef.current !== epoch) return
     activeSetupReadyEpochRef.current = epoch
     setActiveSetupReadyEpoch(epoch)
+    setActiveSetupFailedEpoch(0)
   }, [])
 
   const hydrateActiveSetup = useCallback((epoch: number) => {
@@ -179,11 +186,14 @@ export function AgentPage({
     activeSetupAbortRef.current = controller
     activeSetupReadyEpochRef.current = 0
     setActiveSetupReadyEpoch(0)
+    setActiveSetupFailedEpoch(0)
     return loadSetup(
       controller.signal,
       () => activeSetupEpochRef.current === epoch,
     ).then((accepted) => {
-      if (accepted && !controller.signal.aborted) markActiveSetupReady(epoch)
+      if (controller.signal.aborted || activeSetupEpochRef.current !== epoch) return false
+      if (accepted) markActiveSetupReady(epoch)
+      else setActiveSetupFailedEpoch(epoch)
       return accepted
     })
   }, [loadSetup, markActiveSetupReady])
@@ -201,7 +211,7 @@ export function AgentPage({
     })
   }, [enabled, onRuntimeSummaryChange, state.active_run_id, state.snapshot_complete])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!enabled || !active) return
     const epoch = activeSetupEpochRef.current + 1
     activeSetupEpochRef.current = epoch
@@ -250,6 +260,31 @@ export function AgentPage({
       throw error
     }
   }, 'resource'), [controller, perform])
+
+  const changeApprovalMode = useCallback(async (mode: AgentApprovalMode) => {
+    const policy = readiness?.mcp_policy
+    if (!policy) throw new Error('AGENT_MCP_POLICY_MISSING')
+    const updated = await perform(async () => {
+      try {
+        const next = await gateway.updateMcpPolicy({
+          approval_bypass: agentApprovalModeToBypass(mode),
+          sync_scopes: false,
+          expected_revision: policy.revision,
+        })
+        setReadiness((current) => current ? { ...current, mcp_policy: next } : current)
+      } catch (error) {
+        const epoch = activeSetupEpochRef.current
+        try {
+          const nextReadiness = await setupGateway.readiness()
+          if (activeSetupEpochRef.current === epoch) setReadiness(nextReadiness)
+        } catch {
+          // 保留原始策略更新错误；后续刷新仍会重新获取权威状态。
+        }
+        throw error
+      }
+    })
+    if (!updated) throw new Error('AGENT_MCP_POLICY_UPDATE_FAILED')
+  }, [gateway, perform, readiness?.mcp_policy, setupGateway])
 
   const selected = state.sessions.find((session) => session.id === state.selected_session_id)
   const newSessionModelId = draftModelId
@@ -352,11 +387,16 @@ export function AgentPage({
     ensureSession: ensureAttachmentSession,
     onError: reportAttachmentError,
   })
+  const activeSetupReady = active
+    && activeSetupEpochRef.current > 0
+    && activeSetupReadyEpoch === activeSetupEpochRef.current
+    && activeSetupReadyEpochRef.current === activeSetupEpochRef.current
+  const activeSetupFailed = active
+    && activeSetupFailedEpoch > 0
+    && activeSetupFailedEpoch === activeSetupEpochRef.current
 
   useEffect(() => {
-    if (!active || !workspaceInfrastructureReady || !newSessionModelRunnable || !launchIntent) return
-    if (activeSetupReadyEpoch !== activeSetupEpochRef.current
-      || activeSetupReadyEpochRef.current !== activeSetupEpochRef.current) return
+    if (!activeSetupReady || !workspaceInfrastructureReady || !newSessionModelRunnable || !launchIntent) return
     if (handledLaunchIntentRef.current === launchIntent.key) return
     handledLaunchIntentRef.current = launchIntent.key
     const resourceReference = launchIntent.source === 'workbench'
@@ -373,8 +413,7 @@ export function AgentPage({
       notifyError(notificationRef.current, tRef.current, error, 'resource')
     })
   }, [
-    active,
-    activeSetupReadyEpoch,
+    activeSetupReady,
     controller,
     createIndependentDraftSession,
     launchIntent,
@@ -455,13 +494,35 @@ export function AgentPage({
     mcp: {
       connection: projectMcpConnection(Boolean(state.active_run_id), state.runtime_status?.state),
       scope_count: readiness.mcp_policy?.scope_count ?? 0,
-      approval_bypass: readiness.mcp_policy?.approval_bypass ?? false,
     },
   }
+  const approvalPolicy = activeSetupReady && readiness.mcp_policy
+    ? {
+        status: 'ready' as const,
+        mode: agentApprovalModeFromBypass(readiness.mcp_policy.approval_bypass),
+      }
+    : { status: 'unavailable' as const }
 
   return (
     <div className={styles.page}>
-      {state.error_code ? (
+      {activeSetupFailed ? (
+        <Alert
+          className={styles.alert}
+          type="warning"
+          showIcon
+          title={t('agent.error.degraded')}
+          description={t('agent.error.degradedDescription')}
+          action={(
+            <button
+              type="button"
+              disabled={setupLoading}
+              onClick={() => void hydrateActiveSetup(activeSetupEpochRef.current)}
+            >
+              {t('app.retry')}
+            </button>
+          )}
+        />
+      ) : state.error_code ? (
         <Alert
           className={styles.alert}
           type="warning"
@@ -483,6 +544,7 @@ export function AgentPage({
         selected_model_id={selected?.model_id ?? newSessionModelId}
         default_model_id={readiness.settings.default_model_id ?? firstRunnableModelId}
         selected_reasoning_level={selectedReasoningLevel}
+        approval_policy={approvalPolicy}
         inspector={inspector}
         draft={state.drafts[selected?.id ?? 'new']?.text ?? ''}
         draft_source_context={draftSourceContexts[selected?.id ?? 'new']}
@@ -505,7 +567,7 @@ export function AgentPage({
           session_id: activeRun.session_id,
           status: activeRun.status,
         } : undefined}
-        run_blocked={agentRunInteractionBlocked(
+        run_blocked={!activeSetupReady || agentRunInteractionBlocked(
           state.active_run_id,
           selectedRun,
           state.runtime_status,
@@ -610,6 +672,7 @@ export function AgentPage({
         onRetryAttachment={draftAttachments.retry}
         onLoadAttachmentContent={loadAttachmentContent}
         onSend={async (message, attachmentIds, sourceContext) => {
+          if (!activeSetupReady) return
           await perform(async () => {
             if (resourceRunBlocked) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
             let targetSession = selected
@@ -685,19 +748,7 @@ export function AgentPage({
         onRetryUsage={() => {
           if (selected) void controller.reloadUsage(selected.id)
         }}
-        onApprovalBypassChange={async (approvalBypass) => {
-          const policy = readiness.mcp_policy
-          if (!policy) throw new Error('AGENT_MCP_POLICY_MISSING')
-          const updated = await perform(async () => {
-            const next = await gateway.updateMcpPolicy({
-              approval_bypass: approvalBypass,
-              sync_scopes: false,
-              expected_revision: policy.revision,
-            })
-            setReadiness((current) => current ? { ...current, mcp_policy: next } : current)
-          })
-          if (!updated) throw new Error('AGENT_MCP_POLICY_UPDATE_FAILED')
-        }}
+        onApprovalModeChange={changeApprovalMode}
         onReplaceResourceBinding={async (sessionId) => {
           if (!selected) return false
           return await performResourceMutation(selected.id, async () => {
