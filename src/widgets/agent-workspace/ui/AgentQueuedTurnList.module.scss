@@ -1,0 +1,177 @@
+.queue {
+  display: grid;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  background: var(--surface-strong);
+  gap: 2px;
+  margin: 0 6px -1px;
+  padding: 5px 6px 6px;
+}
+
+.queue > header {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 11px;
+  gap: 8px;
+  padding: 0 5px;
+}
+
+.queue > header > span,
+.attachments {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.queue > header small {
+  font-size: 10px;
+}
+
+.queue > header :global(.ant-btn) {
+  height: 25px;
+  color: var(--accent);
+  font-size: 11px;
+  padding-inline: 6px;
+}
+
+.list {
+  display: grid;
+  max-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.item {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 36px;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto 28px 28px;
+  align-items: center;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  gap: 5px;
+  padding: 2px 3px 2px 5px;
+}
+
+.item[data-dragging] {
+  opacity: 0.42;
+}
+
+.item[data-drop-placement="before"]::before,
+.item[data-drop-placement="after"]::after {
+  position: absolute;
+  z-index: 2;
+  right: 5px;
+  left: 5px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+  content: '';
+  pointer-events: none;
+}
+
+.item[data-drop-placement="before"]::before {
+  top: -1px;
+}
+
+.item[data-drop-placement="after"]::after {
+  bottom: -1px;
+}
+
+.item:hover,
+.item:focus-within,
+.item[data-editing] {
+  background: var(--row-hover-bg);
+}
+
+.handle:global(.ant-btn) {
+  display: inline-grid;
+  width: 22px;
+  min-width: 22px;
+  height: 28px;
+  grid-column: 1;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 0;
+}
+
+.handle:global(.ant-btn):not(:disabled):hover {
+  background: color-mix(in srgb, var(--accent-soft) 34%, transparent);
+  color: color-mix(in srgb, var(--accent) 80%, var(--text-muted));
+}
+
+.handle:global(.ant-btn):not(:disabled):active {
+  cursor: grabbing;
+}
+
+.copy {
+  grid-column: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item .attachments {
+  grid-column: 3;
+  color: var(--text-muted);
+}
+
+.more:global(.ant-btn) {
+  grid-column: 6;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  opacity: 0;
+  padding: 0;
+}
+
+.execute:global(.ant-btn),
+.action:global(.ant-btn) {
+  height: 26px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding-inline: 6px;
+}
+
+.execute:global(.ant-btn) {
+  grid-column: 4;
+}
+
+.action:global(.ant-btn) {
+  grid-column: 5;
+  width: 26px;
+  min-width: 26px;
+  padding: 0;
+}
+
+.item:hover .more:global(.ant-btn),
+.item:focus-within .more:global(.ant-btn) {
+  opacity: 1;
+}
+
+@container agent-workspace (width <= 720px) {
+  .execute-label {
+    display: none;
+  }
+
+  .execute:global(.ant-btn) {
+    width: 26px;
+    min-width: 26px;
+    padding: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .more:global(.ant-btn) { transition: none; }
+}

@@ -243,6 +243,10 @@
   color: var(--danger);
 }
 
+.message-failure[data-status='interrupted_by_steer'] {
+  color: var(--text-muted);
+}
+
 .conversation-empty {
   display: grid;
   height: 100%;

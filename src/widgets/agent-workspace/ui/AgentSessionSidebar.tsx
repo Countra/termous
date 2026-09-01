@@ -10,6 +10,7 @@ export function AgentSessionSidebar({
   sessions,
   selectedSessionId,
   disabled,
+  queuedSessionId,
   onCreate,
   onSelect,
   onArchive,
@@ -19,6 +20,7 @@ export function AgentSessionSidebar({
   sessions: AgentWorkspaceSession[]
   selectedSessionId?: string
   disabled: boolean
+  queuedSessionId?: string
   onCreate: () => void
   onSelect: (sessionId: string) => void
   onArchive: (sessionId: string) => void
@@ -58,7 +60,11 @@ export function AgentSessionSidebar({
         />
       </div>
       <div className={styles['session-list']} role="list">
-        {visible.length === 0 ? <p className={styles['session-list-empty']}>{t('agent.sessions.empty')}</p> : visible.map((session) => (
+        {visible.length === 0 ? <p className={styles['session-list-empty']}>{t('agent.sessions.empty')}</p> : visible.map((session) => {
+          const runActive = ['queued', 'starting', 'running', 'waiting_approval', 'stopping'].includes(session.run_status)
+          const archiveDisabled = disabled || runActive || session.id === queuedSessionId
+          const deleteDisabled = disabled || runActive
+          return (
           <div
             key={session.id}
             className={`${styles['session-row']} ${selectedSessionId === session.id ? styles['is-selected'] : ''}`}
@@ -83,12 +89,12 @@ export function AgentSessionSidebar({
             <div className={styles['session-actions']}>
               <Dropdown
                 trigger={['click']}
-                disabled={disabled}
+                disabled={archiveDisabled && deleteDisabled}
                 classNames={{ root: contextActionMenuPopupClassName }}
                 menu={{
                   items: [
-                    { key: 'archive', icon: <Archive size={14} />, label: t('agent.sessions.archive') },
-                    { key: 'delete', icon: <Trash2 size={14} />, label: t('app.delete'), danger: true },
+                    { key: 'archive', icon: <Archive size={14} />, label: t('agent.sessions.archive'), disabled: archiveDisabled },
+                    { key: 'delete', icon: <Trash2 size={14} />, label: t('app.delete'), danger: true, disabled: deleteDisabled },
                   ],
                   onClick: ({ key }) => {
                     if (key === 'archive') onArchive(session.id)
@@ -100,7 +106,7 @@ export function AgentSessionSidebar({
                   <Button
                     type="text"
                     size="small"
-                    disabled={disabled}
+                    disabled={archiveDisabled && deleteDisabled}
                     aria-label={t('agent.sessions.more')}
                     icon={<MoreHorizontal size={15} />}
                   />
@@ -108,7 +114,8 @@ export function AgentSessionSidebar({
               </Dropdown>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
     </aside>
   )

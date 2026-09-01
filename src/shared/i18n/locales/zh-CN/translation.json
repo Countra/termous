@@ -68,7 +68,8 @@
       "more": "更多会话操作",
       "archive": "归档会话",
       "deleteTitle": "删除此会话？",
-      "deleteDescription": "会话“{{title}}”及其消息记录将被永久删除。"
+      "deleteDescription": "会话“{{title}}”及其消息记录将被永久删除。",
+      "deleteDescriptionWithQueue": "会话“{{title}}”、消息记录及 {{count}} 条待处理消息将被永久删除。"
     },
     "header": {
       "newSession": "使用默认模型开始对话",
@@ -89,7 +90,8 @@
         "missing": "远程 Provider 当前未返回该模型，请同步模型目录或选择其他可用模型。",
         "unknown": "请在 AI 助手设置中检查 Provider 和模型目录，或选择其他可用模型。"
       },
-      "returnToActiveRun": "返回运行会话"
+      "returnToActiveRun": "返回运行会话",
+      "returnToQueuedSession": "返回排队会话"
     },
     "status": {
       "idle": "就绪",
@@ -138,6 +140,7 @@
       "agent": "AI 助手",
       "failed": "本次回复失败",
       "interrupted": "本次回复已中断",
+      "interrupted_by_steer": "已由新消息中断",
       "turnUsage": "本轮用量",
       "turnTotal": "总量"
     },
@@ -157,10 +160,9 @@
     },
     "composer": {
       "placeholder": "给 AI 助手发消息",
-      "steerPlaceholder": "追加要求，将在当前工具批次结束后生效",
-      "steerHint": "当前输入会追加到正在运行的任务",
+      "queuePlaceholder": "输入下一条消息",
+      "queue": "加入队列",
       "send": "发送",
-      "steer": "追加",
       "stop": "停止任务",
       "responseOptions": "模型与推理设置",
       "reasoning": "推理强度",
@@ -222,6 +224,20 @@
           "unknown": "连接当前不可用，请返回工作站确认连接状态后重新选择。"
         }
       }
+    },
+    "queue": {
+      "title": "排队消息",
+      "pending": "待处理 {{count}} 条",
+      "running": "自动继续",
+      "resume": "继续",
+      "executeNow": "立即执行",
+      "executeUnavailable": "当前无法立即执行",
+      "editMessage": "编辑消息",
+      "editing": "正在编辑排队消息",
+      "reorderMessage": "调整第 {{position}} 条排队消息的顺序",
+      "reorderUnavailable": "当前无法调整顺序",
+      "actions": "更多操作",
+      "attachmentCount": "{{count}} 个附件"
     },
     "attachments": {
       "title": "附件",

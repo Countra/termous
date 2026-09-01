@@ -17,23 +17,27 @@ export function AgentWorkspaceHeader({
   selectedSession,
   runStatus,
   activeRunElsewhere,
-  busy,
+  queuedSessionElsewhere,
+  stopDisabled,
   sessionsOverlay,
   inspectorOpen,
   onOpenSessions,
   onToggleInspector,
   onReturnToActiveRun,
+  onReturnToQueuedSession,
   onStop,
 }: {
   selectedSession?: AgentWorkspaceSession
   runStatus: AgentWorkspaceRunStatus
   activeRunElsewhere?: AgentWorkspaceProps['active_run']
-  busy: boolean
+  queuedSessionElsewhere: boolean
+  stopDisabled: boolean
   sessionsOverlay: boolean
   inspectorOpen: boolean
   onOpenSessions: () => void
   onToggleInspector: () => void
   onReturnToActiveRun: () => void
+  onReturnToQueuedSession: () => void
   onStop: () => void
 }) {
   const { t } = useTranslation()
@@ -83,9 +87,23 @@ export function AgentWorkspaceHeader({
                 danger
                 aria-label={t('agent.composer.stop')}
                 icon={<Square size={11} fill="currentColor" />}
-                disabled={busy || activeRunElsewhere.status === 'stopping'}
+                disabled={stopDisabled || activeRunElsewhere.status === 'stopping'}
                 onClick={onStop}
               />
+            </Tooltip>
+          </div>
+        ) : queuedSessionElsewhere ? (
+          <div className={styles['active-run-actions']}>
+            <Tooltip title={t('agent.header.returnToQueuedSession')}>
+              <Button
+                type="text"
+                size="small"
+                aria-label={t('agent.header.returnToQueuedSession')}
+                icon={<CornerUpLeft size={14} />}
+                onClick={onReturnToQueuedSession}
+              >
+                <span className={styles['active-run-label']}>{t('agent.header.returnToQueuedSession')}</span>
+              </Button>
             </Tooltip>
           </div>
         ) : null}

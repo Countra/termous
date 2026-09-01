@@ -26,6 +26,30 @@
   border-color: var(--border-strong);
 }
 
+.edit-status {
+  display: flex;
+  min-height: 26px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+  padding: 0 4px 5px;
+}
+
+.edit-status > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.edit-status :global(.ant-btn) {
+  height: 24px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding-inline: 6px;
+}
+
 .composer-tray {
   display: flex;
   min-width: 0;

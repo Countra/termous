@@ -200,7 +200,7 @@ export type AgentMessageStatus = (typeof agentMessageStatuses)[number]
 export const agentMessagePartKinds = ['text', 'reasoning', 'tool_call', 'tool_result'] as const
 export type AgentMessagePartKind = (typeof agentMessagePartKinds)[number]
 
-export const agentAttachmentStates = ['pending', 'ready', 'bound'] as const
+export const agentAttachmentStates = ['ready', 'reserved', 'bound'] as const
 export type AgentAttachmentState = (typeof agentAttachmentStates)[number]
 
 export interface AgentAttachment {
@@ -380,6 +380,7 @@ export interface AgentMessage {
 export interface AgentMessageTurnUsage {
   run_id: string
   usage: AgentUsage
+  error_code?: string
 }
 
 export interface AgentMessagePage {
@@ -411,6 +412,58 @@ export interface AgentUsage {
   reasoning_tokens: number
   total_tokens: number
   estimated: boolean
+}
+
+export const agentQueuedTurnStates = ['queued', 'dispatched', 'cancelled'] as const
+export type AgentQueuedTurnState = (typeof agentQueuedTurnStates)[number]
+
+export interface AgentQueuedTurn {
+  id: string
+  session_id: string
+  client_request_id: string
+  queue_sequence: number
+  prompt: string
+  source_context?: AgentSourceContext
+  model_id: string
+  reasoning_level: AgentReasoningLevel
+  force_context_compression: boolean
+  state: AgentQueuedTurnState
+  editing: boolean
+  interrupt_target_run_id?: string
+  dispatched_run_id?: string
+  error_code?: string
+  error_message?: string
+  revision: number
+  created_at: string
+  updated_at: string
+  attachments: AgentAttachment[]
+}
+
+export interface AgentQueuedTurnPage {
+  items: AgentQueuedTurn[]
+  queue_state?: AgentQueueState
+  next_cursor?: string
+}
+
+export type AgentQueuedTurnMovePlacement = 'before' | 'after'
+
+export interface AgentQueuedTurnOrderChange {
+  id: string
+  queue_sequence: number
+  revision: number
+  updated_at: string
+}
+
+export interface AgentQueuedTurnMoveResult {
+  items: AgentQueuedTurnOrderChange[]
+}
+
+export interface AgentQueueState {
+  session_id: string
+  state: 'running' | 'paused'
+  pause_reason?: string
+  paused_by_run_id?: string
+  revision: number
 }
 
 export interface AgentSessionUsage extends AgentUsage {

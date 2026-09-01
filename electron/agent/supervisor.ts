@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type {
+  AgentQueuedTurnSteerRequest,
   AgentRuntimeCommandResult,
   AgentRuntimeRunRef,
   AgentRuntimeStatus,
@@ -70,6 +71,7 @@ export class AgentSupervisor {
   private leasePromise: Promise<AgentSupervisorLease> | null = null
   private leaseTimer: ReturnType<typeof setTimeout> | null = null
   private leaseEnabled = false
+  private lifecycleRevision = 0
   private skillsStatus: AgentSkillsBundleStatus = unavailableSkillsStatus()
   private worker: AgentRunWorker | null = null
   private operationTail: Promise<void> = Promise.resolve()
@@ -102,34 +104,53 @@ export class AgentSupervisor {
   }
 
   async initialize() {
-    this.leaseEnabled = true
-    try {
-      await this.runExclusive(() => this.refreshLease())
-    } catch (error) {
-      await this.runExclusive(() => this.handleLeaseRefreshFailure(error))
-    } finally {
-      this.scheduleLeaseRefresh()
-    }
-    return this.getStatus()
+    const lifecycleRevision = ++this.lifecycleRevision
+    return this.runExclusive(async () => {
+      if (lifecycleRevision !== this.lifecycleRevision) {
+        return this.getStatus()
+      }
+      this.leaseEnabled = true
+      try {
+        await this.refreshLease()
+        if (lifecycleRevision === this.lifecycleRevision && this.leaseEnabled) {
+          await this.pumpQueueExclusive(false)
+        }
+      } catch (error) {
+        if (lifecycleRevision === this.lifecycleRevision) {
+          await this.handleLeaseRefreshFailure(error)
+        }
+      } finally {
+        if (lifecycleRevision === this.lifecycleRevision) {
+          this.scheduleLeaseRefresh()
+        }
+      }
+      return this.getStatus()
+    })
   }
 
   startRun(request: AgentRuntimeRunRef) {
     return this.runExclusive(() => this.startRunExclusive(request))
   }
 
+  wakeQueue() {
+    return this.runExclusive(() => this.pumpQueueExclusive())
+  }
+
   stopRun(request: AgentRuntimeRunRef) {
+    if (!validRunRef(request)) {
+      return Promise.resolve(this.rejected('AGENT_RUNTIME_REQUEST_INVALID'))
+    }
+    const active = this.worker
+    if (!active) {
+      return Promise.resolve(this.rejected('AGENT_RUNTIME_RUN_NOT_ACTIVE'))
+    }
+    if (!active.matches(request)) {
+      return Promise.resolve(this.rejected('AGENT_RUNTIME_RUN_CONFLICT'))
+    }
+    // 取消信号不等待续租或队列维护等串行操作，避免模型流继续占用运行资源。
+    active.requestStop()
     return this.runExclusive(async () => {
-      if (!validRunRef(request)) {
-        return this.rejected('AGENT_RUNTIME_REQUEST_INVALID')
-      }
-      const active = this.worker
-      if (!active) {
-        return this.rejected('AGENT_RUNTIME_RUN_NOT_ACTIVE')
-      }
-      if (!active.matches(request)) {
-        return this.rejected('AGENT_RUNTIME_RUN_CONFLICT')
-      }
-      await this.stopActiveWorker(active, false)
+      await active.stop(false)
       return this.accepted()
     })
   }
@@ -157,10 +178,34 @@ export class AgentSupervisor {
     })
   }
 
-  shutdown() {
+  async steerQueuedTurn(request: AgentQueuedTurnSteerRequest) {
+    if (!validQueuedTurnSteerRequest(request)) {
+      return this.rejected('AGENT_RUNTIME_STEER_INVALID')
+    }
+    const active = this.worker
+    if (!active || !active.matches(request) || active.isStopping()) {
+      return this.rejected('AGENT_RUNTIME_RUN_NOT_ACTIVE')
+    }
+    // Core 原子写入不依赖 Supervisor 生命周期队列，避免续租或 claim 网络等待拖延中断操作。
+    try {
+      await this.core.steerQueuedTurn(request)
+    } catch (error) {
+      return this.rejected(stableAgentRuntimeErrorCode(error, 'AGENT_RUNTIME_STEER_REJECTED'))
+    }
+    // 后继轮次持久化成功后立即启动取消预算，生命周期清理仍保持串行。
+    active.requestStop()
     return this.runExclusive(async () => {
-      this.leaseEnabled = false
-      this.clearLeaseTimer()
+      await this.stopActiveWorker(active, false)
+      return this.accepted()
+    })
+  }
+
+  shutdown() {
+    // 先阻止在途续租和领取继续派发，再由串行队列完成 Worker 与租约清理。
+    this.lifecycleRevision += 1
+    this.leaseEnabled = false
+    this.clearLeaseTimer()
+    return this.runExclusive(async () => {
       const lease = this.lease
       this.lease = null
       const active = this.worker
@@ -181,7 +226,10 @@ export class AgentSupervisor {
     })
   }
 
-  private async startRunExclusive(request: AgentRuntimeRunRef): Promise<AgentRuntimeCommandResult> {
+  private async startRunExclusive(
+    request: AgentRuntimeRunRef,
+    refreshLeaseBeforeStart = true,
+  ): Promise<AgentRuntimeCommandResult> {
     if (!validRunRef(request)) {
       return this.rejected('AGENT_RUNTIME_REQUEST_INVALID')
     }
@@ -194,13 +242,18 @@ export class AgentSupervisor {
         ? this.accepted()
         : this.rejected('AGENT_RUNTIME_RUN_CONFLICT')
     }
-    let lease: AgentSupervisorLease
-    try {
-      lease = await this.refreshLease()
-    } catch (error) {
-      const code = stableAgentRuntimeErrorCode(error, 'AGENT_RUNTIME_UNAVAILABLE')
-      this.publish({ state: 'offline', error_code: code })
-      return this.rejected(code)
+    let lease = this.lease
+    if (refreshLeaseBeforeStart || !lease) {
+      try {
+        lease = await this.refreshLease()
+      } catch (error) {
+        const code = stableAgentRuntimeErrorCode(error, 'AGENT_RUNTIME_UNAVAILABLE')
+        this.publish({ state: 'offline', error_code: code })
+        return this.rejected(code)
+      }
+    }
+    if (!lease) {
+      return this.rejected('AGENT_RUNTIME_UNAVAILABLE')
     }
     if (this.skillsStatus.status !== 'ready') {
       return this.rejected('AGENT_SKILLS_BUNDLE_NOT_READY')
@@ -220,6 +273,9 @@ export class AgentSupervisor {
         lease = await this.refreshLease(skillsStatusFromSnapshot(skills))
       }
       const coreBaseURL = await this.core.currentBaseURL()
+      if (!this.leaseEnabled) {
+        return this.rejected('AGENT_RUNTIME_UNAVAILABLE')
+      }
       const process = this.workerFactory.create()
       const worker = new AgentRunWorker({
         process,
@@ -285,12 +341,56 @@ export class AgentSupervisor {
     this.publish(this.idleStatus())
   }
 
-  private handleWorkerExited(worker: AgentRunWorker) {
+  private async handleWorkerExited(worker: AgentRunWorker) {
     if (this.worker !== worker) {
       return
     }
     this.worker = null
     this.publish(this.idleStatus())
+    if (this.leasePromise) {
+      // Worker 可能在续租换代过程中退出；等待当前独占操作结束后再取队，避免等待自身 lease Promise。
+      void this.runExclusive(() => this.pumpQueueExclusive())
+      return
+    }
+    await this.pumpQueueExclusive()
+  }
+
+  private async pumpQueueExclusive(refreshLeaseBeforeClaim = true): Promise<AgentRuntimeCommandResult> {
+    if (!this.leaseEnabled) {
+      return this.rejected('AGENT_RUNTIME_UNAVAILABLE')
+    }
+    if (this.worker) {
+      return this.accepted()
+    }
+    if (refreshLeaseBeforeClaim || !this.lease) {
+      try {
+        await this.refreshLease()
+      } catch (error) {
+        const code = stableAgentRuntimeErrorCode(error, 'AGENT_RUNTIME_UNAVAILABLE')
+        await this.handleLeaseRefreshFailure(error)
+        return this.rejected(code)
+      }
+    }
+    if (!this.lease || this.skillsStatus.status !== 'ready') {
+      this.publish(this.idleStatus())
+      return this.rejected(this.skillsStatus.status === 'ready'
+        ? 'AGENT_RUNTIME_UNAVAILABLE'
+        : 'AGENT_SKILLS_BUNDLE_NOT_READY')
+    }
+    let claimed: AgentRuntimeRunRef | null
+    try {
+      claimed = await this.core.claimNextQueuedRun(this.supervisorInstanceID)
+    } catch (error) {
+      const code = stableAgentRuntimeErrorCode(error, 'AGENT_RUNTIME_QUEUE_UNAVAILABLE')
+      this.logger?.error('agent-runtime-queue-claim-failed', { error_code: code })
+      this.publish({ ...this.idleStatus(), error_code: code })
+      return this.rejected(code)
+    }
+    if (!claimed) {
+      this.publish(this.idleStatus())
+      return this.accepted()
+    }
+    return this.startRunExclusive(claimed, false)
   }
 
   private async stopActiveWorker(worker: AgentRunWorker, shutdown: boolean) {
@@ -363,6 +463,7 @@ export class AgentSupervisor {
       void this.runExclusive(async () => {
         try {
           await this.refreshLease()
+          await this.pumpQueueExclusive(false)
         } catch (error) {
           await this.handleLeaseRefreshFailure(error)
         }
@@ -427,7 +528,7 @@ export class AgentSupervisor {
   }
 
   private idleStatus(): AgentRuntimeStatus {
-    if (!this.lease || this.skillsStatus.status !== 'ready') {
+    if (!this.leaseEnabled || !this.lease || this.skillsStatus.status !== 'ready') {
       return {
         state: 'offline',
         ...(this.skillsStatus.status !== 'ready'
@@ -484,6 +585,13 @@ function unavailableSkillsStatus(): AgentSkillsBundleStatus {
 
 function validRunRef(value: AgentRuntimeRunRef) {
   return validRunID(value?.run_id) && validGeneration(value?.generation)
+}
+
+function validQueuedTurnSteerRequest(value: AgentQueuedTurnSteerRequest) {
+  return validRunRef(value)
+    && validRunID(value?.queued_turn_id)
+    && validGeneration(value?.expected_revision)
+    && validGeneration(value?.expected_run_revision)
 }
 
 function sameStatus(left: AgentRuntimeStatus, right: AgentRuntimeStatus) {

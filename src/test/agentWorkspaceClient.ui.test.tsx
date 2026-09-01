@@ -39,6 +39,8 @@ describe('AgentWorkspaceClient', () => {
           start,
           stop,
           steer,
+          wake: vi.fn().mockResolvedValue(commandResult()),
+          steerQueuedTurn: vi.fn().mockResolvedValue(commandResult()),
           onStatus,
         },
       } satisfies Partial<TermousBridge>,
@@ -60,7 +62,7 @@ describe('AgentWorkspaceClient', () => {
       force_context_compression: true,
     })
     await gateway.run('agr/1')
-    await gateway.stopRun('agr/1', 1)
+    await gateway.stopRun('agr/1', 1, 2)
     await gateway.runEvents('agr/1', { generation: 2, afterSequence: 7, limit: 20 })
     await gateway.updateMcpPolicy({
       approval_bypass: true, sync_scopes: false, expected_revision: 3,
@@ -98,7 +100,7 @@ describe('AgentWorkspaceClient', () => {
     })
     expect(requestAt(fetchMock, 9)).toMatchObject({
       path: '/api/v1/agent/runs/agr%2F1/stop',
-      method: 'POST', body: { expected_revision: 1 },
+      method: 'POST', body: { expected_revision: 1, expected_generation: 2 },
     })
     expect(requestAt(fetchMock, 10)).toMatchObject({
       path: '/api/v1/agent/runs/agr%2F1/events',
@@ -125,6 +127,71 @@ describe('AgentWorkspaceClient', () => {
       run_id: 'agr-run', generation: 1, message: '补充要求',
     })
     expect(onStatus).toHaveBeenCalledOnce()
+  })
+
+  it('排队消息编辑与删除使用公开实体响应合同', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(queuedTurnFixture({ editing: true, revision: 2 })))
+      .mockResolvedValueOnce(jsonResponse(queuedTurnFixture({ editing: false, revision: 3 })))
+      .mockResolvedValueOnce(jsonResponse(queuedTurnFixture({ id: 'agt/1', state: 'cancelled', revision: 4 })))
+    vi.stubGlobal('fetch', fetchMock)
+    const gateway = createRuntimeGatewaysFromConfig({
+      apiBaseUrl: 'http://127.0.0.1:8122',
+      apiToken: 'renderer-token',
+    }).agentWorkspace
+
+    await gateway.beginQueuedTurnEdit('agt/1', 1)
+    await gateway.cancelQueuedTurnEdit('agt/1', 2)
+    const deleted = await gateway.deleteQueuedTurn('agt/1', 3)
+
+    expect(requestAt(fetchMock, 0)).toMatchObject({
+      path: '/api/v1/agent/queued-turns/agt%2F1/begin-edit',
+      method: 'POST',
+      body: { expected_revision: 1 },
+    })
+    expect(requestAt(fetchMock, 1)).toMatchObject({
+      path: '/api/v1/agent/queued-turns/agt%2F1/cancel-edit',
+      method: 'POST',
+      body: { expected_revision: 2 },
+    })
+    expect(requestAt(fetchMock, 2)).toMatchObject({
+      path: '/api/v1/agent/queued-turns/agt%2F1',
+      method: 'DELETE',
+      body: { expected_revision: 3 },
+    })
+    expect(deleted).toMatchObject({ state: 'cancelled', revision: 4 })
+  })
+
+  it('排队消息移动使用相对目标、双 revision 与严格响应合同', async () => {
+    const changed = {
+      id: 'agt/1', queue_sequence: 2, revision: 3,
+      updated_at: '2026-09-01T00:00:00Z',
+    }
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({ items: [changed] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const gateway = createRuntimeGatewaysFromConfig({
+      apiBaseUrl: 'http://127.0.0.1:8122',
+      apiToken: 'renderer-token',
+    }).agentWorkspace
+
+    const result = await gateway.moveQueuedTurn('agt/1', {
+      expected_revision: 1,
+      target_turn_id: 'agt/2',
+      target_expected_revision: 2,
+      placement: 'before',
+    })
+
+    expect(result).toEqual({ items: [changed] })
+    expect(requestAt(fetchMock, 0)).toMatchObject({
+      path: '/api/v1/agent/queued-turns/agt%2F1/move',
+      method: 'POST',
+      body: {
+        expected_revision: 1,
+        target_turn_id: 'agt/2',
+        target_expected_revision: 2,
+        placement: 'before',
+      },
+    })
   })
 })
 
@@ -190,6 +257,17 @@ function contextFixture() {
   return {
     session_id: 'ags/1', estimated_tokens: 24_000, context_window_tokens: 32_768,
     estimated: true, warning: true, compression_available: true,
+  }
+}
+
+function queuedTurnFixture(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'agt-turn', session_id: 'ags-session', client_request_id: 'request-queued',
+    queue_sequence: 1, prompt: '检查主机', model_id: 'apm-model', reasoning_level: 'medium',
+    force_context_compression: false, state: 'queued', editing: false, revision: 1,
+    created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z',
+    attachments: [],
+    ...overrides,
   }
 }
 

@@ -5,6 +5,9 @@ import {
   decodeAgentAttachment,
   decodeAgentMessage,
   decodeAgentMessagePage,
+  decodeAgentQueuedTurn,
+  decodeAgentQueuedTurnMoveResult,
+  decodeAgentQueuedTurnPage,
   decodeAgentRunEventPage,
   decodeAgentSession,
   decodeAgentSessionContext,
@@ -192,6 +195,9 @@ test('工作区 upsert 严格要求一个实体且增量 revision 必须递增�
   assert.throws(() => decodeAgentWorkspaceEvent({
     type: 'removed', revision: 0, entity: 'session', id: 'ags-session',
   }), AgentRuntimeProtocolError)
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'removed', revision: 1, entity: 'queued_turn', id: 'agq-turn',
+  }), /缺少 Session ID/)
 
   const event = decodeAgentWorkspaceEvent({
     type: 'upsert', revision: 1, session: agentSessionFixture(),
@@ -275,10 +281,10 @@ test('消息协议仅允许终态 Agent 回复携带唯一的本轮 Token 用量
   }
   const message = decodeAgentMessage(messageResponse({
     status: 'completed',
-    turn_usage: { run_id: 'agr-run', usage },
+    turn_usage: { run_id: 'agr-run', usage, error_code: 'AGENT_RUN_STEERED' },
   }))
 
-  assert.deepEqual(message.turn_usage, { run_id: 'agr-run', usage })
+  assert.deepEqual(message.turn_usage, { run_id: 'agr-run', usage, error_code: 'AGENT_RUN_STEERED' })
   assert.throws(() => decodeAgentMessage(messageResponse({
     role: 'user',
     status: 'completed',
@@ -304,8 +310,81 @@ test('消息协议仅允许终态 Agent 回复携带唯一的本轮 Token 用量
 
 test('附件协议拒绝无效大小与未知状态', () => {
   assert.equal(decodeAgentAttachment(attachmentResponse()).kind, 'text')
+  assert.equal(decodeAgentAttachment(attachmentResponse({ state: 'reserved' })).state, 'reserved')
   assert.throws(() => decodeAgentAttachment(attachmentResponse({ size_bytes: 0 })), /大小/)
+  assert.throws(() => decodeAgentAttachment(attachmentResponse({ state: 'pending' })), /状态/)
   assert.throws(() => decodeAgentAttachment(attachmentResponse({ state: 'unknown' })), /状态/)
+})
+
+test('排队消息 Prompt 与 Core 统一使用 1 MiB UTF-8 上限', () => {
+  const prompt = 'a'.repeat(1 << 20)
+  assert.equal(decodeAgentQueuedTurn(queuedTurnResponse({ prompt })).prompt.length, prompt.length)
+  assert.throws(
+    () => decodeAgentQueuedTurn(queuedTurnResponse({ prompt: `${prompt}a` })),
+    /排队消息内容无效/,
+  )
+})
+
+test('排队消息列表与工作区快照拒绝重复顺序和跨会话队列状态', () => {
+  const first = queuedTurnResponse({ id: 'agq-first', queue_sequence: 1 })
+  const duplicateSequence = queuedTurnResponse({ id: 'agq-second', queue_sequence: 1 })
+  assert.throws(
+    () => decodeAgentQueuedTurnPage({ items: [first, duplicateSequence] }),
+    /重复 sequence/,
+  )
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'snapshot',
+    revision: 0,
+    sessions: [agentSessionFixture()],
+    active_runs: [],
+    queued_turns: [first, duplicateSequence],
+  }), /重复 sequence/)
+  assert.throws(() => decodeAgentWorkspaceEvent({
+    type: 'snapshot',
+    revision: 0,
+    sessions: [agentSessionFixture()],
+    active_runs: [],
+    queued_turns: [first],
+    queue_state: {
+      session_id: 'ags-other',
+      state: 'running',
+      revision: 1,
+    },
+  }), /快照归属无效/)
+})
+
+test('排队消息移动响应严格校验顺序、revision 与更新时间', () => {
+  const first = {
+    id: 'agq-first', queue_sequence: 1, revision: 2, updated_at: agentFixtureTime,
+  }
+  const second = {
+    id: 'agq-second', queue_sequence: 2, revision: 3, updated_at: agentFixtureTime,
+  }
+
+  assert.deepEqual(decodeAgentQueuedTurnMoveResult({ items: [first, second] }), {
+    items: [first, second],
+  })
+  assert.deepEqual(decodeAgentQueuedTurnMoveResult({ items: [] }), { items: [] })
+  assert.throws(
+    () => decodeAgentQueuedTurnMoveResult({ items: [first, { ...second, id: first.id }] }),
+    /重复 ID/,
+  )
+  assert.throws(
+    () => decodeAgentQueuedTurnMoveResult({ items: [first, { ...second, queue_sequence: 1 }] }),
+    /重复 sequence/,
+  )
+  assert.throws(
+    () => decodeAgentQueuedTurnMoveResult({ items: [second, first] }),
+    /sequence 无序/,
+  )
+  assert.throws(
+    () => decodeAgentQueuedTurnMoveResult({ items: [{ ...first, revision: 0 }] }),
+    /revision 无效/,
+  )
+  assert.throws(
+    () => decodeAgentQueuedTurnMoveResult({ items: [{ ...first, updated_at: 'invalid' }] }),
+    /时间无效/,
+  )
 })
 
 test('会话上下文协议严格校验归属、容量和 Checkpoint', () => {
@@ -444,6 +523,26 @@ function attachmentResponse(overrides: Record<string, unknown> = {}) {
     revision: 1,
     created_at: agentFixtureTime,
     updated_at: agentFixtureTime,
+    ...overrides,
+  }
+}
+
+function queuedTurnResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'agq-turn',
+    session_id: 'ags-session',
+    client_request_id: 'request-turn',
+    queue_sequence: 1,
+    prompt: '检查主机',
+    model_id: 'apm-model',
+    reasoning_level: 'medium',
+    force_context_compression: false,
+    state: 'queued',
+    editing: false,
+    revision: 1,
+    created_at: agentFixtureTime,
+    updated_at: agentFixtureTime,
+    attachments: [],
     ...overrides,
   }
 }

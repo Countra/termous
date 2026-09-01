@@ -8,7 +8,8 @@ import type {
 
 const maxEventBatchSize = 64
 const maxEventRequestBytes = 768 * 1024
-const defaultFlushDelayMs = 32
+const maxCoalescedDeltaBytes = 240 * 1024
+const defaultFlushDelayMs = 64
 
 interface PendingRuntimeEvent {
   value: RuntimeEventInput
@@ -46,6 +47,7 @@ export class RuntimeEventWriter {
   private sequence: number
   private timer: ReturnType<typeof setTimeout> | null = null
   private sendTail: Promise<void> = Promise.resolve()
+  private backgroundFlushActive = false
   private failure: unknown = null
   private failureNotified = false
 
@@ -67,6 +69,12 @@ export class RuntimeEventWriter {
 
   push(kind: RuntimeEventKind, payload: Record<string, unknown>) {
     this.assertHealthy()
+    const merged = kind === 'message_delta'
+      ? this.mergePendingMessageDelta(payload)
+      : null
+    if (merged) {
+      return merged
+    }
     const event: RuntimeEventInput = {
       event_id: this.newEventID(),
       generation: this.start.generation,
@@ -149,9 +157,57 @@ export class RuntimeEventWriter {
   }
 
   private flushInBackground() {
-    void this.flush().catch((error) => {
-      this.recordFailure(error)
-    })
+    if (this.backgroundFlushActive) {
+      return
+    }
+    this.backgroundFlushActive = true
+    void this.flush()
+      .catch((error) => {
+        this.recordFailure(error)
+      })
+      .finally(() => {
+        this.backgroundFlushActive = false
+        if (this.failure === null && this.pending.length > 0) {
+          this.scheduleFlush()
+        }
+      })
+  }
+
+  private mergePendingMessageDelta(payload: Record<string, unknown>) {
+    const incoming = messageDeltaPayload(payload)
+    const previous = this.pending[this.pending.length - 1]
+    if (!incoming || previous?.value.kind !== 'message_delta') {
+      return null
+    }
+    const current = messageDeltaPayload(previous.value.payload)
+    if (!current
+      || current.message_id !== incoming.message_id
+      || current.part_id !== incoming.part_id
+      || current.kind !== incoming.kind) {
+      return null
+    }
+    const delta = `${current.delta}${incoming.delta}`
+    if (Buffer.byteLength(delta, 'utf8') > maxCoalescedDeltaBytes) {
+      return null
+    }
+    const value: RuntimeEventInput = {
+      ...previous.value,
+      payload: {
+        message_delta: {
+          message_id: current.message_id,
+          part_id: current.part_id,
+          kind: current.kind,
+          delta,
+        },
+      },
+    }
+    const serializedBytes = runtimeEventBytes(value)
+    if (this.requestEnvelopeBytes + serializedBytes > maxEventRequestBytes) {
+      return null
+    }
+    previous.value = value
+    previous.serializedBytes = serializedBytes
+    return value
   }
 
   private enqueuePendingBatches() {
@@ -208,6 +264,26 @@ export class RuntimeEventWriter {
     if (this.failure !== null) {
       throw this.failure
     }
+  }
+}
+
+function messageDeltaPayload(payload: Record<string, unknown>) {
+  const value = payload.message_delta
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null
+  }
+  const delta = value as Record<string, unknown>
+  if (typeof delta.message_id !== 'string'
+    || typeof delta.part_id !== 'string'
+    || (delta.kind !== 'text' && delta.kind !== 'reasoning')
+    || typeof delta.delta !== 'string') {
+    return null
+  }
+  return {
+    message_id: delta.message_id,
+    part_id: delta.part_id,
+    kind: delta.kind,
+    delta: delta.delta,
   }
 }
 

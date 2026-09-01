@@ -68,10 +68,13 @@ export function projectAgentSessions(
 ): AgentWorkspaceSession[] {
   const modelsById = new Map(models.map((model) => [model.id, model]))
   const providersById = new Map(providers.map((provider) => [provider.id, provider]))
+  const latestRuns = indexLatestRuns(runs)
   return sessions.filter((session) => !session.archived_at).map((session) => {
     const model = modelsById.get(session.model_id)
     const provider = model ? providersById.get(model.provider_id) : undefined
-    const snapshot = latestSessionModelRun(session.id, session.model_id, runs)?.model_snapshot
+    const snapshot = latestRuns.bySessionModel
+      .get(sessionModelKey(session.id, session.model_id))
+      ?.model_snapshot
     return {
       id: session.id,
       title: session.title,
@@ -81,7 +84,7 @@ export function projectAgentSessions(
       provider_name: provider?.name ?? snapshot?.provider_name,
       updated_at: session.updated_at,
       archived: false,
-      run_status: latestSessionRun(session.id, runs)?.status ?? 'idle',
+      run_status: latestRuns.bySession.get(session.id)?.status ?? 'idle',
       resource_binding: session.resource_binding,
     }
   })
@@ -105,7 +108,11 @@ export function projectAgentMessages(
       : undefined
     const messageEvents = messageRun ? events : []
     const streaming = message.status === 'pending' || message.status === 'streaming'
-    const status: AgentWorkspaceMessage['status'] = message.status === 'pending' ? 'streaming' : message.status
+    const status: AgentWorkspaceMessage['status'] = (
+      messageRun?.error_code ?? message.turn_usage?.error_code
+    ) === 'AGENT_RUN_STEERED'
+      ? 'interrupted_by_steer'
+      : message.status === 'pending' ? 'streaming' : message.status
     const usage = message.role === 'assistant' && !streaming
       ? (messageRun && isAgentRunTerminal(messageRun.status) ? messageRun.usage : undefined)
         ?? message.turn_usage?.usage
@@ -127,19 +134,45 @@ export function projectAgentMessages(
 }
 
 export function latestSessionRun(sessionId: string, runs: Record<string, AgentRun>) {
-  return Object.values(runs)
-    .filter((run) => run.session_id === sessionId)
-    .sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at))[0]
+  let latest: AgentRun | undefined
+  for (const run of Object.values(runs)) {
+    if (run.session_id === sessionId && (!latest || runUpdatedAfter(run, latest))) latest = run
+  }
+  return latest
 }
 
-function latestSessionModelRun(
-  sessionId: string,
-  modelId: string,
-  runs: Record<string, AgentRun>,
-) {
-  return Object.values(runs)
-    .filter((run) => run.session_id === sessionId && run.model_id === modelId)
-    .sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at))[0]
+function indexLatestRuns(runs: Record<string, AgentRun>) {
+  const bySession = new Map<string, AgentRun>()
+  const bySessionModel = new Map<string, AgentRun>()
+  for (const run of Object.values(runs)) {
+    const sessionRun = bySession.get(run.session_id)
+    if (!sessionRun || runUpdatedAfter(run, sessionRun)) bySession.set(run.session_id, run)
+    const modelKey = sessionModelKey(run.session_id, run.model_id)
+    const modelRun = bySessionModel.get(modelKey)
+    if (!modelRun || runUpdatedAfter(run, modelRun)) bySessionModel.set(modelKey, run)
+  }
+  return { bySession, bySessionModel }
+}
+
+function sessionModelKey(sessionId: string, modelId: string) {
+  return `${sessionId}\u0000${modelId}`
+}
+
+function runUpdatedAfter(candidate: AgentRun, current: AgentRun) {
+  const updatedAtOrder = compareTimestamp(candidate.updated_at, current.updated_at)
+  if (updatedAtOrder !== 0) return updatedAtOrder > 0
+  const queuedAtOrder = compareTimestamp(candidate.queued_at, current.queued_at)
+  if (queuedAtOrder !== 0) return queuedAtOrder > 0
+  return candidate.id.localeCompare(current.id) > 0
+}
+
+function compareTimestamp(left: string, right: string) {
+  const leftTime = Date.parse(left)
+  const rightTime = Date.parse(right)
+  if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) return leftTime - rightTime
+  if (Number.isFinite(leftTime)) return 1
+  if (Number.isFinite(rightTime)) return -1
+  return left.localeCompare(right)
 }
 
 export function agentRunInteractionBlocked(

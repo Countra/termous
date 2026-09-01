@@ -1,5 +1,6 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type {
+  AgentQueuedTurnSteerRequest,
   AgentRuntimeRunRef,
   AgentRuntimeStatus,
   AgentRuntimeSteerRequest,
@@ -11,6 +12,8 @@ export const agentRuntimeIPCChannels = {
   start: 'agent-runtime:start',
   stop: 'agent-runtime:stop',
   steer: 'agent-runtime:steer',
+  wake: 'agent-runtime:wake',
+  steerQueuedTurn: 'agent-runtime:steer-queued-turn',
   status: 'agent-runtime:status',
 } as const
 
@@ -18,7 +21,13 @@ export interface AgentRuntimeIPCOptions {
   ipcMain: IpcMain
   supervisor: Pick<
     AgentSupervisor,
-    'getStatus' | 'startRun' | 'stopRun' | 'steerRun' | 'subscribe'
+    | 'getStatus'
+    | 'startRun'
+    | 'stopRun'
+    | 'steerRun'
+    | 'wakeQueue'
+    | 'steerQueuedTurn'
+    | 'subscribe'
   >
   isTrustedSender: (event: IpcMainInvokeEvent) => boolean
   sendStatus: (status: AgentRuntimeStatus) => void
@@ -46,6 +55,14 @@ export function registerAgentRuntimeIPC(options: AgentRuntimeIPCOptions) {
     requireTrustedSender(event)
     return options.supervisor.steerRun(request as AgentRuntimeSteerRequest)
   })
+  options.ipcMain.handle(agentRuntimeIPCChannels.wake, (event) => {
+    requireTrustedSender(event)
+    return options.supervisor.wakeQueue()
+  })
+  options.ipcMain.handle(agentRuntimeIPCChannels.steerQueuedTurn, (event, request: unknown) => {
+    requireTrustedSender(event)
+    return options.supervisor.steerQueuedTurn(request as AgentQueuedTurnSteerRequest)
+  })
   const unsubscribe = options.supervisor.subscribe(options.sendStatus)
   return () => {
     unsubscribe()
@@ -53,6 +70,7 @@ export function registerAgentRuntimeIPC(options: AgentRuntimeIPCOptions) {
     options.ipcMain.removeHandler(agentRuntimeIPCChannels.start)
     options.ipcMain.removeHandler(agentRuntimeIPCChannels.stop)
     options.ipcMain.removeHandler(agentRuntimeIPCChannels.steer)
+    options.ipcMain.removeHandler(agentRuntimeIPCChannels.wake)
+    options.ipcMain.removeHandler(agentRuntimeIPCChannels.steerQueuedTurn)
   }
 }
-

@@ -68,7 +68,8 @@
       "more": "More session actions",
       "archive": "Archive session",
       "deleteTitle": "Delete this session?",
-      "deleteDescription": "The session “{{title}}” and its message history will be permanently deleted."
+      "deleteDescription": "The session “{{title}}” and its message history will be permanently deleted.",
+      "deleteDescriptionWithQueue": "The session “{{title}}”, its message history, and {{count}} pending messages will be permanently deleted."
     },
     "header": {
       "newSession": "Start with the default model",
@@ -89,7 +90,8 @@
         "missing": "The remote provider does not currently return this model. Sync the catalog or select another available model.",
         "unknown": "Check the provider and model catalog in Agent settings, or select another available model."
       },
-      "returnToActiveRun": "Return to running session"
+      "returnToActiveRun": "Return to running session",
+      "returnToQueuedSession": "Return to queued session"
     },
     "status": {
       "idle": "Ready",
@@ -138,6 +140,7 @@
       "agent": "Agent",
       "failed": "This response failed",
       "interrupted": "This response was interrupted",
+      "interrupted_by_steer": "Interrupted by a new message",
       "turnUsage": "Turn usage",
       "turnTotal": "Total"
     },
@@ -157,10 +160,9 @@
     },
     "composer": {
       "placeholder": "Message Agent",
-      "steerPlaceholder": "Add guidance after the current tool batch finishes",
-      "steerHint": "This message will be added to the running task",
+      "queuePlaceholder": "Type the next message",
+      "queue": "Add to queue",
       "send": "Send",
-      "steer": "Add guidance",
       "stop": "Stop task",
       "responseOptions": "Model and reasoning settings",
       "reasoning": "Reasoning effort",
@@ -222,6 +224,20 @@
           "unknown": "The connection is unavailable. Check it in Workbench and select the connection again."
         }
       }
+    },
+    "queue": {
+      "title": "Queued messages",
+      "pending": "{{count}} pending",
+      "running": "Continues automatically",
+      "resume": "Resume",
+      "executeNow": "Run now",
+      "executeUnavailable": "This message cannot run immediately right now.",
+      "editMessage": "Edit message",
+      "editing": "Editing queued message",
+      "reorderMessage": "Reorder queued message {{position}}",
+      "reorderUnavailable": "The queue order cannot be changed right now.",
+      "actions": "More actions",
+      "attachmentCount": "{{count}} attachments"
     },
     "attachments": {
       "title": "Attachments",

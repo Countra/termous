@@ -22,10 +22,12 @@ export function useAgentDraftAttachments({
   gateway,
   ensureSession,
   onError,
+  existingSelections,
 }: {
   gateway: AgentWorkspaceGateway
   ensureSession: () => Promise<string>
   onError: (code: string) => void
+  existingSelections?: (sessionId: string) => Array<Pick<AgentAttachment, 'kind' | 'size_bytes'>>
 }) {
   const [records, setRecords] = useState<Record<string, AgentDraftAttachmentRecord[]>>({})
   const recordsRef = useRef(records)
@@ -96,6 +98,7 @@ export function useAgentDraftAttachments({
       try {
         const selections = await validateAgentAttachmentSelection(
           [
+            ...(existingSelections?.(sessionId) ?? []),
             ...existing.map(({ kind, file }) => ({ kind, size_bytes: file.size })),
             ...previouslyPending.map(({ kind, file }) => ({ kind, size_bytes: file.size })),
           ],
@@ -115,7 +118,7 @@ export function useAgentDraftAttachments({
     } catch (error) {
       onError(errorCode(error))
     }
-  }, [ensureSession, onError, upload])
+  }, [ensureSession, existingSelections, onError, upload])
 
   const remove = useCallback(async (clientId: string) => {
     const record = findRecord(recordsRef.current, clientId)

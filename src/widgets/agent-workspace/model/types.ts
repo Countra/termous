@@ -1,5 +1,8 @@
 import type {
   AgentAttachment,
+  AgentQueueState,
+  AgentQueuedTurn,
+  AgentQueuedTurnMovePlacement,
   AgentReasoningLevel,
   AgentResourceBinding,
   AgentSSHResourceState,
@@ -99,7 +102,7 @@ export type AgentWorkspaceMessagePart =
 export interface AgentWorkspaceMessage {
   id: string
   role: 'user' | 'assistant'
-  status: 'streaming' | 'completed' | 'failed' | 'interrupted'
+  status: 'streaming' | 'completed' | 'failed' | 'interrupted' | 'interrupted_by_steer'
   created_at: string
   parts: AgentWorkspaceMessagePart[]
   attachments: AgentAttachment[]
@@ -180,11 +183,17 @@ export interface AgentWorkspaceProps {
   draft: string
   draft_source_context?: AgentSourceContext
   draft_attachments: AgentWorkspaceDraftAttachment[]
+  queued_turns: AgentQueuedTurn[]
+  queued_turn_counts: Record<string, number>
+  queue_state?: AgentQueueState
+  queued_turn_edit?: { turn_id: string; text: string; retained_attachment_ids: string[] }
   supports_images: boolean
   model_runnable: boolean
   show_turn_token_usage: boolean
   loading: boolean
   busy: boolean
+  queue_busy: boolean
+  stop_busy: boolean
   active_run?: {
     session_id: string
     status: AgentWorkspaceRunStatus
@@ -207,7 +216,20 @@ export interface AgentWorkspaceProps {
   onRetryAttachment: (clientId: string) => Promise<void>
   onLoadAttachmentContent: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
   onSend: (message: string, attachmentIds: string[], sourceContext?: AgentSourceContext) => Promise<void>
-  onSteer: (message: string) => Promise<void>
+  onQueueTurn: (message: string, attachmentIds: string[], sourceContext?: AgentSourceContext) => Promise<void>
+  onBeginQueuedTurnEdit: (turnId: string) => Promise<void>
+  onQueuedTurnEditChange: (value: string) => void
+  onRemoveQueuedTurnEditAttachment: (attachmentId: string) => void
+  onSaveQueuedTurnEdit: (attachmentIds: string[]) => Promise<void>
+  onCancelQueuedTurnEdit: () => Promise<void>
+  onDeleteQueuedTurn: (turnId: string) => Promise<void>
+  onMoveQueuedTurn: (
+    turnId: string,
+    targetTurnId: string,
+    placement: AgentQueuedTurnMovePlacement,
+  ) => Promise<boolean>
+  onSteerQueuedTurn: (turnId: string) => Promise<void>
+  onResumeQueue: () => Promise<void>
   onStop: () => Promise<void>
   onContextCompressionPendingChange: (enabled: boolean) => void
   onRetryContext: () => void

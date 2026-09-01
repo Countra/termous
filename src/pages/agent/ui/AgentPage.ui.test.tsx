@@ -1,7 +1,7 @@
 import { App as AntdApp } from 'antd'
 import { act, fireEvent, render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentLaunchIntent, AgentModel, AgentReadiness, AgentRun, AgentSession, AgentSSHResourceState } from '#entities/agent'
+import type { AgentLaunchIntent, AgentModel, AgentQueuedTurn, AgentReadiness, AgentRun, AgentSession, AgentSSHResourceState } from '#entities/agent'
 import type { AgentSetupGateway } from '#features/agent-setup'
 import { AgentRuntimeStartError, type AgentWorkspaceGateway } from '#features/agent-runtime'
 
@@ -14,7 +14,6 @@ const harness = vi.hoisted(() => ({
   replaceResourceBinding: vi.fn(),
   removeResourceBinding: vi.fn(),
   startRun: vi.fn(),
-  steerActiveRun: vi.fn(),
   updateDraft: vi.fn(),
   updateSession: vi.fn(),
   deleteSession: vi.fn(),
@@ -22,6 +21,7 @@ const harness = vi.hoisted(() => ({
   reloadContext: vi.fn(),
   reloadUsage: vi.fn(),
   reloadSession: vi.fn(),
+  cancelQueuedTurnEdit: vi.fn(),
   attachmentOptions: null as null | { ensureSession: () => Promise<string> },
   attachmentRecords: {} as Record<string, unknown[]>,
   addAttachment: vi.fn(),
@@ -58,7 +58,6 @@ vi.mock('#features/agent-runtime', () => ({
       replaceResourceBinding: harness.replaceResourceBinding,
       removeResourceBinding: harness.removeResourceBinding,
       startRun: harness.startRun,
-      steerActiveRun: harness.steerActiveRun,
       updateDraft: harness.updateDraft,
       updateSession: harness.updateSession,
       deleteSession: harness.deleteSession,
@@ -66,6 +65,7 @@ vi.mock('#features/agent-runtime', () => ({
       reloadContext: harness.reloadContext,
       reloadUsage: harness.reloadUsage,
       reloadSession: harness.reloadSession,
+      cancelQueuedTurnEdit: harness.cancelQueuedTurnEdit,
     }
   },
   useAgentDraftAttachments: (options: { ensureSession: () => Promise<string> }) => {
@@ -102,7 +102,6 @@ describe('AgentPage', () => {
     harness.replaceResourceBinding.mockResolvedValue(undefined)
     harness.removeResourceBinding.mockResolvedValue(undefined)
     harness.startRun.mockReset()
-    harness.steerActiveRun.mockReset()
     harness.updateDraft.mockReset()
     harness.updateSession.mockReset()
     harness.deleteSession.mockReset().mockResolvedValue(undefined)
@@ -110,6 +109,7 @@ describe('AgentPage', () => {
     harness.reloadContext.mockReset().mockResolvedValue(undefined)
     harness.reloadUsage.mockReset().mockResolvedValue(undefined)
     harness.reloadSession.mockReset().mockResolvedValue(undefined)
+    harness.cancelQueuedTurnEdit.mockReset().mockResolvedValue(undefined)
     harness.attachmentOptions = null
     harness.attachmentRecords = {}
     harness.addAttachment.mockReset()
@@ -155,7 +155,6 @@ describe('AgentPage', () => {
       return created
     })
     harness.startRun.mockResolvedValue(undefined)
-    harness.steerActiveRun.mockResolvedValue(undefined)
   })
 
   it('归档当前会话后切换到相邻的未归档会话', async () => {
@@ -336,6 +335,21 @@ describe('AgentPage', () => {
     expect(harness.workspaceProps?.sessions).toBe(projectedSessions)
   })
 
+  it('草稿输入变化时复用未变的消息投影', async () => {
+    renderPage()
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    const projectedMessages = harness.workspaceProps?.messages
+    const renderCount = harness.workspaceRenderCount
+
+    act(() => {
+      const change = harness.workspaceProps?.onDraftChange as (value: string) => void
+      change('流式回复期间的新草稿')
+    })
+
+    await waitFor(() => expect(harness.workspaceRenderCount).toBeGreaterThan(renderCount))
+    expect(harness.workspaceProps?.messages).toBe(projectedMessages)
+  })
+
   it('归档非当前会话时保持现有选择', async () => {
     harness.updateSession.mockResolvedValue({ ...sessions[1], archived_at: '2026-08-29T02:00:00Z' })
     renderPage()
@@ -410,31 +424,33 @@ describe('AgentPage', () => {
     expect(harness.startRun).toHaveBeenCalledWith('session-created', '保留的本地草稿', undefined, undefined)
   })
 
-  it('steer 完成时不清除提交期间继续输入的草稿', async () => {
-    const pending = deferred<void>()
-    harness.steerActiveRun.mockReturnValueOnce(pending.promise)
+  it('取消排队消息编辑只通过状态收口清理一次新上传附件', async () => {
+    const turn = queuedTurnFixture({ editing: true })
     harness.state = {
       ...workspaceState(),
-      drafts: { 'session-one': { text: '第一条追加要求', updated_at: 1 } },
+      queued_turns: { 'session-one': [turn] },
+      queue_states: { 'session-one': { session_id: 'session-one', state: 'running', revision: 1 } },
+      queued_turn_edits: {
+        'session-one': { turn_id: turn.id, text: turn.prompt, retained_attachment_ids: [] },
+      },
     }
+    harness.cancelQueuedTurnEdit.mockImplementation(async () => {
+      harness.state = {
+        ...harness.state,
+        queued_turns: { 'session-one': [{ ...turn, editing: false, revision: 2 }] },
+        queued_turn_edits: {},
+      }
+      publishState()
+    })
     renderPage()
     await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
 
-    let steering!: Promise<void>
-    act(() => {
-      const steer = harness.workspaceProps?.onSteer as (message: string) => Promise<void>
-      steering = steer('第一条追加要求')
+    await act(async () => {
+      const cancel = harness.workspaceProps?.onCancelQueuedTurnEdit as () => Promise<void>
+      await cancel()
     })
-    await waitFor(() => expect(harness.steerActiveRun).toHaveBeenCalledTimes(1))
-    act(() => {
-      const change = harness.workspaceProps?.onDraftChange as (value: string) => void
-      change('第二条追加要求')
-    })
-    pending.resolve()
-    await act(async () => { await steering })
 
-    expect((harness.state.drafts as Record<string, { text: string }>)['session-one']?.text)
-      .toBe('第二条追加要求')
+    await waitFor(() => expect(harness.discardAttachments).toHaveBeenCalledTimes(1))
   })
 
   it('附件预建会话首次发送时更新标题并提交附件 ID', async () => {
@@ -760,6 +776,27 @@ describe('AgentPage', () => {
     expect(harness.workspaceProps?.model_runnable).toBe(false)
   })
 
+  it('活动 Run 在模型目录暂缺时仍使用启动快照判断图片能力', async () => {
+    harness.models.mockResolvedValue({ items: [] })
+    const run = runFixture({
+      model_snapshot: {
+        ...runFixture().model_snapshot,
+        supports_images: true,
+      },
+    })
+    harness.state = {
+      ...workspaceState(),
+      active_run_id: run.id,
+      runs: { [run.id]: run },
+      runtime_status: { state: 'running', active_run_id: run.id, generation: run.generation },
+    }
+
+    renderPage()
+
+    await waitFor(() => expect(harness.workspaceProps).not.toBeNull())
+    expect(harness.workspaceProps?.supports_images).toBe(true)
+  })
+
   it('重新激活时等待当前模型目录水合后再处理业务来源', async () => {
     const initialProvider = providerFixture()
     const disabledProvider = { ...initialProvider, enabled: false }
@@ -1012,6 +1049,16 @@ function workspaceState() {
     selected_session_id: 'session-one',
     new_session_selected: false,
     selection_intent_revision: 0,
+  }
+}
+
+function queuedTurnFixture(overrides: Partial<AgentQueuedTurn> = {}): AgentQueuedTurn {
+  return {
+    id: 'queued-one', session_id: 'session-one', client_request_id: 'request-queued',
+    queue_sequence: 1, prompt: '继续检查', model_id: 'model-one', reasoning_level: 'medium',
+    force_context_compression: false, state: 'queued', editing: false, revision: 1,
+    created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:00Z', attachments: [],
+    ...overrides,
   }
 }
 

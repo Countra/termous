@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   agentRuntimeProtocolVersion,
+  type AgentQueuedTurnSteerRequest,
   type AgentRuntimeRunRef,
   type AgentSkillsBundleStatus,
 } from '#common/contracts'
@@ -40,11 +41,19 @@ class FakeCore implements AgentCoreRuntimePort {
   registerError: Error | null = null
   baseURLError: Error | null = null
   skillsStatuses: AgentSkillsBundleStatus[] = []
+  queueClaims: AgentRuntimeRunRef[] = []
+  claimCalls = 0
+  queuedTurnSteers: AgentQueuedTurnSteerRequest[] = []
+  queuedTurnSteerError: Error | null = null
+  registerWait: Promise<void> | null = null
+  registerCalls = 0
 
   async registerSupervisor(
     supervisorInstanceID: string,
     skillsBundle: AgentSkillsBundleStatus,
   ) {
+    this.registerCalls += 1
+    await this.registerWait
     if (this.registerError) {
       throw this.registerError
     }
@@ -59,6 +68,20 @@ class FakeCore implements AgentCoreRuntimePort {
 
   async unregisterSupervisor() {
     this.unregisterCalls += 1
+  }
+
+  async claimNextQueuedRun() {
+    this.claimCalls += 1
+    return this.queueClaims.shift() ?? null
+  }
+
+  async steerQueuedTurn(request: AgentQueuedTurnSteerRequest) {
+    if (this.queuedTurnSteerError) throw this.queuedTurnSteerError
+    this.queuedTurnSteers.push(request)
+    return {
+      queued_turn: { id: request.queued_turn_id, revision: request.expected_revision + 1 },
+      run: { run_id: request.run_id, generation: request.generation, revision: request.expected_run_revision + 1 },
+    }
   }
 
   async issueRuntimeTicket(_supervisorInstanceID: string, runID: string, generation: number) {
@@ -173,6 +196,184 @@ async function flushSupervisor() {
   await new Promise((resolve) => setImmediate(resolve))
   await new Promise((resolve) => setImmediate(resolve))
 }
+
+test('Supervisor 初始化、显式唤醒与 Worker 退出都会串行拉取持久队列', async () => {
+  const { core, factory, supervisor } = createFixture()
+  core.queueClaims.push(primaryRun)
+
+  await supervisor.initialize()
+  assert.equal(core.claimCalls, 1)
+  assert.equal(factory.workers.length, 1)
+
+  const primary = factory.workers[0]
+  primary.emitSpawn()
+  primary.emitMessage({
+    type: 'settled', protocol_version: agentRuntimeProtocolVersion,
+    ...primaryRun, outcome: 'completed',
+  })
+  core.queueClaims.push({ run_id: 'agr_second', generation: 1 })
+  primary.emitExit(0)
+  await flushSupervisor()
+  assert.equal(factory.workers.length, 2)
+
+  const second = factory.workers[1]
+  second.emitSpawn()
+  second.emitMessage({
+    type: 'settled', protocol_version: agentRuntimeProtocolVersion,
+    run_id: 'agr_second', generation: 1, outcome: 'completed',
+  })
+  second.emitExit(0)
+  await flushSupervisor()
+  core.queueClaims.push({ run_id: 'agr_third', generation: 1 })
+  assert.equal((await supervisor.wakeQueue()).accepted, true)
+  assert.equal(factory.workers.length, 3)
+
+  await supervisor.shutdown()
+})
+
+test('并发 shutdown 与重新初始化时以较新的初始化请求恢复租约', async () => {
+  const { core, supervisor } = createFixture()
+  await supervisor.initialize()
+
+  const shuttingDown = supervisor.shutdown()
+  const restarting = supervisor.initialize()
+  const [, status] = await Promise.all([shuttingDown, restarting])
+
+  assert.equal(status.state, 'ready')
+  assert.equal(supervisor.getStatus().state, 'ready')
+  assert.equal(core.unregisterCalls, 1)
+  await supervisor.shutdown()
+})
+
+test('shutdown 会阻止在途续租响应继续领取并启动排队 Worker', async () => {
+  const { core, factory, supervisor } = createFixture()
+  let releaseRegister: () => void = () => undefined
+  core.registerWait = new Promise<void>((resolve) => {
+    releaseRegister = resolve
+  })
+  core.queueClaims.push(primaryRun)
+
+  const initializing = supervisor.initialize()
+  await flushSupervisor()
+  assert.equal(core.registerCalls, 1)
+  const shuttingDown = supervisor.shutdown()
+  releaseRegister()
+  await Promise.all([initializing, shuttingDown])
+
+  assert.equal(factory.workers.length, 0)
+  assert.deepEqual(core.queueClaims, [primaryRun])
+  assert.equal(supervisor.getStatus().state, 'offline')
+})
+
+test('重复唤醒在首次领取后复用同一 Worker 且不重复 claim', async () => {
+  const { core, factory, supervisor } = createFixture()
+  await supervisor.initialize()
+  core.queueClaims.push(primaryRun)
+
+  const results = await Promise.all([
+    supervisor.wakeQueue(),
+    supervisor.wakeQueue(),
+    supervisor.wakeQueue(),
+  ])
+
+  assert.equal(results.every((result) => result.accepted), true)
+  assert.equal(factory.workers.length, 1)
+  assert.equal(core.claimCalls, 2)
+  await supervisor.shutdown()
+})
+
+test('queued-turn steer 仅在 Core 原子写入成功后停止当前 Worker并优先拉取后继任务', async () => {
+  const { core, factory, supervisor } = createFixture()
+  await supervisor.initialize()
+  await supervisor.startRun(primaryRun)
+  const worker = factory.workers[0]
+  worker.emitSpawn()
+  worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
+  await flushSupervisor()
+
+  const request = {
+    queued_turn_id: 'agt_followup', expected_revision: 2,
+    ...primaryRun, expected_run_revision: 4,
+  }
+  core.queuedTurnSteerError = new Error('AGENT_QUEUED_TURN_REVISION_CONFLICT')
+  const rejected = await supervisor.steerQueuedTurn(request)
+  assert.equal(rejected.accepted, false)
+  assert.equal(worker.sent.some((message) => (message as { type?: string }).type === 'abort'), false)
+
+  core.queuedTurnSteerError = null
+  core.queueClaims.push({ run_id: 'agr_followup', generation: 1 })
+  const accepted = await supervisor.steerQueuedTurn(request)
+  assert.equal(accepted.accepted, true)
+  assert.deepEqual(core.queuedTurnSteers, [request])
+  assert.equal(worker.sent.some((message) => (message as { type?: string }).type === 'abort'), true)
+  assert.equal(factory.workers.length, 2)
+
+  await supervisor.shutdown()
+})
+
+test('queued-turn steer 遇到 Worker 退出超时时保持 stopping 且不提前领取后继任务', async () => {
+  const { core, factory, supervisor } = createFixture()
+  await supervisor.initialize()
+  await supervisor.startRun(primaryRun)
+  const worker = factory.workers[0]
+  worker.emitSpawn()
+  worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
+  await flushSupervisor()
+  worker.kill = () => {
+    worker.killed = true
+    return true
+  }
+  core.queueClaims.push({ run_id: 'agr_followup', generation: 1 })
+
+  const result = await supervisor.steerQueuedTurn({
+    queued_turn_id: 'agt_followup', expected_revision: 2,
+    ...primaryRun, expected_run_revision: 4,
+  })
+  assert.equal(result.accepted, true)
+  assert.equal(result.status.state, 'stopping')
+  assert.equal(result.status.active_run_id, primaryRun.run_id)
+  assert.equal(result.status.error_code, 'AGENT_RUNTIME_WORKER_TERMINATION_TIMEOUT')
+  assert.equal(factory.workers.length, 1)
+  assert.equal(core.queueClaims.length, 1)
+
+  worker.emitExit(9)
+  await flushSupervisor()
+  assert.equal(factory.workers.length, 2)
+  await supervisor.shutdown()
+})
+
+test('queued-turn steer 不等待在途续租即可原子落库并启动取消预算', async () => {
+  const { core, factory, supervisor } = createFixture()
+  await supervisor.initialize()
+  await supervisor.startRun(primaryRun)
+  const worker = factory.workers[0]
+  worker.emitSpawn()
+  worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
+  await flushSupervisor()
+
+  let releaseRegister: () => void = () => undefined
+  core.registerWait = new Promise<void>((resolve) => {
+    releaseRegister = resolve
+  })
+  const refreshing = supervisor.initialize()
+  await flushSupervisor()
+  const request = {
+    queued_turn_id: 'agt_followup', expected_revision: 2,
+    ...primaryRun, expected_run_revision: 4,
+  }
+  const steering = supervisor.steerQueuedTurn(request)
+  await flushSupervisor()
+
+  assert.deepEqual(core.queuedTurnSteers, [request])
+  assert.equal(worker.sent.some((message) => (message as { type?: string }).type === 'abort'), true)
+  await new Promise((resolve) => setTimeout(resolve, 15))
+  assert.equal(worker.killed, true)
+
+  releaseRegister()
+  const [, result] = await Promise.all([refreshing, steering])
+  assert.equal(result.accepted, true)
+  await supervisor.shutdown()
+})
 
 test('Supervisor 仅接管一个 Run 并隔离旧 generation 消息', async () => {
   const { core, factory, supervisor } = createFixture()
@@ -434,6 +635,68 @@ test('stop 可立即取消等待 ack 的 steer 且 Worker 退出后不遗留请�
   assert.equal(stopResult.accepted, true)
   assert.equal(worker.killed, true)
   assert.equal(supervisor.getStatus().state, 'ready')
+  await supervisor.shutdown()
+})
+
+test('stop 不等待在途续租即可取消并按原始五秒预算强杀且并发请求保持幂等', async () => {
+  const { core, factory, supervisor } = createFixture()
+  await supervisor.initialize()
+  await supervisor.startRun(primaryRun)
+  const worker = factory.workers[0]
+  worker.emitSpawn()
+  await flushSupervisor()
+  worker.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
+  await flushSupervisor()
+
+  let releaseRegister: () => void = () => undefined
+  core.registerWait = new Promise<void>((resolve) => {
+    releaseRegister = resolve
+  })
+  const refreshing = supervisor.initialize()
+  await flushSupervisor()
+  const firstStop = supervisor.stopRun(primaryRun)
+  const secondStop = supervisor.stopRun(primaryRun)
+
+  const aborts = worker.sent.filter((message) =>
+    (message as { type?: string }).type === 'abort')
+  assert.equal(aborts.length, 1)
+  assert.equal(supervisor.getStatus().state, 'stopping')
+  await new Promise((resolve) => setTimeout(resolve, 15))
+  assert.equal(worker.killed, true)
+
+  releaseRegister()
+  const [, first, second] = await Promise.all([refreshing, firstStop, secondStop])
+  assert.equal(first.accepted, true)
+  assert.equal(second.accepted, true)
+  assert.deepEqual(core.failures, [{ ...primaryRun, category: 'forced_stop' }])
+  await supervisor.shutdown()
+})
+
+test('停止旧 Run 时不会取消已经接管的后继 Worker', async () => {
+  const { core, factory, supervisor } = createFixture()
+  await supervisor.initialize()
+  await supervisor.startRun(primaryRun)
+  const primary = factory.workers[0]
+  primary.emitSpawn()
+  primary.emitMessage({ type: 'started', protocol_version: agentRuntimeProtocolVersion, ...primaryRun })
+  await flushSupervisor()
+
+  const nextRun = { run_id: 'agr-next', generation: 1 }
+  core.queueClaims.push(nextRun)
+  primary.emitMessage({
+    type: 'settled', protocol_version: agentRuntimeProtocolVersion,
+    ...primaryRun, outcome: 'completed',
+  })
+  primary.emitExit(0)
+  await flushSupervisor()
+  const next = factory.workers[1]
+  assert.ok(next)
+
+  const result = await supervisor.stopRun(primaryRun)
+
+  assert.equal(result.accepted, false)
+  assert.equal(result.error_code, 'AGENT_RUNTIME_RUN_CONFLICT')
+  assert.equal(next.sent.some((message) => (message as { type?: string }).type === 'abort'), false)
   await supervisor.shutdown()
 })
 

@@ -3,6 +3,9 @@ import test from 'node:test'
 import type {
   AgentMcpPolicy,
   AgentMessagePage,
+  AgentQueueState,
+  AgentQueuedTurn,
+  AgentQueuedTurnPage,
   AgentRun,
   AgentRunEventPage,
   AgentSession,
@@ -19,6 +22,7 @@ import type {
   AgentWorkspaceGateway,
 } from '../api/agentRuntimeGateway.ts'
 import {
+  agentDeltaEventFixture,
   agentFixtureTime,
   agentMessageFixture,
   agentRunFixture,
@@ -48,7 +52,9 @@ test('Run 持久化后清空对应草稿，Runtime 启动拒绝不恢复已提�
   )
   assert.equal(rejected.getSnapshot().drafts[session.id], undefined)
   assert.equal(rejected.getSnapshot().runs['agr-run']?.status, 'cancelled')
-  assert.deepEqual(rejectedGateway.stopRequests, [{ id: 'agr-run', expectedRevision: 1 }])
+  assert.deepEqual(rejectedGateway.stopRequests, [{
+    id: 'agr-run', expectedRevision: 1, expectedGeneration: 1,
+  }])
   assert.deepEqual(rejectedGateway.stopped, [])
 
   const acceptedGateway = new FakeGateway()
@@ -164,7 +170,9 @@ test('Runtime Bridge 抛错时取消已持久化的 queued Run', async () => {
   await assert.rejects(controller.startRun(session.id, '执行任务'), /AGENT_RUNTIME_BRIDGE_UNAVAILABLE/)
 
   assert.equal(controller.getSnapshot().runs['agr-run']?.status, 'cancelled')
-  assert.deepEqual(gateway.stopRequests, [{ id: 'agr-run', expectedRevision: 1 }])
+  assert.deepEqual(gateway.stopRequests, [{
+    id: 'agr-run', expectedRevision: 1, expectedGeneration: 1,
+  }])
 })
 
 test('Runtime 启动收尾不会覆盖在途输入的新 steer 草稿', async () => {
@@ -286,6 +294,118 @@ test('WebSocket 只有接收权威快照后才完成对账', async () => {
   controller.close()
 })
 
+test('连续文本 delta 只在刷新窗口或后续权威事件到达时通知视图', async () => {
+  const gateway = new FakeGateway()
+  const socket = new FakeSocket()
+  const timers: Array<{ id: number; callback: () => void; delay: number }> = []
+  const cleared: number[] = []
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+    setTimer: (callback, delay) => {
+      const id = timers.length + 1
+      timers.push({ id, callback, delay })
+      return id as unknown as ReturnType<typeof setTimeout>
+    },
+    clearTimer: (timer) => cleared.push(timer as unknown as number),
+  })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().messages['ags-session']?.length === 1)
+  socket.open()
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+  })
+  let notifications = 0
+  const unsubscribe = controller.subscribe(() => { notifications += 1 })
+  const first = agentDeltaEventFixture()
+  socket.message({ type: 'upsert', revision: 1, run_event: first })
+  socket.message({
+    type: 'upsert', revision: 2,
+    run_event: {
+      ...first,
+      id: 'age-delta-2',
+      sequence: 2,
+      payload: { message_delta: { ...first.payload.message_delta, delta: '好' } },
+    },
+  })
+
+  assert.equal(notifications, 0)
+  const part = controller.getSnapshot().messages['ags-session']?.[0]?.parts[0]
+  assert.equal(
+    part?.kind === 'text' ? part.text : '',
+    '你好',
+  )
+  const streamTimer = timers.find(({ delay }) => delay === 64)
+  assert.ok(streamTimer)
+
+  socket.message({
+    type: 'upsert', revision: 3,
+    run: agentRunFixture({ event_sequence: 2, revision: 2 }),
+  })
+  assert.equal(notifications, 0)
+  assert.ok(!cleared.includes(streamTimer.id))
+
+  streamTimer.callback()
+  assert.equal(notifications, 1)
+
+  const third = {
+    ...first,
+    id: 'age-delta-3',
+    sequence: 3,
+    payload: { message_delta: { ...first.payload.message_delta, delta: '！' } },
+  }
+  socket.message({ type: 'upsert', revision: 4, run_event: third })
+  const nextStreamTimer = timers.find(({ id }) => id !== streamTimer.id && !cleared.includes(id))
+  assert.ok(nextStreamTimer)
+  const notificationsBeforeTerminal = notifications
+  socket.message({
+    type: 'upsert', revision: 5,
+    run: agentRunFixture({ event_sequence: 3, status: 'completed', revision: 3 }),
+  })
+  assert.ok(notifications > notificationsBeforeTerminal)
+  assert.ok(cleared.includes(nextStreamTimer.id))
+  unsubscribe()
+  controller.close()
+})
+
+test('默认流式定时器清理不会把控制器作为原生 clearTimeout 接收者', async () => {
+  const originalClearTimeout = globalThis.clearTimeout
+  const receivers: unknown[] = []
+  globalThis.clearTimeout = function (this: unknown) {
+    receivers.push(this)
+  } as typeof clearTimeout
+  let controller: AgentWorkspaceController | undefined
+  try {
+    const gateway = new FakeGateway()
+    const socket = new FakeSocket()
+    controller = new AgentWorkspaceController({
+      gateway,
+      socketFactory: () => socket as unknown as WebSocket,
+      setTimer: () => 1 as unknown as ReturnType<typeof setTimeout>,
+    })
+    controller.start()
+    await waitFor(() => controller?.getSnapshot().messages['ags-session']?.length === 1)
+    socket.open()
+    socket.message({
+      type: 'snapshot', revision: 0,
+      sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+    })
+    const delta = agentDeltaEventFixture()
+    socket.message({ type: 'upsert', revision: 1, run_event: delta })
+    socket.message({
+      type: 'upsert', revision: 2,
+      run: agentRunFixture({ event_sequence: delta.sequence, status: 'completed', revision: 2 }),
+    })
+
+    assert.ok(receivers.length > 0)
+    assert.ok(receivers.every((receiver) => receiver !== controller))
+  } finally {
+    controller?.close()
+    globalThis.clearTimeout = originalClearTimeout
+  }
+})
+
 test('权威快照后的成功重试会清除工作区降级状态', async () => {
   const gateway = new FakeGateway()
   const socket = new FakeSocket()
@@ -373,10 +493,12 @@ test('steer 与 stop 使用当前 Run 的 ID、generation 和 revision', async (
 
   assert.deepEqual(gateway.steered, [{ run_id: 'agr-run', generation: 1, message: '补充约束' }])
   assert.deepEqual(gateway.stopped, [{ run_id: 'agr-run', generation: 1 }])
-  assert.deepEqual(gateway.stopRequests, [{ id: 'agr-run', expectedRevision: 1 }])
+  assert.deepEqual(gateway.stopRequests, [{
+    id: 'agr-run', expectedRevision: 1, expectedGeneration: 1,
+  }])
 })
 
-test('停止 queued 或已终态 Run 时不调用不存在的 Worker', async () => {
+test('停止期间 Core 已先进入终态时仍收口已发出的 Worker 取消请求', async () => {
   const gateway = new FakeGateway()
   gateway.stopRunImpl = async (_id, expectedRevision) => (
     agentRunFixture({ status: 'cancelled', revision: expectedRevision + 1 })
@@ -388,7 +510,23 @@ test('停止 queued 或已终态 Run 时不调用不存在的 Worker', async () 
   const stopped = await controller.stopActiveRun()
 
   assert.equal(stopped?.status, 'cancelled')
-  assert.deepEqual(gateway.stopped, [])
+  assert.deepEqual(gateway.stopped, [{ run_id: 'agr-run', generation: 1 }])
+})
+
+test('停止请求不等待 Core 写入即可先向 Worker 发送取消', async () => {
+  const gateway = new FakeGateway()
+  const pending = deferred<AgentRun>()
+  gateway.stopRunImpl = async () => pending.promise
+  const controller = new AgentWorkspaceController({ gateway })
+  const session = await controller.createSession(sessionInput())
+  await controller.startRun(session.id, '执行任务')
+
+  const operation = controller.stopActiveRun()
+  await waitFor(() => gateway.stopRequests.length === 1)
+
+  assert.deepEqual(gateway.stopped, [{ run_id: 'agr-run', generation: 1 }])
+  pending.resolve(agentRunFixture({ status: 'stopping', revision: 2 }))
+  await operation
 })
 
 test('停止过程中 Worker 已退出时以 Core 状态继续对账', async () => {
@@ -402,6 +540,67 @@ test('停止过程中 Worker 已退出时以 Core 状态继续对账', async () 
 
   assert.equal(stopped?.status, 'stopping')
   assert.deepEqual(gateway.stopped, [{ run_id: 'agr-run', generation: 1 }])
+})
+
+test('停止落库后后继 Worker 已启动时不把旧 Run 冲突误报为失败', async () => {
+  const gateway = new FakeGateway()
+  gateway.stopResult = commandResult(false, 'AGENT_RUNTIME_RUN_CONFLICT')
+  const controller = new AgentWorkspaceController({ gateway })
+  const session = await controller.createSession(sessionInput())
+  await controller.startRun(session.id, '执行任务')
+
+  const stopped = await controller.stopActiveRun()
+
+  assert.equal(stopped?.status, 'stopping')
+  assert.deepEqual(gateway.stopped, [{ run_id: 'agr-run', generation: 1 }])
+  await waitFor(() => gateway.runCalls === 1)
+})
+
+test('队列写入在途时停止任务使用独立控制通道', async () => {
+  const gateway = new FakeGateway()
+  const pendingTurn = deferred<AgentQueuedTurn>()
+  gateway.enqueueTurnImpl = async () => pendingTurn.promise
+  const controller = new AgentWorkspaceController({ gateway })
+  const session = await controller.createSession(sessionInput())
+  await controller.startRun(session.id, '执行任务')
+
+  const enqueue = controller.enqueueTurn(session.id, '追加检查')
+  await waitFor(() => gateway.enqueueTurnRequests.length === 1)
+  const stopped = await controller.stopActiveRun()
+
+  assert.equal(stopped?.status, 'stopping')
+  assert.deepEqual(gateway.stopRequests, [{
+    id: 'agr-run', expectedRevision: 1, expectedGeneration: 1,
+  }])
+  assert.deepEqual(gateway.stopped, [{ run_id: 'agr-run', generation: 1 }])
+  pendingTurn.resolve(queuedTurnFixture({ prompt: '追加检查' }))
+  await enqueue
+})
+
+test('Run 在提交边界进入终态时仍将追加消息交给 Core 判定', async () => {
+  const gateway = new FakeGateway()
+  gateway.stopRunImpl = async (_id, expectedRevision) => (
+    agentRunFixture({ status: 'completed', revision: expectedRevision + 1, completed_at: agentFixtureTime })
+  )
+  gateway.enqueueTurnImpl = async (_sessionId, input) => queuedTurnFixture({
+    client_request_id: input.client_request_id,
+    prompt: input.prompt,
+  })
+  const controller = new AgentWorkspaceController({ gateway })
+  const session = await controller.createSession(sessionInput())
+  await controller.startRun(session.id, '执行任务')
+  await controller.stopActiveRun()
+
+  const queued = await controller.enqueueTurn(session.id, '紧接着执行下一步')
+
+  assert.equal(queued.prompt, '紧接着执行下一步')
+  assert.deepEqual(gateway.enqueueTurnRequests.map(({ sessionId, input }) => ({
+    sessionId,
+    prompt: input.prompt,
+  })), [{
+    sessionId: session.id,
+    prompt: '紧接着执行下一步',
+  }])
 })
 
 test('Run 水合期间收到 WS 增量会丢弃旧响应并自动重跑', async () => {
@@ -768,6 +967,439 @@ test('WebSocket 外部变更会话模型后重启已加载的上下文水合', a
   }
 })
 
+test('排队响应晚于 WebSocket 派发事件时不会重新插入幽灵消息', async () => {
+  const gateway = new FakeGateway()
+  const pending = deferred<AgentQueuedTurn>()
+  gateway.enqueueTurnImpl = async () => pending.promise
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+  })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().selected_session_id === 'ags-session')
+  socket.open()
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+    queued_turns: [], queue_state: queueStateFixture(),
+  })
+  await waitFor(() => controller.getSnapshot().active_run_id === 'agr-run')
+
+  const operation = controller.enqueueTurn('ags-session', '下一步检查')
+  await waitFor(() => gateway.enqueueTurnRequests.length === 1)
+  const turn = queuedTurnFixture({
+    client_request_id: gateway.enqueueTurnRequests[0]!.input.client_request_id,
+  })
+  socket.message({ type: 'upsert', revision: 1, queued_turn: turn })
+  socket.message({
+    type: 'removed', revision: 2, entity: 'queued_turn',
+    id: turn.id, session_id: turn.session_id,
+  })
+  const hydrationCalls = gateway.queuedTurnCalls
+  pending.resolve(turn)
+  await operation
+
+  await waitFor(() => gateway.queuedTurnCalls > hydrationCalls)
+  assert.deepEqual(controller.getSnapshot().queued_turns['ags-session'] ?? [], [])
+  controller.close()
+})
+
+test('入队传输失败后使用同一 client_request_id 重试', async () => {
+  const gateway = new FakeGateway()
+  let attempts = 0
+  gateway.enqueueTurnImpl = async (_sessionId, input) => {
+    attempts += 1
+    if (attempts === 1) throw new Error('NETWORK_ERROR')
+    return queuedTurnFixture({ client_request_id: input.client_request_id })
+  }
+  const socket = new FakeSocket()
+  let requestSequence = 0
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+    newClientRequestID: () => `request-retry-${++requestSequence}`,
+  })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().selected_session_id === 'ags-session')
+  socket.open()
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+    queued_turns: [], queue_state: queueStateFixture(),
+  })
+  await waitFor(() => controller.getSnapshot().active_run_id === 'agr-run')
+
+  await assert.rejects(controller.enqueueTurn('ags-session', '保持幂等', ['aga-one']))
+  await controller.enqueueTurn('ags-session', '保持幂等', ['aga-one'])
+
+  assert.equal(gateway.enqueueTurnRequests.length, 2)
+  assert.equal(
+    gateway.enqueueTurnRequests[0]!.input.client_request_id,
+    gateway.enqueueTurnRequests[1]!.input.client_request_id,
+  )
+  assert.equal(requestSequence, 1)
+  controller.close()
+})
+
+test('入队回执丢失时自动使用同一 client_request_id 幂等确认', async () => {
+  const gateway = new FakeGateway()
+  let attempts = 0
+  gateway.enqueueTurnImpl = async (_sessionId, input) => {
+    attempts += 1
+    if (attempts === 1) {
+      throw Object.assign(new Error('response lost'), { code: 'NETWORK_ERROR' })
+    }
+    return queuedTurnFixture({ client_request_id: input.client_request_id })
+  }
+  const socket = new FakeSocket()
+  let requestSequence = 0
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+    newClientRequestID: () => `request-recover-${++requestSequence}`,
+  })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().selected_session_id === 'ags-session')
+  socket.open()
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+    queued_turns: [], queue_state: queueStateFixture(),
+  })
+  await waitFor(() => controller.getSnapshot().active_run_id === 'agr-run')
+
+  await controller.enqueueTurn('ags-session', '确认已提交的消息')
+
+  assert.equal(gateway.enqueueTurnRequests.length, 2)
+  assert.equal(
+    gateway.enqueueTurnRequests[0]!.input.client_request_id,
+    gateway.enqueueTurnRequests[1]!.input.client_request_id,
+  )
+  assert.equal(requestSequence, 1)
+  assert.equal(controller.getSnapshot().queued_turns['ags-session']?.length, 1)
+  controller.close()
+})
+
+test('手工整理请求只绑定第一条成功持久化的排队消息', async () => {
+  const gateway = new FakeGateway()
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+  })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().session_contexts['ags-session']?.phase === 'ready')
+  controller.setContextCompressionPending('ags-session', true)
+  socket.open()
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+    queued_turns: [], queue_state: queueStateFixture(),
+  })
+  await waitFor(() => controller.getSnapshot().active_run_id === 'agr-run')
+
+  await controller.enqueueTurn('ags-session', '先整理上下文')
+  await controller.enqueueTurn('ags-session', '继续处理')
+
+  assert.equal(gateway.enqueueTurnRequests[0]?.input.force_context_compression, true)
+  assert.equal(gateway.enqueueTurnRequests[1]?.input.force_context_compression, false)
+  assert.equal(controller.getSnapshot().session_contexts['ags-session']?.compression_pending, false)
+  controller.close()
+})
+
+test('继续队列的迟到响应不会回退更高 QueueState revision', async () => {
+  const gateway = new FakeGateway()
+  const pending = deferred<AgentQueueState>()
+  const turn = queuedTurnFixture()
+  gateway.queuedTurnsImpl = async () => ({
+    items: [turn],
+    queue_state: queueStateFixture({ state: 'paused', revision: 3 }),
+  })
+  gateway.resumeQueueImpl = async () => pending.promise
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+  })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().selected_session_id === 'ags-session')
+  socket.open()
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [], queued_turns: [turn],
+    queue_state: queueStateFixture({ state: 'paused', revision: 3 }),
+  })
+  await waitFor(() => controller.getSnapshot().queue_states['ags-session']?.revision === 3)
+
+  const operation = controller.resumeQueue('ags-session')
+  socket.message({
+    type: 'upsert', revision: 1,
+    queue_state: queueStateFixture({ state: 'running', revision: 5 }),
+  })
+  assert.equal(controller.getSnapshot().queue_states['ags-session']?.revision, 5)
+  pending.resolve(queueStateFixture({ state: 'running', revision: 4 }))
+  await operation
+
+  assert.equal(controller.getSnapshot().queue_states['ags-session']?.revision, 5)
+  controller.close()
+})
+
+test('非队列 WebSocket 增量不会使运行中的队列水合作废', async () => {
+  const gateway = new FakeGateway()
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+  })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().selected_session_id === 'ags-session')
+  socket.open()
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+    queued_turns: [], queue_state: queueStateFixture(),
+  })
+  await waitFor(() => controller.getSnapshot().snapshot_complete)
+  await waitFor(() => gateway.queuedTurnCalls >= 2)
+
+  const pending = deferred<AgentQueuedTurnPage>()
+  gateway.queuedTurnsImpl = async () => pending.promise
+  const hydrationCalls = gateway.queuedTurnCalls
+  controller.selectSession('ags-session')
+  await waitFor(() => gateway.queuedTurnCalls > hydrationCalls)
+  socket.message({
+    type: 'upsert', revision: 1,
+    run: agentRunFixture({ status: 'running', revision: 2 }),
+  })
+  const turn = queuedTurnFixture()
+  pending.resolve({ items: [turn], queue_state: queueStateFixture() })
+
+  await waitFor(() => controller.getSnapshot().queued_turns['ags-session']?.[0]?.id === turn.id)
+  controller.close()
+})
+
+test('队列 WebSocket 增量会使较早开始的列表水合作废', async () => {
+  const gateway = new FakeGateway()
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+  })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().selected_session_id === 'ags-session')
+  socket.open()
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [agentRunFixture()],
+    queued_turns: [], queue_state: queueStateFixture(),
+  })
+  await waitFor(() => controller.getSnapshot().snapshot_complete)
+  await waitFor(() => gateway.queuedTurnCalls >= 2)
+
+  const pending = deferred<AgentQueuedTurnPage>()
+  gateway.queuedTurnsImpl = async () => pending.promise
+  const hydrationCalls = gateway.queuedTurnCalls
+  controller.selectSession('ags-session')
+  await waitFor(() => gateway.queuedTurnCalls > hydrationCalls)
+  const current = queuedTurnFixture({ id: 'agt-current', revision: 2 })
+  socket.message({ type: 'upsert', revision: 1, queued_turn: current })
+  pending.resolve({
+    items: [queuedTurnFixture({ id: 'agt-stale' })],
+    queue_state: queueStateFixture(),
+  })
+
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.deepEqual(
+    controller.getSnapshot().queued_turns['ags-session']?.map(({ id }) => id),
+    ['agt-current'],
+  )
+  controller.close()
+})
+
+test('移动排队消息使用源和目标 revision，并合并后端返回的单调顺序变更', async () => {
+  const first = queuedTurnFixture({ id: 'agq-first', queue_sequence: 1, revision: 2 })
+  const second = queuedTurnFixture({ id: 'agq-second', queue_sequence: 2, revision: 4 })
+  const gateway = new FakeGateway()
+  gateway.moveQueuedTurnImpl = async () => ({
+    items: [
+      { id: second.id, queue_sequence: 1, revision: 5, updated_at: '2026-09-01T00:00:01Z' },
+      { id: first.id, queue_sequence: 2, revision: 3, updated_at: '2026-09-01T00:00:01Z' },
+    ],
+  })
+  const { controller } = await startControllerWithQueue(gateway, [first, second])
+
+  await controller.moveQueuedTurn('ags-session', second.id, first.id, 'before')
+
+  assert.deepEqual(gateway.moveQueuedTurnRequests, [{
+    id: second.id,
+    input: {
+      expected_revision: 4,
+      target_turn_id: first.id,
+      target_expected_revision: 2,
+      placement: 'before',
+    },
+  }])
+  assert.deepEqual(
+    controller.getSnapshot().queued_turns['ags-session']?.map(({ id, queue_sequence, revision }) => ({
+      id, queue_sequence, revision,
+    })),
+    [
+      { id: second.id, queue_sequence: 1, revision: 5 },
+      { id: first.id, queue_sequence: 2, revision: 3 },
+    ],
+  )
+  controller.close()
+})
+
+test('移动请求在途收到队列删除事件时放弃局部响应并重新读取权威队列', async () => {
+  const first = queuedTurnFixture({ id: 'agq-first', queue_sequence: 1 })
+  const second = queuedTurnFixture({ id: 'agq-second', queue_sequence: 2 })
+  const concurrent = queuedTurnFixture({ id: 'agq-concurrent', queue_sequence: 3 })
+  const gateway = new FakeGateway()
+  const pending = deferred<Awaited<ReturnType<AgentWorkspaceGateway['moveQueuedTurn']>>>()
+  gateway.moveQueuedTurnImpl = async () => pending.promise
+  const { controller, socket } = await startControllerWithQueue(gateway, [first, second])
+
+  const operation = controller.moveQueuedTurn('ags-session', first.id, second.id, 'after')
+  await waitFor(() => gateway.moveQueuedTurnRequests.length === 1)
+  socket.message({
+    type: 'removed', revision: 1, entity: 'queued_turn',
+    id: first.id, session_id: first.session_id,
+  })
+  gateway.queuedTurnsImpl = async () => ({
+    items: [second, concurrent], queue_state: queueStateFixture(),
+  })
+  const hydrationCalls = gateway.queuedTurnCalls
+  pending.resolve({
+    items: [
+      { id: second.id, queue_sequence: 1, revision: 2, updated_at: '2026-09-01T00:00:01Z' },
+      { id: first.id, queue_sequence: 2, revision: 2, updated_at: '2026-09-01T00:00:01Z' },
+    ],
+  })
+  await operation
+
+  assert.ok(gateway.queuedTurnCalls > hydrationCalls)
+  assert.deepEqual(
+    controller.getSnapshot().queued_turns['ags-session']?.map(({ id }) => id),
+    [second.id, concurrent.id],
+  )
+  controller.close()
+})
+
+test('移动响应包含本地缺失项或产生重复 sequence 时重新水合', async () => {
+  const scenarios = [
+    {
+      name: 'missing item',
+      items: [{ id: 'agq-missing', queue_sequence: 1, revision: 2, updated_at: '2026-09-01T00:00:01Z' }],
+    },
+    {
+      name: 'duplicate sequence',
+      items: [{ id: 'agq-first', queue_sequence: 2, revision: 2, updated_at: '2026-09-01T00:00:01Z' }],
+    },
+  ]
+  for (const scenario of scenarios) {
+    const first = queuedTurnFixture({ id: 'agq-first', queue_sequence: 1 })
+    const second = queuedTurnFixture({ id: 'agq-second', queue_sequence: 2 })
+    const gateway = new FakeGateway()
+    gateway.moveQueuedTurnImpl = async () => ({ items: scenario.items })
+    const { controller } = await startControllerWithQueue(gateway, [first, second])
+    gateway.queuedTurnsImpl = async () => ({
+      items: [
+        { ...second, queue_sequence: 1, revision: 2 },
+        { ...first, queue_sequence: 2, revision: 2 },
+      ],
+      queue_state: queueStateFixture(),
+    })
+    const hydrationCalls = gateway.queuedTurnCalls
+
+    await controller.moveQueuedTurn('ags-session', first.id, second.id, 'after')
+
+    assert.ok(gateway.queuedTurnCalls > hydrationCalls, scenario.name)
+    assert.deepEqual(
+      controller.getSnapshot().queued_turns['ags-session']?.map(({ id }) => id),
+      [second.id, first.id],
+      scenario.name,
+    )
+    controller.close()
+  }
+})
+
+test('移动 revision 冲突时先恢复权威顺序再向调用方保留原错误', async () => {
+  const first = queuedTurnFixture({ id: 'agq-first', queue_sequence: 1 })
+  const second = queuedTurnFixture({ id: 'agq-second', queue_sequence: 2 })
+  const gateway = new FakeGateway()
+  const conflict = Object.assign(new Error('revision conflict'), { code: 'AGENT_REVISION_CONFLICT' })
+  gateway.moveQueuedTurnImpl = async () => { throw conflict }
+  const { controller } = await startControllerWithQueue(gateway, [first, second])
+  gateway.queuedTurnsImpl = async () => ({
+    items: [
+      { ...second, queue_sequence: 1, revision: 2 },
+      { ...first, queue_sequence: 2, revision: 2 },
+    ],
+    queue_state: queueStateFixture(),
+  })
+  const hydrationCalls = gateway.queuedTurnCalls
+
+  await assert.rejects(
+    controller.moveQueuedTurn('ags-session', first.id, second.id, 'after'),
+    (error: unknown) => error === conflict,
+  )
+
+  assert.ok(gateway.queuedTurnCalls > hydrationCalls)
+  assert.deepEqual(
+    controller.getSnapshot().queued_turns['ags-session']?.map(({ id }) => id),
+    [second.id, first.id],
+  )
+  controller.close()
+})
+
+test('队列分页因并发重排发生 revision 冲突时从首页有限重试', async () => {
+  const initial = queuedTurnFixture({ id: 'agq-initial', queue_sequence: 1 })
+  const authoritative = queuedTurnFixture({ id: 'agq-authoritative', queue_sequence: 1, revision: 2 })
+  const gateway = new FakeGateway()
+  const { controller } = await startControllerWithQueue(gateway, [initial])
+  let calls = 0
+  gateway.queuedTurnsImpl = async (_sessionId, options) => {
+    calls += 1
+    if (calls === 1) {
+      assert.equal(options?.cursor, undefined)
+      return { items: [initial], next_cursor: 'stale-cursor' }
+    }
+    if (calls === 2) {
+      assert.equal(options?.cursor, 'stale-cursor')
+      throw Object.assign(new Error('revision conflict'), { code: 'AGENT_REVISION_CONFLICT' })
+    }
+    assert.equal(options?.cursor, undefined)
+    return { items: [authoritative], queue_state: queueStateFixture() }
+  }
+
+  controller.selectSession('ags-session')
+  await waitFor(() => (
+    controller.getSnapshot().queued_turns['ags-session']?.[0]?.id === authoritative.id
+  ))
+
+  assert.equal(calls, 3)
+  controller.close()
+})
+
+test('队列分页拒绝跨页重复 ID 或 sequence', async () => {
+  const first = queuedTurnFixture({ id: 'agq-first', queue_sequence: 1 })
+  const duplicateSequence = queuedTurnFixture({ id: 'agq-second', queue_sequence: 1 })
+  const gateway = new FakeGateway()
+  const { controller } = await startControllerWithQueue(gateway, [first])
+  gateway.queuedTurnsImpl = async (_sessionId, options) => options?.cursor
+    ? { items: [duplicateSequence], queue_state: queueStateFixture() }
+    : { items: [first], next_cursor: 'next-page' }
+
+  controller.selectSession('ags-session')
+  await waitFor(() => controller.getSnapshot().error_code === 'AGENT_QUEUE_PAGE_INVALID')
+
+  assert.equal(controller.getSnapshot().phase, 'degraded')
+  assert.deepEqual(controller.getSnapshot().queued_turns['ags-session']?.map(({ id }) => id), [first.id])
+  controller.close()
+})
+
 class FakeGateway implements AgentWorkspaceGateway {
   readonly sessionSignals: AbortSignal[] = []
   readonly messageSignals: AbortSignal[] = []
@@ -778,17 +1410,34 @@ class FakeGateway implements AgentWorkspaceGateway {
   readonly started: Array<{ run_id: string; generation: number }> = []
   readonly stopped: Array<{ run_id: string; generation: number }> = []
   readonly steered: Array<{ run_id: string; generation: number; message: string }> = []
-  readonly stopRequests: Array<{ id: string; expectedRevision: number }> = []
+  readonly stopRequests: Array<{
+    id: string
+    expectedRevision: number
+    expectedGeneration: number
+  }> = []
   readonly createRunRequests: AgentCreateRunInput[] = []
+  readonly enqueueTurnRequests: Array<{
+    sessionId: string
+    input: Parameters<AgentWorkspaceGateway['enqueueTurn']>[1]
+  }> = []
+  readonly moveQueuedTurnRequests: Array<{
+    id: string
+    input: Parameters<AgentWorkspaceGateway['moveQueuedTurn']>[1]
+  }> = []
   createRunImpl: (sessionId: string, input: AgentCreateRunInput) => Promise<AgentRun> = async () => (
     agentRunFixture()
   )
   runCalls = 0
   contextCalls = 0
   usageCalls = 0
+  queuedTurnCalls = 0
   startResult: AgentRuntimeCommandResult | Promise<AgentRuntimeCommandResult> = commandResult(true)
   stopResult: AgentRuntimeCommandResult | Promise<AgentRuntimeCommandResult> = commandResult(true)
-  stopRunImpl: (id: string, expectedRevision: number) => Promise<AgentRun> = async (_id, expectedRevision) => (
+  stopRunImpl: (
+    id: string,
+    expectedRevision: number,
+    expectedGeneration: number,
+  ) => Promise<AgentRun> = async (_id, expectedRevision) => (
     agentRunFixture({ status: 'stopping', revision: expectedRevision + 1 })
   )
   sessionsImpl: (options: AgentSessionListOptions) => Promise<AgentSessionPage> = async (options) => {
@@ -812,6 +1461,14 @@ class FakeGateway implements AgentWorkspaceGateway {
   contextImpl: (sessionId: string, signal?: AbortSignal) => Promise<AgentSessionContext> = async () => contextFixture()
   usageImpl: (sessionId: string, signal?: AbortSignal) => Promise<AgentSessionUsage> = async (sessionId) => (
     usageFixture({ session_id: sessionId })
+  )
+  queuedTurnsImpl: AgentWorkspaceGateway['queuedTurns'] = async () => ({ items: [] })
+  enqueueTurnImpl: AgentWorkspaceGateway['enqueueTurn'] = async (_sessionId, input) => (
+    queuedTurnFixture({ client_request_id: input.client_request_id })
+  )
+  moveQueuedTurnImpl: AgentWorkspaceGateway['moveQueuedTurn'] = async () => ({ items: [] })
+  resumeQueueImpl: AgentWorkspaceGateway['resumeQueue'] = async (sessionId, expectedRevision) => (
+    queueStateFixture({ session_id: sessionId, state: 'running', revision: expectedRevision + 1 })
   )
 
   sessions(options: AgentSessionListOptions = {}) {
@@ -851,6 +1508,35 @@ class FakeGateway implements AgentWorkspaceGateway {
     this.contextCalls += 1
     return this.contextImpl(sessionId, signal)
   }
+  queuedTurns(sessionId: string, options: Parameters<AgentWorkspaceGateway['queuedTurns']>[1] = {}) {
+    this.queuedTurnCalls += 1
+    return this.queuedTurnsImpl(sessionId, options)
+  }
+  enqueueTurn(
+    sessionId: string,
+    input: Parameters<AgentWorkspaceGateway['enqueueTurn']>[1],
+    signal?: AbortSignal,
+  ) {
+    this.enqueueTurnRequests.push({ sessionId, input })
+    return this.enqueueTurnImpl(sessionId, input, signal)
+  }
+  async beginQueuedTurnEdit(): Promise<never> { throw new Error('not implemented') }
+  async updateQueuedTurn(): Promise<never> { throw new Error('not implemented') }
+  async cancelQueuedTurnEdit(): Promise<never> { throw new Error('not implemented') }
+  async deleteQueuedTurn() { return queuedTurnFixture({ state: 'cancelled' }) }
+  moveQueuedTurn(
+    id: string,
+    input: Parameters<AgentWorkspaceGateway['moveQueuedTurn']>[1],
+    signal?: AbortSignal,
+  ) {
+    this.moveQueuedTurnRequests.push({ id, input })
+    return this.moveQueuedTurnImpl(id, input, signal)
+  }
+  async steerQueuedTurn() { return commandResult(true) }
+  resumeQueue(sessionId: string, expectedRevision: number, signal?: AbortSignal) {
+    return this.resumeQueueImpl(sessionId, expectedRevision, signal)
+  }
+  async wakeQueue() { return commandResult(true) }
   async replaceResourceBinding() { return agentSessionFixture() }
   async removeResourceBinding() { return agentSessionFixture() }
   usage(sessionId: string, signal?: AbortSignal) {
@@ -863,9 +1549,9 @@ class FakeGateway implements AgentWorkspaceGateway {
     return this.createRunImpl(sessionId, input)
   }
   run(id: string, signal?: AbortSignal) { return this.runImpl(id, signal) }
-  async stopRun(id: string, expectedRevision: number) {
-    this.stopRequests.push({ id, expectedRevision })
-    return this.stopRunImpl(id, expectedRevision)
+  async stopRun(id: string, expectedRevision: number, expectedGeneration: number) {
+    this.stopRequests.push({ id, expectedRevision, expectedGeneration })
+    return this.stopRunImpl(id, expectedRevision, expectedGeneration)
   }
   async runEvents(_id: string, options: AgentRunEventListOptions): Promise<AgentRunEventPage> {
     this.runEventRequests.push(options)
@@ -937,6 +1623,45 @@ function contextFixture(overrides: Partial<AgentSessionContext> = {}): AgentSess
     compression_available: true,
     ...overrides,
   }
+}
+
+function queuedTurnFixture(overrides: Partial<AgentQueuedTurn> = {}): AgentQueuedTurn {
+  return {
+    id: 'agq-turn', session_id: 'ags-session', client_request_id: 'request-turn',
+    queue_sequence: 1, prompt: '排队消息', model_id: 'apm-model', reasoning_level: 'medium',
+    force_context_compression: false, state: 'queued', editing: false, revision: 1,
+    created_at: agentFixtureTime, updated_at: agentFixtureTime, attachments: [],
+    ...overrides,
+  }
+}
+
+function queueStateFixture(overrides: Partial<AgentQueueState> = {}): AgentQueueState {
+  return {
+    session_id: 'ags-session', state: 'running', revision: 1,
+    ...overrides,
+  }
+}
+
+async function startControllerWithQueue(gateway: FakeGateway, turns: AgentQueuedTurn[]) {
+  gateway.queuedTurnsImpl = async () => ({ items: turns, queue_state: queueStateFixture() })
+  const socket = new FakeSocket()
+  const controller = new AgentWorkspaceController({
+    gateway,
+    socketFactory: () => socket as unknown as WebSocket,
+  })
+  controller.start()
+  await waitFor(() => controller.getSnapshot().selected_session_id === 'ags-session')
+  socket.open()
+  socket.message({
+    type: 'snapshot', revision: 0,
+    sessions: [agentSessionFixture()], active_runs: [],
+    queued_turns: turns, queue_state: queueStateFixture(),
+  })
+  await waitFor(() => controller.getSnapshot().snapshot_complete)
+  await waitFor(() => (
+    controller.getSnapshot().queued_turns['ags-session']?.length === turns.length
+  ))
+  return { controller, socket }
 }
 
 function usageFixture(overrides: Partial<AgentSessionUsage> = {}): AgentSessionUsage {

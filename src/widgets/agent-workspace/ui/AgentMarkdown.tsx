@@ -1,16 +1,23 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { ExternalLink, ImageOff } from 'lucide-react'
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { getTermousBridge } from '#shared/bridge'
 import styles from './AgentMarkdown.module.scss'
 
-export function AgentMarkdown({ children }: { children: string }) {
+const markdownRemarkPlugins = [remarkGfm]
+
+export const AgentMarkdown = memo(function AgentMarkdown({
+  children,
+}: {
+  children: string
+}) {
   const { t } = useTranslation()
   return (
     <div className={styles.markdown}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={markdownRemarkPlugins}
         components={{
           a: ({ href, children: label }) => {
             const target = safeExternalURL(href)
@@ -41,7 +48,7 @@ export function AgentMarkdown({ children }: { children: string }) {
       </ReactMarkdown>
     </div>
   )
-}
+})
 
 function safeExternalURL(value: string | undefined) {
   if (!value) return null

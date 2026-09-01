@@ -12,8 +12,8 @@ const steerAck = {
   accepted: true,
 }
 
-test('Agent Worker 使用可信资源绑定协议 v4', () => {
-  assert.equal(agentRuntimeProtocolVersion, '4')
+test('Agent Worker 使用持久任务队列协议 v5', () => {
+  assert.equal(agentRuntimeProtocolVersion, '5')
 })
 
 test('Worker steer ack 严格校验请求标识与错误分支', () => {

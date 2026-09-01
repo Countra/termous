@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { useState } from 'react'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentWorkspaceMessage } from '../model/types.ts'
 import { AgentConversation } from './AgentConversation.tsx'
 
@@ -15,8 +16,34 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('./AgentMarkdown.tsx', () => ({
-  AgentMarkdown: ({ children }: { children: string }) => <div>{children}</div>,
+  AgentMarkdown: ({ children }: { children: string }) => {
+    if (children === 'suspended-markdown') throw new Promise(() => undefined)
+    return <div>{children}</div>
+  },
 }))
+
+const animationFrames = new Map<number, FrameRequestCallback>()
+let animationFrameSequence = 0
+
+beforeAll(() => {
+  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+    animationFrameSequence += 1
+    animationFrames.set(animationFrameSequence, callback)
+    return animationFrameSequence
+  }))
+  vi.stubGlobal('cancelAnimationFrame', vi.fn((frameId: number) => {
+    animationFrames.delete(frameId)
+  }))
+})
+
+beforeEach(() => {
+  animationFrames.clear()
+  animationFrameSequence = 0
+})
+
+afterAll(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('AgentConversation', () => {
   it('流式内容增长时跟随尾部，用户上滚后停止自动跟随', () => {
@@ -37,6 +64,7 @@ describe('AgentConversation', () => {
     view.rerender(
       <AgentConversation messages={[message('streaming content')]} runStatus="running" loading={false} sessionKey="session-one" />,
     )
+    flushAnimationFrames()
     expect(scrollTo).toHaveBeenCalledWith({ top: 1_000 })
 
     viewport.scrollTop = 100
@@ -54,7 +82,30 @@ describe('AgentConversation', () => {
     view.rerender(
       <AgentConversation messages={[message('new token after jumping to tail')]} runStatus="running" loading={false} sessionKey="session-one" />,
     )
+    flushAnimationFrames()
     expect(scrollTo).toHaveBeenCalledTimes(resumedCallCount + 1)
+  })
+
+  it('Markdown 延迟渲染挂起时仍允许同级受控输入响应', () => {
+    function Harness() {
+      const [messages, setMessages] = useState([message('ready-markdown')])
+      const [draft, setDraft] = useState('')
+      return (
+        <>
+          <button type="button" onClick={() => setMessages([message('suspended-markdown')])}>stream</button>
+          <input aria-label="draft" value={draft} onChange={(event) => setDraft(event.target.value)} />
+          <AgentConversation messages={messages} runStatus="running" loading={false} sessionKey="session-one" />
+        </>
+      )
+    }
+
+    render(<Harness />)
+    fireEvent.click(screen.getByRole('button', { name: 'stream' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'draft' }), { target: { value: 'queue now' } })
+
+    expect(screen.getByRole('textbox', { name: 'draft' })).toHaveValue('queue now')
+    expect(screen.getByText('ready-markdown')).toBeInTheDocument()
+    expect(screen.queryByText('suspended-markdown')).not.toBeInTheDocument()
   })
 
   it('展示来源上下文与附件，并将预览动作交给工作区', () => {
@@ -228,6 +279,7 @@ describe('AgentConversation', () => {
       />,
     )
 
+    flushAnimationFrames()
     expect(scrollTo).toHaveBeenCalledWith({ top: 1_000 })
   })
 
@@ -252,6 +304,14 @@ describe('AgentConversation', () => {
     expect(screen.queryByLabelText('本轮用量')).not.toBeInTheDocument()
   })
 })
+
+function flushAnimationFrames() {
+  const callbacks = [...animationFrames.values()]
+  animationFrames.clear()
+  act(() => {
+    for (const callback of callbacks) callback(performance.now())
+  })
+}
 
 function message(text: string): AgentWorkspaceMessage {
   return {

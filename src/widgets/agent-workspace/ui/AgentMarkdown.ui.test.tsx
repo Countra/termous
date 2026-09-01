@@ -34,4 +34,13 @@ describe('AgentMarkdown', () => {
     fireEvent.click(screen.getByRole('link', { name: /docs/ }))
     expect(openUrl).toHaveBeenCalledWith('https://example.com/guide')
   })
+
+  it('流式内容增长期间始终渲染当前 Markdown 格式', () => {
+    const view = render(<AgentMarkdown>{'**持续输出**'}</AgentMarkdown>)
+    expect(screen.getByText('持续输出').closest('strong')).not.toBeNull()
+
+    view.rerender(<AgentMarkdown>{'**持续输出**\n\n[docs](https://example.com)'}</AgentMarkdown>)
+    expect(screen.getByText('持续输出').closest('strong')).not.toBeNull()
+    expect(screen.getByRole('link', { name: /docs/ })).toBeInTheDocument()
+  })
 })

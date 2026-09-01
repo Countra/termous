@@ -1,6 +1,7 @@
 import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import { fileURLToPath } from 'node:url'
 import type {
+  AgentQueuedTurnSteerRequest,
   AgentRuntimeCommandResult,
   AgentRuntimeRunRef,
   AgentRuntimeStatus,
@@ -133,6 +134,10 @@ const bridge = {
       ipcRenderer.invoke(agentRuntimeIPCChannels.stop, request) as Promise<AgentRuntimeCommandResult>,
     steer: (request: AgentRuntimeSteerRequest) =>
       ipcRenderer.invoke(agentRuntimeIPCChannels.steer, request) as Promise<AgentRuntimeCommandResult>,
+    wake: () =>
+      ipcRenderer.invoke(agentRuntimeIPCChannels.wake) as Promise<AgentRuntimeCommandResult>,
+    steerQueuedTurn: (request: AgentQueuedTurnSteerRequest) =>
+      ipcRenderer.invoke(agentRuntimeIPCChannels.steerQueuedTurn, request) as Promise<AgentRuntimeCommandResult>,
     onStatus: (callback: (status: AgentRuntimeStatus) => void) => {
       const listener = (
         _event: Electron.IpcRendererEvent,

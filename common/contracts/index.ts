@@ -4,6 +4,7 @@ export type {
   AgentRuntimeState,
   AgentRuntimeStatus,
   AgentRuntimeSteerRequest,
+  AgentQueuedTurnSteerRequest,
   AgentSkillsBundleState,
   AgentSkillsBundleStatus,
 } from './agent-runtime.ts'

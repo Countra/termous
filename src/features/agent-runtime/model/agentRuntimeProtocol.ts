@@ -9,6 +9,7 @@ import {
   agentResourceKinds,
   agentRunEventKinds,
   agentRunStatuses,
+  agentQueuedTurnStates,
   agentSourceContextKinds,
   isAgentRunActive,
   type AgentApiMode,
@@ -16,6 +17,9 @@ import {
   type AgentAttachmentState,
   type AgentJsonValue,
   type AgentMessage,
+  type AgentQueueState,
+  type AgentQueuedTurn,
+  type AgentQueuedTurnMoveResult,
   type AgentMessagePage,
   type AgentMessagePart,
   type AgentMessagePartKind,
@@ -39,8 +43,10 @@ import {
   type AgentUsage,
 } from '#entities/agent'
 
+const maxAgentPromptBytes = 1 << 20
+
 export type AgentWorkspaceEvent =
-  | { type: 'snapshot'; revision: number; sessions: AgentSession[]; active_runs: AgentRun[] }
+  | { type: 'snapshot'; revision: number; sessions: AgentSession[]; active_runs: AgentRun[]; queued_turns?: AgentQueuedTurn[]; queue_state?: AgentQueueState }
   | {
       type: 'upsert'
       revision: number
@@ -48,8 +54,10 @@ export type AgentWorkspaceEvent =
       run?: AgentRun
       message?: AgentMessage
       run_event?: AgentRunEvent
+      queued_turn?: AgentQueuedTurn
+      queue_state?: AgentQueueState
     }
-  | { type: 'removed'; revision: number; entity: 'session' | 'run' | 'message'; id: string }
+  | { type: 'removed'; revision: number; entity: 'session' | 'run' | 'message' | 'queued_turn'; id: string; session_id?: string }
 
 export class AgentRuntimeProtocolError extends Error {
   constructor(message: string) {
@@ -361,6 +369,79 @@ export function decodeAgentRunEvent(value: unknown): AgentRunEvent {
 }
 }
 
+export function decodeAgentQueuedTurn(value: unknown): AgentQueuedTurn {
+  const source = record(value, 'Agent 排队消息响应无效')
+  const sessionId = identifier(source.session_id, 'Agent 排队消息 Session ID 无效')
+  const attachments = array(source.attachments ?? [], 'Agent 排队消息附件列表无效', 8)
+    .map(decodeAgentAttachment)
+  if (attachments.some(({ session_id }) => session_id !== sessionId)) {
+    throw new AgentRuntimeProtocolError('Agent 排队消息附件归属无效')
+  }
+  return {
+    id: identifier(source.id, 'Agent 排队消息 ID 无效'),
+    session_id: sessionId,
+    client_request_id: identifier(source.client_request_id, 'Agent 排队消息请求 ID 无效'),
+    queue_sequence: positiveInteger(source.queue_sequence, 'Agent 排队消息 sequence 无效'),
+    prompt: utf8(source.prompt, 'Agent 排队消息内容无效', maxAgentPromptBytes),
+    source_context: source.source_context === undefined
+      ? undefined
+      : decodeAgentSourceContext(source.source_context),
+    model_id: identifier(source.model_id, 'Agent 排队消息模型 ID 无效'),
+    reasoning_level: enumValue<AgentReasoningLevel>(source.reasoning_level, agentReasoningLevels, 'Agent 排队消息推理级别无效'),
+    force_context_compression: bool(source.force_context_compression, 'Agent 排队消息压缩配置无效'),
+    state: enumValue(source.state, agentQueuedTurnStates, 'Agent 排队消息状态无效'),
+    editing: bool(source.editing, 'Agent 排队消息编辑状态无效'),
+    interrupt_target_run_id: optionalString(source.interrupt_target_run_id, 'Agent 排队消息目标 Run 无效', 256),
+    dispatched_run_id: optionalString(source.dispatched_run_id, 'Agent 排队消息派发 Run 无效', 256),
+    error_code: optionalString(source.error_code, 'Agent 排队消息错误码无效', 256),
+    error_message: optionalString(source.error_message, 'Agent 排队消息错误信息无效', 4096),
+    revision: positiveInteger(source.revision, 'Agent 排队消息 revision 无效'),
+    created_at: timestamp(source.created_at, 'Agent 排队消息创建时间无效'),
+    updated_at: timestamp(source.updated_at, 'Agent 排队消息更新时间无效'),
+    attachments,
+  }
+}
+
+export function decodeAgentQueueState(value: unknown): AgentQueueState {
+  const source = record(value, 'Agent 队列状态响应无效')
+  return {
+    session_id: identifier(source.session_id, 'Agent 队列状态 Session ID 无效'),
+    state: enumValue(source.state, ['running', 'paused'] as const, 'Agent 队列运行状态无效'),
+    pause_reason: optionalString(source.pause_reason, 'Agent 队列暂停原因无效', 1024),
+    paused_by_run_id: optionalString(source.paused_by_run_id, 'Agent 队列暂停 Run 无效', 256),
+    revision: positiveInteger(source.revision, 'Agent 队列状态 revision 无效'),
+  }
+}
+
+export function decodeAgentQueuedTurnPage(value: unknown) {
+  const source = record(value, 'Agent 排队消息列表响应无效')
+  const items = array(source.items, 'Agent 排队消息列表无效', 200).map(decodeAgentQueuedTurn)
+  unique(items.map(({ id }) => id), 'Agent 排队消息列表包含重复 ID')
+  unique(items.map(({ queue_sequence }) => String(queue_sequence)), 'Agent 排队消息列表包含重复 sequence')
+  ascending(items.map(({ queue_sequence }) => queue_sequence), 'Agent 排队消息 sequence 无序')
+  return {
+    items,
+    queue_state: source.queue_state === undefined ? undefined : decodeAgentQueueState(source.queue_state),
+    next_cursor: optionalString(source.next_cursor, 'Agent 排队消息 cursor 无效', 4096),
+  }
+}
+
+export function decodeAgentQueuedTurnMoveResult(value: unknown): AgentQueuedTurnMoveResult {
+  const source = record(value, 'Agent 排队消息移动响应无效')
+  const items = array(source.items, 'Agent 排队消息移动结果无效').map((item) => {
+    const change = record(item, 'Agent 排队消息顺序变更无效')
+    return {
+      id: identifier(change.id, 'Agent 排队消息顺序变更 ID 无效'),
+      queue_sequence: positiveInteger(change.queue_sequence, 'Agent 排队消息顺序变更 sequence 无效'),
+      revision: positiveInteger(change.revision, 'Agent 排队消息顺序变更 revision 无效'),
+      updated_at: timestamp(change.updated_at, 'Agent 排队消息顺序变更时间无效'),
+    }
+  })
+  unique(items.map(({ id }) => id), 'Agent 排队消息顺序变更包含重复 ID')
+  unique(items.map(({ queue_sequence }) => String(queue_sequence)), 'Agent 排队消息顺序变更包含重复 sequence')
+  ascending(items.map(({ queue_sequence }) => queue_sequence), 'Agent 排队消息顺序变更 sequence 无序')
+  return { items }
+}
 export function decodeAgentRunEventPage(value: unknown): AgentRunEventPage {
   const source = record(value, 'Agent Run Event 列表响应无效')
   const items = array(source.items, 'Agent Run Event 列表无效', 200).map(decodeAgentRunEvent)
@@ -382,30 +463,55 @@ export function decodeAgentWorkspaceEvent(value: unknown): AgentWorkspaceEvent {
   if (source.type === 'snapshot') {
     const sessions = array(source.sessions, 'Agent Workspace Session 快照无效').map(decodeAgentSession)
     const activeRuns = array(source.active_runs, 'Agent Workspace Run 快照无效').map(decodeAgentRun)
+    const queuedTurns = array(source.queued_turns ?? [], 'Agent Workspace 排队消息快照无效').map(decodeAgentQueuedTurn)
+    const queueState = source.queue_state === undefined ? undefined : decodeAgentQueueState(source.queue_state)
     unique(sessions.map(({ id }) => id), 'Agent Workspace Session 快照包含重复 ID')
     unique(activeRuns.map(({ id }) => id), 'Agent Workspace Run 快照包含重复 ID')
+    unique(queuedTurns.map(({ id }) => id), 'Agent Workspace 排队消息快照包含重复 ID')
+    unique(
+      queuedTurns.map(({ session_id, queue_sequence }) => `${session_id}\u0000${queue_sequence}`),
+      'Agent Workspace 排队消息快照包含重复 sequence',
+    )
+    const sessionIDs = new Set(sessions.map(({ id }) => id))
+    if (
+      queuedTurns.some(({ session_id }) => !sessionIDs.has(session_id))
+      || (queueState && !sessionIDs.has(queueState.session_id))
+      || (queueState && queuedTurns.some(({ session_id }) => session_id !== queueState.session_id))
+    ) {
+      throw new AgentRuntimeProtocolError('Agent Workspace 排队消息快照归属无效')
+    }
     if (activeRuns.length > 1 || activeRuns.some(({ status }) => !isAgentRunActive(status))) {
       throw new AgentRuntimeProtocolError('Agent Workspace 活动 Run 快照无效')
     }
-    return { type: source.type, revision, sessions, active_runs: activeRuns }
+    return { type: source.type, revision, sessions, active_runs: activeRuns, queued_turns: queuedTurns, queue_state: queueState }
   }
   if (revision === 0) {
     throw new AgentRuntimeProtocolError('Agent Workspace 增量 revision 无效')
   }
   if (source.type === 'upsert') {
-    const keys = ['session', 'run', 'message', 'run_event'].filter((key) => source[key] !== undefined)
+    const keys = ['session', 'run', 'message', 'run_event', 'queued_turn', 'queue_state'].filter((key) => source[key] !== undefined)
     if (keys.length !== 1) throw new AgentRuntimeProtocolError('Agent Workspace upsert 必须只包含一个实体')
     if (keys[0] === 'session') return { type: source.type, revision, session: decodeAgentSession(source.session) }
     if (keys[0] === 'run') return { type: source.type, revision, run: decodeAgentRun(source.run) }
     if (keys[0] === 'message') return { type: source.type, revision, message: decodeAgentMessage(source.message) }
-    return { type: source.type, revision, run_event: decodeAgentRunEvent(source.run_event) }
+    if (keys[0] === 'run_event') return { type: source.type, revision, run_event: decodeAgentRunEvent(source.run_event) }
+    if (keys[0] === 'queued_turn') return { type: source.type, revision, queued_turn: decodeAgentQueuedTurn(source.queued_turn) }
+    return { type: source.type, revision, queue_state: decodeAgentQueueState(source.queue_state) }
   }
   if (source.type === 'removed') {
+    const entity = enumValue(source.entity, ['session', 'run', 'message', 'queued_turn'] as const, 'Agent Workspace removed 实体无效')
+    const sessionId = source.session_id === undefined
+      ? undefined
+      : identifier(source.session_id, 'Agent Workspace removed Session ID 无效')
+    if (entity === 'queued_turn' && !sessionId) {
+      throw new AgentRuntimeProtocolError('Agent Workspace 排队消息删除事件缺少 Session ID')
+    }
     return {
       type: source.type,
       revision,
-      entity: enumValue(source.entity, ['session', 'run', 'message'] as const, 'Agent Workspace removed 实体无效'),
+      entity,
       id: identifier(source.id, 'Agent Workspace removed ID 无效'),
+      session_id: sessionId,
     }
   }
   throw new AgentRuntimeProtocolError('Agent Workspace 事件类型无效')
@@ -505,9 +611,13 @@ function decodeUsage(value: unknown): AgentUsage {
 
 function decodeAgentMessageTurnUsage(value: unknown) {
   const source = record(value, 'Agent 消息本轮 Token 用量无效')
+  const errorCode = source.error_code === undefined
+    ? undefined
+    : utf8(source.error_code, 'Agent 消息本轮错误码无效', 80)
   return {
     run_id: identifier(source.run_id, 'Agent 消息本轮 Run ID 无效'),
     usage: decodeUsage(source.usage),
+    ...(errorCode ? { error_code: errorCode } : {}),
   }
 }
 

@@ -13,6 +13,10 @@ import type {
 } from '#features/agent-runtime'
 import {
   decodeAgentMessagePage,
+  decodeAgentQueueState,
+  decodeAgentQueuedTurn,
+  decodeAgentQueuedTurnMoveResult,
+  decodeAgentQueuedTurnPage,
   decodeAgentAttachment,
   decodeAgentRun,
   decodeAgentRunEventPage,
@@ -23,6 +27,8 @@ import {
 } from '#features/agent-runtime'
 import type {
   AgentRun,
+  AgentQueuedTurnMovePlacement,
+  AgentSourceContext,
   AgentResourceBindingUpdateInput,
   AgentSessionInput,
   AgentSessionUpdateInput,
@@ -117,6 +123,87 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
     }).then(decodeAgentMessagePage)
   }
 
+  queuedTurns(sessionId: string, options: { cursor?: string; limit?: number; signal?: AbortSignal } = {}) {
+    const query = new URLSearchParams({ limit: String(options.limit ?? 200) })
+    if (options.cursor) query.set('cursor', options.cursor)
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/queued-turns?${query.toString()}`, {
+      signal: options.signal,
+    }).then(decodeAgentQueuedTurnPage)
+  }
+
+  enqueueTurn(sessionId: string, input: {
+    client_request_id: string
+    prompt: string
+    attachment_ids: string[]
+    source_context?: AgentSourceContext
+    force_context_compression: boolean
+  }, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/queued-turns`, {
+      method: 'POST', body: input, signal,
+    }).then(decodeAgentQueuedTurn)
+  }
+
+  beginQueuedTurnEdit(id: string, expectedRevision: number, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/queued-turns/${encodeURIComponent(id)}/begin-edit`, {
+      method: 'POST', body: { expected_revision: expectedRevision }, signal,
+    }).then(decodeAgentQueuedTurn)
+  }
+
+  updateQueuedTurn(id: string, input: { prompt: string; attachment_ids: string[]; expected_revision: number }, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/queued-turns/${encodeURIComponent(id)}`, {
+      method: 'PATCH', body: input, signal,
+    }).then(decodeAgentQueuedTurn)
+  }
+
+  cancelQueuedTurnEdit(id: string, expectedRevision: number, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/queued-turns/${encodeURIComponent(id)}/cancel-edit`, {
+      method: 'POST', body: { expected_revision: expectedRevision }, signal,
+    }).then(decodeAgentQueuedTurn)
+  }
+
+  deleteQueuedTurn(id: string, expectedRevision: number, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/queued-turns/${encodeURIComponent(id)}`, {
+      method: 'DELETE', body: { expected_revision: expectedRevision }, signal,
+    }).then(decodeAgentQueuedTurn)
+  }
+
+  moveQueuedTurn(id: string, input: {
+    expected_revision: number
+    target_turn_id: string
+    target_expected_revision: number
+    placement: AgentQueuedTurnMovePlacement
+  }, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/queued-turns/${encodeURIComponent(id)}/move`, {
+      method: 'POST', body: input, signal,
+    }).then(decodeAgentQueuedTurnMoveResult)
+  }
+
+  steerQueuedTurn(input: {
+    turn_id: string
+    turn_revision: number
+    run_id: string
+    run_generation: number
+    run_revision: number
+  }) {
+    return this.requireRuntimeBridge().steerQueuedTurn({
+      queued_turn_id: input.turn_id,
+      expected_revision: input.turn_revision,
+      run_id: input.run_id,
+      generation: input.run_generation,
+      expected_run_revision: input.run_revision,
+    })
+  }
+
+  resumeQueue(sessionId: string, expectedRevision: number, signal?: AbortSignal) {
+    return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/queue/resume`, {
+      method: 'POST', body: { expected_revision: expectedRevision }, signal,
+    }).then(decodeAgentQueueState)
+  }
+
+  wakeQueue() {
+    return this.requireRuntimeBridge().wake()
+  }
+
   context(sessionId: string, signal?: AbortSignal) {
     return this.request<unknown>(`${agentPath}/sessions/${encodeURIComponent(sessionId)}/context`, { signal })
       .then((value) => decodeAgentSessionContext(value, sessionId))
@@ -138,9 +225,19 @@ export class AgentWorkspaceClient extends AgentSetupClient implements AgentWorks
       .then(decodeAgentRun)
   }
 
-  stopRun(id: string, expectedRevision: number, signal?: AbortSignal) {
+  stopRun(
+    id: string,
+    expectedRevision: number,
+    expectedGeneration: number,
+    signal?: AbortSignal,
+  ) {
     return this.request<unknown>(`${agentPath}/runs/${encodeURIComponent(id)}/stop`, {
-      method: 'POST', body: { expected_revision: expectedRevision }, signal,
+      method: 'POST',
+      body: {
+        expected_revision: expectedRevision,
+        expected_generation: expectedGeneration,
+      },
+      signal,
     }).then(decodeAgentRun)
   }
 

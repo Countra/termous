@@ -2,6 +2,11 @@ import type {
   AgentAttachment,
   AgentMcpPolicy,
   AgentMessagePage,
+  AgentQueueState,
+  AgentQueuedTurn,
+  AgentQueuedTurnMovePlacement,
+  AgentQueuedTurnMoveResult,
+  AgentQueuedTurnPage,
   AgentReasoningLevel,
   AgentRun,
   AgentRunEventPage,
@@ -57,11 +62,47 @@ export interface AgentWorkspaceGateway {
   attachmentContent(id: string, signal?: AbortSignal): Promise<Blob>
   deleteAttachment(id: string, expectedRevision: number, signal?: AbortSignal): Promise<void>
   messages(sessionId: string, options?: AgentMessageListOptions): Promise<AgentMessagePage>
+  queuedTurns(sessionId: string, options?: { cursor?: string; limit?: number; signal?: AbortSignal }): Promise<AgentQueuedTurnPage>
+  enqueueTurn(sessionId: string, input: {
+    client_request_id: string
+    prompt: string
+    attachment_ids: string[]
+    source_context?: AgentSourceContext
+    force_context_compression: boolean
+  }, signal?: AbortSignal): Promise<AgentQueuedTurn>
+  beginQueuedTurnEdit(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentQueuedTurn>
+  updateQueuedTurn(id: string, input: {
+    prompt: string
+    attachment_ids: string[]
+    expected_revision: number
+  }, signal?: AbortSignal): Promise<AgentQueuedTurn>
+  cancelQueuedTurnEdit(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentQueuedTurn>
+  deleteQueuedTurn(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentQueuedTurn>
+  moveQueuedTurn(id: string, input: {
+    expected_revision: number
+    target_turn_id: string
+    target_expected_revision: number
+    placement: AgentQueuedTurnMovePlacement
+  }, signal?: AbortSignal): Promise<AgentQueuedTurnMoveResult>
+  steerQueuedTurn(input: {
+    turn_id: string
+    turn_revision: number
+    run_id: string
+    run_generation: number
+    run_revision: number
+  }): Promise<AgentRuntimeCommandResult>
+  resumeQueue(sessionId: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentQueueState>
+  wakeQueue(): Promise<AgentRuntimeCommandResult>
   context(sessionId: string, signal?: AbortSignal): Promise<AgentSessionContext>
   usage(sessionId: string, signal?: AbortSignal): Promise<AgentSessionUsage>
   createRun(sessionId: string, input: AgentCreateRunInput, signal?: AbortSignal): Promise<AgentRun>
   run(id: string, signal?: AbortSignal): Promise<AgentRun>
-  stopRun(id: string, expectedRevision: number, signal?: AbortSignal): Promise<AgentRun>
+  stopRun(
+    id: string,
+    expectedRevision: number,
+    expectedGeneration: number,
+    signal?: AbortSignal,
+  ): Promise<AgentRun>
   runEvents(id: string, options: AgentRunEventListOptions): Promise<AgentRunEventPage>
   eventsUrl(): string
   runtimeStatus(): Promise<AgentRuntimeStatus>

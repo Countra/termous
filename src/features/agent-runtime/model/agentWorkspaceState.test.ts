@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import type { AgentRunEvent } from '#entities/agent'
+import type { AgentQueueState, AgentQueuedTurn, AgentRunEvent } from '#entities/agent'
 import {
   applyAgentWorkspaceEvent,
   createAgentWorkspaceState,
   mergeAgentMessages,
   replaceAgentMessages,
+  replaceAgentQueuedTurns,
   selectAgentSession,
   setAgentDraft,
 } from './agentWorkspaceState.ts'
@@ -37,6 +38,45 @@ test('草稿按会话隔离并在清空后只删除目标草稿', () => {
 
   assert.equal(state.drafts['ags-one'], undefined)
   assert.equal(state.drafts['ags-two']?.text, '第二份')
+})
+
+test('排队消息增量按后端 editing 状态恢复并清除本地编辑草稿', () => {
+  const session = agentSessionFixture({ id: 'ags-queue' })
+  let state = applyAgentWorkspaceEvent(createAgentWorkspaceState(), {
+    type: 'snapshot', revision: 0, sessions: [session], active_runs: [],
+    queued_turns: [queuedTurnFixture({ session_id: session.id })],
+  }).state
+
+  state = applyAgentWorkspaceEvent(state, {
+    type: 'upsert', revision: 1,
+    queued_turn: queuedTurnFixture({ session_id: session.id, editing: true, revision: 2 }),
+  }).state
+  assert.equal(state.queued_turn_edits[session.id]?.text, '检查主机')
+
+  state = applyAgentWorkspaceEvent(state, {
+    type: 'upsert', revision: 2,
+    queued_turn: queuedTurnFixture({ session_id: session.id, editing: false, revision: 3 }),
+  }).state
+  assert.equal(state.queued_turn_edits[session.id], undefined)
+})
+
+test('旧 QueueState 的列表水合不会重新插入已派发消息', () => {
+  const sessionId = 'ags-queue'
+  const currentTurn = queuedTurnFixture({ id: 'agt-current', session_id: sessionId, revision: 5 })
+  let state = createAgentWorkspaceState()
+  state = replaceAgentQueuedTurns(state, sessionId, [currentTurn], queueStateFixture({
+    session_id: sessionId,
+    revision: 5,
+  }))
+
+  const staleTurn = queuedTurnFixture({ id: 'agt-dispatched', session_id: sessionId, revision: 3 })
+  const next = replaceAgentQueuedTurns(state, sessionId, [staleTurn], queueStateFixture({
+    session_id: sessionId,
+    revision: 4,
+  }))
+
+  assert.equal(next, state)
+  assert.deepEqual(next.queued_turns[sessionId]?.map(({ id }) => id), ['agt-current'])
 })
 
 test('显式新会话选择不被列表水合或快照回选为历史会话', () => {
@@ -306,6 +346,20 @@ test('Run 状态已收口时仍接受后到的本轮 Token 用量', () => {
   assert.equal(state.messages['ags-session']?.[0]?.turn_usage?.usage.total_tokens, 17)
 })
 
+test('Steer 终态同步保留历史消息中断原因', () => {
+  let state = workspaceWithRun()
+  state = applyAgentWorkspaceEvent(state, {
+    type: 'upsert', revision: 1,
+    run: agentRunFixture({
+      status: 'cancelled', error_code: 'AGENT_RUN_STEERED', revision: 2,
+      completed_at: agentFixtureTime,
+    }),
+  }).state
+
+  assert.equal(state.messages['ags-session']?.[0]?.status, 'interrupted')
+  assert.equal(state.messages['ags-session']?.[0]?.turn_usage?.error_code, 'AGENT_RUN_STEERED')
+})
+
 function workspaceWithRun(message = agentMessageFixture()) {
   let state = applyAgentWorkspaceEvent(createAgentWorkspaceState(), {
     type: 'snapshot',
@@ -315,4 +369,21 @@ function workspaceWithRun(message = agentMessageFixture()) {
   }).state
   state = mergeAgentMessages(state, 'ags-session', [message])
   return state
+}
+
+function queuedTurnFixture(overrides: Partial<AgentQueuedTurn> = {}): AgentQueuedTurn {
+  return {
+    id: 'agt-queue', session_id: 'ags-queue', client_request_id: 'request-queue',
+    queue_sequence: 1, prompt: '检查主机', model_id: 'apm-model', reasoning_level: 'medium',
+    force_context_compression: false, state: 'queued', editing: false, revision: 1,
+    created_at: agentFixtureTime, updated_at: agentFixtureTime, attachments: [],
+    ...overrides,
+  }
+}
+
+function queueStateFixture(overrides: Partial<AgentQueueState> = {}): AgentQueueState {
+  return {
+    session_id: 'ags-queue', state: 'running', revision: 1,
+    ...overrides,
+  }
 }

@@ -2,6 +2,8 @@ import {
   isAgentRunActive,
   isAgentRunTerminal,
   type AgentMessage,
+  type AgentQueueState,
+  type AgentQueuedTurn,
   type AgentRun,
   type AgentRunEvent,
   type AgentSession,
@@ -18,6 +20,12 @@ export interface AgentComposerDraft {
   updated_at: number
 }
 
+export interface AgentQueuedTurnEditDraft {
+  turn_id: string
+  text: string
+  retained_attachment_ids: string[]
+}
+
 export interface AgentWorkspaceState {
   phase: AgentWorkspacePhase
   snapshot_complete: boolean
@@ -30,6 +38,9 @@ export interface AgentWorkspaceState {
   run_event_sequences: Record<string, number>
   run_part_overlays: Record<string, Record<string, AgentMessage['parts'][number]>>
   drafts: Record<string, AgentComposerDraft>
+  queued_turns: Record<string, AgentQueuedTurn[]>
+  queue_states: Record<string, AgentQueueState>
+  queued_turn_edits: Record<string, AgentQueuedTurnEditDraft>
   session_contexts: Record<string, AgentWorkspaceSessionContextState>
   session_usages: Record<string, AgentWorkspaceSessionUsageState>
   selected_session_id?: string
@@ -56,6 +67,9 @@ export function createAgentWorkspaceState(): AgentWorkspaceState {
     run_event_sequences: {},
     run_part_overlays: {},
     drafts: {},
+    queued_turns: {},
+    queue_states: {},
+    queued_turn_edits: {},
     session_contexts: {},
     session_usages: {},
     new_session_selected: false,
@@ -70,7 +84,16 @@ export function applyAgentWorkspaceEvent(
   if (event.type === 'snapshot') return applySnapshot(current, event)
   if (event.revision <= current.revision) return { state: current }
   if (event.type === 'removed') {
+    if (event.entity === 'queued_turn') {
+      return { state: removeQueuedTurn({ ...current, revision: event.revision }, event.id, event.session_id) }
+    }
     return { state: removeEntity({ ...current, revision: event.revision }, event.entity, event.id) }
+  }
+  if (event.queued_turn) {
+    return { state: upsertQueuedTurn({ ...current, revision: event.revision }, event.queued_turn) }
+  }
+  if (event.queue_state) {
+    return { state: upsertQueueState({ ...current, revision: event.revision }, event.queue_state) }
   }
   if (event.session) {
     return { state: upsertSession({ ...current, revision: event.revision }, event.session) }
@@ -174,6 +197,62 @@ export function setAgentDraft(
   }
 }
 
+export function replaceAgentQueuedTurns(
+  current: AgentWorkspaceState,
+  sessionId: string,
+  turns: AgentQueuedTurn[],
+  queueState?: AgentQueueState,
+): AgentWorkspaceState {
+  if (turns.some((turn) => turn.session_id !== sessionId) || (queueState && queueState.session_id !== sessionId)) return current
+  const currentQueueState = current.queue_states[sessionId]
+  if (queueState && currentQueueState && currentQueueState.revision > queueState.revision) return current
+  const queueStates = queueState
+    ? currentQueueState && currentQueueState.revision === queueState.revision
+      ? current.queue_states
+      : { ...current.queue_states, [sessionId]: queueState }
+    : withoutKey(current.queue_states, sessionId)
+  const editingTurn = turns.find(({ state, editing }) => state === 'queued' && editing)
+  const queuedTurnEdits = editingTurn
+    ? {
+        ...current.queued_turn_edits,
+        [sessionId]: current.queued_turn_edits[sessionId]?.turn_id === editingTurn.id
+          ? current.queued_turn_edits[sessionId]!
+          : {
+              turn_id: editingTurn.id,
+              text: editingTurn.prompt,
+              retained_attachment_ids: editingTurn.attachments.map(({ id }) => id),
+            },
+      }
+    : withoutKey(current.queued_turn_edits, sessionId)
+  return {
+    ...current,
+    queued_turns: { ...current.queued_turns, [sessionId]: sortQueuedTurns(turns) },
+    queue_states: queueStates,
+    queued_turn_edits: queuedTurnEdits,
+  }
+}
+
+export function replaceAgentQueuedTurn(current: AgentWorkspaceState, turn: AgentQueuedTurn) {
+  return upsertQueuedTurn(current, turn)
+}
+
+export function replaceAgentQueueState(current: AgentWorkspaceState, queueState: AgentQueueState) {
+  return upsertQueueState(current, queueState)
+}
+
+export function setAgentQueuedTurnEdit(
+  current: AgentWorkspaceState,
+  sessionId: string,
+  edit?: AgentQueuedTurnEditDraft,
+) {
+  return {
+    ...current,
+    queued_turn_edits: edit
+      ? { ...current.queued_turn_edits, [sessionId]: edit }
+      : withoutKey(current.queued_turn_edits, sessionId),
+  }
+}
+
 export function selectAgentSession(current: AgentWorkspaceState, sessionId?: string) {
   if (sessionId !== undefined && !current.sessions.some(({ id, archived_at }) => id === sessionId && !archived_at)) {
     return current
@@ -202,6 +281,20 @@ function applySnapshot(
   )))
   state = { ...state, runs: terminalRuns, active_run_id: undefined }
   for (const run of event.active_runs) state = upsertRun(state, run)
+  const queuedBySession = new Map<string, AgentQueuedTurn[]>()
+  for (const turn of event.queued_turns ?? []) {
+    queuedBySession.set(turn.session_id, [...(queuedBySession.get(turn.session_id) ?? []), turn])
+  }
+  const queueSessionIDs = new Set([...queuedBySession.keys(), ...(event.queue_state ? [event.queue_state.session_id] : [])])
+  state = {
+    ...state,
+    queued_turns: Object.fromEntries([...queuedBySession].map(([sessionId, turns]) => [sessionId, sortQueuedTurns(turns)])),
+    queue_states: event.queue_state ? { [event.queue_state.session_id]: event.queue_state } : {},
+    queued_turn_edits: Object.fromEntries(Object.entries(state.queued_turn_edits).filter(([sessionId]) => queueSessionIDs.has(sessionId))),
+  }
+  for (const sessionId of queueSessionIDs) {
+    state = replaceAgentQueuedTurns(state, sessionId, state.queued_turns[sessionId] ?? [], state.queue_states[sessionId])
+  }
   const run = event.active_runs[0]
   return run && runRequiresReconcile(state, run) ? {
     state,
@@ -348,6 +441,9 @@ function removeEntity(
       run_event_sequences: withoutKeys(current.run_event_sequences, removedRunIDs),
       run_part_overlays: withoutKeys(current.run_part_overlays, removedRunIDs),
       drafts: withoutKey(current.drafts, id),
+      queued_turns: withoutKey(current.queued_turns, id),
+      queue_states: withoutKey(current.queue_states, id),
+      queued_turn_edits: withoutKey(current.queued_turn_edits, id),
       session_contexts: withoutKey(current.session_contexts, id),
       session_usages: withoutKey(current.session_usages, id),
       active_run_id: current.active_run_id && removedRunIDs.includes(current.active_run_id)
@@ -374,6 +470,63 @@ function removeEntity(
     run_part_overlays: withoutKey(current.run_part_overlays, id),
     active_run_id: current.active_run_id === id ? undefined : current.active_run_id,
   }
+}
+
+function upsertQueuedTurn(current: AgentWorkspaceState, turn: AgentQueuedTurn) {
+  const turns = current.queued_turns[turn.session_id] ?? []
+  const existing = turns.find(({ id }) => id === turn.id)
+  if (existing && existing.revision >= turn.revision) return current
+  if (turn.state !== 'queued') return removeQueuedTurn(current, turn.id, turn.session_id)
+  const activeEdit = current.queued_turn_edits[turn.session_id]
+  const queuedTurnEdits = turn.editing
+    ? {
+        ...current.queued_turn_edits,
+        [turn.session_id]: activeEdit?.turn_id === turn.id
+          ? activeEdit
+          : {
+              turn_id: turn.id,
+              text: turn.prompt,
+              retained_attachment_ids: turn.attachments.map(({ id }) => id),
+            },
+      }
+    : activeEdit?.turn_id === turn.id
+      ? withoutKey(current.queued_turn_edits, turn.session_id)
+      : current.queued_turn_edits
+  return {
+    ...current,
+    queued_turns: {
+      ...current.queued_turns,
+      [turn.session_id]: sortQueuedTurns([turn, ...turns.filter(({ id }) => id !== turn.id)]),
+    },
+    queued_turn_edits: queuedTurnEdits,
+  }
+}
+
+function upsertQueueState(current: AgentWorkspaceState, queueState: AgentQueueState) {
+  const existing = current.queue_states[queueState.session_id]
+  if (existing && existing.revision >= queueState.revision) return current
+  return {
+    ...current,
+    queue_states: { ...current.queue_states, [queueState.session_id]: queueState },
+  }
+}
+
+function removeQueuedTurn(current: AgentWorkspaceState, id: string, sessionId?: string) {
+  if (!sessionId) return current
+  const turns = current.queued_turns[sessionId]
+  if (!turns?.some((turn) => turn.id === id)) return current
+  const editing = current.queued_turn_edits[sessionId]
+  return {
+    ...current,
+    queued_turns: { ...current.queued_turns, [sessionId]: turns.filter((turn) => turn.id !== id) },
+    queued_turn_edits: editing?.turn_id === id
+      ? withoutKey(current.queued_turn_edits, sessionId)
+      : current.queued_turn_edits,
+  }
+}
+
+function sortQueuedTurns(turns: AgentQueuedTurn[]) {
+  return [...turns].sort((left, right) => left.queue_sequence - right.queue_sequence || left.id.localeCompare(right.id))
 }
 
 function reconcileSessionSelection(
@@ -552,7 +705,11 @@ function applyRunMessageStatus(current: AgentWorkspaceState, run: AgentRun) {
         ? 'interrupted'
         : 'streaming'
   const turnUsage = isAgentRunTerminal(run.status)
-    ? { run_id: run.id, usage: run.usage }
+    ? {
+        run_id: run.id,
+        usage: run.usage,
+        ...(run.error_code ? { error_code: run.error_code } : {}),
+      }
     : undefined
   const message = messages[index]!
   if (message.status === status && messageTurnUsageEqual(message.turn_usage, turnUsage)) return current
@@ -567,6 +724,7 @@ function messageTurnUsageEqual(
 ) {
   if (!left || !right) return left === right
   return left.run_id === right.run_id
+    && left.error_code === right.error_code
     && left.usage.input_tokens === right.usage.input_tokens
     && left.usage.cache_read_tokens === right.usage.cache_read_tokens
     && left.usage.cache_write_tokens === right.usage.cache_write_tokens

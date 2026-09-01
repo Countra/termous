@@ -1,4 +1,4 @@
-export const agentRuntimeProtocolVersion = '4' as const
+export const agentRuntimeProtocolVersion = '5' as const
 
 export type AgentSkillsBundleState =
   | 'ready'
@@ -35,6 +35,12 @@ export interface AgentRuntimeRunRef {
 
 export interface AgentRuntimeSteerRequest extends AgentRuntimeRunRef {
   message: string
+}
+
+export interface AgentQueuedTurnSteerRequest extends AgentRuntimeRunRef {
+  queued_turn_id: string
+  expected_revision: number
+  expected_run_revision: number
 }
 
 export interface AgentRuntimeCommandResult {

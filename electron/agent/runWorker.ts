@@ -78,6 +78,10 @@ export class AgentRunWorker {
   private runtimeStarted = false
   private settled = false
   private stopping = false
+  private abortSent = false
+  private abortDeadlineTimer: ReturnType<typeof setTimeout> | null = null
+  private forcedStopKillSent = false
+  private stopPromise: Promise<void> | null = null
   private failureReported = false
   private exited = false
   private exitHandled = false
@@ -134,6 +138,7 @@ export class AgentRunWorker {
       if (!this.exited) {
         this.exited = true
         this.exitCode = code
+        this.clearAbortDeadline()
         this.resolveExit(code)
       }
       void this.enqueue(() => this.finalizeExit())
@@ -174,11 +179,15 @@ export class AgentRunWorker {
     })
   }
 
-  async stop(shutdown: boolean) {
+  requestStop() {
     this.stopping = true
     this.rejectPendingSteerAcks('AGENT_RUNTIME_RUN_NOT_ACTIVE')
     this.clearExitGuard()
     this.publishStatus('stopping')
+    if (this.abortSent) {
+      return
+    }
+    this.abortSent = true
     try {
       this.process.postMessage({
         type: 'abort',
@@ -188,11 +197,24 @@ export class AgentRunWorker {
     } catch {
       // 进程可能恰好退出，统一由退出信号或后续强制回收路径收口。
     }
+    this.scheduleAbortDeadline()
+  }
+
+  async stop(shutdown: boolean) {
+    this.requestStop()
+    if (!this.stopPromise) {
+      this.stopPromise = this.finishStop(shutdown)
+    }
+    await this.stopPromise
+  }
+
+  private async finishStop(shutdown: boolean) {
     if (await this.waitForExit(this.abortGraceMs)) {
       await this.finalizeExit()
       return
     }
-    this.kill()
+    this.clearAbortDeadline()
+    this.forceKillForStop()
     if (!this.settled && !this.failureReported) {
       this.failureReported = true
       await this.reportFailure('forced_stop')
@@ -303,6 +325,7 @@ export class AgentRunWorker {
       return
     }
     this.exitHandled = true
+    this.clearAbortDeadline()
     this.clearExitGuard()
     this.rejectPendingSteerAcks('AGENT_RUNTIME_WORKER_UNAVAILABLE')
     this.dispose()
@@ -353,6 +376,46 @@ export class AgentRunWorker {
       this.clearTimeoutImplementation(this.exitGuardTimer)
       this.exitGuardTimer = null
     }
+  }
+
+  private scheduleAbortDeadline() {
+    if (this.abortDeadlineTimer !== null || this.exited) {
+      return
+    }
+    this.abortDeadlineTimer = this.setTimeoutImplementation(() => {
+      this.abortDeadlineTimer = null
+      void this.enforceAbortDeadline()
+    }, this.abortGraceMs)
+    if (typeof this.abortDeadlineTimer === 'object' && 'unref' in this.abortDeadlineTimer) {
+      this.abortDeadlineTimer.unref()
+    }
+  }
+
+  private clearAbortDeadline() {
+    if (this.abortDeadlineTimer === null) {
+      return
+    }
+    this.clearTimeoutImplementation(this.abortDeadlineTimer)
+    this.abortDeadlineTimer = null
+  }
+
+  private async enforceAbortDeadline() {
+    if (this.exited) {
+      return
+    }
+    this.forceKillForStop()
+    if (!this.settled && !this.failureReported) {
+      this.failureReported = true
+      await this.reportFailure('forced_stop')
+    }
+  }
+
+  private forceKillForStop() {
+    if (this.forcedStopKillSent) {
+      return
+    }
+    this.forcedStopKillSent = true
+    this.kill()
   }
 
   private async forceExitAfterGuard() {
@@ -465,14 +528,20 @@ function isCurrentSettledMessage(
 export function stableAgentRuntimeErrorCode(error: unknown, fallback: string) {
   if (error && typeof error === 'object' && 'code' in error) {
     const code = (error as { code?: unknown }).code
-    if (typeof code === 'string' && code.length > 0 && code.length <= 128) {
+    if (typeof code === 'string' && validStableErrorCode(code)) {
       return code
     }
   }
-  if (error instanceof Error && /^AGENT_[A-Z0-9_]+$/.test(error.message)) {
+  if (error instanceof Error
+    && error.message.startsWith('AGENT_')
+    && validStableErrorCode(error.message)) {
     return error.message
   }
   return fallback
+}
+
+function validStableErrorCode(value: string) {
+  return value.length <= 128 && /^[A-Z][A-Z0-9_]+$/.test(value)
 }
 
 async function waitFor(

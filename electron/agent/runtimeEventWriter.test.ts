@@ -145,6 +145,86 @@ test('Runtime Event Writer 按请求字节预算拆分多个大事件', async ()
   assert.deepEqual(core.batches.flat().map((event) => event.sequence), [1, 2, 3, 4])
 })
 
+test('Runtime Event Writer 合并同一片段的连续增量且不消耗额外 sequence', async () => {
+  const core = new RecordingCore()
+  const writer = new RuntimeEventWriter({
+    core,
+    start,
+    runtimeBearer: 'r'.repeat(48),
+    initialSequence: 8,
+    onFailure: (error) => assert.fail(String(error)),
+    flushDelayMs: 60_000,
+  })
+  const delta = (partID: string, kind: 'text' | 'reasoning', value: string) => ({
+    message_delta: {
+      message_id: 'agm_reply',
+      part_id: partID,
+      kind,
+      delta: value,
+    },
+  })
+
+  writer.push('message_delta', delta('agp_text', 'text', '第一段'))
+  writer.push('message_delta', delta('agp_text', 'text', '第二段'))
+  writer.push('message_delta', delta('agp_reasoning', 'reasoning', '思考'))
+  writer.push('message_delta', delta('agp_text', 'text', '第三段'))
+  await writer.flush()
+
+  assert.deepEqual(core.batches.flat().map((event) => event.sequence), [9, 10, 11])
+  assert.equal(
+    nestedDelta(core.batches[0]?.[0]).delta,
+    '第一段第二段',
+  )
+  assert.equal(nestedDelta(core.batches[0]?.[1]).kind, 'reasoning')
+  assert.equal(nestedDelta(core.batches[0]?.[2]).delta, '第三段')
+})
+
+test('Runtime Event Writer 在发送进行中保留并合并后续流增量', async () => {
+  const core = new RecordingCore()
+  let releaseFirst: () => void = () => undefined
+  const firstGate = new Promise<void>((resolve) => {
+    releaseFirst = resolve
+  })
+  let calls = 0
+  const appendEvents = core.appendEvents.bind(core)
+  core.appendEvents = async (...args) => {
+    calls += 1
+    if (calls === 1) {
+      await firstGate
+    }
+    return appendEvents(...args)
+  }
+  const writer = new RuntimeEventWriter({
+    core,
+    start,
+    runtimeBearer: 'r'.repeat(48),
+    initialSequence: 0,
+    onFailure: (error) => assert.fail(String(error)),
+    flushDelayMs: 1,
+  })
+  const payload = (value: string) => ({
+    message_delta: {
+      message_id: 'agm_reply',
+      part_id: 'agp_reply',
+      kind: 'text' as const,
+      delta: value,
+    },
+  })
+
+  writer.push('message_delta', payload('a'))
+  await waitUntil(() => calls === 1)
+  writer.push('message_delta', payload('b'))
+  await new Promise((resolve) => setTimeout(resolve, 5))
+  writer.push('message_delta', payload('c'))
+  await new Promise((resolve) => setTimeout(resolve, 5))
+  releaseFirst()
+  await writer.flush()
+
+  assert.equal(core.batches.length, 2)
+  assert.equal(nestedDelta(core.batches[1]?.[0]).delta, 'bc')
+  assert.deepEqual(core.batches.flat().map((event) => event.sequence), [1, 2])
+})
+
 test('Runtime Event Writer 拒绝单个超预算事件且不消耗 sequence', async () => {
   const core = new RecordingCore()
   const writer = new RuntimeEventWriter({
@@ -219,3 +299,26 @@ test('首个批次失败后不再发送已排队批次或外部写入', async ()
   assert.equal(eventCalls, 1)
   assert.equal(externalCalls, 0)
 })
+
+function nestedDelta(event: RuntimeEventInput | undefined) {
+  assert.ok(event)
+  const value = event.payload.message_delta
+  assert.equal(typeof value, 'object')
+  assert.notEqual(value, null)
+  return value as {
+    message_id: string
+    part_id: string
+    kind: 'text' | 'reasoning'
+    delta: string
+  }
+}
+
+async function waitUntil(condition: () => boolean) {
+  const deadline = Date.now() + 2_000
+  while (!condition()) {
+    if (Date.now() >= deadline) {
+      throw new Error('等待测试条件超时')
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+}

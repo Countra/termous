@@ -1,6 +1,8 @@
 import type { CoreRuntimeConfig } from '../coreProcess'
 import {
   agentRuntimeProtocolVersion,
+  type AgentQueuedTurnSteerRequest,
+  type AgentRuntimeRunRef,
   type AgentSkillsBundleStatus,
 } from '#common/contracts'
 import { isRecord, validGeneration, validRunID } from './protocol.ts'
@@ -26,12 +28,24 @@ export interface AgentRuntimeTicket {
   expires_at: string
 }
 
+export interface AgentQueuedTurnSteerResult {
+  queued_turn: {
+    id: string
+    revision: number
+  }
+  run: AgentRuntimeRunRef & {
+    revision: number
+  }
+}
+
 export interface AgentCoreRuntimePort {
   registerSupervisor(
     supervisorInstanceID: string,
     skillsBundle: AgentSkillsBundleStatus,
   ): Promise<AgentSupervisorLease>
   unregisterSupervisor(supervisorInstanceID: string, expectedRevision: number): Promise<void>
+  claimNextQueuedRun(supervisorInstanceID: string): Promise<AgentRuntimeRunRef | null>
+  steerQueuedTurn(request: AgentQueuedTurnSteerRequest): Promise<AgentQueuedTurnSteerResult>
   issueRuntimeTicket(
     supervisorInstanceID: string,
     runID: string,
@@ -103,6 +117,48 @@ export class AgentCoreRuntimeClient implements AgentCoreRuntimePort {
     })
   }
 
+  async claimNextQueuedRun(supervisorInstanceID: string) {
+    const value = await this.requestRecoverableMutation('/api/v1/agent/runtime/queue/claim-next', {
+      method: 'POST',
+      body: JSON.stringify({ supervisor_instance_id: supervisorInstanceID }),
+    })
+    if (!isRecord(value)) {
+      if (value === null) return null
+      throw new AgentCoreRuntimeError('AGENT_RUNTIME_RESPONSE_INVALID', 502)
+    }
+    if (value.run === undefined || value.run === null) return null
+    if (!isCoreRun(value.run)) {
+      throw new AgentCoreRuntimeError('AGENT_RUNTIME_RESPONSE_INVALID', 502)
+    }
+    return { run_id: value.run.id, generation: value.run.generation }
+  }
+
+  async steerQueuedTurn(request: AgentQueuedTurnSteerRequest) {
+    const value = await this.requestRecoverableMutation(
+      `/api/v1/agent/queued-turns/${encodeURIComponent(request.queued_turn_id)}/steer`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          expected_revision: request.expected_revision,
+          active_run_id: request.run_id,
+          expected_generation: request.generation,
+          expected_run_revision: request.expected_run_revision,
+        }),
+      },
+    )
+    if (!isQueuedTurnSteerResult(value, request)) {
+      throw new AgentCoreRuntimeError('AGENT_RUNTIME_RESPONSE_INVALID', 502)
+    }
+    return {
+      queued_turn: value.queued_turn,
+      run: {
+        run_id: value.run.id,
+        generation: value.run.generation,
+        revision: value.run.revision,
+      },
+    }
+  }
+
   async issueRuntimeTicket(
     supervisorInstanceID: string,
     runID: string,
@@ -148,6 +204,18 @@ export class AgentCoreRuntimeClient implements AgentCoreRuntimePort {
     return validateCoreBaseURL(config.apiBaseUrl).toString()
   }
 
+  private async requestRecoverableMutation(pathname: string, init: RequestInit) {
+    try {
+      return await this.request(pathname, init)
+    } catch (error) {
+      if (!isRetryableRuntimeTransportError(error)) {
+        throw error
+      }
+      // Core 对这两个写接口提供幂等恢复，响应丢失时重试不会重复派发或重复中断。
+      return this.request(pathname, init)
+    }
+  }
+
   private async request(pathname: string, init: RequestInit) {
     const config = await this.getConfig()
     const baseURL = validateCoreBaseURL(config.apiBaseUrl)
@@ -187,6 +255,13 @@ export class AgentCoreRuntimeClient implements AgentCoreRuntimePort {
       clearTimeout(timeout)
     }
   }
+}
+
+function isRetryableRuntimeTransportError(error: unknown) {
+  return error instanceof AgentCoreRuntimeError
+    && error.status === 0
+    && (error.code === 'AGENT_RUNTIME_REQUEST_TIMEOUT'
+      || error.code === 'AGENT_RUNTIME_UNAVAILABLE')
 }
 
 function validateCoreBaseURL(value: string) {
@@ -247,6 +322,38 @@ function isRuntimeTicket(
     && validRuntimeIdentity(value.core_instance_id)
     && typeof value.expires_at === 'string'
     && validFutureTimestamp(value.expires_at)
+}
+
+function isCoreRun(value: unknown): value is { id: string; generation: number } {
+  return isRecord(value)
+    && validRunID(value.id)
+    && validGeneration(value.generation)
+}
+
+function isCoreRunWithRevision(
+  value: unknown,
+): value is { id: string; generation: number; revision: number } {
+  return isRecord(value)
+    && validRunID(value.id)
+    && validGeneration(value.generation)
+    && validGeneration(value.revision)
+}
+
+function isQueuedTurnSteerResult(
+  value: unknown,
+  request: AgentQueuedTurnSteerRequest,
+): value is {
+    queued_turn: { id: string; revision: number }
+    run: { id: string; generation: number; revision: number }
+  } {
+  return isRecord(value)
+    && isRecord(value.queued_turn)
+    && value.queued_turn.id === request.queued_turn_id
+    && validRunID(value.queued_turn.id)
+    && validGeneration(value.queued_turn.revision)
+    && isCoreRunWithRevision(value.run)
+    && value.run.id === request.run_id
+    && value.run.generation === request.generation
 }
 
 function validRuntimeIdentity(value: unknown): value is string {

@@ -79,13 +79,13 @@ export function AgentPage({
   const [providers, setProviders] = useState<AgentModelProvider[]>([])
   const [models, setModels] = useState<AgentModel[]>([])
   const [setupLoading, setSetupLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
+  const [operationBusy, setOperationBusy] = useState<AgentOperationBusy>(() => createOperationBusy())
   const [draftModelId, setDraftModelId] = useState<string>()
   const [draftReasoningLevel, setDraftReasoningLevel] = useState<AgentReasoningLevel>()
   const [draftSourceContexts, setDraftSourceContexts] = useState<Record<string, AgentSourceContext>>({})
   const [activeSetupReadyEpoch, setActiveSetupReadyEpoch] = useState(0)
   const [activeSetupFailedEpoch, setActiveSetupFailedEpoch] = useState(0)
-  const busyRef = useRef(false)
+  const operationBusyRef = useRef<AgentOperationBusy>(createOperationBusy())
   const attachmentDraftSessionPromiseRef = useRef<Promise<AgentSession> | null>(null)
   const attachmentDraftSessionIdsRef = useRef(new Set<string>())
   const handledLaunchIntentRef = useRef(0)
@@ -95,6 +95,8 @@ export function AgentPage({
   const activeSetupAbortRef = useRef<AbortController | null>(null)
   const notificationRef = useRef(notification)
   const tRef = useRef(t)
+  const previousQueuedTurnEditSessionIdsRef = useRef(new Set<string>())
+  const committedQueuedTurnEditSessionIdsRef = useRef(new Set<string>())
   notificationRef.current = notification
   tRef.current = t
   const providerById = useMemo(
@@ -227,10 +229,11 @@ export function AgentPage({
   const perform = useCallback(async (
     operation: () => Promise<unknown>,
     errorContext: 'generic' | 'resource' = 'generic',
+    lane: AgentOperationLane = 'workspace',
   ) => {
-    if (busyRef.current) return false
-    busyRef.current = true
-    setBusy(true)
+    if (operationBusyRef.current[lane]) return false
+    operationBusyRef.current = { ...operationBusyRef.current, [lane]: true }
+    setOperationBusy(operationBusyRef.current)
     try {
       await operation()
       return true
@@ -238,8 +241,8 @@ export function AgentPage({
       notifyError(notificationRef.current, tRef.current, error, errorContext)
       return false
     } finally {
-      busyRef.current = false
-      setBusy(false)
+      operationBusyRef.current = { ...operationBusyRef.current, [lane]: false }
+      setOperationBusy(operationBusyRef.current)
     }
   }, [])
 
@@ -387,6 +390,34 @@ export function AgentPage({
     ensureSession: ensureAttachmentSession,
     onError: reportAttachmentError,
   })
+  const queuedTurnEditExistingSelections = useCallback((sessionId: string) => {
+    const edit = controller.getSnapshot().queued_turn_edits[sessionId]
+    const turn = controller.getSnapshot().queued_turns[sessionId]
+      ?.find(({ id }) => id === edit?.turn_id)
+    const retained = new Set(edit?.retained_attachment_ids ?? [])
+    return (turn?.attachments ?? [])
+      .filter(({ id }) => retained.has(id))
+      .map(({ kind, size_bytes }) => ({ kind, size_bytes }))
+  }, [controller])
+  const queuedTurnEditAttachments = useAgentDraftAttachments({
+    gateway,
+    ensureSession: ensureAttachmentSession,
+    onError: reportAttachmentError,
+    existingSelections: queuedTurnEditExistingSelections,
+  })
+
+  useEffect(() => {
+    const current = new Set(Object.keys(state.queued_turn_edits ?? {}))
+    for (const sessionId of previousQueuedTurnEditSessionIdsRef.current) {
+      if (current.has(sessionId)) continue
+      if (committedQueuedTurnEditSessionIdsRef.current.delete(sessionId)) {
+        queuedTurnEditAttachments.clear(sessionId)
+      } else {
+        void queuedTurnEditAttachments.discard(sessionId)
+      }
+    }
+    previousQueuedTurnEditSessionIdsRef.current = current
+  }, [queuedTurnEditAttachments, state.queued_turn_edits])
   const activeSetupReady = active
     && activeSetupEpochRef.current > 0
     && activeSetupReadyEpoch === activeSetupEpochRef.current
@@ -394,6 +425,56 @@ export function AgentPage({
   const activeSetupFailed = active
     && activeSetupFailedEpoch > 0
     && activeSetupFailedEpoch === activeSetupEpochRef.current
+  const selectedRun = useMemo(() => {
+    if (!selected) return undefined
+    const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
+    return activeRun?.session_id === selected.id
+      ? activeRun
+      : latestSessionRun(selected.id, state.runs)
+  }, [selected, state.active_run_id, state.runs])
+  const selectedMessageEntities = selected ? state.messages[selected.id] : undefined
+  const selectedRunEvents = selectedRun ? state.run_events[selectedRun.id] : undefined
+  const workspaceMessages = useMemo(
+    () => projectAgentMessages(selectedMessageEntities ?? [], selectedRun, selectedRunEvents ?? []),
+    [selectedMessageEntities, selectedRun, selectedRunEvents],
+  )
+  const selectedQueuedTurnEdit = selected ? state.queued_turn_edits?.[selected.id] : undefined
+  const selectedQueuedTurns = selected ? state.queued_turns?.[selected.id] ?? [] : []
+  const selectedQueueState = selected ? state.queue_states?.[selected.id] : undefined
+  const selectedDraftAttachmentRecords = selected && selectedQueuedTurnEdit
+    ? queuedTurnEditAttachments.records[selected.id]
+    : draftAttachments.records[selected?.id ?? 'new']
+  const projectedDraftAttachments = useMemo(
+    () => (selectedDraftAttachmentRecords ?? []).map((record) => ({
+      client_id: record.client_id,
+      name: record.file.name,
+      size_bytes: record.file.size,
+      kind: record.kind,
+      file: record.file,
+      phase: record.phase,
+      attachment: record.attachment,
+      error_code: record.error_code,
+    })),
+    [selectedDraftAttachmentRecords],
+  )
+  const resourceBinding = selected?.resource_binding
+  const resourceContext = useMemo(
+    () => resourceBinding
+      ? projectResourceContext(
+          resourceBinding,
+          sshResources,
+          sshResourcesReady && state.snapshot_complete,
+        )
+      : undefined,
+    [resourceBinding, sshResources, sshResourcesReady, state.snapshot_complete],
+  )
+  const approvalBypass = readiness?.mcp_policy?.approval_bypass
+  const approvalPolicy = useMemo(() => activeSetupReady && approvalBypass !== undefined
+    ? {
+        status: 'ready' as const,
+        mode: agentApprovalModeFromBypass(approvalBypass),
+      }
+    : { status: 'unavailable' as const }, [activeSetupReady, approvalBypass])
 
   useEffect(() => {
     if (!activeSetupReady || !workspaceInfrastructureReady || !newSessionModelRunnable || !launchIntent) return
@@ -427,7 +508,7 @@ export function AgentPage({
       <div className={styles.page}>
         <AgentReadinessSurface
           readiness={readiness}
-          loading={setupLoading || busy}
+          loading={setupLoading || operationBusy.workspace}
           onRefresh={() => void hydrateActiveSetup(activeSetupEpochRef.current)}
           onPrepare={() => void perform(async () => {
             const epoch = activeSetupEpochRef.current
@@ -442,17 +523,8 @@ export function AgentPage({
     )
   }
 
-  const selectedRun = selected ? latestSessionRun(selected.id, state.runs) : undefined
-  const resourceContext = selected?.resource_binding
-    ? projectResourceContext(
-        selected.resource_binding,
-        sshResources,
-        sshResourcesReady && state.snapshot_complete,
-      )
-    : undefined
   const resourceRunBlocked = Boolean(resourceContext && resourceContext.status !== 'ready')
   const activeRun = state.active_run_id ? state.runs[state.active_run_id] : undefined
-  const runEvents = selectedRun ? state.run_events[selectedRun.id] ?? [] : []
   const selectedModel = modelById.get(selected?.model_id ?? newSessionModelId ?? '')
   const selectedReasoningLevel = selected?.reasoning_level ?? newSessionReasoningLevel
   const selectedModelRunnable = Boolean(selectedModel && isAgentModelRunnable(
@@ -462,6 +534,10 @@ export function AgentPage({
   const selectedContext = selected ? state.session_contexts[selected.id] : undefined
   const contextSnapshot = selectedContext?.value
   const selectedUsage = selected ? state.session_usages[selected.id] : undefined
+  const queuedTurnCounts = Object.fromEntries(Object.entries(state.queued_turns ?? {}).map(([sessionId, turns]) => [
+    sessionId,
+    turns.filter(({ state: turnState }) => turnState === 'queued').length,
+  ]))
   const usageSnapshot = selectedUsage?.value
   const inspector: AgentWorkspaceInspectorState = {
     context: {
@@ -496,13 +572,6 @@ export function AgentPage({
       scope_count: readiness.mcp_policy?.scope_count ?? 0,
     },
   }
-  const approvalPolicy = activeSetupReady && readiness.mcp_policy
-    ? {
-        status: 'ready' as const,
-        mode: agentApprovalModeFromBypass(readiness.mcp_policy.approval_bypass),
-      }
-    : { status: 'unavailable' as const }
-
   return (
     <div className={styles.page}>
       {activeSetupFailed ? (
@@ -539,7 +608,7 @@ export function AgentPage({
       <AgentWorkspace
         sessions={workspaceSessions}
         selected_session_id={state.selected_session_id}
-        messages={projectAgentMessages(selected ? state.messages[selected.id] ?? [] : [], selectedRun, runEvents)}
+        messages={workspaceMessages}
         models={workspaceModelOptions}
         selected_model_id={selected?.model_id ?? newSessionModelId}
         default_model_id={readiness.settings.default_model_id ?? firstRunnableModelId}
@@ -548,21 +617,20 @@ export function AgentPage({
         inspector={inspector}
         draft={state.drafts[selected?.id ?? 'new']?.text ?? ''}
         draft_source_context={draftSourceContexts[selected?.id ?? 'new']}
-        draft_attachments={(draftAttachments.records[selected?.id ?? 'new'] ?? []).map((record) => ({
-          client_id: record.client_id,
-          name: record.file.name,
-          size_bytes: record.file.size,
-          kind: record.kind,
-          file: record.file,
-          phase: record.phase,
-          attachment: record.attachment,
-          error_code: record.error_code,
-        }))}
-        supports_images={selectedModel?.supports_images ?? false}
+        draft_attachments={projectedDraftAttachments}
+        queued_turns={selectedQueuedTurns}
+        queued_turn_counts={queuedTurnCounts}
+        queue_state={selectedQueueState}
+        queued_turn_edit={selectedQueuedTurnEdit}
+        supports_images={selectedRun && selectedRun.id === activeRun?.id
+          ? selectedRun.model_snapshot.supports_images
+          : selectedModel?.supports_images ?? false}
         model_runnable={selectedModelRunnable}
         show_turn_token_usage={readiness.settings.show_turn_token_usage}
         loading={state.phase === 'loading'}
-        busy={busy}
+        busy={operationBusy.workspace}
+        queue_busy={operationBusy.queue}
+        stop_busy={operationBusy.stop}
         active_run={activeRun ? {
           session_id: activeRun.session_id,
           status: activeRun.status,
@@ -667,9 +735,15 @@ export function AgentPage({
         })}
         onOpenSettings={onOpenSettings ?? (() => undefined)}
         onDraftChange={(value) => controller.updateDraft(selected?.id ?? 'new', value)}
-        onAttachFiles={draftAttachments.add}
-        onRemoveAttachment={draftAttachments.remove}
-        onRetryAttachment={draftAttachments.retry}
+        onAttachFiles={selected && selectedQueuedTurnEdit
+          ? queuedTurnEditAttachments.add
+          : draftAttachments.add}
+        onRemoveAttachment={selected && selectedQueuedTurnEdit
+          ? queuedTurnEditAttachments.remove
+          : draftAttachments.remove}
+        onRetryAttachment={selected && selectedQueuedTurnEdit
+          ? queuedTurnEditAttachments.retry
+          : draftAttachments.retry}
         onLoadAttachmentContent={loadAttachmentContent}
         onSend={async (message, attachmentIds, sourceContext) => {
           if (!activeSetupReady) return
@@ -720,20 +794,7 @@ export function AgentPage({
             clearCommittedDraft()
           }, resourceContext ? 'resource' : 'generic')
         }}
-        onSteer={async (message) => {
-          await perform(async () => {
-            if (resourceRunBlocked) throw new Error('AGENT_RESOURCE_BINDING_UNAVAILABLE')
-            const targetSessionId = selected?.id
-            const submittedDraft = targetSessionId
-              ? controller.getSnapshot().drafts[targetSessionId]
-              : undefined
-            await controller.steerActiveRun(message)
-            if (targetSessionId && controller.getSnapshot().drafts[targetSessionId] === submittedDraft) {
-              controller.updateDraft(targetSessionId, '')
-            }
-          }, resourceContext ? 'resource' : 'generic')
-        }}
-        onStop={async () => { await perform(() => controller.stopActiveRun()) }}
+        onStop={async () => { await perform(() => controller.stopActiveRun(), 'generic', 'stop') }}
         onContextCompressionPendingChange={(enabled) => {
           if (!selected) return
           try {
@@ -744,6 +805,73 @@ export function AgentPage({
         }}
         onRetryContext={() => {
           if (selected) void controller.reloadContext(selected.id)
+        }}
+        onQueueTurn={async (message, attachmentIds, sourceContext) => {
+          if (!selected) return
+          await perform(async () => {
+            const submittedDraft = controller.getSnapshot().drafts[selected.id]
+            await controller.enqueueTurn(selected.id, message, attachmentIds, sourceContext)
+            if (controller.getSnapshot().drafts[selected.id] === submittedDraft) {
+              controller.updateDraft(selected.id, '')
+            }
+            draftAttachments.clear(selected.id)
+            setDraftSourceContexts((contexts) => omitKey(contexts, selected.id))
+          }, resourceContext ? 'resource' : 'generic', 'queue')
+        }}
+        onBeginQueuedTurnEdit={async (turnId) => {
+          if (selected) await perform(
+            () => controller.beginQueuedTurnEdit(selected.id, turnId),
+            'generic',
+            'queue',
+          )
+        }}
+        onQueuedTurnEditChange={(value) => {
+          if (selected) controller.updateQueuedTurnEditDraft(selected.id, value)
+        }}
+        onRemoveQueuedTurnEditAttachment={(attachmentId) => {
+          if (selected) controller.removeQueuedTurnEditAttachment(selected.id, attachmentId)
+        }}
+        onSaveQueuedTurnEdit={async (attachmentIds) => {
+          if (!selected) return
+          const edit = controller.getSnapshot().queued_turn_edits[selected.id]
+          const retainedAttachmentIds = edit?.retained_attachment_ids ?? []
+          await perform(async () => {
+            committedQueuedTurnEditSessionIdsRef.current.add(selected.id)
+            try {
+              await controller.saveQueuedTurnEdit(selected.id, [...retainedAttachmentIds, ...attachmentIds])
+            } catch (error) {
+              committedQueuedTurnEditSessionIdsRef.current.delete(selected.id)
+              throw error
+            }
+          }, 'generic', 'queue')
+        }}
+        onCancelQueuedTurnEdit={async () => {
+          if (selected) {
+            await perform(() => controller.cancelQueuedTurnEdit(selected.id), 'generic', 'queue')
+          }
+        }}
+        onDeleteQueuedTurn={async (turnId) => {
+          if (selected) await perform(
+            () => controller.deleteQueuedTurn(selected.id, turnId),
+            'generic',
+            'queue',
+          )
+        }}
+        onMoveQueuedTurn={async (turnId, targetTurnId, placement) => {
+          if (!selected) return false
+          return await perform(() => (
+            controller.moveQueuedTurn(selected.id, turnId, targetTurnId, placement)
+          ), 'generic', 'queue')
+        }}
+        onSteerQueuedTurn={async (turnId) => {
+          if (selected) await perform(
+            () => controller.steerQueuedTurn(selected.id, turnId),
+            'generic',
+            'queue',
+          )
+        }}
+        onResumeQueue={async () => {
+          if (selected) await perform(() => controller.resumeQueue(selected.id), 'generic', 'queue')
         }}
         onRetryUsage={() => {
           if (selected) void controller.reloadUsage(selected.id)
@@ -769,6 +897,18 @@ export function AgentPage({
       />
     </div>
   )
+}
+
+type AgentOperationLane = 'workspace' | 'queue' | 'stop'
+
+interface AgentOperationBusy {
+  workspace: boolean
+  queue: boolean
+  stop: boolean
+}
+
+function createOperationBusy(): AgentOperationBusy {
+  return { workspace: false, queue: false, stop: false }
 }
 
 function updateInput(session: AgentSession, archived: boolean) {

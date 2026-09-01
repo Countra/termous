@@ -19,7 +19,7 @@ import {
 } from './agentWorkspaceProjection.ts'
 
 describe('Agent 工作区页面投影', () => {
-  it('仅在 Main Runtime 与当前 Run 的 generation 对齐后开放 steer', () => {
+  it('仅在 Main Runtime 与当前 Run 的 generation 对齐后开放运行态交互', () => {
     const run = activeRun()
     expect(agentRunInteractionBlocked(run.id, run, {
       state: 'starting', active_run_id: run.id, generation: run.generation,
@@ -180,6 +180,55 @@ describe('Agent 工作区页面投影', () => {
     })
   })
 
+  it('一次索引多个会话的最新 Run，并在时间相同时使用稳定 ID 决胜', () => {
+    const firstSession = agentSession('model-current')
+    const secondSession = {
+      ...agentSession('model-other'),
+      id: 'session-two',
+      title: '第二个会话',
+    }
+    const tiedEarlier = activeRun({
+      id: 'agr-a',
+      status: 'failed',
+      model_id: 'model-current',
+      model_snapshot: modelSnapshot({ model_id: 'remote-earlier' }),
+      queued_at: '2026-08-29T00:00:00Z',
+      updated_at: '2026-08-29T00:00:02Z',
+    })
+    const tiedStableWinner = activeRun({
+      id: 'agr-z',
+      status: 'completed',
+      model_id: 'model-current',
+      model_snapshot: modelSnapshot({ model_id: 'remote-stable-winner' }),
+      queued_at: '2026-08-29T00:00:00Z',
+      updated_at: '2026-08-29T00:00:02Z',
+    })
+    const secondLatest = activeRun({
+      id: 'agr-second',
+      session_id: secondSession.id,
+      status: 'interrupted',
+      model_id: 'model-other',
+      updated_at: '2026-08-29T00:00:03Z',
+    })
+
+    const projected = projectAgentSessions(
+      [firstSession, secondSession],
+      [],
+      [],
+      {
+        [secondLatest.id]: secondLatest,
+        [tiedStableWinner.id]: tiedStableWinner,
+        [tiedEarlier.id]: tiedEarlier,
+      },
+    )
+
+    expect(projected.find(({ id }) => id === firstSession.id)).toMatchObject({
+      model_name: 'remote-stable-winner',
+      run_status: 'completed',
+    })
+    expect(projected.find(({ id }) => id === secondSession.id)?.run_status).toBe('interrupted')
+  })
+
   it('将尚未开始输出的消息投影为流式状态', () => {
     const message: AgentMessage = {
       id: 'message-one',
@@ -234,6 +283,45 @@ describe('Agent 工作区页面投影', () => {
     const after = projectAgentMessages([message], run, [finalPart])[0]?.parts[0]
     expect(before?.kind === 'reasoning' && before.streaming).toBe(true)
     expect(after?.kind === 'reasoning' && after.streaming).toBe(false)
+  })
+
+  it('文本投影保持当前 Markdown 内容，不额外切换流式展示模式', () => {
+    const message: AgentMessage = {
+      id: 'message-assistant',
+      session_id: 'session-one',
+      role: 'assistant',
+      status: 'streaming',
+      sequence: 2,
+      revision: 1,
+      created_at: '2026-08-29T00:00:00Z',
+      updated_at: '2026-08-29T00:00:01Z',
+      parts: [{
+        id: 'part-text',
+        message_id: 'message-assistant',
+        sequence: 1,
+        revision: 1,
+        created_at: '2026-08-29T00:00:00Z',
+        updated_at: '2026-08-29T00:00:01Z',
+        kind: 'text',
+        text: '**持续输出**',
+      }],
+      attachments: [],
+    }
+    const finalPart: AgentRunEvent = {
+      id: 'event-text-part',
+      run_id: 'agr-current',
+      generation: 2,
+      sequence: 2,
+      kind: 'message_part',
+      payload: { message_part: message.parts[0]! },
+      created_at: '2026-08-29T00:00:01Z',
+    }
+
+    const run = activeRun()
+    const before = projectAgentMessages([message], run, [])[0]?.parts[0]
+    const after = projectAgentMessages([message], run, [finalPart])[0]?.parts[0]
+    expect(before).toEqual({ id: 'part-text', kind: 'text', text: '**持续输出**' })
+    expect(after).toEqual(before)
   })
 
   it('将消息附件与文本片段中的来源上下文投影到工作区', () => {
@@ -302,6 +390,23 @@ describe('Agent 工作区页面投影', () => {
     expect(projectAgentMessages([
       { ...message, status: 'streaming' },
     ], run, [])[0]?.usage).toBeUndefined()
+  })
+
+  it('后继 Run 开始后仍按历史终态元数据展示 steer 中断', () => {
+    const message: AgentMessage = {
+      id: 'message-steered', session_id: 'session-one', role: 'assistant', status: 'interrupted',
+      sequence: 2, revision: 1, created_at: '2026-08-29T00:00:00Z', updated_at: '2026-08-29T00:00:01Z',
+      parts: [], attachments: [],
+      turn_usage: { run_id: 'agr-steered', usage: tokenUsage(0), error_code: 'AGENT_RUN_STEERED' },
+    }
+    const followingRun = activeRun({
+      id: 'agr-following', assistant_message_id: 'message-following', status: 'running',
+    })
+
+    expect(projectAgentMessages([message], followingRun, [])[0]?.status).toBe('interrupted_by_steer')
+    expect(projectAgentMessages([
+      { ...message, turn_usage: { ...message.turn_usage!, error_code: 'AGENT_RUNTIME_INTERRUPTED' } },
+    ], followingRun, [])[0]?.status).toBe('interrupted')
   })
 })
 

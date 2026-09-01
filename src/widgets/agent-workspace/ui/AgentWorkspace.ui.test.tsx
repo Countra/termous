@@ -3,6 +3,7 @@ import { act, createEvent, fireEvent, render, screen, waitFor, within } from '@t
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { contextActionMenuPopupClassName } from '#shared/ui'
+import type { AgentQueuedTurn } from '#entities/agent'
 import type { AgentWorkspaceModelOption, AgentWorkspaceProps } from '../model/types.ts'
 import { AgentWorkspace } from './AgentWorkspace.tsx'
 
@@ -21,7 +22,7 @@ describe('AgentWorkspace', () => {
     vi.unstubAllGlobals()
   })
 
-  it('展示真实 reasoning 与 Tool 时间线并路由发送、steer 和停止', async () => {
+  it('展示真实 reasoning 与 Tool 时间线并路由发送、排队和停止', async () => {
     const user = userEvent.setup()
     const props = fixtureProps({ draft: 'hello' })
     const view = renderWorkspace(props)
@@ -35,14 +36,32 @@ describe('AgentWorkspace', () => {
     view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
       draft: 'adjust',
       sessions: [{ ...props.sessions[0]!, run_status: 'running' }],
-      onSteer: props.onSteer,
+      onQueueTurn: props.onQueueTurn,
       onStop: props.onStop,
     })} /></AntdApp>)
     expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'agent.composer.steer' }))
-    expect(props.onSteer).toHaveBeenCalledWith('adjust')
+    await user.click(screen.getByRole('button', { name: 'agent.composer.queue' }))
+    expect(props.onQueueTurn).toHaveBeenCalledWith('adjust', [], undefined)
     await user.click(screen.getByRole('button', { name: 'agent.composer.stop' }))
     expect(props.onStop).toHaveBeenCalledTimes(1)
+  })
+
+  it('排队或普通请求在途时仍可独立停止活动 Run', async () => {
+    const user = userEvent.setup()
+    const props = fixtureProps({
+      draft: '继续检查',
+      busy: true,
+      queue_busy: true,
+      stop_busy: false,
+      sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
+    })
+    renderWorkspace(props)
+
+    expect(screen.getByRole('button', { name: 'agent.composer.queue' })).toBeDisabled()
+    const stop = screen.getByRole('button', { name: 'agent.composer.stop' })
+    expect(stop).toBeEnabled()
+    await user.click(stop)
+    expect(props.onStop).toHaveBeenCalledOnce()
   })
 
   it('模型不可用时向键盘用户展示原因并禁止启动新 Run', async () => {
@@ -98,23 +117,282 @@ describe('AgentWorkspace', () => {
     expect(onOpenSettings).toHaveBeenCalledOnce()
   })
 
-  it('活动 Run 使用启动快照，模型目录不可用时仍允许 steer', async () => {
+  it('活动 Run 使用启动快照，模型目录不可用时仍允许排队', async () => {
     const user = userEvent.setup()
-    const onSteer = vi.fn(async () => undefined)
+    const onQueueTurn = vi.fn(async () => undefined)
     renderWorkspace(fixtureProps({
       draft: '继续检查',
       sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
       models: [],
       model_runnable: false,
-      onSteer,
+      onQueueTurn,
     }))
 
-    const steer = screen.getByRole('button', { name: 'agent.composer.steer' })
-    expect(steer).toBeEnabled()
+    const queue = screen.getByRole('button', { name: 'agent.composer.queue' })
+    expect(queue).toBeEnabled()
     expect(screen.getByText('Local model')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
-    await user.click(steer)
-    expect(onSteer).toHaveBeenCalledWith('继续检查')
+    await user.click(queue)
+    expect(onQueueTurn).toHaveBeenCalledWith('继续检查', [], undefined)
+  })
+
+  it('排队消息提供编辑、立即执行、删除与继续入口', async () => {
+    const user = userEvent.setup()
+    const onBeginQueuedTurnEdit = vi.fn(async () => undefined)
+    const onSteerQueuedTurn = vi.fn(async () => undefined)
+    const onDeleteQueuedTurn = vi.fn(async () => undefined)
+    const onResumeQueue = vi.fn(async () => undefined)
+    renderWorkspace(fixtureProps({
+      sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
+      queued_turns: [{
+        id: 'queued-1', session_id: 'session-1', client_request_id: 'request-1',
+        queue_sequence: 1, prompt: '检查磁盘空间', model_id: 'model-1', reasoning_level: 'medium',
+        force_context_compression: false, state: 'queued', editing: false, revision: 1,
+        created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z', attachments: [],
+      }],
+      queue_state: { session_id: 'session-1', state: 'paused', revision: 1 },
+      onBeginQueuedTurnEdit,
+      onSteerQueuedTurn,
+      onDeleteQueuedTurn,
+      onResumeQueue,
+    }))
+
+    await user.click(screen.getByRole('button', { name: 'agent.queue.executeNow' }))
+    expect(onSteerQueuedTurn).toHaveBeenCalledWith('queued-1')
+    await user.click(screen.getByRole('button', { name: 'agent.queue.resume' }))
+    expect(onResumeQueue).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: 'agent.queue.actions' }))
+    await user.click(screen.getByRole('menuitem', { name: 'agent.queue.editMessage' }))
+    expect(onBeginQueuedTurnEdit).toHaveBeenCalledWith('queued-1')
+    await user.click(screen.getByRole('button', { name: 'app.delete' }))
+    expect(onDeleteQueuedTurn).toHaveBeenCalledWith('queued-1')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('排队消息仅通过左侧手柄拖动，并按目标行上半区或下半区移动', async () => {
+    const onMoveQueuedTurn = vi.fn(async () => true)
+    const view = renderWorkspace(fixtureProps({
+      queued_turns: [queuedTurn('queued-1', 1), queuedTurn('queued-2', 2), queuedTurn('queued-3', 3)],
+      onMoveQueuedTurn,
+    }))
+    const rows = () => Array.from(view.container.querySelectorAll<HTMLElement>('[data-agent-queued-turn-id]'))
+    const handles = screen.getAllByRole('button', { name: 'agent.queue.reorderMessage' })
+    const transfer = dragDataTransfer()
+
+    expect(handles[0]).toHaveAttribute('draggable', 'true')
+    expect(rows()[0]).not.toHaveAttribute('draggable')
+    vi.spyOn(rows()[0]!, 'getBoundingClientRect').mockReturnValue(domRect(100, 36))
+    fireEvent.dragStart(handles[2]!, { dataTransfer: transfer })
+    fireDragOver(rows()[0]!, 104, transfer)
+    expect(rows()[0]).toHaveAttribute('data-drop-placement', 'before')
+    fireDragOver(rows()[2]!, 104, transfer)
+    expect(rows()[0]).not.toHaveAttribute('data-drop-placement')
+    fireDragOver(rows()[0]!, 104, transfer)
+    fireDrop(rows()[0]!, 104, transfer)
+
+    await waitFor(() => expect(onMoveQueuedTurn).toHaveBeenCalledWith(
+      'queued-3', 'queued-1', 'before',
+    ))
+
+    const nextTransfer = dragDataTransfer()
+    vi.spyOn(rows()[2]!, 'getBoundingClientRect').mockReturnValue(domRect(100, 36))
+    fireEvent.dragStart(handles[0]!, { dataTransfer: nextTransfer })
+    fireDragOver(rows()[2]!, 132, nextTransfer)
+    expect(rows()[2]).toHaveAttribute('data-drop-placement', 'after')
+    fireDrop(rows()[2]!, 132, nextTransfer)
+
+    await waitFor(() => expect(onMoveQueuedTurn).toHaveBeenLastCalledWith(
+      'queued-1', 'queued-3', 'after',
+    ))
+  })
+
+  it('排队消息拖拽期间使用乐观顺序，并在移动未被接受时恢复', async () => {
+    const pending = deferred<boolean>()
+    const onMoveQueuedTurn = vi.fn(() => pending.promise)
+    const view = renderWorkspace(fixtureProps({
+      queued_turns: [queuedTurn('queued-1', 1), queuedTurn('queued-2', 2)],
+      onMoveQueuedTurn,
+    }))
+    const order = () => Array.from(
+      view.container.querySelectorAll<HTMLElement>('[data-agent-queued-turn-id]'),
+      (row) => row.dataset.agentQueuedTurnId,
+    )
+    const rows = Array.from(view.container.querySelectorAll<HTMLElement>('[data-agent-queued-turn-id]'))
+    const transfer = dragDataTransfer()
+    vi.spyOn(rows[1]!, 'getBoundingClientRect').mockReturnValue(domRect(100, 36))
+
+    fireEvent.dragStart(screen.getAllByRole('button', { name: 'agent.queue.reorderMessage' })[0]!, {
+      dataTransfer: transfer,
+    })
+    fireDrop(rows[1]!, 132, transfer)
+
+    await waitFor(() => expect(order()).toEqual(['queued-2', 'queued-1']))
+    await act(async () => pending.resolve(false))
+    await waitFor(() => expect(order()).toEqual(['queued-1', 'queued-2']))
+  })
+
+  it('排队消息支持方向键相邻移动，并在编辑、Steer 或单条队列时禁用排序', async () => {
+    const onMoveQueuedTurn = vi.fn(async () => true)
+    const view = renderWorkspace(fixtureProps({
+      queued_turns: [queuedTurn('queued-1', 1), queuedTurn('queued-2', 2), queuedTurn('queued-3', 3)],
+      onMoveQueuedTurn,
+    }))
+    const handles = screen.getAllByRole('button', { name: 'agent.queue.reorderMessage' })
+
+    fireEvent.keyDown(handles[1]!, { key: 'ArrowUp' })
+    await waitFor(() => expect(onMoveQueuedTurn).toHaveBeenCalledWith(
+      'queued-2', 'queued-1', 'before',
+    ))
+    fireEvent.keyDown(handles[1]!, { key: 'ArrowDown' })
+    await waitFor(() => expect(onMoveQueuedTurn).toHaveBeenLastCalledWith(
+      'queued-2', 'queued-3', 'after',
+    ))
+
+    view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
+      queued_turns: [
+        queuedTurn('queued-1', 1, { editing: true }),
+        queuedTurn('queued-2', 2),
+      ],
+      queued_turn_edit: { turn_id: 'queued-1', text: 'first', retained_attachment_ids: [] },
+      onMoveQueuedTurn,
+    })} /></AntdApp>)
+    for (const handle of screen.getAllByRole('button', { name: 'agent.queue.reorderMessage' })) {
+      expect(handle).toBeDisabled()
+      expect(handle).toHaveAttribute('draggable', 'false')
+      fireEvent.keyDown(handle, { key: 'ArrowDown' })
+    }
+    expect(onMoveQueuedTurn).toHaveBeenCalledTimes(2)
+
+    view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
+      queued_turns: [
+        queuedTurn('queued-1', 1, { interrupt_target_run_id: 'agr-active' }),
+        queuedTurn('queued-2', 2),
+      ],
+      onMoveQueuedTurn,
+    })} /></AntdApp>)
+    for (const handle of screen.getAllByRole('button', { name: 'agent.queue.reorderMessage' })) {
+      expect(handle).toBeDisabled()
+      expect(handle).toHaveAttribute('draggable', 'false')
+    }
+
+    view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
+      queued_turns: [queuedTurn('queued-1', 1)],
+      onMoveQueuedTurn,
+    })} /></AntdApp>)
+    expect(screen.getByRole('button', { name: 'agent.queue.reorderMessage' })).toBeDisabled()
+  })
+
+  it('当前 Run 正在停止时禁用排队消息的立即执行入口', () => {
+    renderWorkspace(fixtureProps({
+      sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'stopping' }],
+      queued_turns: [{
+        id: 'queued-stopping', session_id: 'session-1', client_request_id: 'request-stopping',
+        queue_sequence: 1, prompt: '继续检查', model_id: 'model-1', reasoning_level: 'medium',
+        force_context_compression: false, state: 'queued', editing: false, revision: 1,
+        created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z', attachments: [],
+      }],
+    }))
+
+    expect(screen.getByRole('button', { name: 'agent.queue.executeNow' })).toBeDisabled()
+  })
+
+  it('编辑排队消息时使用原来源并按保留附件总数锁定新增入口', () => {
+    const retained = Array.from({ length: 8 }, (_, index) => attachment({
+      id: `retained-${index}`,
+      original_name: index === 0 ? 'screen.png' : `config-${index}.txt`,
+      kind: index === 0 ? 'image' : 'text',
+    }))
+    const onAttachFiles = vi.fn(async () => undefined)
+    renderWorkspace(fixtureProps({
+      draft_source_context: { kind: 'host_profile', entity_id: 'draft-host', title: '普通草稿来源', summary: 'draft' },
+      queued_turns: [{
+        id: 'queued-edit', session_id: 'session-1', client_request_id: 'request-edit',
+        queue_sequence: 1, prompt: '检查配置', model_id: 'model-1', reasoning_level: 'medium',
+        force_context_compression: false, state: 'queued', editing: true, revision: 2,
+        source_context: { kind: 'host_profile', entity_id: 'queued-host', title: '排队消息来源', summary: 'queued' },
+        created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z', attachments: retained,
+      }],
+      queued_turn_edit: {
+        turn_id: 'queued-edit', text: '检查配置', retained_attachment_ids: retained.map(({ id }) => id),
+      },
+      onAttachFiles,
+    }))
+
+    expect(screen.getByText('排队消息来源')).toBeInTheDocument()
+    expect(screen.queryByText('普通草稿来源')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.attachments.add' })).toBeDisabled()
+    expect(screen.getAllByTitle('screen.png')).toHaveLength(2)
+    const paste = createEvent.paste(screen.getByPlaceholderText('agent.composer.queuePlaceholder'), {
+      clipboardData: { files: [new File(['x'], 'extra.txt', { type: 'text/plain' })], items: [] },
+    })
+    fireEvent(screen.getByPlaceholderText('agent.composer.queuePlaceholder'), paste)
+    expect(paste.defaultPrevented).toBe(false)
+    expect(onAttachFiles).not.toHaveBeenCalled()
+  })
+
+  it('活动 Run 中保存排队消息编辑时锁定编辑框并展示编辑状态', () => {
+    renderWorkspace(fixtureProps({
+      busy: true,
+      sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
+      queued_turns: [{
+        id: 'queued-editing', session_id: 'session-1', client_request_id: 'request-editing',
+        queue_sequence: 1, prompt: '调整检查范围', model_id: 'model-1', reasoning_level: 'medium',
+        force_context_compression: false, state: 'queued', editing: true, revision: 2,
+        created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z', attachments: [],
+      }],
+      queued_turn_edit: {
+        turn_id: 'queued-editing', text: '调整检查范围', retained_attachment_ids: [],
+      },
+    }))
+
+    expect(screen.getByText('agent.queue.editing')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('agent.composer.queuePlaceholder')).toBeDisabled()
+  })
+
+  it('删除会话时提示其中尚未执行的消息数量', async () => {
+    const user = userEvent.setup()
+    const view = renderWorkspace(fixtureProps())
+
+    await user.click(screen.getByRole('button', { name: 'agent.sessions.more' }))
+    await user.click(screen.getByRole('menuitem', { name: 'app.delete' }))
+    view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
+      queued_turn_counts: { 'session-1': 1 },
+      queued_turns: [{
+        id: 'queued-1', session_id: 'session-1', client_request_id: 'request-1',
+        queue_sequence: 1, prompt: '检查磁盘空间', model_id: 'model-1', reasoning_level: 'medium',
+        force_context_compression: false, state: 'queued', editing: false, revision: 1,
+        created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z', attachments: [],
+      }],
+    })} /></AntdApp>)
+
+    expect(screen.getByText('agent.sessions.deleteDescriptionWithQueue')).toBeInTheDocument()
+  })
+
+  it('查看其他会话时仍保护并正确提示队列所属会话', async () => {
+    const user = userEvent.setup()
+    const props = fixtureProps({
+      sessions: [
+        fixtureProps().sessions[0]!,
+        { ...fixtureProps().sessions[0]!, id: 'session-2', title: 'Queued session' },
+      ],
+      queued_turn_counts: { 'session-2': 2 },
+    })
+    renderWorkspace(props)
+
+    const composer = screen.getByPlaceholderText('agent.composer.placeholder')
+    expect(composer).toBeEnabled()
+    fireEvent.change(composer, { target: { value: '只保留为草稿' } })
+    expect(props.onDraftChange).toHaveBeenCalledWith('只保留为草稿')
+    expect(screen.getByRole('button', { name: 'agent.composer.send' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'agent.composer.responseOptions' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'agent.header.returnToQueuedSession' }))
+    expect(props.onSelectSession).toHaveBeenCalledWith('session-2')
+
+    await user.click(screen.getAllByRole('button', { name: 'agent.sessions.more' })[1]!)
+    expect(screen.getByRole('menuitem', { name: 'agent.sessions.archive' })).toHaveAttribute('aria-disabled', 'true')
+    await user.click(screen.getByRole('menuitem', { name: 'app.delete' }))
+
+    expect(screen.getByText('agent.sessions.deleteDescriptionWithQueue')).toBeInTheDocument()
   })
 
   it('模型目录可用但尚未选择时只展示选择提示，不误报模型不可用', () => {
@@ -713,14 +991,14 @@ describe('AgentWorkspace', () => {
       sessions: [{ ...fixtureProps().sessions[0]!, run_status: 'running' }],
       onAttachFiles,
     })} /></AntdApp>)
-    textarea = screen.getByPlaceholderText('agent.composer.steerPlaceholder')
+    textarea = screen.getByPlaceholderText('agent.composer.queuePlaceholder')
     const activePaste = createEvent.paste(textarea, {
       clipboardData: { files: [image], items: [] },
     })
     fireEvent(textarea, activePaste)
 
-    expect(activePaste.defaultPrevented).toBe(false)
-    expect(onAttachFiles).toHaveBeenCalledOnce()
+    expect(activePaste.defaultPrevented).toBe(true)
+    expect(onAttachFiles).toHaveBeenCalledTimes(2)
 
     view.rerender(<AntdApp><AgentWorkspace {...fixtureProps({
       draft_attachments: Array.from({ length: 8 }, (_, index) => ({
@@ -744,7 +1022,7 @@ describe('AgentWorkspace', () => {
     fireEvent(textarea, fullPaste)
 
     expect(fullPaste.defaultPrevented).toBe(false)
-    expect(onAttachFiles).toHaveBeenCalledOnce()
+    expect(onAttachFiles).toHaveBeenCalledTimes(2)
   })
 
   it('不限制 UTF-8 代码扩展名，并在附件删除期间锁定发送与重复删除', () => {
@@ -840,9 +1118,10 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
       skills: [],
       mcp: { connection: 'connected', tool_count: 76, scope_count: 29 },
     },
-    draft: '', draft_attachments: [], supports_images: false, model_runnable: true,
+    draft: '', draft_attachments: [], queued_turns: [], queued_turn_counts: {}, supports_images: false, model_runnable: true,
     show_turn_token_usage: true,
-    loading: false, busy: false, run_blocked: false, resource_run_blocked: false,
+    loading: false, busy: false, queue_busy: false, stop_busy: false,
+    run_blocked: false, resource_run_blocked: false,
     onCreateSession: vi.fn(), onSelectSession: vi.fn(), onReturnToActiveRun: vi.fn(),
     onArchiveSession: vi.fn(), onDeleteSession: vi.fn(),
     onModelChange: vi.fn(), onReasoningChange: vi.fn(), onResetResponseOptions: vi.fn(),
@@ -850,7 +1129,14 @@ function fixtureProps(overrides: Partial<AgentWorkspaceProps> = {}): AgentWorksp
     onSend: vi.fn(async () => undefined),
     onAttachFiles: vi.fn(async () => undefined), onRemoveAttachment: vi.fn(async () => undefined),
     onRetryAttachment: vi.fn(async () => undefined), onLoadAttachmentContent: vi.fn(async () => new Blob()),
-    onSteer: vi.fn(async () => undefined), onStop: vi.fn(async () => undefined),
+    onStop: vi.fn(async () => undefined),
+    onQueueTurn: vi.fn(async () => undefined),
+    onBeginQueuedTurnEdit: vi.fn(async () => undefined), onQueuedTurnEditChange: vi.fn(),
+    onRemoveQueuedTurnEditAttachment: vi.fn(),
+    onSaveQueuedTurnEdit: vi.fn(async () => undefined), onCancelQueuedTurnEdit: vi.fn(async () => undefined),
+    onDeleteQueuedTurn: vi.fn(async () => undefined), onMoveQueuedTurn: vi.fn(async () => true),
+    onSteerQueuedTurn: vi.fn(async () => undefined),
+    onResumeQueue: vi.fn(async () => undefined),
     onContextCompressionPendingChange: vi.fn(), onRetryContext: vi.fn(),
     onRetryUsage: vi.fn(),
     onApprovalModeChange: vi.fn(async () => undefined),
@@ -911,4 +1197,64 @@ function attachment(overrides: Record<string, unknown> = {}) {
     updated_at: '2026-08-29T08:00:00Z',
     ...overrides,
   }
+}
+
+function queuedTurn(
+  id: string,
+  queueSequence: number,
+  overrides: Partial<AgentQueuedTurn> = {},
+): AgentQueuedTurn {
+  return {
+    id,
+    session_id: 'session-1',
+    client_request_id: `request-${id}`,
+    queue_sequence: queueSequence,
+    prompt: id,
+    model_id: 'model-1',
+    reasoning_level: 'medium',
+    force_context_compression: false,
+    state: 'queued',
+    editing: false,
+    revision: 1,
+    created_at: '2026-09-01T00:00:00Z',
+    updated_at: '2026-09-01T00:00:00Z',
+    attachments: [],
+    ...overrides,
+  }
+}
+
+function dragDataTransfer() {
+  const values = new Map<string, string>()
+  return {
+    effectAllowed: 'none',
+    dropEffect: 'none',
+    setData: (type: string, value: string) => values.set(type, value),
+    getData: (type: string) => values.get(type) ?? '',
+    setDragImage: vi.fn(),
+  }
+}
+
+function domRect(top: number, height: number): DOMRect {
+  return {
+    x: 0, y: top, top, bottom: top + height, left: 0, right: 720,
+    width: 720, height, toJSON: () => ({}),
+  }
+}
+
+function fireDragOver(target: HTMLElement, clientY: number, dataTransfer: ReturnType<typeof dragDataTransfer>) {
+  const event = createEvent.dragOver(target, { dataTransfer })
+  Object.defineProperty(event, 'clientY', { configurable: true, value: clientY })
+  fireEvent(target, event)
+}
+
+function fireDrop(target: HTMLElement, clientY: number, dataTransfer: ReturnType<typeof dragDataTransfer>) {
+  const event = createEvent.drop(target, { dataTransfer })
+  Object.defineProperty(event, 'clientY', { configurable: true, value: clientY })
+  fireEvent(target, event)
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((accept) => { resolve = accept })
+  return { promise, resolve }
 }

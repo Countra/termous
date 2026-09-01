@@ -18,6 +18,8 @@ test('Agent Runtime IPC 拒绝非主窗口调用并转发可信请求', async ()
     },
   } as unknown as IpcMain
   const started: unknown[] = []
+  const queuedSteers: unknown[] = []
+  let wakeCount = 0
   const statuses: AgentRuntimeStatus[] = []
   const supervisor = {
     getStatus: () => ({ state: 'ready' as const }),
@@ -27,6 +29,14 @@ test('Agent Runtime IPC 拒绝非主窗口调用并转发可信请求', async ()
     },
     stopRun: async () => ({ accepted: true, status: { state: 'stopping' as const } }),
     steerRun: async () => ({ accepted: true, status: { state: 'running' as const } }),
+    wakeQueue: async () => {
+      wakeCount += 1
+      return { accepted: true, status: { state: 'ready' as const } }
+    },
+    steerQueuedTurn: async (request: unknown) => {
+      queuedSteers.push(request)
+      return { accepted: true, status: { state: 'stopping' as const } }
+    },
     subscribe: (listener: (status: AgentRuntimeStatus) => void) => {
       listener({ state: 'ready' })
       return () => undefined
@@ -49,6 +59,16 @@ test('Agent Runtime IPC 拒绝非主窗口调用并转发可信请求', async ()
 
   await start(trustedEvent, { run_id: 'agr_1', generation: 1 })
   assert.deepEqual(started, [{ run_id: 'agr_1', generation: 1 }])
+  await handlers.get(agentRuntimeIPCChannels.wake)?.(trustedEvent)
+  await handlers.get(agentRuntimeIPCChannels.steerQueuedTurn)?.(trustedEvent, {
+    queued_turn_id: 'agt_1', expected_revision: 1,
+    run_id: 'agr_1', generation: 1, expected_run_revision: 2,
+  })
+  assert.equal(wakeCount, 1)
+  assert.deepEqual(queuedSteers, [{
+    queued_turn_id: 'agt_1', expected_revision: 1,
+    run_id: 'agr_1', generation: 1, expected_run_revision: 2,
+  }])
   assert.deepEqual(statuses, [{ state: 'ready' }])
 
   dispose()
