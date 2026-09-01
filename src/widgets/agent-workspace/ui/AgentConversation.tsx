@@ -2,7 +2,11 @@ import { ArrowDown, Bot, BrainCircuit, ChevronRight, CircleAlert, FileCode2, Ima
 import { Button, Tooltip } from 'antd'
 import { memo, useDeferredValue, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { AgentWorkspaceMessage, AgentWorkspaceRunStatus } from '../model/types.ts'
+import {
+  isActiveAgentRun,
+  type AgentWorkspaceMessage,
+  type AgentWorkspaceRunStatus,
+} from '../model/types.ts'
 import type { AgentAttachment } from '#entities/agent'
 import { AgentAttachmentThumbnail } from './AgentAttachmentThumbnail.tsx'
 import { AgentMarkdown } from './AgentMarkdown.tsx'
@@ -129,6 +133,9 @@ const AgentMessageStack = memo(function AgentMessageStack({
   onLoadAttachmentContent?: (attachment: AgentAttachment, signal?: AbortSignal) => Promise<Blob>
 }) {
   const { t } = useTranslation()
+  const assistantPlaceholderId = currentAssistantPlaceholderId(messages)
+  const hasAssistantPlaceholder = assistantPlaceholderId !== undefined
+  const assistantPlaceholderStatus = isActiveAgentRun(runStatus) ? runStatus : undefined
   return (
     <div className={styles['message-stack']}>
       {messages.map((message) => (
@@ -186,8 +193,11 @@ const AgentMessageStack = memo(function AgentMessageStack({
                 ))}
               </div>
             ) : null}
-            {message.status === 'streaming' && message.parts.length === 0 ? (
-              <span className={styles['streaming-state']}><LoaderCircle size={14} />{t('agent.status.running')}</span>
+            {message.id === assistantPlaceholderId && assistantPlaceholderStatus ? (
+              <span className={styles['streaming-state']}>
+                <LoaderCircle size={14} />
+                {t(`agent.status.${assistantPlaceholderStatus}`)}
+              </span>
             ) : null}
             {message.status === 'failed' || message.status === 'interrupted' || message.status === 'interrupted_by_steer' ? (
               <span className={styles['message-failure']} data-status={message.status}><CircleAlert size={14} />{t(`agent.message.${message.status}`)}</span>
@@ -202,12 +212,23 @@ const AgentMessageStack = memo(function AgentMessageStack({
           ) : null}
         </article>
       ))}
-      {runStatus === 'starting' || runStatus === 'queued' ? (
+      {!hasAssistantPlaceholder && (runStatus === 'starting' || runStatus === 'queued') ? (
         <div className={styles['run-pending']}><LoaderCircle size={14} />{t(`agent.status.${runStatus}`)}</div>
       ) : null}
     </div>
   )
 })
+
+function isEmptyStreamingAssistant(message: AgentWorkspaceMessage) {
+  return message.role === 'assistant'
+    && message.status === 'streaming'
+    && message.parts.length === 0
+}
+
+function currentAssistantPlaceholderId(messages: AgentWorkspaceMessage[]) {
+  const latestMessage = messages[messages.length - 1]
+  return latestMessage && isEmptyStreamingAssistant(latestMessage) ? latestMessage.id : undefined
+}
 
 function latestMessageContentSignature(messages: AgentWorkspaceMessage[]) {
   const message = messages[messages.length - 1]

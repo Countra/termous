@@ -24,6 +24,7 @@ vi.mock('./AgentMarkdown.tsx', () => ({
 
 const animationFrames = new Map<number, FrameRequestCallback>()
 let animationFrameSequence = 0
+const activeRunStatuses = ['queued', 'starting', 'running', 'waiting_approval', 'stopping'] as const
 
 beforeAll(() => {
   vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
@@ -46,6 +47,95 @@ afterAll(() => {
 })
 
 describe('AgentConversation', () => {
+  it.each(activeRunStatuses)(
+    '空 Assistant 占位只展示唯一的 %s Run 状态',
+    (runStatus) => {
+      const placeholder = message('')
+      placeholder.parts = []
+
+      render(
+        <AgentConversation
+          messages={[placeholder]}
+          runStatus={runStatus}
+          loading={false}
+          sessionKey="session-one"
+        />,
+      )
+
+      const status = screen.getAllByText(`agent.status.${runStatus}`)
+      expect(status).toHaveLength(1)
+      expect(status[0]?.closest('article')).not.toBeNull()
+      for (const otherStatus of activeRunStatuses) {
+        if (otherStatus !== runStatus) {
+          expect(screen.queryByText(`agent.status.${otherStatus}`)).not.toBeInTheDocument()
+        }
+      }
+    },
+  )
+
+  it.each(['queued', 'starting'] as const)(
+    'Assistant 占位尚未到达时保留唯一的 %s Run 状态兜底',
+    (runStatus) => {
+      const userMessage = message('为什么？')
+      userMessage.role = 'user'
+      userMessage.status = 'completed'
+
+      render(
+        <AgentConversation
+          messages={[userMessage]}
+          runStatus={runStatus}
+          loading={false}
+          sessionKey="session-one"
+        />,
+      )
+
+      const status = screen.getAllByText(`agent.status.${runStatus}`)
+      expect(status).toHaveLength(1)
+      expect(status[0]?.closest('article')).toBeNull()
+      expect(screen.queryByText('agent.status.running')).not.toBeInTheDocument()
+    },
+  )
+
+  it('Run 已结束时不为延迟更新的空 Assistant 占位伪造运行状态', () => {
+    const placeholder = message('')
+    placeholder.parts = []
+
+    render(
+      <AgentConversation
+        messages={[placeholder]}
+        runStatus="completed"
+        loading={false}
+        sessionKey="session-one"
+      />,
+    )
+
+    expect(screen.queryByText('agent.status.starting')).not.toBeInTheDocument()
+    expect(screen.queryByText('agent.status.running')).not.toBeInTheDocument()
+  })
+
+  it('历史空 Assistant 占位不承接新 Run 状态', () => {
+    const stalePlaceholder = message('')
+    stalePlaceholder.parts = []
+    const latestUserMessage = message('继续分析')
+    latestUserMessage.id = 'message-two'
+    latestUserMessage.role = 'user'
+    latestUserMessage.status = 'completed'
+
+    render(
+      <AgentConversation
+        messages={[stalePlaceholder, latestUserMessage]}
+        runStatus="starting"
+        loading={false}
+        sessionKey="session-one"
+      />,
+    )
+
+    const status = screen.getAllByText('agent.status.starting')
+    expect(status).toHaveLength(1)
+    expect(status[0]?.closest('article')).toBeNull()
+    expect(screen.queryByText('agent.status.running')).not.toBeInTheDocument()
+  })
+
   it('流式内容增长时跟随尾部，用户上滚后停止自动跟随', () => {
     const view = render(
       <AgentConversation messages={[message('short')]} runStatus="running" loading={false} sessionKey="session-one" />,
